@@ -4350,7 +4350,7 @@ replaced it.
 > Builder, User, Kolega, Opatrovník), Buddy, the hosting operator and identifiers
 > such as the handover's `operator` stay. Not changed here: the Launchpad's texts,
 > the CLI help, the tools' installation prompts and code comments. Template revision
-> `base-instructions-59`.
+> `base-instructions-60`.
 
 **Decided by Matěj 2026-10-02.** The Agents' principal is the **Operator** of the
 Environment: whoever controls an Environment controls the Agents they run in it. Agents
@@ -14527,7 +14527,7 @@ rendered-page CI gates.
 > Environment's Files, stored item by item, deleted at once and never printed, the one
 > exception to "never from a file", also to that rule in the tool `bitwarden`'s text,
 > which stays one for every Environment. A personal or public Environment and this
-> computer keep their text; template revision `base-instructions-59`. **Honest
+> computer keep their guidance; template revision `base-instructions-60`. **Honest
 > limits:** the Trezor page shows neither the vault account's address nor whom a vault
 > is for yet. Nothing in Lazurio accepts an invitation: the hosting runs the vault
 > without mail, and then Vaultwarden 1.37.4-lazurio.1 accepts an existing account's
@@ -15077,6 +15077,98 @@ all four combinations, where `POST /api/profile` offers the recorded preset alon
 the shell document says Team, Integrace and Nástroje answer `404` as pages and API, the
 page's entry carries the audience its stylesheet hides their items by, and the recorded
 preset in another language is changed.
+
+### Addendum (3) of 2026-10-20: the agents visitors talk to get their own section
+
+**Decided by Matěj (Organization Admin) on 2026-10-20 for plan DEV-6668 slice 5 (root
+decision 0204's addendum of 2026-10-20, HumanAndMachines/Lazurio#597; the slices table
+of the try-01 preset shaping study).** Once try-01 answers through the Organization's AI,
+visitors talk to agents there. The generated texts told those agents only that the
+Environment is public, has no GitHub identity and publishes nothing (addendum of
+2026-10-17): nothing about who they talk to, what they may show, or the rules of an
+Environment every visitor shares; and the Work or Team preset underneath still tells
+them to send people to Integrace and to sign tools in for the Team. The Try overlay's
+`instructions: "visitors"` was reserved for this section.
+
+1. **One switch.** The section renders where `visitorsOf(machine)`
+   (`src/folder/render.ts`) returns the record, that is where
+   `visitorPreset(machine)?.instructions === "visitors"`: on a public Environment,
+   whatever preset its Folder records (Work or Team), and nowhere else.
+2. **Where.** AGENTS.md gets "## Návštěvníci tohoto Prostředí" / "## Visitors of this
+   Environment" after the identity and boundaries, before the working rules.
+   `manual/this-machine.md` gets the same heading right after the preset's meaning, with
+   "Co můžeš ukázat" / "What you can show" (what each thing is and where the agent
+   checks it) and the same rules. No other file and no new output path. The section
+   takes precedence over every rule around it that says otherwise.
+3. **What it says.**
+   - **What to explain**, plainly and briefly: what Lazurio is; Apps; the Organization's
+     public modules and data, read anonymously; Chat with agents; the Environment
+     browser, only where the entry routes it; the vault, only where this Environment
+     has one, which the agent checks with `lazurio vault status` (the vault core the app
+     reads; the renderer has no vault fact); and how a real Organization works: GitHub
+     decides access, members have their own Work Environments, a Team Environment acts
+     under a brokered identity. Only what exists here; never an invented feature.
+   - **What is not here:** the record's `withheld` areas by name (Integrace and
+     Nastavení → Nástroje), not linked or offered even where another rule mentions them.
+   - **A shared Environment:** everyone who enters shares it and sees what is left here;
+     never ask a visitor for passwords, keys or personal data, never put such data into
+     files.
+   - **Sign nobody in to anything:** a visitor may sign in to their own AI or other
+     account themselves, at their own risk, and signs out after use; GitHub sign-in is
+     not available here.
+   - **Publish nothing:** no push, pull request, issue, e-mail or other outward action;
+     draft work stays only here and may be wiped, since the Environment can be wiped or
+     deployed again at any time.
+   - **The terms:** the record's `notice.terms` and `notice.privacy`, in both languages,
+     the Folder's first; continuing past the entry notice means accepting them, and
+     nothing records it (Q3 (a)).
+   - **Language and voice:** the visitor's language, vykání in Czech; people hear
+     Prostředí (Environment), Organizace and Lazurio, never Mašina, VM or server.
+4. **What it does not say.** No model: the chat's model comes from Codex's
+   configuration and changes with the Organization's pool. No nightly reset: Machines
+   has none, and the published terms say "at any time". No address copied out of the
+   record.
+5. **Template revision `base-instructions-59`.** The section changes bytes on a public
+   Environment only. The revision is one header line of every generated file, so every
+   Folder re-renders on its next refresh or profile change; on an Environment that is
+   not public only that line changes. try-01 gets the section on its next refresh.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A manual file of its own (`manual/visitors.md`) | A new output path in every Folder (the manifest, owned files, journals and the manual index everywhere) for one kind of Environment. Rejected for a section of `this-machine.md`, which already says what the preset and binding mean |
+| Rewrite the other texts of a public Environment (the Integrace section, the Team's shared-sign-in warning, the identity line) instead of one section that takes precedence | Conditional edits across many sections, each one more place to keep in step, while visitors' agents read one section. Rejected for now: see the limits |
+| Name the vault from the handover in the renderer | The binding records no vault, and slice 6 lists Trezor by the vault core; a second reader would drift from it. Rejected for `lazurio vault status` |
+| Copy the terms' addresses into the section's text | A second owner of four addresses. Rejected: rendered from `tryPreset.notice` |
+| Change the bytes under the same revision | Every existing Folder would refuse with `incomplete-state` (#133). Rejected |
+
+**Honest limits.** The section is text, not a boundary: visitors share the account's
+terminal, and an agent can still be talked into an action; publication still cannot
+happen for want of any GitHub identity. The texts underneath still render (the
+Integrace section, the Team's shared-sign-in warning, the identity line's "no personal
+sign-ins belong here"); the section overrides them by precedence instead of removing
+them. Agents read it only after their Folder re-renders. Until slice 6 and the vault
+route of Machines (slice 7) exist, `lazurio vault status` reports no vault on try-01,
+so its agents do not offer one. Browser acceptance waits for S5 on Example (DEV-6674):
+until try-01 answers through the Organization's AI, no agent there reads this section.
+
+Verified by `tests/try-visitor-instructions.test.ts` (the exact section in both
+languages as a snapshot; on try-01 recorded as Work and as Team, without and with its
+vault, in both languages: the section once in AGENTS.md and once in
+`manual/this-machine.md`, the same in all four, the record's terms and privacy pages in
+both languages with the Folder's first, the GitHub, sign-out, sign-nobody-in, shared,
+publish, withheld and language sentences, no model and no "Lazurio for GitHub" in it,
+no generated file with a nightly claim or a model name; its place in both files; the
+same bytes without and with the vault; no browser item without the Environment
+browser; no section on the four controls or on try-01's handover without the audience;
+and on a real Folder, try-01 recorded as Work and as Team, rendered by
+`base-instructions-58` without the section, gets it on the next refresh, byte for byte
+what this product renders from the Folder's record, and a second refresh is
+unchanged), `tests/try-overlay-preset.test.ts` (the goldens hash every file with its
+revision masked, re-recorded in this change's first commit from `origin/main`'s `src/`:
+the four controls' generated files are unchanged but for the revision, and try-01's
+are unchanged once the section is taken out), `tests/environment-wording.test.ts`
+(try-01's texts on both recorded presets) and `tests/folder-template-revision.test.ts`
+(the new revision's digest, try-01 on both recorded presets added to its compositions).
 
 ## F56 — Průvodce: Buddy nebo průvodce Lazuria vysvětlí stránku na místě, kreslí shell hostitele, rám Buddyho smí jen požádat id
 
@@ -16109,7 +16201,10 @@ build` / `vite build` writes. Measured on the reference Environment: an Astro mo
    `<path>`, `<path>.html`, `<path>/index.html` (a directory without its slash
    redirects), keeps `/_astro/` and `/assets/` a year (`immutable`) and revalidates HTML
    (`no-cache`, ETag), serves a missing asset from the previous build (a page opened
-   before a swap) and exits 0 on SIGTERM. **How it ships:** its text is embedded in the
+   before a swap) and exits 0 on SIGTERM. **Which build it serves** is the record of
+   what the app serves (`served.json` beside its builds: `key`, `previous`), which it
+   reads at its start and again, before a request, whenever the file is another one;
+   the Platform only ever replaces that record whole, by a rename. **How it ships:** its text is embedded in the
    Platform and written once per version beside the cache, run by the operator's Bun
    with an empty Bun configuration (an app's `bunfig.toml` never configures it).
    Measured idle on macOS ARM64: this script 15 MiB RSS (healthy in 40 ms); the same
@@ -16125,8 +16220,16 @@ build` / `vite build` writes. Measured on the reference Environment: an Astro mo
    when
    the checkout moved past the newest build, that build is served now, the new commit
    builds in the background and the app is swapped onto it when it is built. **A swap**
-   stops the static server and starts it on the new build, a gap of milliseconds; it
-   also moves an app running its development script from before builds existed. A build
+   is the Platform replacing the record of what the app serves: the running static
+   server keeps its process and its listener and serves the new build from its next
+   request, so no connection is refused (amended 2026-10-20, #560: the swap used to
+   stop and start the server, which on macOS refused connections for about 2 s). A
+   built run carries the digest of its serving declaration only (identity, listeners,
+   fallback), so a pull that changes only the package (a dependency, its version)
+   leaves it current. The process is restarted only where it must change: an app that
+   runs its development script from before builds existed (moved onto its build once),
+   a static server whose serving declaration changed (its address, health path or
+   fallback), and one started by a release before this record (it does not read it). A build
    that fails is recorded with its reason and log (`build-script-failed`,
    `build-timed-out`, `build-output-missing`, `build-output-unservable`, or the
    start-time step's reason), the previous build keeps being served, and the same key is
@@ -16138,7 +16241,8 @@ build` / `vite build` writes. Measured on the reference Environment: an Astro mo
    silent dev fallback.**
 7. **After a pull** (`src/modules/built/watcher.ts`, started by the Launchpad as
    `modules.keepBuilt()`): inside the Launchpad's own process (no daemon, F8) it
-   watches the Git directories (`HEAD` and `packed-refs` in the Git directory, and
+   watches, from an app's first built start on (amended 2026-10-20, #559: not only from
+   the next sweep), the Git directories (`HEAD` and `packed-refs` in the Git directory, and
    `refs/heads/`) of every checkout a built app's key includes (the module's, its data
    mount's and its required slots'), waits for 5 s of quiet per app
    and then refreshes it: a background build when the key moved (nothing when it is
@@ -16203,7 +16307,9 @@ root decision 0195 point 19 asks; that check lives in the root repository.
 | Build in place, serve the checkout's `dist/` | A build empties what is served, a failed build leaves nothing, no previous build for a page opened before; rejected |
 | Serve built apps from the Launchpad's own process | No process at all, but a product update or Launchpad restart takes every app down (F8) and the runner's identity and health evidence are bypassed; rejected |
 | The static server as a `lazurio` subcommand | 55–70 MiB RSS each (the whole compiled Platform); rejected for the 15 MiB script |
-| Swap by a `current` link the server follows, without a restart | No gap, but a changed declaration (listener, health, fallback) needs a restart anyway: two mechanisms for one change; rejected for one restart of milliseconds |
+| Swap by stopping and starting the static server | The first implementation; measured on macOS it refuses connections for about 2 s (the session runner confirms the old process group gone, then the new one's listener and health). Replaced on 2026-10-20 (#560) |
+| Swap by the record the server re-reads (`served.json`), no restart | Selected (#560): one process, one listener, zero refused connections, the same on every runner; a built run's digest covers only its serving declaration, so only a change of that (rare) restarts it |
+| Start a second server on the same port with `reusePort`, then stop the old one | Works at the socket level on macOS (both accept while up), but the runner owns one process per app and refuses a port already bound, so it needs a second identity per app in both runners; on Linux a closing `SO_REUSEPORT` socket resets the connections queued on it. Rejected |
 | Key by the module commit only (the brief) | Misses a pull of the module's data repository or a required slot; amended, point 2 |
 | A watcher daemon, or one systemd path unit per checkout | F8 forbids a Lazurio daemon; path units are per checkout to install and remove; rejected for the Launchpad's watch and sweep (point 7) |
 
@@ -16219,7 +16325,8 @@ served). macOS bounds a build by nice and its deadline only (no control group).
 
 **Verified by** `tests/module-runtime.test.ts` (the declaration),
 `tests/built-static-server.test.ts` (resolution, headers, the previous build's assets,
-the written-out script as a process: healthy, SIGTERM exit 0, `--check`),
+the written-out script as a process: healthy, SIGTERM exit 0, `--check`, and a swap by
+its record probed every 20 ms with no request refused),
 `tests/built-builds.test.ts` (the key, the whole install, current/previous kept and the
 rest removed, one build at a time with the waiting person first and joins, a pull during
 a build, a failure kept and not retried by itself, another process's lock, shutdown, a
@@ -16235,13 +16342,19 @@ module build`, an app without `build_output` unchanged, `ensure` answering
 `ensure`, two apps competing for the one build with the waiting one answering
 `build-pending`, a development run from before builds moved onto a build by the first
 sweep that could read the catalog and name the app, a commit built and swapped in by the Launchpad
-without any request, and a data-only pull rebuilt and swapped by the watch of the data
-repository). End to end on
+without any request, a data-only pull rebuilt and swapped by the watch of the data
+repository, a swap of a pull that also changed the package probed every 20 ms with no
+request refused and the same healthy run afterwards (#560; the former stop-and-start
+swap refused 78 probes in this test), and an app first opened after the Launchpad
+started rebuilt and swapped after the quiet, not at the next sweep (#559)). End to end on
 macOS ARM64 with a copy of the reference Organization's Astro knowledgebase in a fixture
 Folder (session runner): its development start healthy in 10.4 s holding 290 MiB; its
 first built open 13.2 s including the build; a later built open 0.4 s holding 16 MiB; a
 pull served the old build until the new one swapped in 9.9 s later; a broken commit
 answered `build-script-failed` with its log while the previous build stayed healthy.
 **Honest limits:** not yet on the hosted Linux reference Environment (systemd unit
-bounds, PSS) and not yet after a real `lazurio update`; the root decision's measurement
+bounds, PSS) and not yet after a real `lazurio update`. The swap involves no process,
+unit or socket on any runner (a `rename(2)` of the record in its own directory and a
+`stat` before each request), so its zero refused connections hold on Linux by
+construction, measured on macOS only; the root decision's measurement
 before and after (point 20) belongs to the plan.

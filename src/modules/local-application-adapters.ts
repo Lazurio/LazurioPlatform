@@ -261,13 +261,10 @@ export function localApplicationAdapters(input: {
                 "--no-env-file",
                 `--config=${files.config}`,
                 files.script,
-                "--root",
-                serve.root,
+                "--served",
+                serve.served,
                 "--fallback",
                 built.fallback,
-                ...(serve.previous === undefined
-                  ? []
-                  : ["--previous", serve.previous]),
               ],
               env: {
                 ...applicationEnvironment({

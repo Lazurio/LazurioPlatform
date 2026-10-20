@@ -1231,33 +1231,43 @@ export function createModuleOperations(input: {
     );
   }
 
-  // The output a built start serves: the newest build there is, and the
-  // output of the build served before it, for the assets of pages opened
-  // before (decision F58).
-  async function servedOutputs(
+  // What a built start or a swap serves (decision F58): the newest build,
+  // and the build served before it, whose assets the pages opened before
+  // still ask for.
+  async function servedRecord(
     store: ReturnType<typeof storeOf>,
-    root: Readonly<{ record: BuildRecord; output: string }>,
+    record: BuildRecord,
   ) {
     const [state, served] = await Promise.all([store.state(), store.served()]);
     const earlier =
       served?.mode === "built" &&
       served.key !== null &&
-      served.key !== root.record.key
+      served.key !== record.key
         ? served.key
-        : state?.previous?.key !== root.record.key
+        : state?.previous?.key !== record.key
           ? (state?.previous?.key ?? null)
           : null;
-    const previous = earlier === null ? null : await store.output(earlier);
+    const previous =
+      earlier !== null && (await store.output(earlier)) !== null
+        ? earlier
+        : null;
     return Object.freeze({
-      root: root.output,
-      ...(previous === null ? {} : { previous }),
+      mode: "built" as const,
+      key: record.key,
+      commit: record.commit,
+      previous,
     });
   }
 
-  // Swap a running built app onto a newer build (decision F58): stop it and
-  // start the new build's static server, an interruption of milliseconds.
-  // Also an app that runs its development script from before builds
-  // existed; never one started explicitly as its development version.
+  // Swap a running built app onto a newer build (decision F58): the record
+  // of what it serves is replaced, and its static server serves the new
+  // build from its next request, with no restart and no refused connection.
+  // A restart only where the process itself must change: an app that runs
+  // its development script from before builds existed (moved onto its
+  // build), a static server whose serving declaration changed (its
+  // address, health path or fallback), or one whose record has no
+  // `previous` (written by a release whose server does not read it). Never
+  // an app started explicitly as its development version.
   async function swap(
     prepared: Prepared,
     plan: Plan,
@@ -1272,19 +1282,17 @@ export function createModuleOperations(input: {
       if (served?.mode === "dev") return;
       if (
         served?.mode === "built" &&
-        served.key === built.record.key &&
+        served.previous !== undefined &&
         !("declarationChanged" in status)
-      )
+      ) {
+        if (served.key !== built.record.key)
+          await store.writeServed(await servedRecord(store, built.record));
         return;
-      const outputs = await servedOutputs(store, built);
+      }
+      const record = await servedRecord(store, built.record);
       if ((await lifecycle.stop(selection)).kind !== "group-stopped") return;
-      const started = await lifecycle.start(selection, outputs);
-      if (started.kind === "started")
-        await store.writeServed({
-          mode: "built",
-          key: built.record.key,
-          commit: built.record.commit,
-        });
+      await store.writeServed(record);
+      await lifecycle.start(selection, { served: store.servedFile });
     });
   }
 
@@ -1363,7 +1371,9 @@ export function createModuleOperations(input: {
       }
     }
     const apps: WatchedApp[] = [];
-    watched.clear();
+    // Never cleared: an app a start adds while this sweep reads (#559) keeps
+    // its entry; an entry this sweep reads is replaced, and one of an app no
+    // longer watched is never looked up.
     for (const [key, recorded] of names) {
       const [name, app] = key.split("\0") as [string, string];
       // An app of the move that cannot be named or read now keeps the move
@@ -1404,6 +1414,17 @@ export function createModuleOperations(input: {
     return apps;
   }
   let keeper: BuildWatcher | undefined;
+  // An app that runs built is watched at once, not from the next sweep
+  // (#559): the Launchpad's watch of the Git directories its build reads.
+  async function keepWatching(prepared: Prepared, plan: Plan) {
+    if (keeper === undefined) return;
+    const directory = storeOf(prepared.target, plan).directory;
+    watched.set(directory, { prepared, plan });
+    keeper.add({
+      id: directory,
+      gitDirectories: await gitDirectoriesOf(prepared.target, plan),
+    });
+  }
 
   // A built start: the newest build there is now, built first when there
   // is none (the person waits for it; a long one is answered
@@ -1432,22 +1453,28 @@ export function createModuleOperations(input: {
       record = outcome.record;
       output = outcome.output;
     }
-    const built = Object.freeze({ record, output });
-    const outputs = await servedOutputs(store, built);
+    const newest = record;
     return operate("start", kind, target, async (lifecycle) => {
-      const started = await lifecycle.start(selection, outputs);
+      // The record its static server reads at its start, written only when
+      // nothing runs: a running app is answered as it runs (a swap moves a
+      // running one).
+      const status = await lifecycle.status(selection);
+      if (
+        status.kind === "not-managed" ||
+        (status.kind === "status" && status.state === "ended")
+      )
+        await store.writeServed(await servedRecord(store, newest));
+      const started = await lifecycle.start(selection, {
+        served: store.servedFile,
+      });
       if (started.kind !== "started" && started.kind !== "already-managed")
         return blocked("start", started.kind, {
           organization: target.organization,
           module: target.module,
           app: target.app,
         });
-      if (started.kind === "started")
-        await store.writeServed({
-          mode: "built",
-          key: built.record.key,
-          commit: built.record.commit,
-        });
+      // Watched from now on, not from the next sweep (#559).
+      await keepWatching(prepared, plan);
       const answer = await observe(
         "start",
         started.kind,
@@ -1671,6 +1698,7 @@ export function createModuleOperations(input: {
           mode: "dev",
           key: null,
           commit: null,
+          previous: null,
         });
       if (started.kind !== "started" && started.kind !== "already-managed")
         return blocked("start", started.kind, {

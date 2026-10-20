@@ -6,6 +6,7 @@ import { renderOutputs } from "../src/folder/preview";
 import { instructionTemplateRevision } from "../src/folder/render";
 import { activatableTools } from "../src/tools/catalog";
 import { bindings } from "./fixtures/machine-bindings";
+import { tryBinding } from "./fixtures/try-environments";
 
 // The template revision names the bytes of the generated Folder (decision
 // F14). A Folder records the revision and the digests of what it rendered;
@@ -21,8 +22,8 @@ import { bindings } from "./fixtures/machine-bindings";
 // `bun test -u` does not touch it. The fixtures in `tests/fixtures` feed the
 // compositions too.
 const pinned = {
-  revision: "base-instructions-59",
-  digest: "34dc5fb4550d3a435e8d6314c9da484249c6f726eca28f72eb7e6b845f595d43",
+  revision: "base-instructions-60",
+  digest: "d11e8a9813ecaf875914eaade36b22890f1f0ba8d4b4ab191c5116ff6dc23288",
 } as const;
 
 const optionalTools = activatableTools()
@@ -96,6 +97,15 @@ const environments = [
   {
     preset: "hosted-organization-personal",
     machine: bindings.organizationPublic,
+    os: "linux",
+  },
+  // try-01, the public Environment for visitors (plan DEV-6668 slice 5,
+  // F55's addendum of 2026-10-20 (3)): the visitors' section with the
+  // Environment browser, its Folder recorded as Team and as Work.
+  { preset: "hosted-organization-team", machine: tryBinding(), os: "linux" },
+  {
+    preset: "hosted-organization-personal",
+    machine: tryBinding(),
     os: "linux",
   },
   // With the Organization's settings (root decision 0194, F45): a tool it does

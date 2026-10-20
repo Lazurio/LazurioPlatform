@@ -33,6 +33,9 @@ import {
   type ToolEnvironment,
   toolEnvironmentOf,
   toolLines,
+  visitorsHeading,
+  visitorsOf,
+  visitorsRules,
 } from "./render";
 
 // The agent manual shipped with the product (decision F14): complete for an
@@ -1642,6 +1645,72 @@ const publicMeaning: Text = t(
   "This Environment, though, is public (root decision 0204): its visitors share it and it has no GitHub identity, neither a brokered nor a personal one. It reads the Organization's public repositories anonymously and nothing is published from here.",
 );
 
+// The visitors' section of a public Environment in its full form (plan
+// DEV-6668 slice 5, decision F55's addendum of 2026-10-20 (3)): what each
+// thing a visitor's agent may show is and where the agent checks it, then
+// the same rules as AGENTS.md. Nothing where the Try overlay preset does not
+// name it.
+export function visitorsChapter(
+  machine: MachineBinding | null,
+): readonly Text[] {
+  const visitor = visitorsOf(machine);
+  if (visitor === null) return [];
+  const browser = machine?.entry?.browserOrigin !== undefined;
+  return [
+    blank,
+    t(`## ${visitorsHeading.cs}`, `## ${visitorsHeading.en}`),
+    t(
+      "Toto Prostředí je veřejné (root decision 0204): kdokoli s Lazurio účtem sem přijde vyzkoušet Lazurio a agenti tu mluví s návštěvníky. Tento oddíl má přednost před každým pravidlem tohoto manuálu, které říká něco jiného.",
+      "This Environment is public (root decision 0204): anyone with a Lazurio account comes here to try Lazurio, and agents here talk to visitors. This section takes precedence over any rule of this manual that says otherwise.",
+    ),
+    blank,
+    t("### Co můžeš ukázat", "### What you can show"),
+    t(
+      "Vysvětluj prostě a stručně a ukazuj jen to, co tu opravdu je; funkce si nevymýšlej. Když si nejsi jistý, nejdřív to ověř.",
+      "Explain plainly and briefly and show only what really exists here; never invent a feature. When you are not sure, check first.",
+    ),
+    blank,
+    t(
+      "- **Lazurio:** sdílený rámec, ve kterém lidé a agenti společně pracují na práci Organizace (`manual/lazurio.md`); řekni to obyčejnými slovy.",
+      "- **Lazurio:** the shared framework in which people and agents work together on an Organization's work (`manual/lazurio.md`); say it in plain words.",
+    ),
+    t(
+      "- **Apps:** aplikace modulů této Organizace, které se otevírají v Lazuriu. Odkaz na aplikaci modulu ber z jeho `runtime.url` (`manual/troubleshooting.md`).",
+      "- **Apps:** the applications of this Organization's modules, opened in Lazurio. Take a module's link from its `runtime.url` (`manual/troubleshooting.md`).",
+    ),
+    t(
+      "- **Moduly a data Organizace:** její veřejné repozitáře jsou tu naklonované anonymně, bez identity GitHubu (`lazurio module list <Org> --json`). Návštěvník si jejich moduly a data může prohlédnout a vyzkoušet; změny v nich zůstávají tady.",
+      "- **The Organization's modules and data:** its public repositories are cloned here anonymously, with no GitHub identity (`lazurio module list <Org> --json`). A visitor can look at and try their modules and data; changes to them stay here.",
+    ),
+    t(
+      "- **Chat:** práce s agenty, jako jsi ty, ve vláknech.",
+      "- **Chat:** working with agents like you, in threads.",
+    ),
+    ...(browser
+      ? [
+          t(
+            "- **Prohlížeč Prostředí:** jeden sdílený prohlížeč, ve kterém agent i návštěvník pracují ve stejné záložce (oddíl Prohlížeč Environmentu níž).",
+            "- **The Environment browser:** one shared browser in which an agent and a visitor work in the same tab (section The Environment browser below).",
+          ),
+        ]
+      : []),
+    t(
+      "- **Trezor:** jen pokud ho toto Prostředí má. Ověř to příkazem `lazurio vault status`; když hlásí, že trezor není dostupný, tady žádný není a nenabízej ho.",
+      "- **The Vault:** only where this Environment has one. Check with `lazurio vault status`; when it reports that the vault is not available, there is none here, so do not offer it.",
+    ),
+    t(
+      "- **Jak funguje skutečná Organizace:** přístupy určuje GitHub (členství, Teamy, práva k repozitářům). Každý člen má vlastní Pracovní Prostředí, ve kterém agenti jednají jeho jménem a v jeho právech. Týmové Prostředí sdílí Team a na GitHubu jedná pod brokerovanou identitou Organizace, takže jeho změny publikuje jmenovaný člověk. Tady to jen popisuješ; nic z toho v tomto Prostředí není.",
+      "- **How a real Organization works:** GitHub decides access (membership, Teams, repository rights). Every member has their own Work Environment, where agents act for them within their rights. A Team Environment is shared by a Team and acts on GitHub under the Organization's brokered identity, so a named person publishes its changes. Here you only describe it; none of it is in this Environment.",
+    ),
+    blank,
+    t(
+      "### Pravidla sdíleného Prostředí",
+      "### The rules of a shared Environment",
+    ),
+    ...visitorsRules(visitor),
+  ];
+}
+
 // What the Team preset means on the services Environment of a server,
 // Služby serveru (root decision 0209), which takes it for its GitHub identity
 // and Publication: who enters it, who the Operator is and how people name it.
@@ -2366,6 +2435,7 @@ function thisMachine(source: InstructionSource): string {
       ...(preset === "hosted-organization-team" && isServerServices(machine)
         ? [servicesMeaning]
         : []),
+      ...visitorsChapter(machine),
       blank,
       t(
         "## Zóny: co kam smí (decision 0155)",

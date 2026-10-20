@@ -134,14 +134,21 @@ export type BuildState = Readonly<{
   failure: BuildFailure | null;
 }>;
 
-/** Written by every start of a static app that started (decision F58); an
- * app that runs without one was started before builds existed. */
+/** What a static app serves (decision F58): written before a built start
+ * and at every swap, which its static server reads (the server serves `key`
+ * and, for the assets of pages opened before, `previous`), and after a
+ * start of its development version. An app that runs without one was
+ * started before builds existed. Always replaced whole, by a rename. */
 export type ServedState = Readonly<{
   schema_version: typeof servedSchema;
   mode: "built" | "dev";
-  /** The build a built start serves, and the module's commit of it. */
+  /** The build served, and the module's commit of it. */
   key: string | null;
   commit: string | null;
+  /** The build served before it, kept for its assets. Absent in a record
+   * of a static server that does not read this record (one started before
+   * swaps replaced it): such a server is restarted onto a new build. */
+  previous?: string | null;
   at: string;
 }>;
 
@@ -261,6 +268,8 @@ export function openBuildStore(directory: string) {
   };
   return Object.freeze({
     directory,
+    /** The record the static server reads. */
+    servedFile: servedPath,
     async state(): Promise<BuildState | null> {
       return parseState(await readJson(statePath));
     },
@@ -301,7 +310,11 @@ export function openBuildStore(directory: string) {
     async clearQueued() {
       await rm(queuedPath, { force: true });
     },
-    async writeServed(served: Omit<ServedState, "schema_version" | "at">) {
+    async writeServed(
+      served: Omit<ServedState, "schema_version" | "at" | "previous"> & {
+        previous: string | null;
+      },
+    ) {
       await ensure();
       await writeJson(servedPath, {
         schema_version: servedSchema,

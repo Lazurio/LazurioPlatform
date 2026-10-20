@@ -4,7 +4,11 @@ import { join } from "node:path";
 import { words as browserWords } from "../src/browser/people/words";
 import { renderManual } from "../src/folder/manual";
 import { presetNames, presetProfile } from "../src/folder/presets";
-import { environmentWording, renderInstructions } from "../src/folder/render";
+import {
+  environmentWording,
+  renderInstructions,
+  visitorsWording,
+} from "../src/folder/render";
 import { messages } from "../src/launchpad/messages";
 import { newTabCopy } from "../src/launchpad/new-tab-view";
 import { shellEnvironmentKinds } from "../src/shell/contract";
@@ -17,6 +21,7 @@ import {
   toolPrompt,
 } from "../src/tools/catalog";
 import { bindings } from "./fixtures/machine-bindings";
+import { tryBinding } from "./fixtures/try-environments";
 
 // Decision F28: towards people the place they work in is the Environment,
 // and a hosted one a Remote Environment. What people read in the Launchpad
@@ -41,6 +46,15 @@ const allowlist: readonly [string, (text: string) => string][] = [
       text
         .replaceAll(environmentWording.cs, "")
         .replaceAll(environmentWording.en, ""),
+  ],
+  // The visitors' section of a public Environment repeats the rule for the
+  // agents visitors talk to (plan DEV-6668 slice 5) and names the same words.
+  [
+    "the visitors' wording line",
+    (text) =>
+      text
+        .replaceAll(visitorsWording.cs, "")
+        .replaceAll(visitorsWording.en, ""),
   ],
   // Commands, paths, identifiers, JSON keys and schema names are technical
   // and are quoted as code: `lazurio machine inspect`, `manual/this-machine.md`,
@@ -141,6 +155,10 @@ const journeys = [
   ["hosted-organization-personal", bindings.organizationEntry],
   ["hosted-organization-team", bindings.team],
   ["hosted-organization-steward", bindings.automated],
+  // try-01, a public Environment with its visitors' section (plan DEV-6668
+  // slice 5), its Folder recorded as Team and as Work.
+  ["hosted-organization-team", tryBinding()],
+  ["hosted-organization-personal", tryBinding()],
 ] as const;
 
 test("the generated Folder instructions and manual say Environment towards people and carry the rule", () => {
