@@ -144,13 +144,17 @@ export async function listTabs(
 }
 
 /** A new remote tab at `url` for `strip` (F47 points 3 and 6): its id. The
- * hub refuses an address its address bar may not open (`invalid-request`). */
+ * hub refuses an address its address bar may not open (`invalid-request`).
+ * A tab of the strip that shows the page already is that tab (decision F57,
+ * 200 with `reused`), and the answer says so. */
 export async function openTab(
   entry: BrowserEntry,
   url: string,
   strip: string | null,
   timeoutMs: number = hubCalls.openTimeoutMs,
-): Promise<Readonly<{ kind: "opened"; tab: string }> | HubRefusal> {
+): Promise<
+  Readonly<{ kind: "opened"; tab: string; reused?: true }> | HubRefusal
+> {
   const answer = await ask(
     entry,
     hubTabsPath,
@@ -161,8 +165,15 @@ export async function openTab(
   );
   if (answer?.status === 400) return refused("invalid-request");
   const tab = targetIdOf(isRecord(answer?.value) ? answer.value.id : undefined);
-  if (answer?.status !== 201 || tab === null) return refused("hub-unreachable");
-  return Object.freeze({ kind: "opened", tab });
+  const reused =
+    answer?.status === 200 &&
+    isRecord(answer.value) &&
+    answer.value.reused === true;
+  if ((answer?.status !== 201 && !reused) || tab === null)
+    return refused("hub-unreachable");
+  return Object.freeze(
+    reused ? { kind: "opened", tab, reused: true } : { kind: "opened", tab },
+  );
 }
 
 /** Closes a tab for everyone after the grace of Vrátit (F47 point 6): when

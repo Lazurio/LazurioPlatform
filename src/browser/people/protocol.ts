@@ -46,7 +46,9 @@ export type ClientMessage =
    * (a pop-up shown over the page keeps the size its opener asked for).
    * Without `picture` (a page from before the choice) the viewer is
    * Standard. `acks` true: the page acknowledges every frame it is done
-   * with (`ack`); without it (a page from before) it never does. */
+   * with (`ack`); without it (a page from before) it never does. `visible`
+   * false: the page is hidden in the person's browser (decision F57); a
+   * page from before never says it and counts as shown. */
   | Readonly<{
       t: "hello";
       width: number;
@@ -55,10 +57,14 @@ export type ClientMessage =
       resize: boolean;
       picture?: Picture;
       acks?: boolean;
+      visible?: boolean;
     }>
   | Readonly<{ t: "size"; width: number; height: number; dpr: number }>
   /** The person chose another picture quality in the bar. */
   | Readonly<{ t: "picture"; picture: Picture }>
+  /** The page became hidden or shown in the person's browser (the Page
+   * Visibility API, decision F57): only a shown page keeps its tab awake. */
+  | Readonly<{ t: "visible"; visible: boolean }>
   /** The page is done with every frame up to this one (`FrameHeader.seq`):
    * it drew it, or never will (it could not decode it, or a newer one took
    * its place while it waited). */
@@ -257,13 +263,16 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return size() &&
         typeof m.resize === "boolean" &&
         (m.picture === undefined || picture(m.picture)) &&
-        (m.acks === undefined || typeof m.acks === "boolean")
+        (m.acks === undefined || typeof m.acks === "boolean") &&
+        (m.visible === undefined || typeof m.visible === "boolean")
         ? (m as ClientMessage)
         : null;
     case "size":
       return size() ? (m as ClientMessage) : null;
     case "picture":
       return picture(m.picture) ? (m as ClientMessage) : null;
+    case "visible":
+      return typeof m.visible === "boolean" ? (m as ClientMessage) : null;
     case "ack":
       return frameNumber(m.frame) ? (m as ClientMessage) : null;
     case "mouse":

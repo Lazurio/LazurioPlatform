@@ -131,6 +131,8 @@ export type RequestDecision =
   | Readonly<{ kind: "open" }>
   | Readonly<{ kind: "close"; targetId: string }>
   | Readonly<{ kind: "restore"; targetId: string }>
+  | Readonly<{ kind: "sleep"; targetId: string }>
+  | Readonly<{ kind: "wake"; targetId: string }>
   | Readonly<{ kind: "refused"; status: number; error: string }>;
 
 /** What a request is, after the Host and Origin checks (F39 point 8).
@@ -332,10 +334,14 @@ export function startViewService(options: ViewServiceOptions): ViewService {
             (strip !== null && !isStrip(strip))
           )
             return json({ error: "invalid-request" }, 400);
-          const id = await hub.openTab(url, strip);
-          return id === null
-            ? json({ error: "browser-unreachable" }, 503)
-            : json({ id, view: browserViewUrl(options.origin, id) }, 201);
+          const opened = await hub.openTab(url, strip);
+          if (opened === null)
+            return json({ error: "browser-unreachable" }, 503);
+          const view = browserViewUrl(options.origin, opened.id);
+          // A tab of the strip that shows the page already (decision F57).
+          return opened.reused
+            ? json({ id: opened.id, view, reused: true }, 200)
+            : json({ id: opened.id, view }, 201);
         }
         case "close": {
           // While the hub does not know the browser's targets it changes
@@ -353,6 +359,25 @@ export function startViewService(options: ViewServiceOptions): ViewService {
           return hub.restore(decision.targetId)
             ? json({ restored: true })
             : json({ error: "nothing-to-restore" }, 409);
+        case "sleep": {
+          // Uspat (decision F57): never a tab someone views or an agent
+          // works in; 409 says why it stays awake.
+          if (!hub.ready) return json({ error: "browser-unreachable" }, 503);
+          const outcome = await hub.sleepTab(decision.targetId);
+          return outcome.kind === "asleep"
+            ? json({ sleeping: true })
+            : outcome.kind === "not-found"
+              ? json({ error: "not-found" }, 404)
+              : json({ error: outcome.reason }, 409);
+        }
+        case "wake":
+          // Probudit (decision F57).
+          if (!hub.ready) return json({ error: "browser-unreachable" }, 503);
+          if (!hub.hasTab(decision.targetId))
+            return json({ error: "not-found" }, 404);
+          return (await hub.wakeTab(decision.targetId))
+            ? json({ awake: true })
+            : json({ error: "browser-unreachable" }, 503);
         case "live": {
           // Upgraded even for a tab that is gone: the page can read a
           // message, not the status of a refused handshake (`open`).

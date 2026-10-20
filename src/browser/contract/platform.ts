@@ -17,21 +17,24 @@ const isRecord = (value: unknown): value is Data =>
 // ---- The hub's loopback requests (C11) ----------------------------------------
 
 /** The list of tabs (`GET`, `?heap=1` with each tab's heap) and a new tab
- * (`POST {url, strip?}` → 201 `{id, view}`), on the view service's loopback
- * port only, from a caller that names no `Origin` and no `Sec-Fetch-Site`
- * (F47 point 6). */
+ * (`POST {url, strip?}` → 201 `{id, view}`, or 200 `{id, view, reused:
+ * true}` for a tab of the same strip that shows the address already,
+ * decision F57), on the view service's loopback port only, from a caller
+ * that names no `Origin` and no `Sec-Fetch-Site` (F47 point 6). */
 export const hubTabsPath = "/.lazurio/tabs";
 
-/** A close for everyone (→ 202 `{closing}`) or Vrátit (→ `{restored: true}`)
- * of one tab. */
-export type HubTabAction = "close" | "restore";
+/** A close for everyone (→ 202 `{closing}`), Vrátit (→ `{restored: true}`),
+ * Uspat (→ `{sleeping: true}`, or 409 with why the tab stays awake) or
+ * Probudit (→ `{awake: true}`) of one tab (decision F57). */
+export type HubTabAction = "close" | "restore" | "sleep" | "wake";
 
 /** The path of a tab's action, `/.lazurio/tabs/<id>/<action>`. */
 export function hubTabPath(tab: string, action: HubTabAction): string {
   return `${hubTabsPath}/${tab}/${action}`;
 }
 
-const hubPathPattern = /^\/\.lazurio\/tabs(?:\/([^/]+)\/(close|restore))?$/;
+const hubPathPattern =
+  /^\/\.lazurio\/tabs(?:\/([^/]+)\/(close|restore|sleep|wake))?$/;
 
 /** The request a path of the hub names: the list or a new tab, a tab's
  * action by its id in either case, given in upper case (decision F50, C1);
@@ -66,6 +69,24 @@ export type TabOpener =
 /** Why a tab nothing holds or views is counting down (F47 point 5). */
 export type GraceKind = "release" | "viewer" | "unviewed";
 
+/** Why a tab sleeps (decision F57): nobody viewed it and no agent worked in
+ * it for a while, the Environment ran short of memory, or a person asked in
+ * Přehled. */
+export type SleepReason = "idle" | "pressure" | "asked";
+
+/** Why the hub keeps a tab awake when asked to put it to sleep (decision
+ * F57): someone views it, an agent works in it or did recently, it was in
+ * use within the idle time (the idle rule only), its page has unsaved
+ * input, its address cannot bring it back, or it is falling asleep or
+ * closing already. */
+export type AwakeReason =
+  | "viewed"
+  | "agent"
+  | "in-use"
+  | "unsaved"
+  | "not-sleepable"
+  | "busy";
+
 /** A strip that holds a tab, by its holder file. */
 export type TabHold = Readonly<{ strip: string; label: string }>;
 
@@ -89,9 +110,17 @@ export type TabFacts = Readonly<{
    * point 7): only in a list asked for with `heap=1`, null where it could
    * not be read in time. */
   heap?: Readonly<{ used: number; total: number }> | null;
+  /** Only for a tab that sleeps (decision F57): since when and why. It has
+   * no renderer; viewing it or Probudit loads its address again. */
+  sleeping?: Readonly<{ since: string; reason: SleepReason }>;
+  /** Only for a tab whose page had unsaved input when the hub last looked
+   * (decision F57): it stays awake for the idle rule, and the pressure rule
+   * takes it last. */
+  unsaved?: string;
 }>;
 
 const graceKinds: readonly GraceKind[] = ["release", "viewer", "unviewed"];
+const sleepReasons: readonly SleepReason[] = ["idle", "pressure", "asked"];
 
 /** A time the hub wrote with `toISOString`, or null. */
 export function hubTime(value: unknown): string | null {
@@ -202,7 +231,19 @@ export function parseHubTab(value: unknown, heap: boolean): TabFacts | null {
         ? { kind: grace.kind as GraceKind, endsAt: graceEnds }
         : null,
   };
-  return heap ? { ...facts, heap: heapOf(value.heap) } : facts;
+  const asleep = isRecord(value.sleeping) ? value.sleeping : null;
+  const since = hubTime(asleep?.since);
+  const unsaved = hubTime(value.unsaved);
+  return {
+    ...facts,
+    ...(heap ? { heap: heapOf(value.heap) } : {}),
+    ...(asleep !== null &&
+    since !== null &&
+    sleepReasons.includes(asleep.reason as SleepReason)
+      ? { sleeping: { since, reason: asleep.reason as SleepReason } }
+      : {}),
+    ...(unsaved === null ? {} : { unsaved }),
+  };
 }
 
 /** The hub's answers: the list, a new tab, a close for everyone, Vrátit,
@@ -210,6 +251,8 @@ export function parseHubTab(value: unknown, heap: boolean): TabFacts | null {
 export type HubOpened = Readonly<{ id: string; view: string }>;
 export type HubClosing = Readonly<{ closing: string }>;
 export type HubRestored = Readonly<{ restored: true }>;
+export type HubSleeping = Readonly<{ sleeping: true }>;
+export type HubAwake = Readonly<{ awake: true }>;
 
 // ---- The Launchpad's view routes (C12) ----------------------------------------
 

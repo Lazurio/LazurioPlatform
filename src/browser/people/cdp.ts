@@ -20,6 +20,11 @@ export type CdpConnection = Readonly<{
   /** Once, when the socket closes for any reason. */
   onClose: (listener: () => void) => void;
   close: () => void;
+  /** The browser's own id, the last segment of its socket's address
+   * (`/devtools/browser/<id>`): Chrome makes a new one at each start, so a
+   * different id after a reconnect means the browser restarted (decision
+   * F57). Absent where it is not known. */
+  browser?: string;
 }>;
 
 export class CdpError extends Error {
@@ -127,6 +132,7 @@ export function connectCdp(url: string): Promise<CdpConnection> {
             else closers.push(listener);
           },
           close: () => socket.close(),
+          browser: new URL(url).pathname.split("/").pop() ?? "",
         }),
       );
     });

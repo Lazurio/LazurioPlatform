@@ -2,8 +2,14 @@ import { readFile } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 import { acquireFileLock, type FileLock } from "../platform/flock";
 import type { ProcessRunner } from "../update/self-check";
-import { agentBrowserSocketDirectory } from "./contract/node";
-import { browserBounds, targetIdOf } from "./contract/pure";
+import { agentBrowserSocketDirectory, holderDirectory } from "./contract/node";
+import {
+  browserBounds,
+  parseHolder,
+  stripAppOf,
+  targetIdOf,
+} from "./contract/pure";
+import { addressKey } from "./people/sleep";
 import { browserCdpPort } from "./units";
 
 /** A thread's own window of the Environment browser (decision F38).
@@ -29,6 +35,9 @@ export type WindowSeams = Readonly<{
   /** The page targets the browser has now (CDP `/json/list`), by id. */
   targets: () => Promise<ReadonlySet<string>>;
   cdp: CdpCall;
+  /** The page targets with their addresses, for "no duplicate opens"
+   * (decision F57, `threadPage`); absent: a window is never shared. */
+  pages?: () => Promise<ReadonlyMap<string, string>>;
 }>;
 
 export type ThreadWindow = Readonly<{
@@ -212,6 +221,48 @@ export async function bindThreadWindow(
   }
 }
 
+/** No duplicate opens (decision F57): an open page of the session's own
+ * thread that shows `url` already, all but its fragment (`addressKey`).
+ * Only an explicit identity counts: a T3 Code thread's session has the
+ * thread's strip by the same name (`t3-<thread>`, F47 point 4), and the
+ * pages are the tabs that holder file lists. No name is ever taken apart,
+ * so `t3-thread` and `t3-thread-2` stay two threads. Any other session has
+ * no strip of its own and reuses nothing, and so does anything that cannot
+ * be read: when in doubt the session gets a window of its own, never
+ * another thread's page. The page is taken as it is: an address never
+ * moves an open window. */
+export async function threadPage(
+  session: string,
+  url: string,
+  seams: WindowSeams,
+): Promise<string | null> {
+  const key = addressKey(url);
+  const holders = holderDirectory(seams.env);
+  if (
+    key === null ||
+    seams.pages === undefined ||
+    holders === undefined ||
+    stripAppOf(session) !== "t3code"
+  )
+    return null;
+  const file = `${session}.json`;
+  let tabs: readonly string[];
+  try {
+    const hold = parseHolder(file, await readFile(join(holders, file), "utf8"));
+    if (hold === null || hold.strip !== session) return null;
+    tabs = hold.tabs;
+  } catch {
+    return null;
+  }
+  if (tabs.length === 0) return null;
+  const pages = await seams.pages();
+  for (const id of tabs) {
+    const at = pages.get(id);
+    if (at !== undefined && addressKey(at) === key) return id;
+  }
+  return null;
+}
+
 async function ensureThreadWindowLocked(
   session: string,
   url: string | undefined,
@@ -225,6 +276,16 @@ async function ensureThreadWindowLocked(
   }
   if (existing !== null)
     return Object.freeze({ session, targetId: existing, created: false });
+  // The thread shows the page already: the session works there too.
+  const shown =
+    url === undefined
+      ? null
+      : await threadPage(session, url, seams).catch(() => null);
+  if (shown !== null) {
+    if (!(await bindSession(session, shown, seams)))
+      throw new BrowserWindowFailure("bind-failed");
+    return Object.freeze({ session, targetId: shown, created: false });
+  }
   let created: unknown;
   try {
     created = (
@@ -251,20 +312,22 @@ export function cdpSeams(
   run: ProcessRunner,
 ): WindowSeams {
   const base = `http://127.0.0.1:${browserCdpPort}`;
-  const targets = async () => {
+  const pages = async () => {
     const response = await fetch(`${base}/json/list`, {
       signal: AbortSignal.timeout(5_000),
     });
     const list = (await response.json()) as unknown;
-    const ids = new Set<string>();
+    const found = new Map<string, string>();
     if (Array.isArray(list))
       for (const item of list) {
-        const { id, type } = (item ?? {}) as Record<string, unknown>;
+        const { id, type, url } = (item ?? {}) as Record<string, unknown>;
         const target = targetIdOf(id);
-        if (type === "page" && target !== null) ids.add(target);
+        if (type === "page" && target !== null)
+          found.set(target, typeof url === "string" ? url : "");
       }
-    return ids;
+    return found;
   };
+  const targets = async () => new Set((await pages()).keys());
   const cdp: CdpCall = async (method, params) => {
     const version = (await (
       await fetch(`${base}/json/version`, {
@@ -300,5 +363,5 @@ export function cdpSeams(
       };
     });
   };
-  return Object.freeze({ env, run, targets, cdp });
+  return Object.freeze({ env, run, targets, cdp, pages });
 }

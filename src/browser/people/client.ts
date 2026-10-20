@@ -452,6 +452,7 @@ class Viewer {
         resize: this.options.resize,
         picture,
         acks: true,
+        visible: pageShown(),
       });
       this.showStatus();
     });
@@ -1292,6 +1293,21 @@ function showPicture(): void {
       String(pictureOf(item.dataset.picture) === picture),
     );
 }
+
+/** Whether the person's browser shows this page (the Page Visibility API):
+ * only a shown page keeps its remote tab awake (decision F57). A page in a
+ * hidden tab of the person's browser, or one the browser minimised, says
+ * so, and says it again when it is shown, which wakes a tab that slept
+ * meanwhile. */
+function pageShown(): boolean {
+  return document.visibilityState !== "hidden";
+}
+document.addEventListener("visibilitychange", () => {
+  const visible = pageShown();
+  main?.send({ t: "visible", visible });
+  for (const popup of popups.values())
+    popup.viewer.send({ t: "visible", visible });
+});
 
 /** A choice for the page's own tab and every pop-up over it, at once; a
  * viewer whose socket is down says it in its next `hello`. */
