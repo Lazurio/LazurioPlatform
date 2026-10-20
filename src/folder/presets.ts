@@ -213,8 +213,9 @@ export type VisitorPreset = Readonly<{
     terms: Readonly<Record<FolderProfile["locale"], string>>;
     privacy: Readonly<Record<FolderProfile["locale"], string>>;
   }>;
-  /** The section of the generated instructions for visitors' agents.
-   * Reserved for plan slice 5: nothing renders it yet. */
+  /** The section of the generated instructions for visitors' agents (plan
+   * slice 5): AGENTS.md and `manual/this-machine.md` render it where this is
+   * `visitors` (`visitorsOf` in `src/folder/render.ts`). */
   instructions: "visitors";
   /** What nobody changes here, since every visitor shares it: the preset
    * (one fixed option in Settings → Obecné, a change refused as
