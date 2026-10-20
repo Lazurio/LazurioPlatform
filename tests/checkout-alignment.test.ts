@@ -191,8 +191,8 @@ test("the worktree rule and the checkout procedure give one fail-closed rule for
       expect(
         workingHere.includes(
           locale === "cs"
-            ? "Vnořený repozitář, který už tu leží, nech být a řekni o něm Operátorovi."
-            : "Leave a nested repository you find here alone and tell the Operator about it.",
+            ? "Vnořený repozitář, který už tu leží, nech být a řekni o něm uživateli."
+            : "Leave a nested repository you find here alone and tell the user about it.",
         ),
       ).toBe(!withOrganizations);
       expect(

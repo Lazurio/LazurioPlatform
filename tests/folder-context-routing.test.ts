@@ -26,9 +26,7 @@ test("every generated Folder teaches context discovery before choosing an app or
       expect(routing).toContain("manual/working-here.md");
       expect(routing).toContain("lazurio module list");
       expect(routing).toContain("runtime.url");
-      expect(routing).toContain(
-        locale === "cs" ? "zeptej se" : "ask the Operator",
-      );
+      expect(routing).toContain(locale === "cs" ? "zeptej se" : "ask the user");
       expect(routing).toContain(
         locale === "cs"
           ? "není katalog interních modulů"

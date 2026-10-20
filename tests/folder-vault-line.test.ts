@@ -73,11 +73,11 @@ const words = {
         "s důvodem `no-tailnet` tu záměrně není, protože jde o Prostředí veřejné Organizace.",
     },
     other:
-      "Z jiné odpovědi, ani z `unsupported` s jiným důvodem, neusuzuj, že tu trezor není: může čekat na člověka nebo teď nefungovat; řiď se tím, co `lazurio vault status` hlásí, včetně důvodu.",
+      "Z jiné odpovědi, ani z `unsupported` s jiným důvodem, neusuzuj, že tu trezor není: může čekat na uživatele nebo teď nefungovat; řiď se tím, co `lazurio vault status` hlásí, včetně důvodu.",
     operator:
-      "Dokud trezor připojený není, patří tajemství tam, kam řekne Operátor.",
+      "Dokud trezor připojený není, patří tajemství tam, kam řekne uživatel.",
     withoutVault:
-      "Hlásí-li cokoli jiného než `connected`, `bw` ani `lazurio vault env` nepoužívej; potřebuješ-li tajemství, řekni Operátorovi, co hlásí, a zeptej se ho, kam tajemství patří.",
+      "Hlásí-li cokoli jiného než `connected`, `bw` ani `lazurio vault env` nepoužívej; potřebuješ-li tajemství, řekni uživateli, co hlásí, a zeptej se ho, kam tajemství patří.",
     env: 'S připojeným trezorem spusť na začátku práce `eval "$(lazurio vault env)"`',
     locked:
       "když `bw` hlásí zamčený trezor (`lazurio vault status` pak u `connected` uvádí `locked`), spusť ho znovu.",
@@ -96,11 +96,10 @@ const words = {
         "with `no-tailnet` there is none on purpose, because this is a public Organization's Environment.",
     },
     other:
-      "From any other answer, `unsupported` with another reason too, do not conclude that there is no vault: it may wait for a person or not work now; follow what `lazurio vault status` says, its reason included.",
-    operator:
-      "Until the vault is connected, secrets go where the Operator says.",
+      "From any other answer, `unsupported` with another reason too, do not conclude that there is no vault: it may wait for a user or not work now; follow what `lazurio vault status` says, its reason included.",
+    operator: "Until the vault is connected, secrets go where the user says.",
     withoutVault:
-      "When it reports anything but `connected`, use neither `bw` nor `lazurio vault env`; when you need a secret, tell the Operator what it reports and ask them where the secret belongs.",
+      "When it reports anything but `connected`, use neither `bw` nor `lazurio vault env`; when you need a secret, tell the user what it reports and ask them where the secret belongs.",
     env: 'With a connected vault, run `eval "$(lazurio vault env)"` at the start of work',
     locked:
       "when `bw` reports a locked vault (`lazurio vault status` then says `locked` with `connected`), run it again.",

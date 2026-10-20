@@ -445,10 +445,10 @@ test("the agents' texts of the vault name a personal Environment's own Bitwarden
   if (activation === undefined) throw new Error("Expected the vault tool");
   // Root decision 0203 point 7: no longer only the network's vault.
   expect(activation.purpose.cs).toContain(
-    "na osobním Prostředí ve vlastním Bitwardenu jeho člověka",
+    "na osobním Prostředí ve vlastním Bitwardenu jeho uživatele",
   );
   expect(activation.purpose.en).toContain(
-    "on a personal Environment in its person's own Bitwarden",
+    "on a personal Environment in its user's own Bitwarden",
   );
   // Waiting for its person: they connect it; an agent never asks for or
   // enters the agents' account's credentials.

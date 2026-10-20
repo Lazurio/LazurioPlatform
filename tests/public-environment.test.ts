@@ -205,9 +205,9 @@ posixTest(
       // Operator's own sign-in.
       const after = await readFile(join(folder, "AGENTS.md"), "utf8");
       expect(before).toContain(
-        "- Identity: the Operator's own sign-ins; GitHub is the only access authority.",
+        "- Identity: the user's own sign-ins; GitHub is the only access authority.",
       );
-      expect(after).not.toContain("the Operator's own sign-ins");
+      expect(after).not.toContain("the user's own sign-ins");
       expect(after).toContain("- Identity: no GitHub identity.");
       expect(after).toContain(
         "- GitHub: this Environment has no GitHub identity.",

@@ -578,7 +578,7 @@ test.skipIf(process.platform === "win32")(
       });
       expect(current.machine.owner.assignment).toEqual(automationAssignment);
       expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
-        "responsible Operator `example` (GitHub id 12345)",
+        "responsible user `example` (GitHub id 12345)",
       );
       // Settled: a plain refresh of the same handover changes nothing.
       expect(await refreshMachineFolder(folder, automated)).toEqual({
@@ -815,7 +815,7 @@ const rc13 = {
   },
 } as const;
 const toolchainLine =
-  /^- (Toolchain je Bun Operátora|The toolchain is the Operator's Bun) .*$/m;
+  /^- (Toolchain je Bun uživatele|The toolchain is the user's Bun) .*$/m;
 
 async function renderedByRc13(folder: string, locale: "cs" | "en") {
   const path = join(folder, ".lazurio", "instructions.json");

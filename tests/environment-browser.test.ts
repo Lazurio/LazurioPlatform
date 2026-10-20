@@ -958,8 +958,8 @@ test("the Folder explains how a page reaches the Operator in each client and lea
     const section = text.slice(
       text.indexOf(
         locale === "cs"
-          ? "### Jak Operátor stránku uvidí"
-          : "### How the Operator sees a page",
+          ? "### Jak uživatel stránku uvidí"
+          : "### How the user sees a page",
       ),
       text.indexOf(
         locale === "cs"

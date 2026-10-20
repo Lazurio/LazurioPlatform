@@ -125,7 +125,7 @@ test("every Environment renders the skill new-module in its locale, the same byt
       expect(interview).toBeGreaterThan(what);
       for (const phrase of cs
         ? [
-            "**Rozhraní pro lidi.**",
+            "**Rozhraní pro uživatele.**",
             "**Místo pro data a pro agenty.**",
             "**Vlastní procesy a skilly.**",
             "`.agents/skills/`",
@@ -133,7 +133,7 @@ test("every Environment renders the skill new-module in its locale, the same byt
             "Nikdy ho nezakládej ručně",
           ]
         : [
-            "**A UI for people.**",
+            "**A UI for users.**",
             "**A place for data and for agents.**",
             "**Processes and skills of its own.**",
             "`.agents/skills/`",
@@ -156,7 +156,7 @@ test("every Environment renders the skill new-module in its locale, the same byt
             "co se má dít samo",
             "dobrá první verze",
             "**Jedna otázka v jedné zprávě**",
-            "jen na to, co člověk ještě neřekl",
+            "jen na to, co uživatel ještě neřekl",
             "**Na techniku se neptej.**",
             "počkej na jeho „ano“",
           ]
@@ -167,7 +167,7 @@ test("every Environment renders the skill new-module in its locale, the same byt
             "what should happen on its own",
             "a good first version",
             "**One question per message**",
-            "only about what the person has not said yet",
+            "only about what the user has not said yet",
             "**Do not ask about technology.**",
             "wait for their “yes”",
           ])
