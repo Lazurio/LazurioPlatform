@@ -45,6 +45,8 @@ Organization-specific meanings stay in their Organization; teach agents how to f
 them rather than copying them into the product. See `docs/folder-context-routing.md`.
 
 
+For development previews, follow [stable applications and development previews](docs/development-previews.md). Keep the normal module address on stable `main`; run the worktree on a separate loopback port and show it through the Environment browser. Do not replace the main service or register a preview hostname. Built releases are the target for stable entry, not a claim about the current dev runner.
+
 Work on a review branch in an owner-scoped worktree, preserve all unrelated work,
 commit only scoped changes, open a PR and report exact validation. Primary `main`
 is a reference checkout. Publication requires the Operator's explicit instruction

@@ -3271,14 +3271,13 @@ of the old Launchpad and do them properly in the new Launchpad".
    of [section F](launchpad-parity.md#f-what-we-deliberately-do-not-carry-over) have
    no successor. Git is done by agents in T3 Code under the manual's worktree
    discipline, and click-derived state has no decision behind it.
-7. **Pull-request previews** (0167 addendum; H3 in direction). Worktree source (P9) is
-   off the switch line. A preview from the web T3 Code on a hosted Machine gets a
-   temporary Environment URL that the agent registers like a module's hostname, as a
-   lease that ends by itself and never accumulates (Matěj's examples: cleanup
-   after 24 hours and when the port disappears). The hosted Folder manual tells agents
-   how previews work so that they never send the operator a localhost link; until an
-   application has a hosted name, the handoff says so instead of a link. On a
-   workstation, worktree source is a later slice.
+7. **Pull-request previews** (updated by the Operator 2026-10-20). Normal module
+   addresses stay on stable `main`, targeting built releases. Development versions
+   run on separate loopback ports and are shown through the Environment browser.
+   The former temporary-hostname lease direction (B14/P9/H3) is retired. See
+   [the complete contract](development-previews.md), including missing-browser
+   behavior, productionspace and the distinction between instructions and rollout.
+
 8. **New Work Machines** (0167 point 6; H4): until content synchronization (P10), the
    agent in T3 Code clones their Organizations from the manual.
 9. **Team Environments** (0167 point 7, 0168; H6). Commits, pull requests and issues
@@ -3296,10 +3295,7 @@ switch draft follows it. H5: `launchpad.gen3.json` and `launchpad.gen3.local.jso
 with its planned slots and Personalspace owner have no successor, amending F15 point
 2; 0167 point 9 records it as a proposal Matěj neither confirmed nor
 questioned. H7: the command names `lazurio module …` and `lazurio organization …` are
-kept from the resident; recommended and implemented. The rules of the preview lease
-(time to live, renewal, end conditions, the cap per Machine;
-[B14](launchpad-parity.md#b14-worktree-previews-under-a-temporary-hostname-p9-proposal))
-are a proposal, not a decision. Implementation proceeds on the recommendations; H5
+kept from the resident; recommended and implemented. The preview lease proposal was retired on 2026-10-20; [B14](launchpad-parity.md#b14-development-previews-through-the-environment-browser-p9) now points to the Environment browser contract. Implementation proceeds on the recommendations; H5
 and H7 can still change before the first final release that contains P4 and P5,
 without migrating anything.
 
@@ -15403,3 +15399,18 @@ Verified by:
   opens it again and it plays, and Escape closes it. Moving on and coming back, in the
   app or by a reload, opens it again at its start. In the third state the box never
   opens, and the "?" plays `vault-agents`.
+
+## Preview addendum — 2026-10-20: stable addresses and localhost development
+
+The Operator replaced the earlier preview direction after the Environment browser
+became the working review surface. [Stable applications and development
+previews](development-previews.md) is the current contract. It supersedes F22 point
+7, B14/P9/H3 and F14's 2026-10-02 advice that routed work in progress to a module's
+`runtime.url` or treated SSH desktop forwarding as the only localhost path. F38/F39
+still own the browser and its view; a preview adds no gateway hostname or lease.
+
+The Folder entry instructions, `manual/this-machine.md`, `manual/working-here.md`
+and new-module skills carry this rule in both locales, versioned as
+`base-instructions-59`. Stable module entry targets built releases; today's declared
+dev command remains an explicit migration gap, not a claim of production readiness.
+No deployed Environment is changed by editing or merging these sources.
