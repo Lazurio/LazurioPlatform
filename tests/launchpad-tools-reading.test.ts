@@ -144,3 +144,34 @@ test("a failed reading is not kept: the next read tries again", async () => {
   await w.answer(w.live(1, true));
   await next;
 });
+
+test("an older reading that ends after a newer one, both started within one tick, never replaces it", async () => {
+  // The clock stands still: both readings start at the same millisecond.
+  const w = world();
+  const older = w.reading.live(true);
+  const fresh = w.reading.live(true, true);
+  expect(w.reads()).toBe(2);
+  const newer = w.live(2, true);
+  w.started[1]?.answer(newer);
+  expect(await fresh).toBe(newer);
+  const stale = w.live(1, true);
+  w.started[0]?.answer(stale);
+  expect(await older).toBe(stale);
+  expect(await w.reading.live(true)).toBe(newer);
+  expect(w.reads()).toBe(2);
+});
+
+test("an older reading that ends first is kept until the newer one ends", async () => {
+  const w = world();
+  const older = w.reading.live(true);
+  const fresh = w.reading.live(true, true);
+  const first = w.live(1, true);
+  w.started[0]?.answer(first);
+  expect(await older).toBe(first);
+  expect(await w.reading.live(true)).toBe(first);
+  const newer = w.live(2, true);
+  w.started[1]?.answer(newer);
+  expect(await fresh).toBe(newer);
+  expect(await w.reading.live(true)).toBe(newer);
+  expect(w.reads()).toBe(2);
+});

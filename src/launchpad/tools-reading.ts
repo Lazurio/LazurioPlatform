@@ -37,23 +37,30 @@ export function createToolsReading(
   const read =
     options.read ?? ((signIn: boolean) => readToolsLive(environment, signIn));
   type Reading = Readonly<{ signIn: boolean; at: number }>;
-  let kept: (Reading & Readonly<{ live: ToolsLive }>) | null = null;
+  let kept: (Reading & Readonly<{ order: number; live: ToolsLive }>) | null =
+    null;
   let running:
     | (Reading & Readonly<{ generation: number; done: Promise<ToolsLive> }>)
     | null = null;
   // A forget while a reading runs makes its answer stale: it answers its own
   // read, and is not kept.
   let generation = 0;
+  // The order the readings started in, strictly: two may start within one
+  // tick of the clock, and only a later one may replace the one kept, so an
+  // older reading that ends last never displaces a newer one already kept.
+  let started = 0;
   const answers = (reading: Reading, signIn: boolean) =>
     (reading.signIn || !signIn) && now() - reading.at < keepMs;
 
   function start(signIn: boolean): Promise<ToolsLive> {
     const at = now();
     const asked = generation;
+    started += 1;
+    const order = started;
     const done = read(signIn)
       .then((live) => {
-        if (asked === generation && (kept === null || kept.at <= at))
-          kept = { signIn, at, live };
+        if (asked === generation && (kept === null || kept.order < order))
+          kept = { signIn, at, order, live };
         return live;
       })
       .finally(() => {
