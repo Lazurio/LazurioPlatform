@@ -712,6 +712,26 @@ const en = {
   moduleStoppedDone: "Stopped; its processes ended.",
   moduleStartPending:
     "The start is still running (Lazurio is installing or preparing the app); it goes on, and the status shows the app once it runs.",
+  moduleBuildPending:
+    "Lazurio is building the app; it opens once the build is ready.",
+  moduleBuilding: "Building…",
+  moduleBuilt: "Built.",
+  moduleBuildCurrent: "This version is already built.",
+  moduleStartDev: "Start the development version",
+  moduleBuildFailedNote:
+    "The newest version could not be built, so the previous one runs. Build log: {file}",
+  moduleReasonBuildFailed:
+    "The app could not be built; the previous version keeps running if there is one. Build log: {file}",
+  moduleReasonBuildTimedOut:
+    "Building the app took too long and was stopped; the previous version keeps running if there is one.",
+  moduleReasonBuildOutputMissing:
+    "The build did not write the output the app declares. Build log: {file}",
+  moduleReasonBuildOutputUnservable:
+    "The build has no page for the app's readiness check, so it would never be ready. Build log: {file}",
+  moduleReasonBuildBusy:
+    "Another build has been running for long; try again shortly.",
+  moduleReasonCheckoutChanging:
+    "The module changed during every build; try again once it is still.",
   modulePreparePending:
     "The preparation is still running; it goes on without starting the app.",
   moduleNotRunning: "It was not running.",
@@ -2424,6 +2444,26 @@ const cs: Record<MessageKey, string> = {
   moduleStoppedDone: "Zastaveno; její procesy skončily.",
   moduleStartPending:
     "Spouštění ještě běží (Lazurio aplikaci instaluje nebo připravuje); pokračuje dál a stav aplikaci ukáže, až poběží.",
+  moduleBuildPending:
+    "Lazurio aplikaci sestavuje; otevře se, až bude sestavená.",
+  moduleBuilding: "Sestavuje se…",
+  moduleBuilt: "Sestaveno.",
+  moduleBuildCurrent: "Tato verze už je sestavená.",
+  moduleStartDev: "Spustit vývojovou verzi",
+  moduleBuildFailedNote:
+    "Nejnovější verzi se nepodařilo sestavit, běží předchozí. Záznam sestavení: {file}",
+  moduleReasonBuildFailed:
+    "Aplikaci se nepodařilo sestavit; je-li předchozí verze, běží dál. Záznam sestavení: {file}",
+  moduleReasonBuildTimedOut:
+    "Sestavení trvalo příliš dlouho a bylo zastaveno; je-li předchozí verze, běží dál.",
+  moduleReasonBuildOutputMissing:
+    "Sestavení nezapsalo výstup, který aplikace deklaruje. Záznam sestavení: {file}",
+  moduleReasonBuildOutputUnservable:
+    "Sestavená verze nemá stránku pro kontrolu připravenosti aplikace, takže by nikdy nebyla připravená. Záznam sestavení: {file}",
+  moduleReasonBuildBusy:
+    "Jiné sestavení běží už dlouho; zkuste to za chvíli znovu.",
+  moduleReasonCheckoutChanging:
+    "Modul se měnil během každého sestavení; zkuste to znovu, až se ustálí.",
   modulePreparePending:
     "Příprava ještě běží; pokračuje dál a aplikaci nespustí.",
   moduleNotRunning: "Neběžela.",

@@ -85,6 +85,7 @@ const en = {
   modulesEmpty: "No Module is running.",
   modulesUnknown: "Which Modules are running could not be read right now.",
   moduleDev: "Development server",
+  moduleBuilt: "Built version",
   stop: "Stop",
   stopModule: "Stop {name}",
   stopTitle: "Frees memory; opening it from Apps starts the Module again",
@@ -193,6 +194,7 @@ const cs: Words = {
   modulesEmpty: "Žádný Modul neběží.",
   modulesUnknown: "Které Moduly běží, se teď nepodařilo zjistit.",
   moduleDev: "Vývojový server",
+  moduleBuilt: "Sestavená verze",
   stop: "Zastavit",
   stopModule: "Zastavit {name}",
   stopTitle: "Uvolní paměť; otevřením z Apps se Modul spustí znovu",
@@ -1015,7 +1017,7 @@ export function moduleRows(
         memory:
           module.memory === null ? null : formatMemory(module.memory, locale),
         heavy: module.memory !== null && module.memory >= heavyBytes,
-        line: `${module.mode === "dev" ? copy.moduleDev : module.mode} · ${module.source}`,
+        line: `${module.mode === "dev" ? copy.moduleDev : module.mode === "built" ? copy.moduleBuilt : module.mode} · ${module.source}`,
         stop: `/api/modules/${encodeURIComponent(module.org)}/${encodeURIComponent(module.module)}/stop`,
         app: module.app,
       };

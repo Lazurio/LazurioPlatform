@@ -36,5 +36,6 @@ lease `main` v `lazurio.module.json`):
 
 - `prepare:app` spouští `astro sync`; `check:prepared` ověří, že vygenerované
   typy existují.
-- `dev` spouští jeden proces `astro dev`. Statický build (`bun run build`) je
-  příprava publikace, ne start.
+- Z `main` Launchpad App otevírá jako její sestavenou verzi: `bun run build`
+  zapíše `dist/` (`build_output`) a Platforma ho servíruje sama. `dev` spouští
+  jeden proces `astro dev` pro vývojovou verzi.

@@ -64,6 +64,7 @@ import {
   moduleResultMessage,
   moduleSettling,
   moduleStatusView,
+  offersDevelopment,
   parseModuleResult,
 } from "./module-view";
 import { createOwnerAnswers } from "./owner-answer";
@@ -404,6 +405,7 @@ export function createCatalogPanel(
       refusedOpen = {
         key: target.status,
         message: moduleResultMessage(result, options.copy()),
+        development: offersDevelopment(result),
       };
       return null;
     }
@@ -1314,11 +1316,14 @@ export function createCatalogPanel(
     }
   }
 
+  // `development`: the start of a static app's development version,
+  // explicitly, after its build failed (decision F58).
   async function act(
     organization: CatalogOrganization,
     module: CatalogModule,
-    verb: "start" | "stop",
+    action: "start" | "stop" | "development",
   ) {
+    const verb = action === "development" ? "start" : action;
     const path = modulePathOf(organization, module, verb);
     if (path === null || lifecycle === null || lifecycle.busy) return;
     const key = lifecycle.key;
@@ -1328,12 +1333,20 @@ export function createCatalogPanel(
     render();
     let result: ModuleAnswer | ModuleBlocked | null = null;
     try {
-      result = parseModuleResult((await options.post(path, {})).value);
+      result = parseModuleResult(
+        (
+          await options.post(
+            path,
+            action === "development" ? { dev: true } : {},
+          )
+        ).value,
+      );
     } catch {
       result = null;
     }
     if (lifecycle?.key !== key) return;
     lifecycle.busy = false;
+    lifecycle.development = offersDevelopment(result);
     lifecycle.message = moduleResultMessage(result, options.copy());
     if (result?.kind === "module") lifecycle.status = result;
     render();
@@ -1368,6 +1381,8 @@ export function createCatalogPanel(
       text.append(element("p", "row-desc", view.ownership));
     if (view.noLink !== null)
       text.append(element("p", "row-desc", view.noLink));
+    if (view.buildNote !== undefined)
+      text.append(element("p", "row-desc", view.buildNote));
     const message = element("p", "row-status", current.message ?? "");
     message.setAttribute("role", "status");
     message.setAttribute("aria-live", "polite");
@@ -1386,6 +1401,17 @@ export function createCatalogPanel(
       button.addEventListener(
         "click",
         () => void act(organization, module, action),
+      );
+      control.append(button);
+    }
+    if (current.development === true) {
+      const button = element("button", "", copy.moduleStartDev);
+      button.type = "button";
+      button.dataset.moduleAction = "development";
+      button.disabled = current.busy;
+      button.addEventListener(
+        "click",
+        () => void act(organization, module, "development"),
       );
       control.append(button);
     }

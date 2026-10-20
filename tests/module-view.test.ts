@@ -6,6 +6,7 @@ import {
   moduleResultMessage,
   moduleSettling,
   moduleStatusView,
+  offersDevelopment,
   parseModuleResult,
 } from "../src/launchpad/module-view";
 import type {
@@ -370,4 +371,100 @@ test("a start refused for its runtime secrets names each one and why, and a star
   expect(moduleResultMessage(started, cs)).toContain(
     "Spuštěno bez těchto volitelných tajných údajů",
   );
+});
+
+test("a static app's build (decision F58): building before it runs, its outcomes, and a build that failed offers the development version, in both languages", () => {
+  const build = {
+    mode: null,
+    served: null,
+    current: null,
+    building: { commit: "a".repeat(40), at: "2026-10-20T08:00:00.000Z" },
+    failure: null,
+  } as const;
+  const building = moduleStatusView(
+    answer({ state: "stopped", healthy: false, runtime: null, build }),
+    cs,
+  );
+  expect(building).toMatchObject({
+    dot: "starting",
+    text: "Sestavuje se…",
+    action: null,
+  });
+  for (const [outcome, english] of [
+    ["build-pending", en.moduleBuildPending],
+    ["built", en.moduleBuilt],
+    ["current", en.moduleBuildCurrent],
+  ] as const)
+    expect(moduleResultMessage(answer({ outcome }), en)).toBe(english);
+  const failed: ModuleBlocked = {
+    ...refusal("build-script-failed"),
+    build: {
+      mode: null,
+      served: null,
+      current: null,
+      building: null,
+      failure: {
+        commit: "b".repeat(40),
+        at: "2026-10-20T08:01:00.000Z",
+        reason: "build-script-failed",
+        log: "~/.cache/lazurio/builds/alpha/web/web-0123/logs/b.log",
+      },
+    },
+  };
+  expect(moduleResultMessage(failed, cs)).toBe(
+    "Aplikaci se nepodařilo sestavit; je-li předchozí verze, běží dál. Záznam sestavení: ~/.cache/lazurio/builds/alpha/web/web-0123/logs/b.log",
+  );
+  expect(moduleResultMessage(failed, en)).toContain(
+    "Build log: ~/.cache/lazurio/builds/alpha/web/web-0123/logs/b.log",
+  );
+  expect(offersDevelopment(failed)).toBe(true);
+  expect(offersDevelopment(refusal("build-timed-out"))).toBe(true);
+  // Other refusals and answers never offer it.
+  expect(offersDevelopment(refusal("port-occupied"))).toBe(false);
+  expect(offersDevelopment(refusal("build-busy"))).toBe(false);
+  expect(offersDevelopment(answer())).toBe(false);
+  expect(offersDevelopment(null)).toBe(false);
+  for (const reason of [
+    "build-timed-out",
+    "build-output-missing",
+    "build-output-unservable",
+    "build-busy",
+    "checkout-changing",
+  ])
+    for (const copy of [en, cs])
+      expect(moduleResultMessage(refusal(reason), copy)).not.toContain(reason);
+});
+
+test("a running static app whose newest build failed says so with its log; one that runs its development version does not (decision F58)", () => {
+  const failure = {
+    commit: "d".repeat(40),
+    at: "2026-10-20T08:02:00.000Z",
+    reason: "build-script-failed",
+    log: "~/.cache/lazurio/builds/alpha/web/web-0123/logs/d.log",
+  };
+  const build = {
+    mode: "built" as const,
+    served: { key: "e".repeat(40), commit: "e".repeat(40) },
+    current: {
+      key: "e".repeat(40),
+      commit: "e".repeat(40),
+      at: "2026-10-20T08:00:00.000Z",
+      dirty: false,
+    },
+    building: null,
+    failure,
+  };
+  expect(moduleStatusView(answer({ build }), cs).buildNote).toBe(
+    "Nejnovější verzi se nepodařilo sestavit, běží předchozí. Záznam sestavení: ~/.cache/lazurio/builds/alpha/web/web-0123/logs/d.log",
+  );
+  expect(
+    moduleStatusView(answer({ build: { ...build, failure: null } }), en)
+      .buildNote,
+  ).toBeUndefined();
+  expect(
+    moduleStatusView(
+      answer({ build: { ...build, mode: "dev", served: null } }),
+      en,
+    ).buildNote,
+  ).toBeUndefined();
 });

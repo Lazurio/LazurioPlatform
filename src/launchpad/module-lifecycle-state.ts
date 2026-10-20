@@ -11,11 +11,18 @@ export type LifecycleState = {
   // After Start or Stop the keyboard focus returns to the primary action once
   // it can take it again (it is disabled while the request runs).
   focus: boolean;
+  // The last start was refused because the app could not be built: its
+  // development version is offered explicitly (decision F58).
+  development?: boolean;
 };
 
 // Why an Open was refused (a start answered `blocked`), keyed like the
-// lifecycle.
-export type RefusedOpen = { key: string; message: string };
+// lifecycle, and whether its development version is offered.
+export type RefusedOpen = {
+  key: string;
+  message: string;
+  development?: boolean;
+};
 
 // The lifecycle an overview renders with. Another module's overview starts a
 // fresh one; a refused Open of this module puts its reason into it, whether
@@ -34,7 +41,11 @@ export function lifecycleShown(
   const ours = refusedOpen?.key === key ? refusedOpen : null;
   const kept = ours === null ? refusedOpen : null;
   if (lifecycle?.key === key) {
-    if (ours !== null) lifecycle.message = ours.message;
+    if (ours !== null) {
+      lifecycle.message = ours.message;
+      if (ours.development === true) lifecycle.development = true;
+      else delete lifecycle.development;
+    }
     return { lifecycle, refusedOpen: kept, fresh: false };
   }
   return {
@@ -44,6 +55,7 @@ export function lifecycleShown(
       message: ours?.message ?? null,
       busy: false,
       focus: false,
+      ...(ours?.development === true ? { development: true } : {}),
     },
     refusedOpen: kept,
     fresh: true,

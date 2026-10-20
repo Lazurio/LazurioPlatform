@@ -128,7 +128,38 @@ const reasonKeys: Readonly<Record<string, MessageKey>> = {
   "preparation-toolchain-mismatch": "preparationReasonToolchainMismatch",
   "preparation-install-failed": "preparationReasonInstallFailed",
   "preparation-script-failed": "preparationReasonScriptFailed",
+  "build-script-failed": "moduleReasonBuildFailed",
+  "build-timed-out": "moduleReasonBuildTimedOut",
+  "build-output-missing": "moduleReasonBuildOutputMissing",
+  "build-output-unservable": "moduleReasonBuildOutputUnservable",
+  "build-busy": "moduleReasonBuildBusy",
+  "checkout-changing": "moduleReasonCheckoutChanging",
 };
+
+/** The reasons of a static app's build that did not give a version to
+ * serve (decision F58): its page offers the development version, never as
+ * a silent fallback. */
+const buildFailures: ReadonlySet<string> = new Set([
+  "build-script-failed",
+  "build-timed-out",
+  "build-output-missing",
+  "build-output-unservable",
+]);
+
+/** Whether a start was refused because the app could not be built: the
+ * page then offers to start its development version explicitly. */
+export const offersDevelopment = (
+  result: ModuleAnswer | ModuleBlocked | null,
+): boolean =>
+  result !== null &&
+  result.kind === "blocked" &&
+  (buildFailures.has(result.reason) ||
+    (result.build?.failure != null && result.build.current === null));
+
+// The file a refusal names: a refused file of the checkout, or a build's
+// log (decision F58).
+const named = (result: ModuleBlocked) =>
+  result.file ?? result.build?.failure?.log;
 
 /** The words of module refusals on this Environment. A Team Environment
  * (`team`) has no person's GitHub account: it reads GitHub as the Team,
@@ -188,6 +219,9 @@ export type ModuleStatusView = Readonly<{
   link: string | null;
   /** Why a healthy app has no link, in words. */
   noLink: string | null;
+  /** A running static app whose newer build failed (decision F58): it
+   * serves the previous build; the failure and its log, in words. */
+  buildNote?: string;
 }>;
 
 /** The module's status as its page shows it. `null`: not read yet, or the
@@ -208,7 +242,12 @@ export function moduleStatusView(
   if (status.kind === "blocked")
     return {
       dot: "unknown",
-      text: moduleReasonText(status.reason, copy, status.file, status.secrets),
+      text: moduleReasonText(
+        status.reason,
+        copy,
+        named(status),
+        status.secrets,
+      ),
       code: status.reason,
       action: null,
       ...none,
@@ -218,6 +257,15 @@ export function moduleStatusView(
     : copy.moduleSessionBound;
   switch (status.state) {
     case "stopped":
+      // The first build of a static app, before it runs (decision F58).
+      if (status.build?.building != null)
+        return {
+          dot: "starting",
+          text: copy.moduleBuilding,
+          code: null,
+          action: null,
+          ...none,
+        };
       return {
         dot: "stopped",
         text: copy.moduleStopped,
@@ -258,12 +306,16 @@ export function moduleStatusView(
           ownership,
         };
       const link = moduleLink(status.runtime?.url);
+      const failure = status.build?.failure;
       return {
         dot: "running",
         text: copy.moduleRunning,
         code: null,
         action: "stop",
         ownership,
+        ...(failure == null || status.build?.mode !== "built"
+          ? {}
+          : { buildNote: withFile(copy.moduleBuildFailedNote, failure.log) }),
         link,
         noLink:
           link !== null
@@ -286,7 +338,7 @@ export function moduleResultMessage(
 ): string {
   if (result === null) return copy.appResultUnknown;
   if (result.kind === "blocked")
-    return moduleReasonText(result.reason, copy, result.file, result.secrets);
+    return moduleReasonText(result.reason, copy, named(result), result.secrets);
   switch (result.outcome) {
     case "started": {
       const started = result.healthy
@@ -310,6 +362,12 @@ export function moduleResultMessage(
       return copy.moduleStartPending;
     case "prepare-pending":
       return copy.modulePreparePending;
+    case "build-pending":
+      return copy.moduleBuildPending;
+    case "built":
+      return copy.moduleBuilt;
+    case "current":
+      return copy.moduleBuildCurrent;
     default:
       return result.outcome;
   }

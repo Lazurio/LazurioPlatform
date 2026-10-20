@@ -103,8 +103,15 @@ export type TabOpenerName =
 
 export type OverviewTab = TabFacts & Readonly<{ who: TabOpenerName }>;
 
+/** A running Module: its memory, and what it runs (decision F58): its
+ * development server, or a static app's build of `commit`. */
 export type OverviewModule = ModuleUnit &
-  Readonly<{ memory: number | null; mode: "dev"; source: "main" }>;
+  Readonly<{
+    memory: number | null;
+    mode: "dev" | "built";
+    commit?: string;
+    source: "main";
+  }>;
 
 export type NewTabOverview = Readonly<{
   /** The hub answered; while it does not, `tabs` is null and Nová karta
@@ -182,6 +189,14 @@ export function createNewTabRoutes(
     host: NewTabHost;
     /** The running Modules (`runningModules`); null when not known. */
     modules: () => Promise<readonly ModuleUnit[] | null>;
+    /** What a running Module was started as (decision F58): its build, or
+     * its development script. None: every Module is shown as `dev`. */
+    served?:
+      | ((module: ModuleUnit) => Promise<Readonly<{
+          mode: "built" | "dev";
+          commit: string | null;
+        }> | null>)
+      | undefined;
     headers: Readonly<Record<string, string>>;
     /** This Environment's wall clock, the one the hub's deadline is on;
      * tests supply their own. */
@@ -305,15 +320,24 @@ export function createNewTabRoutes(
       modules:
         running === null
           ? null
-          : running.map((module) => ({
-              ...module,
-              memory: reading.units.get(module.unit) ?? null,
-              // Every Module runs its development script from its own
-              // checkout today; a worktree's run and the built mode come
-              // later (DEV-6656 tasks 918 and 919).
-              mode: "dev" as const,
-              source: "main" as const,
-            })),
+          : await Promise.all(
+              running.map(async (module) => {
+                // A static app runs its build of a commit (decision F58);
+                // every other Module its development script. Every Module
+                // runs from its own checkout (`main`): a worktree's run comes
+                // later (DEV-6656 task 918).
+                const served = await input.served?.(module).catch(() => null);
+                return {
+                  ...module,
+                  memory: reading.units.get(module.unit) ?? null,
+                  mode: served?.mode ?? ("dev" as const),
+                  ...(served?.mode === "built" && served.commit !== null
+                    ? { commit: served.commit }
+                    : {}),
+                  source: "main" as const,
+                };
+              }),
+            ),
     };
   }
 
