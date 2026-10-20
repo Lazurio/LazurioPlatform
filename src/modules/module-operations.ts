@@ -1307,14 +1307,18 @@ export function createModuleOperations(input: {
   }
 
   // The apps the Launchpad keeps built after a pull (decision F58 point
-  // 7): every app with a build state (someone opened it), and at its start
-  // also every static app that runs without one (a development run from
-  // before builds existed), with the Git directories their builds read.
+  // 7): every app with a build state (someone opened it), and, until one
+  // sweep has read them all, also every static app that runs without one (a
+  // development run from before builds existed, moved onto its build), with
+  // the Git directories their builds read: the module's and those of the
+  // data mounts and required slots its build key includes.
   const watched = new Map<
     string,
     Readonly<{ prepared: Prepared; plan: Plan }>
   >();
-  let firstSweep = true;
+  // Done only by a sweep that read the catalog and every running app's
+  // status: a read that fails now is tried again at the next sweep.
+  let migrating = true;
   async function gitDirectoriesOf(target: Target, plan: Plan) {
     const read = (host.builds as NonNullable<ModuleHost["builds"]>)
       .readCheckout;
@@ -1337,8 +1341,8 @@ export function createModuleOperations(input: {
         `${state.organization}/${state.module}\0${state.app}`,
         state.app,
       );
-    if (firstSweep) {
-      firstSweep = false;
+    let migrated = migrating;
+    if (migrating) {
       try {
         const catalog = await readCatalog(folder, false);
         for (const organization of catalog.organizations)
@@ -1353,7 +1357,7 @@ export function createModuleOperations(input: {
                   undefined,
                 );
       } catch {
-        /* the next open or sweep */
+        migrated = false;
       }
     }
     const apps: WatchedApp[] = [];
@@ -1373,6 +1377,8 @@ export function createModuleOperations(input: {
           prepared.target,
           (lifecycle) => lifecycle.status(prepared.selection),
         );
+        if (running.kind !== "status" && running.kind !== "not-managed")
+          migrated = false;
         if (running.kind !== "status" || running.state !== "running") continue;
       }
       watched.set(store.directory, { prepared, plan });
@@ -1381,6 +1387,7 @@ export function createModuleOperations(input: {
         gitDirectories: await gitDirectoriesOf(prepared.target, plan),
       });
     }
+    if (migrated) migrating = false;
     return apps;
   }
   let keeper: BuildWatcher | undefined;
