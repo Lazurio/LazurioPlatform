@@ -187,102 +187,94 @@ export function versionOf(output: string): string | undefined {
   return token ? token[0] : undefined;
 }
 
+/** One catalog tool as `toolsStatus` finds it: where it is on PATH and the
+ * version its own command reports. Never throws. */
+export async function toolStatus(
+  entry: ToolEntry,
+  input: Omit<ToolsStatusInput, "catalog">,
+): Promise<ToolStatus> {
+  const base = {
+    name: entry.name,
+    command: entry.command,
+    updater: entry.updater.kind,
+    source: entry.source,
+  } as const;
+  const path = await resolveOnPath(entry.command, input.path, input.platform);
+  if (!path) return { ...base, installed: false };
+  let resolved = path;
+  try {
+    resolved = await realpath(path);
+  } catch {}
+  // Exactly ~/.local/bin/<command> (plus a Windows launcher suffix), never a
+  // deeper path that merely starts with it.
+  const standardEntry = input.home
+    ? join(input.home, ".local", "bin", entry.command)
+    : undefined;
+  const standardPath =
+    standardEntry !== undefined &&
+    (input.platform === "win32"
+      ? ["", ".exe", ".cmd", ".bat"].some(
+          (suffix) => path === `${standardEntry}${suffix}`,
+        )
+      : path === standardEntry);
+  const found = {
+    ...base,
+    installed: true,
+    path,
+    realPath: resolved,
+    standardPath,
+  } as const;
+  const env: Record<string, string> = {};
+  if (input.path) env.PATH = input.path;
+  if (input.home) env.HOME = input.home;
+  // A tool that writes its store on every start (bw) gets a private
+  // temporary data directory, so the probe touches no profile.
+  let isolated: string | undefined;
+  try {
+    if (entry.isolatedData !== undefined) {
+      isolated = await mkdtemp(join(tmpdir(), "lazurio-probe-"));
+      env[entry.isolatedData] = isolated;
+    }
+    const result = await input.run(
+      [path, ...entry.versionArgs],
+      versionTimeoutMs,
+      env,
+    );
+    if (result === "timeout")
+      return { ...found, versionError: `timeout after ${versionTimeoutMs} ms` };
+    const output = `${result.stdout}\n${result.stderr}`.trim();
+    if (result.exitCode !== 0)
+      return {
+        ...found,
+        versionOutput: output.slice(0, 400),
+        versionError: `exit ${result.exitCode}`,
+      };
+    const version = versionOf(result.stdout) ?? versionOf(result.stderr);
+    return {
+      ...found,
+      ...(version ? { version } : {}),
+      versionOutput: output.slice(0, 400),
+    };
+  } catch (error) {
+    return {
+      ...found,
+      versionError: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    if (isolated !== undefined)
+      await rm(isolated, { recursive: true, force: true });
+  }
+}
+
+/** Every catalog tool's status, in catalog order. The tools are read side by
+ * side (plan DEV-6656): each version command is its own process with its own
+ * bound, so the reading takes as long as the slowest tool, not the sum. */
 export async function toolsStatus(
   input: ToolsStatusInput,
 ): Promise<ToolsStatusResult> {
-  const tools: ToolStatus[] = [];
-  for (const entry of input.catalog ?? toolCatalog) {
-    const base = {
-      name: entry.name,
-      command: entry.command,
-      updater: entry.updater.kind,
-      source: entry.source,
-    } as const;
-    const path = await resolveOnPath(entry.command, input.path, input.platform);
-    if (!path) {
-      tools.push({ ...base, installed: false });
-      continue;
-    }
-    let resolved = path;
-    try {
-      resolved = await realpath(path);
-    } catch {}
-    // Exactly ~/.local/bin/<command> (plus a Windows launcher suffix), never a
-    // deeper path that merely starts with it.
-    const standardEntry = input.home
-      ? join(input.home, ".local", "bin", entry.command)
-      : undefined;
-    const standardPath =
-      standardEntry !== undefined &&
-      (input.platform === "win32"
-        ? ["", ".exe", ".cmd", ".bat"].some(
-            (suffix) => path === `${standardEntry}${suffix}`,
-          )
-        : path === standardEntry);
-    const env: Record<string, string> = {};
-    if (input.path) env.PATH = input.path;
-    if (input.home) env.HOME = input.home;
-    // A tool that writes its store on every start (bw) gets a private
-    // temporary data directory, so the probe touches no profile.
-    let isolated: string | undefined;
-    try {
-      if (entry.isolatedData !== undefined) {
-        isolated = await mkdtemp(join(tmpdir(), "lazurio-probe-"));
-        env[entry.isolatedData] = isolated;
-      }
-      const result = await input.run(
-        [path, ...entry.versionArgs],
-        versionTimeoutMs,
-        env,
-      );
-      if (result === "timeout") {
-        tools.push({
-          ...base,
-          installed: true,
-          path,
-          realPath: resolved,
-          standardPath,
-          versionError: `timeout after ${versionTimeoutMs} ms`,
-        });
-        continue;
-      }
-      const output = `${result.stdout}\n${result.stderr}`.trim();
-      if (result.exitCode !== 0) {
-        tools.push({
-          ...base,
-          installed: true,
-          path,
-          realPath: resolved,
-          standardPath,
-          versionOutput: output.slice(0, 400),
-          versionError: `exit ${result.exitCode}`,
-        });
-        continue;
-      }
-      const version = versionOf(result.stdout) ?? versionOf(result.stderr);
-      tools.push({
-        ...base,
-        installed: true,
-        path,
-        realPath: resolved,
-        standardPath,
-        ...(version ? { version } : {}),
-        versionOutput: output.slice(0, 400),
-      });
-    } catch (error) {
-      tools.push({
-        ...base,
-        installed: true,
-        path,
-        realPath: resolved,
-        standardPath,
-        versionError: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      if (isolated !== undefined)
-        await rm(isolated, { recursive: true, force: true });
-    }
-  }
+  const tools = await Promise.all(
+    (input.catalog ?? toolCatalog).map((entry) => toolStatus(entry, input)),
+  );
   return { kind: "tools-status", tools };
 }
 
