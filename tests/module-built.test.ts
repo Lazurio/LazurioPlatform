@@ -13,6 +13,7 @@ import {
   type ModuleHost,
 } from "../src/modules/module-operations";
 import { createSessionRunner } from "../src/modules/session-runner";
+import { type Catalog, readFolderCatalog } from "../src/organizations/catalog";
 import { writeOrganization } from "./fixtures/catalog-folder";
 import { compilePlatform, runnableModule } from "./fixtures/module-host";
 import { mkdirOwnedFixture as mkdir } from "./fixtures/owned-files";
@@ -43,8 +44,11 @@ const buildScript = `
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 while (existsSync("hold")) await Bun.sleep(20);
 if (existsSync("flaky")) process.exit(1);
-const page = readFileSync("page.txt", "utf8").trim();
-if (page === "fail") process.exit(1);
+const own = readFileSync("page.txt", "utf8").trim();
+if (own === "fail") process.exit(1);
+// The module's data mount, when it has one (workspace/<module>/db).
+const data = existsSync("../db/data.txt") ? readFileSync("../db/data.txt", "utf8").trim() : "";
+const page = data ? own + "+" + data : own;
 rmSync("dist", { recursive: true, force: true });
 mkdirSync("dist/_astro", { recursive: true });
 writeFileSync("dist/index.html", "<p>" + page + "</p>");
@@ -88,7 +92,16 @@ async function makeStatic(directory: string) {
   return git;
 }
 
-async function staticModule(name: string, home: string) {
+async function staticModule(
+  name: string,
+  home: string,
+  options: Readonly<{
+    /** The catalog's reader (the module operations' test seam). */
+    readCatalog?: (folder: string) => Promise<Catalog>;
+    /** `workspace/site/db`: a data mount of its own Git repository. */
+    dataMount?: boolean;
+  }> = {},
+) {
   const parent = join(root, name);
   await mkdir(parent);
   const folder = join(parent, "Lazurio");
@@ -104,6 +117,17 @@ async function staticModule(name: string, home: string) {
     slug: "alpha",
     state: "current",
     modules: [{ id: "site" }, { id: "plain" }, { id: "next" }],
+    ...(options.dataMount
+      ? {
+          slots: [
+            {
+              path: "workspace/site/db",
+              slug: "site-db",
+              materialization: "repository_db_mount",
+            },
+          ],
+        }
+      : {}),
   });
   const site = join(organization, "workspace/site");
   const next = join(organization, "workspace/next");
@@ -137,7 +161,35 @@ async function staticModule(name: string, home: string) {
     folder,
     owner: "launchpad",
     host,
+    ...(options.readCatalog === undefined
+      ? {}
+      : { readCatalog: options.readCatalog }),
   });
+  // The data repository: its own checkout below the module, ignored by it.
+  const database = join(site, "db");
+  const data = (...args: string[]) =>
+    execFileSync(
+      "git",
+      [
+        "-C",
+        database,
+        "-c",
+        "user.name=fixture",
+        "-c",
+        "user.email=fixture@example.invalid",
+        "-c",
+        "commit.gpgsign=false",
+        ...args,
+      ],
+      { encoding: "utf8" },
+    ).trim();
+  if (options.dataMount) {
+    await mkdir(database);
+    await writeFile(join(database, "data.txt"), "d1\n");
+    data("init", "-q", "-b", "main");
+    data("add", "-A");
+    data("commit", "-qm", "Data");
+  }
   const commit = async (page: string) => {
     await writeFile(join(site, "app/page.txt"), `${page}\n`);
     git("commit", "-qam", page);
@@ -145,6 +197,7 @@ async function staticModule(name: string, home: string) {
   };
   return {
     operations,
+    folder,
     site,
     next,
     port,
@@ -152,6 +205,11 @@ async function staticModule(name: string, home: string) {
     port3,
     commit,
     head: () => git("rev-parse", "HEAD"),
+    /** A data-only pull: a new commit of the data repository. */
+    publishData: async (value: string) => {
+      await writeFile(join(database, "data.txt"), `${value}\n`);
+      data("commit", "-qam", value);
+    },
     hold: () => writeFile(join(site, "app/hold"), ""),
     flaky: (on: boolean) =>
       on
@@ -418,6 +476,166 @@ posixTest(
       await fixture.release();
       await operations.stop("alpha/site");
       await operations.stop("alpha/next");
+      await operations.close();
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "the Launchpad keeps a static app built after a pull: a development run from before builds moves onto a build at the first sweep that reads the catalog, and a commit is built and swapped in without a request",
+  async () => {
+    const home = join(root, "home-watch");
+    await mkdir(home);
+    // The catalog can fail to be read, as at a start while the Folder is
+    // being written.
+    let catalogFails = false;
+    const fixture = await staticModule("watch", home, {
+      readCatalog: (folder) =>
+        catalogFails
+          ? Promise.reject(new Error("catalog unreadable now"))
+          : readFolderCatalog(folder),
+    });
+    const { operations } = fixture;
+    try {
+      // A development run from before builds existed: no build, no record.
+      answer(await operations.start("alpha/site", { dev: true }));
+      await until(fixture.page, (page) => page.text === "synthetic module");
+      await rm(join(root, "watch", "cache"), { recursive: true, force: true });
+      // The first sweep cannot read the catalog: nothing is moved yet…
+      catalogFails = true;
+      const keeper = operations.keepBuilt({ quietMs: 100, sweepMs: 60_000 });
+      await keeper?.sweep();
+      await keeper?.settled();
+      catalogFails = false;
+      expect(answer(await operations.status("alpha/site")).build?.mode).toBe(
+        "dev",
+      );
+      // …and the next sweep, which can, moves it.
+      await keeper?.sweep();
+      const first = fixture.head();
+      const moved = answer(
+        await until(
+          () => operations.status("alpha/site"),
+          (status) =>
+            status.kind === "module" &&
+            status.healthy &&
+            status.build?.served?.commit === first,
+        ),
+      );
+      expect(moved.build?.mode).toBe("built");
+      expect((await fixture.page()).text).toBe("<p>one</p>");
+      // A pull: nothing is asked of the Launchpad but its status.
+      const second = await fixture.commit("two");
+      const swapped = answer(
+        await until(
+          () => operations.status("alpha/site"),
+          (status) =>
+            status.kind === "module" &&
+            status.healthy &&
+            status.build?.served?.commit === second,
+        ),
+      );
+      expect(swapped.build?.current?.commit).toBe(second);
+      expect((await fixture.page()).text).toBe("<p>two</p>");
+    } finally {
+      await operations.stop("alpha/site");
+      await operations.close();
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "a data-only pull rebuilds: the Launchpad watches the data repository its build reads, and the new build of the same module commit is swapped in",
+  async () => {
+    const home = join(root, "home-data");
+    await mkdir(home);
+    const fixture = await staticModule("data", home, { dataMount: true });
+    const { operations } = fixture;
+    try {
+      const started = answer(await operations.start("alpha/site"));
+      expect(started.build?.mode).toBe("built");
+      await until(fixture.page, (page) => page.text === "<p>one+d1</p>");
+      const before = answer(await operations.status("alpha/site")).build;
+      // The key is the digest of the module's and the data's commits.
+      expect(before?.current?.key).toMatch(/^[0-9a-f]{64}$/);
+      operations.keepBuilt({ quietMs: 100, sweepMs: 60_000 });
+      await fixture.publishData("d2");
+      await until(fixture.page, (page) => page.text === "<p>one+d2</p>");
+      const after = answer(await operations.status("alpha/site")).build;
+      // Same module commit, another key, served.
+      expect(after?.current?.commit).toBe(before?.current?.commit as string);
+      expect(after?.current?.key).not.toBe(before?.current?.key as string);
+      expect(after?.served?.key).toBe(after?.current?.key as string);
+      expect((await fixture.page()).text).toBe("<p>one+d2</p>");
+    } finally {
+      await operations.stop("alpha/site");
+      await operations.close();
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "a first sweep that reads the catalog but cannot name the app keeps the move pending: the next sweep moves the development run from before builds onto a build",
+  async () => {
+    const home = join(root, "home-resolve");
+    await mkdir(home);
+    // Every catalog read is counted; one chosen read fails.
+    let reads = 0;
+    let failing = -1;
+    const fixture = await staticModule("resolve", home, {
+      readCatalog: (folder) => {
+        reads++;
+        return reads === failing
+          ? Promise.reject(new Error("catalog unreadable now"))
+          : readFolderCatalog(folder);
+      },
+    });
+    const { operations } = fixture;
+    try {
+      // A development run from before builds existed: no build, no record.
+      answer(await operations.start("alpha/site", { dev: true }));
+      await until(fixture.page, (page) => page.text === "synthetic module");
+      await rm(join(root, "resolve", "cache"), {
+        recursive: true,
+        force: true,
+      });
+      // The first sweep reads the catalog (its first read), then names each
+      // app it lists, one read each, in the catalog's order: the read that
+      // names the site fails. Where the site is first, that is the sweep's
+      // second read.
+      const listed = (await readFolderCatalog(fixture.folder)).organizations
+        .flatMap((organization) => organization.modules)
+        .flatMap((module) =>
+          module.apps
+            .filter((app) => app.kind === "runtime-declared")
+            .map(() => module.module),
+        );
+      failing = reads + 1 + listed.indexOf("site") + 1;
+      const keeper = operations.keepBuilt({ quietMs: 100, sweepMs: 60_000 });
+      await keeper?.sweep();
+      await keeper?.settled();
+      expect(reads).toBeGreaterThanOrEqual(failing);
+      expect(answer(await operations.status("alpha/site")).build?.mode).toBe(
+        "dev",
+      );
+      // Recovered: the next sweep moves it.
+      await keeper?.sweep();
+      const moved = answer(
+        await until(
+          () => operations.status("alpha/site"),
+          (status) =>
+            status.kind === "module" &&
+            status.healthy &&
+            status.build?.mode === "built",
+        ),
+      );
+      expect(moved.build?.served?.commit).toBe(fixture.head());
+      expect((await fixture.page()).text).toBe("<p>one</p>");
+    } finally {
+      await operations.stop("alpha/site");
       await operations.close();
     }
   },

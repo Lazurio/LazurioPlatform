@@ -15784,12 +15784,27 @@ build` / `vite build` writes. Measured on the reference Environment: an Astro mo
    all the start is refused with that reason. `start --dev` (`{"dev": true}`) runs the development script explicitly, also
    in place of a built run, until it is stopped; a swap never replaces it. **Never a
    silent dev fallback.**
-7. **After a pull** (the follow-up change, see its status in the plan): inside the
-   Launchpad's own process (no daemon, F8) it watches the Git directories (`HEAD`,
-   `refs/heads/`, `packed-refs`) of the checkouts its built apps read, waits for 5 s of
-   quiet and enqueues a background build when the key moved, sweeps at its start and
-   every 5 minutes, and swaps what runs built from an older key. A module never opened
-   builds on its first open.
+7. **After a pull** (`src/modules/built/watcher.ts`, started by the Launchpad as
+   `modules.keepBuilt()`): inside the Launchpad's own process (no daemon, F8) it
+   watches the Git directories (`HEAD` and `packed-refs` in the Git directory, and
+   `refs/heads/`) of every checkout a built app's key includes (the module's, its data
+   mount's and its required slots'), waits for 5 s of quiet per app
+   and then refreshes it: a background build when the key moved (nothing when it is
+   built, or when its build failed) and a swap of what runs built from an older key. A
+   sweep at its start and every 5 minutes reads the apps again (every app with a build
+   state, that is every app someone opened), moves its watches and refreshes each, which
+   also covers a change no event reported (a branch with slashes, a dropped watch, a
+   data mount that appeared since). A refresh always computes the full key, so **a
+   data-only pull** (a new commit of `workspace/<module>/db` or of a required slot, the
+   module's commit unchanged) builds and swaps exactly as a module pull does: from the
+   watch of that repository's Git directory after its quiet, at the latest at the next
+   sweep, or at the app's next Open. Until one sweep has read the catalog and then
+   named, read and inspected every app it lists, every sweep also takes the static apps
+   that run their development script from before builds existed and moves them onto a
+   build: anything that fails at the Launchpad's start (the catalog, an app's
+   resolution, its declaration, its status) is tried again, never forgotten. One refresh per app at a time; changes
+   during one become exactly one more. A module never opened builds on its first open.
+   The CLI never watches.
 8. **Visibility.** Every answer about a static app carries `build`: what it runs
    (`built` with its commit, or `dev`), the current build, a build under way, the last
    failure and its log; `lazurio module build <Organization>/<module>` builds now (also
@@ -15844,13 +15859,19 @@ the written-out script as a process: healthy, SIGTERM exit 0, `--check`),
 rest removed, one build at a time with the waiting person first and joins, a pull during
 a build, a failure kept and not retried by itself, another process's lock, shutdown, a
 script that succeeds without writing its output or writes part of it, a waiting build
-recorded as queued) and
-`tests/module-built.test.ts` (real processes: a built start, `--dev`, a pull served from
-the previous build while the new one builds and then swapped, the old assets after the
-swap, a failed build that keeps serving, `lazurio module build`, an app without
-`build_output` unchanged, `ensure` answering `build-pending` then healthy, a failed
-build retried by a person's Start but never by `ensure`, two apps competing for the one
-build with the waiting one answering `build-pending`). End to end on
+recorded as queued), `tests/built-watcher.test.ts` (a burst of Git changes becomes one
+refresh after the quiet, Git's other files are ignored, a change during a refresh becomes
+exactly one more, a sweep moves its watches, nothing after shutdown, a real commit
+noticed through `fs.watch`) and `tests/module-built.test.ts` (real processes: a built
+start, `--dev`, a pull served from the previous build while the new one builds and then
+swapped, the old assets after the swap, a failed build that keeps serving, `lazurio
+module build`, an app without `build_output` unchanged, `ensure` answering
+`build-pending` then healthy, a failed build retried by a person's Start but never by
+`ensure`, two apps competing for the one build with the waiting one answering
+`build-pending`, a development run from before builds moved onto a build by the first
+sweep that could read the catalog and name the app, a commit built and swapped in by the Launchpad
+without any request, and a data-only pull rebuilt and swapped by the watch of the data
+repository). End to end on
 macOS ARM64 with a copy of the reference Organization's Astro knowledgebase in a fixture
 Folder (session runner): its development start healthy in 10.4 s holding 290 MiB; its
 first built open 13.2 s including the build; a later built open 0.4 s holding 16 MiB; a

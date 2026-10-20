@@ -57,10 +57,17 @@ import {
   buildCacheRoot,
   buildKeyOf,
   buildLockFile,
+  listBuildStates,
   openBuildStore,
   staticServerFiles,
   staticServerServes,
 } from "./built/store";
+import {
+  type BuildWatcher,
+  createBuildWatcher,
+  type DirectoryWatch,
+  type WatchedApp,
+} from "./built/watcher";
 import {
   type DataMountHost,
   moduleDataMounts,
@@ -1016,19 +1023,19 @@ export function createModuleOperations(input: {
 
   /** The target's app when it is a static app this host builds. */
   async function staticPlan(target: Target): Promise<Plan | null> {
+    return readStaticPlan(target).catch(() => null);
+  }
+  // The same, but a declaration that cannot be read now throws, where null
+  // means "not a static app" (the sweep's move tells them apart).
+  async function readStaticPlan(target: Target): Promise<Plan | null> {
     if (builder === undefined) return null;
-    try {
-      const plan = await readModuleApplication(
-        target.moduleDirectory,
-        target.app,
-      );
-      return plan.kind === "declared-runtime-plan" &&
-        plan.runtime.static !== null
-        ? plan
-        : null;
-    } catch {
-      return null;
-    }
+    const plan = await readModuleApplication(
+      target.moduleDirectory,
+      target.app,
+    );
+    return plan.kind === "declared-runtime-plan" && plan.runtime.static !== null
+      ? plan
+      : null;
   }
 
   const storeOf = (target: Target, plan: Plan) =>
@@ -1286,15 +1293,117 @@ export function createModuleOperations(input: {
   // the app running otherwise. Only an owner that outlives the answer (the
   // Launchpad) builds in the background. `explicit`: a person's start, which
   // builds again also a commit whose build failed.
-  function refresh(prepared: Prepared, plan: Plan, explicit: boolean) {
-    if (builder === undefined || owner !== "launchpad") return;
-    void builder
-      .enqueue(jobOf(prepared, plan, explicit), "background")
-      .then((outcome) =>
-        outcome.kind === "built" ? swap(prepared, plan, outcome) : undefined,
-      )
-      .catch(() => undefined);
+  async function refreshNow(prepared: Prepared, plan: Plan, explicit = false) {
+    if (builder === undefined) return;
+    const outcome = await builder.enqueue(
+      jobOf(prepared, plan, explicit),
+      "background",
+    );
+    if (outcome.kind === "built") await swap(prepared, plan, outcome);
   }
+  function refresh(prepared: Prepared, plan: Plan, explicit: boolean) {
+    if (owner !== "launchpad") return;
+    void refreshNow(prepared, plan, explicit).catch(() => undefined);
+  }
+
+  // The apps the Launchpad keeps built after a pull (decision F58 point
+  // 7): every app with a build state (someone opened it), and, until one
+  // sweep has read them all, also every static app that runs without one (a
+  // development run from before builds existed, moved onto its build), with
+  // the Git directories their builds read: the module's and those of the
+  // data mounts and required slots its build key includes.
+  const watched = new Map<
+    string,
+    Readonly<{ prepared: Prepared; plan: Plan }>
+  >();
+  // Done only by a sweep that read the catalog and then named, read and
+  // inspected every app it lists: anything that fails now (the catalog, an
+  // app's resolution, its declaration, its status) is tried again at the
+  // next sweep.
+  let migrating = true;
+  async function gitDirectoriesOf(target: Target, plan: Plan) {
+    const read = (host.builds as NonNullable<ModuleHost["builds"]>)
+      .readCheckout;
+    const directories = new Set<string>();
+    const own = await read(target.moduleDirectory, { status: false });
+    if (own !== null) directories.add(own.gitDirectory);
+    for (const input of (await buildInputs(target, plan)) ?? []) {
+      const head = await read(join(target.organizationDirectory, input.path), {
+        status: false,
+      });
+      if (head !== null) directories.add(head.gitDirectory);
+    }
+    return [...directories].sort();
+  }
+  async function watchedApps(): Promise<readonly WatchedApp[]> {
+    if (host.builds === undefined) return [];
+    const names = new Map<string, string | undefined>();
+    for (const { state } of await listBuildStates(host.builds.cacheRoot))
+      names.set(
+        `${state.organization}/${state.module}\0${state.app}`,
+        state.app,
+      );
+    let migrated = migrating;
+    if (migrating) {
+      try {
+        const catalog = await readCatalog(folder, false);
+        for (const organization of catalog.organizations)
+          for (const module of organization.modules)
+            for (const app of module.apps)
+              if (
+                organization.organization !== null &&
+                app.kind === "runtime-declared"
+              )
+                names.set(
+                  `${organization.organization}/${module.module}\0${app.package}`,
+                  undefined,
+                );
+      } catch {
+        migrated = false;
+      }
+    }
+    const apps: WatchedApp[] = [];
+    watched.clear();
+    for (const [key, recorded] of names) {
+      const [name, app] = key.split("\0") as [string, string];
+      // An app of the move that cannot be named or read now keeps the move
+      // pending, so that the next sweep tries it again.
+      const prepared = await prepare("build", name, { app });
+      if ("kind" in prepared) {
+        if (recorded === undefined) migrated = false;
+        continue;
+      }
+      let plan: Plan | null;
+      try {
+        plan = await readStaticPlan(prepared.target);
+      } catch {
+        if (recorded === undefined) migrated = false;
+        continue;
+      }
+      if (plan === null) continue;
+      const store = storeOf(prepared.target, plan);
+      // Without a build state: only an app that runs now.
+      if (recorded === undefined && (await store.state()) === null) {
+        const running = await operate(
+          "status",
+          prepared.runner,
+          prepared.target,
+          (lifecycle) => lifecycle.status(prepared.selection),
+        );
+        if (running.kind !== "status" && running.kind !== "not-managed")
+          migrated = false;
+        if (running.kind !== "status" || running.state !== "running") continue;
+      }
+      watched.set(store.directory, { prepared, plan });
+      apps.push({
+        id: store.directory,
+        gitDirectories: await gitDirectoriesOf(prepared.target, plan),
+      });
+    }
+    if (migrated) migrating = false;
+    return apps;
+  }
+  let keeper: BuildWatcher | undefined;
 
   // A built start: the newest build there is now, built first when there
   // is none (the person waits for it; a long one is answered
@@ -1819,6 +1928,36 @@ export function createModuleOperations(input: {
     ): Promise<ModuleAnswer | ModuleBlocked> {
       return answerWithin("build", name, options, buildOwned, answer);
     },
+    /** Keep the static apps people opened built after a pull (decision F58
+     * point 7): the Launchpad watches the Git directories their builds read
+     * and sweeps at its start and every few minutes, building a moved
+     * checkout in the background and swapping what runs. The Launchpad's
+     * own process, no daemon (F8); nothing where this host keeps no builds. */
+    keepBuilt(
+      options: Readonly<{
+        watch?: DirectoryWatch;
+        quietMs?: number;
+        sweepMs?: number;
+      }> = {},
+    ) {
+      if (
+        builder === undefined ||
+        owner !== "launchpad" ||
+        keeper !== undefined ||
+        closing
+      )
+        return keeper;
+      keeper = createBuildWatcher({
+        apps: watchedApps,
+        refresh: async (app) => {
+          const entry = watched.get(app.id);
+          if (entry !== undefined) await refreshNow(entry.prepared, entry.plan);
+        },
+        ...options,
+      });
+      keeper.start();
+      return keeper;
+    },
     /** The gateway's `ensure` (launchpad-parity B5): make the default app of
      * the module with this exact lazurio.module.v1 id run. Healthy now: the
      * status, at once. Otherwise, when `mayStart`, start it (joining a start
@@ -1988,7 +2127,9 @@ export function createModuleOperations(input: {
     async close() {
       closing = true;
       // A build under way ends with its owner; its output is not installed.
+      const watching = keeper?.close();
       await builder?.close();
+      await watching;
       let complete = true;
       for (const [directory, lifecycle] of held) {
         try {
