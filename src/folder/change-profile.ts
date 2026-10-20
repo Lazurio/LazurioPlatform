@@ -19,6 +19,7 @@ import {
 import type { OutputPath } from "./outputs";
 import {
   derivePreset,
+  isFixed,
   type PresetName,
   parsePresetName,
   presetReference,
@@ -85,7 +86,12 @@ export function parseProfileRequest(input: unknown): ProfileRequest {
 // Shared profile-change planning. The caller reads trusted current state under
 // the common lock and must revalidate before writing. This is not an apply token.
 // A requested profile change keeps the recorded Machine binding, the
-// recorded enabled tools and the operator's notes on them.
+// recorded enabled tools and the operator's notes on them. On a public
+// Environment the Try overlay fixes the preset (decision F55's addendum of
+// 2026-10-20): every visitor shares it, so a request for another preset is
+// `preset-fixed`, from Settings → Obecné and `profile-update` alike, while
+// the recorded one with other communication axes is an ordinary change. A
+// refresh from the handover is the operator's and is not refused here.
 export async function planProfileChange(
   currentPreferencesInput: unknown,
   currentManifestInput: unknown,
@@ -95,6 +101,12 @@ export async function planProfileChange(
 ) {
   const current = parseFolderPreferences(currentPreferencesInput);
   const requested = parseProfileRequest(requestedInput);
+  if (
+    requested.preset !== undefined &&
+    requested.preset !== current.preset.name &&
+    isFixed(current.machine, "preset")
+  )
+    return { kind: "blocked", reason: "preset-fixed" } as const;
   return planFolderChange(
     current,
     currentManifestInput,

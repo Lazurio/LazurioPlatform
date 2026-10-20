@@ -149,9 +149,12 @@ const team01 = binding({
 
 const work = "hosted-organization-personal";
 const team = "hosted-organization-team";
+// The Folder as it may be recorded, and the kind people are shown on it: the
+// Try overlay preset shows a Team Environment whatever the record (F55's
+// addendum of 2026-10-20, the Try overlay preset).
 const recorded = [
-  [work, "Pracovní", "Work"],
-  [team, "Týmové", "Team"],
+  [work, "Týmové", "Team", "Work"],
+  [team, "Týmové", "Team", "Team"],
 ] as const;
 const catalog = { kind: "catalog", organizations: [] } as const;
 
@@ -407,9 +410,9 @@ async function tryLaunchpad(preset: PresetName) {
   };
 }
 
-for (const [preset, kindCs, kindEn] of recorded)
+for (const [preset, kindCs, kindEn, recordedAs] of recorded)
   posixTest(
-    `hosted try-01 recorded as ${kindEn}: its shell document draws the notice, and Začínáme and the tour follow GET /api/ai as Codex answers it`,
+    `hosted try-01 recorded as ${recordedAs}: its shell document draws the notice, and Začínáme and the tour follow GET /api/ai as Codex answers it`,
     async () => {
       const app = await tryLaunchpad(preset);
       try {

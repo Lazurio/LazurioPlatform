@@ -8,7 +8,9 @@ request head until it merges). New preset choices are narrowed to the stated
 assignment (issue #107). The services Environment of a server, Služby serveru (root
 decision 0209), derives the Team preset from the handover value `services` and is a
 work Environment to people ([F10 amendment of 2026-10-19](decisions.md#f10--workspace-presets-and-typed-owner-requests),
-pending the Machines re-pin).**
+pending the Machines re-pin). A public Environment has the [Try overlay preset](#the-try-overlay-preset-a-public-environment)
+over its recorded preset (F55's addendum of 2026-10-20): a frozen record selected by
+the handover's `entry.audience`, not a preset.**
 See [decision F10](decisions.md#f10--workspace-presets-and-typed-owner-requests).
 
 A workspace preset is a different concept from the application presets in
@@ -210,13 +212,52 @@ takes the Steward preset with `lazurio machine folder-refresh --preset
 hosted-organization-steward`, recorded with the new binding as `derived`. A Folder
 that recorded the Steward preset explicitly (Platform #106, before #277) keeps it.
 
+## The Try overlay preset: a public Environment
+
+A public Environment is a work VM of the public reference Organization whose gateway
+admits any Lazurio account (root decision 0204,
+[decision F55](decisions.md#f55--a-public-environment-a-demo-onboarding-a-quiet-notice-that-it-is-public-nothing-to-sign-in-to));
+try-01 is the one there is. What it means inside the app is the **Try overlay preset**
+(`tryPreset` in `src/folder/presets.ts`,
+[F55's addendum of 2026-10-20](decisions.md#addendum-of-2026-10-20-the-try-overlay-preset)):
+one frozen record that a reviewer reads in one place.
+
+**Why a record over the preset, not a preset.** F55 rejected a preset of its own
+(`hosted-public`) because a preset says how an Environment is assigned: it is derived
+from `owner.assignment`, recorded in the Folder and composes the Folder, the tools and
+the agents' texts. Being public is not an assignment. It is who the gateway admits,
+decided by the Deployment Repo and Machines (the `public-account` admission, which
+Machines projects to `entry.audience: "public"`). So try-01 keeps the preset its
+assignment derives (Team), or the one an earlier adoption recorded (Work), with all of
+its rules, and the overlay lies over it. The overlay is not in `presetNames`; it is
+never recorded, offered, chosen or passed as `--preset`, and no Folder migrates. One
+switch selects it, and `visitorPreset(machine)` is its one reader. `isPublicEnvironment`
+and `githubIdentity` are thin readers of `visitorPreset`.
+
+| Field | Value | Meaning |
+| --- | --- | --- |
+| `onboarding` | `demo` | Začínáme says what to try instead of a person's sign-ins |
+| `githubIdentity` | `none` | No broker, no App and no person's sign-in; the Organization's public repositories are read anonymously and nothing is published |
+| `withheld` | `integrations`, `tools` | Integrace and Nastavení → Nástroje answer as absent, pages and API. The vault is not withheld by the overlay: it follows the vault core (until plan DEV-6668 slice 6, Trezor is still withheld) |
+| `notice` | `terms`, `privacy`, by language | The visitors' terms and privacy pages on lazurio.ai, which the gateway's entry card shows before entry; the app only reminds of them |
+| `instructions` | `visitors` | The visitors' section of the generated instructions, reserved for slice 5 |
+| `fixed` | `preset`, `theme` | Nobody changes them, since every visitor shares them |
+| `shownKind` | `team` | People see a Team Environment, whatever the recorded preset |
+
+Settings → Obecné shows the overlay as one fixed option, "Týmové Prostředí pro
+vyzkoušení" / "Team Environment for trying Lazurio": a kind word with a qualifier, not
+a fourth kind (root decision 0207). A profile change to another preset is
+`preset-fixed`, in the Launchpad `409`, and the recorded preset with other communication
+axes is an ordinary change. `machine folder-refresh` is the operator's and is unchanged.
+On every Environment that is not public the overlay is absent and nothing above applies.
+
 ## Immutable and mutable
 
 | | Where it comes from | Launchpad |
 | --- | --- | --- |
 | Machine identity: kind, name, Owner (a person or Organization + Team), tailnet node, host | The handover, recorded at adoption as part of the **Machine binding**; immutable | Shown only |
 | Assignment and relationships when the handover carries them, handover digest | The current handover; `machine folder-refresh` re-records them in the binding | Shown only |
-| Preset | Derived, confirmed or explicitly chosen among the selectable presets; a recorded one stays valid within the allow-list | Changeable through the ordinary preview → apply profile change, to the recorded preset or a selectable one |
+| Preset | Derived, confirmed or explicitly chosen among the selectable presets; a recorded one stays valid within the allow-list | Changeable through the ordinary preview → apply profile change, to the recorded preset or a selectable one; fixed on a public Environment (the Try overlay) |
 | Communication axes `locale`, `detail`, `coordination` | Preset defaults, then the Operator | Changeable through the same flow |
 | Fixed axes `access`, `purpose` | The preset's composition | Not controls; a request whose fixed axes disagree with the preset is a blocked plan |
 
@@ -224,7 +265,8 @@ There is one change path. CLI (`profile-preview`/`profile-update --preset`), Lau
 and a future typed owner request all send `{expectedRevision, preset?, profile}` to the
 same use case; a preset that is neither the recorded one nor selectable is
 `preset-not-allowed`, a profile that disagrees with the preset is
-`preset-composition`, both without a write. A handover rewrite enters the same planner
+`preset-composition`, and on a public Environment any preset but the recorded one is
+`preset-fixed`, all without a write. A handover rewrite enters the same planner
 and transaction through `lazurio machine folder-refresh`, with the recorded preset and
 profile and the re-projected binding of the same Machine
 ([refresh](machine-handover.md#refresh-after-a-handover-rewrite)); a preset recorded as

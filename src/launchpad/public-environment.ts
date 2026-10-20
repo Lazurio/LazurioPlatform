@@ -1,3 +1,4 @@
+import { tryPreset, visitorPreset } from "../folder/presets";
 import {
   defaultSettingsSection,
   type PageRoute,
@@ -8,11 +9,13 @@ import {
 // a work VM of the public reference Organization whose gateway admits any
 // Lazurio account, without membership or a grant. Machines says so in the
 // handover's `entry.audience` (Machines #560); the platform decides it,
-// never the Organization's own settings. Its visitors share the Environment,
-// so no one signs in to anything here: the Launchpad runs a demo onboarding
-// instead of Začínáme's sign-ins, the shell's column head says the
-// Environment is public and shared, and there is no Integrace, no Trezor and
-// no Nastavení → Nástroje, whose rows sign in gh, Codex, Claude,
+// never the Organization's own settings. What public means here is the Try
+// overlay preset (`tryPreset` in src/folder/presets.ts, F55's addendum of
+// 2026-10-20), selected by `visitorPreset` alone. Its visitors share the
+// Environment, so no one signs in to anything here: the Launchpad runs a
+// demo onboarding instead of Začínáme's sign-ins, the shell's column head
+// says the Environment is public and shared, and there is no Integrace, no
+// Trezor and no Nastavení → Nástroje, whose rows sign in gh, Codex, Claude,
 // Composio, Bitwarden and the other tools. Nothing here grants or refuses
 // entry: the gateway's admission does. Pure and free of Node, so the page and
 // the server share it.
@@ -24,26 +27,33 @@ export const isEntryAudience = (value: unknown): value is EntryAudience =>
   value === "public";
 
 /** Whether a recorded entry (the binding's, or its public parts the page
- * reads) is a public Environment's. No entry (a workstation) is not. */
+ * reads) is a public Environment's: whether the Try overlay lies over it.
+ * No entry (a workstation) is not. */
 export function isPublicEnvironment(
   entry: Readonly<{ audience?: EntryAudience }> | null | undefined,
 ): boolean {
-  return entry?.audience === "public";
+  return visitorPreset({ entry }) !== null;
 }
 
-/** The Settings sections a public Environment does not have: Nástroje,
- * every row of which offers a sign-in, an installation or a setup a visitor
- * must not start. */
-const withheldSections: readonly SettingsSection[] = ["tools"];
+/** The Settings sections a public Environment does not have, from the
+ * overlay's `withheld`: Nástroje, every row of which offers a sign-in, an
+ * installation or a setup a visitor must not start. */
+const withheldSections: readonly SettingsSection[] =
+  tryPreset.withheld.includes("tools") ? ["tools"] : [];
 
 /** What a public Environment does not have (0204 point 4: no sign-in, no
- * vault and no Integrace for its visitors): every route of Integrace, of
- * Trezor (an agent's secret request and the old addresses in Settings
- * included) and of Nastavení → Nástroje. The server answers them as absent
- * and the page shows `publicRoute` in their place. */
+ * vault and no Integrace for its visitors): every route of Integrace and of
+ * Nastavení → Nástroje, as the overlay's `withheld` names them, and every
+ * route of Trezor (an agent's secret request and the old addresses in
+ * Settings included). The server answers them as absent and the page shows
+ * `publicRoute` in their place. */
 export function withheldInPublic(route: PageRoute): boolean {
   return (
-    route.view === "integrations" ||
+    (route.view === "integrations" &&
+      tryPreset.withheld.includes("integrations")) ||
+    // Trezor is not in the overlay's `withheld`: the vault follows the vault
+    // core. Until plan DEV-6668 slice 6 (#499) lists it by that answer, it
+    // stays withheld here.
     route.view === "vault" ||
     (route.view === "settings" && withheldSections.includes(route.section))
   );
@@ -61,9 +71,8 @@ export const isToolsApiPath = (path: string): boolean =>
  * home, Nástroje's the default Settings section; every other route is
  * itself. */
 export function publicRoute(route: PageRoute): PageRoute {
-  if (route.view === "integrations" || route.view === "vault")
-    return { view: "home" };
-  if (route.view === "settings" && withheldSections.includes(route.section))
-    return { view: "settings", section: defaultSettingsSection };
-  return route;
+  if (!withheldInPublic(route)) return route;
+  return route.view === "settings"
+    ? { view: "settings", section: defaultSettingsSection }
+    : { view: "home" };
 }

@@ -7,7 +7,7 @@ import {
   type MachineBinding,
   unknownAssignment,
 } from "../folder/machine-binding";
-import type { PresetName } from "../folder/presets";
+import { type PresetName, visitorPreset } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
 import { readMachineContext } from "../machine/context";
 import { type Catalog, readFolderCatalog } from "../organizations/catalog";
@@ -79,15 +79,19 @@ export const presetKinds: Readonly<Record<PresetName, ShellEnvironmentKind>> = {
   "hosted-organization-steward": "automated",
 };
 
-/** The kind people are shown for this Environment: its preset's, except the
- * services Environment of a server, Služby serveru (root decision 0209
- * point 3). It has the Team preset because it acts on GitHub as a Team
- * Environment does, but to people it is a work Environment (root decision
- * 0207: no fourth kind, and never a Team one). */
+/** The kind people are shown for this Environment: its preset's, except two
+ * that take it from the binding. A public Environment is the Try overlay's
+ * `shownKind`, a Team one, whatever preset its Folder recorded (decision
+ * F55's addendum of 2026-10-20). The services Environment of a server,
+ * Služby serveru (root decision 0209 point 3), has the Team preset because it
+ * acts on GitHub as a Team Environment does, but to people it is a work
+ * Environment. Root decision 0207: no fourth kind. */
 export function environmentKind(
   preset: PresetName,
   machine: MachineBinding | null,
 ): ShellEnvironmentKind {
+  const visitor = visitorPreset(machine);
+  if (visitor !== null) return visitor.shownKind;
   return isServerServices(machine) ? "work" : presetKinds[preset];
 }
 

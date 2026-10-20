@@ -1430,6 +1430,11 @@ const en = {
   serverServicesName: "Server services",
   machineWorksServices: "Owners and Admins of the Organization",
   machineKindServices: `${kindDetail("work", "en")} with the server's services`,
+  // A public Environment (the Try overlay preset, decision F55's addendum
+  // of 2026-10-20): a Team Environment set apart by its words, never a
+  // fourth kind (root decision 0207). Its kind in Toto Prostředí and its one
+  // fixed option in Obecné.
+  machineKindTry: `${kindDetail("team", "en")} for trying Lazurio`,
   machineKindPersonal: kindDetail("personal", "en"),
   machineKindWork: kindDetail("work", "en"),
   machineKindTeam: kindDetail("team", "en"),
@@ -3098,6 +3103,7 @@ const cs: Record<MessageKey, string> = {
   serverServicesName: "Služby serveru",
   machineWorksServices: "Owneři a Admini Organizace",
   machineKindServices: `${kindDetail("work", "cs")} se službami serveru`,
+  machineKindTry: `${kindDetail("team", "cs")} pro vyzkoušení`,
   machineKindPersonal: kindDetail("personal", "cs"),
   machineKindWork: kindDetail("work", "cs"),
   machineKindTeam: kindDetail("team", "cs"),

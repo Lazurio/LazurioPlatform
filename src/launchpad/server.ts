@@ -37,7 +37,7 @@ import {
 import { withFolderReadLock } from "../folder/lock";
 import type { MachineEntry } from "../folder/machine-binding";
 import { inspectCheckoutDirectory } from "../folder/owned-directory";
-import { type PresetName, selectablePresets } from "../folder/presets";
+import { isFixed, type PresetName, selectablePresets } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
 import {
   enabledTools,
@@ -1779,9 +1779,10 @@ export async function startLaunchpad(
         }
       }
       // A public Environment has no sign-in, no Integrace and no vault of its
-      // own (root decision 0204 point 4): Nástroje, Integrace and Trezor
-      // answer as absent, before anything signs a tool in, installs it or
-      // reads Executor, Composio or the vault.
+      // own (root decision 0204 point 4): Nástroje and Integrace (the Try
+      // overlay's `withheld`) and Trezor (until plan DEV-6668 slice 6, as in
+      // `withheldInPublic`) answer as absent, before anything signs a tool
+      // in, installs it or reads Executor, Composio or the vault.
       if (
         publicEnvironment &&
         (isToolsApiPath(url.pathname) ||
@@ -2001,14 +2002,18 @@ export async function startLaunchpad(
           // The preset and the communication axes are changeable; the Machine
           // binding is shown and never accepted back from the browser. The
           // presets offered are those a change may end on: the recorded one
-          // and what the handover offers as a new choice (issue #107).
+          // and what the handover offers as a new choice (issue #107); on a
+          // public Environment, whose Try overlay fixes the preset (F55's
+          // addendum of 2026-10-20), the recorded one alone.
           return response({
             revision: current.preferences.revision,
             preset: current.preferences.preset,
-            allowedPresets: selectablePresets(
-              current.preferences.machine,
-              current.preferences.preset.name,
-            ),
+            allowedPresets: isFixed(current.preferences.machine, "preset")
+              ? [current.preferences.preset.name]
+              : selectablePresets(
+                  current.preferences.machine,
+                  current.preferences.preset.name,
+                ),
             machine: current.preferences.machine,
             profile: current.preferences.profile,
             voice: resolvedVoice(
