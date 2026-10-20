@@ -378,7 +378,11 @@ test("a static app's build (decision F58): building before it runs, its outcomes
     mode: null,
     served: null,
     current: null,
-    building: { commit: "a".repeat(40), at: "2026-10-20T08:00:00.000Z" },
+    building: {
+      commit: "a".repeat(40),
+      at: "2026-10-20T08:00:00.000Z",
+      queued: false,
+    },
     failure: null,
   } as const;
   const building = moduleStatusView(
@@ -390,6 +394,25 @@ test("a static app's build (decision F58): building before it runs, its outcomes
     text: "Sestavuje se…",
     action: null,
   });
+  // A build waiting for its turn behind another app's reads the same.
+  expect(
+    moduleStatusView(
+      answer({
+        state: "stopped",
+        healthy: false,
+        runtime: null,
+        build: {
+          ...build,
+          building: {
+            commit: null,
+            at: "2026-10-20T08:00:00.000Z",
+            queued: true,
+          },
+        },
+      }),
+      en,
+    ),
+  ).toMatchObject({ dot: "starting", text: "Building…", action: null });
   for (const [outcome, english] of [
     ["build-pending", en.moduleBuildPending],
     ["built", en.moduleBuilt],
