@@ -7,6 +7,15 @@ import { isEntryAudience } from "./public-environment";
 // composes no origin; it only accepts one that has the shape the recorded
 // entry allows, and a pairing link only on that same origin.
 
+/** Whether `GET /api/entry` answered that there is no entry: a
+ * workstation's answer, which says as surely as an entry does that this is
+ * no public Environment. Any other shape says nothing. */
+export const isNoEntry = (value: unknown): boolean =>
+  typeof value === "object" &&
+  value !== null &&
+  (value as { kind?: unknown }).kind === "entry" &&
+  (value as { entry?: unknown }).entry === null;
+
 /** The answer of `GET /api/entry`: the recorded entry's public parts, or
  * null (a workstation, or an answer of any other shape). */
 export function parseEntryAnswer(value: unknown): PublicEntry | null {

@@ -28,6 +28,7 @@ import {
   chatHref,
   chatPairLink,
   chatPromptHref,
+  isNoEntry,
   mausbotPairLink,
   type PromptLink,
   parseEntryAnswer,
@@ -817,15 +818,20 @@ const startCountNode = document.querySelector<HTMLElement>("#start-count");
 // boot document's `vaultInApps`, F53's addendum of 2026-10-18 (3)), which
 // the served page already shows; a page that carries none by its preset,
 // never on this computer, and on a public Environment not at all, where the
-// router then shows Apps in Trezor's place (plan DEV-6668 slice 6). Marked
-// while its page shows.
+// router then shows Apps in Trezor's place (plan DEV-6668 slice 6). Until the
+// page knows whether it is a public Environment's (`entryKnown`: its boot
+// document's entry, or `GET /api/entry` answered), not on any page: a public
+// Environment without its vault never shows it, also while its entry is slow
+// or fails, and any other shows it once its entry is read. Marked while its
+// page shows.
 const vaultNav = document.querySelector<HTMLElement>("#vault-nav");
 const vaultOpen = document.querySelector<HTMLAnchorElement>("#vault-open");
+let entryKnown = entry !== null;
 const vaultHere = () =>
   vaultInApps(
     boot?.vaultInApps ?? null,
     profileState?.preset ?? null,
-    isPublicEnvironment(entry),
+    entryKnown ? isPublicEnvironment(entry) : null,
   );
 function drawVaultNav() {
   if (vaultNav !== null) vaultNav.hidden = !vaultHere();
@@ -1763,6 +1769,9 @@ async function readEntry() {
   try {
     const { value, ok } = await get("/api/entry");
     read = ok ? parseEntryAnswer(value) : null;
+    // Known once answered: an entry, or a workstation's none. A failed or
+    // unreadable answer leaves it unknown, and Trezor hidden.
+    if (read !== null || (ok && isNoEntry(value))) entryKnown = true;
   } catch {
     read = null;
   }
@@ -1777,6 +1786,9 @@ async function readEntry() {
     shell.replace();
     firstRun();
   }
+  // Trezor waited for the entry (plan DEV-6668 slice 6): drawn now, whether
+  // the entry changed or not.
+  drawVaultNav();
   await handoff;
 }
 async function readPromptHandoff() {

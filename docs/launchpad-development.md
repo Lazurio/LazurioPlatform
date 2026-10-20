@@ -2601,7 +2601,10 @@ vault](decisions.md#addendum-of-2026-10-20-a-public-environments-vault-follows-t
 plan DEV-6668 slice 6, #499). Stricter: only where the vault core answers this
 Environment's own vault (`own`), which is the handover's `vault`; a fault and a core that
 throws do not list it (`vaultListed(answer, true)`, `vaultInAppsOf(host, true)`), and a
-public page without a boot document does not either. Without its vault, Trezor's pages
+public page without a boot document does not either. A page without a boot document
+lists Trezor on no Environment until `GET /api/entry` (or a workstation's answer of
+none) tells it whether it is public (`entryKnown` in `ui.ts`); a failed read keeps it
+hidden. Without its vault, Trezor's pages
 answer `404` and show Apps, and its API (`/api/vault…`) answers `404 {"error":
 "not-found"}` (`withheldInPublic(route, {vault})` on the server, `publicRoute` in the
 page's router). Its vault is a Team Environment's whatever the Folder recorded (the Try

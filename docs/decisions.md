@@ -15157,10 +15157,16 @@ record already left the vault to the vault core.
    item is hidden from the first paint. The server reads the answer from local files only
    (`vaultInAppsOf`) for the boot document, for Trezor's page routes and for its API, and
    for nothing else. `withheldInPublic(route, {vault})` and `publicRoute(route, {vault})`
-   take it; a caller that has not read it gets no vault. A public page without its boot
-   document does not list Trezor (`vaultInApps(null, preset, true)`) and its router shows
-   Apps in Trezor's place. The stylesheet's selector of the item (`li:has(> #vault-open)`)
-   goes, as F53's addendum (3), point 5, foresaw.
+   take it; a caller that has not read it gets no vault. A page that carries no boot
+   document (`pageBoot` later than its moment) does not know whether it is public until
+   `GET /api/entry` answers, and shows a second after its script ran at the latest: until
+   the entry, or a workstation's answer of none, is read, it lists Trezor on no page
+   (`vaultInApps(null, preset, null)`), and if the read fails it stays hidden. Then a
+   public page without a decision still does not list it (`vaultInApps(null, preset,
+   true)`) and its router shows Apps in Trezor's place, and any other page lists it by its
+   preset. The stylesheet's selector of the item (`li:has(> #vault-open)`) goes, as F53's
+   addendum (3), point 5, foresaw; it never covered that wait either, since
+   `data-audience` too comes only with the entry (point 5's honest limit).
 2. **A public Environment's vault is a Team Environment's.** On a public Environment the
    vault core takes its kind from the Try overlay's `shownKind`, whatever preset the
    Folder recorded (`src/vault/host.ts`). A Folder that recorded Work would otherwise give
@@ -15199,7 +15205,11 @@ decision; `vault-agents` says that everyone sees them, and nothing wipes them un
 Machines' step exists. The refresh in Trezor's header asks Nástroje's route and gets
 nothing on a public Environment; the page's state comes from `GET /api/vault`. The answer
 is read once per page load, so a vault that appears while the page is open shows at the
-next load, as does Trezor on a public page served without its boot document. The agents'
+next load, as does Trezor on a public page served without its boot document. A page of
+an Environment that is not public, served without its boot document, now lists Trezor
+only once its entry is read (a moment, or not at all if that read fails) instead of at
+once (F53's addendum (3), honest limits); Integrace on a public page so served still
+waits for the entry as point 5's honest limit says. The agents'
 Bitwarden text still says that `no-tailnet` means no vault on purpose, which holds while
 the handover names none; the visitors' generated texts are slice 5's.
 
@@ -15216,8 +15226,15 @@ hosted try-01 behind a fake gateway, its vault read by the production compositio
 served, `GET /api/vault` a Team vault not set up, the membership `not-managed`, the
 requests answering, no Bitwarden to disconnect, and the "?" `vault-agents` from the
 shell's kind and the page's answers in both languages), Integrace and Nástroje `404`
-either way; and the controls (lazurio-bob's Work Environment, team-01, services-01 and a
-Steward Environment) with their vault's answer, kind and listing as before. Updated:
+either way; the controls (lazurio-bob's Work Environment, team-01, services-01 and a
+Steward Environment) with their vault's answer, kind and listing as before; and, in
+headless Chrome over DevTools (skipped where no Chrome is installed), try-01's pages
+served without their boot document behind a stand-in for the gateway: without a vault,
+`#vault-nav` hidden in the first paint and after the deadline while `GET /api/entry`
+waits three seconds, and still once it says public, and hidden throughout when it fails;
+the same Environment not public and with its vault hidden until the entry arrives, then
+shown (the review of #562; with the page's fix reverted the first paint shows it).
+Updated:
 `tests/launchpad-apps-vault.test.ts` (no stylesheet rule names Trezor's item; a public
 Environment's Trezor `404` only without a vault) and `tests/public-environment.test.ts`
 (the titles). The goldens of the Try overlay addendum hold byte for byte.

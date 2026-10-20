@@ -1,7 +1,16 @@
 import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { browserSocketUrl, connectCdp } from "../src/browser/people/cdp";
 import { initializeHandoverFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import {
@@ -14,6 +23,7 @@ import {
 import { refreshFolder } from "../src/folder/update-profile";
 import { bootElementId, parseBoot } from "../src/launchpad/boot";
 import { vaultInAppsOf } from "../src/launchpad/boot-document";
+import { isNoEntry } from "../src/launchpad/chat-view";
 import { pageGuide, vaultAgentsGuide } from "../src/launchpad/guides";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
 import { messages } from "../src/launchpad/messages";
@@ -38,6 +48,7 @@ import { machineContextPath } from "../src/machine/context";
 import type { HostedOperatorSources } from "../src/machine/operator";
 import type { ToolRunner } from "../src/tools/status";
 import type { VaultUnsupportedReason } from "../src/vault/context";
+import type { VaultHost } from "../src/vault/flow";
 import { processVaultHost } from "../src/vault/host";
 import { ownContext } from "./fixtures/fake-vault";
 import { binding } from "./fixtures/machine-bindings";
@@ -116,6 +127,23 @@ test("a public page draws what the server decided, and without a decision does n
   expect(vaultInApps(null, "hosted-organization-team")).toBe(true);
   expect(vaultInApps(null, "hosted-organization-team", false)).toBe(true);
   expect(vaultInApps(null, "local")).toBe(false);
+  // A page that does not know yet whether it is public (no boot document,
+  // its entry not read or failed) lists it nowhere: the review of #562.
+  for (const preset of [...presetNames, null])
+    expect([preset, vaultInApps(null, preset, null)]).toEqual([preset, false]);
+});
+
+test("only an entry or a workstation's answer of none tells the page its audience", () => {
+  expect(isNoEntry({ kind: "entry", entry: null })).toBe(true);
+  for (const value of [
+    null,
+    {},
+    { kind: "entry" },
+    { kind: "entry", entry: {} },
+    { kind: "other", entry: null },
+    { error: "denied" },
+  ])
+    expect([value, isNoEntry(value)]).toEqual([value, false]);
 });
 
 test("where the vault core cannot be read at all, a public Environment does not list Trezor", async () => {
@@ -622,3 +650,345 @@ for (const control of controlVaults)
     },
     30_000,
   );
+
+// --- A page served without its boot document, in a real browser ----------
+
+// The review of #562: a hosted page whose boot document was late (the vault
+// core or the Folder slower than its moment, `pageBoot`) knows neither its
+// entry nor the server's decision until `GET /api/entry` answers, and the
+// page shows a second after its script ran at the latest. Trezor must stay
+// hidden there until the page knows it is no public Environment: on try-01
+// without a vault while its entry is slow and when it fails, and it appears
+// on the same Environment, not public and with its vault, once its entry
+// arrives. Run in headless Chrome over DevTools with this repository's own
+// client (src/browser/people/cdp.ts); skipped where no Chrome is installed.
+// `LAZURIO_TEST_CHROME` names one.
+
+const chrome: string | null = (() => {
+  const named = process.env.LAZURIO_TEST_CHROME;
+  if (named !== undefined && named !== "") return named;
+  const mac = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+  if (process.platform === "darwin" && existsSync(mac)) return mac;
+  for (const name of [
+    "google-chrome",
+    "google-chrome-stable",
+    "chromium",
+    "chromium-browser",
+  ]) {
+    const found = Bun.which(name);
+    if (found !== null) return found;
+  }
+  return null;
+})();
+
+/** How long the gateway's path holds `GET /api/entry` when it is slow:
+ * longer than the page's one second and the stylesheet's two. */
+const entryDelayMs = 3000;
+
+/** try-01's Launchpad, every page of it served without its boot document,
+ * behind a loopback stand-in for the gateway that adds its Host and cookie
+ * and holds (`slow`) or fails (`failed`) `GET /api/entry`. `audience: false`
+ * is the same Environment without `entry.audience`, not public. */
+async function servedWithoutBoot(
+  input: Readonly<{
+    audience: boolean;
+    withVault: boolean;
+    entry: "slow" | "failed";
+  }>,
+) {
+  const port = freePort();
+  const handover = tryHandover({
+    withVault: input.withVault,
+    listenPort: port,
+  });
+  const { audience: _, ...notPublic } = handover.entry;
+  const document = input.audience
+    ? handover
+    : { ...handover, entry: notPublic };
+  const { parent, folder, vaultHost } = await machineOf(
+    document,
+    "hosted-organization-team",
+  );
+  // The vault core answers after the boot document's moment (500 ms), so
+  // no page carries one, as when the Folder is held or slow.
+  const late: VaultHost = {
+    ...vaultHost,
+    context: async () => {
+      await Bun.sleep(900);
+      return vaultHost.context();
+    },
+  };
+  const home = join(parent, "home");
+  const bin = join(home, ".local", "bin");
+  await mkdir(bin, { recursive: true, mode: 0o700 });
+  await mkdir(join(home, "Documents"), { mode: 0o700 });
+  const fetcher: AuthFetcher = async (_url, init) =>
+    new Headers(init.headers).get("cookie") ===
+    "__Secure-lazurio-workspace=valid"
+      ? new Response("ok")
+      : new Response("no", { status: 401 });
+  const app = await startLaunchpad(
+    folder,
+    undefined,
+    undefined,
+    undefined,
+    { fetcher },
+    { path: bin, home, platform: process.platform, run: signedOut },
+    {},
+    undefined,
+    undefined,
+    { home, platform: process.platform, folder },
+    undefined,
+    undefined,
+    undefined,
+    late,
+  );
+  const origin = handover.entry.launchpad.external_origin;
+  const state = { entryAnswered: false };
+  const gateway = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    async fetch(request) {
+      const url = new URL(request.url);
+      const entryRead = url.pathname === "/api/entry";
+      if (entryRead && input.entry === "failed") {
+        state.entryAnswered = true;
+        return Response.json({ error: "unavailable" }, { status: 503 });
+      }
+      if (entryRead) await Bun.sleep(entryDelayMs);
+      const headers = new Headers(request.headers);
+      headers.set("host", new URL(origin).host);
+      headers.set("cookie", "__Secure-lazurio-workspace=valid");
+      if (request.method !== "GET" && request.method !== "HEAD") {
+        headers.set("origin", origin);
+        headers.set("sec-fetch-site", "same-origin");
+      }
+      const answer = await fetch(
+        `http://127.0.0.1:${port}${url.pathname}${url.search}`,
+        {
+          method: request.method,
+          headers,
+          body:
+            request.method === "GET" || request.method === "HEAD"
+              ? null
+              : await request.arrayBuffer(),
+          redirect: "manual",
+        },
+      );
+      const body = await answer.arrayBuffer();
+      if (entryRead) state.entryAnswered = true;
+      return new Response(body, {
+        status: answer.status,
+        headers: answer.headers,
+      });
+    },
+  });
+  return {
+    url: `http://127.0.0.1:${gateway.port}/`,
+    state,
+    async close() {
+      gateway.stop(true);
+      await app.close();
+      await rm(parent, { recursive: true, force: true });
+    },
+  };
+}
+
+/** A headless Chrome of its own profile and one tab in it. */
+async function headlessChrome(executable: string) {
+  const profile = await realpath(
+    await mkdtemp(join(tmpdir(), "public-vault-chrome-")),
+  );
+  const child = Bun.spawn(
+    [
+      executable,
+      "--headless=new",
+      "--remote-debugging-port=0",
+      `--user-data-dir=${profile}`,
+      "--no-first-run",
+      "--no-default-browser-check",
+      "--disable-gpu",
+      // The runners' Linux user namespaces refuse Chrome's own sandbox;
+      // only this test's loopback pages are opened.
+      ...(process.platform === "linux" ? ["--no-sandbox"] : []),
+      "about:blank",
+    ],
+    { stdout: "ignore", stderr: "ignore" },
+  );
+  const portFile = join(profile, "DevToolsActivePort");
+  const started = Date.now();
+  while (!existsSync(portFile)) {
+    if (Date.now() - started > 15_000) throw new Error("Chrome did not start");
+    await Bun.sleep(100);
+  }
+  const port = Number((await readFile(portFile, "utf8")).split("\n")[0]);
+  const cdp = await connectCdp(await browserSocketUrl(port));
+  return {
+    async open(url: string) {
+      const { targetId } = (await cdp.send("Target.createTarget", {
+        url: "about:blank",
+      })) as { targetId: string };
+      const { sessionId } = (await cdp.send("Target.attachToTarget", {
+        targetId,
+        flatten: true,
+      })) as { sessionId: string };
+      await cdp.send("Page.navigate", { url }, sessionId);
+      return {
+        /** What the page shows of Trezor now. */
+        async read() {
+          const { result } = (await cdp.send(
+            "Runtime.evaluate",
+            {
+              returnByValue: true,
+              expression: `({
+                ready: document.documentElement.hasAttribute("data-ready"),
+                boot: document.getElementById(${JSON.stringify(bootElementId)}) !== null,
+                hidden: document.getElementById("vault-nav")?.hidden ?? null,
+                audience: document.documentElement.dataset.audience ?? null,
+              })`,
+            },
+            sessionId,
+          )) as {
+            result: {
+              value?: {
+                ready: boolean;
+                boot: boolean;
+                hidden: boolean | null;
+                audience: string | null;
+              };
+            };
+          };
+          if (result.value === undefined) throw new Error("No page state");
+          return result.value;
+        },
+        close: () => cdp.send("Target.closeTarget", { targetId }),
+      };
+    },
+    async close() {
+      cdp.close();
+      child.kill();
+      await child.exited;
+      await rm(profile, { recursive: true, force: true });
+    },
+  };
+}
+
+type PageState = Awaited<
+  ReturnType<
+    Awaited<
+      ReturnType<Awaited<ReturnType<typeof headlessChrome>>["open"]>
+    >["read"]
+  >
+>;
+
+/** Reads the page until `done`, at most `withinMs`. */
+async function until(
+  read: () => Promise<PageState>,
+  done: (state: PageState) => boolean,
+  withinMs: number,
+): Promise<PageState> {
+  const started = Date.now();
+  for (;;) {
+    const state = await read().catch(() => null);
+    if (state !== null && done(state)) return state;
+    if (Date.now() - started > withinMs) throw new Error("The page never did");
+    await Bun.sleep(50);
+  }
+}
+
+test.skipIf(chrome === null || !posix || uid === 0)(
+  "without its boot document, try-01 without a vault keeps Trezor hidden while its entry is slow and when it fails; the same Environment not public shows it once its entry arrives",
+  async () => {
+    if (chrome === null) return;
+    const browser = await headlessChrome(chrome);
+    try {
+      // try-01 without a vault, its entry slow: hidden in the first paint,
+      // before the entry; still hidden once the entry says it is public.
+      {
+        const app = await servedWithoutBoot({
+          audience: true,
+          withVault: false,
+          entry: "slow",
+        });
+        try {
+          const tab = await browser.open(app.url);
+          const first = await until(tab.read, (state) => state.ready, 10_000);
+          expect(app.state.entryAnswered).toBe(false);
+          expect(first).toEqual({
+            ready: true,
+            boot: false,
+            hidden: true,
+            audience: null,
+          });
+          // Past the page's second and the stylesheet's two.
+          await Bun.sleep(1500);
+          expect(app.state.entryAnswered).toBe(false);
+          expect((await tab.read()).hidden).toBe(true);
+          const known = await until(
+            tab.read,
+            (state) => state.audience === "public",
+            10_000,
+          );
+          expect(known.hidden).toBe(true);
+          await Bun.sleep(300);
+          expect((await tab.read()).hidden).toBe(true);
+          await tab.close();
+        } finally {
+          await app.close();
+        }
+      }
+      // try-01 without a vault, its entry failing: hidden throughout.
+      {
+        const app = await servedWithoutBoot({
+          audience: true,
+          withVault: false,
+          entry: "failed",
+        });
+        try {
+          const tab = await browser.open(app.url);
+          const first = await until(tab.read, (state) => state.ready, 10_000);
+          expect([first.boot, first.hidden]).toEqual([false, true]);
+          await until(tab.read, () => app.state.entryAnswered, 10_000);
+          await Bun.sleep(1500);
+          expect(await tab.read()).toEqual({
+            ready: true,
+            boot: false,
+            hidden: true,
+            audience: null,
+          });
+          await tab.close();
+        } finally {
+          await app.close();
+        }
+      }
+      // The control: the same Environment, not public, with its vault, its
+      // entry slow: hidden until the entry is read, then shown.
+      {
+        const app = await servedWithoutBoot({
+          audience: false,
+          withVault: true,
+          entry: "slow",
+        });
+        try {
+          const tab = await browser.open(app.url);
+          const first = await until(tab.read, (state) => state.ready, 10_000);
+          expect(app.state.entryAnswered).toBe(false);
+          expect([first.boot, first.hidden]).toEqual([false, true]);
+          const shown = await until(
+            tab.read,
+            (state) => state.hidden === false,
+            10_000,
+          );
+          expect(app.state.entryAnswered).toBe(true);
+          expect(shown.audience).toBeNull();
+          await tab.close();
+        } finally {
+          await app.close();
+        }
+      }
+    } finally {
+      await browser.close();
+    }
+  },
+  90_000,
+);

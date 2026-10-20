@@ -60,14 +60,18 @@ export const vaultListed = (
  * or a hosted page whose boot document was late, by its preset: not on this
  * computer (`local`, whose answer is `workstation`), listed elsewhere, also
  * while the preset is not known, so that a Remote Environment never shows
- * it late. A public Environment's page (`isPublic`) that carries no decision
- * does not list it: there Trezor is only where the server read its vault
- * (`vaultListed`), and its page and API answer as absent otherwise. */
+ * it late. A public Environment's page (`isPublic` true) that carries no
+ * decision does not list it: there Trezor is only where the server read its
+ * vault (`vaultListed`), and its page and API answer as absent otherwise.
+ * Nor does a page that does not know yet whether it is a public
+ * Environment's (`isPublic` null: no boot document, and `GET /api/entry`
+ * not answered yet or failed), so that a public Environment never shows it
+ * on its way (plan DEV-6668 slice 6, the review of #562). */
 export const vaultInApps = (
   carried: boolean | null,
   preset: string | null,
-  isPublic = false,
-): boolean => carried ?? (!isPublic && preset !== "local");
+  isPublic: boolean | null = false,
+): boolean => carried ?? (isPublic === false && preset !== "local");
 
 const kinds: readonly VaultEnvironmentKind[] = [
   "personal",
