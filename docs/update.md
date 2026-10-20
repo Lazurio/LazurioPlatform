@@ -627,8 +627,12 @@ Codex unit:
   point 7) with `LAZURIO_BROWSER_EXTENSION=<its digest>` in the unit's environment;
   `BindsTo=`/`After=` the display, `Restart=always`, and `RestartPreventExitStatus=78`
   for "no Chrome to run". The browser's own memory budget
-  ([F38 addendum 2026-10-10](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway)):
-  `MemoryMax=30%`, `MemorySwapMax=20%`, `OOMPolicy=continue` and `OOMScoreAdjust=250`.
+  ([F38 addenda 2026-10-10 and 2026-10-20](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway)):
+  `MemoryMax=30%` as the floor, raised before each start by an optional
+  `ExecStartPre=-/bin/sh -c '…'` to the Environment's `MemTotal` minus 4 GiB where
+  that is more (`systemctl --user set-property --runtime %n MemoryMax=<bytes>`, held
+  in the user manager's runtime directory until the guest restarts, never in the unit
+  file), `MemorySwapMax=20%`, `OOMPolicy=continue` and `OOMScoreAdjust=250`.
   Before each start, `ExecStartPre=-/bin/rm -rf` removes the profile's
   `Default/Sessions`, so a restarted browser opens none of the old tabs.
 - `lazurio-browser-view.service`: the people's view (F39), this base's `<selector>
