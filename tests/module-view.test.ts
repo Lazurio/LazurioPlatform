@@ -411,12 +411,35 @@ test("a static app's build (decision F58): building before it runs, its outcomes
       },
     },
   };
+  // Plain words, never the log's path (that is for the CLI and the agent).
   expect(moduleResultMessage(failed, cs)).toBe(
-    "Aplikaci se nepodařilo sestavit; je-li předchozí verze, běží dál. Záznam sestavení: ~/.cache/lazurio/builds/alpha/web/web-0123/logs/b.log",
+    "Aplikaci se nepodařilo sestavit.",
   );
-  expect(moduleResultMessage(failed, en)).toContain(
-    "Build log: ~/.cache/lazurio/builds/alpha/web/web-0123/logs/b.log",
+  expect(moduleResultMessage(failed, en)).toBe("The app could not be built.");
+  // With an earlier build (an explicit build that failed), it keeps running.
+  const withPrevious: ModuleBlocked = {
+    ...failed,
+    build: {
+      ...(failed.build as NonNullable<ModuleBlocked["build"]>),
+      current: {
+        key: "e".repeat(40),
+        commit: "e".repeat(40),
+        at: "2026-10-20T07:00:00.000Z",
+        dirty: false,
+      },
+    },
+  };
+  expect(moduleResultMessage(withPrevious, cs)).toBe(
+    "Nejnovější verzi se nepodařilo sestavit. Dál běží předchozí verze.",
   );
+  expect(moduleResultMessage(withPrevious, en)).toBe(
+    "The newest version could not be built. The previous version keeps running.",
+  );
+  for (const result of [failed, withPrevious])
+    for (const copy of [en, cs]) {
+      expect(moduleResultMessage(result, copy)).not.toContain("/");
+      expect(moduleStatusView(result, copy).text).not.toContain("/");
+    }
   expect(offersDevelopment(failed)).toBe(true);
   expect(offersDevelopment(refusal("build-timed-out"))).toBe(true);
   // Other refusals and answers never offer it.
@@ -435,7 +458,7 @@ test("a static app's build (decision F58): building before it runs, its outcomes
       expect(moduleResultMessage(refusal(reason), copy)).not.toContain(reason);
 });
 
-test("a running static app whose newest build failed says so with its log; one that runs its development version does not (decision F58)", () => {
+test("a running static app whose newest build failed says so in plain words; one that runs its development version does not (decision F58)", () => {
   const failure = {
     commit: "d".repeat(40),
     at: "2026-10-20T08:02:00.000Z",
@@ -455,7 +478,7 @@ test("a running static app whose newest build failed says so with its log; one t
     failure,
   };
   expect(moduleStatusView(answer({ build }), cs).buildNote).toBe(
-    "Nejnovější verzi se nepodařilo sestavit, běží předchozí. Záznam sestavení: ~/.cache/lazurio/builds/alpha/web/web-0123/logs/d.log",
+    "Nejnovější verzi se nepodařilo sestavit. Dál běží předchozí verze.",
   );
   expect(
     moduleStatusView(answer({ build: { ...build, failure: null } }), en)

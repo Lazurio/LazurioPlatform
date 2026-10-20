@@ -15812,9 +15812,14 @@ build` / `vite build` writes. Measured on the reference Environment: an Astro mo
    module status` shows the same.
 
 9. **The Launchpad and the templates.** A module's page says "Sestavuje se…" while its
-   first build runs, names a failed build with its log and then offers **Spustit
-   vývojovou verzi**, the explicit development start; Nová karta's running Modules show
-   "Sestavená verze" or "Vývojový server". The `astro`, `astro-starlight` and
+   first build runs. A failed build is said in plain words, whatever its cause: "Aplikaci
+   se nepodařilo sestavit." when there is nothing to serve, "Nejnovější verzi se
+   nepodařilo sestavit. Dál běží předchozí verze." when an earlier build runs; the page
+   then offers **Spustit vývojovou verzi**, the explicit development start. People never
+   see the cause's code or the log's path (no developer copy in the interface); both stay
+   in `lazurio module build`/`status` and the API's `build.failure`, for the agent. The
+   Launchpad has no "Vyřešit v Chatu" hand-off for module findings, so none is offered.
+   Nová karta's running Modules show "Sestavená verze" or "Vývojový server". The `astro`, `astro-starlight` and
    `vite-react` templates of `lazurio module create` declare `build_output: "dist"`
    (`vite-react` also `static_fallback: "spa"`), so a new static module is built from
    its first open.

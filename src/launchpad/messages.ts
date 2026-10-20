@@ -719,15 +719,8 @@ const en = {
   moduleBuildCurrent: "This version is already built.",
   moduleStartDev: "Start the development version",
   moduleBuildFailedNote:
-    "The newest version could not be built, so the previous one runs. Build log: {file}",
-  moduleReasonBuildFailed:
-    "The app could not be built; the previous version keeps running if there is one. Build log: {file}",
-  moduleReasonBuildTimedOut:
-    "Building the app took too long and was stopped; the previous version keeps running if there is one.",
-  moduleReasonBuildOutputMissing:
-    "The build did not write the output the app declares. Build log: {file}",
-  moduleReasonBuildOutputUnservable:
-    "The build has no page for the app's readiness check, so it would never be ready. Build log: {file}",
+    "The newest version could not be built. The previous version keeps running.",
+  moduleReasonBuildFailed: "The app could not be built.",
   moduleReasonBuildBusy:
     "Another build has been running for long; try again shortly.",
   moduleReasonCheckoutChanging:
@@ -2451,15 +2444,8 @@ const cs: Record<MessageKey, string> = {
   moduleBuildCurrent: "Tato verze už je sestavená.",
   moduleStartDev: "Spustit vývojovou verzi",
   moduleBuildFailedNote:
-    "Nejnovější verzi se nepodařilo sestavit, běží předchozí. Záznam sestavení: {file}",
-  moduleReasonBuildFailed:
-    "Aplikaci se nepodařilo sestavit; je-li předchozí verze, běží dál. Záznam sestavení: {file}",
-  moduleReasonBuildTimedOut:
-    "Sestavení trvalo příliš dlouho a bylo zastaveno; je-li předchozí verze, běží dál.",
-  moduleReasonBuildOutputMissing:
-    "Sestavení nezapsalo výstup, který aplikace deklaruje. Záznam sestavení: {file}",
-  moduleReasonBuildOutputUnservable:
-    "Sestavená verze nemá stránku pro kontrolu připravenosti aplikace, takže by nikdy nebyla připravená. Záznam sestavení: {file}",
+    "Nejnovější verzi se nepodařilo sestavit. Dál běží předchozí verze.",
+  moduleReasonBuildFailed: "Aplikaci se nepodařilo sestavit.",
   moduleReasonBuildBusy:
     "Jiné sestavení běží už dlouho; zkuste to za chvíli znovu.",
   moduleReasonCheckoutChanging:

@@ -128,10 +128,13 @@ const reasonKeys: Readonly<Record<string, MessageKey>> = {
   "preparation-toolchain-mismatch": "preparationReasonToolchainMismatch",
   "preparation-install-failed": "preparationReasonInstallFailed",
   "preparation-script-failed": "preparationReasonScriptFailed",
+  // A build that gave nothing to serve, in plain words whatever its cause
+  // (decision F58): the cause and the log are for the CLI, `status` and the
+  // agent, never the page.
   "build-script-failed": "moduleReasonBuildFailed",
-  "build-timed-out": "moduleReasonBuildTimedOut",
-  "build-output-missing": "moduleReasonBuildOutputMissing",
-  "build-output-unservable": "moduleReasonBuildOutputUnservable",
+  "build-timed-out": "moduleReasonBuildFailed",
+  "build-output-missing": "moduleReasonBuildFailed",
+  "build-output-unservable": "moduleReasonBuildFailed",
   "build-busy": "moduleReasonBuildBusy",
   "checkout-changing": "moduleReasonCheckoutChanging",
 };
@@ -156,10 +159,15 @@ export const offersDevelopment = (
   (buildFailures.has(result.reason) ||
     (result.build?.failure != null && result.build.current === null));
 
-// The file a refusal names: a refused file of the checkout, or a build's
-// log (decision F58).
-const named = (result: ModuleBlocked) =>
-  result.file ?? result.build?.failure?.log;
+// A build failure in words (decision F58): the newest version could not be
+// built, and when there is an earlier build it keeps running. Never a path.
+function refusalText(result: ModuleBlocked, copy: Copy): string {
+  if (buildFailures.has(result.reason))
+    return result.build?.current != null
+      ? copy.moduleBuildFailedNote
+      : copy.moduleReasonBuildFailed;
+  return moduleReasonText(result.reason, copy, result.file, result.secrets);
+}
 
 /** The words of module refusals on this Environment. A Team Environment
  * (`team`) has no person's GitHub account: it reads GitHub as the Team,
@@ -242,12 +250,7 @@ export function moduleStatusView(
   if (status.kind === "blocked")
     return {
       dot: "unknown",
-      text: moduleReasonText(
-        status.reason,
-        copy,
-        named(status),
-        status.secrets,
-      ),
+      text: refusalText(status, copy),
       code: status.reason,
       action: null,
       ...none,
@@ -315,7 +318,7 @@ export function moduleStatusView(
         ownership,
         ...(failure == null || status.build?.mode !== "built"
           ? {}
-          : { buildNote: withFile(copy.moduleBuildFailedNote, failure.log) }),
+          : { buildNote: copy.moduleBuildFailedNote }),
         link,
         noLink:
           link !== null
@@ -337,8 +340,7 @@ export function moduleResultMessage(
   copy: Copy,
 ): string {
   if (result === null) return copy.appResultUnknown;
-  if (result.kind === "blocked")
-    return moduleReasonText(result.reason, copy, named(result), result.secrets);
+  if (result.kind === "blocked") return refusalText(result, copy);
   switch (result.outcome) {
     case "started": {
       const started = result.healthy
