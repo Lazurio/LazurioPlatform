@@ -1,8 +1,12 @@
 import { createHash } from "node:crypto";
 import type { MachineBinding } from "../../src/folder/machine-binding";
+import { visitorsChapter } from "../../src/folder/manual";
 import { type PresetName, presetProfile } from "../../src/folder/presets";
 import { renderOutputs } from "../../src/folder/preview";
-import { instructionTemplateRevision } from "../../src/folder/render";
+import {
+  instructionTemplateRevision,
+  visitorsSection,
+} from "../../src/folder/render";
 import {
   assignments,
   binding,
@@ -264,4 +268,27 @@ export function generatedDigests(
         .digest("hex"),
     ]),
   );
+}
+
+/** A `generatedDigests` transform that takes the visitors' section (plan
+ * DEV-6668 slice 5) out of AGENTS.md and `manual/this-machine.md`, where it
+ * must be exactly once, and leaves every other file as it is: what is left
+ * is what the Folder rendered before the section. */
+export function withoutVisitors(
+  machine: MachineBinding,
+  locale: "cs" | "en",
+): (path: string, content: string) => string {
+  const sections: Readonly<Record<string, string>> = {
+    "AGENTS.md": `${visitorsSection(machine, locale).join("\n")}\n`,
+    "manual/this-machine.md": `\n${visitorsChapter(machine)
+      .map((text) => text[locale])
+      .join("\n")}`,
+  };
+  return (path, content) => {
+    const section = sections[path];
+    if (section === undefined) return content;
+    if (section.trim() === "" || content.split(section).length !== 2)
+      throw new Error(`${path} does not hold the visitors' section once`);
+    return content.replace(section, "");
+  };
 }

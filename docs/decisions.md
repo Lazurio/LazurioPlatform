@@ -15039,6 +15039,98 @@ the shell document says Team, Integrace and Nástroje answer `404` as pages and 
 page's entry carries the audience its stylesheet hides their items by, and the recorded
 preset in another language is changed.
 
+### Addendum (3) of 2026-10-20: the agents visitors talk to get their own section
+
+**Decided by Matěj (Organization Admin) on 2026-10-20 for plan DEV-6668 slice 5 (root
+decision 0204's addendum of 2026-10-20, HumanAndMachines/Lazurio#597; the slices table
+of the try-01 preset shaping study).** Once try-01 answers through the Organization's AI,
+visitors talk to agents there. The generated texts told those agents only that the
+Environment is public, has no GitHub identity and publishes nothing (addendum of
+2026-10-17): nothing about who they talk to, what they may show, or the rules of an
+Environment every visitor shares; and the Work or Team preset underneath still tells
+them to send people to Integrace and to sign tools in for the Team. The Try overlay's
+`instructions: "visitors"` was reserved for this section.
+
+1. **One switch.** The section renders where `visitorsOf(machine)`
+   (`src/folder/render.ts`) returns the record, that is where
+   `visitorPreset(machine)?.instructions === "visitors"`: on a public Environment,
+   whatever preset its Folder records (Work or Team), and nowhere else.
+2. **Where.** AGENTS.md gets "## Návštěvníci tohoto Prostředí" / "## Visitors of this
+   Environment" after the identity and boundaries, before the working rules.
+   `manual/this-machine.md` gets the same heading right after the preset's meaning, with
+   "Co můžeš ukázat" / "What you can show" (what each thing is and where the agent
+   checks it) and the same rules. No other file and no new output path. The section
+   takes precedence over every rule around it that says otherwise.
+3. **What it says.**
+   - **What to explain**, plainly and briefly: what Lazurio is; Apps; the Organization's
+     public modules and data, read anonymously; Chat with agents; the Environment
+     browser, only where the entry routes it; the vault, only where this Environment
+     has one, which the agent checks with `lazurio vault status` (the vault core the app
+     reads; the renderer has no vault fact); and how a real Organization works: GitHub
+     decides access, members have their own Work Environments, a Team Environment acts
+     under a brokered identity. Only what exists here; never an invented feature.
+   - **What is not here:** the record's `withheld` areas by name (Integrace and
+     Nastavení → Nástroje), not linked or offered even where another rule mentions them.
+   - **A shared Environment:** everyone who enters shares it and sees what is left here;
+     never ask a visitor for passwords, keys or personal data, never put such data into
+     files.
+   - **Sign nobody in to anything:** a visitor may sign in to their own AI or other
+     account themselves, at their own risk, and signs out after use; GitHub sign-in is
+     not available here.
+   - **Publish nothing:** no push, pull request, issue, e-mail or other outward action;
+     draft work stays only here and may be wiped, since the Environment can be wiped or
+     deployed again at any time.
+   - **The terms:** the record's `notice.terms` and `notice.privacy`, in both languages,
+     the Folder's first; continuing past the entry notice means accepting them, and
+     nothing records it (Q3 (a)).
+   - **Language and voice:** the visitor's language, vykání in Czech; people hear
+     Prostředí (Environment), Organizace and Lazurio, never Mašina, VM or server.
+4. **What it does not say.** No model: the chat's model comes from Codex's
+   configuration and changes with the Organization's pool. No nightly reset: Machines
+   has none, and the published terms say "at any time". No address copied out of the
+   record.
+5. **Template revision `base-instructions-59`.** The section changes bytes on a public
+   Environment only. The revision is one header line of every generated file, so every
+   Folder re-renders on its next refresh or profile change; on an Environment that is
+   not public only that line changes. try-01 gets the section on its next refresh.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A manual file of its own (`manual/visitors.md`) | A new output path in every Folder (the manifest, owned files, journals and the manual index everywhere) for one kind of Environment. Rejected for a section of `this-machine.md`, which already says what the preset and binding mean |
+| Rewrite the other texts of a public Environment (the Integrace section, the Team's shared-sign-in warning, the identity line) instead of one section that takes precedence | Conditional edits across many sections, each one more place to keep in step, while visitors' agents read one section. Rejected for now: see the limits |
+| Name the vault from the handover in the renderer | The binding records no vault, and slice 6 lists Trezor by the vault core; a second reader would drift from it. Rejected for `lazurio vault status` |
+| Copy the terms' addresses into the section's text | A second owner of four addresses. Rejected: rendered from `tryPreset.notice` |
+| Change the bytes under the same revision | Every existing Folder would refuse with `incomplete-state` (#133). Rejected |
+
+**Honest limits.** The section is text, not a boundary: visitors share the account's
+terminal, and an agent can still be talked into an action; publication still cannot
+happen for want of any GitHub identity. The texts underneath still render (the
+Integrace section, the Team's shared-sign-in warning, the identity line's "no personal
+sign-ins belong here"); the section overrides them by precedence instead of removing
+them. Agents read it only after their Folder re-renders. Until slice 6 and the vault
+route of Machines (slice 7) exist, `lazurio vault status` reports no vault on try-01,
+so its agents do not offer one. Browser acceptance waits for S5 on Example (DEV-6674):
+until try-01 answers through the Organization's AI, no agent there reads this section.
+
+Verified by `tests/try-visitor-instructions.test.ts` (the exact section in both
+languages as a snapshot; on try-01 recorded as Work and as Team, without and with its
+vault, in both languages: the section once in AGENTS.md and once in
+`manual/this-machine.md`, the same in all four, the record's terms and privacy pages in
+both languages with the Folder's first, the GitHub, sign-out, sign-nobody-in, shared,
+publish, withheld and language sentences, no model and no "Lazurio for GitHub" in it,
+no generated file with a nightly claim or a model name; its place in both files; the
+same bytes without and with the vault; no browser item without the Environment
+browser; no section on the four controls or on try-01's handover without the audience;
+and on a real Folder, try-01 recorded as Work and as Team, rendered by
+`base-instructions-58` without the section, gets it on the next refresh, byte for byte
+what this product renders from the Folder's record, and a second refresh is
+unchanged), `tests/try-overlay-preset.test.ts` (the goldens hash every file with its
+revision masked, re-recorded in this change's first commit from `origin/main`'s `src/`:
+the four controls' generated files are unchanged but for the revision, and try-01's
+are unchanged once the section is taken out), `tests/environment-wording.test.ts`
+(try-01's texts on both recorded presets) and `tests/folder-template-revision.test.ts`
+(the new revision's digest, try-01 on both recorded presets added to its compositions).
+
 ## F56 — Průvodce: Buddy nebo průvodce Lazuria vysvětlí stránku na místě, kreslí shell hostitele, rám Buddyho smí jen požádat id
 
 **Decided by Matěj (Organization Admin) on 2026-10-18: root decision 0180's addendum of

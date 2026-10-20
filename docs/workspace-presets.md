@@ -240,7 +240,7 @@ and `githubIdentity` are thin readers of `visitorPreset`.
 | `githubIdentity` | `none` | No broker, no App and no person's sign-in; the Organization's public repositories are read anonymously and nothing is published |
 | `withheld` | `integrations`, `tools` | Integrace and Nastavení → Nástroje answer as absent, pages and API. The vault is not withheld by the overlay: it follows the vault core (until plan DEV-6668 slice 6, Trezor is still withheld) |
 | `notice` | `terms`, `privacy`, by language | The visitors' terms and privacy pages on lazurio.ai, which the gateway's entry card shows before entry; the app only reminds of them |
-| `instructions` | `visitors` | The visitors' section of the generated instructions, reserved for slice 5 |
+| `instructions` | `visitors` | The visitors' section of the generated instructions (plan DEV-6668 slice 5): in AGENTS.md and `manual/this-machine.md`, what Lazurio and this Environment can show, the rules of a shared Environment, publishing nothing and the terms; only on a public Environment, whatever the recorded preset |
 | `fixed` | `preset`, `theme` | Nobody changes them, since every visitor shares them |
 | `shownKind` | `team` | People see a Team Environment, whatever the recorded preset |
 
