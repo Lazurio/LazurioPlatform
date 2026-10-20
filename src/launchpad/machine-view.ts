@@ -1,4 +1,6 @@
+import { isFixed, visitorPreset } from "../folder/presets";
 import type { MessageKey } from "./messages";
+import type { EntryAudience } from "./public-environment";
 import { fill } from "./update-view";
 
 // The recorded assignment of an Organization work VM as the Launchpad's
@@ -71,14 +73,49 @@ const presetLabels: Readonly<Record<string, MessageKey>> = {
 /** The words of one preset in Obecné's choice (decision F28's addendum of
  * 2026-10-18: the kinds as `kindDetail` says them); a preset this release
  * does not know is the plain "preset". The Team preset of Služby serveru is
- * said as their kind, never Týmové. */
+ * said as their kind, never Týmové. On a public Environment the Try overlay
+ * lies over whatever preset is recorded, and Obecné names the overlay: a
+ * Team Environment for trying Lazurio (decision F55's addendum of
+ * 2026-10-20). */
 export function presetLabel(
   preset: string,
   machine: MachineView | null,
 ): MessageKey {
+  if (visitorPreset(machine) !== null) return "machineKindTry";
   if (preset === "hosted-organization-team" && isServerServicesView(machine))
     return "machineKindServices";
   return presetLabels[preset] ?? "preset";
+}
+
+/** Obecné's preset choice: one option per preset a change may end on
+ * (`allowedPresets` of `POST /api/profile`), the recorded one selected, in
+ * the words of `presetLabel`; `fixed` where the Try overlay fixes the
+ * preset, so a public Environment shows its one option and nobody changes
+ * it. A disabled choice is not in the form's data, and the page then sends
+ * the recorded preset. */
+export function presetChoice(
+  input: Readonly<{
+    allowedPresets: readonly string[];
+    preset: string;
+    machine: MachineView | null;
+  }>,
+  copy: Readonly<Record<MessageKey, string>>,
+): Readonly<{
+  options: readonly Readonly<{
+    value: string;
+    label: string;
+    selected: boolean;
+  }>[];
+  fixed: boolean;
+}> {
+  return {
+    options: input.allowedPresets.map((value) => ({
+      value,
+      label: copy[presetLabel(value, input.machine)],
+      selected: value === input.preset,
+    })),
+    fixed: isFixed(input.machine, "preset"),
+  };
 }
 
 /** One recorded peer of the handover's relationships. */
@@ -110,6 +147,9 @@ export type MachineView = Readonly<{
   network: Readonly<{ headscaleHostname: string }> | null;
   host: Readonly<{ kind: string; id: string }>;
   relationships?: Readonly<{ zone: string; peers: readonly MachinePeer[] }>;
+  /** Of the recorded entry, only what the page decides by: the audience of
+   * a public Environment (decision F55). */
+  entry?: Readonly<{ audience?: EntryAudience }>;
 }>;
 
 type FactsCopy = Readonly<Record<MessageKey, string>>;
@@ -163,12 +203,16 @@ export function environmentFacts(
   const binding = input.machine;
   // Služby serveru (root decision 0209) have the Team preset and are a work
   // Environment set apart by the server's services, as an automated one is
-  // by its automations.
+  // by its automations; a public Environment is a Team one for trying
+  // Lazurio, whatever its recorded preset (the Try overlay, F55's addendum
+  // of 2026-10-20).
   const kind =
     copy[
-      isServerServicesView(binding)
-        ? "machineKindServices"
-        : (kindLabels[input.preset] ?? "machineKindUnknown")
+      visitorPreset(binding) !== null
+        ? "machineKindTry"
+        : isServerServicesView(binding)
+          ? "machineKindServices"
+          : (kindLabels[input.preset] ?? "machineKindUnknown")
     ];
   if (binding === null || input.preset === "local")
     return {
