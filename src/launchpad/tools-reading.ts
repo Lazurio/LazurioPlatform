@@ -13,10 +13,11 @@ import {
 // reading answers the reads that follow it for a minute, and nothing older
 // is ever answered.
 //
-// What changes the facts through this Launchpad drops the reading at once
-// (an installation, an update, a sign-in or sign-out, a setup: `forget`), and
-// a person's own "Refresh status" or "Zkontrolovat znovu" reads anew
-// (`fresh`). Only a change made elsewhere, a tool installed or signed in from
+// What changes the facts through this Launchpad drops the reading as it
+// starts and again once it has ended (an installation, an update, a sign-in
+// or sign-out, a setup: `forget`), so a reading made while it ran is never
+// answered after it; a person's own "Refresh status" or "Zkontrolovat znovu"
+// reads anew (`fresh`). Only a change made elsewhere, a tool installed or signed in from
 // a terminal, can wait up to that minute to show.
 
 /** How long a reading answers the reads that do not ask for a fresh one,

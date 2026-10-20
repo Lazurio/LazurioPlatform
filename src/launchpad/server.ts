@@ -520,8 +520,11 @@ export function ensureStatus(result: ModuleAnswer | ModuleBlocked): number {
 
 // The tools operations that change what the tools report (an installation,
 // an update, a sign-in or sign-out, a setup of Executor or the vault): each
-// drops the Launchpad's kept reading of their live facts (tools-reading.ts).
-// A switch of Composio's organization does so where it happens.
+// drops the Launchpad's kept reading of their live facts (tools-reading.ts)
+// as it starts and again once it has answered, so a reading made while it ran
+// is never answered after it. A setup that goes on after its answer, and a
+// sign-in, drop it again when they end; a switch of Composio's organization
+// where it happens.
 const toolsChangePaths = new Set([
   "/api/tools/install",
   "/api/tools/upgrade",
@@ -724,6 +727,9 @@ export async function startLaunchpad(
   });
   // Settings → Nástroje's live facts, kept a minute (tools-reading.ts).
   const toolsReading = createToolsReading(toolsEnvironment);
+  // A setup goes on after its answer: its end drops the reading again.
+  const forgetToolsAfter = (ended: Promise<void>) =>
+    void ended.catch(() => undefined).then(() => toolsReading.forget());
   // The curated logins of this Launchpad (decision F19): in memory, held by
   // the browser that started each one through its session handle, ended on
   // completion, cancel, expiry and shutdown.
@@ -1857,10 +1863,12 @@ export async function startLaunchpad(
         return response({ error: "method-not-allowed" }, 405);
       if (request.headers.get("content-type") !== "application/json")
         return response({ error: "invalid-content-type" }, 415);
+      let changesTools = false;
       try {
         const input: unknown = await readJsonBody(request);
         if (closing) return response({ error: "closing" }, 503);
-        if (toolsChangePaths.has(url.pathname)) toolsReading.forget();
+        changesTools = toolsChangePaths.has(url.pathname);
+        if (changesTools) toolsReading.forget();
         if (url.pathname === "/api/update/apply") {
           if (!pill) return response({ error: "update-unavailable" }, 503);
           const value = stateFields(input, ["version"]);
@@ -2020,6 +2028,8 @@ export async function startLaunchpad(
             url.pathname,
             withJob ? (value.job as string) : undefined,
           );
+          if (url.pathname === "/api/tools/bitwarden/setup")
+            forgetToolsAfter(vault.settled());
           return response(answer.body, answer.status);
         }
         if (executor.handles(url.pathname)) {
@@ -2036,6 +2046,8 @@ export async function startLaunchpad(
             url.pathname,
             withJob ? (value.job as string) : undefined,
           );
+          if (url.pathname === "/api/tools/executor/setup")
+            forgetToolsAfter(executor.settled());
           return response(answer.body, answer.status);
         }
         if (
@@ -2407,6 +2419,9 @@ export async function startLaunchpad(
           { error: "operation-failed", recoveryMayBeRequired: true },
           400,
         );
+      } finally {
+        // Answered, whether it succeeded or not (`toolsChangePaths`).
+        if (changesTools) toolsReading.forget();
       }
     },
   });
@@ -2432,7 +2447,8 @@ export async function startLaunchpad(
   const executorAtStart = installed?.executorAtStart;
   if (executorAtStart !== undefined)
     void (async () => {
-      if ((await executorAtStart()) && !closing) await executor.atStart();
+      if ((await executorAtStart()) && !closing && (await executor.atStart()))
+        forgetToolsAfter(executor.settled());
     })().catch(() => undefined);
   // The Environment's own vault (decision F53), by the same pattern: where
   // the vault needs it, the one setup of Settings → Tools runs in the
@@ -2461,6 +2477,7 @@ export async function startLaunchpad(
       if (!(await vaultAtStart()) || closing) return;
       await vault.atStart();
       await vault.settled();
+      toolsReading.forget();
       if (closing) return;
       lookAtAudience();
       audienceTimer = setInterval(lookAtAudience, vaultAudienceEveryMs);

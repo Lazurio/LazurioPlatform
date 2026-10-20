@@ -197,7 +197,12 @@ seconds. `mcpPrompt` is the prepared prompt for the third
 route, an MCP server set up by an agent. Without `signIn: true` the probe runs each
 found tool's version command and nothing else, and uses no network. The raw output of
 a tool is not returned, and the request accepts no Folder, PATH or tool name. The
-facts are those of the PATH and home of the Launchpad process.
+facts are those of the PATH and home of the Launchpad process. The installed
+service unit sets that PATH to `~/.local/bin:/usr/local/bin:/usr/bin:/bin`
+(`Environment=PATH=%h/.local/bin:…`, [product update](update.md#state-on-disk)), so
+it sees the standard path first, as an operator's login shell with `~/.local/bin`
+on PATH does; a tool only on another directory of the interactive PATH is not
+seen there.
 
 The Launchpad keeps its reading of these live facts (versions, and sign-ins where it
 asked for them) for a minute from when the reading started, and answers a request
@@ -206,18 +211,15 @@ answered (`tools-reading.ts`, plan DEV-6656). Every page load reads the tools on
 and every switch between Chat, Apps and Automate loads a page, so this spares a run
 of every tool's commands per load. A tool operation through the Launchpad that
 changes what the tools report (an installation, an update, a sign-in or sign-out, a
-setup of Executor or the vault, a switch of Composio's organization) and every
-sign-in that ends drop the reading, and the
-page sends `fresh: true` with every reading it asks for the sign-ins explicitly
-("Refresh status", "Zkontrolovat znovu", the end of a flow). Only a change made
-elsewhere, a tool installed or signed in from a terminal, can take up to that minute
-to show without them. The recorded part of the answer (revision, selection, notes)
-is read every time. `lazurio tools list` and `lazurio doctor` always read anew. The installed
-service unit sets that PATH to `~/.local/bin:/usr/local/bin:/usr/bin:/bin`
-(`Environment=PATH=%h/.local/bin:…`, [product update](update.md#state-on-disk)), so
-it sees the standard path first, as an operator's login shell with `~/.local/bin`
-on PATH does; a tool only on another directory of the interactive PATH is not
-seen there.
+setup of Executor or the vault, a switch of Composio's organization) drops the
+reading as it starts and again once it has answered, so a reading made while it ran
+is never answered after it; a setup that goes on after its answer drops it again
+when it ends, as does every sign-in. The page sends `fresh: true` with every reading
+it asks for the sign-ins explicitly ("Refresh status", "Zkontrolovat znovu", the end
+of a flow). Only a change made elsewhere, a tool installed or signed in from a
+terminal, can take up to that minute to show without them. The recorded part of the
+answer (revision, selection, notes) is read every time. `lazurio tools list` and
+`lazurio doctor` always read anew.
 
 **Sign-in state** ([F18 addendum](decisions.md#f18--enabled-tools-of-the-environment)).
 With `signIn: true` (the page sends it on load and on "Refresh status") or
