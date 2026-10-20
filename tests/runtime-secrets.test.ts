@@ -323,10 +323,10 @@ test("the catalog's check knows, without the vault, a workstation and the applic
   const required = runtime(["EXTERNAL_API_KEY"], ["OPTIONAL_KEY"], "Example");
   expect(await declaredSecretsFinding(required, false, owned)).toEqual({});
   expect(await declaredSecretsFinding(required, false, unknown)).toEqual({});
-  expect(await declaredSecretsFinding(required, false, workstation)).toEqual({
-    reason: "runtime-secret-unavailable",
-    secrets: [{ name: "EXTERNAL_API_KEY", reason: "workstation" }],
-  });
+  // Organization binding is selected dynamically at start.
+  expect(await declaredSecretsFinding(required, false, workstation)).toEqual(
+    {},
+  );
   expect(
     await declaredSecretsFinding(
       runtime(["EXTERNAL_API_KEY"], [], "gamma"),

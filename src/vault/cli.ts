@@ -1,4 +1,7 @@
+import { isAbsolute, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { withFolderReadLock } from "../folder/lock";
+import { readFolderState } from "../folder/read-state";
 import { readStartState } from "../launchpad/start-check";
 import { runTool } from "../tools/status";
 import type { CliContext, CommandOutput } from "../update/cli";
@@ -25,11 +28,23 @@ import {
   secretRequestLimits,
   secretRequestOf,
 } from "./requests";
+import {
+  configureWorkstationVault,
+  disconnectWorkstationVault,
+} from "./workstation";
 
 /** `lazurio vault`: the Environment's own vault for agents (decisions F43,
  * F53). The same core as the Launchpad's Settings → Tools → bitwarden and its
  * start. */
-export const vaultHelp = `vault env [--json]
+export const vaultHelp = `vault connect-workstation --folder <Folder> --organization <slug> --server <https://vault> --name <name> [--json]
+  Record a separate generated technical account for this computer and Organization.
+  The service administrator must pre-allow the printed account. This imports no
+  credentials and grants no provider access. Then run setup with the same selectors.
+vault disconnect-workstation --folder <Folder> --organization <slug> [--json]
+  Remove local admission; stop applications to retire keys already supplied.
+  The remote account and vault remain. Reconnection generates a fresh identity.
+  On workstations, env/status/refresh/setup require --folder and --organization.
+vault env [--json]
   This Environment's vault for this shell: prints shell exports of
   BITWARDENCLI_APPDATA_DIR, BW_SESSION, LAZURIO_VAULT_ORGANIZATION_ID (the
   Environment's own vault) and LAZURIO_VAULT_COLLECTION_ID (its collection
@@ -65,8 +80,8 @@ vault setup [--json]
   their own Bitwarden it does the same with the agents' account they
   entered (never registered here), and invites them into the vault once
   they asked for it in Apps → Vault. Safe to
-  run again. Remote Environments on Linux only; this computer is the second
-  wave. Exit status: 0 connected, 2 waiting for a person (no vault named,
+  run again. Remote Environments on Linux and explicitly connected Organizations
+  on macOS. Exit status: 0 connected, 2 waiting for a person (no vault named,
   not allowed by the network, revoked, not connected by the person, not
   available here), 1 failure.
 vault request --item <name> --need <text> --why <text> --where <text>
@@ -107,7 +122,7 @@ export type VaultCliContext = CliContext &
 
 const reasons: Readonly<Record<VaultUnsupportedReason, string>> = {
   workstation:
-    "this Environment has no vault: only a Remote Environment on Linux has one now (this computer is the second wave)",
+    "no vault selected: on macOS use --folder and --organization after connect-workstation; otherwise only a qualified Remote Environment on Linux is supported",
   "folder-unreadable": "this Environment's Folder cannot be read",
   "handover-missing":
     "this Environment has no vault: there is no Machine handover",
@@ -224,7 +239,14 @@ const phaseText: Readonly<Record<VaultPhase, string>> = {
   "sign-in": "Signing in…",
 };
 
-const commands = ["env", "status", "refresh", "setup"] as const;
+const commands = [
+  "env",
+  "status",
+  "refresh",
+  "setup",
+  "connect-workstation",
+  "disconnect-workstation",
+] as const;
 
 export async function runVaultCommand(
   args: readonly string[],
@@ -238,13 +260,23 @@ export async function runVaultCommand(
   });
   let json = false;
   let command: string;
+  let organization: string | undefined;
+  let folder: string | undefined;
+  let server: string | undefined;
+  let name: string | undefined;
   try {
     const parsed = parseArgs({
       args: [...args],
       strict: true,
       allowPositionals: true,
       tokens: true,
-      options: { json: { type: "boolean" } },
+      options: {
+        json: { type: "boolean" },
+        organization: { type: "string" },
+        folder: { type: "string" },
+        server: { type: "string" },
+        name: { type: "string" },
+      },
     });
     const names = parsed.tokens.flatMap((token) =>
       token.kind === "option" ? [token.name] : [],
@@ -253,12 +285,69 @@ export async function runVaultCommand(
       return usage;
     command = parsed.positionals[0] as string;
     json = parsed.values.json === true;
+    organization = parsed.values.organization;
+    folder = parsed.values.folder;
+    server = parsed.values.server;
+    name = parsed.values.name;
+    if (
+      folder !== undefined &&
+      (!isAbsolute(folder) || resolve(folder) !== folder)
+    )
+      return usage;
+    if (
+      command !== "connect-workstation" &&
+      (server !== undefined || name !== undefined)
+    )
+      return usage;
   } catch {
     return usage;
   }
   if (!(commands as readonly string[]).includes(command)) return usage;
-  const host = vaultHostOf(context);
+  const host = vaultHostOf(context, { organization, folder });
   try {
+    if (
+      command === "connect-workstation" ||
+      command === "disconnect-workstation"
+    ) {
+      if (
+        organization === undefined ||
+        folder === undefined ||
+        context.platform !== "darwin"
+      )
+        return usage;
+      const statePath = join(folder, ".lazurio");
+      const preset = await withFolderReadLock(
+        statePath,
+        async () => (await readFolderState(statePath)).preferences.preset.name,
+      );
+      if (preset !== "local")
+        return {
+          code: exitUsage,
+          stderr: "Workstation connection requires a local Folder.",
+        };
+      const directory = join(host.connection, "..", "workstation");
+      if (command === "disconnect-workstation") {
+        await disconnectWorkstationVault(directory, organization);
+        return {
+          code: exitOk,
+          stdout: json
+            ? JSON.stringify({ kind: "workstation-vault-disconnected" })
+            : "Disconnected locally. Stop running applications to retire their supplied keys. The remote vault is unchanged.",
+        };
+      }
+      if (server === undefined || name === undefined) return usage;
+      const binding = await configureWorkstationVault(directory, {
+        organization,
+        server,
+        name,
+      });
+      return {
+        code: exitOk,
+        stdout: json
+          ? JSON.stringify({ kind: "workstation-vault-configured", ...binding })
+          : `Connection recorded for ${binding.organization}. The service administrator must pre-allow ${binding.account} at ${binding.server}, then run vault setup with the same --folder and --organization. No credentials were imported.`,
+      };
+    }
     if (command === "env") {
       const result = await vaultEnv(host);
       if (result.kind === "vault-env")
@@ -304,10 +393,17 @@ export async function runVaultCommand(
   }
 }
 
-const vaultHostOf = (context: VaultCliContext): VaultHost =>
+const vaultHostOf = (
+  context: VaultCliContext,
+  selected: {
+    organization?: string | undefined;
+    folder?: string | undefined;
+  } = {},
+): VaultHost =>
   context.host ??
   processVaultHost({
-    folder: async () => context.hostedFolder?.(),
+    folder: async () => selected.folder ?? context.hostedFolder?.(),
+    organization: selected.organization,
     env: context.env,
     platform: context.platform,
     run: runTool,

@@ -449,7 +449,7 @@ posixTest(
         "--json",
       ],
       cliContext(station.home),
-      host,
+      { ...host, runtimeSecrets: () => fakeVault({}, workstationVault).source },
     );
     expect(result).toMatchObject({
       reason: "runtime-secret-unavailable",
