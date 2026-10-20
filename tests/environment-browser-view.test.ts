@@ -121,6 +121,10 @@ class FakeBrowser {
   /** The browser's own id, as its socket's address names it; a new one
    * stands for a restarted browser. */
   browserId: string | undefined = undefined;
+  /** Runs while a page answers whether it has unsaved input, and when the
+   * hub asks a page to close: an agent can come at that very moment. */
+  onUnsavedRead: ((target: string) => void) | null = null;
+  onPageClose: ((target: string) => void) | null = null;
 
   /** Chrome's first window (the unit starts it with `about:blank`), which
    * the hub keeps as its own blank window unless `blank` is false. */
@@ -249,6 +253,7 @@ class FakeBrowser {
       case "Page.close": {
         // As Chrome: the page's `beforeunload` may object, else it closes.
         const target = String(sessionId).slice("S-".length);
+        this.onPageClose?.(target);
         if (this.beforeUnload.has(target))
           queueMicrotask(() =>
             this.emit(
@@ -285,8 +290,10 @@ class FakeBrowser {
         const expression = String(params.expression);
         if (expression.includes("__lazurioActivity"))
           return { result: { value: this.inputAgo.get(target) ?? null } };
-        if (expression.includes("defaultValue"))
+        if (expression.includes("defaultValue")) {
+          this.onUnsavedRead?.(target);
           return { result: { value: this.unsaved.has(target) } };
+        }
         return {
           result: {
             value: String(params.expression).includes("getSelection")
@@ -2898,7 +2905,7 @@ test("a held tab nobody views and no agent uses sleeps after the idle time: its 
     holdsEveryMs: 30,
     idleSleepMs: 200,
     unviewedGraceMs: 60_000,
-    holders: { "t3-a": [id(1)] },
+    holders: { launchpad: [id(1)] },
   });
   await until(() => asleep(1));
   // Asked to close through the page, so its `beforeunload` may object;
@@ -2909,7 +2916,7 @@ test("a held tab nobody views and no agent uses sleeps after the idle time: its 
   expect(factsOf(1)).toMatchObject({
     url: "https://example.com/a",
     title: "A",
-    holders: [{ strip: "t3-a" }],
+    holders: [{ strip: "launchpad" }],
     agents: [],
     viewers: 0,
     grace: null,
@@ -2985,14 +2992,14 @@ test("an agent's tab never sleeps under its hands: while its daemon runs, an idl
     holdsEveryMs: 30,
     idleSleepMs: 300,
     working: [id(1)],
-    holders: { "t3-a": [id(1), id(2)] },
+    holders: { launchpad: [id(1), id(2)] },
   });
   await settle(800);
   expect(pageClosed(browser)).toEqual([]);
   // id(1)'s agent stopped: its daemon ended, its binding stays. It sleeps
   // only an idle time after the hub last saw the daemon.
   const stopped = Date.now();
-  setHolds({ idle: [id(1)], holders: { "t3-a": [id(1), id(2)] } });
+  setHolds({ idle: [id(1)], holders: { launchpad: [id(1), id(2)] } });
   await until(() => pageClosed(browser).length > 0);
   expect(Date.now() - stopped).toBeGreaterThanOrEqual(200);
   expect(pageClosed(browser)).toEqual([`S-${id(1)}`]);
@@ -3045,7 +3052,7 @@ test("viewing a tab that sleeps opens its address again under the same id; the l
   const { base, writes } = await serve(browser, {
     holdsEveryMs: 30,
     idleSleepMs: 150,
-    holders: { "t3-a": [id(1)] },
+    holders: { launchpad: [id(1)] },
   });
   await until(() => asleep(1));
   const view = await person(base, id(1));
@@ -3064,7 +3071,7 @@ test("viewing a tab that sleeps opens its address again under the same id; the l
   expect(service?.hub.list().map((facts) => facts.id)).toEqual([id(1)]);
   expect(factsOf(1)).toMatchObject({
     viewers: 1,
-    holders: [{ strip: "t3-a" }],
+    holders: [{ strip: "launchpad" }],
   });
   await until(
     () =>
@@ -3102,19 +3109,19 @@ test("a tab that sleeps ends when nothing holds it after the grace of Vrátit; a
     holdsEveryMs: 30,
     idleSleepMs: 150,
     releaseGraceMs: 250,
-    holders: { "t3-a": [id(1), id(2)] },
+    holders: { launchpad: [id(1), id(2)] },
   });
   await until(() => asleep(1) && asleep(2));
   // The thread lets go of id(1): its tombstone counts the grace down, and a
   // hold within it keeps it.
-  setHolds({ holders: { "t3-a": [id(2)] } });
+  setHolds({ holders: { launchpad: [id(2)] } });
   await until(() => factsOf(1)?.grace?.kind === "release");
-  setHolds({ holders: { "t3-a": [id(1), id(2)] } });
+  setHolds({ holders: { launchpad: [id(1), id(2)] } });
   await until(() => factsOf(1)?.grace === null);
   await settle(350);
   expect(asleep(1)).toBe(true);
   // Let go again: it ends, and the list of live tabs drops it.
-  setHolds({ holders: { "t3-a": [id(2)] } });
+  setHolds({ holders: { launchpad: [id(2)] } });
   await until(() => service?.hub.hasTab(id(1)) === false);
   await until(() => !(writes.at(-1) ?? [id(1)]).includes(id(1)));
   // Zavřít for everyone, and Vrátit within its grace.
@@ -3274,7 +3281,7 @@ test("a restart of the view keeps the tabs that sleep and the woken tabs' ids; a
   await serve(browser, {
     holdsEveryMs: 30,
     idleSleepMs: 300,
-    holders: { "t3-a": [id(1), id(2)] },
+    holders: { launchpad: [id(1), id(2)] },
     sleepState,
   });
   await until(() => asleep(1) && asleep(2));
@@ -3289,7 +3296,7 @@ test("a restart of the view keeps the tabs that sleep and the woken tabs' ids; a
   browser.drop();
   await serve(browser, {
     holdsEveryMs: 60_000,
-    holders: { "t3-a": [id(1), id(2)] },
+    holders: { launchpad: [id(1), id(2)] },
     sleepState,
   });
   expect(factsOf(1)?.sleeping?.reason).toBe("idle");
@@ -3308,4 +3315,113 @@ test("a restart of the view keeps the tabs that sleep and the woken tabs' ids; a
   await until(() => hubNow()?.ready === true && !asleep(1));
   await until(() => hubNow()?.hasTab(id(1)) === false);
   expect(hubNow()?.hasTab(id(2))).toBe(false);
+});
+
+test("a tab a T3 Code thread holds never sleeps, by the idle rule or by Uspat, until T3 Code reports its tools' activity", async () => {
+  const browser = new FakeBrowser([
+    tab(1, { url: "https://example.com/a" }),
+    tab(2, { url: "https://example.com/b" }),
+  ]);
+  // id(1): a thread's tab, which its tools may read without input; also in
+  // the Launchpad's strip. id(2): only the Launchpad's.
+  const { base } = await serve(browser, {
+    holdsEveryMs: 30,
+    idleSleepMs: 150,
+    holders: { "t3-a": [id(1)], launchpad: [id(1), id(2)] },
+  });
+  await until(() => asleep(2));
+  await settle(400);
+  expect(asleep(1)).toBe(false);
+  expect(pageClosed(browser)).toEqual([`S-${id(2)}`]);
+  expect(
+    await loopback(base, `/.lazurio/tabs/${id(1)}/sleep`, { method: "POST" }),
+  ).toEqual({ status: 409, body: { error: "agent" } });
+  expect(pageClosed(browser)).toEqual([`S-${id(2)}`]);
+});
+
+test("an agent that comes while the hub looks keeps the tab awake: the last check and the close are one step", async () => {
+  const browser = new FakeBrowser([tab(1, { url: "https://example.com/a" })]);
+  const { base, setHolds } = await serve(browser, {
+    holders: { launchpad: [id(1)] },
+  });
+  const ask = () =>
+    loopback(base, `/.lazurio/tabs/${id(1)}/sleep`, { method: "POST" });
+  // The agent binds while the page answers about unsaved input.
+  browser.onUnsavedRead = () => {
+    browser.onUnsavedRead = null;
+    setHolds({ working: [id(1)], holders: { launchpad: [id(1)] } });
+  };
+  expect(await ask()).toEqual({ status: 409, body: { error: "agent" } });
+  expect(pageClosed(browser)).toEqual([]);
+  expect(browser.targets.has(id(1))).toBe(true);
+});
+
+test("a binding the watch reports during the last read of the holds, which that read does not show yet, keeps the tab awake", async () => {
+  const browser = new FakeBrowser([tab(1, { url: "https://example.com/a" })]);
+  const plain = holdsOf({ holders: { launchpad: [id(1)] } });
+  let arm = false;
+  let report = () => {};
+  const served = await serve(browser, {
+    holds: async () => {
+      if (arm) {
+        arm = false;
+        // The agent's binding lands now; the files read a moment ago.
+        report();
+      }
+      return plain;
+    },
+  });
+  report = served.refresh;
+  const ask = () =>
+    loopback(served.base, `/.lazurio/tabs/${id(1)}/sleep`, { method: "POST" });
+  arm = true;
+  expect(await ask()).toEqual({ status: 409, body: { error: "busy" } });
+  expect(pageClosed(browser)).toEqual([]);
+  // Nothing changes while it looks again: it sleeps.
+  await settle(150);
+  expect(await ask()).toEqual({ status: 200, body: { sleeping: true } });
+  expect(pageClosed(browser)).toEqual([`S-${id(1)}`]);
+});
+
+test("an agent that binds while the page closes wakes the tab at once under its id", async () => {
+  const browser = new FakeBrowser([tab(1, { url: "https://example.com/a" })]);
+  const { base, setHolds } = await serve(browser, {
+    holders: { launchpad: [id(1)] },
+  });
+  browser.onPageClose = () => {
+    browser.onPageClose = null;
+    setHolds({ working: [id(1)], holders: { launchpad: [id(1)] } });
+  };
+  expect(
+    await loopback(base, `/.lazurio/tabs/${id(1)}/sleep`, { method: "POST" }),
+  ).toEqual({ status: 200, body: { sleeping: true } });
+  await until(() => opened(browser, "https://example.com/a") !== undefined);
+  await until(() => factsOf(1) !== undefined && !asleep(1));
+  expect(factsOf(1)?.agents).toEqual([`codex-${id(1).slice(-4)}`]);
+});
+
+test("two opens of the same address for the same strip at once give one tab: the second is reused", async () => {
+  const browser = new FakeBrowser();
+  const { base } = await serve(browser);
+  const hub = hubNow();
+  if (hub === undefined) throw new Error("no hub");
+  const [first, second] = await Promise.all([
+    hub.openTab("https://example.com/same?x=1", "launchpad"),
+    hub.openTab("https://example.com/same?x=1#here", "launchpad"),
+  ]);
+  expect(first?.id).toBeDefined();
+  expect(second?.id).toBe(first?.id);
+  expect([first?.reused, second?.reused]).toEqual([false, true]);
+  expect(browser.called("Target.createTarget")).toHaveLength(1);
+  // Through the loopback request too, and another strip still gets its own.
+  const ask = (strip: string) =>
+    loopback(base, "/.lazurio/tabs", {
+      method: "POST",
+      body: { url: "https://example.com/other", strip },
+    });
+  const answers = await Promise.all([ask("launchpad"), ask("launchpad")]);
+  expect(answers.map((a) => a.status).sort()).toEqual([200, 201]);
+  expect(answers[0]?.body.id).toBe(answers[1]?.body.id);
+  expect((await ask("t3-z")).body.id).not.toBe(answers[0]?.body.id);
+  expect(browser.called("Target.createTarget")).toHaveLength(3);
 });

@@ -14,6 +14,7 @@ import {
   browserTimes,
   handOffAddress,
   navigableAddress,
+  stripAppOf,
 } from "../contract/pure";
 import type { CdpConnection, CdpEvent } from "./cdp";
 import type { CookieSweep } from "./cookies";
@@ -234,6 +235,8 @@ type Tab = {
   unsavedAt: number | null;
   /** The main frame's coming navigation is the page's own doing. */
   selfNavigation: boolean;
+  /** The hub is looking whether the tab may sleep (decision F57). */
+  checking: boolean;
   /** It is falling asleep: its page was asked to close. */
   fall: Readonly<{
     reason: SleepReason;
@@ -249,6 +252,13 @@ type Tab = {
 type Sleeper = {
   record: SleepRecord;
   falling: string | null;
+  /** The target it fell asleep from, the holds' change count when its page
+   * was asked to close, and until when an agent that shows up in it wakes
+   * it at once (decision F57: an agent that binds while it falls asleep
+   * wins). */
+  fellFrom: string | null;
+  closeEpoch: number;
+  agentWakesUntil: number;
   viewers: Set<Viewer>;
   waking: boolean;
   wakeTimer: ReturnType<typeof setTimeout> | null;
@@ -468,6 +478,13 @@ export class BrowserHub {
   private readonly waiting = new Map<Viewer, Sleeper>();
   /** The browser's own id at the last connection, when it names one. */
   private browserId: string | null = null;
+  /** Counts the changes the watch reports in the holder files and the
+   * agents' bindings, at once, before they are read (decision F57): a sleep
+   * whose checks saw the count change does not happen. */
+  private holdsEpoch = 0;
+  /** Opens of one strip and address under way (decision F57): a second
+   * caller waits for the first one's tab. */
+  private readonly opening = new Map<string, Promise<string | null>>();
   private stateRead = false;
   private sleepBusy = false;
   private persistSoon: ReturnType<typeof setTimeout> | null = null;
@@ -581,8 +598,22 @@ export class BrowserHub {
       this.seams.log(`reusing tab ${reused} for ${strip ?? "no strip"}`);
       return { id: reused, reused: true };
     }
-    const id = await this.newWindow(address, {}, { kind: "new-tab", strip });
-    return id === null ? null : { id, reused: false };
+    // The same address for the same strip while its tab is being opened:
+    // the tab that open gives.
+    const key = `${strip ?? ""} ${addressKey(address) ?? address}`;
+    const under = this.opening.get(key);
+    if (under !== undefined) {
+      const id = await under;
+      return id === null ? null : { id, reused: true };
+    }
+    const creating = this.newWindow(address, {}, { kind: "new-tab", strip });
+    this.opening.set(key, creating);
+    try {
+      const id = await creating;
+      return id === null ? null : { id, reused: false };
+    } finally {
+      if (this.opening.get(key) === creating) this.opening.delete(key);
+    }
   }
 
   /** No duplicate opens (decision F57): the tab of `strip` that shows
@@ -1386,6 +1417,7 @@ export class BrowserHub {
         activeAt: 0,
         unsavedAt: null,
         selfNavigation: false,
+        checking: false,
         fall: null,
       };
       this.tabs.set(targetId, tab);
@@ -2336,6 +2368,7 @@ export class BrowserHub {
   /** Soon after a holder file or a binding changed: several changes at once
    * are one read. */
   private holdsChanged(): void {
+    this.holdsEpoch += 1;
     if (this.holdsSoon !== null || this.stopped) return;
     this.holdsSoon = setTimeout(() => {
       this.holdsSoon = null;
@@ -2355,11 +2388,35 @@ export class BrowserHub {
       if (this.agentsOf(tab).length > 0) tab.agentAt = now;
       this.review(tab);
     }
-    for (const sleeper of [...this.sleeping.values()])
+    for (const sleeper of [...this.sleeping.values()]) {
       this.reviewSleeper(sleeper);
+      this.wakeForAgent(sleeper, now);
+    }
   }
 
   // ---- Sleep (decision F57) --------------------------------------------------
+
+  /** A tab a T3 Code thread's strip holds. Its thread's browser tools drive
+   * it over their own DevTools connection, and one that only reads leaves no
+   * trace the hub can see, so such a tab never sleeps by the idle rule or by
+   * Uspat until T3 Code reports that activity (Lazurio/t3code#90). */
+  private threadHeld(tab: Tab): boolean {
+    return this.holdsOf(tab.id, tab.targetId).some(
+      (hold) => stripAppOf(hold.strip) === "t3code",
+    );
+  }
+
+  /** An agent that shows up in a tab while it falls asleep, or within
+   * `sleepCloseMs` after, wakes it at once under its id (decision F57). */
+  private wakeForAgent(sleeper: Sleeper, now: number): void {
+    if (sleeper.falling !== null || now > sleeper.agentWakesUntil) return;
+    const ids = [sleeper.record.id, sleeper.fellFrom ?? sleeper.record.id];
+    if (!ids.some((id) => (this.holds.working.get(id)?.length ?? 0) > 0))
+      return;
+    sleeper.agentWakesUntil = 0;
+    this.seams.log(`an agent came to tab ${sleeper.record.id}; waking it`);
+    void this.wake(sleeper);
+  }
 
   /** The idle rule, on the holds' beat: every held tab that has not been in
    * use for the idle time (`quietSince`, then `putToSleep` asks the page)
@@ -2375,6 +2432,7 @@ export class BrowserHub {
           (tab) =>
             this.sleepable(tab) &&
             this.holdsOf(tab.id, tab.targetId).length > 0 &&
+            !this.threadHeld(tab) &&
             now - this.quietSince(tab, now) >= this.idleSleepMs,
         )
         .sort((a, b) => this.quietSince(a, now) - this.quietSince(b, now));
@@ -2388,8 +2446,8 @@ export class BrowserHub {
   }
 
   /** Uspat in Přehled (decision F57): the tab sleeps unless someone views
-   * it, an agent works in it or did recently, or its page has unsaved
-   * input. */
+   * it, an agent works in it or did recently, a T3 Code thread holds it, or
+   * its page has unsaved input. */
   async sleepTab(id: string): Promise<SleepOutcome> {
     if (this.sleeping.get(id)?.falling === null) return { kind: "asleep" };
     const tab = this.resolve(id);
@@ -2425,17 +2483,22 @@ export class BrowserHub {
       !this.keeper(tab) &&
       !this.closing.has(tab.id) &&
       tab.fall === null &&
+      !tab.checking &&
       !this.sleeping.has(tab.id) &&
       tab.sessionId !== null &&
       sleepableAddress(tab.info.url)
     );
   }
 
-  /** Puts one tab to sleep. Never one in use: the holds are read again
-   * first, and the page is asked for its last input. A page with unsaved
-   * input, or whose `beforeunload` objects, stays awake. The tombstone
-   * exists before the page is asked to close, so every list of tabs names
-   * the tab throughout. */
+  /** Puts one tab to sleep. Never one in use, and never one an agent works
+   * in (Matěj's rule of 2026-10-20): the page is asked for its last input
+   * and for unsaved input, then the holds are read once more, and the last
+   * check and `Page.close` are one step, with nothing awaited between them.
+   * A change of a holder file or a binding that the watch reports while the
+   * hub looks cancels the sleep, which the next beat may try again. A page
+   * with unsaved input, or whose `beforeunload` objects, stays awake. The
+   * tombstone exists before the page is asked to close, so every list of
+   * tabs names the tab throughout. */
   private async putToSleep(
     tab: Tab,
     reason: SleepReason,
@@ -2445,40 +2508,71 @@ export class BrowserHub {
         kind: "awake",
         reason: sleepableAddress(tab.info.url) ? "busy" : "not-sleepable",
       };
-    try {
-      this.holds = await this.seams.holds();
-    } catch (error) {
-      this.seams.log(`reading the holds failed: ${String(error)}`);
-      return { kind: "awake", reason: "busy" };
-    }
-    // Never one someone views or an agent works in; by the idle rule never
-    // one in use within the idle time; never one with unsaved input.
     if (this.viewing(tab)) return { kind: "awake", reason: "viewed" };
-    await this.readActivity(tab);
+    if (this.agentsOf(tab).length > 0 || this.threadHeld(tab))
+      return { kind: "awake", reason: "agent" };
+    const epoch = this.holdsEpoch;
+    tab.checking = true;
+    try {
+      await this.readActivity(tab);
+      const now = Date.now();
+      if (this.agentRecent(tab, now)) return { kind: "awake", reason: "agent" };
+      if (
+        reason === "idle" &&
+        now - this.quietSince(tab, now) < this.idleSleepMs
+      )
+        return { kind: "awake", reason: "in-use" };
+      if (await this.unsaved(tab)) return { kind: "awake", reason: "unsaved" };
+      let fresh: Holds;
+      try {
+        fresh = await this.seams.holds();
+      } catch (error) {
+        this.seams.log(`reading the holds failed: ${String(error)}`);
+        return { kind: "awake", reason: "busy" };
+      }
+      // From here to `Page.close` nothing is awaited: what the hub knows now
+      // is what it acts on.
+      this.holds = fresh;
+      return this.closeToSleep(tab, reason, epoch);
+    } finally {
+      tab.checking = false;
+    }
+  }
+
+  /** The last check and the close, in one synchronous step. */
+  private closeToSleep(
+    tab: Tab,
+    reason: SleepReason,
+    epoch: number,
+  ): Promise<SleepOutcome> {
     const now = Date.now();
-    if (this.agentRecent(tab, now)) return { kind: "awake", reason: "agent" };
-    if (reason === "idle" && now - this.quietSince(tab, now) < this.idleSleepMs)
-      return { kind: "awake", reason: "in-use" };
-    if (await this.unsaved(tab)) return { kind: "awake", reason: "unsaved" };
+    const awake = (why: AwakeReason) =>
+      Promise.resolve<SleepOutcome>({ kind: "awake", reason: why });
     const cdp = this.cdp;
     const session = tab.sessionId;
-    // Anything may have changed while the page answered.
+    if (this.viewing(tab)) return awake("viewed");
+    if (
+      this.agentsOf(tab).length > 0 ||
+      this.threadHeld(tab) ||
+      this.agentRecent(tab, now)
+    )
+      return awake("agent");
+    // A binding or a holder file changed while the hub looked: whatever it
+    // was, this is no moment to close the page.
+    if (this.holdsEpoch !== epoch) return awake("busy");
     if (
       cdp === null ||
       session === null ||
       this.resolve(tab.id) !== tab ||
-      !this.sleepable(tab) ||
-      this.viewing(tab) ||
-      this.agentsOf(tab).length > 0
+      this.keeper(tab) ||
+      this.closing.has(tab.id) ||
+      tab.fall !== null ||
+      this.sleeping.has(tab.id) ||
+      (reason === "idle" && this.holdsOf(tab.id, tab.targetId).length === 0)
     )
-      return {
-        kind: "awake",
-        reason: this.viewing(tab)
-          ? "viewed"
-          : this.agentsOf(tab).length > 0
-            ? "agent"
-            : "busy",
-      };
+      return awake("busy");
+    if (reason === "idle" && now - this.quietSince(tab, now) < this.idleSleepMs)
+      return awake("in-use");
     const sleeper: Sleeper = {
       record: {
         id: tab.id,
@@ -2488,10 +2582,13 @@ export class BrowserHub {
         opener: tab.opener,
         openedAt: tab.openedAt,
         usedAt: tab.usedAt,
-        sleptAt: Date.now(),
+        sleptAt: now,
         reason,
       },
       falling: tab.targetId,
+      fellFrom: tab.targetId,
+      closeEpoch: this.holdsEpoch,
+      agentWakesUntil: 0,
       viewers: new Set(),
       waking: false,
       wakeTimer: null,
@@ -2535,9 +2632,13 @@ export class BrowserHub {
     fall.done(outcome);
   }
 
-  /** A tab that fell asleep: its target is gone, its tombstone stays. */
+  /** A tab that fell asleep: its target is gone, its tombstone stays. An
+   * agent that came while its page closed wakes it at once: a change of the
+   * bindings reported meanwhile is read now, and one reported in the next
+   * `sleepCloseMs` is read as it comes (`wakeForAgent`). */
   private asleep(sleeper: Sleeper): void {
     sleeper.falling = null;
+    sleeper.agentWakesUntil = Date.now() + this.sleepCloseMs;
     this.seams.log(`tab ${sleeper.record.id} sleeps`);
     this.trimSleeping();
     this.publishTabs();
@@ -2545,6 +2646,7 @@ export class BrowserHub {
     this.reviewSleeper(sleeper);
     if ([...sleeper.viewers].some((viewer) => this.shown(viewer)))
       void this.wake(sleeper);
+    else if (this.holdsEpoch !== sleeper.closeEpoch) void this.refreshHolds();
   }
 
   /** The most tombstones the hub keeps (`maxSleeping`): the least recently
@@ -2801,6 +2903,9 @@ export class BrowserHub {
             this.sleeping.set(record.id, {
               record,
               falling: null,
+              fellFrom: null,
+              closeEpoch: this.holdsEpoch,
+              agentWakesUntil: 0,
               viewers: new Set(),
               waking: false,
               wakeTimer: null,
