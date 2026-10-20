@@ -2,7 +2,12 @@ import { afterAll, expect, test } from "bun:test";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bundledFileCaching, bundledFilePaths } from "../src/launchpad/page";
+import {
+  assetCaching,
+  bundledFileCaching,
+  bundledFilePaths,
+  contentHashedName,
+} from "../src/launchpad/page";
 import { freePort } from "./fixtures/ports";
 import { runChild } from "./fixtures/run-child";
 
@@ -10,13 +15,39 @@ import { runChild } from "./fixtures/run-child";
 // although the compiled executable serves them with no `Cache-Control`; the
 // page itself is never stored.
 
-test("the bundled files are the non-page files under their page's directory, POSIX and Windows alike", () => {
-  const file = (path: string, loader: "html" | "js" | "css" | "file") => ({
-    path,
-    loader,
-    isEntry: loader === "html",
-    headers: { etag: "x", "content-type": "y" },
-  });
+const file = (path: string, loader: "html" | "js" | "css" | "file") => ({
+  path,
+  loader,
+  isEntry: loader === "html",
+  headers: { etag: "x", "content-type": "y" },
+});
+
+test("a name proves its content only as Bun names a compiled page's output", () => {
+  // As a compiled candidate served them on 2026-10-20.
+  for (const name of [
+    "chunk-ghc4ygpz.js",
+    "chunk-ejehpt9h.css",
+    "symbol-color-j5ttq22m.svg",
+    "bitwarden-api-key-en-71bjxp3z.webp",
+  ])
+    expect(contentHashedName(name)).toBe(true);
+  for (const name of [
+    "runtime-config.js",
+    "chunk.js",
+    "chunk-ghc4ygp.js",
+    "chunk-ghc4ygpzz.js",
+    "chunk-GHC4YGPZ.js",
+    // i, l, o and u are no characters of Crockford base32.
+    "chunk-ghc4ygpi.js",
+    "chunk-ghc4ygpu.js",
+    "chunk-ghc4ygpz",
+    "assets/chunk-ghc4ygpz.js",
+    "-ghc4ygpz.js",
+  ])
+    expect(contentHashedName(name)).toBe(false);
+});
+
+test("the content-hashed files are the non-page files beside their page, POSIX and Windows alike", () => {
   expect([
     ...bundledFilePaths([
       {
@@ -25,6 +56,9 @@ test("the bundled files are the non-page files under their page's directory, POS
           file("/$bunfs/root/index-aaaaaaaa.html", "html"),
           file("/$bunfs/root/chunk-bbbbbbbb.js", "js"),
           file("/$bunfs/root/chunk-cccccccc.css", "css"),
+          file("/$bunfs/root/logo-dddddddd.svg", "file"),
+          // Listed, but no name that proves its content.
+          file("/$bunfs/root/runtime-config.js", "js"),
           file("/$bunfs/root/assets/logo-dddddddd.svg", "file"),
           file("/elsewhere/chunk-eeeeeeee.js", "js"),
         ],
@@ -39,9 +73,38 @@ test("the bundled files are the non-page files under their page's directory, POS
   ]).toEqual([
     "/chunk-bbbbbbbb.js",
     "/chunk-cccccccc.css",
-    "/assets/logo-dddddddd.svg",
+    "/logo-dddddddd.svg",
     "/chunk-gggggggg.js",
   ]);
+});
+
+test("only a content-hashed file is kept a year; a listed file without that name keeps the inner caching, or no-store", () => {
+  const hashed = bundledFilePaths([
+    {
+      index: "/$bunfs/root/index-aaaaaaaa.html",
+      files: [
+        file("/$bunfs/root/chunk-bbbbbbbb.js", "js"),
+        file("/$bunfs/root/runtime-config.js", "js"),
+      ],
+    },
+  ]);
+  expect(assetCaching("/chunk-bbbbbbbb.js", null, hashed)).toBe(
+    bundledFileCaching,
+  );
+  expect(assetCaching("/chunk-bbbbbbbb.js?v=1", "no-store", hashed)).toBe(
+    bundledFileCaching,
+  );
+  expect(assetCaching("/runtime-config.js", null, hashed)).toBe("no-store");
+  expect(assetCaching("/runtime-config.js", "no-cache", hashed)).toBe(
+    "no-cache",
+  );
+  expect(
+    assetCaching(
+      "/.lazurio/fonts/a.woff2",
+      "public, max-age=604800, immutable",
+      hashed,
+    ),
+  ).toBe("public, max-age=604800, immutable");
 });
 
 let root: string | undefined;
@@ -91,6 +154,11 @@ test.skipIf(process.platform === "win32")(
       status: 404,
       cacheControl: "no-store",
     });
+    // Every file the compiled bundle lists has a name that proves its
+    // content: should Bun name them otherwise, this says so before a file
+    // silently loses its caching.
+    expect(seen.listed.length).toBeGreaterThan(0);
+    expect(seen.hashed).toEqual(seen.listed);
   },
   120_000,
 );

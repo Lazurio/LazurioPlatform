@@ -6023,8 +6023,10 @@ with their own requests.
 executable. Its inner listener serves the hashed bundle files without any
 `Cache-Control`, so behind the gateway they were `no-store` and every open fetched the
 main script again. The hosted Launchpad now sets `public, max-age=31536000, immutable`
-on the files the bundle itself lists (`bundledFilePaths` in `page.ts`), whatever the
-inner listener sends; a test compiles a hosted Launchpad and pins it. The script is
+on the files the bundle itself lists whose names prove a hash of their content, as
+Bun names them (`chunk-<hash>.<ext>`, `<name>-<hash>.<ext>`; `contentHashedName` in
+`page.ts`), whatever the inner listener sends; any other file keeps the inner
+listener's caching, or `no-store`. A test compiles a hosted Launchpad and pins it. The script is
 still served unminified, now about 1.17 MB (298 KB with `gzip -9`), and compression on
 the way is the ingress's, tracked apart.
 

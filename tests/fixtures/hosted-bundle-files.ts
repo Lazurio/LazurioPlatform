@@ -2,13 +2,17 @@
 // starts a hosted Launchpad on the given port behind a gateway that admits
 // every request with a cookie, fetches the page and every script and style
 // file it names through the gateway's path, and prints one JSON line with
-// what the browser was told to keep.
+// what the browser was told to keep, beside every file the compiled bundle
+// lists and those of them taken as content-hashed.
 import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initializeHandoverFolder } from "../../src/folder/initialize-folder";
 import { executionOs } from "../../src/folder/platform";
 import { presetProfile } from "../../src/folder/presets";
+import index from "../../src/launchpad/index.html";
+import newTabPage from "../../src/launchpad/new-tab.html";
+import { bundledFilePaths } from "../../src/launchpad/page";
 import { startLaunchpad } from "../../src/launchpad/server";
 import { organizationWithEntry } from "./machine-bindings";
 
@@ -71,11 +75,23 @@ try {
     headers: admitted,
   });
   await missing.arrayBuffer();
+  const listed = [index, newTabPage].flatMap((bundle) => {
+    const root = bundle.index.slice(
+      0,
+      Math.max(bundle.index.lastIndexOf("/"), bundle.index.lastIndexOf("\\")) +
+        1,
+    );
+    return (bundle.files ?? [])
+      .filter((file) => file.loader !== "html")
+      .map((file) => `/${file.path.slice(root.length)}`);
+  });
   console.log(
     JSON.stringify({
       page: caching(page),
       files,
       missing: caching(missing),
+      listed: [...new Set(listed)].sort(),
+      hashed: [...bundledFilePaths([index, newTabPage])].sort(),
     }),
   );
 } finally {
