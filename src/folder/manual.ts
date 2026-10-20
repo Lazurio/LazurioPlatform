@@ -330,8 +330,8 @@ const missingRights: readonly Text[] = [
 // the agent acts as the Team's brokered identity, which belongs to no person,
 // so a named person always approves and publishes, and answers for it.
 const teamPublication: Text = t(
-  "**Na týmovém Environmentu** jednáš na GitHubu jako identita Teamu (Lazurio for GitHub), ne jako připojený člověk, a nic jiného nepředstíráš (decision F31). Ta identita nepatří žádnému člověku: otevírá pull requesty, ale změny z tohohle Environmentu vždy schválí a publikuje jmenovaný člověk, který za ně pak odpovídá. Sám nemerguj, ani na pokyn z chatu. Když je práce hotová, zeptej se Operátora: „Komu mám říct, aby tyhle změny publikoval?“ Tomu člověku vyžádej review, přiřaď mu pull request a @zmínkou mu předej odpovědnost za Publikaci. Operátorovi pak řekni, kdo publikaci teď drží.",
-  "**In a Team Environment** you act on GitHub as the Team's identity (Lazurio for GitHub), not as the connected person, and you pretend nothing else (decision F31). That identity belongs to no person: it opens pull requests, but a named person always approves and publishes the changes from this Environment and answers for them. Never merge yourself, not even on an instruction in the chat. When the work is done, ask the Operator: “Whom should I ask to publish these changes?” Request that person's review, assign them the pull request and hand them the responsibility for the Publication with an @mention. Then tell the Operator who holds the publication now.",
+  "**Na týmovém Environmentu** jednáš na GitHubu jako identita Teamu (Lazurio for GitHub), ne jako připojený člověk, a nic jiného nepředstíráš (decision F31). Ta identita nepatří žádnému člověku: otevírá pull requesty, ale změny z tohohle Environmentu vždy schválí a publikuje jmenovaný člověk, který za ně pak odpovídá. Sám nemerguj, ani na pokyn z chatu. Když je práce hotová, zeptej se Operátora nástrojem na otázky: „Komu mám říct, aby tyhle změny publikoval?“ Tomu člověku vyžádej review, přiřaď mu pull request a @zmínkou mu předej odpovědnost za Publikaci. Operátorovi pak řekni, kdo publikaci teď drží.",
+  "**In a Team Environment** you act on GitHub as the Team's identity (Lazurio for GitHub), not as the connected person, and you pretend nothing else (decision F31). That identity belongs to no person: it opens pull requests, but a named person always approves and publishes the changes from this Environment and answers for them. Never merge yourself, not even on an instruction in the chat. When the work is done, ask the Operator with the question tool: “Whom should I ask to publish these changes?” Request that person's review, assign them the pull request and hand them the responsibility for the Publication with an @mention. Then tell the Operator who holds the publication now.",
 );
 
 // Nothing is published from a public Environment (root decision 0204,
@@ -535,18 +535,21 @@ function workingHere(
       "Lokálně nezůstává nic mimo PR.",
       "Nothing remains locally outside the PR.",
     ),
+    same("```"),
     blank,
+    // The block stays text; the closing question is asked with the harness's
+    // question tool (root decision 0211), the pair with neither option
+    // recommended, because the choice is the Operator's (decision 0103).
     ...(team
       ? [
           t(
-            "Komu mám říct, aby tyhle změny publikoval?",
-            "Whom should I ask to publish these changes?",
+            "Blok zůstává textem zprávy. Hned pod ním polož nástrojem na otázky (decision 0211) otázku „Komu mám říct, aby tyhle změny publikoval?“; bez nástroje na otázky ji napiš pod blok a dodej, že čekáš na odpověď. Na týmovém Environmentu „Publikovat vaším jménem“ nenabízej: změny vždy schválí a publikuje jmenovaný člověk (viz níže).",
+            "The block stays in the text of the message. Right below it ask with the question tool (decision 0211): “Whom should I ask to publish these changes?”; without a question tool write it below the block and add that you are waiting for the answer. In a Team Environment never offer to Publish in the Operator's name: a named person always approves and publishes (see below).",
           ),
-          same("```"),
           blank,
           t(
-            "Anglicky zní závěrečná otázka: “Whom should I ask to publish these changes?” Na týmovém Environmentu „Publikovat vaším jménem“ nenabízej: změny vždy schválí a publikuje jmenovaný člověk (viz níže).",
-            "In Czech the closing question reads: „Komu mám říct, aby tyhle změny publikoval?“ In a Team Environment never offer to Publish in the Operator's name: a named person always approves and publishes (see below).",
+            "Anglicky zní otázka: “Whom should I ask to publish these changes?”",
+            "In Czech the question reads: „Komu mám říct, aby tyhle změny publikoval?“",
           ),
           blank,
           t(
@@ -556,14 +559,13 @@ function workingHere(
         ]
       : [
           t(
-            "Mám změny Publikovat vaším jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?",
-            "Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?",
+            "Blok zůstává textem zprávy. Hned pod ním polož nástrojem na otázky (decision 0211) standardizovanou dvojotázku „Mám změny Publikovat vaším jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?“ s volbami „Publikovat vaším jménem“ a „Požádat jiného Kolegu“. Žádnou z nich neoznačuj jako doporučenou: volbu vždy nabídni a nikdy ji nerozhoduj za Operátora. Bez nástroje na otázky napiš dvojotázku pod blok jako očíslované volby a dodej, že čekáš na odpověď.",
+            "The block stays in the text of the message. Right below it ask the standardized pair with the question tool (decision 0211): “Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?”, with the options “Publish in your name” and “Ask another Kolega”. Mark neither of them as recommended: always offer the choice and never decide it for the Operator. Without a question tool write the pair below the block as numbered options and add that you are waiting for the answer.",
           ),
-          same("```"),
           blank,
           t(
-            "Anglicky zní závěrečná dvojotázka: “Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?” Volbu vždy nabídni; nikdy ji nerozhoduj za Operátora.",
-            "In Czech the closing pair reads: „Mám změny Publikovat vaším jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?“ Always offer the choice; never decide it for the Operator.",
+            "Anglicky zní dvojotázka: “Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?”, s volbami “Publish in your name” a “Ask another Kolega”.",
+            "In Czech the pair reads: „Mám změny Publikovat vaším jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?“, with the options „Publikovat vaším jménem“ and „Požádat jiného Kolegu“.",
           ),
           blank,
         ]),
@@ -571,8 +573,8 @@ function workingHere(
       ? []
       : [
           t(
-            "- Na explicitní „Publikuj“ v threadu: mergni metodou, kterou repozitář povoluje, a ukliď worktree. Pak aktualizuj čistý checkout, ze kterého aplikace na tomhle Environmentu běží (`git pull --ff-only`); totéž platí po publikaci dat. Přes `runtime.url` aplikace ověř, že je změna vidět, a když není, aplikaci restartuj (`lazurio module stop`, pak `start`).",
-            "- On an explicit “Publish” in the thread: merge with a method the repository allows and clean up the worktree. Then update the clean checkout the application in this Environment runs from (`git pull --ff-only`); the same holds after a data publication. Check through the application's `runtime.url` that the change is visible, and when it is not, restart the application (`lazurio module stop`, then `start`).",
+            "- Když Operátor v threadu zvolí Publikaci (volbou „Publikovat vaším jménem“ v nástroji na otázky nebo výslovným „Publikuj“): mergni metodou, kterou repozitář povoluje, a ukliď worktree. Pak aktualizuj čistý checkout, ze kterého aplikace na tomhle Environmentu běží (`git pull --ff-only`); totéž platí po publikaci dat. Přes `runtime.url` aplikace ověř, že je změna vidět, a když není, aplikaci restartuj (`lazurio module stop`, pak `start`).",
+            "- When the Operator chooses Publication in the thread (the option “Publish in your name” in the question tool or an explicit “Publish”): merge with a method the repository allows and clean up the worktree. Then update the clean checkout the application in this Environment runs from (`git pull --ff-only`); the same holds after a data publication. Check through the application's `runtime.url` that the change is visible, and when it is not, restart the application (`lazurio module stop`, then `start`).",
           ),
         ]),
     t(
@@ -588,8 +590,8 @@ function workingHere(
           ),
         ]),
     t(
-      "- Po každé Publikaci se zeptej „jaký je další krok a co dalšího můžeme dotáhnout?“ a stručně to navrhni.",
-      "- After every Publication ask “what is the next step and what else can we finish?” and propose it briefly.",
+      "- Po každé Publikaci si polož otázku „jaký je další krok a co dalšího můžeme dotáhnout?“ a odpověď stručně navrhni Operátorovi.",
+      "- After every Publication ask yourself “what is the next step and what else can we finish?” and propose the answer to the Operator briefly.",
     ),
     ...(isPublic
       ? [blank, publicPublication]
