@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { HTMLBundle } from "bun";
 import { shellScript } from "../shell/bundle" with { type: "macro" };
 import { shellFontPaths } from "../shell/font-files";
 import { newTabPagePath } from "../shell/new-tab-protocol";
@@ -78,6 +79,43 @@ export const shellRoutes = {
     });
   },
 };
+
+/** `Cache-Control` of the bundled pages' own files (#532): each name carries
+ * a hash of the file's content, so a new build serves new names and a
+ * browser keeps a file a year without asking again. */
+export const bundledFileCaching = "public, max-age=31536000, immutable";
+
+/** The paths under which the inner listener serves the bundled pages' own
+ * files: the script and style chunks and the images (`/chunk-….js`), never a
+ * page. Bun lists them for a build made ahead of time, which is what the
+ * compiled executable is; it serves them without any `Cache-Control`. Run
+ * from source it lists none, and its runtime bundle sends `bundledFileCaching`
+ * itself. A file outside the directory of its page is not taken. */
+export function bundledFilePaths(
+  bundles: readonly HTMLBundle[],
+): ReadonlySet<string> {
+  const paths = new Set<string>();
+  for (const bundle of bundles) {
+    const separator = Math.max(
+      bundle.index.lastIndexOf("/"),
+      bundle.index.lastIndexOf("\\"),
+    );
+    const root = bundle.index.slice(0, separator + 1);
+    for (const file of bundle.files ?? []) {
+      if (file.loader === "html" || !file.path.startsWith(root)) continue;
+      paths.add(`/${file.path.slice(root.length).replaceAll("\\", "/")}`);
+    }
+  }
+  return paths;
+}
+
+const bundledFiles = bundledFilePaths([index, newTabPage]);
+
+/** Whether `path` (with or without its query) names one of this
+ * executable's bundled files (`bundledFilePaths`). */
+export function isBundledFile(path: string): boolean {
+  return bundledFiles.has(path.split("?", 1)[0] as string);
+}
 
 // The page itself under each of its routes (`/`, `/settings/tools`, …): the
 // same bundled document, which picks the section from the path. No other

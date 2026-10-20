@@ -167,7 +167,14 @@ import {
   withOfflineGuide,
 } from "./offline-guide";
 import { createOwnerCheck } from "./organization-owner";
-import { admitLocal, pageRoutes, privatePage, serveShell } from "./page";
+import {
+  admitLocal,
+  bundledFileCaching,
+  isBundledFile,
+  pageRoutes,
+  privatePage,
+  serveShell,
+} from "./page";
 import {
   isOrganizationPrompt,
   isPromptId,
@@ -1072,11 +1079,13 @@ export async function startLaunchpad(
   }
   // Behind the gateway, the page or one of its static assets from the inner
   // listener, after admission (F36's addendum of 2026-10-08). The page is
-  // never stored and carries its boot document; an asset keeps the inner
-  // listener's caching (the bundle's hashed files, the fonts and the stones
-  // immutable, the shell's script revalidated by its ETag); an answer
-  // without its own, a missing asset among them, is not stored. A page may
-  // add headers of its own: only Nová karta's does (`newTabPageHeaders`).
+  // never stored and carries its boot document; the bundle's hashed files
+  // are kept a year whatever the inner listener says, since the compiled
+  // executable serves them with no caching at all (#532); another asset
+  // keeps the inner listener's caching (the fonts and the stones immutable,
+  // the shell's script revalidated by its ETag); an answer without its own,
+  // a missing asset among them, is not stored. A page may add headers of
+  // its own: only Nová karta's does (`newTabPageHeaders`).
   async function fromShell(
     request: Request,
     path: string,
@@ -1106,7 +1115,10 @@ export async function startLaunchpad(
     const kept: Record<string, string> = {};
     const cacheControl = page.headers.get("cache-control");
     const etag = page.headers.get("etag");
-    if (page.ok && cacheControl !== null) kept["Cache-Control"] = cacheControl;
+    if (page.ok && isBundledFile(path))
+      kept["Cache-Control"] = bundledFileCaching;
+    else if (page.ok && cacheControl !== null)
+      kept["Cache-Control"] = cacheControl;
     if (page.ok && etag !== null) kept.ETag = etag;
     if (kept.ETag !== undefined && notModified(request, kept.ETag)) {
       await page.body?.cancel().catch(() => undefined);
