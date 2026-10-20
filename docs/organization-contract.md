@@ -175,3 +175,32 @@ waive those existing gates. Real Organization materialization remains blocked on
 consumer convergence and its owning rollout, not on inventing another filename or
 schema; its future operation is [content synchronization](content-sync.md). No real
 conversion, cloning or legacy removal occurs in this increment.
+
+### Registration and the existing derived inventory
+
+Organization module creation also compiles the existing
+`companiesascode.modules_index.v2` projection when the Organization classifies
+`generated/modules.index.json` as exclusively derived. The input remains the
+canonical manifest and inventory, through the existing Core-compatible projection;
+the index never registers or authorizes a module. Inventory `teams`, where present,
+is a compatibility copy of canonical `teams` and is refreshed in the same operation.
+No roster or ownership declaration is added to an Organization that has none.
+
+`src/organizations/modules-index.ts` implements the existing wire projection
+contract of Core `lazurio/organization-compiler/compiler-core.mjs`, reviewed at
+`HumanAndMachines/Lazurio@ba15cd8b1c445f4c675ae97cada4a9b6595231c1`.
+This bounded TypeScript adapter uses Platform's existing declaration parser,
+projection and slot classifier; it does not vendor the old compiler runtime or
+execute Organization code. Unrelated business-context and generation-policy
+outputs have unchanged inputs during module registration and are not rewritten.
+The local consumer comparison against Core covers semantic and byte equality;
+committed regression fixtures contain synthetic Organization data only.
+
+The real `--data` consumer test checks both app and database slots in the resulting
+index and an unchanged primary checkout. Unsupported existing index schemas,
+ambiguous ownership, escaping/symlinked output directories and intervening changes
+are refusals. Derived writes use the same bounded owned-file reader and atomic
+file replacement as the registration documents; a later failure reports the exact
+files written. This is not a multi-file atomic transaction or an installed-release
+qualification. The next product release and its explicit update remain necessary
+before an installed CLI receives this behavior.
