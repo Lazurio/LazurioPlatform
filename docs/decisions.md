@@ -14421,19 +14421,21 @@ rendered-page CI gates.
 > does the pull request that brings this note.** On an Organization's Environment with
 > a vault (not a public one) the manual's Secrets asks who needs a secret and who
 > changes it, then recommends the Organization vault (people only), the Environment
-> vault (on a Team or Automated Environment its agents only) or a shared vault for a
-> purpose, which the Organization's Admin creates and invites the Environment's vault
-> account into (its address: `account` in `lazurio vault status --json`). It never
-> separates access by collections, and it adds a fourth path, (d): a supplier's bulk
-> file through the Environment's Files, stored item by item, deleted at once and never
-> printed, the one exception to "never from a file", which the tool `bitwarden` names
-> too. A personal Environment and this computer keep their text; template revision
-> `base-instructions-59`. **Honest limits:** the Trezor page shows neither the vault
-> account's address nor whom a vault is for yet. Nothing in Lazurio accepts an
-> invitation: the hosting runs the vault without mail, and then Vaultwarden
-> 1.37.4-lazurio.1 accepts an existing account's invitation at once (`send_invite`);
-> read from the sources, not yet tried on a live vault. The status, the Trezor page,
-> runtime secrets (F46) and a request (c) know the Environment vault only.
+> vault (on a Team or Automated Environment, which adds nobody to it, everyone who
+> enters has its passwords, #499) or a shared vault for a purpose, which the
+> Organization's Admin creates and invites the Environment's vault account into (its
+> address: `account` in `lazurio vault status --json`). It never separates access by
+> collections, and it adds a fourth path, (d): a supplier's bulk file through the
+> Environment's Files, stored item by item, deleted at once and never printed, the one
+> exception to "never from a file", also to that rule in the tool `bitwarden`'s text,
+> which stays one for every Environment. A personal or public Environment and this
+> computer keep their text; template revision `base-instructions-59`. **Honest
+> limits:** the Trezor page shows neither the vault account's address nor whom a vault
+> is for yet. Nothing in Lazurio accepts an invitation: the hosting runs the vault
+> without mail, and then Vaultwarden 1.37.4-lazurio.1 accepts an existing account's
+> invitation at once (`send_invite`); read from the sources, not yet tried on a live
+> vault. The status, the Trezor page, runtime secrets (F46) and a request (c) know the
+> Environment vault only.
 
 **Decided by the Admin on 2026-10-13 (root decision 0198 point 9; plan DEV-6631 tasks
 651 and 652; the wireframe of HumanAndMachine-ai/prototypes-lazurio#33:

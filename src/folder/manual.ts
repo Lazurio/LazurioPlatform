@@ -1389,7 +1389,9 @@ const connectedApplications = (preset: PresetName): readonly Text[] => [
 function secrets(preset: PresetName, isPublic: boolean): readonly Text[] {
   const kinds = preset !== "local" && preset !== "hosted-personal" && !isPublic;
   // A Team or Automated Environment adds no people to its vault yet
-  // (src/vault/members.ts, `not-managed`), so only its agents use it.
+  // (src/vault/members.ts, `not-managed`), so only its agents use it, while
+  // everyone who enters it has its passwords (root decision 0198 point 2;
+  // Trezor's "?" says the same, #499).
   const agentsOnly =
     preset === "hosted-organization-team" ||
     preset === "hosted-organization-steward";
@@ -1438,8 +1440,8 @@ function secrets(preset: PresetName, isPublic: boolean): readonly Text[] {
     ),
     agentsOnly
       ? t(
-          "  - **Trezor Prostředí** je pro agenty tohoto Environmentu; lidi do něj tenhle Environment zatím nepřidává. Patří do něj, co potřebují jen jeho agenti, a dostane se tam cestami (a) až (d) níže.",
-          "  - **The Environment vault** is for this Environment's agents; this Environment adds no people to it yet. What only its agents need goes there, by the paths (a) to (d) below.",
+          "  - **Trezor Prostředí** je pro agenty tohoto Environmentu: lidi do něj tenhle Environment zatím nepřidává, ale jeho hesla má každý, kdo do Environmentu vstoupí. Patří do něj, co potřebuje jen tenhle Environment, a dostane se tam cestami (a) až (d) níže.",
+          "  - **The Environment vault** is for this Environment's agents: this Environment adds no people to it yet, but everyone who enters this Environment has its passwords. What only this Environment needs goes there, by the paths (a) to (d) below.",
         )
       : t(
           "  - **Trezor Prostředí** je pro agenty tohoto Environmentu a lidi s přístupem do něj. Patří do něj, co potřebuje jen tenhle Environment, a dostane se tam cestami (a) až (d) níže.",
@@ -1454,8 +1456,8 @@ function secrets(preset: PresetName, isPublic: boolean): readonly Text[] {
       "- **A collection is a drawer, not a lock.** Every member of a vault holds its key, so vaults, not collections, separate who sees what. Never separate access by collections: what not every member of a vault may see belongs in another vault.",
     ),
     t(
-      `- **Lidem to vysvětli obyčejnými slovy,** bez slov jako organizace, kolekce nebo role, v jejich jazyce; česky například: „Není trezor jako trezor. Do Trezoru Organizace vidí jen lidé, agenti ne. ${agentsOnly ? "Trezor tohoto Prostředí používají jen jeho agenti." : "Trezor tohoto Prostředí používají jeho agenti a lidé, kteří do Prostředí mají přístup."} Co potřebují agenti víc Prostředí nebo lidé spolu s agenty, patří do sdíleného trezoru pro jeden účel, který založí Admin Organizace.“`,
-      `- **Explain it to people in plain words,** without words like organization, collection or role, in their language; in English for example: “Not every vault is the same. Only people see into the Organization vault, agents do not. ${agentsOnly ? "Only this Environment's agents use its vault." : "This Environment's vault is used by its agents and the people who have access to this Environment."} What the agents of several Environments, or people together with agents, need belongs in a shared vault for one purpose, which the Organization's Admin creates.”`,
+      `- **Lidem to vysvětli obyčejnými slovy,** bez slov jako organizace, kolekce nebo role, v jejich jazyce; česky například: „Není trezor jako trezor. Do Trezoru Organizace vidí jen lidé, agenti ne. ${agentsOnly ? "Trezor tohoto Prostředí používají jeho agenti a jeho hesla vidí každý, kdo do Prostředí vstoupí." : "Trezor tohoto Prostředí používají jeho agenti a lidé, kteří do Prostředí mají přístup."} Co potřebují agenti víc Prostředí nebo lidé spolu s agenty, patří do sdíleného trezoru pro jeden účel, který založí Admin Organizace.“`,
+      `- **Explain it to people in plain words,** without words like organization, collection or role, in their language; in English for example: “Not every vault is the same. Only people see into the Organization vault, agents do not. ${agentsOnly ? "This Environment's vault is used by its agents, and everyone who enters this Environment sees its passwords." : "This Environment's vault is used by its agents and the people who have access to this Environment."} What the agents of several Environments, or people together with agents, need belongs in a shared vault for one purpose, which the Organization's Admin creates.”`,
     ),
     t(
       "- **Do sdíleného trezoru Environment přizve jen Admin Organizace.** Požádej Operátora, ať ho Admin založí a pozve do něj účet tohoto Environmentu v trezoru; zápis mu dá, jen když hodnoty mění agenti. Adresu účtu vypíše `lazurio vault status --json` v poli `account`; stránka Trezor ji zatím neukazuje. Pozvánku za účet přijme trezor sám a Admin členství potvrdí; potom sdílený trezor po `bw sync` najdeš podle jména v `bw list organizations`. Odebrání ze sdíleného trezoru zastaví další přístup, ale co si agenti mezitím stáhli nebo použili, jim zůstane: při ztrátě důvěry se dotčené klíče podle dopadu vymění.",
@@ -1486,8 +1488,8 @@ function secrets(preset: PresetName, isPublic: boolean): readonly Text[] {
     ),
     blank,
     t(
-      `- **O tajemství nikdy nežádej v chatu** a neber ho ze souboru ani ze zprávy.${kinds ? " Jedinou výjimkou je hromadný soubor od dodavatele, cesta (d) níže." : ""} Přihlášení a souhlasy dělá člověk ve svém prohlížeči; předtím mu řekni, jaký účet a jaký rozsah připojuje.`,
-      `- **Never ask for a secret in chat,** and never take one from a file or a message.${kinds ? " The one exception is a supplier's bulk file, path (d) below." : ""} Sign-ins and consents are done by a person in their own browser; tell them first which account and which scope is being connected.`,
+      `- **O tajemství nikdy nežádej v chatu** a neber ho ze souboru ani ze zprávy.${kinds ? " Jedinou výjimkou, i ze stejného pravidla u nástroje `bitwarden`, je hromadný soubor od dodavatele, cesta (d) níže." : ""} Přihlášení a souhlasy dělá člověk ve svém prohlížeči; předtím mu řekni, jaký účet a jaký rozsah připojuje.`,
+      `- **Never ask for a secret in chat,** and never take one from a file or a message.${kinds ? " The one exception, also to the same rule of the tool `bitwarden`, is a supplier's bulk file, path (d) below." : ""} Sign-ins and consents are done by a person in their own browser; tell them first which account and which scope is being connected.`,
     ),
     ...(preset === "local"
       ? [

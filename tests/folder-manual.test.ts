@@ -1294,10 +1294,12 @@ test("secrets reach agents by the paths a, b and c on a Remote Environment, neve
 // 0203's addendum of 2026-10-20, F54's note of the same day): the intent
 // first, the three kinds of vault, collections never the boundary, the words
 // for people, how an Environment joins a shared vault, and a supplier's bulk
-// file as the fourth path, the one file a secret comes from, which the tool
-// `bitwarden` names too. A Team or Automated Environment's vault is its
-// agents' only. A personal Environment (its person's own Bitwarden), a public
-// Environment (no vault) and this computer keep their text without the kinds.
+// file as the fourth path, the one file a secret comes from, named an
+// exception to the tool `bitwarden`'s same rule too, whose text stays one for
+// every Environment. A Team or Automated Environment adds nobody to its
+// vault, and everyone who enters it has its passwords. A personal
+// Environment (its person's own Bitwarden), a public Environment (no vault)
+// and this computer keep their text without the kinds.
 test("an Organization's Environment asks who needs a secret before it names one of three kinds of vault; a personal or public Environment and this computer do not", () => {
   const cases = [
     { preset: "local", machine: null, os: "macos", kinds: false },
@@ -1410,17 +1412,9 @@ test("an Organization's Environment asks who needs a secret before it names one 
             "Applications take secrets only from the Environment vault, not from a shared vault",
           ];
       const exception = cs
-        ? "a neber ho ze souboru ani ze zprávy. Jedinou výjimkou je hromadný soubor od dodavatele, cesta (d) níže."
-        : "and never take one from a file or a message. The one exception is a supplier's bulk file, path (d) below.";
-      const tool = cs
-        ? "jedinou výjimkou je na Prostředí Organizace hromadný soubor od dodavatele, cesta (d) v `manual/working-here.md`"
-        : "the one exception, on an Organization's Environment, is a supplier's bulk file, path (d) in `manual/working-here.md`";
+        ? "a neber ho ze souboru ani ze zprávy. Jedinou výjimkou, i ze stejného pravidla u nástroje `bitwarden`, je hromadný soubor od dodavatele, cesta (d) níže."
+        : "and never take one from a file or a message. The one exception, also to the same rule of the tool `bitwarden`, is a supplier's bulk file, path (d) below.";
       expect([...where, start > 0]).toEqual([...where, true]);
-      // The tool's text names the one exception wherever it is enabled.
-      expect([
-        ...where,
-        outputs["manual/this-machine.md"].includes(tool),
-      ]).toEqual([...where, entry.preset !== "local"]);
       if (!entry.kinds) {
         // The paths a, b and c stay where a vault is; nothing of the kinds.
         expect([
@@ -1447,12 +1441,12 @@ test("an Organization's Environment asks who needs a secret before it names one 
       // access to it, or on a Team or Automated Environment its agents only.
       const agentsOnly = cs
         ? [
-            "lidi do něj tenhle Environment zatím nepřidává",
-            "Trezor tohoto Prostředí používají jen jeho agenti.",
+            "lidi do něj tenhle Environment zatím nepřidává, ale jeho hesla má každý, kdo do Environmentu vstoupí",
+            "Trezor tohoto Prostředí používají jeho agenti a jeho hesla vidí každý, kdo do Prostředí vstoupí.",
           ]
         : [
-            "this Environment adds no people to it yet",
-            "Only this Environment's agents use its vault.",
+            "this Environment adds no people to it yet, but everyone who enters this Environment has its passwords",
+            "This Environment's vault is used by its agents, and everyone who enters this Environment sees its passwords.",
           ];
       const withPeople = cs
         ? [
