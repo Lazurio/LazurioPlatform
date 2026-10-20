@@ -1,10 +1,6 @@
 import { createHash } from "node:crypto";
 import { isAbsolute, join } from "node:path";
-import { unknownAssignment } from "../folder/machine-binding";
-import type {
-  MachineContext,
-  OrganizationAssignment,
-} from "../machine/context";
+import type { MachineContext } from "../machine/context";
 import { type BitwardenRegion, bitwardenRegions } from "./endpoints";
 
 // The Environment's own vault (root decision 0198, decision F53): which
@@ -170,24 +166,6 @@ export function vaultContextOf(
   });
 }
 
-/** An assignment by kind and the GitHub id of the person it names; a Team
- * Environment and Služby serveru (root decision 0209) name nobody, so their
- * kind alone is the assignment. */
-function assignedTo(
-  assignment: OrganizationAssignment,
-): readonly (string | number)[] {
-  switch (assignment.kind) {
-    case "team":
-    case "services":
-      return [assignment.kind];
-    case "operator":
-    case "automation":
-      return [assignment.kind, assignment.github_id];
-    default:
-      return unknownAssignment(assignment);
-  }
-}
-
 /**
  * Whom an Organization's Environment is assigned to, as a fingerprint the
  * vault's state keeps (DEV-6631 task 638b): the Organization that owns it
@@ -199,8 +177,13 @@ function assignedTo(
 export function assignmentOf(handover: MachineContext): string | null {
   const { owner } = handover;
   if (owner.kind !== "organization") return null;
+  const assignment = owner.assignment;
   const whom =
-    owner.assignment === undefined ? null : assignedTo(owner.assignment);
+    assignment === undefined
+      ? null
+      : assignment.kind === "team"
+        ? ["team"]
+        : [assignment.kind, assignment.github_id];
   return createHash("sha256")
     .update(
       JSON.stringify([

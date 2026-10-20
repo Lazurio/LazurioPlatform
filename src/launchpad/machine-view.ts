@@ -5,23 +5,14 @@ import { fill } from "./update-view";
 // "This Environment" shows it, in the words the Folder renders it with
 // (src/folder/render.ts assignmentLine). `automation` is the Automated
 // Environment of an Organization persona (decision 0169), named by its
-// responsible operator; `services` the services Environment of a server,
-// named Služby serveru (root decision 0209), which names nobody.
+// responsible operator.
 export type AssignmentView =
   | Readonly<{
       kind: "operator" | "automation";
       githubLogin: string;
       githubId: number;
     }>
-  | Readonly<{ kind: "team" | "services" }>;
-
-/** The guard of every match on an assignment's kind here: what is left
- * after every kind is handled is `never`, so a kind added to
- * `AssignmentView` fails to compile until it is (src/folder/machine-binding.ts
- * `unknownAssignment`, which this page script cannot import). */
-function unknownAssignment(_assignment: never): never {
-  throw new Error("Unknown assignment");
-}
+  | Readonly<{ kind: "team" }>;
 
 export function assignmentText(
   assignment: AssignmentView,
@@ -29,56 +20,17 @@ export function assignmentText(
     Record<
       Extract<
         MessageKey,
-        | "machineAssignmentTeam"
-        | "machineAssignmentAutomation"
-        | "serverServicesName"
+        "machineAssignmentTeam" | "machineAssignmentAutomation"
       >,
       string
     >
   >,
 ): string {
-  switch (assignment.kind) {
-    case "team":
-      return copy.machineAssignmentTeam;
-    case "services":
-      return copy.serverServicesName;
-    case "operator":
-      return `${assignment.githubLogin} (GitHub id ${assignment.githubId})`;
-    case "automation":
-      return fill(copy.machineAssignmentAutomation, {
-        operator: `${assignment.githubLogin} (GitHub id ${assignment.githubId})`,
-      });
-    default:
-      return unknownAssignment(assignment);
-  }
-}
-
-/** Whether a recorded binding is the services Environment of a server,
- * Služby serveru (root decision 0209): it has the Team preset, and people
- * read it as a work Environment set apart by the server's services. */
-export const isServerServicesView = (machine: MachineView | null): boolean =>
-  machine?.owner.kind === "organization" &&
-  machine.owner.assignment?.kind === "services";
-
-const presetLabels: Readonly<Record<string, MessageKey>> = {
-  local: "presetLocal",
-  "hosted-personal": "presetHostedPersonal",
-  "hosted-organization-personal": "presetHostedOrganizationPersonal",
-  "hosted-organization-team": "presetHostedOrganizationTeam",
-  "hosted-organization-steward": "presetHostedOrganizationSteward",
-};
-
-/** The words of one preset in Obecné's choice (decision F28's addendum of
- * 2026-10-18: the kinds as `kindDetail` says them); a preset this release
- * does not know is the plain "preset". The Team preset of Služby serveru is
- * said as their kind, never Týmové. */
-export function presetLabel(
-  preset: string,
-  machine: MachineView | null,
-): MessageKey {
-  if (preset === "hosted-organization-team" && isServerServicesView(machine))
-    return "machineKindServices";
-  return presetLabels[preset] ?? "preset";
+  if (assignment.kind === "team") return copy.machineAssignmentTeam;
+  const operator = `${assignment.githubLogin} (GitHub id ${assignment.githubId})`;
+  return assignment.kind === "automation"
+    ? fill(copy.machineAssignmentAutomation, { operator })
+    : operator;
 }
 
 /** One recorded peer of the handover's relationships. */
@@ -160,16 +112,8 @@ export function environmentFacts(
   }>,
   copy: FactsCopy,
 ): Readonly<{ facts: readonly Fact[]; support: readonly Fact[] }> {
+  const kind = copy[kindLabels[input.preset] ?? "machineKindUnknown"];
   const binding = input.machine;
-  // Služby serveru (root decision 0209) have the Team preset and are a work
-  // Environment set apart by the server's services, as an automated one is
-  // by its automations.
-  const kind =
-    copy[
-      isServerServicesView(binding)
-        ? "machineKindServices"
-        : (kindLabels[input.preset] ?? "machineKindUnknown")
-    ];
   if (binding === null || input.preset === "local")
     return {
       facts: [[copy.machineKind, kind]],
@@ -190,7 +134,15 @@ export function environmentFacts(
   // A personal Environment says so by its kind; "only you" would repeat it
   // (root decision 0170 addendum 2026-10-15, "Druh Prostředí stačí").
   const works =
-    owner.kind === "principal" ? null : worksText(assignment, teamName, copy);
+    owner.kind === "principal"
+      ? null
+      : assignment?.kind === "operator"
+        ? `@${assignment.githubLogin}`
+        : assignment?.kind === "automation"
+          ? fill(copy.machineWorksAutomation, {
+              login: assignment.githubLogin,
+            })
+          : teamName;
   return {
     facts: [
       [copy.machineKind, kind],
@@ -199,32 +151,6 @@ export function environmentFacts(
     ],
     support: supportFacts(binding, copy),
   };
-}
-
-/** Who works in an Organization's Environment, by its assignment: the
- * assigned operator, an automation and its responsible operator, the Team
- * (also where the handover states no assignment), or the Organization's
- * Owners and Admins in Služby serveru. */
-function worksText(
-  assignment: AssignmentView | undefined,
-  teamName: string | null,
-  copy: FactsCopy,
-): string | null {
-  if (assignment === undefined) return teamName;
-  switch (assignment.kind) {
-    case "operator":
-      return `@${assignment.githubLogin}`;
-    case "automation":
-      return fill(copy.machineWorksAutomation, {
-        login: assignment.githubLogin,
-      });
-    case "team":
-      return teamName;
-    case "services":
-      return copy.machineWorksServices;
-    default:
-      return unknownAssignment(assignment);
-  }
 }
 
 function supportFacts(binding: MachineView, copy: FactsCopy): Fact[] {

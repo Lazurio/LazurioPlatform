@@ -596,29 +596,6 @@ test("Volitelné: Composio where Tools offer it, SSH and Codex Desktop on a Remo
       cs,
     )[0]?.status,
   ).toBeNull();
-  // Signed in to Composio, but not in the organization of the Organization's
-  // name (the end-to-end test of 2026-10-19: Začínáme said "Připojeno" while
-  // Apps → Integrace warned): not done, and its action opens Composio's
-  // dialog at the step left (ui.ts).
-  for (const [copy, status, label] of [
-    [cs, "Nedokončeno", "Dokončit"],
-    [en, "Not finished", "Finish"],
-  ] as const)
-    expect(
-      optionalRows(
-        {
-          preset: "hosted-organization-personal",
-          composio: "unfinished",
-          sshDevices: 1,
-          bitwarden: false,
-        },
-        copy,
-      )[0],
-    ).toMatchObject({
-      id: "composio",
-      status,
-      action: { label, to: "composio" },
-    });
 });
 
 test("the content step waits for AI even with GitHub connected (Pablo's review of #436)", () => {

@@ -663,6 +663,13 @@
       },
       "category": "marketing",
       "composio": "canva",
+      "direct": {
+        "integration": "canva",
+        "kind": "mcp",
+        "endpoint": "https://mcp.canva.com/mcp",
+        "auth": "dcr",
+        "verified": "2026-10-09"
+      },
       "verified": "2026-10-09"
     },
     {

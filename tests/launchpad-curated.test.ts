@@ -587,7 +587,7 @@ echo "Installing Composio CLI $requested"
       expect(await composio()).toMatchObject({
         installed: true,
         version: "0.3.1",
-        pinned: "0.4.3-lazurio.2",
+        pinned: "0.4.3-lazurio.1",
       });
       expect(
         await opened.json("/api/tools/upgrade", { tool: "gh" }),
@@ -606,41 +606,18 @@ echo "Installing Composio CLI $requested"
           tool: "composio",
           installer: {
             url: composioBuild.installer,
-            version: "0.4.3-lazurio.2",
+            version: "0.4.3-lazurio.1",
           },
           before: { version: "0.3.1" },
-          after: { version: "0.4.3-lazurio.2" },
+          after: { version: "0.4.3-lazurio.1" },
           changed: true,
         },
       });
       expect(requests).toEqual([composioBuild.installer]);
       expect(await composio()).toMatchObject({
-        version: "0.4.3-lazurio.2",
-        pinned: "0.4.3-lazurio.2",
-      });
-      // An Environment still on the previous pin, Lazurio's 0.4.3-lazurio.1:
-      // not the build Lazurio pins now, and the same update brings it there.
-      await writeFile(
-        join(opened.home, ".local", "bin", "composio"),
-        "#!/bin/sh\necho 0.4.3-lazurio.1\n",
-        { mode: 0o755 },
-      );
-      expect(await composio()).toMatchObject({
         version: "0.4.3-lazurio.1",
-        pinned: "0.4.3-lazurio.2",
+        pinned: "0.4.3-lazurio.1",
       });
-      expect(
-        await opened.json("/api/tools/upgrade", { tool: "composio" }),
-      ).toMatchObject({
-        status: 200,
-        body: {
-          kind: "tool-updated",
-          before: { version: "0.4.3-lazurio.1" },
-          after: { version: "0.4.3-lazurio.2" },
-          changed: true,
-        },
-      });
-      expect(await composio()).toMatchObject({ version: "0.4.3-lazurio.2" });
     } finally {
       await opened.close();
     }

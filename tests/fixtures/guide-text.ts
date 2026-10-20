@@ -18,8 +18,30 @@ export function guideTextFindings(item: GuideExplanation): string[] {
     item.title,
     ...item.steps.flatMap((step) => [step.text, step.sub ?? ""]),
   ].filter(Boolean);
-  for (const text of texts)
-    found.push(...guideWordFindings(text).map((rule) => `${item.id}: ${rule}`));
+  for (const text of texts) {
+    const say = (rule: string) => found.push(`${item.id}: ${rule}: ${text}`);
+    if (/Launchpad|Dashboard|[Mm]ašin|\bVMs?\b/.test(text))
+      say("Launchpad, Dashboard, Mašina or VM");
+    // "MCP server" is the precise name of a thing, not where an
+    // Environment runs (root AGENTS.md, "Prostředí").
+    if (/SSH|tailnet|Tailscale|(?<!MCP\s)\bserver/i.test(text))
+      say("SSH, tailnet or a server");
+    if (/(?<!\p{L})jen\s+(?:vám|váš|vaš\p{L}*|pro\s+vás)(?!\p{L})/iu.test(text))
+      say("jen vám, váš, vaše or pro vás");
+    if (/=|totéž|stejn|tentýž|táž|\bsame\b|identical|\bequal/i.test(text))
+      say("sameness");
+    if (/nesm|zakáz|zákaz|must not|forbid|not allowed/i.test(text))
+      say("forbidding");
+    if (/[{}]/.test(text)) say("an unfilled token");
+    // Three kinds of Environment (root decision 0207's addendum of
+    // 2026-10-18): never another kind or a Buddy kind.
+    if (
+      /Prostředí Buddy|[Mm]ístní\p{L}* Prostředí|[Aa]utomatizovan\p{L}* Prostředí|[Vv]zdálen\p{L}* Prostředí|Remote Environment|Automated Environment|Local Environment/u.test(
+        text,
+      )
+    )
+      say("a fourth kind");
+  }
   for (const step of item.steps) {
     if (words(step.text) > 9)
       found.push(`${item.id}: more than nine words: ${step.text}`);
@@ -28,34 +50,5 @@ export function guideTextFindings(item: GuideExplanation): string[] {
   }
   if (item.steps.length > (item.id === "vault" ? 5 : maxGuideSteps))
     found.push(`${item.id}: too many steps`);
-  return found;
-}
-
-/** The rules one text of the guide keeps whatever it is: a step, a title,
- * or a word a principle's scene draws (tests/shell-guide-scenes.test.ts). */
-export function guideWordFindings(text: string): string[] {
-  const found: string[] = [];
-  const say = (rule: string) => found.push(`${rule}: ${text}`);
-  if (/Launchpad|Dashboard|[Mm]ašin|\bVMs?\b/.test(text))
-    say("Launchpad, Dashboard, Mašina or VM");
-  // "MCP server" is the precise name of a thing, not where an
-  // Environment runs (root AGENTS.md, "Prostředí").
-  if (/SSH|tailnet|Tailscale|(?<!MCP\s)\bserver/i.test(text))
-    say("SSH, tailnet or a server");
-  if (/(?<!\p{L})jen\s+(?:vám|váš|vaš\p{L}*|pro\s+vás)(?!\p{L})/iu.test(text))
-    say("jen vám, váš, vaše or pro vás");
-  if (/=|totéž|stejn|tentýž|táž|\bsame\b|identical|\bequal/i.test(text))
-    say("sameness");
-  if (/nesm|zakáz|zákaz|must not|forbid|not allowed/i.test(text))
-    say("forbidding");
-  if (/[{}]/.test(text)) say("an unfilled token");
-  // Three kinds of Environment (root decision 0207's addendum of
-  // 2026-10-18): never another kind or a Buddy kind.
-  if (
-    /Prostředí Buddy|[Mm]ístní\p{L}* Prostředí|[Aa]utomatizovan\p{L}* Prostředí|[Vv]zdálen\p{L}* Prostředí|Remote Environment|Automated Environment|Local Environment/u.test(
-      text,
-    )
-  )
-    say("a fourth kind");
   return found;
 }

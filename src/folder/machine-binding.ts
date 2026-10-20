@@ -24,56 +24,15 @@ import { ownDataValue, stateFields } from "./state-fields";
 // Organization presets differ on. `automation` is the Automated Environment
 // of decision 0169: the work VM of an Organization persona, with the one
 // responsible operator (an Owner or Admin of the Organization) named exactly
-// like `operator`; the handover carries it since Machines #277. `services` is
-// the services Environment of a Proxmox server, Služby serveru (root decision
-// 0209, Machines docs/server-services.md §2): a work Environment of the
-// Organization that only its Owners and Admins enter and that, like `team`,
-// names nobody. Any other kind fails closed.
+// like `operator`; the handover carries it since Machines #277. Any other
+// kind fails closed.
 export type MachineAssignment =
   | Readonly<{
       kind: "operator" | "automation";
       githubLogin: string;
       githubId: number;
     }>
-  | Readonly<{ kind: "team" | "services" }>;
-
-/** The guard of every match on an assignment's kind: each match handles every
- * kind and passes what is left here, which only `never` may be, so a kind
- * added to `MachineAssignment` fails to compile wherever it is not handled.
- * At run time it refuses, without echoing the value (it may name a person). */
-export function unknownAssignment(_assignment: never): never {
-  throw new Error("Invalid Machine assignment");
-}
-
-/** The person an assignment names, with their immutable GitHub id: the
- * assigned operator, or the responsible operator of an Automated
- * Environment. A Team Environment and the services Environment of a server
- * name nobody, and neither does a handover without an assignment. */
-export function assignedPerson(
-  assignment: MachineAssignment | undefined,
-): Readonly<{ githubLogin: string; githubId: number }> | null {
-  if (assignment === undefined) return null;
-  switch (assignment.kind) {
-    case "operator":
-    case "automation":
-      return assignment;
-    case "team":
-    case "services":
-      return null;
-    default:
-      return unknownAssignment(assignment);
-  }
-}
-
-/** Whether the binding is the services Environment of a Proxmox server,
- * Služby serveru (root decision 0209): on GitHub it is the Organization's
- * brokered identity, as a Team Environment is, and to people it is a work
- * Environment by that name (0207: no fourth kind). */
-export const isServerServices = (
-  machine: Readonly<{ owner: MachineOwner }> | null | undefined,
-): boolean =>
-  machine?.owner.kind === "organization" &&
-  machine.owner.assignment?.kind === "services";
+  | Readonly<{ kind: "team" }>;
 
 export type MachineOwner =
   | Readonly<{ kind: "principal"; githubLogin: string; githubId: number }>
@@ -220,41 +179,23 @@ function oneOf<T extends string>(
   );
 }
 
-// Every kind of the union, so that a stored binding accepts exactly the kinds
-// it can hold: keyed by the type, a kind added to it fails to compile here
-// until it is listed.
-const assignmentKinds: Readonly<Record<MachineAssignment["kind"], true>> =
-  Object.freeze({
-    operator: true,
-    automation: true,
-    team: true,
-    services: true,
-  });
-const isAssignmentKind = (value: unknown): value is MachineAssignment["kind"] =>
-  typeof value === "string" && Object.hasOwn(assignmentKinds, value);
-
 function assignment(input: unknown): MachineAssignment {
-  const kind = ownDataValue(input, "kind");
-  if (!isAssignmentKind(kind)) throw new Error("Invalid Machine assignment");
-  switch (kind) {
-    case "team":
-    case "services":
-      stateFields(input, ["kind"]);
-      return Object.freeze({ kind });
-    case "operator":
-    case "automation": {
-      const value = stateFields(input, ["kind", "githubLogin", "githubId"]);
-      if (!isGithubLogin(value.githubLogin) || !isGithubId(value.githubId))
-        throw new Error("Invalid Machine assignment");
-      return Object.freeze({
-        kind,
-        githubLogin: value.githubLogin,
-        githubId: value.githubId,
-      });
-    }
-    default:
-      return unknownAssignment(kind);
+  if (ownDataValue(input, "kind") === "team") {
+    stateFields(input, ["kind"]);
+    return Object.freeze({ kind: "team" });
   }
+  const value = stateFields(input, ["kind", "githubLogin", "githubId"]);
+  if (
+    (value.kind !== "operator" && value.kind !== "automation") ||
+    !isGithubLogin(value.githubLogin) ||
+    !isGithubId(value.githubId)
+  )
+    throw new Error("Invalid Machine assignment");
+  return Object.freeze({
+    kind: value.kind,
+    githubLogin: value.githubLogin,
+    githubId: value.githubId,
+  });
 }
 
 function owner(input: unknown): MachineOwner {

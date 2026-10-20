@@ -56,7 +56,6 @@ const ungoverned: OrganizationSettingsEntry[] = [
   { key: "integrations.microsoft365.client_id", governed: false, value: null },
   { key: "integrations.microsoft365.apps", governed: false, value: null },
   { key: "integrations.microsoft365.callbacks", governed: false, value: null },
-  { key: "workspace.tabs", governed: false, value: null },
 ];
 const issue = (
   code: OrganizationSettingsIssue["code"],
@@ -70,7 +69,6 @@ test("the settings vocabulary is the upstream one", () => {
     "integrations.microsoft365.client_id",
     "integrations.microsoft365.apps",
     "integrations.microsoft365.callbacks",
-    "workspace.tabs",
   ]);
   expect(organizationSettingsIssueCodes).toEqual([
     "settings_field_missing",
@@ -324,7 +322,6 @@ test("the Microsoft 365 company app is identifiers beside Composio, and never re
         governed: true,
         value: [callback],
       },
-      { key: "workspace.tabs", governed: false, value: null },
     ],
     issues: [],
   });
@@ -422,95 +419,5 @@ test("a secret, or anything that could carry one, never passes as the Microsoft 
         ),
       ),
       JSON.stringify(value),
-    ).toEqual({ status: "invalid", values: null, effective: null, issues });
-});
-
-// Decision F32's addendum of 2026-10-16: the Organization's own tabs in
-// Apps' Workspace are one setting, `workspace.tabs`.
-test("the Workspace tabs are one setting: ordered names, each module in one tab at most", () => {
-  const tabs = [
-    { name: "Každodenní práce", modules: ["deals", "knowledgebase"] },
-    { name: "Finance", modules: ["invoices"] },
-    { name: "Sklad", modules: [] },
-  ];
-  const verdict = organizationSettings(
-    parseCanonicalOrganization(manifest({ workspace: { tabs } })),
-  );
-  expect(verdict.status).toBe("valid");
-  expect(verdict.effective?.at(-1)).toEqual({
-    key: "workspace.tabs",
-    governed: true,
-    value: tabs,
-  });
-  const cases: [unknown, OrganizationSettingsIssue[]][] = [
-    [
-      { workspace: {} },
-      [issue("settings_field_missing", "/settings/workspace/tabs")],
-    ],
-    [
-      { workspace: { tabs: [] } },
-      [issue("settings_value_invalid", "/settings/workspace/tabs")],
-    ],
-    [
-      {
-        workspace: {
-          tabs: Array.from({ length: 13 }, (_, i) => ({
-            name: `T${i}`,
-            modules: [],
-          })),
-        },
-      },
-      [issue("settings_value_invalid", "/settings/workspace/tabs")],
-    ],
-    [
-      { workspace: { tabs: [{ name: " Finance", modules: [] }] } },
-      [issue("settings_value_invalid", "/settings/workspace/tabs/0/name")],
-    ],
-    [
-      { workspace: { tabs: [{ name: "x".repeat(41), modules: [] }] } },
-      [issue("settings_value_invalid", "/settings/workspace/tabs/0/name")],
-    ],
-    [
-      { workspace: { tabs: [{ name: "Fi\nnance", modules: [] }] } },
-      [issue("settings_value_invalid", "/settings/workspace/tabs/0/name")],
-    ],
-    [
-      { workspace: { tabs: [{ name: "Finance", modules: ["../deals"] }] } },
-      [issue("settings_value_invalid", "/settings/workspace/tabs/0/modules/0")],
-    ],
-    [
-      { workspace: { tabs: [{ name: "Finance" }] } },
-      [issue("settings_field_missing", "/settings/workspace/tabs/0/modules")],
-    ],
-    [
-      { workspace: { tabs: [{ name: "Finance", modules: [], icon: "x" }] } },
-      [issue("settings_field_unknown", "/settings/workspace/tabs/0/icon")],
-    ],
-    [
-      {
-        workspace: {
-          tabs: [
-            { name: "Finance", modules: ["deals"] },
-            { name: "FINANCE", modules: [] },
-          ],
-        },
-      },
-      [issue("settings_value_invalid", "/settings/workspace/tabs/1/name")],
-    ],
-    [
-      {
-        workspace: {
-          tabs: [
-            { name: "Finance", modules: ["deals"] },
-            { name: "Sklad", modules: ["deals"] },
-          ],
-        },
-      },
-      [issue("settings_value_invalid", "/settings/workspace/tabs/1/modules/0")],
-    ],
-  ];
-  for (const [settings, issues] of cases)
-    expect(
-      organizationSettings(parseCanonicalOrganization(manifest(settings))),
     ).toEqual({ status: "invalid", values: null, effective: null, issues });
 });

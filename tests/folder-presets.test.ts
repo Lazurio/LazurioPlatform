@@ -48,18 +48,6 @@ const machines = {
         assignment: automationAssignment,
       },
     }),
-  // Root decision 0209: Služby serveru, the services Environment of a server,
-  // with its broker's Team as Machines writes it and without any Team.
-  "workspace-vm with owner.team of a server's services": bindings.services,
-  "workspace-vm without owner.team of a server's services": parseMachineBinding(
-    {
-      ...bindings.organization,
-      owner: {
-        ...bindings.organization.owner,
-        assignment: { kind: "services" },
-      },
-    },
-  ),
 } as const;
 // Every Organization preset is allowed on every workspace VM; the assignment
 // selects which one is derived (F10). The Automated Environment of decision
@@ -142,22 +130,6 @@ test.each([
     "hosted-organization-steward",
     organizationPresets,
     ["hosted-organization-steward"],
-  ],
-  // Služby serveru work in GitHub through the Organization's broker, as a
-  // Team Environment does: the Team preset, and nothing else as a new choice.
-  [
-    "workspace-vm with owner.team of a server's services",
-    "services",
-    "hosted-organization-team",
-    organizationPresets,
-    ["hosted-organization-team"],
-  ],
-  [
-    "workspace-vm without owner.team of a server's services",
-    "services",
-    "hosted-organization-team",
-    organizationPresets,
-    ["hosted-organization-team"],
   ],
 ] as const)(
   "%s has assignment %p, derives %p, allows exactly %p and offers %p",

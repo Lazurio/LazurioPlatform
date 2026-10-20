@@ -381,9 +381,6 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
   expect(help(all)).toBe("integrations");
   expect(help(all, { composio: false })).toBe("integrations");
   expect(help(all, { composio: true })).toBe("integrations-composio");
-  expect(help(all, { composio: true, kind: "team" })).toBe(
-    "integrations-composio-team",
-  );
   for (const route of [
     { view: "integrations", tab: "custom" },
     { view: "integrations", tab: "custom", form: { server: "s" } },
@@ -519,7 +516,6 @@ test("the Launchpad's explanations keep the guide's rules in both languages and 
   expect([...ids].sort()).toEqual([
     "files-team",
     "integrations-composio",
-    "integrations-composio-team",
     "integrations-custom",
     "settings-communication",
     "settings-communication-team",
@@ -569,81 +565,6 @@ test("Integrace's 'Jak to funguje' is the guide's card's now: each of its explan
           expect(docs).toBe(integrationsHelp(locale));
       }
   }
-});
-
-test("Integrace's '?' where Composio is allowed: the Team's Composio account in a Team Environment, the person's own elsewhere (decision F42, note of 2026-10-19)", () => {
-  const route = { view: "integrations", tab: "all" } as const;
-  const explanation = (
-    kind: ShellEnvironmentKind | null,
-    locale: "cs" | "en",
-  ) => {
-    const guide = pageGuide(
-      route,
-      {
-        kind,
-        locale,
-        composio: true,
-        vault: { vault: null, person: null },
-        start: "basics",
-        tools: null,
-      },
-      messages(locale, kind),
-    );
-    const own = guide.guides.find((each) => each.id === guide.help);
-    return {
-      help: guide.help,
-      steps: own?.steps.map((step) => [step.text, step.sub ?? null]),
-    };
-  };
-  expect(explanation("team", "cs")).toEqual({
-    help: "integrations-composio-team",
-    steps: [
-      ["Composio přihlásíte týmovým účtem", "Ne osobním účtem nikoho z Teamu"],
-      [
-        "Pro každou Organizaci v něm jedna organizace",
-        "Nikoho dalšího do ní nezvěte",
-      ],
-      // The Team's account has no Personal Environment.
-      ["Co v ní připojíte, používají agenti v Prostředí Organizace", null],
-      [
-        "Jiné účty v dalším Prostředí potřebují další účet Composia",
-        "Tři Prostředí s jinými účty, tři účty Composia",
-      ],
-    ],
-  });
-  expect(explanation("team", "en").steps?.[0]).toEqual([
-    "Sign in to Composio with the Team's account",
-    "Not anyone's personal account",
-  ]);
-  // Every other kind keeps the person's own account.
-  for (const kind of [
-    "work",
-    "automated",
-    "personal",
-    "workstation",
-    null,
-  ] as const)
-    expect(explanation(kind, "cs")).toEqual({
-      help: "integrations-composio",
-      steps: [
-        [
-          "Composio přihlásíte svým vlastním účtem",
-          "Organizace společné Composio nemá",
-        ],
-        [
-          "Pro každou Organizaci v něm jedna organizace",
-          "Nikoho dalšího do ní nezvěte",
-        ],
-        [
-          "Co v ní připojíte, používají agenti v Prostředí Organizace",
-          "Osobní Prostředí používá výchozí organizaci účtu",
-        ],
-        [
-          "Jiné účty v dalším Prostředí potřebují další účet Composia",
-          "Tři Prostředí s jinými účty, tři účty Composia",
-        ],
-      ],
-    });
 });
 
 test("Trezor's '?' is chosen from the kind, the vault core's answer and the person's place in the vault (#499)", () => {

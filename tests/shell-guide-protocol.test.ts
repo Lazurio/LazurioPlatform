@@ -240,8 +240,6 @@ test("until Buddy has an origin, the shell registers no listener for the protoco
     "src/shell/guide.ts",
     "src/shell/guide-layer.ts",
     "src/shell/guide-content.ts",
-    "src/shell/guide-scenes.ts",
-    "src/shell/guide-stage.ts",
     "src/shell/index.ts",
   ]) {
     const source = await readFile(file, "utf8");

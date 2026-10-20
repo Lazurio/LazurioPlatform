@@ -1,14 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  assignedPerson,
-  type MachineBinding,
-  unknownAssignment,
-} from "../folder/machine-binding";
-import type {
-  MachineContext,
-  OrganizationAssignment,
-} from "../machine/context";
+import type { MachineBinding } from "../folder/machine-binding";
+import type { MachineContext } from "../machine/context";
 import { readCheckoutJson } from "../providers/owned-json";
 import type { PrivateKind, PrivateValue } from "./sanitize";
 
@@ -157,23 +150,22 @@ const peerValues = (peers: readonly Peer[] | undefined): PrivateValue[] =>
 export function bindingValues(binding: MachineBinding | null): PrivateValue[] {
   if (binding === null) return [];
   const { owner } = binding;
-  // The person an assignment names, withheld like the Owner; a Team
-  // Environment and Služby serveru (root decision 0209) name nobody.
-  const person =
-    owner.kind === "principal" ? owner : assignedPerson(owner.assignment);
   return [
     ...value("machine", binding.name),
     ...(owner.kind === "principal"
-      ? []
+      ? [
+          ...value("github-login", owner.githubLogin),
+          ...value("github-id", owner.githubId),
+        ]
       : [
           ...value("organization", owner.organization),
           ...value("team", owner.team),
-        ]),
-    ...(person === null
-      ? []
-      : [
-          ...value("github-login", person.githubLogin),
-          ...value("github-id", person.githubId),
+          ...(owner.assignment !== undefined && owner.assignment.kind !== "team"
+            ? [
+                ...value("github-login", owner.assignment.githubLogin),
+                ...value("github-id", owner.assignment.githubId),
+              ]
+            : []),
         ]),
     ...value("tailnet-node", binding.network?.headscaleHostname),
     ...value("machine-host", binding.host.id),
@@ -193,28 +185,6 @@ export function bindingValues(binding: MachineBinding | null): PrivateValue[] {
   ];
 }
 
-/** The person a handover's assignment names, as the handover writes it: the
- * assigned or the responsible operator; a Team Environment and Služby
- * serveru (root decision 0209) name nobody. */
-function handoverAssigneeValues(
-  assignment: OrganizationAssignment | undefined,
-): PrivateValue[] {
-  if (assignment === undefined) return [];
-  switch (assignment.kind) {
-    case "operator":
-    case "automation":
-      return [
-        ...value("github-login", assignment.github_login),
-        ...value("github-id", assignment.github_id),
-      ];
-    case "team":
-    case "services":
-      return [];
-    default:
-      return unknownAssignment(assignment);
-  }
-}
-
 /** The Machine handover itself, read when the Folder copy may be the part
  * that failed. */
 export function contextValues(context: MachineContext | null): PrivateValue[] {
@@ -232,7 +202,12 @@ export function contextValues(context: MachineContext | null): PrivateValue[] {
           ...value("organization", owner.organization),
           ...value("organization", owner.organization_key),
           ...value("team", owner.team),
-          ...handoverAssigneeValues(owner.assignment),
+          ...(owner.assignment !== undefined && owner.assignment.kind !== "team"
+            ? [
+                ...value("github-login", owner.assignment.github_login),
+                ...value("github-id", owner.assignment.github_id),
+              ]
+            : []),
         ]),
     ...value("user", operator.os_user),
     ...value("home", operator.home),

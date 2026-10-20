@@ -131,22 +131,17 @@ export const filesTeamGuide = (copy: Copy): PageGuideInput => ({
  * 2026-10-13 and 2026-10-17, the prototype's `integrations-composio`): the
  * person's own account, one Composio organization per Organization with
  * nobody else in it, what the agents use, another account for other
- * accounts. In a Team Environment the Team's Composio account, not anyone's
- * personal one, and without the Personal Environment that account does not
- * have (decision F42, note of 2026-10-19). */
+ * accounts. */
 export const integrationsComposioGuide = (
   copy: Copy,
   locale: "cs" | "en",
-  team = false,
 ): PageGuideInput => ({
-  id: team ? "integrations-composio-team" : "integrations-composio",
+  id: "integrations-composio",
   title: copy.guideComposioTitle,
   steps: [
     {
-      text: team ? copy.guideComposioAccountTeam : copy.guideComposioAccount,
-      sub: team
-        ? copy.guideComposioAccountTeamSub
-        : copy.guideComposioAccountSub,
+      text: copy.guideComposioAccount,
+      sub: copy.guideComposioAccountSub,
       at: "integration-connect",
     },
     {
@@ -156,7 +151,7 @@ export const integrationsComposioGuide = (
     },
     {
       text: copy.guideComposioAgents,
-      ...(team ? {} : { sub: copy.guideComposioAgentsSub }),
+      sub: copy.guideComposioAgentsSub,
       at: "integration-on",
     },
     {
@@ -460,11 +455,7 @@ export function pageGuide(
       if (route.tab === "custom" || route.form !== undefined)
         return plays(custom.id, [custom]);
       if (facts.composio === true) {
-        const composio = integrationsComposioGuide(
-          copy,
-          facts.locale,
-          facts.kind === "team",
-        );
+        const composio = integrationsComposioGuide(copy, facts.locale);
         return plays(composio.id, [composio, custom]);
       }
       return plays("integrations", [custom]);

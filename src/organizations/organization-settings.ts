@@ -74,17 +74,6 @@ export const launchpadCallbackPattern =
  * localhost callback always takes one of them. */
 export const microsoft365CallbacksMax = 255;
 
-/** A Workspace tab's name as an Organization's Admin writes it: 1 to 40
- * characters, no control character, no space at either end; the same
- * pattern as Lazurio Core's and the manifest schema's (root decision 0206). */
-export const workspaceTabNamePattern =
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: the control characters are what it refuses.
-  /^(?=[^\u0000-\u001f\u007f]{1,40}$)[^\s\u0000-\u001f\u007f](?:.*[^\s\u0000-\u001f\u007f])?$/;
-/** A module of a tab, by its `lazurio.module.v1` id. */
-export const workspaceModulePattern = /^[a-z0-9][a-z0-9-]{0,62}$/;
-/** At most this many tabs: a row a person reads at a glance. */
-export const workspaceTabsMax = 12;
-
 // Adding a setting adds one leaf here, upstream first (decision 0194 point 6):
 // the same closed tree as Lazurio Core's `organization-settings-lib.mjs`.
 // `microsoft365` (root decision 0162, addendum of 2026-10-14; F42 addendum
@@ -92,26 +81,6 @@ export const workspaceTabsMax = 12;
 // Organization's single-tenant Entra app is a public client, so the closed
 // tree refuses any other key (a `client_secret` among them).
 const contract = objectNode({
-  // The Organization's own tabs inside Apps' Workspace (decision F32's
-  // addendum of 2026-10-16): in order, each a name and the modules in it; a
-  // module the Organization put in no tab is in the first one.
-  workspace: objectNode(
-    {
-      tabs: arrayLeaf(
-        objectNode(
-          {
-            name: stringLeaf(workspaceTabNamePattern),
-            modules: arrayLeaf(stringLeaf(workspaceModulePattern), {
-              maxItems: 500,
-            }),
-          },
-          ["name", "modules"],
-        ),
-        { minItems: 1, maxItems: workspaceTabsMax },
-      ),
-    },
-    ["tabs"],
-  ),
   integrations: objectNode({
     composio: objectNode({ allowed: booleanLeaf }, ["allowed"]),
     microsoft365: objectNode(
@@ -136,7 +105,6 @@ export const organizationSettingsKeys = Object.freeze([
   "integrations.microsoft365.client_id",
   "integrations.microsoft365.apps",
   "integrations.microsoft365.callbacks",
-  "workspace.tabs",
 ] as const);
 export type OrganizationSettingsKey = (typeof organizationSettingsKeys)[number];
 
@@ -189,25 +157,13 @@ export type OrganizationSettingsIssue = Readonly<{
   path: string;
 }>;
 
-/** One tab of an Organization's Workspace: its name and, by id, the modules
- * the Organization put in it. */
-export type WorkspaceTab = Readonly<{
-  name: string;
-  modules: readonly string[];
-}>;
-
 export type OrganizationSettingsValues = Readonly<{
-  workspace?: Readonly<{ tabs: readonly WorkspaceTab[] }>;
   integrations?: Readonly<{
     composio?: Readonly<{ allowed: boolean }>;
     microsoft365?: Microsoft365Setting;
   }>;
 }>;
-export type OrganizationSettingValue =
-  | boolean
-  | string
-  | readonly string[]
-  | readonly WorkspaceTab[];
+export type OrganizationSettingValue = boolean | string | readonly string[];
 export type OrganizationSettingsEntry = Readonly<{
   key: OrganizationSettingsKey;
   /** `false`: the Organization does not govern it and the Environment decides. */
@@ -242,7 +198,6 @@ export function organizationSettings(manifest: Data): OrganizationSettings {
     });
   const issues: OrganizationSettingsIssue[] = [];
   validate(manifest.settings, contract, "/settings", issues);
-  if (issues.length === 0) workspaceIssues(manifest.settings, issues);
   if (issues.length > 0)
     return deepFreeze({
       status: "invalid" as const,
@@ -421,33 +376,6 @@ function validate(
   for (const [key, child] of node.fields)
     if (Object.hasOwn(value, key))
       validate(value[key], child, pointer(path, key), issues);
-}
-
-// What the closed tree cannot say about the tabs: two tabs never share a
-// name (letter case ignored), and a module is in one tab at most.
-function workspaceIssues(
-  settings: unknown,
-  issues: OrganizationSettingsIssue[],
-): void {
-  const tabs = (settings as OrganizationSettingsValues).workspace?.tabs;
-  if (tabs === undefined) return;
-  const names = new Set<string>();
-  const modules = new Set<string>();
-  tabs.forEach((tab, index) => {
-    const at = `/settings/workspace/tabs/${index}`;
-    const name = tab.name.normalize("NFC").toLocaleLowerCase();
-    if (names.has(name))
-      issues.push({ code: "settings_value_invalid", path: `${at}/name` });
-    names.add(name);
-    tab.modules.forEach((module, position) => {
-      if (modules.has(module))
-        issues.push({
-          code: "settings_value_invalid",
-          path: `${at}/modules/${position}`,
-        });
-      modules.add(module);
-    });
-  });
 }
 
 // RFC 6901 JSON Pointer segment.

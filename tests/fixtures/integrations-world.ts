@@ -65,11 +65,6 @@ export type FakeComposioState = {
   organizations?: { id: string; name: string }[];
   /** `orgs switch` fails, as a CLI that cannot reach Composio would. */
   switchFails?: boolean;
-  /** The key of the sign-in `login --no-wait` started, which `login --poll`
-   * completes once `approve` in the state's directory holds it. */
-  pendingLogin?: string;
-  /** A factor on the schedule of `login --poll` (1: the CLI's own). */
-  pollScale?: number;
 };
 
 /** Executor's console token: it may reach the fake Executor only. */

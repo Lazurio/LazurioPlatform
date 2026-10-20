@@ -1,7 +1,6 @@
 import { chmod, lstat, mkdir, readFile, rm } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { withFolderReadLock } from "../folder/lock";
-import { unknownAssignment } from "../folder/machine-binding";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import type { PresetName } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
@@ -336,30 +335,17 @@ export async function workEnvironment(
   const owner = preferences.machine?.owner;
   if (owner?.kind !== "organization") return refused("subject-unknown", preset);
   const assignment = owner.assignment;
-  if (assignment === undefined) return refused("subject-unknown", preset);
-  // Only an operator is the person a sign-in is checked against. A Team
-  // Environment and Služby serveru (root decision 0209) work in GitHub
-  // through the Organization's Lazurio for GitHub and an Automated one as
-  // its persona: no person's sign-in is ever offered there, also on a
-  // recorded preset the assignment no longer derives.
-  switch (assignment.kind) {
-    case "operator":
-      return Object.freeze({
-        kind: "work",
-        preset,
-        organization: owner.organization,
-        subject: Object.freeze({
-          login: assignment.githubLogin,
-          id: assignment.githubId,
-        }),
-      });
-    case "automation":
-    case "team":
-    case "services":
-      return refused("subject-unknown", preset);
-    default:
-      return unknownAssignment(assignment);
-  }
+  if (assignment === undefined || assignment.kind !== "operator")
+    return refused("subject-unknown", preset);
+  return Object.freeze({
+    kind: "work",
+    preset,
+    organization: owner.organization,
+    subject: Object.freeze({
+      login: assignment.githubLogin,
+      id: assignment.githubId,
+    }),
+  });
 }
 
 /** The curated gh sign-in and sign-out of decision F19 while gh and Git are

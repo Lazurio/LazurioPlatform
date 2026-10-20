@@ -1,5 +1,4 @@
 import { baseCss, hostTokens } from "./base-styles";
-import { guideSceneCss } from "./guide-scene-styles";
 
 // The guide's layer inside `<lazurio-buddy>`'s shadow root (decision F56):
 // the ring of the Launchpad's first-run tour (an accent line, its glow and
@@ -10,10 +9,7 @@ import { guideSceneCss } from "./guide-scene-styles";
 // layers are: the one floating shadow and a hairline. With less motion nothing travels,
 // hops or fades: each step is a still frame (`prefers-reduced-motion`, and
 // the layer's `data-still` where the page asked for it before the media
-// query was read). Nothing here reaches the host page. Every step's words
-// stand in one place (`.lines`), only the step's own shown, so the card keeps
-// one size through an explanation; a principle's scene stands between them
-// and the buttons (guide-scene-styles.ts, decision F56's addendum (3)).
+// query was read). Nothing here reaches the host page.
 
 const guideCss = `
 :host { display: contents; }
@@ -29,9 +25,6 @@ const guideCss = `
 .card[data-side="below"]::before { top: -6px; left: calc(var(--guide-arrow, 23px) - 5px); transform: rotate(135deg); }
 .card[data-side="above"]::before { bottom: -6px; left: calc(var(--guide-arrow, 23px) - 5px); transform: rotate(-45deg); }
 .title { padding-left: 24px; color: var(--lz-ink-muted); font-size: 12px; font-weight: var(--lz-weight-akce); }
-.lines { display: grid; }
-.lines > .line { grid-area: 1 / 1; }
-.lines > .line:not([data-now]) { visibility: hidden; }
 .line { display: flex; flex-direction: column; gap: 2px; margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.3; animation: guide-rise 0.4s ease-out both; }
 .sub { color: var(--lz-ink-muted); font-size: 12.5px; font-weight: 400; letter-spacing: normal; }
 .foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 2px; }
@@ -42,7 +35,6 @@ const guideCss = `
 .quit { padding: 0; border: 0; background: transparent; color: var(--lz-ink-muted); font-size: 13px; cursor: pointer; }
 .quit:hover { color: var(--lz-ink); }
 .invite { color: var(--lz-ink); font-size: 13px; font-weight: var(--lz-weight-akce); }
-.more { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 12px; }
 .docs { color: var(--lz-ink-muted); font-size: 13px; }
 .docs:hover { color: var(--lz-ink); }
 .primary { min-height: 32px; padding: 0 14px; border: 0; border-radius: var(--lz-radius-sm); background: var(--lz-accent-button); color: var(--lz-on-accent); font-size: 13px; font-weight: var(--lz-weight-akce); cursor: pointer; }
@@ -57,4 +49,4 @@ const guideCss = `
 `;
 
 /** The guide's stylesheet in its element's shadow root. */
-export const guideLayerCss = `${hostTokens}\n${baseCss}\n${guideCss}\n${guideSceneCss}`;
+export const guideLayerCss = `${hostTokens}\n${baseCss}\n${guideCss}`;

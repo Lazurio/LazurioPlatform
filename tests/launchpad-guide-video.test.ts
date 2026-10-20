@@ -25,7 +25,6 @@ import {
   guideVideoRoutes,
 } from "../src/launchpad/guide-video-files";
 import { messages } from "../src/launchpad/messages";
-import { helpVideoDrawing } from "../src/launchpad/page-help";
 import { startLaunchpad } from "../src/launchpad/server";
 import { folderFixture } from "./fixtures/catalog-folder";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
@@ -103,12 +102,12 @@ test("the Trezor page holds the player's slot at the top of its Bitwarden sectio
 });
 
 // How a vault works in an Organization (DEV-6631, design-system-lazurio#93):
-// the approved video `vault-overview`, the first thing Trezor shows where its
-// words are true (decision F56's addenda of 2026-10-18 and (4) of 2026-10-19,
-// page-help.ts; where it is true is tests/launchpad-guide.test.ts's): at the
-// top of the page, its player first and under it the one line it does not
-// say. The page serves it hidden; it opens as the page knows it is true.
-test("Trezor's video: served hidden at the top of the page, its player above the line it does not say, in the page's language", async () => {
+// the approved video `vault-overview`, which Trezor's "?" opens in place
+// where its words are true (decision F56's addendum of 2026-10-18,
+// page-help.ts; which variant plays is tests/launchpad-guide.test.ts's), at
+// the top of the page, its player first and under it the one line it does
+// not say; hidden until the "?" opens it.
+test("Trezor's video: hidden until its '?' opens it, at the top of the page, its player above the line it does not say, in the page's language", async () => {
   const html = await readFile(
     join(import.meta.dir, "..", "src", "launchpad", "index.html"),
     "utf8",
@@ -153,42 +152,6 @@ test("Trezor's video: served hidden at the top of the page, its player above the
       describedBy: "vault-video-line",
       attributes: { controls: "", playsinline: "", preload: "none" },
     });
-});
-
-// Matěj, 2026-10-19: the video is the first thing a person sees on Trezor,
-// also where the vault is in use (F56's addendum (4) of 2026-10-19). It stands
-// open with the page where it is true, the person's closing holds while
-// they stay, and the next visit opens it again.
-test("Trezor's video: open with the page where it is true, closed by the person until the page moves on, open again on the next visit", () => {
-  const trezor = JSON.stringify({ view: "vault" });
-  const tools = JSON.stringify({ view: "settings", section: "tools" });
-  const start = { page: null, closed: false };
-  // The first look: open where it is true, closed where it is not.
-  const first = helpVideoDrawing(start, { page: trezor, applies: true });
-  expect(first).toEqual({
-    open: true,
-    visit: { page: trezor, closed: false },
-  });
-  expect(helpVideoDrawing(start, { page: trezor, applies: false }).open).toBe(
-    false,
-  );
-  // While the page reads where the person stands it is not shown, and it
-  // opens once it is true (a closing it never had does not hold).
-  const reading = helpVideoDrawing(start, { page: trezor, applies: false });
-  expect(
-    helpVideoDrawing(reading.visit, { page: trezor, applies: true }).open,
-  ).toBe(true);
-  // The person closes it ("?" or Escape): every later drawing of the same
-  // visit keeps it closed, the language changing or the status read again.
-  const closed = { ...first.visit, closed: true };
-  const again = helpVideoDrawing(closed, { page: trezor, applies: true });
-  expect(again).toEqual({ open: false, visit: { page: trezor, closed: true } });
-  // The page moves on, and the next visit opens it again.
-  const away = helpVideoDrawing(again.visit, { page: tools, applies: false });
-  expect(away).toEqual({ open: false, visit: { page: tools, closed: false } });
-  expect(helpVideoDrawing(away.visit, { page: trezor, applies: true })).toEqual(
-    { open: true, visit: { page: trezor, closed: false } },
-  );
 });
 
 /** The boxes of an MP4 (ISO BMFF) at one level: type, start and size. */

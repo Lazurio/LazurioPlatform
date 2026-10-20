@@ -18,7 +18,6 @@ import {
 import { pluralKey } from "./apps-view";
 import type { MessageKey } from "./messages";
 import type { IntegrationsTab } from "./routes";
-import { organizationChoices, organizationRule } from "./tools-view";
 import { fill } from "./update-view";
 
 type Copy = Readonly<Record<MessageKey, string>>;
@@ -45,7 +44,6 @@ const sourceStates = new Set([
   "absent",
   "unreadable",
   "signed-out",
-  "off",
   "not-allowed",
   "organization",
 ]);
@@ -322,9 +320,6 @@ export function cardView(
      * Admin's "Nastavit v Dashboardu" and "Povolit Composio" open. */
     dashboard: boolean;
     copy: Copy;
-    /** Composio is signed in here but off for agents (the reading's
-     * `sources.composio` is `off`, decision F42's note of 2026-10-19). */
-    composioOff?: boolean;
   }>,
 ): CardView {
   const { copy } = options;
@@ -340,22 +335,6 @@ export function cardView(
     own.length > 0 &&
     own.every((account) => account.state === "pending");
   const label = pathLabel(choice, copy);
-  // Composio signed in, but its "Používají agenti" off: the card says so in
-  // the switch's words and opens Settings → Tools, where the switch is,
-  // instead of asking for a sign-in that is there (decision F42, note of
-  // 2026-10-19).
-  if (
-    choice.path === "composio" &&
-    choice.signIn &&
-    options.composioOff === true
-  )
-    return {
-      line: copy.integrationsComposioOff,
-      connected: false,
-      pathLabel: null,
-      action: { kind: "open-tools", label: copy.integrationsOpenTools },
-      composio: false,
-    };
   if (choice.path === "tool")
     return {
       line: about,
@@ -634,12 +613,11 @@ export function removalsRead(
 }
 
 /** Why "Odpojit" did not disconnect the account, from the route's answer;
- * null where it did. `team` as `composioOrganizationLine`'s. */
+ * null where it did. */
 export function disconnectFailure(
   answer: unknown,
   overview: IntegrationsOverview | null,
   copy: Copy,
-  team = false,
 ): string | null {
   const value =
     typeof answer === "object" && answer !== null
@@ -648,9 +626,7 @@ export function disconnectFailure(
   if (value.kind === "disconnected") return null;
   if (value.reason === "composio-organization")
     return (
-      (overview === null
-        ? null
-        : composioOrganizationLine(overview, copy, team)) ??
+      (overview === null ? null : composioOrganizationLine(overview, copy)) ??
       copy.integrationsComposioOrganizationChanged
     );
   return value.reason === "disconnect-unsupported"
@@ -735,61 +711,6 @@ export function composioTrip(
     : { trip, refresh: false };
 }
 
-/** What of the tools' reading the Integrace depend on: which tool is
- * signed in, as whom and, for Composio, in which organization. When it
- * changes, the page reads the Integrace again: a tool's sign-in changes
- * which apps it connects, and Composio's organization which accounts count
- * (the end-to-end test of 2026-10-19: the sign-in dialog made the
- * Organization's organization current, and Integrace kept saying it was
- * missing). */
-export function toolSignInsKey(
-  overview: Readonly<{
-    tools: readonly Readonly<{
-      name: string;
-      signIn?: Readonly<{
-        state: string;
-        account?: string;
-        organization?: string;
-      }>;
-    }>[];
-  }> | null,
-): string {
-  return JSON.stringify(
-    overview?.tools.map((tool) => [
-      tool.name,
-      tool.signIn?.state ?? null,
-      tool.signIn?.account ?? null,
-      tool.signIn?.organization ?? null,
-    ]) ?? null,
-  );
-}
-
-/** Whether the page waits for the person in Composio (decision F42, note of
- * 2026-10-19): the organization of this Environment's Organization's name is
- * missing or there more than once, which only the person changes, in
- * Composio's dashboard. Meanwhile the page reads the organizations' verdict
- * again by itself, at the sign-in dialog's pace (`composioPollDelay`,
- * `composioPollNext`), as the dialog's waiting line says. */
-export function composioOrganizationWaits(
-  overview: IntegrationsOverview | null,
-): boolean {
-  const state = overview?.composio.organization?.state;
-  return state === "missing" || state === "ambiguous";
-}
-
-/** Whether an answer of `/api/tools/composio/organizations` says another
- * verdict than the page's reading, so the page reads the Integrace again;
- * an answer that failed or cannot be read changes nothing. */
-export function composioOrganizationChanged(
-  overview: IntegrationsOverview | null,
-  answer: unknown,
-): boolean {
-  const shown = overview?.composio.organization ?? null;
-  if (shown === null || organizationChoices(answer) === null) return false;
-  const rule = organizationRule(answer);
-  return rule.kind !== "named" || rule.state !== shown.state;
-}
-
 /** One line per source that could not be read, so a missing source is
  * never taken for "nothing connected". An Environment without Executor
  * (`absent`) says nothing about it: its cards take the next way (F36's
@@ -817,15 +738,10 @@ export function sourceLines(
  * person's current organization; not made current, or the Organization's
  * name unreadable, while nothing of it counts. Null where nothing is to
  * say. The organization is named as Composio accepts the name (note of
- * 2026-10-17), the Organization as it names itself. Missing or there twice,
- * the page waits for it by itself (`composioOrganizationWaits`), so the line
- * ends with the sign-in dialog's own waiting line. In a Team Environment
- * (`team`) the account is the Team's Composio account, not the person's
- * (notes of 2026-10-19). */
+ * 2026-10-17), the Organization as it names itself. */
 export function composioOrganizationLine(
   overview: IntegrationsOverview,
   copy: Copy,
-  team = false,
 ): string | null {
   const target = overview.composio.organization;
   if (target === null || target.state === "matches") return null;
@@ -837,26 +753,13 @@ export function composioOrganizationLine(
     composio === null
   )
     return copy.integrationsComposioOrganizationUnverified;
-  const names = { name: target.name, composio };
-  if (target.state === "missing")
-    return `${fill(
-      copy[
-        team
-          ? "integrationsComposioOrganizationMissingTeam"
-          : "integrationsComposioOrganizationMissing"
-      ],
-      names,
-    )} ${copy.toolsComposioCreateWait}`;
-  if (target.state === "ambiguous")
-    return `${fill(
-      copy[
-        team
-          ? "integrationsComposioOrganizationAmbiguousTeam"
-          : "integrationsComposioOrganizationAmbiguous"
-      ],
-      names,
-    )} ${copy.toolsComposioRenameWait}`;
-  return fill(copy.integrationsComposioOrganizationElsewhere, names);
+  const key =
+    target.state === "missing"
+      ? "integrationsComposioOrganizationMissing"
+      : target.state === "ambiguous"
+        ? "integrationsComposioOrganizationAmbiguous"
+        : "integrationsComposioOrganizationElsewhere";
+  return fill(copy[key], { name: target.name, composio });
 }
 
 /** The tone of a notice on the page, as the callout draws it: `info`
@@ -922,12 +825,11 @@ export function liveText(current: string, said: string): string | null {
 
 /** Why a connect did not start, from the route's `reason`: the line it
  * says, in its tone. `composio-signed-out` also opens Composio's sign-in
- * (the panel's part). `team` as `composioOrganizationLine`'s. */
+ * (the panel's part). */
 export function refusalNote(
   reason: unknown,
   overview: IntegrationsOverview | null,
   copy: Copy,
-  team = false,
 ): Note {
   const danger = (text: string): Note => ({ text, tone: "danger" });
   if (reason === "name-required")
@@ -937,9 +839,7 @@ export function refusalNote(
   if (reason === "composio-organization")
     return {
       text:
-        (overview === null
-          ? null
-          : composioOrganizationLine(overview, copy, team)) ??
+        (overview === null ? null : composioOrganizationLine(overview, copy)) ??
         copy.integrationsComposioOrganizationChanged,
       tone: "warning",
     };
@@ -982,76 +882,4 @@ export function monogram(name: string): string {
 /** The tools a person can open for an app only its tool connects. */
 export function toolOf(choice: PathChoice): AppTool | null {
   return choice.path === null && choice.missing === "tool" ? choice.tool : null;
-}
-
-/** Which tools are installed and on for agents, as the tools' reading says
- * (decision F42, note of 2026-10-19). Composio connects apps only installed,
- * signed in and on for agents, so when this changes the page reads the
- * Integrace again, as it does when a sign-in changes: after a sign-in,
- * "Používají agenti" goes on only after the reading the sign-in caused. */
-export function toolStatesKey(
-  overview: Readonly<{
-    tools: readonly Readonly<{
-      name: string;
-      installed: boolean;
-      enabled: boolean;
-    }>[];
-  }> | null,
-): string {
-  return JSON.stringify(
-    overview?.tools.map((tool) => [tool.name, tool.installed, tool.enabled]) ??
-      null,
-  );
-}
-
-/** The tools' reading as Composio's sign-in asks it (`ToolsOverview`). */
-export type ComposioToolsReading = Readonly<{
-  tools: readonly Readonly<{
-    name: string;
-    installed: boolean;
-    signIn?: Readonly<{ state: string }>;
-  }>[];
-}>;
-
-/** What Composio's sign-in asked for by a card did (`composioSignIn`). */
-export type ComposioSignInAnswer =
-  | "signed-in"
-  | "opened"
-  | "settings"
-  | "unreadable";
-
-/** Composio's sign-in asked for by a card (decision F42, note of
- * 2026-10-19): `read` reads the tools live and answers that reading, or null
- * where it failed, was not one or a later read superseded it. Only a reading
- * that proves Composio signed out, or not installed, calls `openSignIn`,
- * which goes to Settings → Tools and opens its sign-in there (`opened`,
- * else `settings`). Signed in, nobody goes anywhere (`signed-in`); with no
- * reading, or one that does not know Composio's sign-in, the person stays on
- * Integrace (`unreadable`), since a sign-out was never established. */
-export async function composioSignIn(
-  read: () => Promise<ComposioToolsReading | null>,
-  openSignIn: () => boolean,
-): Promise<ComposioSignInAnswer> {
-  const reading = await read();
-  const composio = reading?.tools.find((tool) => tool.name === "composio");
-  if (composio === undefined) return "unreadable";
-  if (composio.installed) {
-    const state = composio.signIn?.state;
-    if (state === "signed-in") return "signed-in";
-    if (state !== "signed-out") return "unreadable";
-  }
-  return openSignIn() ? "opened" : "settings";
-}
-
-/** What the card says after Composio's sign-in (`composioSignIn`): where it
- * is, in Settings → Tools; to try again where Composio could not be read;
- * nothing where it is signed in, since the card then connects. */
-export function composioSignInNote(
-  answer: ComposioSignInAnswer,
-  copy: Copy,
-): Note | null {
-  if (answer === "signed-in") return null;
-  if (answer === "unreadable")
-    return { text: copy.integrationsComposioStateUnreadable, tone: "warning" };
-  return { text: copy.integrationsComposioSignIn, tone: "info" };
 }

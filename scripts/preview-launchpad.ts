@@ -35,12 +35,6 @@
 // Composio "ExampleCompany"), which the first reading makes current; with
 // `composio-org-missing` anywhere after the mode it lacks it, and Apps →
 // Integrace says to create it (decision F42, addendum of 2026-10-13). With
-// `composio-signed-out` anywhere after the mode its Composio is signed out:
-// "Připojit" starts the CLI's own two-step sign-in, whose link opens
-// nothing real, and the person's approval in Composio is the sign-in's key
-// (the link's `cliKey`) written into the file the JSON line names
-// `composioApprove` (its poll notices it on the CLI's schedule, up to a
-// minute later; decision F42, note of 2026-10-19). With
 // `composio-off` anywhere
 // after the mode, a hosted
 // preview's example Organization does not allow Composio (root decision
@@ -76,17 +70,12 @@
 // Environment has no vault, for that reason (F53's addendum of 2026-10-17):
 // nothing is set up, the Apps column does not list Trezor (F53's addendum of
 // 2026-10-18 (3)), and `/vault` says why and explains the vault with its
-// guide video. With `team`, `automated` or `services` anywhere after the
-// mode, a hosted preview's work Environment is the example Organization's
-// Team Environment, a persona's Automated Environment or the server's
-// Služby serveru instead (its handover's assignment `team`, `automation` or
-// `services`, root decision 0209), to see how a page names each kind
-// (decision F28's addendum of 2026-10-18). With `vault-member` anywhere
-// after the mode, the fictional person jana already has her Lazurio account
-// with a master password in the hosted work Environment's vault, so Apps →
-// Trezor adds and confirms her and finds her a member: the vault's video
-// stands open first (F56's addendum (4) of 2026-10-19). Synthetic names only;
-// stop it with Ctrl-C.
+// guide video. With `team` or `automated` anywhere after the mode, a
+// hosted preview's work Environment is the example Organization's Team
+// Environment or a persona's Automated Environment instead (its handover's
+// assignment `team` or `automation`), to see how a page names each kind
+// (decision F28's addendum of 2026-10-18). Synthetic names only; stop it
+// with Ctrl-C.
 import {
   chmod,
   mkdir,
@@ -117,7 +106,6 @@ import { toolsEnvironmentOf } from "../src/tools/overview";
 import { runTool } from "../src/tools/status";
 import { readConnection } from "../src/vault/connection";
 import { vaultSetup } from "../src/vault/flow";
-import { personAddress } from "../src/vault/members";
 import {
   writeModule,
   writeOrganization,
@@ -154,18 +142,12 @@ const composioOff = process.argv.slice(3).includes("composio-off");
 const publicEnvironment =
   process.argv[2] === "hosted" && process.argv.slice(3).includes("public");
 const microsoft365 = process.argv.slice(3).includes("microsoft365");
-// With `workspace-tabs` anywhere after the mode, the example Organization has
-// a dozen modules arranged into three tabs of its own (decision F32's
-// addendum of 2026-10-16), the setting `workspace.tabs` of its root.
-const tabbed = process.argv.slice(3).includes("workspace-tabs");
 const team =
   process.argv[2] === "hosted" && process.argv.slice(3).includes("team");
 const composioOrgMissing = process.argv
   .slice(3)
   .includes("composio-org-missing");
-const composioSignedOut = process.argv.slice(3).includes("composio-signed-out");
 const bitwardenUs = process.argv.slice(3).includes("bitwarden-us");
-const vaultMemberPerson = process.argv.slice(3).includes("vault-member");
 const noVault =
   process.argv
     .slice(3)
@@ -180,9 +162,7 @@ const assignment =
       ? "team"
       : process.argv.slice(3).includes("automated")
         ? "automation"
-        : process.argv.slice(3).includes("services")
-          ? "services"
-          : null;
+        : null;
 const locale = process.argv[3] === "en" ? "en" : "cs";
 const listenPort = Number(process.argv[4] ?? 24611);
 const role =
@@ -213,7 +193,7 @@ else {
   const preset =
     mode === "personal"
       ? "hosted-personal"
-      : assignment === "team" || assignment === "services"
+      : assignment === "team"
         ? "hosted-organization-team"
         : assignment === "automation"
           ? "hosted-organization-steward"
@@ -256,19 +236,6 @@ async function writeExample() {
       },
       { id: "website", broken: true },
       { id: "brainstorm", apps: false },
-      ...(tabbed
-        ? [
-            "orders",
-            "invoices",
-            "pricing",
-            "reports",
-            "stock",
-            "suppliers",
-          ].map((id) => ({
-            id,
-            slot: { git: { url: `https://github.com/example/${id}.git` } },
-          }))
-        : []),
     ],
     slots: [
       {
@@ -305,40 +272,6 @@ async function writeExample() {
       description: "Znalosti, rozhodnutí a dokumentace",
     },
     deals: { title: "Deals v2", tags: ["sales"] },
-    ...(tabbed
-      ? {
-          orders: {
-            title: "Objednávky",
-            description: "Objednávky zákazníků a jejich stav",
-            icon: "product",
-          },
-          invoices: {
-            title: "Faktury",
-            description: "Vydané a přijaté faktury",
-            icon: "invoice",
-          },
-          pricing: {
-            title: "Ceník",
-            description: "Ceny produktů a služeb",
-            icon: "pricebook",
-          },
-          reports: {
-            title: "Reporty",
-            description: "Tržby, marže a výsledky",
-            icon: "profitability",
-          },
-          stock: {
-            title: "Sklad",
-            description: "Zásoby, příjem a výdej zboží",
-            icon: "warehouse",
-          },
-          suppliers: {
-            title: "Dodavatelé",
-            description: "Dodavatelé a jejich podmínky",
-            icon: "datasheet",
-          },
-        }
-      : {}),
   };
   for (const [id, display] of Object.entries(declared)) {
     const file = join(
@@ -356,33 +289,6 @@ async function writeExample() {
       tags: display.tags ?? [],
     });
     await writeFile(file, JSON.stringify(pkg));
-  }
-  if (tabbed) {
-    const manifest = join(root, "lazurio.organization.json");
-    const document = JSON.parse(await readFile(manifest, "utf8"));
-    await writeFile(
-      manifest,
-      JSON.stringify({
-        ...document,
-        settings: {
-          workspace: {
-            tabs: [
-              {
-                name: "Každodenní práce",
-                modules: [
-                  "mission-control",
-                  "knowledgebase",
-                  "deals",
-                  "orders",
-                ],
-              },
-              { name: "Finance", modules: ["invoices", "pricing", "reports"] },
-              { name: "Sklad", modules: ["stock", "suppliers"] },
-            ],
-          },
-        },
-      }),
-    );
   }
   for (const path of ["infra/.git", "productionspace/firmware/.git"])
     await mkdir(join(root, path), { recursive: true });
@@ -424,7 +330,7 @@ await mkdir(join(home, ".fake-composio"), { recursive: true, mode: 0o700 });
 await writeFile(
   join(home, ".fake-composio", "state.json"),
   JSON.stringify({
-    signedIn: !composioSignedOut,
+    signedIn: true,
     removeYes: false,
     next: 100,
     activateOnLink: true,
@@ -704,9 +610,6 @@ async function previewBitwarden() {
 async function previewVault() {
   const vault = await startFakeVault(home);
   vault.allow(workAccount);
-  // The gateway's person (jana) with her own account in the vault, master
-  // password set: the membership adds and confirms her.
-  if (vaultMemberPerson) vault.person(personAddress("jana"), true);
   const zip = zipOf("bw", fakeBw);
   const pin = fakePin(zip);
   // No vault, for the reason asked for: nothing to set up.
@@ -729,8 +632,7 @@ async function previewVault() {
     context: async () =>
       ownContext(
         workHandover(vaultMember(workAccount, "Pracovní example")),
-        // Služby serveru keep the Team preset's vault rule (root 0209).
-        team || assignment === "services" ? "team" : "work",
+        team ? "team" : "work",
       ),
   });
   const setUp = await vaultSetup(host);
@@ -753,7 +655,6 @@ if ((composioOff || microsoft365) && mode === "hosted" && !fresh) {
     JSON.stringify({
       ...document,
       settings: {
-        ...document.settings,
         integrations: {
           ...(composioOff ? { composio: { allowed: false } } : {}),
           ...(microsoft365
@@ -961,8 +862,5 @@ console.log(
     browser: mode === "local" ? null : browserOrigin,
     folder,
     ...(bitwarden === null ? {} : { bitwarden }),
-    ...(composioSignedOut
-      ? { composioApprove: join(home, ".fake-composio", "approve") }
-      : {}),
   }),
 );

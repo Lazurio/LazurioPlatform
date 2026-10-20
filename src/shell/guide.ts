@@ -6,7 +6,6 @@ import {
   principleIds,
   principleIn,
 } from "./guide-content";
-import { type GuideScene, guideScene } from "./guide-scenes";
 import type { KindLocale } from "./kind-name";
 import type { ShellCopy } from "./messages";
 
@@ -34,11 +33,6 @@ import type { ShellCopy } from "./messages";
 // the person asked (and points to its own bubble), and assistive technology
 // hears that Začínáme comes first, as Buddy's thread says it in the
 // prototype. The tour waits while the guide is out.
-//
-// A principle plays its scene while it explains (decision F56's addendum (3)
-// of 2026-10-19, guide-scenes.ts): one beat a step, keyed by the principle's
-// id and the step, drawn in the card. A host's own explanation has none, and
-// nothing of it is part of interface v1.
 
 /** The element a "?" is: the guide returns the focus to it. */
 export type GuideInvoker = Readonly<{
@@ -63,9 +57,6 @@ export type GuideView = Readonly<{
   invite: string | null;
   words: ShellCopy;
   invoker: GuideInvoker | null;
-  /** The principle's scene at this step, or null: Trezor and a host's
-   * explanation have none. Decorative; the step's text says it. */
-  scene: GuideScene | null;
 }>;
 
 /** What the layer's controls do. */
@@ -188,7 +179,6 @@ export function createGuide(seams: GuideSeams) {
       return;
     }
     const last = playing.stop === found.steps.length - 1;
-    const language = locale(playing.element);
     seams.layer(playing.element).draw(
       {
         explanation: found,
@@ -198,9 +188,8 @@ export function createGuide(seams: GuideSeams) {
         // explanation about him, where the account lives.
         invite:
           found.aboutBuddy && last ? (seams.shell()?.dashboard ?? null) : null,
-        words: seams.copy(language),
+        words: seams.copy(locale(playing.element)),
         invoker: playing.invoker,
-        scene: guideScene(found.id, playing.stop, language, kind()),
       },
       actions,
     );

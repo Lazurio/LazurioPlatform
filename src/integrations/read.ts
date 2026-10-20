@@ -157,12 +157,8 @@ async function readComposioSource(
   if (tool === undefined || !tool.installed)
     return only({ state: "unavailable" });
   if (tool.signIn?.state !== "signed-in") return only({ state: "signed-out" });
-  if (!allowed || tool.path === undefined)
+  if (!allowed || !tool.enabled || tool.path === undefined)
     return only({ state: "unavailable" });
-  // Signed in, but off for agents here: said as such, so that a card says
-  // which switch it waits for instead of asking for a sign-in that is there
-  // (decision F42, note of 2026-10-19).
-  if (!tool.enabled) return only({ state: "off" });
   const command = tool.path;
   let organization = signedIn;
   let target: IntegrationsOverview["composio"]["organization"] = null;

@@ -7,8 +7,8 @@ import { inKind, type KindLocale } from "./kind-name";
 // languages, and the explanations of a page, which its host owns and hands
 // over with `provideGuides`, since they point at the host's own elements and
 // change with its page. A port of the Lazurio prototype's guide
-// (prototypes-lazurio bebea85, app/v1/src/guide.ts), English added; the
-// principles' motion is guide-scenes.ts (F56's addendum (3)).
+// (prototypes-lazurio bebea85, app/v1/src/guide.ts), English added, the
+// motion left for later (plan DEV-6612, PR 6).
 //
 // Its rules, which tests/shell-guide.test.ts holds for every text: at most
 // four steps (Trezor keeps the five lines of its approved video), each at
@@ -155,13 +155,6 @@ const principles: readonly Principle[] = [
         text: {
           cs: "Lazurio je okno do jejich počítače",
           en: "Lazurio is a window into their computer",
-        },
-        // On your computer the agents work on the same computer as you, so
-        // Lazurio is no window into another one (Matěj, 2026-10-19; F56's
-        // addendum (3)).
-        computer: {
-          cs: "Lazurio ukazuje, co agenti dělají",
-          en: "Lazurio shows what your agents do",
         },
         at: "switch",
       },

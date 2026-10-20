@@ -120,31 +120,6 @@ test("the kind comes from the shell's kinds: an automated Environment is a work 
   );
 });
 
-test("on your computer the agents work on it too: its first and last steps say so, every other kind keeps the window into their computer", () => {
-  const steps = (locale: "cs" | "en", kind: ShellEnvironmentKind | null) =>
-    principleIn("environment", locale, kind)?.steps.map((step) => step.text);
-  expect(steps("cs", "workstation")).toEqual([
-    "Agenti pracují i na vašem počítači",
-    "S vlastním prohlížečem a aplikacemi",
-    "Na něm pracují vaši agenti",
-    "Lazurio ukazuje, co agenti dělají",
-  ]);
-  expect(steps("en", "workstation")).toEqual([
-    "Agents work on your computer too",
-    "With its own browser and apps",
-    "Your agents work on it",
-    "Lazurio shows what your agents do",
-  ]);
-  for (const kind of [null, "personal", "work", "team", "automated"] as const) {
-    expect(steps("cs", kind)?.at(-1)).toBe(
-      "Lazurio je okno do jejich počítače",
-    );
-    expect(steps("en", kind)?.at(-1)).toBe(
-      "Lazurio is a window into their computer",
-    );
-  }
-});
-
 test("Trezor says the approved video's five lines; in a Personal Environment its adaptation", () => {
   expect(
     principleIn("vault", "cs", "work")?.steps.map((step) => step.text),

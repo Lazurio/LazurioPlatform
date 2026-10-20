@@ -5,7 +5,6 @@ import {
   type MachinePeer,
   type MachineRelationships,
   parseMachineEntry,
-  unknownAssignment,
 } from "../folder/machine-binding";
 import {
   type MachineEntry as HandoverEntry,
@@ -25,24 +24,15 @@ function isPersonal(
 }
 
 // One member to one; `operator` and `automation` (the responsible operator of
-// an Automated Environment, decision 0169) keep their own kind and person,
-// `team` and `services` (the services Environment of a server, root decision
-// 0209) name nobody.
+// an Automated Environment, decision 0169) keep their own kind.
 function assignment(input: OrganizationAssignment): MachineAssignment {
-  switch (input.kind) {
-    case "team":
-    case "services":
-      return Object.freeze({ kind: input.kind });
-    case "operator":
-    case "automation":
-      return Object.freeze({
+  return input.kind === "team"
+    ? Object.freeze({ kind: "team" })
+    : Object.freeze({
         kind: input.kind,
         githubLogin: input.github_login,
         githubId: input.github_id,
       });
-    default:
-      return unknownAssignment(input);
-  }
 }
 
 function peer(input: HandoverPeer): MachinePeer {

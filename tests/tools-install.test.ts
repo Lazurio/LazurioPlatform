@@ -683,24 +683,24 @@ echo "Installing Composio CLI $requested"
 // The tag and the installer's commit come from one release of the fork and
 // are pinned together; the installer's URL names the commit, so it is
 // immutable.
-test("composio: the pinned build is Lazurio's 0.4.3-lazurio.2, installed by the fork's installer at a fixed commit", () => {
+test("composio: the pinned build is Lazurio's 0.4.3-lazurio.1, installed by the fork's installer at a fixed commit", () => {
   expect(composioBuild).toEqual({
     owner: "Lazurio",
     repository: "composio",
-    version: "0.4.3-lazurio.2",
-    tag: "@composio/cli@0.4.3-lazurio.2",
-    installerCommit: "e52fc87e7eaf07b7d83e0b50a8dd0c392d215294",
+    version: "0.4.3-lazurio.1",
+    tag: "@composio/cli@0.4.3-lazurio.1",
+    installerCommit: "107730453eb41c0233b26e8b738534fbd4d69ff7",
     installer:
-      "https://raw.githubusercontent.com/Lazurio/composio/e52fc87e7eaf07b7d83e0b50a8dd0c392d215294/install.sh",
+      "https://raw.githubusercontent.com/Lazurio/composio/107730453eb41c0233b26e8b738534fbd4d69ff7/install.sh",
     archives: {
       "linux-x64":
-        "a120ea54a9dfa6d59c89a68ed1a7db3149bc5a11f9dfa77db375a7d1b866144b",
+        "a87cc25373ebe1efc6d819e8dd8b40cc54f96bfa71916cac5755623ca1892b19",
       "linux-arm64":
-        "86dee42fcda13d924843285f8da09afae001e0a357b51bdc863ff30695a9e27b",
+        "c5dac856c31bc22d9b9bf9bd275b6a637359fca08d93f0e6aa1a36ff283d1488",
       "darwin-x64":
-        "119e76e31def9783cb3173c1665b50769d79f823294524c2549ddf883fe6a1a2",
+        "e7fee0737a3816fe004efe950d1373e12bd7fa8071fe6ebf0acbabf288dc9a5b",
       "darwin-arm64":
-        "f422bd6fc74aec9c89506dd37ca3efe529ab26210c1bd843bc4e6acb2d2fe26f",
+        "be9a2c84c32621dff02b9c96b727e478372ba0c7348904197dce8f6353b9b588",
     },
   });
   // Every target the recipe installs has its archive pinned.
@@ -708,7 +708,7 @@ test("composio: the pinned build is Lazurio's 0.4.3-lazurio.2, installed by the 
     expect(digest).toMatch(/^[0-9a-f]{64}$/);
   expect(pinnedInstaller("composio")).toEqual({
     url: composioBuild.installer,
-    version: "0.4.3-lazurio.2",
+    version: "0.4.3-lazurio.1",
   });
   // gh and wacli install their latest release: nothing is pinned.
   for (const name of ["gh", "wacli", "neon", "unknown"])
@@ -736,14 +736,14 @@ test.skipIf(!posix)(
       ).toEqual({
         kind: "installed",
         tool: "composio",
-        version: "0.4.3-lazurio.2",
+        version: "0.4.3-lazurio.1",
         path: join(box.bin, "composio"),
         onPath: true,
       });
       // The installer is the fork's at its pinned commit, never
       // composio.dev's.
       expect(source.requests).toEqual([
-        "https://raw.githubusercontent.com/Lazurio/composio/e52fc87e7eaf07b7d83e0b50a8dd0c392d215294/install.sh",
+        "https://raw.githubusercontent.com/Lazurio/composio/107730453eb41c0233b26e8b738534fbd4d69ff7/install.sh",
       ]);
       const installer = seen.find((call) => call.command[0] === "/bin/sh");
       expect(installer?.command[1]).toMatch(
@@ -757,10 +757,10 @@ test.skipIf(!posix)(
         COMPOSIO_INSTALL_HELP: "0",
         COMPOSIO_GITHUB_OWNER: "Lazurio",
         COMPOSIO_GITHUB_REPO: "composio",
-        COMPOSIO_INSTALL_VERSION: "@composio/cli@0.4.3-lazurio.2",
+        COMPOSIO_INSTALL_VERSION: "@composio/cli@0.4.3-lazurio.1",
         // This target's archive, pinned (linux-x64 here).
         COMPOSIO_INSTALL_SHA256:
-          "a120ea54a9dfa6d59c89a68ed1a7db3149bc5a11f9dfa77db375a7d1b866144b",
+          "a87cc25373ebe1efc6d819e8dd8b40cc54f96bfa71916cac5755623ca1892b19",
       });
       // The private script is gone.
       expect(
@@ -776,7 +776,7 @@ test.skipIf(!posix)(
       ).toEqual({
         kind: "already-installed",
         tool: "composio",
-        version: "0.4.3-lazurio.2",
+        version: "0.4.3-lazurio.1",
         path: join(box.bin, "composio"),
       });
       expect(again.requests).toEqual([]);
@@ -904,7 +904,7 @@ test.skipIf(!posix)(
         tool: "composio",
         stage: "verify",
         reason: "version-mismatch",
-        detail: "Installing Composio CLI @composio/cli@0.4.3-lazurio.2",
+        detail: "Installing Composio CLI @composio/cli@0.4.3-lazurio.1",
         fallback: "agent",
       });
       expect(
@@ -975,34 +975,29 @@ test.skipIf(!posix)(
         tool: "composio",
         installer: {
           url: composioBuild.installer,
-          version: "0.4.3-lazurio.2",
+          version: "0.4.3-lazurio.1",
         },
         changed: true,
-        output: "Installing Composio CLI @composio/cli@0.4.3-lazurio.2",
+        output: "Installing Composio CLI @composio/cli@0.4.3-lazurio.1",
       });
       if (stock.kind !== "tool-updated") throw new Error("not updated");
       expect(stock.before.version).toBe("0.4.3");
-      expect(stock.after.version).toBe("0.4.3-lazurio.2");
+      expect(stock.after.version).toBe("0.4.3-lazurio.1");
       expect(stock.after.path).toBe(join(box.bin, "composio"));
       expect("command" in stock).toBe(false);
       expect(await readFile(join(home, "user_data.json"), "utf8")).toBe(signIn);
-      // An older build of the fork, the previous pin among them: the same
-      // installer, the pinned build.
-      for (const previous of ["0.4.3-lazurio.1", "0.4.2-lazurio.1"]) {
-        await writeFile(
-          join(home, "composio"),
-          `#!/bin/sh\necho ${previous}\n`,
-          { mode: 0o755 },
-        );
-        const older = await update();
-        expect(older).toMatchObject({ kind: "tool-updated", changed: true });
-        if (older.kind !== "tool-updated") throw new Error("not updated");
-        expect(older.before.version).toBe(previous);
-        expect(older.after.version).toBe("0.4.3-lazurio.2");
-        expect(await readFile(join(home, "user_data.json"), "utf8")).toBe(
-          signIn,
-        );
-      }
+      // An older build of the fork: the same installer, the pinned build.
+      await writeFile(
+        join(home, "composio"),
+        "#!/bin/sh\necho 0.4.2-lazurio.1\n",
+        { mode: 0o755 },
+      );
+      const older = await update();
+      expect(older).toMatchObject({ kind: "tool-updated", changed: true });
+      if (older.kind !== "tool-updated") throw new Error("not updated");
+      expect(older.before.version).toBe("0.4.2-lazurio.1");
+      expect(older.after.version).toBe("0.4.3-lazurio.1");
+      expect(await readFile(join(home, "user_data.json"), "utf8")).toBe(signIn);
       // An archive that is not the pinned one: the installer refuses it
       // before it replaces anything, so the working build, its entry and the
       // sign-in stay byte for byte (Pablo's review of #395).
@@ -1027,9 +1022,9 @@ test.skipIf(!posix)(
       expect(await update(other.fetcher)).toMatchObject({
         kind: "tool-update-failed",
         tool: "composio",
-        installer: { version: "0.4.3-lazurio.2" },
+        installer: { version: "0.4.3-lazurio.1" },
         output:
-          "verify: version-mismatch\nInstalling Composio CLI @composio/cli@0.4.3-lazurio.2",
+          "verify: version-mismatch\nInstalling Composio CLI @composio/cli@0.4.3-lazurio.1",
       });
       // A composio elsewhere on PATH stays the operator's: no second copy,
       // nothing downloaded.
@@ -1081,7 +1076,7 @@ test.skipIf(!posix)(
       };
       const text = await runToolsCommand(["update", "composio"], context);
       expect(text.code).toBe(0);
-      expect(text.text).toBe("composio: 0.4.3 -> 0.4.3-lazurio.2");
+      expect(text.text).toBe("composio: 0.4.3 -> 0.4.3-lazurio.1");
       const json = await runToolsCommand(
         ["update", "composio", "--json"],
         context,
@@ -1089,7 +1084,7 @@ test.skipIf(!posix)(
       expect(json.code).toBe(0);
       expect(JSON.parse(json.text)).toMatchObject({
         kind: "tool-updated",
-        installer: { version: "0.4.3-lazurio.2" },
+        installer: { version: "0.4.3-lazurio.1" },
         changed: false,
       });
       // A failed update exits 1 and says why.

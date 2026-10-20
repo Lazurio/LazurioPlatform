@@ -5,10 +5,7 @@ adoption accepted by Matěj); typed owner requests remain accepted direction.
 The Steward preset (decision 0169, 2026-09-30) is proposed and implemented locally
 and derived from the handover value `automation` (Machines #277, pinned to its pull
 request head until it merges). New preset choices are narrowed to the stated
-assignment (issue #107). The services Environment of a server, Služby serveru (root
-decision 0209), derives the Team preset from the handover value `services` and is a
-work Environment to people ([F10 amendment of 2026-10-19](decisions.md#f10--workspace-presets-and-typed-owner-requests),
-pending the Machines re-pin).**
+assignment (issue #107).**
 See [decision F10](decisions.md#f10--workspace-presets-and-typed-owner-requests).
 
 A workspace preset is a different concept from the application presets in
@@ -66,13 +63,11 @@ The preset is derived from the typed fields of the root-issued handover
 ([machine handover](machine-handover.md)), never from a Machine name, hostname,
 Team name, operator account or the recorded relationships. Platform never guesses.
 The derivation is a function of one **assignment** value — is the work VM assigned
-to ONE operator, shared by a Team, the Automated Environment of a persona, or the
-services Environment of a server? — and
+to ONE operator, shared by a Team, or the Automated Environment of a persona? — and
 `machine.kind`. Since Machines v0.12.61
 the handover states the assignment as `owner.assignment`
-(`{kind: "operator", github_login, github_id}` | `{kind: "team"}`, since Machines
-#277 `{kind: "automation", github_login, github_id}`, and with DEV-6674
-`{kind: "services"}`), copied from the reviewed owner
+(`{kind: "operator", github_login, github_id}` | `{kind: "team"}`, and since Machines
+#277 `{kind: "automation", github_login, github_id}`), copied from the reviewed owner
 overlay and never inferred; when present it is **the only selector** between the
 Organization presets (`machineAssignment` in `src/folder/presets.ts` reads it and
 nothing else).
@@ -90,7 +85,6 @@ what a new choice may take (issue #107): when the handover states
 | `{kind: "operator", …}` | `"workspace-vm"`, with or without `owner.team` | one operator | `hosted-organization-personal` | the three Organization presets | `hosted-organization-personal` |
 | `{kind: "team"}` | `"workspace-vm"`, with or without `owner.team` | the Team | `hosted-organization-team` | the three Organization presets | `hosted-organization-team` |
 | `{kind: "automation", …}` | `"workspace-vm"`, with or without `owner.team` | a persona, one responsible operator | `hosted-organization-steward` | the three Organization presets | `hosted-organization-steward` |
-| `{kind: "services"}` | `"workspace-vm"`, with or without `owner.team` | the server's services; Owners and Admins enter, nobody is named | `hosted-organization-team` | the three Organization presets | `hosted-organization-team` |
 | absent | `"workspace-vm"` without `owner.team` | one operator | `hosted-organization-personal` | the three Organization presets | the three Organization presets |
 | absent | `"workspace-vm"` with `owner.team` | **ambiguous** | none: explicit `--preset` required | the three Organization presets | the three Organization presets |
 
@@ -101,14 +95,6 @@ same holds for the Team or Work preset on an Automated Environment, and for the 
 or Steward preset on one operator's work VM. No transition allowance keeps the
 Steward preset selectable on an `operator` handover: the handover now states
 `automation` directly.
-
-Služby serveru (`services`, root decision 0209) take the Team preset because they
-act on GitHub exactly as a Team Environment does: only as the Organization's
-brokered identity, with a named person publishing (root decision 0209 addendum
-(c)). The preset is the composition, not the words people read: to them Služby
-serveru are a work Environment by that name, never a Team one, so the shell, Toto
-Prostředí and Obecné take their kind from the binding
-([the services Environment of a server](machine-handover.md#the-services-environment-of-a-server-root-decision-0209)).
 
 The ambiguous row remains only for handovers without `owner.assignment` (an older
 Machines release, or an owner that declares none). A Team alone is not a fact about

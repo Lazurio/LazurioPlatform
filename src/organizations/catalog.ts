@@ -22,10 +22,6 @@ import {
 } from "../providers/checkout-custody";
 import { catalogGroups, selectCatalogOrganization } from "./catalog-selection";
 import {
-  organizationSettings,
-  type WorkspaceTab,
-} from "./organization-settings";
-import {
   observePersonalspaceModule,
   type PersonalspaceBlockedReason,
   type PersonalspaceHolderRead,
@@ -220,12 +216,6 @@ export type CatalogOrganization = Readonly<{
    * order; empty for an Organization that could not be read and
    * for the Personalspace group. */
   repositories: readonly CatalogRepository[];
-  /** The Organization's own tabs in Apps' Workspace, in its order: its
-   * setting `workspace.tabs` (decision F32's addendum of 2026-10-16, root
-   * decision 0194) as this Folder's root of it declares it. Present only
-   * when its settings section is valid and declares them; a module named in
-   * no tab belongs to the first. Never on the Personalspace group. */
-  workspaceTabs?: readonly WorkspaceTab[];
 }>;
 
 export type Catalog = Readonly<{
@@ -686,19 +676,7 @@ export async function readCatalogOrganization(
     teams: Object.freeze(declaredTeams(canonical)),
     modules: Object.freeze(modules),
     repositories: Object.freeze(repositories),
-    ...workspaceTabsOf(canonical),
   });
-}
-
-// The Organization's Workspace tabs, read only through its settings' one
-// reader: an invalid section declares none.
-function workspaceTabsOf(
-  canonical: Data,
-): Readonly<{ workspaceTabs?: readonly WorkspaceTab[] }> {
-  const settings = organizationSettings(canonical);
-  const tabs =
-    settings.status === "valid" ? settings.values.workspace?.tabs : undefined;
-  return tabs === undefined ? {} : { workspaceTabs: tabs };
 }
 
 // Two candidates declaring one slug make `<Org>/<Module>` ambiguous: both stay

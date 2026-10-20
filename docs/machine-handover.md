@@ -11,16 +11,10 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`
-from the merge of Machines pull request **#664** into `main` (commit
-`3c7d9fb00ca06ea7c30812e7e4e33c387b20be1d`, SHA-256
-`587179a16dc61ed605479d98920024ac9087baf59b894c811ede715246a8944a`), which adds only
-the closed assignment branch `{kind: "services"}` and the optional Organization-branch
-member `services`
-([the services Environment of a server](#the-services-environment-of-a-server-root-decision-0209))
-and changes nothing else. Before it, the merge of Machines pull request **#633** into
-`main` (commit `a9debf519e09d94f76a9ddacb866063996543262`, SHA-256
-`85628496202a4b95ef6c1472e47caf4e0f13f406bc837e620480c04aac16ae38`), which added only
-the optional `entry.browser.local_port` (LazurioPlatform#504). Before that, the merge of Machines pull request **#560** into
+from the merge of Machines pull request **#633** into `main` (commit
+`a9debf519e09d94f76a9ddacb866063996543262`, SHA-256
+`85628496202a4b95ef6c1472e47caf4e0f13f406bc837e620480c04aac16ae38`), which adds only
+the optional `entry.browser.local_port` (LazurioPlatform#504) and changes nothing else. Before it, the merge of Machines pull request **#560** into
 `main` (commit `a1cee4eea554348c5a51e4a71c4fa9325dfa8bfc`, SHA-256
 `f6bb3b3d53273184714ca1fd9d5b6412c9f5e1e07002a0cd5d47b1cd1ccf60c4`), which added only
 the optional `entry.audience` ([below](#the-hosted-entry-decision-f16), root decision
@@ -77,20 +71,14 @@ for byte). Neither is part of the Machine identity: both follow the current hand
 through [`folder-refresh`](#refresh-after-a-handover-rewrite):
 
 - **`owner.assignment`** — Organization branch only; the personal branch refuses it.
-  `{kind: "operator", github_login, github_id}`, `{kind: "team"}`, since Machines
-  #277 `{kind: "automation", github_login, github_id}` (the responsible operator of
-  an Automated Environment, decision 0169, never the persona) or, pending the re-pin
-  above, `{kind: "services"}` (the services Environment of a server, root decision
-  0209, which names nobody), authored per guest in
+  `{kind: "operator", github_login, github_id}`, `{kind: "team"}` or, since Machines
+  #277, `{kind: "automation", github_login, github_id}` (the responsible operator of
+  an Automated Environment, decision 0169, never the persona), authored per guest in
   the owner Deployment Repo and copied by Machines, never inferred from names, Team
   names or Team size. It is **the** selector between the Organization presets, and
   when present the only preset a new choice may take is the one it derives
   ([workspace presets](workspace-presets.md#derived-from-the-handover-confirmed-or-explicitly-overridden)).
-  The binding records `automation` as `{kind: "automation", githubLogin, githubId}`
-  and `services` as `{kind: "services"}`. Every match on the kind in the Platform
-  ends in one compile-time guard (`unknownAssignment` in
-  `src/folder/machine-binding.ts`), so a further kind fails to compile wherever it
-  is not handled, and any other kind in a handover or a stored binding fails closed.
+  The binding records `automation` as `{kind: "automation", githubLogin, githubId}`.
 - **`relationships`** — `{zone, peers[]}`: this Machine's tailnet peers from its own
   point of view, derived by Machines only from the home Conglomerate Host grants that
   name its Headscale node; omitted when the Deployment Repo declares no home
@@ -141,8 +129,7 @@ The handover has no selected-preset field and needs none. The
 [workspace preset](workspace-presets.md) is derived from its typed fields only:
 `personal-vm` → `hosted-personal`; `workspace-vm` with `owner.assignment.kind`
 `"operator"` → `hosted-organization-personal`, `"team"` → `hosted-organization-team`,
-`"automation"` → `hosted-organization-steward`, `"services"` →
-`hosted-organization-team` ([below](#the-services-environment-of-a-server-root-decision-0209)).
+`"automation"` → `hosted-organization-steward`.
 `owner.assignment` is the only selector between the Organization presets; when it
 is present nothing else is read, and a new choice (`--preset`, a profile change, the
 Launchpad) may take only the derived preset; a preset the Folder already recorded
@@ -341,8 +328,7 @@ module delivery remain separate pilot gates.
 
 `AGENTS.md` is a deterministic projection of the preset, the recorded binding and
 the profile: which Machine this is and whose, how it is assigned when the handover
-says so (`assigned to Operator <login>` / `shared by the Team` / the Automated
-Environment's responsible Operator / Server services), who the Operator is
+says so (`assigned to Operator <login>` / `shared by the Team`), who the Operator is
 here, the Personalspace boundary, where Organization repositories live, the provider
 identity mode and how work is done (including the two working rules of upstream
 decision 0163: open questions go to GitHub Issues and do not stop the work, and
@@ -362,47 +348,6 @@ The Launchpad shows the binding, including the assignment and a compact read-onl
 list of the peers, and lets the Operator change the preset (to the recorded one or a
 preset the handover offers as a new choice) and the communication axes through the
 ordinary preview → apply flow.
-
-## The services Environment of a server (root decision 0209)
-
-Every Proxmox server of an Organization has one services Environment `services-NN`,
-to people **Služby serveru** ("Server services"): a work Environment of the
-Organization that only its Owners and Admins enter (Machines
-`docs/server-services.md` §2, DEV-6674). Its handover states `owner.assignment`
-`{kind: "services"}`, which names nobody; its `owner.team` is the GitHub Team whose
-grants scope its brokered identity. Admission (the Owner role of the Organization)
-is the gateway's and is not in the handover; the Platform derives nothing from it.
-Machines writes the assignment, together with `services`, only for a pinned Platform
-that reads them; until then it writes neither and the guest keeps the resident
-Launchpad ([decision F10, amendment of 2026-10-19](decisions.md#f10--workspace-presets-and-typed-owner-requests)).
-
-- **Preset.** `services` derives `hosted-organization-team`, and a new choice may
-  take only that: Služby serveru act on GitHub only as the Organization's brokered
-  identity (Lazurio for GitHub) and a named person publishes from them, exactly as
-  from a Team Environment (root decision 0209 addendum (c), [F31](decisions.md#f31--a-team-environment-publishes-under-the-teams-identity)).
-  So the curated gh sign-in and SSH key linking are refused, the GitHub sign-in
-  pilot (F48) refuses the Environment, Začínáme asks nobody to sign in and the
-  hosting prepares the content.
-- **Words.** To people it is a work Environment named Služby serveru, never a Team
-  one and never a fourth kind (root decision 0207). The shell document gives kind
-  `work`, label "Služby serveru" or "Server services", no assignee and no operator
-  (`environmentKind` and `environmentLabel` in `src/launchpad/shell-document.ts`).
-  Toto Prostředí reads "Pracovní Prostředí se službami serveru" with "Owneři a
-  Admini Organizace" working there and "Služby serveru" as the assignment for
-  support; Obecné names the Team preset it has the same way. The generated Folder
-  states the assignment (only Owners and Admins enter, the Team's rules hold, the
-  name people use) and that the Operator is the connected Owner or Admin.
-- **Not read yet.** The member `services` (each service's id, kind, productionspace
-  repository and loopback page port) is accepted exactly as the schema writes it and
-  recorded nowhere; the link to a service's page is DEV-6674 S2.1 and S2.2.
-- **Vault and recovery.** The vault follows the preset's kind: as in a Team
-  Environment it adds and removes no person until a live answer of who may enter
-  exists (DEV-6631 C4). Recovery withholds no person for it, since none is named.
-- **Open (DEV-6674 S2.4).** Texts chosen by the brokered identity still say Team,
-  such as the GitHub note of Nastavení → Nástroje ("Toto Týmové Prostředí pracuje v
-  GitHubu přes Lazurio for GitHub …"), and pages whose words follow the shell's kind
-  use the work wording, which does not say the Environment is shared. Telling two
-  servers' Služby serveru apart waits for the wireframe.
 
 ## The hosted entry (decision F16)
 

@@ -1,8 +1,5 @@
 import { isPublicEnvironment } from "../launchpad/public-environment";
-import type {
-  MachineAssignment as BindingAssignment,
-  MachineBinding,
-} from "./machine-binding";
+import type { MachineBinding } from "./machine-binding";
 import type { FolderProfile } from "./profile";
 import { stateFields } from "./state-fields";
 
@@ -212,14 +209,12 @@ export function parsePresetReference(input: unknown): PresetReference {
 }
 
 // The one fact the Organization presets differ on: is the work VM assigned
-// to ONE operator, shared by a Team, the Automated Environment of a persona
-// with one responsible operator (decision 0169), or the services Environment
-// of a server (root decision 0209)? Since Machines v0.12.61 the handover
-// states it as `owner.assignment` ({kind: "operator", github_login,
-// github_id} | {kind: "team"}, since Machines #277 {kind: "automation",
-// github_login, github_id}, and since DEV-6674 {kind: "services"}), copied
-// from the reviewed owner overlay and never inferred; when present it is the
-// only selector and nothing else is read. A
+// to ONE operator, shared by a Team, or the Automated Environment of a persona
+// with one responsible operator (decision 0169)? Since Machines v0.12.61 the
+// handover states it as `owner.assignment` ({kind: "operator", github_login,
+// github_id} | {kind: "team"}, and since Machines #277 {kind: "automation",
+// github_login, github_id}), copied from the reviewed owner overlay and never
+// inferred; when present it is the only selector and nothing else is read. A
 // handover without it (an older release, or an owner that declares none)
 // proves only one side: a workspace VM without `owner.team` is assigned to one
 // operator. A Team alone is NOT a fact about assignment: an Organization may
@@ -227,7 +222,7 @@ export function parsePresetReference(input: unknown): PresetReference {
 // first real canary, 2026-09-22). So a Team-bearing handover without assignment has none
 // (`null`) and the preset must be passed explicitly. Never guess from the Team
 // name, the Machine name, the hostname or the operator account.
-export type MachineAssignment = BindingAssignment["kind"];
+export type MachineAssignment = "operator" | "team" | "automation";
 export function machineAssignment(
   machine: MachineBinding,
 ): MachineAssignment | null {
@@ -237,20 +232,11 @@ export function machineAssignment(
   return machine.owner.team === null ? "operator" : null;
 }
 
-// Keyed by every assignment kind, so a kind added to the binding fails to
-// compile here until it derives a preset. Služby serveru (`services`, root
-// decision 0209 addendum (c)) act on GitHub only as the Organization's
-// brokered identity and publish through a named person, exactly as a Team
-// Environment does, so they take the Team preset. To people they are a work
-// Environment named Služby serveru, never a Team one (0207); the words follow
-// the binding, not the preset (`environmentKind` in
-// src/launchpad/shell-document.ts).
 const organizationPresets: Readonly<Record<MachineAssignment, PresetName>> =
   Object.freeze({
     operator: "hosted-organization-personal",
     team: "hosted-organization-team",
     automation: "hosted-organization-steward",
-    services: "hosted-organization-team",
   });
 
 // The preset the handover derives, or `null` when the handover does not decide
