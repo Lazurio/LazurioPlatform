@@ -219,11 +219,13 @@ export function servedRoots(file: string): () => Promise<Roots> {
     const entry = await stat(file);
     const mark = `${entry.ino}:${entry.size}:${entry.mtimeMs}`;
     if (mark !== seen) {
-      seen = mark;
+      // Seen only once read and parsed: a read that fails now (a transient
+      // error, a permission) is tried again at the next request.
       const value = JSON.parse(await readFile(file, "utf8")) as Record<
         string,
         unknown
       >;
+      seen = mark;
       if (
         value.mode === "built" &&
         typeof value.key === "string" &&

@@ -731,3 +731,63 @@ posixTest(
   },
   120_000,
 );
+
+posixTest(
+  "an app first opened while a sweep reads the catalog stays watched when that sweep's catalog does not list it (#559, the review of #561)",
+  async () => {
+    const home = join(root, "home-interleave");
+    await mkdir(home);
+    // The sweep's catalog read waits on a gate and then answers without
+    // the site: the sweep began before the site was opened.
+    let gate: Promise<void> | null = null;
+    let open: () => void = () => {};
+    const fixture = await staticModule("interleave", home, {
+      readCatalog: async (folder) => {
+        const held = gate;
+        if (held === null) return readFolderCatalog(folder);
+        gate = null;
+        await held;
+        const catalog = await readFolderCatalog(folder);
+        return {
+          ...catalog,
+          organizations: catalog.organizations.map((organization) => ({
+            ...organization,
+            modules: organization.modules.filter(
+              (module) => module.module !== "site",
+            ),
+          })),
+        };
+      },
+    });
+    const { operations } = fixture;
+    try {
+      gate = new Promise<void>((resolve) => {
+        open = resolve;
+      });
+      const keeper = operations.keepBuilt({ quietMs: 100, sweepMs: 60_000 });
+      // The first sweep holds its catalog read; the site is opened now.
+      while (gate !== null) await Bun.sleep(10);
+      answer(await operations.start("alpha/site"));
+      await until(fixture.page, (page) => page.text === "<p>one</p>");
+      open();
+      await keeper?.sweep();
+      await keeper?.settled();
+      // A commit is still built and swapped in after the quiet.
+      const second = await fixture.commit("two");
+      const swapped = answer(
+        await until(
+          () => operations.status("alpha/site"),
+          (status) =>
+            status.kind === "module" && status.build?.served?.commit === second,
+        ),
+      );
+      expect(swapped.build?.served?.commit).toBe(second);
+      expect((await fixture.page()).text).toBe("<p>two</p>");
+    } finally {
+      open();
+      await operations.stop("alpha/site");
+      await operations.close();
+    }
+  },
+  120_000,
+);

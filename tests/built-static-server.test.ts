@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import {
+  chmod,
   cp,
   mkdir,
   mkdtemp,
@@ -15,6 +16,7 @@ import { join } from "node:path";
 import {
   answerStatic,
   resolveStaticRequest,
+  servedRoots,
 } from "../src/modules/built/static-server";
 import {
   staticServerFiles,
@@ -316,4 +318,43 @@ test("the written-out server runs as the app's process: healthy at once on its l
     },
   );
   expect(await nothing.exited).toBe(2);
+});
+
+test("a record that cannot be read now is read again at the next request; a development record keeps the build served", async () => {
+  const app = join(root, "retry");
+  await mkdir(app, { recursive: true });
+  const served = join(app, "served.json");
+  const record = async (value: Record<string, unknown>) => {
+    const temporary = `${served}.tmp`;
+    await writeFile(
+      temporary,
+      JSON.stringify({
+        schema_version: "lazurio.build-served.v1",
+        commit: null,
+        at: "2026-10-20T00:00:00.000Z",
+        ...value,
+      }),
+    );
+    await rename(temporary, served);
+  };
+  const [first, second] = ["c".repeat(40), "d".repeat(40)];
+  await record({ mode: "built", key: first, previous: null });
+  const roots = servedRoots(served);
+  expect((await roots()).root).toBe(join(app, first));
+  // A new record that cannot be read for a moment: the last build stays…
+  await record({ mode: "built", key: second, previous: first });
+  await chmod(served, 0o000);
+  try {
+    expect((await roots()).root).toBe(join(app, first));
+  } finally {
+    // …and the same file, readable again, is read at the next request.
+    await chmod(served, 0o600);
+  }
+  expect(await roots()).toEqual({
+    root: join(app, second),
+    previous: join(app, first),
+  });
+  // A development record (the app is about to be stopped) keeps it.
+  await record({ mode: "dev", key: null, previous: null });
+  expect((await roots()).root).toBe(join(app, second));
 });

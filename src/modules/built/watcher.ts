@@ -71,6 +71,9 @@ export function createBuildWatcher(input: {
   const again = new Set<string>();
   let timer: ReturnType<typeof setInterval> | undefined;
   let sweeping: Promise<void> | null = null;
+  // The apps added while a sweep reads the apps (a first open meanwhile):
+  // kept when the sweep installs what it read, which may not list them.
+  let addedDuringSweep: Map<string, WatchedApp> | null = null;
   let closed = false;
 
   function run(id: string) {
@@ -138,14 +141,19 @@ export function createBuildWatcher(input: {
 
   async function sweep() {
     if (closed) return;
+    const added = new Map<string, WatchedApp>();
+    addedDuringSweep = added;
     let listed: readonly WatchedApp[];
     try {
       listed = await input.apps();
     } catch {
       return;
+    } finally {
+      addedDuringSweep = null;
     }
     if (closed) return;
     apps.clear();
+    for (const app of added.values()) apps.set(app.id, app);
     for (const app of listed) apps.set(app.id, app);
     watchAll();
     for (const app of listed) run(app.id);
@@ -157,6 +165,7 @@ export function createBuildWatcher(input: {
     add(app: WatchedApp) {
       if (closed) return;
       apps.set(app.id, app);
+      addedDuringSweep?.set(app.id, app);
       watchAll();
     },
     /** The first sweep, then one every few minutes. */

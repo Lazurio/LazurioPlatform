@@ -1371,7 +1371,9 @@ export function createModuleOperations(input: {
       }
     }
     const apps: WatchedApp[] = [];
-    watched.clear();
+    // Never cleared: an app a start adds while this sweep reads (#559) keeps
+    // its entry; an entry this sweep reads is replaced, and one of an app no
+    // longer watched is never looked up.
     for (const [key, recorded] of names) {
       const [name, app] = key.split("\0") as [string, string];
       // An app of the move that cannot be named or read now keeps the move
