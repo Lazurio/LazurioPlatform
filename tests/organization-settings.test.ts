@@ -514,3 +514,105 @@ test("the Workspace tabs are one setting: ordered names, each module in one tab 
       organizationSettings(parseCanonicalOrganization(manifest(settings))),
     ).toEqual({ status: "invalid", values: null, effective: null, issues });
 });
+
+// "Žádosti o přístup" (root decision 0204, addendum of 2026-10-17 afternoon,
+// point b; DEV-6668 M8): the Dashboard's own setting. The reader accepts it,
+// so an Organization that writes it keeps every other setting, and ignores
+// it: no key, never applied, never reported (Lazurio#574, Platform#496).
+test("access requests are accepted and ignored: the other settings beside them still apply", () => {
+  const tabs = [{ name: "Finance", modules: ["invoices"] }];
+  for (const enabled of [true, false]) {
+    expect(
+      organizationSettings(
+        parseCanonicalOrganization(manifest({ access_requests: { enabled } })),
+      ),
+    ).toEqual({
+      status: "valid",
+      values: {},
+      effective: ungoverned,
+      issues: [],
+    });
+  }
+  const applied = {
+    integrations: { composio: { allowed: true }, microsoft365 },
+    workspace: { tabs },
+  };
+  const verdict = organizationSettings(
+    parseCanonicalOrganization(
+      manifest({ ...applied, access_requests: { enabled: true } }),
+    ),
+  );
+  expect(verdict).toEqual({
+    status: "valid",
+    values: applied,
+    effective: [
+      { key: "integrations.composio.allowed", governed: true, value: true },
+      {
+        key: "integrations.microsoft365.tenant_id",
+        governed: true,
+        value: tenantId,
+      },
+      {
+        key: "integrations.microsoft365.client_id",
+        governed: true,
+        value: clientId,
+      },
+      {
+        key: "integrations.microsoft365.apps",
+        governed: true,
+        value: microsoft365.apps,
+      },
+      {
+        key: "integrations.microsoft365.callbacks",
+        governed: true,
+        value: [callback],
+      },
+      { key: "workspace.tabs", governed: true, value: tabs },
+    ],
+    issues: [],
+  });
+  expect(
+    (organizationSettingsKeys as readonly string[]).some((key) =>
+      key.startsWith("access_requests"),
+    ),
+  ).toBe(false);
+});
+
+test("access requests are a closed object with a required boolean, as in Core", () => {
+  const at = "/settings/access_requests";
+  const cases: [unknown, OrganizationSettingsIssue[]][] = [
+    [
+      { access_requests: {} },
+      [issue("settings_field_missing", `${at}/enabled`)],
+    ],
+    [
+      { access_requests: { enabled: "yes" } },
+      [issue("settings_type_invalid", `${at}/enabled`)],
+    ],
+    [
+      { access_requests: { enabled: 1 } },
+      [issue("settings_type_invalid", `${at}/enabled`)],
+    ],
+    [
+      { access_requests: { enabled: null } },
+      [issue("settings_type_invalid", `${at}/enabled`)],
+    ],
+    [
+      { access_requests: { enabled: true, team: "guests" } },
+      [issue("settings_field_unknown", `${at}/team`)],
+    ],
+    [{ access_requests: true }, [issue("settings_type_invalid", at)]],
+    // A broken one withholds the whole section, Composio included.
+    [
+      {
+        integrations: { composio: { allowed: true } },
+        access_requests: { enabled: "yes" },
+      },
+      [issue("settings_type_invalid", `${at}/enabled`)],
+    ],
+  ];
+  for (const [settings, issues] of cases)
+    expect(
+      organizationSettings(parseCanonicalOrganization(manifest(settings))),
+    ).toEqual({ status: "invalid", values: null, effective: null, issues });
+});
