@@ -64,9 +64,16 @@ export type ShellCopy = Readonly<{
    * (root decision 0201 point 2): "{done}" of "{total}" done. */
   setupPrompt: string;
   /** The quiet notice of the column head on a public Environment (root
-   * decision 0204 point 4, decision F55): one or two sentences, with a token
-   * of `inKind`. */
+   * decision 0204 point 4, decision F55 and its addendum of 2026-10-20): two
+   * sentences, with a token of `inKind`, that say only what is true there:
+   * it may be wiped or set up again at any time (no nightly reset is
+   * promised), a visitor who signs in to an own account signs out after use,
+   * and GitHub sign-in is not available (root decision 0191 point 39). */
   publicNotice: string;
+  /** The link after it: the terms for trying Lazurio, the page in this
+   * language on lazurio.ai. */
+  publicTerms: string;
+  publicTermsUrl: string;
   /** The rail on a host's page with nobody signed in (F36's addendum of
    * 2026-10-06): its accessible name, and the key's name and label. */
   signedOutRail: string;
@@ -134,7 +141,9 @@ const en: ShellCopy = {
   automateMissing: "Automate does not run {in this}",
   setupPrompt: "Finish setting up ({done} of {total})",
   publicNotice:
-    "{This} is public and shared and is wiped every night. Do not enter personal data or sign in to your own accounts.",
+    "{This} is public and shared and can be wiped or deployed again at any time. If you sign in to your own account, sign out after use, because others see what you leave behind; GitHub sign-in is not available here.",
+  publicTerms: "Terms for trying Lazurio",
+  publicTermsUrl: "https://lazurio.ai/try/terms/",
   signedOutRail: "Lazurio",
   signIn: "Sign in with your Lazurio account",
   guideNext: "Next",
@@ -181,7 +190,9 @@ const cs: ShellCopy = {
   automateMissing: "Automate {v tomto} neběží",
   setupPrompt: "Dokončit nastavení ({done} ze {total})",
   publicNotice:
-    "{Toto} je veřejné a sdílené a každou noc se smaže. Nezadávejte sem osobní údaje a nepřihlašujte se ke svým účtům.",
+    "{Toto} je veřejné a sdílené a kdykoli se může smazat nebo založit znovu. Když se přihlásíte ke svému účtu, po použití se odhlaste, protože ostatní vidí, co tu necháte; ke GitHubu se tu přihlásit nejde.",
+  publicTerms: "Podmínky vyzkoušení Lazuria",
+  publicTermsUrl: "https://lazurio.ai/cs/vyzkouset/podminky/",
   signedOutRail: "Lazurio",
   signIn: "Přihlásit Lazurio účtem",
   guideNext: "Další",

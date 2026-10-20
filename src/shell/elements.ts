@@ -1101,13 +1101,20 @@ export class LazurioColumnHead extends ShellElement {
 
   /** The quiet notice under the switch on a public Environment (decision
    * F55): its words beside a dot that carries the colour (the design
-   * system's `lz-notice--quiet`), a note and no link. A narrow column keeps
-   * the dot alone and the words for assistive technology. */
+   * system's `lz-notice--quiet`), a note whose one link opens the terms for
+   * trying Lazurio in a new tab (F55's addendum of 2026-10-20). A narrow
+   * column keeps the dot alone and the words for assistive technology. */
   private publicNotice(notice: ColumnNotice): HTMLElement {
     const note = element("p", "public-notice");
     note.setAttribute("role", "note");
     note.dataset.notice = "public";
-    note.append(element("span", "public-notice-text", notice.text));
+    const terms = element("a", "public-notice-terms", notice.terms.label);
+    terms.href = notice.terms.href;
+    terms.target = "_blank";
+    terms.rel = "noopener noreferrer";
+    const words = element("span", "public-notice-text", `${notice.text} `);
+    words.append(terms);
+    note.append(words);
     return note;
   }
 
