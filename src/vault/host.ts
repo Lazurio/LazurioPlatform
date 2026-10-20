@@ -2,6 +2,7 @@ import { isAbsolute, join } from "node:path";
 import { readFolderTools } from "../folder/inspect-tools-change";
 import { FolderOperationBusyError, withFolderReadLock } from "../folder/lock";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
+import { visitorPreset } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
 import { updateTools } from "../folder/update-profile";
 import { presetKinds } from "../launchpad/shell-document";
@@ -115,7 +116,14 @@ export async function readVaultContext(
         : "handover-unreadable",
     );
   }
-  const environment = kind as VaultEnvironmentKind;
+  // A public Environment's vault is a Team Environment's, whatever preset
+  // its Folder recorded (Team, or the Work an earlier adoption recorded):
+  // the Try overlay's `shownKind` (decision F55's addendum of 2026-10-20,
+  // point 6, as plan DEV-6668 slice 6 completes it). Every visitor shares
+  // it, so it adds and removes nobody, and nothing speaks of a visitor's
+  // own place in it (#499).
+  const environment = (visitorPreset(handover)?.shownKind ??
+    kind) as VaultEnvironmentKind;
   const own = vaultContextOf({ handover, environment });
   if (own.kind !== "unsupported") return own;
   // No vault named yet: an Environment connected the 0197 way keeps reading

@@ -125,9 +125,9 @@ html, body { margin: 0; }
 body { background: var(--lz-gray-50); color: var(--fg); font: 15px/1.45 var(--font-sans); letter-spacing: var(--lz-track-body); -webkit-font-smoothing: antialiased; }
 [hidden] { display: none !important; }
 /* A public Environment (decision F55, ui.ts `drawAudience`): no Integrace,
-   no Trezor, no Nástroje and nothing for Začínáme to check again. */
+   no Nástroje and nothing for Začínáme to check again. Trezor follows its
+   vault, as everywhere (`#vault-nav`'s `hidden`, plan DEV-6668 slice 6). */
 html[data-audience="public"] li:has(> #integrations-open),
-html[data-audience="public"] li:has(> #vault-open),
 html[data-audience="public"] #settings-nav li:has(> a[data-section="tools"]),
 html[data-audience="public"] #start-refresh { display: none !important; }
 /* Nor a choice of the theme, which is fixed there (root decision 0208 point

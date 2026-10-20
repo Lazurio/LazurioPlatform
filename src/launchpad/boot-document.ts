@@ -30,12 +30,17 @@ import { vaultListed } from "./vault-page-view";
  * vault core's answer as `lazurio vault status` resolves it (`vaultAnswer`),
  * on the rule `vaultListed`. Only local files: neither bw nor the vault is
  * asked. Listed where it cannot be read at all, so that a fault never hides
- * the page that says it. */
-export async function vaultInAppsOf(host: VaultHost): Promise<boolean> {
+ * the page that says it; but on a public Environment (`isPublic`), where
+ * Trezor is only where the core answers its own vault (plan DEV-6668 slice
+ * 6), not listed, and the server then answers its page and API as absent. */
+export async function vaultInAppsOf(
+  host: VaultHost,
+  isPublic = false,
+): Promise<boolean> {
   try {
-    return vaultListed(await vaultAnswer(host));
+    return vaultListed(await vaultAnswer(host), isPublic);
   } catch {
-    return true;
+    return !isPublic;
   }
 }
 

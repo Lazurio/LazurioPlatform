@@ -686,7 +686,8 @@ export async function startLaunchpad(
   // before anything listens, so the caller can serve Recovery mode instead.
   const { entry } = await readStartState(folder, { locked: true });
   // A public Environment (root decision 0204, decision F55): no first run,
-  // no Integrace and no Nastavení → Trezor, by the entry recorded at start.
+  // no Integrace and no Nástroje, and Trezor only with its own vault, by the
+  // entry recorded at start.
   const publicEnvironment = isPublicEnvironment(entry);
   if (!(await privatePage(checkBundledPage)))
     throw new LaunchpadStartRefused("asset-missing", entry);
@@ -821,6 +822,12 @@ export async function startLaunchpad(
           enableForAgents:
             vaultHost.enableForAgents ?? (() => enableVaultForAgents(folder)),
         };
+  // Whether the Apps column lists Trezor here, as the vault core answers now
+  // (`vaultInAppsOf`, from local files only). On a public Environment it is
+  // also whether Trezor is there at all (plan DEV-6668 slice 6, #499): only
+  // with its own vault, the handover's `vault`; without it, its page and API
+  // answer as absent.
+  const vaultListedHere = () => vaultInAppsOf(vaultHostOf(), publicEnvironment);
   const vault = createVaultRoutes({
     host: vaultHostOf,
     // A closing Launchpad starts no setup (`start` asks it last).
@@ -1093,7 +1100,7 @@ export async function startLaunchpad(
         }),
         (hostedOptions.offlineTailnet ?? machineTailnet)(),
         themeStore.read(),
-        vaultInAppsOf(vaultHostOf()),
+        vaultListedHere(),
       ]);
       return launchpadBoot({
         ...inputs,
@@ -1290,24 +1297,27 @@ export async function startLaunchpad(
           request.method === "GET" &&
           !url.pathname.startsWith("/api/") &&
           !isLazurioDocument(url.pathname)
-        )
+        ) {
+          // What a public Environment does not have answers as absent: the
+          // page itself, which shows Apps or Settings in its place. Its
+          // vault is read only for Trezor's own routes.
+          const route = pageRoute(url.pathname);
+          const absent =
+            publicEnvironment &&
+            withheldInPublic(route, {
+              vault: route.view === "vault" && (await vaultListedHere()),
+            });
           return fromShell(
             request,
             `${url.pathname}${url.search}`,
-            // What a public Environment does not have answers as absent:
-            // the page itself, which shows Apps or Settings in its place.
-            (page) =>
-              page.ok &&
-              publicEnvironment &&
-              withheldInPublic(pageRoute(url.pathname))
-                ? 404
-                : page.status,
+            (page) => (page.ok && absent ? 404 : page.status),
             // Nová karta is framed only by the Environment's own apps (F47
             // point 1).
             url.pathname === newTabPagePath && entry !== null
               ? newTabPageHeaders(entry)
               : {},
           );
+        }
       } else if (!admitLocal(request, origin, token))
         return response({ error: "denied" }, 403);
       if (url.pathname === shellDocumentPath) {
@@ -1778,18 +1788,20 @@ export async function startLaunchpad(
           return response({ error: "operation-failed" }, 500);
         }
       }
-      // A public Environment has no sign-in, no Integrace and no vault of its
-      // own (root decision 0204 point 4): Nástroje and Integrace (the Try
-      // overlay's `withheld`) and Trezor (until plan DEV-6668 slice 6, as in
-      // `withheldInPublic`) answer as absent, before anything signs a tool
-      // in, installs it or reads Executor, Composio or the vault.
+      // A public Environment has no sign-in and no Integrace (root decision
+      // 0204 point 4): Nástroje and Integrace (the Try overlay's `withheld`)
+      // answer as absent, before anything signs a tool in, installs it or
+      // reads Executor or Composio. Trezor follows the vault core (plan
+      // DEV-6668 slice 6, as in `withheldInPublic`): without its own vault
+      // its API answers as absent too, before anything reads the vault.
       if (
         publicEnvironment &&
         (isToolsApiPath(url.pathname) ||
           integrations.handles(url.pathname) ||
-          vaultPage.handles(url.pathname) ||
-          vaultRequests.handles(url.pathname) ||
-          vaultConnection.handles(url.pathname))
+          ((vaultPage.handles(url.pathname) ||
+            vaultRequests.handles(url.pathname) ||
+            vaultConnection.handles(url.pathname)) &&
+            !(await vaultListedHere())))
       )
         return response({ error: "not-found" }, 404);
       // The theme reads everywhere; on a public Environment its change is

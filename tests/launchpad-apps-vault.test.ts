@@ -52,8 +52,9 @@ import { freePort } from "./fixtures/ports";
 // only where the Environment has a vault (Matěj 2026-10-18, root decision
 // 0185's addendum, HumanAndMachines/Lazurio#577): as the vault core answers
 // for it, the answer `lazurio vault status` starts from, decided by the
-// server for the first paint; never on this computer. A public
-// Environment's stylesheet hides it as before (decision F55). The page's
+// server for the first paint; never on this computer. A public Environment
+// lists it only with its own vault, and answers its addresses as absent
+// without it (decision F55, plan DEV-6668 slice 6). The page's
 // markup as the browser gets it, read with the same HTMLRewriter as the
 // page's corners; how it looks is checked in a browser, not here (root
 // decision 0178).
@@ -174,8 +175,8 @@ test("the Apps column is Všechny moduly, Soubory, Integrace and Trezor, in this
   });
   expect(vaultPath).toBe("/vault");
   // Its own item, which the server hides where the Environment has no
-  // vault and ui.ts on this computer (`vaultInApps`), and the public rule by
-  // the link it holds; listed in the page as written.
+  // vault (a public one's by the stricter rule of plan DEV-6668 slice 6) and
+  // ui.ts on this computer (`vaultInApps`); listed in the page as written.
   const item = byId("vault-nav");
   expect(item.tag).toBe("li");
   expect(vault.parent).toBe(item);
@@ -290,18 +291,21 @@ test("the first paint shows exactly the frame of the route, Trezor's too, and it
   );
 });
 
-test("a public Environment's stylesheet hides Trezor in the Apps column as it hid it in Settings (decision F55)", () => {
+test("a public Environment's stylesheet hides Integrace, not Trezor, which follows its vault (decision F55, plan DEV-6668 slice 6)", () => {
   const selectors = ruleWith(
     'html[data-audience="public"] li:has(> #integrations-open)',
   );
   expect(selectors).toEqual([
     'html[data-audience="public"] li:has(> #integrations-open)',
-    'html[data-audience="public"] li:has(> #vault-open)',
     'html[data-audience="public"] #settings-nav li:has(> a[data-section="tools"])',
     'html[data-audience="public"] #start-refresh',
   ]);
-  // The rule's item holds the link it names, right under it.
-  expect(byId("vault-open").parent?.tag).toBe("li");
+  // Trezor's item is the server's and the page script's (`#vault-nav`'s
+  // `hidden`), as everywhere: no rule of the stylesheet names it.
+  const rules = [
+    ...stylesheet.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]+)\{/g),
+  ].map((match) => match[1] ?? "");
+  expect(rules.filter((rule) => /#vault-(open|nav)\b/.test(rule))).toEqual([]);
 });
 
 // Whether the Apps column lists Trezor, for each answer of the vault core
@@ -721,13 +725,15 @@ for (const environment of environments)
             ["workstation", "no-vault", "no-tailnet"].includes(status.reason),
         ).toBe(!environment.listed);
         // Its addresses still answer where it is not listed, old links
-        // among them, with the same page; a public Environment answers
-        // them as absent, as before (decision F55).
-        const audience = environment.name.startsWith("a public");
+        // among them, with the same page; a public Environment without its
+        // vault answers them as absent (decision F55, plan DEV-6668 slice
+        // 6; with its vault: tests/public-vault.test.ts).
+        const absent =
+          environment.name.startsWith("a public") && !environment.listed;
         for (const path of vaultPaths) {
           const page = await app.page(path);
-          expect([path, page.status]).toEqual([path, audience ? 404 : 200]);
-          if (!audience) expect([path, page.html]).toEqual([path, home.html]);
+          expect([path, page.status]).toEqual([path, absent ? 404 : 200]);
+          if (!absent) expect([path, page.html]).toEqual([path, home.html]);
         }
       } finally {
         await app.close();

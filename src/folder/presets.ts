@@ -202,9 +202,11 @@ export type VisitorPreset = Readonly<{
   githubIdentity: "none";
   /** What a visitor does not have, its pages and its API: Integrace and
    * Nastavení → Nástroje (F55 point 5). Not the vault: it follows the vault
-   * core, which decides whether this Environment has one. Until plan slice 6
-   * (#499) lists Trezor by that answer, `withheldInPublic` still withholds
-   * it. */
+   * core, which decides whether this Environment has one (plan slice 6,
+   * #499). Trezor is there only where the core answers its own vault, the
+   * handover's `vault` (`vaultListed`, `withheldInPublic`), and that vault
+   * is a Team one, `shownKind`, whatever the Folder recorded
+   * (`src/vault/host.ts`): it adds no visitor. */
   withheld: readonly ("integrations" | "tools")[];
   /** The visitor's terms and privacy pages on lazurio.ai, by language. The
    * gateway's entry card, Machines' own, shows them before entry; the app
@@ -223,7 +225,7 @@ export type VisitorPreset = Readonly<{
   fixed: readonly ("preset" | "theme")[];
   /** The kind people are shown, whatever the recorded preset: a Team
    * Environment, set apart by its words, never a fourth kind (root decision
-   * 0207). */
+   * 0207). The vault's rules follow it too (plan slice 6). */
   shownKind: Extract<ShellEnvironmentKind, "team">;
 }>;
 

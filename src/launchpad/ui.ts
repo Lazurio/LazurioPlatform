@@ -799,10 +799,11 @@ function openAiStep() {
   startPanel.focusAi();
 }
 // What a public Environment does not have (decision F55): the page's
-// stylesheet hides Integrace and Trezor in the Apps column, Nástroje in the
-// settings navigation and Začínáme's "Zkontrolovat znovu" while `<html
+// stylesheet hides Integrace in the Apps column, Nástroje in the settings
+// navigation and Začínáme's "Zkontrolovat znovu" while `<html
 // data-audience="public">` says so; the router shows Apps and Settings in
-// place of the first three.
+// place of the first two. Trezor follows its vault (`drawVaultNav`, plan
+// DEV-6668 slice 6).
 function drawAudience() {
   if (isPublicEnvironment(entry))
     document.documentElement.dataset.audience = "public";
@@ -815,15 +816,19 @@ const startCountNode = document.querySelector<HTMLElement>("#start-count");
 // Environment has a vault, as the server read it for the first paint (the
 // boot document's `vaultInApps`, F53's addendum of 2026-10-18 (3)), which
 // the served page already shows; a page that carries none by its preset,
-// never on this computer. Marked while its page shows.
+// never on this computer, and on a public Environment not at all, where the
+// router then shows Apps in Trezor's place (plan DEV-6668 slice 6). Marked
+// while its page shows.
 const vaultNav = document.querySelector<HTMLElement>("#vault-nav");
 const vaultOpen = document.querySelector<HTMLAnchorElement>("#vault-open");
+const vaultHere = () =>
+  vaultInApps(
+    boot?.vaultInApps ?? null,
+    profileState?.preset ?? null,
+    isPublicEnvironment(entry),
+  );
 function drawVaultNav() {
-  if (vaultNav !== null)
-    vaultNav.hidden = !vaultInApps(
-      boot?.vaultInApps ?? null,
-      profileState?.preset ?? null,
-    );
+  if (vaultNav !== null) vaultNav.hidden = !vaultHere();
 }
 drawVaultNav();
 // The shell document the elements were last given, with the page's own
@@ -1164,8 +1169,12 @@ let framed = false;
 const shell = createShell({
   copy: () => copy,
   displayName: (organization) => catalog.displayName(organization),
-  // A public Environment has no Integrace and no Trezor (decision F55).
-  place: (route) => (isPublicEnvironment(entry) ? publicRoute(route) : route),
+  // A public Environment has no Integrace, and Trezor only with its vault
+  // (decision F55, plan DEV-6668 slice 6).
+  place: (route) =>
+    isPublicEnvironment(entry)
+      ? publicRoute(route, { vault: vaultHere() })
+      : route,
   // Escape is the guide's while it explains a page (decision F56): it
   // closes the explanation and the page stays.
   guiding: () => guideAttention.playing() !== null,
