@@ -175,8 +175,9 @@ and unique, and `notes`, when present, the full next set of notes (sorted keys, 
 required or enabled tools); without `notes` the recorded notes of the tools that stay
 on are kept.
 
-`POST /api/tools/status` (body `{}` or `{ "signIn": true|false }`, the same admission
-as every other route) is what the Launchpad's Tools section reads. It answers
+`POST /api/tools/status` (body `{}` or `{ "signIn": true|false, "fresh": true|false }`,
+each field optional, the same admission as every other route) is what the
+Launchpad's Tools section reads. It answers
 `kind: "tools-status"`, the Folder's `revision` and `locale`, `sharedEnvironment`,
 `hosted` (every preset but `local`), and for every activatable catalog tool in catalog
 order: `name`, `command`, `tier`, `setup`, `enabled`, `purpose` and `usage` in the
@@ -202,6 +203,23 @@ service unit sets that PATH to `~/.local/bin:/usr/local/bin:/usr/bin:/bin`
 it sees the standard path first, as an operator's login shell with `~/.local/bin`
 on PATH does; a tool only on another directory of the interactive PATH is not
 seen there.
+
+The Launchpad keeps its reading of these live facts (versions, and sign-ins where it
+asked for them) for a minute from when the reading started, and answers a request
+without `fresh: true` from it when it has what the request asks; nothing older is
+answered (`tools-reading.ts`, plan DEV-6656). Every page load reads the tools once,
+and every switch between Chat, Apps and Automate loads a page, so this spares a run
+of every tool's commands per load. A tool operation through the Launchpad that
+changes what the tools report (an installation, an update, a sign-in or sign-out, a
+setup of Executor or the vault, a switch of Composio's organization) drops the
+reading as it starts and again once it has answered, so a reading made while it ran
+is never answered after it; a setup that goes on after its answer drops it again
+when it ends, as does every sign-in. The page sends `fresh: true` with every reading
+it asks for the sign-ins explicitly ("Refresh status", "Zkontrolovat znovu", the end
+of a flow). Only a change made elsewhere, a tool installed or signed in from a
+terminal, can take up to that minute to show without them. The recorded part of the
+answer (revision, selection, notes) is read every time. `lazurio tools list` and
+`lazurio doctor` always read anew.
 
 **Sign-in state** ([F18 addendum](decisions.md#f18--enabled-tools-of-the-environment)).
 With `signIn: true` (the page sends it on load and on "Refresh status") or

@@ -28,6 +28,7 @@ import {
   runTool,
   type ToolRunner,
   type ToolSignIn,
+  type ToolsStatusResult,
   toolsSignIn,
   toolsStatus,
   xdgOf,
@@ -121,19 +122,57 @@ export type ToolsOverview = Readonly<{
   organizationSettings?: OrganizationSettingsStatus;
 }>;
 
+/** The live facts of the activatable tools, in catalog order: what `tools
+ * status` finds, and each tool's sign-in when they were asked for. */
+export type ToolsLive = Readonly<{
+  status: ToolsStatusResult;
+  signIns?: readonly ToolSignIn[];
+}>;
+
+/** Reads the live facts now: each found tool's version command, which never
+ * uses the network, and with `signIn` each installed tool's sign-in probe,
+ * which may contact the tool's provider (F18 addendum 2026-09-27). */
+export async function readToolsLive(
+  environment: ToolsEnvironment,
+  signIn: boolean,
+): Promise<ToolsLive> {
+  const catalog = activatableTools();
+  const status = await toolsStatus({
+    path: environment.path,
+    home: environment.home,
+    platform: environment.platform,
+    run: environment.run,
+    catalog,
+  });
+  if (!signIn) return { status };
+  const signIns = await toolsSignIn(
+    catalog.map((entry, index) => {
+      const live = status.tools[index];
+      if (live === undefined || live.name !== entry.name)
+        throw new Error("Tool status does not match the catalog");
+      return { probe: entry.signInProbe, status: live };
+    }),
+    environment,
+  );
+  return { status, signIns };
+}
+
 // The tools screen of one Folder (decision F18): what is recorded (revision,
 // locale, enabled selection, the operator's notes, whether sign-ins are
 // shared, whether the Machine is hosted) joined with the live facts of `tools
 // status` for the activatable tools, in catalog order. The recorded part is
-// read under the common lock; the probe runs after it and runs each tool's
-// version command, which never uses the network. Only with `signIn` does it
-// also run each installed tool's sign-in probe, which may contact the tool's
-// provider (F18 addendum 2026-09-27). The raw output of a tool is never part
-// of the answer.
+// read under the common lock; the live facts after it, now (`readToolsLive`)
+// unless the caller hands over its own reading of them (`live`: the
+// Launchpad's, kept a short while, tools-reading.ts). Sign-ins are part of
+// the answer only with `signIn`. The raw output of a tool is never part of
+// the answer.
 export async function toolsOverview(
   folder: string,
   environment: ToolsEnvironment,
-  options: Readonly<{ signIn?: boolean }> = {},
+  options: Readonly<{
+    signIn?: boolean;
+    live?: (signIn: boolean) => Promise<ToolsLive>;
+  }> = {},
 ): Promise<ToolsOverview> {
   await inspectOwnedDirectory(folder);
   const stateDirectory = join(folder, ".lazurio");
@@ -156,25 +195,13 @@ export async function toolsOverview(
     };
   });
   const catalog = activatableTools();
-  const status = await toolsStatus({
-    path: environment.path,
-    home: environment.home,
-    platform: environment.platform,
-    run: environment.run,
-    catalog,
-  });
-  const signIns =
-    options.signIn === true
-      ? await toolsSignIn(
-          catalog.map((entry, index) => {
-            const live = status.tools[index];
-            if (live === undefined || live.name !== entry.name)
-              throw new Error("Tool status does not match the catalog");
-            return { probe: entry.signInProbe, status: live };
-          }),
-          environment,
-        )
-      : undefined;
+  const signIn = options.signIn === true;
+  const { status, signIns: probed } = await (
+    options.live ?? ((asked) => readToolsLive(environment, asked))
+  )(signIn);
+  if (signIn && probed?.length !== catalog.length)
+    throw new Error("Tool sign-ins do not match the catalog");
+  const signIns = signIn ? probed : undefined;
   const { locale } = recorded;
   return {
     kind: "tools-status",

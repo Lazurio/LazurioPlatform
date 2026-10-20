@@ -2307,6 +2307,12 @@ takes an optional boolean `signIn` (default `false`), which the page sends on lo
 on "Refresh status". The version commands of `tools status` still never use the
 network.
 
+*Note of 2026-10-20 (root decision 0195, plan DEV-6656):* the page's reading on load
+may be answered from the Launchpad's reading of the last minute; "Refresh status" and
+every other reading the page asks for with the sign-ins send `fresh: true` and read
+anew, and a tool operation through the Launchpad drops the kept reading
+([environment tools](environment-tools.md)).
+
 *One click.* The page no longer previews a tools change: "Enable", "Disable" and a
 saved note apply at the revision the page shows, and the card confirms what happened
 with the new Folder revision and an "Undo" that restores the state before the change
@@ -6012,6 +6018,17 @@ the admission of every route, the token of a workstation's page (never in the pa
 Recovery mode. Not done: a smaller bundle (it is served unminified, about 880 KB, now
 cached); the person's account and an Owner's answer still arrive after the first paint,
 with their own requests.
+
+*Note of 2026-10-20 (#532, plan DEV-6656):* point 5 did not hold for the compiled
+executable. Its inner listener serves the hashed bundle files without any
+`Cache-Control`, so behind the gateway they were `no-store` and every open fetched the
+main script again. The hosted Launchpad now sets `public, max-age=31536000, immutable`
+on the files the bundle itself lists whose names prove a hash of their content, as
+Bun names them (`chunk-<hash>.<ext>`, `<name>-<hash>.<ext>`; `contentHashedName` in
+`page.ts`), whatever the inner listener sends; any other file keeps the inner
+listener's caching, or `no-store`. A test compiles a hosted Launchpad and pins it. The script is
+still served unminified, now about 1.17 MB (298 KB with `gzip -9`), and compression on
+the way is the ingress's, tracked apart.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |

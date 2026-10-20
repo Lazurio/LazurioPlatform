@@ -9,12 +9,15 @@ import {
   composioManageUrl,
   composioSelector,
 } from "./composio-source";
+import type { Microsoft365Here } from "./microsoft365";
+// The card from its own module, made for the page: the rest of the company
+// app hashes with `node:crypto`, whose browser stand-in the page's script
+// must not carry (plan DEV-6656).
 import {
-  type Microsoft365Here,
   microsoft365Card,
   microsoft365ReplacedApps,
   microsoft365Slug,
-} from "./microsoft365";
+} from "./microsoft365-card";
 import {
   type AppTool,
   choosePath,

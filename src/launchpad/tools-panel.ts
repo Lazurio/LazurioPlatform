@@ -1718,7 +1718,9 @@ export function createToolsPanel(
   }
 
   /** Reads the tools again. `signIn` asks for the sign-in probes, which may
-   * contact the providers: by default only the first read does. Answers this
+   * contact the providers: by default only the first read does, and only an
+   * explicit `signIn: true` skips the Launchpad's reading of the last minute
+   * (`fresh`, tools-reading.ts). Answers this
    * read's own reading, or null where it failed, was not one or a later read
    * superseded it: never the reading a later read left (decision F42, note
    * of 2026-10-19). */
@@ -1737,9 +1739,17 @@ export function createToolsPanel(
     void vault.read(probe);
     void executor.read();
     try {
+      // A page's first reading may be the Launchpad's from within the last
+      // minute; every reading asked for with the sign-ins (Refresh status,
+      // Zkontrolovat znovu, the end of a flow) is read anew.
       const { value, ok } = await options.post(
         "/api/tools/status",
-        probe ? { signIn: true } : {},
+        probe
+          ? {
+              signIn: true,
+              ...(request.signIn === true ? { fresh: true } : {}),
+            }
+          : {},
       );
       if (turn !== sequence) return null;
       const parsed = ok ? parseToolsOverview(value) : null;

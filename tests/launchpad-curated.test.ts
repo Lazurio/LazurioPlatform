@@ -579,9 +579,9 @@ echo "Installing Composio CLI $requested"
     };
     const opened = await session(["gh", "composio"], fetcher);
     try {
-      const composio = async () =>
+      const composio = async (body: Json = {}) =>
         (
-          (await opened.json("/api/tools/status", {})).body.tools as Json[]
+          (await opened.json("/api/tools/status", body)).body.tools as Json[]
         ).find((tool) => tool.name === "composio");
       // The fake composio is 0.3.1, not the build Lazurio pins.
       expect(await composio()).toMatchObject({
@@ -620,12 +620,14 @@ echo "Installing Composio CLI $requested"
       });
       // An Environment still on the previous pin, Lazurio's 0.4.3-lazurio.1:
       // not the build Lazurio pins now, and the same update brings it there.
+      // Written behind the Launchpad's back, so read anew ("Refresh status")
+      // rather than from its reading of the last minute.
       await writeFile(
         join(opened.home, ".local", "bin", "composio"),
         "#!/bin/sh\necho 0.4.3-lazurio.1\n",
         { mode: 0o755 },
       );
-      expect(await composio()).toMatchObject({
+      expect(await composio({ fresh: true })).toMatchObject({
         version: "0.4.3-lazurio.1",
         pinned: "0.4.3-lazurio.2",
       });
@@ -642,6 +644,56 @@ echo "Installing Composio CLI $requested"
       });
       expect(await composio()).toMatchObject({ version: "0.4.3-lazurio.2" });
     } finally {
+      await opened.close();
+    }
+  },
+);
+
+// The Launchpad keeps its tools reading a minute (tools-reading.ts, plan
+// DEV-6656): a page that loads while an update runs reads the build before
+// it, and that reading must never be answered once the update has ended.
+test.skipIf(!posix)(
+  "a tools reading made while an update runs is not answered after it",
+  async () => {
+    const installer = `#!/bin/sh
+set -eu
+requested="\${COMPOSIO_INSTALL_VERSION:-}"
+printf '#!/bin/sh\\necho %s\\n' "\${requested#@composio/cli@}" > "$HOME/.local/bin/composio"
+`;
+    let fetching = () => {};
+    const fetched = new Promise<void>((resolve) => {
+      fetching = resolve;
+    });
+    let release = () => {};
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const fetcher: InstallFetch = async (url) => {
+      fetching();
+      await released;
+      return url === composioBuild.installer
+        ? new Response(installer)
+        : new Response("", { status: 404 });
+    };
+    const opened = await session(["gh", "composio"], fetcher);
+    try {
+      // As a page loads: with the sign-ins, never fresh.
+      const composio = async () =>
+        (
+          (await opened.json("/api/tools/status", { signIn: true })).body
+            .tools as Json[]
+        ).find((tool) => tool.name === "composio");
+      const updating = opened.json("/api/tools/upgrade", { tool: "composio" });
+      await fetched;
+      expect(await composio()).toMatchObject({ version: "0.3.1" });
+      release();
+      expect(await updating).toMatchObject({
+        status: 200,
+        body: { kind: "tool-updated", changed: true },
+      });
+      expect(await composio()).toMatchObject({ version: "0.4.3-lazurio.2" });
+    } finally {
+      release();
       await opened.close();
     }
   },

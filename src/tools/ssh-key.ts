@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import {
   appendFile,
   chmod,
@@ -160,10 +159,15 @@ export function publicKeyOf(line: string): string | undefined {
   return `${type} ${blob}`;
 }
 
-/** `SHA256:…` of a public key, as `ssh-keygen -l` and GitHub print it. */
+/** `SHA256:…` of a public key, as `ssh-keygen -l` and GitHub print it.
+ * Hashed with Bun's own SHA-256, not `node:crypto`: Settings → Nástroje's
+ * page takes this module for its failure list, and an import of
+ * `node:crypto` puts its browser stand-in, half a megabyte with
+ * `node:stream` and `node:buffer`, into the page's script wherever Bun
+ * bundles it for the browser (plan DEV-6656). Only the server calls it. */
 export function fingerprintOf(publicKey: string): string {
   const blob = publicKey.split(" ")[1] ?? "";
-  return `SHA256:${createHash("sha256")
+  return `SHA256:${new Bun.CryptoHasher("sha256")
     .update(Buffer.from(blob, "base64"))
     .digest("base64")
     .replace(/=+$/, "")}`;

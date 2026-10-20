@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { HTMLBundle } from "bun";
 import { shellScript } from "../shell/bundle" with { type: "macro" };
 import { shellFontPaths } from "../shell/font-files";
 import { newTabPagePath } from "../shell/new-tab-protocol";
@@ -78,6 +79,67 @@ export const shellRoutes = {
     });
   },
 };
+
+/** `Cache-Control` of the bundled pages' content-hashed files (#532): a
+ * name that carries a hash of the file's content changes with the content,
+ * so a browser keeps such a file a year without asking again. */
+export const bundledFileCaching = "public, max-age=31536000, immutable";
+
+/** Whether a bundled file's name proves a hash of its content, as Bun 1.4.2
+ * names a page's output in the compiled executable: `chunk-<hash>.<ext>`
+ * for the script and style chunks and `<name>-<hash>.<ext>` for a file the
+ * page imports (`symbol-color-j5ttq22m.svg`), the hash eight characters of
+ * lowercase Crockford base32 (digits and letters without i, l, o and u),
+ * the file directly beside its page. Checked against a compiled candidate
+ * on 2026-10-20; the compiled test fails should a listed file stop matching.
+ * Anything else, a nested path or a name without that hash, is not one. */
+export function contentHashedName(name: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9_.-]*-[0-9a-hjkmnp-tv-z]{8}\.[a-z0-9]+$/.test(
+    name,
+  );
+}
+
+/** The paths under which the inner listener serves the bundled pages'
+ * content-hashed files (`contentHashedName`): the script and style chunks and
+ * the images (`/chunk-….js`), never a page and never a file whose name does
+ * not prove its content. Bun lists them for a build made ahead of time, which
+ * is what the compiled executable is; it serves them without any
+ * `Cache-Control`. Run from source it lists none, and its runtime bundle
+ * sends `bundledFileCaching` itself. */
+export function bundledFilePaths(
+  bundles: readonly HTMLBundle[],
+): ReadonlySet<string> {
+  const paths = new Set<string>();
+  for (const bundle of bundles) {
+    const separator = Math.max(
+      bundle.index.lastIndexOf("/"),
+      bundle.index.lastIndexOf("\\"),
+    );
+    const root = bundle.index.slice(0, separator + 1);
+    for (const file of bundle.files ?? []) {
+      if (file.loader === "html" || !file.path.startsWith(root)) continue;
+      const name = file.path.slice(root.length);
+      if (contentHashedName(name)) paths.add(`/${name}`);
+    }
+  }
+  return paths;
+}
+
+const bundledFiles = bundledFilePaths([index, newTabPage]);
+
+/** The `Cache-Control` the gateway's path gives an asset the inner listener
+ * answered (`path` with or without its query; F36's addendum of 2026-10-08,
+ * #532): a year for one of the bundle's content-hashed files, whatever the
+ * inner listener said; otherwise the inner listener's own; otherwise
+ * `no-store`. */
+export function assetCaching(
+  path: string,
+  inner: string | null,
+  hashed: ReadonlySet<string> = bundledFiles,
+): string {
+  if (hashed.has(path.split("?", 1)[0] as string)) return bundledFileCaching;
+  return inner ?? "no-store";
+}
 
 // The page itself under each of its routes (`/`, `/settings/tools`, …): the
 // same bundled document, which picks the section from the path. No other
