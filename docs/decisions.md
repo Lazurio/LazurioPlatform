@@ -14788,6 +14788,73 @@ in both languages), `tests/tools-team-github.test.ts` (the CLI's refusals and pr
 a public Team Environment) and `tests/public-environment.test.ts` (a refresh that
 records the member now changes the texts).
 
+### Addendum of 2026-10-20: the notice says only what is true and links the terms; the demo follows the AI
+
+**Decided by Matěj (Organization Admin) on 2026-10-20 for plan DEV-6668: his answers to
+the questions of the try-01 preset shaping study (slices 1 and 3).** GitHub sign-in
+stays blocked in try-01 (root decision 0191 point 39, enforced by Machines' managed
+browser policy for a public audience). Visitors may sign in to their own AI and other
+accounts at their own risk and sign out after use. Nobody records that a visitor
+accepted the terms; continuing is acceptance, which the gateway's own notice before
+entry says (Machines). Two sentences of point 4 and the demo of point 3 were not true:
+Machines has no nightly reset of a public Environment, and the published terms
+(lazurio.ai, version 2026-10-16) say only that it may be wiped or deployed again from
+scratch at any time; the notice forbade the visitors' own accounts; and the demo said
+the AI is not connected even where the Organization provides it.
+
+1. **The notice says what holds and leads to the terms.** Point 4's words become: "Toto
+   Prostředí je veřejné a sdílené a kdykoli se může smazat nebo založit znovu. Když se
+   přihlásíte ke svému účtu, po použití se odhlaste, protože ostatní vidí, co tu
+   necháte; ke GitHubu se tu přihlásit nejde." / "This Environment is public and shared
+   and can be wiped or deployed again at any time. If you sign in to your own account,
+   sign out after use, because others see what you leave behind; GitHub sign-in is not
+   available here." (`{Toto}` and `{This}` name the kind, as before.) After them, the
+   one link the notice has: the terms for trying Lazurio in the page's language,
+   `https://lazurio.ai/cs/vyzkouset/podminky/` or `https://lazurio.ai/try/terms/`, in a
+   new tab. The column head's model (`columnHead(…).notice`) gains `terms` (its label
+   and address); `lazurio.shell.v1` is unchanged, so T3 Code and MausBot draw it
+   through the Launchpad's `shell.js` without a change of theirs. A narrow column keeps
+   the dot and the words for assistive technology and drops the link, which nothing
+   would show there.
+2. **The demo follows the live AI fact.** Začínáme's Chat row and the tour's Chat stop
+   read the AI the page already reads (`GET /api/ai`, `AiFact`, `demoAi`): where the
+   Organization provides it (`organization`) they say that Chat answers through this
+   Organization's AI, with no model or provider named; where a CLI is signed in
+   (`connected`, someone's own account) that AI is connected; and that it is not
+   connected only while the AI is missing or not known (`missing`, `unknown`, or
+   `loading` before the first answer).
+3. **Nothing else changes.** No preset of its own (the "Try" overlay of the shaping
+   study is a later change), `isPublicEnvironment()` and `entry.audience` stay the one
+   switch, the handover, the binding, the routes it withholds and every Environment
+   that is not public are what they were.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep "every night" until Machines resets nightly | A promise nothing keeps; the claim ships with the reset (Machines). Rejected |
+| Name the model in the demo | It changes with the Organization's pool and says nothing a visitor needs. Rejected |
+| Say "the Organization's AI" for `connected` too | A signed-in CLI is someone's own account, not the Organization's. Rejected for its own words |
+| The terms' address in the shell document | A second owner of a fixed address of lazurio.ai; the words of the column head already come from the page's language. Rejected |
+
+**Honest limits.** The column head is the in-app reminder only; the notice before
+entry, with acceptance and the privacy page, is the gateway's (Machines). The terms
+still say GitHub sign-in is allowed until a new version of them corrects it
+(website-lazurio). Until a public Environment gets the Organization's AI, its demo keeps
+saying the AI is not connected.
+
+Verified by `tests/public-try-notice.test.ts` (a try-01-shaped handover: a Team-assigned
+workspace VM of the public reference Organization with no `network` and no relay, its
+entry with the sign-out, the Environment browser and `audience: "public"`, with and
+without its vault, the Folder recorded as Work and as Team; the column head's notice
+exactly in both languages in Apps, Chat, Automate and Settings, with the terms and
+without "every night"; Začínáme's Chat row and the tour's Chat stop for `organization`,
+`connected`, `missing`, `unknown` and `loading` in both languages, naming no model; the
+controls, a member's Work Environment and a Team Environment that are not public, with
+no notice and the tour's usual words for every AI fact; and a hosted try-01 behind a fake
+gateway on both recorded presets, whose `/.lazurio/shell.json` draws the notice and whose
+`GET /api/ai`, over a fake Codex provided, signed out and signed in, drives the row and
+the stop) and `tests/public-environment.test.ts` (the notice and the demo as before
+with the new words).
+
 ## F56 — Průvodce: Buddy nebo průvodce Lazuria vysvětlí stránku na místě, kreslí shell hostitele, rám Buddyho smí jen požádat id
 
 **Decided by Matěj (Organization Admin) on 2026-10-18: root decision 0180's addendum of

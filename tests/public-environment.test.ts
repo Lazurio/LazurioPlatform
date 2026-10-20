@@ -369,10 +369,11 @@ for (const preset of publicPresets)
       );
   });
 
-test("Začínáme of a public Environment: Apps, a module and Chat, which says AI is not connected", () => {
+test("Začínáme of a public Environment: Apps, a module and Chat, which says AI is not connected while it is missing", () => {
   const chat = "https://t3code.workspace.example.lazurio.io";
   const module = { name: "deals", href: "/o/example/deals" };
-  expect(demoStartView({ chat, module }, cs)).toEqual({
+  const ai = "missing";
+  expect(demoStartView({ chat, module, ai }, cs)).toEqual({
     intro: "Vyzkoušejte si Lazurio v tomto ukázkovém Prostředí.",
     rows: [
       {
@@ -398,7 +399,7 @@ test("Začínáme of a public Environment: Apps, a module and Chat, which says A
       },
     ],
   });
-  const english = demoStartView({ chat, module: null }, en);
+  const english = demoStartView({ chat, module: null, ai }, en);
   expect(english.intro).toBe("Try Lazurio in this demo Environment.");
   expect(english.rows.map((row) => [row.id, row.title, row.text])).toEqual([
     ["apps", "Apps", "The apps of this Organization's modules."],
@@ -408,10 +409,13 @@ test("Začínáme of a public Environment: Apps, a module and Chat, which says A
   expect(english.rows[1]?.action).toEqual({ label: "Open", href: "/" });
   expect(english.rows[2]?.status).toBe("AI is not connected in this demo.");
   // Where the Environment has no Chat, its row says so without a button.
-  const noChat = demoStartView({ chat: null, module }, en);
+  const noChat = demoStartView({ chat: null, module, ai }, en);
   expect(noChat.rows[2]?.action).toBeNull();
   // Nothing in it signs anything in.
-  const words = JSON.stringify([demoStartView({ chat, module }, cs), english]);
+  const words = JSON.stringify([
+    demoStartView({ chat, module, ai }, cs),
+    english,
+  ]);
   for (const word of ["GitHub", "ChatGPT", "Claude", "Bitwarden", "Trezor"])
     expect(words).not.toContain(word);
 });
@@ -601,20 +605,31 @@ test("the shell document takes the audience only as public, and only beside a cu
   expect(shellWith(undefined, null)).not.toBeNull();
 });
 
-test("the column head says it in Apps, Chat and Automate in two short sentences: public and shared, wiped nightly, no personal data or own accounts", () => {
+test("the column head says it in Apps, Chat and Automate in two short sentences, with the terms in the page's language", () => {
+  // F55's addendum of 2026-10-20: no nightly wipe, a visitor's own sign-in
+  // signed out after use, no GitHub sign-in, and the terms. The words on a
+  // try-01-shaped Environment: tests/public-try-notice.test.ts.
   const shell = shellWith("public") as Shell;
   for (const active of ["apps", "chat", "automate", "settings"])
     expect(
       columnHead(shell, shellCs, { space: null, active, settings: null })
         ?.notice,
     ).toEqual({
-      text: "Toto Prostředí je veřejné a sdílené a každou noc se smaže. Nezadávejte sem osobní údaje a nepřihlašujte se ke svým účtům.",
+      text: "Toto Prostředí je veřejné a sdílené a kdykoli se může smazat nebo založit znovu. Když se přihlásíte ke svému účtu, po použití se odhlaste, protože ostatní vidí, co tu necháte; ke GitHubu se tu přihlásit nejde.",
+      terms: {
+        label: "Podmínky vyzkoušení Lazuria",
+        href: "https://lazurio.ai/cs/vyzkouset/podminky/",
+      },
     });
   expect(
     columnHead(shell, shellEn, { space: null, active: "chat", settings: null })
       ?.notice,
   ).toEqual({
-    text: "This Environment is public and shared and is wiped every night. Do not enter personal data or sign in to your own accounts.",
+    text: "This Environment is public and shared and can be wiped or deployed again at any time. If you sign in to your own account, sign out after use, because others see what you leave behind; GitHub sign-in is not available here.",
+    terms: {
+      label: "Terms for trying Lazurio",
+      href: "https://lazurio.ai/try/terms/",
+    },
   });
   // Without the member no notice, not even the member.
   const plain = columnHead(shellWith(undefined) as Shell, shellCs, {

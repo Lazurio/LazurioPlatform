@@ -703,11 +703,16 @@ const startPanel = createStartPanel({
           list: content.list(),
         };
   },
-  // A public Environment's Začínáme (decision F55): Apps, a module and Chat.
+  // A public Environment's Začínáme (decision F55): Apps, a module and Chat,
+  // whose line follows the AI as this page last read it.
   demo: () =>
     isPublicEnvironment(entry)
       ? demoStartView(
-          { chat: chatHref(entry), module: demoModule(catalog.current()) },
+          {
+            chat: chatHref(entry),
+            module: demoModule(catalog.current()),
+            ai: aiFact(),
+          },
           copy,
         )
       : null,

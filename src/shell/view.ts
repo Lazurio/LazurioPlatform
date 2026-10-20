@@ -925,9 +925,13 @@ export function columnSetupPrompt(
 
 /** The quiet notice of the column head on a public Environment (root
  * decision 0204 point 4, decision F55): in Apps, Chat and Automate and in its
- * Settings alike, as long as the person is there. Its words are the whole
- * notice; it leads nowhere. */
-export type ColumnNotice = Readonly<{ text: string }>;
+ * Settings alike, as long as the person is there. Its words, and after them
+ * the one place it leads to: the terms for trying Lazurio in the page's
+ * language (F55's addendum of 2026-10-20). */
+export type ColumnNotice = Readonly<{
+  text: string;
+  terms: Readonly<{ label: string; href: string }>;
+}>;
 
 /** The notice where the current Environment is public; null elsewhere and
  * on a page that is no Environment's. */
@@ -942,7 +946,10 @@ export function columnNotice(
   // that calls a computer public keeps the plain words, which agree with
   // "veřejné", as "Tento počítač" would not.
   const kind = environment.kind === "workstation" ? null : environment.kind;
-  return { text: inKind(copy.publicNotice, kind) };
+  return {
+    text: inKind(copy.publicNotice, kind),
+    terms: { label: copy.publicTerms, href: copy.publicTermsUrl },
+  };
 }
 
 /** The Settings of an Environment, the gear's address beside its picker:

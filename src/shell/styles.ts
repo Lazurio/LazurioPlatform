@@ -186,6 +186,10 @@ a.tab:hover { color: var(--shell-ink); }
 .public-notice { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 6px 4px 2px; color: var(--shell-ink-muted); font-size: 12px; font-weight: 450; line-height: 1.4; }
 .public-notice::before { content: ""; flex: none; width: 8px; height: 8px; margin-top: 4px; border-radius: 50%; background: var(--lz-warning); }
 .public-notice-text { flex: 1 1 auto; min-width: 0; }
+/* Its link to the terms: the same muted ink, underlined, the picker's ink
+   under the pointer. */
+.public-notice-terms { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.public-notice-terms:hover { color: var(--shell-ink); }
 /* A dark host without colour roles (data-host-tone="dark", from
    --lazurio-host-tone or the host's background): no frame, light text, a
    translucent hover. A role the host sets wins. The marks and the list
@@ -211,6 +215,8 @@ a.tab:hover { color: var(--shell-ink); }
   .setup-prompt { justify-content: center; }
   .public-notice { justify-content: center; }
   .public-notice-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  /* No link the keyboard would reach where nothing shows it. */
+  .public-notice-terms { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .pick > svg { transition: none; } }
 `;
