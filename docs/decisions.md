@@ -2313,6 +2313,37 @@ every other reading the page asks for with the sign-ins send `fresh: true` and r
 anew, and a tool operation through the Launchpad drops the kept reading
 ([environment tools](environment-tools.md)).
 
+*Note of 2026-10-20 (2), the first open (root decision 0195, plan DEV-6656):* the
+first open after a while waited for a whole reading (1.7 to 2.1 s on the reference
+Environment), and the sign-ins only after the Organization's settings. Now (1) at most
+three tools are read at a time (`toolsReadAtOnce`), each tool's sign-in right after its
+own version in the same place, and the settings are asked while the tools are read. The
+version commands stayed one after another in #535 for memory: every tool at once would
+start several Node CLIs together on an Environment with 8 GiB under pressure, and one
+after another is too slow; three at a time is the bound decided on 2026-10-20. On a
+workstation with five tools installed the version commands took 964 ms one at a time,
+496 ms three at a time and 491 ms all at once; (2) an installed Launchpad reads the tools with their sign-ins once it
+listens and again after its start's own setup, and a hosted Launchpad when it serves
+its own page (not Nová karta, not on a public Environment); the page asks for the
+sign-ins on its load, so this only moves that reading earlier; (3) a read with `allowStale:
+true`, the page's own first one, is answered at once from a reading older than the
+minute, `stale: true`, while a new one runs; the page shows its rows dimmed and
+`aria-busy`, their actions waiting, passes it to nothing else (Začínáme, Integrace,
+the first run's start) and asks again, and that read shares the new reading. What a
+person can see: a reading older than a minute, for as long as one reading takes
+(today about two seconds; at most the probes' bounds, 15 s for a version, 10 s for a
+sign-in), only for a change made outside this Launchpad. A reading a tool operation
+through this Launchpad dropped is never answered, not even as stale.
+
+| Alternative | Disposition |
+| --- | --- |
+| Keep the reading current with a timer | A process per tool and calls to the providers every minute for nobody; a daemon in all but name; rejected |
+| Push the new reading to the page (a socket or server-sent events) | A second channel for one panel; asking again shares the same reading at the same cost; rejected |
+| Answer stale to every read | An older page, or the CLI, would take it for current; opt-in with `allowStale` (selected) |
+| Show the stale reading as current and correct it later | Začínáme and the first run's start would act on it; shown as being checked, read by nothing else (selected) |
+| Read every tool at once | Hardly faster than three at a time (491 against 496 ms for the versions), and several Node CLIs started together on a tight Environment; rejected |
+| Wait for the reading, as before, only faster | Still a whole reading on the first open; kept as the fallback when nothing is kept |
+
 *One click.* The page no longer previews a tools change: "Enable", "Disable" and a
 saved note apply at the revision the page shows, and the card confirms what happened
 with the new Folder revision and an "Undo" that restores the state before the change
@@ -5154,7 +5185,8 @@ each of its origins.
    they are served without the token, as the page is; behind a gateway only after its
    admission, through the inner listener of the page. `/.lazurio/shell.json` is data,
    behind the same admission as every read: the token locally, the gateway's session
-   hosted. It is read-only and recomputed on every read. The candidate's page check
+   hosted. It is read-only and recomputed on every read (its catalog kept while
+   nothing changed since the note of 2026-10-20 (2) below). The candidate's page check
    (`checkBundledPage`) also asks for the script, so a bundle without it does not start.
    The Launchpad page bundles the same elements itself, reads the document with its own
    credential and hands it over (`<html data-lazurio-shell="host">`). Gateway routing of
@@ -6029,6 +6061,38 @@ Bun names them (`chunk-<hash>.<ext>`, `<name>-<hash>.<ext>`; `contentHashedName`
 listener's caching, or `no-store`. A test compiles a hosted Launchpad and pins it. The script is
 still served unminified, now about 1.17 MB (298 KB with `gzip -9`), and compression on
 the way is the ingress's, tracked apart.
+
+*Note of 2026-10-20 (2), plan DEV-6656:* point 2's boot document, `/.lazurio/shell.json`
+on every page of Chat, Apps and Automate, `/api/catalog` and Apps' questions about one
+Organization (its Owner, a module's maintainer, a prepared prompt) each read every
+Organization and module manifest of the Folder again: about 150 ms of a workstation
+per read on a Folder of seventeen Organizations and 146 modules, waited for by the
+first paint. The Launchpad now keeps the catalog while nothing it depends on changed
+(`catalog-reading.ts`): it watches each directory the reading found (the Folder,
+`organizations/`, each Organization's root, each module's directory and its parent,
+each app's package directory, each repository slot and its parent, and the held
+Personalspace's), not recursively, and any change there drops it; so do the
+Launchpad's own content installation and preparation, a profile change and another
+decision whose Personalspace this is, and a change while a reading runs means that
+reading is not kept. Only the reading that becomes the kept one changes the watches,
+so a reading superseded by a change, a forget or a newer reading never closes a watch
+the kept one needs (#551 review). A kept reading older than a minute, or one that found
+directories it watches only from then on, still answers and is read anew behind it,
+which bounds a change outside the watched directories (a dependency elsewhere in the
+Organization) to the read after that one. Where a directory cannot be watched, or
+there are more than 2,000, a reading answers only two seconds. The Launchpad reads
+the catalog once at its start. The boot document reads the Folder's state and the
+catalog side by side; its bounds (250 ms for the lock, 500 ms in all) stay. What a
+person can see: a change made outside the Launchpad shows once the system tells of it
+(on macOS some 10 to 30 ms), not on the read that follows the write at once. The CLI
+and the Doctor read anew as before.
+
+| Alternative | Disposition |
+| --- | --- |
+| A short time to live alone | Saves only the reads of one page load; the first open after a while reads everything again; kept for an unwatched Folder |
+| Watch the Folder recursively | One watch per directory on Linux, `node_modules` and `.git` included, against the system's limits and the editors' and dev servers' own; rejected |
+| Compare the modification times of every file read | Needs every reader of the catalog to name what it read; a second model of the catalog; rejected |
+| Watch the directories the reading found, keep it, re-read behind a reading older than a minute (selected) | No daemon, a few hundred watches on a large Folder; a change outside them waits for the read after the minute |
 
 | Alternative | Trade-off / disposition |
 | --- | --- |

@@ -111,7 +111,13 @@ test("the page accepts the server's answer only in its exact form", () => {
       tools: [{ ...tool(), versionOutput: "raw", token: "x" }],
     }),
   ).toEqual(overview([tool()]));
+  // The Launchpad's older reading answered at once while it reads anew
+  // (tools-reading.ts) says so, and only with `true`.
+  const stale = { ...valid, stale: true as const };
+  expect(parseToolsOverview(JSON.parse(JSON.stringify(stale)))).toEqual(stale);
   for (const broken of [
+    { ...valid, stale: false },
+    { ...valid, stale: "yes" },
     null,
     [],
     "tools-status",

@@ -210,6 +210,7 @@ export function parseToolsOverview(input: unknown): ToolsOverview | null {
       ? undefined
       : parseSettingsStatus(value.organizationSettings);
   if (settings === null) return null;
+  if (value.stale !== undefined && value.stale !== true) return null;
   return {
     kind: "tools-status",
     revision: value.revision,
@@ -219,6 +220,7 @@ export function parseToolsOverview(input: unknown): ToolsOverview | null {
     mcpPrompt: value.mcpPrompt,
     tools,
     ...(settings === undefined ? {} : { organizationSettings: settings }),
+    ...(value.stale === true ? { stale: true as const } : {}),
   };
 }
 

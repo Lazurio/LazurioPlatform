@@ -194,7 +194,8 @@ from module and Machine alone collide across Organizations
   repositories (`productionspace/*` only, not `infra`) with their checkout state and
   GitHub link; a module carries no layout group.
 - **State: none.** The list is recomputed on every read, as the resident does after
-  Sync.
+  Sync; the Launchpad keeps its last reading while a watch of the Folder's directories
+  tells of no change (F36's note of 2026-10-20 (2)), which holds no state of its own.
 - Surface: the Launchpad home becomes the catalog in T3 Code's sidebar pattern. The
   sidebar lists Organizations as groups (T3's projects), modules as rows with a status
   dot (T3's threads), each module once in one list per Organization; the subheader per

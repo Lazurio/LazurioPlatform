@@ -67,7 +67,6 @@ import {
   launchpadSettingsPoller,
   type OrganizationSettingsSeams,
 } from "../organization-settings/host";
-import { readFolderCatalog } from "../organizations/catalog";
 import { selectCatalogOrganization } from "../organizations/catalog-selection";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import type { RecoveryResult } from "../recover/recover";
@@ -117,6 +116,7 @@ import type { VaultHost } from "../vault/flow";
 import { enableVaultForAgents, processVaultHost } from "../vault/host";
 import type { LaunchpadBoot } from "./boot";
 import { launchpadBoot, vaultInAppsOf, withBoot } from "./boot-document";
+import { createCatalogReading, organizationsOnly } from "./catalog-reading";
 import {
   chatPairingPath,
   createChatPromptCheck,
@@ -726,6 +726,12 @@ export async function startLaunchpad(
   });
   // A static app someone opened is built again after a pull (decision F58).
   modules.keepBuilt();
+  // The Folder's catalog, kept while nothing it depends on changed
+  // (catalog-reading.ts): the page's boot document, the shell document, the
+  // catalog and Apps' questions about one Organization read it.
+  const catalog = createCatalogReading(folder, {
+    holder: personalspace.peek,
+  });
   // Settings → Nástroje's live facts, kept a minute (tools-reading.ts).
   const toolsReading = createToolsReading(toolsEnvironment);
   // A setup goes on after its answer: its end drops the reading again.
@@ -1083,7 +1089,7 @@ export async function startLaunchpad(
         readShellInputs(folder, {
           ownerKey: hostedOptions.ownerKey,
           lockWaitMs: bootLockWaitMs,
-          personalspace: personalspace.peek,
+          catalog: catalog.read,
         }),
         (hostedOptions.offlineTailnet ?? machineTailnet)(),
         themeStore.read(),
@@ -1138,9 +1144,17 @@ export async function startLaunchpad(
       // (not as the Launchpad starts, when the Folder's operations need its
       // lock), so that Chat and Automate, whose column head reads the shell
       // document once per load, find it when they open. The Organization's
-      // settings are asked now too, never twice within a short while.
+      // settings are asked now too, never twice within a short while. The
+      // Launchpad's own page reads the tools with their sign-ins on its load:
+      // they are read now, while its files load (tools-reading.ts), but on a
+      // public Environment, which has none (Nová karta reads none either).
       void setup.peek();
       void settings?.nudge();
+      if (
+        !publicEnvironment &&
+        new URL(request.url).pathname !== newTabPagePath
+      )
+        toolsReading.warm();
       return boot === null ? answer : withBoot(answer, boot);
     }
     const kept: Record<string, string> = {};
@@ -1300,7 +1314,8 @@ export async function startLaunchpad(
         // The Lazurio shell's data (decision F36): this Environment, its
         // Organizations and the addresses of its apps, behind the same
         // admission as every read (the token locally, the gateway's session
-        // hosted). Read-only, recomputed on every read, but for what the
+        // hosted). Read-only, recomputed on every read from the catalog as
+        // this Launchpad keeps it (catalog-reading.ts), but for what the
         // Environment lacks: that comes from the last reading and is never
         // awaited (F36's addendum of 2026-10-08), so the rail never waits
         // for GitHub.
@@ -1309,7 +1324,10 @@ export async function startLaunchpad(
         if (closing) return response({ error: "closing" }, 503);
         try {
           const [inputs, tailnet, theme] = await Promise.all([
-            readShellInputs(folder, { ownerKey: hostedOptions.ownerKey }),
+            readShellInputs(folder, {
+              ownerKey: hostedOptions.ownerKey,
+              catalog: catalog.read,
+            }),
             (hostedOptions.offlineTailnet ?? machineTailnet)(),
             themeStore.read(),
           ]);
@@ -1344,7 +1362,8 @@ export async function startLaunchpad(
         // it. The page only where the Environment is a node of a tailnet; the
         // worker's address everywhere, elsewhere with the retiring worker, so
         // a worker installed before never outlives the guide. Behind the same
-        // admission as every read, recomputed on every read.
+        // admission as every read, recomputed on every read from the kept
+        // catalog.
         if (request.method !== "GET")
           return response({ error: "method-not-allowed" }, 405);
         if (closing) return response({ error: "closing" }, 503);
@@ -1358,6 +1377,7 @@ export async function startLaunchpad(
               shellDocument(
                 await readShellInputs(folder, {
                   ownerKey: hostedOptions.ownerKey,
+                  catalog: catalog.read,
                 }),
               ),
               tailnet,
@@ -1444,7 +1464,7 @@ export async function startLaunchpad(
         if (login === null || keys.length !== 1) return notFound();
         try {
           const organization = promptOrganization(
-            await readFolderCatalog(folder),
+            organizationsOnly(await catalog.read()),
             login,
           );
           if (organization === null) return notFound();
@@ -1568,7 +1588,7 @@ export async function startLaunchpad(
         try {
           const name = decodeURIComponent(ownerRequest[1] as string);
           const selection = selectCatalogOrganization(
-            await readFolderCatalog(folder),
+            organizationsOnly(await catalog.read()),
             name,
           );
           server.timeout(request, 30);
@@ -1595,7 +1615,7 @@ export async function startLaunchpad(
           const name = decodeURIComponent(maintainRequest[1] as string);
           const id = decodeURIComponent(maintainRequest[2] as string);
           const selection = selectCatalogOrganization(
-            await readFolderCatalog(folder),
+            organizationsOnly(await catalog.read()),
             name,
           );
           const module =
@@ -1796,9 +1816,11 @@ export async function startLaunchpad(
           ) {
             setup.forget();
             personalspace.forget();
+            catalog.forget();
             void content.settled().then(() => {
               setup.forget();
               personalspace.forget();
+              catalog.forget();
             });
           }
           return answer;
@@ -1949,16 +1971,27 @@ export async function startLaunchpad(
             )
           )
             server.timeout(request, 660);
-          return response(await operation(input));
+          try {
+            return response(await operation(input));
+          } finally {
+            // A preparation may write what the catalog reads of a module.
+            if (
+              ["/api/apps/prepare", "/api/apps/clean-prepare"].includes(
+                url.pathname,
+              )
+            )
+              catalog.forget();
+          }
         }
         if (url.pathname === "/api/catalog") {
           // The Launchpad home (launchpad-parity B1): the Organizations and
           // modules of this Folder, the same catalog as `lazurio organization
-          // list --json`, recomputed on every read. Nothing is written. Its
+          // list --json`, as this Launchpad keeps it while nothing it depends
+          // on changed (catalog-reading.ts). Nothing is written. Its
           // Personalspace group follows the last decision whose it is and
           // never waits for GitHub (#186).
           stateFields(input, []);
-          return response(await readFolderCatalog(folder, personalspace.peek));
+          return response(await catalog.read());
         }
         if (url.pathname === "/api/profile") {
           stateFields(input, []);
@@ -1996,40 +2029,59 @@ export async function startLaunchpad(
           // joined with the live facts. The version commands never use the
           // network; the sign-in probes, which may, run only when the body
           // asks for them with `signIn: true`. The live facts come from the
-          // reading kept a minute unless the body asks for `fresh: true`
-          // (tools-reading.ts); the recorded part is read every time.
-          const withSignIn = ownDataValue(input, "signIn") !== undefined;
-          const withFresh = ownDataValue(input, "fresh") !== undefined;
-          const value = stateFields(input, [
-            ...(withSignIn ? ["signIn"] : []),
-            ...(withFresh ? ["fresh"] : []),
-          ]);
-          if (withSignIn && typeof value.signIn !== "boolean")
-            return response({ error: "invalid-sign-in" }, 400);
-          if (withFresh && typeof value.fresh !== "boolean")
-            return response({ error: "invalid-fresh" }, 400);
+          // reading kept a minute unless the body asks for `fresh: true`;
+          // with `allowStale: true` an older reading answers at once, marked
+          // `stale`, while a new one runs (tools-reading.ts). The recorded
+          // part is read every time.
+          const asked = ["signIn", "fresh", "allowStale"].filter(
+            (field) => ownDataValue(input, field) !== undefined,
+          );
+          const value = stateFields(input, asked);
+          for (const [field, error] of [
+            ["signIn", "invalid-sign-in"],
+            ["fresh", "invalid-fresh"],
+            ["allowStale", "invalid-allow-stale"],
+          ] as const)
+            if (asked.includes(field) && typeof value[field] !== "boolean")
+              return response({ error }, 400);
+          const signIn = value.signIn === true;
+          const reading = toolsReading.answer(signIn, {
+            fresh: value.fresh === true,
+            allowStale: value.allowStale === true,
+          });
+          // Met by the overview below; a refusal before it is not the
+          // reading's to report.
+          void reading.done.catch(() => undefined);
           // The first reading and "Refresh status" ask the Organization's
-          // settings first, so the switches show what applies now (F45).
-          if (value.signIn === true) {
+          // settings first, so the switches show what applies now (F45),
+          // while the tools are read; a stale answer does not wait for them,
+          // and the reading after it does.
+          if (signIn && !reading.stale) {
             server.timeout(request, 120);
             await settings?.nudge(settingsWaitMs);
           }
           const overview = await toolsOverview(folder, toolsEnvironment, {
-            signIn: value.signIn === true,
-            live: (signIn) => toolsReading.live(signIn, value.fresh === true),
+            signIn,
+            live: () => reading.done,
           });
           // The shell document's GitHub, and whose Personalspace this is,
-          // follow this reading.
+          // follow a current reading.
           const gh = overview.tools.find((tool) => tool.name === "gh");
-          if (gh !== undefined && github.remember(gh.installed, gh.signIn)) {
+          if (
+            !reading.stale &&
+            gh !== undefined &&
+            github.remember(gh.installed, gh.signIn)
+          ) {
             setup.forget();
             personalspace.forget();
           }
-          return response(
-            settings === null
-              ? overview
-              : { ...overview, organizationSettings: settings.status() },
-          );
+          return response({
+            ...overview,
+            ...(reading.stale ? { stale: true } : {}),
+            ...(settings === null
+              ? {}
+              : { organizationSettings: settings.status() }),
+          });
         }
         if (vault.handles(url.pathname)) {
           // The Environment's vault (decisions F43, F53): `{}`, or a setup's
@@ -2423,8 +2475,10 @@ export async function startLaunchpad(
         // A profile change that makes this a Team Environment ends a running
         // gh sign-in or key linking at once: its holder reads the refusal.
         if (url.pathname === "/api/update" && result.kind === "updated") {
-          // The preset may have changed whether the shell says anything.
+          // The preset may have changed whether the shell says anything, and
+          // what the catalog says of the Personalspace and the secrets.
           setup.forget();
+          catalog.forget();
           const preset = await folderPreset(folder).catch(() => undefined);
           if (preset === undefined || githubLoginRefused(preset, "gh", "login"))
             logins.refuse("gh");
@@ -2454,6 +2508,19 @@ export async function startLaunchpad(
   // Whose Personalspace this is, decided once in the background now, so
   // that the page's first catalog already knows it. Reads no Folder lock.
   void personalspace.peek(folder).catch(() => undefined);
+  // The page's first open finds the catalog read (catalog-reading.ts), in
+  // the background once whose Personalspace this is was decided; and, on an
+  // installed Launchpad, the service of its base, the tools read with their
+  // sign-ins, as its page asks for them on its load (tools-reading.ts). Not
+  // on a public Environment, which has no tools.
+  const warming = personalspace
+    .settled()
+    .then(() => (closing ? undefined : catalog.read()))
+    .then(
+      () => undefined,
+      () => undefined,
+    );
+  if (installed !== undefined && !publicEnvironment) toolsReading.warm();
   // The Launchpad's holds, reconciled with the hub's list from now on.
   await holder?.start();
   // Executor (decision F44, addendum of 2026-10-11, #298): where install and
@@ -2466,7 +2533,14 @@ export async function startLaunchpad(
   if (executorAtStart !== undefined)
     void (async () => {
       if ((await executorAtStart()) && !closing && (await executor.atStart()))
-        forgetToolsAfter(executor.settled());
+        // Once it has ended, the tools are read again for the page.
+        void executor
+          .settled()
+          .catch(() => undefined)
+          .then(() => {
+            toolsReading.forget();
+            if (!closing) toolsReading.warm();
+          });
     })().catch(() => undefined);
   // The Environment's own vault (decision F53), by the same pattern: where
   // the vault needs it, the one setup of Settings → Tools runs in the
@@ -2496,6 +2570,7 @@ export async function startLaunchpad(
       await vault.atStart();
       await vault.settled();
       toolsReading.forget();
+      if (!closing) toolsReading.warm();
       if (closing) return;
       lookAtAudience();
       audienceTimer = setInterval(lookAtAudience, vaultAudienceEveryMs);
@@ -2517,11 +2592,12 @@ export async function startLaunchpad(
      * Launchpad asks GitHub or its Folder waits here first, so that it
      * observes the request it makes and not the start's own work. */
     async settled(): Promise<void> {
-      await Promise.all([personalspace.settled(), setup.settled()]);
+      await Promise.all([personalspace.settled(), setup.settled(), warming]);
     },
     close() {
       closing = true;
       clearInterval(audienceTimer);
+      catalog.close();
       if (!closePending)
         closePending = (async () => {
           // Close admission immediately, before waiting for HTTP requests to drain.
