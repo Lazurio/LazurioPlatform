@@ -1,0 +1,321 @@
+# The canary of v0.1.10-rc.1 and the final release v0.1.10, 2026-10-19/20
+
+Evidence for [recovery mode G.3](../recovery-mode.md#g3-canary-stage-8-hours-on-every-machine-of-the-pilot-organization)
+and [the release cycle](../release-cycle.md#qualification-and-the-canary): the candidate
+`v0.1.10-rc.1` (source `edca9290470d04802610cf3c86556c66a597309e`) ran for 8 hours on every
+Environment of the pilot Organization, LazurioExampleOrganization, and on one operator's personal
+VM, before the final tag `v0.1.10` at the same source.
+The record is [`qualification/canary/v0.1.10-rc.1.json`](../../qualification/canary/v0.1.10-rc.1.json),
+added by [#528](https://github.com/Lazurio/LazurioPlatform/pull/528).
+Machines are opaque ids, as in the record. Which Machine is which is kept only in the pilot
+Organization's own private records.
+
+**The record is the second stage.**
+- **The second stage** ran from `2026-10-19T18:53:29Z` to `2026-10-20T03:00:09Z`
+  (8 h 6 min 40 s). It covered the pilot Organization's three work VMs, which are all of its
+  Environments, and one operator's personal VM. Every Machine was on the candidate and healthy in
+  every round.
+- **A first stage** (`2026-10-19T10:15:00Z`–`18:24:05Z`) had run on the three work VMs only,
+  because the personal VM's Owner had not consented yet. `scripts/qualify/check-canary.ts`
+  refused its record with one finding: "no personal VM is listed; the stage needs every one" (root
+  decision 0166 point 6).
+- **Why the second stage starts later.** The 8 hours start when the last Machine runs the
+  candidate, so the second stage started when the personal VM did. The first stage is kept below as
+  history; it does not count.
+
+## Qualification
+
+The candidate was published on 2026-10-19 at 09:12:25Z by Release run
+[39226735059](https://github.com/Lazurio/LazurioPlatform/actions/runs/39226735059). Qualify run
+[39228308554](https://github.com/Lazurio/LazurioPlatform/actions/runs/39228308554)
+ran on the default branch (`workflow_run`) and succeeded:
+- it left the artifact `qualification-v0.1.10-rc.1`, kept until 2027-01-17;
+- `scripts/qualify/evidence.ts check` against the candidate's published `manifest.json`
+  answers `v0.1.10-rc.1 is qualified: J1 J2 J3 J4 J5 J6 ok on linux-x64 and darwin-arm64`;
+- the manifest's `source_commit` is `edca9290470d04802610cf3c86556c66a597309e`.
+
+## Scope
+
+The scope is the pilot Organization's 3 work VMs, which are all of its Environments, plus the
+personal VM of one operator. The personal VM is outside the Organization, which has no personal
+Environment (root decision 0204 point 7). The scope is not narrowed. The personal VM joined only
+for the second stage.
+
+How each Machine got the candidate:
+- **The work VMs** went through the pilot Organization's Machines lane, the path that pins their
+  release. It ran through the rollout pipeline (root decision 0205): the pull request's run
+  computed the Plan, and the merge's run applied it.
+  - Plan `33a41539…`, committed unchanged and confirmed current before the merge;
+  - Permit `mp_1adc7300…`, 09:42:46Z;
+  - apply 09:40:49Z–10:13:16Z: `success`, complete, healthy (68 of 68 checks) and conformant;
+  - evidence commit `3a1cbc89` on the lane's evidence branch.
+
+  The same apply brought Lazurio MausBot 0.1.115-lazurio.3 to the three work VMs. The Launchpad
+  units were switched to the candidate at 09:52:35Z, 10:00:57Z and 10:09:06Z.
+- **The personal VM** got the candidate after its Owner's consent, which the release cycle keeps
+  for every rollout ("the personal VM Owner's consent"). It went from `0.1.9` to `0.1.10-rc.1` at
+  18:52:57Z–18:53:29Z:
+  - its own updater, `lazurio update --version v0.1.10-rc.1`, which verifies the release's
+    attestation;
+  - then `lazurio machine folder-refresh`, as the hosting apply does (template
+    `base-instructions-58`);
+  - its Launchpad unit started on the candidate at 18:53:16Z;
+  - at 18:53:29Z it was proven: active, running and health on the candidate, `recover` healthy,
+    `NRestarts` 0.
+
+  This departs from G.3, which says each Machine is rolled "through the path that pins its
+  release". The personal lane's pin was not raised for this candidate, just as for `v0.1.9-rc.6`
+  and `v0.1.8-rc.70`: a pin is a minimum (root decision 0161, addendum of 2026-09-28).
+
+## The first stage: the work VMs only (not the record)
+
+- **Start:** `2026-10-19T10:15:00Z`. At that moment the last work VM was proven on the candidate:
+  - `lazurio update status --json` active and running `0.1.10-rc.1`;
+  - the Launchpad's health on the candidate;
+  - `lazurio recover --json` healthy.
+- **End:** `2026-10-19T18:24:05Z` (8 h 9 min).
+- **Observation:** a read-only round on every Machine every 30 minutes. Each round reads:
+  - `update status`, `self-check` and `recover`;
+  - the Launchpad's health;
+  - the Launchpad unit's state, `NRestarts` and start time;
+  - the module app units, the Folder revision and the T3 Code version.
+
+  Rounds (UTC, Machines on the candidate and healthy / Machines): 2026-10-19T10:15:00Z 3/3; 2026-10-19T10:15:15Z 3/3; 2026-10-19T10:45:23Z 3/3; 2026-10-19T11:15:30Z 3/3; 2026-10-19T11:45:37Z 3/3; 2026-10-19T12:15:44Z 3/3; 2026-10-19T12:45:52Z 3/3; 2026-10-19T13:15:59Z 3/3; 2026-10-19T13:46:13Z 3/3; 2026-10-19T14:16:21Z 3/3; 2026-10-19T14:46:28Z 3/3; 2026-10-19T15:16:36Z 3/3; 2026-10-19T15:46:45Z 3/3; 2026-10-19T16:16:53Z 3/3; 2026-10-19T16:47:05Z 3/3; 2026-10-19T17:18:15Z 3/3; 2026-10-19T17:48:24Z 3/3; 2026-10-19T18:24:05Z 3/3.
+
+  Consecutive rounds were at most 31.2 minutes apart, except the last gap: 35.7 minutes,
+  17:48:24Z–18:24:05Z. The observer's 30-minute wait ended late, so the round planned for about
+  18:18Z ran as the final round.
+- **No Recovery mode between the rounds:**
+  - Recovery mode is chosen only when the Launchpad starts (`startOrRecover` in
+    `src/launchpad/recovery-mode.ts` at the candidate's tag).
+  - On every Machine, the Launchpad unit's `ActiveEnterTimestampMonotonic` changed only at the
+    deliberate restart of the G.3 item below (two work VMs, 10:15:28Z and 10:16:02Z). `NRestarts`
+    was 0 in every round.
+  - Every round found `lazurio recover --json` healthy, with its checks `launchpad-health`,
+    `launchpad-unit`, `folder-state`, `self-check-failed` and `update-state-invalid` all ok. The
+    Launchpad's health answered `0.1.10-rc.1`.
+- **Recovery issues:** none. A search of the public repository (state all, created since
+  2026-10-19) for `0.1.10-rc.1` finds no issue.
+
+### Other changes on the same Machines during the first stage
+
+Only one other change touched the stage's Machines during the stage, and it did not change the
+Platform. No apply ran on the lane between the candidate's apply and the end of the stage.
+
+| When (UTC) | Machines | What | Platform |
+|---|---|---|---|
+| 2026-10-19 11:20:16–11:20:26Z | work VM `f1040cafc798ecf0` | T3 Code 0.1.0-preview.20261018.1 → 0.1.0-preview.20261019.1, a preview with Lazurio/t3code#87 (Chat's rail follows the Environment theme), installed in the guest after a backup. Only the T3 Code service restarted (active again at 11:20:26Z). To check it, the Environment theme of that VM was set to Ocean at 11:21:06Z and back to Lazurio at 11:21:46Z. | unchanged |
+
+The rounds also compared that VM's T3 Code version with the one expected before this change. So
+from 11:45:37Z on, every round reported this deliberate change as a difference. Every check of the
+Platform passed in every round.
+
+**After the first stage:**
+- From 18:26:12Z to 18:27:15Z, T3 Code went to 0.1.0-lazurio.3 on all three work VMs. Only the
+  T3 Code service restarted, each time after a backup.
+- A readback at 18:27:49Z found all three on T3 Code 0.1.0-lazurio.3 and still on `0.1.10-rc.1`.
+- This falls between the two stages.
+
+### Per Machine in the first stage
+
+| Machine | Kind | `active` at end | `recover` start / end | Launchpad `NRestarts` start / end | Launchpad health at end | Module apps active start / end |
+|---|---|---|---|---|---|---|
+| `146fb920b36d943c` | work | 0.1.10-rc.1 | healthy / healthy | 0 / 0 | 0.1.10-rc.1 | 3 / 3 (failed 0) |
+| `a2a75fc428e8dbad` | work | 0.1.10-rc.1 | healthy / healthy | 0 / 0 | 0.1.10-rc.1 | 0 / 0 (failed 0) |
+| `f1040cafc798ecf0` | work | 0.1.10-rc.1 | healthy / healthy | 0 / 0 | 0.1.10-rc.1 | 3 / 3 (failed 0) |
+
+"Module apps active" counts the module app units (`lazurio-app-*`) running at the start and at
+the end of the stage. No module app failed in any round.
+
+### Module starts and real work in the first stage
+
+- **Folder refresh and Launchpad restart (G.3), inside the stage.** On work VM `f1040cafc798ecf0`
+  at 10:15:26Z and on work VM `146fb920b36d943c` at 10:16:00Z:
+  - `lazurio machine folder-refresh` as the Machine's user: `unchanged`, exit 0;
+  - then a deliberate `systemctl --user restart lazurio-launchpad.service`, exit 0;
+  - the units came back active at 10:15:28Z and 10:16:02Z with `NRestarts` 0 (a deliberate
+    restart does not count), and `lazurio recover --json` answered `healthy` on 0.1.10-rc.1;
+  - a round right after each (10:15:43Z and 10:16:17Z) found all three work VMs on the candidate
+    and healthy.
+- **The Environment theme (#493)** was written twice on `f1040cafc798ecf0` through the candidate
+  (11:21:06Z and 11:21:46Z, above). The Folder revision stayed the same: the theme's record lies
+  outside the Folder.
+- **Modules already running at the start** (3 each on two work VMs) were still running at the
+  end, with their data mounts present (#476). None stopped or failed.
+- **Module opens through the Launchpad** were not recorded inside this stage. The browser
+  acceptance below opened modules after it, inside the second stage.
+
+## Browser acceptance (root decision 0178)
+
+On the pilot Organization, 2026-10-19 18:44–19:21Z, mostly inside the second stage. An agent ran
+the checks with the designated test accounts (the Owner and a member), each in its own headless
+browser profile. No Chat turn was run.
+
+- **Passed:**
+  - **Sign-in and health.** Sign-in through the gateway on all three work VMs. On each, the
+    recovery page reads `0.1.10-rc.1` with every check ok.
+  - **Refusal.** A member is refused (403) on an Environment she was not given.
+  - **Sign-out.** Sign-out and sign-in again in a single tab.
+  - **An app.** The Knowledgebase opened, closed and opened again.
+  - **The Environment theme (#493).**
+    - Settings offers the five themes, in Czech and in English.
+    - A write to Ocean was followed by Settings, the Apps page, the rail and the column, also
+      after a reload. It was then written back.
+    - On the public Environment the group is withheld, and a write is refused with 403
+      `public-environment`.
+  - **Trezor (#495, #500).**
+    - The Apps column does not list it where the Environment has no vault, which is all three: the
+      pilot Organization has none on purpose.
+    - The new and the old addresses open the vault page with its no-vault explanation.
+    - The public Environment has no Trezor.
+  - **The guide (#501, #502, #503).**
+    - A "?" plays its explanation in place on Apps, Soubory, Integrace and every Settings section,
+      in Czech and in English, with the Team variants on the Team Environment.
+    - Escape closes it and stays on the page.
+  - **Words (#497).** The words for the kinds of Environment on the Work and the Team
+    Environment. No visible text names an Environment "Mašina", "VM" or "server".
+  - **The Environment Browser (#505).**
+    - Inside it, the Dashboard is not signed in, on the Work Environment and on the public one.
+    - On the public one, github.com is not signed in either.
+    - The public Environment's own app names still reach the gateway's sign-in. That is expected
+      while the hosting side's part of #505 is not deployed.
+  - **Layout.** The rail and the column band at 1440 px and at 390 px.
+- **Not run, on purpose:** opening the Work Environment's own app names inside its Environment
+  Browser. That browser keeps the Environment's own GitHub sign-in, and the gateway's sign-in has
+  no click, so the visit would create a Lazurio session there. It is recorded on
+  [#504](https://github.com/Lazurio/LazurioPlatform/issues/504#issuecomment-6275485495), and the
+  hosting side's part of #505 closes it.
+- **Found:** one copy defect in Settings, recorded on
+  [#498](https://github.com/Lazurio/LazurioPlatform/issues/498#issuecomment-6275484991). No
+  regression, and no Recovery mode.
+
+## The second stage, with the personal VM: the record
+
+- **Start:** `2026-10-19T18:53:29Z`. At that moment the personal VM, the last Machine, was proven
+  on the candidate (see *Scope*).
+  - The three work VMs had run the candidate without a break since their apply. Their Launchpad
+    units kept the exact start time (`ActiveEnterTimestampMonotonic`) that the first stage's final
+    round saw at 18:24:05Z, up to this stage's first round, so none started anew in between.
+  - A readback at 18:27:49Z found them on `0.1.10-rc.1`.
+  - The first round of all four, at 18:54:36Z, found every Machine on the candidate and healthy.
+- **End:** `2026-10-20T03:00:09Z`, the final round: 8 h 6 min 40 s after the start.
+- **Observation:** the same read-only rounds as in the first stage, every 30 minutes, over all four
+  Machines. T3 Code's version is still recorded, but no longer compared, because it is not part of
+  the Platform candidate.
+
+  Rounds (UTC, Machines on the candidate and healthy / Machines): 2026-10-19T18:54:36Z 4/4; 2026-10-19T18:55:14Z 4/4; 2026-10-19T19:25:24Z 4/4; 2026-10-19T19:55:35Z 4/4; 2026-10-19T20:25:46Z 4/4; 2026-10-19T20:55:55Z 4/4; 2026-10-19T21:26:09Z 4/4; 2026-10-19T21:56:20Z 4/4; 2026-10-19T22:26:29Z 4/4; 2026-10-19T22:56:39Z 4/4; 2026-10-19T23:26:50Z 4/4; 2026-10-19T23:57:00Z 4/4; 2026-10-20T00:27:10Z 4/4; 2026-10-20T00:57:19Z 4/4; 2026-10-20T01:27:29Z 4/4; 2026-10-20T01:57:39Z 4/4; 2026-10-20T02:27:48Z 4/4; 2026-10-20T02:57:58Z 4/4; 2026-10-20T03:00:09Z 4/4.
+
+  Consecutive rounds were at most 30.2 minutes apart. The host that ran the rounds was kept awake
+  for the whole stage.
+- **No Recovery mode between the rounds:**
+  - On every Machine, the Launchpad unit's `ActiveEnterTimestampMonotonic` changed only at the
+    deliberate restarts of the G.3 item below (two work VMs, 20:00:13Z and 20:02:25Z). `NRestarts`
+    was 0 in every round.
+  - Every round found `lazurio recover --json` healthy, with its checks `launchpad-health`,
+    `launchpad-unit`, `folder-state`, `self-check-failed` and `update-state-invalid` all ok.
+  - The Launchpad's health and `lazurio self-check` answered `0.1.10-rc.1` in every round, and every
+    Folder was on template `base-instructions-58`.
+- **Recovery issues:** none. A search of the public repository on 2026-10-20, after the stage
+  (state all, created since 2026-10-19), for `0.1.10-rc.1` finds no issue.
+
+### Module starts and real work in the second stage
+
+- **Folder refresh and Launchpad restart (G.3), inside the stage.** On work VM `f1040cafc798ecf0`
+  at 20:00:12Z and on work VM `146fb920b36d943c` at 20:02:24Z:
+  - `lazurio machine folder-refresh` as the Machine's user: `unchanged`, exit 0;
+  - then a deliberate `systemctl --user restart lazurio-launchpad.service`, exit 0;
+  - the units came back active at 20:00:13Z and 20:02:25Z with `NRestarts` 0, and
+    `lazurio recover --json` answered `healthy` on 0.1.10-rc.1;
+  - a probe of the three work VMs right after each run (20:00:32Z and 20:02:40Z) found all of them
+    on the candidate and healthy, with `NRestarts` 0.
+
+  The verdict on the first probe was computed afterwards, from the data the probe had collected.
+  The operator's probe wrapper, outside this repository, dropped an empty argument, so its own
+  verdict step stopped with an error.
+  - The wrapper was fixed before the second run, and that probe's verdict came from the fixed
+    wrapper.
+  - The 30-minute rounds run their checks without that wrapper, so no round was affected.
+- **The browser acceptance** (above) worked inside the stage, and set every value back:
+  - **Theme.** The Environment theme of `f1040cafc798ecf0` was set to Ocean at 19:07:43Z and back
+    to Lazurio at 19:07:55Z (theme record revisions 9 and 10).
+  - **Language.** The Settings language was changed and set back on `f1040cafc798ecf0` (19:12:41Z
+    and 19:15:27Z, Folder revisions 12 and 13) and on `a2a75fc428e8dbad` (19:12:43Z and 19:15:16Z,
+    revisions 5 and 6).
+  - **A refused write.** A theme write on `146fb920b36d943c`, the public Environment, at 19:11:07Z
+    was refused with 403, as designed. The record did not change.
+  - **Module opens.** The Knowledgebase was opened, closed and opened again through the Launchpad on
+    `f1040cafc798ecf0`, at 19:10:38Z and 19:10:52Z.
+  - **Sign-out.** Sign-out and sign-in again on `f1040cafc798ecf0`, at 19:15:48–19:16:06Z and
+    19:19:20–19:19:42Z.
+- **Folder writes.** The Folder revisions changed only through those two language changes:
+  `f1040cafc798ecf0` from 11 to 13 and `a2a75fc428e8dbad` from 4 to 6. The other two Machines
+  kept theirs. The theme's record lies outside the Folder.
+- **Modules already running at the start** (3 each on two work VMs, and 2 on the personal VM)
+  were still running at the end. None stopped or failed.
+
+### Other changes on the same Machines during the second stage
+
+None of them changed the Platform. No change was merged to the work VMs' lane during the stage, so
+the rollout pipeline applied nothing to them.
+
+| When (UTC) | Machines | What | Platform |
+|---|---|---|---|
+| 2026-10-19 19:15:43–19:15:53Z | work VM `f1040cafc798ecf0` | T3 Code 0.1.0-lazurio.3 → 0.1.0-preview.20261019.2. Only the T3 Code service restarted. | unchanged |
+| 2026-10-19 19:27:56–19:28:04Z and 19:38:57–19:40:52Z | work VM `f1040cafc798ecf0` | Read-only checks of Chat as the Owner: a new-chat page, one existing thread and the command palette. A thread's terminal drawer was opened and closed twice; no command ran in it. Three read-only file checks inside the guest (19:39:18, 19:40:11 and 19:40:54Z). No tab was added in the Environment Browser. | unchanged |
+| 2026-10-19 20:31:23–20:37:29Z | work VM `f1040cafc798ecf0` | Read-only checks of Chat as the Owner. One `xdg-open https://example.com` from a Chat thread's terminal, at 20:34:08–20:34:11Z, left one tab open in the Environment Browser. T3 Code's persistent shell for that thread, started at 19:39:53Z, stays open with nothing run in it. | unchanged |
+| 2026-10-19 21:07:17–21:07:39Z | personal VM `482d0d709bcc19df` | T3 Code 0.1.0-lazurio.3 → 0.1.0-lazurio.4, after a check and a backup. Only the T3 Code service restarted. | unchanged |
+| 2026-10-19 21:30:33–21:31:13Z | work VMs `a2a75fc428e8dbad` (21:30:33–21:30:48Z), `146fb920b36d943c` (21:30:48–21:30:58Z) and `f1040cafc798ecf0` (21:30:58–21:31:13Z) | T3 Code → 0.1.0-lazurio.4, each after a check and a backup: from 0.1.0-lazurio.3 on the first two, and from 0.1.0-preview.20261019.2 on the third. Only the T3 Code service restarted. A readback right after found all three serving 0.1.0-lazurio.4, with the service active and the Platform still on `0.1.10-rc.1`. | unchanged |
+
+- The T3 Code updates to 0.1.0-lazurio.4 ran on the Operator's go of 20:41:38Z.
+- The rounds agree with the table:
+  - T3 Code 0.1.0-preview.20261019.2 on `f1040cafc798ecf0` from the round at 19:25:24Z;
+  - 0.1.0-lazurio.4 on the personal VM from the round at 21:26:09Z;
+  - 0.1.0-lazurio.4 on all three work VMs from the round at 21:56:20Z to the end.
+- **In the pilot Organization, outside the stage's Machines:** its Conglomerate Host got Machines
+  v0.12.182.
+  - It was applied 21:01:37–21:06:45Z, and came out healthy (33 of 33 checks).
+  - For this host only, the Operator waived the rollout runbook's rule that a running canary
+    closes first.
+  - The host is not on the path of the stage's rounds, which read the work VMs through their own
+    host. People reach the Environments without it.
+
+### Per Machine in the second stage (the record)
+
+| Machine | Kind | `active` at end | `recover` start / end | Launchpad `NRestarts` start / end | Launchpad health at end | Module apps active start / end |
+|---|---|---|---|---|---|---|
+| `146fb920b36d943c` | work | 0.1.10-rc.1 | healthy / healthy | 0 / 0 | 0.1.10-rc.1 | 3 / 3 (failed 0) |
+| `482d0d709bcc19df` | personal | 0.1.10-rc.1 | healthy / healthy | 0 / 0 | 0.1.10-rc.1 | 2 / 2 (failed 0) |
+| `a2a75fc428e8dbad` | work | 0.1.10-rc.1 | healthy / healthy | 0 / 0 | 0.1.10-rc.1 | 0 / 0 (failed 0) |
+| `f1040cafc798ecf0` | work | 0.1.10-rc.1 | healthy / healthy | 0 / 0 | 0.1.10-rc.1 | 3 / 3 (failed 0) |
+
+"Module apps active" counts the module app units (`lazurio-app-*`) running at the start and at
+the end of the stage. No module app failed in any round.
+
+## Result
+
+Every Machine ran the candidate for the whole second stage:
+- `lazurio recover --json` healthy at the start, at the end and in every round;
+- no Recovery mode, no automatic Launchpad restart and no failed module app;
+- the G.3 real work inside the stage: a Folder refresh and a deliberate Launchpad restart on two
+  work VMs, and modules opened through the Launchpad.
+
+The record passes `scripts/qualify/check-canary.ts`:
+
+```text
+The canary of v0.1.10-rc.1 passed: 8 hours on every listed Machine.
+```
+
+The pilot Organization's release reviewer adds it in
+[#528](https://github.com/Lazurio/LazurioPlatform/pull/528). The release job runs the check again
+with `--provenance` on the final tag.
+
+## The final tag
+
+`main` has moved since the candidate, so `v0.1.10` is not a commit of `main`. It is a commit
+whose parent is this pull request's merge commit and whose tree is exactly `v0.1.10-rc.1`'s tree
+plus this record and this evidence, taken from that merge commit, as for
+[`v0.1.9`](release-v0.1.9.md) and [`v0.1.8`](release-v0.1.8.md). Release's job `qualified`
+checks three things on it:
+- the diff from the candidate is only under `qualification/` and `docs/evidence/`;
+- `check-canary.ts --provenance`;
+- the qualification artifact above.
