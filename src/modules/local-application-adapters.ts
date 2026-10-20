@@ -67,6 +67,10 @@ export function localApplicationAdapters(input: {
   // `RequiredSlotRefused` otherwise. None: nothing is provided (a
   // Personalspace module, a composition without GitHub).
   provideData?: (moduleDirectory: string) => Promise<void>;
+  // The Platform's static server of built apps (decision F58): its script
+  // and an empty Bun configuration, written beside the build cache. None:
+  // no app starts built here.
+  staticServer?: () => Promise<Readonly<{ script: string; config: string }>>;
 }): Adapters {
   // The one environment of every process started for a module here: the
   // preparation's install and scripts, the toolchain probe and the
@@ -223,6 +227,60 @@ export function localApplicationAdapters(input: {
           : {}),
       };
     },
+    // The static server as the app's one process (decision F58): the
+    // operator's Bun runs the Platform's script, never a script or a Bun
+    // configuration of the app, on the app's declared listener, with the
+    // started application's environment in production mode and none of the
+    // app's secrets or siblings (a static app declares none).
+    ...(input.staticServer === undefined
+      ? {}
+      : {
+          async prepareStaticLaunch(
+            plan: Parameters<NonNullable<Adapters["prepareStaticLaunch"]>>[0],
+            cwd: string,
+            serve: Parameters<NonNullable<Adapters["prepareStaticLaunch"]>>[2],
+          ) {
+            const module = await authorize(
+              {
+                company: plan.runtime.company,
+                module: plan.runtime.module,
+                package: plan.package,
+              },
+              "start",
+            );
+            if (dirname(join(module.moduleDirectory, plan.package)) !== cwd)
+              throw new Error("Application scope changed");
+            const built = plan.runtime.static;
+            if (built === null || input.staticServer === undefined)
+              throw new Error("Static application required");
+            const files = await input.staticServer();
+            return {
+              executable: selected.executable,
+              cwd,
+              args: [
+                "--no-env-file",
+                `--config=${files.config}`,
+                files.script,
+                "--root",
+                serve.root,
+                "--fallback",
+                built.fallback,
+                ...(serve.previous === undefined
+                  ? []
+                  : ["--previous", serve.previous]),
+              ],
+              env: {
+                ...applicationEnvironment({
+                  base: selected.env,
+                  plan,
+                  cwd,
+                  organizationRoot: input.organizationRoot,
+                }),
+                NODE_ENV: "production",
+              },
+            };
+          },
+        }),
     async coordinateMutation(selection, action, intent) {
       if (selection === null) {
         await owners.drain();

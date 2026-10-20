@@ -1,6 +1,6 @@
 import { constants } from "node:fs";
 import { access, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import {
   contentLockDirectory,
   processGitHubHost,
@@ -31,19 +31,44 @@ import {
 } from "../organizations/personalspace";
 import { checkoutRefusal } from "../providers/checkout-custody";
 import { toolsEnvironmentOf } from "../tools/overview";
-import { runTool } from "../tools/status";
+import { resolveOnPath, runTool } from "../tools/status";
 import { resolveInstallBase } from "../update/base";
 import { processVaultHost } from "../vault/host";
 import { createApplicationCoordination } from "./application-coordination";
+import { buildEnvironment } from "./application-environment";
 import {
   type ApplicationRunner,
   type RunnerKind,
   selectApplicationRunnerKind,
 } from "./application-runner";
-import { type DataMountHost, provideDataMounts } from "./data-mounts";
+import {
+  type BuildJob,
+  type BuildOutcome,
+  type BuildRunner,
+  buildUnderWay,
+  createBuilds,
+} from "./built/builds";
+import { gitCheckoutReader, type ReadCheckout } from "./built/checkout";
+import {
+  appBuildDirectory,
+  type BuildInput,
+  type BuildRecord,
+  buildCacheRoot,
+  buildKeyOf,
+  buildLockFile,
+  openBuildStore,
+  staticServerFiles,
+  staticServerServes,
+} from "./built/store";
+import {
+  type DataMountHost,
+  moduleDataMounts,
+  provideDataMounts,
+} from "./data-mounts";
 import { createApplicationLifecycle } from "./lifecycle";
 import { localApplicationAdapters } from "./local-application-adapters";
 import { preparationRefusal } from "./preparation-refusal";
+import { readModuleApplication } from "./read-application";
 import {
   type RuntimeSecretFinding,
   type RuntimeSecretSource,
@@ -78,10 +103,17 @@ import {
 // holds (#186): the holder decision is asked with the catalog, at the
 // selection and again by the lifecycle's own authorization.
 
-export type ModuleVerb = "start" | "prepare" | "stop" | "status" | "logs";
+export type ModuleVerb =
+  | "start"
+  | "prepare"
+  | "build"
+  | "stop"
+  | "status"
+  | "logs";
 export const moduleVerbs: readonly ModuleVerb[] = [
   "start",
   "prepare",
+  "build",
   "stop",
   "status",
   "logs",
@@ -124,6 +156,18 @@ export type ModuleHost = Readonly<{
    * (launchpad-parity B7): this Environment's gh and git and the install
    * base's content locks. None: no module provides its data here. */
   dataMounts?: DataMountHost | undefined;
+  /** Where static apps are built and kept (decision F58): the account's
+   * build cache and build lock, and its git, which reads the checkouts a
+   * build is keyed by. None: every app runs its development script. */
+  builds?:
+    | Readonly<{
+        cacheRoot: string;
+        lockFile: string;
+        readCheckout: ReadCheckout;
+        /** Test seam: the build process. */
+        runBuild?: BuildRunner | undefined;
+      }>
+    | undefined;
 }>;
 
 /** The standard Bun of the operator's account (B2): one rule for the CLI, the
@@ -199,6 +243,18 @@ export function processModuleHost(
             lockDirectory: contentLockDirectory(base),
           }),
         }),
+    // The account's build cache and its git (decision F58).
+    ...(home === undefined
+      ? {}
+      : {
+          builds: Object.freeze({
+            cacheRoot: buildCacheRoot(home, env),
+            lockFile: buildLockFile(home, env),
+            readCheckout: gitCheckoutReader(() =>
+              resolveOnPath("git", tools.path, platform),
+            ),
+          }),
+        }),
     // The vault of the Environment this process serves, read anew at each
     // start from its handover and Folder (decision F43).
     runtimeSecrets: (folder: string) =>
@@ -246,6 +302,42 @@ export type ModuleBlocked = Readonly<{
    * app cannot start without, by its name, and why it has no value. Never
    * a value. */
   secrets?: readonly RuntimeSecretFinding[];
+  /** `build-failed` and the other refusals of a static app's build
+   * (decision F58): its builds, with the failure and its log. */
+  build?: ModuleBuild;
+}>;
+
+/** A static app's builds (decision F58), in every answer about one. */
+export type ModuleBuild = Readonly<{
+  /** What the running app was started as: its built output or its
+   * development script (also one started before builds existed); null
+   * while it does not run. */
+  mode: "built" | "dev" | null;
+  /** The build the running app serves. */
+  served: Readonly<{ key: string; commit: string }> | null;
+  /** The newest build there is. */
+  current: Readonly<{
+    key: string;
+    commit: string;
+    at: string;
+    dirty: boolean;
+  }> | null;
+  /** A build under way, of this commit. */
+  building: Readonly<{ commit: string; at: string }> | null;
+  /** The last build that failed, newer than the current one; its log in
+   * the account's build cache (`~/…`). */
+  failure: Readonly<{
+    commit: string;
+    at: string;
+    reason: string;
+    log: string;
+  }> | null;
+  /** The module's checkout now (the build verb only). */
+  head?: Readonly<{
+    commit: string;
+    branch: string | null;
+    dirty: boolean;
+  }>;
 }>;
 
 export type ModuleState =
@@ -283,6 +375,8 @@ export type ModuleAnswer = Readonly<{
   /** A start: the optional runtime secrets the app started without, and
    * why (decision F46, root decision 0196); a note, not a refusal. */
   secretsNotProvided?: readonly RuntimeSecretFinding[];
+  /** A static app (decision F58): what it serves and its builds. */
+  build?: ModuleBuild;
 }>;
 
 export type ModuleLogs = Readonly<{
@@ -305,6 +399,9 @@ export type ModuleOptions = Readonly<{
   app?: string | undefined;
   /** `logs`: how many of the newest lines. */
   lines?: number | undefined;
+  /** `start` of a static app: its development script instead of its build
+   * (decision F58), explicitly; it runs so until it is stopped. */
+  dev?: boolean | undefined;
 }>;
 
 export const moduleLogLinesDefault = 100;
@@ -780,14 +877,22 @@ export function createModuleOperations(input: {
     });
   }
 
-  function lifecycleFor(kind: RunnerKind, target: Target) {
-    const { organizationDirectory } = target;
-    const runner = host.createRunner(kind, organizationDirectory);
+  // The closed environment every process of a module starts from: the
+  // operator's HOME, the started apps' PATH and TMPDIR (decision F26).
+  function operatorEnvironment(): Record<string, string> {
     const environment: Record<string, string> = {
       HOME: host.home as string,
       PATH: host.path,
     };
     if (host.tmpdir) environment.TMPDIR = host.tmpdir;
+    return environment;
+  }
+
+  function lifecycleFor(kind: RunnerKind, target: Target) {
+    const { organizationDirectory } = target;
+    const runner = host.createRunner(kind, organizationDirectory);
+    const environment = operatorEnvironment();
+    const cacheRoot = host.builds?.cacheRoot;
     return createApplicationLifecycle(
       localApplicationAdapters({
         organizationDirectory,
@@ -805,6 +910,9 @@ export function createModuleOperations(input: {
           : { organizationRoot: organizationDirectory }),
         externalOrigin: (module) => launchOrigin(folder, module),
         secretSource: host.runtimeSecrets?.(folder),
+        ...(cacheRoot === undefined
+          ? {}
+          : { staticServer: () => staticServerFiles(cacheRoot) }),
         ...(target.personalspace || host.dataMounts === undefined
           ? {}
           : {
@@ -872,6 +980,360 @@ export function createModuleOperations(input: {
     }
   }
 
+  // Static apps (decision F58, root decision 0195 point 19): an app that
+  // declares `build_output` starts from `main` as its build of the
+  // checkout's commit, kept outside the checkout and served by the
+  // Platform's static server. Nothing is built where this host keeps no
+  // builds: such an app runs its development script, as before.
+  const builder =
+    host.builds === undefined || host.home === undefined
+      ? undefined
+      : createBuilds({
+          lockFile: host.builds.lockFile,
+          runner: () => host.runnerKind(),
+          runtimeDirectory: host.runtimeDirectory,
+          executable: host.bunExecutable ?? join(host.home, ".local/bin/bun"),
+          servable: async (root, path, fallback) =>
+            staticServerServes({
+              executable:
+                host.bunExecutable ??
+                join(host.home as string, ".local/bin/bun"),
+              files: await staticServerFiles(
+                (host.builds as NonNullable<ModuleHost["builds"]>).cacheRoot,
+              ),
+              root,
+              path,
+              fallback,
+            }),
+          runBuild: host.builds.runBuild,
+        });
+
+  /** The target's app when it is a static app this host builds. */
+  async function staticPlan(target: Target): Promise<Plan | null> {
+    if (builder === undefined) return null;
+    try {
+      const plan = await readModuleApplication(
+        target.moduleDirectory,
+        target.app,
+      );
+      return plan.kind === "declared-runtime-plan" &&
+        plan.runtime.static !== null
+        ? plan
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  const storeOf = (target: Target, plan: Plan) =>
+    openBuildStore(
+      appBuildDirectory(
+        (host.builds as NonNullable<ModuleHost["builds"]>).cacheRoot,
+        {
+          organization: target.organization,
+          module: target.module,
+          runtimeId: plan.runtime.id,
+          app: target.app,
+          applicationDirectory: dirname(
+            join(target.moduleDirectory, target.app),
+          ),
+        },
+      ),
+    );
+
+  // The other checkouts a build reads, by their Organization-relative path:
+  // the module's own data mounts and the slots its app requires. Null when
+  // the Organization manifest cannot be read.
+  async function buildInputs(
+    target: Target,
+    plan: Plan,
+  ): Promise<BuildInput[] | null> {
+    if (target.personalspace) return [];
+    const read = (host.builds as NonNullable<ModuleHost["builds"]>)
+      .readCheckout;
+    const paths = new Set<string>();
+    try {
+      for (const mount of await moduleDataMounts(
+        target.organizationDirectory,
+        target.moduleDirectory,
+      ))
+        if (mount !== null) paths.add(mount.path);
+    } catch {
+      return null;
+    }
+    const slots = plan.runtime.optional.required_module_slots;
+    if (Array.isArray(slots)) for (const slot of slots) paths.add(slot);
+    const inputs: BuildInput[] = [];
+    for (const path of [...paths].sort()) {
+      const head = await read(join(target.organizationDirectory, path), {
+        status: false,
+      });
+      inputs.push(Object.freeze({ path, commit: head?.commit ?? null }));
+    }
+    return inputs;
+  }
+
+  // What one build of the target's app reads, now.
+  async function buildContext(target: Target) {
+    const plan = await staticPlan(target);
+    if (plan === null || plan.runtime.static === null)
+      return Object.freeze({ refused: "not-static" });
+    const head = await (
+      host.builds as NonNullable<ModuleHost["builds"]>
+    ).readCheckout(target.moduleDirectory);
+    if (head === null) return Object.freeze({ refused: "checkout-unreadable" });
+    const inputs = await buildInputs(target, plan);
+    if (inputs === null)
+      return Object.freeze({ refused: "organization-manifest-unreadable" });
+    const cwd = dirname(join(target.moduleDirectory, target.app));
+    const entrypoint = plan.listeners.find(
+      (listener) => listener.role === "entrypoint",
+    );
+    return Object.freeze({
+      head,
+      inputs: Object.freeze(inputs),
+      key: buildKeyOf(head.commit, inputs),
+      cwd,
+      script: plan.runtime.static.build_script,
+      output: plan.runtime.static.output,
+      fallback: plan.runtime.static.fallback,
+      health: entrypoint?.health.kind === "http" ? entrypoint.health.path : "/",
+      env: buildEnvironment({
+        base: operatorEnvironment(),
+        plan,
+        cwd,
+        organizationRoot: target.personalspace
+          ? undefined
+          : target.organizationDirectory,
+      }),
+    });
+  }
+
+  function jobOf(prepared: Prepared, plan: Plan, explicit = false): BuildJob {
+    const { target, runner: kind, selection } = prepared;
+    return Object.freeze({
+      directory: storeOf(target, plan).directory,
+      names: Object.freeze({
+        organization: target.organization,
+        module: target.module,
+        app: target.app,
+      }),
+      read: () => buildContext(target),
+      // The app's start-time step, as its start would run it.
+      prepare: async () => {
+        const prepared = await operate("start", kind, target, (lifecycle) =>
+          lifecycle.prepareBuild(selection),
+        );
+        if (prepared.kind === "build-prepared") return null;
+        return "reason" in prepared && typeof prepared.reason === "string"
+          ? prepared.reason
+          : prepared.kind;
+      },
+      explicit,
+    });
+  }
+
+  // `~/…` for a path in the account's home: answers never carry the
+  // account's absolute paths.
+  const shownPath = (path: string) =>
+    host.home !== undefined && path.startsWith(`${host.home}/`)
+      ? `~${path.slice(host.home.length)}`
+      : path;
+
+  // The app's builds as an answer shows them.
+  async function buildInfo(
+    target: Target,
+    plan: Plan,
+    running: boolean,
+  ): Promise<ModuleBuild> {
+    const store = storeOf(target, plan);
+    const [state, served] = await Promise.all([store.state(), store.served()]);
+    const failure = state?.failure ?? null;
+    return Object.freeze({
+      mode: running ? (served?.mode ?? "dev") : null,
+      served:
+        running &&
+        served?.mode === "built" &&
+        served.key !== null &&
+        served.commit !== null
+          ? Object.freeze({ key: served.key, commit: served.commit })
+          : null,
+      current:
+        state?.current == null
+          ? null
+          : Object.freeze({
+              key: state.current.key,
+              commit: state.current.commit,
+              at: state.current.at,
+              dirty: state.current.dirty,
+            }),
+      building:
+        state?.building != null && buildUnderWay(state)
+          ? Object.freeze({
+              commit: state.building.commit,
+              at: state.building.at,
+            })
+          : null,
+      failure:
+        failure === null
+          ? null
+          : Object.freeze({
+              commit: failure.commit,
+              at: failure.at,
+              reason: failure.reason,
+              log: shownPath(store.logFile(failure.key)),
+            }),
+    });
+  }
+
+  // A build that did not give an output to serve, as a refusal with the
+  // app's builds: the build's own reason (`build-script-failed`, …, or the
+  // reason of its start-time step).
+  async function buildRefusal(
+    operation: ModuleOperation,
+    target: Target,
+    plan: Plan,
+    outcome: Exclude<BuildOutcome, { kind: "built" }>,
+  ): Promise<ModuleBlocked> {
+    return blocked(
+      operation,
+      outcome.kind === "failed"
+        ? outcome.reason
+        : outcome.kind === "busy"
+          ? "build-busy"
+          : "closing",
+      {
+        organization: target.organization,
+        module: target.module,
+        app: target.app,
+        build: await buildInfo(target, plan, false),
+      },
+    );
+  }
+
+  // The output a built start serves: the newest build there is, and the
+  // output of the build served before it, for the assets of pages opened
+  // before (decision F58).
+  async function servedOutputs(
+    store: ReturnType<typeof storeOf>,
+    root: Readonly<{ record: BuildRecord; output: string }>,
+  ) {
+    const [state, served] = await Promise.all([store.state(), store.served()]);
+    const earlier =
+      served?.mode === "built" &&
+      served.key !== null &&
+      served.key !== root.record.key
+        ? served.key
+        : state?.previous?.key !== root.record.key
+          ? (state?.previous?.key ?? null)
+          : null;
+    const previous = earlier === null ? null : await store.output(earlier);
+    return Object.freeze({
+      root: root.output,
+      ...(previous === null ? {} : { previous }),
+    });
+  }
+
+  // Swap a running built app onto a newer build (decision F58): stop it and
+  // start the new build's static server, an interruption of milliseconds.
+  // Also an app that runs its development script from before builds
+  // existed; never one started explicitly as its development version.
+  async function swap(
+    prepared: Prepared,
+    plan: Plan,
+    built: Extract<BuildOutcome, { kind: "built" }>,
+  ) {
+    const { target, runner: kind, selection } = prepared;
+    const store = storeOf(target, plan);
+    await operate("start", kind, target, async (lifecycle) => {
+      const status = await lifecycle.status(selection);
+      if (status.kind !== "status" || status.state !== "running") return;
+      const served = await store.served();
+      if (served?.mode === "dev") return;
+      if (
+        served?.mode === "built" &&
+        served.key === built.record.key &&
+        !("declarationChanged" in status)
+      )
+        return;
+      const outputs = await servedOutputs(store, built);
+      if ((await lifecycle.stop(selection)).kind !== "group-stopped") return;
+      const started = await lifecycle.start(selection, outputs);
+      if (started.kind === "started")
+        await store.writeServed({
+          mode: "built",
+          key: built.record.key,
+          commit: built.record.commit,
+        });
+    });
+  }
+
+  // Build the checkout in the background and swap the running app onto it
+  // when it is built: after a start that served an older build, or found
+  // the app running otherwise. Only an owner that outlives the answer (the
+  // Launchpad) builds in the background.
+  function refresh(prepared: Prepared, plan: Plan) {
+    if (builder === undefined || owner !== "launchpad") return;
+    void builder
+      .enqueue(jobOf(prepared, plan), "background")
+      .then((outcome) =>
+        outcome.kind === "built" ? swap(prepared, plan, outcome) : undefined,
+      )
+      .catch(() => undefined);
+  }
+
+  // A built start: the newest build there is now, built first when there
+  // is none (the person waits for it; a long one is answered
+  // `build-pending`), and a build of the checkout in the background when it
+  // moved past that one.
+  async function startBuilt(
+    prepared: Prepared,
+    plan: Plan,
+  ): Promise<ModuleAnswer | ModuleBlocked> {
+    const { target, runner: kind, selection } = prepared;
+    const store = storeOf(target, plan);
+    const state = await store.state();
+    let record = state?.current ?? null;
+    let output = record === null ? null : await store.output(record.key);
+    if (record === null || output === null) {
+      const outcome = await (builder as NonNullable<typeof builder>).enqueue(
+        jobOf(prepared, plan),
+        "foreground",
+      );
+      if (outcome.kind !== "built")
+        return buildRefusal("start", target, plan, outcome);
+      record = outcome.record;
+      output = outcome.output;
+    }
+    const built = Object.freeze({ record, output });
+    const outputs = await servedOutputs(store, built);
+    return operate("start", kind, target, async (lifecycle) => {
+      const started = await lifecycle.start(selection, outputs);
+      if (started.kind !== "started" && started.kind !== "already-managed")
+        return blocked("start", started.kind, {
+          organization: target.organization,
+          module: target.module,
+          app: target.app,
+        });
+      if (started.kind === "started")
+        await store.writeServed({
+          mode: "built",
+          key: built.record.key,
+          commit: built.record.commit,
+        });
+      const answer = await observe(
+        "start",
+        started.kind,
+        kind,
+        target,
+        selection,
+        lifecycle,
+      );
+      refresh(prepared, plan);
+      return answer;
+    });
+  }
+
   // Resolution and the owner's rules shared by every verb.
   async function prepare(
     operation: ModuleVerb,
@@ -900,7 +1362,9 @@ export function createModuleOperations(input: {
     // else can see them, and their output is not kept (macOS line, P14).
     if (kind === "session" && operation === "logs")
       return blocked(operation, "logs-unavailable", where);
-    if (kind === "session" && owner === "cli")
+    // A build needs no runner: the CLI builds also beside a session's apps
+    // (the Launchpad swaps them at its next sweep, decision F58).
+    if (kind === "session" && owner === "cli" && operation !== "build")
       return blocked(operation, "launchpad-required", where);
     return Object.freeze({
       target,
@@ -951,17 +1415,33 @@ export function createModuleOperations(input: {
       app: target.app,
     };
     const status = await lifecycle.status(selection);
+    // A static app's builds (decision F58); a start still building when the
+    // answer was due is `build-pending`.
+    const plan = await staticPlan(target);
+    const build =
+      plan === null
+        ? undefined
+        : await buildInfo(
+            target,
+            plan,
+            status.kind === "status" && status.state !== "ended",
+          );
+    const pending =
+      outcome === "start-pending" && build?.building != null
+        ? "build-pending"
+        : outcome;
     const base = {
       kind: "module" as const,
       operation,
       ...where,
       runner: kind,
       survivesLaunchpadRestart: kind === "systemd-user",
+      ...(build === undefined ? {} : { build }),
     };
     if (status.kind === "not-managed")
       return Object.freeze({
         ...base,
-        outcome: outcome ?? status.kind,
+        outcome: pending ?? status.kind,
         state: "stopped" as const,
         healthy: false,
         service: null,
@@ -978,7 +1458,7 @@ export function createModuleOperations(input: {
     const healthy = status.observedHealthy;
     return Object.freeze({
       ...base,
-      outcome: outcome ?? status.kind,
+      outcome: pending ?? status.kind,
       state: status.state,
       healthy,
       service,
@@ -990,7 +1470,7 @@ export function createModuleOperations(input: {
 
   // The toolchain from the standard path, checked before any effect.
   async function toolchainMissing(
-    operation: "start" | "prepare",
+    operation: "start" | "prepare" | "build",
     target: Target,
   ): Promise<ModuleBlocked | null> {
     const bun =
@@ -1016,11 +1496,11 @@ export function createModuleOperations(input: {
   // Start the prepared app unless it runs: the toolchain, then the
   // lifecycle's start, whose start-time step installs from the lockfile, runs
   // the declared check and prepares when it fails (decision F34).
-  async function startOwned({
-    target,
-    runner: kind,
-    selection,
-  }: Prepared): Promise<ModuleAnswer | ModuleBlocked> {
+  async function startOwned(
+    prepared: Prepared,
+    options: Readonly<{ dev?: boolean | undefined }> = {},
+  ): Promise<ModuleAnswer | ModuleBlocked> {
+    const { target, runner: kind, selection } = prepared;
     const missing = await toolchainMissing("start", target);
     if (missing !== null) return missing;
     // Whether the app is told a hosted origin must be known before any
@@ -1031,8 +1511,36 @@ export function createModuleOperations(input: {
         module: target.module,
         app: target.app,
       });
+    // A static app starts as its build, unless its development version is
+    // asked for explicitly (decision F58).
+    const plan = await staticPlan(target);
+    if (plan !== null && options.dev !== true)
+      return startBuilt(prepared, plan);
     return operate("start", kind, target, async (lifecycle) => {
+      // The development version replaces a built run explicitly.
+      if (plan !== null) {
+        const store = storeOf(target, plan);
+        const status = await lifecycle.status(selection);
+        if (
+          status.kind === "status" &&
+          (await store.served())?.mode === "built"
+        ) {
+          const stopped = await lifecycle.stop(selection);
+          if (stopped.kind !== "group-stopped")
+            return blocked("start", stopped.kind, {
+              organization: target.organization,
+              module: target.module,
+              app: target.app,
+            });
+        }
+      }
       const started = await lifecycle.start(selection);
+      if (plan !== null && started.kind === "started")
+        await storeOf(target, plan).writeServed({
+          mode: "dev",
+          key: null,
+          commit: null,
+        });
       if (started.kind !== "started" && started.kind !== "already-managed")
         return blocked("start", started.kind, {
           organization: target.organization,
@@ -1123,7 +1631,7 @@ export function createModuleOperations(input: {
   // module not resolved by then is never operated on: `operation-failed`,
   // nothing changed. Without a deadline (the CLI) the operation's own result.
   async function answerWithin(
-    operation: "start" | "prepare",
+    operation: "start" | "prepare" | "build",
     name: string,
     options: ModuleOptions,
     run: (prepared: Prepared) => Promise<ModuleAnswer | ModuleBlocked>,
@@ -1190,6 +1698,65 @@ export function createModuleOperations(input: {
     );
   }
 
+  // Build a static app's checkout now (decision F58), also a commit whose
+  // last build failed or, when the checkout has uncommitted changes, one
+  // built already; then swap a running built app onto it.
+  async function buildOwned(
+    prepared: Prepared,
+  ): Promise<ModuleAnswer | ModuleBlocked> {
+    const { target, runner: kind, selection } = prepared;
+    const where = {
+      organization: target.organization,
+      module: target.module,
+      app: target.app,
+    };
+    if (builder === undefined)
+      return blocked("build", "builds-unavailable", where);
+    const plan = await staticPlan(target);
+    if (plan === null) return blocked("build", "not-static", where);
+    const missing = await toolchainMissing("build", target);
+    if (missing !== null) return missing;
+    const outcome = await builder.enqueue(
+      jobOf(prepared, plan, true),
+      "foreground",
+    );
+    if (outcome.kind !== "built")
+      return buildRefusal("build", target, plan, outcome);
+    // The CLI operates only apps the service manager owns; a session's
+    // apps are the Launchpad's, which swaps them at its next sweep.
+    if (owner === "launchpad" || kind === "systemd-user")
+      await swap(prepared, plan, outcome);
+    const head = await (
+      host.builds as NonNullable<ModuleHost["builds"]>
+    ).readCheckout(target.moduleDirectory);
+    const answer = await operate("status", kind, target, (lifecycle) =>
+      observe(
+        "build",
+        outcome.already ? "current" : "built",
+        kind,
+        target,
+        selection,
+        lifecycle,
+        "status",
+      ),
+    );
+    return answer.kind === "module" &&
+      answer.build !== undefined &&
+      head !== null
+      ? Object.freeze({
+          ...answer,
+          build: Object.freeze({
+            ...answer.build,
+            head: Object.freeze({
+              commit: head.commit,
+              branch: head.branch,
+              dirty: head.dirty,
+            }),
+          }),
+        })
+      : answer;
+  }
+
   // Seams of later slices, deliberately not built here:
   // - B3 `open` (start, wait for health, the link) composes the start and
   //   the same `observe`; until then `ensure` starts, and a start installs
@@ -1203,7 +1770,13 @@ export function createModuleOperations(input: {
       options: ModuleOptions = {},
       answer: AnswerOptions = {},
     ): Promise<ModuleAnswer | ModuleBlocked> {
-      return answerWithin("start", name, options, startOwned, answer);
+      return answerWithin(
+        "start",
+        name,
+        options,
+        (prepared) => startOwned(prepared, { dev: options.dev }),
+        answer,
+      );
     },
     /** Prepare the module's app (its default, or `app`) explicitly, without
      * starting it (decision F34). */
@@ -1213,6 +1786,15 @@ export function createModuleOperations(input: {
       answer: AnswerOptions = {},
     ): Promise<ModuleAnswer | ModuleBlocked> {
       return answerWithin("prepare", name, options, prepareOwned, answer);
+    },
+    /** Build a static app's checkout now and swap a running built app onto
+     * it (decision F58); `not-static` for an app without `build_output`. */
+    async build(
+      name: string,
+      options: ModuleOptions = {},
+      answer: AnswerOptions = {},
+    ): Promise<ModuleAnswer | ModuleBlocked> {
+      return answerWithin("build", name, options, buildOwned, answer);
     },
     /** The gateway's `ensure` (launchpad-parity B5): make the default app of
      * the module with this exact lazurio.module.v1 id run. Healthy now: the
@@ -1382,6 +1964,8 @@ export function createModuleOperations(input: {
      * keeps running. */
     async close() {
       closing = true;
+      // A build under way ends with its owner; its output is not installed.
+      await builder?.close();
       let complete = true;
       for (const [directory, lifecycle] of held) {
         try {
@@ -1400,6 +1984,10 @@ export function createModuleOperations(input: {
 }
 
 type Selection = Readonly<{ company: string; module: string; package: string }>;
+type Plan = Extract<
+  Awaited<ReturnType<typeof readModuleApplication>>,
+  { kind: "declared-runtime-plan" }
+>;
 type Prepared = Readonly<{
   target: Target;
   runner: RunnerKind;

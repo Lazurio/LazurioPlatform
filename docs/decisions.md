@@ -15672,3 +15672,174 @@ them to this task) stay, because they serve the agents' windows nobody watches.
 - Tests: `tests/environment-browser-view.test.ts` (the hub against a scripted DevTools peer)
   and `tests/environment-browser-sleep.test.ts` (the pure rules, the view's message and
   `lazurio browser window`).
+
+## F58 — A static app starts from `main` as its build: each commit built once outside the checkout, served by the Platform, rebuilt after a pull
+
+**Decided by Matěj on 2026-10-20 (root decision 0195, addendum of 2026-10-20, point
+19; plan DEV-6656); shaped and implemented here.** Modules stay in their primary
+checkout on `main`. Opening an app from `main` gives the optimized build of the
+checkout's current commit; after a pull (`lazurio update`, an agent's or a person's `git
+pull`) the Launchpad builds the new commit in the background and swaps, so the next
+open again gets a build. (F57 is the tab-sleep decision of the same plan, written
+beside this one.)
+
+**Why.** Every app runs its development script today (`bun --no-env-file run
+<dev_script>`, `NODE_ENV=development`, `local-application-adapters.ts`), whatever
+`build_script` it declares. A survey of 136 apps in 17 Organizations found 41 Astro apps,
+all static (no SSR), and 7 read-only Vite SPAs: everything they serve is files `astro
+build` / `vite build` writes. Measured on the reference Environment: an Astro module as
+`astro dev` holds 373 MiB and needs 4.9 s to report healthy; `astro build` takes 2.05 s
+(464 MB peak) and writes 1.5 MB; that output served by a ten-line Bun server holds 2 MiB
+(cgroup) / 8 MiB (PSS) and is healthy in 13 ms. `astro preview` still holds 169 MiB.
+
+1. **The declaration.** An app with static output declares, in `lazurio.runtime`, its
+   existing `build_script` and two new members: `build_output`, a directory of its
+   package written by the build (`dist`), and optionally `static_fallback`: `"404"`
+   (default) answers an unknown path with the build's `404.html` and status 404 when it
+   has one, `"spa"` answers an unknown path without a file extension with the build's
+   `index.html` (a client-routed Vite app). `build_output` needs `build_script` (one of
+   the package's scripts), exactly one listener (the HTTP entrypoint with an HTTP
+   health path) and no runtime `secrets`/`optional_secrets`: nothing of a static app
+   runs on the server, and a secret built into public files would be published. An app
+   without `build_output` runs its development script, as before.
+2. **The build key** is the module checkout's `HEAD` commit, read with git. **Changed
+   from the brief:** a static build reads more than its module: the repository database
+   the Organization declares below the module (`workspace/<module>/db`, its own Git
+   checkout, pulled on its own) and the sibling slots it requires
+   (`required_module_slots`, root decision 0176). Keyed by the module commit alone, a
+   pull of the data would never rebuild and the app would serve stale data. The key is
+   therefore the module commit when the app reads nothing else, and otherwise the
+   SHA-256 of the module commit and each of those checkouts' commits (absent counts).
+   A checkout with uncommitted changes is built as it is under its `HEAD` key and shown
+   as `dirty`; it is not rebuilt for each edit (a primary checkout is not where one
+   edits), only by an explicit build.
+3. **Where builds live:** outside the checkout, in the account's cache:
+   `${XDG_CACHE_HOME:-~/.cache}/lazurio/builds/<organization>/<module>/<app id>-<digest
+   of the app's directory>/` (the same rule on macOS, as for the Platform's other XDG
+   directories), holding `<key>/` (the output, never changed once there), `logs/<key>.log`,
+   `build.json` (current, previous, the build under way with its process, the last
+   failure) and `served.json` (what the app's last start chose: `built` with its key, or
+   `dev`). The current and previous builds are kept, and the one the running process
+   serves; older outputs and logs are removed after every build. A lost cache costs one
+   build.
+4. **A build** runs one at a time per Environment: a kernel `flock` on
+   `${XDG_STATE_HOME:-~/.local/state}/lazurio/builds.lock` across processes (CLI and
+   Launchpad), and one queue in the process in which a build somebody waits for goes
+   before background ones and a second request for the same app joins the first. It
+   reads the declaration and checkouts, runs the app's start-time step (F25/F34: the
+   frozen install, the check, the `prepare_script` when the check fails) inside the
+   lifecycle's exclusion like a start, then the build script **outside** that exclusion,
+   so that the Organization's other apps start and stop meanwhile:
+   `bun --no-env-file run <build_script>` in the app's package, `NODE_ENV=production`,
+   the closed module environment and the app's identity but nothing of where it is
+   served (no listener, origin, sibling or secret), so an output is the same files
+   wherever it is served. On Linux under the user manager it is its own transient unit
+   (`systemd-run --user --wait --pipe --collect`, `--nice=10`, `CPUWeight=20`,
+   `IOWeight=20`, `MemoryMax=2G`, `RuntimeMaxSec=600`, `OOMScoreAdjust=400`, the
+   manager's own environment unset), so a growing build is the first thing the OOM
+   killer takes, before modules (220) and the browser (250/300); elsewhere a child in its
+   own process group at nice 10, ended at the deadline. Its output must then answer the
+   declared health path through the static server's own resolution (`--check`), the
+   checkouts are read again (a pull meanwhile builds the new commit instead, at most
+   three times), and only then is the output copied in and renamed into `<key>/` in one
+   step.
+5. **Serving.** The Platform's static server (`src/modules/built/static-server.ts`) is
+   the app's one process, started by the app's runner like any app (a transient user
+   unit on Linux, the session on macOS) with the started application's environment (F26)
+   in production mode: it listens on `LAZURIO_RUNTIME_LISTENER_<ID>_HOST/PORT`, answers
+   GET/HEAD from the build directory only (no link out of it, no listing), resolves
+   `<path>`, `<path>.html`, `<path>/index.html` (a directory without its slash
+   redirects), keeps `/_astro/` and `/assets/` a year (`immutable`) and revalidates HTML
+   (`no-cache`, ETag), serves a missing asset from the previous build (a page opened
+   before a swap) and exits 0 on SIGTERM. **How it ships:** its text is embedded in the
+   Platform and written once per version beside the cache, run by the operator's Bun
+   with an empty Bun configuration (an app's `bunfig.toml` never configures it).
+   Measured idle on macOS ARM64: this script 15 MiB RSS (healthy in 40 ms); the same
+   server as a `lazurio` subcommand, which loads the whole compiled Platform, 55–70 MiB
+   RSS (137 ms). The script it is; on Linux its PSS stays near the 8 MiB measured.
+6. **Open, start and the gateway's `ensure`** of a static app from `main`: the newest
+   build there is is served at once; when there is none, the app is built first (the
+   person waits; a start the route or `ensure` cannot finish in time answers
+   `build-pending`, 202 or 503 with the build under way, never a silent timeout); when
+   the checkout moved past the newest build, that build is served now, the new commit
+   builds in the background and the app is swapped onto it when it is built. **A swap**
+   stops the static server and starts it on the new build, a gap of milliseconds; it
+   also moves an app running its development script from before builds existed. A build
+   that fails is recorded with its reason and log (`build-script-failed`,
+   `build-timed-out`, `build-output-missing`, `build-output-unservable`, or the
+   start-time step's reason), the previous build keeps being served, and the same key is
+   not built again by itself; with no build at all the start is refused with that
+   reason. `start --dev` (`{"dev": true}`) runs the development script explicitly, also
+   in place of a built run, until it is stopped; a swap never replaces it. **Never a
+   silent dev fallback.**
+7. **After a pull** (the follow-up change, see its status in the plan): inside the
+   Launchpad's own process (no daemon, F8) it watches the Git directories (`HEAD`,
+   `refs/heads/`, `packed-refs`) of the checkouts its built apps read, waits for 5 s of
+   quiet and enqueues a background build when the key moved, sweeps at its start and
+   every 5 minutes, and swaps what runs built from an older key. A module never opened
+   builds on its first open.
+8. **Visibility.** Every answer about a static app carries `build`: what it runs
+   (`built` with its commit, or `dev`), the current build, a build under way, the last
+   failure and its log; `lazurio module build <Organization>/<module>` builds now (also
+   a key whose build failed), swaps and answers with the checkout's `HEAD`; `lazurio
+   module status` shows the same.
+
+**What stays.** Apps without `build_output` and every development run; the start-time
+step of a development start; `lazurio module prepare`; the runners (F8) and their
+identity, health and ownership evidence; module-owned ports; the F26 environment of app
+processes (the static server reads the same listener variables); the Platform has no
+worktree source yet (P9), and a worktree's preview stays the development server of root
+decision 0195 point 6 when it comes.
+
+**Phase 2, not built:** an app with its own server declares `start_script` (one process in
+production mode, root decision 0195 point 19). It runs app code, so it gets the app's
+secrets and siblings and needs its dependencies at run time; the shape is a built
+artifact per key beside the same cache and state, started by the runner like the static
+server, but whether its output can live outside the checkout (a bundled server) or must
+run in it is open. Nothing of `start_script` is parsed or reserved here.
+
+**Required upstream amendment.** The Lazurio Module Standard (root
+`manual/module-standard.md` ch. 10) says the Launchpad "nespouští build"; for a static
+app it now does, in the background and bounded. Its conformance check should warn about
+an app with `build_script` and without `build_output` (or, later, `start_script`), as
+root decision 0195 point 19 asks; that check lives in the root repository.
+
+| Alternative | Assessment |
+| --- | --- |
+| Keep the development server | Today: 290–373 MiB and 5–10 s to healthy per app; rejected by the decision |
+| `astro preview` / `vite preview` as the app's process | 169 MiB, still the framework; serves `dist/` in the checkout, which an in-place build wipes; rejected |
+| Build in place, serve the checkout's `dist/` | A build empties what is served, a failed build leaves nothing, no previous build for a page opened before; rejected |
+| Serve built apps from the Launchpad's own process | No process at all, but a product update or Launchpad restart takes every app down (F8) and the runner's identity and health evidence are bypassed; rejected |
+| The static server as a `lazurio` subcommand | 55–70 MiB RSS each (the whole compiled Platform); rejected for the 15 MiB script |
+| Swap by a `current` link the server follows, without a restart | No gap, but a changed declaration (listener, health, fallback) needs a restart anyway: two mechanisms for one change; rejected for one restart of milliseconds |
+| Key by the module commit only (the brief) | Misses a pull of the module's data repository or a required slot; amended, point 2 |
+| A watcher daemon, or one systemd path unit per checkout | F8 forbids a Lazurio daemon; path units are per checkout to install and remove; rejected for the Launchpad's watch and sweep (point 7) |
+
+**Failure modes.** A failed, timed-out or unservable build: recorded, previous build
+served, `--dev` and `lazurio module build` offered (point 6). A pull during each of three
+builds in a row: `checkout-changing`. Another process holding the build lock for more
+than the build bound plus five minutes: `build-busy`, nothing recorded. The Launchpad
+ending during a build: its unit or process group is stopped, nothing is installed, the
+record shows no build under way (its process is gone), and the next start or sweep builds
+again. A lost cache: the next open builds. The static server ending: the app is `ended`,
+as any app; Open starts it again. Disk: three outputs per app at most (current, previous,
+served). macOS bounds a build by nice and its deadline only (no control group).
+
+**Verified by** `tests/module-runtime.test.ts` (the declaration),
+`tests/built-static-server.test.ts` (resolution, headers, the previous build's assets,
+the written-out script as a process: healthy, SIGTERM exit 0, `--check`),
+`tests/built-builds.test.ts` (the key, the whole install, current/previous kept and the
+rest removed, one build at a time with the waiting person first and joins, a pull during
+a build, a failure kept and not retried by itself, another process's lock, shutdown) and
+`tests/module-built.test.ts` (real processes: a built start, `--dev`, a pull served from
+the previous build while the new one builds and then swapped, the old assets after the
+swap, a failed build that keeps serving, `lazurio module build`, an app without
+`build_output` unchanged, `ensure` answering `build-pending` then healthy). End to end on
+macOS ARM64 with a copy of the reference Organization's Astro knowledgebase in a fixture
+Folder (session runner): its development start healthy in 10.4 s holding 290 MiB; its
+first built open 13.2 s including the build; a later built open 0.4 s holding 16 MiB; a
+pull served the old build until the new one swapped in 9.9 s later; a broken commit
+answered `build-script-failed` with its log while the previous build stayed healthy.
+**Honest limits:** not yet on the hosted Linux reference Environment (systemd unit
+bounds, PSS) and not yet after a real `lazurio update`; the root decision's measurement
+before and after (point 20) belongs to the plan.

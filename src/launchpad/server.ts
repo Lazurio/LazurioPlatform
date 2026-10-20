@@ -423,7 +423,7 @@ const isLazurioDocument = (path: string) =>
 // The module lifecycle routes (launchpad-parity B3): `<org>` and `<module>`
 // are URL-encoded segments naming the module as `lazurio module` does.
 const moduleRoute =
-  /^\/api\/modules\/([^/]+)\/([^/]+)\/(start|prepare|stop|status)$/;
+  /^\/api\/modules\/([^/]+)\/([^/]+)\/(start|prepare|build|stop|status)$/;
 
 // The gateway's `ensure` (launchpad-parity B5), the path the Machines gateway
 // rewrites a module hostname's readiness subrequest to
@@ -1680,6 +1680,8 @@ export async function startLaunchpad(
         if (closing) return response({ error: "closing" }, 503);
         let name: string;
         let app: string | undefined;
+        // A static app's development version, explicitly (decision F58).
+        let dev = false;
         try {
           name = `${decodeURIComponent(moduleRequest[1] as string)}/${decodeURIComponent(moduleRequest[2] as string)}`;
           if (moduleRequest[3] === "status") {
@@ -1692,17 +1694,29 @@ export async function startLaunchpad(
               return response({ error: "invalid-content-type" }, 415);
             const input: unknown = await readJsonBody(request);
             const withApp = ownDataValue(input, "app") !== undefined;
-            const value = stateFields(input, withApp ? ["app"] : []);
+            const withDev =
+              moduleRequest[3] === "start" &&
+              ownDataValue(input, "dev") !== undefined;
+            const value = stateFields(input, [
+              ...(withApp ? ["app"] : []),
+              ...(withDev ? ["dev"] : []),
+            ]);
             if (withApp && typeof value.app !== "string")
               return response({ error: "invalid-app" }, 400);
+            if (withDev && typeof value.dev !== "boolean")
+              return response({ error: "invalid-dev" }, 400);
             app = value.app as string | undefined;
+            dev = value.dev === true;
           }
         } catch (error) {
           if (error instanceof BodyTooLarge)
             return response({ error: "body-too-large" }, 413);
           return response({ error: "invalid-request" }, 400);
         }
-        const options = app === undefined ? {} : { app };
+        const options = {
+          ...(app === undefined ? {} : { app }),
+          ...(dev ? { dev } : {}),
+        };
         try {
           // A start runs the module's start-time step first, and a prepare
           // its preparation. The request waits at most until the answer
@@ -1714,16 +1728,20 @@ export async function startLaunchpad(
             answerWithinMs:
               hostedOptions.moduleAnswerWithinMs ?? moduleAnswerWithinMsDefault,
           };
-          if (moduleRequest[3] === "start" || moduleRequest[3] === "prepare")
+          if (
+            ["start", "prepare", "build"].includes(moduleRequest[3] as string)
+          )
             server.timeout(request, 660);
           const result =
             moduleRequest[3] === "start"
               ? await modules.start(name, options, answer)
               : moduleRequest[3] === "prepare"
                 ? await modules.prepare(name, options, answer)
-                : moduleRequest[3] === "stop"
-                  ? await modules.stop(name, options)
-                  : await modules.status(name, options);
+                : moduleRequest[3] === "build"
+                  ? await modules.build(name, options, answer)
+                  : moduleRequest[3] === "stop"
+                    ? await modules.stop(name, options)
+                    : await modules.status(name, options);
           return response(
             result,
             result.kind === "blocked"

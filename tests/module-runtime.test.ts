@@ -187,3 +187,76 @@ test("runtime secrets are names only: absent, or a non-empty list of unique uppe
     }),
   ).toThrow();
 });
+test("a static app declares its build output beside its build script: one HTTP listener, no runtime secrets (decision F58)", () => {
+  const built = (extra: Record<string, unknown>) =>
+    parseAppRuntime({ ...runtime(), build_script: "build", ...extra });
+  // Without `build_output` an app runs its development script only.
+  expect(parseAppRuntime(runtime()).static).toBeNull();
+  expect(built({}).static).toBeNull();
+  expect(built({ build_output: "dist" }).static).toEqual({
+    build_script: "build",
+    output: "dist",
+    fallback: "404",
+  });
+  expect(
+    built({ build_output: "build/client", static_fallback: "spa" }).static,
+  ).toEqual({ build_script: "build", output: "build/client", fallback: "spa" });
+  for (const output of [
+    "",
+    "/dist",
+    "../dist",
+    "dist/../x",
+    "./dist",
+    "a\\b",
+    ".hidden",
+    7,
+  ])
+    expect(() => built({ build_output: output })).toThrow();
+  expect(() =>
+    built({ build_output: "dist", static_fallback: "index" }),
+  ).toThrow();
+  expect(() => built({ static_fallback: "spa" })).toThrow();
+  expect(() =>
+    parseAppRuntime({ ...runtime(), build_output: "dist" }),
+  ).toThrow();
+  expect(() =>
+    built({ build_output: "dist", secrets: ["EXTERNAL_API_KEY"] }),
+  ).toThrow();
+  expect(() =>
+    built({ build_output: "dist", optional_secrets: ["OPTIONAL_KEY"] }),
+  ).toThrow();
+  const base = runtime();
+  const [listener] = base.listeners;
+  expect(() =>
+    built({
+      build_output: "dist",
+      listeners: [
+        listener,
+        { ...listener, id: "api", role: "auxiliary", lease: "api" },
+      ],
+    }),
+  ).toThrow();
+  expect(() =>
+    built({
+      build_output: "dist",
+      listeners: [{ ...listener, protocol: "https" }],
+    }),
+  ).toThrow();
+  // The build script must be one of the package's scripts.
+  expect(() =>
+    planModuleRuntime(
+      module,
+      { ...runtime(), build_script: "build", build_output: "dist" },
+      "app/package.json",
+      { dev: "fixture" },
+    ),
+  ).toThrow("Declared build script missing");
+  expect(
+    planModuleRuntime(
+      module,
+      { ...runtime(), build_script: "build", build_output: "dist" },
+      "app/package.json",
+      { dev: "fixture", build: "fixture build" },
+    ).runtime.static?.output,
+  ).toBe("dist");
+});

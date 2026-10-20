@@ -77,6 +77,24 @@ function launchOf(input: unknown): {
   };
 }
 
+/** A built start (decision F58): the build output the Platform's static
+ * server serves as the app, and the previous build's, from which a missing
+ * asset of a page opened before the swap is served. */
+export type StaticServe = Readonly<{ root: string; previous?: string }>;
+
+function staticServe(input: StaticServe): StaticServe {
+  const value = object(input, ["root"], ["previous"]);
+  const path = (entry: unknown) => {
+    const item = text(entry, /^\//);
+    if (item.split("/").includes("..")) throw new Error("Invalid build path");
+    return item;
+  };
+  return Object.freeze({
+    root: path(value.root),
+    ...(value.previous === undefined ? {} : { previous: path(value.previous) }),
+  });
+}
+
 function selection(input: unknown): Selection {
   const value = object(input, ["company", "module", "package"]);
   return Object.freeze({
@@ -103,6 +121,15 @@ export function createApplicationLifecycle(adapters: {
   // `secretsNotProvided`, the optional runtime secrets the app starts
   // without (decision F46), which the start's answer reports.
   prepareLaunch: (plan: Plan, cwd: string) => Promise<unknown>;
+  // The launch of a built start (decision F58): the Platform's static server
+  // on the app's declared listener, serving `serve.root`. It runs nothing of
+  // the app, so a built start has no start-time step. Without it, a built
+  // start is `invalid-or-unavailable`.
+  prepareStaticLaunch?: (
+    plan: Plan,
+    cwd: string,
+    serve: StaticServe,
+  ) => Promise<unknown>;
   // Explicit module preparation. Preflight is read-only and checks its actual
   // dependency owner before any app stop. The effect owns bounded subprocess
   // cleanup; close remains retained if cleanup cannot be confirmed.
@@ -250,7 +277,108 @@ export function createApplicationLifecycle(adapters: {
       listeners: Object.freeze(listeners),
     });
   }
+  // The start-time step (decisions F25, F34) inside a start or a build's
+  // preparation: null when it passed, otherwise the answer that ends the
+  // operation. Its subprocess ownership is retained like a preparation's.
+  async function startCheck(
+    value: Selection,
+    directory: string,
+    plan: Plan,
+    cwd: string,
+    check: NonNullable<typeof adapters.preflightStartCheck>,
+  ) {
+    const step = await check(plan, cwd);
+    preparations.add(step);
+    try {
+      if (closing) return Object.freeze({ kind: "closing" as const });
+      if ((await authorized(value, "start")) !== directory)
+        return Object.freeze({ kind: "denied" as const });
+      if (JSON.stringify(await read(value, directory)) !== JSON.stringify(plan))
+        return Object.freeze({
+          kind: "declaration-changed" as const,
+        });
+      const result = await step.run(preparationAbort.signal);
+      if ((await step.close()).kind !== "closed")
+        return Object.freeze({
+          kind: "preparation-cleanup-required" as const,
+        });
+      preparations.delete(step);
+      // A failure with a known reason keeps it (an install, a
+      // preparation script, decisions F25 and F34); a declared
+      // check that still fails is `prerequisites-not-ready`.
+      if (result.kind !== "prepared")
+        return Object.freeze(
+          result.reason === undefined
+            ? { kind: "prerequisites-not-ready" as const }
+            : {
+                kind: result.reason,
+                ...(result.file === undefined ? {} : { file: result.file }),
+              },
+        );
+      return null;
+    } finally {
+      if (preparations.has(step)) {
+        try {
+          if ((await step.close()).kind === "closed") preparations.delete(step);
+        } catch {
+          /* retain incomplete check ownership for shutdown */
+        }
+      }
+    }
+  }
   return Object.freeze({
+    /** A static app's build (decision F58) begins with the app's start-time
+     * step, as a start would run it, under the same exclusion: its
+     * dependencies installed from the lockfile, its check, and its
+     * preparation when the check fails. The build script itself runs
+     * outside this queue, so that the Organization's other apps start and
+     * stop while it builds. */
+    prepareBuild(input: unknown) {
+      const value = selection(input);
+      return mutation(
+        value,
+        async () => {
+          if (closing) return Object.freeze({ kind: "closing" as const });
+          if (preparations.size)
+            return Object.freeze({
+              kind: "preparation-cleanup-required" as const,
+            });
+          const directory = await authorized(value, "start");
+          if (!directory) return Object.freeze({ kind: "denied" as const });
+          const cwd = applicationDirectory(value, directory);
+          try {
+            const plan = await read(value, directory);
+            if (plan.runtime.static === null)
+              return Object.freeze({ kind: "not-static" as const });
+            if (adapters.preflightStartCheck) {
+              const refused = await startCheck(
+                value,
+                directory,
+                plan,
+                cwd,
+                adapters.preflightStartCheck,
+              );
+              if (refused !== null) return refused;
+            }
+            if (
+              JSON.stringify(await read(value, directory)) !==
+              JSON.stringify(plan)
+            )
+              return Object.freeze({ kind: "declaration-changed" as const });
+            return Object.freeze({ kind: "build-prepared" as const, cwd });
+          } catch (error) {
+            if (
+              error instanceof PreparationRefused ||
+              error instanceof RequiredSlotRefused ||
+              error instanceof RuntimeSecretUnavailable
+            )
+              throw error;
+            return Object.freeze({ kind: "invalid-or-unavailable" as const });
+          }
+        },
+        "start",
+      );
+    },
     prepare(input: unknown, mode: "prepare" | "clean-prepare" = "prepare") {
       if (!["prepare", "clean-prepare"].includes(mode))
         throw new Error("Invalid preparation mode");
@@ -385,8 +513,12 @@ export function createApplicationLifecycle(adapters: {
         mode,
       );
     },
-    start(input: unknown) {
+    /** Start the app: its development script, or with `serve` its built
+     * output through the Platform's static server (decision F58), which
+     * runs nothing of the app and so has no start-time step. */
+    start(input: unknown, serve?: StaticServe) {
       const value = selection(input);
+      const served = serve === undefined ? undefined : staticServe(serve);
       return mutation(
         value,
         async () => {
@@ -419,55 +551,33 @@ export function createApplicationLifecycle(adapters: {
           let notProvided: readonly RuntimeSecretFinding[] = [];
           try {
             plan = await read(value, directory);
-            if (adapters.preflightStartCheck) {
-              const check = await adapters.preflightStartCheck(plan, cwd);
-              preparations.add(check);
-              try {
-                if (closing) return Object.freeze({ kind: "closing" as const });
-                if ((await authorized(value, "start")) !== directory)
-                  return Object.freeze({ kind: "denied" as const });
-                if (
-                  JSON.stringify(await read(value, directory)) !==
-                  JSON.stringify(plan)
-                )
-                  return Object.freeze({
-                    kind: "declaration-changed" as const,
-                  });
-                const result = await check.run(preparationAbort.signal);
-                if ((await check.close()).kind !== "closed")
-                  return Object.freeze({
-                    kind: "preparation-cleanup-required" as const,
-                  });
-                preparations.delete(check);
-                // A failure with a known reason keeps it (an install, a
-                // preparation script, decisions F25 and F34); a declared
-                // check that still fails is `prerequisites-not-ready`.
-                if (result.kind !== "prepared")
-                  return Object.freeze(
-                    result.reason === undefined
-                      ? { kind: "prerequisites-not-ready" as const }
-                      : {
-                          kind: result.reason,
-                          ...(result.file === undefined
-                            ? {}
-                            : { file: result.file }),
-                        },
-                  );
-              } finally {
-                if (preparations.has(check)) {
-                  try {
-                    if ((await check.close()).kind === "closed")
-                      preparations.delete(check);
-                  } catch {
-                    /* retain incomplete check ownership for shutdown */
-                  }
-                }
+            if (served !== undefined) {
+              if (
+                plan.runtime.static === null ||
+                adapters.prepareStaticLaunch === undefined
+              )
+                return Object.freeze({
+                  kind: "invalid-or-unavailable" as const,
+                });
+              ({ launch, notProvided } = launchOf(
+                await adapters.prepareStaticLaunch(plan, cwd, served),
+              ));
+            } else {
+              if (adapters.preflightStartCheck) {
+                const refused = await startCheck(
+                  value,
+                  directory,
+                  plan,
+                  cwd,
+                  adapters.preflightStartCheck,
+                );
+                if (refused !== null) return refused;
               }
+              if (closing) return Object.freeze({ kind: "closing" as const });
+              ({ launch, notProvided } = launchOf(
+                await adapters.prepareLaunch(plan, cwd),
+              ));
             }
-            if (closing) return Object.freeze({ kind: "closing" as const });
-            ({ launch, notProvided } = launchOf(
-              await adapters.prepareLaunch(plan, cwd),
-            ));
             if (launch.cwd !== cwd) throw new Error("Launch path mismatch");
             if (
               JSON.stringify(await read(value, directory)) !==
