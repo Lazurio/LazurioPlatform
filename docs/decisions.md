@@ -14417,8 +14417,8 @@ rendered-page CI gates.
 > `/settings/vault` leads to it for good.
 >
 > **Note of 2026-10-20: point 7 follows root decision 0203's addendum of 2026-10-20
-> (HumanAndMachines/Lazurio#594, plan DEV-6631), which waits for its publication; so
-> does the pull request that brings this note.** On an Organization's Environment with
+> (HumanAndMachines/Lazurio#594, plan DEV-6631), published on 2026-10-20 as
+> 53e0db25.** On an Organization's Environment with
 > a vault (not a public one) the manual's Secrets asks who needs a secret and who
 > changes it, then recommends the Organization vault (people only), the Environment
 > vault (on a Team or Automated Environment, which adds nobody to it, everyone who
