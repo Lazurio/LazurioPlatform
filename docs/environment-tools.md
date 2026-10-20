@@ -175,8 +175,8 @@ and unique, and `notes`, when present, the full next set of notes (sorted keys, 
 required or enabled tools); without `notes` the recorded notes of the tools that stay
 on are kept.
 
-`POST /api/tools/status` (body `{}` or `{ "signIn": true|false, "fresh": true|false }`,
-each field optional, the same admission as every other route) is what the
+`POST /api/tools/status` (body `{}` or `{ "signIn": true|false, "fresh": true|false,
+"allowStale": true|false }`, each field optional, the same admission as every other route) is what the
 Launchpad's Tools section reads. It answers
 `kind: "tools-status"`, the Folder's `revision` and `locale`, `sharedEnvironment`,
 `hosted` (every preset but `local`), and for every activatable catalog tool in catalog
@@ -204,10 +204,21 @@ it sees the standard path first, as an operator's login shell with `~/.local/bin
 on PATH does; a tool only on another directory of the interactive PATH is not
 seen there.
 
-The Launchpad keeps its reading of these live facts (versions, and sign-ins where it
-asked for them) for a minute from when the reading started, and answers a request
-without `fresh: true` from it when it has what the request asks; nothing older is
-answered (`tools-reading.ts`, plan DEV-6656). Every page load reads the tools once,
+The Launchpad reads the tools side by side, each tool's sign-in right after its own
+version, so a reading takes as long as its slowest tool. It keeps its reading of these
+live facts (versions, and sign-ins where it asked for them) for a minute from when the
+reading started, and answers a request without `fresh: true` from it when it has what
+the request asks (`tools-reading.ts`, plan DEV-6656). An older reading answers only a
+request with `allowStale: true`, at once, with `stale: true` in the answer, while a
+new reading runs behind it; the next request without it shares that reading. The
+page's own first reading sends it, shows the rows as being checked (dimmed,
+`aria-busy`, their actions waiting), passes the reading to nothing else and asks
+again; a dropped reading (below) is never answered, not even as stale. An installed
+Launchpad reads the tools with their sign-ins once it listens and again after its
+start's own setup, and a hosted one when it serves its own page (not Nová karta,
+nothing on a public Environment), so the page's first reading seldom waits. With the
+sign-ins the request asks the Organization's settings while the tools are read; a
+stale answer does not wait for them. Every page load reads the tools once,
 and every switch between Chat, Apps and Automate loads a page, so this spares a run
 of every tool's commands per load. A tool operation through the Launchpad that
 changes what the tools report (an installation, an update, a sign-in or sign-out, a
@@ -217,7 +228,8 @@ is never answered after it; a setup that goes on after its answer drops it again
 when it ends, as does every sign-in. The page sends `fresh: true` with every reading
 it asks for the sign-ins explicitly ("Refresh status", "Zkontrolovat znovu", the end
 of a flow). Only a change made elsewhere, a tool installed or signed in from a
-terminal, can take up to that minute to show without them. The recorded part of the
+terminal, can take up to that minute to show without them, or show as being checked
+for as long as the reading behind it takes. The recorded part of the
 answer (revision, selection, notes) is read every time. `lazurio tools list` and
 `lazurio doctor` always read anew.
 

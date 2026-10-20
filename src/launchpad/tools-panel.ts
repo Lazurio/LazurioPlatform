@@ -152,6 +152,8 @@ export function createToolsPanel(
   let overview: ToolsOverview | null = null;
   let failed = false;
   let busy = false;
+  // Shown from the Launchpad's older reading while it reads anew.
+  let checking = false;
   let sequence = 0;
   // The sign-ins are probed only on the first read and on Refresh status (a
   // probe may contact the provider); other reads keep the last answer.
@@ -1640,6 +1642,8 @@ export function createToolsPanel(
   function draw() {
     const copy = options.copy();
     refreshButton.disabled = busy;
+    groups.toggleAttribute("data-checking", checking);
+    groups.setAttribute("aria-busy", checking ? "true" : "false");
     mcpButton.disabled = overview === null;
     if (overview === null) {
       groups.replaceChildren(
@@ -1720,7 +1724,10 @@ export function createToolsPanel(
   /** Reads the tools again. `signIn` asks for the sign-in probes, which may
    * contact the providers: by default only the first read does, and only an
    * explicit `signIn: true` skips the Launchpad's reading of the last minute
-   * (`fresh`, tools-reading.ts). Answers this
+   * (`fresh`, tools-reading.ts). Any other read takes an older reading at
+   * once (`allowStale`): its rows are shown as being checked, with their
+   * controls waiting, nothing else on the page reads it, and the read asks
+   * again for the reading the Launchpad runs behind it. Answers this
    * read's own reading, or null where it failed, was not one or a later read
    * superseded it: never the reading a later read left (decision F42, note
    * of 2026-10-19). */
@@ -1738,36 +1745,44 @@ export function createToolsPanel(
     // The vault beside the tools: asked itself when the sign-ins are.
     void vault.read(probe);
     void executor.read();
+    const known = (tool: ToolOverview) => signIns.get(tool.name);
+    const withKnown = (parsed: ToolsOverview): ToolsOverview => ({
+      ...parsed,
+      tools: parsed.tools.map((tool) => {
+        const signIn = tool.signIn ?? known(tool);
+        return signIn === undefined ? tool : { ...tool, signIn };
+      }),
+    });
     try {
       // A page's first reading may be the Launchpad's from within the last
-      // minute; every reading asked for with the sign-ins (Refresh status,
-      // Zkontrolovat znovu, the end of a flow) is read anew.
-      const { value, ok } = await options.post(
-        "/api/tools/status",
-        probe
-          ? {
-              signIn: true,
-              ...(request.signIn === true ? { fresh: true } : {}),
-            }
-          : {},
-      );
-      if (turn !== sequence) return null;
-      const parsed = ok ? parseToolsOverview(value) : null;
-      if (parsed === null) throw new Error("Tools unavailable");
+      // minute, or an older one while it reads anew; every reading asked
+      // for with the sign-ins (Refresh status, Zkontrolovat znovu, the end
+      // of a flow) is read anew.
+      let allowStale = request.signIn !== true;
+      let parsed: ToolsOverview | null;
+      for (;;) {
+        const { value, ok } = await options.post("/api/tools/status", {
+          ...(probe ? { signIn: true } : {}),
+          ...(request.signIn === true ? { fresh: true } : {}),
+          ...(allowStale ? { allowStale: true } : {}),
+        });
+        if (turn !== sequence) return null;
+        parsed = ok ? parseToolsOverview(value) : null;
+        if (parsed === null) throw new Error("Tools unavailable");
+        if (parsed.stale !== true || !allowStale) break;
+        overview = withKnown(parsed);
+        failed = false;
+        checking = true;
+        render();
+        allowStale = false;
+      }
       if (probe) {
         signInChecked = true;
         signIns.clear();
         for (const tool of parsed.tools)
           if (tool.signIn !== undefined) signIns.set(tool.name, tool.signIn);
       }
-      const known = (tool: ToolOverview) => signIns.get(tool.name);
-      reading = {
-        ...parsed,
-        tools: parsed.tools.map((tool) => {
-          const signIn = tool.signIn ?? known(tool);
-          return signIn === undefined ? tool : { ...tool, signIn };
-        }),
-      };
+      reading = withKnown(parsed);
       overview = reading;
       failed = false;
       // A notice belongs to the Folder revision it was made at: a reading of
@@ -1782,6 +1797,7 @@ export function createToolsPanel(
     } finally {
       if (turn === sequence) {
         busy = false;
+        checking = false;
         render();
         options.observed(overview);
       }

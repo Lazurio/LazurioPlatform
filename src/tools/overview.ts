@@ -121,6 +121,10 @@ export type ToolsOverview = Readonly<{
    * were applied last (decision F45); only from a Launchpad that asks for
    * them, never from the CLI. */
   organizationSettings?: OrganizationSettingsStatus;
+  /** The live facts are the Launchpad's last reading, older than its
+   * minute, answered at once while it reads them anew (tools-reading.ts);
+   * only from a Launchpad asked with `allowStale`, never from the CLI. */
+  stale?: true;
 }>;
 
 /** The live facts of the activatable tools, in catalog order: what `tools

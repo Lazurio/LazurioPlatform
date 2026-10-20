@@ -1144,9 +1144,17 @@ export async function startLaunchpad(
       // (not as the Launchpad starts, when the Folder's operations need its
       // lock), so that Chat and Automate, whose column head reads the shell
       // document once per load, find it when they open. The Organization's
-      // settings are asked now too, never twice within a short while.
+      // settings are asked now too, never twice within a short while. The
+      // Launchpad's own page reads the tools with their sign-ins on its load:
+      // they are read now, while its files load (tools-reading.ts), but on a
+      // public Environment, which has none (Nová karta reads none either).
       void setup.peek();
       void settings?.nudge();
+      if (
+        !publicEnvironment &&
+        new URL(request.url).pathname !== newTabPagePath
+      )
+        toolsReading.warm();
       return boot === null ? answer : withBoot(answer, boot);
     }
     const kept: Record<string, string> = {};
@@ -2021,40 +2029,59 @@ export async function startLaunchpad(
           // joined with the live facts. The version commands never use the
           // network; the sign-in probes, which may, run only when the body
           // asks for them with `signIn: true`. The live facts come from the
-          // reading kept a minute unless the body asks for `fresh: true`
-          // (tools-reading.ts); the recorded part is read every time.
-          const withSignIn = ownDataValue(input, "signIn") !== undefined;
-          const withFresh = ownDataValue(input, "fresh") !== undefined;
-          const value = stateFields(input, [
-            ...(withSignIn ? ["signIn"] : []),
-            ...(withFresh ? ["fresh"] : []),
-          ]);
-          if (withSignIn && typeof value.signIn !== "boolean")
-            return response({ error: "invalid-sign-in" }, 400);
-          if (withFresh && typeof value.fresh !== "boolean")
-            return response({ error: "invalid-fresh" }, 400);
+          // reading kept a minute unless the body asks for `fresh: true`;
+          // with `allowStale: true` an older reading answers at once, marked
+          // `stale`, while a new one runs (tools-reading.ts). The recorded
+          // part is read every time.
+          const asked = ["signIn", "fresh", "allowStale"].filter(
+            (field) => ownDataValue(input, field) !== undefined,
+          );
+          const value = stateFields(input, asked);
+          for (const [field, error] of [
+            ["signIn", "invalid-sign-in"],
+            ["fresh", "invalid-fresh"],
+            ["allowStale", "invalid-allow-stale"],
+          ] as const)
+            if (asked.includes(field) && typeof value[field] !== "boolean")
+              return response({ error }, 400);
+          const signIn = value.signIn === true;
+          const reading = toolsReading.answer(signIn, {
+            fresh: value.fresh === true,
+            allowStale: value.allowStale === true,
+          });
+          // Met by the overview below; a refusal before it is not the
+          // reading's to report.
+          void reading.done.catch(() => undefined);
           // The first reading and "Refresh status" ask the Organization's
-          // settings first, so the switches show what applies now (F45).
-          if (value.signIn === true) {
+          // settings first, so the switches show what applies now (F45),
+          // while the tools are read; a stale answer does not wait for them,
+          // and the reading after it does.
+          if (signIn && !reading.stale) {
             server.timeout(request, 120);
             await settings?.nudge(settingsWaitMs);
           }
           const overview = await toolsOverview(folder, toolsEnvironment, {
-            signIn: value.signIn === true,
-            live: (signIn) => toolsReading.live(signIn, value.fresh === true),
+            signIn,
+            live: () => reading.done,
           });
           // The shell document's GitHub, and whose Personalspace this is,
-          // follow this reading.
+          // follow a current reading.
           const gh = overview.tools.find((tool) => tool.name === "gh");
-          if (gh !== undefined && github.remember(gh.installed, gh.signIn)) {
+          if (
+            !reading.stale &&
+            gh !== undefined &&
+            github.remember(gh.installed, gh.signIn)
+          ) {
             setup.forget();
             personalspace.forget();
           }
-          return response(
-            settings === null
-              ? overview
-              : { ...overview, organizationSettings: settings.status() },
-          );
+          return response({
+            ...overview,
+            ...(reading.stale ? { stale: true } : {}),
+            ...(settings === null
+              ? {}
+              : { organizationSettings: settings.status() }),
+          });
         }
         if (vault.handles(url.pathname)) {
           // The Environment's vault (decisions F43, F53): `{}`, or a setup's
@@ -2482,7 +2509,10 @@ export async function startLaunchpad(
   // that the page's first catalog already knows it. Reads no Folder lock.
   void personalspace.peek(folder).catch(() => undefined);
   // The page's first open finds the catalog read (catalog-reading.ts), in
-  // the background once whose Personalspace this is was decided.
+  // the background once whose Personalspace this is was decided; and, on an
+  // installed Launchpad, the service of its base, the tools read with their
+  // sign-ins, as its page asks for them on its load (tools-reading.ts). Not
+  // on a public Environment, which has no tools.
   const warming = personalspace
     .settled()
     .then(() => (closing ? undefined : catalog.read()))
@@ -2490,6 +2520,7 @@ export async function startLaunchpad(
       () => undefined,
       () => undefined,
     );
+  if (installed !== undefined && !publicEnvironment) toolsReading.warm();
   // The Launchpad's holds, reconciled with the hub's list from now on.
   await holder?.start();
   // Executor (decision F44, addendum of 2026-10-11, #298): where install and
@@ -2502,7 +2533,14 @@ export async function startLaunchpad(
   if (executorAtStart !== undefined)
     void (async () => {
       if ((await executorAtStart()) && !closing && (await executor.atStart()))
-        forgetToolsAfter(executor.settled());
+        // Once it has ended, the tools are read again for the page.
+        void executor
+          .settled()
+          .catch(() => undefined)
+          .then(() => {
+            toolsReading.forget();
+            if (!closing) toolsReading.warm();
+          });
     })().catch(() => undefined);
   // The Environment's own vault (decision F53), by the same pattern: where
   // the vault needs it, the one setup of Settings → Tools runs in the
@@ -2532,6 +2570,7 @@ export async function startLaunchpad(
       await vault.atStart();
       await vault.settled();
       toolsReading.forget();
+      if (!closing) toolsReading.warm();
       if (closing) return;
       lookAtAudience();
       audienceTimer = setInterval(lookAtAudience, vaultAudienceEveryMs);
