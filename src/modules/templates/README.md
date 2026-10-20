@@ -23,6 +23,10 @@ Platform). Every file is the root's byte for byte, except:
   render the root's exact words, so its plan keeps the root's tree hash
   (`tests/module-scaffold.test.ts` holds the root's hashes at `a5615be0`).
 - **`_personal/AGENTS.md.tmpl`** is new: the rules of a personal module.
+- **The static output** (decision F58): the `astro`, `astro-starlight` and
+  `vite-react` apps declare `build_output: "dist"` (`vite-react` also
+  `static_fallback: "spa"`), and their `README.md` says that the Launchpad
+  opens them from `main` as their build.
 
 Since the Organization form moved here too (decision F52's addendum of
 2026-10-14), these are the only templates that change; the root's generator

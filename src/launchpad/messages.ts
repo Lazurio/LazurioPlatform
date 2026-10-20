@@ -712,6 +712,19 @@ const en = {
   moduleStoppedDone: "Stopped; its processes ended.",
   moduleStartPending:
     "The start is still running (Lazurio is installing or preparing the app); it goes on, and the status shows the app once it runs.",
+  moduleBuildPending:
+    "Lazurio is building the app; it opens once the build is ready.",
+  moduleBuilding: "Building…",
+  moduleBuilt: "Built.",
+  moduleBuildCurrent: "This version is already built.",
+  moduleStartDev: "Start the development version",
+  moduleBuildFailedNote:
+    "The newest version could not be built. The previous version keeps running.",
+  moduleReasonBuildFailed: "The app could not be built.",
+  moduleReasonBuildBusy:
+    "Another build has been running for long; try again shortly.",
+  moduleReasonCheckoutChanging:
+    "The module changed during every build; try again once it is still.",
   modulePreparePending:
     "The preparation is still running; it goes on without starting the app.",
   moduleNotRunning: "It was not running.",
@@ -2424,6 +2437,19 @@ const cs: Record<MessageKey, string> = {
   moduleStoppedDone: "Zastaveno; její procesy skončily.",
   moduleStartPending:
     "Spouštění ještě běží (Lazurio aplikaci instaluje nebo připravuje); pokračuje dál a stav aplikaci ukáže, až poběží.",
+  moduleBuildPending:
+    "Lazurio aplikaci sestavuje; otevře se, až bude sestavená.",
+  moduleBuilding: "Sestavuje se…",
+  moduleBuilt: "Sestaveno.",
+  moduleBuildCurrent: "Tato verze už je sestavená.",
+  moduleStartDev: "Spustit vývojovou verzi",
+  moduleBuildFailedNote:
+    "Nejnovější verzi se nepodařilo sestavit. Dál běží předchozí verze.",
+  moduleReasonBuildFailed: "Aplikaci se nepodařilo sestavit.",
+  moduleReasonBuildBusy:
+    "Jiné sestavení běží už dlouho; zkuste to za chvíli znovu.",
+  moduleReasonCheckoutChanging:
+    "Modul se měnil během každého sestavení; zkuste to znovu, až se ustálí.",
   modulePreparePending:
     "Příprava ještě běží; pokračuje dál a aplikaci nespustí.",
   moduleNotRunning: "Neběžela.",

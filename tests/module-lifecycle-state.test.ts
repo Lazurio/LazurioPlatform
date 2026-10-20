@@ -54,3 +54,22 @@ describe("a refused Open's reason reaches the overview (its overview says why)",
     });
   });
 });
+
+test("a refused Open of a static app whose build failed offers its development version on the overview (decision F58)", () => {
+  const shown = lifecycleShown(
+    null,
+    { key: "o/docs", message: "could not be built", development: true },
+    "o/docs",
+  );
+  expect(shown.lifecycle).toEqual({
+    ...state("o/docs", "could not be built"),
+    development: true,
+  });
+  // A later refusal that offers nothing takes the offer back.
+  const again = lifecycleShown(
+    shown.lifecycle,
+    { key: "o/docs", message: "port occupied" },
+    "o/docs",
+  );
+  expect(again.lifecycle.development).toBeUndefined();
+});

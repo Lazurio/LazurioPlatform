@@ -1246,6 +1246,7 @@ async function routesWorld(
     memory?: Readonly<Record<string, string>>;
     runtime?: string;
     now?: () => number;
+    served?: Parameters<typeof createNewTabRoutes>[0]["served"];
   } = {},
 ) {
   const runtime = options.runtime ?? (await temporary("new-tab-routes-"));
@@ -1270,6 +1271,7 @@ async function routesWorld(
     modules: async () => (options.modules === undefined ? [] : options.modules),
     headers: { "Cache-Control": "no-store" },
     ...(options.now === undefined ? {} : { now: options.now }),
+    ...(options.served === undefined ? {} : { served: options.served }),
   });
   const call = async (
     method: string,
@@ -1913,3 +1915,43 @@ test.skipIf(process.platform === "win32")(
     ]);
   },
 );
+
+test("a running static app is shown as its build and its commit, every other Module as its development server (decision F58)", async () => {
+  const hub = standardHub([fact(1)]);
+  const modules: ModuleUnit[] = [
+    {
+      org: "alpha",
+      module: "docs",
+      app: "app/package.json",
+      unit: "lazurio-app-aaa.service",
+    },
+    {
+      org: "alpha",
+      module: "api",
+      app: "app/package.json",
+      unit: "lazurio-app-bbb.service",
+    },
+  ];
+  const { call } = await routesWorld({
+    hub,
+    modules,
+    served: async (module) =>
+      module.module === "docs"
+        ? { mode: "built", commit: "c".repeat(40) }
+        : module.module === "api"
+          ? null
+          : { mode: "dev", commit: null },
+  });
+  const answer = await call("GET", "/api/new-tab/overview");
+  expect(answer.status).toBe(200);
+  expect(answer.body.modules).toEqual([
+    {
+      ...modules[0],
+      memory: null,
+      mode: "built",
+      commit: "c".repeat(40),
+      source: "main",
+    },
+    { ...modules[1], memory: null, mode: "dev", source: "main" },
+  ]);
+});

@@ -1928,6 +1928,25 @@ export function createModuleOperations(input: {
     ): Promise<ModuleAnswer | ModuleBlocked> {
       return answerWithin("build", name, options, buildOwned, answer);
     },
+    /** What a running app of the catalog was started as (decision F58):
+     * a static app's build and its commit, or its development script; for
+     * the overview of running Modules. Null when it cannot be named. */
+    async served(
+      name: string,
+      app: string,
+    ): Promise<Readonly<{
+      mode: "built" | "dev";
+      commit: string | null;
+    }> | null> {
+      const prepared = await prepare("status", name, { app });
+      if ("kind" in prepared) return null;
+      const plan = await staticPlan(prepared.target);
+      if (plan === null) return Object.freeze({ mode: "dev", commit: null });
+      const served = await storeOf(prepared.target, plan).served();
+      return served?.mode === "built"
+        ? Object.freeze({ mode: "built", commit: served.commit })
+        : Object.freeze({ mode: "dev", commit: null });
+    },
     /** Keep the static apps people opened built after a pull (decision F58
      * point 7): the Launchpad watches the Git directories their builds read
      * and sweeps at its start and every few minutes, building a moved

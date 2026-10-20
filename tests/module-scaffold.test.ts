@@ -109,14 +109,19 @@ function file(result: ModuleScaffoldPlan, path: string): string {
 
 // planModuleScaffold of HumanAndMachines/Lazurio a5615be0 over its own
 // templates, for the same input as `plan()` (Acme, AcmeHQ, the pool
-// 24000-24099, billing on 24000, the slug portal): the port keeps it.
+// 24000-24099, billing on 24000, the slug portal): the port keeps it. The
+// three static stacks have since declared their build output (decision F58:
+// `build_output`, for vite-react `static_fallback`, and a line of their
+// README), so their hashes are the root's plus that change; the root's
+// were 1fcd5e2d… (vite-react), 6050c38e… (astro) and a01509c8…
+// (astro-starlight).
 const rootTreeHashes: Readonly<Record<string, string>> = {
   "vite-react":
-    "sha256:1fcd5e2d0dd2afb12d89fec3c2dfc06ef3b5e54a0191e3694aa977431003f0de",
+    "sha256:ddb885f15b4ab0c9842105577d9af046c06457a4cf3690c21ad9e203d899e22a",
   astro:
-    "sha256:6050c38e5da0e1d0cde534a334c8208cbba9b2c9388f9661dd494220206568f1",
+    "sha256:ed2e5210f264c4f3e33c85bba507bf61513f8350637ff12f8a7c85107610b5e0",
   "astro-starlight":
-    "sha256:a01509c82104731cdcd8c532696667dd9532b30fd5ed7c1d7a3e426857f479fa",
+    "sha256:43278ddd5c38c9e05b8e399346aa831c3f22aa9bbd9ffe0e41e3c47ffb94fc2f",
   "bun-service":
     "sha256:ac73b3f7f89ad96ea20ddff7a2dc0c6e3d5b5960db7e62a4c81113e04da91cda",
   "python-uv":
@@ -133,7 +138,7 @@ describe("planModuleScaffold, the Organization form", () => {
     expect(
       plan({ displayName: "Zákaznický portál", teams: ["web"] }).treeHash,
     ).toBe(
-      "sha256:904ac3827ee6a4a7be8a7e42ab9944ad66c451d635230a60dc1bc8bcbf1c56bb",
+      "sha256:2d8832d73bfbf574a8ef3f25341a93be81725eb36be42c014c8034c81b668fd6",
     );
   });
 

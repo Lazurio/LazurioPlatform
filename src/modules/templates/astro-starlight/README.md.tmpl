@@ -37,5 +37,7 @@ lease `main` v `lazurio.module.json`):
 
 - `prepare:app` spouští `astro sync`; `check:prepared` ověří, že vygenerované
   typy existují.
+- Z `main` Launchpad App otevírá jako její sestavenou verzi: `bun run build`
+  zapíše `dist/` (`build_output`) a Platforma ho servíruje sama.
 - Kořenová stránka `/` odpovídá 200 sama; další jazyk přidej tak, aby health
   cesta nezačala přesměrovávat.

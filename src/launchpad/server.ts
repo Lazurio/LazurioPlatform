@@ -1030,6 +1030,8 @@ export async function startLaunchpad(
         host: moduleHost,
         personalspace: personalspace.peek,
       }),
+    served: (module) =>
+      modules.served(`${module.org}/${module.module}`, module.app),
     headers,
   });
   // The Organization's settings (root decision 0194, decision F45), on an
