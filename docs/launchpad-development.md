@@ -2572,10 +2572,10 @@ funguje", and the "?" beside the heading closes and reopens the video).
 The line depends on the vault's reason (`vaultPageView`'s `note`): a
 public Organization's Environment, whose handover names no tailnet (`no-tailnet`), has
 none on purpose, since the Organization is a public demo; any other (`no-vault`) is not
-set up yet, and the Organization's Admin sets it up. A public Environment (F55) still has
-no Trezor at all. `bun scripts/preview-launchpad.ts hosted cs|en <port> owner
-no-tailnet|no-vault` shows either: the preview's work Environment then has no vault, for
-that reason, and its Apps column no Trezor; `/vault` opens the page.
+set up yet, and the Organization's Admin sets it up. A public Environment (F55) has
+Trezor only with its own vault (see below). `bun scripts/preview-launchpad.ts hosted
+cs|en <port> owner no-tailnet|no-vault` shows either: the preview's work Environment then
+has no vault, for that reason, and its Apps column no Trezor; `/vault` opens the page.
 
 **Where the column lists Trezor** ([F53's addendum of
 2026-10-18 (3)](decisions.md#f53-addendum-of-2026-10-18-3-trezor-only-where-the-environment-has-a-vault),
@@ -2595,6 +2595,21 @@ Trezor's addresses, `/vault` and the old `/settings/vault` with their requests, 
 either way. Tested over HTTP in `tests/launchpad-apps-vault.test.ts` with the production
 composition of the vault's facts (`processVaultHost`), the handover's place, the
 operator's record and the state root the test's.
+
+**A public Environment's Trezor** ([F55's addendum of 2026-10-20 on the
+vault](decisions.md#addendum-of-2026-10-20-a-public-environments-vault-follows-the-vault-core),
+plan DEV-6668 slice 6, #499). Stricter: only where the vault core answers this
+Environment's own vault (`own`), which is the handover's `vault`; a fault and a core that
+throws do not list it (`vaultListed(answer, true)`, `vaultInAppsOf(host, true)`), and a
+public page without a boot document does not either. Without its vault, Trezor's pages
+answer `404` and show Apps, and its API (`/api/vault…`) answers `404 {"error":
+"not-found"}` (`withheldInPublic(route, {vault})` on the server, `publicRoute` in the
+page's router). Its vault is a Team Environment's whatever the Folder recorded (the Try
+overlay's `shownKind`, `src/vault/host.ts`): it adds nobody, and its "?" plays
+`vault-agents`. `bun scripts/preview-launchpad.ts hosted cs|en <port> owner public` shows
+it with the preview's vault, and with `no-tailnet` too without one. Tested in
+`tests/public-vault.test.ts` on try-01's handover recorded as Work and as Team, without
+and with `vault`.
 
 **A personal Environment's own Bitwarden** ([F53's amendment of
 2026-10-16](decisions.md#f53-amendment-of-2026-10-16-a-personal-environments-own-bitwarden),
