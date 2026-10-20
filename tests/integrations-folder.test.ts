@@ -77,8 +77,8 @@ test("AGENTS.md says what an Integrace is, the order, the command and that agent
     );
     expect(agents).toContain(
       cs
-        ? "Integraci nikdy nepřipojuj sám: přihlášení je souhlas člověka."
-        : "Never connect an Integration yourself: the sign-in is the person's consent.",
+        ? "Integraci nikdy nepřipojuj sám: přihlášení je souhlas uživatele."
+        : "Never connect an Integration yourself: the sign-in is the user's consent.",
     );
     expect(agents).toContain(
       cs

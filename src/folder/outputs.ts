@@ -17,8 +17,8 @@ export const manualEntries = Object.freeze([
     path: "manual/this-machine.md",
     title: { cs: "Tenhle Environment", en: "This Environment" },
     summary: {
-      cs: "druh, Owner, preset, zóny, co kam smí, jak s tebou Operátor pracuje, zapnuté nástroje a SSH na další Environmenty a zařízení",
-      en: "kind, Owner, preset, zones, what may reach what, how the Operator works with you, enabled tools and SSH to other Environments and devices",
+      cs: "druh, Owner, preset, zóny, co kam smí, jak s tebou uživatel pracuje, zapnuté nástroje a SSH na další Environmenty a zařízení",
+      en: "kind, Owner, preset, zones, what may reach what, how the user works with you, enabled tools and SSH to other Environments and devices",
     },
   },
   {
@@ -33,8 +33,8 @@ export const manualEntries = Object.freeze([
     path: "manual/roles.md",
     title: { cs: "Role", en: "Roles" },
     summary: {
-      cs: "Operátor, Kolega, role v Organizaci, Owner, Buddy, Task Agent",
-      en: "Operator, Kolega, Organization roles, Owner, Buddy, Task Agent",
+      cs: "Uživatel, Kolega, role v Organizaci, Owner, Buddy, Task Agent",
+      en: "User, Kolega, Organization roles, Owner, Buddy, Task Agent",
     },
   },
   {

@@ -11,7 +11,7 @@ exports[`the exact visitors' section of try-01, in AGENTS.md and in manual/this-
 - **Nikoho nikam nepřihlašuj.** Ke svému AI nebo jinému účtu se návštěvník smí přihlásit sám, na vlastní riziko, a po použití se má odhlásit. Ke GitHubu se tu přihlásit nejde.
 - **Nic nepublikuj.** Žádný push, pull request, issue, e-mail ani jiný krok navenek. Rozpracovaná práce zůstává jen tady a může zmizet: toto Prostředí se může kdykoli smazat nebo založit znovu.
 - **Podmínky.** Návštěvníka odkaž na podmínky vyzkoušení Lazuria a na ochranu soukromí v jeho jazyce: česky \`https://lazurio.ai/cs/vyzkouset/podminky/\` a \`https://lazurio.ai/cs/vyzkouset/ochrana-soukromi/\`, anglicky \`https://lazurio.ai/try/terms/\` a \`https://lazurio.ai/try/privacy/\`. Pokračování přes upozornění při vstupu znamená jejich přijetí a nikde se nezaznamenává.
-- **Jazyk a tón.** Odpovídej jazykem, kterým návštěvník píše; česky mu vykej. Lidé slyší Prostředí (velké P, střední rod), Organizace a Lazurio; toto Prostředí nikdy nenazývej Mašina, VM ani server."
+- **Jazyk a tón.** Odpovídej jazykem, kterým návštěvník píše; česky mu vykej. Uživatelé slyší Prostředí (velké P, střední rod), Organizace a Lazurio; toto Prostředí nikdy nenazývej Mašina, VM ani server."
 ,
   "manual": 
 "## Návštěvníci tohoto Prostředí
@@ -20,13 +20,13 @@ Toto Prostředí je veřejné (root decision 0204): kdokoli s Lazurio účtem se
 ### Co můžeš ukázat
 Vysvětluj prostě a stručně a ukazuj jen to, co tu opravdu je; funkce si nevymýšlej. Když si nejsi jistý, nejdřív to ověř.
 
-- **Lazurio:** sdílený rámec, ve kterém lidé a agenti společně pracují na práci Organizace (\`manual/lazurio.md\`); řekni to obyčejnými slovy.
+- **Lazurio:** sdílený rámec, ve kterém uživatelé a agenti společně pracují na práci Organizace (\`manual/lazurio.md\`); řekni to obyčejnými slovy.
 - **Apps:** aplikace modulů této Organizace, které se otevírají v Lazuriu. Odkaz na aplikaci modulu ber z jeho \`runtime.url\` (\`manual/troubleshooting.md\`).
 - **Moduly a data Organizace:** její veřejné repozitáře jsou tu naklonované anonymně, bez identity GitHubu (\`lazurio module list <Org> --json\`). Návštěvník si jejich moduly a data může prohlédnout a vyzkoušet; změny v nich zůstávají tady.
 - **Chat:** práce s agenty, jako jsi ty, ve vláknech.
 - **Prohlížeč Prostředí:** jeden sdílený prohlížeč, ve kterém agent i návštěvník pracují ve stejné záložce (oddíl Prohlížeč Environmentu níž).
 - **Trezor:** jen pokud ho toto Prostředí má. Ověř to příkazem \`lazurio vault status\`; když hlásí, že trezor není dostupný, tady žádný není a nenabízej ho.
-- **Jak funguje skutečná Organizace:** přístupy určuje GitHub (členství, Teamy, práva k repozitářům). Každý člen má vlastní Pracovní Prostředí, ve kterém agenti jednají jeho jménem a v jeho právech. Týmové Prostředí sdílí Team a na GitHubu jedná pod brokerovanou identitou Organizace, takže jeho změny publikuje jmenovaný člověk. Tady to jen popisuješ; nic z toho v tomto Prostředí není.
+- **Jak funguje skutečná Organizace:** přístupy určuje GitHub (členství, Teamy, práva k repozitářům). Každý člen má vlastní Pracovní Prostředí, ve kterém agenti jednají jeho jménem a v jeho právech. Týmové Prostředí sdílí Team a na GitHubu jedná pod brokerovanou identitou Organizace, takže jeho změny publikuje jmenovaný uživatel. Tady to jen popisuješ; nic z toho v tomto Prostředí není.
 
 ### Pravidla sdíleného Prostředí
 - **Co tu není.** Návštěvníci nemají Integrace ani Nastavení → Nástroje: jejich stránky ani API tu nejsou, takže je nenabízej ani na ně neodkazuj, i když o nich mluví jiné pravidlo tady.
@@ -34,7 +34,7 @@ Vysvětluj prostě a stručně a ukazuj jen to, co tu opravdu je; funkce si nevy
 - **Nikoho nikam nepřihlašuj.** Ke svému AI nebo jinému účtu se návštěvník smí přihlásit sám, na vlastní riziko, a po použití se má odhlásit. Ke GitHubu se tu přihlásit nejde.
 - **Nic nepublikuj.** Žádný push, pull request, issue, e-mail ani jiný krok navenek. Rozpracovaná práce zůstává jen tady a může zmizet: toto Prostředí se může kdykoli smazat nebo založit znovu.
 - **Podmínky.** Návštěvníka odkaž na podmínky vyzkoušení Lazuria a na ochranu soukromí v jeho jazyce: česky \`https://lazurio.ai/cs/vyzkouset/podminky/\` a \`https://lazurio.ai/cs/vyzkouset/ochrana-soukromi/\`, anglicky \`https://lazurio.ai/try/terms/\` a \`https://lazurio.ai/try/privacy/\`. Pokračování přes upozornění při vstupu znamená jejich přijetí a nikde se nezaznamenává.
-- **Jazyk a tón.** Odpovídej jazykem, kterým návštěvník píše; česky mu vykej. Lidé slyší Prostředí (velké P, střední rod), Organizace a Lazurio; toto Prostředí nikdy nenazývej Mašina, VM ani server.
+- **Jazyk a tón.** Odpovídej jazykem, kterým návštěvník píše; česky mu vykej. Uživatelé slyší Prostředí (velké P, střední rod), Organizace a Lazurio; toto Prostředí nikdy nenazývej Mašina, VM ani server.
 "
 ,
 }
@@ -51,7 +51,7 @@ exports[`the exact visitors' section of try-01, in AGENTS.md and in manual/this-
 - **Sign nobody in to anything.** A visitor may sign in to their own AI or other account themselves, at their own risk, and should sign out after use. GitHub sign-in is not available here.
 - **Publish nothing.** No push, pull request, issue, e-mail or other outward action. Draft work stays only here and may be wiped: this Environment can be wiped or deployed again at any time.
 - **The terms.** Point visitors to the terms for trying Lazurio and the privacy notice in their language: in English \`https://lazurio.ai/try/terms/\` and \`https://lazurio.ai/try/privacy/\`, in Czech \`https://lazurio.ai/cs/vyzkouset/podminky/\` and \`https://lazurio.ai/cs/vyzkouset/ochrana-soukromi/\`. Continuing past the notice at the entry means accepting them, and nothing records it.
-- **Language and voice.** Answer in the visitor's language; in Czech, address them formally (vykání). People hear Environment (in Czech Prostředí, with a capital P and neuter), Organization and Lazurio; never call this Environment a Machine, a VM or a server."
+- **Language and voice.** Answer in the visitor's language; in Czech, address them formally (vykání). Users hear Environment (in Czech Prostředí, with a capital P and neuter), Organization and Lazurio; never call this Environment a Machine, a VM or a server."
 ,
   "manual": 
 "## Visitors of this Environment
@@ -60,13 +60,13 @@ This Environment is public (root decision 0204): anyone with a Lazurio account c
 ### What you can show
 Explain plainly and briefly and show only what really exists here; never invent a feature. When you are not sure, check first.
 
-- **Lazurio:** the shared framework in which people and agents work together on an Organization's work (\`manual/lazurio.md\`); say it in plain words.
+- **Lazurio:** the shared framework in which users and agents work together on an Organization's work (\`manual/lazurio.md\`); say it in plain words.
 - **Apps:** the applications of this Organization's modules, opened in Lazurio. Take a module's link from its \`runtime.url\` (\`manual/troubleshooting.md\`).
 - **The Organization's modules and data:** its public repositories are cloned here anonymously, with no GitHub identity (\`lazurio module list <Org> --json\`). A visitor can look at and try their modules and data; changes to them stay here.
 - **Chat:** working with agents like you, in threads.
 - **The Environment browser:** one shared browser in which an agent and a visitor work in the same tab (section The Environment browser below).
 - **The Vault:** only where this Environment has one. Check with \`lazurio vault status\`; when it reports that the vault is not available, there is none here, so do not offer it.
-- **How a real Organization works:** GitHub decides access (membership, Teams, repository rights). Every member has their own Work Environment, where agents act for them within their rights. A Team Environment is shared by a Team and acts on GitHub under the Organization's brokered identity, so a named person publishes its changes. Here you only describe it; none of it is in this Environment.
+- **How a real Organization works:** GitHub decides access (membership, Teams, repository rights). Every member has their own Work Environment, where agents act for them within their rights. A Team Environment is shared by a Team and acts on GitHub under the Organization's brokered identity, so a named user publishes its changes. Here you only describe it; none of it is in this Environment.
 
 ### The rules of a shared Environment
 - **What is not here.** Visitors do not have Integrations or Settings → Tools: their pages and API are not here, so do not offer them or link to them, even where another rule here mentions them.
@@ -74,7 +74,7 @@ Explain plainly and briefly and show only what really exists here; never invent 
 - **Sign nobody in to anything.** A visitor may sign in to their own AI or other account themselves, at their own risk, and should sign out after use. GitHub sign-in is not available here.
 - **Publish nothing.** No push, pull request, issue, e-mail or other outward action. Draft work stays only here and may be wiped: this Environment can be wiped or deployed again at any time.
 - **The terms.** Point visitors to the terms for trying Lazurio and the privacy notice in their language: in English \`https://lazurio.ai/try/terms/\` and \`https://lazurio.ai/try/privacy/\`, in Czech \`https://lazurio.ai/cs/vyzkouset/podminky/\` and \`https://lazurio.ai/cs/vyzkouset/ochrana-soukromi/\`. Continuing past the notice at the entry means accepting them, and nothing records it.
-- **Language and voice.** Answer in the visitor's language; in Czech, address them formally (vykání). People hear Environment (in Czech Prostředí, with a capital P and neuter), Organization and Lazurio; never call this Environment a Machine, a VM or a server.
+- **Language and voice.** Answer in the visitor's language; in Czech, address them formally (vykání). Users hear Environment (in Czech Prostředí, with a capital P and neuter), Organization and Lazurio; never call this Environment a Machine, a VM or a server.
 "
 ,
 }

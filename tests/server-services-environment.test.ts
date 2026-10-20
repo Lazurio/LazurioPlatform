@@ -498,12 +498,12 @@ test("the generated Folder tells agents who enters Služby serveru, that the Tea
     "- Přiřazení: Služby serveru (root decision 0209). Vstupují sem jen Owneři a Admini Organizace",
   );
   expect(agents).toContain(
-    "lidem je to ale Pracovní Prostředí jménem Služby serveru, nikdy Týmové.",
+    "uživatelům je to ale Pracovní Prostředí jménem Služby serveru, nikdy Týmové.",
   );
   expect(agents).toContain(
-    "- Operátor: Owner nebo Admin Organizace, který je právě připojený.",
+    "- Uživatel: Owner nebo Admin Organizace, který je právě připojený.",
   );
-  expect(agents).not.toContain("- Operátor: člen Teamu");
+  expect(agents).not.toContain("- Uživatel: člen Teamu");
   // A named person publishes, as from a Team Environment (root 0209 (c)).
   expect(agents).toContain("Komu mám říct, aby tyhle změny publikoval?");
   expect(agents).toContain("brokerovaná identita Organizace");
@@ -520,7 +520,7 @@ test("the generated Folder tells agents who enters Služby serveru, that the Tea
     "- Assignment: Server services (root decision 0209).",
   );
   expect(english["AGENTS.md"]).toContain(
-    "- Operator: whichever Owner or Admin of the Organization is connected now.",
+    "- User: whichever Owner or Admin of the Organization is connected now.",
   );
   expect(english["manual/this-machine.md"]).toContain(
     "This, though, is Server services (root decision 0209)",
@@ -528,7 +528,7 @@ test("the generated Folder tells agents who enters Služby serveru, that the Tea
   // A Team Environment's Folder says none of it.
   const teamFolder = render(bindings.assignedTeam, "cs");
   expect(teamFolder["AGENTS.md"]).toContain("- Přiřazení: sdílený Teamem.");
-  expect(teamFolder["AGENTS.md"]).toContain("- Operátor: člen Teamu");
+  expect(teamFolder["AGENTS.md"]).toContain("- Uživatel: člen Teamu");
   expect(teamFolder["AGENTS.md"]).not.toContain("Služby serveru");
   expect(teamFolder["manual/this-machine.md"]).not.toContain("Služby serveru");
 });

@@ -4402,6 +4402,24 @@ replaced it.
 
 ## F30 — The Operator replaces the Principal
 
+> **Note of 2026-10-20 (Matěj): the agents' manual calls the human the user.** In
+> his words: „Co se týče návodu pro agenty, tak pojďme napříč celým návodem
+> sjednotit, ať se operátor, principál anebo člověk nahradí jedním slovem: uživatel.
+> Ať je prostě uživatel zavedený pojem, který znamená člověka, operátora. … ať mu
+> prostě neříkáme lidi, operátoři ani principálové, ale prostě ať se říká
+> uživatelé.“ Everything the Folder generates for agents (`AGENTS.md`, `manual/`, the
+> skill `new-module`, the default voice where it means the human the agent talks
+> with, and the tool catalog's purpose and usage texts) names the human the agents
+> work with or for **uživatel / uživatelé** in Czech and **user / users** in English,
+> instead of Operátor, principál, člověk or lidé (Operator, principal, person or
+> people). `manual/roles.md` and `manual/glossary.md` define the user and say that
+> the decision records call this the Operátor (Operator). The decision records,
+> these included, keep „Operátor“ and "Operator". The roles (Owner, Admin, Steward,
+> Builder, User, Kolega, Opatrovník), Buddy, the hosting operator and identifiers
+> such as the handover's `operator` stay. Not changed here: the Launchpad's texts,
+> the CLI help, the tools' installation prompts and code comments. Template revision
+> `base-instructions-61`.
+
 **Decided by Matěj 2026-10-02.** The Agents' principal is the **Operator** of the
 Environment: whoever controls an Environment controls the Agents they run in it. Agents
 act for the Operator, within the Operator's live rights; the Operator gives the
@@ -14563,6 +14581,27 @@ rendered-page CI gates.
 > 2026-10-18](#f54-amendment-of-2026-10-18-the-requests-page-under-trezor-the-old-addresses-kept-for-good)).**
 > A request's page is `/vault/requests/<id>` in Apps → Trezor; its old address under
 > `/settings/vault` leads to it for good.
+>
+> **Note of 2026-10-20: point 7 follows root decision 0203's addendum of 2026-10-20
+> (HumanAndMachines/Lazurio#594, plan DEV-6631), published on 2026-10-20 as
+> 53e0db25.** On an Organization's Environment with
+> a vault (not a public one) the manual's Secrets asks who needs a secret and who
+> changes it, then recommends the Organization vault (people only), the Environment
+> vault (on a Team or Automated Environment, which adds nobody to it, everyone who
+> enters has its passwords, #499) or a shared vault for a purpose, which the
+> Organization's Admin creates and invites the Environment's vault account into (its
+> address: `account` in `lazurio vault status --json`). It never separates access by
+> collections, and it adds a fourth path, (d): a supplier's bulk file through the
+> Environment's Files, stored item by item, deleted at once and never printed, the one
+> exception to "never from a file", also to that rule in the tool `bitwarden`'s text,
+> which stays one for every Environment. A personal or public Environment and this
+> computer keep their guidance; template revision `base-instructions-61`. **Honest
+> limits:** the Trezor page shows neither the vault account's address nor whom a vault
+> is for yet. Nothing in Lazurio accepts an invitation: the hosting runs the vault
+> without mail, and then Vaultwarden 1.37.4-lazurio.1 accepts an existing account's
+> invitation at once (`send_invite`); read from the sources, not yet tried on a live
+> vault. The status, the Trezor page, runtime secrets (F46) and a request (c) know the
+> Environment vault only.
 
 **Decided by the Admin on 2026-10-13 (root decision 0198 point 9; plan DEV-6631 tasks
 651 and 652; the wireframe of HumanAndMachine-ai/prototypes-lazurio#33:

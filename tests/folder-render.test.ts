@@ -98,12 +98,12 @@ for (const journey of journeys.filter((entry) => entry.os !== "windows"))
 test("towards people the place is Prostředí in Czech and the Environment in English, with the companion rules (0170 addendum 2026-10-15)", () => {
   const rules = {
     cs: [
-      "- Lidem česky říkej tomu, kde pracuješ, Prostředí: velké P, střední rod (toto Prostředí, v tomto Prostředí), druh přívlastkem (Osobní, Pracovní, Týmové, Místní, Automatizované Prostředí). Hostované vlastní jméno nemá; jen kde ho musíš odlišit od místního, řekni Prostředí na serveru, nikdy Remote Environment ani Vzdálené Prostředí. Anglicky je to Environment a hostované Remote Environment. Slova Mašina, VM ani server jim pro něj neříkej; Machine zůstává technický pojem pro hranici, na které Environment běží (příkazy jako `lazurio machine …`, identifikátory, architektura).",
-      "- V textech pro lidi je produkt Lazurio (Launchpad a Dashboard jsou interní názvy; místo pojmenuj Apps, Přehled Organizace nebo Nastavení, příkazy nech přesné), Organizaci říkej Organizace, ne firma, a česky piš tento, tato, toto, ne tenhle, tahle, tohle (root rozhodnutí 0170, dodatek 2026-10-15).",
+      "- Uživatelům česky říkej tomu, kde pracuješ, Prostředí: velké P, střední rod (toto Prostředí, v tomto Prostředí), druh přívlastkem (Osobní, Pracovní, Týmové, Místní, Automatizované Prostředí). Hostované vlastní jméno nemá; jen kde ho musíš odlišit od místního, řekni Prostředí na serveru, nikdy Remote Environment ani Vzdálené Prostředí. Anglicky je to Environment a hostované Remote Environment. Slova Mašina, VM ani server jim pro něj neříkej; Machine zůstává technický pojem pro hranici, na které Environment běží (příkazy jako `lazurio machine …`, identifikátory, architektura).",
+      "- V textech pro uživatele je produkt Lazurio (Launchpad a Dashboard jsou interní názvy; místo pojmenuj Apps, Přehled Organizace nebo Nastavení, příkazy nech přesné), Organizaci říkej Organizace, ne firma, a česky piš tento, tato, toto, ne tenhle, tahle, tohle (root rozhodnutí 0170, dodatek 2026-10-15).",
     ],
     en: [
-      "- Towards people, call the place you work in the Environment, and a hosted one a Remote Environment; in Czech it is Prostředí, with a capital P and neuter (toto Prostředí; the kind as an adjective: Osobní, Pracovní, Týmové, Místní, Automatizované Prostředí), a hosted one has no name of its own (only where it must be told apart from a local one, Prostředí na serveru), never Remote Environment or Vzdálené Prostředí. Do not say Machine, VM or server to them; Machine stays the technical term for the boundary an Environment runs on (commands such as `lazurio machine …`, identifiers, the architecture).",
-      "- In text for people the product is Lazurio (Launchpad and Dashboard are internal names; name the place: Apps, the Organization overview or Settings, and keep commands exact), the Organization is the Organization (in Czech Organizace, not firma), and Czech demonstratives are tento, tato, toto, not tenhle, tahle, tohle (root decision 0170, addendum 2026-10-15).",
+      "- Towards users, call the place you work in the Environment, and a hosted one a Remote Environment; in Czech it is Prostředí, with a capital P and neuter (toto Prostředí; the kind as an adjective: Osobní, Pracovní, Týmové, Místní, Automatizované Prostředí), a hosted one has no name of its own (only where it must be told apart from a local one, Prostředí na serveru), never Remote Environment or Vzdálené Prostředí. Do not say Machine, VM or server to them; Machine stays the technical term for the boundary an Environment runs on (commands such as `lazurio machine …`, identifiers, the architecture).",
+      "- In text for users the product is Lazurio (Launchpad and Dashboard are internal names; name the place: Apps, the Organization overview or Settings, and keep commands exact), the Organization is the Organization (in Czech Organizace, not firma), and Czech demonstratives are tento, tato, toto, not tenhle, tahle, tohle (root decision 0170, addendum 2026-10-15).",
     ],
   };
   for (const journey of journeys)
@@ -170,7 +170,7 @@ test("the Assignment line renders the handover's owner.assignment and nothing el
     profile: presetProfile("hosted-organization-personal", "linux"),
   });
   expect(operator).toContain(
-    "- Assignment: assigned to Operator `example` (GitHub id 12345).",
+    "- Assignment: assigned to user `example` (GitHub id 12345).",
   );
   expect(operator).toContain("- Owner: Organization `example`.\n");
   expect(operator).not.toContain("sample-team");
@@ -200,9 +200,7 @@ test("the Assignment line renders the handover's owner.assignment and nothing el
         locale: "cs",
       }),
     }),
-  ).toContain(
-    "- Přiřazení: přiřazený Operátorovi `example` (GitHub id 12345).",
-  );
+  ).toContain("- Přiřazení: přiřazený uživateli `example` (GitHub id 12345).");
 });
 
 // The real canary shape: a Team-bearing handover on an individual work VM,
@@ -308,8 +306,8 @@ test("the Steward preset renders the persona, its bot team and the publication r
     });
   const en = steward("en");
   for (const line of [
-    "- Assignment: an automated Environment of an Organization persona; responsible Operator `example` (GitHub id 12345).",
-    "- Identity: the persona's own GitHub user account, a bot account, signed in to `gh` by the responsible Operator, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the Operator's own account or anyone else's here; GitHub is the only access authority.",
+    "- Assignment: an automated Environment of an Organization persona; responsible user `example` (GitHub id 12345).",
+    "- Identity: the persona's own GitHub user account, a bot account, signed in to `gh` by the responsible user, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the user's own account or anyone else's here; GitHub is the only access authority.",
     "## Persona bot team",
     "`/lazurio publish`",
     "Organization `example`",
