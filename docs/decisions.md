@@ -6074,7 +6074,9 @@ each app's package directory, each repository slot and its parent, and the held
 Personalspace's), not recursively, and any change there drops it; so do the
 Launchpad's own content installation and preparation, a profile change and another
 decision whose Personalspace this is, and a change while a reading runs means that
-reading is not kept. A kept reading older than a minute, or one that found
+reading is not kept. Only the reading that becomes the kept one changes the watches,
+so a reading superseded by a change, a forget or a newer reading never closes a watch
+the kept one needs (#551 review). A kept reading older than a minute, or one that found
 directories it watches only from then on, still answers and is read anew behind it,
 which bounds a change outside the watched directories (a dependency elsewhere in the
 Organization) to the read after that one. Where a directory cannot be watched, or

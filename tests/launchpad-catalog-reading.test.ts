@@ -78,6 +78,13 @@ function world(
     string,
     { changed: () => void; lost: () => void; closed: boolean }
   >();
+  // Every watch ever made, a replaced one included.
+  const made: Array<{
+    directory: string;
+    changed: () => void;
+    lost: () => void;
+    entry: { closed: boolean };
+  }> = [];
   const watch: DirectoryWatch = (directory, changed, lost) => {
     if (options.watch === "refusing" && directory.endsWith("workspace"))
       throw Object.assign(new Error("no"), { code: "EACCES" });
@@ -85,6 +92,7 @@ function world(
       throw Object.assign(new Error("gone"), { code: "ENOENT" });
     const entry = { changed, lost, closed: false };
     watched.set(directory, entry);
+    made.push({ directory, ...entry, entry });
     return {
       close() {
         entry.closed = true;
@@ -109,6 +117,7 @@ function world(
     reading,
     readings,
     watched,
+    made,
     reads: () => readings.length,
     later(ms: number) {
       clock += ms;
@@ -211,6 +220,111 @@ test("a change while a reading runs: it answers its own read and is not kept", a
   expect(w.reads()).toBe(4);
   await w.answer(catalogOf(["alpha", "beta"]));
   expect((await next).organizations.length).toBe(2);
+});
+
+test("a reading a forget superseded that ends after the newer one never closes the newer one's watches (#551 review)", async () => {
+  const w = world();
+  const beta = join(folder, "organizations", "beta");
+  // Read A runs; the content changes through the Launchpad; read B runs.
+  const a = w.reading.read();
+  await Bun.sleep(0);
+  w.reading.forget();
+  const b = w.reading.read();
+  await Bun.sleep(0);
+  expect(w.reads()).toBe(2);
+  const both = catalogOf(["alpha", "beta"]);
+  w.readings[1]?.answer(both);
+  expect(await b).toBe(both);
+  // B's watches settle: the read after it reads anew behind it, with both.
+  expect(await w.reading.read()).toBe(both);
+  const settled = catalogOf(["alpha", "beta"]);
+  await w.answer(settled);
+  expect(w.watched.get(beta)?.closed).toBe(false);
+  // A ends last, with alpha only: it answers its own read and nothing else.
+  const old = catalogOf(["alpha"]);
+  w.readings[0]?.answer(old);
+  expect(await a).toBe(old);
+  await Bun.sleep(0);
+  expect(w.watched.get(beta)?.closed).toBe(false);
+  expect(await w.reading.read()).toBe(settled);
+  expect(w.reads()).toBe(3);
+  // And a change in beta is still told.
+  w.change(beta);
+  void w.reading.read();
+  await Bun.sleep(0);
+  expect(w.reads()).toBe(4);
+});
+
+test("a watch event during a reading: that reading is not kept and changes no watch", async () => {
+  const w = await settledWorld({}, catalogOf(["alpha", "beta"]));
+  const beta = join(folder, "organizations", "beta");
+  w.change(join(folder, "organizations"));
+  const running = w.reading.read();
+  await Bun.sleep(0);
+  expect(w.reads()).toBe(3);
+  // A change while it reads, then it ends having seen alpha only.
+  w.change(join(folder, "organizations", "alpha"));
+  const during = catalogOf(["alpha"]);
+  await w.answer(during);
+  expect(await running).toBe(during);
+  expect(w.watched.get(beta)?.closed).toBe(false);
+  // The next read reads anew, and only its kept reading changes the watches.
+  const next = w.reading.read();
+  await Bun.sleep(0);
+  expect(w.reads()).toBe(4);
+  await w.answer(catalogOf(["alpha"]));
+  await next;
+  expect(w.watched.get(beta)?.closed).toBe(true);
+});
+
+test("an older reading of another decision whose Personalspace this is that ends last neither replaces the newer one nor closes its watches", async () => {
+  const w = world();
+  const beta = join(folder, "organizations", "beta");
+  const older = w.reading.read();
+  await Bun.sleep(0);
+  w.decide({ kind: "blocked", reason: "github-signed-out", login: null });
+  const newer = w.reading.read();
+  await Bun.sleep(0);
+  expect(w.reads()).toBe(2);
+  const both = catalogOf(["alpha", "beta"]);
+  w.readings[1]?.answer(both);
+  expect(await newer).toBe(both);
+  w.readings[0]?.answer(catalogOf(["alpha"]));
+  await older;
+  await Bun.sleep(0);
+  expect(w.watched.get(beta)?.closed).toBe(false);
+  // The decision now is the newer one's: its catalog answers.
+  expect(await w.reading.read()).toBe(both);
+});
+
+test("a late word from a watch that was replaced changes nothing; the watch that replaced it is told", async () => {
+  const w = await settledWorld();
+  const alpha = join(folder, "organizations", "alpha");
+  const first = w.made.find((entry) => entry.directory === alpha);
+  if (first === undefined) throw new Error("alpha is watched");
+  // It ends on its own: the reading is dropped, and the next one watches
+  // alpha again with a new watch.
+  first.lost();
+  const next = w.reading.read();
+  await Bun.sleep(0);
+  expect(w.reads()).toBe(3);
+  await w.answer(w.catalog);
+  await next;
+  const second = w.made.filter((entry) => entry.directory === alpha).at(-1);
+  expect(second).not.toBe(first);
+  // Settle the reading after the new watch, then the old one speaks late.
+  expect(await w.reading.read()).toBe(w.catalog);
+  await w.answer(w.catalog);
+  const before = w.reads();
+  first.changed();
+  first.lost();
+  expect(await w.reading.read()).toBe(w.catalog);
+  expect(w.reads()).toBe(before);
+  // The new one is still the one that tells.
+  second?.changed();
+  void w.reading.read();
+  await Bun.sleep(0);
+  expect(w.reads()).toBe(before + 1);
 });
 
 test("reads while a reading runs share it; one after a change does not", async () => {

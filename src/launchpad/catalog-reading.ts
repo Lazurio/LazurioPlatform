@@ -26,7 +26,10 @@ import type {
 // that is created, removed, renamed or written drops the reading; the
 // Launchpad's own changes to the content drop it as well (`forget`), and so
 // does another decision whose Personalspace this is. A change made while a
-// reading runs means that reading is not kept. The system tells of a change
+// reading runs means that reading is not kept. Only the reading that becomes
+// the kept one changes the watches: one a change, a forget or a newer
+// reading superseded answers its own read and never closes a watch the kept
+// reading needs. The system tells of a change
 // a moment after it (on macOS some 10 to 30 ms): a read right after a write
 // may still answer the reading before it.
 //
@@ -139,6 +142,8 @@ export function createCatalogReading(
   type Kept = Readonly<{
     key: string;
     at: number;
+    /** When its reading started, among all readings (`started`). */
+    order: number;
     generation: number;
     catalog: Catalog;
     /** Every directory it found that exists is watched. */
@@ -156,15 +161,21 @@ export function createCatalogReading(
   // Every change seen moves it: a reading of an older generation is not
   // kept, and a kept one of an older generation does not answer.
   let generation = 0;
+  // The order the readings started in: only a later one may replace the one
+  // kept, so an older reading that ends last (another decision whose
+  // Personalspace this is, read beside it) never displaces a newer one.
+  let started = 0;
   let closed = false;
   const watchers = new Map<string, { close(): void }>();
   const changed = () => {
     generation += 1;
   };
 
-  // Watches the directories of a reading and closes those it no longer
-  // has: whether every one that exists is watched, and whether each was
-  // already watched before.
+  // Watches the directories of the reading that becomes the kept one and
+  // closes those it no longer has: whether every one that exists is
+  // watched, and whether each was already watched before. Only that reading
+  // changes the watches: a reading a change or a newer reading superseded
+  // never closes the watches of the one kept.
   function arm(directories: Set<string>): {
     watched: boolean;
     settled: boolean;
@@ -184,14 +195,24 @@ export function createCatalogReading(
     for (const directory of directories) {
       if (watchers.has(directory)) continue;
       try {
-        watchers.set(
+        // A watch speaks only while it is the one of its directory: a late
+        // word from one closed or replaced since changes nothing.
+        let watcher: { close(): void } | undefined;
+        const current = () =>
+          watcher !== undefined && watchers.get(directory) === watcher;
+        watcher = watch(
           directory,
-          watch(directory, changed, () => {
+          () => {
+            if (current()) changed();
+          },
+          () => {
             // Lost: no longer told, so nothing kept stays current.
+            if (!current()) return;
             watchers.delete(directory);
             changed();
-          }),
+          },
         );
+        watchers.set(directory, watcher);
         settled = false;
       } catch (error) {
         // A directory that is not there is its parent's to tell about.
@@ -204,13 +225,23 @@ export function createCatalogReading(
   function start(key: string, decided: PersonalspaceHolder): Promise<Catalog> {
     const asked = generation;
     const at = now();
+    started += 1;
+    const order = started;
     const done = read(folder, async () => decided)
       .then((catalog) => {
+        // Superseded (a change, a forget or a close since it started, or a
+        // newer reading already kept): it answers its own read and touches
+        // nothing else.
+        if (
+          asked !== generation ||
+          closed ||
+          (kept !== null && kept.order > order)
+        )
+          return catalog;
         const { watched, settled } = arm(
           directoriesOf(folder, catalog, decided),
         );
-        if (asked === generation && !closed)
-          kept = { key, at, generation: asked, catalog, watched, settled };
+        kept = { key, at, order, generation: asked, catalog, watched, settled };
         return catalog;
       })
       .finally(() => {
