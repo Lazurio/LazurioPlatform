@@ -2241,7 +2241,8 @@ status" (with them again and `fresh: true`, read anew), and shows:
   verified stays on the line, and gh's account is then not in the success colour, which
   only a working link gets (F19's addendum of 2026-10-19, #515). A sign-in the page runs
   of the tool, its window closed or open, says "Čekám na přihlášení…" or "Dokončuji
-  připojení…" there with the waiting mark (#516). On the right the one action ("Připojit" / "Connect"; "Přidat a
+  připojení…" there with the waiting mark (#516). On the right the one action
+  ("Připojit" / "Connect"; "Přidat a
   připojit" / "Add and connect" when it is not installed yet; "Link SSH key" before
   "Odpojit" / "Disconnect"; or, for a tool an agent sets up, "Připojit s pomocí agenta" /
   "Connect with an agent") and the switch with its visible label
@@ -2340,9 +2341,11 @@ needed and starts the login (`/api/tools/login/start`), and polls
 `/api/tools/login/poll` every 2 seconds with the session handle, one poll loop per
 sign-in (`createLoginPoll`). Its × in the corner and Escape close the window and never
 end a sign-in that starts or runs (`loginCloseAction`, F19's addendum of 2026-10-19,
-#516): the page keeps its handle and polls on, its end runs as with the window open, and
-opening the same tool's sign-in again (its row, Začínáme, the line in Apps) shows it
-instead of starting another. Only "Zrušit" in the dialog's foot sends
+#516): the page keeps its handle and polls on, also while the page is hidden (the poll
+belongs to the running sign-in; only the update pill polls only while the page is shown,
+plan DEV-6656), its end runs as with the window open, and opening the same tool's
+sign-in again (its row, Začínáme, the line in Apps) shows it instead of starting
+another. Only "Zrušit" in the dialog's foot sends
 `/api/tools/login/cancel`, offered only while a code, link or QR code waits
 (`loginCancelOffered`). Closing clears the code, link or QR from the page and returns
 focus to the card. Until the tool shows something to act on, the status
@@ -2350,8 +2353,9 @@ line says "Starting the sign-in…" and the body, never the same sentence, says 
 Lazurio waits for the tool's first step and for at most a minute (#98). A start that
 gets no answer within 45 seconds ends the dialog with "The Launchpad did not answer in
 time"; a poll without an answer ends nothing and is asked again, until a minute after
-the session's own end (`loginPollGivenUp`); and a sign-in that ends as `not-installed`, `spawn-failed`, `tool-exit`,
-`not-confirmed` or `no-challenge` shows a sentence that says what to do. A tool that was signed in
+the session's own end (`loginPollGivenUp`); and a sign-in that ends as `not-installed`,
+`spawn-failed`, `tool-exit`, `not-confirmed` or `no-challenge` shows a sentence that
+says what to do. A tool that was signed in
 before (`signed-in` with `already: true`) is reported as "already signed in" and the
 card's state is read again. What it shows:
 
@@ -2402,8 +2406,9 @@ finish, with why under "What happened" in Details) and the tools are read again.
 "Linking the SSH key", between "Waiting for you" and "Signed in": after the code is
 entered, the status line says "Dokončuji připojení…" with the waiting mark and "Okno
 můžete zavřít, Lazurio připojení dokončí samo." (F19's addendum of 2026-10-19; never
-"connected" before the proof), and offers no "Zrušit". A linked key ends the dialog with "The SSH key of this Machine is linked:
-git clone git@github.com:… works as <account>" and whether the key was created now
+"connected" before the proof), and offers no "Zrušit". A linked key ends the dialog
+with "The SSH key of this Machine is linked: git clone git@github.com:… works as
+<account>" and whether the key was created now
 (without a passphrase, so agents can use it) or an existing one is used unchanged, with
 its path and fingerprint. A key that is not linked marks the step "did not finish" and
 says, in one sentence each, that gh is signed in but git over SSH does not work yet and

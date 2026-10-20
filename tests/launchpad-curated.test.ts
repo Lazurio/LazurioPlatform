@@ -353,6 +353,87 @@ test.skipIf(!keygen)(
   },
 );
 
+// "Připojit znovu" (#515) beside the Launchpad's reading of the tools kept a
+// minute (#535): the link drops it, so the page load right after reads the
+// link working at once, and the link's own proof is the one every reading of
+// this Launchpad uses after it (the page's, Refresh status, Integrace's).
+test.skipIf(!keygen)(
+  "gh connected badly, then linked: the next page load reads it linked at once, and the Launchpad's readings use the link's proof",
+  async () => {
+    const opened = await session(["gh"]);
+    try {
+      // Signed in as octocat, without an SSH key here.
+      await writeFile(join(opened.home, "gh.state"), "octocat\n");
+      await writeFile(
+        join(opened.home, "gh.scopes"),
+        "gist read:org repo admin:public_key\n",
+      );
+      const gh = async (body: Json) =>
+        (
+          (await opened.json("/api/tools/status", body)).body.tools as Json[]
+        ).find((tool) => tool.name === "gh")?.signIn as Json | undefined;
+      const sshCalls = async () =>
+        (await readFile(join(opened.home, "ssh.calls"), "utf8").catch(() => ""))
+          .split("\n")
+          .filter((line) => line.length > 0).length;
+      // A page load: connected badly; the Launchpad keeps this reading.
+      expect(await gh({ signIn: true })).toMatchObject({
+        state: "signed-in",
+        account: "octocat",
+        ssh: { state: "not-linked", reason: "no-key" },
+      });
+      // "Připojit znovu": the SSH key's link of a signed-in gh.
+      const link = await opened.json("/api/tools/login/start", {
+        tool: "gh",
+        sshKey: true,
+      });
+      expect(link.status).toBe(200);
+      const linked = await until(
+        async () =>
+          (
+            await opened.json("/api/tools/login/poll", {
+              tool: "gh",
+              session: link.body.session ?? "0".repeat(32),
+            })
+          ).body,
+        (value) => value.kind !== "pending",
+      );
+      expect(linked).toMatchObject({
+        kind: "signed-in",
+        ssh: { state: "linked" },
+      });
+      const proved = await sshCalls();
+      expect(proved).toBeGreaterThan(0);
+      // The next page load, without `fresh`, is not the kept reading of
+      // before the link: it reads the link working.
+      expect((await gh({ signIn: true }))?.ssh).toMatchObject({
+        state: "linked",
+      });
+      // Refresh status and Integrace's reading prove nothing again: the
+      // link's proof is kept for every reading of this Launchpad.
+      expect((await gh({ signIn: true, fresh: true }))?.ssh).toMatchObject({
+        state: "linked",
+      });
+      const url = new URL(opened.app.url);
+      const integrations = await fetch(
+        new URL("/api/integrations?refresh=1", url),
+        {
+          headers: {
+            Origin: url.origin,
+            Authorization: `Bearer ${url.hash.slice(1)}`,
+          },
+        },
+      );
+      expect(integrations.status).toBe(200);
+      expect(await sshCalls()).toBe(proved);
+    } finally {
+      await opened.close();
+    }
+  },
+  // Real processes (the fakes, ssh-keygen): slower under a loaded run.
+  30_000,
+);
+
 test.skipIf(!posix)(
   "wacli: the QR is drawn server-side as SVG and replaced when it rotates; cancel and shutdown kill the tool",
   async () => {

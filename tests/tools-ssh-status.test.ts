@@ -9,7 +9,9 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createGithubProbe } from "../src/launchpad/setup-state";
 import { findTool } from "../src/tools/catalog";
+import { readToolsLive } from "../src/tools/overview";
 import {
   createSshProofs,
   fingerprintOf,
@@ -117,6 +119,7 @@ async function world(
       .filter((line) => line.length > 0).length;
   return {
     directory,
+    path,
     // Only where the world has a key.
     fingerprint: publicKey === null ? "" : fingerprintOf(publicKey),
     read,
@@ -360,6 +363,44 @@ test.skipIf(!keygen)(
       proofs.passed(opened.fingerprint, "OctoCat");
       expect((await opened.read(proofs))?.ssh?.state).toBe("linked");
       expect(await opened.sshCalls()).toBe(4);
+    } finally {
+      await opened.close();
+    }
+  },
+  // Real processes (the fakes, ssh-keygen): slower under a loaded run.
+  30_000,
+);
+
+test.skipIf(!keygen)(
+  "one set of kept proofs for every reading that carries them: the tools' sign-ins, the reading the Launchpad keeps a minute and the shell's GitHub (#515, #535)",
+  async () => {
+    const opened = await world();
+    try {
+      const proofs = createSshProofs();
+      // The Launchpad's tools environment carries its proofs to each of its
+      // readings: Settings → Nástroje's (tools-reading.ts), Integrace's and
+      // the shell document's GitHub.
+      const environment = {
+        path: opened.path,
+        home: opened.directory,
+        platform: process.platform,
+        run: runTool,
+        sshProofs: proofs,
+      };
+      expect((await opened.read(proofs))?.ssh?.state).toBe("linked");
+      expect(await opened.sshCalls()).toBe(1);
+      const live = await readToolsLive(environment, true);
+      const gh =
+        live.signIns?.[
+          live.status.tools.findIndex((tool) => tool.name === "gh")
+        ];
+      expect(gh?.ssh?.state).toBe("linked");
+      expect(await createGithubProbe(environment).state()).toBe("connected");
+      expect(await opened.sshCalls()).toBe(1);
+      // Without them (the CLI, doctor), each reading proves.
+      const { sshProofs: _, ...alone } = environment;
+      expect(await createGithubProbe(alone).state()).toBe("connected");
+      expect(await opened.sshCalls()).toBe(2);
     } finally {
       await opened.close();
     }

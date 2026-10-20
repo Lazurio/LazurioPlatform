@@ -266,9 +266,13 @@ StrictHostKeyChecking=yes -o ConnectTimeout=15 git@github.com` greets the login,
 step bounded by 20 s. `linked` only when it passed; `not-linked` with `no-key`,
 `not-registered`, `proof-failed` or `other-account`; `unknown` with `unreadable` only
 when GitHub could not be reached or read. The Launchpad keeps a passing proof per key
-fingerprint and login for 5 minutes and a failure for 20 s (`createSshProofs`); a gh
-sign-in or link of the Launchpad keeps what it proved, and one that starts, or a
-sign-out, forgets them. The private key is never read, and nothing is written. gh's JSON status is asked for exactly one field,
+fingerprint and login for 5 minutes and a failure for 20 s (`createSshProofs`), one set
+for every reading of the sign-ins it makes (its tools environment's `sshProofs`): the
+Tools section's, itself kept a minute (above), Integrace's and the shell document's
+GitHub. A gh sign-in or link of the Launchpad keeps what it proved, and one that starts,
+or a sign-out, forgets them. `tools list --sign-in` and `doctor --sign-in` keep nothing
+and prove each time. The private key is never read, and nothing is written. gh's JSON
+status is asked for exactly one field,
 `hosts`, and never with `--show-token`, so gh leaves the token out; only the active
 github.com entry's `state`, `login`, `tokenSource` and `scopes` are read (with `--json`
 gh always exits 0 and `state` says `success`, `error` or `timeout`). A signed-in gh

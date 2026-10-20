@@ -3203,19 +3203,27 @@ must say that GitHub is connected badly and must be connected again.
    github.com or timed out) or the home is not known. `scope-missing` is gone: a token
    that cannot read the account's keys leaves the proof alone to decide. Each step is
    bounded by 20 s.
-3. **The proof's cost.** The status is read often (every load of the page, Refresh status,
-   the shell document's setup each minute) and the proof is a network round trip (HTTPS,
-   then SSH). So it runs only where it can pass: never without a key, never for a key the
-   readable list does not have. The Launchpad keeps a passing proof in its memory per key
-   fingerprint and GitHub login for 5 minutes (`createSshProofs`): a working link changes
-   only when its key, its account, GitHub's list or the host keys change, and another key
-   or account is another entry. A failure, or GitHub out of reach, is kept for 20 s, so a
-   burst of readings asks once while a fix shows on the next reading after it. Readings
-   that meet share one proof. A gh sign-in or link of this Launchpad keeps what it proved,
-   so the reading right after it does not prove again, and a gh sign-in or sign-out that
-   starts forgets everything. The CLI (`tools list --sign-in`, `doctor --sign-in`) keeps
-   nothing and proves on each run. The staleness this allows is bounded: a key removed
-   from the account on github.com reads linked for up to 5 minutes.
+3. **The proof's cost.** The status is read often (Settings → Nástroje's reading on every
+   page load, which the Launchpad answers from its reading of the last minute since plan
+   DEV-6656, #535; Refresh status and the end of every flow, which read anew; Integrace's
+   reading, kept its own minute; the shell document's setup each minute) and the proof is
+   a network round trip (HTTPS, then SSH). So it runs only where it can pass: never
+   without a key, never for a key the readable list does not have. The Launchpad keeps a
+   passing proof in its memory per key fingerprint and GitHub login for 5 minutes
+   (`createSshProofs`), one set for every reading of the sign-ins it makes (its tools
+   environment's `sshProofs`: Nástroje's, Integrace's and the shell's GitHub): a working
+   link changes only when its key, its account, GitHub's list or the host keys change,
+   and another key or account is another entry. A failure, or GitHub out of reach, is
+   kept for 20 s, so a burst of readings asks once while a fix shows on the next fresh
+   reading after it (a page load within the minute shows the kept reading, as it does for
+   every tool's sign-in). Readings that meet share one proof. A gh sign-in or link of this
+   Launchpad keeps what it proved, so the reading right after it does not prove again,
+   and a gh sign-in or sign-out that starts forgets everything; the same sign-in drops the
+   kept reading of the tools (#535) and the end of its flow reads anew, so "Připojit
+   znovu" shows the link working at once. The CLI (`tools list --sign-in`, `doctor
+   --sign-in`) keeps nothing and proves on each run. The staleness this allows is
+   bounded: a key removed from the account on github.com reads linked for up to 5
+   minutes.
 4. **Everything built on it follows.** `githubFact` gains `incomplete`: signed in, SSH not
    working, which counts as missing (signed in with an SSH state that could not be read is
    `unknown`). Začínáme's GitHub step then says "Připojení nefunguje." with the warning
@@ -3256,9 +3264,12 @@ must say that GitHub is connected badly and must be connected again.
    never "Připojeno" before the proof passed. Začínáme's GitHub step shows a sign-in the
    page runs ("Čeká na vaše potvrzení." or "Dokončuje se připojení…", with the waiting
    mark) with "Otevřít", and the tool's row in Nástroje says "Čekám na přihlášení…" or
-   "Dokončuji připojení…". A detached sign-in keeps no code, link or QR in the page. The
-   core (`login.ts`) keeps its rules: an explicit cancel ends a session in any step (the
-   CLI's Ctrl-C) and a new start replaces a running one.
+   "Dokončuji připojení…". A detached sign-in keeps no code, link or QR in the page. Its
+   poll belongs to the running sign-in and goes on while the page is hidden: polling only
+   while the page is shown (plan DEV-6656, #535) is the update pill's rule, and a browser
+   that slows a hidden page's timers only delays the answer, which the session keeps until
+   it is read. The core (`login.ts`) keeps its rules: an explicit cancel ends a session in
+   any step (the CLI's Ctrl-C) and a new start replaces a running one.
 
 What a closed window cannot cover (a reload of the page, a Launchpad restart, an expiry, a
 failure) the status covers: gh signed in without a working link reads `incomplete`, and
@@ -3277,15 +3288,21 @@ failure) the status covers: gh signed in without a working link reads `incomplet
 reload forgets it (the session runs on and ends by itself, and the status says the
 rest). A key offered by `~/.ssh/config` or an agent instead of the default key counts
 only when the default key is listed: an unlisted default key reads `not-registered`, and
-"Připojit znovu" registers it. The proof ran against the fakes of the sign-in's tests and
-the real `ssh-keygen`; the real `ssh` messages of a network without GitHub are read from
-OpenSSH's own wording. Composio's own wording and its Začínáme row are the Integrace
+"Připojit znovu" registers it. On a network that drops GitHub's SSH port, the proof waits
+for ssh's connect timeout (15 s) before the state reads `unknown`; with the failure kept
+20 s and the page's reading kept a minute, a reading pays that wait at most every 20 s.
+The proof ran against the fakes of the sign-in's tests and the real `ssh-keygen`; the
+real `ssh` messages of a network without GitHub are read from OpenSSH's own wording. Composio's own wording and its Začínáme row are the Integrace
 work's (DEV-6626, #507).
 
 Verified by tests: `tests/tools-ssh-status.test.ts` (the status with fake gh and ssh:
 linked, registered without host keys, another account, a host key GitHub does not publish,
 no key and an unlisted key without an SSH connection, GitHub out of reach as unknown, a
-token that cannot read keys, the kept proofs); `tests/tools-login.test.ts` (a holder that
+token that cannot read keys, the kept proofs, one set of them for the tools' reading and
+the shell's GitHub); `tests/launchpad-curated.test.ts` (connected badly, then linked
+through the Launchpad: the next page load reads it linked at once, though the Launchpad
+keeps its reading of the tools a minute, and Refresh status and Integrace's reading use
+the link's proof); `tests/tools-login.test.ts` (a holder that
 stops polling during `gh ssh-key add`: the session still ends signed in, linked and with
 the Git identity, read once, and the status keeps its proof; cancel and replace as
 before); `tests/first-run.test.ts` and `tests/start-view.test.ts` (`incomplete` throughout,
