@@ -1,9 +1,15 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 import { acquireFileLock, type FileLock } from "../platform/flock";
 import type { ProcessRunner } from "../update/self-check";
-import { agentBrowserSocketDirectory } from "./contract/node";
-import { browserBounds, targetIdOf } from "./contract/pure";
+import { agentBrowserSocketDirectory, holderDirectory } from "./contract/node";
+import {
+  browserBounds,
+  isStrip,
+  parseHolder,
+  targetIdOf,
+} from "./contract/pure";
+import { addressKey } from "./people/sleep";
 import { browserCdpPort } from "./units";
 
 /** A thread's own window of the Environment browser (decision F38).
@@ -29,6 +35,9 @@ export type WindowSeams = Readonly<{
   /** The page targets the browser has now (CDP `/json/list`), by id. */
   targets: () => Promise<ReadonlySet<string>>;
   cdp: CdpCall;
+  /** The page targets with their addresses, for "no duplicate opens"
+   * (decision F57, `threadPage`); absent: a window is never shared. */
+  pages?: () => Promise<ReadonlyMap<string, string>>;
 }>;
 
 export type ThreadWindow = Readonly<{
@@ -212,6 +221,62 @@ export async function bindThreadWindow(
   }
 }
 
+/** A thread's family of sessions (decision F57): a session and its numbered
+ * siblings, `<session>-2` and on, which an agent opens for another page of
+ * the same thread, share one name without the number. */
+export function sessionFamily(session: string): string {
+  return session.replace(/-[0-9]{1,3}$/, "");
+}
+
+/** No duplicate opens (decision F57): an open page of the thread that shows
+ * the page of `url` (its origin and path) already. The thread's pages are
+ * the tabs its sessions' bindings name (`sessionFamily`) and the tabs its
+ * strip's holder file lists, a holder file of the family's name. The page
+ * is taken as it is: an address never moves an open window. Null when
+ * there is none or anything cannot be read. */
+export async function threadPage(
+  session: string,
+  url: string,
+  seams: WindowSeams,
+): Promise<string | null> {
+  const key = addressKey(url);
+  if (key === null || seams.pages === undefined) return null;
+  const family = sessionFamily(session);
+  const ids: string[] = [];
+  const sockets = agentBrowserSocketDirectory(seams.env);
+  const names =
+    sockets === undefined ? [] : await readdir(sockets).catch(() => []);
+  for (const name of names.sort()) {
+    if (!name.endsWith(".target")) continue;
+    const other = name.slice(0, -".target".length);
+    if (!isStrip(other) || sessionFamily(other) !== family) continue;
+    try {
+      const binding = JSON.parse(
+        await readFile(join(sockets as string, name), "utf8"),
+      ) as { targetId?: unknown };
+      const id = targetIdOf(binding.targetId);
+      if (id !== null) ids.push(id);
+    } catch {}
+  }
+  const holders = holderDirectory(seams.env);
+  if (holders !== undefined && isStrip(family))
+    try {
+      const file = `${family}.json`;
+      const hold = parseHolder(
+        file,
+        await readFile(join(holders, file), "utf8"),
+      );
+      ids.push(...(hold?.tabs ?? []));
+    } catch {}
+  if (ids.length === 0) return null;
+  const pages = await seams.pages();
+  for (const id of ids) {
+    const at = pages.get(id);
+    if (at !== undefined && addressKey(at) === key) return id;
+  }
+  return null;
+}
+
 async function ensureThreadWindowLocked(
   session: string,
   url: string | undefined,
@@ -225,6 +290,16 @@ async function ensureThreadWindowLocked(
   }
   if (existing !== null)
     return Object.freeze({ session, targetId: existing, created: false });
+  // The thread shows the page already: the session works there too.
+  const shown =
+    url === undefined
+      ? null
+      : await threadPage(session, url, seams).catch(() => null);
+  if (shown !== null) {
+    if (!(await bindSession(session, shown, seams)))
+      throw new BrowserWindowFailure("bind-failed");
+    return Object.freeze({ session, targetId: shown, created: false });
+  }
   let created: unknown;
   try {
     created = (
@@ -251,20 +326,22 @@ export function cdpSeams(
   run: ProcessRunner,
 ): WindowSeams {
   const base = `http://127.0.0.1:${browserCdpPort}`;
-  const targets = async () => {
+  const pages = async () => {
     const response = await fetch(`${base}/json/list`, {
       signal: AbortSignal.timeout(5_000),
     });
     const list = (await response.json()) as unknown;
-    const ids = new Set<string>();
+    const found = new Map<string, string>();
     if (Array.isArray(list))
       for (const item of list) {
-        const { id, type } = (item ?? {}) as Record<string, unknown>;
+        const { id, type, url } = (item ?? {}) as Record<string, unknown>;
         const target = targetIdOf(id);
-        if (type === "page" && target !== null) ids.add(target);
+        if (type === "page" && target !== null)
+          found.set(target, typeof url === "string" ? url : "");
       }
-    return ids;
+    return found;
   };
+  const targets = async () => new Set((await pages()).keys());
   const cdp: CdpCall = async (method, params) => {
     const version = (await (
       await fetch(`${base}/json/version`, {
@@ -300,5 +377,5 @@ export function cdpSeams(
       };
     });
   };
-  return Object.freeze({ env, run, targets, cdp });
+  return Object.freeze({ env, run, targets, cdp, pages });
 }

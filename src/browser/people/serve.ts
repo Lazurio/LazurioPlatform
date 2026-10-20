@@ -1,6 +1,6 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { readShellInputs, shellDocument } from "../../launchpad/shell-document";
 import { readMachineContext } from "../../machine/context";
@@ -17,6 +17,7 @@ import {
   holdsReader,
   liveTabsPath,
   readBootClock,
+  replaceOwnerFile,
   watchHolds,
   writeLiveTabs,
 } from "../contract/node";
@@ -132,6 +133,10 @@ export async function runViewService(
     );
   const sockets = agentBrowserSocketDirectory(env);
   const liveTabs = liveTabsPath(env);
+  // The tabs that sleep and the ids of the woken ones (decision F57), next to
+  // the list of live tabs: owner-only, gone at a reboot with the tabs.
+  const sleepFile =
+    liveTabs === undefined ? undefined : join(dirname(liveTabs), "sleep.json");
   const service = startViewService({
     origin: options.origin,
     port: options.port,
@@ -147,6 +152,22 @@ export async function runViewService(
         : {
             writeTabs: (ids, takenAt) => writeLiveTabs(liveTabs, ids, takenAt),
             bootClock: () => readBootClock(),
+          }),
+      ...(sleepFile === undefined
+        ? {}
+        : {
+            sleepState: {
+              read: async () => {
+                try {
+                  return await readFile(sleepFile, "utf8");
+                } catch (error) {
+                  if ((error as NodeJS.ErrnoException).code === "ENOENT")
+                    return null;
+                  throw error;
+                }
+              },
+              write: (text) => replaceOwnerFile(sleepFile, text),
+            },
           }),
       uploadDirectory: join(
         runtime?.startsWith("/") ? runtime : tmpdir(),

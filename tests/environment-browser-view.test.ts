@@ -112,6 +112,15 @@ class FakeBrowser {
   >();
   /** When each `Runtime.getHeapUsage` was asked (`performance.now()`). */
   readonly heapAskedAt: number[] = [];
+  /** Decision F57: how many milliseconds ago each tab's page last had input
+   * (none unless named), the tabs whose focused field has unsaved input,
+   * and those whose `beforeunload` objects to closing. */
+  readonly inputAgo = new Map<string, number>();
+  readonly unsaved = new Set<string>();
+  readonly beforeUnload = new Set<string>();
+  /** The browser's own id, as its socket's address names it; a new one
+   * stands for a restarted browser. */
+  browserId: string | undefined = undefined;
 
   /** Chrome's first window (the unit starts it with `about:blank`), which
    * the hub keeps as its own blank window unless `blank` is false. */
@@ -176,6 +185,7 @@ class FakeBrowser {
         this.closers.push(listener);
       },
       close: () => this.drop(),
+      ...(this.browserId === undefined ? {} : { browser: this.browserId }),
     };
   };
 
@@ -236,6 +246,25 @@ class FakeBrowser {
           this.emit("Target.targetDestroyed", { targetId: params.targetId }),
         );
         return { success: true };
+      case "Page.close": {
+        // As Chrome: the page's `beforeunload` may object, else it closes.
+        const target = String(sessionId).slice("S-".length);
+        if (this.beforeUnload.has(target))
+          queueMicrotask(() =>
+            this.emit(
+              "Page.javascriptDialogOpening",
+              { type: "beforeunload", message: "", url: "" },
+              sessionId,
+            ),
+          );
+        else {
+          this.targets.delete(target);
+          queueMicrotask(() =>
+            this.emit("Target.targetDestroyed", { targetId: target }),
+          );
+        }
+        return {};
+      }
       case "Page.getFrameTree":
         return { frameTree: { frame: { id: `F-${sessionId}` } } };
       case "Page.getNavigationHistory":
@@ -251,7 +280,13 @@ class FakeBrowser {
         return { windowId: 7, bounds: { width: 1280, height: 885 } };
       case "Page.createIsolatedWorld":
         return { executionContextId: 3 };
-      case "Runtime.evaluate":
+      case "Runtime.evaluate": {
+        const target = String(sessionId).slice("S-".length);
+        const expression = String(params.expression);
+        if (expression.includes("__lazurioActivity"))
+          return { result: { value: this.inputAgo.get(target) ?? null } };
+        if (expression.includes("defaultValue"))
+          return { result: { value: this.unsaved.has(target) } };
         return {
           result: {
             value: String(params.expression).includes("getSelection")
@@ -262,6 +297,7 @@ class FakeBrowser {
                 }),
           },
         };
+      }
       default:
         return {};
     }
@@ -329,6 +365,11 @@ async function serve(
     identity?: (() => Promise<EnvironmentIdentity | null>) | undefined;
     /** The cookie sweep at each connection (#504). */
     sweepCookies?: HubSeams["sweepCookies"];
+    /** Decision F57's times and what the hub writes down. */
+    idleSleepMs?: number;
+    sleepCloseMs?: number;
+    wakeRetryMs?: number;
+    sleepState?: HubSeams["sleepState"];
   } = {},
 ) {
   root = await realpath(await mkdtemp(join(tmpdir(), "people-view-")));
@@ -376,6 +417,18 @@ async function serve(
       releaseGraceMs: options.releaseGraceMs ?? options.graceMs ?? 60_000,
       holdsEveryMs: options.holdsEveryMs ?? 60_000,
       reconnectMs: options.reconnectMs ?? 20,
+      ...(options.idleSleepMs === undefined
+        ? {}
+        : { idleSleepMs: options.idleSleepMs }),
+      ...(options.sleepCloseMs === undefined
+        ? {}
+        : { sleepCloseMs: options.sleepCloseMs }),
+      ...(options.wakeRetryMs === undefined
+        ? {}
+        : { wakeRetryMs: options.wakeRetryMs }),
+      ...(options.sleepState === undefined
+        ? {}
+        : { sleepState: options.sleepState }),
     },
   });
   await until(() => service?.hub.ready === true);
@@ -2021,6 +2074,12 @@ test("the Launchpad's hub client reads the service's own answers on loopback, wi
   expect(fresh && Object.hasOwn(fresh, "heap")).toBe(false);
   expect(await closeTab(entry, opened.tab)).toMatchObject({ kind: "closing" });
   expect(await restoreTab(entry, opened.tab)).toEqual({ kind: "restored" });
+  // The same page for the same strip again is that tab (decision F57).
+  expect(await openTab(entry, "https://example.com/new", "launchpad")).toEqual({
+    kind: "opened",
+    tab: opened.tab,
+    reused: true,
+  });
   // A held tab counts nothing down: nothing to restore.
   expect(await restoreTab(entry, id(1))).toEqual({
     kind: "refused",
@@ -2810,4 +2869,436 @@ test("serve takes exactly a loopback port and an origin", () => {
   expect(
     parseServeArgs(["extra", "--port", "4848", "--origin", origin]),
   ).toBeNull();
+});
+
+// ---- Sleeping tabs (decision F57) ---------------------------------------------
+
+/** The running service's hub, read anew each time. */
+const hubNow = () => service?.hub;
+const factsOf = (n: number) =>
+  hubNow()
+    ?.list()
+    .find((facts) => facts.id === id(n));
+const asleep = (n: number) => factsOf(n)?.sleeping !== undefined;
+const pageClosed = (browser: FakeBrowser) =>
+  browser.called("Page.close").map((call) => call.sessionId);
+/** The window the browser opened at an address (the fake's new targets). */
+const opened = (browser: FakeBrowser, url: string) =>
+  [...browser.targets.values()].find(
+    (target) =>
+      target.url === url && Number.parseInt(target.targetId, 16) >= 100,
+  )?.targetId;
+
+test("a held tab nobody views and no agent uses sleeps after the idle time: its page closes, and every list keeps it by its id", async () => {
+  const browser = new FakeBrowser([
+    tab(1, { url: "https://example.com/a", title: "A" }),
+    tab(2, { url: "https://example.com/b" }),
+  ]);
+  const { writes } = await serve(browser, {
+    holdsEveryMs: 30,
+    idleSleepMs: 200,
+    unviewedGraceMs: 60_000,
+    holders: { "t3-a": [id(1)] },
+  });
+  await until(() => asleep(1));
+  // Asked to close through the page, so its `beforeunload` may object;
+  // never closed as a tab that ends.
+  expect(pageClosed(browser)).toEqual([`S-${id(1)}`]);
+  expect(closedTargets(browser)).toEqual([]);
+  expect(browser.targets.has(id(1))).toBe(false);
+  expect(factsOf(1)).toMatchObject({
+    url: "https://example.com/a",
+    title: "A",
+    holders: [{ strip: "t3-a" }],
+    agents: [],
+    viewers: 0,
+    grace: null,
+    sleeping: { reason: "idle" },
+  });
+  // The list of live tabs keeps it, so no app lets go of it.
+  await settle(120);
+  expect(writes.at(-1)).toContain(id(1));
+  // A tab nothing holds is F47's to end, never put to sleep.
+  expect(factsOf(2)?.sleeping).toBeUndefined();
+  expect(browser.targets.has(id(2))).toBe(true);
+  // A sleeping tab has no renderer, so no heap.
+  const listed = await service?.hub.listWithHeap();
+  expect(listed?.find((facts) => facts.id === id(1))?.heap).toBeNull();
+});
+
+test("a tab someone views never sleeps; a view whose page is hidden keeps it no longer, and showing the page wakes it in place", async () => {
+  const browser = new FakeBrowser([tab(1, { url: "https://example.com/a" })]);
+  const { base } = await serve(browser, {
+    holdsEveryMs: 30,
+    idleSleepMs: 150,
+    holders: { launchpad: [id(1)] },
+  });
+  const view = await person(base, id(1));
+  view.send({
+    t: "hello",
+    width: 800,
+    height: 600,
+    dpr: 1,
+    resize: true,
+    acks: true,
+    visible: true,
+  });
+  await settle(500);
+  expect(pageClosed(browser)).toEqual([]);
+  // The person's browser hides the page: it sleeps, and the socket waits.
+  view.send({ t: "visible", visible: false });
+  await until(() => asleep(1));
+  expect(view.of("closed")).toEqual([]);
+  await settle(100);
+  expect(opened(browser, "https://example.com/a")).toBeUndefined();
+  // Shown again: the tab opens at its address, in a window of its own at
+  // the person's size, under the same id.
+  const before = view.messages.length;
+  const since = () => view.messages.slice(before);
+  view.send({ t: "visible", visible: true });
+  await until(() => opened(browser, "https://example.com/a") !== undefined);
+  expect(browser.called("Target.createTarget").at(-1)?.params).toEqual({
+    url: "https://example.com/a",
+    newWindow: true,
+    width: 800,
+    height: 600,
+  });
+  await until(() => factsOf(1) !== undefined && !asleep(1));
+  await until(() =>
+    since().some(
+      (m) => "t" in m && m.t === "browser" && m.state === "connected",
+    ),
+  );
+  await until(() => since().some((m) => "frame" in m));
+  expect(view.of("closed")).toEqual([]);
+});
+
+test("an agent's tab never sleeps under its hands: while its daemon runs, an idle time after, and while its page has input nobody viewed", async () => {
+  const browser = new FakeBrowser([
+    tab(1, { url: "https://example.com/a" }),
+    tab(2, { url: "https://example.com/b" }),
+  ]);
+  // id(2): an agent drives it over its own DevTools connection (T3 Code's
+  // browser tools): its page has input all the time.
+  browser.inputAgo.set(id(2), 0);
+  const { setHolds } = await serve(browser, {
+    holdsEveryMs: 30,
+    idleSleepMs: 300,
+    working: [id(1)],
+    holders: { "t3-a": [id(1), id(2)] },
+  });
+  await settle(800);
+  expect(pageClosed(browser)).toEqual([]);
+  // id(1)'s agent stopped: its daemon ended, its binding stays. It sleeps
+  // only an idle time after the hub last saw the daemon.
+  const stopped = Date.now();
+  setHolds({ idle: [id(1)], holders: { "t3-a": [id(1), id(2)] } });
+  await until(() => pageClosed(browser).length > 0);
+  expect(Date.now() - stopped).toBeGreaterThanOrEqual(200);
+  expect(pageClosed(browser)).toEqual([`S-${id(1)}`]);
+  // id(2)'s agent stops too: an idle time after its last input it sleeps.
+  browser.inputAgo.delete(id(2));
+  await until(() => asleep(2));
+});
+
+test("a tab with unsaved input stays awake: a changed focused field, or a beforeunload that objects; the list says so, and it is asked again an idle time later", async () => {
+  const browser = new FakeBrowser([
+    tab(1, { url: "https://example.com/a" }),
+    tab(2, { url: "https://example.com/b" }),
+  ]);
+  browser.unsaved.add(id(1));
+  browser.beforeUnload.add(id(2));
+  await serve(browser, {
+    holdsEveryMs: 30,
+    idleSleepMs: 300,
+    holders: { launchpad: [id(1), id(2)] },
+  });
+  await until(() => browser.called("Page.handleJavaScriptDialog").length > 0);
+  // The hub answers "stay" itself: nobody views the page.
+  expect(browser.called("Page.handleJavaScriptDialog")).toEqual([
+    {
+      method: "Page.handleJavaScriptDialog",
+      params: { accept: false },
+      sessionId: `S-${id(2)}`,
+    },
+  ]);
+  // id(1) was never asked to close: its focused field speaks first.
+  expect(pageClosed(browser)).toEqual([`S-${id(2)}`]);
+  await settle(50);
+  for (const n of [1, 2]) {
+    expect(browser.targets.has(id(n))).toBe(true);
+    expect(factsOf(n)?.sleeping).toBeUndefined();
+    expect(Date.parse(String(factsOf(n)?.unsaved))).toBeGreaterThan(0);
+  }
+  // Not asked again before another idle time.
+  await settle(150);
+  expect(pageClosed(browser)).toEqual([`S-${id(2)}`]);
+  // Saved: it sleeps on a later beat.
+  browser.unsaved.delete(id(1));
+  await until(() => asleep(1));
+  expect(factsOf(1)?.unsaved).toBeUndefined();
+});
+
+test("viewing a tab that sleeps opens its address again under the same id; the lists name it by that id, and its viewer works in it", async () => {
+  const address = "https://example.com/a?x=1#top";
+  const browser = new FakeBrowser([tab(1, { url: address, title: "A" })]);
+  const { base, writes } = await serve(browser, {
+    holdsEveryMs: 30,
+    idleSleepMs: 150,
+    holders: { "t3-a": [id(1)] },
+  });
+  await until(() => asleep(1));
+  const view = await person(base, id(1));
+  // At once the tab's address and title, from its tombstone.
+  await until(() => view.of("info").length > 0);
+  expect(view.of("info")[0]).toMatchObject({
+    url: address,
+    title: "A",
+    loading: true,
+  });
+  await until(() => opened(browser, address) !== undefined);
+  const woken = opened(browser, address) as string;
+  await until(() => view.of("browser").some((m) => m.state === "connected"));
+  // One tab, by its id; the new target's id is in no list of tabs but the
+  // list of live tabs, which names both.
+  expect(service?.hub.list().map((facts) => facts.id)).toEqual([id(1)]);
+  expect(factsOf(1)).toMatchObject({
+    viewers: 1,
+    holders: [{ strip: "t3-a" }],
+  });
+  await until(
+    () =>
+      (writes.at(-1) ?? []).includes(id(1)) &&
+      (writes.at(-1) ?? []).includes(woken),
+  );
+  // Its input goes to the new window.
+  view.send({
+    t: "mouse",
+    type: "mousePressed",
+    x: 10,
+    y: 10,
+    button: "left",
+    buttons: 1,
+    clickCount: 1,
+    modifiers: 0,
+  });
+  await until(() =>
+    browser
+      .called("Input.dispatchMouseEvent")
+      .some((call) => call.sessionId === `S-${woken}`),
+  );
+  // Its view, left, keeps it awake no longer than any other: held, it stays.
+  view.socket.close();
+  await settle(100);
+  expect(browser.targets.has(woken)).toBe(true);
+});
+
+test("a tab that sleeps ends when nothing holds it after the grace of Vrátit; a hold within it keeps it, and Zavřít ends it for everyone with Vrátit", async () => {
+  const browser = new FakeBrowser([
+    tab(1, { url: "https://example.com/a" }),
+    tab(2, { url: "https://example.com/b" }),
+  ]);
+  const { base, setHolds, writes } = await serve(browser, {
+    holdsEveryMs: 30,
+    idleSleepMs: 150,
+    releaseGraceMs: 250,
+    holders: { "t3-a": [id(1), id(2)] },
+  });
+  await until(() => asleep(1) && asleep(2));
+  // The thread lets go of id(1): its tombstone counts the grace down, and a
+  // hold within it keeps it.
+  setHolds({ holders: { "t3-a": [id(2)] } });
+  await until(() => factsOf(1)?.grace?.kind === "release");
+  setHolds({ holders: { "t3-a": [id(1), id(2)] } });
+  await until(() => factsOf(1)?.grace === null);
+  await settle(350);
+  expect(asleep(1)).toBe(true);
+  // Let go again: it ends, and the list of live tabs drops it.
+  setHolds({ holders: { "t3-a": [id(2)] } });
+  await until(() => service?.hub.hasTab(id(1)) === false);
+  await until(() => !(writes.at(-1) ?? [id(1)]).includes(id(1)));
+  // Zavřít for everyone, and Vrátit within its grace.
+  const ask = (action: string) =>
+    loopback(base, `/.lazurio/tabs/${id(2)}/${action}`, { method: "POST" });
+  expect((await ask("close")).status).toBe(202);
+  expect(factsOf(2)?.closing).not.toBeNull();
+  expect(await ask("restore")).toEqual({
+    status: 200,
+    body: { restored: true },
+  });
+  await settle(350);
+  expect(asleep(2)).toBe(true);
+  expect((await ask("close")).status).toBe(202);
+  await until(() => service?.hub.hasTab(id(2)) === false);
+  expect((await ask("restore")).status).toBe(404);
+});
+
+test("Uspat and Probudit on loopback: never a tab someone views or an agent works in, nor one with unsaved input or no address to open again", async () => {
+  const browser = new FakeBrowser([
+    tab(1, { url: "https://example.com/a" }),
+    tab(2, { url: "https://example.com/b" }),
+    tab(3, { url: "https://example.com/c" }),
+    tab(4, { url: "about:blank" }),
+  ]);
+  browser.unsaved.add(id(3));
+  const { base } = await serve(browser, {
+    working: [id(2)],
+    holders: { launchpad: [id(1), id(2), id(3), id(4)] },
+  });
+  const view = await person(base, id(1));
+  await until(() => view.of("info").length > 0);
+  const ask = (n: number, action: string) =>
+    loopback(base, `/.lazurio/tabs/${id(n)}/${action}`, { method: "POST" });
+  expect(await ask(1, "sleep")).toEqual({
+    status: 409,
+    body: { error: "viewed" },
+  });
+  expect(await ask(2, "sleep")).toEqual({
+    status: 409,
+    body: { error: "agent" },
+  });
+  expect(await ask(3, "sleep")).toEqual({
+    status: 409,
+    body: { error: "unsaved" },
+  });
+  expect(await ask(4, "sleep")).toEqual({
+    status: 409,
+    body: { error: "not-sleepable" },
+  });
+  expect((await ask(77, "sleep")).status).toBe(404);
+  expect((await ask(77, "wake")).status).toBe(404);
+  expect(pageClosed(browser)).toEqual([]);
+  // Nobody views it now: Uspat puts it to sleep, at once.
+  view.socket.close();
+  await until(() => factsOf(1)?.viewers === 0);
+  expect(await ask(1, "sleep")).toEqual({
+    status: 200,
+    body: { sleeping: true },
+  });
+  expect(factsOf(1)?.sleeping?.reason).toBe("asked");
+  expect(await ask(1, "sleep")).toEqual({
+    status: 200,
+    body: { sleeping: true },
+  });
+  // Probudit opens it again under its id and answers once it is there.
+  expect(await ask(1, "wake")).toEqual({ status: 200, body: { awake: true } });
+  expect(factsOf(1)?.sleeping).toBeUndefined();
+  expect(opened(browser, "https://example.com/a")).toBeDefined();
+  // An awake tab is awake.
+  expect(await ask(2, "wake")).toEqual({ status: 200, body: { awake: true } });
+  // Probudit is no agent's doing: Uspat puts it to sleep again at once.
+  expect(await ask(1, "sleep")).toEqual({
+    status: 200,
+    body: { sleeping: true },
+  });
+});
+
+test("no duplicate opens: a strip's tab that shows the page already is that tab, awake or asleep; another strip gets its own; a different query moves only a tab not in use", async () => {
+  const browser = new FakeBrowser([
+    tab(1, { url: "https://vault.example.com/#/vault" }),
+    tab(2, { url: "https://module.example.com/list?page=1" }),
+  ]);
+  // id(2) is in use: its page has input now.
+  browser.inputAgo.set(id(2), 0);
+  const { base } = await serve(browser, {
+    holdsEveryMs: 30,
+    idleSleepMs: 400,
+    holders: { launchpad: [id(1)], "t3-a": [id(2)] },
+  });
+  const open = (url: string, strip: string | null) =>
+    loopback(base, "/.lazurio/tabs", { method: "POST", body: { url, strip } });
+  // The same address for the same strip: that tab, not a new window.
+  expect(await open("https://vault.example.com/#/vault", "launchpad")).toEqual({
+    status: 200,
+    body: { id: id(1), view: `${origin}/t/${id(1)}`, reused: true },
+  });
+  expect(browser.called("Target.createTarget")).toEqual([]);
+  // Another strip gets a tab of its own.
+  const elsewhere = await open("https://vault.example.com/#/vault", "t3-b");
+  expect(elsewhere.status).toBe(201);
+  expect(elsewhere.body.id).not.toBe(id(1));
+  // The same strip asks again for its new tab, which its app has not
+  // recorded yet: that tab.
+  expect(
+    (await open("https://vault.example.com/#/vault", "t3-b")).body.id,
+  ).toBe(elsewhere.body.id);
+  // A different query on a tab in use: a new tab, the old one untouched.
+  const busy = await open("https://module.example.com/list?page=2", "t3-a");
+  expect(busy.status).toBe(201);
+  expect(browser.called("Page.navigate")).toEqual([]);
+  // A page for the person that nothing holds (`lazurio browser link --url`):
+  // once quiet, a different query takes it there.
+  const link = await open("https://docs.example.com/guide?a=1", null);
+  expect(link.status).toBe(201);
+  await settle(450);
+  const moved = await open("https://docs.example.com/guide?a=2", null);
+  expect(moved.body).toMatchObject({ id: link.body.id, reused: true });
+  expect(browser.called("Page.navigate")).toEqual([
+    {
+      method: "Page.navigate",
+      params: { url: "https://docs.example.com/guide?a=2" },
+      sessionId: `S-${link.body.id}`,
+    },
+  ]);
+  // Asleep, the strip's tab is reused and keeps the new address to wake at.
+  await until(() => asleep(1));
+  const sleeping = await open("https://vault.example.com/#/send", "launchpad");
+  expect(sleeping.body).toMatchObject({ id: id(1), reused: true });
+  expect(factsOf(1)).toMatchObject({
+    url: "https://vault.example.com/#/send",
+    sleeping: { reason: "idle" },
+  });
+  expect(asleep(2)).toBe(false);
+});
+
+test("a restart of the view keeps the tabs that sleep and the woken tabs' ids; a restarted browser keeps none of them", async () => {
+  let written: string | null = null;
+  const sleepState: HubSeams["sleepState"] = {
+    read: async () => written,
+    write: async (text) => {
+      written = text;
+    },
+  };
+  const browser = new FakeBrowser([
+    tab(1, { url: "https://example.com/a" }),
+    tab(2, { url: "https://example.com/b" }),
+  ]);
+  browser.browserId = "browser-one";
+  await serve(browser, {
+    holdsEveryMs: 30,
+    idleSleepMs: 300,
+    holders: { "t3-a": [id(1), id(2)] },
+    sleepState,
+  });
+  await until(() => asleep(1) && asleep(2));
+  // id(2) woke and is awake under its id.
+  expect(await service?.hub.wakeTab(id(2))).toBe(true);
+  const woken = opened(browser, "https://example.com/b") as string;
+  await until(() => written?.includes(woken) === true);
+  await service?.stop();
+  service = undefined;
+  if (root) await rm(root, { recursive: true, force: true });
+  // The view restarts; the browser runs on.
+  browser.drop();
+  await serve(browser, {
+    holdsEveryMs: 60_000,
+    holders: { "t3-a": [id(1), id(2)] },
+    sleepState,
+  });
+  expect(factsOf(1)?.sleeping?.reason).toBe("idle");
+  expect(factsOf(2)?.sleeping).toBeUndefined();
+  expect(
+    hubNow()
+      ?.list()
+      .map((facts) => facts.id)
+      .sort(),
+  ).toEqual([id(1), id(2)].sort());
+  expect(hubNow()?.hasTab(woken)).toBe(true);
+  // The browser restarts: no tab of it comes back, asleep or awake.
+  browser.drop();
+  browser.browserId = "browser-two";
+  browser.targets.delete(woken);
+  await until(() => hubNow()?.ready === true && !asleep(1));
+  await until(() => hubNow()?.hasTab(id(1)) === false);
+  expect(hubNow()?.hasTab(id(2))).toBe(false);
 });
