@@ -1289,3 +1289,188 @@ test("secrets reach agents by the paths a, b and c on a Remote Environment, neve
       );
     }
 });
+
+// Where a secret belongs on an Organization's Environment (root decision
+// 0203's addendum of 2026-10-20, F54's note of the same day): the intent
+// first, the three kinds of vault, collections never the boundary, the words
+// for people, how an Environment joins a shared vault, and a supplier's bulk
+// file as the fourth path, the one file a secret comes from, which the tool
+// `bitwarden` names too. A Team or Automated Environment's vault is its
+// agents' only. A personal Environment (its person's own Bitwarden), a public
+// Environment (no vault) and this computer keep their text without the kinds.
+test("an Organization's Environment asks who needs a secret before it names one of three kinds of vault; a personal or public Environment and this computer do not", () => {
+  const cases = [
+    { preset: "local", machine: null, os: "macos", kinds: false },
+    {
+      preset: "hosted-personal",
+      machine: bindings.personal,
+      os: "linux",
+      kinds: false,
+    },
+    {
+      preset: "hosted-organization-personal",
+      machine: bindings.organization,
+      os: "linux",
+      kinds: true,
+      agentsOnly: false,
+    },
+    {
+      preset: "hosted-organization-team",
+      machine: bindings.team,
+      os: "linux",
+      kinds: true,
+      agentsOnly: true,
+    },
+    {
+      preset: "hosted-organization-steward",
+      machine: bindings.automated,
+      os: "linux",
+      kinds: true,
+      agentsOnly: true,
+    },
+    {
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationPublic,
+      os: "linux",
+      kinds: false,
+    },
+    {
+      preset: "hosted-organization-team",
+      machine: bindings.teamPublic,
+      os: "linux",
+      kinds: false,
+    },
+  ] as const;
+  for (const [index, entry] of cases.entries())
+    for (const locale of ["cs", "en"] as const) {
+      const cs = locale === "cs";
+      const outputs = renderOutputs({
+        preset: entry.preset,
+        machine: entry.machine,
+        profile: presetProfile(entry.preset, entry.os, { locale }),
+        tools: entry.preset === "local" ? [] : ["bitwarden"],
+      });
+      const working = outputs["manual/working-here.md"];
+      const heading = cs ? "## Tajné údaje" : "## Secrets";
+      const start = working.indexOf(heading);
+      const section = working.slice(
+        start,
+        working.indexOf("\n## ", start + heading.length),
+      );
+      const where = [index, entry.preset, locale] as const;
+      // In this order: the intent, the three kinds, the drawer, the words
+      // for people, the shared vault through the Admin with the account's
+      // address from the status (the page does not show it yet), what
+      // removal leaves, then the paths with d last.
+      const rules = cs
+        ? [
+            "**Kam tajemství patří: nejdřív se zeptej na záměr.**",
+            "zjisti, kdo ho potřebuje (jen lidé, agenti tohoto Environmentu, nebo agenti víc Environmentů) a kdo ho mění",
+            "**Trezor Organizace** je jen pro lidi",
+            "**Trezor Prostředí**",
+            "**Sdílený trezor pro účel**",
+            "Firemní ani osobní hesla do něj nepatří.",
+            "**Kolekce je šuplík, ne zámek.**",
+            "Přístup kolekcemi nikdy neodděluj",
+            "„Není trezor jako trezor.",
+            "**Do sdíleného trezoru Environment přizve jen Admin Organizace.**",
+            "`lazurio vault status --json` v poli `account`; stránka Trezor ji zatím neukazuje",
+            "co si agenti mezitím stáhli nebo použili, jim zůstane",
+            "  - (a) ",
+            "  - (b) ",
+            "  - (c) ",
+            "Žádost ukládá jen do Trezoru Prostředí",
+            "  - (d) Dodal-li dodavatel tajemství hromadně v souboru",
+            "(Apps → Soubory, uloží se do `~/Documents/`), nikdy do chatu",
+            "a soubor hned smaž",
+            "ber jen `id`",
+            "Aplikace berou tajné údaje jen z Trezoru Prostředí, ne ze sdíleného trezoru",
+          ]
+        : [
+            "**Where a secret belongs: ask about the intent first.**",
+            "find out who needs it (people only, this Environment's agents, or the agents of several Environments) and who changes it",
+            "**The Organization vault** is for people only",
+            "**The Environment vault**",
+            "**A shared vault for a purpose**",
+            "Company and personal passwords do not belong in it.",
+            "**A collection is a drawer, not a lock.**",
+            "Never separate access by collections",
+            "“Not every vault is the same.",
+            "**Only the Organization's Admin brings an Environment into a shared vault.**",
+            "`lazurio vault status --json` prints the account's address as `account`; the Vault page does not show it yet",
+            "what agents fetched or used meanwhile stays with them",
+            "  - (a) ",
+            "  - (b) ",
+            "  - (c) ",
+            "A request saves into the Environment vault only",
+            "  - (d) When a supplier delivered secrets in bulk in a file",
+            "(Apps → Files, which saves it into `~/Documents/`), never into chat",
+            "and delete the file right away",
+            "take only the `id`",
+            "Applications take secrets only from the Environment vault, not from a shared vault",
+          ];
+      const exception = cs
+        ? "a neber ho ze souboru ani ze zprávy. Jedinou výjimkou je hromadný soubor od dodavatele, cesta (d) níže."
+        : "and never take one from a file or a message. The one exception is a supplier's bulk file, path (d) below.";
+      const tool = cs
+        ? "jedinou výjimkou je na Prostředí Organizace hromadný soubor od dodavatele, cesta (d) v `manual/working-here.md`"
+        : "the one exception, on an Organization's Environment, is a supplier's bulk file, path (d) in `manual/working-here.md`";
+      expect([...where, start > 0]).toEqual([...where, true]);
+      // The tool's text names the one exception wherever it is enabled.
+      expect([
+        ...where,
+        outputs["manual/this-machine.md"].includes(tool),
+      ]).toEqual([...where, entry.preset !== "local"]);
+      if (!entry.kinds) {
+        // The paths a, b and c stay where a vault is; nothing of the kinds.
+        expect([
+          ...where,
+          rules.filter(
+            (rule) =>
+              !/^ {2}- \([abc]\) $/.test(rule) && section.includes(rule),
+          ),
+        ]).toEqual([...where, []]);
+        expect([...where, section.includes(exception)]).toEqual([
+          ...where,
+          false,
+        ]);
+        continue;
+      }
+      const at = rules.map((rule) => section.indexOf(rule));
+      expect([...where, rules.filter((_, i) => at[i] === -1)]).toEqual([
+        ...where,
+        [],
+      ]);
+      expect(at).toEqual([...at].sort((a, b) => a - b));
+      expect([...where, section.includes(exception)]).toEqual([...where, true]);
+      // Who uses this Environment's vault: its agents and the people with
+      // access to it, or on a Team or Automated Environment its agents only.
+      const agentsOnly = cs
+        ? [
+            "lidi do něj tenhle Environment zatím nepřidává",
+            "Trezor tohoto Prostředí používají jen jeho agenti.",
+          ]
+        : [
+            "this Environment adds no people to it yet",
+            "Only this Environment's agents use its vault.",
+          ];
+      const withPeople = cs
+        ? [
+            "je pro agenty tohoto Environmentu a lidi s přístupem do něj",
+            "Trezor tohoto Prostředí používají jeho agenti a lidé, kteří do Prostředí mají přístup.",
+          ]
+        : [
+            "is for this Environment's agents and the people with access to it",
+            "This Environment's vault is used by its agents and the people who have access to this Environment.",
+          ];
+      expect([
+        ...where,
+        agentsOnly.map((text) => section.includes(text)),
+        withPeople.map((text) => section.includes(text)),
+      ]).toEqual([
+        ...where,
+        agentsOnly.map(() => entry.agentsOnly),
+        withPeople.map(() => !entry.agentsOnly),
+      ]);
+    }
+});

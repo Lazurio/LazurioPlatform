@@ -646,7 +646,7 @@ function workingHere(
     blank,
     ...connectedApplications(preset),
     blank,
-    ...secrets(preset),
+    ...secrets(preset, isPublic),
     blank,
     t(
       "## Poslední slovo má vždy Operátor",
@@ -1378,7 +1378,106 @@ const connectedApplications = (preset: PresetName): readonly Text[] => [
 // own vault (decisions F53 and F54, root decision 0198 point 9): there a
 // secret reaches the agents by the paths a, b and c, never through chat or a
 // file; this computer has none yet (the second wave of root decision 0193).
-function secrets(preset: PresetName): readonly Text[] {
+// An Organization's Environment works in its Organization's Lazurio
+// Vaultwarden, which has three kinds of vault (root decision 0203's addendum
+// of 2026-10-20, F54's note of the same day): the agent asks who needs a
+// secret and who changes it before it recommends a kind, never separates
+// access by collections, and takes a supplier's bulk file by a fourth path,
+// d. A public Environment has no vault (root decision 0204 point 4) and a
+// personal one keeps its vault in its person's own Bitwarden (0203 point 7):
+// both keep the text without the kinds.
+function secrets(preset: PresetName, isPublic: boolean): readonly Text[] {
+  const kinds = preset !== "local" && preset !== "hosted-personal" && !isPublic;
+  // A Team or Automated Environment adds no people to its vault yet
+  // (src/vault/members.ts, `not-managed`), so only its agents use it.
+  const agentsOnly =
+    preset === "hosted-organization-team" ||
+    preset === "hosted-organization-steward";
+  const pathA = t(
+    "  - (a) Je-li ve společném okně prohlížeče Environmentu rozšíření Bitwarden, požádej člověka, ať se ke službě přihlásí tam; rozšíření mu nabídne uložení do trezoru Environmentu a po jeho potvrzení přihlášení máš.",
+    "  - (a) If the Environment's shared browser window has the Bitwarden extension, ask the person to sign in to the service there; the extension offers to save it into the Environment's vault, and once they confirm, you have the sign-in.",
+  );
+  const pathB = t(
+    "  - (b) Umíš-li tajemství ve službě vytvořit sám v přihlášené relaci (nový API klíč nebo client secret), vytvoř ho a ulož rovnou do trezoru přes `bw`.",
+    "  - (b) If you can create the secret yourself in a signed-in session of the service (a new API key or client secret), create it and store it straight in the vault with `bw`.",
+  );
+  const pathC = t(
+    `  - (c) Jinak o něj požádej příkazem \`lazurio vault request\`, řečeným tak, aby člověk pochopil, co se po něm chce: co potřebuješ, proč a kde to ve službě najde. Dej mu odkaz, který příkaz vypíše, mezitím pokračuj jinou prací a stav zjisti příkazem \`lazurio vault request status <id>\`.${kinds ? " Žádost ukládá jen do Trezoru Prostředí; do sdíleného trezoru přidá položku člověk přímo." : ""}`,
+    `  - (c) Otherwise ask for it with \`lazurio vault request\`, put so that the person understands what is wanted: what you need, why, and where in the service they find it. Give them the link the command prints, go on with other work meanwhile, and read the state with \`lazurio vault request status <id>\`.${kinds ? " A request saves into the Environment vault only; into a shared vault a person adds the item directly." : ""}`,
+  );
+  const withoutVault = t(
+    "  Bez připojeného trezoru se zeptej Operátora, kam tajemství patří. Příkazy uvádí nástroj `bitwarden` v `manual/this-machine.md`.",
+    "  Without a connected vault, ask the Operator where the secret belongs. The tool `bitwarden` in `manual/this-machine.md` gives the commands.",
+  );
+  const ownStore = t(
+    "Vlastní úložiště tajemství nevymýšlej a přihlášení nepřenášej mezi Environmenty; každý má vlastní souhlas.",
+    "Do not invent your own secret store, and do not carry sign-ins between Environments; each has its own consent.",
+  );
+  const environmentVault: readonly Text[] = [
+    t(
+      '- **Tajemství patří do trezoru tohoto Environmentu** (nástroj `bitwarden`). Než o něm cokoli řekneš, ověř jeho stav znovu příkazem `lazurio vault status`. Hlásí-li `connected`, čti tajemství jen z něj přes společnou relaci (`eval "$(lazurio vault env)"`) a hodnoty nikdy nevypisuj. Co v něm chybí, získej v tomto pořadí:',
+      '- **Secrets belong in this Environment\'s vault** (the tool `bitwarden`). Before you say anything about it, check its state again with `lazurio vault status`. When it reports `connected`, read secrets only from it, through the shared session (`eval "$(lazurio vault env)"`), and never print a value. Get what it lacks in this order:',
+    ),
+    pathA,
+    pathB,
+    pathC,
+    withoutVault,
+    t(
+      `- Aplikace berou tajné údaje z trezoru Environmentu, nikdy z \`.env\` ani z repozitáře. ${ownStore.cs}`,
+      `- Applications take secrets from the Environment's vault, never from \`.env\` or a repository. ${ownStore.en}`,
+    ),
+  ];
+  const organizationVaults: readonly Text[] = [
+    t(
+      "- **Kam tajemství patří: nejdřív se zeptej na záměr.** Lazurio Vaultwarden Organizace má tři druhy trezorů. Než doporučíš, kam heslo nebo klíč uložit, zjisti, kdo ho potřebuje (jen lidé, agenti tohoto Environmentu, nebo agenti víc Environmentů) a kdo ho mění. Podle toho doporuč druh trezoru a cestu:",
+      "- **Where a secret belongs: ask about the intent first.** The Organization's Lazurio Vaultwarden has three kinds of vault. Before you recommend where to store a password or a key, find out who needs it (people only, this Environment's agents, or the agents of several Environments) and who changes it. Then recommend the kind of vault and the path:",
+    ),
+    t(
+      "  - **Trezor Organizace** je jen pro lidi: účty Environmentů v něm nikdy nejsou a ty do něj nevidíš. Heslo do něj uloží jen člověk; potřebuješ-li nějaké z něj, zkopíruje ti ho člověk do Trezoru Prostředí.",
+      "  - **The Organization vault** is for people only: no Environment's account is ever in it, and you cannot see into it. Only a person stores a password there; when you need one from it, a person copies it into the Environment vault for you.",
+    ),
+    agentsOnly
+      ? t(
+          "  - **Trezor Prostředí** je pro agenty tohoto Environmentu; lidi do něj tenhle Environment zatím nepřidává. Patří do něj, co potřebují jen jeho agenti, a dostane se tam cestami (a) až (d) níže.",
+          "  - **The Environment vault** is for this Environment's agents; this Environment adds no people to it yet. What only its agents need goes there, by the paths (a) to (d) below.",
+        )
+      : t(
+          "  - **Trezor Prostředí** je pro agenty tohoto Environmentu a lidi s přístupem do něj. Patří do něj, co potřebuje jen tenhle Environment, a dostane se tam cestami (a) až (d) níže.",
+          "  - **The Environment vault** is for this Environment's agents and the people with access to it. What only this Environment needs goes there, by the paths (a) to (d) below.",
+        ),
+    t(
+      "  - **Sdílený trezor pro účel** drží, co potřebují agenti víc Environmentů nebo lidé spolu s agenty, třeba klíče zařízení od dodavatele. Zakládá ho a vlastní Admin Organizace jako člověk a jeho jméno říká účel. Členy jsou lidé, kteří s daty pracují, a účty vybraných Environmentů; kdo hodnoty mění, zapisuje, ostatní jen čtou. Firemní ani osobní hesla do něj nepatří.",
+      "  - **A shared vault for a purpose** holds what the agents of several Environments, or people together with agents, need, such as device keys from a supplier. The Organization's Admin creates and owns it as a person, and its name states the purpose. Its members are the people who work with the data and the accounts of chosen Environments; whoever changes the values writes, the others only read. Company and personal passwords do not belong in it.",
+    ),
+    t(
+      "- **Kolekce je šuplík, ne zámek.** Klíč trezoru drží každý jeho člen, takže kdo co vidí, oddělují trezory, ne kolekce. Přístup kolekcemi nikdy neodděluj: co nemají vidět všichni členové trezoru, patří do jiného trezoru.",
+      "- **A collection is a drawer, not a lock.** Every member of a vault holds its key, so vaults, not collections, separate who sees what. Never separate access by collections: what not every member of a vault may see belongs in another vault.",
+    ),
+    t(
+      `- **Lidem to vysvětli obyčejnými slovy,** bez slov jako organizace, kolekce nebo role, v jejich jazyce; česky například: „Není trezor jako trezor. Do Trezoru Organizace vidí jen lidé, agenti ne. ${agentsOnly ? "Trezor tohoto Prostředí používají jen jeho agenti." : "Trezor tohoto Prostředí používají jeho agenti a lidé, kteří do Prostředí mají přístup."} Co potřebují agenti víc Prostředí nebo lidé spolu s agenty, patří do sdíleného trezoru pro jeden účel, který založí Admin Organizace.“`,
+      `- **Explain it to people in plain words,** without words like organization, collection or role, in their language; in English for example: “Not every vault is the same. Only people see into the Organization vault, agents do not. ${agentsOnly ? "Only this Environment's agents use its vault." : "This Environment's vault is used by its agents and the people who have access to this Environment."} What the agents of several Environments, or people together with agents, need belongs in a shared vault for one purpose, which the Organization's Admin creates.”`,
+    ),
+    t(
+      "- **Do sdíleného trezoru Environment přizve jen Admin Organizace.** Požádej Operátora, ať ho Admin založí a pozve do něj účet tohoto Environmentu v trezoru; zápis mu dá, jen když hodnoty mění agenti. Adresu účtu vypíše `lazurio vault status --json` v poli `account`; stránka Trezor ji zatím neukazuje. Pozvánku za účet přijme trezor sám a Admin členství potvrdí; potom sdílený trezor po `bw sync` najdeš podle jména v `bw list organizations`. Odebrání ze sdíleného trezoru zastaví další přístup, ale co si agenti mezitím stáhli nebo použili, jim zůstane: při ztrátě důvěry se dotčené klíče podle dopadu vymění.",
+      "- **Only the Organization's Admin brings an Environment into a shared vault.** Ask the Operator to have the Admin create it and invite this Environment's vault account into it, with write access only when agents change the values. `lazurio vault status --json` prints the account's address as `account`; the Vault page does not show it yet. The vault accepts the invitation for the account by itself and the Admin confirms the membership; after that, and a `bw sync`, you find the shared vault by its name in `bw list organizations`. Removal from a shared vault stops further access, but what agents fetched or used meanwhile stays with them: when trust is lost, the affected keys are changed according to their impact.",
+    ),
+    t(
+      '- **Trezory čteš přes nástroj `bitwarden`.** Než o Trezoru Prostředí cokoli řekneš, ověř jeho stav znovu příkazem `lazurio vault status`. Hlásí-li `connected`, čti tajemství jen z Trezoru Prostředí a ze sdílených trezorů, do kterých je tenhle Environment přizvaný, přes společnou relaci (`eval "$(lazurio vault env)"`), a hodnoty nikdy nevypisuj. Co chybí, získej v tomto pořadí:',
+      '- **You read the vaults through the tool `bitwarden`.** Before you say anything about the Environment vault, check its state again with `lazurio vault status`. When it reports `connected`, read secrets only from the Environment vault and the shared vaults this Environment is a member of, through the shared session (`eval "$(lazurio vault env)"`), and never print a value. Get what is missing in this order:',
+    ),
+    pathA,
+    pathB,
+    pathC,
+    t(
+      "  - (d) Dodal-li dodavatel tajemství hromadně v souboru (třeba tabulku klíčů zařízení), požádej o soubor, až je cílový trezor připravený: člověk ho vloží do Souborů tohoto Environmentu (Apps → Soubory, uloží se do `~/Documents/`), nikdy do chatu, protože chat si přílohy pamatuje. Hodnoty ulož po položkách jako v (b) do Trezoru Prostředí, nebo do sdíleného trezoru pro účel, kam smí účet tohoto Environmentu zapisovat (jeho `organizationId` a kolekci najdeš v `bw list organizations` a `bw list collections --organizationid <id>`), a soubor hned smaž. Hodnoty nikdy nevypisuj: soubor nečti do výstupu a z odpovědi `bw create item`, která vypíše celou položku, ber jen `id`.",
+      "  - (d) When a supplier delivered secrets in bulk in a file (such as a table of device keys), ask for the file once the target vault is ready: a person puts it into this Environment's Files (Apps → Files, which saves it into `~/Documents/`), never into chat, because chat keeps its attachments. Store the values item by item as in (b), into the Environment vault or into a shared vault for a purpose this Environment's account may write to (find its `organizationId` and collection with `bw list organizations` and `bw list collections --organizationid <id>`), and delete the file right away. Never print a value: never read the file into your output, and of the answer of `bw create item`, which prints the whole item, take only the `id`.",
+    ),
+    withoutVault,
+    t(
+      `- Aplikace berou tajné údaje jen z Trezoru Prostředí, ne ze sdíleného trezoru, a nikdy z \`.env\` ani z repozitáře. ${ownStore.cs}`,
+      `- Applications take secrets only from the Environment vault, not from a shared vault, and never from \`.env\` or a repository. ${ownStore.en}`,
+    ),
+  ];
   return [
     t("## Tajné údaje", "## Secrets"),
     t(
@@ -1387,42 +1486,19 @@ function secrets(preset: PresetName): readonly Text[] {
     ),
     blank,
     t(
-      "- **O tajemství nikdy nežádej v chatu** a neber ho ze souboru ani ze zprávy. Přihlášení a souhlasy dělá člověk ve svém prohlížeči; předtím mu řekni, jaký účet a jaký rozsah připojuje.",
-      "- **Never ask for a secret in chat,** and never take one from a file or a message. Sign-ins and consents are done by a person in their own browser; tell them first which account and which scope is being connected.",
+      `- **O tajemství nikdy nežádej v chatu** a neber ho ze souboru ani ze zprávy.${kinds ? " Jedinou výjimkou je hromadný soubor od dodavatele, cesta (d) níže." : ""} Přihlášení a souhlasy dělá člověk ve svém prohlížeči; předtím mu řekni, jaký účet a jaký rozsah připojuje.`,
+      `- **Never ask for a secret in chat,** and never take one from a file or a message.${kinds ? " The one exception is a supplier's bulk file, path (d) below." : ""} Sign-ins and consents are done by a person in their own browser; tell them first which account and which scope is being connected.`,
     ),
     ...(preset === "local"
       ? [
           t(
-            "- Aplikace berou tajné údaje z úložiště, které určí Operátor, nikdy z `.env` ani z repozitáře. Vlastní úložiště tajemství nevymýšlej a přihlášení nepřenášej mezi Environmenty; každý má vlastní souhlas.",
-            "- Applications take secrets from the store the Operator names, never from `.env` or a repository. Do not invent your own secret store, and do not carry sign-ins between Environments; each has its own consent.",
+            `- Aplikace berou tajné údaje z úložiště, které určí Operátor, nikdy z \`.env\` ani z repozitáře. ${ownStore.cs}`,
+            `- Applications take secrets from the store the Operator names, never from \`.env\` or a repository. ${ownStore.en}`,
           ),
         ]
-      : [
-          t(
-            '- **Tajemství patří do trezoru tohoto Environmentu** (nástroj `bitwarden`). Než o něm cokoli řekneš, ověř jeho stav znovu příkazem `lazurio vault status`. Hlásí-li `connected`, čti tajemství jen z něj přes společnou relaci (`eval "$(lazurio vault env)"`) a hodnoty nikdy nevypisuj. Co v něm chybí, získej v tomto pořadí:',
-            '- **Secrets belong in this Environment\'s vault** (the tool `bitwarden`). Before you say anything about it, check its state again with `lazurio vault status`. When it reports `connected`, read secrets only from it, through the shared session (`eval "$(lazurio vault env)"`), and never print a value. Get what it lacks in this order:',
-          ),
-          t(
-            "  - (a) Je-li ve společném okně prohlížeče Environmentu rozšíření Bitwarden, požádej člověka, ať se ke službě přihlásí tam; rozšíření mu nabídne uložení do trezoru Environmentu a po jeho potvrzení přihlášení máš.",
-            "  - (a) If the Environment's shared browser window has the Bitwarden extension, ask the person to sign in to the service there; the extension offers to save it into the Environment's vault, and once they confirm, you have the sign-in.",
-          ),
-          t(
-            "  - (b) Umíš-li tajemství ve službě vytvořit sám v přihlášené relaci (nový API klíč nebo client secret), vytvoř ho a ulož rovnou do trezoru přes `bw`.",
-            "  - (b) If you can create the secret yourself in a signed-in session of the service (a new API key or client secret), create it and store it straight in the vault with `bw`.",
-          ),
-          t(
-            "  - (c) Jinak o něj požádej příkazem `lazurio vault request`, řečeným tak, aby člověk pochopil, co se po něm chce: co potřebuješ, proč a kde to ve službě najde. Dej mu odkaz, který příkaz vypíše, mezitím pokračuj jinou prací a stav zjisti příkazem `lazurio vault request status <id>`.",
-            "  - (c) Otherwise ask for it with `lazurio vault request`, put so that the person understands what is wanted: what you need, why, and where in the service they find it. Give them the link the command prints, go on with other work meanwhile, and read the state with `lazurio vault request status <id>`.",
-          ),
-          t(
-            "  Bez připojeného trezoru se zeptej Operátora, kam tajemství patří. Příkazy uvádí nástroj `bitwarden` v `manual/this-machine.md`.",
-            "  Without a connected vault, ask the Operator where the secret belongs. The tool `bitwarden` in `manual/this-machine.md` gives the commands.",
-          ),
-          t(
-            "- Aplikace berou tajné údaje z trezoru Environmentu, nikdy z `.env` ani z repozitáře. Vlastní úložiště tajemství nevymýšlej a přihlášení nepřenášej mezi Environmenty; každý má vlastní souhlas.",
-            "- Applications take secrets from the Environment's vault, never from `.env` or a repository. Do not invent your own secret store, and do not carry sign-ins between Environments; each has its own consent.",
-          ),
-        ]),
+      : kinds
+        ? organizationVaults
+        : environmentVault),
   ];
 }
 
