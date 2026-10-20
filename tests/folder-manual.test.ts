@@ -21,6 +21,7 @@ import { manualPaths, outputFile, outputPaths } from "../src/folder/outputs";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
+import { questionTool } from "../src/folder/render";
 import { resumeInitialization } from "../src/folder/resume-initialization";
 import { updateProfile } from "../src/folder/update-profile";
 import { journeys } from "./fixtures/journeys";
@@ -1100,12 +1101,12 @@ test("missing rights are escalated on every preset; only the Team hands every pu
         ? [
             "**Na týmovém Environmentu** jednáš na GitHubu jako identita Teamu (Lazurio for GitHub)",
             "Sám nemerguj, ani na pokyn z chatu.",
-            "zeptej se uživatele: „Komu mám říct, aby tyhle změny publikoval?“",
+            "zeptej se uživatele nástrojem na otázky: „Komu mám říct, aby tyhle změny publikoval?“",
           ]
         : [
             "**In a Team Environment** you act on GitHub as the Team's identity (Lazurio for GitHub)",
             "Never merge yourself, not even on an instruction in the chat.",
-            "ask the user: “Whom should I ask to publish these changes?”",
+            "ask the user with the question tool: “Whom should I ask to publish these changes?”",
           ])
         expect([
           journey.preset,
@@ -1124,8 +1125,8 @@ test("missing rights are escalated on every preset; only the Team hands every pu
         ),
         workingHere.includes(
           locale === "cs"
-            ? "- Na explicitní „Publikuj“ v threadu: mergni"
-            : "- On an explicit “Publish” in the thread: merge",
+            ? "- Když uživatel v threadu zvolí Publikaci (volbou „Publikovat vaším jménem“ v nástroji na otázky nebo výslovným „Publikuj“): mergni"
+            : "- When the user chooses Publication in the thread (the option “Publish in your name” in the question tool or an explicit “Publish”): merge",
         ),
         workingHere.includes(
           locale === "cs"
@@ -1155,6 +1156,116 @@ test("missing rights are escalated on every preset; only the Team hands every pu
             : "On a Team Environment an update affects all its users",
         ),
       ).toBe(journey.preset === "hosted-organization-team");
+    }
+});
+
+// Root decision 0211 (decision F14 addendum 2026-10-20): an agent asks a
+// person through its harness's question tool, because a question left in the
+// text of a message is missed while the thread looks busy. AGENTS.md states
+// the rule once on every preset, public ones too, right after the line on how
+// to report. The handoff block of `manual/working-here.md` stays text and ends
+// before the closing question, which the agent asks with the tool: the pair
+// with its two options and neither recommended, on a Team Environment “whom
+// should I ask”, and without the tool in text, saying that it waits.
+test("agents ask people through the harness's question tool, and the handoff's closing question goes through it (root decision 0211)", () => {
+  const environments = [
+    ...journeys,
+    {
+      preset: "hosted-organization-team",
+      machine: bindings.teamPublic,
+      os: "linux",
+    },
+    {
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationPublic,
+      os: "linux",
+    },
+  ] as const;
+  for (const environment of environments)
+    for (const locale of ["cs", "en"] as const) {
+      const cs = locale === "cs";
+      const outputs = renderOutputs({
+        preset: environment.preset,
+        machine: environment.machine,
+        profile: presetProfile(environment.preset, environment.os, { locale }),
+      });
+      const where = [environment.preset, environment.machine?.name, locale];
+      const lines = outputs["AGENTS.md"].split("\n");
+      const rule = questionTool[locale];
+      expect([...where, lines.filter((line) => line === rule).length]).toEqual([
+        ...where,
+        1,
+      ]);
+      expect([...where, lines[lines.indexOf(rule) - 1]]).toEqual([
+        ...where,
+        cs
+          ? "- Začni výsledkem a vysvětluj stručně."
+          : "- Lead with the outcome and explain concisely.",
+      ]);
+      for (const part of cs
+        ? [
+            "zeptej se nástrojem svého harnessu na otázky (Claude Code `AskUserQuestion`, Codex `request_user_input`, Hermes `clarify`), ne jen textem ve zprávě",
+            "Nabídni 2–4 volby, doporučenou první s označením „(Doporučeno)“, a kontext napiš do zprávy nad otázku.",
+            "Nejdřív udělej všechno, co na odpovědi nezávisí",
+            "Volba Publikace, kterou uživatel v nástroji udělá, je jeho výslovný pokyn k Publikaci v aktuálním threadu, stejně jako „Publikuj“.",
+            "Nemá-li harness nástroj na otázky nebo ho v aktuálním režimu nenabízí, zeptej se textem s očíslovanými volbami a napiš, že čekáš na odpověď",
+            "Běžíš-li jako subagent, bot Lazurio MausBotu nebo automatický reviewer, uživatele v relaci nemáš: nástroj nepoužij a otázku předej ve svém výstupu tomu, kdo ti práci zadal",
+          ]
+        : [
+            "ask through your harness's question tool (Claude Code `AskUserQuestion`, Codex `request_user_input`, Hermes `clarify`), not only in the text of a message",
+            "Offer 2–4 options, the recommended one first marked “(Recommended)”, and write the context in the message above the question.",
+            "First do everything that does not depend on the answer",
+            "A choice of Publication the user makes in the tool is their explicit instruction to Publish in the current thread, just like “Publish”.",
+            "When the harness has no question tool or does not offer it in the current mode, ask in text with numbered options and say that you are waiting for the answer",
+            "When you run as a subagent, a Lazurio MausBot bot or an automated reviewer, there is no user in your session: do not use the tool, and pass the question in your output to whoever gave you the work",
+          ])
+        expect(rule).toContain(part);
+      // The handoff block is text and holds no question any more.
+      const workingHere = outputs["manual/working-here.md"];
+      const opening = "```text\n## Handoff\n";
+      const start = workingHere.indexOf(opening);
+      const end = workingHere.indexOf("\n```\n", start + opening.length);
+      expect([...where, start > 0, end > start]).toEqual([
+        ...where,
+        true,
+        true,
+      ]);
+      expect(workingHere.slice(start, end)).toEndWith(
+        cs
+          ? "Lokálně nezůstává nic mimo PR."
+          : "Nothing remains locally outside the PR.",
+      );
+      const after = workingHere.slice(end);
+      const team = environment.preset === "hosted-organization-team";
+      const pair = cs
+        ? "Hned pod ním polož nástrojem na otázky (decision 0211) standardizovanou dvojotázku „Mám změny Publikovat vaším jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?“ s volbami „Publikovat vaším jménem“ a „Požádat jiného Kolegu“. Žádnou z nich neoznačuj jako doporučenou: volbu vždy nabídni a nikdy ji nerozhoduj za uživatele. Bez nástroje na otázky napiš dvojotázku pod blok jako očíslované volby a dodej, že čekáš na odpověď."
+        : "Right below it ask the standardized pair with the question tool (decision 0211): “Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?”, with the options “Publish in your name” and “Ask another Kolega”. Mark neither of them as recommended: always offer the choice and never decide it for the user. Without a question tool write the pair below the block as numbered options and add that you are waiting for the answer.";
+      const whom = cs
+        ? "Hned pod ním polož nástrojem na otázky (decision 0211) otázku „Komu mám říct, aby tyhle změny publikoval?“; bez nástroje na otázky ji napiš pod blok a dodej, že čekáš na odpověď."
+        : "Right below it ask with the question tool (decision 0211): “Whom should I ask to publish these changes?”; without a question tool write it below the block and add that you are waiting for the answer.";
+      expect([...where, after.includes(pair), after.includes(whom)]).toEqual([
+        ...where,
+        !team,
+        team,
+      ]);
+      // The next step after a Publication is the agent's own question.
+      expect(after).toContain(
+        cs
+          ? "- Po každé Publikaci si polož otázku „jaký je další krok a co dalšího můžeme dotáhnout?“ a odpověď stručně navrhni uživateli."
+          : "- After every Publication ask yourself “what is the next step and what else can we finish?” and propose the answer to the user briefly.",
+      );
+      // A Team Environment's AGENTS.md asks “whom” with the tool too.
+      expect([
+        ...where,
+        outputs["AGENTS.md"].includes(
+          cs
+            ? "zeptej se uživatele nástrojem na otázky „Komu mám říct, aby tyhle změny publikoval?“ a tomu uživateli předej pull request."
+            : "ask the user with the question tool “Whom should I ask to publish these changes?” and hand that user the pull request.",
+        ),
+      ]).toEqual([
+        ...where,
+        team && environment.machine !== bindings.teamPublic,
+      ]);
     }
 });
 
