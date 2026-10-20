@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -22,7 +21,6 @@ import {
   tryPreset,
   visitorPreset,
 } from "../src/folder/presets";
-import { renderOutputs } from "../src/folder/preview";
 import { refreshFolder, updateProfile } from "../src/folder/update-profile";
 import { publicEntry } from "../src/launchpad/chat";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
@@ -51,6 +49,7 @@ import { freePort } from "./fixtures/ports";
 import {
   bobHandover,
   controls,
+  generatedDigests as generated,
   tryBinding,
   tryCases,
   tryHandover,
@@ -62,32 +61,14 @@ import {
 
 const emptyCatalog = { kind: "catalog", organizations: [] } as const;
 
-/** Every generated file of a Folder, by its SHA-256: equal digests are equal
- * bytes. */
-function generated(
-  preset: PresetName,
-  machine: MachineBinding,
-  locale: "cs" | "en",
-) {
-  const outputs = renderOutputs({
-    preset,
-    machine,
-    profile: presetProfile(preset, "linux", { locale }),
-  });
-  return Object.fromEntries(
-    Object.entries(outputs).map(([path, content]) => [
-      path,
-      createHash("sha256").update(content).digest("hex"),
-    ]),
-  );
-}
-
 // --- Goldens, recorded before the overlay ------------------------------
 
 // Recorded from the commit before the overlay (this file's first commit,
 // with `src/` as `origin/main` had it), so a difference here is a change
-// the overlay made to an Environment that is not public. Review the
-// snapshot only when such a change is deliberate.
+// the overlay made to an Environment that is not public. Re-recorded with
+// the template revision masked (plan DEV-6668 slice 5's first commit, with
+// `src/` as `origin/main` had it), so they also hold across a new template
+// revision. Review the snapshot only when such a change is deliberate.
 for (const control of controls)
   test(`golden: ${control.name} renders, derives, offers and is shown as before`, () => {
     expect({
