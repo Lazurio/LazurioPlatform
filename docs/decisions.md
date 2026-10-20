@@ -15414,6 +15414,8 @@ made "the same page" the exact address but for its fragment, and made the pressu
 thresholds provisional until measured. Pablo's review of #537 (same day) closed two gaps: an
 agent that comes while the hub decides, and the tabs of T3 Code's read-only browser tools,
 which never sleep now (point 5); and opens of one address at once give one tab (point 7).
+Its re-review made `lazurio browser window` reuse only its own thread's strip, by exact
+identity (point 7).
 Step 1 below is implemented in this revision; steps 2 and 3 are planned.**
 F47 ends a remote tab only when nothing holds it and nobody views it. A tab a T3 Code thread's
 strip or the Launchpad holds therefore stays loaded as long as the hold, whether anyone uses it
@@ -15552,10 +15554,14 @@ them to this task) stay, because they serve the agents' windows nobody watches.
      - Opens of the same page for the same strip at once give one tab: while the first one's
        window is being opened, the others wait for it and are answered with it, `reused`.
    - **`lazurio browser window --session <s> --url <address>`:** when the session has no open
-     window and a page of its thread already shows the same page, the session is bound to
-     that page instead of a new window. The thread's pages are those its sessions'
-     bindings name (the session and its numbered siblings `<s>-2`…) and those the holder file of
-     the thread's name lists. An address never moves an open window, so the page is taken as
+     window and a page of its own thread already shows the same page, the session is bound
+     to that page instead of a new window. Only an explicit identity counts: a T3 Code
+     thread's session has the thread's strip by the same name (`t3-<thread>`, F47 point 4),
+     and its pages are the tabs that holder file lists. No name is taken apart, so
+     `t3-thread` and `t3-thread-2` stay two threads (Pablo's re-review of #537). Any other
+     session has no strip of its own and reuses nothing, and neither does a file that cannot
+     be read or names another strip: in doubt the session gets a window of its own, never
+     another thread's page. An address never moves an open window, so the page is taken as
      it is.
 8. **A restart of the view keeps them.** The hub writes its tombstones and its woken targets' ids
    to `$XDG_RUNTIME_DIR/lazurio-browser/sleep.json` (`lazurio.browser-sleep.v1`, mode 0600,
@@ -15660,7 +15666,7 @@ them to this task) stay, because they serve the agents' windows nobody watches.
 - `src/browser/people/service.ts`: `sleep` and `wake` on loopback, and 200 for a reused tab.
 - `src/browser/people/protocol.ts` and `client.ts`: the view's `visible`.
 - `src/browser/people/cdp.ts`: the browser's own id. `src/browser/people/serve.ts`: `sleep.json`.
-- `src/browser/window.ts`: `threadPage` and `sessionFamily` for `lazurio browser window`.
+- `src/browser/window.ts`: `threadPage` for `lazurio browser window`.
 - `src/browser/contract/platform.ts` (C11) and `src/launchpad/new-tab/hub-client.ts`: the new
   requests' paths, the list's new members and the reuse answer.
 - Tests: `tests/environment-browser-view.test.ts` (the hub against a scripted DevTools peer)

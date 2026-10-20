@@ -20,7 +20,6 @@ import {
 } from "../src/browser/people/sleep";
 import {
   ensureThreadWindow,
-  sessionFamily,
   threadPage,
   type WindowSeams,
 } from "../src/browser/window";
@@ -206,14 +205,6 @@ test("the view says when the person's browser hides or shows its page; anything 
 
 // ---- `lazurio browser window` reuses a page its thread shows already ---------
 
-test("a thread's sessions are one family: a session and its numbered siblings", () => {
-  expect(sessionFamily("codex-019a")).toBe("codex-019a");
-  expect(sessionFamily("codex-019a-2")).toBe("codex-019a");
-  expect(sessionFamily("t3-thread-12")).toBe("t3-thread");
-  // A long number is part of the name, not a sibling's.
-  expect(sessionFamily("claude-1234")).toBe("claude-1234");
-});
-
 async function threadWorld() {
   root = await realpath(await mkdtemp(join(tmpdir(), "browser-sleep-")));
   const sockets = join(root, "sockets");
@@ -247,55 +238,68 @@ async function threadWorld() {
   return { sockets, holders, bind, calls, pages, seams };
 }
 
-test("a thread's page at the same address, but for its fragment, is the window of its new session; another query or another thread's page never is", async () => {
+/** A thread's strip as T3 Code's server writes it (F47 point 4). */
+const holdFor = (
+  world: Awaited<ReturnType<typeof threadWorld>>,
+  strip: string,
+  tabs: readonly string[],
+) =>
+  writeFile(
+    join(world.holders, `${strip}.json`),
+    JSON.stringify({ strip, label: strip, tabs }),
+  );
+
+test("a T3 Code thread's page at the same address, but for its fragment, is the window of its session; another query, another thread's page or a session without a strip never is", async () => {
   const world = await threadWorld();
-  // The thread's first session shows the vault; another thread shows the
-  // Module; the thread's strip holds a third page.
-  await world.bind("codex-a", id(1));
-  await world.bind("codex-b", id(2));
+  // The thread's strip holds the vault and a guide; another thread's strip
+  // holds a Module.
+  await holdFor(world, "t3-a", [id(1), id(3)]);
+  await holdFor(world, "t3-b", [id(2)]);
   world.pages.set(id(1), "https://vault.example.com/#/vault");
   world.pages.set(id(2), "https://module.example.com/");
   world.pages.set(id(3), "https://docs.example.com/guide?a=1");
-  await writeFile(
-    join(world.holders, "codex-a.json"),
-    JSON.stringify({ strip: "codex-a", label: "", tabs: [id(3)] }),
-  );
   const seams = world.seams();
   expect(
-    await threadPage("codex-a-2", "https://vault.example.com/#/send", seams),
+    await threadPage("t3-a", "https://vault.example.com/#/send", seams),
   ).toBe(id(1));
   expect(
-    await threadPage("codex-a-2", "https://docs.example.com/guide?a=1", seams),
+    await threadPage("t3-a", "https://docs.example.com/guide?a=1", seams),
   ).toBe(id(3));
   // Another query is another page.
   expect(
-    await threadPage("codex-a-2", "https://docs.example.com/guide?a=2", seams),
+    await threadPage("t3-a", "https://docs.example.com/guide?a=2", seams),
+  ).toBeNull();
+  // Another thread's page.
+  expect(
+    await threadPage("t3-a", "https://module.example.com/", seams),
+  ).toBeNull();
+  // A session with no strip of its own reuses nothing, not even a page a
+  // session of a similar name is bound to.
+  await world.bind("codex-a", id(1));
+  expect(
+    await threadPage("codex-a-2", "https://vault.example.com/", seams),
   ).toBeNull();
   expect(
-    await threadPage("codex-a-2", "https://module.example.com/", seams),
+    await threadPage("codex-a", "https://vault.example.com/", seams),
   ).toBeNull();
   // A page that is gone is none.
   world.pages.delete(id(1));
   expect(
-    await threadPage("codex-a-2", "https://vault.example.com/", seams),
+    await threadPage("t3-a", "https://vault.example.com/", seams),
   ).toBeNull();
   // Without the browser's addresses nothing is shared.
   world.pages.set(id(1), "https://vault.example.com/#/vault");
   expect(
-    await threadPage(
-      "codex-a-2",
-      "https://vault.example.com/",
-      world.seams(false),
-    ),
+    await threadPage("t3-a", "https://vault.example.com/", world.seams(false)),
   ).toBeNull();
-  // The window: the new session is bound to that page, nothing is created.
+  // The window: the session is bound to that page, nothing is created.
   expect(
     await ensureThreadWindow(
-      "codex-a-2",
+      "t3-a",
       "https://vault.example.com/#/vault",
       seams,
     ),
-  ).toEqual({ session: "codex-a-2", targetId: id(1), created: false });
+  ).toEqual({ session: "t3-a", targetId: id(1), created: false });
   expect(
     world.calls.some(
       (call) => Array.isArray(call) && call[0] === "Target.createTarget",
@@ -306,15 +310,42 @@ test("a thread's page at the same address, but for its fragment, is the window o
     "--cdp",
     "9222",
     "--session",
-    "codex-a-2",
+    "t3-a",
     "--no-pin-tab",
     "tab",
     id(1),
   ]);
-  // Another thread's page: a window of its own.
-  expect(
-    await ensureThreadWindow("codex-c", "https://module.example.com/", seams),
-  ).toEqual({ session: "codex-c", targetId: id(0x900), created: true });
+});
+
+test("two threads whose names differ by a trailing -2 are two threads: neither ever gets the other's page", async () => {
+  const world = await threadWorld();
+  const private1 = "https://private.example/page";
+  const private2 = "https://private.example/other";
+  // `t3-thread-2` is a thread of its own, with its binding and its strip.
+  await world.bind("t3-thread-2", id(0xa));
+  await holdFor(world, "t3-thread-2", [id(0xa)]);
+  await holdFor(world, "t3-thread", [id(0xb)]);
+  world.pages.set(id(0xa), private1);
+  world.pages.set(id(0xb), private2);
+  const seams = world.seams();
+  expect(await threadPage("t3-thread", private1, seams)).toBeNull();
+  expect(await threadPage("t3-thread-2", private2, seams)).toBeNull();
+  // Each one's own page is its own.
+  expect(await threadPage("t3-thread-2", private1, seams)).toBe(id(0xa));
+  expect(await threadPage("t3-thread", private2, seams)).toBe(id(0xb));
+  // A strip with only the other thread's page: a window of its own.
+  await holdFor(world, "t3-thread", []);
+  expect(await ensureThreadWindow("t3-thread", private1, seams)).toEqual({
+    session: "t3-thread",
+    targetId: id(0x900),
+    created: true,
+  });
+  // A holder file whose strip names another thread holds nothing here.
+  await writeFile(
+    join(world.holders, "t3-thread.json"),
+    JSON.stringify({ strip: "t3-thread-2", label: "", tabs: [id(0xa)] }),
+  );
+  expect(await threadPage("t3-thread", private1, seams)).toBeNull();
 });
 
 test("the hub's list says which tab sleeps and which has unsaved input, only where it applies; Uspat and Probudit are paths of the hub", () => {

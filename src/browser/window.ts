@@ -1,12 +1,12 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 import { acquireFileLock, type FileLock } from "../platform/flock";
 import type { ProcessRunner } from "../update/self-check";
 import { agentBrowserSocketDirectory, holderDirectory } from "./contract/node";
 import {
   browserBounds,
-  isStrip,
   parseHolder,
+  stripAppOf,
   targetIdOf,
 } from "./contract/pure";
 import { addressKey } from "./people/sleep";
@@ -221,56 +221,42 @@ export async function bindThreadWindow(
   }
 }
 
-/** A thread's family of sessions (decision F57): a session and its numbered
- * siblings, `<session>-2` and on, which an agent opens for another page of
- * the same thread, share one name without the number. */
-export function sessionFamily(session: string): string {
-  return session.replace(/-[0-9]{1,3}$/, "");
-}
-
-/** No duplicate opens (decision F57): an open page of the thread that shows
- * `url` already, all but its fragment (`addressKey`). The thread's pages are
- * the tabs its sessions' bindings name (`sessionFamily`) and the tabs its
- * strip's holder file lists, a holder file of the family's name. The page
- * is taken as it is: an address never moves an open window. Null when
- * there is none or anything cannot be read. */
+/** No duplicate opens (decision F57): an open page of the session's own
+ * thread that shows `url` already, all but its fragment (`addressKey`).
+ * Only an explicit identity counts: a T3 Code thread's session has the
+ * thread's strip by the same name (`t3-<thread>`, F47 point 4), and the
+ * pages are the tabs that holder file lists. No name is ever taken apart,
+ * so `t3-thread` and `t3-thread-2` stay two threads. Any other session has
+ * no strip of its own and reuses nothing, and so does anything that cannot
+ * be read: when in doubt the session gets a window of its own, never
+ * another thread's page. The page is taken as it is: an address never
+ * moves an open window. */
 export async function threadPage(
   session: string,
   url: string,
   seams: WindowSeams,
 ): Promise<string | null> {
   const key = addressKey(url);
-  if (key === null || seams.pages === undefined) return null;
-  const family = sessionFamily(session);
-  const ids: string[] = [];
-  const sockets = agentBrowserSocketDirectory(seams.env);
-  const names =
-    sockets === undefined ? [] : await readdir(sockets).catch(() => []);
-  for (const name of names.sort()) {
-    if (!name.endsWith(".target")) continue;
-    const other = name.slice(0, -".target".length);
-    if (!isStrip(other) || sessionFamily(other) !== family) continue;
-    try {
-      const binding = JSON.parse(
-        await readFile(join(sockets as string, name), "utf8"),
-      ) as { targetId?: unknown };
-      const id = targetIdOf(binding.targetId);
-      if (id !== null) ids.push(id);
-    } catch {}
-  }
   const holders = holderDirectory(seams.env);
-  if (holders !== undefined && isStrip(family))
-    try {
-      const file = `${family}.json`;
-      const hold = parseHolder(
-        file,
-        await readFile(join(holders, file), "utf8"),
-      );
-      ids.push(...(hold?.tabs ?? []));
-    } catch {}
-  if (ids.length === 0) return null;
+  if (
+    key === null ||
+    seams.pages === undefined ||
+    holders === undefined ||
+    stripAppOf(session) !== "t3code"
+  )
+    return null;
+  const file = `${session}.json`;
+  let tabs: readonly string[];
+  try {
+    const hold = parseHolder(file, await readFile(join(holders, file), "utf8"));
+    if (hold === null || hold.strip !== session) return null;
+    tabs = hold.tabs;
+  } catch {
+    return null;
+  }
+  if (tabs.length === 0) return null;
   const pages = await seams.pages();
-  for (const id of ids) {
+  for (const id of tabs) {
     const at = pages.get(id);
     if (at !== undefined && addressKey(at) === key) return id;
   }
