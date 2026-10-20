@@ -42,6 +42,7 @@ afterAll(async () => {
 const buildScript = `
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 while (existsSync("hold")) await Bun.sleep(20);
+if (existsSync("flaky")) process.exit(1);
 const page = readFileSync("page.txt", "utf8").trim();
 if (page === "fail") process.exit(1);
 rmSync("dist", { recursive: true, force: true });
@@ -81,7 +82,10 @@ async function staticModule(name: string, home: string) {
   await writeFile(pkgPath, JSON.stringify(pkg));
   await writeFile(join(site, "app/build.ts"), buildScript);
   await writeFile(join(site, "app/page.txt"), "one\n");
-  await writeFile(join(site, ".gitignore"), "node_modules/\ndist/\nhold\n");
+  await writeFile(
+    join(site, ".gitignore"),
+    "node_modules/\ndist/\nhold\nflaky\n",
+  );
   const git = (...args: string[]) =>
     execFileSync(
       "git",
@@ -137,6 +141,10 @@ async function staticModule(name: string, home: string) {
     commit,
     head: () => git("rev-parse", "HEAD"),
     hold: () => writeFile(join(site, "app/hold"), ""),
+    flaky: (on: boolean) =>
+      on
+        ? writeFile(join(site, "app/flaky"), "")
+        : rm(join(site, "app/flaky"), { force: true }),
     release: () => rm(join(site, "app/hold"), { force: true }),
     page: async (path = "/") =>
       fetch(`http://127.0.0.1:${port}${path}`)
@@ -314,6 +322,41 @@ posixTest(
       expect(await fixture.page()).toEqual({ status: 200, text: "<p>one</p>" });
     } finally {
       await fixture.release();
+      await operations.stop("alpha/site");
+      await operations.close();
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "a failed build is built again only when a person asks: the gateway's ensure never retries it, a Start does",
+  async () => {
+    const home = join(root, "home-retry");
+    await mkdir(home);
+    const fixture = await staticModule("retry", home);
+    const { operations } = fixture;
+    try {
+      await fixture.flaky(true);
+      const failed = await operations.ensure("site", {
+        mayStart: true,
+        waitMs: 20_000,
+      });
+      expect(failed).toMatchObject({
+        kind: "blocked",
+        reason: "build-script-failed",
+      });
+      // The cause is gone, but the same commit is not built by itself.
+      await fixture.flaky(false);
+      expect(
+        await operations.ensure("site", { mayStart: true, waitMs: 20_000 }),
+      ).toMatchObject({ kind: "blocked", reason: "build-script-failed" });
+      // A person's Start builds it again.
+      const started = answer(await operations.start("alpha/site"));
+      expect(started.outcome).toBe("started");
+      expect(started.build).toMatchObject({ mode: "built", failure: null });
+      await until(fixture.page, (page) => page.text === "<p>one</p>");
+    } finally {
       await operations.stop("alpha/site");
       await operations.close();
     }

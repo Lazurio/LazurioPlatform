@@ -15768,8 +15768,10 @@ build` / `vite build` writes. Measured on the reference Environment: an Astro mo
    that fails is recorded with its reason and log (`build-script-failed`,
    `build-timed-out`, `build-output-missing`, `build-output-unservable`, or the
    start-time step's reason), the previous build keeps being served, and the same key is
-   not built again by itself; with no build at all the start is refused with that
-   reason. `start --dev` (`{"dev": true}`) runs the development script explicitly, also
+   not built again by itself: a person's start (the Launchpad's Start and Open,
+   `lazurio module start`) or `lazurio module build` builds it again, the gateway's
+   `ensure`, which a starting page asks again and again, never does. With no build at
+   all the start is refused with that reason. `start --dev` (`{"dev": true}`) runs the development script explicitly, also
    in place of a built run, until it is stopped; a swap never replaces it. **Never a
    silent dev fallback.**
 7. **After a pull** (the follow-up change, see its status in the plan): inside the
@@ -15834,7 +15836,8 @@ a build, a failure kept and not retried by itself, another process's lock, shutd
 `tests/module-built.test.ts` (real processes: a built start, `--dev`, a pull served from
 the previous build while the new one builds and then swapped, the old assets after the
 swap, a failed build that keeps serving, `lazurio module build`, an app without
-`build_output` unchanged, `ensure` answering `build-pending` then healthy). End to end on
+`build_output` unchanged, `ensure` answering `build-pending` then healthy, a failed
+build retried by a person's Start but never by `ensure`). End to end on
 macOS ARM64 with a copy of the reference Organization's Astro knowledgebase in a fixture
 Folder (session runner): its development start healthy in 10.4 s holding 290 MiB; its
 first built open 13.2 s including the build; a later built open 0.4 s holding 16 MiB; a

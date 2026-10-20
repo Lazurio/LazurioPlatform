@@ -1271,11 +1271,12 @@ export function createModuleOperations(input: {
   // Build the checkout in the background and swap the running app onto it
   // when it is built: after a start that served an older build, or found
   // the app running otherwise. Only an owner that outlives the answer (the
-  // Launchpad) builds in the background.
-  function refresh(prepared: Prepared, plan: Plan) {
+  // Launchpad) builds in the background. `explicit`: a person's start, which
+  // builds again also a commit whose build failed.
+  function refresh(prepared: Prepared, plan: Plan, explicit: boolean) {
     if (builder === undefined || owner !== "launchpad") return;
     void builder
-      .enqueue(jobOf(prepared, plan), "background")
+      .enqueue(jobOf(prepared, plan, explicit), "background")
       .then((outcome) =>
         outcome.kind === "built" ? swap(prepared, plan, outcome) : undefined,
       )
@@ -1285,10 +1286,14 @@ export function createModuleOperations(input: {
   // A built start: the newest build there is now, built first when there
   // is none (the person waits for it; a long one is answered
   // `build-pending`), and a build of the checkout in the background when it
-  // moved past that one.
+  // moved past that one. A person's start (`explicit`: the Launchpad's Start
+  // and Open, `lazurio module start`) builds again a commit whose build
+  // failed; the gateway's `ensure`, which a starting page asks again and
+  // again, never does.
   async function startBuilt(
     prepared: Prepared,
     plan: Plan,
+    explicit: boolean,
   ): Promise<ModuleAnswer | ModuleBlocked> {
     const { target, runner: kind, selection } = prepared;
     const store = storeOf(target, plan);
@@ -1297,7 +1302,7 @@ export function createModuleOperations(input: {
     let output = record === null ? null : await store.output(record.key);
     if (record === null || output === null) {
       const outcome = await (builder as NonNullable<typeof builder>).enqueue(
-        jobOf(prepared, plan),
+        jobOf(prepared, plan, explicit),
         "foreground",
       );
       if (outcome.kind !== "built")
@@ -1329,7 +1334,7 @@ export function createModuleOperations(input: {
         selection,
         lifecycle,
       );
-      refresh(prepared, plan);
+      refresh(prepared, plan, explicit);
       return answer;
     });
   }
@@ -1498,7 +1503,11 @@ export function createModuleOperations(input: {
   // the declared check and prepares when it fails (decision F34).
   async function startOwned(
     prepared: Prepared,
-    options: Readonly<{ dev?: boolean | undefined }> = {},
+    options: Readonly<{
+      dev?: boolean | undefined;
+      /** A person's start (not the gateway's `ensure`, decision F58). */
+      explicit?: boolean | undefined;
+    }> = {},
   ): Promise<ModuleAnswer | ModuleBlocked> {
     const { target, runner: kind, selection } = prepared;
     const missing = await toolchainMissing("start", target);
@@ -1515,7 +1524,7 @@ export function createModuleOperations(input: {
     // asked for explicitly (decision F58).
     const plan = await staticPlan(target);
     if (plan !== null && options.dev !== true)
-      return startBuilt(prepared, plan);
+      return startBuilt(prepared, plan, options.explicit === true);
     return operate("start", kind, target, async (lifecycle) => {
       // The development version replaces a built run explicitly.
       if (plan !== null) {
@@ -1774,7 +1783,8 @@ export function createModuleOperations(input: {
         "start",
         name,
         options,
-        (prepared) => startOwned(prepared, { dev: options.dev }),
+        (prepared) =>
+          startOwned(prepared, { dev: options.dev, explicit: true }),
         answer,
       );
     },
