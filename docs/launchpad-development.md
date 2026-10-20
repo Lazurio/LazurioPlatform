@@ -1181,8 +1181,10 @@ directory in `<Folder>/organizations/` (not files, not hidden entries) is one ca
 resolved by the canonical reader (`read-applications.ts`, `root-resolution.ts`).
 Hidden entries are not candidates, as the resident's glob `organizations/*` never
 matched them; `.cache`, `.git` and editor folders are the normal case. No
-allowlist, no planned slots, no `launchpad.gen3*.json`, no state: the catalog is
-recomputed on every read. A candidate that cannot be read keeps its typed reason
+allowlist, no planned slots, no `launchpad.gen3*.json`, no state: the CLI recomputes
+the catalog on every read, and the Launchpad keeps its last reading only while a watch
+of the directories it found tells of no change (`catalog-reading.ts`, F36's note of
+2026-10-20 (2)). A candidate that cannot be read keeps its typed reason
 (`canonical-documents-required`, `organization-conflict`, `template-not-runtime`,
 `organization-changed`, `organization-unavailable` for a link or a directory that is
 not the operator's) and never hides the others; two candidates that declare the same

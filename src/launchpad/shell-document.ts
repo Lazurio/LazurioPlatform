@@ -7,7 +7,7 @@ import {
   type MachineBinding,
   unknownAssignment,
 } from "../folder/machine-binding";
-import type { PresetName } from "../folder/presets";
+import { type PresetName, visitorPreset } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
 import { readMachineContext } from "../machine/context";
 import { type Catalog, readFolderCatalog } from "../organizations/catalog";
@@ -79,15 +79,19 @@ export const presetKinds: Readonly<Record<PresetName, ShellEnvironmentKind>> = {
   "hosted-organization-steward": "automated",
 };
 
-/** The kind people are shown for this Environment: its preset's, except the
- * services Environment of a server, Služby serveru (root decision 0209
- * point 3). It has the Team preset because it acts on GitHub as a Team
- * Environment does, but to people it is a work Environment (root decision
- * 0207: no fourth kind, and never a Team one). */
+/** The kind people are shown for this Environment: its preset's, except two
+ * that take it from the binding. A public Environment is the Try overlay's
+ * `shownKind`, a Team one, whatever preset its Folder recorded (decision
+ * F55's addendum of 2026-10-20). The services Environment of a server,
+ * Služby serveru (root decision 0209 point 3), has the Team preset because it
+ * acts on GitHub as a Team Environment does, but to people it is a work
+ * Environment. Root decision 0207: no fourth kind. */
 export function environmentKind(
   preset: PresetName,
   machine: MachineBinding | null,
 ): ShellEnvironmentKind {
+  const visitor = visitorPreset(machine);
+  if (visitor !== null) return visitor.shownKind;
   return isServerServices(machine) ? "work" : presetKinds[preset];
 }
 
@@ -437,11 +441,12 @@ export type ShellInputs = Readonly<{
  * its document reads them: the Folder's preset, Machine binding and language
  * under one read of its state (waiting at most `lockWaitMs` for the Folder's
  * lock), its catalog, this computer's name and the owner's own slug the
- * handover names (`ownerKey`, by default `handoverOwnerKey`). The
- * Launchpad's `/.lazurio/shell.json`, its page's boot document and its
- * offline guide read them here, and so does the Environment browser's view
- * for its own name (decision F39's addendum of 2026-10-12): one read, so the
- * view and the switcher cannot drift apart. */
+ * handover names (`ownerKey`, by default `handoverOwnerKey`), all side by
+ * side. The Launchpad's `/.lazurio/shell.json`, its page's boot document and
+ * its offline guide read them here, with the catalog as the Launchpad keeps
+ * it (`catalog`, catalog-reading.ts), and so does the Environment browser's
+ * view for its own name (decision F39's addendum of 2026-10-12): one read,
+ * so the view and the switcher cannot drift apart. */
 export async function readShellInputs(
   folder: string,
   options: Readonly<{
@@ -451,16 +456,14 @@ export async function readShellInputs(
      * catalog's Personalspace group: the page's boot document gives the
      * Launchpad's last decision, never waiting for GitHub. */
     personalspace?: PersonalspaceHolderRead | undefined;
+    /** The catalog as the caller keeps it; read anew without one. */
+    catalog?: (() => Promise<Catalog>) | undefined;
   }> = {},
 ): Promise<ShellInputs> {
   const state = join(folder, ".lazurio");
-  const current = await withFolderReadLock(
-    state,
-    () => readFolderState(state),
-    options.lockWaitMs,
-  );
-  const [catalog, ownerKey] = await Promise.all([
-    readFolderCatalog(folder, options.personalspace),
+  const [current, catalog, ownerKey] = await Promise.all([
+    withFolderReadLock(state, () => readFolderState(state), options.lockWaitMs),
+    options.catalog?.() ?? readFolderCatalog(folder, options.personalspace),
     (options.ownerKey ?? handoverOwnerKey)(),
   ]);
   return Object.freeze({

@@ -342,12 +342,19 @@ test.skipIf(process.platform === "win32")(
       // What the page accepts is exactly what the server sends.
       expect(parseToolsOverview(JSON.parse(raw))).toEqual(JSON.parse(raw));
 
-      // Only the version command of each found tool ran, once.
-      expect(opened.commands).toEqual([
-        [join(standard, "gh"), "--version"],
-        [join(other, "composio"), "--version"],
-        [join(other, "gog"), "--version"],
-      ]);
+      // Only the version command of each found tool ran, once; the tools
+      // are read side by side, so in no particular order.
+      expect(
+        [...opened.commands].sort((a, b) =>
+          String(a[0]).localeCompare(String(b[0])),
+        ),
+      ).toEqual(
+        [
+          [join(standard, "gh"), "--version"],
+          [join(other, "composio"), "--version"],
+          [join(other, "gog"), "--version"],
+        ].sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+      );
       for (const [directory, name] of [
         [standard, "gh"],
         [other, "composio"],

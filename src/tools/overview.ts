@@ -25,12 +25,15 @@ import {
 } from "./catalog";
 import { pinnedInstaller } from "./install";
 import {
+  boundedAll,
   runTool,
   type ToolRunner,
   type ToolSignIn,
+  type ToolStatus,
   type ToolsStatusResult,
+  toolStatus,
+  toolsReadAtOnce,
   toolsSignIn,
-  toolsStatus,
   xdgOf,
 } from "./status";
 
@@ -120,6 +123,10 @@ export type ToolsOverview = Readonly<{
    * were applied last (decision F45); only from a Launchpad that asks for
    * them, never from the CLI. */
   organizationSettings?: OrganizationSettingsStatus;
+  /** The live facts are the Launchpad's last reading, older than its
+   * minute, answered at once while it reads them anew (tools-reading.ts);
+   * only from a Launchpad asked with `allowStale`, never from the CLI. */
+  stale?: true;
 }>;
 
 /** The live facts of the activatable tools, in catalog order: what `tools
@@ -131,30 +138,44 @@ export type ToolsLive = Readonly<{
 
 /** Reads the live facts now: each found tool's version command, which never
  * uses the network, and with `signIn` each installed tool's sign-in probe,
- * which may contact the tool's provider (F18 addendum 2026-09-27). */
+ * which may contact the tool's provider (F18 addendum 2026-09-27). At most
+ * `toolsReadAtOnce` tools are read at a time, each tool's sign-in right
+ * after its own version in the same place (plan DEV-6656). */
 export async function readToolsLive(
   environment: ToolsEnvironment,
   signIn: boolean,
 ): Promise<ToolsLive> {
-  const catalog = activatableTools();
-  const status = await toolsStatus({
+  const input = {
     path: environment.path,
     home: environment.home,
     platform: environment.platform,
     run: environment.run,
-    catalog,
-  });
-  if (!signIn) return { status };
-  const signIns = await toolsSignIn(
-    catalog.map((entry, index) => {
-      const live = status.tools[index];
-      if (live === undefined || live.name !== entry.name)
-        throw new Error("Tool status does not match the catalog");
-      return { probe: entry.signInProbe, status: live };
-    }),
-    environment,
+  };
+  const read = await boundedAll(
+    activatableTools(),
+    toolsReadAtOnce,
+    async (
+      entry,
+    ): Promise<Readonly<{ status: ToolStatus; signIn?: ToolSignIn }>> => {
+      const status = await toolStatus(entry, input);
+      if (!signIn) return { status };
+      const [probed] = await toolsSignIn(
+        [{ probe: entry.signInProbe, status }],
+        environment,
+      );
+      if (probed === undefined) throw new Error("A sign-in probe is missing");
+      return { status, signIn: probed };
+    },
   );
-  return { status, signIns };
+  const status: ToolsStatusResult = {
+    kind: "tools-status",
+    tools: read.map((tool) => tool.status),
+  };
+  if (!signIn) return { status };
+  return {
+    status,
+    signIns: read.map((tool) => tool.signIn ?? { state: "unknown" }),
+  };
 }
 
 // The tools screen of one Folder (decision F18): what is recorded (revision,

@@ -1,4 +1,5 @@
-import { isPublicEnvironment } from "../launchpad/public-environment";
+import type { EntryAudience } from "../launchpad/public-environment";
+import type { ShellEnvironmentKind } from "../shell/contract";
 import type {
   MachineAssignment as BindingAssignment,
   MachineBinding,
@@ -180,21 +181,114 @@ export function workspacePreset(name: PresetName): WorkspacePreset {
   return presets[parsePresetName(name)];
 }
 
+// The Try overlay preset (decision F55's addendum of 2026-10-20, plan
+// DEV-6668 slice 4; root decision 0204's addendum of 2026-10-18 (b)): what
+// public means inside the app, as one frozen record a reviewer reads in one
+// place. It is not one of `presetNames`. A preset says how an Environment is
+// assigned and composes its Folder; this record lies over the preset the
+// Folder records (Team on try-01, or the Work it may have recorded earlier),
+// which stays underneath with every rule of its own. It is never recorded,
+// never chosen and never passed as `--preset`. One switch selects it: the
+// handover's `entry.audience: "public"`, which Machines writes from the
+// gateway's `public-account` admission (F55 point 1). The same kind of
+// nullable record as the Steward preset's `botTeam`.
+export type VisitorPreset = Readonly<{
+  /** Its name in documents, never a `PresetName`. */
+  name: "try";
+  /** Začínáme's demo instead of a person's basics (F55 point 3). */
+  onboarding: "demo";
+  /** No broker, no App and no person's sign-in (F55's addendum of
+   * 2026-10-17, decision 0191 point 39). */
+  githubIdentity: "none";
+  /** What a visitor does not have, its pages and its API: Integrace and
+   * Nastavení → Nástroje (F55 point 5). Not the vault: it follows the vault
+   * core, which decides whether this Environment has one. Until plan slice 6
+   * (#499) lists Trezor by that answer, `withheldInPublic` still withholds
+   * it. */
+  withheld: readonly ("integrations" | "tools")[];
+  /** The visitor's terms and privacy pages on lazurio.ai, by language. The
+   * gateway's entry card, Machines' own, shows them before entry; the app
+   * only reminds of them. */
+  notice: Readonly<{
+    terms: Readonly<Record<FolderProfile["locale"], string>>;
+    privacy: Readonly<Record<FolderProfile["locale"], string>>;
+  }>;
+  /** The section of the generated instructions for visitors' agents.
+   * Reserved for plan slice 5: nothing renders it yet. */
+  instructions: "visitors";
+  /** What nobody changes here, since every visitor shares it: the preset
+   * (one fixed option in Settings → Obecné, a change refused as
+   * `preset-fixed`) and the theme (root decision 0208 point 6). */
+  fixed: readonly ("preset" | "theme")[];
+  /** The kind people are shown, whatever the recorded preset: a Team
+   * Environment, set apart by its words, never a fourth kind (root decision
+   * 0207). */
+  shownKind: Extract<ShellEnvironmentKind, "team">;
+}>;
+
+export const tryPreset: VisitorPreset = Object.freeze({
+  name: "try",
+  onboarding: "demo",
+  githubIdentity: "none",
+  withheld: Object.freeze(["integrations", "tools"] as const),
+  notice: Object.freeze({
+    terms: Object.freeze({
+      en: "https://lazurio.ai/try/terms/",
+      cs: "https://lazurio.ai/cs/vyzkouset/podminky/",
+    }),
+    privacy: Object.freeze({
+      en: "https://lazurio.ai/try/privacy/",
+      cs: "https://lazurio.ai/cs/vyzkouset/ochrana-soukromi/",
+    }),
+  }),
+  instructions: "visitors",
+  fixed: Object.freeze(["preset", "theme"] as const),
+  shownKind: "team",
+});
+
+/** The Try overlay preset where the Environment is public, else null: the
+ * one reader of `entry.audience`, of a binding, of `POST /api/profile`'s
+ * machine or of the public parts of the entry the page reads. Pure and free
+ * of Node, so the page and the server share it. */
+export function visitorPreset(
+  machine:
+    | Readonly<{
+        entry?: Readonly<{ audience?: EntryAudience }> | null | undefined;
+      }>
+    | null
+    | undefined,
+): VisitorPreset | null {
+  return machine?.entry?.audience === "public" ? tryPreset : null;
+}
+
+/** Whether nobody may change `setting` in this Environment: only where the
+ * Try overlay fixes it. */
+export function isFixed(
+  machine: Parameters<typeof visitorPreset>[0],
+  setting: VisitorPreset["fixed"][number],
+): boolean {
+  return visitorPreset(machine)?.fixed.includes(setting) === true;
+}
+
 /** The GitHub identity an Environment has: its preset's `providerIdentity`,
- * or `none` on a public Environment (root decision 0204 point 5, decision
- * F55's addendum of 2026-10-17), whatever its preset: no broker, no App and
- * no person's sign-in. Its Organization's public repositories are read
- * anonymously and nothing is published from it. The one rule for the content
- * install's scope, the generated texts and the wording of the tools. */
-export type GithubIdentity = WorkspacePreset["providerIdentity"] | "none";
+ * or the Try overlay's `none` on a public Environment (root decision 0204
+ * point 5, decision F55's addendum of 2026-10-17), whatever its preset: no
+ * broker, no App and no person's sign-in. Its Organization's public
+ * repositories are read anonymously and nothing is published from it. The
+ * one rule for the content install's scope, the generated texts and the
+ * wording of the tools. */
+export type GithubIdentity =
+  | WorkspacePreset["providerIdentity"]
+  | VisitorPreset["githubIdentity"];
 
 export function githubIdentity(
   preset: PresetName,
   machine: Readonly<{ entry?: MachineBinding["entry"] }> | null | undefined,
 ): GithubIdentity {
-  return isPublicEnvironment(machine?.entry)
-    ? "none"
-    : workspacePreset(preset).providerIdentity;
+  return (
+    visitorPreset(machine)?.githubIdentity ??
+    workspacePreset(preset).providerIdentity
+  );
 }
 
 export function parsePresetReference(input: unknown): PresetReference {

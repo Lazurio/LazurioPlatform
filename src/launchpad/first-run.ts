@@ -185,6 +185,15 @@ export function demoOnboarding(facts: Pick<TourFacts, "audience">): boolean {
   return facts.audience === "public";
 }
 
+/** What the demo says of the Environment's AI, from the live AI fact (F55's
+ * addendum of 2026-10-20): the Organization's AI where it provides one, a
+ * connected AI where a CLI is signed in, and "not connected" only while the
+ * AI is missing or not known (`unknown`, or `loading` before the first
+ * answer). It never names a model. */
+export function demoAi(ai: AiFact): "organization" | "connected" | "none" {
+  return ai === "organization" || ai === "connected" ? ai : "none";
+}
+
 /** Whether the Environment has the basics of a person (0201): it signs in as
  * its person and is no public Environment. */
 function personOnboarding(
@@ -458,7 +467,11 @@ export function tourStop(
         !apps.chat
           ? copy.tourChatMissingText
           : demoOnboarding(facts)
-            ? copy.tourChatDemoText
+            ? {
+                organization: copy.tourChatDemoOrganizationText,
+                connected: copy.tourChatDemoConnectedText,
+                none: copy.tourChatDemoText,
+              }[demoAi(facts.ai)]
             : copy.tourChatText,
         "next",
       );

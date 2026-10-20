@@ -1,0 +1,581 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`golden: lazurio-bob's Work Environment renders, derives, offers and is shown as before 1`] = `
+{
+  "allowed": [
+    "hosted-organization-personal",
+    "hosted-organization-team",
+    "hosted-organization-steward",
+  ],
+  "derived": "hosted-organization-personal",
+  "generated": {
+    "cs": {
+      ".agents/skills/new-module/SKILL.md": "f928b0fe355b34258c1c2c2d0325f7c834b4547507c169890c5b33920070be9c",
+      ".claude/skills/new-module/SKILL.md": "f928b0fe355b34258c1c2c2d0325f7c834b4547507c169890c5b33920070be9c",
+      "AGENTS.md": "0c2e1ead6a7b3159cd60fa9d4ed5169a5688aa8ef10f657b2878a2be5dc0021b",
+      "manual/glossary.md": "10e96cf8158689e7ae0629315e14c2b45be1b7c4853ec8d281e53d128921f654",
+      "manual/lazurio.md": "b6dfa278599d52b871b1807ff57948ca486d09ed2a291d33a25f334a9ee167be",
+      "manual/roles.md": "b2c2487c0d36906cf578ffae515998d3889c03494bb6354c52cf6dd971ed91f7",
+      "manual/this-machine.md": "97a1727eb7f46c5aa5e89254cc39322c8ed08baa47c3193beea2e16c6569c010",
+      "manual/troubleshooting.md": "11c5756b089ac07a3fad93e570fa26a31ef5b8ce9f497f6ac8e5e16f9efeea91",
+      "manual/working-here.md": "32faefe1046b7a51d8582f8c67d14bdf5ea58002d330545a959fb718817ddba7",
+    },
+    "en": {
+      ".agents/skills/new-module/SKILL.md": "18b2c16d131bc47db509c30c0c7deac220bb42897d9b4e5ce159641ccc658ba6",
+      ".claude/skills/new-module/SKILL.md": "18b2c16d131bc47db509c30c0c7deac220bb42897d9b4e5ce159641ccc658ba6",
+      "AGENTS.md": "39b4d00978ddd29726a8ae4dbe66bdc8ce0354eece51992e5e1c1304d5f00dea",
+      "manual/glossary.md": "70605faa74beaba16b3559a8e6d1ed5349d4e5ce399d78c9bb92c03613c8c619",
+      "manual/lazurio.md": "bb6d980a3ba97cbe66cae1b2c28584a4ff41df6ca81c4698c1aeb1cf8d9772bb",
+      "manual/roles.md": "17fb10de69cd903a8d6361553308d68d39e41646d6915edb86dbfa9f5a02ac36",
+      "manual/this-machine.md": "461bee64deed877328e35c39ec7e3e3dd48f979ef317975db83f477762b44ab6",
+      "manual/troubleshooting.md": "02df10f09f6ce619a81cb7efcb67b7f38527de2adc7d59d5a8ce2fc2d79e9603",
+      "manual/working-here.md": "6e81b17c9a95bad098a71c8b385617efea353845d1a4ec6d4442403c07ac6c3e",
+    },
+  },
+  "githubIdentity": "own-sign-in",
+  "kind": "work",
+  "selectable": [
+    "hosted-organization-personal",
+  ],
+  "shell": {
+    "cs": {
+      "account": "https://dashboard.lazurio.ai/settings/account",
+      "addOrganization": null,
+      "current": "work-bob.example",
+      "dashboard": "https://dashboard.lazurio.ai/home",
+      "environments": [
+        {
+          "apps": {
+            "apps": "https://launchpad.work-bob.example.lazurio.io/",
+            "automate": null,
+            "chat": "https://t3code.work-bob.example.lazurio.io/",
+          },
+          "assignee": "example-bob",
+          "id": "work-bob.example",
+          "kind": "work",
+          "label": null,
+          "organizations": [
+            "example",
+          ],
+        },
+      ],
+      "locale": "cs",
+      "operator": {
+        "avatar": "https://github.com/example-bob.png?size=96",
+        "initials": "EB",
+        "login": "example-bob",
+      },
+      "organizations": [
+        {
+          "avatar": "https://github.com/example.png?size=96",
+          "dashboard": "https://dashboard.lazurio.ai/orgs/example",
+          "name": "example",
+          "slug": "example",
+        },
+      ],
+      "schema": "lazurio.shell.v1",
+      "signOut": "/.lazurio/sign-out",
+    },
+    "en": {
+      "account": "https://dashboard.lazurio.ai/settings/account",
+      "addOrganization": null,
+      "current": "work-bob.example",
+      "dashboard": "https://dashboard.lazurio.ai/home",
+      "environments": [
+        {
+          "apps": {
+            "apps": "https://launchpad.work-bob.example.lazurio.io/",
+            "automate": null,
+            "chat": "https://t3code.work-bob.example.lazurio.io/",
+          },
+          "assignee": "example-bob",
+          "id": "work-bob.example",
+          "kind": "work",
+          "label": null,
+          "organizations": [
+            "example",
+          ],
+        },
+      ],
+      "locale": "en",
+      "operator": {
+        "avatar": "https://github.com/example-bob.png?size=96",
+        "initials": "EB",
+        "login": "example-bob",
+      },
+      "organizations": [
+        {
+          "avatar": "https://github.com/example.png?size=96",
+          "dashboard": "https://dashboard.lazurio.ai/orgs/example",
+          "name": "example",
+          "slug": "example",
+        },
+      ],
+      "schema": "lazurio.shell.v1",
+      "signOut": "/.lazurio/sign-out",
+    },
+  },
+}
+`;
+
+exports[`golden: team-01, a Team Environment with the broker renders, derives, offers and is shown as before 1`] = `
+{
+  "allowed": [
+    "hosted-organization-personal",
+    "hosted-organization-team",
+    "hosted-organization-steward",
+  ],
+  "derived": "hosted-organization-team",
+  "generated": {
+    "cs": {
+      ".agents/skills/new-module/SKILL.md": "f928b0fe355b34258c1c2c2d0325f7c834b4547507c169890c5b33920070be9c",
+      ".claude/skills/new-module/SKILL.md": "f928b0fe355b34258c1c2c2d0325f7c834b4547507c169890c5b33920070be9c",
+      "AGENTS.md": "a1a25cdcc0fe8cae7c1325cd7e343c6cfb4030f5bb1908716d21331e5d93002d",
+      "manual/glossary.md": "10e96cf8158689e7ae0629315e14c2b45be1b7c4853ec8d281e53d128921f654",
+      "manual/lazurio.md": "b6dfa278599d52b871b1807ff57948ca486d09ed2a291d33a25f334a9ee167be",
+      "manual/roles.md": "b2c2487c0d36906cf578ffae515998d3889c03494bb6354c52cf6dd971ed91f7",
+      "manual/this-machine.md": "f380214b68521cb4717063e5f54c65f401fb01df3b56d907e56d1ddc2b68100e",
+      "manual/troubleshooting.md": "7b71175dbc14caf5ce1fe4bef0cffa2d22a4a96dd30b82199ddd0215e7d375c7",
+      "manual/working-here.md": "856016e6c23cae6d539d4b280880e896d924de665883b5c54ef06c62b88a546c",
+    },
+    "en": {
+      ".agents/skills/new-module/SKILL.md": "18b2c16d131bc47db509c30c0c7deac220bb42897d9b4e5ce159641ccc658ba6",
+      ".claude/skills/new-module/SKILL.md": "18b2c16d131bc47db509c30c0c7deac220bb42897d9b4e5ce159641ccc658ba6",
+      "AGENTS.md": "de31da69919bda9a8c01024d30f073f704adabd40147c254e0195caa08a9855b",
+      "manual/glossary.md": "70605faa74beaba16b3559a8e6d1ed5349d4e5ce399d78c9bb92c03613c8c619",
+      "manual/lazurio.md": "bb6d980a3ba97cbe66cae1b2c28584a4ff41df6ca81c4698c1aeb1cf8d9772bb",
+      "manual/roles.md": "17fb10de69cd903a8d6361553308d68d39e41646d6915edb86dbfa9f5a02ac36",
+      "manual/this-machine.md": "7594764700c2093f8962a1200fb4c6bb8d227236a71551b67de7f0b1e1097745",
+      "manual/troubleshooting.md": "b8507480e1f6a1c006f65f41be6e8924c9185fd6b56ab4171f3f710e7df909b0",
+      "manual/working-here.md": "d2c14fc40059f7e1a4d3c0d2f6d0f9fd84cd5e214ac8f5ecd08e828162a094c2",
+    },
+  },
+  "githubIdentity": "brokered-organization",
+  "kind": "team",
+  "selectable": [
+    "hosted-organization-team",
+  ],
+  "shell": {
+    "cs": {
+      "account": "https://dashboard.lazurio.ai/settings/account",
+      "addOrganization": null,
+      "current": "team-01.example",
+      "dashboard": "https://dashboard.lazurio.ai/home",
+      "environments": [
+        {
+          "apps": {
+            "apps": "https://launchpad.team-01.example.lazurio.io/",
+            "automate": null,
+            "chat": "https://t3code.team-01.example.lazurio.io/",
+          },
+          "assignee": null,
+          "id": "team-01.example",
+          "kind": "team",
+          "label": null,
+          "organizations": [
+            "example",
+          ],
+        },
+      ],
+      "locale": "cs",
+      "operator": {
+        "avatar": null,
+        "initials": null,
+        "login": null,
+      },
+      "organizations": [
+        {
+          "avatar": "https://github.com/example.png?size=96",
+          "dashboard": "https://dashboard.lazurio.ai/orgs/example",
+          "name": "example",
+          "slug": "example",
+        },
+      ],
+      "schema": "lazurio.shell.v1",
+      "signOut": "/.lazurio/sign-out",
+    },
+    "en": {
+      "account": "https://dashboard.lazurio.ai/settings/account",
+      "addOrganization": null,
+      "current": "team-01.example",
+      "dashboard": "https://dashboard.lazurio.ai/home",
+      "environments": [
+        {
+          "apps": {
+            "apps": "https://launchpad.team-01.example.lazurio.io/",
+            "automate": null,
+            "chat": "https://t3code.team-01.example.lazurio.io/",
+          },
+          "assignee": null,
+          "id": "team-01.example",
+          "kind": "team",
+          "label": null,
+          "organizations": [
+            "example",
+          ],
+        },
+      ],
+      "locale": "en",
+      "operator": {
+        "avatar": null,
+        "initials": null,
+        "login": null,
+      },
+      "organizations": [
+        {
+          "avatar": "https://github.com/example.png?size=96",
+          "dashboard": "https://dashboard.lazurio.ai/orgs/example",
+          "name": "example",
+          "slug": "example",
+        },
+      ],
+      "schema": "lazurio.shell.v1",
+      "signOut": "/.lazurio/sign-out",
+    },
+  },
+}
+`;
+
+exports[`golden: services-01, the services Environment of a server renders, derives, offers and is shown as before 1`] = `
+{
+  "allowed": [
+    "hosted-organization-personal",
+    "hosted-organization-team",
+    "hosted-organization-steward",
+  ],
+  "derived": "hosted-organization-team",
+  "generated": {
+    "cs": {
+      ".agents/skills/new-module/SKILL.md": "f928b0fe355b34258c1c2c2d0325f7c834b4547507c169890c5b33920070be9c",
+      ".claude/skills/new-module/SKILL.md": "f928b0fe355b34258c1c2c2d0325f7c834b4547507c169890c5b33920070be9c",
+      "AGENTS.md": "b7363e7737ee10d4b986dd3184fc76b523ae3438075ea1b8ceda3ae5f7c8514e",
+      "manual/glossary.md": "10e96cf8158689e7ae0629315e14c2b45be1b7c4853ec8d281e53d128921f654",
+      "manual/lazurio.md": "b6dfa278599d52b871b1807ff57948ca486d09ed2a291d33a25f334a9ee167be",
+      "manual/roles.md": "b2c2487c0d36906cf578ffae515998d3889c03494bb6354c52cf6dd971ed91f7",
+      "manual/this-machine.md": "72fbc5bf7a3efba68e45bbdae6843cf359b1d4f766b159a093714aaf69cc3b35",
+      "manual/troubleshooting.md": "7b71175dbc14caf5ce1fe4bef0cffa2d22a4a96dd30b82199ddd0215e7d375c7",
+      "manual/working-here.md": "856016e6c23cae6d539d4b280880e896d924de665883b5c54ef06c62b88a546c",
+    },
+    "en": {
+      ".agents/skills/new-module/SKILL.md": "18b2c16d131bc47db509c30c0c7deac220bb42897d9b4e5ce159641ccc658ba6",
+      ".claude/skills/new-module/SKILL.md": "18b2c16d131bc47db509c30c0c7deac220bb42897d9b4e5ce159641ccc658ba6",
+      "AGENTS.md": "2e36b06a283861be49be8d7f535c14f7657232754dab6feb7775b68fb3caac93",
+      "manual/glossary.md": "70605faa74beaba16b3559a8e6d1ed5349d4e5ce399d78c9bb92c03613c8c619",
+      "manual/lazurio.md": "bb6d980a3ba97cbe66cae1b2c28584a4ff41df6ca81c4698c1aeb1cf8d9772bb",
+      "manual/roles.md": "17fb10de69cd903a8d6361553308d68d39e41646d6915edb86dbfa9f5a02ac36",
+      "manual/this-machine.md": "2a63941d47f94764f941abd6b32f48a38540650fa4423861c30e47ae7c5afd81",
+      "manual/troubleshooting.md": "b8507480e1f6a1c006f65f41be6e8924c9185fd6b56ab4171f3f710e7df909b0",
+      "manual/working-here.md": "d2c14fc40059f7e1a4d3c0d2f6d0f9fd84cd5e214ac8f5ecd08e828162a094c2",
+    },
+  },
+  "githubIdentity": "brokered-organization",
+  "kind": "work",
+  "selectable": [
+    "hosted-organization-team",
+  ],
+  "shell": {
+    "cs": {
+      "account": "https://dashboard.lazurio.ai/settings/account",
+      "addOrganization": null,
+      "current": "services-01.example",
+      "dashboard": "https://dashboard.lazurio.ai/home",
+      "environments": [
+        {
+          "apps": {
+            "apps": "https://launchpad.services-01.example.lazurio.io/",
+            "automate": "https://mausbot.services-01.example.lazurio.io/",
+            "chat": "https://t3code.services-01.example.lazurio.io/",
+          },
+          "assignee": null,
+          "id": "services-01.example",
+          "kind": "work",
+          "label": "Služby serveru",
+          "organizations": [
+            "example",
+          ],
+        },
+      ],
+      "locale": "cs",
+      "operator": {
+        "avatar": null,
+        "initials": null,
+        "login": null,
+      },
+      "organizations": [
+        {
+          "avatar": "https://github.com/example.png?size=96",
+          "dashboard": "https://dashboard.lazurio.ai/orgs/example",
+          "name": "example",
+          "slug": "example",
+        },
+      ],
+      "schema": "lazurio.shell.v1",
+      "signOut": "/.lazurio/sign-out",
+    },
+    "en": {
+      "account": "https://dashboard.lazurio.ai/settings/account",
+      "addOrganization": null,
+      "current": "services-01.example",
+      "dashboard": "https://dashboard.lazurio.ai/home",
+      "environments": [
+        {
+          "apps": {
+            "apps": "https://launchpad.services-01.example.lazurio.io/",
+            "automate": "https://mausbot.services-01.example.lazurio.io/",
+            "chat": "https://t3code.services-01.example.lazurio.io/",
+          },
+          "assignee": null,
+          "id": "services-01.example",
+          "kind": "work",
+          "label": "Server services",
+          "organizations": [
+            "example",
+          ],
+        },
+      ],
+      "locale": "en",
+      "operator": {
+        "avatar": null,
+        "initials": null,
+        "login": null,
+      },
+      "organizations": [
+        {
+          "avatar": "https://github.com/example.png?size=96",
+          "dashboard": "https://dashboard.lazurio.ai/orgs/example",
+          "name": "example",
+          "slug": "example",
+        },
+      ],
+      "schema": "lazurio.shell.v1",
+      "signOut": "/.lazurio/sign-out",
+    },
+  },
+}
+`;
+
+exports[`golden: henry-01, a Steward Environment renders, derives, offers and is shown as before 1`] = `
+{
+  "allowed": [
+    "hosted-organization-personal",
+    "hosted-organization-team",
+    "hosted-organization-steward",
+  ],
+  "derived": "hosted-organization-steward",
+  "generated": {
+    "cs": {
+      ".agents/skills/new-module/SKILL.md": "f928b0fe355b34258c1c2c2d0325f7c834b4547507c169890c5b33920070be9c",
+      ".claude/skills/new-module/SKILL.md": "f928b0fe355b34258c1c2c2d0325f7c834b4547507c169890c5b33920070be9c",
+      "AGENTS.md": "b2217a0dcd3d2e8a6dbeb12aa12a3b4660844288ac84b97cf9624316841ba874",
+      "manual/glossary.md": "10e96cf8158689e7ae0629315e14c2b45be1b7c4853ec8d281e53d128921f654",
+      "manual/lazurio.md": "b6dfa278599d52b871b1807ff57948ca486d09ed2a291d33a25f334a9ee167be",
+      "manual/roles.md": "b2c2487c0d36906cf578ffae515998d3889c03494bb6354c52cf6dd971ed91f7",
+      "manual/this-machine.md": "2006a67baa13b656a2144b9ae6a5274244cac4949d2ac415e36a5c6a9c07dde0",
+      "manual/troubleshooting.md": "11c5756b089ac07a3fad93e570fa26a31ef5b8ce9f497f6ac8e5e16f9efeea91",
+      "manual/working-here.md": "32faefe1046b7a51d8582f8c67d14bdf5ea58002d330545a959fb718817ddba7",
+    },
+    "en": {
+      ".agents/skills/new-module/SKILL.md": "18b2c16d131bc47db509c30c0c7deac220bb42897d9b4e5ce159641ccc658ba6",
+      ".claude/skills/new-module/SKILL.md": "18b2c16d131bc47db509c30c0c7deac220bb42897d9b4e5ce159641ccc658ba6",
+      "AGENTS.md": "4877461cc527881d91123f59e535a20118d2254c4a3bea5fde4dad9f73bac673",
+      "manual/glossary.md": "70605faa74beaba16b3559a8e6d1ed5349d4e5ce399d78c9bb92c03613c8c619",
+      "manual/lazurio.md": "bb6d980a3ba97cbe66cae1b2c28584a4ff41df6ca81c4698c1aeb1cf8d9772bb",
+      "manual/roles.md": "17fb10de69cd903a8d6361553308d68d39e41646d6915edb86dbfa9f5a02ac36",
+      "manual/this-machine.md": "8d7e805cbaaf3dcedc78f62d4ad1165d50c732bee23d31fd324db151aceee348",
+      "manual/troubleshooting.md": "02df10f09f6ce619a81cb7efcb67b7f38527de2adc7d59d5a8ce2fc2d79e9603",
+      "manual/working-here.md": "6e81b17c9a95bad098a71c8b385617efea353845d1a4ec6d4442403c07ac6c3e",
+    },
+  },
+  "githubIdentity": "persona-account",
+  "kind": "automated",
+  "selectable": [
+    "hosted-organization-steward",
+  ],
+  "shell": {
+    "cs": {
+      "account": "https://dashboard.lazurio.ai/settings/account",
+      "addOrganization": null,
+      "current": "henry-01.example",
+      "dashboard": "https://dashboard.lazurio.ai/home",
+      "environments": [
+        {
+          "apps": {
+            "apps": "https://launchpad.henry-01.example.lazurio.io/",
+            "automate": "https://mausbot.henry-01.example.lazurio.io/",
+            "chat": "https://t3code.henry-01.example.lazurio.io/",
+          },
+          "assignee": null,
+          "id": "henry-01.example",
+          "kind": "automated",
+          "label": null,
+          "organizations": [
+            "example",
+          ],
+        },
+      ],
+      "locale": "cs",
+      "operator": {
+        "avatar": "https://github.com/example.png?size=96",
+        "initials": "EX",
+        "login": "example",
+      },
+      "organizations": [
+        {
+          "avatar": "https://github.com/example.png?size=96",
+          "dashboard": "https://dashboard.lazurio.ai/orgs/example",
+          "name": "example",
+          "slug": "example",
+        },
+      ],
+      "schema": "lazurio.shell.v1",
+      "signOut": "/.lazurio/sign-out",
+    },
+    "en": {
+      "account": "https://dashboard.lazurio.ai/settings/account",
+      "addOrganization": null,
+      "current": "henry-01.example",
+      "dashboard": "https://dashboard.lazurio.ai/home",
+      "environments": [
+        {
+          "apps": {
+            "apps": "https://launchpad.henry-01.example.lazurio.io/",
+            "automate": "https://mausbot.henry-01.example.lazurio.io/",
+            "chat": "https://t3code.henry-01.example.lazurio.io/",
+          },
+          "assignee": null,
+          "id": "henry-01.example",
+          "kind": "automated",
+          "label": null,
+          "organizations": [
+            "example",
+          ],
+        },
+      ],
+      "locale": "en",
+      "operator": {
+        "avatar": "https://github.com/example.png?size=96",
+        "initials": "EX",
+        "login": "example",
+      },
+      "organizations": [
+        {
+          "avatar": "https://github.com/example.png?size=96",
+          "dashboard": "https://dashboard.lazurio.ai/orgs/example",
+          "name": "example",
+          "slug": "example",
+        },
+      ],
+      "schema": "lazurio.shell.v1",
+      "signOut": "/.lazurio/sign-out",
+    },
+  },
+}
+`;
+
+exports[`golden: try-01 recorded hosted-organization-personal renders as before 1`] = `
+{
+  "cs": {
+    ".agents/skills/new-module/SKILL.md": "f928b0fe355b34258c1c2c2d0325f7c834b4547507c169890c5b33920070be9c",
+    ".claude/skills/new-module/SKILL.md": "f928b0fe355b34258c1c2c2d0325f7c834b4547507c169890c5b33920070be9c",
+    "AGENTS.md": "3c6648023795e010b82688291de2e1e34fc830548cc37e9214c6f9531576c929",
+    "manual/glossary.md": "10e96cf8158689e7ae0629315e14c2b45be1b7c4853ec8d281e53d128921f654",
+    "manual/lazurio.md": "b6dfa278599d52b871b1807ff57948ca486d09ed2a291d33a25f334a9ee167be",
+    "manual/roles.md": "b2c2487c0d36906cf578ffae515998d3889c03494bb6354c52cf6dd971ed91f7",
+    "manual/this-machine.md": "61273beab487abb114fa43d5907cfebd3bc5a5df7599d80aa484320bb47374c5",
+    "manual/troubleshooting.md": "11c5756b089ac07a3fad93e570fa26a31ef5b8ce9f497f6ac8e5e16f9efeea91",
+    "manual/working-here.md": "94276c06efc690d508108cd5ab7cd40dd801fc59794af0c788467b20d09c8c37",
+  },
+  "en": {
+    ".agents/skills/new-module/SKILL.md": "18b2c16d131bc47db509c30c0c7deac220bb42897d9b4e5ce159641ccc658ba6",
+    ".claude/skills/new-module/SKILL.md": "18b2c16d131bc47db509c30c0c7deac220bb42897d9b4e5ce159641ccc658ba6",
+    "AGENTS.md": "8c57d2b018c5890717ed88f78527572d8449e92012def9582268e99915c728eb",
+    "manual/glossary.md": "70605faa74beaba16b3559a8e6d1ed5349d4e5ce399d78c9bb92c03613c8c619",
+    "manual/lazurio.md": "bb6d980a3ba97cbe66cae1b2c28584a4ff41df6ca81c4698c1aeb1cf8d9772bb",
+    "manual/roles.md": "17fb10de69cd903a8d6361553308d68d39e41646d6915edb86dbfa9f5a02ac36",
+    "manual/this-machine.md": "00367a1fb24177aab41aa045a13a9e9c62421d31f9448b63915b5ace667e40d9",
+    "manual/troubleshooting.md": "02df10f09f6ce619a81cb7efcb67b7f38527de2adc7d59d5a8ce2fc2d79e9603",
+    "manual/working-here.md": "4693cc86523cd9d2505f6e58365b57d6073a9e3364e837f2b1750b0caf1946d0",
+  },
+}
+`;
+
+exports[`golden: try-01 recorded hosted-organization-personal with vault renders as before 1`] = `
+{
+  "cs": {
+    ".agents/skills/new-module/SKILL.md": "f928b0fe355b34258c1c2c2d0325f7c834b4547507c169890c5b33920070be9c",
+    ".claude/skills/new-module/SKILL.md": "f928b0fe355b34258c1c2c2d0325f7c834b4547507c169890c5b33920070be9c",
+    "AGENTS.md": "3c6648023795e010b82688291de2e1e34fc830548cc37e9214c6f9531576c929",
+    "manual/glossary.md": "10e96cf8158689e7ae0629315e14c2b45be1b7c4853ec8d281e53d128921f654",
+    "manual/lazurio.md": "b6dfa278599d52b871b1807ff57948ca486d09ed2a291d33a25f334a9ee167be",
+    "manual/roles.md": "b2c2487c0d36906cf578ffae515998d3889c03494bb6354c52cf6dd971ed91f7",
+    "manual/this-machine.md": "61273beab487abb114fa43d5907cfebd3bc5a5df7599d80aa484320bb47374c5",
+    "manual/troubleshooting.md": "11c5756b089ac07a3fad93e570fa26a31ef5b8ce9f497f6ac8e5e16f9efeea91",
+    "manual/working-here.md": "94276c06efc690d508108cd5ab7cd40dd801fc59794af0c788467b20d09c8c37",
+  },
+  "en": {
+    ".agents/skills/new-module/SKILL.md": "18b2c16d131bc47db509c30c0c7deac220bb42897d9b4e5ce159641ccc658ba6",
+    ".claude/skills/new-module/SKILL.md": "18b2c16d131bc47db509c30c0c7deac220bb42897d9b4e5ce159641ccc658ba6",
+    "AGENTS.md": "8c57d2b018c5890717ed88f78527572d8449e92012def9582268e99915c728eb",
+    "manual/glossary.md": "70605faa74beaba16b3559a8e6d1ed5349d4e5ce399d78c9bb92c03613c8c619",
+    "manual/lazurio.md": "bb6d980a3ba97cbe66cae1b2c28584a4ff41df6ca81c4698c1aeb1cf8d9772bb",
+    "manual/roles.md": "17fb10de69cd903a8d6361553308d68d39e41646d6915edb86dbfa9f5a02ac36",
+    "manual/this-machine.md": "00367a1fb24177aab41aa045a13a9e9c62421d31f9448b63915b5ace667e40d9",
+    "manual/troubleshooting.md": "02df10f09f6ce619a81cb7efcb67b7f38527de2adc7d59d5a8ce2fc2d79e9603",
+    "manual/working-here.md": "4693cc86523cd9d2505f6e58365b57d6073a9e3364e837f2b1750b0caf1946d0",
+  },
+}
+`;
+
+exports[`golden: try-01 recorded hosted-organization-team renders as before 1`] = `
+{
+  "cs": {
+    ".agents/skills/new-module/SKILL.md": "f928b0fe355b34258c1c2c2d0325f7c834b4547507c169890c5b33920070be9c",
+    ".claude/skills/new-module/SKILL.md": "f928b0fe355b34258c1c2c2d0325f7c834b4547507c169890c5b33920070be9c",
+    "AGENTS.md": "4686bb113d8fa90d860e57754ba132809f4476c945999becea92725fea49c9c2",
+    "manual/glossary.md": "10e96cf8158689e7ae0629315e14c2b45be1b7c4853ec8d281e53d128921f654",
+    "manual/lazurio.md": "b6dfa278599d52b871b1807ff57948ca486d09ed2a291d33a25f334a9ee167be",
+    "manual/roles.md": "b2c2487c0d36906cf578ffae515998d3889c03494bb6354c52cf6dd971ed91f7",
+    "manual/this-machine.md": "5585b4d69924060d9d256417daf71cd35cfdfdd50d0c6d8c92511a2106860679",
+    "manual/troubleshooting.md": "7b71175dbc14caf5ce1fe4bef0cffa2d22a4a96dd30b82199ddd0215e7d375c7",
+    "manual/working-here.md": "02cb9b4a00212720de5ac611c0beed50cd59ed721a511f669dffeb91cb93f389",
+  },
+  "en": {
+    ".agents/skills/new-module/SKILL.md": "18b2c16d131bc47db509c30c0c7deac220bb42897d9b4e5ce159641ccc658ba6",
+    ".claude/skills/new-module/SKILL.md": "18b2c16d131bc47db509c30c0c7deac220bb42897d9b4e5ce159641ccc658ba6",
+    "AGENTS.md": "b3c292331d2b53c5bad6498c0edf5f4cce2d773c363f1f8a7caf9f23e0f7bad8",
+    "manual/glossary.md": "70605faa74beaba16b3559a8e6d1ed5349d4e5ce399d78c9bb92c03613c8c619",
+    "manual/lazurio.md": "bb6d980a3ba97cbe66cae1b2c28584a4ff41df6ca81c4698c1aeb1cf8d9772bb",
+    "manual/roles.md": "17fb10de69cd903a8d6361553308d68d39e41646d6915edb86dbfa9f5a02ac36",
+    "manual/this-machine.md": "c787c6c8a77377b299ea10547c5fce750141d2faf69ed9b298066e0b323a83d0",
+    "manual/troubleshooting.md": "b8507480e1f6a1c006f65f41be6e8924c9185fd6b56ab4171f3f710e7df909b0",
+    "manual/working-here.md": "ac88a43f7cf705e30448bb43c036338489445dee5094190358a33f89e4933bae",
+  },
+}
+`;
+
+exports[`golden: try-01 recorded hosted-organization-team with vault renders as before 1`] = `
+{
+  "cs": {
+    ".agents/skills/new-module/SKILL.md": "f928b0fe355b34258c1c2c2d0325f7c834b4547507c169890c5b33920070be9c",
+    ".claude/skills/new-module/SKILL.md": "f928b0fe355b34258c1c2c2d0325f7c834b4547507c169890c5b33920070be9c",
+    "AGENTS.md": "4686bb113d8fa90d860e57754ba132809f4476c945999becea92725fea49c9c2",
+    "manual/glossary.md": "10e96cf8158689e7ae0629315e14c2b45be1b7c4853ec8d281e53d128921f654",
+    "manual/lazurio.md": "b6dfa278599d52b871b1807ff57948ca486d09ed2a291d33a25f334a9ee167be",
+    "manual/roles.md": "b2c2487c0d36906cf578ffae515998d3889c03494bb6354c52cf6dd971ed91f7",
+    "manual/this-machine.md": "5585b4d69924060d9d256417daf71cd35cfdfdd50d0c6d8c92511a2106860679",
+    "manual/troubleshooting.md": "7b71175dbc14caf5ce1fe4bef0cffa2d22a4a96dd30b82199ddd0215e7d375c7",
+    "manual/working-here.md": "02cb9b4a00212720de5ac611c0beed50cd59ed721a511f669dffeb91cb93f389",
+  },
+  "en": {
+    ".agents/skills/new-module/SKILL.md": "18b2c16d131bc47db509c30c0c7deac220bb42897d9b4e5ce159641ccc658ba6",
+    ".claude/skills/new-module/SKILL.md": "18b2c16d131bc47db509c30c0c7deac220bb42897d9b4e5ce159641ccc658ba6",
+    "AGENTS.md": "b3c292331d2b53c5bad6498c0edf5f4cce2d773c363f1f8a7caf9f23e0f7bad8",
+    "manual/glossary.md": "70605faa74beaba16b3559a8e6d1ed5349d4e5ce399d78c9bb92c03613c8c619",
+    "manual/lazurio.md": "bb6d980a3ba97cbe66cae1b2c28584a4ff41df6ca81c4698c1aeb1cf8d9772bb",
+    "manual/roles.md": "17fb10de69cd903a8d6361553308d68d39e41646d6915edb86dbfa9f5a02ac36",
+    "manual/this-machine.md": "c787c6c8a77377b299ea10547c5fce750141d2faf69ed9b298066e0b323a83d0",
+    "manual/troubleshooting.md": "b8507480e1f6a1c006f65f41be6e8924c9185fd6b56ab4171f3f710e7df909b0",
+    "manual/working-here.md": "ac88a43f7cf705e30448bb43c036338489445dee5094190358a33f89e4933bae",
+  },
+}
+`;

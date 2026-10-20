@@ -17,6 +17,7 @@ import {
   basicsDone,
   type ComposioFact,
   contentBlockedBy,
+  demoAi,
   demoOnboarding,
   signsInAsPerson,
   type TourFacts,
@@ -510,12 +511,16 @@ export function demoModule(
 /** Začínáme of a public Environment (root decision 0204's line on 0201,
  * decision F55): what a visitor can do here, never a sign-in. Apps, a module
  * to try (`module`, or any in Apps) and Chat (`chat`: its address on this
- * Environment, null where it does not run), which says the AI is not
- * connected: a visitor gets no AI in a shared Environment (0204 point 6). */
+ * Environment, null where it does not run), which says what the live AI fact
+ * says (`ai`, F55's addendum of 2026-10-20): that Chat answers through the
+ * Organization's AI where it provides one, that AI is connected where a CLI
+ * is signed in, and that it is not connected only while it is missing or
+ * not known. */
 export function demoStartView(
   input: Readonly<{
     chat: string | null;
     module: Readonly<{ name: string; href: string }> | null;
+    ai: TourFacts["ai"];
   }>,
   copy: Copy,
 ): DemoStartView {
@@ -548,7 +553,11 @@ export function demoStartView(
         id: "chat",
         title: "Chat",
         text: copy.startDemoChatText,
-        status: copy.startDemoNoAi,
+        status: {
+          organization: copy.startDemoOrganizationAi,
+          connected: copy.startDemoConnectedAi,
+          none: copy.startDemoNoAi,
+        }[demoAi(input.ai)],
         action:
           input.chat === null
             ? null

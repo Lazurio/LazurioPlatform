@@ -1001,6 +1001,9 @@ const en = {
   tourChatText: "Work with agents.",
   tourChatMissingText: "Work with agents. Not running here.",
   tourChatDemoText: "Work with agents. AI is not connected in this demo.",
+  tourChatDemoOrganizationText:
+    "Work with agents. Chat answers through this Organization's AI.",
+  tourChatDemoConnectedText: "Work with agents. AI is connected in this demo.",
   tourAutomateTitle: "Automate",
   tourAutomateText: "Regular tasks and automation.",
   tourAutomateMissingText: "Automation does not run here.",
@@ -1021,6 +1024,8 @@ const en = {
   startDemoModuleAny: "Open any module in Apps.",
   startDemoChatText: "Work with agents.",
   startDemoNoAi: "AI is not connected in this demo.",
+  startDemoOrganizationAi: "Chat answers through this Organization's AI.",
+  startDemoConnectedAi: "AI is connected in this demo.",
   startRefresh: "Check again",
   startRequired: "Required steps",
   startDoneMark: "(done)",
@@ -1425,6 +1430,11 @@ const en = {
   serverServicesName: "Server services",
   machineWorksServices: "Owners and Admins of the Organization",
   machineKindServices: `${kindDetail("work", "en")} with the server's services`,
+  // A public Environment (the Try overlay preset, decision F55's addendum
+  // of 2026-10-20): a Team Environment set apart by its words, never a
+  // fourth kind (root decision 0207). Its kind in Toto Prostředí and its one
+  // fixed option in Obecné.
+  machineKindTry: `${kindDetail("team", "en")} for trying Lazurio`,
   machineKindPersonal: kindDetail("personal", "en"),
   machineKindWork: kindDetail("work", "en"),
   machineKindTeam: kindDetail("team", "en"),
@@ -2705,6 +2715,9 @@ const cs: Record<MessageKey, string> = {
   tourChatText: "Práce s agenty.",
   tourChatMissingText: "Práce s agenty. Tady neběží.",
   tourChatDemoText: "Práce s agenty. AI v této ukázce není připojené.",
+  tourChatDemoOrganizationText:
+    "Práce s agenty. Chat odpovídá přes AI této Organizace.",
+  tourChatDemoConnectedText: "Práce s agenty. AI je v této ukázce připojené.",
   tourAutomateTitle: "Automate",
   tourAutomateText: "Pravidelné úkoly a automatizace.",
   tourAutomateMissingText: "Automatizace tu neběží.",
@@ -2725,6 +2738,8 @@ const cs: Record<MessageKey, string> = {
   startDemoModuleAny: "Otevřete kterýkoli modul v Apps.",
   startDemoChatText: "Práce s agenty.",
   startDemoNoAi: "AI v této ukázce není připojené.",
+  startDemoOrganizationAi: "Chat odpovídá přes AI této Organizace.",
+  startDemoConnectedAi: "AI je v této ukázce připojené.",
   startRefresh: "Zkontrolovat znovu",
   startRequired: "Povinné kroky",
   startDoneMark: "(hotovo)",
@@ -3088,6 +3103,7 @@ const cs: Record<MessageKey, string> = {
   serverServicesName: "Služby serveru",
   machineWorksServices: "Owneři a Admini Organizace",
   machineKindServices: `${kindDetail("work", "cs")} se službami serveru`,
+  machineKindTry: `${kindDetail("team", "cs")} pro vyzkoušení`,
   machineKindPersonal: kindDetail("personal", "cs"),
   machineKindWork: kindDetail("work", "cs"),
   machineKindTeam: kindDetail("team", "cs"),

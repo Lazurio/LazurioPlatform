@@ -683,3 +683,68 @@ posixTest(
   },
   30_000,
 );
+
+posixTest(
+  "hosted: serving its own page reads the tools with their sign-ins, which the page's first reading then shares; Nová karta reads none",
+  async () => {
+    // Only a reading of the tools runs a version command: gh's, counted.
+    let versions = 0;
+    const run: ToolRunner = async (command) => {
+      if (command[1] === "--version") versions += 1;
+      await Bun.sleep(100);
+      return {
+        exitCode: 1,
+        stdout: "",
+        stderr: "You are not logged into any GitHub hosts.",
+      };
+    };
+    const app = await hosted({ run });
+    try {
+      const { base, valid, entry } = app;
+      const post = (body: unknown) =>
+        fetch(`${base}/api/tools/status`, {
+          method: "POST",
+          headers: {
+            ...valid,
+            origin: entry.externalOrigin,
+            "sec-fetch-site": "same-origin",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(body),
+        });
+      await Bun.sleep(200);
+      // Not as an uninstalled Launchpad starts, and not for Nová karta.
+      expect(versions).toBe(0);
+      const tab = await fetch(`${base}/new-tab`, { headers: valid });
+      expect(tab.status).toBe(200);
+      await tab.text();
+      await Bun.sleep(200);
+      expect(versions).toBe(0);
+      // The page: the tools are read now, while its files load.
+      const page = await fetch(`${base}/settings/tools`, { headers: valid });
+      await page.text();
+      for (let attempt = 0; attempt < 100 && versions === 0; attempt++)
+        await Bun.sleep(20);
+      expect(versions).toBe(1);
+      // The page's first reading, with the sign-ins, is that reading.
+      const answer = await post({ signIn: true, allowStale: true });
+      expect(answer.status).toBe(200);
+      const overview = (await answer.json()) as {
+        stale?: boolean;
+        tools: { name: string; installed: boolean; signIn?: unknown }[];
+      };
+      expect(overview.stale).toBeUndefined();
+      expect(overview.tools.find((tool) => tool.name === "gh")?.installed).toBe(
+        true,
+      );
+      expect(versions).toBe(1);
+      // A malformed field is refused, as the others are.
+      const refused = await post({ signIn: true, allowStale: "yes" });
+      expect(refused.status).toBe(400);
+      expect(await refused.json()).toEqual({ error: "invalid-allow-stale" });
+    } finally {
+      await app.close();
+    }
+  },
+  30_000,
+);

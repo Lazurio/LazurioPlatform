@@ -67,7 +67,7 @@ import {
   environmentFacts,
   type Fact,
   type MachineView,
-  presetLabel,
+  presetChoice,
 } from "./machine-view";
 import { type MessageKey, messages } from "./messages";
 import { moduleCopy } from "./module-view";
@@ -703,11 +703,16 @@ const startPanel = createStartPanel({
           list: content.list(),
         };
   },
-  // A public Environment's Začínáme (decision F55): Apps, a module and Chat.
+  // A public Environment's Začínáme (decision F55): Apps, a module and Chat,
+  // whose line follows the AI as this page last read it.
   demo: () =>
     isPublicEnvironment(entry)
       ? demoStartView(
-          { chat: chatHref(entry), module: demoModule(catalog.current()) },
+          {
+            chat: chatHref(entry),
+            module: demoModule(catalog.current()),
+            ai: aiFact(),
+          },
           copy,
         )
       : null,
@@ -1382,17 +1387,23 @@ async function load() {
   if (!first) void readShell();
   voice.load(current);
   drawMachine();
+  // One fixed option on a public Environment (the Try overlay, F55's
+  // addendum of 2026-10-20).
+  const presets = presetChoice(
+    {
+      allowedPresets: current.allowedPresets,
+      preset: current.preset.name,
+      machine: current.machine,
+    },
+    copy,
+  );
   controls.presetSelect.replaceChildren(
-    ...current.allowedPresets.map(
-      (name) =>
-        new Option(
-          copy[presetLabel(name, current.machine)],
-          name,
-          false,
-          name === current.preset.name,
-        ),
+    ...presets.options.map(
+      (option) =>
+        new Option(option.label, option.value, false, option.selected),
     ),
   );
+  controls.presetSelect.disabled = presets.fixed;
   for (const [key, value] of Object.entries(current.profile)) {
     const control = controls.form.elements.namedItem(key);
     if (control instanceof HTMLSelectElement) control.value = value;
