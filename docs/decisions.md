@@ -1723,6 +1723,74 @@ that appears after preparation stopping the activation and kept; and a staging
 interruption at every step retired with no skill directory created, then refreshed. The
 pinned digest of `tests/folder-template-revision.test.ts` moves with the revision.
 
+**Addendum 2026-10-20, decided by Matěj: agents ask people through the harness's question
+tool (root decision 0211, plan DEV-6676).** Agents put their questions into the text of a
+message. People did not notice them, and the thread looked as if it were working while it
+waited for an answer. Root decision 0211 (HumanAndMachines/Lazurio#602) has an agent that
+needs a decision or an answer from a person ask through its harness's question tool, and the
+handoff pair of decision 0103 is asked the same way. The same evening Matěj asked for it to
+hold in the Environments through the Folder's instructions („Potřebuji, aby tohle fungovalo
+i v environmentech přes instrukce v Lazurio Folderu.“).
+
+What changes:
+
+- **`AGENTS.md`**, on every preset in both locales, gains one line under "How work is done
+  here", right after the line on how to report (`questionTool` in `src/folder/render.ts`):
+  - ask through the harness's question tool (Claude Code `AskUserQuestion`, Codex
+    `request_user_input`, Hermes `clarify`), not only in the text of a message;
+  - offer 2–4 options, the recommended one first marked „(Doporučeno)“ (“(Recommended)” in
+    English), with the context in the message above the question;
+  - first do everything that does not depend on the answer, and ask only when the work cannot
+    continue safely without it or the decision is the person's; never ask about what the
+    agent can find out itself;
+  - a Publication the Operator chooses in the tool is their explicit instruction to Publish in
+    the current thread, like „Publikuj“;
+  - where the harness has no question tool or does not offer it in the current mode, ask in
+    text with numbered options and say that the agent waits and what is on hold;
+  - a subagent, a Lazurio MausBot bot or an automated reviewer has no person in its session:
+    it does not use the tool and passes the question in its output to whoever gave it the
+    work, the parent agent or Buddy.
+- **The Team Environment's Draft line** in `AGENTS.md` asks „Komu mám říct, aby tyhle změny
+  publikoval?“ with the question tool and hands that person the pull request.
+- **`manual/working-here.md`, Handoff.** The standardized block stays text and ends with
+  „Lokálně nezůstává nic mimo PR.“; the closing question is no longer inside it. Right below
+  it the agent asks with the question tool:
+  - on every preset but the Team, the pair „Mám změny Publikovat vaším jménem? Nebo mám požádat
+    jiného Kolegu o kontrolu a Publikaci?“ with the options „Publikovat vaším jménem“ and
+    „Požádat jiného Kolegu“, neither marked as recommended, because the choice is the
+    Operator's (decision 0103);
+  - on a Team Environment „Komu mám říct, aby tyhle změny publikoval?“ (F31's addendum of
+    2026-10-05), and the Team paragraph asks it with the question tool too;
+  - without the tool, the question below the block in text, the pair as numbered options,
+    with a note that the agent waits for the answer.
+  The merge bullet starts from the Operator choosing Publication in the thread, the option in
+  the tool or an explicit „Publikuj“. "After every Publication" becomes the agent's own
+  question („si polož otázku“, "ask yourself"), whose answer it proposes to the Operator, so
+  it is not taken for a question to put through the tool.
+
+Unchanged:
+
+- The wording of the pair and of the Team question (root decision 0199), who may Publish and
+  how (0103), the Team's never-merge rule and its handover (F31), and every other text of the
+  Folder. The "explicit Publish" of the skill `new-module`, of the connected applications and
+  of the catalog's usage texts includes a Publication chosen in the tool through the
+  `AGENTS.md` line; their texts stay as they are.
+- No harness is configured. Claude Code offers `AskUserQuestion` by default. Codex offers
+  `request_user_input` in its Default mode only with the feature
+  `default_mode_request_user_input`, which Codex 0.163.0 marks as under development and keeps
+  off; the T3 Code fork turns it on for its Codex threads in a separate change, and until then
+  a Codex agent in an Environment takes the text fallback. Hermes shows the options of
+  `clarify` as buttons in Telegram.
+
+Template revision `base-instructions-60`, so every Folder re-renders on its next refresh or
+product upgrade. `tests/folder-manual.test.ts` checks, on every preset and on both public
+Environments in both locales: the `AGENTS.md` line once, right after the line on how to report,
+with its parts; the handoff block ending before any question; the pair with its two options and
+neither recommended everywhere but on the Team, which asks "whom" with the tool; the Team's
+`AGENTS.md` line; and the next step after a Publication as the agent's own question. Not proven:
+that agents in every harness follow the line (generated text is not proof of delivery through a
+harness), and Codex's question tool in Environments before the T3 Code change.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
