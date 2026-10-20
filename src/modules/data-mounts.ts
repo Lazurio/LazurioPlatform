@@ -40,6 +40,28 @@ export type DataMountHost = Readonly<{
   lockDirectory: string;
 }>;
 
+/** The data mounts the Organization manifest declares directly below a
+ * module, as `dataMountOf` reads them: what its app reads beside its own
+ * checkout (also the inputs of a static app's build, decision F58). */
+export async function moduleDataMounts(
+  organizationDirectory: string,
+  moduleDirectory: string,
+) {
+  const module = relative(organizationDirectory, moduleDirectory)
+    .split(sep)
+    .join("/");
+  const documents = await readOrganizationDocuments(organizationDirectory);
+  if (
+    documents.kind !== "documents-observed" ||
+    documents.modules.kind !== "present"
+  )
+    throw new Error("Organization manifest unavailable");
+  const slots = documents.modules.value.module_slots;
+  return (Array.isArray(slots) ? slots : [])
+    .map(dataMountOf)
+    .filter((mount) => mount !== null && mount.parent === module);
+}
+
 export async function provideDataMounts(input: {
   /** The Folder, whose content lock a clone takes. */
   folder: string;
@@ -50,21 +72,10 @@ export async function provideDataMounts(input: {
    * clone is anonymous; read only when a data mount is to be cloned. */
   anonymous: () => Promise<boolean>;
 }): Promise<void> {
-  const module = relative(input.organizationDirectory, input.moduleDirectory)
-    .split(sep)
-    .join("/");
-  const documents = await readOrganizationDocuments(
+  const mounts = await moduleDataMounts(
     input.organizationDirectory,
+    input.moduleDirectory,
   );
-  if (
-    documents.kind !== "documents-observed" ||
-    documents.modules.kind !== "present"
-  )
-    throw new Error("Organization manifest unavailable");
-  const slots = documents.modules.value.module_slots;
-  const mounts = (Array.isArray(slots) ? slots : [])
-    .map(dataMountOf)
-    .filter((mount) => mount !== null && mount.parent === module);
   // Asked only when a mount is to be cloned.
   let anonymous: boolean | undefined;
   for (const mount of mounts) {

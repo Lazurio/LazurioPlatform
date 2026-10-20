@@ -36,6 +36,30 @@ export function moduleProcessEnvironment(
   };
 }
 
+/** The environment of a static app's build script (decision F58): the closed
+ * module environment (`moduleProcessEnvironment` of what the owner passes),
+ * the production mode, the app's own dependencies as `NODE_PATH`, its
+ * Organization root and its identity, and nothing of where it is served: no
+ * listener, origin, sibling or secret, so that its output is the same files
+ * wherever it is served and never carries a value of the vault. */
+export function buildEnvironment(input: {
+  base: Readonly<Record<string, string>>;
+  plan: Pick<Plan, "runtime">;
+  cwd: string;
+  organizationRoot?: string | undefined;
+}): Record<string, string> {
+  return {
+    ...moduleProcessEnvironment(input.base),
+    NODE_ENV: "production",
+    NODE_PATH: join(input.cwd, "node_modules"),
+    ...(input.organizationRoot === undefined
+      ? {}
+      : { COMPANYASCODE_ORGANIZATION_ROOT: input.organizationRoot }),
+    LAZURIO_RUNTIME_SCHEMA_VERSION: input.plan.runtime.schema_version,
+    LAZURIO_RUNTIME_APP_ID: input.plan.runtime.id,
+  };
+}
+
 // The environment of a started application (decision F26): the names and
 // values the replaced Launchpad gave a declared runtime, so that a module
 // written for it runs unchanged (`R:lazurio/runtime/runtime-lib.mjs:703-722`

@@ -4,10 +4,12 @@ import { processPersonalspaceHolder } from "../content/holder";
 import { shown } from "../organizations/cli";
 import type { PersonalspaceHolderRead } from "../organizations/personalspace";
 import { type CliContext, operatorFolder } from "../update/cli";
+import { buildMemoryMax, buildTimeoutMs } from "./built/build-process";
 import { moduleCreateHelp } from "./module-create-cli";
 import {
   createModuleOperations,
   type ModuleBlocked,
+  type ModuleBuild,
   type ModuleHost,
   type ModuleResult,
   type ModuleVerb,
@@ -21,9 +23,20 @@ import {
  * module lifecycle (launchpad-parity B3). The Launchpad's
  * `/api/modules/<org>/<module>/…` answers with the same objects from the same
  * core; command names are the resident's (root decision 0167). */
-export const moduleHelp = `module start <Organization>/<module> [--app <package>] [--folder <absolute Folder>] [--json]
+export const moduleHelp = `module start <Organization>/<module> [--app <package>] [--dev] [--folder <absolute Folder>] [--json]
   Starts the module's default app (or the declared app --app names) from the
-  module's own declaration, unless it already runs. The Organization is named
+  module's own declaration, unless it already runs. An app that declares a
+  static output (lazurio.runtime build_output beside its build_script)
+  starts as its build of the checkout's commit: the Platform keeps each
+  build in the account's cache (~/.cache/lazurio/builds) and serves it with
+  its own small static server on the app's listener, so nothing of the app
+  runs and it is ready at once. Without a build yet, start builds first
+  (build-pending while it builds); when the checkout moved past the newest
+  build, start serves that one and builds the new commit in the background,
+  then swaps. A build that fails keeps the build there was and is answered
+  with its reason and log (build-script-failed, build-timed-out,
+  build-output-missing, build-output-unservable); --dev starts the app's
+  development script instead, explicitly, until it is stopped. The Organization is named
   as in module list: its slug, or its directory name; a slug that two
   directories declare is refused (organization-ambiguous), and a module that
   cannot run is refused with its catalog reason. On a Folder with a
@@ -92,13 +105,27 @@ module prepare <Organization>/<module> [--app <package>] [--folder <F>] [--json]
   installs beneath a running app: stop the app first (application-running);
   while another app of the same Organization runs it is refused
   (other-app-managed). Outcomes as for start, and prepared when done.
+module build <Organization>/<module> [--app <package>] [--folder <F>] [--json]
+  Builds a static app's checkout now, one build at a time in this
+  Environment and at a low priority (on Linux in its own transient unit
+  with at most ${buildMemoryMax} of memory and ${buildTimeoutMs / 60_000} minutes): the app's
+  start-time step (the frozen install, its check, its prepare_script when
+  the check fails), then its build_script with NODE_ENV=production. The
+  build is keyed by the module's commit (and the commits of the data
+  repositories and required slots it reads); a commit already built is
+  current, unless the checkout has uncommitted changes, and a commit whose
+  build failed is built again. A running built app is then swapped onto the
+  new build. The Launchpad does the same by itself after a pull. not-static
+  for an app without build_output.
 module stop <Organization>/<module> [--app <package>] [--folder <F>] [--json]
   Stops the app and confirms its whole process group ended; stopping an app
   that does not run answers not-managed.
 module status <Organization>/<module> [--app <package>] [--folder <F>] [--json]
   What the service manager reports: state (running, starting, stopping,
   ended, stopped), whether the declared health passed, the service invocation
-  and, while healthy, the link runtime.url. In a Remote Environment the link
+  and, while healthy, the link runtime.url; for a static app also what it
+  serves (built and its commit, or dev) and its builds: the current one,
+  one under way, the last failure and its log. In a Remote Environment the link
   is the module's hostname from its recorded entry, never a localhost
   address; locally it is the loopback address the app listens on.
 module logs <Organization>/<module> [--app <package>] [--lines N] [--folder <F>] [--json]
@@ -113,7 +140,7 @@ ${moduleCreateHelp}`;
 export class ModuleUsageError extends Error {}
 
 const usage =
-  "Usage: module start|prepare|stop|status <Organization>/<module> [--app <package>] [--folder <Folder>] [--json] | module logs <Organization>/<module> [--lines N] …";
+  "Usage: module start|prepare|build|stop|status <Organization>/<module> [--app <package>] [--dev] [--folder <Folder>] [--json] | module logs <Organization>/<module> [--lines N] …";
 
 const explanations: Readonly<Record<string, string>> = {
   "module-name-invalid": "Name the module as <Organization>/<module>.",
@@ -219,6 +246,26 @@ const explanations: Readonly<Record<string, string>> = {
     "This file of the module is larger than a file of the checkout may be (1 MiB; 16 MiB for a lockfile).",
   "directory-not-regular":
     "This directory of the checkout is not a real directory (a symlink, for example); Lazurio reads the checkout only through its own directories.",
+  "build-script-failed":
+    "The app's build_script failed; nothing changed for what is served. Read its log, fix the module, and build again (lazurio module build), or start its development version (lazurio module start --dev).",
+  "build-timed-out":
+    "The app's build did not finish in time and was ended; nothing changed for what is served.",
+  "build-output-missing":
+    "The build_script succeeded but did not write the directory build_output names; fix the declaration or the build.",
+  "build-output-unservable":
+    "The build's output has no file for the entrypoint's declared health path, so it could never report healthy; it was not kept.",
+  "build-busy":
+    "Another Lazurio process has been building for long; try again when it finishes.",
+  "checkout-changing":
+    "The checkout changed during every build attempt (pulls in a row); build again when it is still.",
+  "checkout-unreadable":
+    "git could not read the module's checkout (its commit), which a build is keyed by.",
+  "organization-manifest-unreadable":
+    "The Organization manifest could not be read, so the data repositories a build reads are not known.",
+  "not-static":
+    "This app declares no static output (lazurio.runtime build_output); it runs its development script.",
+  "builds-unavailable":
+    "This Environment keeps no builds (its home is not known).",
   "directory-owner":
     "This directory of the checkout belongs to another account, so it is not your own checkout; make it yours again (chown) or check it out again.",
 };
@@ -253,7 +300,38 @@ function describe(name: string, result: ModuleResult): string {
     ...(result.secretsNotProvided?.length
       ? [`  without optional secrets ${secretList(result.secretsNotProvided)}`]
       : []),
+    ...(result.build === undefined ? [] : buildLines(result.build)),
   ].join("\n");
+}
+
+// A static app's builds (decision F58), by short commits.
+function buildLines(build: ModuleBuild): string[] {
+  const short = (commit: string) => commit.slice(0, 12);
+  return [
+    ...(build.mode === null
+      ? []
+      : [
+          `  serves  ${build.mode === "built" && build.served !== null ? `build of ${short(build.served.commit)}` : "development script"}`,
+        ]),
+    ...(build.head === undefined
+      ? []
+      : [
+          `  checkout ${short(build.head.commit)}${build.head.branch === null ? " (detached)" : ` on ${shown(build.head.branch)}`}${build.head.dirty ? ", with uncommitted changes" : ""}`,
+        ]),
+    `  build   ${build.current === null ? "none yet" : `${short(build.current.commit)} at ${build.current.at}${build.current.dirty ? " (uncommitted changes)" : ""}`}`,
+    ...(build.building === null
+      ? []
+      : [
+          build.building.commit === null
+            ? `  building queued behind another build since ${build.building.at}`
+            : `  building ${short(build.building.commit)} since ${build.building.at}`,
+        ]),
+    ...(build.failure === null
+      ? []
+      : [
+          `  failed  ${short(build.failure.commit)}: ${build.failure.reason} (log ${shown(build.failure.log)})`,
+        ]),
+  ];
 }
 
 // Runtime secrets by name and reason (decision F46), never a value.
@@ -282,6 +360,7 @@ export async function runModuleCommand(
     json?: boolean | undefined;
     app?: string | undefined;
     lines?: string | undefined;
+    dev?: boolean | undefined;
   };
   let positionals: string[];
   try {
@@ -295,6 +374,7 @@ export async function runModuleCommand(
         json: { type: "boolean" },
         app: { type: "string" },
         lines: { type: "string" },
+        dev: { type: "boolean" },
       },
     });
     ({ values, positionals } = parsed);
@@ -317,6 +397,7 @@ export async function runModuleCommand(
     rest.length !== 0 ||
     (values.lines !== undefined &&
       (verb !== "logs" || !/^[1-9][0-9]{0,3}$/.test(values.lines))) ||
+    (values.dev !== undefined && verb !== "start") ||
     (values.folder !== undefined &&
       (!isAbsolute(values.folder) || resolve(values.folder) !== values.folder))
   )
@@ -353,6 +434,7 @@ export async function runModuleCommand(
   const options = {
     ...(values.app === undefined ? {} : { app: values.app }),
     ...(values.lines === undefined ? {} : { lines: Number(values.lines) }),
+    ...(values.dev === true ? { dev: true } : {}),
   };
   const result = await operations[operation](name, options);
   if (result.kind === "blocked" && result.reason === "folder-unreadable")

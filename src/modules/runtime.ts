@@ -33,6 +33,8 @@ export function parseAppRuntime(input: unknown) {
       "production_url",
       "secrets",
       "optional_secrets",
+      "build_output",
+      "static_fallback",
     ],
   );
   if (value.schema_version !== "lazurio.runtime.v1")
@@ -131,6 +133,7 @@ export function parseAppRuntime(input: unknown) {
   });
   if (listeners.filter((item) => item.role === "entrypoint").length !== 1)
     throw new Error("Exactly one entrypoint required");
+  const built = staticOutput(value, listeners, secrets, optionalSecrets);
   return Object.freeze({
     schema_version: "lazurio.runtime.v1" as const,
     id,
@@ -150,7 +153,64 @@ export function parseAppRuntime(input: unknown) {
      * them (root decision 0196, decision F46): passed like `secrets` when
      * their item is there, otherwise the app starts without the variable. */
     optional_secrets: optionalSecrets,
+    /** The app's static output (root decision 0195 point 19, decision F58):
+     * its `build_script` writes `output`, a directory of its package, which
+     * the Platform keeps per commit outside the checkout and serves itself.
+     * Null for an app that runs its development script only. */
+    static: built,
     optional: Object.freeze(optional),
+  });
+}
+
+/** The grammar of `build_output`: a directory of the app's package, named by
+ * plain relative segments, never `.`/`..`, absolute or with a backslash. */
+const outputSegment = /^[A-Za-z0-9_][A-Za-z0-9._-]*$/;
+
+// `build_output` and `static_fallback` (decision F58). A static app is served
+// by the Platform's own static server, one HTTP listener with an HTTP health
+// path and nothing of the app running on the server: so it declares exactly
+// one listener and no runtime secrets, which would otherwise reach a process
+// that never reads them or be baked into public files.
+function staticOutput(
+  value: Record<string, unknown>,
+  listeners: readonly Readonly<{
+    protocol: string;
+    health: Readonly<{ kind: string }>;
+  }>[],
+  secrets: readonly string[],
+  optionalSecrets: readonly string[],
+) {
+  const declared = Object.hasOwn(value, "build_output");
+  if (!declared) {
+    if (Object.hasOwn(value, "static_fallback"))
+      throw new Error("Static fallback without build output");
+    return null;
+  }
+  const output = text(value.build_output, /\S/);
+  const segments = output.split("/");
+  if (
+    output.length > 200 ||
+    !segments.every((segment) => outputSegment.test(segment))
+  )
+    throw new Error("Invalid build output");
+  if (!Object.hasOwn(value, "build_script"))
+    throw new Error("Build output without build script");
+  const fallback = Object.hasOwn(value, "static_fallback")
+    ? text(value.static_fallback, /^(404|spa)$/)
+    : "404";
+  const [listener] = listeners;
+  if (
+    listeners.length !== 1 ||
+    listener?.protocol !== "http" ||
+    listener.health.kind !== "http"
+  )
+    throw new Error("Static app requires one HTTP listener");
+  if (secrets.length > 0 || optionalSecrets.length > 0)
+    throw new Error("Static app declares runtime secrets");
+  return Object.freeze({
+    build_script: text(value.build_script, /\S/),
+    output,
+    fallback: fallback as "404" | "spa",
   });
 }
 
@@ -194,6 +254,20 @@ export function planModuleRuntime(
     !script.value.trim()
   )
     throw new Error("Declared development script missing");
+  // A static app's build script must be one of its package's scripts too.
+  if (runtime.static !== null) {
+    const build = Object.getOwnPropertyDescriptor(
+      scripts,
+      runtime.static.build_script,
+    );
+    if (
+      !build ||
+      !("value" in build) ||
+      typeof build.value !== "string" ||
+      !build.value.trim()
+    )
+      throw new Error("Declared build script missing");
+  }
   const listeners = runtime.listeners.map((listener) => {
     const lease = module.port_leases.find((item) => item.id === listener.lease);
     if (!lease) throw new Error("Runtime references unknown module lease");
