@@ -1390,7 +1390,10 @@ button:not(.primary) .provider-openai { color: #000000; }
 <li><a class="menu-item" href="/" id="catalog-home" data-route><svg class="icon" aria-hidden="true"><use href="#i-catalog"/></svg><span class="menu-name" data-message="appsAll">All modules</span></a></li>
 <li><a class="menu-item" href="/files" id="files-open" data-route data-guide="nav-files"><svg class="icon" aria-hidden="true"><use href="#i-folder"/></svg><span class="menu-name" data-message="filesTitle">Files</span></a></li>
 <li><a class="menu-item" href="/integrations" id="integrations-open" data-route data-guide="nav-integrations"><svg class="icon" aria-hidden="true"><use href="#i-integrations"/></svg><span class="menu-name" data-message="integrationsTitle">Integrations</span><span class="menu-count" id="integrations-attention" hidden></span></a></li>
-<li id="vault-nav"><a class="menu-item" href="/vault" id="vault-open" data-route data-guide="nav-vault"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span class="menu-name" data-message="vaultPageTitle">Vault</span></a></li>
+<!-- Trezor: hidden as written, so a page without its boot document whose script
+     never runs shows no Trezor; shown only where the boot document or the page's
+     script decided this Environment lists it (plan DEV-6668 slice 6). -->
+<li id="vault-nav" hidden><a class="menu-item" href="/vault" id="vault-open" data-route data-guide="nav-vault"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span class="menu-name" data-message="vaultPageTitle">Vault</span></a></li>
 </ul>
 <div class="column-favorites" id="catalog-favorites"></div>
 </nav>

@@ -174,13 +174,14 @@ test("the Apps column is Všechny moduly, Soubory, Integrace and Trezor, in this
     view: "vault",
   });
   expect(vaultPath).toBe("/vault");
-  // Its own item, which the server hides where the Environment has no
-  // vault (a public one's by the stricter rule of plan DEV-6668 slice 6) and
-  // ui.ts on this computer (`vaultInApps`); listed in the page as written.
+  // Its own item, hidden in the page as written (plan DEV-6668 slice 6, the
+  // review of #562): the server shows it where its boot document lists
+  // Trezor, and ui.ts where the page decided so (`vaultInApps`), so a page
+  // whose script never runs shows none.
   const item = byId("vault-nav");
   expect(item.tag).toBe("li");
   expect(vault.parent).toBe(item);
-  expect(item.attributes.has("hidden")).toBe(false);
+  expect(item.attributes.has("hidden")).toBe(true);
 });
 
 test("beside Trezor the column stays the Apps column, the Marketplace at its foot", () => {
@@ -743,7 +744,7 @@ for (const environment of environments)
   );
 
 test.skipIf(!posix)(
-  "a workstation's page carries no decision and lists Trezor as written, which its preset hides; its addresses still answer",
+  "a workstation's page carries no decision and has Trezor hidden as written, as its preset keeps it; its addresses still answer",
   async () => {
     await folderFixture(async (folder) => {
       const app = await startLaunchpad(folder);
@@ -754,7 +755,10 @@ test.skipIf(!posix)(
           const html = await answer.text();
           expect([path, answer.status]).toEqual([path, 200]);
           expect(html).not.toContain(bootElementId);
-          expect(await trezorOf(html)).toEqual({ listed: true, carried: null });
+          expect(await trezorOf(html)).toEqual({
+            listed: false,
+            carried: null,
+          });
         }
       } finally {
         await app.close();

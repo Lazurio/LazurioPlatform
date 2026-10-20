@@ -2588,8 +2588,9 @@ answer `lazurio vault status` reads; `vaultListed` in `vault-page-view.ts`): lis
 `no-vault`, `no-tailnet`, `workstation` and a pilot never connected, whose status is
 `no-vault`. The server decides it for the first paint: `vaultInAppsOf`
 (`boot-document.ts`) reads it beside the Folder's state, from local files only, the boot
-document carries it as `vaultInApps`, and the page is served with `hidden` on
-`#vault-nav` where it is false; `ui.ts` draws the item from the same member. A page
+document carries it as `vaultInApps`, and the page is served with `#vault-nav` shown only
+where it is true (hidden as written, plan DEV-6668 slice 6); `ui.ts` draws the item from the
+same member. A page
 without a boot document follows its preset (`vaultInApps`): not on this computer.
 Trezor's addresses, `/vault` and the old `/settings/vault` with their requests, answer
 either way. Tested over HTTP in `tests/launchpad-apps-vault.test.ts` with the production
@@ -2604,7 +2605,9 @@ throws do not list it (`vaultListed(answer, true)`, `vaultInAppsOf(host, true)`)
 public page without a boot document does not either. A page without a boot document
 lists Trezor on no Environment until `GET /api/entry` (or a workstation's answer of
 none) tells it whether it is public (`entryKnown` in `ui.ts`); a failed read keeps it
-hidden. Without its vault, Trezor's pages
+hidden. The item is hidden as `index.html` is written: `withBoot` shows it only where the
+boot document lists Trezor, and `ui.ts` where it decided so, so a page whose script never
+runs shows none. Without its vault, Trezor's pages
 answer `404` and show Apps, and its API (`/api/vault…`) answers `404 {"error":
 "not-found"}` (`withheldInPublic(route, {vault})` on the server, `publicRoute` in the
 page's router). Its vault is a Team Environment's whatever the Folder recorded (the Try

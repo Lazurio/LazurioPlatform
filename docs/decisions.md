@@ -15164,9 +15164,14 @@ record already left the vault to the vault core.
    (`vaultInApps(null, preset, null)`), and if the read fails it stays hidden. Then a
    public page without a decision still does not list it (`vaultInApps(null, preset,
    true)`) and its router shows Apps in Trezor's place, and any other page lists it by its
-   preset. The stylesheet's selector of the item (`li:has(> #vault-open)`) goes, as F53's
-   addendum (3), point 5, foresaw; it never covered that wait either, since
-   `data-audience` too comes only with the entry (point 5's honest limit).
+   preset. Trezor's item is hidden as the page is written: the server shows it only where
+   the boot document lists it (`withBoot`, where F53's addendum (3), point 3, hid it where
+   it was false), and the page's script where it decided so, so a page without its boot
+   document whose script never runs (its bundle missing, JavaScript off) shows no Trezor
+   when the stylesheet or `<noscript>` reveals it. The stylesheet's selector of the item
+   (`li:has(> #vault-open)`) goes, as F53's addendum (3), point 5, foresaw; it never covered
+   that wait either, since `data-audience` too comes only with the entry (point 5's honest
+   limit).
 2. **A public Environment's vault is a Team Environment's.** On a public Environment the
    vault core takes its kind from the Try overlay's `shownKind`, whatever preset the
    Folder recorded (`src/vault/host.ts`). A Folder that recorded Work would otherwise give
@@ -15208,8 +15213,9 @@ is read once per page load, so a vault that appears while the page is open shows
 next load, as does Trezor on a public page served without its boot document. A page of
 an Environment that is not public, served without its boot document, now lists Trezor
 only once its entry is read (a moment, or not at all if that read fails) instead of at
-once (F53's addendum (3), honest limits); Integrace on a public page so served still
-waits for the entry as point 5's honest limit says. The agents'
+once (F53's addendum (3), honest limits), and without its script not at all; Integrace
+on a public page so served still waits for the entry as point 5's honest limit says
+(#564). The agents'
 Bitwarden text still says that `no-tailnet` means no vault on purpose, which holds while
 the handover names none; the visitors' generated texts are slice 5's.
 
@@ -15233,7 +15239,11 @@ served without their boot document behind a stand-in for the gateway: without a 
 `#vault-nav` hidden in the first paint and after the deadline while `GET /api/entry`
 waits three seconds, and still once it says public, and hidden throughout when it fails;
 the same Environment not public and with its vault hidden until the entry arrives, then
-shown (the review of #562; with the page's fix reverted the first paint shows it).
+shown (the review of #562; with the page's fix reverted the first paint shows it); and
+try-01's page without its boot document and without its script, its bundle answering
+`404` or JavaScript off, revealed by the stylesheet or `<noscript>` with Trezor's item not
+displayed, and its served HTML, public or not, with the item hidden as written (with the
+item listed as written the test shows it).
 Updated:
 `tests/launchpad-apps-vault.test.ts` (no stylesheet rule names Trezor's item; a public
 Environment's Trezor `404` only without a vault) and `tests/public-environment.test.ts`

@@ -694,6 +694,8 @@ async function servedWithoutBoot(
     audience: boolean;
     withVault: boolean;
     entry: "slow" | "failed";
+    /** The page's scripts answer 404, as when its bundle is missing. */
+    scripts?: "missing";
   }>,
 ) {
   const port = freePort();
@@ -750,6 +752,8 @@ async function servedWithoutBoot(
     port: 0,
     async fetch(request) {
       const url = new URL(request.url);
+      if (input.scripts === "missing" && url.pathname.endsWith(".js"))
+        return new Response("missing", { status: 404 });
       const entryRead = url.pathname === "/api/entry";
       if (entryRead && input.entry === "failed") {
         state.entryAnswered = true;
@@ -824,7 +828,7 @@ async function headlessChrome(executable: string) {
   const port = Number((await readFile(portFile, "utf8")).split("\n")[0]);
   const cdp = await connectCdp(await browserSocketUrl(port));
   return {
-    async open(url: string) {
+    async open(url: string, options: Readonly<{ javascript?: false }> = {}) {
       const { targetId } = (await cdp.send("Target.createTarget", {
         url: "about:blank",
       })) as { targetId: string };
@@ -832,9 +836,46 @@ async function headlessChrome(executable: string) {
         targetId,
         flatten: true,
       })) as { sessionId: string };
+      if (options.javascript === false)
+        await cdp.send(
+          "Emulation.setScriptExecutionDisabled",
+          { value: true },
+          sessionId,
+        );
       await cdp.send("Page.navigate", { url }, sessionId);
       return {
         /** What the page shows of Trezor now. */
+        /** Whether the page is visible and its Trezor item displayed, as
+         * the stylesheet decides it, scripts or none. */
+        async look() {
+          const { result } = (await cdp.send(
+            "Runtime.evaluate",
+            {
+              returnByValue: true,
+              expression: `({
+                ready: document.documentElement.hasAttribute("data-ready"),
+                boot: document.getElementById(${JSON.stringify(bootElementId)}) !== null,
+                visible: document.body !== null && getComputedStyle(document.body).visibility === "visible",
+                displayed: (() => {
+                  const item = document.getElementById("vault-nav");
+                  return item === null ? null : getComputedStyle(item).display !== "none";
+                })(),
+              })`,
+            },
+            sessionId,
+          )) as {
+            result: {
+              value?: {
+                ready: boolean;
+                boot: boolean;
+                visible: boolean;
+                displayed: boolean | null;
+              };
+            };
+          };
+          if (result.value === undefined) throw new Error("No page state");
+          return result.value;
+        },
         async read() {
           const { result } = (await cdp.send(
             "Runtime.evaluate",
@@ -991,4 +1032,102 @@ test.skipIf(chrome === null || !posix || uid === 0)(
     }
   },
   90_000,
+);
+
+test.skipIf(chrome === null || !posix || uid === 0)(
+  "without its boot document and without its script, try-01 without a vault shows no Trezor when the page reveals itself: its bundle missing, or JavaScript off",
+  async () => {
+    if (chrome === null) return;
+    const browser = await headlessChrome(chrome);
+    try {
+      // Its bundle missing: the stylesheet reveals the page after two
+      // seconds, and the item stays hidden as written.
+      {
+        const app = await servedWithoutBoot({
+          audience: true,
+          withVault: false,
+          entry: "slow",
+          scripts: "missing",
+        });
+        try {
+          const tab = await browser.open(app.url);
+          const started = Date.now();
+          let state = await tab.look().catch(() => null);
+          while (state === null || !state.visible) {
+            if (Date.now() - started > 10_000)
+              throw new Error("The page never showed");
+            await Bun.sleep(100);
+            state = await tab.look().catch(() => null);
+          }
+          expect(state).toEqual({
+            ready: false,
+            boot: false,
+            visible: true,
+            displayed: false,
+          });
+          await Bun.sleep(500);
+          expect((await tab.look()).displayed).toBe(false);
+          await tab.close();
+        } finally {
+          await app.close();
+        }
+      }
+      // JavaScript off: <noscript> reveals the page at once.
+      {
+        const app = await servedWithoutBoot({
+          audience: true,
+          withVault: false,
+          entry: "slow",
+        });
+        try {
+          const tab = await browser.open(app.url, { javascript: false });
+          const started = Date.now();
+          let state = await tab.look().catch(() => null);
+          while (state === null || !state.visible || state.displayed === null) {
+            if (Date.now() - started > 10_000)
+              throw new Error("The page never showed");
+            await Bun.sleep(100);
+            state = await tab.look().catch(() => null);
+          }
+          expect(state).toEqual({
+            ready: false,
+            boot: false,
+            visible: true,
+            displayed: false,
+          });
+          await Bun.sleep(2500);
+          expect((await tab.look()).displayed).toBe(false);
+          await tab.close();
+        } finally {
+          await app.close();
+        }
+      }
+    } finally {
+      await browser.close();
+    }
+  },
+  60_000,
+);
+
+test.skipIf(!posix || uid === 0)(
+  "a page served without its boot document has Trezor hidden as written, public or not, until its script decides",
+  async () => {
+    for (const input of [
+      { audience: true, withVault: false },
+      { audience: false, withVault: true },
+    ] as const) {
+      const app = await servedWithoutBoot({ ...input, entry: "failed" });
+      try {
+        const page = await fetch(app.url);
+        expect(page.status).toBe(200);
+        expect([input, await trezorOf(await page.text())]).toEqual([
+          input,
+          { listed: false, carried: null },
+        ]);
+      } finally {
+        await app.close();
+      }
+    }
+  },
+  30_000,
 );
