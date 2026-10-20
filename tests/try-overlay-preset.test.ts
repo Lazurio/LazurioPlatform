@@ -44,6 +44,7 @@ import {
   environmentKind,
   shellDocument,
 } from "../src/launchpad/shell-document";
+import { shellMessages } from "../src/shell/messages";
 import type { ToolRunner } from "../src/tools/status";
 import { binding } from "./fixtures/machine-bindings";
 import { freePort } from "./fixtures/ports";
@@ -646,3 +647,13 @@ test("the navigation of a public Environment has no Integrace and no Nástroje: 
 /** The machine as `POST /api/profile` answers it. */
 const view = (machine: MachineBinding): MachineView =>
   JSON.parse(JSON.stringify(machine));
+
+// The shell is a browser bundle that imports no Platform code, so the column
+// head's terms link keeps its own copy of the URL; this test keeps the two
+// copies one truth with the Try overlay's `notice`.
+test("the column head links the Try overlay's terms page in each language", () => {
+  for (const locale of ["cs", "en"] as const)
+    expect(shellMessages(locale).publicTermsUrl).toBe(
+      tryPreset.notice.terms[locale],
+    );
+});
