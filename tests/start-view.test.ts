@@ -795,3 +795,39 @@ test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose pa
     ),
   ).toEqual([]);
 });
+
+// #515 (F19's addendum of 2026-10-19): GitHub signed in while SSH does not
+// work here is connected badly. The step says so and offers one action that
+// finishes it; the content waits for it.
+test("GitHub connected badly: the step says it does not work and offers to connect again, in both languages", () => {
+  const broken = startView(
+    facts({ ai: "connected", github: "incomplete", githubLogin: "octocat" }),
+    cs,
+  );
+  expect(broken?.steps[1]).toEqual({
+    basic: "github",
+    mark: "failed",
+    title: "GitHub",
+    status: "Připojení nefunguje.",
+  });
+  expect(broken?.github).toEqual({ enabled: true, kind: "reconnect" });
+  expect(broken?.done).toBe(1);
+  // Its turn comes after GitHub: the content is not offered.
+  expect(broken?.steps[2]?.mark).toBe("later");
+  expect(
+    startView(facts({ ai: "connected", github: "incomplete" }), en)?.steps[1]
+      ?.status,
+  ).toBe("The connection does not work.");
+  expect(cs.startGithubReconnect).toBe("Připojit znovu");
+  expect(en.startGithubReconnect).toBe("Connect again");
+  // Before AI it waits for its turn, as a missing GitHub does.
+  const early = startView(facts({ github: "incomplete" }), cs);
+  expect(early?.steps[1]).toMatchObject({
+    mark: "later",
+    status: "Připojení nefunguje.",
+  });
+  expect(early?.github).toEqual({ enabled: false, kind: "reconnect" });
+  expect(startCount(facts({ ai: "connected", github: "incomplete" }))).toBe(
+    "1/3",
+  );
+});

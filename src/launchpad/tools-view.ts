@@ -24,7 +24,9 @@ import {
   type SshLink,
   type SshLinkFailure,
   type SshStatus,
+  type SshStatusReason,
   sshLinkFailures,
+  sshStatusReasons,
 } from "../tools/ssh-key";
 import type { ToolSignIn } from "../tools/status";
 import { type GhIdentity, githubActionRefused } from "../tools/team-github";
@@ -55,9 +57,7 @@ function parseSshStatus(input: unknown): SshStatus | null {
       value.state !== "not-linked" &&
       value.state !== "unknown") ||
     (value.reason !== undefined &&
-      !["no-key", "not-registered", "scope-missing", "unreadable"].includes(
-        value.reason as string,
-      )) ||
+      !sshStatusReasons.includes(value.reason as SshStatusReason)) ||
     (value.fingerprint !== undefined && !fingerprint(value.fingerprint))
   )
     return null;
@@ -378,8 +378,12 @@ export function toolDescription(
  * instead that agents start using it once it is (Matěj 2026-10-09): the
  * row's live state, so it is said only while it is true, never kept from
  * the moment the switch was flipped. The SSH key of gh is part of it only
- * when it needs the person (not linked) and on a Team Environment, which
- * works through Lazurio for GitHub. */
+ * when it needs the person (not linked, or not verified) and on a Team
+ * Environment, which works through Lazurio for GitHub. A signed-in gh is
+ * `signed-in`, the success colour, only while this Environment reaches
+ * GitHub over SSH as its account (decision F19, addendum 2026-10-19, #515):
+ * otherwise `incomplete` (not linked) or `unverified` (could not be
+ * checked), in no success colour. */
 export function connectionLine(
   tool: ToolOverview,
   copy: Copy,
@@ -413,10 +417,20 @@ export function connectionLine(
         ? copy.toolsSshTeam
         : ssh.state === "not-linked"
           ? copy.toolsSshNotLinked
-          : null;
+          : ssh.state === "unknown"
+            ? copy.toolsSshUnknown
+            : null;
+  const state = tool.signIn?.state ?? "unchecked";
   return {
     text,
-    state: tool.signIn?.state ?? "unchecked",
+    state:
+      state !== "signed-in" || ssh === undefined || brokered
+        ? state
+        : ssh.state === "not-linked"
+          ? "incomplete"
+          : ssh.state === "unknown"
+            ? "unverified"
+            : state,
     ssh: key,
   };
 }
@@ -702,6 +716,23 @@ export function curatedActions(
     logout: false,
     linkSsh: false,
   };
+}
+
+/** What opening a tool's sign-in from outside its row opens (Začínáme, the
+ * line in Apps, a start request in the address; decision F19's addendum of
+ * 2026-10-19, #515): its row's flow, and for a signed-in gh whose SSH does
+ * not work here "Link SSH key", which is what is missing then. Null where
+ * there is nothing to open (signed in and linked, a Team Environment's gh,
+ * a tool the Organization does not allow). */
+export function signInMode(
+  tool: ToolOverview,
+  copy: Copy,
+  brokered = false,
+): "install" | "login" | "ssh" | null {
+  const { primary, linkSsh } = curatedActions(tool, copy, brokered);
+  if (primary !== null)
+    return primary.mode === "install-only" ? null : primary.mode;
+  return linkSsh ? "ssh" : null;
 }
 
 /** What Nástroje's "?" can truthfully point at (decision F56's addendum (2)

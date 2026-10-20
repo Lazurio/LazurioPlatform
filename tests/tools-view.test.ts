@@ -36,6 +36,7 @@ import {
   qrImageSource,
   signedInMessage,
   signInLine,
+  signInMode,
   sourceLink,
   sshOutcome,
   type ToolNotice,
@@ -1910,4 +1911,76 @@ test("the guide's targets on connecting and on the switch are only what a person
     ]).connect,
   ).toBeNull();
   expect(targets([])).toEqual({ connect: null, agents: null });
+});
+
+// #515 (F19's addendum of 2026-10-19): Nástroje never draws gh connected in
+// the success colour while this Environment does not reach GitHub over SSH
+// as its account, and it names a key it could not verify.
+test("Nástroje: gh connected but SSH not working is not drawn as connected, and an unverified key is named", () => {
+  for (const locale of ["en", "cs"] as const) {
+    const copy = messages(locale);
+    const gh = (state: "linked" | "not-linked" | "unknown", brokered = false) =>
+      connectionLine(
+        tool({
+          name: "gh",
+          command: "gh",
+          tier: "required",
+          installed: true,
+          signIn: { state: "signed-in", account: "octo", ssh: { state } },
+        }),
+        copy,
+        brokered,
+      );
+    const who = copy.toolsSignedInAs.replace("{account}", "octo");
+    // Only a working link is "signed-in", the success colour of the line.
+    expect(gh("linked")).toEqual({ text: who, state: "signed-in", ssh: null });
+    expect(gh("not-linked")).toEqual({
+      text: who,
+      state: "incomplete",
+      ssh: copy.toolsSshNotLinked,
+    });
+    expect(gh("unknown")).toEqual({
+      text: who,
+      state: "unverified",
+      ssh: copy.toolsSshUnknown,
+    });
+    // A Team Environment works through Lazurio for GitHub: its line names
+    // that, never a person's key.
+    expect(gh("not-linked", true).ssh).toBe(copy.toolsSshTeam);
+  }
+  expect(messages("cs").toolsSshNotLinked).toBe("SSH klíč nepropojený");
+  expect(messages("cs").toolsSshUnknown).toBe("SSH klíč neověřený");
+});
+
+// #515: Začínáme, the line in Apps and a start request open GitHub's
+// sign-in by `signInMode`: for a signed-in gh whose SSH does not work here
+// that is its SSH link.
+test("opening a tool's sign-in from outside its row: its flow, or the SSH link of a signed-in gh", () => {
+  const copy = messages("cs");
+  const gh = (signIn?: ToolOverview["signIn"], installed = true) =>
+    tool({
+      name: "gh",
+      command: "gh",
+      tier: "required",
+      installed,
+      ...(signIn === undefined ? {} : { signIn }),
+    });
+  expect(signInMode(gh(undefined, false), copy)).toBe("install");
+  expect(signInMode(gh({ state: "signed-out" }), copy)).toBe("login");
+  expect(
+    signInMode(
+      gh({ state: "signed-in", account: "o", ssh: { state: "not-linked" } }),
+      copy,
+    ),
+  ).toBe("ssh");
+  expect(
+    signInMode(
+      gh({ state: "signed-in", account: "o", ssh: { state: "linked" } }),
+      copy,
+    ),
+  ).toBeNull();
+  // A Team Environment's gh is never signed in from here.
+  expect(signInMode(gh(undefined, false), copy, true)).toBeNull();
+  expect(signInMode(gh({ state: "signed-out" }), copy, true)).toBeNull();
+  expect(signInMode(tool({ installed: true }), copy)).toBe("login");
 });

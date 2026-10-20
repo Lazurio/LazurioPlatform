@@ -466,10 +466,14 @@ export function createStartPanel(
         body = parts.body;
       }
       if (step.basic === "github" && view.github !== null) {
+        // "Připojit", or "Připojit znovu" where GitHub is connected badly
+        // (#515): each opens GitHub's sign-in as it stands (`openSignIn`).
         const connect = element(
           "button",
           view.github.enabled ? "primary" : "",
-          copy.startConnect,
+          view.github.kind === "reconnect"
+            ? copy.startGithubReconnect
+            : copy.startConnect,
         );
         connect.type = "button";
         connect.dataset.tour = "start-github";

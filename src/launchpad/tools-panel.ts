@@ -44,6 +44,7 @@ import {
   parseToolsOverview,
   qrImageSource,
   signedInMessage,
+  signInMode,
   sourceLink,
   sshOutcome,
   type ToolChange,
@@ -1910,20 +1911,21 @@ export function createToolsPanel(
     void refresh({ signIn: true });
   });
 
-  /** Opens a tool's sign-in as its row's "Připojit" does, when the row
-   * offers one: the arrival of "Připojit GitHub" from the line in Apps or
-   * the shell's column head (root decision 0188). True when it opened. */
+  /** Opens a tool's sign-in as its row does: the arrival of "Připojit
+   * GitHub" from Začínáme, the line in Apps or the shell's column head (root
+   * decision 0188). A signed-in gh whose SSH does not work here gets its SSH
+   * link (`signInMode`, #515). True when it opened. */
   function openSignIn(name: string): boolean {
     if (overview === null || busy || loginDialog.open) return false;
     const tool = overview.tools.find((entry) => entry.name === name);
     if (tool === undefined) return false;
-    const { primary } = curatedActions(
+    const mode = signInMode(
       tool,
       options.copy(),
       overview.sharedEnvironment === true,
     );
-    if (primary === null || primary.mode === "install-only") return false;
-    openLogin(tool, primary.mode);
+    if (mode === null) return false;
+    openLogin(tool, mode);
     return true;
   }
 

@@ -30,7 +30,10 @@ export const githubHostKeys = Object.freeze([
 ]);
 
 // A step that hangs while `$HOME/hang.<name>` exists: its helper's pid goes
-// to `$HOME/hang.pid`, so a test can see that a cancel killed it.
+// to `$HOME/hang.pid`, so a test can see that a cancel killed it. A step
+// with `$HOME/slow.<name>` takes that many seconds and then goes on, as a
+// slow network would (the Launchpad preview's linking that a person closes
+// the dialog on).
 const hang = `hang() {
   if [ -f "$HOME/hang.$1" ]; then
     sleep 300 &
@@ -38,6 +41,8 @@ const hang = `hang() {
     mv "$HOME/hang.pid.tmp" "$HOME/hang.pid"
     wait
   fi
+  if [ -f "$HOME/slow.$1" ]; then sleep "$(cat "$HOME/slow.$1")"; fi
+  return 0
 }
 `;
 
@@ -114,6 +119,8 @@ api)
   case "$2" in
   meta)
     hang api-meta
+    # $HOME/gh.meta.fail: GitHub's API cannot be reached.
+    [ -f "$HOME/gh.meta.fail" ] && { echo "error connecting to api.github.com" >&2; exit 1; }
     if [ -f "$HOME/gh.meta" ]; then cat "$HOME/gh.meta"; else echo '${JSON.stringify(githubHostKeys)}'; fi
     exit 0;;
   user)
@@ -125,6 +132,8 @@ api)
     if [ -f "$HOME/gh.user" ]; then cat "$HOME/gh.user"; else printf '{"login":"%s","id":583231,"name":"The Octocat"}\n' "$(cat "$HOME/gh.state")"; fi
     exit 0;;
   "user/keys?per_page=100")
+    # $HOME/gh.keys.fail: GitHub does not answer the list.
+    [ -f "$HOME/gh.keys.fail" ] && { echo "HTTP 502: Bad Gateway (https://api.github.com/user/keys)" >&2; exit 1; }
     scope admin:public_key || scope read:public_key || { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
     printf '['; sep=""
     if [ -f "$HOME/gh.keys" ]; then
@@ -158,6 +167,8 @@ exit 1
 echo "$@" >> "$HOME/ssh.calls"
 ${hang}
 hang ssh
+# $HOME/ssh.unreachable: no route to GitHub at all (a network without it).
+[ -f "$HOME/ssh.unreachable" ] && { echo "ssh: connect to host github.com port 22: Network is unreachable" >&2; exit 255; }
 grep -qF "${githubHostKeys[0]?.split(" ")[1]}" "$HOME/.ssh/known_hosts" 2>/dev/null || { echo "Host key verification failed." >&2; exit 255; }
 for name in id_rsa id_ecdsa id_ed25519; do
   pub="$HOME/.ssh/$name.pub"

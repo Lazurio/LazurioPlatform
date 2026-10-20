@@ -96,13 +96,33 @@ export type SshLink =
       fallback: "agent";
     }>;
 
-/** The SSH part of gh's sign-in probe: cheap, one API call, and only when
- * the sign-in probes run at all. */
+/** The SSH part of gh's sign-in probe (decision F19, addendum 2026-10-19,
+ * #515): whether this Environment reaches GitHub over SSH as the signed-in
+ * account, by the sign-in's own proof (`proveSsh`). `linked` only when the
+ * proof passed; `not-linked` with `no-key`, `not-registered` (the account
+ * does not list the key), `proof-failed` or `other-account` (ssh greeted
+ * another login); `unknown` (`unreadable`) only when GitHub could not be
+ * reached or read, or this home is not known. */
 export type SshStatus = Readonly<{
   state: "linked" | "not-linked" | "unknown";
-  reason?: "no-key" | "not-registered" | "scope-missing" | "unreadable";
+  reason?: SshStatusReason;
   fingerprint?: string;
 }>;
+
+export type SshStatusReason =
+  | "no-key"
+  | "not-registered"
+  | "proof-failed"
+  | "other-account"
+  | "unreadable";
+
+export const sshStatusReasons: readonly SshStatusReason[] = [
+  "no-key",
+  "not-registered",
+  "proof-failed",
+  "other-account",
+  "unreadable",
+];
 
 /** What sign-out did with this Machine's key on the account. */
 export type SshKeyRemoval = Readonly<{
@@ -310,28 +330,156 @@ async function accountKeys(
   return keys;
 }
 
-/** The SSH part of gh's sign-in probe, from the scopes the probe read and
- * one API call; the private key is not read and nothing connects over SSH. */
+/** The SSH part of gh's sign-in probe (decision F19, addendum 2026-10-19,
+ * #515): the sign-in's own proof, run only where it can pass, and kept by
+ * `proofs` where the caller has them. Without a key, or with a key the
+ * account does not list, nothing connects over SSH: it cannot work, and the
+ * reason says why. A token that cannot read the account's keys leaves the
+ * proof alone to decide. The private key is never read. */
 export async function sshStatus(
-  home: string | undefined,
-  gh: string,
-  scopes: readonly string[] | undefined,
-  run: SshRunner,
+  input: Readonly<{
+    home: string | undefined;
+    gh: string;
+    /** The signed-in login, whose greeting the proof expects. */
+    account: string | undefined;
+    scopes: readonly string[] | undefined;
+    keygen: string | undefined;
+    ssh: string | undefined;
+    run: SshRunner;
+    /** Passing proofs kept for a while (`createSshProofs`); without them
+     * every reading proves again. */
+    proofs?: SshProofs | undefined;
+  }>,
 ): Promise<SshStatus> {
-  if (home === undefined) return { state: "unknown", reason: "unreadable" };
-  const key = await machineKey(home);
+  if (input.home === undefined)
+    return { state: "unknown", reason: "unreadable" };
+  const key = await machineKey(input.home);
   if (key === undefined || key.publicKey === undefined)
     return { state: "not-linked", reason: "no-key" };
   const fingerprint = fingerprintOf(key.publicKey);
-  if (!canReadKeys(scopes))
-    return { state: "unknown", reason: "scope-missing", fingerprint };
-  const keys = await accountKeys(run, gh, 10_000);
-  if (keys === undefined)
+  if (input.account === undefined)
     return { state: "unknown", reason: "unreadable", fingerprint };
-  return keys.some((entry) => entry.key === key.publicKey)
-    ? { state: "linked", fingerprint }
-    : { state: "not-linked", reason: "not-registered", fingerprint };
+  if (canReadKeys(input.scopes)) {
+    const keys = await accountKeys(input.run, input.gh, statusStepMs);
+    if (keys === undefined)
+      return { state: "unknown", reason: "unreadable", fingerprint };
+    if (!keys.some((entry) => entry.key === key.publicKey))
+      return { state: "not-linked", reason: "not-registered", fingerprint };
+  }
+  const account = input.account;
+  const prove = () =>
+    proveSsh(
+      {
+        home: input.home as string,
+        gh: input.gh,
+        keygen: input.keygen,
+        ssh: input.ssh,
+        run: input.run,
+        alive: () => true,
+      },
+      account,
+      { timeoutMs: statusStepMs },
+    ).then((proof) => (proof === "gone" ? unreachable : proof));
+  const proof =
+    input.proofs === undefined
+      ? await prove()
+      : await input.proofs.prove(fingerprint, account, prove);
+  if (proof.state === "proved") return { state: "linked", fingerprint };
+  if (proof.state === "unreachable")
+    return { state: "unknown", reason: "unreadable", fingerprint };
+  return {
+    state: "not-linked",
+    reason:
+      proof.reason === "proof-other-account" ? "other-account" : "proof-failed",
+    fingerprint,
+  };
 }
+
+// Each step of the status's proof: 20 s, above ssh's own ConnectTimeout of
+// 15 s; the sign-in gives each of its steps 30 s.
+const statusStepMs = 20_000;
+const unreachable: SshProof = {
+  state: "unreachable",
+  reason: "ssh-unreachable",
+};
+
+/** The proof (`proveSsh`), kept where it passed: per key and account, for a
+ * bounded time, in the memory of the process that reads the status (the
+ * Launchpad). A reading of the status is frequent (every load of the page,
+ * Refresh status, the shell document's setup) and the proof is a network
+ * round trip (GitHub's published keys over HTTPS, then an SSH connection),
+ * so a passing proof is kept for `passMs` (5 minutes): a working link
+ * changes only when its key, its account, GitHub's list of keys or the host
+ * keys change, and a change of key or account is another entry. A failure,
+ * or GitHub out of reach, is kept only for `failMs` (20 s), so a burst of
+ * readings asks once while a fix shows on the next reading after it.
+ * Readings that meet share one proof. A sign-in or link of this process
+ * keeps what it proved (`passed`), and one that starts, or a sign-out,
+ * forgets everything (`forget`). */
+export function createSshProofs(
+  options: Readonly<{
+    passMs?: number;
+    failMs?: number;
+    now?: () => number;
+  }> = {},
+) {
+  const passMs = options.passMs ?? 5 * 60_000;
+  const failMs = options.failMs ?? 20_000;
+  const now = options.now ?? Date.now;
+  const kept = new Map<string, Readonly<{ proof: SshProof; at: number }>>();
+  const running = new Map<string, Promise<SshProof>>();
+  // A proof that started before a `forget` is not kept.
+  let generation = 0;
+  // GitHub's logins are case-insensitive; a fingerprint is exact.
+  const keyOf = (fingerprint: string, account: string) =>
+    `${fingerprint} ${account.toLowerCase()}`;
+  return {
+    /** The proof for `fingerprint` and `account`: a kept one while it is
+     * fresh, else `prove()` now, one at a time per key and account. */
+    async prove(
+      fingerprint: string,
+      account: string,
+      prove: () => Promise<SshProof>,
+    ): Promise<SshProof> {
+      const key = keyOf(fingerprint, account);
+      const known = kept.get(key);
+      if (
+        known !== undefined &&
+        now() - known.at < (known.proof.state === "proved" ? passMs : failMs)
+      )
+        return known.proof;
+      const asked = running.get(key);
+      if (asked !== undefined) return asked;
+      const started = generation;
+      const proving = prove()
+        .catch((): SshProof => unreachable)
+        .then((proof) => {
+          if (started === generation) kept.set(key, { proof, at: now() });
+          return proof;
+        })
+        .finally(() => {
+          if (running.get(key) === proving) running.delete(key);
+        });
+      running.set(key, proving);
+      return proving;
+    },
+    /** The sign-in or link of this process proved it just now. */
+    passed(fingerprint: string, account: string): void {
+      kept.set(keyOf(fingerprint, account), {
+        proof: { state: "proved" },
+        at: now(),
+      });
+    },
+    /** A sign-in or sign-out started: nothing kept holds any more. */
+    forget(): void {
+      generation += 1;
+      kept.clear();
+      running.clear();
+    },
+  };
+}
+
+export type SshProofs = ReturnType<typeof createSshProofs>;
 
 /** The signed-in account and its token scopes, read with gh's own status
  * (the JSON form first, `gh-status.ts`). */
@@ -502,51 +650,90 @@ export function knownHostEntries(
   return { keys, marked };
 }
 
-// Step 4: GitHub's published host keys in the user's known_hosts. Only
-// missing entries are added; an entry that differs stops everything, and
-// nothing is replaced or accepted.
-async function ensureKnownHosts(
-  context: SshContext,
-): Promise<"added" | "present" | Failure | "gone"> {
+/** What the proof reads and needs of an SshContext: it writes nothing. */
+export type ProofContext = Pick<
+  SshContext,
+  "home" | "gh" | "keygen" | "ssh" | "run" | "alive"
+>;
+
+// GitHub's published host keys, over HTTPS through gh (`gh api meta`), or
+// undefined when GitHub did not answer them.
+async function githubHostKeys(
+  context: ProofContext,
+  timeoutMs: number,
+): Promise<readonly string[] | undefined | "gone"> {
   let meta: ToolProcessResult;
   try {
     meta = await context.run(
       [context.gh, "api", "meta", "--jq", ".ssh_keys"],
-      stepTimeoutMs,
+      timeoutMs,
     );
   } catch {
-    return failed("host-keys-unavailable");
+    return undefined;
   }
   if (!context.alive()) return "gone";
-  const published =
-    meta === "timeout" || meta.exitCode !== 0
-      ? undefined
-      : publishedHostKeys(meta.stdout);
-  if (published === undefined) return failed("host-keys-unavailable");
-  if (context.keygen === undefined) return failed("keygen-missing");
+  return meta === "timeout" || meta.exitCode !== 0
+    ? undefined
+    : publishedHostKeys(meta.stdout);
+}
+
+// What `known_hosts` holds for github.com, against GitHub's published keys:
+// the published keys it has, or `host-key-mismatch` when an entry is not
+// one of them or carries a marker. Read only.
+async function knownGithubHosts(
+  context: ProofContext,
+  published: readonly string[],
+  timeoutMs: number,
+): Promise<
+  | Readonly<{ present: readonly string[] }>
+  | Extract<
+      SshLinkFailure,
+      "keygen-missing" | "known-hosts-failed" | "host-key-mismatch"
+    >
+  | "gone"
+> {
+  if (context.keygen === undefined) return "keygen-missing";
   const file = join(context.home, ".ssh", "known_hosts");
-  let present: readonly string[] = [];
-  if (await exists(file)) {
-    let found: ToolProcessResult;
-    try {
-      // Finds plain and hashed entries alike.
-      found = await context.run(
-        [context.keygen, "-F", "github.com", "-f", file],
-        stepTimeoutMs,
-      );
-    } catch {
-      return failed("known-hosts-failed");
-    }
-    if (!context.alive()) return "gone";
-    if (found === "timeout" || (found.exitCode !== 0 && found.exitCode !== 1))
-      return failed("known-hosts-failed");
-    const entries = knownHostEntries(found.stdout);
-    if (entries.marked || entries.keys.some((key) => !published.includes(key)))
-      return failed("host-key-mismatch");
-    present = entries.keys;
+  if (!(await exists(file))) return { present: [] };
+  let found: ToolProcessResult;
+  try {
+    // Finds plain and hashed entries alike.
+    found = await context.run(
+      [context.keygen, "-F", "github.com", "-f", file],
+      timeoutMs,
+    );
+  } catch {
+    return "known-hosts-failed";
   }
-  const missing = published.filter((key) => !present.includes(key));
-  if (missing.length === 0) return "present";
+  if (!context.alive()) return "gone";
+  if (found === "timeout" || (found.exitCode !== 0 && found.exitCode !== 1))
+    return "known-hosts-failed";
+  const entries = knownHostEntries(found.stdout);
+  if (entries.marked || entries.keys.some((key) => !published.includes(key)))
+    return "host-key-mismatch";
+  return { present: entries.keys };
+}
+
+// Step 4: GitHub's published host keys in the user's known_hosts. Only
+// missing entries are added; an entry that differs stops everything, and
+// nothing is replaced or accepted. Answers the published keys for the proof
+// that follows.
+async function ensureKnownHosts(
+  context: SshContext,
+): Promise<
+  | Readonly<{ knownHosts: "added" | "present"; published: readonly string[] }>
+  | Failure
+  | "gone"
+> {
+  const published = await githubHostKeys(context, stepTimeoutMs);
+  if (published === "gone") return "gone";
+  if (published === undefined) return failed("host-keys-unavailable");
+  const known = await knownGithubHosts(context, published, stepTimeoutMs);
+  if (known === "gone") return "gone";
+  if (typeof known === "string") return failed(known);
+  const file = join(context.home, ".ssh", "known_hosts");
+  const missing = published.filter((key) => !known.present.includes(key));
+  if (missing.length === 0) return { knownHosts: "present", published };
   // Before `known_hosts` is written.
   if (!(await proceed(context))) return "gone";
   try {
@@ -569,7 +756,7 @@ async function ensureKnownHosts(
   } catch {
     return failed("known-hosts-failed");
   }
-  return "added";
+  return { knownHosts: "added", published };
 }
 
 /** The login GitHub greets over SSH ("Hi <login>! You've successfully
@@ -578,6 +765,106 @@ export function sshGreeting(output: string): string | undefined {
   return /^Hi ([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))! You've successfully authenticated/m.exec(
     output,
   )?.[1];
+}
+
+/** Whether `ssh` said that it did not reach GitHub at all: the name did not
+ * resolve, no route, a refused or timed-out connection, one closed before
+ * the key exchange. Then nothing is known about the key. A refused key or a
+ * refused host key is an answer, not this. */
+export function sshUnreachable(output: string): boolean {
+  if (
+    /Permission denied|Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED/i.test(
+      output,
+    )
+  )
+    return false;
+  return /Could not resolve hostname|Name or service not known|nodename nor servname|Temporary failure in name resolution|Network is unreachable|No route to host|Connection refused|Connection timed out|Operation timed out|Connection closed by|Connection reset by|kex_exchange_identification|ssh_exchange_identification/i.test(
+    output,
+  );
+}
+
+/** The outcome of the proof: `proved`, `failed` with the reason (and the
+ * login GitHub greeted when it is another account), or `unreachable` when
+ * GitHub could not be reached or read (its published keys, or the SSH
+ * connection itself). */
+export type SshProof =
+  | Readonly<{ state: "proved" }>
+  | Readonly<{
+      state: "failed";
+      reason: Extract<
+        SshLinkFailure,
+        | "keygen-missing"
+        | "known-hosts-failed"
+        | "host-key-mismatch"
+        | "ssh-missing"
+        | "proof-failed"
+        | "proof-other-account"
+      >;
+      provedAs?: string;
+    }>
+  | Readonly<{
+      state: "unreachable";
+      reason: "host-keys-unavailable" | "ssh-unreachable";
+    }>;
+
+/** The proof that `git clone git@github.com:…` works here as `account`
+ * (decision F19, addendum 2026-09-28 step 5 and addendum 2026-10-19): every
+ * github.com entry of `known_hosts` is one of GitHub's published host keys
+ * (`gh api meta`, unless the caller has them), and `ssh -T` with BatchMode
+ * and StrictHostKeyChecking=yes greets `account`. It writes nothing: the
+ * sign-in adds the missing host keys before it (`ensureKnownHosts`), and the
+ * status (`sshStatus`) runs it as it is. One function for both, so the
+ * status says linked exactly when the sign-in would. */
+export async function proveSsh(
+  context: ProofContext,
+  account: string,
+  options: Readonly<{ published?: readonly string[]; timeoutMs: number }>,
+): Promise<SshProof | "gone"> {
+  const published =
+    options.published ?? (await githubHostKeys(context, options.timeoutMs));
+  if (published === "gone") return "gone";
+  if (published === undefined)
+    return { state: "unreachable", reason: "host-keys-unavailable" };
+  const known = await knownGithubHosts(context, published, options.timeoutMs);
+  if (known === "gone") return "gone";
+  if (typeof known === "string") return { state: "failed", reason: known };
+  if (context.ssh === undefined)
+    return { state: "failed", reason: "ssh-missing" };
+  let proof: ToolProcessResult;
+  try {
+    proof = await context.run(
+      [
+        context.ssh,
+        "-T",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "StrictHostKeyChecking=yes",
+        "-o",
+        "ConnectTimeout=15",
+        "git@github.com",
+      ],
+      options.timeoutMs,
+    );
+  } catch {
+    return { state: "failed", reason: "proof-failed" };
+  }
+  if (!context.alive()) return "gone";
+  if (proof === "timeout")
+    return { state: "unreachable", reason: "ssh-unreachable" };
+  const output = `${proof.stdout}\n${proof.stderr}`;
+  const greeted = sshGreeting(output);
+  if (greeted === undefined)
+    return sshUnreachable(output)
+      ? { state: "unreachable", reason: "ssh-unreachable" }
+      : { state: "failed", reason: "proof-failed" };
+  if (greeted.toLowerCase() !== account.toLowerCase())
+    return {
+      state: "failed",
+      reason: "proof-other-account",
+      provedAs: greeted,
+    };
+  return { state: "proved" };
 }
 
 /** Steps 2 to 5 for a gh signed in as `account` with the key scope: the key
@@ -626,37 +913,29 @@ export async function linkSshKey(
   const registration = /already exists/i.test(addOutput)
     ? "already-registered"
     : "added";
-  const knownHosts = await ensureKnownHosts(context);
-  if (knownHosts === "gone" || !context.alive()) return "gone";
-  if (typeof knownHosts === "object") return { ...knownHosts, key };
-  // Step 5: the proof, as `git clone git@github.com:…` would connect.
-  if (context.ssh === undefined) return failed("ssh-missing", { key });
-  let proof: ToolProcessResult;
-  try {
-    proof = await context.run(
-      [
-        context.ssh,
-        "-T",
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        "StrictHostKeyChecking=yes",
-        "-o",
-        "ConnectTimeout=15",
-        "git@github.com",
-      ],
-      stepTimeoutMs,
+  const hosts = await ensureKnownHosts(context);
+  if (hosts === "gone" || !context.alive()) return "gone";
+  if ("state" in hosts) return { ...hosts, key };
+  // Step 5: the proof, as `git clone git@github.com:…` would connect: the
+  // one the status runs too (`proveSsh`), with the host keys just read.
+  const proof = await proveSsh(context, account, {
+    published: hosts.published,
+    timeoutMs: stepTimeoutMs,
+  });
+  if (proof === "gone" || !context.alive()) return "gone";
+  if (proof.state === "unreachable")
+    return failed(
+      proof.reason === "host-keys-unavailable"
+        ? "host-keys-unavailable"
+        : "proof-failed",
+      { key },
     );
-  } catch {
-    return failed("proof-failed", { key });
-  }
-  if (!context.alive()) return "gone";
-  if (proof === "timeout") return failed("proof-failed", { key });
-  const greeted = sshGreeting(`${proof.stdout}\n${proof.stderr}`);
-  if (greeted === undefined) return failed("proof-failed", { key });
-  if (greeted.toLowerCase() !== account.toLowerCase())
-    return failed("proof-other-account", { key, provedAs: greeted });
-  return { state: "linked", key, registration, knownHosts };
+  if (proof.state === "failed")
+    return failed(proof.reason, {
+      key,
+      ...(proof.provedAs === undefined ? {} : { provedAs: proof.provedAs }),
+    });
+  return { state: "linked", key, registration, knownHosts: hosts.knownHosts };
 }
 
 /** Before `gh auth logout`: removes this Machine's key from the account when

@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { type SignInProbe, type ToolEntry, toolCatalog } from "./catalog";
 import { ghStatus } from "./gh-status";
-import { type SshStatus, sshStatus } from "./ssh-key";
+import { type SshProofs, type SshStatus, sshStatus } from "./ssh-key";
 import type { GhIdentity } from "./team-github";
 
 /** A tool process with both streams captured, bounded, or "timeout". */
@@ -314,8 +314,9 @@ export type ToolSignIn = Readonly<{
   state: "signed-in" | "signed-out" | "unknown";
   account?: string;
   organization?: string;
-  /** gh signed in: whether this Machine's SSH key is on the account
-   * (decision F19, addendum 2026-09-28). */
+  /** gh signed in: whether this Environment reaches GitHub over SSH as the
+   * account, by the sign-in's own proof (decision F19, addenda 2026-09-28
+   * and 2026-10-19). */
   ssh?: SshStatus;
   /** gh signed in: whether the active account is a person's stored sign-in,
    * a GitHub App's identity or a token from a variable (the Team rule of
@@ -329,7 +330,13 @@ export type ToolsSignInInput = Readonly<{
   /** The XDG base directories of the serving process, when it has them;
    * nothing else of its environment reaches a probe. */
   xdg?: Readonly<Record<string, string>> | undefined;
+  /** Where `ssh` and `ssh-keygen` are looked up on `path` (this process's
+   * when absent). */
+  platform?: string | undefined;
   run: ToolRunner;
+  /** gh's SSH proofs kept by the process that reads (the Launchpad,
+   * `createSshProofs`); without them every reading proves again. */
+  sshProofs?: SshProofs | undefined;
 }>;
 
 const signInTimeoutMs = 10_000;
@@ -439,9 +446,11 @@ export function readSignIn(
  * base directories in its environment. A probe may contact the tool's
  * provider, so callers run this only on an explicit request. The raw output
  * of a probe is never returned or logged. A signed-in gh also says whether
- * this Machine's SSH key is on the account: the key's `.pub` file and one
- * call of the account's key list, never the private key and no SSH
- * connection (that proof belongs to the sign-in and "Link SSH key"). */
+ * this Environment reaches GitHub over SSH as its account (decision F19,
+ * addendum 2026-10-19): the key's `.pub` file, the account's key list, and
+ * where the key is listed (or the list cannot be read for the token's
+ * scopes) the sign-in's own proof, GitHub's host keys and `ssh -T`, each
+ * step bounded by 20 s; never the private key. */
 export async function toolsSignIn(
   tools: readonly Readonly<{
     probe: SignInProbe | undefined;
@@ -474,9 +483,21 @@ export async function toolsSignIn(
           signInTimeoutMs,
         );
         if (signIn.state !== "signed-in") return signIn;
-        const ssh = await sshStatus(input.home, status.path, scopes, run).catch(
-          (): SshStatus => ({ state: "unknown", reason: "unreadable" }),
-        );
+        const platform = input.platform ?? process.platform;
+        const [keygen, sshCommand] = await Promise.all([
+          resolveOnPath("ssh-keygen", input.path, platform),
+          resolveOnPath("ssh", input.path, platform),
+        ]);
+        const ssh = await sshStatus({
+          home: input.home,
+          gh: status.path,
+          account: signIn.account,
+          scopes,
+          keygen,
+          ssh: sshCommand,
+          run,
+          proofs: input.sshProofs,
+        }).catch((): SshStatus => ({ state: "unknown", reason: "unreadable" }));
         return { ...signIn, ssh };
       } catch {
         return { state: "unknown" };

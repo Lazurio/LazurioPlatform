@@ -24,6 +24,7 @@ import {
   toolPrompt,
 } from "./catalog";
 import { pinnedInstaller } from "./install";
+import type { SshProofs } from "./ssh-key";
 import {
   boundedAll,
   runTool,
@@ -46,6 +47,11 @@ export type ToolsEnvironment = Readonly<{
   xdg?: Readonly<Record<string, string>> | undefined;
   platform: string;
   run: ToolRunner;
+  /** gh's SSH proofs the reading process keeps (decision F19, addendum of
+   * 2026-10-19): the Launchpad's one `createSshProofs`, shared by every
+   * reading of the sign-ins it makes. Absent (the CLI, doctor): every
+   * reading with the sign-ins proves. */
+  sshProofs?: SshProofs | undefined;
 }>;
 
 /** The tools environment of a process: its PATH, home and XDG base

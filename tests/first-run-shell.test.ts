@@ -359,18 +359,36 @@ test("gh's state for the shell: asked with this Environment's gh, kept a minute,
     expect(await probe.state()).toBe("missing");
     expect(calls.length).toBe(asked);
     clock += 31_000;
+    // Signed in, but this home has no SSH key (#515): GitHub is connected
+    // badly, which the shell counts as missing; nothing connects over SSH.
+    expect(await probe.state()).toBe("missing");
+    expect(calls.some((call) => call[0] === "-T")).toBe(false);
+    // A reading of Settings → Nástroje replaces it at once: connected only
+    // with SSH working, missing with SSH broken, unknown when not verified.
+    const signedIn = (ssh?: "linked" | "not-linked" | "unknown") => ({
+      state: "signed-in" as const,
+      account: "octocat",
+      ...(ssh === undefined ? {} : { ssh: { state: ssh } }),
+    });
+    probe.remember(true, signedIn("linked"));
     expect(await probe.state()).toBe("connected");
-    // A reading of Settings → Nástroje replaces it at once.
+    probe.remember(true, signedIn("not-linked"));
+    expect(await probe.state()).toBe("missing");
+    probe.remember(true, signedIn("unknown"));
+    expect(await probe.state()).toBe("unknown");
+    probe.remember(true, signedIn());
+    expect(await probe.state()).toBe("unknown");
     probe.remember(true, { state: "signed-out" });
     expect(await probe.state()).toBe("missing");
     probe.remember(false, undefined);
     expect(await probe.state()).toBe("missing");
     // An unprobed reading says nothing new.
+    probe.remember(true, signedIn("linked"));
     probe.remember(true, undefined);
-    expect(await probe.state()).toBe("missing");
+    expect(await probe.state()).toBe("connected");
     // A sign-in through this Launchpad: asked again.
     probe.forget();
-    expect(await probe.state()).toBe("connected");
+    expect(await probe.state()).toBe("missing");
   } finally {
     await rm(home, { recursive: true, force: true });
   }
@@ -675,7 +693,8 @@ test("Nástroje: one plain sentence per tool, connected or not, the version in i
     ssh: null,
   });
   expect(gh("not-linked").ssh).toBe("SSH klíč nepropojený");
-  expect(gh("unknown").ssh).toBeNull();
+  // A key that could not be verified is named too (#515).
+  expect(gh("unknown").ssh).toBe("SSH klíč neověřený");
   expect(loginTitle("gh", "login", cs)).toBe("Připojit GitHub");
   expect(loginTitle("composio", "install", cs)).toBe("Připojit aplikace");
   expect(loginTitle("wacli", "login", cs)).toBe("Připojit wacli");

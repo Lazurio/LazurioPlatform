@@ -1,6 +1,7 @@
 import type { ShellSetup } from "../shell/contract";
 import { ghStatus } from "../tools/gh-status";
 import type { ToolsEnvironment } from "../tools/overview";
+import { sshStatus } from "../tools/ssh-key";
 import { resolveOnPath, type ToolSignIn } from "../tools/status";
 import {
   type ContentJob,
@@ -41,7 +42,12 @@ export async function readContent(
  * that the shell document, read on every page load of Chat and Automate,
  * does not ask GitHub each time. Settings → Nástroje's own readings and
  * every sign-in or sign-out through this Launchpad replace it. Not
- * installed is `missing`; a timeout or a failure is `unknown`. */
+ * installed is `missing`; a timeout or a failure is `unknown`. Connected is
+ * gh signed in and this Environment reaching GitHub over SSH as that
+ * account (decision F19, addendum 2026-10-19, #515): signed in without it
+ * is `missing` for the shell, which counts it so, and the status's SSH part
+ * runs the sign-in's own proof, kept by the environment's `sshProofs` where
+ * it has them (the Launchpad's). */
 export function createGithubProbe(
   environment: ToolsEnvironment,
   options: Readonly<{
@@ -73,12 +79,27 @@ export function createGithubProbe(
     if (environment.path) env.PATH = environment.path;
     for (const [name, value] of Object.entries(environment.xdg ?? {}))
       env[name] = value;
-    const { signIn } = await ghStatus(
-      (command, timeoutMs) => environment.run(command, timeoutMs, env),
-      gh,
-      timeout,
-    );
-    return stateOf(signIn);
+    const run = (command: readonly string[], timeoutMs: number) =>
+      environment.run(command, timeoutMs, env);
+    const { signIn, scopes } = await ghStatus(run, gh, timeout);
+    if (signIn.state !== "signed-in") return stateOf(signIn);
+    const [keygen, ssh] = await Promise.all([
+      resolveOnPath("ssh-keygen", environment.path, environment.platform),
+      resolveOnPath("ssh", environment.path, environment.platform),
+    ]);
+    return stateOf({
+      ...signIn,
+      ssh: await sshStatus({
+        home: environment.home,
+        gh,
+        account: signIn.account,
+        scopes,
+        keygen,
+        ssh,
+        run,
+        proofs: environment.sshProofs,
+      }),
+    });
   }
 
   return {
@@ -118,10 +139,15 @@ export function createGithubProbe(
   };
 }
 
+// The first run's `githubFact` for the shell: connected only with SSH
+// working, missing also when it does not (connected badly), unknown when it
+// could not be read.
 function stateOf(signIn: ToolSignIn): "connected" | "missing" | "unknown" {
-  return signIn.state === "signed-in"
+  if (signIn.state === "signed-out") return "missing";
+  if (signIn.state !== "signed-in") return "unknown";
+  return signIn.ssh?.state === "linked"
     ? "connected"
-    : signIn.state === "signed-out"
+    : signIn.ssh?.state === "not-linked"
       ? "missing"
       : "unknown";
 }

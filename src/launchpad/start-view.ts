@@ -56,9 +56,14 @@ export type StartStep = Readonly<{
   warning?: string;
 }>;
 
-/** The GitHub step's one action: "Připojit", enabled only once AI is there
- * (0201 point 3). Null when GitHub is connected or not known yet. */
-export type GithubAction = Readonly<{ enabled: boolean }> | null;
+/** The GitHub step's one action, enabled only once AI is there (0201 point
+ * 3): "Připojit"; `reconnect`, "Připojit znovu", where GitHub is connected
+ * badly (signed in, SSH not working here, #515), which finishes the link.
+ * Null when GitHub is connected or not known yet. */
+export type GithubAction = Readonly<{
+  enabled: boolean;
+  kind?: "reconnect";
+}> | null;
 
 /** What the AI step offers besides its line (root decision 0201 points 3-6,
  * the wireframe's states). */
@@ -299,6 +304,18 @@ function githubStep(facts: StartFacts, copy: Copy): [StartStep, GithubAction] {
   // Offered once an agent can help (an AI not known is not claimed missing);
   // before, the step waits, its number saying the order.
   const ready = facts.ai !== "missing" && facts.ai !== "loading";
+  // Connected badly (#515): gh signed in, but this Environment does not
+  // reach GitHub over SSH as the account, so its content would not
+  // download. It says so, and "Připojit znovu" finishes the link.
+  if (facts.github === "incomplete")
+    return [
+      {
+        ...base,
+        mark: ready ? "failed" : "later",
+        status: copy.startGithubBroken,
+      },
+      { enabled: ready, kind: "reconnect" },
+    ];
   return [
     {
       ...base,
