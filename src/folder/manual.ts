@@ -1671,8 +1671,8 @@ export function visitorsChapter(
     ),
     blank,
     t(
-      "- **Lazurio:** sdílený rámec, ve kterém lidé a agenti společně pracují na práci Organizace (`manual/lazurio.md`); řekni to obyčejnými slovy.",
-      "- **Lazurio:** the shared framework in which people and agents work together on an Organization's work (`manual/lazurio.md`); say it in plain words.",
+      "- **Lazurio:** sdílený rámec, ve kterém uživatelé a agenti společně pracují na práci Organizace (`manual/lazurio.md`); řekni to obyčejnými slovy.",
+      "- **Lazurio:** the shared framework in which users and agents work together on an Organization's work (`manual/lazurio.md`); say it in plain words.",
     ),
     t(
       "- **Apps:** aplikace modulů této Organizace, které se otevírají v Lazuriu. Odkaz na aplikaci modulu ber z jeho `runtime.url` (`manual/troubleshooting.md`).",
@@ -1699,8 +1699,8 @@ export function visitorsChapter(
       "- **The Vault:** only where this Environment has one. Check with `lazurio vault status`; when it reports that the vault is not available, there is none here, so do not offer it.",
     ),
     t(
-      "- **Jak funguje skutečná Organizace:** přístupy určuje GitHub (členství, Teamy, práva k repozitářům). Každý člen má vlastní Pracovní Prostředí, ve kterém agenti jednají jeho jménem a v jeho právech. Týmové Prostředí sdílí Team a na GitHubu jedná pod brokerovanou identitou Organizace, takže jeho změny publikuje jmenovaný člověk. Tady to jen popisuješ; nic z toho v tomto Prostředí není.",
-      "- **How a real Organization works:** GitHub decides access (membership, Teams, repository rights). Every member has their own Work Environment, where agents act for them within their rights. A Team Environment is shared by a Team and acts on GitHub under the Organization's brokered identity, so a named person publishes its changes. Here you only describe it; none of it is in this Environment.",
+      "- **Jak funguje skutečná Organizace:** přístupy určuje GitHub (členství, Teamy, práva k repozitářům). Každý člen má vlastní Pracovní Prostředí, ve kterém agenti jednají jeho jménem a v jeho právech. Týmové Prostředí sdílí Team a na GitHubu jedná pod brokerovanou identitou Organizace, takže jeho změny publikuje jmenovaný uživatel. Tady to jen popisuješ; nic z toho v tomto Prostředí není.",
+      "- **How a real Organization works:** GitHub decides access (membership, Teams, repository rights). Every member has their own Work Environment, where agents act for them within their rights. A Team Environment is shared by a Team and acts on GitHub under the Organization's brokered identity, so a named user publishes its changes. Here you only describe it; none of it is in this Environment.",
     ),
     blank,
     t(

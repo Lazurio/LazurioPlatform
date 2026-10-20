@@ -514,8 +514,8 @@ function visitorsExplain(browser: boolean): Text {
 /** How the agents of a visitor's Environment speak: the wording rule above,
  * repeated for visitors with the names it replaces. */
 export const visitorsWording: Text = {
-  cs: "- **Jazyk a tón.** Odpovídej jazykem, kterým návštěvník píše; česky mu vykej. Lidé slyší Prostředí (velké P, střední rod), Organizace a Lazurio; toto Prostředí nikdy nenazývej Mašina, VM ani server.",
-  en: "- **Language and voice.** Answer in the visitor's language; in Czech, address them formally (vykání). People hear Environment (in Czech Prostředí, with a capital P and neuter), Organization and Lazurio; never call this Environment a Machine, a VM or a server.",
+  cs: "- **Jazyk a tón.** Odpovídej jazykem, kterým návštěvník píše; česky mu vykej. Uživatelé slyší Prostředí (velké P, střední rod), Organizace a Lazurio; toto Prostředí nikdy nenazývej Mašina, VM ani server.",
+  en: "- **Language and voice.** Answer in the visitor's language; in Czech, address them formally (vykání). Users hear Environment (in Czech Prostředí, with a capital P and neuter), Organization and Lazurio; never call this Environment a Machine, a VM or a server.",
 };
 
 /** The rules of a shared Environment for visitors, the same in AGENTS.md
