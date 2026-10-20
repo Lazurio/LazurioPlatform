@@ -322,7 +322,9 @@ function buildLines(build: ModuleBuild): string[] {
     ...(build.building === null
       ? []
       : [
-          `  building ${short(build.building.commit)} since ${build.building.at}`,
+          build.building.commit === null
+            ? `  building queued behind another build since ${build.building.at}`
+            : `  building ${short(build.building.commit)} since ${build.building.at}`,
         ]),
     ...(build.failure === null
       ? []

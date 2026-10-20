@@ -250,6 +250,10 @@ async function writeJson(path: string, value: unknown) {
 export function openBuildStore(directory: string) {
   const statePath = join(directory, "build.json");
   const servedPath = join(directory, "served.json");
+  // A build that waits for its turn (one build at a time): its own file, so
+  // that it is written without the build lock and never overwrites the
+  // build state another process writes under it.
+  const queuedPath = join(directory, "queued.json");
   const logs = join(directory, "logs");
   const ensure = async () => {
     await mkdir(logs, { recursive: true, mode: 0o700 });
@@ -276,6 +280,26 @@ export function openBuildStore(directory: string) {
       )
         return null;
       return value as ServedState;
+    },
+    /** A build of this app that waits for its turn, by the process that
+     * queued it; null when none is recorded. */
+    async queued(): Promise<Readonly<{ at: string; pid: number }> | null> {
+      const value = (await readJson(queuedPath)) as Record<
+        string,
+        unknown
+      > | null;
+      return value &&
+        typeof value.at === "string" &&
+        Number.isSafeInteger(value.pid)
+        ? (value as Readonly<{ at: string; pid: number }>)
+        : null;
+    },
+    async writeQueued(pid: number, at: string) {
+      await ensure();
+      await writeJson(queuedPath, { at, pid });
+    },
+    async clearQueued() {
+      await rm(queuedPath, { force: true });
     },
     async writeServed(served: Omit<ServedState, "schema_version" | "at">) {
       await ensure();

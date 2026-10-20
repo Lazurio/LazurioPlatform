@@ -1,4 +1,4 @@
-import { lstat, mkdir } from "node:fs/promises";
+import { lstat, mkdir, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { acquireFileLock, FileLockError } from "../../platform/flock";
 import {
@@ -105,6 +105,8 @@ export function createBuilds(input: {
   const abort = new AbortController();
   type Entry = {
     job: BuildJob;
+    /** The recorded wait (`queued.json`), written when it was queued. */
+    queued: Promise<void>;
     foreground: boolean;
     started: boolean;
     promise: Promise<BuildOutcome>;
@@ -145,12 +147,19 @@ export function createBuilds(input: {
     return next;
   }
 
-  async function execute(job: BuildJob): Promise<BuildOutcome> {
+  async function execute(
+    job: BuildJob,
+    queued: Promise<void>,
+  ): Promise<BuildOutcome> {
     const store = openBuildStore(job.directory);
+    // The wait stays recorded until this build holds the lock and records
+    // itself as under way (or ends).
+    await queued;
     let held: Awaited<ReturnType<typeof lock>>;
     try {
       held = await lock();
     } catch (error) {
+      await store.clearQueued().catch(() => undefined);
       if (error instanceof FileLockError && error.reason === "busy")
         return Object.freeze({ kind: "busy" as const });
       throw error;
@@ -196,6 +205,7 @@ export function createBuilds(input: {
             pid,
           }),
         });
+        await store.clearQueued();
         const failed = async (reason: string) => {
           state = await record(store, state, {
             building: null,
@@ -215,6 +225,14 @@ export function createBuilds(input: {
         }
         if (prepared !== null) return failed(prepared);
         await store.prepareLogs();
+        // Fail closed on a stale output: the app's output directory (in its
+        // package, gitignored, which the framework's own build empties too)
+        // is removed first, so whatever is there afterwards was written by
+        // this run; a script that succeeds without writing it, or writes only
+        // part of it, never presents an earlier build as this key's.
+        const output = join(context.cwd, context.output);
+        await rm(output, { recursive: true, force: true });
+        const started = Date.now();
         const ran = await runBuild({
           runner: await input.runner(),
           runtimeDirectory: input.runtimeDirectory,
@@ -233,9 +251,14 @@ export function createBuilds(input: {
         if (ran.kind === "timed-out") return failed("build-timed-out");
         if (ran.kind !== "exited" || ran.code !== 0)
           return failed("build-script-failed");
-        const output = join(context.cwd, context.output);
+        // Written by this run: there, a real directory, created after it
+        // started (a second of slack for coarse file system clocks).
         const entry = await lstat(output).catch(() => null);
-        if (entry === null || !entry.isDirectory())
+        if (
+          entry === null ||
+          !entry.isDirectory() ||
+          entry.ctimeMs < started - 1000
+        )
           return failed("build-output-missing");
         if (!(await input.servable(output, context.health, context.fallback)))
           return failed("build-output-unservable");
@@ -289,6 +312,7 @@ export function createBuilds(input: {
       throw error;
     } finally {
       await held.release();
+      await store.clearQueued().catch(() => undefined);
     }
   }
 
@@ -304,7 +328,7 @@ export function createBuilds(input: {
     active = true;
     next.started = true;
     const directory = next.job.directory;
-    void execute(next.job)
+    void execute(next.job, next.queued)
       .catch(() =>
         Object.freeze({
           kind: "failed" as const,
@@ -327,9 +351,19 @@ export function createBuilds(input: {
     enqueue(job: BuildJob, priority: "foreground" | "background") {
       if (closing)
         return Promise.resolve(Object.freeze({ kind: "closing" as const }));
+      // A build someone waits for is recorded while it waits for its turn,
+      // so that whoever asks meanwhile sees it pending (decision F58); a
+      // background check, which mostly finds its key built, is not.
+      const record = () =>
+        openBuildStore(job.directory)
+          .writeQueued(pid, now().toISOString())
+          .catch(() => undefined);
       const existing = entries.get(job.directory);
       if (existing !== undefined) {
-        if (priority === "foreground") existing.foreground = true;
+        if (priority === "foreground" && !existing.foreground) {
+          existing.foreground = true;
+          if (!existing.started) existing.queued = existing.queued.then(record);
+        }
         if (!existing.started)
           existing.job = {
             ...job,
@@ -347,6 +381,7 @@ export function createBuilds(input: {
         });
       entries.set(job.directory, {
         job,
+        queued: priority === "foreground" ? record() : Promise.resolve(),
         foreground: priority === "foreground",
         started: false,
         promise,
@@ -368,11 +403,19 @@ export function createBuilds(input: {
     async close() {
       closing = true;
       abort.abort();
+      const dropped: Promise<void>[] = [];
       for (const entry of entries.values())
         if (!entry.started) {
           entries.delete(entry.job.directory);
           entry.resolve(Object.freeze({ kind: "closing" as const }));
+          // Its recorded wait ends with it.
+          dropped.push(
+            entry.queued
+              .then(() => openBuildStore(entry.job.directory).clearQueued())
+              .catch(() => undefined),
+          );
         }
+      await Promise.all(dropped);
       await (entries.size === 0 ? Promise.resolve() : idle);
     },
   });
@@ -380,15 +423,20 @@ export function createBuilds(input: {
 
 export type Builds = ReturnType<typeof createBuilds>;
 
-/** Whether a build state's `building` is a build that still runs: the
- * process that recorded it is alive. */
-export function buildUnderWay(state: BuildState | null): boolean {
-  const building = state?.building;
-  if (!building) return false;
+/** Whether a recorded build (one under way, or one waiting for its turn)
+ * still belongs to a living process. */
+export function processAlive(pid: number): boolean {
   try {
-    process.kill(building.pid, 0);
+    process.kill(pid, 0);
     return true;
   } catch (error) {
     return (error as NodeJS.ErrnoException).code === "EPERM";
   }
+}
+
+/** Whether a build state's `building` is a build that still runs: the
+ * process that recorded it is alive. */
+export function buildUnderWay(state: BuildState | null): boolean {
+  const building = state?.building;
+  return building != null && processAlive(building.pid);
 }

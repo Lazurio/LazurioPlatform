@@ -64,8 +64,10 @@ function app(name: string, checkout: Checkout) {
   return { cwd, job, store: openBuildStore(join(root, "cache", name)) };
 }
 
-// A build script that writes `dist/index.html` naming the commit it read,
-// waits on a gate when one is set, and fails when told.
+// A build script that writes `dist/index.html` and `dist/assets/<commit>.js`
+// naming the commit it read, waits on a gate when one is set, and fails when
+// told; `quirks` makes one succeed without writing anything (`noop`) or
+// write only its page into the directory as it finds it (`partial`).
 function fakeBuild(checkouts: Map<string, Checkout>) {
   const runs: string[] = [];
   let active = 0;
@@ -73,6 +75,7 @@ function fakeBuild(checkouts: Map<string, Checkout>) {
   const gates = new Map<string, () => void>();
   const failing = new Set<string>();
   const during = new Map<string, () => void>();
+  const quirks = new Map<string, "noop" | "partial">();
   const run = async (input: BuildProcessInput) => {
     active++;
     most = Math.max(most, active);
@@ -96,12 +99,20 @@ function fakeBuild(checkouts: Map<string, Checkout>) {
       if (input.signal.aborted) return { kind: "cancelled" as const };
       await writeFile(input.log, `built ${checkout.commit}\n`);
       if (failing.has(name)) return { kind: "exited" as const, code: 1 };
-      await rm(join(input.cwd, "dist"), { recursive: true, force: true });
-      await mkdir(join(input.cwd, "dist"), { recursive: true });
+      const quirk = quirks.get(name);
+      if (quirk === "noop") return { kind: "exited" as const, code: 0 };
+      if (quirk === undefined)
+        await rm(join(input.cwd, "dist"), { recursive: true, force: true });
+      await mkdir(join(input.cwd, "dist/assets"), { recursive: true });
       await writeFile(
         join(input.cwd, "dist/index.html"),
         `<p>${checkout.commit}</p>`,
       );
+      if (quirk === undefined)
+        await writeFile(
+          join(input.cwd, `dist/assets/${checkout.commit}.js`),
+          checkout.commit,
+        );
       return { kind: "exited" as const, code: 0 };
     } finally {
       active--;
@@ -120,6 +131,7 @@ function fakeBuild(checkouts: Map<string, Checkout>) {
     },
     failing,
     during,
+    quirks,
   };
 }
 
@@ -345,4 +357,76 @@ test("shutdown ends the build under way and answers the queued ones", async () =
   expect(await builds.enqueue(b.job(), "foreground")).toEqual({
     kind: "closing",
   });
+});
+
+test("a build never presents an earlier output as its own: a script that succeeds without writing fails, and one that writes part of it leaves nothing of the earlier build", async () => {
+  const checkout = { commit: commit(1), dirty: false };
+  const fake = fakeBuild(new Map([["web", checkout]]));
+  const builds = builder(fake);
+  const web = app("web", checkout);
+  built(await builds.enqueue(web.job(), "foreground"));
+  // Commit 2: the script succeeds and writes nothing; commit 1's output is
+  // still in the checkout from the build before.
+  checkout.commit = commit(2);
+  fake.quirks.set("web", "noop");
+  expect(await builds.enqueue(web.job(), "background")).toEqual({
+    kind: "failed",
+    reason: "build-output-missing",
+    key: commit(2),
+  });
+  expect(await web.store.output(commit(2))).toBeNull();
+  expect((await web.store.state())?.current?.key).toBe(commit(1));
+  // Commit 3: the script writes only its page into the directory as it
+  // finds it; nothing of commit 1's build may come with it.
+  checkout.commit = commit(3);
+  fake.quirks.set("web", "partial");
+  const partial = built(await builds.enqueue(web.job(), "background"));
+  expect(await readdir(join(partial.output, "assets"))).toEqual([]);
+  expect(await readFile(join(partial.output, "index.html"), "utf8")).toBe(
+    `<p>${commit(3)}</p>`,
+  );
+});
+
+test("a build someone waits for is recorded as pending while it waits for its turn, until it runs or the owner closes; a background check is not", async () => {
+  const checkouts = new Map<string, Checkout>([
+    ["a", { commit: commit(1), dirty: false }],
+    ["b", { commit: commit(2), dirty: false }],
+    ["c", { commit: commit(3), dirty: false }],
+  ]);
+  const fake = fakeBuild(checkouts);
+  const builds = builder(fake);
+  const [a, b, c] = ["a", "b", "c"].map((name) =>
+    app(name, checkouts.get(name) as Checkout),
+  ) as [ReturnType<typeof app>, ReturnType<typeof app>, ReturnType<typeof app>];
+  fake.gate("a");
+  const first = builds.enqueue(a.job(), "foreground");
+  await Bun.sleep(20);
+  const second = builds.enqueue(b.job(), "foreground");
+  await Bun.sleep(20);
+  // a holds the lock and is under way; b waits, recorded with this process.
+  expect((await a.store.state())?.building?.key).toBe(commit(1));
+  expect(await a.store.queued()).toBeNull();
+  expect(await b.store.queued()).toMatchObject({ pid: process.pid });
+  expect(await b.store.state()).toBeNull();
+  fake.release("a");
+  await Promise.all([first, second]);
+  expect(await b.store.queued()).toBeNull();
+  expect((await b.store.state())?.current?.key).toBe(commit(2));
+  // A queued build dropped at shutdown leaves no record either.
+  fake.gate("a");
+  checkouts.set("a", { commit: commit(4), dirty: false });
+  const again = app("a", checkouts.get("a") as Checkout);
+  const running = builds.enqueue(again.job(), "foreground");
+  await Bun.sleep(20);
+  const dropped = builds.enqueue(c.job(), "background");
+  await Bun.sleep(20);
+  expect(await c.store.queued()).toBeNull();
+  // Someone now waits for it.
+  void builds.enqueue(c.job(), "foreground");
+  await Bun.sleep(20);
+  expect(await c.store.queued()).not.toBeNull();
+  await builds.close();
+  expect(await dropped).toEqual({ kind: "closing" });
+  expect(await running).toEqual({ kind: "closing" });
+  expect(await c.store.queued()).toBeNull();
 });

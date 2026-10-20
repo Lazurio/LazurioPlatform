@@ -15738,7 +15738,13 @@ build` / `vite build` writes. Measured on the reference Environment: an Astro mo
    `IOWeight=20`, `MemoryMax=2G`, `RuntimeMaxSec=600`, `OOMScoreAdjust=400`, the
    manager's own environment unset), so a growing build is the first thing the OOM
    killer takes, before modules (220) and the browser (250/300); elsewhere a child in its
-   own process group at nice 10, ended at the deadline. Its output must then answer the
+   own process group at nice 10, ended at the deadline. **Fail closed on a stale
+   output:** before the script runs, the app's `build_output` directory (in its package,
+   gitignored, which the framework's own build empties too) is removed, and afterwards
+   it must be there as a directory created after the build started
+   (`build-output-missing` otherwise); so a script that succeeds without writing it, or
+   writes only part of it, never presents an earlier build as this key's. Its output
+   must then answer the
    declared health path through the static server's own resolution (`--check`), the
    checkouts are read again (a pull meanwhile builds the new commit instead, at most
    three times), and only then is the output copied in and renamed into `<key>/` in one
@@ -15760,7 +15766,11 @@ build` / `vite build` writes. Measured on the reference Environment: an Astro mo
 6. **Open, start and the gateway's `ensure`** of a static app from `main`: the newest
    build there is is served at once; when there is none, the app is built first (the
    person waits; a start the route or `ensure` cannot finish in time answers
-   `build-pending`, 202 or 503 with the build under way, never a silent timeout); when
+   `build-pending`, 202 or 503 with the build under way, never a silent timeout, also
+   while it waits for its turn behind another app's build: a build someone waits for
+   is recorded as queued (`queued.json` beside the build state, with its process) until
+   it holds the build lock, and answers carry it as `building` with `queued: true`);
+   when
    the checkout moved past the newest build, that build is served now, the new commit
    builds in the background and the app is swapped onto it when it is built. **A swap**
    stops the static server and starts it on the new build, a gap of milliseconds; it
@@ -15832,12 +15842,15 @@ served). macOS bounds a build by nice and its deadline only (no control group).
 the written-out script as a process: healthy, SIGTERM exit 0, `--check`),
 `tests/built-builds.test.ts` (the key, the whole install, current/previous kept and the
 rest removed, one build at a time with the waiting person first and joins, a pull during
-a build, a failure kept and not retried by itself, another process's lock, shutdown) and
+a build, a failure kept and not retried by itself, another process's lock, shutdown, a
+script that succeeds without writing its output or writes part of it, a waiting build
+recorded as queued) and
 `tests/module-built.test.ts` (real processes: a built start, `--dev`, a pull served from
 the previous build while the new one builds and then swapped, the old assets after the
 swap, a failed build that keeps serving, `lazurio module build`, an app without
 `build_output` unchanged, `ensure` answering `build-pending` then healthy, a failed
-build retried by a person's Start but never by `ensure`). End to end on
+build retried by a person's Start but never by `ensure`, two apps competing for the one
+build with the waiting one answering `build-pending`). End to end on
 macOS ARM64 with a copy of the reference Organization's Astro knowledgebase in a fixture
 Folder (session runner): its development start healthy in 10.4 s holding 290 MiB; its
 first built open 13.2 s including the build; a later built open 0.4 s holding 16 MiB; a

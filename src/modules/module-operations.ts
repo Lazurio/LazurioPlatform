@@ -47,6 +47,7 @@ import {
   type BuildRunner,
   buildUnderWay,
   createBuilds,
+  processAlive,
 } from "./built/builds";
 import { gitCheckoutReader, type ReadCheckout } from "./built/checkout";
 import {
@@ -322,8 +323,13 @@ export type ModuleBuild = Readonly<{
     at: string;
     dirty: boolean;
   }> | null;
-  /** A build under way, of this commit. */
-  building: Readonly<{ commit: string; at: string }> | null;
+  /** A build under way, of this commit; or one waiting for its turn
+   * behind another app's build (`queued`, its commit not read yet). */
+  building: Readonly<{
+    commit: string | null;
+    at: string;
+    queued: boolean;
+  }> | null;
   /** The last build that failed, newer than the current one; its log in
    * the account's build cache (`~/…`). */
   failure: Readonly<{
@@ -1147,7 +1153,11 @@ export function createModuleOperations(input: {
     running: boolean,
   ): Promise<ModuleBuild> {
     const store = storeOf(target, plan);
-    const [state, served] = await Promise.all([store.state(), store.served()]);
+    const [state, served, queued] = await Promise.all([
+      store.state(),
+      store.served(),
+      store.queued(),
+    ]);
     const failure = state?.failure ?? null;
     return Object.freeze({
       mode: running ? (served?.mode ?? "dev") : null,
@@ -1172,8 +1182,11 @@ export function createModuleOperations(input: {
           ? Object.freeze({
               commit: state.building.commit,
               at: state.building.at,
+              queued: false,
             })
-          : null,
+          : queued !== null && processAlive(queued.pid)
+            ? Object.freeze({ commit: null, at: queued.at, queued: true })
+            : null,
       failure:
         failure === null
           ? null

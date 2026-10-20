@@ -51,6 +51,43 @@ writeFileSync("dist/index.html", "<p>" + page + "</p>");
 writeFileSync("dist/_astro/app." + page + ".js", "/* " + page + " */");
 `;
 
+// A module made static: its build script and page, and its own Git
+// repository; returns the repository's git.
+async function makeStatic(directory: string) {
+  const pkgPath = join(directory, "app/package.json");
+  const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
+  pkg.scripts.build = `"${process.execPath}" --no-env-file build.ts`;
+  pkg.lazurio.runtime.build_script = "build";
+  pkg.lazurio.runtime.build_output = "dist";
+  await writeFile(pkgPath, JSON.stringify(pkg));
+  await writeFile(join(directory, "app/build.ts"), buildScript);
+  await writeFile(join(directory, "app/page.txt"), "one\n");
+  await writeFile(
+    join(directory, ".gitignore"),
+    "node_modules/\ndist/\nhold\nflaky\ndb/\n",
+  );
+  const git = (...args: string[]) =>
+    execFileSync(
+      "git",
+      [
+        "-C",
+        directory,
+        "-c",
+        "user.name=fixture",
+        "-c",
+        "user.email=fixture@example.invalid",
+        "-c",
+        "commit.gpgsign=false",
+        ...args,
+      ],
+      { encoding: "utf8" },
+    ).trim();
+  git("init", "-q", "-b", "main");
+  git("add", "-A");
+  git("commit", "-qm", "Static module");
+  return git;
+}
+
 async function staticModule(name: string, home: string) {
   const parent = join(root, name);
   await mkdir(parent);
@@ -66,45 +103,18 @@ async function staticModule(name: string, home: string) {
   const organization = await writeOrganization(folder, "alpha", {
     slug: "alpha",
     state: "current",
-    modules: [{ id: "site" }, { id: "plain" }],
+    modules: [{ id: "site" }, { id: "plain" }, { id: "next" }],
   });
   const site = join(organization, "workspace/site");
+  const next = join(organization, "workspace/next");
   const port = await runnableModule(site, home);
   const port2 = await runnableModule(
     join(organization, "workspace/plain"),
     home,
   );
-  const pkgPath = join(site, "app/package.json");
-  const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
-  pkg.scripts.build = `"${process.execPath}" --no-env-file build.ts`;
-  pkg.lazurio.runtime.build_script = "build";
-  pkg.lazurio.runtime.build_output = "dist";
-  await writeFile(pkgPath, JSON.stringify(pkg));
-  await writeFile(join(site, "app/build.ts"), buildScript);
-  await writeFile(join(site, "app/page.txt"), "one\n");
-  await writeFile(
-    join(site, ".gitignore"),
-    "node_modules/\ndist/\nhold\nflaky\n",
-  );
-  const git = (...args: string[]) =>
-    execFileSync(
-      "git",
-      [
-        "-C",
-        site,
-        "-c",
-        "user.name=fixture",
-        "-c",
-        "user.email=fixture@example.invalid",
-        "-c",
-        "commit.gpgsign=false",
-        ...args,
-      ],
-      { encoding: "utf8" },
-    ).trim();
-  git("init", "-q", "-b", "main");
-  git("add", "-A");
-  git("commit", "-qm", "Site");
+  const port3 = await runnableModule(next, home);
+  const git = await makeStatic(site);
+  await makeStatic(next);
   const host: ModuleHost = {
     platform: process.platform,
     home,
@@ -136,8 +146,10 @@ async function staticModule(name: string, home: string) {
   return {
     operations,
     site,
+    next,
     port,
     port2,
+    port3,
     commit,
     head: () => git("rev-parse", "HEAD"),
     hold: () => writeFile(join(site, "app/hold"), ""),
@@ -358,6 +370,54 @@ posixTest(
       await until(fixture.page, (page) => page.text === "<p>one</p>");
     } finally {
       await operations.stop("alpha/site");
+      await operations.close();
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "two apps compete for the one build: the one waiting behind the other's build answers build-pending, recorded as queued, then builds",
+  async () => {
+    const home = join(root, "home-compete");
+    await mkdir(home);
+    const fixture = await staticModule("compete", home);
+    const { operations } = fixture;
+    try {
+      await fixture.hold();
+      // site's build runs (held); next's waits for the one build.
+      const first = operations.ensure("site", { mayStart: true, waitMs: 300 });
+      expect(answer(await first).outcome).toBe("build-pending");
+      const waiting = answer(
+        await operations.ensure("next", { mayStart: true, waitMs: 300 }),
+      );
+      expect(waiting).toMatchObject({
+        outcome: "build-pending",
+        healthy: false,
+        build: { building: { commit: null, queued: true }, current: null },
+      });
+      await fixture.release();
+      for (const [id, port] of [
+        ["site", fixture.port],
+        ["next", fixture.port3],
+      ] as const) {
+        const ready = answer(
+          await until(
+            () => operations.ensure(id, { mayStart: true, waitMs: 2000 }),
+            (result) => result.kind === "module" && result.healthy,
+          ),
+        );
+        expect(ready.build).toMatchObject({ mode: "built", building: null });
+        expect(
+          await fetch(`http://127.0.0.1:${port}/`).then((response) =>
+            response.text(),
+          ),
+        ).toBe("<p>one</p>");
+      }
+    } finally {
+      await fixture.release();
+      await operations.stop("alpha/site");
+      await operations.stop("alpha/next");
       await operations.close();
     }
   },
