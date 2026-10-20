@@ -2307,6 +2307,12 @@ takes an optional boolean `signIn` (default `false`), which the page sends on lo
 on "Refresh status". The version commands of `tools status` still never use the
 network.
 
+*Note of 2026-10-20 (root decision 0195, plan DEV-6656):* the page's reading on load
+may be answered from the Launchpad's reading of the last minute; "Refresh status" and
+every other reading the page asks for with the sign-ins send `fresh: true` and read
+anew, and a tool operation through the Launchpad drops the kept reading
+([environment tools](environment-tools.md)).
+
 *One click.* The page no longer previews a tools change: "Enable", "Disable" and a
 saved note apply at the revision the page shows, and the card confirms what happened
 with the new Folder revision and an "Undo" that restores the state before the change

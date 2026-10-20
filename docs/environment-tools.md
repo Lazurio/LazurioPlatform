@@ -175,8 +175,9 @@ and unique, and `notes`, when present, the full next set of notes (sorted keys, 
 required or enabled tools); without `notes` the recorded notes of the tools that stay
 on are kept.
 
-`POST /api/tools/status` (body `{}` or `{ "signIn": true|false }`, the same admission
-as every other route) is what the Launchpad's Tools section reads. It answers
+`POST /api/tools/status` (body `{}` or `{ "signIn": true|false, "fresh": true|false }`,
+each field optional, the same admission as every other route) is what the
+Launchpad's Tools section reads. It answers
 `kind: "tools-status"`, the Folder's `revision` and `locale`, `sharedEnvironment`,
 `hosted` (every preset but `local`), and for every activatable catalog tool in catalog
 order: `name`, `command`, `tier`, `setup`, `enabled`, `purpose` and `usage` in the
@@ -196,7 +197,22 @@ seconds. `mcpPrompt` is the prepared prompt for the third
 route, an MCP server set up by an agent. Without `signIn: true` the probe runs each
 found tool's version command and nothing else, and uses no network. The raw output of
 a tool is not returned, and the request accepts no Folder, PATH or tool name. The
-facts are those of the PATH and home of the Launchpad process. The installed
+facts are those of the PATH and home of the Launchpad process.
+
+The Launchpad keeps its reading of these live facts (versions, and sign-ins where it
+asked for them) for a minute from when the reading started, and answers a request
+without `fresh: true` from it when it has what the request asks; nothing older is
+answered (`tools-reading.ts`, plan DEV-6656). Every page load reads the tools once,
+and every switch between Chat, Apps and Automate loads a page, so this spares a run
+of every tool's commands per load. A tool operation through the Launchpad that
+changes what the tools report (an installation, an update, a sign-in or sign-out, a
+setup of Executor or the vault, a switch of Composio's organization) and every
+sign-in that ends drop the reading, and the
+page sends `fresh: true` with every reading it asks for the sign-ins explicitly
+("Refresh status", "Zkontrolovat znovu", the end of a flow). Only a change made
+elsewhere, a tool installed or signed in from a terminal, can take up to that minute
+to show without them. The recorded part of the answer (revision, selection, notes)
+is read every time. `lazurio tools list` and `lazurio doctor` always read anew. The installed
 service unit sets that PATH to `~/.local/bin:/usr/local/bin:/usr/bin:/bin`
 (`Environment=PATH=%h/.local/bin:…`, [product update](update.md#state-on-disk)), so
 it sees the standard path first, as an operator's login shell with `~/.local/bin`

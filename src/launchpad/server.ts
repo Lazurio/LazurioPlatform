@@ -209,6 +209,7 @@ import {
   readStartState,
 } from "./start-check";
 import { createThemeRoutes } from "./theme-routes";
+import { createToolsReading } from "./tools-reading";
 import type { UpdatePill } from "./update-pill";
 import { createVaultConnectionRoutes } from "./vault-connection-routes";
 import { createVaultPageRoutes } from "./vault-page-routes";
@@ -517,6 +518,22 @@ export function ensureStatus(result: ModuleAnswer | ModuleBlocked): number {
   return 409;
 }
 
+// The tools operations that change what the tools report (an installation,
+// an update, a sign-in or sign-out, a setup of Executor or the vault): each
+// drops the Launchpad's kept reading of their live facts (tools-reading.ts).
+// A switch of Composio's organization does so where it happens.
+const toolsChangePaths = new Set([
+  "/api/tools/install",
+  "/api/tools/upgrade",
+  "/api/tools/login/start",
+  "/api/tools/login/poll",
+  "/api/tools/login/cancel",
+  "/api/tools/login/code",
+  "/api/tools/logout",
+  "/api/tools/executor/setup",
+  "/api/tools/bitwarden/setup",
+]);
+
 const curatedRoutes = new Set([
   "/api/tools/install",
   "/api/tools/upgrade",
@@ -705,6 +722,8 @@ export async function startLaunchpad(
     host: moduleHost,
     personalspace: personalspace.decide,
   });
+  // Settings → Nástroje's live facts, kept a minute (tools-reading.ts).
+  const toolsReading = createToolsReading(toolsEnvironment);
   // The curated logins of this Launchpad (decision F19): in memory, held by
   // the browser that started each one through its session handle, ended on
   // completion, cancel, expiry and shutdown.
@@ -722,6 +741,9 @@ export async function startLaunchpad(
     ...toolsEnvironment,
     journal: (journaled) => {
       console.log(JSON.stringify({ scope: "tools-login", ...journaled }));
+      // A sign-in that ends, even with nobody polling it, changes what the
+      // tools report.
+      if (journaled.event === "end") toolsReading.forget();
       if (journaled.event === "end" && isAiProvider(journaled.tool)) {
         ai.forget();
         setup.forget();
@@ -1838,6 +1860,7 @@ export async function startLaunchpad(
       try {
         const input: unknown = await readJsonBody(request);
         if (closing) return response({ error: "closing" }, 503);
+        if (toolsChangePaths.has(url.pathname)) toolsReading.forget();
         if (url.pathname === "/api/update/apply") {
           if (!pill) return response({ error: "update-unavailable" }, 503);
           const value = stateFields(input, ["version"]);
@@ -1946,11 +1969,19 @@ export async function startLaunchpad(
           // The tools screen (decision F18): the recorded selection and notes
           // joined with the live facts. The version commands never use the
           // network; the sign-in probes, which may, run only when the body
-          // asks for them with `signIn: true`.
+          // asks for them with `signIn: true`. The live facts come from the
+          // reading kept a minute unless the body asks for `fresh: true`
+          // (tools-reading.ts); the recorded part is read every time.
           const withSignIn = ownDataValue(input, "signIn") !== undefined;
-          const value = stateFields(input, withSignIn ? ["signIn"] : []);
+          const withFresh = ownDataValue(input, "fresh") !== undefined;
+          const value = stateFields(input, [
+            ...(withSignIn ? ["signIn"] : []),
+            ...(withFresh ? ["fresh"] : []),
+          ]);
           if (withSignIn && typeof value.signIn !== "boolean")
             return response({ error: "invalid-sign-in" }, 400);
+          if (withFresh && typeof value.fresh !== "boolean")
+            return response({ error: "invalid-fresh" }, 400);
           // The first reading and "Refresh status" ask the Organization's
           // settings first, so the switches show what applies now (F45).
           if (value.signIn === true) {
@@ -1959,6 +1990,7 @@ export async function startLaunchpad(
           }
           const overview = await toolsOverview(folder, toolsEnvironment, {
             signIn: value.signIn === true,
+            live: (signIn) => toolsReading.live(signIn, value.fresh === true),
           });
           // The shell document's GitHub, and whose Personalspace this is,
           // follow this reading.
@@ -2082,7 +2114,11 @@ export async function startLaunchpad(
                     toolsEnvironment,
                     command,
                     rule,
-                    (entry) => console.log(JSON.stringify(entry)),
+                    (entry) => {
+                      console.log(JSON.stringify(entry));
+                      // Composio's sign-in now names another organization.
+                      if (entry.outcome === "switched") toolsReading.forget();
+                    },
                   );
             if (converged === null)
               return response({
@@ -2107,9 +2143,12 @@ export async function startLaunchpad(
               return response({ error: "invalid-organization" }, 400);
             server.timeout(request, 60);
             const selected = await logins.selectComposioOrganization(value.id);
-            // Integrace's links lead into the organization now current.
-            if (selected.kind === "composio-organization-selected")
+            // Integrace's links lead into the organization now current, and
+            // Composio's sign-in names it.
+            if (selected.kind === "composio-organization-selected") {
               integrations.forget();
+              toolsReading.forget();
+            }
             return response(selected);
           }
           const tool = value.tool;

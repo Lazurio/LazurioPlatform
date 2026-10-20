@@ -579,9 +579,9 @@ echo "Installing Composio CLI $requested"
     };
     const opened = await session(["gh", "composio"], fetcher);
     try {
-      const composio = async () =>
+      const composio = async (body: Json = {}) =>
         (
-          (await opened.json("/api/tools/status", {})).body.tools as Json[]
+          (await opened.json("/api/tools/status", body)).body.tools as Json[]
         ).find((tool) => tool.name === "composio");
       // The fake composio is 0.3.1, not the build Lazurio pins.
       expect(await composio()).toMatchObject({
@@ -620,12 +620,14 @@ echo "Installing Composio CLI $requested"
       });
       // An Environment still on the previous pin, Lazurio's 0.4.3-lazurio.1:
       // not the build Lazurio pins now, and the same update brings it there.
+      // Written behind the Launchpad's back, so read anew ("Refresh status")
+      // rather than from its reading of the last minute.
       await writeFile(
         join(opened.home, ".local", "bin", "composio"),
         "#!/bin/sh\necho 0.4.3-lazurio.1\n",
         { mode: 0o755 },
       );
-      expect(await composio()).toMatchObject({
+      expect(await composio({ fresh: true })).toMatchObject({
         version: "0.4.3-lazurio.1",
         pinned: "0.4.3-lazurio.2",
       });

@@ -2212,9 +2212,10 @@ waits for the Machines release that writes it.
 
 The page has a section "Tools" / "Nástroje" (decision F18,
 [environment-tools.md](environment-tools.md)). It reads `POST /api/tools/status` when
-the profile is loaded (with `signIn: true`, so the sign-in probes run), after every
+the profile is loaded (with `signIn: true`, so the sign-in probes run, or the
+Launchpad's reading of the last minute answers), after every
 change (without them; the last known sign-ins stay on the cards) and on "Refresh
-status" (with them again), and shows:
+status" (with them again and `fresh: true`, read anew), and shows:
 
 - no introduction (root decision 0188, Matěj 2026-10-04: no paragraph that only
   restates the page), no tier notes, no "Zjištěno v …" and no note on a shared (Team)

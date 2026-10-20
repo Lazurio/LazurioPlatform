@@ -876,3 +876,84 @@ test.skipIf(process.platform === "win32")(
     }
   },
 );
+
+test.skipIf(process.platform === "win32")(
+  "Launchpad tools status answers a page's reading from the last minute; fresh and a tool operation read anew",
+  async () => {
+    const opened = await session(
+      (folder) => initializeFolder(folder, localProfile("en")),
+      async (home) => {
+        const standard = join(home, ".local", "bin");
+        await mkdir(standard, { recursive: true });
+        await fakeTool(standard, "gh", "2.86.0");
+        await fakeTool(standard, "composio", "0.7.1");
+        return [standard];
+      },
+    );
+    try {
+      // What a reading of the tools runs: the version commands and the
+      // sign-in probes (here composio's). A gh sign-in's reading may also
+      // lead the Launchpad to ask GitHub whose Personalspace this is, which
+      // is not counted.
+      const versions = () =>
+        opened.commands.filter((command) => command[1] === "--version").length;
+      const probes = () =>
+        opened.commands.filter((command) => command[1] === "whoami").length;
+      const read = async (body: unknown) => {
+        const response = await opened.call("/api/tools/status", body);
+        expect(response.status).toBe(200);
+        return (await response.json()) as Overview;
+      };
+      // A page's first reading, with the sign-ins: every found tool runs.
+      const first = await read({ signIn: true });
+      const once = versions();
+      expect(once).toBe(2);
+      expect(probes()).toBe(1);
+      // The next page's reading within the minute: the same facts, nothing
+      // run; without the sign-ins too, which the answer then leaves out.
+      expect(await read({ signIn: true })).toEqual(first);
+      const plain = await read({});
+      expect(plain.tools.some((tool) => "signIn" in tool)).toBe(false);
+      expect(plain.tools.map((tool) => tool.version)).toEqual(
+        first.tools.map((tool) => tool.version),
+      );
+      expect([versions(), probes()]).toEqual([once, 1]);
+      // The recorded part is read every time: a change of the Folder shows
+      // at once.
+      expect(
+        (
+          await opened.call("/api/tools/update", {
+            expectedRevision: first.revision,
+            tools: ["composio"],
+          })
+        ).status,
+      ).toBe(200);
+      const recorded = await read({ signIn: true });
+      expect(recorded.revision).toBe(first.revision + 1);
+      expect(
+        recorded.tools.find((tool) => tool.name === "composio")?.enabled,
+      ).toBe(true);
+      expect([versions(), probes()]).toEqual([once, 1]);
+      // "Refresh status": read anew.
+      await read({ signIn: true, fresh: true });
+      expect([versions(), probes()]).toEqual([2 * once, 2]);
+      for (const fresh of ["yes", 1, null]) {
+        const refused = await opened.call("/api/tools/status", {
+          signIn: true,
+          fresh,
+        });
+        expect(refused.status).toBe(400);
+      }
+      // A tool operation through this Launchpad (here a sign-in's cancel)
+      // drops the reading: the next page's reading reads anew.
+      await opened.call("/api/tools/login/cancel", {
+        tool: "gh",
+        session: "0".repeat(32),
+      });
+      await read({ signIn: true });
+      expect([versions(), probes()]).toEqual([3 * once, 3]);
+    } finally {
+      await opened.close();
+    }
+  },
+);
