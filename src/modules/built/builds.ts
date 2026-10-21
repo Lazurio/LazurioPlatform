@@ -109,6 +109,11 @@ export function createBuilds(input: {
     queued: Promise<void>;
     foreground: boolean;
     started: boolean;
+    /** Joined while under way: it may have read its checkout before the
+     * request that joined it (a pull just before an explicit build), so it
+     * is queued again when it ends, reads the checkout once more and builds
+     * what is there now; its callers get only that last answer. */
+    again: boolean;
     promise: Promise<BuildOutcome>;
     resolve: (outcome: BuildOutcome) => void;
   };
@@ -340,8 +345,21 @@ export function createBuilds(input: {
         }),
       )
       .then((outcome) => {
-        entries.delete(directory);
         active = false;
+        if (next.again && !closing) {
+          // Joined while under way: it reads the checkout once more, queued
+          // again, so that a person waiting for another app goes first.
+          next.again = false;
+          next.started = false;
+          next.queued = next.foreground
+            ? openBuildStore(directory)
+                .writeQueued(pid, now().toISOString())
+                .catch(() => undefined)
+            : Promise.resolve();
+          pump();
+          return;
+        }
+        entries.delete(directory);
         next.resolve(outcome);
         pump();
       });
@@ -350,7 +368,8 @@ export function createBuilds(input: {
   return Object.freeze({
     /** Builds the app at its checkout as it is when its build starts. A
      * build of the same app that has not started yet is joined (and goes
-     * first when someone now waits for it); one under way is joined too. */
+     * first when someone now waits for it); one under way is joined too,
+     * and reads the checkout once more when it ends. */
     enqueue(job: BuildJob, priority: "foreground" | "background") {
       if (closing)
         return Promise.resolve(Object.freeze({ kind: "closing" as const }));
@@ -367,11 +386,11 @@ export function createBuilds(input: {
           existing.foreground = true;
           if (!existing.started) existing.queued = existing.queued.then(record);
         }
-        if (!existing.started)
-          existing.job = {
-            ...job,
-            explicit: existing.job.explicit || job.explicit,
-          };
+        existing.job = {
+          ...job,
+          explicit: existing.job.explicit || job.explicit,
+        };
+        if (existing.started) existing.again = true;
         return existing.promise;
       }
       let resolve: (outcome: BuildOutcome) => void = () => {};
@@ -387,6 +406,7 @@ export function createBuilds(input: {
         queued: priority === "foreground" ? record() : Promise.resolve(),
         foreground: priority === "foreground",
         started: false,
+        again: false,
         promise,
         resolve,
       });
