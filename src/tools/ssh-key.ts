@@ -812,9 +812,11 @@ export type SshProof =
  * github.com entry of `known_hosts` is one of GitHub's published host keys
  * (`gh api meta`, unless the caller has them), and `ssh -T` with BatchMode
  * and StrictHostKeyChecking=yes greets `account`. It writes nothing: the
- * sign-in adds the missing host keys before it (`ensureKnownHosts`), and the
- * status (`sshStatus`) runs it as it is. One function for both, so the
- * status says linked exactly when the sign-in would. */
+ * sign-in adds the missing host keys before it (`ensureKnownHosts`), the
+ * status (`sshStatus`) runs it as it is, and `UpdateHostKeys=no` keeps ssh
+ * from adding keys the server advertises after the authentication (on by
+ * default in OpenSSH). One function for both, so the status says linked
+ * exactly when the sign-in would. */
 export async function proveSsh(
   context: ProofContext,
   account: string,
@@ -840,6 +842,8 @@ export async function proveSsh(
         "BatchMode=yes",
         "-o",
         "StrictHostKeyChecking=yes",
+        "-o",
+        "UpdateHostKeys=no",
         "-o",
         "ConnectTimeout=15",
         "git@github.com",

@@ -788,7 +788,7 @@ test.skipIf(!keygen)(
       expect(
         (await readFile(join(opened.directory, "ssh.calls"), "utf8")).trim(),
       ).toBe(
-        "-T -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 git@github.com",
+        "-T -o BatchMode=yes -o StrictHostKeyChecking=yes -o UpdateHostKeys=no -o ConnectTimeout=15 git@github.com",
       );
       const calls = await readFile(join(opened.directory, "gh.calls"), "utf8");
       expect(calls).toContain(

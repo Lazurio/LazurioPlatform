@@ -3192,8 +3192,10 @@ must say that GitHub is connected badly and must be connected again.
    2026-09-28) is one function both the sign-in and the status run, `proveSsh` in
    `src/tools/ssh-key.ts`: every github.com entry of `known_hosts` is one of GitHub's
    published host keys (`gh api meta`), and `ssh -T -o BatchMode=yes -o
-   StrictHostKeyChecking=yes -o ConnectTimeout=15 git@github.com` greets the signed-in
-   login. It writes nothing; the sign-in still adds the missing host keys before it.
+   StrictHostKeyChecking=yes -o UpdateHostKeys=no -o ConnectTimeout=15 git@github.com`
+   greets the signed-in login. It writes nothing: `UpdateHostKeys=no` keeps ssh from
+   adding the keys the server advertises after the authentication, which OpenSSH does by
+   default; the sign-in still adds the missing host keys before it.
 2. **The status.** gh's `ssh` is `linked` only when that proof passed; `not-linked` with
    `no-key`, `not-registered` (the account's key list, readable with the token's scopes,
    does not have the key), `proof-failed` (ssh refused the key or the host, a github.com

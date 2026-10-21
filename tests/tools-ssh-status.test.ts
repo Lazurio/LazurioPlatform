@@ -142,11 +142,12 @@ test.skipIf(!keygen)(
         identity: "person",
       });
       // The proof is the sign-in's: GitHub's published keys and ssh -T with
-      // BatchMode and StrictHostKeyChecking=yes.
+      // BatchMode and StrictHostKeyChecking=yes, which never adds the keys the
+      // server advertises after the authentication (UpdateHostKeys=no).
       expect(
         (await readFile(join(linked.directory, "ssh.calls"), "utf8")).trim(),
       ).toBe(
-        "-T -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 git@github.com",
+        "-T -o BatchMode=yes -o StrictHostKeyChecking=yes -o UpdateHostKeys=no -o ConnectTimeout=15 git@github.com",
       );
       expect(
         await readFile(join(linked.directory, "gh.calls"), "utf8"),

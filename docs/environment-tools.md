@@ -262,8 +262,9 @@ Environment's default key, the account's keys (`gh api "user/keys?per_page=100"`
 the token's scopes allow it) and, where the key is listed or the list cannot be read,
 runs the sign-in's own proof (`proveSsh`): every github.com entry of `~/.ssh/known_hosts`
 is one of GitHub's published host keys (`gh api meta`), and `ssh -T -o BatchMode=yes -o
-StrictHostKeyChecking=yes -o ConnectTimeout=15 git@github.com` greets the login, each
-step bounded by 20 s. `linked` only when it passed; `not-linked` with `no-key`,
+StrictHostKeyChecking=yes -o UpdateHostKeys=no -o ConnectTimeout=15 git@github.com`
+greets the login, each step bounded by 20 s; it writes nothing, not even the keys the
+server advertises. `linked` only when it passed; `not-linked` with `no-key`,
 `not-registered`, `proof-failed` or `other-account`; `unknown` with `unreadable` only
 when GitHub could not be reached or read. The Launchpad keeps a passing proof per key
 fingerprint and login for 5 minutes and a failure for 20 s (`createSshProofs`), one set
@@ -360,8 +361,8 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
   --type authentication` (nothing is added when the account has it); adds only the
   missing github.com keys of `gh api meta` (`ssh_keys`) to `~/.ssh/known_hosts` and
   stops without a change when an existing github.com entry differs; and proves it with
-  `ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes git@github.com`, whose
-  greeting must name the signed-in login. The result is `signed-in` with `ssh: {
+  `ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes -o UpdateHostKeys=no -o
+  ConnectTimeout=15 git@github.com`, whose greeting must name the signed-in login. The result is `signed-in` with `ssh: {
   state: "linked", key: { path, fingerprint, created }, registration, knownHosts }`,
   or `ssh: { state: "not-linked", reason, key?, provedAs?, fallback: "agent" }` with
   one of `scope-missing`, `keygen-missing`, `keygen-failed`, `key-passphrase`,
