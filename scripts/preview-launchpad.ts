@@ -101,7 +101,14 @@
 // example-user and reaches GitHub over SSH (a stand-in key, GitHub's host
 // keys, the greeting answered by the preview), so GitHub reads connected.
 // With `gh-slow` each step of the SSH key takes 4 s, so the window can be
-// closed while it links. Synthetic names only; stop it with Ctrl-C.
+// closed while it links. With `codex-signed-out` anywhere after the mode, the
+// AI sign-in's own fake codex and claude (tests/fixtures/fake-ai-clis.ts)
+// are on the synthetic home, signed out (beside `gh-signed-out` too, whose
+// fake codex is then signed out instead of the Organization's AI), so
+// Začínáme offers "Přihlásit ChatGPT", "Přihlásit Claude" and beneath them
+// "Přihlásit kódem" (root decision 0201 point 10): ChatGPT's code is entered
+// on OpenAI's page by creating the file `codexApprove` of the JSON line, as
+// the person would on any device. Synthetic names only; stop it with Ctrl-C.
 import {
   chmod,
   mkdir,
@@ -194,6 +201,9 @@ const ghFake = process.argv.slice(3).includes("gh-signed-out")
     ? "no-ssh"
     : null;
 const ghSlow = process.argv.slice(3).includes("gh-slow");
+// The fake codex and claude signed out: Začínáme's AI step with ChatGPT's
+// sign-in by code (root decision 0201 point 10).
+const codexSignedOut = process.argv.slice(3).includes("codex-signed-out");
 const noVault =
   process.argv
     .slice(3)
@@ -469,8 +479,10 @@ const ghTools = ghFake === null ? null : await fakeLoginTools(home, ["gh"]);
 if (ghFake !== null) {
   const git = Bun.which("git");
   if (git !== null) await symlink(git, join(home, "bin", "git"));
-  await fakeAiClis(home, ["codex"]);
-  await writeFile(join(home, "codex.provided"), "");
+  if (!codexSignedOut) {
+    await fakeAiClis(home, ["codex"]);
+    await writeFile(join(home, "codex.provided"), "");
+  }
   if (ghFake === "no-ssh") {
     await writeFile(join(home, "gh.state"), "octocat\n");
     await writeFile(
@@ -482,6 +494,9 @@ if (ghFake !== null) {
     for (const step of ["ssh-key-add", "api-meta", "ssh"])
       await writeFile(join(home, `slow.${step}`), "4");
 }
+// The AI sign-in's own fake codex and claude, signed out: ChatGPT's code is
+// entered by creating `codexApprove` (root decision 0201 point 10).
+if (codexSignedOut) await fakeAiClis(home);
 // Integrace (decision F42): a fake composio signed in, with an active account
 // named only by `link --list`, an expired one, and for Gmail an expired
 // account beside a sign-in nobody finished, which the page leaves out (F42
@@ -1072,5 +1087,7 @@ console.log(
       : {}),
     // The person's confirmation of gh's device code on GitHub: create it.
     ...(ghFake === null ? {} : { ghApprove: join(home, "approve") }),
+    // The person's entering of ChatGPT's code on OpenAI's page: create it.
+    ...(codexSignedOut ? { codexApprove: join(home, "codex.approve") } : {}),
   }),
 );
