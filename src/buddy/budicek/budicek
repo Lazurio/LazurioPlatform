@@ -261,6 +261,67 @@ def hermes(args: list[str]) -> tuple[int, str, str]:
     return run_cmd(hermes_argv() + args)
 
 
+# The channel a delegation came from, where its wake goes back (root decision
+# 0210 point 7; buddy-web-v1 CONTRACT section 7). First the session Buddy
+# runs the command from: Hermes exports its routing to the processes of its
+# tools under these names (Lazurio/hermes-agent `gateway/session_context.py`
+# and `tools/environments/local.py`). Then an explicit `--kanal`. Without
+# either, the record has no `kanal` and the wake goes to Buddy's Telegram DM,
+# as before.
+SESSION_PLATFORM_ENV = "HERMES_SESSION_PLATFORM"
+SESSION_CHAT_ENV = "HERMES_SESSION_CHAT_ID"
+# Hermes's surfaces that are no chat a wake can reach (its
+# NON_MESSAGING_SESSION_SURFACES): a command from them takes the next source.
+NOT_A_CHANNEL = frozenset({
+    "", "api_server", "cli", "codex", "desktop", "gateway", "kanban", "local",
+    "msgraph_webhook", "tool", "tui", "webhook",
+})
+PLATFORM_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
+
+
+def parse_kanal(text: str) -> dict:
+    """`platform:chat_id`, split at the first colon (a chat id may hold more)."""
+    platform, sep, chat = (text or "").strip().partition(":")
+    if (
+        not sep
+        or not PLATFORM_RE.match(platform)
+        or platform in NOT_A_CHANNEL
+        or not chat
+        or len(chat) > 128
+        or any(c.isspace() or ord(c) < 0x20 or ord(c) == 0x7F for c in chat)
+    ):
+        raise BudicekError(f"kanál čekám jako platforma:chat (třeba lazurio_web:owner), ne {text!r}")
+    return {"platform": platform, "chat_id": chat}
+
+
+def session_kanal() -> dict | None:
+    """The channel of the Hermes session this command runs in, or None."""
+    platform = os.environ.get(SESSION_PLATFORM_ENV, "").strip()
+    chat = os.environ.get(SESSION_CHAT_ENV, "").strip()
+    if not platform or not chat:
+        return None
+    try:
+        return parse_kanal(f"{platform}:{chat}")
+    except BudicekError:
+        return None
+
+
+def wake_target(rec: dict) -> tuple[str, str, str]:
+    """Where the wake of `rec` goes: platform, chat and user. A record without
+    `kanal` (every record from before it existed) goes to the Telegram DM."""
+    kanal = rec.get("kanal")
+    if isinstance(kanal, dict):
+        try:
+            checked = parse_kanal(f'{kanal.get("platform")}:{kanal.get("chat_id")}')
+        except BudicekError:
+            checked = None
+        if checked:
+            # A DM: the chat is its one user.
+            return checked["platform"], checked["chat_id"], checked["chat_id"]
+    chat, user = telegram_target()
+    return "telegram", chat, user
+
+
 def telegram_target() -> tuple[str, str]:
     chat = os.environ.get("BUDICEK_TELEGRAM_CHAT_ID", "").strip()
     user = os.environ.get("BUDICEK_TELEGRAM_USER_ID", "").strip()
@@ -346,11 +407,11 @@ def ensure_card(rec: dict, attempt: int) -> str:
         crashpoint("after_create")
     subscribed = rec.setdefault("odbery", [])
     if key not in subscribed:
-        chat, user = telegram_target()
+        platform, chat, user = wake_target(rec)
         code, out, err = hermes(
             [
                 "kanban", "notify-subscribe", task_id,
-                "--platform", "telegram",
+                "--platform", platform,
                 "--chat-id", chat,
                 "--user-id", user,
                 "--chat-type", "dm",
@@ -533,6 +594,10 @@ def cmd_zadej(args) -> int:
     if not brief:
         raise BudicekError("zadání čekám na stdin")
     termin_s = parse_duration(args.termin)
+    # A wrong `--kanal` fails before anything exists, even where the session
+    # names the channel.
+    explicit = parse_kanal(args.kanal) if args.kanal is not None else None
+    kanal = session_kanal() or explicit
     t = now()
     rec = {
         "id": new_id(),
@@ -553,6 +618,8 @@ def cmd_zadej(args) -> int:
         "since": None,
         "spusteni_zahajeno": False,
     }
+    if kanal:
+        rec["kanal"] = kanal  # optional in `verze: 1`; absent means Telegram
     with locked(rec["id"]):
         note(rec, "zakládám")
         save(rec)  # (1) the record exists before anything else happens
@@ -624,6 +691,8 @@ def check_ack(rec: dict) -> None:
 
 
 def escalate(rec: dict) -> None:
+    # The last resort reaches the user where a message reaches a phone: the
+    # Telegram DM, whatever channel the wake went to.
     chat, _user = telegram_target()
     text = (
         f'{BUDDY_NAME} se neprobudil k úkolu {rec["nazev"]} ({rec["id"]}). '
@@ -745,7 +814,8 @@ def cmd_seznam(args) -> int:
             continue
         recs.append(rec)
     if args.json:
-        keep = ("id", "nazev", "bot", "env", "stav", "vysledek_stav", "termin", "threadId", "budik_pokus", "zalozeno")
+        keep = ("id", "nazev", "bot", "env", "kanal", "stav", "vysledek_stav", "termin", "threadId", "budik_pokus",
+                "zalozeno")
         print(json.dumps([{k: r.get(k) for k in keep} for r in recs], ensure_ascii=False, indent=2))
         return 0
     if not recs:
@@ -764,6 +834,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--nazev", required=True)
     p.add_argument("--env", help="ssh host Prostředí, kde bot běží (výchozí: toto Prostředí)")
     p.add_argument("--vlakno", help="id vlákna T3 Code, které bot hlídá")
+    p.add_argument(
+        "--kanal",
+        help="kam Buddyho probudit, platforma:chat (třeba lazurio_web:owner); "
+        "přednost má kanál sezení Hermes, výchozí je Telegram",
+    )
     p.set_defaults(func=cmd_zadej)
     p = sub.add_parser("hlidej", help="služba: hlídá otevřené úkoly a budí Buddyho")
     p.add_argument("--jednou", action="store_true", help="jen jedno kolo (diagnostika, testy)")

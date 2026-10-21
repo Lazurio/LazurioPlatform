@@ -49,7 +49,8 @@ if a[0] == "kanban":
     if verb == "notify-subscribe":
         t = st["tasks"][a[2]]
         t["subs"] = [s for s in t["subs"] if s["chat"] != opt("--chat-id")]
-        t["subs"].append({"chat": opt("--chat-id"), "mode": opt("--delivery-mode"), "type": opt("--chat-type")})
+        t["subs"].append({"platform": opt("--platform"), "chat": opt("--chat-id"), "user": opt("--user-id"),
+                          "mode": opt("--delivery-mode"), "type": opt("--chat-type")})
         done(0, "subscribed")
     if verb == "show":
         t = st["tasks"].get(a[2])
@@ -384,6 +385,89 @@ class BudicekTest(unittest.TestCase):
         self.hlidej(BUDICEK_ACK_SECONDS="0")
         self.assertEqual(len(self.wakes()), 1)
         self.assertEqual(self.rec(rid)["stav"], "vyrizeno")
+
+    # -- the channel the wake goes back to (CONTRACT section 7)
+
+    def subscriptions(self):
+        return [s for t in self.hermes_state()["tasks"].values() for s in t["subs"]]
+
+    def test_wake_goes_to_the_given_channel(self):
+        self.mausbot_says(wait=[DONE])
+        rid = self.zadej_ok(extra=("--kanal", "lazurio_web:owner"))
+        self.assertEqual(self.rec(rid)["kanal"], {"platform": "lazurio_web", "chat_id": "owner"})
+        self.assertEqual(
+            self.subscriptions(),
+            [{"platform": "lazurio_web", "chat": "owner", "user": "owner", "mode": "wake", "type": "dm"}],
+        )
+        self.hlidej()
+        self.assertEqual(len(self.wakes()), 1)
+
+    def test_wake_goes_to_the_session_s_channel_first(self):
+        self.mausbot_says(wait=[DONE])
+        session = {"HERMES_SESSION_PLATFORM": "lazurio_web", "HERMES_SESSION_CHAT_ID": "owner"}
+        rid = self.zadej_ok(extra=("--kanal", "telegram:999"), **session)
+        self.assertEqual(self.rec(rid)["kanal"], {"platform": "lazurio_web", "chat_id": "owner"})
+        self.assertEqual([s["platform"] + ":" + s["chat"] for s in self.subscriptions()], ["lazurio_web:owner"])
+
+    def test_a_session_that_is_no_chat_takes_the_next_source(self):
+        self.mausbot_says(wait=[DONE])
+        cli = {"HERMES_SESSION_PLATFORM": "cli", "HERMES_SESSION_CHAT_ID": "local"}
+        rid = self.zadej_ok(extra=("--kanal", "lazurio_web:owner"), **cli)
+        self.assertEqual(self.rec(rid)["kanal"], {"platform": "lazurio_web", "chat_id": "owner"})
+        self.tearDown()
+        self.setUp()
+        rid = self.zadej_ok(**cli)
+        self.assertNotIn("kanal", self.rec(rid))
+        self.assertEqual([s["platform"] + ":" + s["chat"] for s in self.subscriptions()], ["telegram:111"])
+
+    def test_without_a_channel_the_wake_goes_to_telegram(self):
+        self.mausbot_says(wait=[DONE])
+        rid = self.zadej_ok()
+        self.assertNotIn("kanal", self.rec(rid))
+        self.assertEqual(
+            self.subscriptions(),
+            [{"platform": "telegram", "chat": "111", "user": "111", "mode": "wake", "type": "dm"}],
+        )
+        self.hlidej()
+        self.assertEqual(len(self.wakes()), 1)
+
+    def test_a_wrong_channel_starts_nothing(self):
+        for wrong in ("lazurio_web", ":owner", "Lazurio:owner", "cli:local", "lazurio_web:o wner", "lazurio_web:"):
+            p = self.zadej(extra=("--kanal", wrong))
+            self.assertEqual(p.returncode, 2, wrong)
+            self.assertIn("kanál", p.stderr)
+        self.assertFalse(os.path.exists(self.state) and os.listdir(self.state))
+        self.assertEqual(self.hermes_state()["tasks"], {})
+        self.assertEqual(self.calls("run"), [])
+
+    def test_a_record_from_before_the_channel_still_wakes_telegram(self):
+        # A `verze: 1` record exactly as `zadej` wrote it before `kanal` existed,
+        # its outcome saved and its wake still to deliver.
+        os.makedirs(self.state, exist_ok=True)
+        rec = {
+            "id": "20261020-210000-abcd", "verze": 1, "nazev": "starý úkol", "bot": "budicek-test",
+            "env": None, "vlakno": None, "zadani": "x", "termin_s": 1800, "termin_ts": time.time() + 1800,
+            "termin": "21:30", "zalozeno": "2026-10-20T21:00:00Z", "stav": "budi", "kolo": 1,
+            "budik_pokus": 1, "threadId": "th-1", "since": 1234, "spusteni_zahajeno": True,
+            "vysledek_stav": "HOTOVO", "vysledek": "hotovo", "historie": [],
+        }
+        with open(os.path.join(self.state, rec["id"] + ".json"), "w") as fh:
+            json.dump(rec, fh)
+        self.hlidej()
+        self.assertEqual(self.rec(rec["id"])["stav"], "probuzen")
+        self.assertEqual([s["platform"] + ":" + s["chat"] for s in self.subscriptions()], ["telegram:111"])
+        self.assertEqual(len(self.wakes()), 1)
+
+    def test_rewakes_follow_the_channel_and_the_last_resort_is_telegram(self):
+        self.mausbot_says(wait=[DONE])
+        rid = self.zadej_ok(extra=("--kanal", "lazurio_web:owner"))
+        env = {"BUDICEK_ACK_SECONDS": "0"}
+        for _ in range(4):  # the wake, two re-wakes, then the message
+            self.hlidej(**env)
+        self.assertEqual(len(self.wakes()), 3)
+        self.assertEqual({s["platform"] + ":" + s["chat"] for s in self.subscriptions()}, {"lazurio_web:owner"})
+        self.assertEqual([s["to"] for s in self.hermes_state()["sends"]], ["telegram:111"])
+        self.assertEqual(self.rec(rid)["stav"], "eskalovano")
 
     def test_archived_card_still_wakes(self):
         self.mausbot_says(wait=[DONE])

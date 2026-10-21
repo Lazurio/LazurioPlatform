@@ -36,6 +36,15 @@ into the Personal Environment.
   `"verze": 1`.
 - The wake is a Hermes Kanban card titled `budíček <id>: <title>`, subscribed
   with `notify-subscribe --delivery-mode wake`.
+- The wake goes back to the channel the delegation came from (root decision
+  0210 point 7), recorded as the optional `"kanal": {"platform", "chat_id"}`:
+  first the Hermes session Buddy runs `zadej` from, whose routing Hermes
+  exports to its tools as `HERMES_SESSION_PLATFORM` and
+  `HERMES_SESSION_CHAT_ID`, then an explicit `--kanal platform:chat`
+  (`lazurio_web:owner` for the chat on the web). A session that is no chat
+  (`cli`, `kanban`, …) counts as none. A record without `kanal`, every record
+  from before it, wakes Buddy in his Telegram DM. The last resort, the
+  message to the user, always goes to the Telegram DM.
 - The states: `HOTOVO | SELHAL | PTÁ SE | NESTIHL TERMÍN | MAUSBOT NEODPOVÍDÁ | NESPUSTIL SE`.
 - Every bot gets the standard brief before its task: it works for Buddy
   („Buddy za <the user>“), the task's id and deadline, one final report, stick
@@ -48,8 +57,8 @@ question (LazurioPlatform#565); it changes only this binary and the skill
 
 ## Commands
 
-- `budicek zadej --bot B --termin 30m --nazev "N" [--env HOST] [--vlakno ID]`
-  with the brief on stdin
+- `budicek zadej --bot B --termin 30m --nazev "N" [--env HOST] [--vlakno ID]
+  [--kanal PLATFORM:CHAT]` with the brief on stdin
 - `budicek vysledek ID`, `budicek potvrd ID [--hlidej-dal [--termin T]]`
 - `budicek seznam [--otevrene] [--json]`
 - `budicek hlidej` is the service; `budicek hlidej --jednou` runs one round.
