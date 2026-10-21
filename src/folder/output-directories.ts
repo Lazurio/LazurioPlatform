@@ -1,7 +1,7 @@
 import { constants } from "node:fs";
 import { lstat, mkdir, open } from "node:fs/promises";
 import { join } from "node:path";
-import { type OutputPath, outputDirectories } from "./outputs";
+import { type FolderFilePath, outputDirectories } from "./outputs";
 import { checkoutDirectoryRefusal } from "./owned-directory";
 
 // The directories an output lies in, made present right before the output is
@@ -17,7 +17,7 @@ import { checkoutDirectoryRefusal } from "./owned-directory";
 // account racing the transaction.
 export async function ensureOutputDirectories(
   folder: string,
-  path: OutputPath,
+  path: FolderFilePath,
 ) {
   const uid = process.getuid?.();
   if (uid === undefined) throw new Error("Directory owner unavailable");
@@ -49,7 +49,7 @@ export async function ensureOutputDirectories(
 // Every directory the outputs lie in, Folder-relative and innermost first, so
 // that syncing them in this order makes each entry durable before its parent.
 export function outputDirectoriesInnermostFirst(
-  paths: readonly OutputPath[],
+  paths: readonly FolderFilePath[],
 ): readonly string[] {
   return [...new Set(paths.flatMap(outputDirectories))].sort(
     (a, b) => b.split("/").length - a.split("/").length,

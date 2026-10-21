@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, open } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
-import { type OutputPath, outputDirectories, outputFile } from "./outputs";
+import { type FolderFilePath, outputDirectories, outputFile } from "./outputs";
 import type { ObservedFile } from "./reconcile";
 
 // Caller supplies an already validated, owned, stable Folder. This read-only
@@ -11,7 +11,7 @@ import type { ObservedFile } from "./reconcile";
 // semantics have been qualified.
 export async function inspectOutput(
   folder: string,
-  output: OutputPath,
+  output: FolderFilePath,
 ): Promise<ObservedFile> {
   if (process.platform === "win32")
     throw new Error("Unqualified inventory platform");
