@@ -17446,11 +17446,11 @@ and the forks get it without a release of their own.
    menus, toasts, tooltips), so no dialog of the app is covered; full screen is in the
    top layer. 20 px from the window's right and bottom edges in the Launchpad. In Chat
    and Automate (the column head's `active`) the bottom right is the composer's at every
-   width: T3 Code's send button stands up to 101 px from the bottom (with the branch
-   strip) and up to 48 px from the edge where the composer is as wide as its column
-   (below 1232 px, Wide or Full), and MausBot's composer comes within 20 px of the edge,
-   two rows up to 92 px high; so there the launcher stands 112 px from the bottom and
-   16 px from the right, above the composer. The device's safe area adds to both. A host
+   width: T3 Code's composer comes within 48 px of the edge where it is as wide as its
+   column (below about 1230 px, or Wide and Full), its send button 65 px from the edge
+   and up to 101 px from the bottom with the branch strip, and MausBot's composer comes
+   within 20 px of the edge, two rows up to 92 px high; so there the launcher stands
+   112 px from the bottom and 16 px from the right, above the composer. The device's safe area adds to both. A host
    moves it with `--lazurio-buddy-right` and `--lazurio-buddy-bottom`, and the panel
    follows.
 5. **The guide's receiver is wired** (`createGuideReceiver`, F56 point 4) by the bubble,
