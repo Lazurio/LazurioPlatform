@@ -3,12 +3,11 @@
 //
 //   bun run scripts/render-buddy-layer.ts --out <directory> [--locale cs|en]
 //
-// The bytes are the ones every Environment's Folder renders for that locale
-// with the default voice (tests/folder-buddy.test.ts holds them equal), so an
+// The bytes are the ones every Environment's Folder renders for that locale,
+// whatever its voice (tests/folder-buddy.test.ts holds them equal), so an
 // install that places them before its Folder renders the layer itself is
-// adopted unchanged. An Environment with its own voice renders that voice
-// into `.hermes.md`; its next refresh writes it. Prints the written paths,
-// relative to the directory, as JSON.
+// adopted unchanged. Prints the written paths, relative to the directory, as
+// JSON.
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { parseArgs } from "node:util";

@@ -1823,7 +1823,17 @@ What changes:
   (e.g. `~/Documents/buddy/`); the default profile Důkladný. Because it shadows `AGENTS.md`,
   it is composed from `AGENTS.md`'s own fragments in `src/folder/render.ts`: the voice, the
   kinds of Environment, the question tool, the Draft and Publication, full access and
-  Personalspace. The same bytes in every Environment for a locale and voice.
+  Personalspace. Only the default voice: Hermes blocks a whole context file in which its
+  injection scan finds anything (only the user's own SOUL.md is merely warned about), so an
+  Environment's custom voice never reaches `.hermes.md`, and Buddy's tone is his persona's.
+  The same bytes in every Environment for a locale. The role also carries the rules SOUL.md
+  held in the pilot: Buddy never updates, stops or restarts Hermes, gbrain or the
+  Environment's services; never stores secrets or a task's passing state as lasting truth in
+  gbrain; and reports done only when verified, never on a bot's own word. Organization
+  repositories are not in the Osobní Prostředí and Buddy never clones them there; their
+  work goes to bots in that Organization's Pracovní Prostředí. Steering a thread (stopping,
+  restarting, archiving, organizing, approving or denying its requests) is writing too:
+  only at the user's request, a mandate being the user's standing request (0089).
 - **Ownership.** The layer is no output of the digest manifest: nobody but Lazurio owns these
   files, so no digest proves ownership and no change of a person's is at stake. Every change
   of the Folder, and a refresh that changes nothing else, writes each file atomically over

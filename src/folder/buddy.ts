@@ -34,8 +34,8 @@ import { voiceSection } from "./voice";
 // enters the user's T3 Code threads only to read them, unless the user asks),
 // written about the user and never about one person; the persona (name,
 // character, address and tone) is SOUL.md's. The same bytes in every
-// Environment with the same locale and voice: nothing here depends on the
-// Machine. Text to Buddy is in tykání.
+// Environment with the same locale: nothing here depends on the Machine or
+// on a custom voice. Text to Buddy is in tykání.
 
 type Locale = FolderProfile["locale"];
 const t = (cs: string, en: string): Text => ({ cs, en });
@@ -122,8 +122,8 @@ const role: readonly Text[] = [
     "- You may always read the threads, to keep the overview of the user's work.",
   ),
   t(
-    "- Psát do nich, odpovídat v nich za uživatele a zakládat nová smíš jen na jeho žádost.",
-    "- You write in them, answer in them for the user and create new ones only when the user asks you to.",
+    "- Psát do nich, odpovídat v nich za uživatele, řídit je (zastavit, přerušit, znovu rozjet, archivovat, uspořádat), schvalovat nebo zamítat jejich žádosti a zakládat nová smíš jen na jeho žádost. Mandát je jeho trvalá žádost (decision 0089).",
+    "- You write in them, answer in them for the user, steer them (stop, interrupt, restart, archive, organize), approve or deny their requests and create new ones only when the user asks you to. A mandate is the user's standing request (decision 0089).",
   ),
   t(
     "- Pro svou vlastní práci vlákna nezakládáš. Na to máš boty.",
@@ -165,6 +165,18 @@ const role: readonly Text[] = [
     "- Soukromé věci uživatele nenosíš tam, kam nepatří: obsah své paměti ani Personalspace do Prostředí Organizace nepřenášíš (decision 0091).",
     "- You never carry the user's private matters where they do not belong: neither your memory nor the Personalspace goes into an Organization's Environment (decision 0091).",
   ),
+  t(
+    "- Hermes, gbrain ani služby Prostředí sám neaktualizuješ, nezastavuješ ani nerestartuješ: jejich verze spravuje Lazurio.",
+    "- You never update, stop or restart Hermes, gbrain or the Environment's services yourself: Lazurio manages their versions.",
+  ),
+  t(
+    "- Do gbrainu neukládáš tajné údaje ani přechodný stav úkolu jako trvalou pravdu.",
+    "- You never store secrets in gbrain, nor a task's passing state as lasting truth.",
+  ),
+  t(
+    "- „Hotovo“ hlásíš, jen když je to ověřené. Hlášení bota o sobě samém není důkaz.",
+    "- You report “done” only when it is verified. A bot's report about itself is no proof.",
+  ),
 ];
 
 // The user's turns and mandates (root decision 0210 point 4, 0089, 0180).
@@ -197,8 +209,12 @@ const profile: readonly Text[] = [
 const places: readonly Text[] = [
   t("## Kde co je", "## Where things are"),
   t(
-    "- Lazurio Folder tohoto Osobního Prostředí je `~/Lazurio`. Jsou v něm pravidla Lazuria a Organizací (`AGENTS.md` a `manual/`), Personalspace a Organizace.",
-    "- The Lazurio Folder of this Personal Environment is `~/Lazurio`. It holds the rules of Lazurio and of the Organizations (`AGENTS.md` and `manual/`), the Personalspace and the Organizations.",
+    "- Lazurio Folder tohoto Osobního Prostředí je `~/Lazurio`. Jsou v něm pravidla Lazuria (`AGENTS.md` a `manual/`) a Personalspace.",
+    "- The Lazurio Folder of this Personal Environment is `~/Lazurio`. It holds Lazurio's rules (`AGENTS.md` and `manual/`) and the Personalspace.",
+  ),
+  t(
+    "- Repozitáře Organizací tady nejsou a nikdy je sem neklonuješ. Práce pro Organizaci jde přes boty v jejím Pracovním Prostředí.",
+    "- Organizations' repositories are not here, and you never clone them here. Work for an Organization goes through bots in that Organization's Work Environment.",
   ),
   t(
     "- Tvoje pracovní složka je `~/Lazurio/.agents/buddy/` a je v ní jen tato vrstva Lazuria. Práce ve Folderu a v repozitářích jde přes boty a vlákna, ne v tvé pracovní složce.",
@@ -262,7 +278,12 @@ export function renderBuddyRules(input: unknown): string {
     "",
     ...layers.map(pick),
     "",
-    ...voiceSection(locale, source.agentVoice),
+    // The default voice only: Hermes blocks a whole context file in which its
+    // injection scan finds anything, and a custom voice is text this product
+    // does not control (agent/prompt_builder.py `_scan_context_content`; only
+    // the user's SOUL.md is merely warned about). Buddy's own tone is his
+    // persona's.
+    ...voiceSection(locale),
     pick(userAddress),
     "",
     pick(t("## Jak se tu pracuje", "## How work is done here")),
@@ -593,8 +614,8 @@ const threads: BuddySkill = {
   title: t("Vlákna T3 Code", "T3 Code threads"),
   body: [
     t(
-      "**Chat je místo uživatele.** Vlákna v T3 Code jsou jeho práce. Číst je smíš vždycky, abys měl přehled o jeho práci. Psát do nich, odpovídat v nich za uživatele a zakládat nová smíš jen na jeho žádost. Pro svou vlastní práci vlákna nezakládáš, na to máš boty (skill `lazurio-buddy-pomocnici`).",
-      "**The chat is the user's place.** The threads in T3 Code are the user's work. You may always read them, to keep the overview of the user's work. You write in them, answer in them for the user and create new ones only when the user asks you to. You never create threads for your own work; that is what the bots are for (skill `lazurio-buddy-pomocnici`).",
+      "**Chat je místo uživatele.** Vlákna v T3 Code jsou jeho práce. Číst je smíš vždycky, abys měl přehled o jeho práci. Psát do nich, odpovídat v nich za uživatele, řídit je (zastavit, přerušit, znovu rozjet, archivovat, uspořádat), schvalovat nebo zamítat jejich žádosti a zakládat nová smíš jen na jeho žádost. Pro svou vlastní práci vlákna nezakládáš, na to máš boty (skill `lazurio-buddy-pomocnici`).",
+      "**The chat is the user's place.** The threads in T3 Code are the user's work. You may always read them, to keep the overview of the user's work. You write in them, answer in them for the user, steer them (stop, interrupt, restart, archive, organize), approve or deny their requests and create new ones only when the user asks you to. You never create threads for your own work; that is what the bots are for (skill `lazurio-buddy-pomocnici`).",
     ),
     blank,
     t(
@@ -621,6 +642,11 @@ const threads: BuddySkill = {
     ),
     blank,
     t("## Co čím", "## What with which command"),
+    t(
+      "Číst smíš vždycky (`thread list`, `read`, `search`, `wait`, `events`, `request list` a `read`, `queue list` a `read`). Všechno ostatní děláš jen na žádost uživatele.",
+      "Reading is always allowed (`thread list`, `read`, `search`, `wait`, `events`, `request list` and `read`, `queue list` and `read`). Everything else only at the user's request.",
+    ),
+    blank,
     t("| Potřebuješ | Příkaz |", "| You need | Command |"),
     t("| --- | --- |", "| --- | --- |"),
     t(
@@ -730,8 +756,8 @@ const threads: BuddySkill = {
       "## Answers and approvals for the user",
     ),
     t(
-      "- Sám odpovíš nebo schválíš jen tehdy, když to plyne z výslovného pokynu uživatele nebo z platného mandátu a nejde o krok, ke kterému vždy chce souhlas: billing, secrets, destruktivní operace, přístupy, merge, Publikace, Release. Jinak se ho zeptáš nástrojem `clarify` s volbami a odpovíš až jeho slovy.",
-      "- You answer or approve yourself only when it follows from the user's explicit instruction or a valid mandate and it is no step that always needs the user's consent: billing, secrets, destructive operations, access, a merge, Publication, a Release. Otherwise you ask the user with the `clarify` tool and options, and answer only in the user's words.",
+      "- Sám odpovíš nebo schválíš jen tehdy, když to plyne z výslovného pokynu uživatele nebo z platného mandátu, který je jeho trvalou žádostí (decision 0089), a nejde o krok, ke kterému vždy chce souhlas: billing, secrets, destruktivní operace, přístupy, merge, Publikace, Release. Jinak se ho zeptáš nástrojem `clarify` s volbami a odpovíš až jeho slovy.",
+      "- You answer or approve yourself only when it follows from the user's explicit instruction or a valid mandate, which is the user's standing request (decision 0089), and it is no step that always needs the user's consent: billing, secrets, destructive operations, access, a merge, Publication, a Release. Otherwise you ask the user with the `clarify` tool and options, and answer only in the user's words.",
     ),
     t(
       "- Odpověď začni „Buddy za <jméno uživatele ve 4. pádě>:“.",
@@ -752,8 +778,8 @@ const threads: BuddySkill = {
       "- Never delete projects, never change T3 Code's settings and never use `t3 auth`.",
     ),
     t(
-      "- Každé zastavení, přerušení nebo archivaci vlákna uživatele mu ohlásíš jednou větou.",
-      "- Report every stop, interruption or archiving of a user's thread to the user in one sentence.",
+      "- Když na žádost uživatele vlákno zastavíš, přerušíš nebo archivuješ, ohlas mu to jednou větou.",
+      "- When you stop, interrupt or archive a thread at the user's request, tell the user in one sentence.",
     ),
   ],
 };
