@@ -58,6 +58,14 @@ PREAMBLE_VLAKNO = (
     "Hlídej vlákno T3 Code {vlakno}: počkej přes `t3 thread wait {vlakno}`, "
     "a nahlas, jak skončilo."
 )
+# A bot works with the Lazurio Folder as its working directory, so a bare name
+# in a brief lands at the Folder's top level, and a stray entry there blocks the
+# Environment's updates (`folder-foreign-entry`). Every task gets its own folder.
+PREAMBLE_VYSTUPY = (
+    "Soubory s výstupem, třeba protokol, podklad nebo export, ukládej do {vystupy}, "
+    "pokud zadání neurčí jinou složku v ~/Documents/; cestu vždy zapiš absolutně. "
+    "Do ~/Lazurio zapisuj jen ve worktree, ve kterém pracuješ, a do kořene ~/Lazurio nikdy nic."
+)
 
 
 def _env_float(name: str, default: float) -> float:
@@ -528,6 +536,14 @@ def new_id() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-") + secrets.token_hex(2)
 
 
+def output_dir(rec: dict) -> str:
+    """The task's own folder for the bot's files, `~/Documents/buddy/<id>/`."""
+    tail = f'Documents/buddy/{rec["id"]}/'
+    if rec.get("env"):  # another Environment's home is not known here
+        return f"`~/{tail}`"
+    return f'`{os.path.join(os.path.expanduser("~"), tail)}`'
+
+
 def cmd_zadej(args) -> int:
     brief = sys.stdin.read().strip()
     if not brief:
@@ -567,6 +583,7 @@ def cmd_zadej(args) -> int:
             print(json.dumps({"ok": False, "id": rec["id"], "error": str(exc)}, ensure_ascii=False))
             return 1
         preamble = PREAMBLE.format(id=rec["id"], termin=rec["termin"], uzivatel=USER_ACCUSATIVE)
+        preamble += " " + PREAMBLE_VYSTUPY.format(vystupy=output_dir(rec))
         if rec["vlakno"]:
             preamble += " " + PREAMBLE_VLAKNO.format(vlakno=rec["vlakno"])
         rec["spusteni_zahajeno"] = True
