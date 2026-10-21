@@ -265,6 +265,10 @@ export function serveStatic(
     hostname: options.hostname,
     port: options.port,
     development: false,
+    // A browser or the gateway keeps its connection to an app it used for
+    // minutes, and the Launchpad lets an app without one sleep (root
+    // decision 0195 point 23): Bun's longest idle time, not its 10 s.
+    idleTimeout: 255,
     fetch: (request) =>
       options
         .roots()

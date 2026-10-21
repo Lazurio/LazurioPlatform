@@ -110,9 +110,9 @@ export function parseListenerBindings(
   return Object.freeze(bindings);
 }
 
-export async function observeListenerBindings(
-  port: number,
-): Promise<Observation> {
+// lsof of the TCP sockets of one declared port, the one tool of both
+// runners' evidence (macOS and Linux).
+function lsof(port: number, args: readonly string[]) {
   if (!Number.isInteger(port) || port < 1024 || port > 65535)
     throw new Error("Declared port required");
   const executable =
@@ -121,40 +121,65 @@ export async function observeListenerBindings(
       : process.platform === "linux"
         ? "/usr/bin/lsof"
         : null;
-  if (!executable) return Object.freeze({ kind: "unavailable" });
+  if (!executable) return null;
+  return run(executable, ["-nP", `-iTCP:${port}`, ...args], {
+    env: { PATH: "/usr/bin:/bin:/usr/sbin:/sbin", LC_ALL: "C" },
+    timeout: 5000,
+    killSignal: "SIGKILL",
+    maxBuffer: 64 * 1024,
+  });
+}
+
+// lsof's exit when nothing matched: 1, and no output.
+function nothingMatched(error: unknown) {
+  const result = error as {
+    code?: unknown;
+    stdout?: unknown;
+    stderr?: unknown;
+    killed?: unknown;
+  };
+  return (
+    result.code === 1 &&
+    !result.killed &&
+    result.stdout === "" &&
+    result.stderr === ""
+  );
+}
+
+export async function observeListenerBindings(
+  port: number,
+): Promise<Observation> {
+  const running = lsof(port, ["-sTCP:LISTEN", "-Fpgufn"]);
+  if (!running) return Object.freeze({ kind: "unavailable" });
   try {
-    const { stdout, stderr } = await run(
-      executable,
-      ["-nP", `-iTCP:${port}`, "-sTCP:LISTEN", "-Fpgufn"],
-      {
-        env: { PATH: "/usr/bin:/bin:/usr/sbin:/sbin", LC_ALL: "C" },
-        timeout: 5000,
-        killSignal: "SIGKILL",
-        maxBuffer: 64 * 1024,
-      },
-    );
+    const { stdout, stderr } = await running;
     if (stderr.trim()) return Object.freeze({ kind: "unavailable" });
     return Object.freeze({
       kind: "observed",
       bindings: parseListenerBindings(stdout, port),
     });
   } catch (error) {
-    const result = error as {
-      code?: unknown;
-      stdout?: unknown;
-      stderr?: unknown;
-      killed?: unknown;
-    };
     // lsof's no-match exit is not proof that a port is globally free: process
     // visibility can be restricted. Never use this result as a bind reservation.
-    if (
-      result.code === 1 &&
-      !result.killed &&
-      result.stdout === "" &&
-      result.stderr === ""
-    )
+    if (nothingMatched(error))
       return Object.freeze({ kind: "observed", bindings: Object.freeze([]) });
     return Object.freeze({ kind: "unavailable" });
+  }
+}
+
+/** Whether a TCP connection with this port at one end is open now: the
+ * sign that someone uses a module app (root decision 0195 point 23). The
+ * same lsof as the listener's evidence, so the operator's own processes,
+ * among them the app's end of every connection to its listener. Null when
+ * it cannot be told, which never counts as unused. */
+export async function observeConnected(port: number): Promise<boolean | null> {
+  const running = lsof(port, ["-sTCP:ESTABLISHED", "-t"]);
+  if (!running) return null;
+  try {
+    const { stdout, stderr } = await running;
+    return stderr.trim() ? null : stdout.trim() !== "";
+  } catch (error) {
+    return nothingMatched(error) ? false : null;
   }
 }
 

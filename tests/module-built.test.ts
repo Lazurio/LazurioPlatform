@@ -1,16 +1,19 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
+import type { ApplicationRunner } from "../src/modules/application-runner";
 import { gitCheckoutReader } from "../src/modules/built/checkout";
 import {
   createModuleOperations,
   type ModuleAnswer,
   type ModuleBlocked,
   type ModuleHost,
+  type RunningApp,
 } from "../src/modules/module-operations";
 import { createSessionRunner } from "../src/modules/session-runner";
 import { type Catalog, readFolderCatalog } from "../src/organizations/catalog";
@@ -100,6 +103,9 @@ async function staticModule(
     readCatalog?: (folder: string) => Promise<Catalog>;
     /** `workspace/site/db`: a data mount of its own Git repository. */
     dataMount?: boolean;
+    /** One runner for every owner of this host's apps, as the service
+     * manager outlives a Launchpad; otherwise one per lifecycle. */
+    runner?: ApplicationRunner;
   }> = {},
 ) {
   const parent = join(root, name);
@@ -147,7 +153,7 @@ async function staticModule(
     platformExecutable: binary,
     bunExecutable: process.execPath,
     runnerKind: async () => "session",
-    createRunner: () => createSessionRunner(binary),
+    createRunner: () => options.runner ?? createSessionRunner(binary),
     readJournal: async () => ({ kind: "unavailable" }) as const,
     builds: {
       cacheRoot: join(parent, "cache"),
@@ -197,6 +203,7 @@ async function staticModule(
   };
   return {
     operations,
+    host,
     folder,
     site,
     next,
@@ -785,6 +792,222 @@ posixTest(
       expect((await fixture.page()).text).toBe("<p>two</p>");
     } finally {
       open();
+      await operations.stop("alpha/site");
+      await operations.close();
+    }
+  },
+  120_000,
+);
+
+// The Launchpad's sweeps at chosen minutes of an injected clock, each one
+// awaited with everything it started.
+function sweepsOf(
+  operations: ReturnType<typeof createModuleOperations>,
+  seams: Readonly<{
+    connected?: (port: number) => Promise<boolean | null>;
+    running?: () => Promise<readonly RunningApp[] | null>;
+  }>,
+) {
+  let clock = 0;
+  const keeper = operations.keepBuilt({
+    quietMs: 100,
+    sweepMs: 3_600_000,
+    now: () => clock,
+    ...seams,
+  });
+  return async (minute: number) => {
+    clock = minute * 60_000;
+    await keeper?.settled();
+    await keeper?.sweep();
+    await keeper?.settled();
+  };
+}
+
+posixTest(
+  "an app nobody uses falls asleep at a sweep after a tab's idle time without a connection: one with a connection stays, a connection meanwhile starts its clock again, a development run sleeps by the same rule, an explicit Stop stays as it was, and the gateway's ensure wakes it as its newest build (root decision 0195 point 23)",
+  async () => {
+    const home = join(root, "home-sleep");
+    await mkdir(home);
+    const fixture = await staticModule("sleep", home);
+    const { operations } = fixture;
+    // The ports with an open connection at the next sweep.
+    const open = new Set<number>();
+    const sweepAt = sweepsOf(operations, {
+      connected: async (port) => open.has(port),
+    });
+    const state = async (name: string) =>
+      answer(await operations.status(name)).state;
+    try {
+      await sweepAt(0);
+      // site as its build, nobody uses it; next explicitly as its
+      // development version, in use; plain (its development script) used
+      // once, at minute 10.
+      answer(await operations.start("alpha/site"));
+      answer(await operations.start("alpha/next", { dev: true }));
+      answer(await operations.start("alpha/plain"));
+      await until(fixture.page, (page) => page.text === "<p>one</p>");
+      open.add(fixture.port3);
+      await sweepAt(0);
+      await sweepAt(5);
+      open.add(fixture.port2);
+      await sweepAt(10);
+      open.delete(fixture.port2);
+      await sweepAt(15);
+      expect(await state("alpha/site")).toBe("running");
+      // Twenty minutes without a connection: asleep, which is stopped like
+      // any app, with no record of its own.
+      await sweepAt(20);
+      expect(answer(await operations.status("alpha/site"))).toMatchObject({
+        state: "stopped",
+        outcome: "not-managed",
+        healthy: false,
+        build: { mode: null, current: { commit: fixture.head() } },
+      });
+      expect((await fixture.page()).status).toBe(0);
+      expect(await state("alpha/plain")).toBe("running");
+      expect(await state("alpha/next")).toBe("running");
+      // A pull while it sleeps is built by the sweep, which starts nothing.
+      const second = await fixture.commit("two");
+      await sweepAt(25);
+      const built = answer(
+        await until(
+          () => operations.status("alpha/site"),
+          (status) =>
+            status.kind === "module" &&
+            status.build?.current?.commit === second,
+        ),
+      );
+      expect(built.state).toBe("stopped");
+      // Used at minute 10: asleep at 30, not at 20.
+      await sweepAt(30);
+      expect(await state("alpha/plain")).toBe("stopped");
+      expect(await state("alpha/next")).toBe("running");
+      // A signed-in direct link: the gateway's ensure starts it again as
+      // its newest build.
+      const woken = answer(
+        await until(
+          () => operations.ensure("site", { mayStart: true, waitMs: 5_000 }),
+          (result) => result.kind === "module" && result.healthy,
+        ),
+      );
+      expect(woken.build).toMatchObject({
+        mode: "built",
+        served: { commit: second },
+      });
+      expect(await fixture.page()).toEqual({ status: 200, text: "<p>two</p>" });
+      // An explicit Stop: stopped as it was, never started by a sweep.
+      answer(await operations.start("alpha/plain"));
+      expect(answer(await operations.stop("alpha/plain")).outcome).toBe(
+        "group-stopped",
+      );
+      // The woken app's clock starts again; the development run, its
+      // connection gone at 50, sleeps twenty minutes later.
+      await sweepAt(35);
+      await sweepAt(50);
+      expect(await state("alpha/site")).toBe("running");
+      open.delete(fixture.port3);
+      await sweepAt(55);
+      expect(await state("alpha/site")).toBe("stopped");
+      expect(await state("alpha/next")).toBe("running");
+      await sweepAt(70);
+      expect(await state("alpha/next")).toBe("stopped");
+      expect(await state("alpha/plain")).toBe("stopped");
+    } finally {
+      for (const name of ["alpha/site", "alpha/next", "alpha/plain"])
+        await operations.stop(name);
+      await operations.close();
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "an app the service manager runs that this Launchpad did not start (before its restart, or by the CLI) is found and sleeps too; unknown evidence counts as in use, and an app stopped and started again between two sweeps starts a new clock",
+  async () => {
+    const home = join(root, "home-found");
+    await mkdir(home);
+    const runner = createSessionRunner(binary);
+    const fixture = await staticModule("found", home, { runner });
+    // The owner that started it, and the Launchpad that runs now.
+    const earlier = fixture.operations;
+    const operations = createModuleOperations({
+      folder: fixture.folder,
+      owner: "launchpad",
+      host: fixture.host,
+    });
+    let evidence: boolean | null = null;
+    let listed: RunningApp[] = [];
+    const sweepAt = sweepsOf(operations, {
+      connected: async () => evidence,
+      running: async () => listed,
+    });
+    const state = async () =>
+      answer(await operations.status("alpha/plain")).state;
+    try {
+      const started = answer(await earlier.start("alpha/plain"));
+      const plain = { org: "alpha", module: "plain", app: started.app };
+      listed = [plain];
+      await sweepAt(0);
+      // Whether it has a connection cannot be told: in use.
+      await sweepAt(30);
+      evidence = false;
+      await sweepAt(45);
+      expect(await state()).toBe("running");
+      // Stopped and started again outside this Launchpad: the manager did
+      // not list it at minute 48, so it is found anew at 50.
+      answer(await earlier.stop("alpha/plain"));
+      listed = [];
+      await sweepAt(48);
+      answer(await earlier.start("alpha/plain"));
+      listed = [plain];
+      await sweepAt(50);
+      await sweepAt(65);
+      expect(await state()).toBe("running");
+      await sweepAt(70);
+      expect(await state()).toBe("stopped");
+    } finally {
+      await operations.close();
+      await earlier.stop("alpha/plain");
+      await earlier.close();
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "the sweep sees a real connection to the static server: held open, the app stays; closed, it sleeps (root decision 0195 point 23)",
+  async () => {
+    const home = join(root, "home-evidence");
+    await mkdir(home);
+    const fixture = await staticModule("evidence", home);
+    const { operations } = fixture;
+    // The product's own evidence (lsof); no request of this test keeps a
+    // connection but the one it holds.
+    const sweepAt = sweepsOf(operations, {});
+    const state = async () =>
+      answer(await operations.status("alpha/site")).state;
+    let socket: ReturnType<typeof createConnection> | undefined;
+    try {
+      await sweepAt(0);
+      answer(await operations.start("alpha/site"));
+      await until(
+        () => operations.status("alpha/site"),
+        (status) => status.kind === "module" && status.healthy,
+      );
+      socket = createConnection({ host: "127.0.0.1", port: fixture.port });
+      await new Promise((resolve) => socket?.once("connect", resolve));
+      await sweepAt(0);
+      await sweepAt(25);
+      expect(await state()).toBe("running");
+      // Last seen at 25: asleep at 45.
+      socket.destroy();
+      await sweepAt(30);
+      await sweepAt(40);
+      expect(await state()).toBe("running");
+      await sweepAt(45);
+      expect(await state()).toBe("stopped");
+    } finally {
+      socket?.destroy();
       await operations.stop("alpha/site");
       await operations.close();
     }

@@ -725,8 +725,17 @@ export async function startLaunchpad(
     host: moduleHost,
     personalspace: personalspace.decide,
   });
-  // A static app someone opened is built again after a pull (decision F58).
-  modules.keepBuilt();
+  // What the service manager runs: Nová karta's running Modules, and the
+  // apps the Launchpad's sweep lets sleep when nobody uses them.
+  const running = () =>
+    runningModules({
+      folder,
+      host: moduleHost,
+      personalspace: personalspace.peek,
+    });
+  // A static app someone opened is built again after a pull (decision F58);
+  // an app nobody uses falls asleep (root decision 0195 point 23).
+  modules.keepBuilt({ running });
   // The Folder's catalog, kept while nothing it depends on changed
   // (catalog-reading.ts): the page's boot document, the shell document, the
   // catalog and Apps' questions about one Organization read it.
@@ -1037,12 +1046,7 @@ export async function startLaunchpad(
     browser,
     holder,
     host: newTabHost,
-    modules: () =>
-      runningModules({
-        folder,
-        host: moduleHost,
-        personalspace: personalspace.peek,
-      }),
+    modules: running,
     served: (module) =>
       modules.served(`${module.org}/${module.module}`, module.app),
     headers,
