@@ -293,8 +293,8 @@ const helpers: BuddySkill = {
   title: t("Pomocníci boti", "Helper bots"),
   body: [
     t(
-      "Sám nic neimplementuješ. Když chceš něco udělat, zkontrolovat nebo hlídat, dáš to botovi v MausBotu v Prostředí, kam práce patří (novému, nebo existujícímu), a vrátíš se k uživateli. Až bot skončí, selže, zasekne se, zeptá se, nestihne termín nebo MausBot neodpovídá, budíček tě sám probudí v hlavní konverzaci. Příkazy bota popisuje skill `lazurio-mausbot`.",
-      "You implement nothing yourself. When you want something done, checked or watched, you give it to a bot in MausBot in the Environment the work belongs to (a new one or an existing one) and return to the user. When the bot finishes, fails, gets stuck, asks, misses its deadline or MausBot stops responding, budíček wakes you in your main conversation by itself. The skill `lazurio-mausbot` describes the bot commands.",
+      "Sám nic neimplementuješ. Když chceš něco udělat, zkontrolovat nebo hlídat, dáš to botovi v MausBotu v Prostředí, kam práce patří (novému, nebo existujícímu), a vrátíš se k uživateli. Až bot skončí, selže, zasekne se, zeptá se, nestihne termín nebo MausBot neodpovídá, budíček tě sám probudí v hlavní konverzaci. Jak založit nového bota a jaké příkazy boti mají, popisuje skill `lazurio-mausbot`.",
+      "You implement nothing yourself. When you want something done, checked or watched, you give it to a bot in MausBot in the Environment the work belongs to (a new one or an existing one) and return to the user. When the bot finishes, fails, gets stuck, asks, misses its deadline or MausBot stops responding, budíček wakes you in your main conversation by itself. The skill `lazurio-mausbot` describes how to create a new bot and the bot commands.",
     ),
     blank,
     t("## Jak dát botovi práci", "## How to give a bot work"),
@@ -513,6 +513,10 @@ const mausbot: BuddySkill = {
       "| create, change, run a routine | `openmausbot routine create …`, `routine update …`, `routine run <routine>` |",
     ),
     t(
+      "| založit nebo změnit bota, změnit jeho model | `openmausbot bot create …`, `bot update …`, `bot model …` (níže) |",
+      "| create or change a bot, change its model | `openmausbot bot create …`, `bot update …`, `bot model …` (below) |",
+    ),
+    t(
       "| webhooky | `openmausbot webhook list --json`, `webhook create …` |",
       "| webhooks | `openmausbot webhook list --json`, `webhook create …` |",
     ),
@@ -528,8 +532,16 @@ const mausbot: BuddySkill = {
     blank,
     t("## Založení a změna bota", "## Creating and changing a bot"),
     t(
-      "`openmausbot` 0.1.115-lazurio.4 bota založit ani mu změnit profil nebo model neumí; doplní to Lazurio/OpenMausBot#55. Do té doby boty zakládáš a měníš přes MCP server `mausbot`: `create_bot`, `update_bot_profile` a `set_bot_model`. Všechno ostatní děláš příkazem `openmausbot`.",
-      "`openmausbot` 0.1.115-lazurio.4 cannot create a bot or change a bot's profile or model; Lazurio/OpenMausBot#55 adds that. Until then you create and change bots through the MCP server `mausbot`: `create_bot`, `update_bot_profile` and `set_bot_model`. Everything else you do with the `openmausbot` command.",
+      "- Nového bota založíš příkazem `openmausbot bot create <jméno> --title <role> --description <řádek do přehledu> --prompt-file - --json` s instrukcemi bota na stdin. Prompt jsou instrukce bota, jeho SOUL.md: jak pracuje a co dělá vždycky nebo nikdy, nejvýš 24 000 bajtů. `--description` je řádek, který vidí přehledy a ostatní boti. Bez `--model` začne bot na výchozím modelu.",
+      "- Create a new bot with `openmausbot bot create <name> --title <role> --description <roster line> --prompt-file - --json`, the bot's instructions on stdin. The prompt is the bot's instructions, its SOUL.md: how it works and what it always or never does, at most 24,000 bytes. `--description` is the line rosters and other bots see. Without `--model` the bot starts on the default model.",
+    ),
+    t(
+      "- `openmausbot bot update <bot> … --json` změní jen to, co zadáš: `--title`, `--description`, `--name`, `--team` nebo `--no-team`, a s `--prompt-file -` nahradí instrukce (prázdný prompt je smaže). `openmausbot bot model <bot> <instance/model> [--effort <úroveň>] --json` změní model nečinného bota; modely ukáže `openmausbot models`. `--dry-run` u všech tří jen vypíše požadavek a nic nepošle.",
+      "- `openmausbot bot update <bot> … --json` changes only what you give it: `--title`, `--description`, `--name`, `--team` or `--no-team`, and with `--prompt-file -` it replaces the instructions (an empty prompt clears them). `openmausbot bot model <bot> <instance/model> [--effort <level>] --json` changes an idle bot's model; `openmausbot models` lists the models. `--dry-run` on any of the three prints the request and sends nothing.",
+    ),
+    t(
+      "- MausBot starší než 0.1.115-lazurio.5 tyto příkazy nezná: `openmausbot bot` nabídne jen `list` a `show` a skončí kódem 2. Pak boty zakládáš a měníš přes MCP server `mausbot`, kde je připojený: `create_bot`, `update_bot_profile` a `set_bot_model`.",
+      "- A MausBot older than 0.1.115-lazurio.5 does not know these commands: `openmausbot bot` offers only `list` and `show` and ends with code 2. Then create and change bots through the MCP server `mausbot` where it is attached: `create_bot`, `update_bot_profile` and `set_bot_model`.",
     ),
     blank,
     t("## Rutiny", "## Routines"),

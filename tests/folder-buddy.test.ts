@@ -197,15 +197,21 @@ test("the skills: the directory's name is the frontmatter's, a description Herme
       expect(text).toContain(`<!-- ${instructionTemplateRevision}; `);
     }
     const mausbot = layer[buddySkillPath("lazurio-mausbot")];
+    // The commands of MausBot 0.1.115-lazurio.5, and the MCP server for an
+    // older one, which answers `bot` with only `list` and `show`.
     for (const fact of [
-      "0.1.115-lazurio.4",
-      "Lazurio/OpenMausBot#55",
+      "`openmausbot bot create <",
+      "--prompt-file - --json`",
+      "`openmausbot bot update <bot> … --json`",
+      "`openmausbot bot model <bot> <instance/model>",
+      "0.1.115-lazurio.5",
       "`mausbot`",
       "`create_bot`",
       "`update_bot_profile`",
       "`set_bot_model`",
     ])
       expect(mausbot).toContain(fact);
+    expect(mausbot).not.toContain("OpenMausBot#55");
     const threads = layer[buddySkillPath("lazurio-t3-orchestration")];
     for (const fact of ["0.1.0-lazurio.5", "Lazurio/t3code#94"])
       expect(threads).toContain(fact);

@@ -24,7 +24,7 @@ import { tryBinding } from "./fixtures/try-environments";
 // compositions too.
 const pinned = {
   revision: "base-instructions-62",
-  digest: "7fd8beac5668538fbe652f8c4b2cc6ecaef5361d9af5ff2dc026082cae02bc96",
+  digest: "11b9a7078795fe4015434254fb56fea4fecf8fb95c53c4a7f7ad841da81e267e",
 } as const;
 
 const optionalTools = activatableTools()
