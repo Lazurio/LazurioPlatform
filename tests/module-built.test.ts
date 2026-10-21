@@ -664,19 +664,26 @@ posixTest(
           await Bun.sleep(20);
         }
       })();
-      // A pull that changes the page and the package (not its serving
-      // declaration): its build is swapped in by the explicit build.
-      const pkgPath = join(fixture.site, "app/package.json");
-      const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
-      pkg.description = "changed by the pull";
-      await writeFile(pkgPath, JSON.stringify(pkg));
-      const second = await fixture.commit("two");
-      const built = answer(await operations.build("alpha/site"));
-      expect(built.outcome).toBe("built");
-      await until(fixture.page, (page) => page.text === "<p>two</p>");
-      await Bun.sleep(300);
-      probing = false;
-      await probe;
+      let second = "";
+      try {
+        // A pull that changes the page and the package (not its serving
+        // declaration): its build is swapped in by the explicit build, also
+        // while the start's own background check is still under way.
+        const pkgPath = join(fixture.site, "app/package.json");
+        const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
+        pkg.description = "changed by the pull";
+        await writeFile(pkgPath, JSON.stringify(pkg));
+        second = await fixture.commit("two");
+        const built = answer(await operations.build("alpha/site"));
+        expect(built.outcome).toBe("built");
+        await until(fixture.page, (page) => page.text === "<p>two</p>");
+        await Bun.sleep(300);
+      } finally {
+        // A failed expectation must not leave the probe fetching into the
+        // tests after this one.
+        probing = false;
+        await probe;
+      }
       expect(probes).toBeGreaterThan(20);
       expect(refused).toBe(0);
       // Still the same healthy run of the static server, serving the new

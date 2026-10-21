@@ -109,6 +109,10 @@ export function createBuilds(input: {
     queued: Promise<void>;
     foreground: boolean;
     started: boolean;
+    /** Joined while under way: it may have read its checkout before the
+     * request that joined it (a pull just before an explicit build), so it
+     * reads it once more when it ends, and builds what is there now. */
+    again: boolean;
     promise: Promise<BuildOutcome>;
     resolve: (outcome: BuildOutcome) => void;
   };
@@ -331,26 +335,36 @@ export function createBuilds(input: {
     active = true;
     next.started = true;
     const directory = next.job.directory;
-    void execute(next.job, next.queued)
-      .catch(() =>
+    const run = () =>
+      execute(next.job, next.queued).catch(() =>
         Object.freeze({
           kind: "failed" as const,
           reason: "build-failed",
           key: null,
         }),
-      )
-      .then((outcome) => {
-        entries.delete(directory);
-        active = false;
-        next.resolve(outcome);
-        pump();
-      });
+      );
+    const runs = async () => {
+      let outcome = await run();
+      // Mostly the key it read is built by now, and this answers at once.
+      while (next.again && !closing) {
+        next.again = false;
+        outcome = await run();
+      }
+      return outcome;
+    };
+    void runs().then((outcome) => {
+      entries.delete(directory);
+      active = false;
+      next.resolve(outcome);
+      pump();
+    });
   }
 
   return Object.freeze({
     /** Builds the app at its checkout as it is when its build starts. A
      * build of the same app that has not started yet is joined (and goes
-     * first when someone now waits for it); one under way is joined too. */
+     * first when someone now waits for it); one under way is joined too,
+     * and reads the checkout once more when it ends. */
     enqueue(job: BuildJob, priority: "foreground" | "background") {
       if (closing)
         return Promise.resolve(Object.freeze({ kind: "closing" as const }));
@@ -367,11 +381,11 @@ export function createBuilds(input: {
           existing.foreground = true;
           if (!existing.started) existing.queued = existing.queued.then(record);
         }
-        if (!existing.started)
-          existing.job = {
-            ...job,
-            explicit: existing.job.explicit || job.explicit,
-          };
+        existing.job = {
+          ...job,
+          explicit: existing.job.explicit || job.explicit,
+        };
+        if (existing.started) existing.again = true;
         return existing.promise;
       }
       let resolve: (outcome: BuildOutcome) => void = () => {};
@@ -387,6 +401,7 @@ export function createBuilds(input: {
         queued: priority === "foreground" ? record() : Promise.resolve(),
         foreground: priority === "foreground",
         started: false,
+        again: false,
         promise,
         resolve,
       });
