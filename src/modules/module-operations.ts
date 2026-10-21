@@ -1454,6 +1454,9 @@ export function createModuleOperations(input: {
     at: number,
     connected: (port: number) => Promise<boolean | null>,
     running: (() => Promise<readonly RunningApp[] | null>) | undefined,
+    readSiblings: (
+      organizationDirectory: string,
+    ) => Promise<ReadonlySet<string>>,
   ) {
     const listed = await running?.().catch(() => null);
     if (listed != null) {
@@ -1491,14 +1494,17 @@ export function createModuleOperations(input: {
         if (!siblings.has(directory))
           siblings.set(
             directory,
-            declaredSiblings(directory).catch(() => null),
+            readSiblings(directory).catch(() => null),
           );
         const declared = await siblings.get(directory);
         if (declared == null || declared.has(target.module)) continue;
       }
-      inUse.delete(key);
       await operate("stop", kind, target, async (lifecycle) => {
         const status = await lifecycle.status(selection);
+        // Decided after the last read: a start or a stop since the sweep
+        // read the app leaves it as that made it.
+        if (inUse.get(key) !== seen) return;
+        inUse.delete(key);
         if (status.kind === "status" && status.state === "running")
           await lifecycle.stop(selection);
       });
@@ -1738,6 +1744,8 @@ export function createModuleOperations(input: {
       explicit?: boolean | undefined;
     }> = {},
   ): Promise<ModuleAnswer | ModuleBlocked> {
+    // A start under way is a use too: a sweep's stop decision sees it.
+    inUse.set(useKey(prepared.target), null);
     const answer = await startNow(prepared, options);
     if (answer.kind === "module") inUse.set(useKey(prepared.target), null);
     return answer;
@@ -2077,9 +2085,13 @@ export function createModuleOperations(input: {
         sweepMs?: number;
         /** What the service manager runs (`runningModules`). */
         running?: () => Promise<readonly RunningApp[] | null>;
-        /** Test seams: the clock and the connection evidence. */
+        /** Test seams: the clock, the connection evidence and the read of
+         * an Organization's declared siblings. */
         now?: () => number;
         connected?: (port: number) => Promise<boolean | null>;
+        siblings?: (
+          organizationDirectory: string,
+        ) => Promise<ReadonlySet<string>>;
       }> = {},
     ) {
       if (
@@ -2093,11 +2105,14 @@ export function createModuleOperations(input: {
         running,
         now = Date.now,
         connected = observeConnected,
+        siblings = declaredSiblings,
         ...watching
       } = options;
       keeper = createBuildWatcher({
         apps: async () => {
-          await sleepUnused(now(), connected, running).catch(() => undefined);
+          await sleepUnused(now(), connected, running, siblings).catch(
+            () => undefined,
+          );
           return watchedApps();
         },
         refresh: async (app) => {

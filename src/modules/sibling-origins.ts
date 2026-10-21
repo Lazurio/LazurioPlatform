@@ -1,3 +1,4 @@
+import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { observeOrganizationApplications } from "../organizations/read-applications";
@@ -164,9 +165,11 @@ export async function requiredSlotOrigins(input: {
 /** Every module some app of the Organization declares as its sibling (root
  * decision 0176), by module id, read from the declarations now: the default
  * apps whose origins a start gives. They never sleep (root decision 0195
- * point 23), since their callers reach them at their loopback address. An
- * app whose declaration cannot be read declares none, as it cannot start;
- * an Organization whose apps cannot be observed throws. */
+ * point 23), since their callers reach them at their loopback address. It
+ * throws when any declaration that may name one cannot be read: an
+ * Organization whose apps cannot be observed, a module that is on this
+ * Environment but unreadable, an app whose runtime is invalid. A module not
+ * on this Environment declares nothing here: none of its apps can start. */
 export async function declaredSiblings(
   organizationDirectory: string,
 ): Promise<ReadonlySet<string>> {
@@ -178,19 +181,23 @@ export async function declaredSiblings(
     throw new Error("Organization applications unavailable");
   const siblings = new Set<string>();
   for (const entry of result.entries) {
-    if (entry.kind !== "module-observed" || entry.module === null) continue;
+    const directory = join(organizationDirectory, entry.path);
+    if (entry.kind !== "module-observed" || entry.module === null) {
+      const present = await lstat(directory).then(
+        () => true,
+        (error: { code?: unknown }) => error?.code !== "ENOENT",
+      );
+      if (present) throw new Error("Module declaration unavailable");
+      continue;
+    }
     for (const app of entry.apps) {
-      if (app.kind !== "runtime-declared") continue;
-      const slots = await readModuleApplication(
-        join(organizationDirectory, entry.path),
-        app.package,
-      )
-        .then((plan) =>
-          plan.kind === "declared-runtime-plan"
-            ? plan.runtime.optional.required_module_slots
-            : undefined,
-        )
-        .catch(() => undefined);
+      const plan =
+        app.kind === "runtime-declared"
+          ? await readModuleApplication(directory, app.package)
+          : null;
+      if (plan?.kind !== "declared-runtime-plan")
+        throw new Error("Application declaration unavailable");
+      const slots = plan.runtime.optional.required_module_slots;
       if (Array.isArray(slots))
         for (const id of siblingModules(slots, entry.module)) siblings.add(id);
     }

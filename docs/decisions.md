@@ -16575,7 +16575,10 @@ own.
 4. **Asleep is stopped,** by the lifecycle's ordinary stop of a running app: nothing is
    recorded and nothing holds it. The Apps list shows it as stopped, and Nová karta's
    running Modules no longer list it. An app that ended, is starting or was stopped
-   explicitly is left as it is. The next Open, or on a Remote Environment a signed-in
+   explicitly is left as it is. The stop is decided after the sweep's last read, beside
+   the stop itself: a start under way or done since the sweep read the app (an Open, a
+   Start, a Stop and a Start) leaves it running (review of #573). The next Open, or on a
+   Remote Environment a signed-in
    direct link (the gateway's `ensure` on a navigation), starts it again; a static app
    starts as its newest build, which the sweep built meanwhile when a pull came. The
    first request waits for the start. What the app held only in memory is lost.
@@ -16588,8 +16591,12 @@ own.
    would leave its calls refused. The siblings are read from the Organization's
    declarations by the rule the caller's start reads them by
    (`declaredSiblings`, `src/modules/sibling-origins.ts`), once per sweep and only for an
-   app due to sleep, whether a caller runs or not; when they cannot be read, the
-   Organization's apps stay awake at that sweep. No wake path, no change of routing.
+   app due to sleep, whether a caller runs or not. A declaration that may name one and
+   cannot be read (the Organization's apps not observed, a module on this Environment
+   that cannot be read, an app whose runtime is invalid) leaves the Organization's apps
+   awake at that sweep, never "declaring none" (review of #573); a module not on this
+   Environment declares nothing, as none of its apps can start. No wake path, no change
+   of routing.
 6. **The static server keeps an idle connection for 255 s,** Bun's longest (its default
    is 10 s). Changed from the brief, which counted on a browser keeping its connection
    for a few minutes: the server closed it after 10 s, so a person reading a built app
@@ -16639,7 +16646,8 @@ gateway's `ensure` waking it as that build, an explicit Stop left as it is; an a
 service manager runs that this Launchpad did not start found and put to sleep, unknown
 evidence counted as in use, a stop and a start between two sweeps starting a new clock;
 a declared sibling without connections running past the idle time, also after its caller
-slept; and lsof's evidence of a real connection held to and closed from the static server),
+slept, and when the app that declares it cannot be read; an Open, or a Stop and a Start,
+while the sweep reads the siblings leaving the app running; and lsof's evidence of a real connection held to and closed from the static server),
 `tests/listener-ownership.test.ts` (`observeConnected` before, during and after a real
 connection) and `tests/built-static-server.test.ts` (an idle connection after a request
 still open after 15 s; with Bun's default it closed at about 12).

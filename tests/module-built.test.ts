@@ -816,6 +816,7 @@ function sweepsOf(
   seams: Readonly<{
     connected?: (port: number) => Promise<boolean | null>;
     running?: () => Promise<readonly RunningApp[] | null>;
+    siblings?: (organizationDirectory: string) => Promise<ReadonlySet<string>>;
   }>,
 ) {
   let clock = 0;
@@ -1058,6 +1059,92 @@ posixTest(
     } finally {
       await operations.stop("alpha/plain");
       await operations.stop("alpha/next");
+      await operations.close();
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "a declaration that cannot be read keeps a declared sibling awake: unreadable is unknown, never declaring none (review of #573)",
+  async () => {
+    const home = join(root, "home-unreadable");
+    await mkdir(home);
+    const fixture = await staticModule("unreadable", home, {
+      plain: { required_module_slots: ["workspace/next"] },
+    });
+    const { operations } = fixture;
+    const sweepAt = sweepsOf(operations, { connected: async () => false });
+    try {
+      await sweepAt(0);
+      answer(await operations.start("alpha/next"));
+      // plain, which declares next, can no longer be read.
+      await writeFile(join(fixture.site, "../plain/app/package.json"), "{");
+      await sweepAt(0);
+      await sweepAt(20);
+      await sweepAt(45);
+      expect(answer(await operations.status("alpha/next")).state).toBe(
+        "running",
+      );
+    } finally {
+      await operations.stop("alpha/next");
+      await operations.close();
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "an Open, or a Stop and a Start, while the sweep decides keeps the app running: the use is read again at the stop (review of #573)",
+  async () => {
+    const home = join(root, "home-race");
+    await mkdir(home);
+    const fixture = await staticModule("race", home);
+    const { operations } = fixture;
+    // The sweep's read of the declared siblings waits until released.
+    let reading: () => void = () => {};
+    let release: () => void = () => {};
+    const sweepAt = sweepsOf(operations, {
+      connected: async () => false,
+      siblings: async () => {
+        await new Promise<void>((resolve) => {
+          release = resolve;
+          reading();
+        });
+        return new Set<string>();
+      },
+    });
+    const meanwhile = async (minute: number, act: () => Promise<void>) => {
+      const read = new Promise<void>((resolve) => {
+        reading = resolve;
+      });
+      const sweeping = sweepAt(minute);
+      await read;
+      await act();
+      release();
+      await sweeping;
+    };
+    const state = async () =>
+      answer(await operations.status("alpha/plain")).state;
+    try {
+      await sweepAt(0);
+      answer(await operations.start("alpha/plain"));
+      await sweepAt(0);
+      // Due at 20: an Open while the sweep reads.
+      await meanwhile(20, async () => {
+        answer(await operations.start("alpha/plain"));
+      });
+      expect(await state()).toBe("running");
+      // Due at 45: a Stop and a Start while the sweep reads.
+      await sweepAt(25);
+      await meanwhile(45, async () => {
+        answer(await operations.stop("alpha/plain"));
+        answer(await operations.start("alpha/plain"));
+      });
+      expect(await state()).toBe("running");
+    } finally {
+      release();
+      await operations.stop("alpha/plain");
       await operations.close();
     }
   },
