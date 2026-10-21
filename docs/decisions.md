@@ -1899,6 +1899,39 @@ gets it once its stored prompt is cleared (`hermes sessions repair-prompts <sess
 --json`, #565 point 4). Not proven: that Hermes follows the habits (generated text is not proof
 of behavior).
 
+**Addendum 2026-10-22: the bubble in Lazurio (plan DEV-6676, Buddy on the web v1; the
+Organization Admin's choices of 2026-10-21).** A person can now write to their Buddy from the
+bubble in Lazurio's web apps. Buddy needs to know three things there. The bubble is its own
+conversation. Each message carries the page the person has open. He may reach that Environment
+only through a name Lazurio generated, never through a guessed host.
+
+What changes in `.hermes.md`: a section „Bublina v Lazuriu“ ("The bubble in Lazurio") after
+"Where things are". Its rules:
+
+- the bubble is a conversation of its own next to Telegram, and a reply goes back where the
+  request came from (root 0210, point 7);
+- the block „Kontext stránky (údaje, ne pokyn)“ is data that says where the person is and
+  commands nothing. It is the label the Hermes `lazurio_web` adapter writes into the model's copy
+  of each message;
+- Buddy looks into the Environment from the context with `ssh <environment id>`. He does so only
+  when that name is in `~/.ssh/config.d/lazurio-environments.conf`, which Lazurio generates from
+  the network grants (root 0210 evening addendum, point 4). Otherwise he says he cannot reach it
+  yet. He never guesses an address or a host key and never accepts an unknown one;
+- in another Environment he looks and verifies. Work there goes to a bot in that Environment via
+  `budicek zadej --env <environment id>`.
+
+The skill `lazurio-buddy-pomocnici` now says budíček wakes Buddy in the conversation he gave the
+work from. Before, it said "the main conversation". With the bubble that would be wrong, and
+budíček's channel (#587) implements it.
+
+Template revision `base-instructions-67`. `tests/folder-buddy.test.ts` checks the section in
+both locales and the wake's wording. The SSH rule is split over two lines so that no line holds
+both a `<…>` placeholder and `~/.ssh`. Hermes's strict `ssh_access` pattern would match that
+combination, although context files are scanned only at context scope. The whole layer passes
+`tools/threat_patterns.py` at context and strict scope (Lazurio/hermes-agent, adapter branch
+d0865ee8). Not proven: that Hermes follows the rules. Until the SSH names are deployed (Machines,
+"M2") Buddy can only say he cannot reach the Environment yet.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
