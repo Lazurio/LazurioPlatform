@@ -27,6 +27,20 @@ export const aiProviderName: Readonly<Record<AiProvider, string>> = {
   claude: "Claude",
 };
 
+/** OpenAI's page for ChatGPT's sign-in by code (root decision 0201 point 10,
+ * F19's addendum of 2026-10-21): the one address `codex login --device-auth`
+ * prints, `{issuer}/codex/device` with Codex's default issuer
+ * `https://auth.openai.com` (read in Codex 0.162.0's
+ * `codex-rs/login/src/device_code_auth.rs` and `server.rs`, and in the
+ * strings of the Codex 0.163.0 binary). Only this exact page is shown to a
+ * person; the core and the page check it alike. */
+export const codexDevicePage = "https://auth.openai.com/codex/device";
+
+/** The one-time code of that sign-in as Codex prints it: groups of capital
+ * letters and digits joined by dashes (`ABCD-1234` in Codex's app-server
+ * documentation). Nothing else is shown as the code. */
+export const codexDeviceCode = /^[A-Z0-9]{2,16}(?:-[A-Z0-9]{2,16}){1,3}$/;
+
 // After `lazurio tools login codex|claude` (F19's addendum of 2026-10-15) the
 // running services read the new sign-in (root decision 0201 point 4): the
 // Codex app-server unit Lazurio manages, and T3 Code. What became of them is

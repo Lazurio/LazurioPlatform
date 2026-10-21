@@ -15,9 +15,15 @@ import { initializeHandoverFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
 import type { AiServices } from "../src/tools/ai";
-import { hostedSignInPage, runToolsCommand } from "../src/tools/cli";
+import {
+  hostedSignInPage,
+  runToolsCommand,
+  ToolsUsageError,
+  toolsHelp,
+} from "../src/tools/cli";
 import {
   codeOfPage,
+  fakeAi,
   fakeAiClis,
   returnFromPage,
 } from "./fixtures/fake-ai-clis";
@@ -417,4 +423,140 @@ posixTest(
     }
   },
   30_000,
+);
+
+// ChatGPT's sign-in by code (root decision 0201 point 10, F19's addendum of
+// 2026-10-21): the same command with `--device-code`, the browser sign-in's
+// fallback, for codex only.
+
+posixTest(
+  "codex --device-code: without the Environment browser too, the page and the code are printed with the setting it needs, and the code entered signs it in",
+  async () => {
+    const opened = await scratch();
+    try {
+      const without = await hostedFolder(
+        join(opened.home, "env"),
+        bindings.organizationEntry,
+      );
+      const pages: string[] = [];
+      const output = await runToolsCommand(
+        ["login", "codex", "--device-code"],
+        {
+          env: opened.env,
+          platform: process.platform,
+          write: (line) => {
+            opened.lines.push(line);
+            // The person enters the printed code on OpenAI's page.
+            if (line.includes(fakeAi.deviceCode))
+              setTimeout(
+                () => void writeFile(join(opened.home, "codex.approve"), ""),
+                100,
+              );
+          },
+          hostedFolder: async () => without,
+          openPage: async (url) => {
+            pages.push(url);
+            return { view };
+          },
+          login: { firstChallengeMs: 5_000, reload: async () => reloaded },
+        },
+      );
+      expect(output.code).toBe(0);
+      expect(output.result).toEqual({
+        kind: "signed-in",
+        tool: "codex",
+        services: reloaded,
+      });
+      // Nothing opened in an Environment browser.
+      expect(pages).toEqual([]);
+      expect(opened.lines).toEqual([
+        "Sign in to ChatGPT on any device (phone or computer):",
+        "  1. Open https://auth.openai.com/codex/device",
+        `  2. Enter the code  ${fakeAi.deviceCode}`,
+        "The code is valid for 15 minutes. Sign-in with a code must first be turned on in your ChatGPT security settings; for a work account, its admin allows it.",
+        "Waiting for you to enter the code. Ctrl-C cancels.",
+        "Signed in. Asking the running services (the Codex app-server, Chat) to use the new sign-in…",
+        "codex: signed in.",
+        "The Codex app-server was restarted, so Codex clients of this Environment use the new sign-in.",
+        "Chat (T3 Code) turned on and read again: codex ready.",
+      ]);
+      const calls = (await readFile(join(opened.home, "codex.calls"), "utf8"))
+        .trim()
+        .split("\n")
+        .map(
+          (line) =>
+            JSON.parse(line) as { args: string[]; browser: string | null },
+        )
+        .filter(
+          (call) => call.args[0] === "login" && call.args[1] !== "status",
+        );
+      expect(calls).toEqual([
+        { args: ["login", "--device-auth"], browser: null },
+      ]);
+    } finally {
+      await opened.close();
+    }
+  },
+  20_000,
+);
+
+posixTest(
+  "--device-code is codex's alone, and only of login; the help says the browser sign-in is the default and the code its fallback",
+  async () => {
+    const opened = await scratch();
+    try {
+      const base = {
+        env: opened.env,
+        platform: process.platform,
+        write: (line: string) => opened.lines.push(line),
+      };
+      const claude = await runToolsCommand(
+        ["login", "claude", "--device-code"],
+        base,
+      );
+      expect(claude.code).toBe(2);
+      expect(claude.result).toEqual({
+        kind: "blocked",
+        reason: "device-code-codex-only",
+        tool: "claude",
+      });
+      expect(claude.text).toBe(
+        "--device-code applies to codex only (ChatGPT's sign-in with a code).",
+      );
+      const gh = await runToolsCommand(
+        ["login", "gh", "--device-code", "--json"],
+        base,
+      );
+      expect(gh.code).toBe(2);
+      expect(JSON.parse(gh.text)).toEqual({
+        kind: "blocked",
+        reason: "device-code-codex-only",
+        tool: "gh",
+      });
+      for (const args of [
+        ["status", "--device-code"],
+        ["logout", "codex", "--device-code"],
+      ])
+        await expect(runToolsCommand(args, base)).rejects.toBeInstanceOf(
+          ToolsUsageError,
+        );
+      // Neither CLI ran.
+      expect(
+        await readFile(join(opened.home, "claude.calls"), "utf8").catch(
+          () => "",
+        ),
+      ).toBe("");
+      expect(opened.lines).toEqual([]);
+      expect(toolsHelp).toContain(
+        "tools login <tool> [--phone <+number>] [--ssh-key] [--device-code] [--json]",
+      );
+      expect(toolsHelp).not.toContain("never its device code");
+      expect(toolsHelp.replace(/\s+/g, " ")).toContain(
+        "--device-code (codex only) is the fallback",
+      );
+    } finally {
+      await opened.close();
+    }
+  },
+  20_000,
 );

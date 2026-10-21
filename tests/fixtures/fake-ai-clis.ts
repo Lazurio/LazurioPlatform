@@ -16,6 +16,13 @@ import { join } from "node:path";
 //   waits for it, and reads `<code>#<state>` lines on its input. `claude auth
 //   status --json`: `loggedIn` with the account, exit 0, or `loggedIn:
 //   false`, exit 1.
+// - `codex login --device-auth` (ChatGPT's sign-in by code, root decision
+//   0201 point 10; the prompt of Codex 0.162.0's
+//   `codex-rs/login/src/device_code_auth.rs`) never runs `$BROWSER`: it
+//   prints the device page and a one-time code on stdout, each on a line of
+//   its own and coloured with ANSI codes even without a terminal, and signs
+//   in once the person entered the code on that page: here, once
+//   `$HOME/codex.approve` exists (removed then). Never approved, it waits.
 // Switches are files in `$HOME`: `codex.fail` and `claude.fail` exit at once
 // with 1; `codex.unconfirmed` ends 0 without storing a sign-in;
 // `codex.page`/`claude.page` replace the page's origin; `claude.no-browser`
@@ -33,12 +40,14 @@ import { join } from "node:path";
 export const fakeAi = Object.freeze({
   /** The code Claude's code page shows the person (`<code>#<state>`). */
   claudeCode: "fake-authorization-code",
+  /** The one-time code `codex login --device-auth` prints. */
+  deviceCode: "QX7P-4MZ2K",
   email: "person@example.com",
   organization: "person@example.com's Organization",
 });
 
 const common = `
-import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
 import { createInterface } from "node:readline";
@@ -107,6 +116,27 @@ if (args[0] === "app-server") {
   if (flag("codex.auto"))
     setTimeout(() => fetch("http://127.0.0.1:" + port + "/auth/callback?code=auto&state=" + state), 4000);
   console.error("Starting local login server on http://localhost:" + port + ".\\nIf your browser did not open, navigate to this URL to authenticate:\\n\\n" + page + "\\n\\nOn a remote or headless machine? Use \`codex login --device-auth\` instead.");
+} else if (args.join(" ") === "login --device-auth") {
+  if (flag("codex.fail")) { console.error("Error logging in with device code: device code request failed with status 500 Internal Server Error"); process.exit(1); }
+  const origin = flag("codex.page") ? "https://auth.openai.example" : "https://auth.openai.com";
+  const blue = "\\u001b[94m", gray = "\\u001b[90m", reset = "\\u001b[0m";
+  console.log("\\nWelcome to Codex [v" + gray + "0.162.1" + reset + "]\\n" + gray + "OpenAI's command-line coding agent" + reset + "\\n" +
+    "\\nFollow these steps to sign in with ChatGPT using device code authorization:\\n" +
+    "\\n1. Open this link in your browser and sign in to your account\\n   " + blue + origin + "/codex/device" + reset + "\\n" +
+    "\\n2. Enter this one-time code " + gray + "(expires in 15 minutes)" + reset + "\\n   " + blue + ${JSON.stringify(fakeAi.deviceCode)} + reset + "\\n" +
+    "\\n" + gray + "Continue only if you started this login in Codex. If a website or another person gave you this code, cancel." + reset + "\\n");
+  // The person enters the code on the page, on any device.
+  const approved = setInterval(() => {
+    if (!flag("codex.approve")) return;
+    clearInterval(approved);
+    rmSync(home + "/codex.approve", { force: true });
+    if (!flag("codex.unconfirmed")) {
+      mkdirSync(home + "/.codex", { recursive: true });
+      writeFileSync(authFile, JSON.stringify({ tokens: { id_token: "fake" } }));
+    }
+    console.error("Successfully logged in");
+    process.exit(0);
+  }, 50);
 } else {
   console.error("unexpected arguments: " + args.join(" "));
   process.exit(2);

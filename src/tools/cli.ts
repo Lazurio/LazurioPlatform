@@ -113,7 +113,7 @@ tools install <tool> [--json]
   A tool that already works is not touched; a broken copy elsewhere on PATH
   is not shadowed. On failure it points to the prepared agent prompt. In a
   Team Environment gh is installed only, never signed in afterwards.
-tools login <tool> [--phone <+number>] [--ssh-key] [--json]
+tools login <tool> [--phone <+number>] [--ssh-key] [--device-code] [--json]
   Signs the operator in to that tool in the foreground: gh prints a one-time
   code for https://github.com/login/device, composio a sign-in link, wacli a
   WhatsApp QR code drawn here (or, with --phone, a pairing code). Open it on
@@ -122,12 +122,20 @@ tools login <tool> [--phone <+number>] [--ssh-key] [--json]
   object per state change (including the code, since this command holds the
   session). The code or link is never written to a file or log.
   codex and claude (ChatGPT, Claude) sign in through their own CLI's browser
-  sign-in, codex login (never its device code) and claude auth login. On a
-  Remote Environment the page opens in the Environment browser (in a T3 Code
+  sign-in by default, codex login and claude auth login. On a Remote
+  Environment the page opens in the Environment browser (in a T3 Code
   thread, in its panel; elsewhere in Přehled of Nová karta, by the link this
   prints) and returns to the CLI inside the Environment; without the
   Environment browser nothing starts (blocked, no-environment-browser, exit
-  2). On a computer of your own the CLI opens its browser. Where the
+  2). On a computer of your own the CLI opens its browser. --device-code
+  (codex only) is the fallback where that sign-in cannot be finished (a
+  passkey or a password manager of your own computer): codex login
+  --device-auth prints a one-time code for
+  https://auth.openai.com/codex/device, valid 15 minutes, which you enter on
+  any device; it needs no Environment browser. Sign-in with a code must
+  first be turned on in your ChatGPT security settings (for a work account,
+  by its admin); until then OpenAI's page refuses the code and the sign-in
+  expires. Claude has no sign-in with a code. Where the
   Organization provides AI (Codex's provider needs no sign-in) codex is not
   signed in (blocked, organization-provided). A code of Claude's code page
   is pasted here. Signed in is what codex login status and claude auth status
@@ -229,6 +237,7 @@ export async function runToolsCommand(
         clear: { type: "boolean" },
         phone: { type: "string" },
         "ssh-key": { type: "boolean" },
+        "device-code": { type: "boolean" },
       },
       allowPositionals: true,
     });
@@ -250,6 +259,7 @@ export async function runToolsCommand(
     (values["sign-in"] !== undefined && positionals[0] !== "list") ||
     (values.phone !== undefined && positionals[0] !== "login") ||
     (values["ssh-key"] !== undefined && positionals[0] !== "login") ||
+    (values["device-code"] !== undefined && positionals[0] !== "login") ||
     ((values.text !== undefined || values.clear !== undefined) &&
       positionals[0] !== "note")
   )
@@ -376,6 +386,7 @@ export async function runToolsCommand(
       json,
       curatedContext,
       values["ssh-key"] === true,
+      values["device-code"] === true,
     );
   }
   if (positionals[0] === "status" && positionals.length === 1) {
@@ -456,7 +467,7 @@ export async function hostedSignInPage(
 }
 
 const usage =
-  "Usage: tools status [--json] | tools update <tool> [--json] | tools list --folder <Folder> [--sign-in] [--json] | tools enable|disable <tool> --folder <Folder> --expected-revision <n> [--json] | tools note <tool> --folder <Folder> --expected-revision <n> (--text <text> | --clear) [--json] | tools prompt <tool> [--locale cs|en] [--json] | tools install|logout <tool> [--json] | tools login <tool> [--phone <+number>] [--ssh-key] [--json] | tools composio-org [list | switch <id>] [--json]";
+  "Usage: tools status [--json] | tools update <tool> [--json] | tools list --folder <Folder> [--sign-in] [--json] | tools enable|disable <tool> --folder <Folder> --expected-revision <n> [--json] | tools note <tool> --folder <Folder> --expected-revision <n> (--text <text> | --clear) [--json] | tools prompt <tool> [--locale cs|en] [--json] | tools install|logout <tool> [--json] | tools login <tool> [--phone <+number>] [--ssh-key] [--device-code] [--json] | tools composio-org [list | switch <id>] [--json]";
 
 type ToolsOptions = {
   json?: boolean | undefined;
@@ -467,6 +478,7 @@ type ToolsOptions = {
   clear?: boolean | undefined;
   phone?: string | undefined;
   "ssh-key"?: boolean | undefined;
+  "device-code"?: boolean | undefined;
 };
 
 // On a Team Environment gh's line names the way the Environment works in
