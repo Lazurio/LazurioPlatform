@@ -14,11 +14,13 @@ import {
 // 2026-10-20), selected by `visitorPreset` alone. Its visitors share the
 // Environment, so no one signs in to anything here: the Launchpad runs a
 // demo onboarding instead of Začínáme's sign-ins, the shell's column head
-// says the Environment is public and shared, and there is no Integrace, no
-// Trezor and no Nastavení → Nástroje, whose rows sign in gh, Codex, Claude,
-// Composio, Bitwarden and the other tools. Nothing here grants or refuses
-// entry: the gateway's admission does. Pure and free of Node, so the page and
-// the server share it.
+// says the Environment is public and shared, and there is no Integrace and no
+// Nastavení → Nástroje, whose rows sign in gh, Codex, Claude, Composio,
+// Bitwarden and the other tools. Trezor follows the vault core (plan DEV-6668
+// slice 6, #499): it is there only where the core answers this Environment's
+// own vault, the handover's `vault`. Nothing here grants or refuses entry:
+// the gateway's admission does. Pure and free of Node, so the page and the
+// server share it.
 
 /** Who may enter, by the wire schema's rule: only `public`. Absent is every
  * other Environment. */
@@ -41,20 +43,29 @@ export function isPublicEnvironment(
 const withheldSections: readonly SettingsSection[] =
   tryPreset.withheld.includes("tools") ? ["tools"] : [];
 
-/** What a public Environment does not have (0204 point 4: no sign-in, no
- * vault and no Integrace for its visitors): every route of Integrace and of
- * Nastavení → Nástroje, as the overlay's `withheld` names them, and every
- * route of Trezor (an agent's secret request and the old addresses in
- * Settings included). The server answers them as absent and the page shows
- * `publicRoute` in their place. */
-export function withheldInPublic(route: PageRoute): boolean {
+/** What a public Environment has of what the vault core decides: whether it
+ * has its own vault, which is whether the Apps column lists Trezor there
+ * (`vaultListed` on a public Environment, `vaultInAppsOf`). A caller that has
+ * not read the core passes nothing: no vault, as before slice 6. */
+export type PublicHas = Readonly<{ vault: boolean }>;
+const nothing: PublicHas = Object.freeze({ vault: false });
+
+/** What a public Environment does not have (0204 point 4: no sign-in and no
+ * Integrace for its visitors): every route of Integrace and of Nastavení →
+ * Nástroje, as the overlay's `withheld` names them, and every route of
+ * Trezor (an agent's secret request and the old addresses in Settings
+ * included) unless it has its own vault (`has.vault`). The vault is not in
+ * the overlay's `withheld`: it follows the vault core (plan DEV-6668 slice 6,
+ * #499). The server answers them as absent and the page shows `publicRoute`
+ * in their place. */
+export function withheldInPublic(
+  route: PageRoute,
+  has: PublicHas = nothing,
+): boolean {
   return (
     (route.view === "integrations" &&
       tryPreset.withheld.includes("integrations")) ||
-    // Trezor is not in the overlay's `withheld`: the vault follows the vault
-    // core. Until plan DEV-6668 slice 6 (#499) lists it by that answer, it
-    // stays withheld here.
-    route.view === "vault" ||
+    (route.view === "vault" && !has.vault) ||
     (route.view === "settings" && withheldSections.includes(route.section))
   );
 }
@@ -67,11 +78,14 @@ export const isToolsApiPath = (path: string): boolean =>
   path === "/api/tools" || path.startsWith("/api/tools/");
 
 /** The route a public Environment shows for `route`: the place of Integrace
- * and of Trezor, the pages of the Apps column it withholds, is the Apps
- * home, Nástroje's the default Settings section; every other route is
- * itself. */
-export function publicRoute(route: PageRoute): PageRoute {
-  if (!withheldInPublic(route)) return route;
+ * and of Trezor without a vault, the pages of the Apps column it withholds,
+ * is the Apps home, Nástroje's the default Settings section; every other
+ * route is itself. */
+export function publicRoute(
+  route: PageRoute,
+  has: PublicHas = nothing,
+): PageRoute {
+  if (!withheldInPublic(route, has)) return route;
   return route.view === "settings"
     ? { view: "settings", section: defaultSettingsSection }
     : { view: "home" };

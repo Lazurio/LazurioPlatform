@@ -70,8 +70,11 @@
 // anywhere after the mode, a hosted preview's work Environment is a public
 // Environment (root decision 0204, decision F55): its entry carries
 // `audience: "public"`, so the Launchpad runs the demo onboarding, the
-// column head says the Environment is public and shared, and Integrace,
-// Apps → Trezor and Nastavení → Nástroje answer as absent. With
+// column head says the Environment is public and shared, and Integrace and
+// Nastavení → Nástroje answer as absent; Apps → Trezor shows the preview's
+// vault as a Team Environment's, as the vault core makes a public
+// Environment's (plan DEV-6668 slice 6), and with `no-tailnet` too it
+// answers as absent, as on a public Environment without its vault. With
 // `no-vault` or `no-tailnet` anywhere after the mode, a hosted preview's work
 // Environment has no vault, for that reason (F53's addendum of 2026-10-17):
 // nothing is set up, the Apps column does not list Trezor (F53's addendum of
@@ -729,8 +732,11 @@ async function previewVault() {
     context: async () =>
       ownContext(
         workHandover(vaultMember(workAccount, "Pracovní example")),
-        // Služby serveru keep the Team preset's vault rule (root 0209).
-        team || assignment === "services" ? "team" : "work",
+        // Služby serveru keep the Team preset's vault rule (root 0209); a
+        // public Environment's vault is a Team one too (slice 6).
+        team || assignment === "services" || publicEnvironment
+          ? "team"
+          : "work",
       ),
   });
   const setUp = await vaultSetup(host);

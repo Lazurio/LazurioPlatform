@@ -80,9 +80,10 @@ import { freePort } from "./fixtures/ports";
 // "public"` for such a work VM (Machines #560, behind its own Platform
 // gate); the Launchpad then runs a demo onboarding instead of Začínáme's
 // sign-ins, says in the shell's column head that the Environment is public
-// and shared, and has no Integrace, no Nastavení → Trezor and no Nastavení →
-// Nástroje, whose rows sign tools in. Without the member nothing changes.
-// Example names only.
+// and shared, and has no Integrace and no Nastavení → Nástroje, whose rows
+// sign tools in, and no Trezor without its own vault (with it:
+// tests/public-vault.test.ts, plan DEV-6668 slice 6). Without the member
+// nothing changes. Example names only.
 
 const bytes = (value: unknown) => Buffer.from(JSON.stringify(value));
 const { team: _, ...withoutTeam } = organization.owner;
@@ -446,7 +447,9 @@ test("without the member Začínáme, the count, the line and the tour are what 
 
 // --- Integrace, Trezor and Nastavení → Nástroje ---------------------------
 
-test("a public Environment withholds Integrace, Trezor and Nastavení → Nástroje, and shows Apps and Settings in their place", () => {
+// Without its own vault, which is what a caller that has not read the vault
+// core gets (`withheldInPublic`'s default), Trezor is withheld with them.
+test("a public Environment withholds Integrace, Trezor without its vault and Nastavení → Nástroje, and shows Apps and Settings in their place", () => {
   for (const path of [
     "/integrations",
     "/integrations/connected",
@@ -774,8 +777,10 @@ const toolRoutes: readonly (readonly [string, string, unknown])[] = [
   ["POST", "/api/tools/update", { expectedRevision: 1, tools: ["gh"] }],
 ];
 
+// This Environment's vault core answers no vault of its own (a handover not
+// at the production place), so Trezor answers as absent with them.
 posixTest(
-  "hosted, public: Integrace, Trezor and Nástroje answer as absent, the shell says it is public, the entry names the audience",
+  "hosted, public: Integrace, Trezor without a vault and Nástroje answer as absent, the shell says it is public, the entry names the audience",
   async () => {
     const app = await hosted(true);
     try {

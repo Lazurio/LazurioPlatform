@@ -30,12 +30,17 @@ import { vaultListed } from "./vault-page-view";
  * vault core's answer as `lazurio vault status` resolves it (`vaultAnswer`),
  * on the rule `vaultListed`. Only local files: neither bw nor the vault is
  * asked. Listed where it cannot be read at all, so that a fault never hides
- * the page that says it. */
-export async function vaultInAppsOf(host: VaultHost): Promise<boolean> {
+ * the page that says it; but on a public Environment (`isPublic`), where
+ * Trezor is only where the core answers its own vault (plan DEV-6668 slice
+ * 6), not listed, and the server then answers its page and API as absent. */
+export async function vaultInAppsOf(
+  host: VaultHost,
+  isPublic = false,
+): Promise<boolean> {
   try {
-    return vaultListed(await vaultAnswer(host));
+    return vaultListed(await vaultAnswer(host), isPublic);
   } catch {
-    return true;
+    return !isPublic;
   }
 }
 
@@ -104,9 +109,11 @@ export function launchpadBoot(
  * on `<html>`, as the shell would declare them, so the first paint already
  * wears it. The style's text is the shell's own (`environmentThemeCss`), of
  * validated `#rrggbb` values only.
- * Where the Environment has no vault, Trezor's item in the Apps column is
- * hidden in it, as the page's script keeps it from the same member (F53's
- * addendum of 2026-10-18 (3)). */
+ * Trezor's item in the Apps column is hidden as the page is written and is
+ * shown here only where the boot document lists it (`vaultInApps` true), as
+ * the page's script keeps it from the same member (F53's addendum of
+ * 2026-10-18 (3)); anywhere else it stays hidden until the script decides
+ * (plan DEV-6668 slice 6). */
 export function withBoot(page: Response, boot: LaunchpadBoot): Response {
   const copy = messages(
     boot.locale,
@@ -136,7 +143,7 @@ export function withBoot(page: Response, boot: LaunchpadBoot): Response {
     })
     .on("#vault-nav", {
       element(element) {
-        if (boot.vaultInApps === false) element.setAttribute("hidden", "");
+        if (boot.vaultInApps === true) element.removeAttribute("hidden");
       },
     })
     .on("head", {

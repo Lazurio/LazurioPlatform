@@ -238,11 +238,11 @@ and `githubIdentity` are thin readers of `visitorPreset`.
 | --- | --- | --- |
 | `onboarding` | `demo` | Začínáme says what to try instead of a person's sign-ins |
 | `githubIdentity` | `none` | No broker, no App and no person's sign-in; the Organization's public repositories are read anonymously and nothing is published |
-| `withheld` | `integrations`, `tools` | Integrace and Nastavení → Nástroje answer as absent, pages and API. The vault is not withheld by the overlay: it follows the vault core (until plan DEV-6668 slice 6, Trezor is still withheld) |
+| `withheld` | `integrations`, `tools` | Integrace and Nastavení → Nástroje answer as absent, pages and API. The vault is not withheld by the overlay: it follows the vault core. Trezor is there only where the core answers this Environment's own vault, the handover's `vault`, and is absent without it (plan DEV-6668 slice 6) |
 | `notice` | `terms`, `privacy`, by language | The visitors' terms and privacy pages on lazurio.ai, which the gateway's entry card shows before entry; the app only reminds of them |
 | `instructions` | `visitors` | The visitors' section of the generated instructions (plan DEV-6668 slice 5): in AGENTS.md and `manual/this-machine.md`, what Lazurio and this Environment can show, the rules of a shared Environment, publishing nothing and the terms; only on a public Environment, whatever the recorded preset |
 | `fixed` | `preset`, `theme` | Nobody changes them, since every visitor shares them |
-| `shownKind` | `team` | People see a Team Environment, whatever the recorded preset |
+| `shownKind` | `team` | People see a Team Environment, whatever the recorded preset; its vault has a Team Environment's rules too, so it adds no visitor (slice 6) |
 
 Settings → Obecné shows the overlay as one fixed option, "Týmové Prostředí pro
 vyzkoušení" / "Team Environment for trying Lazurio": a kind word with a qualifier, not

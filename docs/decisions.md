@@ -15238,6 +15238,124 @@ are unchanged once the section is taken out), `tests/environment-wording.test.ts
 (try-01's texts on both recorded presets) and `tests/folder-template-revision.test.ts`
 (the new revision's digest, try-01 on both recorded presets added to its compositions).
 
+### Addendum of 2026-10-20: a public Environment's vault follows the vault core
+
+**Decided by Matěj (Organization Admin) on 2026-10-20 for plan DEV-6668 slice 6 (root
+decision 0204's addendum of 2026-10-20, HumanAndMachines/Lazurio#597; EX-0014 D32, D35
+and D41; Lazurio/LazurioPlatform#499). It changes point 5 for Trezor and completes point
+6 of the Try overlay addendum above.** try-01's vault is on once try-01 has its own vault
+account. Everyone who enters sees it and may change it, and the Organization puts no
+secret of its own into it. Machines writes the handover's `vault` only when the lane
+declares the `environment-vault-accounts` custody; the account, a route a guest without a
+tailnet reaches and the nightly wipe of the vault, a Machines step of its own, are slice
+7. Until now point 5 withheld Trezor on every public Environment, while the Try overlay's
+record already left the vault to the vault core.
+
+1. **Trezor follows the vault core.** On a public Environment Trezor (its item in the Apps
+   column, its pages with the old addresses and an agent's request, and its API
+   `/api/vault`, `/api/vault/membership`, `/api/vault/requests…`, `/api/vault/connect`,
+   `/api/vault/invitee` and `/api/vault/disconnect`) is there only where the vault core
+   answers this Environment's own vault (`own`), which is the handover's `vault`. The one
+   rule is `vaultListed(answer, isPublic)`, stricter there than [F53's addendum of
+   2026-10-18 (3)](#f53-addendum-of-2026-10-18-3-trezor-only-where-the-environment-has-a-vault):
+   a fault and a core that throws do not list it, so a visitor never gets a page about
+   the operator's fault. Without the member everything is withheld exactly as before:
+   the page answers `404` and shows Apps, the API `404 {"error": "not-found"}`, and the
+   item is hidden from the first paint. The server reads the answer from local files only
+   (`vaultInAppsOf`) for the boot document, for Trezor's page routes and for its API, and
+   for nothing else. `withheldInPublic(route, {vault})` and `publicRoute(route, {vault})`
+   take it; a caller that has not read it gets no vault. A page that carries no boot
+   document (`pageBoot` later than its moment) does not know whether it is public until
+   `GET /api/entry` answers, and shows a second after its script ran at the latest: until
+   the entry, or a workstation's answer of none, is read, it lists Trezor on no page
+   (`vaultInApps(null, preset, null)`), and if the read fails it stays hidden. Then a
+   public page without a decision still does not list it (`vaultInApps(null, preset,
+   true)`) and its router shows Apps in Trezor's place, and any other page lists it by its
+   preset. Trezor's item is hidden as the page is written: the server shows it only where
+   the boot document lists it (`withBoot`, where F53's addendum (3), point 3, hid it where
+   it was false), and the page's script where it decided so, so a page without its boot
+   document whose script never runs (its bundle missing, JavaScript off) shows no Trezor
+   when the stylesheet or `<noscript>` reveals it. The stylesheet's selector of the item
+   (`li:has(> #vault-open)`) goes, as F53's addendum (3), point 5, foresaw; it never covered
+   that wait either, since `data-audience` too comes only with the entry (point 5's honest
+   limit).
+2. **A public Environment's vault is a Team Environment's.** On a public Environment the
+   vault core takes its kind from the Try overlay's `shownKind`, whatever preset the
+   Folder recorded (`src/vault/host.ts`). A Folder that recorded Work would otherwise give
+   it a work Environment's rules: it would add every person the gateway admits and offer
+   them "Vytvořit účet v trezoru", "Přidat položku" and their own Bitwarden in Codex
+   Desktop. As a Team Environment's vault it adds and removes nobody (`not-managed`), so
+   visitors' membership is unchanged and no vault account is created for anyone; the page
+   says "Trezor tohoto Týmového Prostředí používají jen jeho agenti." / "Only this Team
+   Environment's agents use its vault."
+3. **The "?" plays `vault-agents`** (#499), from the facts the page already reads: the
+   shell's kind (Team), the core's kind (Team) and the membership (`not-managed`). Its
+   steps are "Toto Týmové Prostředí má vlastní trezor · Agenti z něj berou hesla bez ptaní
+   · Hesla vidí každý v tomto Týmovém Prostředí" / "This Team Environment has its own vault
+   · Agents take passwords from it without asking · Everyone in this Team Environment sees
+   its passwords". They promise no Bitwarden of one's own and ask nobody to store a
+   password, so no new text was needed.
+4. **No nightly claim.** No app text says the vault is wiped every night: the wipe does
+   not exist yet. The vault sentence of the notice before entry is Machines' entry card,
+   which carries it only when the handover carries `vault`.
+5. **Unchanged.** Integrace and Nástroje stay withheld whole, the vault's setup and
+   refresh under `/api/tools/bitwarden/…` among them; the Launchpad's own setup at its
+   start (`vaultAtStart`) sets the vault up. Every Environment that is not public is what
+   it was, the kind and the listing of its vault included.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| `vault` in the overlay's `withheld`, removed by a flag | A second switch beside the core's answer, which already says whether this Environment has a vault. Rejected |
+| The listing rule of F53's addendum (3) unchanged, faults listed | A visitor would get a page about a fault, and Trezor's API would answer where the handover may name no vault. Rejected for `own` only |
+| The vault's kind from the recorded preset | A Folder that recorded Work adds every visitor to the vault and offers them an account and their own Bitwarden in it, against #499 and D32. Rejected for the overlay's Team kind |
+| Open `/api/tools/bitwarden/refresh` for Trezor's refresh | A route of Nástroje, which point 5 withholds whole. Rejected: the page reads the vault's state from `GET /api/vault` |
+
+**Honest limits.** try-01 has no vault yet: Machines writes the member once try-01 has its
+own vault account and a route it reaches without a tailnet (slice 7), and the acceptance
+in a browser waits for it. Visitors see and change each other's items by the Owner's
+decision; `vault-agents` says that everyone sees them, and nothing wipes them until
+Machines' step exists. The refresh in Trezor's header asks Nástroje's route and gets
+nothing on a public Environment; the page's state comes from `GET /api/vault`. The answer
+is read once per page load, so a vault that appears while the page is open shows at the
+next load, as does Trezor on a public page served without its boot document. A page of
+an Environment that is not public, served without its boot document, now lists Trezor
+only once its entry is read (a moment, or not at all if that read fails) instead of at
+once (F53's addendum (3), honest limits), and without its script not at all; Integrace
+on a public page so served still waits for the entry as point 5's honest limit says
+(#564). The agents'
+Bitwarden text still says that `no-tailnet` means no vault on purpose, which holds while
+the handover names none; the visitors' generated texts are slice 5's.
+
+Verified by `tests/public-vault.test.ts`: the overlay's record unchanged; `vaultListed` on
+a public Environment for its own vault, every reason and `needs-connection`, and
+elsewhere unchanged; the page's rule with and without a carried answer; a core that
+throws, not listed there and listed elsewhere; the routes withheld with and without the
+vault; the texts of a connected Team vault and of `vault-agents` in both languages,
+without a nightly claim or a visitor's own vault, no action and no Bitwarden steps; a
+hosted try-01 behind a fake gateway, its vault read by the production composition
+`processVaultHost`, recorded as Work and as Team, without `vault` (the core's
+`no-tailnet`, Trezor hidden in the first paint, its pages and every route of its API
+`404`) and with it (a Team vault on both recorded presets, Trezor listed, its pages
+served, `GET /api/vault` a Team vault not set up, the membership `not-managed`, the
+requests answering, no Bitwarden to disconnect, and the "?" `vault-agents` from the
+shell's kind and the page's answers in both languages), Integrace and Nástroje `404`
+either way; the controls (lazurio-bob's Work Environment, team-01, services-01 and a
+Steward Environment) with their vault's answer, kind and listing as before; and, in
+headless Chrome over DevTools (skipped where no Chrome is installed), try-01's pages
+served without their boot document behind a stand-in for the gateway: without a vault,
+`#vault-nav` hidden in the first paint and after the deadline while `GET /api/entry`
+waits three seconds, and still once it says public, and hidden throughout when it fails;
+the same Environment not public and with its vault hidden until the entry arrives, then
+shown (the review of #562; with the page's fix reverted the first paint shows it); and
+try-01's page without its boot document and without its script, its bundle answering
+`404` or JavaScript off, revealed by the stylesheet or `<noscript>` with Trezor's item not
+displayed, and its served HTML, public or not, with the item hidden as written (with the
+item listed as written the test shows it).
+Updated:
+`tests/launchpad-apps-vault.test.ts` (no stylesheet rule names Trezor's item; a public
+Environment's Trezor `404` only without a vault) and `tests/public-environment.test.ts`
+(the titles). The goldens of the Try overlay addendum hold byte for byte.
+
 ## F56 — Průvodce: Buddy nebo průvodce Lazuria vysvětlí stránku na místě, kreslí shell hostitele, rám Buddyho smí jen požádat id
 
 **Decided by Matěj (Organization Admin) on 2026-10-18: root decision 0180's addendum of

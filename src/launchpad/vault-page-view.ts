@@ -39,11 +39,20 @@ const unlisted: readonly VaultUnsupportedReason[] = [
  * Environment has a vault, also a personal Environment's that waits for its
  * person and a connected 0197 pilot's, and where the core could not read why
  * it has none; not where it has none, nor on this computer. Its address
- * answers either way. */
+ * answers either way.
+ *
+ * On a public Environment (`isPublic`, decision F55 as plan DEV-6668 slice 6
+ * amends it, #499) only where the core answers this Environment's own vault,
+ * which is the handover's `vault`: a fault there is no reason to show a
+ * visitor the page, and without its vault Trezor's page and API answer as
+ * absent (`withheldInPublic`), as before. */
 export const vaultListed = (
   answer: Awaited<ReturnType<typeof vaultAnswer>>,
+  isPublic = false,
 ): boolean =>
-  answer.kind !== "unsupported" || !unlisted.includes(answer.reason);
+  isPublic
+    ? answer.kind === "own"
+    : answer.kind !== "unsupported" || !unlisted.includes(answer.reason);
 
 /** Whether the page lists Trezor in its Apps column: as the server decided
  * for its first paint (`vaultListed`, carried by the boot document); a page
@@ -51,12 +60,18 @@ export const vaultListed = (
  * or a hosted page whose boot document was late, by its preset: not on this
  * computer (`local`, whose answer is `workstation`), listed elsewhere, also
  * while the preset is not known, so that a Remote Environment never shows
- * it late. A public Environment's rule (decision F55) is the page's
- * stylesheet's. */
+ * it late. A public Environment's page (`isPublic` true) that carries no
+ * decision does not list it: there Trezor is only where the server read its
+ * vault (`vaultListed`), and its page and API answer as absent otherwise.
+ * Nor does a page that does not know yet whether it is a public
+ * Environment's (`isPublic` null: no boot document, and `GET /api/entry`
+ * not answered yet or failed), so that a public Environment never shows it
+ * on its way (plan DEV-6668 slice 6, the review of #562). */
 export const vaultInApps = (
   carried: boolean | null,
   preset: string | null,
-): boolean => carried ?? preset !== "local";
+  isPublic: boolean | null = false,
+): boolean => carried ?? (isPublic === false && preset !== "local");
 
 const kinds: readonly VaultEnvironmentKind[] = [
   "personal",
