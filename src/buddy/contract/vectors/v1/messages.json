@@ -1,0 +1,348 @@
+{
+  "schema": "lazurio.buddy-runtime-vectors.v1",
+  "contract": "messages",
+  "cases": [
+    {
+      "name": "words only, without context",
+      "check": "message-request",
+      "input": { "client_id": "c-01HZY3", "text": "Co čeká na mě?", "attachments": [], "context": null },
+      "valid": true
+    },
+    {
+      "name": "words with the page's context",
+      "check": "message-request",
+      "input": {
+        "client_id": "3f1c2a9e-7b4d-4c1e-9a55-2d8f6b0e1c77",
+        "text": "Proč Deals píše „Nečekaně skončila“?",
+        "attachments": [],
+        "context": {
+          "environment": { "id": "vm-01.acme", "kind": "work", "name": "vm-01" },
+          "organization": { "slug": "acme", "name": "Acme" },
+          "app": "apps",
+          "page": { "path": "/" },
+          "guide": null
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "an image without words",
+      "check": "message-request",
+      "input": {
+        "client_id": "c-2",
+        "text": "",
+        "attachments": [{ "name": "screenshot.png", "mime": "image/png", "data_base64": "iVBORw0KGgo=" }],
+        "context": null
+      },
+      "valid": true
+    },
+    {
+      "name": "four files",
+      "check": "message-request",
+      "input": {
+        "client_id": "c-3",
+        "text": "Projdi to.",
+        "attachments": [
+          { "name": "a.pdf", "mime": "application/pdf", "data_base64": "JVBERi0=" },
+          { "name": "b.txt", "mime": "text/plain", "data_base64": "YWhvag==" },
+          { "name": "c.csv", "mime": "text/csv", "data_base64": "YSxi" },
+          { "name": "Smlouva 2026 (final).docx", "mime": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "data_base64": "UEsDBA==" }
+        ],
+        "context": null
+      },
+      "valid": true
+    },
+    {
+      "name": "the longest text, 16000 code points",
+      "check": "message-request",
+      "input": { "client_id": "c-4", "text": { "$repeat": "a", "times": 16000 }, "attachments": [], "context": null },
+      "valid": true
+    },
+    {
+      "name": "16000 code points of 32000 UTF-16 units",
+      "check": "message-request",
+      "input": { "client_id": "c-5", "text": { "$repeat": "😀", "times": 16000 }, "attachments": [], "context": null },
+      "valid": true
+    },
+    {
+      "name": "lines and a tab",
+      "check": "message-request",
+      "input": { "client_id": "c-6", "text": "Ahoj,\n\tdva řádky.\r\nTřetí.", "attachments": [], "context": null },
+      "valid": true
+    },
+    {
+      "name": "the largest attachment, 5 MiB",
+      "check": "message-request",
+      "input": {
+        "client_id": "c-7",
+        "text": "",
+        "attachments": [{ "name": "big.bin", "mime": "application/octet-stream", "data_base64": { "$base64": 5242880 } }],
+        "context": null
+      },
+      "valid": true
+    },
+    {
+      "name": "no client_id",
+      "check": "message-request",
+      "input": { "text": "Ahoj", "attachments": [], "context": null },
+      "valid": false,
+      "why": "exact keys"
+    },
+    {
+      "name": "a member more",
+      "check": "message-request",
+      "input": { "client_id": "c-8", "text": "Ahoj", "attachments": [], "context": null, "lang": "cs" },
+      "valid": false,
+      "why": "exact keys"
+    },
+    {
+      "name": "an empty client_id",
+      "check": "message-request",
+      "input": { "client_id": "", "text": "Ahoj", "attachments": [], "context": null },
+      "valid": false,
+      "why": "client_id"
+    },
+    {
+      "name": "a client_id with a space",
+      "check": "message-request",
+      "input": { "client_id": "c 9", "text": "Ahoj", "attachments": [], "context": null },
+      "valid": false,
+      "why": "client_id"
+    },
+    {
+      "name": "a client_id of 65 characters",
+      "check": "message-request",
+      "input": { "client_id": { "$repeat": "c", "times": 65 }, "text": "Ahoj", "attachments": [], "context": null },
+      "valid": false,
+      "why": "client_id"
+    },
+    {
+      "name": "16001 code points",
+      "check": "message-request",
+      "input": { "client_id": "c-10", "text": { "$repeat": "a", "times": 16001 }, "attachments": [], "context": null },
+      "valid": false,
+      "why": "text"
+    },
+    {
+      "name": "a NUL in the text",
+      "check": "message-request",
+      "input": { "client_id": "c-11", "text": "a\u0000b", "attachments": [], "context": null },
+      "valid": false,
+      "why": "text"
+    },
+    {
+      "name": "a lone surrogate in the text",
+      "check": "message-request",
+      "input": { "client_id": "c-12", "text": "a\ud800b", "attachments": [], "context": null },
+      "valid": false,
+      "why": "text"
+    },
+    {
+      "name": "nothing to send",
+      "check": "message-request",
+      "input": { "client_id": "c-13", "text": "", "attachments": [], "context": null },
+      "valid": false,
+      "why": "nothing to send"
+    },
+    {
+      "name": "only blanks to send",
+      "check": "message-request",
+      "input": { "client_id": "c-14", "text": "  \n\t ", "attachments": [], "context": null },
+      "valid": false,
+      "why": "nothing to send"
+    },
+    {
+      "name": "attachments that are no list",
+      "check": "message-request",
+      "input": { "client_id": "c-15", "text": "Ahoj", "attachments": null, "context": null },
+      "valid": false,
+      "why": "attachments"
+    },
+    {
+      "name": "five attachments",
+      "check": "message-request",
+      "input": {
+        "client_id": "c-16",
+        "text": "",
+        "attachments": [
+          { "name": "1.txt", "mime": "text/plain", "data_base64": "YQ==" },
+          { "name": "2.txt", "mime": "text/plain", "data_base64": "YQ==" },
+          { "name": "3.txt", "mime": "text/plain", "data_base64": "YQ==" },
+          { "name": "4.txt", "mime": "text/plain", "data_base64": "YQ==" },
+          { "name": "5.txt", "mime": "text/plain", "data_base64": "YQ==" }
+        ],
+        "context": null
+      },
+      "valid": false,
+      "why": "too many attachments"
+    },
+    {
+      "name": "an attachment with a member more",
+      "check": "message-request",
+      "input": {
+        "client_id": "c-17",
+        "text": "",
+        "attachments": [{ "name": "a.txt", "mime": "text/plain", "data_base64": "YQ==", "path": "/etc/passwd" }],
+        "context": null
+      },
+      "valid": false,
+      "why": "attachment"
+    },
+    {
+      "name": "an attachment name with a path",
+      "check": "message-request",
+      "input": {
+        "client_id": "c-18",
+        "text": "",
+        "attachments": [{ "name": "../a.txt", "mime": "text/plain", "data_base64": "YQ==" }],
+        "context": null
+      },
+      "valid": false,
+      "why": "attachment name"
+    },
+    {
+      "name": "the attachment name ..",
+      "check": "message-request",
+      "input": {
+        "client_id": "c-19",
+        "text": "",
+        "attachments": [{ "name": "..", "mime": "text/plain", "data_base64": "YQ==" }],
+        "context": null
+      },
+      "valid": false,
+      "why": "attachment name"
+    },
+    {
+      "name": "a media type in upper case",
+      "check": "message-request",
+      "input": {
+        "client_id": "c-20",
+        "text": "",
+        "attachments": [{ "name": "a.png", "mime": "Image/PNG", "data_base64": "YQ==" }],
+        "context": null
+      },
+      "valid": false,
+      "why": "attachment mime"
+    },
+    {
+      "name": "a media type with a parameter",
+      "check": "message-request",
+      "input": {
+        "client_id": "c-21",
+        "text": "",
+        "attachments": [{ "name": "a.txt", "mime": "text/plain; charset=utf-8", "data_base64": "YQ==" }],
+        "context": null
+      },
+      "valid": false,
+      "why": "attachment mime"
+    },
+    {
+      "name": "data that is no base64",
+      "check": "message-request",
+      "input": {
+        "client_id": "c-22",
+        "text": "",
+        "attachments": [{ "name": "a.txt", "mime": "text/plain", "data_base64": "@@@@" }],
+        "context": null
+      },
+      "valid": false,
+      "why": "attachment data"
+    },
+    {
+      "name": "base64 without its padding",
+      "check": "message-request",
+      "input": {
+        "client_id": "c-23",
+        "text": "",
+        "attachments": [{ "name": "a.txt", "mime": "text/plain", "data_base64": "YQ" }],
+        "context": null
+      },
+      "valid": false,
+      "why": "attachment data"
+    },
+    {
+      "name": "base64url instead of base64",
+      "check": "message-request",
+      "input": {
+        "client_id": "c-24",
+        "text": "",
+        "attachments": [{ "name": "a.bin", "mime": "application/octet-stream", "data_base64": "-_-_" }],
+        "context": null
+      },
+      "valid": false,
+      "why": "attachment data"
+    },
+    {
+      "name": "an empty file",
+      "check": "message-request",
+      "input": {
+        "client_id": "c-25",
+        "text": "Prázdný",
+        "attachments": [{ "name": "a.txt", "mime": "text/plain", "data_base64": "" }],
+        "context": null
+      },
+      "valid": false,
+      "why": "attachment data"
+    },
+    {
+      "name": "an attachment of 5 MiB and one byte",
+      "check": "message-request",
+      "input": {
+        "client_id": "c-26",
+        "text": "",
+        "attachments": [{ "name": "big.bin", "mime": "application/octet-stream", "data_base64": { "$base64": 5242881 } }],
+        "context": null
+      },
+      "valid": false,
+      "why": "attachment too large"
+    },
+    {
+      "name": "three attachments of 4 MiB, 12 MiB together",
+      "check": "message-request",
+      "input": {
+        "client_id": "c-27",
+        "text": "",
+        "attachments": [
+          { "name": "1.bin", "mime": "application/octet-stream", "data_base64": { "$base64": 4194304 } },
+          { "name": "2.bin", "mime": "application/octet-stream", "data_base64": { "$base64": 4194304 } },
+          { "name": "3.bin", "mime": "application/octet-stream", "data_base64": { "$base64": 4194304 } }
+        ],
+        "context": null
+      },
+      "valid": false,
+      "why": "attachments too large"
+    },
+    {
+      "name": "a defective context",
+      "check": "message-request",
+      "input": {
+        "client_id": "c-28",
+        "text": "Ahoj",
+        "attachments": [],
+        "context": { "environment": null, "organization": null, "app": "module", "page": { "path": "/" }, "guide": null }
+      },
+      "valid": false,
+      "why": "context"
+    },
+    {
+      "name": "the id of the person's message",
+      "check": "message-accepted",
+      "input": { "message_id": "m-000123" },
+      "valid": true
+    },
+    {
+      "name": "a member more in the answer",
+      "check": "message-accepted",
+      "input": { "message_id": "m-000123", "queued": true },
+      "valid": false,
+      "why": "exact keys"
+    },
+    {
+      "name": "a message_id that is a number",
+      "check": "message-accepted",
+      "input": { "message_id": 123 },
+      "valid": false,
+      "why": "message_id"
+    }
+  ]
+}

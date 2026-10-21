@@ -1,0 +1,258 @@
+{
+  "schema": "lazurio.buddy-runtime-vectors.v1",
+  "contract": "events",
+  "cases": [
+    { "name": "the after cursor", "check": "events-query", "input": "after=e-981", "valid": true },
+    { "name": "from the next event", "check": "events-query", "input": "", "valid": true },
+    { "name": "after twice", "check": "events-query", "input": "after=e-1&after=e-2", "valid": false, "why": "repeated" },
+    { "name": "an unknown parameter", "check": "events-query", "input": "since=e-1", "valid": false, "why": "unknown parameter" },
+    { "name": "an empty after", "check": "events-query", "input": "after=", "valid": false, "why": "after" },
+    {
+      "name": "a turn that answers the person",
+      "check": "event",
+      "input": { "event": "turn.started", "data": { "reply_to": "m-2" } },
+      "valid": true
+    },
+    {
+      "name": "a turn Buddy starts himself (a wake)",
+      "check": "event",
+      "input": { "event": "turn.started", "data": { "reply_to": null } },
+      "valid": true
+    },
+    {
+      "name": "a piece of the answer",
+      "check": "event",
+      "input": { "event": "message.delta", "data": { "message_id": "m-3", "text": "Chybí " } },
+      "valid": true
+    },
+    {
+      "name": "Buddy's finished answer with a file",
+      "check": "event",
+      "input": {
+        "event": "message.final",
+        "data": {
+          "message_id": "m-3",
+          "role": "assistant",
+          "text": "Hotovo, přikládám report.",
+          "at": "2026-10-21T09:12:41Z",
+          "via": "lazurio_web",
+          "media": [{ "media_id": "md-2", "name": "report.pdf", "mime": "application/pdf", "size": 120334 }],
+          "client_id": null
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "the person's own message, for every open tab",
+      "check": "event",
+      "input": {
+        "event": "message.final",
+        "data": {
+          "message_id": "m-2",
+          "role": "user",
+          "text": "Co čeká na mě?",
+          "at": "2026-10-21T09:12:30Z",
+          "via": "lazurio_web",
+          "media": [],
+          "client_id": "c-01HZY3"
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "one line of progress",
+      "check": "event",
+      "input": { "event": "progress", "data": { "text": "Čtu repozitář Deals…" } },
+      "valid": true
+    },
+    { "name": "Buddy works", "check": "event", "input": { "event": "status", "data": { "state": "working" } }, "valid": true },
+    { "name": "Buddy is idle", "check": "event", "input": { "event": "status", "data": { "state": "idle" } }, "valid": true },
+    { "name": "Buddy waits for the person", "check": "event", "input": { "event": "status", "data": { "state": "waiting" } }, "valid": true },
+    {
+      "name": "a question with choices",
+      "check": "event",
+      "input": {
+        "event": "clarify.request",
+        "data": { "clarify_id": "q-1", "question": "Mám to publikovat?", "choices": ["Ano", "Ne", "Až zítra"], "multi": false }
+      },
+      "valid": true
+    },
+    {
+      "name": "a question for words only",
+      "check": "event",
+      "input": { "event": "clarify.request", "data": { "clarify_id": "q-2", "question": "Jak se má repozitář jmenovat?", "choices": [], "multi": false } },
+      "valid": true
+    },
+    {
+      "name": "a question of several choices",
+      "check": "event",
+      "input": {
+        "event": "clarify.request",
+        "data": { "clarify_id": "q-3", "question": "Která Prostředí?", "choices": ["vm-01", "vm-02"], "multi": true }
+      },
+      "valid": true
+    },
+    { "name": "a question no longer asked", "check": "event", "input": { "event": "clarify.retired", "data": { "clarify_id": "q-1" } }, "valid": true },
+    {
+      "name": "a turn that failed",
+      "check": "event",
+      "input": { "event": "error", "data": { "code": "turn-failed", "message_id": "m-2" } },
+      "valid": true
+    },
+    {
+      "name": "the model is unavailable",
+      "check": "event",
+      "input": { "event": "error", "data": { "code": "unavailable", "message_id": null } },
+      "valid": true
+    },
+    {
+      "name": "an event this version does not know",
+      "check": "event",
+      "input": { "event": "message.created", "data": { "message_id": "m-9" } },
+      "valid": false,
+      "why": "unknown event"
+    },
+    { "name": "a turn without reply_to", "check": "event", "input": { "event": "turn.started", "data": {} }, "valid": false, "why": "keys" },
+    {
+      "name": "an empty piece",
+      "check": "event",
+      "input": { "event": "message.delta", "data": { "message_id": "m-3", "text": "" } },
+      "valid": false,
+      "why": "text"
+    },
+    {
+      "name": "Buddy's message with a client_id",
+      "check": "event",
+      "input": {
+        "event": "message.final",
+        "data": { "message_id": "m-3", "role": "assistant", "text": "x", "at": "2026-10-21T09:12:41Z", "via": "lazurio_web", "media": [], "client_id": "c-1" }
+      },
+      "valid": false,
+      "why": "client_id of Buddy's message"
+    },
+    {
+      "name": "a final message without client_id",
+      "check": "event",
+      "input": {
+        "event": "message.final",
+        "data": { "message_id": "m-3", "role": "assistant", "text": "x", "at": "2026-10-21T09:12:41Z", "via": "lazurio_web", "media": [] }
+      },
+      "valid": false,
+      "why": "keys"
+    },
+    {
+      "name": "progress over two lines",
+      "check": "event",
+      "input": { "event": "progress", "data": { "text": "Čtu\nrepozitář" } },
+      "valid": false,
+      "why": "text"
+    },
+    {
+      "name": "progress of 301 code points",
+      "check": "event",
+      "input": { "event": "progress", "data": { "text": { "$repeat": "a", "times": 301 } } },
+      "valid": false,
+      "why": "text"
+    },
+    { "name": "an unknown state", "check": "event", "input": { "event": "status", "data": { "state": "busy" } }, "valid": false, "why": "state" },
+    {
+      "name": "nine choices",
+      "check": "event",
+      "input": {
+        "event": "clarify.request",
+        "data": { "clarify_id": "q-4", "question": "Které?", "choices": ["1", "2", "3", "4", "5", "6", "7", "8", "9"], "multi": true }
+      },
+      "valid": false,
+      "why": "choices"
+    },
+    {
+      "name": "a choice twice",
+      "check": "event",
+      "input": { "event": "clarify.request", "data": { "clarify_id": "q-5", "question": "Které?", "choices": ["Ano", "Ano"], "multi": false } },
+      "valid": false,
+      "why": "choices repeat"
+    },
+    {
+      "name": "several of no choices",
+      "check": "event",
+      "input": { "event": "clarify.request", "data": { "clarify_id": "q-6", "question": "Které?", "choices": [], "multi": true } },
+      "valid": false,
+      "why": "multi without choices"
+    },
+    {
+      "name": "an empty question",
+      "check": "event",
+      "input": { "event": "clarify.request", "data": { "clarify_id": "q-7", "question": "", "choices": ["Ano"], "multi": false } },
+      "valid": false,
+      "why": "question"
+    },
+    {
+      "name": "an unknown error",
+      "check": "event",
+      "input": { "event": "error", "data": { "code": "boom", "message_id": null } },
+      "valid": false,
+      "why": "code"
+    },
+    { "name": "data that is a list", "check": "event", "input": { "event": "status", "data": ["idle"] }, "valid": false, "why": "data" },
+    {
+      "name": "one event in one piece",
+      "check": "sse",
+      "input": ["id: e-1\nevent: status\ndata: {\"state\":\"working\"}\n\n"],
+      "expect": [{ "id": "e-1", "event": "status", "data": "{\"state\":\"working\"}" }]
+    },
+    {
+      "name": "an event split inside its lines",
+      "check": "sse",
+      "input": ["id: e-2\nev", "ent: progress\ndata: {\"text\":", "\"Čtu…\"}\n", "\n"],
+      "expect": [{ "id": "e-2", "event": "progress", "data": "{\"text\":\"Čtu…\"}" }]
+    },
+    {
+      "name": "CRLF and CR line ends",
+      "check": "sse",
+      "input": ["id: e-3\r\nevent: status\r\ndata: {\"state\":\"idle\"}\r\n\r\nid: e-4\revent: status\rdata: {\"state\":\"working\"}\r\r"],
+      "expect": [
+        { "id": "e-3", "event": "status", "data": "{\"state\":\"idle\"}" },
+        { "id": "e-4", "event": "status", "data": "{\"state\":\"working\"}" }
+      ]
+    },
+    {
+      "name": "a CRLF split between two pieces",
+      "check": "sse",
+      "input": ["id: e-5\r", "\nevent: status\r\ndata: {\"state\":\"idle\"}\r\n\r", "\n"],
+      "expect": [{ "id": "e-5", "event": "status", "data": "{\"state\":\"idle\"}" }]
+    },
+    {
+      "name": "the heartbeat and retry are not events",
+      "check": "sse",
+      "input": [": ping\n\nretry: 1000\n\nid: e-6\nevent: status\ndata: {\"state\":\"idle\"}\n\n"],
+      "expect": [{ "id": "e-6", "event": "status", "data": "{\"state\":\"idle\"}" }]
+    },
+    {
+      "name": "data over two lines joins with a line feed",
+      "check": "sse",
+      "input": ["id: e-7\nevent: message.delta\ndata: {\"message_id\":\"m-1\",\ndata: \"text\":\"a\"}\n\n"],
+      "expect": [{ "id": "e-7", "event": "message.delta", "data": "{\"message_id\":\"m-1\",\n\"text\":\"a\"}" }]
+    },
+    {
+      "name": "the last id goes on to an event without one",
+      "check": "sse",
+      "input": ["id: e-8\nevent: status\ndata: {\"state\":\"idle\"}\n\nevent: status\ndata: {\"state\":\"working\"}\n\n"],
+      "expect": [
+        { "id": "e-8", "event": "status", "data": "{\"state\":\"idle\"}" },
+        { "id": "e-8", "event": "status", "data": "{\"state\":\"working\"}" }
+      ]
+    },
+    {
+      "name": "an event without data is not dispatched",
+      "check": "sse",
+      "input": ["id: e-9\nevent: status\n\n"],
+      "expect": []
+    },
+    {
+      "name": "an unfinished event waits for its blank line",
+      "check": "sse",
+      "input": ["id: e-10\nevent: status\ndata: {\"state\":\"idle\"}\n"],
+      "expect": []
+    }
+  ]
+}

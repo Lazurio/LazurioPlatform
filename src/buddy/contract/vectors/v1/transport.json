@@ -1,0 +1,217 @@
+{
+  "schema": "lazurio.buddy-runtime-vectors.v1",
+  "contract": "transport",
+  "adapter": { "port": 47100, "secret": "vector-secret-not-a-real-one-0123456789" },
+  "cases": [
+    {
+      "name": "a message",
+      "check": "transport",
+      "input": {
+        "method": "POST",
+        "path": "/v1/messages",
+        "headers": { "host": "127.0.0.1:47100", "authorization": "Bearer vector-secret-not-a-real-one-0123456789", "content-type": "application/json" }
+      },
+      "expect": { "ok": true, "route": { "kind": "messages" } }
+    },
+    {
+      "name": "the events",
+      "check": "transport",
+      "input": {
+        "method": "GET",
+        "path": "/v1/events",
+        "headers": { "host": "127.0.0.1:47100", "authorization": "Bearer vector-secret-not-a-real-one-0123456789", "accept": "text/event-stream" }
+      },
+      "expect": { "ok": true, "route": { "kind": "events" } }
+    },
+    {
+      "name": "the history, with the name localhost",
+      "check": "transport",
+      "input": {
+        "method": "GET",
+        "path": "/v1/history",
+        "headers": { "host": "localhost:47100", "authorization": "Bearer vector-secret-not-a-real-one-0123456789" }
+      },
+      "expect": { "ok": true, "route": { "kind": "history" } }
+    },
+    {
+      "name": "an answer to a question, over IPv6 loopback",
+      "check": "transport",
+      "input": {
+        "method": "POST",
+        "path": "/v1/clarify/q-1",
+        "headers": { "host": "[::1]:47100", "authorization": "Bearer vector-secret-not-a-real-one-0123456789" }
+      },
+      "expect": { "ok": true, "route": { "kind": "clarify", "clarify_id": "q-1" } }
+    },
+    {
+      "name": "stop",
+      "check": "transport",
+      "input": {
+        "method": "POST",
+        "path": "/v1/stop",
+        "headers": { "host": "127.0.0.1:47100", "authorization": "Bearer vector-secret-not-a-real-one-0123456789" }
+      },
+      "expect": { "ok": true, "route": { "kind": "stop" } }
+    },
+    {
+      "name": "a file",
+      "check": "transport",
+      "input": {
+        "method": "GET",
+        "path": "/v1/media/md-2",
+        "headers": { "host": "127.0.0.1:47100", "authorization": "Bearer vector-secret-not-a-real-one-0123456789" }
+      },
+      "expect": { "ok": true, "route": { "kind": "media", "media_id": "md-2" } }
+    },
+    {
+      "name": "the gateway's Host",
+      "check": "transport",
+      "input": {
+        "method": "GET",
+        "path": "/v1/history",
+        "headers": { "host": "buddy.jana.lazurio.io", "authorization": "Bearer vector-secret-not-a-real-one-0123456789" }
+      },
+      "expect": { "ok": false, "status": 403, "code": "forbidden" }
+    },
+    {
+      "name": "another port",
+      "check": "transport",
+      "input": {
+        "method": "GET",
+        "path": "/v1/history",
+        "headers": { "host": "127.0.0.1:47101", "authorization": "Bearer vector-secret-not-a-real-one-0123456789" }
+      },
+      "expect": { "ok": false, "status": 403, "code": "forbidden" }
+    },
+    {
+      "name": "no Host",
+      "check": "transport",
+      "input": {
+        "method": "GET",
+        "path": "/v1/history",
+        "headers": { "authorization": "Bearer vector-secret-not-a-real-one-0123456789" }
+      },
+      "expect": { "ok": false, "status": 403, "code": "forbidden" }
+    },
+    {
+      "name": "a browser's Origin, with the right secret",
+      "check": "transport",
+      "input": {
+        "method": "POST",
+        "path": "/v1/messages",
+        "headers": {
+          "host": "127.0.0.1:47100",
+          "origin": "https://evil.example",
+          "authorization": "Bearer vector-secret-not-a-real-one-0123456789"
+        }
+      },
+      "expect": { "ok": false, "status": 403, "code": "forbidden" }
+    },
+    {
+      "name": "a browser's Fetch Metadata",
+      "check": "transport",
+      "input": {
+        "method": "GET",
+        "path": "/v1/history",
+        "headers": {
+          "host": "127.0.0.1:47100",
+          "sec-fetch-site": "cross-site",
+          "authorization": "Bearer vector-secret-not-a-real-one-0123456789"
+        }
+      },
+      "expect": { "ok": false, "status": 403, "code": "forbidden" }
+    },
+    {
+      "name": "no secret",
+      "check": "transport",
+      "input": { "method": "GET", "path": "/v1/history", "headers": { "host": "127.0.0.1:47100" } },
+      "expect": { "ok": false, "status": 401, "code": "unauthorized" }
+    },
+    {
+      "name": "the wrong secret",
+      "check": "transport",
+      "input": {
+        "method": "GET",
+        "path": "/v1/history",
+        "headers": { "host": "127.0.0.1:47100", "authorization": "Bearer vector-secret-not-a-real-one-0123456788" }
+      },
+      "expect": { "ok": false, "status": 401, "code": "unauthorized" }
+    },
+    {
+      "name": "the secret and more",
+      "check": "transport",
+      "input": {
+        "method": "GET",
+        "path": "/v1/history",
+        "headers": { "host": "127.0.0.1:47100", "authorization": "Bearer vector-secret-not-a-real-one-0123456789x" }
+      },
+      "expect": { "ok": false, "status": 401, "code": "unauthorized" }
+    },
+    {
+      "name": "the secret's beginning",
+      "check": "transport",
+      "input": {
+        "method": "GET",
+        "path": "/v1/history",
+        "headers": { "host": "127.0.0.1:47100", "authorization": "Bearer vector-secret" }
+      },
+      "expect": { "ok": false, "status": 401, "code": "unauthorized" }
+    },
+    {
+      "name": "another scheme",
+      "check": "transport",
+      "input": {
+        "method": "GET",
+        "path": "/v1/history",
+        "headers": { "host": "127.0.0.1:47100", "authorization": "Basic vector-secret-not-a-real-one-0123456789" }
+      },
+      "expect": { "ok": false, "status": 401, "code": "unauthorized" }
+    },
+    {
+      "name": "no route is named before the secret",
+      "check": "transport",
+      "input": { "method": "GET", "path": "/v1/nothing", "headers": { "host": "127.0.0.1:47100" } },
+      "expect": { "ok": false, "status": 401, "code": "unauthorized" }
+    },
+    {
+      "name": "an unknown path",
+      "check": "transport",
+      "input": {
+        "method": "GET",
+        "path": "/v1/nothing",
+        "headers": { "host": "127.0.0.1:47100", "authorization": "Bearer vector-secret-not-a-real-one-0123456789" }
+      },
+      "expect": { "ok": false, "status": 404, "code": "not-found" }
+    },
+    {
+      "name": "a question without its id",
+      "check": "transport",
+      "input": {
+        "method": "POST",
+        "path": "/v1/clarify/",
+        "headers": { "host": "127.0.0.1:47100", "authorization": "Bearer vector-secret-not-a-real-one-0123456789" }
+      },
+      "expect": { "ok": false, "status": 404, "code": "not-found" }
+    },
+    {
+      "name": "a path below a question",
+      "check": "transport",
+      "input": {
+        "method": "POST",
+        "path": "/v1/clarify/q-1/x",
+        "headers": { "host": "127.0.0.1:47100", "authorization": "Bearer vector-secret-not-a-real-one-0123456789" }
+      },
+      "expect": { "ok": false, "status": 404, "code": "not-found" }
+    },
+    {
+      "name": "messages read by GET",
+      "check": "transport",
+      "input": {
+        "method": "GET",
+        "path": "/v1/messages",
+        "headers": { "host": "127.0.0.1:47100", "authorization": "Bearer vector-secret-not-a-real-one-0123456789" }
+      },
+      "expect": { "ok": false, "status": 405, "code": "method-not-allowed" }
+    }
+  ]
+}

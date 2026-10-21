@@ -1,0 +1,26 @@
+{
+  "schema": "lazurio.buddy-runtime-vectors.v1",
+  "contract": "errors",
+  "cases": [
+    { "name": "a defective request", "check": "error-body", "input": { "error": { "code": "bad-request" } }, "valid": true },
+    { "name": "no secret or the wrong one", "check": "error-body", "input": { "error": { "code": "unauthorized" } }, "valid": true },
+    { "name": "a browser or a foreign Host", "check": "error-body", "input": { "error": { "code": "forbidden" } }, "valid": true },
+    { "name": "no such path, question or file", "check": "error-body", "input": { "error": { "code": "not-found" } }, "valid": true },
+    { "name": "a known path, another method", "check": "error-body", "input": { "error": { "code": "method-not-allowed" } }, "valid": true },
+    { "name": "a question answered already", "check": "error-body", "input": { "error": { "code": "conflict" } }, "valid": true },
+    { "name": "events after a cursor no longer kept", "check": "error-body", "input": { "error": { "code": "cursor-expired" } }, "valid": true },
+    { "name": "a body over its bound", "check": "error-body", "input": { "error": { "code": "payload-too-large" } }, "valid": true },
+    { "name": "the agent does not run", "check": "error-body", "input": { "error": { "code": "unavailable" } }, "valid": true },
+    { "name": "anything else", "check": "error-body", "input": { "error": { "code": "internal" } }, "valid": true },
+    { "name": "an unknown code", "check": "error-body", "input": { "error": { "code": "boom" } }, "valid": false, "why": "code" },
+    {
+      "name": "no text of the adapter reaches the person",
+      "check": "error-body",
+      "input": { "error": { "code": "internal", "message": "Traceback (most recent call last)" } },
+      "valid": false,
+      "why": "error"
+    },
+    { "name": "a code without its envelope", "check": "error-body", "input": { "code": "internal" }, "valid": false, "why": "keys" },
+    { "name": "an envelope with a member more", "check": "error-body", "input": { "error": { "code": "internal" }, "status": 500 }, "valid": false, "why": "keys" }
+  ]
+}

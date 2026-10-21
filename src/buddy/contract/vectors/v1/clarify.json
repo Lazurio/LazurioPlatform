@@ -1,0 +1,33 @@
+{
+  "schema": "lazurio.buddy-runtime-vectors.v1",
+  "contract": "clarify",
+  "cases": [
+    { "name": "one choice", "check": "clarify-answer", "input": { "choice": "Ano" }, "valid": true },
+    { "name": "several choices", "check": "clarify-answer", "input": { "choices": ["vm-01", "vm-02"] }, "valid": true },
+    { "name": "words of the person's own (Jiné…)", "check": "clarify-answer", "input": { "text": "Až po obědě,\nprosím." }, "valid": true },
+    { "name": "skipped (Přeskočit)", "check": "clarify-answer", "input": { "skip": true }, "valid": true },
+    { "name": "no answer", "check": "clarify-answer", "input": {}, "valid": false, "why": "not exactly one answer" },
+    { "name": "two answers", "check": "clarify-answer", "input": { "choice": "Ano", "text": "Ne" }, "valid": false, "why": "not exactly one answer" },
+    { "name": "an empty choice", "check": "clarify-answer", "input": { "choice": "" }, "valid": false, "why": "choice" },
+    { "name": "a choice of 201 code points", "check": "clarify-answer", "input": { "choice": { "$repeat": "a", "times": 201 } }, "valid": false, "why": "choice" },
+    { "name": "no choices", "check": "clarify-answer", "input": { "choices": [] }, "valid": false, "why": "choices" },
+    { "name": "a choice twice", "check": "clarify-answer", "input": { "choices": ["A", "A"] }, "valid": false, "why": "choices" },
+    {
+      "name": "nine choices",
+      "check": "clarify-answer",
+      "input": { "choices": ["1", "2", "3", "4", "5", "6", "7", "8", "9"] },
+      "valid": false,
+      "why": "choices"
+    },
+    { "name": "blank words", "check": "clarify-answer", "input": { "text": "  " }, "valid": false, "why": "text" },
+    { "name": "words of 2001 code points", "check": "clarify-answer", "input": { "text": { "$repeat": "a", "times": 2001 } }, "valid": false, "why": "text" },
+    { "name": "skip false", "check": "clarify-answer", "input": { "skip": false }, "valid": false, "why": "skip" },
+    { "name": "skip as text", "check": "clarify-answer", "input": { "skip": "yes" }, "valid": false, "why": "skip" },
+    { "name": "an unknown answer", "check": "clarify-answer", "input": { "answer": "Ano" }, "valid": false, "why": "unknown answer" },
+    { "name": "a list", "check": "clarify-answer", "input": ["Ano"], "valid": false, "why": "not an object" },
+    { "name": "stop: an empty object", "check": "empty-body", "input": {}, "valid": true },
+    { "name": "stop with a member", "check": "empty-body", "input": { "force": true }, "valid": false, "why": "not empty" },
+    { "name": "stop with a list", "check": "empty-body", "input": [], "valid": false, "why": "not an object" },
+    { "name": "stop with null", "check": "empty-body", "input": null, "valid": false, "why": "not an object" }
+  ]
+}

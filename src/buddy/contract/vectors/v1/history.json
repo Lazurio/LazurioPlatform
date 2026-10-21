@@ -1,0 +1,192 @@
+{
+  "schema": "lazurio.buddy-runtime-vectors.v1",
+  "contract": "history",
+  "cases": [
+    { "name": "the newest page by default", "check": "history-query", "input": "", "valid": true },
+    { "name": "a limit", "check": "history-query", "input": "limit=50", "valid": true },
+    { "name": "an older page of the most", "check": "history-query", "input": "before=c%3A10&limit=100", "valid": true },
+    { "name": "a limit of 0", "check": "history-query", "input": "limit=0", "valid": false, "why": "limit" },
+    { "name": "a limit of 101", "check": "history-query", "input": "limit=101", "valid": false, "why": "limit" },
+    { "name": "a limit with a leading zero", "check": "history-query", "input": "limit=030", "valid": false, "why": "limit" },
+    { "name": "a negative limit", "check": "history-query", "input": "limit=-1", "valid": false, "why": "limit" },
+    { "name": "an empty cursor", "check": "history-query", "input": "before=", "valid": false, "why": "before" },
+    { "name": "a cursor twice", "check": "history-query", "input": "before=a&before=b", "valid": false, "why": "repeated" },
+    { "name": "an unknown parameter", "check": "history-query", "input": "page=2", "valid": false, "why": "unknown parameter" },
+    {
+      "name": "the newest page: both voices, a file, the channel and the snapshot",
+      "check": "history-page",
+      "input": {
+        "messages": [
+          {
+            "message_id": "m-1",
+            "role": "assistant",
+            "text": "Záloha je v pořádku.",
+            "at": "2026-10-20T07:00:00Z",
+            "via": "lazurio_web",
+            "media": []
+          },
+          {
+            "message_id": "m-2",
+            "role": "user",
+            "text": "Proč Deals píše „Nečekaně skončila“?",
+            "at": "2026-10-21T09:12:30.250Z",
+            "via": "lazurio_web",
+            "media": [{ "media_id": "md-1", "name": "screenshot.png", "mime": "image/png", "size": 48213 }]
+          },
+          {
+            "message_id": "m-3",
+            "role": "assistant",
+            "text": "Chybí proměnná prostředí. Mám připravit opravu?",
+            "at": "2026-10-21T09:12:41Z",
+            "via": "lazurio_web",
+            "media": []
+          }
+        ],
+        "before": "c:1",
+        "snapshot": { "event_id": "e-981", "state": "idle", "clarify": null }
+      },
+      "valid": true
+    },
+    {
+      "name": "an older page, the conversation's start",
+      "check": "history-page",
+      "input": {
+        "messages": [
+          { "message_id": "m-0", "role": "user", "text": "Ahoj", "at": "2026-10-01T00:00:00Z", "via": "telegram", "media": [] }
+        ],
+        "before": null,
+        "snapshot": null
+      },
+      "valid": true
+    },
+    {
+      "name": "an empty conversation still names where the events go on",
+      "check": "history-page",
+      "input": { "messages": [], "before": null, "snapshot": { "event_id": "0", "state": "idle", "clarify": null } },
+      "valid": true
+    },
+    {
+      "name": "a question that waits for the person",
+      "check": "history-page",
+      "input": {
+        "messages": [],
+        "before": null,
+        "snapshot": {
+          "event_id": "e-12",
+          "state": "waiting",
+          "clarify": { "clarify_id": "q-1", "question": "Mám to publikovat?", "choices": ["Ano", "Ne"], "multi": false }
+        }
+      },
+      "valid": true
+    },
+    {
+      "name": "a snapshot without where the events go on",
+      "check": "history-page",
+      "input": { "messages": [], "before": null, "snapshot": { "event_id": null, "state": "idle", "clarify": null } },
+      "valid": false,
+      "why": "snapshot event_id"
+    },
+    {
+      "name": "an unknown state",
+      "check": "history-page",
+      "input": { "messages": [], "before": null, "snapshot": { "event_id": "e-1", "state": "busy", "clarify": null } },
+      "valid": false,
+      "why": "snapshot state"
+    },
+    {
+      "name": "a system message",
+      "check": "history-page",
+      "input": {
+        "messages": [{ "message_id": "m-1", "role": "system", "text": "x", "at": "2026-10-21T09:00:00Z", "via": "lazurio_web", "media": [] }],
+        "before": null,
+        "snapshot": null
+      },
+      "valid": false,
+      "why": "role"
+    },
+    {
+      "name": "an instant without its zone",
+      "check": "history-page",
+      "input": {
+        "messages": [{ "message_id": "m-1", "role": "user", "text": "x", "at": "2026-10-21T09:00:00", "via": "lazurio_web", "media": [] }],
+        "before": null,
+        "snapshot": null
+      },
+      "valid": false,
+      "why": "at"
+    },
+    {
+      "name": "a day that does not exist",
+      "check": "history-page",
+      "input": {
+        "messages": [{ "message_id": "m-1", "role": "user", "text": "x", "at": "2026-02-30T09:00:00Z", "via": "lazurio_web", "media": [] }],
+        "before": null,
+        "snapshot": null
+      },
+      "valid": false,
+      "why": "at"
+    },
+    {
+      "name": "a channel in upper case",
+      "check": "history-page",
+      "input": {
+        "messages": [{ "message_id": "m-1", "role": "user", "text": "x", "at": "2026-10-21T09:00:00Z", "via": "Telegram", "media": [] }],
+        "before": null,
+        "snapshot": null
+      },
+      "valid": false,
+      "why": "via"
+    },
+    {
+      "name": "a file of negative size",
+      "check": "history-page",
+      "input": {
+        "messages": [
+          {
+            "message_id": "m-1",
+            "role": "user",
+            "text": "",
+            "at": "2026-10-21T09:00:00Z",
+            "via": "lazurio_web",
+            "media": [{ "media_id": "md-1", "name": "a.png", "mime": "image/png", "size": -1 }]
+          }
+        ],
+        "before": null,
+        "snapshot": null
+      },
+      "valid": false,
+      "why": "media size"
+    },
+    {
+      "name": "a message without its media",
+      "check": "history-page",
+      "input": {
+        "messages": [{ "message_id": "m-1", "role": "user", "text": "x", "at": "2026-10-21T09:00:00Z", "via": "lazurio_web" }],
+        "before": null,
+        "snapshot": null
+      },
+      "valid": false,
+      "why": "message"
+    },
+    {
+      "name": "a message with a member more",
+      "check": "history-page",
+      "input": {
+        "messages": [
+          { "message_id": "m-1", "role": "user", "text": "x", "at": "2026-10-21T09:00:00Z", "via": "lazurio_web", "media": [], "html": "<b>x</b>" }
+        ],
+        "before": null,
+        "snapshot": null
+      },
+      "valid": false,
+      "why": "message"
+    },
+    {
+      "name": "a page without its cursor",
+      "check": "history-page",
+      "input": { "messages": [], "snapshot": null },
+      "valid": false,
+      "why": "exact keys"
+    }
+  ]
+}
