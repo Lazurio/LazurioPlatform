@@ -1,16 +1,16 @@
 # Lazurio account entry and delegated access — approved target
 
-Status: accepted direction of the Operator, 2026-10-06, root decision 0192;
+Status: direction accepted by Matěj, 2026-10-06, root decision 0192;
 [public shared contract](https://github.com/HumanAndMachines/Lazurio/blob/main/manual/environment-access-model.md).
 This document refines F11/F16/F33/F37 for organizational entry. It does not
 claim that the current gateway, handover, shell or onboarding implements it.
 Existing qualified local/self-hosted operation remains supported; this
 contract does not introduce a mandatory hosted account into loopback use.
 
-## Accepted trust-based full sharing — Operator clarification, 2026-10-06
+## Accepted trust-based full sharing — Matěj's clarification, 2026-10-06
 
 Full sharing of an assigned individual work Environment is an intentional
-transfer of **all capabilities available inside** to a trusted person:
+transfer of **all capabilities available inside** to a trusted user:
 files, processes, agents, browser sessions, passwords/passkeys, personal
 working logins, integrations and existing remote access. The sharing user
 accepts this risk. Do not require sign-out, profile wiping, credential
@@ -25,13 +25,13 @@ workflow or a new user role. For collaboration without this personal trust,
 use a separate Team Environment. A full grant does not add an Admin role
 to the recipient's Lazurio account, but a privileged identity already
 signed in inside the runtime can technically be used. The product must
-not claim per-person isolation or exclusive human attribution for that
-identity. Named human responsibility and instructions for publication
-remain a process obligation inside this trusted shared runtime.
+not claim per-user isolation or exclusive attribution to one user for that
+identity. The responsibility of a named user and the instructions for
+publication remain a process obligation inside this trusted shared runtime.
 
 **Environment holding several Organizations.** When an individual work
 Environment holds repositories, data or sign-ins of several Organizations,
-its assignee may share it fully only with a person who is an active member
+its assignee may share it fully only with a user who is an active member
 of each of them (Matěj's decision of 2026-10-06). Sharing checks the
 Organizations connected to the Environment; that a personal sign-in such as
 GitHub can reach further Organizations is explained in the sharing text and
@@ -42,7 +42,7 @@ OAuth sign-in without personal access tokens; its mechanism is still to be
 qualified.
 
 Full sharing includes existing A-to-B capabilities. Do not require a new
-direct per-person grant to B merely to share A, or disconnect its accounts
+direct per-user grant to B merely to share A, or disconnect its accounts
 first. The UI/map discloses effective reach; creating a new link still
 checks the actor's link-management authority. Sharing creates no new
 network edge, Organization membership or direct B grant. An existing
@@ -85,18 +85,19 @@ Auth owns membership, assignments and grants. Dashboard manages that
 canonical authority; Machines/infra own technical deployment and derived
 network/gateway enforcement. Platform consumes the qualified entry contract,
 never trusts arbitrary forwarded identity headers and never stores a second
-editable ACL. The Environment's own vault adds the person its gateway admits
+editable ACL. The Environment's own vault adds the user its gateway admits
 as a Správce, named by the gateway's own answer to the admission and never by
 a header of the request, at the address of the Lazurio username that answer
 carries, and keeps no list of them (decision F11's amendments and F53's
 addendum of 2026-10-14, amended on 2026-10-16 by root decision 0203). A
-personal Environment's vault is in its person's own Bitwarden instead (root
-decision 0203 point 7): it invites only the person who connected it, at the
-address of their own Bitwarden account, as a User with Manage on Agenti. The supported provider mechanism and revocation behavior must
-be qualified before activation. Public account/enrollment endpoints do not
+personal Environment's vault is in its user's own Bitwarden instead (root
+decision 0203 point 7): it invites only the user who connected it, at the
+address of their own Bitwarden account, with the vault role User and Manage
+on Agenti. The supported provider mechanism and revocation behavior must be
+qualified before activation. Public account/enrollment endpoints do not
 expose work resources.
 
-GitHub is optional for a human visitor to an individual or team Environment.
+GitHub is optional for a visitor to an individual or team Environment.
 It remains the authority for repository operations and publication. The
 Team scopes the Environment's repository capability through the existing
 Organization broker, not the personal identity of every visitor. A GitHub
@@ -134,25 +135,25 @@ Application access never includes the Environment's browser or desktop
 Environment. The shared gateway cookie of root decision 0191 (point 8b) is
 not an application grant; the gateway checks every target separately. Point
 10 of decision 0191 (wipe the browser profile before a work Environment is
-reassigned to another person) still applies; 0192 only removes forced
+reassigned to another user) still applies; 0192 only removes forced
 sign-out for ordinary sharing.
 
 An A → B link includes a destination account, allowed remote operations and
-credentials, not just network ports. All full operators of A can use that
+credentials, not just network ports. All full users of A can use that
 capability. Sharing and link changes must evaluate and show indirect access;
 removing B's web grant does not revoke an A → B SSH path. Agents are processes
 using Environment capabilities, not additional privileged identities. Audit
-binds the human account, source Environment, destination and working identity.
+binds the user's account, source Environment, destination and working identity.
 
 A team Environment may prepare changes/PRs and an authorized preview for a
-visitor without GitHub. A named authorized human approves and publishes.
+visitor without GitHub. A named authorized user approves and publishes.
 Before admitting this cohort, broker/provider protections must deny the
 Environment's own approval, merge and direct protected-branch writes. A
 hidden UI action or process-only promise is not proof of this boundary.
 
-## SSH from a person's devices
+## SSH from a user's devices
 
-A person registers their own computer's SSH key for an Environment in that
+A user registers their own computer's SSH key for an Environment in that
 Environment's Launchpad Settings → SSH from your devices
 ([decision F49](decisions.md#f49--ssh-from-the-persons-devices-is-registered-in-launchpad-settings)).
 The key goes into the Environment account's `authorized_keys` and nowhere
@@ -161,7 +162,7 @@ This is entry to the account, not to the network: reaching the Environment on
 TCP/22 from that device remains a separate grant the Organization's Admin
 approves and Headscale enforces, and the Launchpad neither checks nor opens
 it. Removing a web grant or a device key does not remove the other. On a Team
-Environment every admitted person acts as the Team's account and may add or
+Environment every admitted user acts as the Team's account and may add or
 remove device keys; whether that needs a narrower rule is open.
 
 ## Platform consumer qualification

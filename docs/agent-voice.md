@@ -1,6 +1,6 @@
 # The default voice of Lazurio's agents
 
-Status: the Operator approved the Environment-local design on 2026-10-13.
+Status: Matěj approved the Environment-local design on 2026-10-13.
 This branch implements it in the shared Folder transaction and the real Launchpad.
 It changes generated instructions after installation/Folder refresh; editing this
 source or merging its PR does not itself activate an installed Environment.
@@ -18,9 +18,9 @@ draft email, WhatsApp messages and other authored content. It also applies to a 
 its runtime loads Lazurio's instructions. One voice can serve different readers;
 an incident report needs different detail from a button label.
 
-The voice comes from the Operator's direct, conversational way of explaining an
+The voice comes from Matěj's direct, conversational way of explaining an
 intention and connecting it to the next concrete step. It is a product default,
-not an instruction to impersonate that person. Personal biography, commercial
+not an instruction to impersonate him. Personal biography, commercial
 claims and private examples are not part of it. The existing brand guide still
 owns Lazurio's product copy and terminology. Apply it before producing a message body or handing instructions to another
 agent, not only to the chat text introducing that artifact. This definition carries the agent
@@ -116,27 +116,27 @@ These are invented editorial examples, not claims about completed work.
 | --- | --- |
 | Progress | „Našel jsem, kde se ztrácí organizační kontext. Ověřím ještě generátor instrukcí, aby oprava fungovala i v novém Folderu.“ |
 | Unclear meaning | „V této Organizaci jsou dva přehledy označené jako forecast: obchody a vytížení týmu. Který chcete otevřít?“ |
-| Recommendation | „Doporučuji začít jedním společným tónem a možností vlastní úpravy. Uvidíme tak, co lidem opravdu chybí, ještě než přidáme další volby.“ |
+| Recommendation | „Doporučuji začít jedním společným tónem a možností vlastní úpravy. Uvidíme tak, co uživatelům opravdu chybí, ještě než přidáme další volby.“ |
 | Handoff | „Návrh je připravený v PR. Po vydání a aktualizaci Folderu budou nové chaty používat upravené instrukce. Běžící konverzace je potřeba otevřít znovu.“ |
 | Draft email | „Dobrý den, posílám návrh dalšího postupu. Nejprve společně ověříme podklady a podle výsledku domluvíme termín.“ |
-| Instruction to an agent | „Nejdřív si dohledáš, co tím člověk myslí. Začni v Organizaci, přečti její pravidla a projdi moduly. Když kontext nestačí, zeptej se.“ |
+| Instruction to an agent | „Nejdřív si dohledáš, co tím uživatel myslí. Začni v Organizaci, přečti její pravidla a projdi moduly. Když kontext nestačí, zeptej se.“ |
 
 An English answer follows the same structure and specificity, rather than
 translating Czech phrases word for word. A custom brand voice for a customer's
 email applies to that artifact. It need not change the agent's explanation to
-the Operator. Exact quotations and externally required formats stay exact.
+the user. Exact quotations and externally required formats stay exact.
 
 ## Customization in Launchpad
 
 Start with Settings → Agent communication in the existing Environment settings.
 Customization must be understandable without technical knowledge. The editor is
 called “Tone of Voice for agents” and is prefilled with the complete default
-instruction block above for the current locale. The Operator selected this
-full-text editing model on 2026-10-13: people should see what agents follow and
+instruction block above for the current locale. Matěj selected this
+full-text editing model on 2026-10-13: users should see what agents follow and
 edit that text directly, rather than start with an empty optional addition.
 
 The editable text is the full Environment voice. Save uses the exact edited
-text; it does not append the old default behind the person's back. Cancel
+text; it does not append the old default behind the user's back. Cancel
 restores the saved text. Restore default puts the complete current product
 default back into the editor as a draft, which can then be saved or canceled.
 Empty or whitespace-only text cannot be saved: keep the previous voice and
@@ -153,11 +153,11 @@ existing detail preference keeps its owner in General settings; this voice form
 does not rewrite it. Tone is not expertise, initiative, delegation, permission or model choice.
 Show the selected Environment and, for a team, the shared effect in one sentence.
 
-The Operator selected per-Environment customization for the first wireframe
+Matěj selected per-Environment customization for the first wireframe
 on 2026-10-12, following today's profile owner. It explicitly shows the shared
 effect in a team Environment. Personal preference across Environments is outside
 this selected first design; it would require an account owner, offline behavior, and
-attribution on shared Environments. A browser's last signed-in person must not
+attribution on shared Environments. A browser's last signed-in user must not
 silently replace the instructions every agent shares.
 
 The composition is:
@@ -235,7 +235,7 @@ composition contract; voice does not reuse it.
 `<Folder>/AGENTS.md`.** The first sentence states that it covers all authored
 communication, including emails, WhatsApp and instructions for other agents.
 There is one resolved variant, not both locales or an appended hidden default.
-The section is style supplied by the Environment's Operator, not a new source
+The section is style supplied by the Environment's user, not a new source
 of rights; rendering must delimit arbitrary text without allowing it to forge
 product sections. The source is separate from this generated projection.
 
@@ -294,7 +294,7 @@ branch saves through `/api/update`; it has no separate filesystem writer.
 ## Review and qualification
 
 The wireframe is a decision aid with synthetic, browser-only state. It cannot
-prove model adherence or save a real Folder preference. Review whether a person
+prove model adherence or save a real Folder preference. Review whether a user
 understands the prefilled text, can edit any of it and can save,
 cancel, restore the default and distinguish two Environments without technical
 instruction. Failure and drift qualification belongs to the implementation

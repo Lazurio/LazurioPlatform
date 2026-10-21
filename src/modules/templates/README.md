@@ -58,8 +58,8 @@ section on the data to `AGENTS.md` (`withData` in `scaffold.ts`).
 | Placeholder | Organization module | Personal module |
 | --- | --- | --- |
 | `slug`, `display_name`, `stack` | the module's | the module's |
-| `organization` | the Organization's slug | the person's GitHub login |
-| `github_org` | the Organization's GitHub login | the person's GitHub login |
+| `organization` | the Organization's slug | the user's GitHub login |
+| `github_org` | the Organization's GitHub login | the user's GitHub login |
 | `listener_id`, `listener_env_prefix` | `app`, `LAZURIO_RUNTIME_LISTENER_APP` | same |
 | `runtime_id` | `<organization>-<slug>-v1`, lowercase | `personalspace-<slug>-v1` |
 | `python_package` | the slug with `_` for `-` | same |

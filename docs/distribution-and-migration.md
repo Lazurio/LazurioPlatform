@@ -1,4 +1,4 @@
-# Distribution, operator-driven update and migration from the root repository
+# Distribution, user-driven update and migration from the root repository
 
 Status: **decided shape (Matěj, 2026-09-28, on issue #50); partly implemented.** It
 answers issue #50: how Lazurio is installed the first time, who updates it, how users
@@ -27,7 +27,7 @@ Later comments on #50 override earlier ones.
 
 | # | Decision | Source on #50 | Recorded in | State on `main` |
 | --- | --- | --- | --- | --- |
-| 1 | **One updater, `lazurio update`.** The operator updates Lazurio on any Environment, a Remote Environment included, without a rollout. Updating Lazurio is the operator's update of a tool, not a rollout | [2026-09-28](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5866787843) | F17 addendum 2026-09-28; root 0161 addendum | Built: the generated manual no longer forbids it (`base-instructions-9`); since the F17 addendum of 2026-10-02 agents run it at the start of every piece of work |
+| 1 | **One updater, `lazurio update`.** The user updates Lazurio on any Environment, a Remote Environment included, without a rollout. Updating Lazurio is the user's update of a tool, not a rollout | [2026-09-28](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5866787843) | F17 addendum 2026-09-28; root 0161 addendum | Built: the generated manual no longer forbids it (`base-instructions-9`); since the F17 addendum of 2026-10-02 agents run it at the start of every piece of work |
 | 2 | **The pin is a minimum.** A rollout installs Lazurio when it is absent or broken, raises an Environment below the pin, and never lowers a version | [2026-09-28](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5866787843) | F17 addendum 2026-09-28; [machine handover](machine-handover.md#what-the-machines-role-does-with-the-lazurio-version-f17-addendum-2026-09-28) | Product side built (floor and high-water, `below-floor`). The Machines role is another repository; **unverified** here |
 | 3 | **Migration from the root repository is one-way, without rollback.** Failures are repaired forward in the Lazurio Folder. Organization repositories, Personalspace and sign-ins are not touched | [2026-09-28](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5866787843) | root 0164 points 1–3 | Manual and prompt **not built** (section 4) |
 | 4 | **Order of platforms:** Linux, then macOS, then a Windows build of the Platform, and only after it the migration of Windows users. Linux means Ubuntu in the first phase; other distributions are communicated as unverified | [2026-09-28](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5866787843), [late afternoon](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5869231172) | root 0164 point 4; F22 point 5 | Release targets `linux-x64`, `linux-arm64`, `darwin-arm64`; no Windows, no Intel macOS (`.github/workflows/release.yml`) |
@@ -37,7 +37,7 @@ Later comments on #50 override earlier ones.
 | 8 | **No rollback and no back doors for it; Recovery mode instead.** A broken Lazurio offers only a repair agent or an issue with everything a fix needs; every entry ends in an issue | [afternoon](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5868604357), [late afternoon](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5869231172), [evening](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5869474451) | F21; root 0166 | Built in the pre-releases; `v0.1.7` still contains rollback |
 | 9 | **The Platform Launchpad replaces the resident Launchpad**, with no side-by-side period and no transition hostname. The two-move switch plan drafted in this pull request keeps its facts and loses its plan | [afternoon](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5868604357) | F22; root 0167; [Launchpad parity](launchpad-parity.md) | Switch line in [Launchpad parity, E](launchpad-parity.md#e-slices) |
 | 10 | **A Team Environment works with the Organization's bot**; `gh` is not signed in there | [afternoon](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5868604357) | F22 point 9; root 0168 | Built (P12) |
-| 11 | **A release candidate soaks 8 hours** on the work VMs of the pilot Organization and the personal VMs of its operators before it becomes final; releases are staged | [late afternoon](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5869231172), [night](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5869623126), [night, second](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5869726141) | F21 point 5 | `qualify.yml` and the canary record built; no final release has passed it yet |
+| 11 | **A release candidate soaks 8 hours** on the work VMs of the pilot Organization and the personal VMs of its users before it becomes final; releases are staged | [late afternoon](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5869231172), [night](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5869623126), [night, second](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5869726141) | F21 point 5 | `qualify.yml` and the canary record built; no final release has passed it yet |
 | 12 | **Documentation is finished at the very end**, after the open questions are answered | [2026-09-28](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5866787843) | — | This document is shaping, not the user manual |
 
 Decisions on #50 that do not concern distribution are recorded elsewhere: the rebuild
@@ -100,16 +100,16 @@ All decided; the contracts are [product update](update.md),
 [machine handover](machine-handover.md#what-the-machines-role-does-with-the-lazurio-version-f17-addendum-2026-09-28)
 and F17. In short:
 
-- **Who.** The operator, with `lazurio update` or the Launchpad's update pill, on a
+- **Who.** The user, with `lazurio update` or the Launchpad's update pill, on a
   workstation and on a Remote Environment alike. Agents run it at the start of every
-  piece of work and tell the operator what changed (F17 addendum 2026-10-02).
+  piece of work and tell the user what changed (F17 addendum 2026-10-02).
 - **The rollout.** Installs when absent or broken, raises a version below the pin,
   never lowers one; a version above the pin is the fact `ahead`, not drift. The
   Machines role never runs `lazurio update`.
 - **The Folder.** A product update never writes the Folder (F14). `update`, `update
   status` and the pill say "Folder refresh needed" with the exact command when the
   Folder records an older template revision.
-- **A Team Environment.** Any of its operators may update; the update affects all of
+- **A Team Environment.** Any of its users may update; the update affects all of
   them, and the generated text says so (F17 addendum 2026-10-02, point 4). This
   answers question Q6 of the draft.
 - **No way back.** `lazurio update rollback` is removed; a failed update stays on the
@@ -118,7 +118,7 @@ and F17. In short:
   accepted (F21 point 7).
 
 **Open** ([#224](https://github.com/Lazurio/LazurioPlatform/issues/224), Q5): an
-Environment whose operator updated above the pin and whose installation then broke is
+Environment whose user updated above the pin and whose installation then broke is
 not repairable by a rollout until the pin reaches the high-water mark; a damaged
 executable at the same version is not repaired by `install` either (F21, Open).
 Recommended: in repair mode the Machines role stages the release equal to the
@@ -164,21 +164,21 @@ tool configurations would point to the old place.
 | Root Git checkout (`AGENTS.md`, `manual/`, `launchpad/`, `lazurio/`, scripts, templates) | tracked in `<home>/Lazurio` | **Stays** in the legacy tree; the Folder gets generated `AGENTS.md` and `manual/` (F14) | Root branches, stashes and worktrees with unpushed work listed in the report |
 | Organizations `organizations/<Org>/` with modules, Production Space repositories, worktrees, repository databases | gitignored | **Moves** by one directory rename; contents never entered | Per repository: HEAD, `status --porcelain`, `stash list`, `worktree list` identical before and after |
 | `personalspace/` | gitignored | **Moves** by rename; never listed or read | Same device and inode (`stat`), nothing more |
-| `drafts/` | gitignored | **Moves** by rename (a workstation Folder keeps the operator's own top-level entries) | `worktree list` of each clone unchanged |
+| `drafts/` | gitignored | **Moves** by rename (a workstation Folder keeps the user's own top-level entries) | `worktree list` of each clone unchanged |
 | `launchpad.gen3.json`, `launchpad.gen3.local.json` (Personalspace owner, planned slots) | tracked / gitignored | **Stay** in legacy. No successor (F22, open H5) | — |
 | Legacy Launchpad state: `launchpad/runtime`, `launchpad/logs`; `server.json` and `server-lifetime-*.lock` in the OS state directory (on macOS the same directory as the install base) | gitignored / OS state | **Stays** until the legacy Launchpad is stopped, then removed by exact name; the Platform tolerates unknown entries in its base | `lazurio update status` healthy |
 | Legacy CLI linked by Bun into `~/.bun/bin/lazurio` | home | **Unlinked last**, after proof. Same name, different meaning: legacy `lazurio update` synchronizes checkouts, the Platform's updates the product | `command -v lazurio` is `~/.local/bin/lazurio`; `lazurio --version --json` names `Lazurio/LazurioPlatform` |
-| Root worktrees (`.worktrees/…`) and recovery stashes `lazurio-update:*` | gitignored / `refs/stash` | **Stay** in legacy; never applied or dropped. Root development ends with the archive | Unpushed work confirmed with the operator before the rename |
+| Root worktrees (`.worktrees/…`) and recovery stashes `lazurio-update:*` | gitignored / `refs/stash` | **Stay** in legacy; never applied or dropped. Root development ends with the archive | Unpushed work confirmed with the user before the rename |
 | Root skills `.agents/skills` and the `.claude/skills` mirror | tracked | **Not carried**; gap (section 5) | — |
 | Organization skills and agent rules | inside Organization repositories | **Move** with the Organization | — |
 | macOS `.app` launcher, Windows Start Menu link | home | **Renamed aside**: they would start the legacy tree | The old launcher no longer starts anything |
 | Compatibility aliases (`<home>/Conglomerate`, `<home>/Conglomerate_GEN3`) | home | **Stay**; they resolve to the new Folder because the path is unchanged | `readlink` unchanged |
 | Sign-ins and settings: `gh`, SSH keys, Git config, Codex and Claude Code configuration, MCP configurations | home or Organization repositories | **Never touched** | `gh auth status`; `git ls-remote` of one Organization root |
 | Agent histories keyed by the working directory | harness-owned | **Never touched**; they keep working because the path is unchanged (observed on one computer; **unverified** as a harness contract) | — |
-| Toolchain (Git, `gh`, Node, Bun, Codex, Claude Code) | operator's PATH | **Never touched** (0161) | `lazurio tools status` |
+| Toolchain (Git, `gh`, Node, Bun, Codex, Claude Code) | user's PATH | **Never touched** (0161) | `lazurio tools status` |
 | Running legacy Launchpad and its applications | processes | **Stopped** before the rename | No listener on the legacy port; no process with a working directory inside the tree |
 
-Observed on one operator's workstation, to size the real case: fifteen Organization
+Observed on one user's workstation, to size the real case: fifteen Organization
 mounts, more than twenty root worktrees, more than two hundred local root branches and
 several recovery stashes. The migration lists all of it and cleans none of it.
 
@@ -188,7 +188,7 @@ One manual with a shared core and a section per platform, owned by this reposito
 (F14), printed with the prompt by a new `lazurio migration prompt`; the root
 repository only points to it.
 
-**Preconditions.** The operator's explicit instruction in the thread; a supported
+**Preconditions.** The user's explicit instruction in the thread; a supported
 target; a Platform release with workstation adoption; `gh auth status` succeeds; the
 legacy tree and `<home>` on one filesystem; no merge, rebase, cherry-pick or `am` in
 progress in the root or any Organization repository; no `.lazurio/` in `<home>/Lazurio`;
@@ -197,7 +197,7 @@ its own shell.
 
 | # | Step | Check before the next step |
 | --- | --- | --- |
-| 0 | Read-only inventory (`lazurio migration inspect`, not built): root HEAD, branches, stashes, worktrees with unpushed work; per Organization repository HEAD, status, stashes and worktrees; home links into the tree; running legacy processes. JSON report outside the tree | The operator confirms the root work that exists only on this computer |
+| 0 | Read-only inventory (`lazurio migration inspect`, not built): root HEAD, branches, stashes, worktrees with unpushed work; per Organization repository HEAD, status, stashes and worktrees; home links into the tree; running legacy processes. JSON report outside the tree | The user confirms the root work that exists only on this computer |
 | 1 | Install the Platform with the one-liner (section 2). Use `<base>/bin/lazurio` by absolute path until step 8, because the legacy CLI may still resolve first | `--version --json` names the Platform; `update status` healthy |
 | 2 | Quiesce: stop the legacy Launchpad and its applications; close editors and terminals inside the tree | No listener, no process inside the tree |
 | 3 | `mv <home>/Lazurio <home>/Lazurio.legacy-<date>` (one rename; also the lock against a second migration) | Legacy path present, `<home>/Lazurio` absent |
@@ -205,13 +205,13 @@ its own shell.
 | 5 | `lazurio folder-init --folder <home>/Lazurio --adopt …` (**not built**: workstation `folder-init` today requires an absent path; only the hosted `machine folder-init` adopts) | `.lazurio/`, `AGENTS.md`, `manual/` present |
 | 6 | Parity: repeat step 0 for Organization repositories | Identical |
 | 7 | Smoke: open the Platform Launchpad; every Organization and its modules are listed; a new agent started in `<home>/Lazurio` names the Folder instructions it read | Reachable; agent names the Folder `AGENTS.md` |
-| 8 | Switch the command: unlink the legacy CLI; `~/.local/bin/lazurio` present and on PATH (added to the login shell only with the operator's consent) | `command -v lazurio` as in 4.3 |
+| 8 | Switch the command: unlink the legacy CLI; `~/.local/bin/lazurio` present and on PATH (added to the login shell only with the user's consent) | `command -v lazurio` as in 4.3 |
 | 9 | Rename the legacy desktop launcher aside | — |
 | 10 | Report: what moved, what stayed in the legacy tree, what is next | — |
 
 **Never touched:** the contents and Git state of Organization repositories and the
 Personalspace (no fetch, pull, reset, stash, clean, branch deletion or push); sign-ins,
-keys, tokens and tool configuration; the operator's tools and their versions; anything
+keys, tokens and tool configuration; the user's tools and their versions; anything
 in the legacy tree.
 
 **When a check fails.** No way back is offered. The agent stops at that step, reports
@@ -222,7 +222,7 @@ deterministic sanitizing gate (Platform version, platform, migration step, faile
 identifiers, the state row below, Folder and template revision). The inventory itself
 never leaves the computer: Organization and repository names, paths, Git status,
 stashes, worktrees and home links stay in the local recovery bundle, and the agent
-attaches a redacted excerpt only after reading it under the same gate; the operator sees
+attaches a redacted excerpt only after reading it under the same gate; the user sees
 the exact body that left. State is recognized from disk alone:
 
 | `<home>/Lazurio` | `Lazurio.legacy-*` | Meaning | Next |
@@ -288,7 +288,7 @@ repository read-only; clones and fetches keep working.
 | Recovery mode instead of rollback | Built in the pre-releases (F21) | every Environment | — |
 | Worktree discipline as a mechanism (root `worktrees:*`, `pr:preflight`) | Manual text only (F14); the browser Git client is not carried (F22 point 6) | daily work | S7 |
 | Skills package and Claude Code entry | Started: the Folder carries agent skills as owned outputs, byte-identical in `.agents/skills/` (Codex) and `.claude/skills/` (Claude Code); the first is `new-module` ([F14 addendum of 2026-10-14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)). Discovery from the Folder's root was checked on macOS with Codex CLI 0.162.1 and Claude Code 2.1.300; sessions started by T3 Code on Linux are not qualified yet, and the root's other skills are **not carried**. Native AGENTS.md loading was exercised with Claude Code 2.1.296 on macOS in the [voice qualification](agent-voice.md#verification-on-2026-10-13); ancestor CLAUDE files, older versions, other entrypoints and OS combinations remain unqualified. No compatibility bridge or packaged-skill gate is claimed here. | daily work | S7 |
-| Desktop launcher (macOS `.app`) | **Not built** | non-technical operators | P15 |
+| Desktop launcher (macOS `.app`) | **Not built** | non-technical users | P15 |
 | Windows install, Folder and lock | **Not built** | Windows users | S10 |
 | Intel macOS | **Not built**; whether such users exist is **unknown** | only if they exist | — |
 | `lazurio search`, local Guide | No consumer; not carried ([Launchpad parity, F](launchpad-parity.md#f-what-we-deliberately-do-not-carry-over)) | — | — |
@@ -325,8 +325,8 @@ cites them.
 
 | # | Slice | Repository | State on `main` (2026-10-06) |
 | --- | --- | --- | --- |
-| S1 | Decisions: operator owns the version, pin is a minimum, first installation, no rollback, one-way migration | Platform, root | Done: F17 addendum, F20, F21, F22; root 0161 addendum, 0164, 0166–0168 |
-| S2 | `~/.local/bin/lazurio`; hosted manual lets the operator update; "Folder refresh needed" | Platform | Done (F17 addendum); released only in pre-releases |
+| S1 | Decisions: user owns the version, pin is a minimum, first installation, no rollback, one-way migration | Platform, root | Done: F17 addendum, F20, F21, F22; root 0161 addendum, 0164, 0166–0168 |
+| S2 | `~/.local/bin/lazurio`; hosted manual lets the user update; "Folder refresh needed" | Platform | Done (F17 addendum); released only in pre-releases |
 | S3 | Machines role: pin as a minimum, verify the PATH entry, never run `lazurio update` | Machines | Contract in [machine handover](machine-handover.md#what-the-machines-role-does-with-the-lazurio-version-f17-addendum-2026-09-28); implementation **unverified** here; repair above the pin open (Q5) |
 | S4 | First installation: `install.sh` with `--verify-release`, attached to releases; the website route | Platform, website | Script done; route and first final release with it missing ([#223](https://github.com/Lazurio/LazurioPlatform/issues/223)). npm second door not scheduled |
 | S8 | Hosted Linux Environments: the F22 switch apply (M2), resident removed | Machines, Platform | Under way since 2026-09-29 (F25); slices in [Launchpad parity, E](launchpad-parity.md#e-slices); first in order |
@@ -345,9 +345,9 @@ cites them.
 | Q2 | npm package on Remote Environments? | No (section 2) |
 | Q3 | Publish the launcher from `release.yml` with the product's version? | Deferred with Q1 |
 | Q4 | May a rollout still move a working Lazurio forward? | Yes: the pin is a minimum (decision 2) |
-| Q5 | Repair at the high-water release when the operator is above the pin? | **Open** ([#224](https://github.com/Lazurio/LazurioPlatform/issues/224)) |
-| Q6 | May any operator of a Team Environment update? | Yes; the generated text says it affects all of them (F17 addendum 2026-10-02) |
+| Q5 | Repair at the high-water release when the user is above the pin? | **Open** ([#224](https://github.com/Lazurio/LazurioPlatform/issues/224)) |
+| Q6 | May any user of a Team Environment update? | Yes; the generated text says it affects all of them (F17 addendum 2026-10-02) |
 | Q7 | Rename aside instead of in-place conversion? | **Open** ([#224](https://github.com/Lazurio/LazurioPlatform/issues/224)); recommendation followed meanwhile |
 | Q8 | Archive before Windows users can migrate? | No: after the last Environment (root 0164) |
 | Q9 | Where do the root register and lasting root manuals go? | **Open** ([#224](https://github.com/Lazurio/LazurioPlatform/issues/224)) |
-| Q10 | When is the legacy tree deleted? | **Open** ([#224](https://github.com/Lazurio/LazurioPlatform/issues/224)); recommended: never by the migration, by the operator on instruction after 30 days of daily work without it |
+| Q10 | When is the legacy tree deleted? | **Open** ([#224](https://github.com/Lazurio/LazurioPlatform/issues/224)); recommended: never by the migration, by the user on instruction after 30 days of daily work without it |

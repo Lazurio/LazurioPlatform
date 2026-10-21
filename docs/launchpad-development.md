@@ -92,9 +92,9 @@ Dashboard is not in the switch; the Lazurio logo at the top of the rail opens it
 **Rail.** The rail switches spaces, not Environments. From the top: the Lazurio logo
 (the Dashboard), the search button that opens the jump dialog (**⌘⇧E**, Ctrl+Shift+E on
 Windows and Linux; not ⌘K, which T3 Code uses for its own command palette), the personal
-space (its Owner's initials) when the person has an Environment there, one GitHub avatar
+space (its Owner's initials) when the user has an Environment there, one GitHub avatar
 per Organization, and "+" to add an Organization when the document names an address for
-it (none for now: F36's addendum of 2026-10-16). At the bottom there is only the account, shown as the person's GitHub
+it (none for now: F36's addendum of 2026-10-16). At the bottom there is only the account, shown as the user's GitHub
 photo. There are no Environment icons, no Organization folders and no "+N"/"méně": a
 kind icon looks the same in every Organization and a wrong click is easy, while an
 Organization's avatar is recognised at a glance. The avatar is the GitHub
@@ -180,7 +180,7 @@ those its GitHub identity can access (no Team link, no request-access tiles); an
 Organization's `infra` is neither and is not listed. An earlier version of this target
 had a third section, Organizace, for the Organization's own applications and `infra`;
 it was dropped because where a module's repository sits in the Organization is not
-something the Operator acts on. Nothing is grouped or labelled by Team: the point is
+something the user acts on. Nothing is grouped or labelled by Team: the point is
 that an Environment does not show Teams. A module tile
 opens the module's app in a new tab on its own origin; selecting the module in the left
 column opens its overview: open the app, its lifecycle, branches and worktrees, its
@@ -193,7 +193,7 @@ modulů). The rest of the Apps paragraph above is refined as follows; where they
 this paragraph wins: a module is no longer selected in the left column, and its
 information page is reached only from its tile's menu.
 
-- **Landing.** After sign-in, and when Lazurio is opened without an address, the person
+- **Landing.** After sign-in, and when Lazurio is opened without an address, the user
   lands in Apps of the Environment they had open last, in its Organization; the first
   time, in the first Environment of the first Organization. The Lazurio logo still
   opens the Dashboard. The Dashboard account remembers the last Environment, because
@@ -210,22 +210,22 @@ information page is reached only from its tile's menu.
   modules), Soubory (Files, decision F35), Integrace (decision F42), Trezor (the vault,
   [below](#vault-apps--trezor); only where the Environment has a vault), Oblíbené (the
   favourites, pinned) and, at its bottom, the Marketplace. There is no module list (its
-  rows led to technical details and confused people) and no search.
+  rows led to technical details and confused users) and no search.
 - **Marketplace.** The entry is in the Apps column of every Environment. For now it
   says "již brzy" (coming soon) and opens a placeholder page; it is not the
   [future marketplace](marketplace.md).
 - **Favourites.** Set from a module's "⋯" menu ("Přidat do oblíbených" / "Odebrat z
   oblíbených"). They are pinned in the column, where a favourite opens its app
   directly. On the home a starred module comes first in its section, in the column's
-  order, with a small filled star by its name. Favourites belong to the person and the
-  Organization (the Dashboard account), so they follow the person to every Environment
+  order, with a small filled star by its name. Favourites belong to the user and the
+  Organization (the Dashboard account), so they follow the user to every Environment
   of that Organization; an Environment shows only those its GitHub identity can reach.
 - **A clean tile.** Icon, name, short description, the favourite star and "⋯", which
   sits top right, always visible but quiet. No state line (Běží / Skončila sama / Nelze
   spustit), no running dot, no new-tab arrow, no explanatory tail ("otevře složku
   Modulu", "vlastní release, jen pro čtení") and no Productionspace subtitle. A work
   branch on a tile stays.
-- **A tile's click.** A module with an app opens it where the person's account setting
+- **A tile's click.** A module with an app opens it where the user's account setting
   says (Matěj, 2026-10-04): a new tab by default, or the same window. It is one setting
   for the whole account, in every Environment, for tiles and favourites alike; the
   Dashboard account stores it, and "the same window" navigates to the app's address,
@@ -239,7 +239,7 @@ information page is reached only from its tile's menu.
   worktrees, its log); and for the Organization's Admin and Steward "Přístup k modulu".
   That opens the module in the Organization's Dashboard (Nastavení Organizace → Moduly
   → the module) in the same window. There a switch per Team decides whether the Team
-  reaches the module, other roles see it read-only, and the page lists the people who
+  reaches the module, other roles see it read-only, and the page lists the users who
   reach it. GitHub stays the only authority: the Dashboard grants the Team access to the
   module's repository with the rights of whoever changes it, and the module then shows
   in Apps of the Environments whose GitHub identity reaches it.
@@ -257,33 +257,33 @@ information page is reached only from its tile's menu.
   0147 and 0165), an Automated Environment through its persona's own GitHub account
   (root decision 0169), and the personal Environment has no Organization repositories;
   they get the tile only if their identity really has that capability. The personal
-  space has its own "+ Nový modul" for its verified holder, which founds the person's
+  space has its own "+ Nový modul" for its verified holder, which founds the user's
   own module ([below](#personal-new-module)). #154 builds
   this as the Owner check of F36's Organization-rail addendum, point 8. Before the
   Organization's first module, such an identity still sees Workspace ("zatím žádné
-  moduly") with the tile as its only tile, not the sentence that sends a person
+  moduly") with the tile as its only tile, not the sentence that sends a user
   without modules to the Admin (#376). Once
   founding a Module in the Dashboard is done (plan DEV-6634), "+ Nový modul" leads there
   instead of to Chat (Matěj, 2026-10-04). The
   T3 Code fork accepts the prompt by link, from the Environment's own origin only and
-  never sent without the person (Lazurio/t3code#35): the link carries only the prompt's
+  never sent without the user (Lazurio/t3code#35): the link carries only the prompt's
   id and the Organization's GitHub login, and the fork fetches the text from
   `/.lazurio/prompts/<id>` on its own origin ([prompt hand-off](#prompt-hand-off-to-chat)).
 
-**Buddy.** Buddy is Buddy: he coordinates Agents on behalf of his person (the Operator)
-and holds the same authority over Agents as the Operator; he is neither an Agent nor an
-app. The Operator stays the human. In the shell Buddy is not a fourth mode of the
+**Buddy.** Buddy is Buddy: he coordinates Agents on behalf of his user
+and holds the same authority over Agents as the user; he is neither an Agent nor an
+app. The user stays the human. In the shell Buddy is not a fourth mode of the
 switch and not a tab, but a floating chat bottom-right on every screen, an iframe served
-by the person's personal Environment and embedded in the Dashboard, the Launchpad,
+by the user's personal Environment and embedded in the Dashboard, the Launchpad,
 module apps and both forks. The chat is one endless thread with Buddy, who runs on
-Hermes Agent. Buddy knows the context the person asks from (Environment, app, module) as a
-chip the person can remove, and he accepts images and files, which go straight to the
+Hermes Agent. Buddy knows the context the user asks from (Environment, app, module) as a
+chip the user can remove, and he accepts images and files, which go straight to the
 personal Environment; the host app never sees them. Buddy looking into an
 Organization's Environment is intended: he knows that what he sees there is the
 Organization's data and keeps it apart from the Personalspace memory and from other
 Organizations. The window signs in with the Lazurio account (OAuth through
 `auth.lazurio.ai`, a partitioned cookie); the host app passes no token. If that sign-in
-cannot work in Safari or Firefox, Buddy's window is supported in Chrome only. A person
+cannot work in Safari or Firefox, Buddy's window is supported in Chrome only. A user
 without a Buddy sees no bubble.
 
 **The forks and `/.lazurio/`.** Chat (`Lazurio/t3code`) and Automate
@@ -298,7 +298,7 @@ the Buddy bubble, and knows nothing of Lazurio's data:
 - Behind the Environment's gateway every app hostname of the Environment
   (`launchpad.…`, `t3code.…`, `mausbot.…`) serves the path `/.lazurio/`, answered by
   this Launchpad. `/.lazurio/shell.js` is the script with the elements, in the version of
-  the Launchpad on that Environment; `/.lazurio/shell.json` holds the signed-in person
+  the Launchpad on that Environment; `/.lazurio/shell.json` holds the signed-in user
   with their GitHub photo, the spaces (the personal space and the Organizations with
   their avatars), their Environments with their names and whom they serve, the last
   Environment used in each space (the Dashboard account remembers it; the Launchpad
@@ -376,9 +376,9 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   `guide-placement.ts`, `guide-protocol.ts`, `guide-scenes.ts`, `guide-stage.ts` and
   `guide-scene-styles.ts` (the guide and the principles' scenes, [below](#the-guide-decision-f56)),
   `stones.ts`, `fonts.ts`, `last.ts` (the report of the last Environment used,
-  below), `account.ts` and `merge.ts` (the person's account and its merge into the
+  below), `account.ts` and `merge.ts` (the user's account and its merge into the
   rail, below), `state.ts` (what the elements draw, shared by the page's elements and
-  free of the DOM: the page's document, the person's account, the merge, and who
+  free of the DOM: the page's document, the user's account, the merge, and who
   provides the account), `index.ts` (the entry of `/.lazurio/shell.js`) and `vendor/`
   (tokens, logo, fonts and stones with their hashes). Tests: `tests/shell.test.ts`,
   `tests/shell-last.test.ts`, `tests/shell-account.test.ts`,
@@ -416,7 +416,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   listed twice.
   Until it can, the document knows the Organization by its slug alone: the slug as the
   name, its Dashboard address, no avatar. Before this, a work Environment whose
-  Organization checkout lacked its canonical documents fell into the person's own space
+  Organization checkout lacked its canonical documents fell into the user's own space
   and the rail showed it as "Osobní". A personal Environment still belongs to no
   Organization. Tests: `tests/shell.test.ts`.
 - **Routes.** `/.lazurio/shell.js`, `/.lazurio/fonts/<file>` and
@@ -427,7 +427,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   `shell-document.ts`, the prompts `prompts.ts`, the Owner answer
   `organization-owner.ts`, a Steward's answer `module-maintainer.ts`, the hand-off
   check `chat.ts`). The page and the library also speak to `/.lazurio/account/…` on the
-  same origin, which the Environment's gateway relays to the person's account (F37 and
+  same origin, which the Environment's gateway relays to the user's account (F37 and
   its addendum); the Launchpad does not answer it.
 - **Page.** `index.html` is rail | column | main. The Apps column (all modules, Files,
   Integrace, Trezor, favourites, Marketplace) and home are `catalog-panel.ts` over `apps-view.ts` and
@@ -456,7 +456,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   way to the first paint. To watch it, sample the page in every animation frame from
   the document's start (Playwright's `addInitScript`) against the preview with its
   `gh` slowed down; screenshots alone miss frames.
-- **The person's account** ([F36's account
+- **The user's account** ([F36's account
   note](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer),
   root decision 0185 S8, S12, S15, S18). Built, and waiting only for the account to
   answer on the Environment's own origin; until the gateway relays
@@ -471,14 +471,14 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   - The rail draws at once from the account this origin remembered
     (`localStorage` `lazurio.account.v1`), and the fresh answer replaces it when it
     arrives (Matěj 2026-10-05: the rail took seconds to appear). Only an Environment
-    that belongs to one person remembers one, and only that person's: the account's
-    operator must be the Environment's own (`operator.login` of the shell document:
-    the owner of a personal Remote Environment, the assigned operator of a work one,
-    the responsible operator of an Automated one) when the fresh answer is kept
+    that belongs to one user remembers one, and only that user's: the account's
+    `operator` must be the Environment's own (`operator.login` of the shell document:
+    the owner of a personal Remote Environment, the assigned user of a work one,
+    the responsible user of an Automated one) when the fresh answer is kept
     (`rememberAccount`) and when it is used (`cachedAccountFor`). A Team Environment
-    and a workstation name no operator, so they neither keep nor use one: another
-    person may open a shared origin, and only the fresh answer is theirs. Another
-    person's fresh answer, a refusal (`401`, `403`) or no relay (`404`) removes it; a
+    and a workstation name no user, so they neither keep nor use one: another
+    user may open a shared origin, and only the fresh answer is theirs. Another
+    user's fresh answer, a refusal (`401`, `403`) or no relay (`404`) removes it; a
     slow or failed answer keeps it. It holds only the members `parseShellAccount`
     reads, never anything else the answer carried, so never a token.
   - The rail's merge (F37 point 4, `src/shell/merge.ts`). `parseShellAccount` in
@@ -498,9 +498,9 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     Environments and its last Environment there are left out. The account's `name`
     and `who` are shown only when its `locale` is the local document's; otherwise
     every Environment is named from its label or kind in the local language, and the
-    structure (ids, apps, spaces, last Environments) stays. The operator
-    becomes the person signed in at the browser. A space without an Environment (an
-    Organization from the person's memberships) keeps its avatar and its name in the
+    structure (ids, apps, spaces, last Environments) stays. The `operator`
+    becomes the user signed in at the browser. A space without an Environment (an
+    Organization from the user's memberships) keeps its avatar and its name in the
     rail and leads to its Dashboard; ⌘⇧E lists
     it with its head and "You have no Environment here.", and the picker, which has no
     heads, leaves it out even widened. A click on another space leads to the account's
@@ -536,7 +536,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   for Files and Tools whose `gh` answers for the example Organization as the role says
   (an Owner by default; a Steward maintains its workspace modules' repositories), and
   with `hosted` a recorded entry plus a loopback proxy that adds the gateway's Host and
-  cookie. The entry names the person's sign-out (Machines#358), so the account at the
+  cookie. The entry names the user's sign-out (Machines#358), so the account at the
   foot of the rail opens its menu; the preview has no gateway, so its "Odhlásit"
   reaches the Launchpad, which does not serve the sign-out. The account is not part of
   the preview: a browser automation, or a small
@@ -596,7 +596,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
 
   - **Its document** has `current: null` (explicit; absent is refused, and `setup`
     must then be absent too), carries Environments and Organizations of its own or
-    none (the account brings the person's), and may name its own pages by path:
+    none (the account brings the user's), and may name its own pages by path:
     `dashboard`, `account`, `addOrganization` and an Organization's `dashboard`
     (`/…`, never `//…`, no fragment). The account document stays https only. Both
     documents are additive only from now on; a breaking change is a v2.
@@ -623,7 +623,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     names them by path, so a single-page host moves without a reload.
   - **Signed out** ([F36's addendum of
     2026-10-06](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer)).
-    With nobody signed in the page has no `lazurio.shell.v1`, which needs a person. It
+    With nobody signed in the page has no `lazurio.shell.v1`, which needs a user. It
     hands its `lazurio.shell-signed-out.v1` to the same `provideShell`, and no account:
 
     ```js
@@ -640,7 +640,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     The rail then draws only the Lazurio logo and the key "Přihlásit Lazurio účtem",
     both leading to `signIn` (a path announces `lazurio-navigate`, as above), and the
     column head draws nothing. `signIn` follows the rule of the Dashboard's addresses
-    above. A later `provideShell` with the person's `lazurio.shell.v1` draws the full
+    above. A later `provideShell` with the user's `lazurio.shell.v1` draws the full
     rail again, and a signed-out document after that draws the logo and the key again.
     A host without a sign-in provides no signed-out document, and its rail stays empty.
   - **Assets.** The host serves `shell.js` and the four fonts at
@@ -652,11 +652,11 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   the document's optional `setup` for the current Environment, `{ai?: "ready" |
   "missing", github: "connected" | "missing", content?: "ready" | "missing" | "failed",
   item?: {kind: "organization", name, login} | {kind: "personalspace", login | null}}`.
-  Present only where the Environment signs in as its person and gh's state is known
+  Present only where the Environment signs in as its user and gh's state is known
   (`setup-state.ts`: this Environment's `gh`, kept a minute and replaced by Nástroje's
   readings and every sign-in or sign-out through the Launchpad); `ai` only where Codex
   and Claude Code answered (`src/tools/ai-probe.ts`, kept a minute; `ready` is the
-  person's sign-in or the Organization's AI); `content` only where the content routes
+  user's sign-in or the Organization's AI); `content` only where the content routes
   answer, `item` the first content not here or the one that stopped. The document never
   waits for it (F36's addendum of 2026-10-08): it is the last reading, first read when
   someone opens the page, read again in the background after 30 seconds, and dropped
@@ -730,7 +730,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   The line is an inset shadow of the element, not a border, so a border colour a host's
   own rules give the rail never recolours it. Since root decision 0208 the apps' standard
   looks follow one theme of the Environment, through the token names below ([the
-  Environment's theme](#the-shell-as-built-decision-f36)); a person's own pick in T3
+  Environment's theme](#the-shell-as-built-decision-f36)); a user's own pick in T3
   Code or MausBot stays theirs, and the roles follow whatever the app shows. The
   Launchpad page sets the roles only under a theme other than Lazurio, so under Lazurio
   the elements draw the design system's look exactly as before.
@@ -769,7 +769,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
 - **The Environment's theme** ([F36's addendum of
   2026-10-18](decisions.md#f36-addendum-of-2026-10-18-the-environment-theme-root-decision-0208),
   root decision 0208). One theme per Environment that Chat, Apps and Automate take
-  through the shell; a person's own pick inside T3 Code or MausBot stays theirs.
+  through the shell; a user's own pick inside T3 Code or MausBot stays theirs.
   - **The record** (`src/theme/record.ts`): `{theme, revision, setAt}` in the install
     base, `<base>/theme/<Folder digest>.json`, never in the Folder's `.lazurio/` and
     never in the profile; Lazurio at revision 0 while there is none or it cannot be
@@ -857,18 +857,18 @@ thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
   the T3 Code origin to this Launchpad with the Launchpad's Host and the query kept;
   the fragment token locally), answers `application/json`, `Cache-Control: no-store`:
   `{"schema": "lazurio.prompt.v1", "id", "text", "cwd"}`. `text` is the prompt in the
-  person's language (the Folder's profile locale), `cwd` the absolute root of the
+  user's language (the Folder's profile locale), `cwd` the absolute root of the
   Lazurio Folder for every prompt, an Organization's too (root decision 0189; F36
   addendum of 2026-10-14: the Folder's skills are found only from there). Three ids
   exist (`src/launchpad/prompts.ts`). `prepare-content` ("Vyřešit v Chatu", root
-  decision 0188) is the Folder's: only where the Environment signs in as its person,
+  decision 0188) is the Folder's: only where the Environment signs in as its user,
   only while the last installation the content routes report stopped, its text the
   wireframe's `preparePrompt` with the step and the detail of that stop (find the
   cause, fix it, finish with `lazurio organization install <login>` or `lazurio
   personalspace install`, verify with `lazurio doctor` and the modules' tests, report,
   ask before anything outside the Environment), its `cwd` the Lazurio Folder's root
   (the Organization may not be here yet). Its `org` is optional and, when given, must
-  be the login of the content that stopped (the Organization's, or the person's for the
+  be the login of the content that stopped (the Organization's, or the user's for the
   Personalspace); today's fork sends it with every link. `new-module` is an
   Organization's (its text `newModulePrompt`); the
   Organization is the one Organization of the Folder whose manifest binds that GitHub
@@ -908,7 +908,7 @@ thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
 - **The fork.** The overlay of Lazurio/t3code accepts only the id and the login, fetches
   the text from its own origin, opens a new thread in the project rooted at `cwd` (adding
   that folder as a project when there is none, as "Add project" does) and leaves the
-  text in the composer; nothing is sent without the person, and an unknown id, a failed
+  text in the composer; nothing is sent without the user, and an unknown id, a failed
   fetch or a wrong answer insert nothing.
 - **Tests.** `tests/launchpad-prompts.test.ts`: the prompt registry and its audience,
   the Organization a login names (case-insensitive, exactly one), the document, the
@@ -977,18 +977,18 @@ guide's mark and a card beside it, and the layer lets every click through.
   - Apps home and an Organization's Apps: the principle `environment`;
   - Soubory: the principle `files`, in a Team Environment the Launchpad's `files-team`;
   - Integrace: the principle `integrations`, where Composio is allowed the Launchpad's
-    `integrations-composio` (the person's own account, one Composio organization per
+    `integrations-composio` (the user's own account, one Composio organization per
     Organization, what the agents use, another account for other accounts), on Vlastní
     and its form `integrations-custom`; the Launchpad's explanations carry the page's
     documentation (`integrationsHelp`), which left the page's corner;
   - Trezor (`vaultHelp`), only once the page read the vault's state: in a Personal
     Environment, or wherever the vault is the
-    person's own Bitwarden, the principle `vault` (its Personal adaptation); where
+    user's own Bitwarden, the principle `vault` (its Personal adaptation); where
     nobody who enters is added to the vault (membership `not-managed` or
-    `sign-in-not-required`, so a Team or Automated Environment), where the person is no
+    `sign-in-not-required`, so a Team or Automated Environment), where the user is no
     member (no account or no master password yet, removed), and while that is not
     known, the Launchpad's `vault-agents`, which promises no Bitwarden of one's own; where
-    the person is a member of the vault, or the Environment has no vault, the approved video
+    the user is a member of the vault, or the Environment has no vault, the approved video
     `vault-overview`, open in place as the page opens and the first thing it shows (F56's
     addendum (4) of 2026-10-19), with the one line it does not say; the "?" closes and reopens
     it (`page-help.ts`, `#vault-video`); nothing until the page read the vault's state. One
@@ -1035,7 +1035,7 @@ guide's mark and a card beside it, and the layer lets every click through.
   (#499).
 - **Check it in a browser** (root decision 0178): `bun scripts/preview-launchpad.ts
   hosted|personal cs|en <port> owner [team|automated|no-vault|vault-member|composio-off]`
-  (`vault-member`: the person already a member of the work Environment's vault, where
+  (`vault-member`: the user already a member of the work Environment's vault, where
   Trezor shows its video first), then every
   page with its "?" at 1440 and 700 px, with and without `prefers-reduced-motion`: one
   "?" right after the heading, the ring on each step's element (or the card in the
@@ -1187,7 +1187,7 @@ of the directories it found tells of no change (`catalog-reading.ts`, F36's note
 2026-10-20 (2)). A candidate that cannot be read keeps its typed reason
 (`canonical-documents-required`, `organization-conflict`, `template-not-runtime`,
 `organization-changed`, `organization-unavailable` for a link or a directory that is
-not the operator's) and never hides the others; two candidates that declare the same
+not the user's) and never hides the others; two candidates that declare the same
 slug are both `organization-duplicate`, because `<Org>/<Module>` would be ambiguous.
 The modules of an Organization are its declared slots (`modules.manifest.json`
 `module_slots`), in declaration order: every workspace slot
@@ -1298,9 +1298,9 @@ own `personalspace` field, not in `organizations`, so no reader of Organizations
 Doctor's checks, the table of `organization list`) lists it by accident; `module
 list`, the selection rule (`catalogGroups` in `catalog-selection.ts`) and the page add
 it after the Organizations. Exactly one owner directory is expected (hidden entries
-are skipped): with two or more, which one is the Operator's is not guessed, none is
+are skipped): with two or more, which one is the user's is not guessed, none is
 read, and the group is listed with `personalspace-ambiguous` and no modules (decision
-0091); an owner directory or `workspace/` that is not the Operator's own is
+0091); an owner directory or `workspace/` that is not the user's own is
 `personalspace-unavailable`. An Organization whose slug is `personalspace` is
 ambiguous with the group under the selection rule.
 
@@ -1514,7 +1514,7 @@ preparation (the transaction with the retained owner lock), whatever the check s
 and starts nothing: for a declared preparation the install, `prepare_script` and check,
 for the default its install. It never prepares beneath a running app: a service-owned
 app is `application-running`, another managed app of the Organization
-`other-app-managed`, and a session app is stopped for its own preparation, as before. The toolchain is the operator's Bun at
+`other-app-managed`, and a session app is stopped for its own preparation, as before. The toolchain is the user's Bun at
 `<home>/.local/bin/bun` (B2); missing, start is refused as `toolchain-missing` before any
 effect (`--bun-executable` stays a development flag of the old panel only). On Linux with
 a reachable user manager the app is a transient systemd user unit (`systemd-user`
@@ -1644,7 +1644,7 @@ start and not run.
 
 ## Module creation (decision F52)
 
-A person's own module: `lazurio module create personalspace/<module>` plans a private
+A user's own module: `lazurio module create personalspace/<module>` plans a private
 repository `<login>/<module>` on the GitHub account gh is signed in with, checked out in
 the held Personalspace's `workspace/<module>`, with no Organization and no Teams, its slot
 declared by a pull request into the Personalspace (root decision 0171, addendum of
@@ -1654,15 +1654,15 @@ the root with its templates (`src/modules/templates/README.md`); the use case is
 
 **CLI first.** `lazurio module create personalspace/<module> --stack <stack> [--name
 <name>] [--port N] (--dry-run | --confirm <plan>) [--folder <F>] [--json]`. The Launchpad has no route for it:
-the person's agent runs it (M1's prompt hands it over). `--json` prints one line per step
+the user's agent runs it (M1's prompt hands it over). `--json` prints one line per step
 (`{"kind": "module-create-step", "key": "plan", "state": …}`), then the report
 `lazurio.module_create.report.v1`: `status` and `reason`, `module` (`name`, `slug`,
 `stack`, `display_name`), `repository` (`full_name`, `private: true`, `create`), `slot`,
 `lease`, `files` (path and size), `generated_by_install`, `tree_hash`, `plan` (a digest of
-everything the person confirms), `manifest` (the manifest that receives the slot, its
+everything the user confirms), `manifest` (the manifest that receives the slot, its
 `module_port_pool` and whether the slot's pull request adds it), `worktree`,
 `module_root`, `warnings`, `issues` and `next_steps`. Exit status: 0 planned or
-created, 1 created with a step left to the person, 2 refused (nothing written) or
+created, 1 created with a step left to the user, 2 refused (nothing written) or
 usage.
 
 **Checks, in order, all reading only.** Codes the root's `module create` has keep its
@@ -1684,7 +1684,7 @@ spelling; codes the content core has keep the content core's.
    (`modules_manifest_missing`, `manifest_invalid`). A declared `module_port_pool` must lie
    in `23000`–`23099` (`personalspace-pool-invalid`); without one the reserved range is
    used and the slot's pull request declares it. `workspace/` is a real directory of the
-   operator (`personalspace-unavailable`), Git ignores `workspace/<module>`
+   user (`personalspace-unavailable`), Git ignores `workspace/<module>`
    (`personalspace-workspace-tracked`), and no directory (`directory_exists`) and no slot
    of the Personalspace or the task branch (`slot_exists`) has that name, letter case
    ignored. The template's example slot `workspace/personal-notes` is an ordinary
@@ -1703,7 +1703,7 @@ A dry run writes nothing and asks GitHub only reads: whose the Personalspace is 
 user`, `GET repos/<login>/<login>_GEN3`) and `GET repos/<login>/<module>`. Its next steps
 name the task worktree (`personalspace/.worktrees/<task>`, beside the owner directory,
 never in it and never a second directory of `personalspace/`), ask the agent to show the
-person the plan and create nothing before they confirm it, and give the exact command of
+user the plan and create nothing before they confirm it, and give the exact command of
 the real run with the plan's digest.
 
 **The real run** (`createPersonalModule` in `src/modules/module-create-run.ts`, decision
@@ -1712,28 +1712,28 @@ F52 point 7) runs only with `--confirm <plan>`, under the Folder's content lock
 `personalspace/.worktrees/<task>` on a branch of its own
 (`personalspace_root_not_task_worktree`, `personalspace_worktree_misplaced`,
 `personalspace_root_on_main`), and only for the
-plan whose digest the person confirmed: every check runs again and a different plan is
+plan whose digest the user confirmed: every check runs again and a different plan is
 `plan-changed`. Its steps, one JSON line each with `--json`: `write` (the files into a
 marked temporary sibling `workspace/.<module>.lazurio-content-<hex>`, through
 `publishNewCheckout` in `src/content/materialize.ts`, the content install's own
 publication), `prepare` (`bun install --cwd app/v1` with `~/.local/bin/bun`, or `uv lock
 --directory app/v1`; a failure is an issue and the run goes on), `commit` (`git init` on
-`main` and one commit by the operator's Git identity, else by the person's GitHub identity
+`main` and one commit by the user's Git identity, else by their GitHub identity
 (profile name or login, `<id>+<login>@users.noreply.github.com`) given per commit and never
 configured; `commit-failed` stops only when neither is known), `create`
 (`POST /user/repos` with `private=true` through gh; GitHub's answer must say private, the
 holder's login and the planned name, or the run stops with nothing placed:
 `create-failed`, `not-private`, or `create-uncertain` when GitHub did not confirm the
 creation but has the name now, its answer lost or the name taken meanwhile: never
-adopted, `action_required`, the person looks at it), `place` (the no-replace rename into `workspace/<module>`), `push` (`main`,
+adopted, `action_required`, the user looks at it), `place` (the no-replace rename into `workspace/<module>`), `push` (`main`,
 with gh as the credential helper of an HTTPS remote; `push-failed` keeps the module
 placed and names the exact command), `declare` (the slot, and the pool the Personalspace
 lacks, into the task worktree's `modules.manifest.json` with `insertModulePortPoolText`
 and `insertModuleSlotText`; never the Personalspace's own tracked files) and `check` (the
 catalog lists `personalspace/<module>`). A repository is never adopted, and one the run
 created is never deleted: a stop after its creation is `action_required` and says what to
-do with it. Then the person's agent commits the manifest, pushes the branch and opens the
-pull request into `<login>/<login>_GEN3`; its merge is the person's Publication.
+do with it. Then the user's agent commits the manifest, pushes the branch and opens the
+pull request into `<login>/<login>_GEN3`; its merge is the user's Publication.
 
 **An Organization's module** (F52's addendum of 2026-10-14, #267): `lazurio module
 create <Organization>/<module> --stack <stack> --teams <team,team> …`, the same plan,
@@ -1808,7 +1808,7 @@ is `--folder`, the supervised unit's, or on a hosted Machine the declared operat
 (as for `lazurio update`). Exit status: 0 `ok`, 10 `attention` (a `warn`), 3 `broken`
 (a `fail`), 2 usage, 1 the command itself failed.
 
-**Read-only.** Doctor adds one check of its own, the operator's Codex app-server
+**Read-only.** Doctor adds one check of its own, the user's Codex app-server
 daemon of a Remote Environment (`codex-app-server`, F29); every other answer comes
 from a reader the product already has, and none of them writes. The Folder's tool selection is read under
 the Folder's read lock (`toolsOverview`) where its state is recognized, and without a
@@ -1851,7 +1851,7 @@ characters escaped), Czech or English by the Folder's locale.
 | launchpad | `launchpad-unit` | `collectRecovery` unit (Linux, supervised) | `fail unit-*`; `skipped no-user-manager`, `not-supervised` |
 | launchpad | `launchpad-health` | `collectRecovery` health socket, `answer` normal/recovery/none/unexpected | `fail launchpad-recovery-mode`, `launchpad-not-answering`, `launchpad-version-mismatch` |
 | machine | `machine-entry` | the recorded binding's `entry` on a hosted preset | `warn entry-not-recorded`; `skipped not-hosted` |
-| machine | `codex-app-server` | `observeCodexAppServer` ([F29](decisions.md#f29--entry-units-of-a-remote-environment-the-launchpad-t3-code-and-the-operators-codex-app-server)): `systemctl --user show` of `lazurio-codex-app-server.service`, then, when it is active, `codex app-server daemon version` from `~/.local/bin/codex` (10 s, PATH and HOME only); never `fail`, never in `recover` | `ok` when active and Codex answers `running`; `warn app-server-outdated` with `appServerVersion` and `cliVersion` when Codex answers `running` with two different versions (an app-server a client started over SSH outside the unit; replacing it is the Operator's call, `manual/troubleshooting.md`, issue #173), `warn daemon-not-running`, `warn daemon-state-unknown`, `warn unit-failed`, `unit-inactive`, `unit-not-loaded` (the next step is `systemctl --user start lazurio-codex-app-server.service`, or `lazurio install --service systemd-user --folder <Folder>` when the unit is missing); `skipped no-user-manager`, `not-supervised`, `not-hosted`, `codex-missing`, `user-manager-unreachable`, `unit-state-unknown` |
+| machine | `codex-app-server` | `observeCodexAppServer` ([F29](decisions.md#f29--entry-units-of-a-remote-environment-the-launchpad-t3-code-and-the-operators-codex-app-server)): `systemctl --user show` of `lazurio-codex-app-server.service`, then, when it is active, `codex app-server daemon version` from `~/.local/bin/codex` (10 s, PATH and HOME only); never `fail`, never in `recover` | `ok` when active and Codex answers `running`; `warn app-server-outdated` with `appServerVersion` and `cliVersion` when Codex answers `running` with two different versions (an app-server a client started over SSH outside the unit; replacing it is the user's call, `manual/troubleshooting.md`, issue #173), `warn daemon-not-running`, `warn daemon-state-unknown`, `warn unit-failed`, `unit-inactive`, `unit-not-loaded` (the next step is `systemctl --user start lazurio-codex-app-server.service`, or `lazurio install --service systemd-user --folder <Folder>` when the unit is missing); `skipped no-user-manager`, `not-supervised`, `not-hosted`, `codex-missing`, `user-manager-unreachable`, `unit-state-unknown` |
 | machine | `environment-browser` | `observeEnvironmentBrowser` ([F38](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway)): `systemctl --user show` of `lazurio-display.service`, `lazurio-browser.service` and `lazurio-browser-view.service`, then the browser's DevTools (`127.0.0.1:9222/json/version`) and the view (`127.0.0.1:<entry.browser.listen_port>/`), 3 s each, then every holder file in `$XDG_RUNTIME_DIR/lazurio-browser/holders` (`unreadableHolderFiles`, root decision 0191 point 32); never `fail`, never in `recover`, never `agent-browser doctor` (it cleans files) | `ok` when all three are active, both answer and every holder file can be read; `warn browser-unit-not-loaded`, `browser-unit-failed`, `browser-unit-inactive` with the `unit`, `warn browser-not-answering`, `browser-view-not-answering`, `warn browser-holder-unreadable` with the `files` (or the directory) it could not read: a file the hub read before keeps the tabs of its last reading until it can be read again, a file the hub has not read since the view started holds no tab, and doctor cannot tell the two apart; `skipped no-user-manager`, `not-supervised`, `not-hosted`, `browser-not-declared`, `user-manager-unreachable` |
 
 **C.2 step 4.** The apply reads `lazurio doctor --json` and stops on any `fail`; for
@@ -2013,7 +2013,7 @@ way it enters:
 - A public Environment's visitors (root decision 0204,
   [F55](decisions.md#f55--a-public-environment-a-demo-onboarding-a-quiet-notice-that-it-is-public-nothing-to-sign-in-to))
   always get the standard pairing.
-- Each pairing is labelled with the admitted person's Lazurio username, `Lazurio ·
+- Each pairing is labelled with the admitted user's Lazurio username, `Lazurio ·
   <username>`, so T3 Code's Settings → Connections shows whose browser each session is.
 - T3 Code's desktop and mobile apps pair with device tokens from T3's Settings →
   Connections, on Environments reached over the tailnet. A public lane has no native
@@ -2053,7 +2053,7 @@ hosted, the fragment token locally):
 |---|---|
 | `GET /api/entry` | `{kind: "entry", entry: {launchpadOrigin, t3codeOrigin, moduleOriginTemplate, mausbotOrigin?, browserOrigin?} \| null}`: the recorded entry's public parts, read-only (`browserOrigin` offers [the right panel](#the-right-panel-the-environment-browser)); the auth endpoint, cookie name and port stay on the server. `null` on a workstation. Any other method: 405. Recovery mode answers it too. |
 | `POST /api/chat/pair` (body `{}`) | `{kind: "chat-link", url}` with `url` = `<t3codeOrigin>/pair#token=…`; `409 {kind: "blocked", reason}` with `t3-launcher-missing` (no `t3` on PATH, nothing run) or `t3-pairing-failed` (a non-zero exit, a timeout of 15 s, output that is not JSON, a credential of another shape or no readable `expiresAt`); `404` on a workstation. Same-origin rule of every state-changing request. Not in Recovery mode (its typed refusal). |
-| `GET /.lazurio/chat/pairing` | T3 Code's self-pairing (decision of 2026-10-17): `200` with exactly `{"kind":"chat-pairing","credential":"…","expiresAt":"…"}` and `Cache-Control: no-store`, minted for the admitted person as the click's pairing is. Only a page's own script fetch: `Sec-Fetch-Site: same-origin`, `Sec-Fetch-Mode` `cors` or `same-origin`, and neither `Sec-Purpose` nor `Purpose` naming a prefetch or prerender. Anything else, `403 {error: "not-allowed"}` with nothing run: a navigation (a bookmark, a link, a typed address), a subresource, a speculative load, another site, a request without Fetch Metadata. `409 {kind: "blocked", reason}` as above; a query: 400; any method but GET, HEAD included (it mints nothing): 405; `404` on a workstation. Recovery mode answers it with its plain page and mints nothing. |
+| `GET /.lazurio/chat/pairing` | T3 Code's self-pairing (decision of 2026-10-17): `200` with exactly `{"kind":"chat-pairing","credential":"…","expiresAt":"…"}` and `Cache-Control: no-store`, minted for the admitted user as the click's pairing is. Only a page's own script fetch: `Sec-Fetch-Site: same-origin`, `Sec-Fetch-Mode` `cors` or `same-origin`, and neither `Sec-Purpose` nor `Purpose` naming a prefetch or prerender. Anything else, `403 {error: "not-allowed"}` with nothing run: a navigation (a bookmark, a link, a typed address), a subresource, a speculative load, another site, a request without Fetch Metadata. `409 {kind: "blocked", reason}` as above; a query: 400; any method but GET, HEAD included (it mints nothing): 405; `404` on a workstation. Recovery mode answers it with its plain page and mints nothing. |
 | `GET /api/chat/prompt-handoff` | `{kind: "chat-prompt-handoff", accepted}`: whether Chat on this Environment takes a prepared prompt by link ([prompt hand-off](#prompt-hand-off-to-chat)); `accepted: false` on a workstation without running anything. Any other method: 405. |
 
 **CLI.** `lazurio chat link [--folder <absolute Folder>] [--plain] [--json]`
@@ -2063,7 +2063,7 @@ so it writes nothing), found as for `lazurio doctor` (`--folder`, the supervised
 or on a hosted Machine the declared operator's), and answers from the same
 `issueChatLink` with the same tools environment (`toolsEnvironmentOf`, this process's
 `PATH` and `HOME`), through `chatLinkAnswer` in `src/launchpad/chat.ts`. With a pairing
-the link `<t3codeOrigin>/pair#token=…` alone is on stdout, for the operator's browser;
+the link `<t3codeOrigin>/pair#token=…` alone is on stdout, for the user's browser;
 without one, on `t3-launcher-missing`, `t3-pairing-failed` or with `--plain`
 (`plain-requested`), stdout carries the plain `t3codeOrigin`, where a T3 Code that
 pairs itself asks this Launchpad and an older one asks the browser to pair, and stderr
@@ -2073,7 +2073,7 @@ stderr. `--json` prints `{kind: "chat-link", url, pairing, reason?}` (`url: null
 not hosted). Stderr never carries the token. Exit status: 0 a link (paired or plain), 10
 not hosted, 2 usage, 1 the Folder could not be read (its enumerated start refusal, never
 a path). The generated manual tells agents on a hosted Machine to hand this link to the
-operator, never a localhost one (base-instructions-13).
+user, never a localhost one (base-instructions-13).
 
 **Page.** `src/launchpad/chat-view.ts` (pure, tested) accepts the entry only in the
 recorded shapes and a pairing link only on the recorded T3 Code origin, path `/pair`, no
@@ -2085,7 +2085,7 @@ the same minting fails there too, shows its own pairing page. The click keeps pa
 the way although T3 Code now pairs itself: that is harmless, and older T3 Code builds
 without the self-pairing need it. It can go once every Environment's T3 Code pairs
 itself. Without an entry (a workstation) the entry is absent, as the resident's button:
-T3 Code runs wherever the operator runs it (launchpad-parity D). The **Recovery page**
+T3 Code runs wherever the user runs it (launchpad-parity D). The **Recovery page**
 (Settings → Recovery, and Recovery mode) shows **Open T3 Code** next to **Copy the
 prompt** when there is a prompt and an entry: the same origin, a plain link in a new tab
 (`docs/recovery-mode.md` C.3, first slice), never a pairing call, because Recovery mode
@@ -2141,7 +2141,7 @@ refusals, each with nothing run: no session, a refused session, T3 Code's own Ho
 Fetch Metadata, another site, a sibling site, a typed address, a navigation, a
 subresource, `Sec-Purpose` and `Purpose` prefetches and a prerender, a query, HEAD and
 POST. A public Environment's visitor gets the standard call, and T3 Code is not asked
-for its capabilities. A Team Environment's person gets the operator call. Without `t3`,
+for its capabilities. A Team Environment's user gets the operator call. Without `t3`,
 or with a failing, unreadable, misshaped or expiry-less answer: 409 with one reason and
 never the output. On a workstation: 403 without the token, 404 with it. As unit tests,
 without a server: the label (only a Lazurio username, at most 49 characters), the Fetch
@@ -2161,7 +2161,7 @@ DEV-6632 (decision 0169). On a Machine that runs Lazurio MausBot, the Environmen
 bot-team app (Lazurio's fork of OpenMausBot), the sidebar shows **Lazurio MausBot** next
 to Chat and enters it the same way: the Launchpad runs as the same Machine user as
 MausBot, mints a one-time pairing code and opens MausBot's pairing form with that code
-already filled in, so the operator never types or copies a code. OpenMausBot's `/pair`
+already filled in, so the user never types or copies a code. OpenMausBot's `/pair`
 page only prefills the code from the fragment: one **Connect** click pairs the browser
 and lands in the app. A browser that is already paired sees "This browser is already
 connected" with **Open the app** instead, and the minted code expires unused after about
@@ -2247,7 +2247,7 @@ status" (with them again and `fresh: true`, read anew), and shows:
   sign-in completed in this Launchpad session turns the switch on (`autoEnable`, Matěj
   2026-10-04): after the reading that follows the sign-in, so the change is made at the
   current revision, never for a tool that was signed in before (`already`), and the
-  person may turn it off again. On a Team Environment (the preset `hosted-organization-team`,
+  user may turn it off again. On a Team Environment (the preset `hosted-organization-team`,
   the shared case) the gh row has no "Sign in" or "Link SSH key", and "Install" instead
   of "Install and sign in" while gh is missing (its notice ends with the Team
   sentence); a subdued sentence says that this Team Environment works in GitHub through
@@ -2257,7 +2257,7 @@ status" (with them again and `fresh: true`, read anew), and shows:
   App identity (the brokered gh), and goes on with "· Uses Lazurio for GitHub" instead
   of the state of an SSH key. The agent fallback in Details hands gh's Team prompt,
   which signs nobody in. "Sign
-  out" appears there only while a person's account is signed in (gh's `signIn.identity`
+  out" appears there only while a user's account is signed in (gh's `signIn.identity`
   is `person`, a left-over of the ended exception), never for the Organization's
   identity; the page decides with the same rule the server enforces
   (`src/tools/team-github.ts`, [environment tools](environment-tools.md#gh-on-a-team-environment)),
@@ -2279,7 +2279,7 @@ status" (with them again and `fresh: true`, read anew), and shows:
   today Composio) has its switch locked off, labelled "Nastavuje Organizace" / "Set by
   the Organization" (`organizationView` in `tools-view.ts`), one subdued sentence "Composio
   tu nepovoluje Organizace." / "The Organization does not allow Composio here." and,
-  where the person had it on, that the choice is kept for when the Organization allows
+  where the user had it on, that the choice is kept for when the Organization allows
   it; no "Add and connect", "Connect" or agent fallback, while "Disconnect" stays for a
   sign-in left from before. Its Details gain "Organization settings"
   (`organizationDetails`): that only the Organization's Admin changes it, where this
@@ -2319,7 +2319,7 @@ required tool has no toggle and shows "Always on"; it can carry a note.
 
 **Set up with an agent** opens a modal `<dialog>` with the prepared prompt in a
 read-only text area and "Copy prompt" (Clipboard API; where it is unavailable the text
-is selected for a keyboard copy). The prompt contains no secret, and the operator
+is selected for a keyboard copy). The prompt contains no secret, and the user
 pastes it into a new chat in T3 Code on the Machine. Focus moves into the dialog and
 returns to the button that opened it (opening its "Details" again when the button sits
 there). Every activatable tool has this button.
@@ -2360,7 +2360,7 @@ card's state is read again. What it shows:
   after 4 s, growing to every 30 s, paused while the page is hidden and at once when
   it shows again, until it is connected or closed (`composioPollDelay`,
   `composioPollNext`). Connected: "Composio je připojené" with the account and the
-  organization the reading marks current, a native select where the person
+  organization the reading marks current, a native select where the user
   chooses among several (it switches on change), and "Vybrat aplikace" to Apps →
   Integrace in place of "Done";
 - wacli: the path in WhatsApp in words, the QR code as an image of the server's SVG
@@ -2379,7 +2379,7 @@ the build Lazurio uses (0.4.3-lazurio.2).", the amber attention state) and its r
 "Aktualizovat" / "Update" (named "Update composio") where the update can work: a
 `launchpad` tool this Environment offers, not refused by the Organization, installed
 in the standard path (an installation elsewhere is never shadowed by a second copy, so
-there is no button there). The click is the person's consent: it posts
+there is no button there). The click is the user's consent: it posts
 `/api/tools/upgrade` `{tool}`, which runs the core of `lazurio tools update`
 (composio's curated installer again at the pinned build, keeping the sign-in; one
 installer run per tool at a time, shared with installation, `busy` otherwise; a tool
@@ -2430,7 +2430,7 @@ saying its step: "Instaluje se Bitwarden…", "Připravuje se účet trezoru…"
 "Síť zatím účet trezoru nepovolila", "Trezor byl
 odebrán" (a 0197 pilot's: "Přístup odebrán v trezoru"), "Trezor neodpovídá", "Nastavení
 se nedokončilo", "Tento Environment zatím trezor nemá" (the handover names no vault),
-"Čeká na váš Bitwarden" (a personal Environment whose person has not connected their
+"Čeká na váš Bitwarden" (a personal Environment whose user has not connected their
 own Bitwarden yet, root decision 0203 point 7, with "Připojit", a link to the form of
 Apps → Trezor, and no setup) and "V tomto Prostředí není k dispozici" on this
 computer, which says no plan (F36's addendum of 2026-10-16) ("Connected", "Not set up
@@ -2441,7 +2441,7 @@ vault on: "Nastavit" when nothing set it up yet and "Zkusit znovu" after a setup
 stopped, a vault that did not answer or a creation not confirmed yet. A vault the network has not allowed or has
 revoked, and a 0197 pilot, offer none; there is no dialog, no details section and no
 disconnect. The setup in which the vault becomes ready turns the agents' switch on in the
-Folder itself, once per vault (decision F53), so a person who turns it off keeps it off;
+Folder itself, once per vault (decision F53), so a user who turns it off keeps it off;
 the page never turns it on, and after a setup it followed that ends connected it reads
 the Folder again to show it. The state is accepted only in its exact form
 (`src/launchpad/vault-view.ts`, `tests/vault-view.test.ts`); the DOM is
@@ -2464,7 +2464,7 @@ becomes ("Uloží se do trezoru Prostředí jako položka …"), "Uložit do tre
 field has a value, and "Odmítnout"; afterwards "Uloženo do trezoru." or "Odmítnuto.".
 A value goes from its input into the one `POST /api/vault/requests/<id>/save` and
 nowhere else (no storage, address or log); the inputs are emptied once the request is
-answered and kept after a refusal the person can retry ("Trezor teď neodpovídá. Zkuste
+answered and kept after a refusal the user can retry ("Trezor teď neodpovídá. Zkuste
 to prosím za chvíli."). A request answered meanwhile by someone else is read again.
 The routes' answers are read in their exact shape and the texts made by
 `src/launchpad/vault-requests-view.ts` (`tests/vault-requests-view.test.ts`). The Trezor
@@ -2480,7 +2480,7 @@ running", "Running, setup not finished", "Conflicts with another installation", 
 available in this Environment"; F36's addendum of 2026-10-16). Its one action is "Nainstalovat", "Aktualizovat" or "Opravit", which runs
 `/api/tools/executor/setup` and asks again with its job while the line says the step
 ("Instaluje se…", "Spouští se…", "Připojují se agenti…"), or for a conflict "Vyřešit s
-pomocí agenta", which opens a prepared prompt (show the Operator what conflicts and
+pomocí agenta", which opens a prepared prompt (show the user what conflicts and
 remove it only with their consent). A setup the page did not start, the Launchpad's
 own after its start (F44 addendum of 2026-10-11) or Install in another page, comes
 back from the status read as its job and step; the row follows it the same way, with
@@ -2510,7 +2510,7 @@ output and the clipboard path have not been qualified by a recorded manual run.
 Settings → SSH from your devices ([decision F49](decisions.md#f49--ssh-from-the-persons-devices-is-registered-in-launchpad-settings))
 lists the keys of the account's `~/.ssh/authorized_keys`, adds a device's key with the
 Launchpad's marker, removes only such keys, and shows the settings a computer writes and
-the prompt for the person's own agent. The core is `src/ssh-access/` (`keys.ts` the file,
+the prompt for the user's own agent. The core is `src/ssh-access/` (`keys.ts` the file,
 `host.ts` the account, tailnet name and host key, `access.ts` the use case), tested in
 temporary homes (`tests/ssh-access-keys.test.ts`, `tests/ssh-access-host.test.ts`, the
 fingerprint cross-checked with `ssh-keygen -lf`). The routes are `src/launchpad/ssh-routes.ts`
@@ -2541,7 +2541,7 @@ of the Apps column under Integrace since [F53's addendum of
 only where the Environment has a vault, [F53's addendum of
 2026-10-18 (3)](decisions.md#f53-addendum-of-2026-10-18-3-trezor-only-where-the-environment-has-a-vault)),
 is the way into the Environment's own vault, which is Lazurio Vaultwarden's web vault on its own
-address: one row with the vault's name and state, and the actions the person's
+address: one row with the vault's name and state, and the actions the user's
 membership decides ("Přidat položku" and "Otevřít trezor", or "Vytvořit účet v trezoru").
 The rule ("Kdo má přístup do Prostředí, má i jeho hesla") and how the vault works are
 the "?" beside its heading ([the guide](#the-guide-decision-f56), F56's addendum of
@@ -2552,12 +2552,12 @@ over the vault's core (`src/vault/flow.ts`, `src/vault/members.ts`); the page's 
 is `src/launchpad/vault-page-view.ts` (`tests/vault-page-view.test.ts`) and its DOM
 `src/launchpad/vault-page-panel.ts`. On first view the page reads its model, then asks
 the vault itself (the Tools row's `POST /api/tools/bitwarden/refresh`) and where the
-person stands, and asks about the person again when its tab is shown again while they
+user stands, and asks about the user again when its tab is shown again while they
 had no account or their sign-in no username. A hidden `#vault-requests` group above the row is the slot of the
-agents' secret requests (DEV-6631 task 651). The person is whom the gateway's own answer
+agents' secret requests (DEV-6631 task 651). The user is whom the gateway's own answer
 to the request's admission named, by the subject and the Lazurio username
 (`src/launchpad/hosted-trust.ts`); their address in the vault is
-`<username>@account.lazurio.ai`, a person named without a username is added nowhere
+`<username>@account.lazurio.ai`, a user named without a username is added nowhere
 (`no-username`, with a line asking them to sign in again), and a workstation names
 nobody and has no vault. HTTP behaviour is tested in
 `tests/launchpad-vault-page.test.ts` behind a fake gateway with the fake Vaultwarden and
@@ -2621,7 +2621,7 @@ and with `vault`.
 2026-10-16](decisions.md#f53-amendment-of-2026-10-16-a-personal-environments-own-bitwarden),
 root decision 0203 point 7, and its
 [amendment (2)](decisions.md#f53-amendment-of-2026-10-16-2-a-personal-environments-own-bitwarden-shown-not-explained)).
-While the vault waits for its person (`needs-connection`), the page shows
+While the vault waits for its user (`needs-connection`), the page shows
 `#vault-connect` instead of the row, in the spirit of F36's addendum of 2026-10-16
 (a title, a picture, one line, two steps of one line each, the fields and one button):
 the title "Hesla pro agenty ve vašem Bitwardenu"; a small inline SVG of the vault
@@ -2650,39 +2650,39 @@ sent), and the one setup it starts
 is followed by its job, as the Tools row follows it, so a failure it ends in stays on
 the page. The pictures are bundled with the page in `#vault-connect-pictures` and
 placed in a step only once the section shows, in the page's language. Connected, the
-row is the organization's ("Osobní <login>") with its item count; until the person
+row is the organization's ("Osobní <login>") with its item count; until the user
 asks to be invited (`not-invited`), one line says it is connected and the card
 "Chcete hesla agentů vidět i ve svém Bitwardenu?" (`#vault-invite`) takes their own
 Bitwarden address and sends `POST /api/vault/invitee` ("Pozvat mě"); its refusals are
-`inviteRefusalText`. Then one line says where the person stands (the invitation
+`inviteRefusalText`. Then one line says where the user stands (the invitation
 e-mailed, accepted and being confirmed, or removed in Bitwarden), a member gets
 "Přidat položku" and "Otevřít trezor" into the region's web vault, and "Odpojit
 Bitwarden" (`POST /api/vault/disconnect`) with its note shows whenever no setup runs.
 Once it succeeded, the section comes back and the page's status line says „Trezor i
-hesla zůstaly ve vašem Bitwardenu." until the person connects again or the page is
+hesla zůstaly ve vašem Bitwardenu." until the user connects again or the page is
 loaded anew (`disconnectedLine`).
-The page asks about the person again when its tab is shown again while their
+The page asks about the user again when its tab is shown again while their
 invitation waits. Tested over HTTP in `tests/launchpad-vault-connect.test.ts` with the
 fake Bitwarden cloud of `tests/fixtures/fake-bitwarden-cloud.ts`, and the pure part in
 `tests/vault-page-view.test.ts`. `bun scripts/preview-launchpad.ts personal cs|en`
 shows it against the same fake cloud: its JSON line's `bitwarden` has a fictional
 agents' account to connect and a file whose creation accepts the invitation.
 
-**Bitwarden in Codex Desktop and the person's browser** ([F53's addendum of
+**Bitwarden in Codex Desktop and the user's browser** ([F53's addendum of
 2026-10-16](decisions.md#f53-addendum-of-2026-10-16-bitwarden-in-codex-desktop-and-the-persons-browser)).
 Under the vault, "V Codex Desktopu a ve vašem prohlížeči" (`#vault-bitwarden`) gives the
 steps that add the vault to the Bitwarden extension in Codex Desktop (Nastavení →
-Prohlížeč → Rozšíření) and in the person's own browser, in the extension's own words:
+Prohlížeč → Rozšíření) and in the user's own browser, in the extension's own words:
 the extension's page in the Chrome Web Store, and another browser's own store for other
 browsers; for an Organization's Lazurio Vaultwarden
-the vault's address and the person's own address, each with a Copy button and a picture
+the vault's address and the user's own address, each with a Copy button and a picture
 of the extension's screen where it goes, the Lazurio sign-in, a line pointing to
 "Vytvořit účet v trezoru" while the page offers it, and the network under the steps; for
-a personal Environment's own Bitwarden its region's service and the person's own
-account; none where the person's membership answer says that only the agents use the
-vault. The person's address is the membership answer's `address`, which the server
+a personal Environment's own Bitwarden its region's service and the user's own
+account; none where the user's membership answer says that only the agents use the
+vault. The user's address is the membership answer's `address`, which the server
 builds from the Lazurio username of the gateway's own answer, only for a Lazurio
-Vaultwarden; the person never composes it: until it is there, one line in its place says
+Vaultwarden; the user never composes it: until it is there, one line in its place says
 that it is loading, that it shows after signing in again, or that it could not be loaded
 (with the page's "Obnovit stav"). `bitwardenTarget` and
 `bitwardenGuide` in `src/launchpad/vault-page-view.ts` decide it; Začínáme's "Trezor v
@@ -2695,7 +2695,7 @@ page's language; the decision records the extension's version and how to capture
 again. Above the steps, for an Organization's Lazurio Vaultwarden, the guide's video
 `vault-bitwarden` ("Přehrát video", see Guide videos below) shows the same steps. A
 hosted preview (`scripts/preview-launchpad.ts hosted`) has the tests' fake vault and a
-gateway that names the fictional person `jana`, so both show there with
+gateway that names the fictional user `jana`, so both show there with
 `jana@account.lazurio.ai`.
 
 ## Guide videos
@@ -2716,13 +2716,13 @@ language's, paused. The pure part, `guideVideoPlayer`, decides the markup and th
 `#vault-bitwarden-video` at the top of "V Codex Desktopu a ve vašem prohlížeči"
 (`vault-page-panel.ts`, hidden for a personal Environment's own Bitwarden, whose steps
 differ). Trezor's "?", where its words are true of the Environment's vault (an Organization's
-vault the person is in, or no vault here; [the guide](#the-guide-decision-f56)), is the
+vault the user is in, or no vault here; [the guide](#the-guide-decision-f56)), is the
 first thing the page shows (F56's addendum (4) of 2026-10-19, `src/launchpad/page-help.ts`):
 as the page knows the video is true, the box `#vault-video` opens under the page's heading
 with `vault-overview` in `#vault-video-player` at its poster, playing nothing and moving no
-focus, and the person starts it; the line under it (`vaultVideoLine`) says what the video
+focus, and the user starts it; the line under it (`vaultVideoLine`) says what the video
 does not. The "?" closes it and opens it again, and then plays it (with less motion it
-waits at its poster); Escape closes it, the focus back on the "?". Closed by the person, it
+waits at its poster); Escape closes it, the focus back on the "?". Closed by the user, it
 stays closed until the page moves on (`helpVideoDrawing`, per visit), and the next visit
 opens it again.
 
@@ -2772,7 +2772,7 @@ shows:
 - the path as links, "Documents" / "Dokumenty" first, the current folder last
   (`aria-current="page"`);
 - "Upload files" (a file picker, several at once) and "Download folder (ZIP)";
-- the list, folders first, then names as people read them: an icon, the name (a folder
+- the list, folders first, then names as users read them: an icon, the name (a folder
   is a route, a file its download), the size in decimal units or "Folder", the
   modification time in the reader's language and time zone, and "Download" (named
   "Download <name>" for assistive technology). Below 36 rem of the list's width a row
@@ -2819,7 +2819,7 @@ Root decision 0191 point 8a (#207, [F38's addendum of
 2026-10-05](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway)):
 the Environment browser, and in the second wave the desktop, are views of the
 Environment in each app's right panel, never a fourth mode beside Chat · Apps ·
-Automate. The Launchpad's own right panel shows, when the person opens it, the tabs the
+Automate. The Launchpad's own right panel shows, when the user opens it, the tabs the
 Launchpad holds and its Nová karta entries ([F47](decisions.md#f47--nová-karta-one-shell-element-for-every-apps-right-panel-the-places-that-hold-a-remote-tab-and-the-environments-overview) point 9 and Matěj's tuning
 of 2026-10-12), each tab in the same view T3 Code's panel embeds (Lazurio/t3code#41);
 the Launchpad builds no viewer of its own.
@@ -2867,7 +2867,7 @@ the Launchpad builds no viewer of its own.
   `browser-panel-view.ts`): the tabs the Launchpad holds, then its Nová karta entries,
   each a tab of the same width with its ×. "+" adds a Nová karta after the others and
   shows it; only the shown entry is mounted. × on a tab lets go of the Launchpad's hold,
-  with Vrátit; × on a Nová karta takes it away. The person's × on the last entry closes
+  with Vrátit; × on a Nová karta takes it away. The user's × on the last entry closes
   the panel (Vrátit then opens it on the tab again), and opening it on an empty strip
   shows a Nová karta; a strip emptied any other way shows a new one.
 - **An entry's menu** ([F47](decisions.md#f47--nová-karta-one-shell-element-for-every-apps-right-panel-the-places-that-hold-a-remote-tab-and-the-environments-overview)
@@ -2978,19 +2978,19 @@ ended the tour for good, and the Organization's download ran before any AI could
 after the wireframe of HumanAndMachine-ai/prototypes-lazurio 1eefc3d (`setup.tsx`,
 `screens/Start.tsx`, `screens/Tour.tsx`, PRs #48 and #49) and [F36's addendum of
 2026-10-15](decisions.md#f36-addendum-of-2026-10-15-začínáme-the-basics-from-live-facts-ai-first-root-decision-0201).
-Only where the Environment signs in to GitHub as its person: the presets
+Only where the Environment signs in to GitHub as its user: the presets
 `hosted-personal`, `hosted-organization-personal` and `local`. A Team or an Automated
 Environment acts through the Organization's app or its persona, its basics are the
 Organization's, and it gets none of it.
 
 - **The basics** (0201 point 1): an AI an agent can work with, GitHub signed in as the
-  person, and the content (the Organization, on the personal Environment the
+  user, and the content (the Organization, on the personal Environment the
   Personalspace). They are read live, never stored, in the order AI → GitHub → content
   (`nextBasic` in `first-run.ts`):
   - the AI from `GET /api/ai` (`src/tools/ai.ts`, `src/tools/ai-probe.ts`): Codex's own
     app-server answers `account/read` (a ChatGPT sign-in or an API key works;
     `requiresOpenaiAuth: false` is the Organization's AI pool, whose provider needs no
-    OpenAI sign-in, so the step is done without the person), Claude Code answers
+    OpenAI sign-in, so the step is done without the user), Claude Code answers
     `claude auth status --json`. `organization` or `connected` is done; `missing` only
     when every CLI answered (signed out or not installed); `unknown` (no answer) is
     never claimed missing and holds nothing back. The server keeps an answer a minute;
@@ -3075,7 +3075,7 @@ Organization's, and it gets none of it.
   (`#<token>&lazurio-start=…`).
 - **The tour** (`tour.ts` over the rules of `first-run.ts`): a ring around a real
   element and a bubble beside it with at most a dozen words; the layer lets every click
-  through, so the person does each step. While a basic is missing: the gear ("Nejdřív
+  through, so the user does each step. While a basic is missing: the gear ("Nejdřív
   připojte AI", its title alone with no line under it, as Začínáme's AI step; "Připojte
   GitHub", "Ještě stáhněte <Organizace>", "Příprava se nepovedla"), Začínáme in the
   Settings column ("Všechny kroky na jednom místě."), then on Začínáme the missing step
@@ -3121,7 +3121,7 @@ Organization's, and it gets none of it.
   answer, any failure no) "Organizaci připravuje Admin." with no Chat button. The route
   answers only for the Organization of that stop and gives the same no, without asking
   GitHub, for any other.
-- **Toto Prostředí** says what a person needs (`environmentFacts` in
+- **Toto Prostředí** says what a user needs (`environmentFacts` in
   `machine-view.ts`, the wireframe's `ThisEnvironment`): "Druh", "Patří" and "Pracuje v
   něm"; the technical name and kind, the owner and assignment as recorded, the tailnet
   node, the host and the relationships are folded under "Pro podporu". A workstation

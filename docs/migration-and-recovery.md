@@ -20,7 +20,7 @@ preferences, upgrades tools or runs data migrations; content synchronization its
 never stashes, switches branches or resets.
 
 A working profile belongs to the individual Machine installation. Changing it here
-does not update any other Machine used by the same person. Profile transport or
+does not update any other Machine used by the same user. Profile transport or
 copy is outside this first capability; no automatic sync is part of upgrade.
 
 ## Shared local migration use case
@@ -90,7 +90,7 @@ still reference them.
 
 ## Common mutation discipline
 
-1. Identify Operator, Machine Owner and parent provider or hosting operator boundary. Check
+1. Identify the user, Machine Owner and parent provider or hosting operator boundary. Check
    exact filesystem/remote identity, platform capability and necessary live rights.
 2. Acquire one owner-controlled operation lock and capture expected current revision.
    A stale lock is not deleted on age alone; verify owner process and recovery state.
@@ -438,7 +438,7 @@ artifacts. There is no program rollback ([product update](update.md), change of
 is repaired forward, never by starting an old binary on incompatible data.
 
 Preferences schema 2 has two optional keys added after its first release: `tools`, the
-enabled catalog tools, and `toolNotes`, the operator's notes for agents on required or
+enabled catalog tools, and `toolNotes`, the user's notes for agents on required or
 enabled tools ([F18 and its addendum](decisions.md#f18--enabled-tools-of-the-environment)).
 The declared versions are unchanged, because the release reads every document written
 before it, and a Folder that enables nothing and notes nothing keeps byte-identical
@@ -583,14 +583,14 @@ or ambiguous credentials and unattributed work.
 For each legacy shared workshop the owner chooses the target kind explicitly: a
 delivered team workspace (one OS account, brokered identity, no personal credentials,
 no Personalspace, changes through pull requests) or private workspaces, one per
-person. Inventory sessions, working copies, dirty branches, stashes, jobs,
+user. Inventory sessions, working copies, dirty branches, stashes, jobs,
 credentials and Organization-owned data with the authorized owner; do not inspect
 foreign Personalspace. Attribute work to its owner or Team instead of copying the
 shared directory to every seat.
 
 Provision targets using the existing infrastructure owner. On a private target,
-re-establish the Operator's identity through its provider flow; on a team target,
-establish only the brokered identity. Never clone another person's credentials, and
+re-establish the user's identity through its provider flow; on a team target,
+establish only the brokered identity. Never clone another user's credentials, and
 remove personal credentials and sessions found on a shared Machine through their
 owner rather than carrying them over. Preserve attributable drafts through authorized
 Git branches or explicit scoped data handoff. Verify, per kind: peer denial for files,

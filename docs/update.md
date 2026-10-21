@@ -34,7 +34,7 @@ to it must be compatible.
    only direction is forward: a new version whose Launchpad does not come up
    healthy is reported as `activation-unhealthy`, stays active, and is repaired by
    a newer release or by fixing the condition its Recovery mode names. Update state
-   damaged from outside the product (`state-invalid`) needs a person.
+   damaged from outside the product (`state-invalid`) needs a user.
 4. **Proven practice instead of our own machinery.** Where a maintained standard
    exists (GitHub Releases, Sigstore attestations, systemd, `flock`, an atomic
    symlink) the product uses it and adds nothing beside it.
@@ -49,7 +49,7 @@ release that publishes every platform at once.
 - **One core, one command.** CLI and Launchpad run the same `lazurio update`.
   There is no second updater, no worker entrypoint and no installer logic
   outside the product.
-- **The operator owns the version.** The operator of the Environment runs
+- **The user owns the version.** The user of the Environment runs
   `lazurio update`, on a hosted Machine as on their own computer. A provider's pin
   is a minimum: a rollout installs a missing or broken installation and may raise
   one below the pin through the offline update, and never lowers a version
@@ -260,7 +260,7 @@ is left alone; a link to the selector of a Lazurio install base (another base, o
 overwritten. The result's `entry` says which (`created`, `present`, `replaced`,
 `conflict`, `failed`), whether `~/.local/bin` is on the process PATH, which other
 `lazurio` resolves first on it (`shadowedBy`, changed in no way) and, in `next`, what
-the operator or an agent should do. `path`, the directory to put on PATH, is
+the user or an agent should do. `path`, the directory to put on PATH, is
 `~/.local/bin` when the link exists and `<base>/bin` otherwise. The installation
 never fails because of its entry, and shell profiles are never edited.
 
@@ -325,7 +325,7 @@ one command itself is a `curl` command, so such a computer needs curl first anyw
 
 **Two ways in, kept apart in code and here.**
 
-- **Downloaded** (a person's computer): `install.sh` runs
+- **Downloaded** (a user's computer): `install.sh` runs
   `<executable> install --verify-release <directory>`. Before anything is written, the
   executable holds itself against the release it says it is, through
   `verifyReleaseDocuments`, the same function `lazurio update` runs on a release it
@@ -383,7 +383,7 @@ no cache found lying around is ever taken as the starting root. `lazurio update`
 keeps its own cache under the install base (`sigstore/`). The staged way in needs
 none of this.
 
-**What a person reads.** Success, on a new Linux laptop:
+**What a user reads.** Success, on a new Linux laptop:
 
 ```text
 Installing Lazurio v1.4.0 for linux-x64.
@@ -452,13 +452,13 @@ without writing and names the standard layout on this platform, what was found
 instead (`not-installed`, `entry-missing`, `entry-stale`, `entry-foreign`,
 `entry-parent`, `entry-unreadable`, `directory-not-on-path`, `shadowed`), what the
 agent may do by itself (read the state, run `lazurio install`, which is convergent,
-install with the official installer), what only on the operator's explicit
+install with the official installer), what only on the user's explicit
 instruction (move aside something that is not Lazurio's at the entry, edit a shell
 profile, remove the legacy root CLI link or another shadowing `lazurio`), and how
 success is proven (`command -v lazurio` names the entry, `lazurio --version`,
 `lazurio update status`, and `install prompt --json` reporting `"standard": true`).
 Deviations are relative to the PATH of the process that asks, so an agent asks from a
-new login shell of the operator.
+new login shell of the user.
 
 ### Serving `https://lazurio.ai/install`
 
@@ -515,7 +515,7 @@ or the new content, never a partial one. Status is computed from these paths whe
 and no configuration file. A supervised installation is one whose systemd user
 unit `lazurio-launchpad.service` was written by `lazurio install` (its first line
 is the installer's marker); the Folder path lives in that unit. A unit of that
-name written by anyone else — a Machines resident runtime, a person — makes the
+name written by anyone else — a Machines resident runtime, a user — makes the
 installation unsupervised: nothing is restarted and that unit is never
 rewritten. The unit is this installation's only with the marker AND this base's
 exact `ExecStart=` line; a marked unit of another install base is that
@@ -547,7 +547,7 @@ The Launchpad must always run. It restarts after every exit, five seconds apart,
 and never ends `failed`: `systemd.unit(5)` counts manual starts toward
 `StartLimitIntervalSec=`/`StartLimitBurst=` and stops automatic restarts once the
 limit is hit, so the limit is switched off (`0`, pinned in `[Unit]` against a
-manager-wide default). There is no `OnFailure=`. `PATH` puts the operator's
+manager-wide default). There is no `OnFailure=`. `PATH` puts the user's
 standard tool path `~/.local/bin` first ([environment tools](environment-tools.md#the-standard-path-decision-0161-point-6)),
 so the Launchpad and what it starts find Bun and the other tools there.
 
@@ -557,7 +557,7 @@ without `--service`) or `lazurio update` (online, or offline through `install --
 finds this base supervised — its Launchpad unit is this base's — in a Remote
 Environment — the process is the declared operator of the Machine handover
 (`discoverHostedOperator` answers `hosted`) — it ensures a second unit, so a Codex
-client connecting over SSH (the Codex app, for example) finds the operator's Codex
+client connecting over SSH (the Codex app, for example) finds the user's Codex
 app-server daemon after every boot without anyone starting it by hand:
 
 ```ini
@@ -579,9 +579,9 @@ TimeoutStartSec=60
 WantedBy=default.target
 ```
 
-It runs the operator's own Codex from its standard entry: `daemon start` detaches the
+It runs the user's own Codex from its standard entry: `daemon start` detaches the
 daemon and exits, and the unit stays `active` for what it started. Codex — binary,
-version, updater, configuration, sign-in — stays the operator's (root decision 0161):
+version, updater, configuration, sign-in — stays the user's (root decision 0161):
 the Platform never installs, updates or reconfigures it. Without Codex the condition
 skips the start and nothing fails. `KillMode=process` leaves the daemon's processes to
 Codex's own `daemon stop`; there is no `Restart=` (Codex supervises its daemon), no
@@ -631,7 +631,7 @@ Codex unit:
   `MemoryMax=30%`, `MemorySwapMax=20%`, `OOMPolicy=continue` and `OOMScoreAdjust=250`.
   Before each start, `ExecStartPre=-/bin/rm -rf` removes the profile's
   `Default/Sessions`, so a restarted browser opens none of the old tabs.
-- `lazurio-browser-view.service`: the people's view (F39), this base's `<selector>
+- `lazurio-browser-view.service`: the users' view (F39), this base's `<selector>
   browser serve --port <entry.browser.listen_port> --origin
   <entry.browser.external_origin>`, a long-running service with `Restart=always`.
 
@@ -676,7 +676,7 @@ alone. `lazurio doctor` reports it as `executor` (`ok`, `warn` or `skipped`, nev
 
 A Machine delivered by Machines receives the Platform from a custody-staged,
 digest-pinned binary, never from the network ([machine handover](machine-handover.md),
-"Delivery by the Machines role"); the pin is a minimum, and after that the operator
+"Delivery by the Machines role"); the pin is a minimum, and after that the user
 updates with `lazurio update`. The same command that installs it also moves an
 existing installation forward: `<staged>/lazurio install --base <base>` run from an
 executable **newer** than the active version is the offline update. It takes the
@@ -745,7 +745,7 @@ says that a restart of the Launchpad finishes the update.
 `state-invalid` never clears, rewrites or guesses: the product keeps running what
 the selector names, the high-water mark is untouched, mutating update commands
 refuse with the offending path, and `update status` shows it. It is reachable only
-by interference from outside the product and is resolved by a person. An
+by interference from outside the product and is resolved by a user. An
 unreadable `high-water` is `state-invalid` as well; a missing one means the floor
 is the active version.
 
@@ -838,7 +838,7 @@ release runs, the migration removes all of it.
   ([F14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)). When the
   Folder records an older template revision than the active product renders, the
   results of `lazurio update` (`updated` and `up-to-date`), `update status` and
-  the pill carry `folderRefresh {folder, recorded, product, command}` and a person
+  the pill carry `folderRefresh {folder, recorded, product, command}` and a user
   reads "Folder refresh needed" with that command: `lazurio machine
   folder-refresh` on a hosted Machine, `lazurio profile-update` with the recorded
   choices at the current revision on a workstation. The Folder is `--folder`, the

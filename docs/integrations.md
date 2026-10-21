@@ -15,13 +15,13 @@ An **Integrace** is an app or service connected to an Environment. Each has
 exactly one **path**: by its own **tool** from Settings → Tools (`gh` for GitHub,
 `wacli` for WhatsApp, `gogcli` for Google on a personal Environment, `neon` for
 Neon), **directly** through the Environment's Executor, or **through Composio**
-with the person's own Composio account (in a Team Environment the Team's Composio
-account, [below](#the-composio-organization-of-an-environment)). People connect,
+with the user's own Composio account (in a Team Environment the Team's Composio
+account, [below](#the-composio-organization-of-an-environment)). Users connect,
 see and disconnect them in the Launchpad under Apps → Integrace; agents read the
 same list with
 `lazurio integrations list --json` and use an Integrace where it is connected,
 in the order tool → Executor → Composio. Agents never connect one themselves:
-the sign-in is the person's consent, so they send the link to its card.
+the sign-in is the user's consent, so they send the link to its card.
 
 ## Where things live
 
@@ -59,14 +59,14 @@ the sign-in is the person's consent, so they send the link to its card.
    itself (dynamic client registration, a client ID metadata document) or needs
    no sign-in, or a company app the Organization set up. Only where Executor is
    part of the Environment (`Rules.direct`): Lazurio sets it up here (decision
-   F44's context: a Remote Environment's operator) and its row in Settings →
-   Tools says it is installed. Elsewhere, as on a person's computer until F44's
+   F44's context: a Remote Environment's operator account) and its row in Settings →
+   Tools says it is installed. Elsewhere, as on a user's computer until F44's
    second wave or before F44's setup ran, the reading says `absent` and an app
    goes the next way instead of a dead end. An Executor that is part of the
    Environment but down or answering unexpectedly keeps the direct path; the
    page says why it cannot connect now.
 4. Through Composio where it is allowed (`composioPolicyOf`, below), after
-   signing the person's Composio account in where it is not signed in yet.
+   signing the user's Composio account in where it is not signed in yet.
 5. Without either: an Organization's company app
    first (its Admin sets it up in the Dashboard, anyone else asks the Admin), then
    Composio not allowed (whoever decides allows it, anyone else asks), then the
@@ -74,7 +74,7 @@ the sign-in is the person's consent, so they send the link to its card.
 
 A tool counts as connected when agents use it (required, or switched on in
 Settings → Tools), it is installed and its sign-in probe says signed in; `gogcli`
-counts only on a personal Environment and the person's own computer. Composio
+counts only on a personal Environment and the user's own computer. Composio
 counts when it is allowed, switched on for agents, installed and signed in.
 
 Whether Composio is allowed is one rule over the Organization settings the Folder
@@ -85,7 +85,7 @@ accounts are not asked for, and an app only Composio connects says the company h
 it off (its Admin: "Povolit Composio", which opens the Organization in the
 Dashboard; anyone else: "Požádat Admina"). Where the Organization says `true` it is
 `{allowed: true, source: "organization"}`; where it says nothing, and on a personal
-Environment or the person's own computer, `{allowed: true, source: "environment"}`,
+Environment or the user's own computer, `{allowed: true, source: "environment"}`,
 as since F18. The page, the rule and the reading read only this; a test may give
 its own policy (`IntegrationsHost.policy`). The Organization's company app is
 `Rules.companyApps`: `microsoft` on every Environment of an Organization whose
@@ -98,7 +98,7 @@ Executor (github.com/UsefulSoftwareCo/executor, MIT) is a required part of every
 Environment; Lazurio installs it, runs it as the account's service and registers
 it with the agents in a Remote Environment (decision F44, `src/executor/`, plan
 DEV-6626 task 684; a workstation is its second wave). The Launchpad talks to it
-over the typed HTTP API its own console uses; people never need the console. The
+over the typed HTTP API its own console uses; users never need the console. The
 facts below were read from the source of tag `v1.6.10` on 2026-10-09
 (`apps/local/src/serve.ts`, `serve-shared.ts`, `auth.ts`,
 `packages/core/api/src/**`, `packages/plugins/mcp/src/**`,
@@ -168,12 +168,12 @@ Executor's OAuth callback is `http://localhost:4789/api/oauth/callback` on the
 Environment, reachable only from a browser there. So on a Remote Environment the
 Launchpad registers the client for its own address instead,
 `<entry>/api/integrations/oauth/callback` (decision F42, addendum of 2026-10-13):
-the person signs in in a window of their own browser, the server returns it to the
+the user signs in in a window of their own browser, the server returns it to the
 Launchpad through the gateway (whose session cookie is `SameSite=Lax`, sent on that
 top-level navigation), and the Launchpad hands the return to Executor's callback.
 A server that refuses that address (some register only loopback addresses, RFC
 8252) or offers only a client ID metadata document (whose addresses are loopback)
-returns to Executor's callback on localhost, so the person signs in where that
+returns to Executor's callback on localhost, so the user signs in where that
 address is the Environment's own: in the Environment browser on a Remote
 Environment (the Launchpad opens the authorization URL there and shows its view in
 the right panel) and in their own browser on their computer. A Remote Environment
@@ -187,7 +187,7 @@ integration that holds an app's slug and points elsewhere, or runs a command, is
 another server. It is listed among the custom servers with its real address,
 never under the app's card. Connecting the app then neither reuses it nor
 replaces it: the connect refuses with `integration-conflict` before anything is
-probed, added or connected, and the person removes that server in Vlastní first.
+probed, added or connected, and the user removes that server in Vlastní first.
 It refuses even where the app's own server is there too under another slug:
 agents find Executor's integrations by slug, so the squatter goes first. The catalog keeps one app per integration
 slug and per endpoint, so the mapping is never ambiguous. The company app's one
@@ -230,15 +230,15 @@ own, has no approval step.
 - `executor mcp` runs in the elicitation mode `model` by default. A call that
   needs approval returns at once to the agent as `waiting_for_interaction` with an
   `executionId`; the agent itself resumes it with the MCP tool `resume`
-  (`accept`, `decline` or `cancel`). No console and no person's prompt is
+  (`accept`, `decline` or `cancel`). No console and no user's prompt is
   involved, and an MCP client without elicitation support is unaffected.
 - `executor call` pauses the same way; `executor resume --execution-id <id>
   --action accept` resumes it (pauses of the two paths are separate).
 - So a write never waits for a console approval nobody can give. The approval is
   the agent's, and Lazurio does not change Executor's policy: the Folder tells
   agents to accept such a pause only for a Draft or for a Publication the
-  Operator explicitly approved, and to decline it otherwise
-  (`manual/working-here.md`, Integrace). Making Executor ask the person instead
+  user explicitly approved, and to decline it otherwise
+  (`manual/working-here.md`, Integrace). Making Executor ask the user instead
   (elicitation mode `browser` or `native`) would be a change of F44's agent
   registration (`src/executor/agents.ts`) and is not made here.
 
@@ -249,8 +249,8 @@ Codex Desktop's "Connect to a custom MCP" does (decision F42, addendum of
 2026-10-11, which maps every field onto Executor 1.6.10 and names the two Codex
 fields left out). "Přidat MCP server" opens `/integrations/custom/new`, a server's
 name `/integrations/custom/server/<slug>`, the same page filled in. Agents add one
-only on the person's explicit instruction and only without keys (the prepared prompt
-of Settings → Tools); a key is entered on this page, by the person. The page explains
+only on the user's explicit instruction and only without keys (the prepared prompt
+of Settings → Tools); a key is entered on this page, by the user. The page explains
 none of what follows in text of its own, as Codex's does not: this section is where
 it is said.
 
@@ -288,7 +288,7 @@ it is said.
   for a server that has any, since it is probed and reached with them, so its stored
   keys turn to "Zadejte znovu" too (a server without keys just moves).
 - **Checked twice.** The page and the server share the rules
-  (`src/integrations/custom-server.ts`): what the page refuses as the person types, the
+  (`src/integrations/custom-server.ts`): what the page refuses as the user types, the
   route refuses before Executor is asked.
 
 ## Composio (`composio` 0.4.x)
@@ -328,7 +328,7 @@ say otherwise.
 - `link <toolkit> --no-wait --no-browser [--alias <name>]` prints `{status:
   "pending", connected_account_id, redirect_url, toolkit}`. The URL must be https
   on `composio.dev`; it is answered only to the request that started the link and
-  opened in a window of the person's browser (Composio's page, no callback on the
+  opened in a window of the user's browser (Composio's page, no callback on the
   Environment). A toolkit without Composio-managed sign-in prints only a URL of
   Composio's dashboard, opened the same way. A link lives ten minutes; the page
   asks every two seconds whether its account is active.
@@ -336,7 +336,7 @@ say otherwise.
   removes nothing; Composio's own CLI has no `--yes` (0.4.2 and 0.4.3, and `next` on
   2026-10-12; proposed upstream in ComposioHQ/composio#4817), Lazurio's build has it
   (and `-y`). The Launchpad removes only when `connections remove --help` offers
-  `--yes` and never answers the prompt for the person. The reading says whether it
+  `--yes` and never answers the prompt for the user. The reading says whether it
   does (`composio.disconnect`, read with the accounts), and only then the page offers
   "Odpojit" for a Composio account; the route still answers `disconnect-unsupported`
   to a request without it. The selector is the account's id where the list gives one
@@ -355,7 +355,7 @@ returned or logged.
 
 ### Lazurio's build of the CLI
 
-Decision F42, addendum (3) of 2026-10-13 (the Operator's decision), and its note of
+Decision F42, addendum (3) of 2026-10-13 (Matěj's decision), and its note of
 2026-10-19. Composio's stable CLI cannot remove an account without a prompt, names no
 account but by an alias and notices a finished sign-in late, so Lazurio installs its
 own build until a stable release of Composio's has all three changes (proposed
@@ -414,7 +414,7 @@ yet).
   older build, a newer release of Composio's), in place: the bundle in `~/.composio`
   replaced, the sign-in (`~/.composio/user_data.json`) and the link kept. Never beside
   a composio elsewhere on PATH (`preflight`, `installation-elsewhere`), never without
-  the person's request (decision 0161): no rollout, `lazurio update` or Launchpad start
+  the user's request (decision 0161): no rollout, `lazurio update` or Launchpad start
   runs it. The tools reading carries the pin (`pinned`); a composio that is not the
   build says so in its Details and its row offers "Update" where the update can work.
   Not `composio upgrade`: it takes the highest non-prerelease release by semver, so
@@ -439,30 +439,30 @@ yet).
   the CLI already removes an account without a prompt (`composio.disconnect`), as an
   earlier Lazurio build (`0.4.3-lazurio.1`) does: it has what the line promises, so
   only Settings → Tools offers its update (F42, note of 2026-10-19). `lazurio integrations
-  list` says in one line that the person updates Composio in Settings → Tools, and
-  that an agent does not do it unless the person asks (decision 0161, F17).
+  list` says in one line that the user updates Composio in Settings → Tools, and
+  that an agent does not do it unless the user asks (decision 0161, F17).
 - **Integrace** reads the richer list: names and removal by id
   ([Account names](#account-names-and-composios-dashboard)), and "Odpojit" appears by
   itself, since the build has `--yes`.
 
 ### The Composio organization of an Environment
 
-Decision F42, addendum of 2026-10-13 and its note of 2026-10-17. Each person has one
+Decision F42, addendum of 2026-10-13 and its note of 2026-10-17. Each user has one
 Composio account. In it they have one organization of their own for each Lazurio
 Organization, named as the Organization is, with nobody else in it, and the default
 one Composio made when they signed up.
 
-How the person's account maps to Environments (what the figure of the sign-in
+How the user's account maps to Environments (what the figure of the sign-in
 dialog and Apps → Integrace drew until 2026-10-17; the screens now show only the
 step left to do):
 
-| In the person's Composio account | Used by |
+| In the user's Composio account | Used by |
 | --- | --- |
 | `ExampleCompany`, the Organization "Example Company" named as Composio accepts it | that Organization's Environments |
 | one organization for each other Organization, named as it is | that Organization's Environments |
-| the default organization (`<login>_workspace`, made at the sign-up) | the person's personal Environment |
+| the default organization (`<login>_workspace`, made at the sign-up) | the user's personal Environment |
 
-Nobody else is invited to these organizations and no key is shared: the person
+Nobody else is invited to these organizations and no key is shared: the user
 signs in to Composio with their own account, and Lazurio switches the CLI to the
 right organization.
 
@@ -482,7 +482,7 @@ in: a Team's account is an ordinary Composio account.
   names an owning Organization works in the organization of that Organization's
   display name (`organization.display_name` of its manifest, as the Folder's
   catalog reads it); `unverified` where that name cannot be read, never the
-  person's choice. The owning Organization is the one Organization settings
+  user's choice. The owning Organization is the one Organization settings
   select (F45, `selectCatalogOrganization` with the binding's owner): its
   manifest slug compared whatever the case, else its directory name. Machines
   hands the owner over in lower case (`example`) while a manifest keeps its
@@ -491,14 +491,14 @@ in: a Team's account is an ordinary Composio account.
   disagree on the owner. Missing or ambiguous is `unverified` (fixed on
   2026-10-13 after rc.65, whose exact comparison left every Environment of an
   Organization with capitals in its slug `unverified`). Any other Environment, a personal one or a computer, works in
-  the organization the person chose; by advice (this page) a personal
+  the organization the user chose; by advice (this page) a personal
   Environment's is the default one, and the sign-in dialog offers the choice where
   the account has several. A name matches by its letters and digits alone
   (`organizationKey`, note of 2026-10-17, evening): its case, diacritics,
   spaces, punctuation and underscores do not count, so every name Composio
   allows for the Organization matches it ("Human and Machine",
   `HumanAndMachine`, `human_and_machine` and `humanandmachine` are one name).
-  The person creates it as Composio accepts names, only letters, digits and
+  The user creates it as Composio accepts names, only letters, digits and
   underscores, starting with a letter: the display name's words in CamelCase
   without diacritics (`composioOrganizationName`: "Lazurio Example
   Organization" is `LazurioExampleOrganization`), with `Org` before one that
@@ -522,12 +522,12 @@ in: a Team's account is an ordinary Composio account.
   cached reading: it switches back where another organization was chosen, goes
   to the current one where the account has none of the name or several, and
   refuses with `composio-organization` where the organization cannot be told. A
-  person's choice is never changed.
-- **Missing or there more than once** (the Operator's decision of 2026-10-13):
-  Composio works in the person's current organization, its accounts count and
+  user's choice is never changed.
+- **Missing or there more than once** (Matěj's decision of 2026-10-13):
+  Composio works in the user's current organization, its accounts count and
   links and removals go there; Apps → Integrace says what to do with a link to
   Composio's dashboard, and `lazurio integrations list` tells agents. The next
-  reading after the person created it makes it current. Meanwhile Apps →
+  reading after the user created it makes it current. Meanwhile Apps →
   Integrace waits as the sign-in dialog does (F42's note of 2026-10-19,
   `composioOrganizationWaits`): while it is shown it reads
   `/api/tools/composio/organizations` again at the dialog's pace
@@ -543,13 +543,13 @@ in: a Team's account is an ordinary Composio account.
   refused (`409 composio-organization`) with nothing written. The reading's
   `composio.organization` is `{name, state}` on an Organization's Environment
   (the name null where it is `unverified`), null elsewhere.
-- **Creating one** is the person's, in Composio's dashboard: neither its CLI nor
+- **Creating one** is the user's, in Composio's dashboard: neither its CLI nor
   its documented API creates or renames an organization (the API lists them, the
   CLI lists and switches). The sign-in dialog and Apps → Integrace find it by
   name by themselves afterwards.
 - **No stale verdict** (the end-to-end test of 2026-10-19): an answer of
   `/api/tools/composio/organizations` that finds the organization or makes it
-  current, and a choice of the person's (`/api/tools/composio/organization`),
+  current, and a choice of the user's (`/api/tools/composio/organization`),
   drop the reading the Launchpad keeps for a minute, so the next one reads
   again; and the page reads the Integrace again whenever a tool's sign-in
   changes, Composio's organization included (`toolSignInsKey`). Before, the
@@ -558,7 +558,7 @@ in: a Team's account is an ordinary Composio account.
 - **The sign-in dialog** of Settings → Tools (note of 2026-10-17) shows, after the
   sign-in, only what is left: where the organization is missing, the
   Organization's name as Composio accepts it with "Kopírovat", a drawing of the
-  path in Composio's dashboard ("FOR YOU" (1), the person's own card at the
+  path in Composio's dashboard ("FOR YOU" (1), the user's own card at the
   bottom of the sidebar, their name and current organization (2), "Organization"
   on top of the menu it opens (3), "Create Org" in the list that row opens (4),
   then the page it opens, where the name is typed into "Organization name" and
@@ -579,7 +579,7 @@ in: a Team's account is an ordinary Composio account.
   organization missing, there twice, not made current or the Organization's name
   unreadable, the row says "Nedokončeno" with "Dokončit", which opens the sign-in
   dialog at the step left in Composio (`openComposioOrganization`); until the
-  first answer, and where the person chooses, the sign-in says it ("Připojeno").
+  first answer, and where the user chooses, the sign-in says it ("Připojeno").
   Settings → Tools keeps "Připojeno jako <account> (<current organization>)":
   the sign-in itself is done.
 
@@ -621,19 +621,19 @@ shown as a name.
   where both lists name a word id, the same one. Any other answer, a failure or a
   timeout leaves the account unnamed. An account that is not active stays unnamed
   too: `--list` lists only active accounts.
-- Each Composio account's `manage` is the page where the person sees and changes
+- Each Composio account's `manage` is the page where the user sees and changes
   it: the app's page in their Composio organization,
   `https://dashboard.composio.dev/<organization name>/~/connect/apps/<toolkit>`
   (the name an encoded path segment, the path the CLI builds when it links an
   account, without its `?open=true`, which would connect another account).
   Composio's dashboard has no page of one account. The organization is
   `current_org_name` of the sign-in probe; where it is not known, the link is
-  `https://dashboard.composio.dev/~/org/connect/apps/<toolkit>`, the person's
+  `https://dashboard.composio.dev/~/org/connect/apps/<toolkit>`, the user's
   current organization through `~/org/`, a shortcut inferred from the links in
   Composio's documentation. A visitor not signed in to Composio signs in there
   first. An Executor account has none (`null`).
 - The page shows a "⋯" menu on each Composio account: "Spravovat v Composiu"
-  opens `manage` in a new tab of the person's browser, and "Odpojit" is there
+  opens `manage` in a new tab of the user's browser, and "Odpojit" is there
   rather than in the row, where the CLI removes an account without a prompt
   (`composio.disconnect`). "Přihlásit znovu" stays in the row of an expired
   account; an Executor account keeps "Odpojit" in its row and has no menu.
@@ -675,15 +675,15 @@ them well. So the page leads there:
   ("Apps in Composio") stands in the page's top right corner beside "Jak to
   funguje", on every tab, and shows only its icon below 768 px. "Aplikaci tu
   nenajdete? Připojte ji v Composiu ↗" is at the foot of Vše, and inside the empty
-  line of a search there that found nothing. Both open a new tab of the person's
+  line of a search there that found nothing. Both open a new tab of the user's
   own browser. Where it is `null`, nothing is shown; the cards and the notices
   already say why.
 - Coming back reads again once (`composioTrip`, `integrations-view.ts`). After one
-  of these links was used and the page lost the person (the tab hidden or the
+  of these links was used and the page lost the user (the tab hidden or the
   window blurred), their return (focus, or the tab visible again) reads the
   Integrace as "Zkontrolovat připojení" does (`?refresh=1`). The return reads only
   once and only while the page is shown, and there is no polling. A link opened in
-  the background never took the person away, so the page reads only once they do
+  the background never took the user away, so the page reads only once they do
   leave and come back.
 - An account of a toolkit the catalog does not know is listed as an app of its own
   (`catalog: false`, its id the toolkit). It is named from the slug alone
@@ -692,7 +692,7 @@ them well. So the page leads there:
   F36's addendum of 2026-10-16 also "mimo katalog Lazuria", a word of the people who
   build it) and stands under Připojené once an account is active.
   `lazurio integrations list` names it as `Wispr Flow (wispr_flow)` and, where
-  `composio.apps` is set, adds where the person connects an app the catalog does
+  `composio.apps` is set, adds where the user connects an app the catalog does
   not list.
 
 ## The Microsoft 365 company app
@@ -701,12 +701,12 @@ Decision F42, addendum (c) of 2026-10-14; root decision 0162, addendum of
 2026-10-14; plan DEV-6626 task 685. The Organization registers one single-tenant
 app in its own Microsoft tenant, a public client without a secret, and consents to
 its delegated Graph permissions once for everyone (the Admin's runbook is the root's
-`manual/integrations/microsoft-365.md`). People then connect their Microsoft
+`manual/integrations/microsoft-365.md`). Users then connect their Microsoft
 accounts directly through their Environment's Executor; their tokens stay there.
 
 The rules, in one breath: "Připojit" (or "Přidat účet") is one Microsoft sign-in,
 and the account is connected and agents use it; several accounts side by side are
-the person's choice; "Odpojit" disconnects one; nothing disconnects or expires on
+the user's choice; "Odpojit" disconnects one; nothing disconnects or expires on
 Lazurio's side by itself.
 
 - **The setting** (`settings.integrations.microsoft365`, Lazurio Core's contract):
@@ -761,8 +761,8 @@ Lazurio's side by itself.
   a free name: `default`, `default2`, …), never an `identityLabel` of Lazurio's, so
   the ID token names the account (its email, else its user name); "Přihlásit znovu"
   signs an expired account in again under its own name.
-- **Where the person signs in.** Where `callbacks` lists this Launchpad's own
-  callback, the sign-in returns to it in a window of the person's own browser.
+- **Where the user signs in.** Where `callbacks` lists this Launchpad's own
+  callback, the sign-in returns to it in a window of the user's own browser.
   Otherwise it returns to Executor's callback on localhost
   (`http://localhost:4789/api/oauth/callback`; the Admin registers
   `http://localhost/api/oauth/callback` once, Entra ignores a localhost address's
@@ -779,7 +779,7 @@ Lazurio's side by itself.
   the setting, the three cards stay as they are, with Composio where it is allowed;
   accounts left from before the setting went keep the card, so "Odpojit" still
   reaches them.
-  A personal Environment and the person's own computer have no company app.
+  A personal Environment and the user's own computer have no company app.
 - **Handing an Environment over.** Nothing disconnects by itself. Whoever hands an
   Environment over, or receives one, disconnects in Apps → Integrace the accounts
   that should no longer be used there.
@@ -792,7 +792,7 @@ Lazurio's side by itself.
 - **IT consent.** The tenant's admin consents once, for everyone. A sign-in that
   says administrator approval is required (`AADSTS65001`, `AADSTS90094`) means the
   tenant lacks consent to a scope this release asks for; the Organization's Admin
-  adds it, and the person connects again.
+  adds it, and the user connects again.
 
 ## The reading: `GET /api/integrations` and `lazurio integrations list`
 
@@ -827,10 +827,10 @@ caused, so the page reads the Integrace again not only when a tool's sign-in
 changes but also when a tool is installed or switched on or off for agents
 (`toolStatesKey`; the panel's `toolsRead`). A card whose path still asks for
 Composio's sign-in reads the tools live first (`signInComposio`, `composioSignIn`):
-signed in, the person stays on Integrace, the Integrace are read again and the
+signed in, the user stays on Integrace, the Integrace are read again and the
 card's form opens; only that read's own reading proving Composio signed out (or
 not installed) makes Settings → Tools open Composio's sign-in. A read that failed,
-was not a reading or was superseded never sends the person away: the card says
+was not a reading or was superseded never sends the user away: the card says
 "Stav Composia se nepodařilo načíst. Zkuste to znovu." Signed in
 but off for agents (`off`), a card says "Composio je připojené, ale agenti ho
 nepoužívají: v Nástrojích má vypnuté „Používají agenti“." ("Composio is
@@ -844,7 +844,7 @@ before.
 | `POST /api/integrations/connect` | `{app, name?, account?}` | `{kind: "authorize", session, url}` (a window of this browser), `{kind: "authorize", session, view}` (the Environment browser's tab), `{kind: "connected", app}`, or `409 {kind: "blocked", reason}`: `app-unknown`, `path-unavailable`, `composio-signed-out`, `composio-organization` (Composio works in no organization of this Environment's Organization's name), `name-required`, `name-taken`, `account-unknown`, `executor-unavailable`, `browser-unavailable`, `integration-conflict` (Executor holds the app's slug for another server), `still-failing` (Executor cannot use the account, read back after the attempt), `connect-failed` |
 | `POST /api/integrations/poll` | `{session}` | `pending`, `{kind: "connected", app}` or `{kind: "ended", reason: failed\|expired\|cancelled}`; 404 for an unknown session |
 | `POST /api/integrations/cancel` | `{session}` | `{kind: "cancelled"}`; an OAuth flow is cancelled in Executor too |
-| `GET /api/integrations/oauth/callback?state=…&code=…` | | an authorization server's return in the person's own browser (a Remote Environment): `state`, `code`, `error`, `error_description`, `domain` and `site`, each once and at most 8 KiB, are handed to Executor's callback once, only for a sign-in started here for this address that still waits (anything else stays here); a page saying how it went, without a script, a link or anything of the return (200), or that the sign-in is no longer valid (400 where no sign-in here has the state) |
+| `GET /api/integrations/oauth/callback?state=…&code=…` | | an authorization server's return in the user's own browser (a Remote Environment): `state`, `code`, `error`, `error_description`, `domain` and `site`, each once and at most 8 KiB, are handed to Executor's callback once, only for a sign-in started here for this address that still waits (anything else stays here); a page saying how it went, without a script, a link or anything of the return (200), or that the sign-in is no longer valid (400 where no sign-in here has the state) |
 | `POST /api/integrations/disconnect` | `{app, path, account, confirm: true}` | `{kind: "disconnected"}`, `400 confirm-required` without `confirm: true`, or blocked `account-unknown`, `disconnect-unsupported`, `executor-unavailable`, `disconnect-failed`, `composio-organization` |
 | `POST /api/integrations/custom/add` | STDIO `{type: "stdio", name, command, args: [string], env: [{name, value}], cwd?}`; Streamable HTTP `{type: "http", name, url, bearer?, headers: [{name, value}]}` | like connect; a remote server without keys that needs OAuth starts its sign-in; `400 {error: "invalid-server", problems}` for what the form refuses |
 | `GET /api/integrations/custom/server?id=<slug>` | | its edit form: `{kind: "custom-server", id, type, name, …}` with the command, the arguments and the working directory, or the address without userinfo or query, and its keys by name (`env`, `bearer`, `headers`), never a value; `409 account-unknown` for a catalog app's integration |
@@ -912,7 +912,7 @@ OpenAI's brand terms with the Organization Admin's approval of 2026-10-16
 AGENTS.md has a section Integrace after Tools: what an Integrace is, its three
 paths, `lazurio integrations list --json`, the order tool → Executor → Composio,
 never connecting one (the card's link where the Launchpad has an address, the page
-named on a workstation), and a custom MCP server only on the person's explicit
+named on a workstation), and a custom MCP server only on the user's explicit
 instruction and always into Executor. `manual/working-here.md` has the chapter
 Integrace (with Executor's approvals, the IT consent of company apps and, on an
 Organization's Environment, how agents use the Microsoft 365 Integrace `m365`:

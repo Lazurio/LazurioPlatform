@@ -27,7 +27,7 @@ must never select, download or activate a product version.
 
 ## Explicit only
 
-Synchronization runs only when an Operator or an authorized Task Agent invokes it for a
+Synchronization runs only when a user or an authorized Task Agent invokes it for a
 selected Organization. No first render, status request, health check, login, product
 update or Launchpad start synchronizes anything. Read-only inspection may report that
 content is behind; it fetches nothing.
@@ -71,7 +71,7 @@ stash, does not switch branches and does not reset.
 
 This is a deliberate change from the legacy engine, which stores dirty work in a
 recovery stash and returns the checkout to `main`. Preserved bytes in a stash still
-interrupt active work, and on a team workspace the interrupted person is not the one
+interrupt active work, and on a team workspace the interrupted user is not the one
 who clicked. Preserving work aside is a separate, explicit operation on one named
 repository, never a side effect of synchronization. Upstream decision 0129 describes
 the legacy behaviour; aligning it is a [required upstream
@@ -79,7 +79,7 @@ amendment](decisions.md#required-amendments-before-production-implementation).
 
 Divergence (ahead or diverged default branch) and unsafe detached state are blocked.
 Synchronization never resets, rebases or merges to resolve them; resolution belongs
-to the person or Task Agent with that repository's context.
+to the user or Task Agent with that repository's context.
 
 ## Outside generic synchronization
 
@@ -106,7 +106,7 @@ it.
 Rights are checked at the operation boundary through the identity the workspace is
 meant to use, as selected by its [workspace preset](workspace-presets.md):
 
-- private workspace or local Machine: the Operator's own provider sign-in;
+- private workspace or local Machine: the user's own provider sign-in;
 - team workspace: the brokered Organization identity, one short-lived
   repository-scoped token per operation. Content installation itself is the hosting's
   there (`prepared-by-hosting`); a module's own data mount is provided at its start
@@ -152,26 +152,26 @@ The content follows the Environment's kind, which is the Folder's recorded prese
 
 | Environment | Preset | Content |
 | --- | --- | --- |
-| The person's own computer | `local` | Its Organizations and the Personalspace |
-| Personal Remote Environment | `hosted-personal` | Only the person's Personalspace, never an Organization repository; gh must work as the handover's owner (`github-identity-mismatch`) |
-| Work Environment of one operator, Automated Environment | `hosted-organization-personal`, `hosted-organization-steward` | Only the Organization of its handover (`owner.organization`), never a Personalspace |
+| The user's own computer | `local` | Its Organizations and the Personalspace |
+| Personal Remote Environment | `hosted-personal` | Only the user's Personalspace, never an Organization repository; gh must work as the handover's owner (`github-identity-mismatch`) |
+| Work Environment of one user, Automated Environment | `hosted-organization-personal`, `hosted-organization-steward` | Only the Organization of its handover (`owner.organization`), never a Personalspace |
 | Team Environment | `hosted-organization-team` | Prepared by the hosting (Machines); the operation answers `prepared-by-hosting` and does nothing |
 | Public Environment (`entry.audience` `public`) | any | Only the Organization of its handover, read anonymously as a reader ([below](#a-public-environment-anonymous-reading)); never a Personalspace |
 
 The Automated Environment uses the ordinary explicit installation under its
 signed-in persona account (F9 amendment of 2026-10-12). Its preset describes the
-working arrangement and responsible human; it does not require a hosting archive,
+working arrangement and responsible user; it does not require a hosting archive,
 prove a Steward role, or grant repository access. Its repositories are ordinary
 Git clones, including tracked internal symlinks. CLI and Settings → This Environment
 use this same core; the content response owns UI availability. The first-run tour
-for a person's own account is separate and is unchanged.
+for a user's own account is separate and is unchanged.
 
 A request for an item the kind never holds is refused as a whole
 (`not-for-this-environment`). The identity is gh's sign-in on this Environment, found
-on the operator's PATH and run with the operator's home, as the Launchpad's other
-GitHub reads run it; git is the operator's own git with the operator's configuration,
-and for an HTTPS remote gets gh as its credential helper (`gh auth git-credential`), as
-`gh repo clone` does. No token is read, passed on or printed.
+on the user's PATH and run with the user's home, as the Launchpad's other GitHub
+reads run it; git is the user's own git with their configuration, and for an HTTPS
+remote gets gh as its credential helper (`gh auth git-credential`), as `gh repo clone`
+does. No token is read, passed on or printed.
 
 ### An Organization
 
@@ -179,7 +179,7 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
 
 1. **access** — gh's account, then the root repository (below), then GitHub's answer
    for it through that account: it must exist, be readable and belong to the login.
-   Then the person's **live role** in the Organization (review of root decision 0188,
+   Then the user's **live role** in the Organization (review of root decision 0188,
    as the resident `lazurio organization install --role builder|steward` scopes it,
    and the Reader of decision F9's addendum of 2026-10-05),
    which GitHub must confirm through the same account before anything is cloned:
@@ -253,7 +253,7 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
 
 A public Environment (root decision 0204, [F55's addendum of
 2026-10-17](decisions.md#addendum-of-2026-10-17-a-public-environment-has-no-github-identity))
-has no GitHub identity at all: no broker, no App installation token and no person's
+has no GitHub identity at all: no broker, no App installation token and no user's
 sign-in; `gh` is signed out. The recorded entry decides it (`githubIdentity`, the
 same rule as the generated texts), whatever the preset, so a Team Environment with the
 member is no longer `prepared-by-hosting`. The same five steps run, with these
@@ -281,7 +281,7 @@ differences only (`scope.github` `anonymous` in `src/content/model.ts`):
   no credential, askpass or SSH helper and HTTPS the only protocol
   (`anonymousGitEnvironment` in `src/content/git.ts`). So no `http.extraHeader`,
   credential helper, `insteadOf` rewrite (to another host or to SSH) or `core.sshCommand`
-  of the operator, a visitor or this process reaches the clone (review of #472). A
+  of the user, a visitor or this process reaches the clone (review of #472). A
   child is not asked of GitHub before its clone, so one that anonymous Git cannot read
   (private or absent) is reported `failed` (`clone-failed`), not `denied`.
 - Nothing is created, generated, granted, committed or pushed: the Personalspace is
@@ -303,11 +303,11 @@ with what it found.
   the account (`personalspace-public`, `personalspace-not-owned`). GitHub's
   `template_repository` is **not** the recognition: a Personalspace created before the
   template existed has none (observed on the maintainers' own, 2026-10-04), so a
-  template rule would create a second Personalspace for exactly the people who have
+  template rule would create a second Personalspace for exactly the users who have
   one. The template link is used only as a guard: when `<login>/<login>_GEN3` is
   absent but a repository of the account was created from
   `Lazurio/PersonalspaceTemplate_GEN3` under another name (a renamed repository, a
-  login renamed later), nothing is created (`personalspace-elsewhere`) and the person
+  login renamed later), nothing is created (`personalspace-elsewhere`) and the user
   decides.
 - **Present locally** (exactly one directory in `personalspace/`, the rule the
   catalog reads by): it counts only when it is the account's own Personalspace, as a
@@ -335,17 +335,17 @@ with what it found.
 - **The template's bootstrap** (only for the Personalspace this run created). Before
   anything is created, `create` asks for what the setup needs: Bun (`~/.local/bin/bun`,
   else on the PATH; `personalspace-toolchain-missing`) and an identity to commit with:
-  the operator's own Git identity (`user.name`, `user.email`) where it is set, else
-  the person's GitHub identity (the profile's name, else the login, and `<id>+<login>@users.noreply.github.com`) given per commit with `git -c`, never written by this install, for an Environment whose gh was not signed in through Lazurio (the curated gh sign-in sets the same identity globally where it is missing: [F19 addendum of 2026-10-14](decisions.md#f19--curated-installation-and-login-of-catalog-tools)) (`git-identity-missing`
+  the user's own Git identity (`user.name`, `user.email`) where it is set, else
+  their GitHub identity (the profile's name, else the login, and `<id>+<login>@users.noreply.github.com`) given per commit with `git -c`, never written by this install, for an Environment whose gh was not signed in through Lazurio (the curated gh sign-in sets the same identity globally where it is missing: [F19 addendum of 2026-10-14](decisions.md#f19--curated-installation-and-login-of-catalog-tools)) (`git-identity-missing`
   only when neither is known). After the clone, `bootstrap`
   checks that the checkout is clean and carries the template's marker
   `personalspace.template.json` (`personalspace-template-unexpected`), then runs
   `bun run --cwd <checkout> bootstrap -- --login <login> --display-name <name> --apply`
-  with the operator's gh and git: the template names the owner in `personal.gen3.json`
+  with the user's gh and git: the template names the owner in `personal.gen3.json`
   and `modules.manifest.json` and creates and clones the private
   `<login>/<login>-gbrain` (root decision 0046). The name is the GitHub profile's,
   else the login. `--install-gbrain` is not passed: installing the gbrain CLI stays the
-  person's choice, and the template's own rule accepts a doctor that is `incomplete`
+  user's choice, and the template's own rule accepts a doctor that is `incomplete`
   only for that deferred `gbrain.cli`. The Platform writes neither file; it reads what
   the template wrote and requires it to name the signed-in account with a gbrain
   repository. A failed bootstrap is `personalspace-bootstrap-failed` with the
@@ -360,7 +360,7 @@ with what it found.
   `gbrain-push-failed`). Both repositories were created by the same run a moment
   before, so this completes their creation and overwrites nobody's work.
 - **An existing Personalspace is never bootstrapped**, present or cloned now: its
-  `main` is the person's Publication, and the bootstrap would run code of a
+  `main` is the user's Publication, and the bootstrap would run code of a
   repository this run did not create. `bootstrap` is `skipped`: when its
   declarations name an owner, with that owner; when they still hold the template's
   placeholders (`owner-github-username`), the item succeeds with the warning
@@ -406,7 +406,7 @@ read (status, catalog) removes anything.
   `202 { "job" }`, `409 { "error": "busy", "job"? }` (without `job` when another
   process holds the lock), `403 { "error": "not-allowed", "reason" }`, `400` for a
   malformed body. Same admission as every write (`/api/tools/update`). Where the
-  Environment signs in as its person, also `403` with `"reason": "ai-missing"` while its
+  Environment signs in as its user, also `403` with `"reason": "ai-missing"` while its
   AI is provably missing (root decision 0201 point 3, [F36's addendum of
   2026-10-15](decisions.md#f36-addendum-of-2026-10-15-začínáme-the-basics-from-live-facts-ai-first-root-decision-0201)):
   the content never starts before an agent could help with it.
@@ -468,5 +468,5 @@ above are unchanged and run after the root is known.
 - It does not make Platform an Organization reconciler running in the background.
 - It does not grant, cache or infer provider access.
 - Synchronization (fetch, fast-forward of existing repositories) is not implemented;
-  installation of absent content is, and it runs only when a person or an authorized
+  installation of absent content is, and it runs only when a user or an authorized
   Task Agent invokes it for their own Environment.

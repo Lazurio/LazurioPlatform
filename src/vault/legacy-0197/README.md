@@ -3,7 +3,7 @@
 Root decision 0198 gives every Environment its own vault (decision F53 in
 `docs/decisions.md`, the core in `../flow.ts`). A few Environments were connected
 earlier the 0197 way (decision F43): an account `vaultwarden@<Environment address>`
-that a person invited into a collection of their own organization, the collection
+that a user invited into a collection of their own organization, the collection
 recorded by its ID beside the account in
 `${XDG_STATE_HOME:-~/.local/state}/lazurio/vault/<vault host>/<Environment address>/`.
 
@@ -24,7 +24,7 @@ with the new account in a directory of its own, and this pilot's directory stays
 untouched for the move of its items (DEV-6631 task 649).
 
 A personal Environment whose pilot was never connected (`pilotConnected` is false)
-connects its person's own Bitwarden instead (root decision 0203 point 7,
+connects its user's own Bitwarden instead (root decision 0203 point 7,
 `../connection.ts`); a connected pilot keeps working as above and offers no such
 connection.
 

@@ -1,4 +1,4 @@
-# Environment tools and operator sign-ins
+# Environment tools and user sign-ins
 
 > **Approved target update, 2026-10-06 (root 0192):** [Account and Environment access](environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
 
@@ -9,26 +9,26 @@ pilot of the shared GitHub App sign-in (decision F48, below), this
 document does not claim an implemented tool installer, authenticated harness or
 usable Environment.
 Machines delivers the online Machine and a first installation of the Platform; local
-Platform operations and the operator prepare what is needed inside it, including
+Platform operations and the user prepare what is needed inside it, including
 the Platform's own updates (F17 addendum 2026-09-28).
 
-## Operator tools are the operator's (decision 0161, F17)
+## User tools belong to the user (decision 0161, F17)
 
 Root decision 0161 (2026-09-26, with its addendum of the same day) splits a Remote
 Environment into the **provider baseline** (system, accounts, network, gateway,
-resident, the installed Platform release, and the first installation of the operator's
-tools in the standard path below) and the **operator's tools** (Codex, Claude Code,
-`gh`, Node, npm, Bun and whatever else is on the operator's PATH). The baseline is
+resident, the installed Platform release, and the first installation of the user's
+tools in the standard path below) and the **user's tools** (Codex, Claude Code,
+`gh`, Node, npm, Bun and whatever else is on the user's PATH). The baseline is
 pinned through the Machines rollout; the tools are delivered once at Machine creation
-and then belong to the operator, who updates them with the official installers.
+and then belong to the user, who updates them with the official installers.
 Since the F17 addendum of 2026-09-28 the version of the Platform belongs to the
-operator too: they update it with `lazurio update`, and the pin is only a minimum a
+user too: they update it with `lazurio update`, and the pin is only a minimum a
 rollout installs, repairs or raises to, never a version it lowers to.
 Readback reports their versions as facts, not drift. A rollout is only a repair of the
 one installation (the exact scope is in "The standard path" below); the Machines apply
 starts no agent and returns the `lazurio doctor` and `lazurio tools status` readback,
-and the rolling-out Task Agent starts the repair of the rest with the operator's
-mandate per the Folder manuals. Agents update Operator tools only on the Operator's
+and the rolling-out Task Agent starts the repair of the rest with the user's
+mandate per the Folder manuals. Agents update user tools only on the user's
 explicit instruction. The Platform's part is the generated manual rule and section
 "Where the tools live" (template revision `base-instructions-7`) and
 `lazurio tools status|update`, a thin orchestration of the official installers that
@@ -37,14 +37,14 @@ composio ([F42](decisions.md#f42--integrace-one-catalog-for-the-environment-one-
 
 ### `lazurio tools status` and `lazurio tools update <tool>`
 
-The Platform's surface for the operator's tools, implemented in `src/tools/`:
+The Platform's surface for the user's tools, implemented in `src/tools/`:
 
 - `tools status [--json]` lists codex, claude, gh, executor, git, node, npm, bun,
   composio, bw, wacli, gog and neon as found on
   the process PATH (first executable of the name, decision 0140 rule), with the real
   path behind a link and the version the tool reports; missing tools carry their
   official source. Read-only; the version commands never use the network; it does not
-  say "outdated", because the operator's version is a fact, not drift. bw writes its
+  say "outdated", because the user's version is a fact, not drift. bw writes its
   data file on every start, even for `--version`, so its version command runs with a
   private temporary `BITWARDENCLI_APPDATA_DIR` (the catalog's `isolatedData`, decision
   F43) and touches no profile; Executor's runs with a private `EXECUTOR_DATA_DIR`
@@ -63,9 +63,9 @@ The Platform's surface for the operator's tools, implemented in `src/tools/`:
   and nothing runs (`tool-not-self-updating`, exit 1). Unknown names exit 2. Apart
   from composio's build it pins nothing; it never downgrades on its own, never touches
   another tool and is not run by `lazurio update` or a Machines apply. The Launchpad
-  runs it only when the person clicks "Update" ("Aktualizovat") on a composio that is
+  runs it only when the user clicks "Update" ("Aktualizovat") on a composio that is
   not that build (Settings → Tools, `POST /api/tools/upgrade`). An agent runs it only
-  on the Operator's explicit instruction (F17). When Codex changed its version, the result
+  on the user's explicit instruction (F17). When Codex changed its version, the result
   carries `next`: a Codex app-server that is already running keeps the old version
   until it is replaced, `lazurio doctor` reports it as `codex-app-server`
   `app-server-outdated`, and nothing is stopped or restarted (F29 addendum, issue
@@ -100,28 +100,28 @@ and rendered into `AGENTS.md` ("Tools") and `manual/this-machine.md` ("Enabled t
 Agents use the catalog CLIs that are on first, then the MCP servers their harness
 offers, which the Folder never records.
 
-**The operator's note** ([F18 addendum](decisions.md#f18--enabled-tools-of-the-environment)).
-A required or enabled tool may carry a note from the operator: the intent with which
+**The user's note** ([F18 addendum](decisions.md#f18--enabled-tools-of-the-environment)).
+A required or enabled tool may carry a note from the user: the intent with which
 they use it ("use it for the ClickUp and Gmail of Spectoda; send nothing without my
 instruction"). It is stored under the optional key `toolNotes` (absent without a note)
 and quoted for agents in `manual/this-machine.md` under the tool, as a blockquote that
 cannot forge a heading, section or marker; `AGENTS.md` only says that a note exists. A
 note is plain text of 1 to 600 characters after trimming, at most 6 lines, without
-control characters. It is the operator's intent for agents on this Environment and
+control characters. It is the user's intent for agents on this Environment and
 grants no access. Disabling a tool removes its note.
 
 **What the Organization decides** ([F45](decisions.md#f45--organization-settings-reach-the-environment-asked-through-its-relay-recorded-in-the-folder-reported-back),
 root decision 0194). On an Organization's Environment (work, Team, Automated) the
 Organization's settings take precedence over the Environment's: where they say
 `integrations.composio.allowed: false`, `composio` is not used by agents, whatever the
-person chose. The Folder records the settings it applies (`organizationSettings` in
-`.lazurio/preferences.json`) and renders the person's selection without the tools the
+user chose. The Folder records the settings it applies (`organizationSettings` in
+`.lazurio/preferences.json`) and renders the user's selection without the tools the
 Organization does not allow, with a line that says why; the selection itself is kept,
 so the Organization allowing the tool again brings it back. While it does not, the
-person's choice of that tool does not change from any surface (`organization-governed`),
+user's choice of that tool does not change from any surface (`organization-governed`),
 Settings → Tools shows its switch locked off with a sentence that the Organization
 decides it, and offers neither adding nor signing in. A personal Environment and the
-person's own computer decide alone. How the settings arrive (the Dashboard through the
+user's own computer decide alone. How the settings arrive (the Dashboard through the
 Environment's relay, or the Organization's root in the Folder) is F45.
 
 **Setup modes.** `launchpad`: installation and login have a curated flow in the CLI
@@ -131,7 +131,7 @@ prepared prompt to an agent who installs the tool and guides the sign-in. Each t
 `installation` text describes the target state and is the agent's manual in both
 modes (for a `launchpad` tool it is what a fallback agent follows when the curated
 installer fails). Matěj's reason: many tools can be offered cheaply through the
-agent mode, and later usage analytics of which tools Operators try to install with an
+agent mode, and later usage analytics of which tools users try to install with an
 agent shows where a curated flow is worth building. The analytics are not
 implemented.
 
@@ -159,7 +159,7 @@ usage, 1 operation failure.
   (`stale-revision`, `drift` with the path, `custom-composition-unavailable`, …). An
   interrupted change is completed with `profile-resume`.
 - `tools note <tool> --folder <Folder> --expected-revision <n> (--text <text> | --clear)
-  [--json]` records or removes the operator's note on a required or enabled tool
+  [--json]` records or removes the user's note on a required or enabled tool
   through the same transaction (`updated` or `unchanged`). The text is trimmed and its
   line endings normalized first; an invalid text is `blocked` / `note-invalid` with the
   `problem` (`empty`, `too-long`, `too-many-lines`, `control`), a note on a tool that is
@@ -182,9 +182,9 @@ Launchpad's Tools section reads. It answers
 `hosted` (every preset but `local`), and for every activatable catalog tool in catalog
 order: `name`, `command`, `tier`, `setup`, `enabled`, `purpose` and `usage` in the
 Folder's locale, `source`, the live facts of `tools status` (`installed`, `path`,
-`realPath`, `version`, `versionError`, `standardPath`), `note` when the operator left
+`realPath`, `version`, `versionError`, `standardPath`), `note` when the user left
 one, `signIn` when the request asked for it, and `prompt`, the prepared agent prompt
-of `lazurio tools prompt <tool>`. `enabled` is the person's recorded choice; agents
+of `lazurio tools prompt <tool>`. `enabled` is the user's recorded choice; agents
 use the tool where it is also `offered` (F44) and, where the Organization's settings
 speak about it, `organization: { allowed }` does not refuse it (F45), so a choice the
 Organization refuses is kept for when it allows the tool again. On an
@@ -200,7 +200,7 @@ a tool is not returned, and the request accepts no Folder, PATH or tool name. Th
 facts are those of the PATH and home of the Launchpad process. The installed
 service unit sets that PATH to `~/.local/bin:/usr/local/bin:/usr/bin:/bin`
 (`Environment=PATH=%h/.local/bin:…`, [product update](update.md#state-on-disk)), so
-it sees the standard path first, as an operator's login shell with `~/.local/bin`
+it sees the standard path first, as a user's login shell with `~/.local/bin`
 on PATH does; a tool only on another directory of the interactive PATH is not
 seen there.
 
@@ -360,7 +360,7 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
   `gh auth refresh --hostname github.com --scopes admin:public_key --clipboard=false`
   (a device code) when the token lacks the scope; a gh that is not signed in fails as
   `not-signed-in`.
-- **gh sets the person's Git identity where git has none** (F19 addendum 2026-10-14):
+- **gh sets the user's Git identity where git has none** (F19 addendum 2026-10-14):
   after the SSH key step, whatever its outcome, each of `user.name` and `user.email`
   that neither git's global nor system configuration names is written with `git config
   --global` from `gh api user`: the profile's name, else the login, and
@@ -380,7 +380,7 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
   provider as well if it must end there. wacli unlinks the device from the account.
   gh first removes this Machine's SSH key from the account (`gh ssh-key delete <id>
   --yes`) when the token has `admin:public_key` and the key's title starts with
-  `Lazurio: `, so that sign-out ends the Machine's access; a key the operator
+  `Lazurio: `, so that sign-out ends the Machine's access; a key the user
   registered by hand stays, the key files stay, and `sshKey` says which (`removed`,
   `not-registered`, `no-key`, `kept-not-lazurio`, `not-removed` with the reason and
   where to remove it by hand).
@@ -468,7 +468,7 @@ signed in there at all (next section).
 On the Steward preset (`hosted-organization-steward`, the Automated Environment of
 upstream decision 0169) the curated gh sign-in and SSH key linking are offered, as on
 a Work Environment. The account signed in is the persona's own GitHub user account
-(a bot account), not the operator's: the responsible operator runs `lazurio tools login gh`
+(a bot account), not the user's: the responsible user runs `lazurio tools login gh`
 or the Launchpad's sign-in, chooses the persona's account in the device flow and
 keeps its two-factor authentication and recovery codes outside the Environment. The
 rendered Folder states this rule; the gate does not compare accounts
@@ -477,11 +477,11 @@ rendered Folder states this rule; the gate does not compare accounts
 #### gh on a Team Environment
 
 Matěj's decision 2026-09-28 ([F19 addendum](decisions.md#f19--curated-installation-and-login-of-catalog-tools)):
-there are three kinds of Environment, Personal, Work (one Operator) and Work Team
-(`hosted-organization-team`, shared by several Operators). A Team Environment works in
+there are three kinds of Environment, Personal, Work (one user) and Work Team
+(`hosted-organization-team`, shared by several users). A Team Environment works in
 GitHub through the GitHub App "Lazurio for GitHub" installed under the Organization;
-a person's account is not signed in there and a person's SSH key is not linked. The
-earlier temporary exception that let any account sign in on a Team VM has ended.
+a user's personal account is not signed in there and a user's SSH key is not linked.
+The earlier temporary exception that let any account sign in on a Team VM has ended.
 
 - `tools login gh` and `tools login gh --ssh-key` are refused before anything runs:
   `{ kind: "blocked", reason: "team-environment", tool: "gh", action: "login" |
@@ -493,7 +493,7 @@ earlier temporary exception that let any account sign in on a Team VM has ended.
   object with `409`, like every other refusal of these routes; `/api/tools/login/poll`
   of gh cancels the session and answers it too; `cancel` stays allowed.
 - `tools logout gh` and `/api/tools/logout` stay allowed exactly when gh's active
-  account is a person's (`identity: "person"`): removing a personal account left on a
+  account is a user's (`identity: "person"`): removing a personal account left on a
   shared Machine by the ended exception is what the rule wants, and the sign-out
   removes the SSH key Lazurio registered for this Machine as everywhere else. A GitHub
   App identity, a token from a variable, a gh that is not signed in or a sign-in whose
@@ -518,7 +518,7 @@ earlier temporary exception that let any account sign in on a Team VM has ended.
   read the preset of the declared operator's Folder, found from the root-issued
   handover `/etc/lazurio/lazurio.machine.json` and the effective account exactly as
   `lazurio update` finds it. The handover alone does not decide it (an ambiguous
-  handover derives no preset, and the operator may choose another allowed preset), the
+  handover derives no preset, and the user may choose another allowed preset), the
   Folder does. Only where there positively is no such Folder (not Linux, no handover
   at all, or a valid handover whose operator is another account) do the commands
   behave as on a workstation. A hosted context that is there but cannot be read is
@@ -562,8 +562,8 @@ earlier temporary exception that let any account sign in on a Team VM has ended.
   active account, is not offered for sign-out and is removed by hand; a personal token
   in `~/.config/gh` of a Machine whose gh is the wrapper is out of this sign-out's
   reach. gh stores a sign-in when its code is approved: a preset switched by another
-  process while the operator approves is seen only afterwards, so no key is linked but
-  the person's account is then signed in there and offered for sign-out. Another
+  process while the user approves is seen only afterwards, so no key is linked but
+  the user's account is then signed in there and offered for sign-out. Another
   account than the declared operator on a hosted Machine has no hosted Folder and is
   treated as on a workstation.
 - **Not built.** The path through Lazurio for GitHub is not part of the Platform:
@@ -582,10 +582,10 @@ Automated Environment has no vault yet (`unsupported`, `no-vault`), and one whos
 handover names no tailnet either, a public Organization's (root decision 0204), has
 none by design (`no-tailnet`): a Lazurio Vaultwarden answers only inside its network
 ([F53's addendum of 2026-10-17](decisions.md#f53-addendum-of-2026-10-17-an-environment-without-a-vault-explains-the-vault)). A personal
-Environment whose handover names no vault keeps its vault in its person's own
+Environment whose handover names no vault keeps its vault in its user's own
 Bitwarden instead (root decision 0203 point 7, [F53's amendment of
 2026-10-16](decisions.md#f53-amendment-of-2026-10-16-a-personal-environments-own-bitwarden),
-below): until the person connects it, it is `needs-connection`. The catalog tool is
+below): until the user connects it, it is `needs-connection`. The catalog tool is
 `bitwarden` (command `bw`); it has its own flow instead of F19's install and sign-in,
 which refuse it as `setup-vault`. Remote Environments on Linux only; on this computer
 it is the second wave (`unsupported`, `workstation`).
@@ -672,7 +672,7 @@ it is the second wave (`unsupported`, `workstation`).
   directory and a binary by its path, and sets the directory last on every run; the
   version probe of Settings → Tools runs a `bw` on PATH with a fresh temporary one
   (the catalog's `isolatedData`). No bw of this product reaches a default profile,
-  a person's own included. `bw config
+  a user's own included. `bw config
   server`, `bw login --apikey` (the key in `BW_CLIENTID`/`BW_CLIENTSECRET`; the session
   it prints is still locked and is never read), `bw unlock --passwordfile <private
   file> --raw` (the file removed at once), `bw sync`, `bw list
@@ -704,11 +704,11 @@ it is the second wave (`unsupported`, `workstation`).
   `LAZURIO_VAULT_COLLECTION_ID` (Agenti), single-quoted, for `eval "$(lazurio vault
   env)"`; not set up, one line on stderr, nothing on stdout, exit 2 (`busy` and
   `unlock-failed` exit 1). `status`, `refresh` and `setup [--json]` print the state
-  (setup: exit 0 connected, 2 waiting for a person: no vault named, not allowed,
+  (setup: exit 0 connected, 2 waiting for a user: no vault named, not allowed,
   revoked or unsupported; 1 failed or unreachable; its steps go to stderr). `status`
   is the one source of truth for agents and the Launchpad. `request --item <name>
   --need <what> --why <why> --where <where in the service> --field <Name>[:secret]
-  ... [--json]` asks a person for a secret (decision F54) and prints the request's id
+  ... [--json]` asks a user for a secret (decision F54) and prints the request's id
   and its page `<external origin>/vault/requests/<id>` (Apps → Trezor; the old
   `…/settings/vault/requests/<id>` it printed before still opens it, F54's amendment of
   2026-10-18); `request status <id>`
@@ -728,7 +728,7 @@ it is the second wave (`unsupported`, `workstation`).
   (`enableVaultForAgents`, `src/vault/host.ts`, also for `lazurio vault setup`): the
   switch's own change at the current revision, refused as the switch is where the
   tool is not offered or the Organization does not allow it. Once per vault, so a
-  person who turns it off keeps it off; a failure is journaled (`agents-not-enabled`),
+  user who turns it off keeps it off; a failure is journaled (`agents-not-enabled`),
   never the setup's. The journal of the unit gets
   `{"scope":"tools-vault","operation":"setup|refresh|unlock|vault|secrets|request","outcome":…,"reason":…}`
   (with `"trigger":"start"` for the start's setup) only. An agent's secret request
@@ -737,28 +737,28 @@ it is the second wave (`unsupported`, `workstation`).
   for good) over `GET
   /api/vault/requests`, `GET /api/vault/requests/<id>`, `POST
   /api/vault/requests/<id>/save {values}` and `POST /api/vault/requests/<id>/decline
-  {}`, behind the same admission (same origin for a write); any admitted person
+  {}`, behind the same admission (same origin for a write); any admitted user
   answers, without an account in the vault, and a save writes exactly one Secure note
   into Agenti.
 - **The vault page and its Správci** (F53's addendum of 2026-10-14,
   `src/vault/members.ts`): Apps → Vault (`/vault`, "Trezor"; Settings → Vault before
   F53's addendum of 2026-10-18 (2), whose `/settings/vault` still leads there) shows the
   rule, the vault's name and state, and "Přidat položku" and "Otevřít trezor", or
-  "Vytvořit účet v trezoru" while the person has no account in the network's vault
+  "Vytvořit účet v trezoru" while the user has no account in the network's vault
   and the vault takes the Lazurio sign-in (`GET /identity/sso/prevalidate`). `GET
-  /api/vault` is the page, `POST /api/vault/membership` `{}` adds the person the
+  /api/vault` is the page, `POST /api/vault/membership` `{}` adds the user the
   gateway admitted (whom its own answer names, F11's amendments) on a personal or
   work Environment whose handover names a vault (a personal Environment in its
-  person's own Bitwarden invites that person instead, below):
+  user's own Bitwarden invites that user instead, below):
   `<username>@account.lazurio.ai`, the address of the Lazurio
   username that answer carries (root decision 0203, F53's amendment of 2026-10-16),
   invited as an Admin through the vault's API and confirmed with bw once accepted,
   only where the network's vault refuses every password path of the address
   (`SSO_ONLY`, asked of its token endpoint: "SSO sign-in is required"); elsewhere
   nobody is invited or confirmed (`sign-in-not-required`), and a pending invitation
-  (`awaiting-password`) is safe. A person named without a valid username is added
+  (`awaiting-password`) is safe. A user named without a valid username is added
   nowhere (`no-username`), and the page asks them to sign in again. The answer carries
-  the person's own address (`address`) where that answer named them with a username and
+  the user's own address (`address`) where that answer named them with a username and
   the vault is a Lazurio Vaultwarden, for the page's Bitwarden steps (F53's addendum
   of 2026-10-16). A work Environment's Admin-type members all leave when
   its assignment changes; the Owner and other roles are never touched; a personal
@@ -793,13 +793,13 @@ it is the second wave (`unsupported`, `workstation`).
 - **A personal Environment's own Bitwarden** (root decision 0203 point 7, F53's
   amendment of 2026-10-16 and its amendment (2), `src/vault/connection.ts`,
   `src/vault/invitee.ts`): the
-  vault is a free organization in the person's own Bitwarden, in the cloud's EU or US
+  vault is a free organization in the user's own Bitwarden, in the cloud's EU or US
   region (`src/vault/endpoints.ts`, an allow-list: web `https://vault.bitwarden.eu`,
   API `https://api.bitwarden.eu`, identity `https://identity.bitwarden.eu`, and the
-  same on `bitwarden.com`), owned by a separate agents' account, never the person's
+  same on `bitwarden.com`), owned by a separate agents' account, never the user's
   main account. While nothing is connected the state is `needs-connection` and
   nothing runs (no setup at the start, `env`, secrets, requests and the membership
-  `not-connected`, `vault setup` exit 2). The person creates the agents' account and
+  `not-connected`, `vault setup` exit 2). The user creates the agents' account and
   its API key (Settings → Security → Keys → View API key in Bitwarden's web vault)
   and enters `client_id`, `client_secret` and the agents' master password once in
   Apps → Vault (`POST /api/vault/connect`, exactly those keys, at most 16 KiB,
@@ -818,23 +818,23 @@ it is the second wave (`unsupported`, `workstation`).
   `unsupported-keys`). Only then does it write the account whole into its custody
   (`<state>/lazurio/vault/vault.bitwarden.eu/<agents' address>/bw/lazurio-account.json`,
   0600) and the connection (`<state>/lazurio/vault/personal/connection.json`, 0600:
-  the region, the agents' account and the person's address, null until they ask to
+  the region, the agents' account and the user's address, null until they ask to
   be invited) and start the setup: the pinned
   `bw` signed in with `bw config server <web vault>` and `bw login --apikey`, the
   organization "Osobní <login>" with Agenti created on the cloud's API
   (`useSecretsManager: false`; a second Free organization is
-  `free-organization-limit`). The person asks to be invited afterwards, with the
+  `free-organization-limit`). The user asks to be invited afterwards, with the
   address of their own Bitwarden account (`POST /api/vault/invitee`, exactly
   `{email}`, the same rules; never the agents' account, `same-account`; one address
   per connection, `invited`; only once the vault exists, `not-connected`): the address
   is kept in the connection and invited at once as a User with Manage on Agenti,
   never an Admin (the cloud allows one Free organization per Owner or Admin). The
   cloud e-mails the invitation; once accepted, the next setup or look of the page
-  confirms the person with `bw confirm org-member` (`not-invited`,
+  confirms the user with `bw confirm org-member` (`not-invited`,
   `invitation-pending`, `accepted`, `member`, `revoked`). "Odpojit Bitwarden" (`POST /api/vault/disconnect`)
   signs bw out and removes the credentials, the session and bw's data, keeps the
   record and the requests and never deletes the organization; the same account
-  connected again finds its vault, or, when the person deleted it in Bitwarden, the
+  connected again finds its vault, or, when the user deleted it in Bitwarden, the
   record is forgotten on that connection and the setup creates a new one. The journal
   says `operation: "connect"`, `"members"` (`invitee-set`, `invited`, `confirmed`) or
   `"disconnect"` with a fixed outcome and reason, never a value or an address.
@@ -842,7 +842,7 @@ it is the second wave (`unsupported`, `workstation`).
 The agents' texts are the catalog entry's (`purpose` in `AGENTS.md`, `usage` in
 `manual/this-machine.md`) and the manual's Secrets (`manual/working-here.md`),
 template revision `base-instructions-50` (since `base-instructions-55` they name a
-personal Environment's own Bitwarden and say that only its person connects it, and
+personal Environment's own Bitwarden and say that only its user connects it, and
 that an agent never asks for that account's credentials). Since `base-instructions-57`
 they claim no state of the vault ([F53's addendum of
 2026-10-18](decisions.md#f53-addendum-of-2026-10-18-the-agents-text-follows-lazurio-vault-status),
@@ -852,7 +852,7 @@ state, `connected` is the vault its agents use on their own, only `unsupported` 
 Environment, which has none on purpose) is none here, any other answer, `unsupported`
 for another reason too, proves no absence and the agent follows what the status
 says, its reason included, and until the vault is connected secrets go where the
-Operator says.
+user says.
 Then: read `lazurio vault status` again before saying anything about the vault, with
 any answer but `connected` use neither `bw` nor `lazurio vault env`, with a connected
 vault start with `eval "$(lazurio vault env)"` and run it again when `bw` reports the
@@ -862,10 +862,10 @@ straight into commands and never printed, nothing in the account's own vault, an
 externally visible write a Publication. A secret is never asked for in chat or taken
 from a file or a message; what the vault lacks an agent gets in the order of root
 decision 0198 point 9 (decision F54): (a) where the shared browser window has the
-Bitwarden extension, the person's sign-in saved into the Environment's vault; (b) a
+Bitwarden extension, the user's sign-in saved into the Environment's vault; (b) a
 secret the agent creates itself in a signed-in session, stored with `bw create item`
 (the template piped through `bw encode`, never as an argument); (c) otherwise
-`lazurio vault request`, in words the person understands, with its link handed over
+`lazurio vault request`, in words the user understands, with its link handed over
 and other work continued meanwhile.
 
 ### Executor (decision F44)
@@ -914,7 +914,7 @@ Remote Environments on Linux only; on this computer it is the second wave
   `claude mcp add --scope user` where the harness is installed; read back with
   `codex mcp get executor --json` and from `~/.claude.json`'s top-level
   `mcpServers`. Registration states: `registered`, `disabled` (Codex's entry switched
-  off by the operator, left so), `missing`, `conflict` (an entry of that name that is
+  off by the user, left so), `missing`, `conflict` (an entry of that name that is
   not Lazurio's, never changed), `absent` (not installed), `unknown`. Running chats
   keep their tools; new chats see `executor`.
 - **States** (`src/executor/flow.ts`, `kind: "executor-status"` with `version`,
@@ -925,7 +925,7 @@ Remote Environments on Linux only; on this computer it is the second wave
   `download`, `integrity`, `npm`, `verify`, `place`, `service`, `agents` or `busy`;
   `reason`). A setup holds the kernel lock `~/.local/share/executor-cli/.lazurio.lock`.
 - **CLI** (`lazurio executor`): `status [--json]` reads (exit 0); `setup [--json]`
-  sets up what is missing (exit 0 running, 2 waiting for a person, 1 not finished;
+  sets up what is missing (exit 0 running, 2 waiting for a user, 1 not finished;
   its steps go to stderr).
 - **Launchpad**: `POST /api/tools/executor/status` with `{}` (the state, or the
   running setup's `202` below), and
@@ -952,13 +952,13 @@ The agents' texts are the catalog entry's (`purpose` in `AGENTS.md`, `usage` in
 `manual/this-machine.md`, template revision `base-instructions-38`): use the
 Integrations connected directly through the MCP server `executor` (tools `skills` and
 `execute`) or `executor call tools <integration> <owner> <connection> <tool> '<json>'`,
-check `lazurio executor status`, leave a repair to the Operator's instruction, and an
+check `lazurio executor status`, leave a repair to the user's instruction, and an
 externally visible write through an Integration is a Publication.
 
 ### The shared GitHub App sign-in (pilot, decision F48)
 
 The opt-in pilot uses the existing Lazurio for GitHub App. One authorization
-acts as the assigned human across every installation available to that person.
+acts as the assigned user across every installation available to them.
 GitHub enforces the intersection of user rights, App permissions and installation
 repository selection. The owning Organization is a required installation check,
 not a token restriction. Full Environment sharing includes this entire capability.
@@ -972,7 +972,7 @@ No other App is registered and no personal access token is used.
   with no per-Organization add/remove command or sign-in selector. With the switch
   off, the ordinary tooling flow is unchanged.
 - `lazurio github sign-in [--json]` shows a code for
-  `https://github.com/login/device` to approve in the person's own browser.
+  `https://github.com/login/device` to approve in the user's own browser.
   It checks the assigned account id and the App's active owning installation.
   Other installations of that same App are accepted. Expiring token pairs are
   retained owner-only; Ctrl-C cancels. Unknown or foreign interrupted-write files are
@@ -981,7 +981,7 @@ No other App is registered and no personal access token is used.
   provider request. Its JSON result names `scope: "environment"`. GitHub
   authorization and copied credentials remain valid; ending the authorization
   under GitHub Settings → Applications → Authorized GitHub Apps affects the
-  person’s other Environments too. The credential-reporting endpoint is not
+  user’s other Environments too. The credential-reporting endpoint is not
   a routine sign-out API: the real pilot also lost its second control chain.
 - `lazurio github pilot wire` requires that sign-in, preserves official gh and
   installs the reversible launcher and Git include. gh and HTTPS Git use the
@@ -990,7 +990,7 @@ No other App is registered and no personal access token is used.
   Existing GitHub SSH remotes are rewritten to HTTPS by the include.
 - `pilot unwire` restores the prior gh entry and Git config, preserving the
   sign-in. `pilot disable` refuses until unwired and signed out. While wired,
-  F19's tool login/logout directs the person to this pilot's commands instead.
+  F19's tool login/logout directs the user to this pilot's commands instead.
 - `lazurio github status [--json]` and Doctor report the one sign-in, owning
   installation, expiry, wiring and leftover account credentials without values.
   This is local state, not a fresh access inventory. `doctor --sign-in` additionally
@@ -1012,7 +1012,7 @@ version-1 shapes. Unknown configuration is retained and refused, not silently
 converted. The shared chain is refreshed under its kernel lock ten minutes before
 expiry; concurrent processes re-read it and refresh once. Atomic whole-file writes
 and interrupted-write recovery preserve the pair. A refused/expired refresh asks
-for a new human sign-in; an outage retains local state and can use a still-valid
+for a new sign-in by the user; an outage retains local state and can use a still-valid
 token. A refresh invalidates the old access token, so a concurrent long operation
 can fail; the real pilot must measure this limitation and revocation scope.
 
@@ -1020,12 +1020,12 @@ The wrapper's token-display and host checks prevent accidental disclosure, not
 access by the Environment's own user or their agents. Permissions are GitHub's;
 this module is neither a sandbox nor an additional Organization ACL. Device Flow
 and installation permission approvals use the existing App's normal provider
-settings and human authentication. Real pilot acceptance precedes rollout.
+settings and the user's own authentication. Real pilot acceptance precedes rollout.
 
 ### The standard path (decision 0161, point 6)
 
-One installation per tool, in one place, on every Machine: an operator tool is the
-first executable of its name in `~/.local/bin` on the operator's PATH. A tool's
+One installation per tool, in one place, on every Machine: a user tool is the
+first executable of its name in `~/.local/bin` on the user's PATH. A tool's
 official installer may keep its own home (Codex `~/.codex/…`, Bun `~/.bun`); only a
 link or wrapper in `~/.local/bin` puts it on PATH. Lazurio lives in
 `~/.local/share/lazurio/` with `~/.local/bin/lazurio`, the link `lazurio install`
@@ -1039,18 +1039,18 @@ while the installer home holds a working binary: the link is recreated; (b) the 
 itself is non-functional or absent: the tool's official installer runs at the baseline
 version, writes into its own home exactly as on any installation (`~/.bun/bin/bun`, a
 new release under `~/.codex/packages/standalone/releases/…`) and restores the
-`~/.local/bin` entry. A working tool keeps its version whatever it is; the operator's
+`~/.local/bin` entry. A working tool keeps its version whatever it is; the user's
 configuration, sign-ins and history are never touched; only a tool's own official
 installer writes into its home. The Machines apply returns the `lazurio doctor` and
 `lazurio tools status` readback and starts no agent; the rolling-out Task Agent starts
-the repair with the operator's mandate. `tools status` reports
+the repair with the user's mandate. `tools status` reports
 `standardPath` per tool; the generated Folder manual carries the rule ("Kde bydlí
 nástroje" / "Where the tools live") so agents keep the layout when they add tools.
 
 **The Codex app-server daemon at boot (F29).** In a Remote Environment whose Launchpad
 is supervised, every `lazurio install` and `lazurio update` run as the handover's
 declared operator ensures a second installer unit, `lazurio-codex-app-server.service`, runs the
-operator's own `~/.local/bin/codex app-server daemon start` at every boot, so a Codex
+user's own `~/.local/bin/codex app-server daemon start` at every boot, so a Codex
 client connecting over SSH finds the daemon without anyone starting it by hand. This
 is the one thing the Platform does with Codex beyond reporting it: it never installs,
 updates, downgrades or reconfigures Codex and never runs its installer; without Codex
@@ -1061,21 +1061,21 @@ The unit text is in [product update](update.md#state-on-disk).
 
 ## Ownership
 
-| Capability | Platform responsibility | Operator / external owner responsibility |
+| Capability | Platform responsibility | User / external owner responsibility |
 | --- | --- | --- |
 | Standalone Lazurio CLI | Verify the release, stage and activate the selected artifact; no external Bun/Node prerequisite | Approve the release (`latest` or one exact tag) and target; Machines performs its infrastructure installation handover |
-| Git and GitHub CLI (`gh`) | Diagnose availability and required capabilities; propose explicit preparation of missing tools | Authorize package/system changes; authenticate as the intended Operator and grant actual repo access |
-| Module runtime (for example Bun) | Coordinate the module's declared preparation; report missing/incompatible runtime without claiming readiness | Module owns exact dependency/runtime requirements and preparation; operator approves installation |
-| Codex / Claude harness | Diagnose the selected harness, instruction loading and required capabilities; provide one Folder-owned instruction contract; in a Remote Environment start the operator's Codex app-server daemon at boot (`lazurio-codex-app-server.service`, F29) and report it in `lazurio doctor` | Choose the harness, accounts/model access and consent; complete provider-native sign-in; install, update and configure Codex itself |
-| Environment browser (Remote Environment, F38, F39) | Run the virtual screen, the one Chromium with its persistent profile and the Lazurio extension, and the people's view (`lazurio browser serve`) as user units; open a thread's window (`lazurio browser window`); open a page as the Environment's default browser (`lazurio browser open`, root decision 0201 point 5); answer the view of a thread's tab behind the gateway; report it in `lazurio doctor` | Machines delivers Xvfb, Chrome for Testing through agent-browser and the `browser.` route with `entry.browser`, and registers `lazurio browser open` as the Environment user's default browser (`BROWSER`, `xdg-open`); the person signs in to websites in the view and decides what may be signed in there |
+| Git and GitHub CLI (`gh`) | Diagnose availability and required capabilities; propose explicit preparation of missing tools | Authorize package/system changes; authenticate as the intended user and grant actual repo access |
+| Module runtime (for example Bun) | Coordinate the module's declared preparation; report missing/incompatible runtime without claiming readiness | Module owns exact dependency/runtime requirements and preparation; user approves installation |
+| Codex / Claude harness | Diagnose the selected harness, instruction loading and required capabilities; provide one Folder-owned instruction contract; in a Remote Environment start the user's Codex app-server daemon at boot (`lazurio-codex-app-server.service`, F29) and report it in `lazurio doctor` | Choose the harness, accounts/model access and consent; complete provider-native sign-in; install, update and configure Codex itself |
+| Environment browser (Remote Environment, F38, F39) | Run the virtual screen, the one Chromium with its persistent profile and the Lazurio extension, and the users' view (`lazurio browser serve`) as user units; open a thread's window (`lazurio browser window`); open a page as the Environment's default browser (`lazurio browser open`, root decision 0201 point 5); answer the view of a thread's tab behind the gateway; report it in `lazurio doctor` | Machines delivers Xvfb, Chrome for Testing through agent-browser and the `browser.` route with `entry.browser`, and registers `lazurio browser open` as the Environment user's default browser (`BROWSER`, `xdg-open`); the user signs in to websites in the view and decides what may be signed in there |
 | Credentials | Use an existing approved provider/credential interface; retain only non-secret diagnostic outcomes | Existing credential owner retains custody, rotation and revocation |
 
-The table describes a private workspace or local Machine, where one person is the
-Operator. The team case differs and is described [below](#team-workspace).
+The table describes a private workspace or local Machine, used by one user alone.
+The team case differs and is described [below](#team-workspace).
 
 Do not install both harnesses merely because they are supported consumers. The pilot
 must select and qualify an actual agent, not infer success from an executable's presence.
-Do not copy sessions, tokens or another person's Personalspace from a workstation.
+Do not copy sessions, tokens or another user's Personalspace from a workstation.
 An operator identity in `lazurio.machine.json` does not authorize GitHub, model access,
 package installation, a paid subscription or a Machine-wide system change.
 
@@ -1095,7 +1095,7 @@ package installation, a paid subscription or a Machine-wide system change.
    Reuse compatible installations. Do not silently upgrade global PATH tools or run
    guessed package commands. Select concrete sources/pins for the approved guest before
    implementing the installer; no universal package manager is chosen by this design.
-4. Let the operator complete interactive/provider-native sign-ins. Recheck actual
+4. Let the user complete interactive/provider-native sign-ins. Recheck actual
    identity and exact repository rights before Organization materialization; denied or
    unavailable access stops that operation without deleting existing work.
 5. Use the module's declared dependency preparation, then exercise prepare/start/open/
@@ -1125,7 +1125,7 @@ sign-in column above changes:
   does not hold the broker credential's policy or the Team's grants.
 - **Attribution is the Team's.** Commits carry the bot committer, the Team author
   pseudo-identity and the workspace trailer of upstream decision 0148; changes land
-  through pull requests that an authorized person reviews and merges.
+  through pull requests that an authorized user reviews and merges.
 - **Revocation is GitHub's.** Removing the Team's repository grant blocks the next
   token. Platform keeps local content and reports denial.
 - **Harness and model access is open.** A member's personal model subscription is a
@@ -1146,10 +1146,11 @@ package-manager matrix (`lazurio tools` runs one tool's official update path und
 Bitwarden CLI of decision F43; it is not a general updater or installer); the team
 case consumes the existing upstream broker rather than adding one. The Environment's
 own vault (F43, F53) keeps no secret in the Platform: the vault is the network's
-Vaultwarden, or on a personal Environment its person's own Bitwarden (root decision
+Vaultwarden, or on a personal Environment its user's own Bitwarden (root decision
 0203 point 7), and the Environment account's credentials stay beside the Bitwarden
-CLI's own data directory. Unknown installation state receives a diagnosis
-and operator repair procedure, not an improvised privileged cleanup. Missing accounts
-remain an explicit pilot prerequisite, not something Machines or a profile can grant.
+CLI's own data directory. Unknown installation state receives a diagnosis and a
+repair procedure the user follows, not an improvised privileged cleanup. Missing
+accounts remain an explicit pilot prerequisite, not something Machines or a profile
+can grant.
 Real Organization materialization and canonical document adoption have their separate
 decision/authorization gate; this proposal does not authorize conversion or cloning.

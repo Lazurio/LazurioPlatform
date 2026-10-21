@@ -20,7 +20,7 @@ Three questions are kept apart. Each has exactly one owner.
 | Question | Owner | Platform's part |
 | --- | --- | --- |
 | May this browser reach the workspace? (**admission**) | The hosted gateway delivered with the Machine | Revalidate the browser session against the gateway's configured auth endpoint |
-| Which named person uses the managed service? (**service identity**) | Lazurio Account (OIDC), optional | Log in only when a named person or managed-service enrollment is needed |
+| Which named user uses the managed service? (**service identity**) | Lazurio Account (OIDC), optional | Log in only when a named user or managed-service enrollment is needed |
 | May this operation touch this repository? (**access**) | GitHub, the only access authority | Live check at the operation boundary through the workspace's provider identity |
 
 ## Admission
@@ -35,16 +35,16 @@ uses; Platform preserves it rather than inventing a header contract.
 
 Admission failure, an unreachable auth endpoint, a redirect to an unexpected origin or
 a malformed answer all deny. Admission answers "this session may enter this
-workspace"; it names no Operator for provider operations and grants no repository
+workspace"; it names no user for provider operations and grants no repository
 right.
 
-**The admitted session's person** ([F11's amendments of 2026-10-14 and
+**The admitted session's user** ([F11's amendments of 2026-10-14 and
 2026-10-16](decisions.md#f11--hosted-admission-is-not-identity)). The endpoint's own
-answer to that revalidation names the session's person in two headers. The Environment
+answer to that revalidation names the session's user in two headers. The Environment
 gateway's oauth2-proxy runs with `set_xauthrequest = true`: `X-Auth-Request-User`
 carries its user claim, the identity provider's `sub`, the Lazurio account's immutable
 id; `X-Auth-Request-Preferred-Username` carries the ID token's `preferred_username`,
-which for the gateway's client is the Keycloak username, the person's Lazurio username
+which for the gateway's client is the Keycloak username, the user's Lazurio username
 (root decision 0203 point 4). Caddy strips only `X-Auth-Request-Access-Token` from the
 bare hostname's `/oauth2/*`. The Launchpad accepts only a lowercase UUID as the
 subject, and as the username only one value of 3 to 39 lowercase letters and digits
@@ -58,15 +58,15 @@ addendum of
 2026-10-14](decisions.md#f53-addendum-of-2026-10-14-nastavení--trezor-and-the-správci)
 and [its amendment of
 2026-10-16](decisions.md#f53-amendment-of-2026-10-16-the-address-of-the-lazurio-username)):
-the username is the person's address there, `<username>@account.lazurio.ai` (root
+the username is the user's address there, `<username>@account.lazurio.ai` (root
 decision 0203 point 5), and it is never derived from GitHub or from the subject. A
-session signed in before the person's Keycloak username became their Lazurio username
+session signed in before the user's Keycloak username became their Lazurio username
 still carries the old value, the account's id, which is no username, until it is
 signed in again.
 
 ## Lazurio Account
 
-Account login (OIDC) is added when the Launchpad needs a **named person** or
+Account login (OIDC) is added when the Launchpad needs a **named user** or
 **managed-service enrollment**, for example to show who is connected on a team
 workspace or to bind the Environment to a managed Dashboard. It identifies the service
 user. It does not admit a browser to a workspace, does not supply repository rights
@@ -176,7 +176,7 @@ A short positive cache (2 minutes, keyed by the cookie's digest) bounds auth-end
 (upstream decision 0157). Denial is a redirect to the gateway's sign-in for top-level
 navigations and a 401 for fetches and sockets. No forwarded identity header, no other
 cookie, no `Host` is evidence. Admission says "this browser may enter this Machine"; who
-the person is comes from the Lazurio Account; what they may touch in a repository comes
+the user is comes from the Lazurio Account; what they may touch in a repository comes
 from GitHub (F11).
 
 **A chunked session is the same cookie.** oauth2-proxy splits a session larger than one
@@ -238,7 +238,7 @@ Lazurio MausBot is entered the same way when the entry records it
 ([contract](launchpad-development.md#lazurio-mausbot-entry)): `mausbotOrigin` is in the
 public parts, the loopback port is not, and the code rides only in the fragment of
 `<mausbotOrigin>/pair`.
-The Environment browser's people's view ([F38](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway),
+The Environment browser's users' view ([F38](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway),
 [F39](decisions.md#f39--the-peoples-view-of-the-environment-browser-one-tab-of-a-person-is-one-remote-tab))
 follows the same pattern: `browserOrigin` is in the public parts, the loopback port is
 not. `GET /.lazurio/browser.json` and the hand-over `GET /.lazurio/browser` answer, behind
@@ -264,12 +264,12 @@ session, or only a legacy one. The gateway forwards the request as it forwards e
 
 The browser's other headers pass as they are, its Fetch Metadata among them; it sends
 no `Origin` with a same-origin `GET`. So this admission applies unchanged (Host
-equality, session revalidation), and the person it names labels the pairing. The route
+equality, session revalidation), and the user it names labels the pairing. The route
 then answers only a page's own script fetch: `Sec-Fetch-Site: same-origin`,
 `Sec-Fetch-Mode` `cors` or `same-origin`, no prefetch. `same-origin` is relative to the
 page that fetches, T3 Code's or the Launchpad's own origin, so another site or a
 sibling hostname gets nothing. The gateway forwards the namespace on MausBot's origin
-too, so a MausBot page would pass the same rule: the same admitted person, in a
+too, so a MausBot page would pass the same rule: the same admitted user, in a
 first-party app of the same Environment. The route mints through the same code as the
 click: T3's operator pairing where T3 Code offers it, the standard one on a public
 Environment. It answers `{"kind":"chat-pairing","credential":"…","expiresAt":"…"}`

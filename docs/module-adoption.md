@@ -141,7 +141,7 @@ beside that package**, under the same install authority, custody and guarded pro
 as a declared preparation. There is **no prepare script and no check script**. No owner
 is searched among the ancestors: a lockfile of the module or Organization above the
 package is never the application's. A package that names no `packageManager` installs
-and runs with the operator's Bun (`~/.local/bin/bun`), whichever version it is; one
+and runs with the user's Bun (`~/.local/bin/bun`), whichever version it is; one
 that pins `bun@x.y.z` still requires exactly that Bun, and any other `packageManager`
 is refused. **A package that declares nothing to install** (F25 addendum of 2026-10-07,
 issue #253: no dependency of any kind and no setting for one, no `workspaces`, no
@@ -162,7 +162,7 @@ owner directory), also outside the module's own repository: real modules share a
 contracts package of the Organization's root repository
 (`file:../../../../launchpad/contracts/v1` from `workspace/<module>/app/v3/`), which the
 replaced Launchpad installs. The reference is normalized as text and reached from the
-Organization directory through real directories owned by the operator (F23); the
+Organization directory through real directories owned by the user (F23); the
 install authority inventories that dependency, never the whole Organization. One that
 leaves the Organization is `preparation-dependency-outside-owner`, one that is not
 there `preparation-dependency-missing`, and one through a symlink or another account's
@@ -220,7 +220,7 @@ The authority also captures the bytes of owner-level `patchedDependencies` files
 relative to the explicit dependency owner, outside Git and derived dependency
 trees. Every parent directory and every patch file passes the checkout rule of
 decision F23 (a real directory, or a regular file of at most 1 MiB, owned by the
-operator; permission bits and link count are not reasons); a missing, symlinked or
+user; permission bits and link count are not reasons); a missing, symlinked or
 changed input cannot verify as unchanged. This
 does not apply patches, validate patch syntax, qualify workspace-level patch
 semantics or complete the remaining local dependency input snapshot.
@@ -293,7 +293,7 @@ The lock uses the same `.operation-lock` mechanism as Folder operations, but is
 bound to the actual package/workspace dependency owner, not the Lazurio Folder.
 Unknown existing locks, replaced directories and unexpected contents remain refused.
 A killed owner can leave descendants and a retained lock; there is no automatic
-age/PID-based reclamation. Operator recovery and native Windows/network-filesystem
+age/PID-based reclamation. Recovery by the user and native Windows/network-filesystem
 support remain unqualified. This cooperative guard is not a same-user sandbox.
 
 The existing `scripts/smoke-application-ui.ts` now starts that compiled CLI command,
@@ -524,7 +524,7 @@ install/lifecycle/Doctor contract, each application's concrete requirements, and
 versioned preset inputs that produce a conforming starting application. Organizations
 select their allowed standards/presets through their existing rules owner. TypeScript
 and Bun are the first reference path, not a global ban on other qualified stacks.
-Presets give agents and operators, including non-developers, tested starting points;
+Presets give agents and users, including non-developers, tested starting points;
 they do not certify arbitrary subsequent application code.
 
 First document one standard and prove one reference preset through the existing
@@ -578,7 +578,7 @@ Accepted by Matěj on 2026-09-19 ([decision F8](decisions.md#f8--the-os-service-
 Implemented for Linux as systemd user services on 2026-09-19; macOS keeps
 session-scoped applications. What is **not** done is listed at the end of this section.
 
-**Motivation.** A product that updates itself must not make people accept interruption
+**Motivation.** A product that updates itself must not make users accept interruption
 of their work. While applications are children of the Launchpad process, every product
 activation and every Launchpad restart stops them.
 
@@ -754,7 +754,7 @@ the flag ([evidence, round 3](evidence/app-services-linux-arm64-2026-09-19.md)).
   session owner keeps its behaviour (it stops only its own application for its own
   preparation): a session application exists only inside that Launchpad session, so
   whoever operates that session is the one stopping it. Nothing here assumes that the
-  applications on a Machine belong to one person: on a shared Machine a service-owned
+  applications on a Machine belong to one user: on a shared Machine a service-owned
   application may be in use by others, which is exactly why it is never stopped as a
   side effect.
 - Authorization and declaration are rechecked at each operation boundary, as before.
@@ -851,14 +851,14 @@ which a written, enabled unit becomes necessary. It will be an explicit opt-in.
   change; a hosted workspace preset must decide it.
 - **macOS launchd** and Windows: macOS stays session-scoped; Windows is unqualified.
 - **Preparation without a Launchpad.** Since slice P5 `lazurio module start|stop|status|logs`
-  work from the CLI alone for service-owned applications, with the operator's Bun from
+  work from the CLI alone for service-owned applications, with the user's Bun from
   `~/.local/bin/bun`; `app-request` status and stop still work as below. Since F34
   `lazurio module prepare` is a CLI verb too (the explicit preparation, refused while
   another application of the Organization is managed). `clean-prepare` and a one-step
   `open` are not yet CLI verbs.
 - **Survival across a product activation** is not yet exercised (there is no activation
   of a running Launchpad yet); a graceful and a killed Launchpad are.
-- **Operator recovery of an interrupted preparation** stays explicit and unqualified:
+- **Recovery of an interrupted preparation by the user** stays explicit and unqualified:
   the retained record of a preparation whose owner died is never reclaimed
   automatically. It blocks preparing and starting that tree only; status and Stop are
   never blocked by it.
@@ -969,7 +969,7 @@ qualification and installed CLI/Launchpad acceptance remain incomplete.
 `src/providers/github-repository.ts` performs a fixed read-only GraphQL query through
 an explicitly selected GitHub CLI executable and the caller's existing credential
 context. Viewer node ID and exact repository facts come from the same response.
-The expected viewer ID must come from the selected Operator context, not a profile
+The expected viewer ID must come from the selected user context, not a profile
 or repository name. Wrong viewer/repository, partial GraphQL errors, malformed
 fields, warnings, timeout and oversized output never produce positive evidence.
 Successful observations carry request start/completion times; they are not cached.
@@ -1070,7 +1070,7 @@ fallback. Undeclared applications return the selector's blocked result.
 
 This POSIX development adapter requires a canonical module directory and checks every
 intermediate app directory. Directories and files follow the checkout rule of
-decision F23: owned by the operator, a real directory or a regular file of at most
+decision F23: owned by the user, a real directory or a regular file of at most
 1 MiB (16 MiB for a lockfile), with permission bits and link count not a reason; a
 refusal carries its rule (`declaration-not-regular`, `declaration-owner`,
 `declaration-too-large`, `directory-not-regular`, `directory-owner`). Reads use
@@ -1237,7 +1237,7 @@ responding. Both run with empty environments; Ubuntu had neither Bun nor Node in
 The first Linux attempt refused a group-writable fixture directory inherited from the
 guest umask. The runner and source test now request mode 0700 explicitly; product
 custody checks were not relaxed then. Decision F23 (2026-09-29) later accepted the
-write bits of the operator's own checkout. The corrected runner passed, then the VM
+write bits of the user's own checkout. The corrected runner passed, then the VM
 was stopped. This reused test VM is not a clean installer test. Linux evidence here
 does not cover pipe EOF, guard death, escaped descendants, Windows, Organization
 authorization or the still-missing user-facing app lifecycle commands and UI.
@@ -1267,7 +1267,7 @@ CLI/Launchpad acceptance. No Organization or Personalspace was mounted or used.
 
 `src/providers/git-checkout.ts` is a read-only POSIX development adapter using an
 explicit caller-qualified Git executable. It requires a canonical checkout root and
-Git/common directories owned by the operator (decision F23: their write bits are not a
+Git/common directories owned by the user (decision F23: their write bits are not a
 reason), observes their
 identities again, and reads one locally configured origin without includes. Nested
 paths are not accepted as checkout roots. Only exact GitHub HTTPS or SSH coordinates

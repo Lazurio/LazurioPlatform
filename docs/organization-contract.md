@@ -72,9 +72,9 @@ interim implementation of the same compatibility-state table, not a second schem
   admission rule does not execute (`projection_drift`, and `current` under variant
   A) is still listed from the canonical file but is not executable. Conflict
   returns `organization-conflict` with issue codes only.
-- The Organization root and its documents are the operator's own checkout (decision
-  F23): the root is accepted when it is a real directory owned by the operator, each
-  document when it is a regular file of at most 1 MiB owned by the operator;
+- The Organization root and its documents are the user's own checkout (decision
+  F23): the root is accepted when it is a real directory owned by the user, each
+  document when it is a regular file of at most 1 MiB owned by the user;
   permission bits and link count are not reasons (a clone under umask `002` has
   `0775` directories and `0664` files). A refused document keeps the `conflict` state
   and its `*_document_unreadable` issue, and the catalog names the Organization's
