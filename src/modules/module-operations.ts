@@ -1,6 +1,7 @@
 import { constants } from "node:fs";
 import { access, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { sleepTimes } from "../browser/people/sleep";
 import {
   contentLockDirectory,
   processGitHubHost,
@@ -74,6 +75,7 @@ import {
   provideDataMounts,
 } from "./data-mounts";
 import { createApplicationLifecycle } from "./lifecycle";
+import { observeConnected } from "./listener-ownership";
 import { localApplicationAdapters } from "./local-application-adapters";
 import { preparationRefusal } from "./preparation-refusal";
 import { readModuleApplication } from "./read-application";
@@ -88,7 +90,7 @@ import {
   userManagerState,
 } from "./service-manager-process";
 import { createSessionRunner } from "./session-runner";
-import { RequiredSlotRefused } from "./sibling-origins";
+import { declaredSiblings, RequiredSlotRefused } from "./sibling-origins";
 import {
   applicationCoordinationLockFile,
   applicationUnitName,
@@ -417,6 +419,10 @@ export type ModuleOptions = Readonly<{
   dev?: boolean | undefined;
 }>;
 
+/** An app the service manager runs, by the names the module routes take:
+ * the Launchpad's running Modules (`runningModules`). */
+export type RunningApp = Readonly<{ org: string; module: string; app: string }>;
+
 export const moduleLogLinesDefault = 100;
 
 /** How long `ensure` waits for a started app to report healthy before it
@@ -588,6 +594,14 @@ export function createModuleOperations(input: {
   // "starting" page) joins the one start instead of queueing more. Memory of
   // this process only, gone when the start ends; not state.
   const ensuring = new Map<string, Promise<ModuleAnswer | ModuleBlocked>>();
+  // The apps this Launchpad runs, all from `main` (no worktree source yet,
+  // P9), for their sleep (root decision 0195 point 23): when a sweep last saw
+  // each in use, null for one started or found since. Memory of this process
+  // only: a restarted Launchpad starts every clock again. Keyed by the names
+  // the module routes take, `<org>/<module>` and the app.
+  const inUse = new Map<string, number | null>();
+  const useKey = (target: Target) =>
+    `${target.organization}/${target.module}\0${target.app}`;
   let closing = false;
 
   const blocked = (
@@ -1426,6 +1440,77 @@ export function createModuleOperations(input: {
     });
   }
 
+  // An app nobody uses falls asleep (root decision 0195 point 23), at each of
+  // the Launchpad's sweeps: an app with an open connection on one of its
+  // listeners is in use; one that no sweep has seen in use for a tab's idle
+  // time (decision F57) is stopped as a plain Stop would, no more. Its next
+  // Open, or the gateway's `ensure`, starts it again as its newest build. A
+  // sibling some app of its Organization declares (root decision 0176) never
+  // sleeps: its caller reaches it at its loopback address, which wakes
+  // nothing. `running` names what the service manager runs, so that an app
+  // started before a restart of the Launchpad or by the CLI sleeps too, and
+  // one it no longer runs is forgotten.
+  async function sleepUnused(
+    at: number,
+    connected: (port: number) => Promise<boolean | null>,
+    running: (() => Promise<readonly RunningApp[] | null>) | undefined,
+    readSiblings: (
+      organizationDirectory: string,
+    ) => Promise<ReadonlySet<string>>,
+  ) {
+    const listed = await running?.().catch(() => null);
+    if (listed != null) {
+      const keys = new Set(
+        listed.map((app) => `${app.org}/${app.module}\0${app.app}`),
+      );
+      for (const key of inUse.keys()) if (!keys.has(key)) inUse.delete(key);
+      for (const key of keys) if (!inUse.has(key)) inUse.set(key, null);
+    }
+    // Each Organization's declared siblings, read once per sweep and only
+    // for an app due to sleep; unreadable keeps its apps awake.
+    const siblings = new Map<string, Promise<ReadonlySet<string> | null>>();
+    for (const [key, seen] of [...inUse]) {
+      const [name, app] = key.split("\0") as [string, string];
+      const prepared = await prepare("stop", name, { app });
+      if ("kind" in prepared) continue;
+      const { target, runner: kind, selection } = prepared;
+      const plan = await readModuleApplication(target.moduleDirectory, app)
+        .then((read) => (read.kind === "declared-runtime-plan" ? read : null))
+        .catch(() => null);
+      if (plan === null) continue;
+      // Unknown counts as in use.
+      const open = await Promise.all(
+        plan.listeners.map((listener) => connected(listener.port)),
+      );
+      // Stopped or started again meanwhile: left as that made it.
+      if (inUse.get(key) !== seen) continue;
+      if (seen === null || open.some((state) => state !== false)) {
+        inUse.set(key, at);
+        continue;
+      }
+      if (at - seen < sleepTimes.idleMs) continue;
+      if (!target.personalspace && target.isDefaultApp) {
+        const directory = target.organizationDirectory;
+        if (!siblings.has(directory))
+          siblings.set(
+            directory,
+            readSiblings(directory).catch(() => null),
+          );
+        const declared = await siblings.get(directory);
+        if (declared == null || declared.has(target.module)) continue;
+      }
+      await operate("stop", kind, target, async (lifecycle) => {
+        const status = await lifecycle.status(selection);
+        // Decided after the last read: a start or a stop since the sweep
+        // read the app leaves it as that made it.
+        if (inUse.get(key) !== seen) return;
+        inUse.delete(key);
+        if (status.kind === "status" && status.state === "running")
+          await lifecycle.stop(selection);
+      });
+    }
+  }
+
   // A built start: the newest build there is now, built first when there
   // is none (the person waits for it; a long one is answered
   // `build-pending`), and a build of the checkout in the background when it
@@ -1649,7 +1734,8 @@ export function createModuleOperations(input: {
 
   // Start the prepared app unless it runs: the toolchain, then the
   // lifecycle's start, whose start-time step installs from the lockfile, runs
-  // the declared check and prepares when it fails (decision F34).
+  // the declared check and prepares when it fails (decision F34). A started
+  // app is awake until it sleeps or is stopped (root decision 0195 point 23).
   async function startOwned(
     prepared: Prepared,
     options: Readonly<{
@@ -1657,6 +1743,16 @@ export function createModuleOperations(input: {
       /** A person's start (not the gateway's `ensure`, decision F58). */
       explicit?: boolean | undefined;
     }> = {},
+  ): Promise<ModuleAnswer | ModuleBlocked> {
+    // A start under way is a use too: a sweep's stop decision sees it.
+    inUse.set(useKey(prepared.target), null);
+    const answer = await startNow(prepared, options);
+    if (answer.kind === "module") inUse.set(useKey(prepared.target), null);
+    return answer;
+  }
+  async function startNow(
+    prepared: Prepared,
+    options: Parameters<typeof startOwned>[1] = {},
   ): Promise<ModuleAnswer | ModuleBlocked> {
     const { target, runner: kind, selection } = prepared;
     const missing = await toolchainMissing("start", target);
@@ -1978,13 +2074,24 @@ export function createModuleOperations(input: {
     /** Keep the static apps people opened built after a pull (decision F58
      * point 7): the Launchpad watches the Git directories their builds read
      * and sweeps at its start and every few minutes, building a moved
-     * checkout in the background and swapping what runs. The Launchpad's
-     * own process, no daemon (F8); nothing where this host keeps no builds. */
+     * checkout in the background and swapping what runs. Each sweep first
+     * lets the apps nobody uses sleep (root decision 0195 point 23). The
+     * Launchpad's own process, no daemon (F8); nothing where this host keeps
+     * no builds. */
     keepBuilt(
       options: Readonly<{
         watch?: DirectoryWatch;
         quietMs?: number;
         sweepMs?: number;
+        /** What the service manager runs (`runningModules`). */
+        running?: () => Promise<readonly RunningApp[] | null>;
+        /** Test seams: the clock, the connection evidence and the read of
+         * an Organization's declared siblings. */
+        now?: () => number;
+        connected?: (port: number) => Promise<boolean | null>;
+        siblings?: (
+          organizationDirectory: string,
+        ) => Promise<ReadonlySet<string>>;
       }> = {},
     ) {
       if (
@@ -1994,13 +2101,25 @@ export function createModuleOperations(input: {
         closing
       )
         return keeper;
+      const {
+        running,
+        now = Date.now,
+        connected = observeConnected,
+        siblings = declaredSiblings,
+        ...watching
+      } = options;
       keeper = createBuildWatcher({
-        apps: watchedApps,
+        apps: async () => {
+          await sleepUnused(now(), connected, running, siblings).catch(
+            () => undefined,
+          );
+          return watchedApps();
+        },
         refresh: async (app) => {
           const entry = watched.get(app.id);
           if (entry !== undefined) await refreshNow(entry.prepared, entry.plan);
         },
-        ...options,
+        ...watching,
       });
       keeper.start();
       return keeper;
@@ -2109,6 +2228,7 @@ export function createModuleOperations(input: {
             module: target.module,
             app: target.app,
           });
+        inUse.delete(useKey(target));
         return Object.freeze({
           kind: "module" as const,
           operation: "stop" as const,

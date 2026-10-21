@@ -346,3 +346,162 @@ test("the code of Claude's code page, Zrušit, an Organization's AI and a Launch
   await hanging.start("gh");
   expect(hanging.state().kind).toBe("failed");
 });
+
+// ChatGPT's sign-in by code (root decision 0201 point 10, F19's addendum of
+// 2026-10-21): "Přihlásit kódem" starts the same sessions with `deviceCode`,
+// and the step shows the code and OpenAI's page for it.
+
+const devicePage = "https://auth.openai.com/codex/device";
+const deviceCode = "QX7P-4MZ2K";
+
+test("an answer by code: only ChatGPT's, only OpenAI's exact page and a whole code", () => {
+  const pending = (tool: string, challenge: object) => ({
+    kind: "pending",
+    tool,
+    session,
+    expiresAt: "2026-10-21T08:15:00.000Z",
+    challenge,
+  });
+  expect(
+    aiSignInAnswer(
+      "codex",
+      pending("codex", {
+        kind: "device-code",
+        url: devicePage,
+        code: deviceCode,
+      }),
+    ),
+  ).toEqual({
+    kind: "by-code",
+    tool: "codex",
+    session,
+    url: devicePage,
+    code: deviceCode,
+  });
+  for (const [tool, challenge] of [
+    ["claude", { kind: "device-code", url: devicePage, code: deviceCode }],
+    [
+      "codex",
+      {
+        kind: "device-code",
+        url: "https://auth.openai.example/codex/device",
+        code: deviceCode,
+      },
+    ],
+    [
+      "codex",
+      { kind: "device-code", url: `${devicePage}?x=1`, code: deviceCode },
+    ],
+    [
+      "codex",
+      {
+        kind: "device-code",
+        url: "https://github.com/login/device",
+        code: deviceCode,
+      },
+    ],
+    ["codex", { kind: "device-code", url: devicePage, code: "QX7P 4MZ2K" }],
+    ["codex", { kind: "device-code", url: devicePage, code: "\u001b[94mQX" }],
+    ["codex", { kind: "device-code", url: devicePage }],
+  ] as const)
+    expect(aiSignInAnswer(tool, pending(tool, challenge))).toBeNull();
+  // A sign-in by code that ends without signing in says it was by code, so
+  // "Zkusit znovu" starts it by code again.
+  expect(
+    aiSignInAnswer("codex", { kind: "expired", tool: "codex" }, true),
+  ).toEqual({ kind: "failed", tool: "codex", reason: "expired", byCode: true });
+  expect(
+    aiSignInAnswer(
+      "codex",
+      {
+        kind: "pending",
+        tool: "codex",
+        session,
+        expiresAt: "x",
+      },
+      true,
+    ),
+  ).toEqual({ kind: "starting", tool: "codex", session, byCode: true });
+});
+
+test("Přihlásit kódem: the start asks for the code, the step shows it until the code is entered, and nothing opens in the panel", async () => {
+  let polls = 0;
+  const waiting = {
+    kind: "pending",
+    tool: "codex",
+    session,
+    expiresAt: "2026-10-21T08:15:00.000Z",
+    challenge: { kind: "device-code", url: devicePage, code: deviceCode },
+  };
+  const fake = server({
+    "/api/tools/login/start": () => waiting,
+    "/api/tools/login/poll": () =>
+      ++polls < 3
+        ? waiting
+        : {
+            kind: "signed-in",
+            tool: "codex",
+            services: { t3: { state: "not-installed" } },
+          },
+  });
+  const shown: string[] = [];
+  let reads = 0;
+  const signIn = createAiSignIn({
+    post: fake.post,
+    showView: (opened) => shown.push(opened),
+    changed: () => undefined,
+    readAi: () => {
+      reads++;
+    },
+    pollMs: 5,
+  });
+  await signIn.start("codex", { byCode: true });
+  expect(signIn.state()).toEqual({
+    kind: "by-code",
+    tool: "codex",
+    session,
+    url: devicePage,
+    code: deviceCode,
+  });
+  // "Otevřít přihlášení" has nothing to show: the page is the person's.
+  signIn.reopen();
+  await until(() => signIn.state().kind === "signed-in");
+  expect(shown).toEqual([]);
+  expect(reads).toBe(1);
+  expect(fake.requests[0]).toEqual([
+    "/api/tools/login/start",
+    { tool: "codex", deviceCode: true },
+  ]);
+
+  // An expired code: "Zkusit znovu" knows it was by code.
+  const expiring = createAiSignIn({
+    post: server({
+      "/api/tools/login/start": () => waiting,
+      "/api/tools/login/poll": () => ({ kind: "expired", tool: "codex" }),
+    }).post,
+    showView: () => undefined,
+    changed: () => undefined,
+    readAi: () => undefined,
+    pollMs: 5,
+  });
+  await expiring.start("codex", { byCode: true });
+  await until(() => expiring.state().kind === "failed");
+  expect(expiring.state()).toEqual({
+    kind: "failed",
+    tool: "codex",
+    reason: "expired",
+    byCode: true,
+  });
+
+  // Claude has no sign-in by code: nothing is asked.
+  const none = server({});
+  const claude = createAiSignIn({
+    post: none.post,
+    showView: () => undefined,
+    changed: () => undefined,
+    readAi: () => undefined,
+  });
+  await claude.start("claude", { byCode: true });
+  expect(claude.state()).toEqual({ kind: "idle" });
+  expect(none.requests).toEqual([]);
+});

@@ -135,6 +135,7 @@ const browserLines = [
   "RestartSec=3",
   "RestartPreventExitStatus=78",
   "MemoryMax=30%",
+  'ExecStartPre=-/bin/sh -c \'m=; while read -r k v u; do [ "$$k" = MemTotal: ] && [ "$$u" = kB ] && m=$$v; done < /proc/meminfo; case $$m in ""|0*|*[!0-9]*) exit 1;; esac; t=$$((m*1024)); b=$$((t-4294967296)); f=$$((t*30/100)); [ $$b -gt $$f ] || b=$$f; exec systemctl --user set-property --runtime %n MemoryMax=$$b\'',
   "MemorySwapMax=20%",
   "OOMPolicy=continue",
   "OOMScoreAdjust=250",
@@ -175,46 +176,156 @@ test("the three units render the screen, the browser with its extension and the 
 // came back with every tab of the last session, so memory was full again
 // within two minutes. The browser now has a budget of its own, a lost tab costs
 // only that tab, and a restarted browser opens none of the old tabs.
-function serviceDirectives(unit: string): Map<string, string> {
-  const directives = new Map<string, string>();
+// The directives of the unit's [Service], each with every value it has there:
+// systemd runs repeated ExecStartPre= lines one after the other.
+function serviceDirectives(unit: string): Map<string, string[]> {
+  const directives = new Map<string, string[]>();
   const service = unit.slice(
     unit.indexOf("[Service]"),
     unit.indexOf("[Install]"),
   );
   for (const line of service.split("\n")) {
     const split = line.indexOf("=");
-    if (split > 0) directives.set(line.slice(0, split), line.slice(split + 1));
+    if (split > 0) {
+      const name = line.slice(0, split);
+      directives.set(name, [
+        ...(directives.get(name) ?? []),
+        line.slice(split + 1),
+      ]);
+    }
   }
   return directives;
 }
+const directive = (directives: Map<string, string[]>, name: string) =>
+  directives.get(name)?.join("\n");
 
-test("the browser has a memory budget of its own, well below half the Environment's memory, and an exhausted budget costs a tab, not the browser or anything else", () => {
+test("the browser has a memory budget of its own, and an exhausted budget costs a tab, not the browser or anything else", () => {
   const directives = serviceDirectives(renderBrowserUnit());
-  const percent = (name: string) => {
-    const value = directives.get(name) ?? "";
-    expect(value).toMatch(/^\d+%$/);
-    return Number.parseInt(value, 10);
-  };
-  // Relative to the Environment's memory, so a larger Environment gives its
-  // browser more without another unit text: a hard limit well below half of
-  // the Environment, and with what it may move to swap at most half.
-  expect(percent("MemoryMax")).toBeLessThanOrEqual(30);
-  expect(percent("MemoryMax") + percent("MemorySwapMax")).toBeLessThanOrEqual(
-    50,
-  );
+  // The unit's own limit is the floor of root decision 0195 point 22, and the
+  // limit wherever a start cannot compute more: 30 % of the Environment's
+  // memory, as systemd resolves it. The start raises it (next test). What
+  // the browser may move to swap stays relative to the Environment's memory.
+  expect(directive(directives, "MemoryMax")).toBe("30%");
+  expect(directive(directives, "MemorySwapMax")).toBe("20%");
   // No throttle below the limit: without swap, systemd 255 kept a process
   // past MemoryHigh stalled just above it for minutes, and every process of
   // the browser that allocated stalled with it, instead of ending a tab.
   expect(directives.has("MemoryHigh")).toBe(false);
   // A process the kernel kills inside the budget (a tab's renderer) ends that
   // tab, not the unit: systemd's default (stop) would end every window.
-  expect(directives.get("OOMPolicy")).toBe("continue");
+  expect(directive(directives, "OOMPolicy")).toBe("continue");
   // The user manager gives every user service 200 and Chrome gives a tab's
   // renderer 300: the rest of the browser sits between, so the kernel takes a
   // tab first, then the browser, then a Module, never the other way round.
-  const adjust = Number(directives.get("OOMScoreAdjust"));
+  const adjust = Number(directive(directives, "OOMScoreAdjust"));
   expect(adjust).toBeGreaterThan(200);
   expect(adjust).toBeLessThan(300);
+});
+
+// Root decision 0195 point 22 (F38's addendum of 2026-10-20): at 30 % the
+// browser of an Environment of 8 GiB had about 2.3 GiB, and the kernel ended
+// about 80 of its renderers in 7 days (#525). The browser may now take the
+// Environment's memory except a reserve of 4 GiB for the core, agents,
+// Modules and builds, and never less than 30 %. The memory is the one the
+// Environment's system sees (MemTotal), so the reserve stays whole. Before
+// each start the unit computes the limit and sets it for this boot on its own
+// name (`systemctl --user set-property --runtime %n`), so its text stays the
+// same on every Environment, and an Environment resized (which restarts it)
+// has its new limit without another step. Run here as systemd runs the line:
+// `$$` is a `$`, `%n` the unit's name, against a meminfo of each size, with
+// a `systemctl` that records what it is asked. On systemd 255 the same line
+// set the cgroup the browser then runs in (PR evidence).
+async function computedMemoryLimit(
+  directory: string,
+  meminfo: string | null,
+  systemctlExit = 0,
+) {
+  await mkdir(directory, { recursive: true });
+  const file = join(directory, "meminfo");
+  if (meminfo !== null) await writeFile(file, meminfo);
+  const asked = join(directory, "asked");
+  const bin = join(directory, "bin");
+  await mkdir(bin);
+  await writeFile(
+    join(bin, "systemctl"),
+    `#!/bin/sh\nprintf '%s\\n' "$@" > '${asked}'\nexit ${systemctlExit}\n`,
+  );
+  await chmod(join(bin, "systemctl"), 0o755);
+  const line = serviceDirectives(renderBrowserUnit())
+    .get("ExecStartPre")
+    ?.find((candidate) => candidate.includes("set-property"));
+  // Optional ("-"): a start whose computation fails keeps the unit's 30 %.
+  const quoted = /^-\/bin\/sh -c '([^']*)'$/.exec(line ?? "")?.[1];
+  expect(quoted).toBeDefined();
+  const script = (quoted ?? "")
+    .replaceAll("$$", "$")
+    .replaceAll("%n", browserUnit)
+    .replaceAll("/proc/meminfo", file);
+  const child = Bun.spawn(["/bin/sh", "-c", script], {
+    env: { PATH: `${bin}:/usr/bin:/bin` },
+    stdout: "ignore",
+    stderr: "ignore",
+  });
+  const exit = await child.exited;
+  const args = await readFile(asked, "utf8").then(
+    (text) => text.trimEnd().split("\n"),
+    () => null,
+  );
+  return { exit, args };
+}
+const meminfo = (kibibytes: number | string) =>
+  `MemTotal:       ${kibibytes} kB\nMemFree:          812344 kB\nMemAvailable:    2402100 kB\nSwapTotal:       4194300 kB\n`;
+
+test("the browser's limit is the Environment's memory minus 4 GiB, at least 30 %, set before each start", async () => {
+  const directory = await temporary("browser-memory-");
+  const limit = (bytes: number) => [
+    "--user",
+    "set-property",
+    "--runtime",
+    browserUnit,
+    `MemoryMax=${bytes}`,
+  ];
+  const reserve = 4 * 1024 ** 3;
+  for (const [name, kibibytes, bytes] of [
+    // 4 GiB: MemTotal − 4 GiB is nothing, 30 % stays.
+    ["4", 4011184, 1232235724],
+    // 8 GiB, the base Environment: about 3.75 GiB instead of 2.3 GiB.
+    ["8", 8131784, 4031979520],
+    // 16 GiB (MemTotal 16 770 785 280 B): about 11.6 GiB.
+    ["16", 16377720, 12475817984],
+    // 64 GiB: about 58.8 GiB.
+    ["64", 65842712, 63127969792],
+  ] as const) {
+    const total = kibibytes * 1024;
+    expect(Math.max(Math.floor((total * 30) / 100), total - reserve)).toBe(
+      bytes,
+    );
+    expect(
+      await computedMemoryLimit(join(directory, name), meminfo(kibibytes)),
+    ).toEqual({ exit: 0, args: limit(bytes) });
+  }
+  // Where the Environment's memory cannot be read, nothing is set and the
+  // unit's 30 % holds: no meminfo, no MemTotal, one that is not a number of
+  // kibibytes, or zero, which would otherwise be a limit of nothing.
+  for (const [name, text] of [
+    ["missing", null],
+    ["no-total", "MemFree:          812344 kB\n"],
+    ["not-a-number", meminfo("8131784x")],
+    ["zero", meminfo(0)],
+    ["other-unit", "MemTotal:       8131784 MB\n"],
+  ] as const) {
+    const computed = await computedMemoryLimit(join(directory, name), text);
+    expect(computed.exit).not.toBe(0);
+    expect(computed.args).toBeNull();
+  }
+  // A manager that refuses the setting fails the step, which the unit
+  // ignores ("-"): the browser starts with its 30 %.
+  const refused = await computedMemoryLimit(
+    join(directory, "refused"),
+    meminfo(8131784),
+    1,
+  );
+  expect(refused).toEqual({ exit: 1, args: limit(4031979520) });
 });
 
 // The restorer is Chrome itself. Chrome for Testing 154 on Linux, started with
@@ -228,13 +339,16 @@ test("a restarted browser starts without the previous session's tabs and keeps t
   const home = await temporary("browser-restart-");
   const profile = browserProfileDirectory(home);
   const directives = serviceDirectives(renderBrowserUnit());
-  const pre = directives.get("ExecStartPre") ?? "";
+  const pre =
+    directives
+      .get("ExecStartPre")
+      ?.find((candidate) => candidate.includes("/bin/rm ")) ?? "";
   // Optional ("-"): a browser that comes back with old tabs is better than no
   // browser at all.
   expect(pre.startsWith("-")).toBe(true);
   const command = pre.slice(1).replaceAll("%h", home).split(" ");
   // The directory removed is the one of the profile Chrome is started with.
-  expect(directives.get("ExecStart")).toContain(
+  expect(directive(directives, "ExecStart")).toContain(
     `--user-data-dir=${browserProfileDirectory("%h")}`,
   );
   const run = async () => {

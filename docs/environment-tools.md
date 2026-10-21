@@ -254,13 +254,27 @@ account (#98: the probe read these fields at the top level before and so reporte
 paired wacli as not signed in)), `unknown` for a tool not installed, a timeout or unreadable output.
 `account` and `organization` (composio's current organization) are the only things
 taken from the output, as plain text of at most 120 characters; the output itself is
-never returned or logged. A signed-in gh also carries `ssh` ([F19 addendum
-2026-09-28](decisions.md#f19--curated-installation-and-login-of-catalog-tools)):
-`{ state: "linked" | "not-linked" | "unknown", reason?, fingerprint? }`, from the
-`.pub` of this Machine's default key and one call of `gh api "user/keys?per_page=100"`
-(`not-linked` with `no-key` or `not-registered`; `unknown` with `scope-missing` when
-the token cannot read keys, or `unreadable`). The private key is not read and nothing
-connects over SSH on a status call. gh's JSON status is asked for exactly one field,
+never returned or logged. A signed-in gh also carries `ssh` ([F19 addenda
+2026-09-28 and 2026-10-19](decisions.md#f19--curated-installation-and-login-of-catalog-tools)):
+`{ state: "linked" | "not-linked" | "unknown", reason?, fingerprint? }`, whether this
+Environment reaches GitHub over SSH as the signed-in account. It reads the `.pub` of this
+Environment's default key, the account's keys (`gh api "user/keys?per_page=100"`, where
+the token's scopes allow it) and, where the key is listed or the list cannot be read,
+runs the sign-in's own proof (`proveSsh`): every github.com entry of `~/.ssh/known_hosts`
+is one of GitHub's published host keys (`gh api meta`), and `ssh -T -o BatchMode=yes -o
+StrictHostKeyChecking=yes -o UpdateHostKeys=no -o ConnectTimeout=15 git@github.com`
+greets the login, each step bounded by 20 s; it writes nothing, not even the keys the
+server advertises. `linked` only when it passed; `not-linked` with `no-key`,
+`not-registered`, `proof-failed` or `other-account`; `unknown` with `unreadable` only
+when GitHub could not be reached or read. The Launchpad keeps a passing proof per key
+fingerprint and login for 5 minutes and a failure for 20 s (`createSshProofs`), one set
+for every reading of the sign-ins it makes (its tools environment's `sshProofs`): the
+Tools section's, itself kept a minute (above), Integrace's and the shell document's
+GitHub. A gh sign-in or link of the Launchpad keeps what it proved, and one that starts,
+or a sign-out, forgets them; each also drops the kept reading of the tools, so no answer,
+not even one marked `stale`, carries gh's `ssh` from before it. `tools list --sign-in`
+and `doctor --sign-in` keep nothing and prove each time. The private key is never read, and nothing is written. gh's JSON
+status is asked for exactly one field,
 `hosts`, and never with `--show-token`, so gh leaves the token out; only the active
 github.com entry's `state`, `login`, `tokenSource` and `scopes` are read (with `--json`
 gh always exits 0 and `state` says `success`, `error` or `timeout`). A signed-in gh
@@ -309,7 +323,7 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
   `checksum`, `extract`, `place`, `installer`, `verify`) and point to the agent prompt;
   an unsupported platform (Windows included) likewise. Exit 0 installed or already
   installed, 1 failed or unsupported, 2 usage or refused.
-- `tools login <tool> [--phone <+number>] [--ssh-key] [--json]` runs the tool's own
+- `tools login <tool> [--phone <+number>] [--ssh-key] [--device-code] [--json]` runs the tool's own
   sign-in in the foreground and shows its challenge: for gh the one-time code and
   `https://github.com/login/device` (`gh auth login --hostname github.com
   --git-protocol ssh --web --scopes admin:public_key --clipboard=false`; since gh
@@ -347,8 +361,8 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
   --type authentication` (nothing is added when the account has it); adds only the
   missing github.com keys of `gh api meta` (`ssh_keys`) to `~/.ssh/known_hosts` and
   stops without a change when an existing github.com entry differs; and proves it with
-  `ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes git@github.com`, whose
-  greeting must name the signed-in login. The result is `signed-in` with `ssh: {
+  `ssh -T -o BatchMode=yes -o StrictHostKeyChecking=yes -o UpdateHostKeys=no -o
+  ConnectTimeout=15 git@github.com`, whose greeting must name the signed-in login. The result is `signed-in` with `ssh: {
   state: "linked", key: { path, fingerprint, created }, registration, knownHosts }`,
   or `ssh: { state: "not-linked", reason, key?, provedAs?, fallback: "agent" }` with
   one of `scope-missing`, `keygen-missing`, `keygen-failed`, `key-passphrase`,
@@ -389,8 +403,8 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
   switches it (`composio orgs switch --org-id`). The apps connected in Composio belong
   to the account and organization of this Environment.
 - **`tools login codex` and `tools login claude`** (root decision 0201 points 3-6, F19's
-  addendum of 2026-10-15) run the CLI's own browser sign-in, `codex login` (never
-  `--device-auth`) and `claude auth login`, as the current user with the minimal
+  addendum of 2026-10-15) run the CLI's own browser sign-in by default, `codex login`
+  and `claude auth login`, as the current user with the minimal
   environment and the account's name (`USER`, `LOGNAME`). They are no catalog tools of
   agents: `tools list` does not show them and `install` and `logout` refuse them as
   before. Where the sign-in page opens:
@@ -411,8 +425,23 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
   - On a computer of one's own nothing is set: the CLI opens the computer's browser,
     and the printed page is offered beside it (`challenge: { kind: "page", url, code
     }`; on a Remote Environment `{ kind: "page", view, code }`, never the page).
+  - **`tools login codex --device-code`** (root decision 0201 point 10, F19's addendum of
+    2026-10-21) is the browser sign-in's quieter fallback, for codex only (any other
+    tool: `blocked`, `device-code-codex-only`, exit 2): `codex login --device-auth`
+    without the stand-in `BROWSER`. Codex prints, coloured even without a terminal,
+    OpenAI's page and a one-time code; the session reads them plain and offers
+    `challenge: { kind: "device-code", url, code }` only with the exact page
+    `https://auth.openai.com/codex/device` (any other address on a line of its own:
+    `unexpected-url`) and a code of groups of capital letters and digits joined by
+    dashes. The user enters it on that page in any browser, on any device; it needs no
+    Environment browser. Sign-in with a code must first be turned on in the user's
+    ChatGPT security settings (for a work account, by its admin); until then OpenAI's
+    page refuses the code, Codex keeps waiting and the session ends `expired` after the
+    code's 15 minutes. The sign-in lands where the browser sign-in's does, and ends the
+    same way (below). Claude has no sign-in by code.
   - Nothing starts on a Remote Environment without the Environment browser (`blocked`,
-    `no-environment-browser`, exit 2), nor codex where Codex's own `account/read`, asked
+    `no-environment-browser`, exit 2; the browser sign-in only, whose line points to
+    `--device-code` for codex), nor codex where Codex's own `account/read`, asked
     afresh right before `codex login` and never from a reading kept for the page, says
     its provider needs no OpenAI sign-in, the Organization's AI pool (`blocked`,
     `organization-provided`, exit 2). An `account/read` that cannot be read starts
@@ -431,7 +460,7 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
     `driver-mismatch` with the instance that runs another driver, or `failed` with
     `not-enabled` and the CLIs it did not turn on, `not-running`, `refused`,
     `unreadable` or `timeout`). Exit 0 only when signed in and neither the restart nor
-    T3 Code failed; 1 otherwise. The sign-in lives 10 minutes.
+    T3 Code failed; 1 otherwise. The sign-in lives 10 minutes, by code 15.
 
 The Launchpad offers the same over `POST /api/tools/install {tool}`,
 `/api/tools/login/start {tool, phone?}`, `/api/tools/login/poll {tool, session}`,
@@ -447,7 +476,9 @@ take that handle, so a challenge goes only to the browser that started the login
 pending WhatsApp login carries `qrSvg`, the QR code drawn by the server. A tool the
 catalog does not know, or an `agent` tool, is `409 blocked`. `start` takes `sshKey:
 true` for gh only ("Link SSH key"; anything else with it is `400`), and a pending gh
-login says `step: "ssh-key"` while the key is being linked. No answer carries private
+login says `step: "ssh-key"` while the key is being linked. `start` takes `deviceCode:
+true` for codex only (ChatGPT's sign-in by code; any other tool or value, or beside
+`sshKey`, is `400` `invalid-device-code`). No answer carries private
 key content or a public key's blob; only the key's path and SHA-256 fingerprint.
 
 A challenge is never written to a log, a file, the Folder or an error. The Launchpad
@@ -909,7 +940,7 @@ Remote Environments on Linux only; on this computer it is the second wave
   restarts the service; a stopped one is started; a running one that answers
   `/api/health` is never stopped or restarted. Lingering is reported, never changed.
   `executor service uninstall` is never run (it disables lingering for the account).
-- **Agents** (`src/executor/agents.ts`): the MCP server `executor`
+- **Agents** (`src/executor/agents.ts` over `src/tools/agent-mcp.ts`, the one way an Environment service reaches its agents, shared with Computer Use, F59): the MCP server `executor`
   (`~/.local/bin/executor mcp`, both switches) is added with `codex mcp add` and
   `claude mcp add --scope user` where the harness is installed; read back with
   `codex mcp get executor --json` and from `~/.claude.json`'s top-level
@@ -1068,6 +1099,7 @@ The unit text is in [product update](update.md#state-on-disk).
 | Module runtime (for example Bun) | Coordinate the module's declared preparation; report missing/incompatible runtime without claiming readiness | Module owns exact dependency/runtime requirements and preparation; user approves installation |
 | Codex / Claude harness | Diagnose the selected harness, instruction loading and required capabilities; provide one Folder-owned instruction contract; in a Remote Environment start the user's Codex app-server daemon at boot (`lazurio-codex-app-server.service`, F29) and report it in `lazurio doctor` | Choose the harness, accounts/model access and consent; complete provider-native sign-in; install, update and configure Codex itself |
 | Environment browser (Remote Environment, F38, F39) | Run the virtual screen, the one Chromium with its persistent profile and the Lazurio extension, and the users' view (`lazurio browser serve`) as user units; open a thread's window (`lazurio browser window`); open a page as the Environment's default browser (`lazurio browser open`, root decision 0201 point 5); answer the view of a thread's tab behind the gateway; report it in `lazurio doctor` | Machines delivers Xvfb, Chrome for Testing through agent-browser and the `browser.` route with `entry.browser`, and registers `lazurio browser open` as the Environment user's default browser (`BROWSER`, `xdg-open`); the user signs in to websites in the view and decides what may be signed in there |
+| Computer Use (Remote Environment, [F59](decisions.md#f59--computer-use-on-a-remote-environment-the-cua-drivers-daemon-on-the-screen-one-mcp-server-computer-for-every-agent)) | Run the Cua Driver's daemon on the Environment's screen as the user unit `lazurio-computer.service`; give every agent its MCP proxy as the server `computer` (`codex mcp add`, `claude mcp add --scope user`, like Executor's) while the driver is there, and remove Lazurio's own entry while it is not; tell agents in the Folder that one agent works on the screen at a time; report it in `lazurio doctor` | Machines delivers the pinned driver as `~/.local/bin/cua-driver` (0.19.3, its resident toolchain) and the packages `at-spi2-core`, `dbus-user-session` and `libglib2.0-bin`; the user cannot watch the screen until the desktop view of the second wave (root 0191 point 8) |
 | Credentials | Use an existing approved provider/credential interface; retain only non-secret diagnostic outcomes | Existing credential owner retains custody, rotation and revocation |
 
 The table describes a private workspace or local Machine, used by one user alone.

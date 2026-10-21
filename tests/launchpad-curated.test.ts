@@ -353,6 +353,155 @@ test.skipIf(!keygen)(
   },
 );
 
+// "Připojit znovu" (#515) beside the Launchpad's reading of the tools, kept a
+// minute (#535) and answered older at once while it reads anew (#551): the
+// link drops it, so the page load right after reads the link working at once,
+// and the link's own proof is the one every reading of this Launchpad uses
+// after it (the page's, Refresh status, Integrace's); a sign-out drops it as
+// well, so no page load answers the reading of before the sign-out, not even
+// as stale. A page load reads as the page does (`allowStale`, #551).
+test.skipIf(!keygen)(
+  "gh connected badly, then linked, then signed out: each page load reads it as it is, never a reading from before, and the Launchpad's readings use the link's proof",
+  async () => {
+    const opened = await session(["gh"]);
+    try {
+      // Signed in as octocat, without an SSH key here.
+      await writeFile(join(opened.home, "gh.state"), "octocat\n");
+      await writeFile(
+        join(opened.home, "gh.scopes"),
+        "gist read:org repo admin:public_key\n",
+      );
+      const read = async (body: Json) => {
+        const answer = (await opened.json("/api/tools/status", body)).body;
+        return {
+          stale: answer.stale,
+          signIn: (answer.tools as Json[]).find((tool) => tool.name === "gh")
+            ?.signIn as Json | undefined,
+        };
+      };
+      const gh = async (body: Json) => (await read(body)).signIn;
+      // A page load, as the page asks (#551).
+      const load = () => read({ signIn: true, allowStale: true });
+      const sshCalls = async () =>
+        (await readFile(join(opened.home, "ssh.calls"), "utf8").catch(() => ""))
+          .split("\n")
+          .filter((line) => line.length > 0).length;
+      // A page load: connected badly; the Launchpad keeps this reading.
+      expect(await load()).toMatchObject({
+        signIn: {
+          state: "signed-in",
+          account: "octocat",
+          ssh: { state: "not-linked", reason: "no-key" },
+        },
+      });
+      // "Připojit znovu": the SSH key's link of a signed-in gh.
+      const link = await opened.json("/api/tools/login/start", {
+        tool: "gh",
+        sshKey: true,
+      });
+      expect(link.status).toBe(200);
+      const linked = await until(
+        async () =>
+          (
+            await opened.json("/api/tools/login/poll", {
+              tool: "gh",
+              session: link.body.session ?? "0".repeat(32),
+            })
+          ).body,
+        (value) => value.kind !== "pending",
+      );
+      expect(linked).toMatchObject({
+        kind: "signed-in",
+        ssh: { state: "linked" },
+      });
+      const proved = await sshCalls();
+      expect(proved).toBeGreaterThan(0);
+      // The next page load, without `fresh`, is not the kept reading of
+      // before the link, as current or as stale: it reads the link working.
+      const afterLink = await load();
+      expect(afterLink.stale).toBeUndefined();
+      expect(afterLink.signIn?.ssh).toMatchObject({ state: "linked" });
+      // Refresh status and Integrace's reading prove nothing again: the
+      // link's proof is kept for every reading of this Launchpad.
+      expect((await gh({ signIn: true, fresh: true }))?.ssh).toMatchObject({
+        state: "linked",
+      });
+      const url = new URL(opened.app.url);
+      const integrations = await fetch(
+        new URL("/api/integrations?refresh=1", url),
+        {
+          headers: {
+            Origin: url.origin,
+            Authorization: `Bearer ${url.hash.slice(1)}`,
+          },
+        },
+      );
+      expect(integrations.status).toBe(200);
+      expect(await sshCalls()).toBe(proved);
+      // Signed out through this Launchpad: the next page load never answers
+      // the linked reading of before it, not even as stale.
+      const logout = await opened.json("/api/tools/logout", { tool: "gh" });
+      expect(logout.body).toMatchObject({ kind: "logged-out", tool: "gh" });
+      const afterLogout = await load();
+      expect(afterLogout.stale).toBeUndefined();
+      expect(afterLogout.signIn).toEqual({ state: "signed-out" });
+    } finally {
+      await opened.close();
+    }
+  },
+  // Real processes (the fakes, ssh-keygen): slower under a loaded run.
+  30_000,
+);
+
+// Pablo's review of #524: a status read already under way when gh signs out
+// through this Launchpad read gh before the sign-out. Its answer is never
+// given as current (nor taken for the shell's GitHub, first-run-shell's
+// test of the probe): the route reads the tools again.
+test.skipIf(!posix)(
+  "a status read under way across a sign-out through the Launchpad answers the facts after it, never the ones before",
+  async () => {
+    const opened = await session(["gh"]);
+    try {
+      await writeFile(join(opened.home, "gh.state"), "octocat\n");
+      await writeFile(
+        join(opened.home, "gh.scopes"),
+        "gist read:org repo admin:public_key\n",
+      );
+      // gh's status answers signed in, and that answer is held back.
+      await writeFile(join(opened.home, "hang.auth-status"), "");
+      const reading = opened.json("/api/tools/status", {
+        signIn: true,
+        fresh: true,
+      });
+      const held = await until(
+        async () => ({
+          pid: (
+            await readFile(join(opened.home, "hang.pid"), "utf8").catch(
+              () => "",
+            )
+          ).trim(),
+        }),
+        (value) => value.pid !== "",
+      );
+      await rm(join(opened.home, "hang.auth-status"));
+      // Signed out through this Launchpad while the read waits for gh.
+      const logout = await opened.json("/api/tools/logout", { tool: "gh" });
+      expect(logout.body).toMatchObject({ kind: "logged-out", tool: "gh" });
+      // gh delivers its answer from before the sign-out.
+      process.kill(Number(held.pid));
+      const answer = (await reading).body;
+      expect(answer.stale).toBeUndefined();
+      expect(
+        (answer.tools as Json[]).find((tool) => tool.name === "gh")?.signIn,
+      ).toEqual({ state: "signed-out" });
+    } finally {
+      await opened.close();
+    }
+  },
+  // Real processes (the fakes): slower under a loaded run.
+  30_000,
+);
+
 test.skipIf(!posix)(
   "wacli: the QR is drawn server-side as SVG and replaced when it rotates; cancel and shutdown kill the tool",
   async () => {

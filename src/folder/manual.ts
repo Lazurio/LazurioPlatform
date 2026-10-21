@@ -2397,6 +2397,22 @@ function environmentBrowser(preset: PresetName): readonly Text[] {
           ),
         ]
       : []),
+    blank,
+    // Computer Use on the same screen (decision F59): a service of the
+    // Environment for every agent, before the desktop view exists.
+    t("### Computer Use", "### Computer Use"),
+    t(
+      "- **Nástroj `computer`.** Programy na obrazovce `:1` (okna, tlačítka, text) ovládá MCP nástroj `computer` tvého harnessu: Cua Driver tohoto Environmentu, který snímá obrazovku a kliká a píše do jejích oken. Webové stránky dělej dál v prohlížeči Environmentu (oddíl výš): má přihlášení a uživatel je vidí v pohledu.",
+      "- **The tool `computer`.** Your harness's MCP tool `computer` works the programs on the screen `:1` (windows, buttons, text): this Environment's Cua Driver, which captures the screen and clicks and types into its windows. Keep doing web pages in the Environment browser (section above): it has the sign-ins, and the user sees them in the view.",
+    ),
+    t(
+      "- **Jedna obrazovka, jeden agent.** Myš a klávesnice jsou jedny pro všechny agenty a boty Environmentu a nic je mezi nimi nedělí: na obrazovce pracuje vždy jen jeden agent. Buď na ní jen po nezbytné kroky, okna ostatních nezavírej a nepřesouvej. Uživatel obrazovku zatím nevidí: řekni mu, co jsi na ní udělal, a když pomůže, pošli mu snímek.",
+      "- **One screen, one agent.** The mouse and the keyboard are one for every agent and bot of the Environment, and nothing divides them between them: one agent works on the screen at a time. Stay on it only for the steps you need, and never close or move the others' windows. The user cannot see the screen yet: tell them what you did on it, and send a capture when it helps.",
+    ),
+    t(
+      "- **Když nefunguje.** `lazurio doctor` (kontrola `computer-use`) řekne proč: chybí Cua Driver (instaluje se s Environmentem), neběží služba `lazurio-computer`, obrazovka není X11, chybí sběrnice přístupnosti AT-SPI, nebo tvůj harness nemá MCP server `computer`. Vlastní driver ani jeho službu nespouštěj; prohlížeč Environmentu funguje i bez nich.",
+      "- **When it does not work.** `lazurio doctor` (check `computer-use`) says why: the Cua Driver is missing (it is installed with the Environment), the service `lazurio-computer` is not running, the screen is not X11, the AT-SPI accessibility bus is missing, or your harness lacks the MCP server `computer`. Never start a driver or its service of your own; the Environment browser works without them.",
+    ),
   ];
 }
 

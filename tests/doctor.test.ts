@@ -48,8 +48,10 @@ import {
   writePersonalspaceModule,
 } from "./fixtures/catalog-folder";
 import { executorWorld } from "./fixtures/fake-executor";
+import { githubHostKeys, realSshKeygen } from "./fixtures/fake-login-tools";
 import { handoverEntry } from "./fixtures/machine-bindings";
 import organizationContext from "./fixtures/machine-context.json";
+import { runChild } from "./fixtures/run-child";
 import { commitOf, executable, target } from "./fixtures/update-world";
 
 // `lazurio doctor`: every check against a temporary install base, HOME and
@@ -156,6 +158,14 @@ const toolRun: ToolRunner = async (command) => {
     stderr: "",
   };
 };
+
+// "type base64" of this home's key, as GitHub lists it.
+const publicKeyOf = async (home: string) =>
+  (await readFile(join(home, ".ssh", "id_ed25519.pub"), "utf8"))
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .join(" ");
 
 // Any command but the fixture executable's self-check is refused.
 const processRun =
@@ -350,7 +360,7 @@ test("a healthy Environment: ok, exit 0, every group, the same answer in both fo
     "tool wacli skipped not-enabled",
     "tool gogcli skipped not-enabled",
     "tool neon skipped not-enabled",
-    // Executor has its own check; a computer is its second wave (F44).
+    // Executor has its own check (F44).
     "executor skipped not-offered",
     "catalog ok",
     "organization alpha ok",
@@ -361,6 +371,7 @@ test("a healthy Environment: ok, exit 0, every group, the same answer in both fo
     "codex-app-server skipped no-user-manager",
     "chat-defaults skipped not-hosted",
     "environment-browser skipped no-user-manager",
+    "computer-use skipped no-user-manager",
   ]);
   expect(find(result.json, "tool", "gh")).toEqual({
     id: "tool",
@@ -473,6 +484,126 @@ test("a missing required tool fails, a missing recommended one needs attention",
   expectTierOne(missingComposio.stdout, world);
   expectSameAnswer(missingComposio.human, missingComposio.json);
 });
+
+// #515 (F19's addendum of 2026-10-19): with --sign-in, gh signed in while
+// this Environment does not reach GitHub over SSH as that account needs
+// attention; a working link is ok. The status runs the sign-in's own proof
+// (GitHub's host keys and ssh -T), answered here by the fake runner.
+test.skipIf(process.platform === "win32" || realSshKeygen === null)(
+  "--sign-in: gh signed in without a working SSH link needs attention, a working one is ok",
+  async () => {
+    const world = await createWorld({
+      tools: ["gh", "composio", "ssh", "ssh-keygen"],
+    });
+    let greeted: string | null = null;
+    const signedIn: ToolRunner = async (command) => {
+      const name = command[0]?.split("/").at(-1);
+      const args = command.slice(1).join(" ");
+      if (name === "gh" && args === "auth status --json hosts")
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            hosts: {
+              "github.com": [
+                {
+                  state: "success",
+                  active: true,
+                  login: "octo",
+                  tokenSource: "keyring",
+                  scopes: "repo, read:org, admin:public_key",
+                },
+              ],
+            },
+          }),
+          stderr: "",
+        };
+      if (name === "gh" && args.startsWith("api user/keys"))
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify(
+            greeted === null
+              ? []
+              : [{ id: 7, key: await publicKeyOf(world.home), title: "x" }],
+          ),
+          stderr: "",
+        };
+      if (name === "gh" && args.startsWith("api meta"))
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify(githubHostKeys),
+          stderr: "",
+        };
+      if (name === "ssh")
+        return greeted === null
+          ? {
+              exitCode: 255,
+              stdout: "",
+              stderr: "git@github.com: Permission denied (publickey).",
+            }
+          : {
+              exitCode: 1,
+              stdout: "",
+              stderr: `Hi ${greeted}! You've successfully authenticated, but GitHub does not provide shell access.`,
+            };
+      return toolRun(command, 10_000, {});
+    };
+    // No key in this home: signed in, not linked.
+    const broken = await doctor(world, ["--sign-in"], { toolRun: signedIn });
+    expect(broken.code).toBe(exitAttention);
+    expect(find(broken.json, "tool", "gh")).toEqual({
+      id: "tool",
+      outcome: "warn",
+      reason: "ssh-not-linked",
+      context: {
+        tool: "gh",
+        tier: "required",
+        toolVersion: "2.63.0",
+        signIn: "signed-in",
+        ssh: "not-linked",
+      },
+    });
+    expectTierOne(broken.stdout, world);
+    expectSameAnswer(broken.human, broken.json);
+    // A key on the account that GitHub greets as octo: ok.
+    await mkdir(join(world.home, ".ssh"), { mode: 0o700 });
+    const made = await runChild(
+      [
+        realSshKeygen as string,
+        "-q",
+        "-t",
+        "ed25519",
+        "-N",
+        "",
+        "-C",
+        "test",
+        "-f",
+        join(world.home, ".ssh", "id_ed25519"),
+      ],
+      { env: { HOME: world.home } },
+    );
+    expect(made.exitCode).toBe(0);
+    greeted = "octo";
+    const working = await doctor(world, ["--sign-in"], { toolRun: signedIn });
+    expect(find(working.json, "tool", "gh")).toEqual({
+      id: "tool",
+      outcome: "ok",
+      context: {
+        tool: "gh",
+        tier: "required",
+        toolVersion: "2.63.0",
+        signIn: "signed-in",
+        ssh: "linked",
+      },
+    });
+    // Another account greets: attention again.
+    greeted = "someone-else";
+    const other = await doctor(world, ["--sign-in"], { toolRun: signedIn });
+    expect(find(other.json, "tool", "gh")?.reason).toBe("ssh-not-linked");
+    // Without --sign-in nothing is probed and nothing is said about it.
+    expect(find((await doctor(world)).json, "tool", "gh")?.outcome).toBe("ok");
+  },
+  30_000,
+);
 
 test("a module that is not executable needs attention with its typed reason", async () => {
   const world = await createWorld();

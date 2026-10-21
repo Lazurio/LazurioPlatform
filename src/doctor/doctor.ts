@@ -5,6 +5,7 @@ import {
   observeEnvironmentBrowser,
 } from "../browser/units";
 import { chatDefaults } from "../chat/defaults";
+import { computerUseReasons, observeComputerUse } from "../computer/computer";
 import { agentRegistrations } from "../executor/agents";
 import {
   type ExecutorHost,
@@ -13,7 +14,7 @@ import {
 } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
 import { machineIdentity } from "../folder/machine-binding";
-import { presetNames } from "../folder/presets";
+import { githubIdentity, presetNames } from "../folder/presets";
 import {
   hostedEnvironment,
   isOlderTemplateRevision,
@@ -120,6 +121,7 @@ export const doctorCheckIds = [
   "codex-app-server",
   "chat-defaults",
   "environment-browser",
+  "computer-use",
 ] as const;
 export type DoctorCheckId = (typeof doctorCheckIds)[number];
 
@@ -156,6 +158,7 @@ export const doctorGroupOf: Readonly<Record<DoctorCheckId, DoctorGroup>> =
     "codex-app-server": "machine",
     "chat-defaults": "machine",
     "environment-browser": "machine",
+    "computer-use": "machine",
   });
 
 export type DoctorOutcome = "ok" | "warn" | "fail" | "skipped";
@@ -189,6 +192,9 @@ const ownReasons = [
   "not-enabled",
   "not-offered",
   "version-unreadable",
+  // gh signed in as the person while this Environment does not reach GitHub
+  // over SSH as that account (decision F19, addendum 2026-10-19).
+  "ssh-not-linked",
   // Organizations
   "catalog-unreadable",
   "template-not-runtime",
@@ -238,6 +244,7 @@ export const doctorReasons: readonly string[] = Object.freeze([
     ...catalogReasons,
     ...codexAppServerReasons,
     ...environmentBrowserReasons,
+    ...computerUseReasons,
   ]),
 ]);
 
@@ -548,7 +555,13 @@ type ToolRow = Readonly<{
   offered: boolean;
 }>;
 
-function toolCheck(tool: ToolRow): DoctorCheck {
+/** A tool's check. `ownGithub`: the Environment signs in to GitHub as its
+ * person (the preset's own sign-in, or no Folder: a computer), where gh is
+ * ready only when this Environment reaches GitHub over SSH as the signed-in
+ * account (decision F19, addendum 2026-10-19, #515): a signed-in gh whose
+ * proof failed needs attention. A Team's or a persona's GitHub is not the
+ * person's, and an SSH state that could not be read stays a fact. */
+function toolCheck(tool: ToolRow, ownGithub: boolean): DoctorCheck {
   const context: ErrorContext = {
     tool: tool.name,
     tier: tool.tier,
@@ -567,9 +580,15 @@ function toolCheck(tool: ToolRow): DoctorCheck {
       ? check("tool", "warn", "enabled-missing", context)
       : check("tool", "skipped", "not-enabled", context);
   }
-  return tool.versionError !== undefined
-    ? check("tool", "warn", "version-unreadable", context)
-    : check("tool", "ok", undefined, context);
+  if (tool.versionError !== undefined)
+    return check("tool", "warn", "version-unreadable", context);
+  if (
+    ownGithub &&
+    tool.signIn?.state === "signed-in" &&
+    tool.signIn.ssh?.state === "not-linked"
+  )
+    return check("tool", "warn", "ssh-not-linked", context);
+  return check("tool", "ok", undefined, context);
 }
 
 /** The Folder's tool selection under its read lock (`toolsOverview`), only
@@ -907,6 +926,19 @@ export async function collectDoctor(
     fetch: environment.fetch ?? ((url, init) => fetch(url, init)),
   });
 
+  // Computer Use on the same screen (decision F59).
+  const computer = await observeComputerUse({
+    platform,
+    env,
+    supervised: service !== null,
+    hosted: async () =>
+      environment.hostedFolder !== undefined &&
+      (await environment.hostedFolder()) !== undefined,
+    declared: handover?.context.entry?.browser !== undefined,
+    run,
+    tools: environment.tools.run,
+  });
+
   const recovered = recovery.checks;
   const facts = observed.facts;
   const [version, available, refresh, template] = productChecks(
@@ -932,7 +964,18 @@ export async function collectDoctor(
     ),
     ...bindingChecks(observed, handover, hostedUnreadable),
     // Executor has its own check (decision F44), not a tool row.
-    ...tools.filter((tool) => tool.name !== executorToolName).map(toolCheck),
+    ...tools
+      .filter((tool) => tool.name !== executorToolName)
+      .map((tool) =>
+        toolCheck(
+          tool,
+          observed.preferences === null ||
+            githubIdentity(
+              observed.preferences.preset.name,
+              observed.preferences.machine,
+            ) === "own-sign-in",
+        ),
+      ),
     executor,
     ...githubChecks(github),
     ...catalogChecks(catalog),
@@ -961,6 +1004,7 @@ export async function collectDoctor(
       browser.reason,
       browser.context,
     ),
+    check("computer-use", computer.outcome, computer.reason, computer.context),
   ];
   // Group order, stable within a group.
   const ordered = doctorGroups.flatMap((group) =>

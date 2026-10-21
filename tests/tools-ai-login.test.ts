@@ -265,8 +265,8 @@ posixTest(
       const page = browser.opened[0] as string;
       expect(new URL(page).hostname).toBe("auth.openai.com");
       expect(returnsToCli(page)).toBe(true);
-      // `codex login`, never its device code, with BROWSER the stand-in.
-      // After Codex's own `account/read`, the sign-in.
+      // `codex login` by default (its sign-in by code only when asked), with
+      // BROWSER the stand-in. After Codex's own `account/read`, the sign-in.
       const call = (await calls(opened.home, "codex")).find(
         (entry) => entry.args[0] === "login",
       );
@@ -696,4 +696,204 @@ posixTest(
     }
   },
   20_000,
+);
+
+// ChatGPT's sign-in by code (root decision 0201 point 10, F19's addendum of
+// 2026-10-21): `codex login --device-auth`, a quieter fallback beside the
+// browser sign-in, for a person who finishes it on any device.
+
+const devicePage = "https://auth.openai.com/codex/device";
+
+posixTest(
+  "ChatGPT by code: `codex login --device-auth` without the stand-in BROWSER; the exact page and the code, free of colour codes, for 15 minutes and never journaled; entered, the CLI's status and the services sign it in",
+  async () => {
+    const opened = await scratch(["codex"]);
+    const browser = environmentBrowser();
+    const at = Date.parse("2026-10-21T08:00:00.000Z");
+    const { sessions, journal, reloads } = sessionsFor(opened, {
+      signInPage: browser.page,
+      now: () => at,
+    });
+    try {
+      const started = await sessions.start("codex", { deviceCode: true });
+      if (started.kind !== "pending") throw new Error("Expected pending");
+      expect(started.challenge).toEqual({
+        kind: "device-code",
+        url: devicePage,
+        code: fakeAi.deviceCode,
+      });
+      // The code is valid for 15 minutes, and the session as long.
+      expect(started.expiresAt).toBe("2026-10-21T08:15:00.000Z");
+      // The person opens the page on any device: nothing opens here.
+      expect(browser.opened).toEqual([]);
+      const call = (await calls(opened.home, "codex")).find(
+        (entry) => entry.args[0] === "login",
+      );
+      expect(call).toEqual({ args: ["login", "--device-auth"], browser: null });
+      // The person enters the code on OpenAI's page.
+      await writeFile(join(opened.home, "codex.approve"), "");
+      const done = await settle(sessions, "codex", started.session);
+      expect(done).toEqual({
+        kind: "signed-in",
+        tool: "codex",
+        services: { t3: { state: "not-installed" } },
+      });
+      expect(reloads).toEqual([["codex", ["codex"]]]);
+      // Its sign-in lands where `codex login status` reads it.
+      expect(
+        await stat(join(opened.home, ".codex", "auth.json")).then(() => true),
+      ).toBe(true);
+      expect(journal).toEqual([
+        { tool: "codex", event: "start" },
+        { tool: "codex", event: "end", outcome: "signed-in" },
+      ]);
+      expect(JSON.stringify(journal).includes(fakeAi.deviceCode)).toBe(false);
+    } finally {
+      await sessions.close();
+      await opened.close();
+    }
+  },
+  20_000,
+);
+
+posixTest(
+  "by code needs no Environment browser; Claude and the catalog tools have no sign-in by code",
+  async () => {
+    const opened = await scratch();
+    const { sessions } = sessionsFor(opened, {
+      signInPage: { kind: "none" },
+    });
+    try {
+      // The browser sign-in cannot start here; the one by code can.
+      expect(await sessions.start("codex")).toEqual({
+        kind: "blocked",
+        tool: "codex",
+        reason: "no-environment-browser",
+      });
+      const started = await sessions.start("codex", { deviceCode: true });
+      expect(started).toMatchObject({
+        kind: "pending",
+        tool: "codex",
+        challenge: { kind: "device-code", url: devicePage },
+      });
+      if (started.kind === "pending") sessions.cancel("codex", started.session);
+      for (const tool of ["claude", "gh", "composio", "wacli"])
+        await expect(
+          sessions.start(tool, { deviceCode: true }),
+        ).rejects.toThrow();
+      // Claude's CLI never ran.
+      expect(await calls(opened.home, "claude")).toEqual([]);
+    } finally {
+      await sessions.close();
+      await opened.close();
+    }
+  },
+  20_000,
+);
+
+posixTest(
+  "by code too, the Organization's provider refuses it and an answer that cannot be read starts nothing",
+  async () => {
+    const opened = await scratch(["codex"]);
+    const { sessions } = sessionsFor(opened);
+    try {
+      await writeFile(join(opened.home, "codex.provided"), "");
+      expect(await sessions.start("codex", { deviceCode: true })).toEqual({
+        kind: "blocked",
+        tool: "codex",
+        reason: "organization-provided",
+      });
+      await rm(join(opened.home, "codex.provided"));
+      await writeFile(join(opened.home, "codex.no-answer"), "");
+      expect(await sessions.start("codex", { deviceCode: true })).toEqual({
+        kind: "failed",
+        tool: "codex",
+        reason: "provider-unknown",
+      });
+      expect(
+        (await calls(opened.home, "codex")).map((call) => call.args[0]),
+      ).toEqual(["app-server", "app-server"]);
+    } finally {
+      await sessions.close();
+      await opened.close();
+    }
+  },
+  20_000,
+);
+
+posixTest(
+  "by code: a page on another host stops the CLI, never entered it expires, cancel stops it, and a CLI that ends without the sign-in fails",
+  async () => {
+    const opened = await scratch(["codex"]);
+    const pid = async () =>
+      Number(await readFile(join(opened.home, "codex.pid"), "utf8"));
+    try {
+      // Another page than OpenAI's page for the code.
+      await writeFile(join(opened.home, "codex.page"), "");
+      const foreign = sessionsFor(opened);
+      expect(
+        await foreign.sessions.start("codex", { deviceCode: true }),
+      ).toEqual({ kind: "failed", tool: "codex", reason: "unexpected-url" });
+      const first = await pid();
+      await waitFor(() => !alive(first));
+      await foreign.sessions.close();
+      await rm(join(opened.home, "codex.page"));
+      // Never entered: the session ends when the code does.
+      const expiring = sessionsFor(opened, {
+        lifetimes: { "codex-device": 500 },
+      });
+      const waiting = await expiring.sessions.start("codex", {
+        deviceCode: true,
+      });
+      if (waiting.kind !== "pending") throw new Error("Expected pending");
+      expect(await settle(expiring.sessions, "codex", waiting.session)).toEqual(
+        { kind: "expired", tool: "codex" },
+      );
+      const second = await pid();
+      await waitFor(() => !alive(second));
+      expect(expiring.journal.at(-1)).toEqual({
+        tool: "codex",
+        event: "end",
+        outcome: "expired",
+      });
+      await expiring.sessions.close();
+      // Zrušit: the CLI is stopped.
+      const cancelled = sessionsFor(opened);
+      const running = await cancelled.sessions.start("codex", {
+        deviceCode: true,
+      });
+      if (running.kind !== "pending") throw new Error("Expected pending");
+      const third = await pid();
+      expect(cancelled.sessions.cancel("codex", running.session)).toEqual({
+        kind: "cancelled",
+        tool: "codex",
+      });
+      await waitFor(() => !alive(third));
+      await cancelled.sessions.close();
+      // A CLI that cannot ask for a code, and one whose status does not
+      // confirm the sign-in.
+      await writeFile(join(opened.home, "codex.fail"), "");
+      const failing = sessionsFor(opened);
+      expect(
+        await failing.sessions.start("codex", { deviceCode: true }),
+      ).toEqual({ kind: "failed", tool: "codex", reason: "tool-exit" });
+      await failing.sessions.close();
+      await rm(join(opened.home, "codex.fail"));
+      await writeFile(join(opened.home, "codex.unconfirmed"), "");
+      const unconfirmed = sessionsFor(opened);
+      const entered = await unconfirmed.sessions.start("codex", {
+        deviceCode: true,
+      });
+      if (entered.kind !== "pending") throw new Error("Expected pending");
+      await writeFile(join(opened.home, "codex.approve"), "");
+      expect(
+        await settle(unconfirmed.sessions, "codex", entered.session),
+      ).toEqual({ kind: "failed", tool: "codex", reason: "not-confirmed" });
+      expect(unconfirmed.reloads).toEqual([]);
+      await unconfirmed.sessions.close();
+    } finally {
+      await opened.close();
+    }
+  },
+  30_000,
 );

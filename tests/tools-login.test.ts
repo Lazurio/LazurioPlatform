@@ -20,10 +20,12 @@ import {
   normalizePhone,
   parseComposioOrganizations,
 } from "../src/tools/login";
+import { createSshProofs } from "../src/tools/ssh-key";
 import { runTool, toolsSignIn } from "../src/tools/status";
 import {
   fakeCodes,
   fakeLoginTools,
+  realGit,
   realSshKeygen,
 } from "./fixtures/fake-login-tools";
 import { runChild } from "./fixtures/run-child";
@@ -786,7 +788,7 @@ test.skipIf(!keygen)(
       expect(
         (await readFile(join(opened.directory, "ssh.calls"), "utf8")).trim(),
       ).toBe(
-        "-T -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 git@github.com",
+        "-T -o BatchMode=yes -o StrictHostKeyChecking=yes -o UpdateHostKeys=no -o ConnectTimeout=15 git@github.com",
       );
       const calls = await readFile(join(opened.directory, "gh.calls"), "utf8");
       expect(calls).toContain(
@@ -1192,6 +1194,121 @@ test.skipIf(!keygen)(
       }
     }
   },
+);
+
+// #516 (F19's addendum of 2026-10-19): the page that holds a sign-in may stop
+// polling (its dialog closed, a poll lost): the session goes on by itself to
+// its end, and its holder reads that end once when it polls again. Only an
+// explicit cancel ends it early, and a new start still replaces it.
+test.skipIf(!keygen || realGit === null)(
+  "a holder that stops polling during gh ssh-key add: the session still ends signed in, linked and with the Git identity, read once",
+  async () => {
+    const directory = await realpath(
+      await mkdtemp(join(tmpdir(), "lazurio-login-detached-")),
+    );
+    const path = await fakeLoginTools(directory, ["gh"], { git: true });
+    const proofs = createSshProofs();
+    const sessions = createLoginSessions({
+      path,
+      home: directory,
+      xdg: { XDG_CONFIG_HOME: join(directory, ".config") },
+      platform: process.platform,
+      run: runTool,
+      firstChallengeMs: 5_000,
+      probeIntervalMs: 50,
+      machine: "vm-01",
+      sshProofs: proofs,
+    });
+    try {
+      await mkdir(join(directory, ".ssh"), { recursive: true, mode: 0o700 });
+      await writeFile(join(directory, "hang.ssh-key-add"), "");
+      const started = await sessions.start("gh");
+      if (started.kind !== "pending") throw new Error("not pending");
+      await writeFile(join(directory, "approve"), "");
+      // The code is confirmed; the session reaches `gh ssh-key add` and the
+      // holder stops polling there.
+      await waitFor(async () => {
+        try {
+          await readFile(join(directory, "hang.pid"), "utf8");
+          return true;
+        } catch {
+          return false;
+        }
+      });
+      expect(sessions.poll("gh", started.session)).toMatchObject({
+        kind: "pending",
+        step: "ssh-key",
+      });
+      // Unwatched, the step finishes and the rest of the session runs.
+      await rm(join(directory, "hang.ssh-key-add"));
+      process.kill(Number(await readFile(join(directory, "hang.pid"), "utf8")));
+      await waitFor(
+        async () =>
+          (await readFile(join(directory, "ssh.calls"), "utf8").catch(
+            () => "",
+          )) !== "" &&
+          (await readFile(join(directory, ".gitconfig"), "utf8").catch(
+            () => "",
+          )) !== "",
+        10_000,
+      );
+      await sessions.changed("gh", started.session, 2_000);
+      const ended = sessions.poll("gh", started.session);
+      expect(ended).toMatchObject({
+        kind: "signed-in",
+        tool: "gh",
+        account: "octocat",
+        ssh: { state: "linked", registration: "added", knownHosts: "added" },
+        gitIdentity: { state: "set", fields: ["user.name", "user.email"] },
+      });
+      // Read once.
+      expect(sessions.poll("gh", started.session)).toEqual({
+        kind: "none",
+        tool: "gh",
+      });
+      // What the sign-in proved is kept for the status (F19's addendum of
+      // 2026-10-19): its next reading does not connect over SSH again.
+      const calls = (await readFile(join(directory, "ssh.calls"), "utf8"))
+        .trim()
+        .split("\n").length;
+      const [signIn] = await toolsSignIn(
+        [
+          {
+            probe: findTool("gh")?.signInProbe,
+            status: {
+              name: "gh",
+              command: "gh",
+              installed: true,
+              path: join(directory, ".local", "bin", "gh"),
+              updater: "none",
+              source: "https://github.com/cli/cli#installation",
+            },
+          },
+        ],
+        { path, home: directory, run: runTool, sshProofs: proofs },
+      );
+      expect(signIn?.ssh?.state).toBe("linked");
+      expect(
+        (await readFile(join(directory, "ssh.calls"), "utf8"))
+          .trim()
+          .split("\n").length,
+      ).toBe(calls);
+      // An explicit cancel while the code waits still kills gh, and a new
+      // start still replaces a running one.
+      const first = await sessions.start("gh");
+      if (first.kind !== "pending") throw new Error("not pending");
+      const second = await sessions.start("gh");
+      if (second.kind !== "pending") throw new Error("not pending");
+      expect(sessions.poll("gh", first.session).kind).toBe("none");
+      const child = Number(await readFile(join(directory, "gh.child"), "utf8"));
+      expect(sessions.cancel("gh", second.session).kind).toBe("cancelled");
+      await waitFor(() => !alive(child));
+    } finally {
+      await sessions.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+  20_000,
 );
 
 test.skipIf(!keygen)(

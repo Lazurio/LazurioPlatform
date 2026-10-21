@@ -5,11 +5,12 @@ import { launchpadUnit } from "../../update/service-control";
 // The Environment's memory for the overview of Nová karta (decision F47
 // point 7): its total and what is in use (`/proc/meminfo`), the browser
 // (`memory.current` of `lazurio-browser.service`, whose `MemoryMax` F38's
-// addendum of 2026-10-10 sets), each running Module (its transient unit's),
-// the protected core of root decision 0195 point 3 (the Launchpad and T3
-// Code) and the rest. Read only: one `systemctl --user show` through the
-// service manager's process adapter (service-manager-process.ts), which runs
-// nothing but the manager's own tools, and one file. Every value is in bytes,
+// addenda of 2026-10-10 and 2026-10-20 set), each running Module (its
+// transient unit's), the protected core of root decision 0195 point 3 (the
+// Launchpad and T3 Code) and the rest. Read only: one `systemctl --user
+// show` through the service manager's process adapter
+// (service-manager-process.ts), which runs nothing but the manager's own
+// tools, and one file. Every value is in bytes,
 // or null where it is unknown: off Linux, a unit that does not run (`[not
 // set]`), a failed read.
 

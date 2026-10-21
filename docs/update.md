@@ -34,7 +34,7 @@ to it must be compatible.
    only direction is forward: a new version whose Launchpad does not come up
    healthy is reported as `activation-unhealthy`, stays active, and is repaired by
    a newer release or by fixing the condition its Recovery mode names. Update state
-   damaged from outside the product (`state-invalid`) needs a user.
+   damaged from outside the product (`state-invalid`) needs the user's intervention.
 4. **Proven practice instead of our own machinery.** Where a maintained standard
    exists (GitHub Releases, Sigstore attestations, systemd, `flock`, an atomic
    symlink) the product uses it and adds nothing beside it.
@@ -627,8 +627,12 @@ Codex unit:
   point 7) with `LAZURIO_BROWSER_EXTENSION=<its digest>` in the unit's environment;
   `BindsTo=`/`After=` the display, `Restart=always`, and `RestartPreventExitStatus=78`
   for "no Chrome to run". The browser's own memory budget
-  ([F38 addendum 2026-10-10](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway)):
-  `MemoryMax=30%`, `MemorySwapMax=20%`, `OOMPolicy=continue` and `OOMScoreAdjust=250`.
+  ([F38 addenda 2026-10-10 and 2026-10-20](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway)):
+  `MemoryMax=30%` as the floor, raised before each start by an optional
+  `ExecStartPre=-/bin/sh -c '…'` to the Environment's `MemTotal` minus 4 GiB where
+  that is more (`systemctl --user set-property --runtime %n MemoryMax=<bytes>`, held
+  in the user manager's runtime directory until the guest restarts, never in the unit
+  file), `MemorySwapMax=20%`, `OOMPolicy=continue` and `OOMScoreAdjust=250`.
   Before each start, `ExecStartPre=-/bin/rm -rf` removes the profile's
   `Default/Sessions`, so a restarted browser opens none of the old tabs.
 - `lazurio-browser-view.service`: the users' view (F39), this base's `<selector>
@@ -651,6 +655,33 @@ still runs another installation ([F47](decisions.md#f47--nová-karta-one-shell-e
 `{"state":"foreign-unit","unit","next"}` or `{"state":"failed","step","next"}`; never a
 reason to fail. The hosted context is asked once for both convergences. `lazurio
 doctor` reports it as `environment-browser`.
+
+**Computer Use ([F59](decisions.md#f59--computer-use-on-a-remote-environment-the-cua-drivers-daemon-on-the-screen-one-mcp-server-computer-for-every-agent)).** On the same supervised hosted base, with the same
+`entry.browser` (the screen), `install` and `update` then ensure one more unit the same
+way, `lazurio-computer.service`:
+
+- `ExecStart=%h/.local/bin/cua-driver serve --no-overlay --permission-mode standard
+  --socket %h/.local/state/lazurio-computer/driver.sock`: the Cua Driver's daemon,
+  standalone (no `--embedded`, whose liveness pipe would end it at once under systemd),
+  without its cursor overlay, in the driver's default agent-authorization mode.
+- `DISPLAY=:1`, `XDG_SESSION_TYPE=x11`, `DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus` (the
+  user manager's session bus, where the AT-SPI bus is activated),
+  `CUA_DRIVER_RS_TELEMETRY_ENABLED=0` and `CUA_DRIVER_RS_UPDATE_CHECK=0`.
+- `BindsTo=`/`After=` the display; `ConditionFileIsExecutable=%h/.local/bin/cua-driver`,
+  so without Machines' driver the unit is skipped, never failed; `Restart=on-failure`.
+
+It is written when its text differs (then one `daemon-reload`), enabled, restarted
+only when its own text changed, and started; the screen and the browser are not touched
+again. Then, where the driver is there, each installed harness gets the MCP server
+`computer` (`<home>/.local/bin/cua-driver mcp --socket
+<home>/.local/state/lazurio-computer/driver.sock` with the same two settings) through
+its own CLI, exactly as Executor's entry; where it is not, Lazurio's own entry is removed
+(`codex mcp remove computer`, `claude mcp remove --scope user computer`). Another entry,
+and one named `computer` that is not Lazurio's, are never changed. The result carries
+`computerUse`: `{"state":"enabled","agents"}`, `{"state":"driver-missing","agents","next"}`,
+`{"state":"skipped-not-hosted"}`, `{"state":"skipped-not-declared"}`,
+`{"state":"foreign-unit","next"}` or `{"state":"failed","step","next"}`; never a reason to
+fail. `lazurio doctor` reports it as `computer-use`.
 
 **Executor ([F44](decisions.md#f44--executor-in-every-remote-environment-installed-run-and-connected-to-the-agents-by-lazurio), addendum of 2026-10-11).**
 On the same supervised hosted base, `install` and `update` then read Executor's state

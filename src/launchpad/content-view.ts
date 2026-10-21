@@ -6,7 +6,7 @@ import type {
   ContentStepState,
 } from "./content-client";
 import { refersTo } from "./content-client";
-import type { ContentBlock } from "./first-run";
+import type { ContentBlock, GithubFact } from "./first-run";
 import type { MessageKey } from "./messages";
 import { fill } from "./update-view";
 
@@ -275,7 +275,8 @@ export type ContentView = Readonly<{
 }>;
 
 /** "Obsah Prostředí": a row per item and the one action. `github` says
- * whether GitHub is connected here (`unknown` does not block); `blockedBy`,
+ * whether GitHub is connected here (`unknown` does not block; connected
+ * badly, `incomplete`, blocks as missing does, #515); `blockedBy`,
  * where given, what must come first (`contentBlockedBy` in first-run.ts, root
  * decision 0201 point 3), and replaces `github`: the action, a download or
  * "Zkusit znovu", is not offered before its turn, only a sentence why;
@@ -286,7 +287,7 @@ export function contentView(
   job: ContentJob | null,
   copy: Copy,
   options: Readonly<{
-    github: "missing" | "connected" | "unknown";
+    github: GithubFact;
     blockedBy?: ContentBlock | null;
     modules?: (login: string) => number | null;
     pluralModules?: (count: number) => string;
@@ -361,7 +362,7 @@ export function contentView(
   const block =
     options.blockedBy !== undefined
       ? options.blockedBy
-      : options.github === "missing"
+      : options.github === "missing" || options.github === "incomplete"
         ? "github"
         : null;
   const notYet =

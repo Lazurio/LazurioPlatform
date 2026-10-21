@@ -439,7 +439,8 @@ Launchpad shows nothing for it.
 Environment browser's view (root decision 0191, [F38](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway)):
 the view's origin and the loopback port the users' view service listens on (F39).
 It is also the
-signal the installer converges the browser's units on. Absent, the Environment has no
+signal the installer converges the browser's units on, and Computer Use on the same
+screen ([F59](decisions.md#f59--computer-use-on-a-remote-environment-the-cua-drivers-daemon-on-the-screen-one-mcp-server-computer-for-every-agent)). Absent, the Environment has no
 Environment browser. Its optional `local_port` (LazurioPlatform#504, F39's addendum of
 2026-10-18) is the port of the gateway's loopback entry for the Environment browser
 itself, which serves this Environment's own apps without a sign-in; with it the browser
