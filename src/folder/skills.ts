@@ -409,6 +409,10 @@ const personalModuleRest: readonly Text[] = [
     "- Build the first version from the confirmed summary, nothing more. Leave what belongs to later versions for later and tell the user so.",
   ),
   t(
+    "- Má-li modul rozhraní (aplikaci, web, přehled), drž ho podle skillu `ui-craft`: pohyb, telefon, nejhorší data a ověření v prohlížeči, vždy v mezích design systému modulu a Organizace.",
+    "- When the module has an interface (an app, a website, an overview), hold it to the skill `ui-craft`: motion, the phone, the worst data and the check in a browser, always within the design system of the module and the Organization.",
+  ),
+  t(
     "- Řiď se `AGENTS.md` nového modulu (napsal ho scaffold) a jeho `README.md`. Změna jde do task worktree modulu a do pull requestu do `<login>/<slug>`: `git -C personalspace/<login>_GEN3/workspace/<slug> worktree add -b <branch> .worktrees/<task> main` (`.gitignore` modulu složku `.worktrees/` vynechává).",
     "- Follow the new module's `AGENTS.md` (the scaffold wrote it) and its `README.md`. The change goes into a task worktree of the module and a pull request into `<login>/<slug>`: `git -C personalspace/<login>_GEN3/workspace/<slug> worktree add -b <branch> .worktrees/<task> main` (the module's `.gitignore` leaves `.worktrees/` out).",
   ),
@@ -460,6 +464,10 @@ const organizationModuleBar: readonly Text[] = [
   t(
     "- Postav první verzi podle potvrzeného shrnutí, nic navíc. Změna jde do task worktree modulu a do pull requestu do `<login Organizace>/<slug>`: `git -C organizations/<org>/workspace/<slug> worktree add -b <branch> .worktrees/<task> main`. Do `AGENTS.md` modulu doplň, k čemu modul je, pro koho a jak se s ním pracuje; opakovaný postup zapiš jako skill modulu do `.agents/skills/<název>/SKILL.md`. Spusť kontroly a testy, které uvádí `README.md`, a opravuj, dokud neprojdou.",
     "- Build the first version from the confirmed summary, nothing more. The change goes into a task worktree of the module and a pull request into `<Organization login>/<slug>`: `git -C organizations/<org>/workspace/<slug> worktree add -b <branch> .worktrees/<task> main`. Add to the module's `AGENTS.md` what the module is for, for whom and how to work with it; write a recurring procedure as the module's skill in `.agents/skills/<name>/SKILL.md`. Run the checks and tests its `README.md` names and fix until they pass.",
+  ),
+  t(
+    "- Má-li modul rozhraní (aplikaci, web, přehled), drž ho podle skillu `ui-craft`: pohyb, telefon, nejhorší data a ověření v prohlížeči, vždy v mezích design systému modulu a Organizace.",
+    "- When the module has an interface (an app, a website, an overview), hold it to the skill `ui-craft`: motion, the phone, the worst data and the check in a browser, always within the design system of the module and the Organization.",
   ),
   t(
     "- Než se zeptáš na Publikaci, ukaž uživateli první verzi běžící: z worktree ručním startem z `README.md` na volném portu (ne na portu modulu) a v prohlížeči; `none` nemá co spustit, ukaž obsah repozitáře. `lazurio module start` teď nepoužívej: spouští jen primární checkout modulu a katalog Organizace modul uvidí až po merge slotu.",
@@ -531,6 +539,204 @@ const personalModuleRefusals: readonly Text[] = [
   ),
 ];
 
+// `ui-craft` (decision F14, addendum of 2026-10-21): the craft bar for every
+// interface an agent builds or changes, a module's app, a website or an
+// overview. Its rules are distilled, in its own words, from Emil Kowalski's
+// skills (github.com/emilkowalski/skills at 2d228630, MIT; docs/licensing.md):
+// whether a thing moves at all, its curve and duration, smooth frames, motion
+// and controls for everyone, the phone, the worst realistic data, and the
+// check in a real browser. The project's own rules always come first: a
+// module's or an Organization's AGENTS.md, its design system and its tokens
+// override every default here, and a missing value goes into that design
+// system, never invented locally. Nothing in it names a library, a framework
+// or a brand, so it holds for any stack the generator offers.
+const uiCraftDescription = t(
+  "Použij, kdykoli stavíš, měníš nebo kontroluješ rozhraní: aplikaci modulu, web, přehled, formulář, komponentu, animaci, hover nebo chování na telefonu, a před předáním každého pull requestu, který mění, co uživatel vidí. Rozhodne, jestli se má něco hýbat a jak (křivka, délka, plynulost, omezený pohyb), opraví, co na telefonu prozradí web (hover, ťuknutí, výška, zoom polí, výřez), vyzkouší rozhraní s nejhoršími reálnými daty a ověří ho v prohlížeči. Pravidla modulu, Organizace a jejich design systému mají vždy přednost.",
+  "Use whenever you build, change or review an interface: a module's app, a website, an overview, a form, a component, an animation, a hover or how it behaves on a phone, and before you hand over any pull request that changes what the user sees. Decides whether something moves and how (curve, duration, smooth frames, reduced motion), fixes what gives a website away on a phone (hover, tap, height, zooming fields, the notch), tries the interface with the worst realistic data and checks it in a browser. The rules of the module, the Organization and their design system always come first.",
+);
+
+const uiCraft: readonly Text[] = [
+  t(
+    "Rozhraní, které jen funguje, nestačí. Uživatel pozná, když menu přijede pozdě, tlačítko nereaguje na prst, nadpis přeteče z karty nebo se stránka na telefonu přiblíží do pole formuláře, i když neumí říct proč. Tenhle skill drží laťku pro všechno, co uživatel uvidí: rozhodni podle něj, oprav, co mu neodpovídá, a ověř výsledek v prohlížeči.",
+    "An interface that merely works is not enough. The user notices when a menu arrives late, a button does not answer the finger, a heading overflows its card or the page zooms into a form field on a phone, even when they cannot say why. This skill holds the bar for everything the user will see: decide by it, fix what falls short and check the result in a browser.",
+  ),
+  blank,
+  t(
+    "**Pravidla projektu mají přednost.** `AGENTS.md` modulu a Organizace, jejich design systém a tokeny přebíjejí každou výchozí hodnotu níže. Když zakazují, co tu doporučuji (třeba měnit průhlednost nebo stín při animaci), řiď se jimi a hledej řešení v jejich mezích. Hodnoty níže použij jen tam, kde projekt nic neříká. Když projekt potřebuje novou hodnotu (křivku, délku, barvu), navrhni ji do jeho design systému; ve stránce si ji nevymýšlej.",
+    "**The project's rules come first.** The `AGENTS.md` of the module and of the Organization, their design system and their tokens override every default below. When they forbid what this skill recommends (changing opacity or a shadow in an animation, for instance), follow them and find the solution within their limits. Use the values below only where the project says nothing. When the project needs a new value (a curve, a duration, a colour), propose it to its design system; never invent it in the page.",
+  ),
+  blank,
+  t("## 1. Má se to vůbec hýbat?", "## 1. Should it move at all?"),
+  t(
+    "Každý pohyb potřebuje důvod, který uživateli pomůže: návaznost v prostoru (panel odjede tam, odkud přijel), změnu stavu, zpětnou vazbu na jeho akci, vysvětlení, jak věc funguje, nebo zjemnění skoku, který by jinak působil rozbitě. „Vypadá to hezky“ důvod není u ničeho, co uživatel vidí často.",
+    "Every motion needs a reason that helps the user: continuity in space (a panel leaves the way it came), a change of state, feedback on their action, an explanation of how something works, or softening a jump that would otherwise look broken. “It looks nice” is no reason for anything the user sees often.",
+  ),
+  t(
+    "- Rozhoduje, jak často to uživatel uvidí. Akce z klávesnice a cokoli, co dělá stokrát denně, se nehýbe vůbec. Hover v navigaci a procházení seznamu jen minimálně. Dialog, panel nebo oznámení normálně. Pohyb pro radost patří jen k věcem, které uživatel uvidí zřídka (první spuštění, dokončení).",
+    "- How often the user sees it decides. Keyboard actions and anything done a hundred times a day do not move at all. A hover in navigation and moving through a list, barely. A dialog, a panel or a notice, normally. Motion for delight belongs only to what the user sees rarely (a first run, a completion).",
+  ),
+  t(
+    "- Nejlepší oprava zbytečného pohybu je smazat ho. Teprve potom ho zkrať, zmenši nebo mu oprav křivku.",
+    "- The best fix for needless motion is to delete it. Only then shorten it, make it smaller or fix its curve.",
+  ),
+  t(
+    "- Pohyb nikdy neblokuje čtení ani ovládání: na nic se nečeká, než doběhne.",
+    "- Motion never blocks reading or use: nothing waits for it to finish.",
+  ),
+  blank,
+  t("## 2. Křivka a délka", "## 2. Curve and duration"),
+  t(
+    "- **Vstup a odchod** (menu, dialog, oznámení): rychlý začátek a měkký dojezd, `ease-out` nebo silnější vlastní křivka, například `cubic-bezier(0.23, 1, 0.32, 1)`. **Pohyb po obrazovce** (posun, přeskupení): `ease-in-out`, například `cubic-bezier(0.77, 0, 0.175, 1)`. **Změna barvy na hover**: `ease`. **Stálý pohyb** (průběh, běžící pás): `linear`.",
+    "- **Entering and leaving** (a menu, a dialog, a notice): a fast start and a soft landing, `ease-out` or a stronger custom curve such as `cubic-bezier(0.23, 1, 0.32, 1)`. **Moving on screen** (a shift, a rearrangement): `ease-in-out`, such as `cubic-bezier(0.77, 0, 0.175, 1)`. **A colour change on hover**: `ease`. **Constant motion** (progress, a marquee): `linear`.",
+  ),
+  t(
+    "- `ease-in` na prvku rozhraní nepoužívej nikdy: začíná pomalu přesně ve chvíli, kdy uživatel nejvíc čeká odezvu, a rozhraní pak působí líně.",
+    "- Never use `ease-in` on an interface element: it starts slowly exactly when the user most expects an answer, and the interface feels sluggish.",
+  ),
+  t(
+    "- **Délky:** stisk tlačítka 100–160 ms, tooltip a malý popover 125–200 ms, menu a výběr 150–250 ms, dialog a panel 200–500 ms. Prvek rozhraní drž pod 300 ms; kratší působí rychleji. Delší smí být jen vysvětlující pohyb, třeba náběh sekce na webu, a i ten nesmí zdržet obsah.",
+    "- **Durations:** a button press 100–160 ms, a tooltip or small popover 125–200 ms, a menu or select 150–250 ms, a dialog or panel 200–500 ms. Keep an interface element under 300 ms; shorter feels faster. Only explanatory motion may be longer, a website section coming in for instance, and even that must not hold the content back.",
+  ),
+  t(
+    "- **Odezva je rychlá, rozvaha pomalá.** Odchod a uvolnění jsou kratší než příchod; pomalé smí být jen to, kde uživatel úmyslně drží nebo potvrzuje.",
+    "- **The answer is fast, the deliberate part slow.** Leaving and releasing are shorter than arriving; only what the user deliberately holds or confirms may be slow.",
+  ),
+  t(
+    "- Nic se neobjevuje z ničeho: nikdy `scale(0)`, začni nejméně od `scale(0.95)`. Menu, popover a tooltip vyrůstají ze svého spouštěče (`transform-origin` u něj), dialog ze středu.",
+    "- Nothing appears from nothing: never `scale(0)`, start at `scale(0.95)` or more. A menu, popover or tooltip grows from its trigger (`transform-origin` there), a dialog from the centre.",
+  ),
+  t(
+    "- Co uživatel spouští rychle po sobě (přepínač, oznámení, rozbalení), animuj přechodem (`transition`): ten se dá přerušit a otočit z místa, kde právě je. Klíčové snímky (`@keyframes`) začínají vždy od nuly.",
+    "- What the user triggers in quick succession (a toggle, a notice, an expansion), animate with a `transition`: it can be interrupted and turned back from where it is. Keyframes (`@keyframes`) always start from zero.",
+  ),
+  t(
+    "- Skupina prvků, která přichází najednou, smí naskakovat postupně po 30–80 ms; delší rozestup už zdržuje.",
+    "- A group of elements arriving together may come in one after another, 30–80 ms apart; a longer gap holds things up.",
+  ),
+  t(
+    "- Tooltip má krátké zpoždění, aby se neotevíral náhodou; když už jeden svítí, další v řadě se otevírají hned a bez animace.",
+    "- A tooltip waits briefly so that it does not open by accident; once one is showing, the next ones in the row open at once and without animation.",
+  ),
+  blank,
+  t("## 3. Plynulost", "## 3. Smooth frames"),
+  t(
+    "- Animuj `transform` a `opacity`; ty prohlížeč skládá bez nového rozvržení a kreslení. `width`, `height`, `top`, `left`, `margin` a `padding` přepočítávají celou stránku v každém snímku: místo nich použij `scale()` a `translate()` (procenta v `translate()` počítají s velikostí prvku samého). Animovaný `box-shadow` se překresluje v každém snímku; když ho projekt povoluje, vezmi `filter: drop-shadow()`.",
+    "- Animate `transform` and `opacity`; the browser composites them without new layout or paint. `width`, `height`, `top`, `left`, `margin` and `padding` recompute the whole page every frame: use `scale()` and `translate()` instead (percentages in `translate()` refer to the element's own size). An animated `box-shadow` repaints every frame; where the project allows it, take `filter: drop-shadow()`.",
+  ),
+  t(
+    "- Nikdy `transition: all`; vyjmenuj přesně vlastnosti, které se mají hýbat.",
+    "- Never `transition: all`; name exactly the properties that are to move.",
+  ),
+  t(
+    "- Předem daný pohyb patří do CSS nebo Web Animations API (`element.animate()`): běží mimo hlavní vlákno, takže vydrží i načítání stránky. JavaScript ve smyčce `requestAnimationFrame` nech jen na tah prstem a pohyb, který závisí na vstupu.",
+    "- Predetermined motion belongs in CSS or the Web Animations API (`element.animate()`): it runs off the main thread, so it survives a page that is loading. Leave a JavaScript `requestAnimationFrame` loop only to drags and motion that depends on input.",
+  ),
+  t(
+    "- Na vstup prvku do zorného pole použij `IntersectionObserver`, ne posluchač `scroll`. Při tahu zapisuj `transform` přímo do prvku: stav komponenty přerenderovaný v každém snímku i CSS proměnná měněná na rodiči (přepočítá styl všem potomkům) snímky ztrácejí.",
+    "- Detect an element entering the view with `IntersectionObserver`, not a `scroll` listener. While dragging, write `transform` straight to the element: component state re-rendered every frame and a CSS variable changed on a parent (it recomputes the style of every descendant) both drop frames.",
+  ),
+  t(
+    "- `will-change` přidej teprve tam, kde jsi viděl poskočení o pixel nebo naměřil ztracené snímky, a jen na prvek, který se hýbe. Animované rozostření drž pod 20 px; je drahé hlavně v Safari.",
+    "- Add `will-change` only where you saw a one-pixel jump or measured dropped frames, and only on the element that moves. Keep an animated blur under 20 px; it is expensive, in Safari above all.",
+  ),
+  t(
+    "- Rychlý počítač plynulost nedokazuje. Měřítko je běžný telefon a obrazovka se 120 Hz, kde má snímek jen 8 ms.",
+    "- A fast computer proves nothing about smoothness. The bar is an ordinary phone and a 120 Hz screen, where a frame has only 8 ms.",
+  ),
+  blank,
+  t(
+    "## 4. Pohyb a ovládání pro každého",
+    "## 4. Motion and controls for everyone",
+  ),
+  t(
+    "- Každý pohyb má variantu pro `@media (prefers-reduced-motion: reduce)`: posuny, zvětšení a parallax v ní zmizí a obsah je hned na místě. Co pomáhá pochopit stav, smí zůstat jemně, pokud to projekt povoluje.",
+    "- Every motion has a variant for `@media (prefers-reduced-motion: reduce)`: shifts, scaling and parallax disappear in it and the content is in place at once. What helps the user understand a state may stay, gently, where the project allows it.",
+  ),
+  t(
+    "- Hover efekty patří do `@media (hover: hover) and (pointer: fine)`; na dotykové obrazovce by hover po ťuknutí zůstal viset. (Varianta `hover:` v Tailwindu 4 to dělá sama, ručně psané `:hover` ne.)",
+    "- Hover effects belong in `@media (hover: hover) and (pointer: fine)`; on a touch screen a hover would stay stuck after a tap. (Tailwind 4's `hover:` variant does this itself, a hand-written `:hover` does not.)",
+  ),
+  t(
+    "- Každý ovládací prvek má viditelný `:focus-visible` a odezvu na stisk v `:active` (třeba `scale(0.97)` za 100–160 ms), která funguje na myši i prstu.",
+    "- Every control has a visible `:focus-visible` and an answer to the press in `:active` (`scale(0.97)` over 100–160 ms, for instance) that works for a mouse and a finger alike.",
+  ),
+  blank,
+  t("## 5. Telefon", "## 5. The phone"),
+  t(
+    "Většina stížností „na telefonu to nějak drhne“ není o animaci, ale o drobnostech platformy. U každého webu a aplikace modulu drž tenhle základ:",
+    "Most “it feels off on my phone” complaints are not about animation but about small things of the platform. For every website and module app keep this floor:",
+  ),
+  t(
+    '- `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`. Zoom nikdy nevypínej (`user-scalable=no`, `maximum-scale=1`): je to chyba přístupnosti a skutečnou příčinu přiblížení opravuje další bod.',
+    '- `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`. Never disable zoom (`user-scalable=no`, `maximum-scale=1`): it is an accessibility failure, and the next point fixes the real cause of the zooming.',
+  ),
+  t(
+    "- Pole formuláře mají písmo aspoň 16 px, jinak se iOS do pole přiblíží a už se nevrátí. K tomu správný `type`, `inputmode`, `autocomplete` a `enterkeyhint`, aby telefon nabídl správnou klávesnici.",
+    "- Form fields have a font of at least 16 px, or iOS zooms into the field and never zooms back. Add the right `type`, `inputmode`, `autocomplete` and `enterkeyhint`, so the phone offers the right keyboard.",
+  ),
+  t(
+    "- `html { -webkit-tap-highlight-color: transparent; }` a vlastní `:active` místo šedého záblesku při ťuknutí; `touch-action: manipulation` na tlačítkách a odkazech, aby ťuknutí nečekalo na dvojklik.",
+    "- `html { -webkit-tap-highlight-color: transparent; }` and an `:active` of your own instead of the grey flash on tap; `touch-action: manipulation` on buttons and links, so a tap does not wait for a double tap.",
+  ),
+  t(
+    "- Výška na celou obrazovku: `100svh` pro úvodní plochu webu, `100dvh` pro aplikaci a panel připnutý dole. Samotné `100vh` na telefonu přeteče pod lištu prohlížeče.",
+    "- Full-screen height: `100svh` for a website's first screen, `100dvh` for an app shell and a panel pinned to the bottom. Plain `100vh` overflows under the browser bar on a phone.",
+  ),
+  t(
+    "- Fixní hlavička, spodní lišta, oznámení a panel odsaď od výřezu a domovské lišty přes `env(safe-area-inset-*)`; bez `viewport-fit=cover` mají nulu.",
+    "- Pad a fixed header, a bottom bar, a notice and a panel away from the notch and the home indicator with `env(safe-area-inset-*)`; without `viewport-fit=cover` they are zero.",
+  ),
+  t(
+    "- `user-select: none` jen na ovládací prvky, nikdy na text: uživatel si kopíruje adresy, čísla a chybové hlášky. Vnitřní posuvná plocha (dialog, panel) dostane `overscroll-behavior: contain`, aby s sebou netáhla stránku.",
+    "- `user-select: none` on controls only, never on text: users copy addresses, numbers and error messages. An inner scrolling area (a dialog, a panel) gets `overscroll-behavior: contain`, so it does not drag the page along.",
+  ),
+  t(
+    "- `theme-color` odpovídá barvě horního okraje stránky, pro světlý i tmavý režim zvlášť. Zařízení poznávej podle schopností (`hover`, `pointer`), nikdy podle šířky obrazovky ani user agenta.",
+    "- `theme-color` matches the colour at the top edge of the page, separately for light and dark mode. Tell devices apart by their capabilities (`hover`, `pointer`), never by screen width or user agent.",
+  ),
+  blank,
+  t("## 6. Nejhorší reálná data", "## 6. The worst realistic data"),
+  t(
+    "Ukázková data jsou vždy hezká; skutečná ne. U každé hodnoty, kterou rozhraní zobrazuje, si řekni, jak vypadá její nejhorší reálný případ, a vyzkoušej ho:",
+    "Sample data is always pretty; real data is not. For every value the interface shows, ask what its worst realistic case looks like, and try it:",
+  ),
+  t(
+    "- dlouhé texty: české složeniny („nejneobhospodařovávatelnějšími“), anglická verze delší než česká, dlouhý e-mail nebo adresa bez mezer, název o jednom písmenu;",
+    "- long texts: long compound words (Czech or German), a translation longer than the original, a long e-mail address or URL without spaces, a one-letter name;",
+  ),
+  t(
+    "- počty: nula, jedna, dvě až čtyři a pět a víc (čeština skloňuje podle počtu, použij `Intl.PluralRules`), obrovské číslo, záporná hodnota, chybějící údaj;",
+    "- counts: zero, one, a few and many (languages inflect by count, use `Intl.PluralRules`), a huge number, a negative value, a missing field;",
+  ),
+  t(
+    "- prázdný seznam, jedna položka a stovky položek; emoji, diakritika a jiné písmo než latinka.",
+    "- an empty list, one item and hundreds of items; emoji, diacritics and a non-Latin script.",
+  ),
+  t(
+    "Obvyklé opravy: `min-width: 0` u potomka ve flexu a gridu, `overflow-wrap: anywhere` u adres a e-mailů, `hyphens: auto` se správným `lang` na stránce, `text-wrap: balance` u nadpisů a `pretty` u odstavců, `font-variant-numeric: tabular-nums` u čísel pod sebou, čísla a data přes `Intl.NumberFormat` a `Intl.DateTimeFormat` v jazyce stránky, a prázdný stav, který řekne, co dál.",
+    "The usual fixes: `min-width: 0` on a flex or grid child, `overflow-wrap: anywhere` for addresses and e-mails, `hyphens: auto` with the right `lang` on the page, `text-wrap: balance` for headings and `pretty` for paragraphs, `font-variant-numeric: tabular-nums` for numbers in columns, numbers and dates through `Intl.NumberFormat` and `Intl.DateTimeFormat` in the page's language, and an empty state that says what to do next.",
+  ),
+  blank,
+  t("## 7. Ověření a předání", "## 7. Checking and handing over"),
+  t(
+    "- Než práci předáš, otevři ji v prohlížeči (tak, jak to popisuje `AGENTS.md` tohoto Folderu) a prohlédni ji aspoň v šířce telefonu (390 px) a počítače (1280 px), se zapnutým omezeným pohybem a s nejhoršími daty z kroku 6. Pohyb si pusť zpomaleně (DevTools → Animations): uvidíš špatný počátek, dva stavy přes sebe i škubnutí, které v plné rychlosti uteče.",
+    "- Before you hand the work over, open it in a browser (as this Folder's `AGENTS.md` describes) and look at it at least at a phone's width (390 px) and a computer's (1280 px), with reduced motion on and with the worst data of step 6. Play the motion slowed down (DevTools → Animations): you will see a wrong origin, two states overlapping and a jerk that escapes at full speed.",
+  ),
+  t(
+    "- Řekni pravdivě, co jsi ověřil z kódu a v prohlížeči a co potřebuje skutečný telefon: přichycený hover, záblesk při ťuknutí, výřez, klávesnici ani zoom polí emulace prohlížeče nezobrazí.",
+    "- Say truthfully what you checked from the code and in the browser and what needs a real phone: browser emulation does not show a stuck hover, the tap flash, the notch, the keyboard or zooming fields.",
+  ),
+  t(
+    "- Nálezy a opravy uveď v popisu pull requestu jednou tabulkou `| Teď | Po úpravě | Proč |` (soubor a řádek, přesné hodnoty). Co je otázka vkusu nebo identity (jiná křivka, delší náběh, pružení), neměň sám: navrhni to uživateli s důvodem a nech rozhodnutí na něm.",
+    "- List the findings and fixes in the pull request's description as one table `| Now | After | Why |` (file and line, exact values). What is a matter of taste or identity (another curve, a longer entrance, a bounce), do not change yourself: propose it to the user with the reason and leave the decision to them.",
+  ),
+  blank,
+  t(
+    "Pravidla tohoto skillu vycházejí ze skillů Emila Kowalského (github.com/emilkowalski/skills, licence MIT), převyprávěných pro Lazurio.",
+    "The rules of this skill come from Emil Kowalski's skills (github.com/emilkowalski/skills, MIT licence), retold for Lazurio.",
+  ),
+];
+
 // Each skill's one text for this Folder, in the Folder's locale.
 function skillText(source: InstructionSource, name: SkillName): string {
   const { locale } = source.profile;
@@ -542,6 +748,14 @@ function skillText(source: InstructionSource, name: SkillName): string {
         newModuleDescription,
         { cs: "Nový modul", en: "A new module" },
         newModule(source.preset),
+      );
+    case "ui-craft":
+      return skillDocument(
+        locale,
+        name,
+        uiCraftDescription,
+        { cs: "Řemeslo rozhraní", en: "Interface craft" },
+        uiCraft,
       );
   }
 }

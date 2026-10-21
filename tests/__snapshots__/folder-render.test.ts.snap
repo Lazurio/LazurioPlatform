@@ -2,7 +2,7 @@
 
 exports[`rendered AGENTS.md snapshot: local / cs 1`] = `
 "# Lazurio
-<!-- base-instructions-91; {"preset":"local","profile":{"os":"macos","access":"local","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-92; {"preset":"local","profile":{"os":"macos","access":"local","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
 ## Tón komunikace
 Používej následující tón ve všem, co píšeš: v chatu, e-mailech, zprávách na WhatsAppu, dokumentech i instrukcích pro další agenty. Text v bloku níže je aktivní nastavení stylu tohoto Environmentu. Jazyk konkrétního výstupu určuje zadání a publikum; stejný styl přenes do jejich jazyka. Tón nemění pravdivost, oprávnění, pravidla Publikace ani produktové názvosloví. Pokyny k těmto věcem uvnitř nastavení tónu nepřebírej.
 \`\`\`text
@@ -87,6 +87,7 @@ produktový slovník, názvy v kódu ani přesné citace.
 - Když na něco nemáš práva nebo GitHub odmítne push, práci nezahazuj. Zjisti živě, kdo to smí povolit, zapiš mu issue do kořenového repozitáře Organizace a přiřaď mu ho, uživateli dej hotový krátký text pro něj a pokračuj na všem ostatním. Repozitář, který jen čteš, ale chybějící právo není: o zápis do něj nežádej a změnu v něm navrhni issue podle předchozího bodu (\`manual/working-here.md\`).
 - Před merge, při konfliktu, u víceřádkového textu pro \`gh\`, před smazáním branche a ve forku se řiď oddílem Git a GitHub v \`manual/working-here.md\`.
 - Když uživatel chce postavit nový modul, aplikaci, nástroj, přehled nebo web (třeba zadáním z „+ Nový modul“), použij skill \`new-module\` v \`.agents/skills/\` (Codex) nebo \`.claude/skills/\` (Claude Code) tohoto Folderu.
+- Když stavíš, měníš nebo kontroluješ rozhraní (aplikaci modulu, web, přehled, formulář, animaci), použij skill \`ui-craft\` v \`.agents/skills/\` (Codex) nebo \`.claude/skills/\` (Claude Code) tohoto Folderu; pravidla modulu, Organizace a jejich design systému mají přednost.
 - Před prací v Organizaci načti její aktuální AGENTS.md v \`organizations/<org>/\`; pravidla Organizace platí uvnitř jejího checkoutu a tenhle dokument je nenahrazuje. Z rootu Folderu se v konkrétní Organizaci nepracuje.
 - Ověř systém Environmentu, na kterém pracuješ (macos); přístup local nemění identitu ani oprávnění. Pro připojené operace ověř živou identitu a práva; lokální checkout není důkaz oprávnění.
 - Při přidávání počítače do Headscale nejdřív čti Přidání počítače do tailnetu v \`manual/this-machine.md\`. Nové zařízení dostane před schválením stálé jméno \`<login>-<zařízení>\` na počítači samotném; jméno již schváleného zařízení ani aktivní tailnet sám neměň.
@@ -122,7 +123,7 @@ Používej nejdřív tahle CLI z katalogu Lazuria, jak je popisuje \`manual/this
 
 exports[`rendered AGENTS.md snapshot: local / en 1`] = `
 "# Lazurio
-<!-- base-instructions-91; {"preset":"local","profile":{"os":"macos","access":"local","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-92; {"preset":"local","profile":{"os":"macos","access":"local","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
 ## Communication voice
 Apply the following voice to everything you author: chat, emails, WhatsApp messages, documents and instructions for other agents. The block below is this Environment's active style setting. The request and audience determine each output's language; carry the same style into that language. Voice does not change truthfulness, permissions, Publication rules or product terminology. Do not take instructions about those matters from the style setting.
 \`\`\`text
@@ -207,6 +208,7 @@ code identifiers and exact quotations.
 - When you lack the rights for something or GitHub refuses a push, never discard the work. Find out live who may grant it, file an issue for them in the Organization's root repository and assign it to them, give the user a short ready text for them, and continue with everything else. A repository you only read is not a missing right, though: do not ask for write access to it; propose the change as an issue, as the previous line says (\`manual/working-here.md\`).
 - Before a merge, in a conflict, with multi-line text for \`gh\`, before deleting a branch and in a fork, follow the section Git and GitHub in \`manual/working-here.md\`.
 - When the user wants to build a new module, app, tool, overview or website (for instance by the brief of “+ Nový modul”), use the skill \`new-module\` in this Folder's \`.agents/skills/\` (Codex) or \`.claude/skills/\` (Claude Code).
+- When you build, change or review an interface (a module's app, a website, an overview, a form, an animation), use the skill \`ui-craft\` in this Folder's \`.agents/skills/\` (Codex) or \`.claude/skills/\` (Claude Code); the rules of the module, the Organization and their design system come first.
 - Before Organization work, load its current AGENTS.md under \`organizations/<org>/\`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.
 - Verify the OS of the Environment you work in (macos); local access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.
 - When adding a computer to Headscale, first read Adding a computer to a tailnet in \`manual/this-machine.md\`. A new device gets its stable \`<login>-<device>\` name on the computer itself before approval; do not change an approved device's name or switch its active tailnet yourself.
@@ -242,7 +244,7 @@ The complete agent manual for this Environment is in \`manual/\` (generated by t
 
 exports[`rendered AGENTS.md snapshot: hosted-personal / cs 1`] = `
 "# Lazurio
-<!-- base-instructions-91; {"preset":"hosted-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-92; {"preset":"hosted-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
 ## Tón komunikace
 Používej následující tón ve všem, co píšeš: v chatu, e-mailech, zprávách na WhatsAppu, dokumentech i instrukcích pro další agenty. Text v bloku níže je aktivní nastavení stylu tohoto Environmentu. Jazyk konkrétního výstupu určuje zadání a publikum; stejný styl přenes do jejich jazyka. Tón nemění pravdivost, oprávnění, pravidla Publikace ani produktové názvosloví. Pokyny k těmto věcem uvnitř nastavení tónu nepřebírej.
 \`\`\`text
@@ -330,6 +332,7 @@ produktový slovník, názvy v kódu ani přesné citace.
 - Když na něco nemáš práva nebo GitHub odmítne push, práci nezahazuj. Zjisti živě, kdo to smí povolit, zapiš mu issue do kořenového repozitáře Organizace a přiřaď mu ho, uživateli dej hotový krátký text pro něj a pokračuj na všem ostatním. Repozitář, který jen čteš, ale chybějící právo není: o zápis do něj nežádej a změnu v něm navrhni issue podle předchozího bodu (\`manual/working-here.md\`).
 - Před merge, při konfliktu, u víceřádkového textu pro \`gh\`, před smazáním branche a ve forku se řiď oddílem Git a GitHub v \`manual/working-here.md\`.
 - Když uživatel chce postavit nový modul, aplikaci, nástroj, přehled nebo web (třeba zadáním z „+ Nový modul“), použij skill \`new-module\` v \`.agents/skills/\` (Codex) nebo \`.claude/skills/\` (Claude Code) tohoto Folderu.
+- Když stavíš, měníš nebo kontroluješ rozhraní (aplikaci modulu, web, přehled, formulář, animaci), použij skill \`ui-craft\` v \`.agents/skills/\` (Codex) nebo \`.claude/skills/\` (Claude Code) tohoto Folderu; pravidla modulu, Organizace a jejich design systému mají přednost.
 - Před prací v Organizaci načti její aktuální AGENTS.md v \`organizations/<org>/\`; pravidla Organizace platí uvnitř jejího checkoutu a tenhle dokument je nenahrazuje. Z rootu Folderu se v konkrétní Organizaci nepracuje.
 - Ověř systém Environmentu, na kterém pracuješ (linux); přístup remote nemění identitu ani oprávnění. Pro připojené operace ověř živou identitu a práva; lokální checkout není důkaz oprávnění.
 - Při přidávání počítače do Headscale nejdřív čti Přidání počítače do tailnetu v \`manual/this-machine.md\`. Nové zařízení dostane před schválením stálé jméno \`<login>-<zařízení>\` na počítači samotném; jméno již schváleného zařízení ani aktivní tailnet sám neměň.
@@ -369,7 +372,7 @@ Používej nejdřív tahle CLI z katalogu Lazuria, jak je popisuje \`manual/this
 
 exports[`rendered AGENTS.md snapshot: hosted-personal / en 1`] = `
 "# Lazurio
-<!-- base-instructions-91; {"preset":"hosted-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-92; {"preset":"hosted-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
 ## Communication voice
 Apply the following voice to everything you author: chat, emails, WhatsApp messages, documents and instructions for other agents. The block below is this Environment's active style setting. The request and audience determine each output's language; carry the same style into that language. Voice does not change truthfulness, permissions, Publication rules or product terminology. Do not take instructions about those matters from the style setting.
 \`\`\`text
@@ -457,6 +460,7 @@ code identifiers and exact quotations.
 - When you lack the rights for something or GitHub refuses a push, never discard the work. Find out live who may grant it, file an issue for them in the Organization's root repository and assign it to them, give the user a short ready text for them, and continue with everything else. A repository you only read is not a missing right, though: do not ask for write access to it; propose the change as an issue, as the previous line says (\`manual/working-here.md\`).
 - Before a merge, in a conflict, with multi-line text for \`gh\`, before deleting a branch and in a fork, follow the section Git and GitHub in \`manual/working-here.md\`.
 - When the user wants to build a new module, app, tool, overview or website (for instance by the brief of “+ Nový modul”), use the skill \`new-module\` in this Folder's \`.agents/skills/\` (Codex) or \`.claude/skills/\` (Claude Code).
+- When you build, change or review an interface (a module's app, a website, an overview, a form, an animation), use the skill \`ui-craft\` in this Folder's \`.agents/skills/\` (Codex) or \`.claude/skills/\` (Claude Code); the rules of the module, the Organization and their design system come first.
 - Before Organization work, load its current AGENTS.md under \`organizations/<org>/\`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.
 - Verify the OS of the Environment you work in (linux); remote access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.
 - When adding a computer to Headscale, first read Adding a computer to a tailnet in \`manual/this-machine.md\`. A new device gets its stable \`<login>-<device>\` name on the computer itself before approval; do not change an approved device's name or switch its active tailnet yourself.
@@ -496,7 +500,7 @@ The complete agent manual for this Environment is in \`manual/\` (generated by t
 
 exports[`rendered AGENTS.md snapshot: hosted-organization-personal / cs 1`] = `
 "# Lazurio
-<!-- base-instructions-91; {"preset":"hosted-organization-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-92; {"preset":"hosted-organization-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
 ## Tón komunikace
 Používej následující tón ve všem, co píšeš: v chatu, e-mailech, zprávách na WhatsAppu, dokumentech i instrukcích pro další agenty. Text v bloku níže je aktivní nastavení stylu tohoto Environmentu. Jazyk konkrétního výstupu určuje zadání a publikum; stejný styl přenes do jejich jazyka. Tón nemění pravdivost, oprávnění, pravidla Publikace ani produktové názvosloví. Pokyny k těmto věcem uvnitř nastavení tónu nepřebírej.
 \`\`\`text
@@ -584,6 +588,7 @@ produktový slovník, názvy v kódu ani přesné citace.
 - Když na něco nemáš práva nebo GitHub odmítne push, práci nezahazuj. Zjisti živě, kdo to smí povolit, zapiš mu issue do kořenového repozitáře Organizace a přiřaď mu ho, uživateli dej hotový krátký text pro něj a pokračuj na všem ostatním. Repozitář, který jen čteš, ale chybějící právo není: o zápis do něj nežádej a změnu v něm navrhni issue podle předchozího bodu (\`manual/working-here.md\`).
 - Před merge, při konfliktu, u víceřádkového textu pro \`gh\`, před smazáním branche a ve forku se řiď oddílem Git a GitHub v \`manual/working-here.md\`.
 - Když uživatel chce postavit nový modul, aplikaci, nástroj, přehled nebo web (třeba zadáním z „+ Nový modul“), použij skill \`new-module\` v \`.agents/skills/\` (Codex) nebo \`.claude/skills/\` (Claude Code) tohoto Folderu.
+- Když stavíš, měníš nebo kontroluješ rozhraní (aplikaci modulu, web, přehled, formulář, animaci), použij skill \`ui-craft\` v \`.agents/skills/\` (Codex) nebo \`.claude/skills/\` (Claude Code) tohoto Folderu; pravidla modulu, Organizace a jejich design systému mají přednost.
 - Před prací v Organizaci načti její aktuální AGENTS.md v \`organizations/<org>/\`; pravidla Organizace platí uvnitř jejího checkoutu a tenhle dokument je nenahrazuje. Z rootu Folderu se v konkrétní Organizaci nepracuje.
 - Ověř systém Environmentu, na kterém pracuješ (linux); přístup remote nemění identitu ani oprávnění. Pro připojené operace ověř živou identitu a práva; lokální checkout není důkaz oprávnění.
 - Při přidávání počítače do Headscale nejdřív čti Přidání počítače do tailnetu v \`manual/this-machine.md\`. Nové zařízení dostane před schválením stálé jméno \`<login>-<zařízení>\` na počítači samotném; jméno již schváleného zařízení ani aktivní tailnet sám neměň.
@@ -623,7 +628,7 @@ Používej nejdřív tahle CLI z katalogu Lazuria, jak je popisuje \`manual/this
 
 exports[`rendered AGENTS.md snapshot: hosted-organization-personal / en 1`] = `
 "# Lazurio
-<!-- base-instructions-91; {"preset":"hosted-organization-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-92; {"preset":"hosted-organization-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
 ## Communication voice
 Apply the following voice to everything you author: chat, emails, WhatsApp messages, documents and instructions for other agents. The block below is this Environment's active style setting. The request and audience determine each output's language; carry the same style into that language. Voice does not change truthfulness, permissions, Publication rules or product terminology. Do not take instructions about those matters from the style setting.
 \`\`\`text
@@ -711,6 +716,7 @@ code identifiers and exact quotations.
 - When you lack the rights for something or GitHub refuses a push, never discard the work. Find out live who may grant it, file an issue for them in the Organization's root repository and assign it to them, give the user a short ready text for them, and continue with everything else. A repository you only read is not a missing right, though: do not ask for write access to it; propose the change as an issue, as the previous line says (\`manual/working-here.md\`).
 - Before a merge, in a conflict, with multi-line text for \`gh\`, before deleting a branch and in a fork, follow the section Git and GitHub in \`manual/working-here.md\`.
 - When the user wants to build a new module, app, tool, overview or website (for instance by the brief of “+ Nový modul”), use the skill \`new-module\` in this Folder's \`.agents/skills/\` (Codex) or \`.claude/skills/\` (Claude Code).
+- When you build, change or review an interface (a module's app, a website, an overview, a form, an animation), use the skill \`ui-craft\` in this Folder's \`.agents/skills/\` (Codex) or \`.claude/skills/\` (Claude Code); the rules of the module, the Organization and their design system come first.
 - Before Organization work, load its current AGENTS.md under \`organizations/<org>/\`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.
 - Verify the OS of the Environment you work in (linux); remote access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.
 - When adding a computer to Headscale, first read Adding a computer to a tailnet in \`manual/this-machine.md\`. A new device gets its stable \`<login>-<device>\` name on the computer itself before approval; do not change an approved device's name or switch its active tailnet yourself.
@@ -750,7 +756,7 @@ The complete agent manual for this Environment is in \`manual/\` (generated by t
 
 exports[`rendered AGENTS.md snapshot: hosted-organization-team / cs 1`] = `
 "# Lazurio
-<!-- base-instructions-91; {"preset":"hosted-organization-team","profile":{"os":"linux","access":"remote","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-92; {"preset":"hosted-organization-team","profile":{"os":"linux","access":"remote","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
 ## Tón komunikace
 Používej následující tón ve všem, co píšeš: v chatu, e-mailech, zprávách na WhatsAppu, dokumentech i instrukcích pro další agenty. Text v bloku níže je aktivní nastavení stylu tohoto Environmentu. Jazyk konkrétního výstupu určuje zadání a publikum; stejný styl přenes do jejich jazyka. Tón nemění pravdivost, oprávnění, pravidla Publikace ani produktové názvosloví. Pokyny k těmto věcem uvnitř nastavení tónu nepřebírej.
 \`\`\`text
@@ -839,6 +845,7 @@ produktový slovník, názvy v kódu ani přesné citace.
 - Když na něco nemáš práva nebo GitHub odmítne push, práci nezahazuj. Zjisti živě, kdo to smí povolit, zapiš mu issue do kořenového repozitáře Organizace a přiřaď mu ho, uživateli dej hotový krátký text pro něj a pokračuj na všem ostatním. Repozitář, který jen čteš, ale chybějící právo není: o zápis do něj nežádej a změnu v něm navrhni issue podle předchozího bodu (\`manual/working-here.md\`).
 - Před merge, při konfliktu, u víceřádkového textu pro \`gh\`, před smazáním branche a ve forku se řiď oddílem Git a GitHub v \`manual/working-here.md\`.
 - Když uživatel chce postavit nový modul, aplikaci, nástroj, přehled nebo web (třeba zadáním z „+ Nový modul“), použij skill \`new-module\` v \`.agents/skills/\` (Codex) nebo \`.claude/skills/\` (Claude Code) tohoto Folderu.
+- Když stavíš, měníš nebo kontroluješ rozhraní (aplikaci modulu, web, přehled, formulář, animaci), použij skill \`ui-craft\` v \`.agents/skills/\` (Codex) nebo \`.claude/skills/\` (Claude Code) tohoto Folderu; pravidla modulu, Organizace a jejich design systému mají přednost.
 - Před prací v Organizaci načti její aktuální AGENTS.md v \`organizations/<org>/\`; pravidla Organizace platí uvnitř jejího checkoutu a tenhle dokument je nenahrazuje. Z rootu Folderu se v konkrétní Organizaci nepracuje.
 - Ověř systém Environmentu, na kterém pracuješ (linux); přístup remote nemění identitu ani oprávnění. Pro připojené operace ověř živou identitu a práva; lokální checkout není důkaz oprávnění.
 - Při přidávání počítače do Headscale nejdřív čti Přidání počítače do tailnetu v \`manual/this-machine.md\`. Nové zařízení dostane před schválením stálé jméno \`<login>-<zařízení>\` na počítači samotném; jméno již schváleného zařízení ani aktivní tailnet sám neměň.
@@ -879,7 +886,7 @@ Používej nejdřív tahle CLI z katalogu Lazuria, jak je popisuje \`manual/this
 
 exports[`rendered AGENTS.md snapshot: hosted-organization-team / en 1`] = `
 "# Lazurio
-<!-- base-instructions-91; {"preset":"hosted-organization-team","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-92; {"preset":"hosted-organization-team","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
 ## Communication voice
 Apply the following voice to everything you author: chat, emails, WhatsApp messages, documents and instructions for other agents. The block below is this Environment's active style setting. The request and audience determine each output's language; carry the same style into that language. Voice does not change truthfulness, permissions, Publication rules or product terminology. Do not take instructions about those matters from the style setting.
 \`\`\`text
@@ -968,6 +975,7 @@ code identifiers and exact quotations.
 - When you lack the rights for something or GitHub refuses a push, never discard the work. Find out live who may grant it, file an issue for them in the Organization's root repository and assign it to them, give the user a short ready text for them, and continue with everything else. A repository you only read is not a missing right, though: do not ask for write access to it; propose the change as an issue, as the previous line says (\`manual/working-here.md\`).
 - Before a merge, in a conflict, with multi-line text for \`gh\`, before deleting a branch and in a fork, follow the section Git and GitHub in \`manual/working-here.md\`.
 - When the user wants to build a new module, app, tool, overview or website (for instance by the brief of “+ Nový modul”), use the skill \`new-module\` in this Folder's \`.agents/skills/\` (Codex) or \`.claude/skills/\` (Claude Code).
+- When you build, change or review an interface (a module's app, a website, an overview, a form, an animation), use the skill \`ui-craft\` in this Folder's \`.agents/skills/\` (Codex) or \`.claude/skills/\` (Claude Code); the rules of the module, the Organization and their design system come first.
 - Before Organization work, load its current AGENTS.md under \`organizations/<org>/\`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.
 - Verify the OS of the Environment you work in (linux); remote access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.
 - When adding a computer to Headscale, first read Adding a computer to a tailnet in \`manual/this-machine.md\`. A new device gets its stable \`<login>-<device>\` name on the computer itself before approval; do not change an approved device's name or switch its active tailnet yourself.
@@ -1008,7 +1016,7 @@ The complete agent manual for this Environment is in \`manual/\` (generated by t
 
 exports[`rendered AGENTS.md snapshot: hosted-organization-steward / cs 1`] = `
 "# Lazurio
-<!-- base-instructions-91; {"preset":"hosted-organization-steward","profile":{"os":"linux","access":"remote","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-92; {"preset":"hosted-organization-steward","profile":{"os":"linux","access":"remote","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
 ## Tón komunikace
 Používej následující tón ve všem, co píšeš: v chatu, e-mailech, zprávách na WhatsAppu, dokumentech i instrukcích pro další agenty. Text v bloku níže je aktivní nastavení stylu tohoto Environmentu. Jazyk konkrétního výstupu určuje zadání a publikum; stejný styl přenes do jejich jazyka. Tón nemění pravdivost, oprávnění, pravidla Publikace ani produktové názvosloví. Pokyny k těmto věcem uvnitř nastavení tónu nepřebírej.
 \`\`\`text
@@ -1101,6 +1109,7 @@ produktový slovník, názvy v kódu ani přesné citace.
 - Když na něco nemáš práva nebo GitHub odmítne push, práci nezahazuj. Zjisti živě, kdo to smí povolit, zapiš mu issue do kořenového repozitáře Organizace a přiřaď mu ho, uživateli dej hotový krátký text pro něj a pokračuj na všem ostatním. Repozitář, který jen čteš, ale chybějící právo není: o zápis do něj nežádej a změnu v něm navrhni issue podle předchozího bodu (\`manual/working-here.md\`).
 - Před merge, při konfliktu, u víceřádkového textu pro \`gh\`, před smazáním branche a ve forku se řiď oddílem Git a GitHub v \`manual/working-here.md\`.
 - Když uživatel chce postavit nový modul, aplikaci, nástroj, přehled nebo web (třeba zadáním z „+ Nový modul“), použij skill \`new-module\` v \`.agents/skills/\` (Codex) nebo \`.claude/skills/\` (Claude Code) tohoto Folderu.
+- Když stavíš, měníš nebo kontroluješ rozhraní (aplikaci modulu, web, přehled, formulář, animaci), použij skill \`ui-craft\` v \`.agents/skills/\` (Codex) nebo \`.claude/skills/\` (Claude Code) tohoto Folderu; pravidla modulu, Organizace a jejich design systému mají přednost.
 - Před prací v Organizaci načti její aktuální AGENTS.md v \`organizations/<org>/\`; pravidla Organizace platí uvnitř jejího checkoutu a tenhle dokument je nenahrazuje. Z rootu Folderu se v konkrétní Organizaci nepracuje.
 - Ověř systém Environmentu, na kterém pracuješ (linux); přístup remote nemění identitu ani oprávnění. Pro připojené operace ověř živou identitu a práva; lokální checkout není důkaz oprávnění.
 - Při přidávání počítače do Headscale nejdřív čti Přidání počítače do tailnetu v \`manual/this-machine.md\`. Nové zařízení dostane před schválením stálé jméno \`<login>-<zařízení>\` na počítači samotném; jméno již schváleného zařízení ani aktivní tailnet sám neměň.
@@ -1140,7 +1149,7 @@ Používej nejdřív tahle CLI z katalogu Lazuria, jak je popisuje \`manual/this
 
 exports[`rendered AGENTS.md snapshot: hosted-organization-steward / en 1`] = `
 "# Lazurio
-<!-- base-instructions-91; {"preset":"hosted-organization-steward","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-92; {"preset":"hosted-organization-steward","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
 ## Communication voice
 Apply the following voice to everything you author: chat, emails, WhatsApp messages, documents and instructions for other agents. The block below is this Environment's active style setting. The request and audience determine each output's language; carry the same style into that language. Voice does not change truthfulness, permissions, Publication rules or product terminology. Do not take instructions about those matters from the style setting.
 \`\`\`text
@@ -1233,6 +1242,7 @@ code identifiers and exact quotations.
 - When you lack the rights for something or GitHub refuses a push, never discard the work. Find out live who may grant it, file an issue for them in the Organization's root repository and assign it to them, give the user a short ready text for them, and continue with everything else. A repository you only read is not a missing right, though: do not ask for write access to it; propose the change as an issue, as the previous line says (\`manual/working-here.md\`).
 - Before a merge, in a conflict, with multi-line text for \`gh\`, before deleting a branch and in a fork, follow the section Git and GitHub in \`manual/working-here.md\`.
 - When the user wants to build a new module, app, tool, overview or website (for instance by the brief of “+ Nový modul”), use the skill \`new-module\` in this Folder's \`.agents/skills/\` (Codex) or \`.claude/skills/\` (Claude Code).
+- When you build, change or review an interface (a module's app, a website, an overview, a form, an animation), use the skill \`ui-craft\` in this Folder's \`.agents/skills/\` (Codex) or \`.claude/skills/\` (Claude Code); the rules of the module, the Organization and their design system come first.
 - Before Organization work, load its current AGENTS.md under \`organizations/<org>/\`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.
 - Verify the OS of the Environment you work in (linux); remote access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.
 - When adding a computer to Headscale, first read Adding a computer to a tailnet in \`manual/this-machine.md\`. A new device gets its stable \`<login>-<device>\` name on the computer itself before approval; do not change an approved device's name or switch its active tailnet yourself.
@@ -1272,7 +1282,7 @@ The complete agent manual for this Environment is in \`manual/\` (generated by t
 
 exports[`relationships render only when the recorded binding carries them, one line per peer 1`] = `
 "# Lazurio
-<!-- base-instructions-91; {"preset":"hosted-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-92; {"preset":"hosted-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
 ## Communication voice
 Apply the following voice to everything you author: chat, emails, WhatsApp messages, documents and instructions for other agents. The block below is this Environment's active style setting. The request and audience determine each output's language; carry the same style into that language. Voice does not change truthfulness, permissions, Publication rules or product terminology. Do not take instructions about those matters from the style setting.
 \`\`\`text
@@ -1364,6 +1374,7 @@ Tailnet peers as the handover records them (this Environment is in the personal 
 - When you lack the rights for something or GitHub refuses a push, never discard the work. Find out live who may grant it, file an issue for them in the Organization's root repository and assign it to them, give the user a short ready text for them, and continue with everything else. A repository you only read is not a missing right, though: do not ask for write access to it; propose the change as an issue, as the previous line says (\`manual/working-here.md\`).
 - Before a merge, in a conflict, with multi-line text for \`gh\`, before deleting a branch and in a fork, follow the section Git and GitHub in \`manual/working-here.md\`.
 - When the user wants to build a new module, app, tool, overview or website (for instance by the brief of “+ Nový modul”), use the skill \`new-module\` in this Folder's \`.agents/skills/\` (Codex) or \`.claude/skills/\` (Claude Code).
+- When you build, change or review an interface (a module's app, a website, an overview, a form, an animation), use the skill \`ui-craft\` in this Folder's \`.agents/skills/\` (Codex) or \`.claude/skills/\` (Claude Code); the rules of the module, the Organization and their design system come first.
 - Before Organization work, load its current AGENTS.md under \`organizations/<org>/\`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.
 - Verify the OS of the Environment you work in (linux); remote access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.
 - When adding a computer to Headscale, first read Adding a computer to a tailnet in \`manual/this-machine.md\`. A new device gets its stable \`<login>-<device>\` name on the computer itself before approval; do not change an approved device's name or switch its active tailnet yourself.
@@ -1403,7 +1414,7 @@ The complete agent manual for this Environment is in \`manual/\` (generated by t
 
 exports[`the Assignment line renders the handover's owner.assignment and nothing else 1`] = `
 "# Lazurio
-<!-- base-instructions-91; {"preset":"hosted-organization-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-92; {"preset":"hosted-organization-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
 ## Communication voice
 Apply the following voice to everything you author: chat, emails, WhatsApp messages, documents and instructions for other agents. The block below is this Environment's active style setting. The request and audience determine each output's language; carry the same style into that language. Voice does not change truthfulness, permissions, Publication rules or product terminology. Do not take instructions about those matters from the style setting.
 \`\`\`text
@@ -1492,6 +1503,7 @@ code identifiers and exact quotations.
 - When you lack the rights for something or GitHub refuses a push, never discard the work. Find out live who may grant it, file an issue for them in the Organization's root repository and assign it to them, give the user a short ready text for them, and continue with everything else. A repository you only read is not a missing right, though: do not ask for write access to it; propose the change as an issue, as the previous line says (\`manual/working-here.md\`).
 - Before a merge, in a conflict, with multi-line text for \`gh\`, before deleting a branch and in a fork, follow the section Git and GitHub in \`manual/working-here.md\`.
 - When the user wants to build a new module, app, tool, overview or website (for instance by the brief of “+ Nový modul”), use the skill \`new-module\` in this Folder's \`.agents/skills/\` (Codex) or \`.claude/skills/\` (Claude Code).
+- When you build, change or review an interface (a module's app, a website, an overview, a form, an animation), use the skill \`ui-craft\` in this Folder's \`.agents/skills/\` (Codex) or \`.claude/skills/\` (Claude Code); the rules of the module, the Organization and their design system come first.
 - Before Organization work, load its current AGENTS.md under \`organizations/<org>/\`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.
 - Verify the OS of the Environment you work in (linux); remote access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.
 - When adding a computer to Headscale, first read Adding a computer to a tailnet in \`manual/this-machine.md\`. A new device gets its stable \`<login>-<device>\` name on the computer itself before approval; do not change an approved device's name or switch its active tailnet yourself.
@@ -1531,7 +1543,7 @@ The complete agent manual for this Environment is in \`manual/\` (generated by t
 
 exports[`the Assignment line renders the handover's owner.assignment and nothing else 2`] = `
 "# Lazurio
-<!-- base-instructions-91; {"preset":"hosted-organization-team","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-92; {"preset":"hosted-organization-team","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
 ## Communication voice
 Apply the following voice to everything you author: chat, emails, WhatsApp messages, documents and instructions for other agents. The block below is this Environment's active style setting. The request and audience determine each output's language; carry the same style into that language. Voice does not change truthfulness, permissions, Publication rules or product terminology. Do not take instructions about those matters from the style setting.
 \`\`\`text
@@ -1621,6 +1633,7 @@ code identifiers and exact quotations.
 - When you lack the rights for something or GitHub refuses a push, never discard the work. Find out live who may grant it, file an issue for them in the Organization's root repository and assign it to them, give the user a short ready text for them, and continue with everything else. A repository you only read is not a missing right, though: do not ask for write access to it; propose the change as an issue, as the previous line says (\`manual/working-here.md\`).
 - Before a merge, in a conflict, with multi-line text for \`gh\`, before deleting a branch and in a fork, follow the section Git and GitHub in \`manual/working-here.md\`.
 - When the user wants to build a new module, app, tool, overview or website (for instance by the brief of “+ Nový modul”), use the skill \`new-module\` in this Folder's \`.agents/skills/\` (Codex) or \`.claude/skills/\` (Claude Code).
+- When you build, change or review an interface (a module's app, a website, an overview, a form, an animation), use the skill \`ui-craft\` in this Folder's \`.agents/skills/\` (Codex) or \`.claude/skills/\` (Claude Code); the rules of the module, the Organization and their design system come first.
 - Before Organization work, load its current AGENTS.md under \`organizations/<org>/\`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.
 - Verify the OS of the Environment you work in (linux); remote access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.
 - When adding a computer to Headscale, first read Adding a computer to a tailnet in \`manual/this-machine.md\`. A new device gets its stable \`<login>-<device>\` name on the computer itself before approval; do not change an approved device's name or switch its active tailnet yourself.
@@ -1661,7 +1674,7 @@ The complete agent manual for this Environment is in \`manual/\` (generated by t
 
 exports[`the Owner line names the Team only under hosted-organization-team 1`] = `
 "# Lazurio
-<!-- base-instructions-91; {"preset":"hosted-organization-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-92; {"preset":"hosted-organization-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
 ## Communication voice
 Apply the following voice to everything you author: chat, emails, WhatsApp messages, documents and instructions for other agents. The block below is this Environment's active style setting. The request and audience determine each output's language; carry the same style into that language. Voice does not change truthfulness, permissions, Publication rules or product terminology. Do not take instructions about those matters from the style setting.
 \`\`\`text
@@ -1749,6 +1762,7 @@ code identifiers and exact quotations.
 - When you lack the rights for something or GitHub refuses a push, never discard the work. Find out live who may grant it, file an issue for them in the Organization's root repository and assign it to them, give the user a short ready text for them, and continue with everything else. A repository you only read is not a missing right, though: do not ask for write access to it; propose the change as an issue, as the previous line says (\`manual/working-here.md\`).
 - Before a merge, in a conflict, with multi-line text for \`gh\`, before deleting a branch and in a fork, follow the section Git and GitHub in \`manual/working-here.md\`.
 - When the user wants to build a new module, app, tool, overview or website (for instance by the brief of “+ Nový modul”), use the skill \`new-module\` in this Folder's \`.agents/skills/\` (Codex) or \`.claude/skills/\` (Claude Code).
+- When you build, change or review an interface (a module's app, a website, an overview, a form, an animation), use the skill \`ui-craft\` in this Folder's \`.agents/skills/\` (Codex) or \`.claude/skills/\` (Claude Code); the rules of the module, the Organization and their design system come first.
 - Before Organization work, load its current AGENTS.md under \`organizations/<org>/\`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.
 - Verify the OS of the Environment you work in (linux); remote access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.
 - When adding a computer to Headscale, first read Adding a computer to a tailnet in \`manual/this-machine.md\`. A new device gets its stable \`<login>-<device>\` name on the computer itself before approval; do not change an approved device's name or switch its active tailnet yourself.
