@@ -109,6 +109,8 @@ const toolkits = [
   "github",
   "linear",
   "todoist",
+  // Composio has it; Lazurio's catalog does not (#534).
+  "wispr_flow",
 ].map((slug) => ({
   name: slug,
   slug,
