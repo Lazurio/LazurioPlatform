@@ -592,6 +592,8 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .tools-muted { color: var(--muted-fg); font-size: 12.5px; }
 /* The Launchpad's older reading while it reads the tools anew (tools-reading.ts): shown as being checked. */
 #tools-groups[data-checking] { opacity: 0.6; transition: opacity 0.2s; }
+/* Being checked, it confirms nothing: no line takes the success colour before the current reading, so GitHub is never green from an older reading whose SSH may have broken since (F19's addendum of 2026-10-19). */
+#tools-groups[data-checking] .tool-signin[data-state="signed-in"] { color: inherit; }
 @media (prefers-reduced-motion: reduce) { #tools-groups[data-checking] { transition: none; } }
 .row-details { margin-top: 0.5rem; }
 .row-details[open] > .details-body { display: grid; gap: 0.75rem; margin-top: 0.625rem; padding: 0.75rem; border-radius: var(--radius-control); background: var(--muted); border: 1px solid var(--lz-gray-100); }

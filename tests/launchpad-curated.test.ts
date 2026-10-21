@@ -353,12 +353,15 @@ test.skipIf(!keygen)(
   },
 );
 
-// "Připojit znovu" (#515) beside the Launchpad's reading of the tools kept a
-// minute (#535): the link drops it, so the page load right after reads the
-// link working at once, and the link's own proof is the one every reading of
-// this Launchpad uses after it (the page's, Refresh status, Integrace's).
+// "Připojit znovu" (#515) beside the Launchpad's reading of the tools, kept a
+// minute (#535) and answered older at once while it reads anew (#551): the
+// link drops it, so the page load right after reads the link working at once,
+// and the link's own proof is the one every reading of this Launchpad uses
+// after it (the page's, Refresh status, Integrace's); a sign-out drops it as
+// well, so no page load answers the reading of before the sign-out, not even
+// as stale. A page load reads as the page does (`allowStale`, #551).
 test.skipIf(!keygen)(
-  "gh connected badly, then linked: the next page load reads it linked at once, and the Launchpad's readings use the link's proof",
+  "gh connected badly, then linked, then signed out: each page load reads it as it is, never a reading from before, and the Launchpad's readings use the link's proof",
   async () => {
     const opened = await session(["gh"]);
     try {
@@ -368,19 +371,28 @@ test.skipIf(!keygen)(
         join(opened.home, "gh.scopes"),
         "gist read:org repo admin:public_key\n",
       );
-      const gh = async (body: Json) =>
-        (
-          (await opened.json("/api/tools/status", body)).body.tools as Json[]
-        ).find((tool) => tool.name === "gh")?.signIn as Json | undefined;
+      const read = async (body: Json) => {
+        const answer = (await opened.json("/api/tools/status", body)).body;
+        return {
+          stale: answer.stale,
+          signIn: (answer.tools as Json[]).find((tool) => tool.name === "gh")
+            ?.signIn as Json | undefined,
+        };
+      };
+      const gh = async (body: Json) => (await read(body)).signIn;
+      // A page load, as the page asks (#551).
+      const load = () => read({ signIn: true, allowStale: true });
       const sshCalls = async () =>
         (await readFile(join(opened.home, "ssh.calls"), "utf8").catch(() => ""))
           .split("\n")
           .filter((line) => line.length > 0).length;
       // A page load: connected badly; the Launchpad keeps this reading.
-      expect(await gh({ signIn: true })).toMatchObject({
-        state: "signed-in",
-        account: "octocat",
-        ssh: { state: "not-linked", reason: "no-key" },
+      expect(await load()).toMatchObject({
+        signIn: {
+          state: "signed-in",
+          account: "octocat",
+          ssh: { state: "not-linked", reason: "no-key" },
+        },
       });
       // "Připojit znovu": the SSH key's link of a signed-in gh.
       const link = await opened.json("/api/tools/login/start", {
@@ -405,10 +417,10 @@ test.skipIf(!keygen)(
       const proved = await sshCalls();
       expect(proved).toBeGreaterThan(0);
       // The next page load, without `fresh`, is not the kept reading of
-      // before the link: it reads the link working.
-      expect((await gh({ signIn: true }))?.ssh).toMatchObject({
-        state: "linked",
-      });
+      // before the link, as current or as stale: it reads the link working.
+      const afterLink = await load();
+      expect(afterLink.stale).toBeUndefined();
+      expect(afterLink.signIn?.ssh).toMatchObject({ state: "linked" });
       // Refresh status and Integrace's reading prove nothing again: the
       // link's proof is kept for every reading of this Launchpad.
       expect((await gh({ signIn: true, fresh: true }))?.ssh).toMatchObject({
@@ -426,6 +438,13 @@ test.skipIf(!keygen)(
       );
       expect(integrations.status).toBe(200);
       expect(await sshCalls()).toBe(proved);
+      // Signed out through this Launchpad: the next page load never answers
+      // the linked reading of before it, not even as stale.
+      const logout = await opened.json("/api/tools/logout", { tool: "gh" });
+      expect(logout.body).toMatchObject({ kind: "logged-out", tool: "gh" });
+      const afterLogout = await load();
+      expect(afterLogout.stale).toBeUndefined();
+      expect(afterLogout.signIn).toEqual({ state: "signed-out" });
     } finally {
       await opened.close();
     }

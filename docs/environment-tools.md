@@ -270,8 +270,9 @@ fingerprint and login for 5 minutes and a failure for 20 s (`createSshProofs`), 
 for every reading of the sign-ins it makes (its tools environment's `sshProofs`): the
 Tools section's, itself kept a minute (above), Integrace's and the shell document's
 GitHub. A gh sign-in or link of the Launchpad keeps what it proved, and one that starts,
-or a sign-out, forgets them. `tools list --sign-in` and `doctor --sign-in` keep nothing
-and prove each time. The private key is never read, and nothing is written. gh's JSON
+or a sign-out, forgets them; each also drops the kept reading of the tools, so no answer,
+not even one marked `stale`, carries gh's `ssh` from before it. `tools list --sign-in`
+and `doctor --sign-in` keep nothing and prove each time. The private key is never read, and nothing is written. gh's JSON
 status is asked for exactly one field,
 `hosts`, and never with `--show-token`, so gh leaves the token out; only the active
 github.com entry's `state`, `login`, `tokenSource` and `scopes` are read (with `--json`

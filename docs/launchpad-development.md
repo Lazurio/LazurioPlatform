@@ -2239,7 +2239,8 @@ status" (with them again and `fresh: true`, read anew), and shows:
   version, a failed version check, a PATH outside the standard and whether gh's SSH key
   is linked are in its Details; a key that is not linked (in the warning colour) or not
   verified stays on the line, and gh's account is then not in the success colour, which
-  only a working link gets (F19's addendum of 2026-10-19, #515). A sign-in the page runs
+  only a working link gets (F19's addendum of 2026-10-19, #515), and no line has it while
+  the rows show an older reading as being checked (#551). A sign-in the page runs
   of the tool, its window closed or open, says "Čekám na přihlášení…" or "Dokončuji
   připojení…" there with the waiting mark (#516). On the right the one action
   ("Připojit" / "Connect"; "Přidat a

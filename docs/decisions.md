@@ -3205,9 +3205,11 @@ must say that GitHub is connected badly and must be connected again.
    bounded by 20 s.
 3. **The proof's cost.** The status is read often (Settings → Nástroje's reading on every
    page load, which the Launchpad answers from its reading of the last minute since plan
-   DEV-6656, #535; Refresh status and the end of every flow, which read anew; Integrace's
-   reading, kept its own minute; the shell document's setup each minute) and the proof is
-   a network round trip (HTTPS, then SSH). So it runs only where it can pass: never
+   DEV-6656, #535, and from an older one at once, as being checked, while it reads anew,
+   #551; its own readings at its start and when its page is served; Refresh status and
+   the end of every flow, which read anew; Integrace's reading, kept its own minute; the
+   shell document's setup each minute) and the proof is a network round trip (HTTPS,
+   then SSH). So it runs only where it can pass: never
    without a key, never for a key the readable list does not have. The Launchpad keeps a
    passing proof in its memory per key fingerprint and GitHub login for 5 minutes
    (`createSshProofs`), one set for every reading of the sign-ins it makes (its tools
@@ -3218,9 +3220,11 @@ must say that GitHub is connected badly and must be connected again.
    reading after it (a page load within the minute shows the kept reading, as it does for
    every tool's sign-in). Readings that meet share one proof. A gh sign-in or link of this
    Launchpad keeps what it proved, so the reading right after it does not prove again,
-   and a gh sign-in or sign-out that starts forgets everything; the same sign-in drops the
-   kept reading of the tools (#535) and the end of its flow reads anew, so "Připojit
-   znovu" shows the link working at once. The CLI (`tools list --sign-in`, `doctor
+   and a gh sign-in or sign-out that starts forgets everything; the same sign-in or
+   sign-out drops the kept reading of the tools (#535) and the end of a flow reads anew,
+   so "Připojit znovu" shows the link working at once, and no answer, current or older
+   (#551), carries GitHub's state from before a sign-in, link or sign-out through this
+   Launchpad. The CLI (`tools list --sign-in`, `doctor
    --sign-in`) keeps nothing and proves on each run. The staleness this allows is
    bounded: a key removed from the account on github.com reads linked for up to 5
    minutes.
@@ -3242,7 +3246,10 @@ must say that GitHub is connected badly and must be connected again.
 5. **Nástroje.** gh's line takes the success colour only while the link works: "Připojeno
    jako octocat · SSH klíč nepropojený" draws the account in the neutral colour and the key
    in the warning colour, and a key that could not be verified now says "SSH klíč
-   neověřený" (it said nothing).
+   neověřený" (it said nothing). An older reading shown as being checked (#551) takes no
+   success colour on any line: an SSH link that broke since, outside this Launchpad, is
+   never drawn green, and as #551 has it, nothing else (Začínáme, the line in Apps, the
+   start by itself, the shell's GitHub) reads it.
 6. **Doctor.** With `--sign-in`, where the Environment signs in as its person (its preset's
    own sign-in, or no Folder: a computer), a signed-in gh whose proof failed is `warn`
    `ssh-not-linked`; an SSH state that could not be read stays a fact of its context.
@@ -3299,8 +3306,9 @@ Verified by tests: `tests/tools-ssh-status.test.ts` (the status with fake gh and
 linked, registered without host keys, another account, a host key GitHub does not publish,
 no key and an unlisted key without an SSH connection, GitHub out of reach as unknown, a
 token that cannot read keys, the kept proofs, one set of them for the tools' reading and
-the shell's GitHub); `tests/launchpad-curated.test.ts` (connected badly, then linked
-through the Launchpad: the next page load reads it linked at once, though the Launchpad
+the shell's GitHub); `tests/launchpad-curated.test.ts` (connected badly, then linked,
+then signed out through the Launchpad: each page load, read as the page reads with
+`allowStale`, reads it as it is, never as the reading from before, though the Launchpad
 keeps its reading of the tools a minute, and Refresh status and Integrace's reading use
 the link's proof); `tests/tools-login.test.ts` (a holder that
 stops polling during `gh ssh-key add`: the session still ends signed in, linked and with
