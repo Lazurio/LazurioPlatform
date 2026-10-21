@@ -734,7 +734,9 @@ const startPanel = createStartPanel({
     if (!tools.openSignIn("composio") && !tools.openComposioOrganization())
       shell.navigate(settingsPath("tools"));
   },
-  signInAi: (tool) => void aiSignIn.start(tool),
+  // "Přihlásit kódem": ChatGPT's sign-in by code (root decision 0201 point 10).
+  signInAi: (tool, byCode) =>
+    void aiSignIn.start(tool, byCode === true ? { byCode: true } : {}),
   cancelAi: () => void aiSignIn.cancel(),
   reopenAi: () => aiSignIn.reopen(),
   sendAiCode: (code) => void aiSignIn.sendCode(code),

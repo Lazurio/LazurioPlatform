@@ -1067,6 +1067,13 @@ const en = {
   startAiCodeInvalid:
     "This is not the whole code. Please copy all of it again.",
   startAiCodeSent: "The code was sent. Wait a moment.",
+  // ChatGPT's sign-in by code (root decision 0201 point 10).
+  startAiByCode: "Sign in with a code",
+  startAiByCodeSetting:
+    "Turn on sign-in with a code in your ChatGPT security settings first. For a work account, its admin allows it.",
+  startAiByCodeWaiting:
+    "Open the ChatGPT page in any browser, even on your phone, and enter the code. It is valid for 15 minutes.",
+  startAiByCodeOpen: "Open ChatGPT",
   startAiServicesLater:
     "Chat and Codex start using the sign-in a little later.",
   startAiChatMismatch:
@@ -2789,6 +2796,12 @@ const cs: Record<MessageKey, string> = {
   startAiCodeSend: "Odeslat kód",
   startAiCodeInvalid: "Toto není celý kód. Zkopírujte ho prosím znovu celý.",
   startAiCodeSent: "Kód je odeslaný. Chvíli počkejte.",
+  startAiByCode: "Přihlásit kódem",
+  startAiByCodeSetting:
+    "Přihlášení kódem si nejdřív zapněte v nastavení zabezpečení ChatGPT. U pracovního účtu ho povoluje jeho správce.",
+  startAiByCodeWaiting:
+    "Otevřete stránku ChatGPT v kterémkoli prohlížeči, třeba v telefonu, a opište kód. Platí 15 minut.",
+  startAiByCodeOpen: "Otevřít ChatGPT",
   startAiServicesLater:
     "Chat a Codex začnou přihlášení používat o něco později.",
   startAiChatMismatch:
