@@ -666,7 +666,7 @@ way, `lazurio-computer.service`:
   without its cursor overlay, in the driver's default agent-authorization mode.
 - `DISPLAY=:1`, `XDG_SESSION_TYPE=x11`, `DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus` (the
   user manager's session bus, where the AT-SPI bus is activated),
-  `CUA_DRIVER_RS_TELEMETRY_ENABLED=false` and `CUA_DRIVER_RS_UPDATE_CHECK=false`.
+  `CUA_DRIVER_RS_TELEMETRY_ENABLED=0` and `CUA_DRIVER_RS_UPDATE_CHECK=0`.
 - `BindsTo=`/`After=` the display; `ConditionFileIsExecutable=%h/.local/bin/cua-driver`,
   so without Machines' driver the unit is skipped, never failed; `Restart=on-failure`.
 

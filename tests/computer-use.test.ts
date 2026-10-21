@@ -11,8 +11,10 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  computerMcpServer,
   computerUnit,
   computerUseFinding,
+  driverSettings,
   installComputerUse,
   observeComputerUse,
   renderComputerUnit,
@@ -117,8 +119,8 @@ test("the unit runs the driver's daemon standalone on the screen, bound to it, s
     "Environment=DISPLAY=:1",
     "Environment=XDG_SESSION_TYPE=x11",
     "Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus",
-    "Environment=CUA_DRIVER_RS_TELEMETRY_ENABLED=false",
-    "Environment=CUA_DRIVER_RS_UPDATE_CHECK=false",
+    "Environment=CUA_DRIVER_RS_TELEMETRY_ENABLED=0",
+    "Environment=CUA_DRIVER_RS_UPDATE_CHECK=0",
     "ExecStart=%h/.local/bin/cua-driver serve --no-overlay --permission-mode standard --socket %h/.local/state/lazurio-computer/driver.sock",
     "Restart=on-failure",
     "RestartSec=3",
@@ -131,6 +133,29 @@ test("the unit runs the driver's daemon standalone on the screen, bound to it, s
   // stdin is no liveness pipe.
   expect(renderComputerUnit()).not.toContain("--embedded");
   expect(renderComputerUnit()).not.toContain("LIVENESS");
+});
+
+// The Cua Driver sends telemetry and checks for updates by default, from the
+// daemon and from each agent's proxy alike. Every process of it Lazurio
+// starts or registers has both off, by the driver's own names and its rule
+// for an off value (`parse_env_bool` at the pinned commit a1672e7b: `0`,
+// `false`, `no`, `off`).
+test("the daemon, every agent's proxy and doctor's run of the driver have its telemetry and update check off", () => {
+  const off = (value: string | undefined) =>
+    ["0", "false", "no", "off"].includes((value ?? "").trim().toLowerCase());
+  const switches = [
+    "CUA_DRIVER_RS_TELEMETRY_ENABLED",
+    "CUA_DRIVER_RS_UPDATE_CHECK",
+  ];
+  const settings = new Map(
+    driverSettings.map((item) => item.split("=") as [string, string]),
+  );
+  expect([...settings.keys()].sort()).toEqual(switches);
+  for (const name of switches) expect(off(settings.get(name))).toBe(true);
+  const unit = renderComputerUnit().split("\n");
+  for (const name of switches)
+    expect(unit).toContain(`Environment=${name}=${settings.get(name)}`);
+  expect(computerMcpServer("/home/operator").env).toEqual(driverSettings);
 });
 
 // ---- Convergence -------------------------------------------------------------
@@ -170,14 +195,14 @@ test("installed only for a hosted operator with a screen; the agents get the MCP
       line.startsWith("mcp add"),
     ),
   ).toEqual([
-    `mcp add computer --env CUA_DRIVER_RS_TELEMETRY_ENABLED=false --env CUA_DRIVER_RS_UPDATE_CHECK=false -- ${driver} mcp --socket ${socket}|codex_home=`,
+    `mcp add computer --env CUA_DRIVER_RS_TELEMETRY_ENABLED=0 --env CUA_DRIVER_RS_UPDATE_CHECK=0 -- ${driver} mcp --socket ${socket}|codex_home=`,
   ]);
   expect(
     (await world.calls("claude.calls")).filter((line) =>
       line.startsWith("mcp add"),
     ),
   ).toEqual([
-    `mcp add --scope user computer -e CUA_DRIVER_RS_TELEMETRY_ENABLED=false -e CUA_DRIVER_RS_UPDATE_CHECK=false -- ${driver} mcp --socket ${socket}|traffic=1|config=`,
+    `mcp add --scope user computer -e CUA_DRIVER_RS_TELEMETRY_ENABLED=0 -e CUA_DRIVER_RS_UPDATE_CHECK=0 -- ${driver} mcp --socket ${socket}|traffic=1|config=`,
   ]);
   expect(
     JSON.parse(await readFile(join(world.home, ".claude.json"), "utf8"))
@@ -187,8 +212,8 @@ test("installed only for a hosted operator with a screen; the agents get the MCP
     command: driver,
     args: ["mcp", "--socket", socket],
     env: {
-      CUA_DRIVER_RS_TELEMETRY_ENABLED: "false",
-      CUA_DRIVER_RS_UPDATE_CHECK: "false",
+      CUA_DRIVER_RS_TELEMETRY_ENABLED: "0",
+      CUA_DRIVER_RS_UPDATE_CHECK: "0",
     },
   });
   const written = await stat(join(directory, computerUnit));
@@ -429,7 +454,7 @@ test("doctor: skipped where the screen cannot be, a warning with the reason and 
   // The driver's doctor ran on the screen, with the session bus and without
   // telemetry or an update check.
   expect((await world.calls("cua-driver.calls")).at(-1)).toBe(
-    `doctor --json DISPLAY=:1 XDG_SESSION_TYPE=x11 DBUS=unix:path=${world.host.env.XDG_RUNTIME_DIR}/bus TELEMETRY=false UPDATE=false`,
+    `doctor --json DISPLAY=:1 XDG_SESSION_TYPE=x11 DBUS=unix:path=${world.host.env.XDG_RUNTIME_DIR}/bus TELEMETRY=0 UPDATE=0`,
   );
 
   await rm(doctorFile);

@@ -16899,7 +16899,9 @@ click and typed text reaching an X window).
    --permission-mode standard --socket %h/.local/state/lazurio-computer/driver.sock` on
    `DISPLAY=:1` with `XDG_SESSION_TYPE=x11`, the user manager's session bus
    (`DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus`, where the AT-SPI bus is activated) and
-   the driver's telemetry and update check off, `BindsTo=`/`After=` the display.
+   the driver's telemetry and update check off (`CUA_DRIVER_RS_TELEMETRY_ENABLED=0`,
+   `CUA_DRIVER_RS_UPDATE_CHECK=0`: both are on by default, and the names and the off
+   values are the driver's own at the pinned commit), `BindsTo=`/`After=` the display.
    Standalone, not `--embedded`: embedded mode with its liveness pipe belongs to a host
    app and ends the daemon when its stdin closes, which under systemd is at once.
    Without the cursor overlay: it is a full-screen X11 window, and on a screen without
@@ -16909,7 +16911,8 @@ click and typed text reaching an X window).
    results: [product update](update.md#state-on-disk).
 2. **One MCP server `computer`, the driver's own proxy.** Each agent's entry is
    `~/.local/bin/cua-driver mcp --socket <that socket>` with the same two settings: the
-   driver's documented MCP mode, proxying to the one daemon, so the Platform writes no
+   driver's documented MCP mode, proxying to the one daemon (the proxy, too, reports
+   telemetry and checks for an update when it starts, so it carries both switches), so the Platform writes no
    MCP server and no agent starts a runtime of its own (on Linux, `mcp` without
    `--socket` would own one in its own process). It is registered exactly as
    Executor's entry ([F44](#f44--executor-in-every-remote-environment-installed-run-and-connected-to-the-agents-by-lazurio)):

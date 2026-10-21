@@ -53,11 +53,17 @@ export const cuaDriverPath = (home: string) =>
 export const computerSocket = (home: string) =>
   join(home, ".local", "state", "lazurio-computer", "driver.sock");
 
-/** The driver's own switches: no telemetry, no update check. The daemon
- * and every proxy carry both. */
-const driverSettings = Object.freeze([
-  "CUA_DRIVER_RS_TELEMETRY_ENABLED=false",
-  "CUA_DRIVER_RS_UPDATE_CHECK=false",
+/** The driver's own switches: no telemetry, no update check. Both are on by
+ * default, and both the daemon (`serve`) and each agent's proxy (`mcp`)
+ * report telemetry and check for an update when they start, so the daemon,
+ * every proxy and doctor's run of the driver carry both. The names and the
+ * values are the driver's at the pinned commit a1672e7b: `telemetry.rs`
+ * `ENV_TELEMETRY_ENABLED` and `version_check.rs` `ENV_UPDATE_CHECK`, each
+ * read by `parse_env_bool`, where `0`, `false`, `no` and `off` mean off;
+ * an environment value wins over the persisted preference. */
+export const driverSettings = Object.freeze([
+  "CUA_DRIVER_RS_TELEMETRY_ENABLED=0",
+  "CUA_DRIVER_RS_UPDATE_CHECK=0",
 ]);
 
 /** The agents' entry: the driver's MCP proxy to the one daemon. An agent
