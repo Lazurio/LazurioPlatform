@@ -201,6 +201,46 @@ test(".hermes.md carries Buddy's role about the user: coordinator, bots, threads
     expect(en).toContain(phrase);
 });
 
+test(".hermes.md says how Buddy works with gbrain, in both locales, and no file the other agents read carries it: they use gbrain only on the user's explicit word", () => {
+  // Root decision 0210, evening addendum of 2026-10-20, point 2: Buddy uses
+  // gbrain implicitly; the other agents' rules never lead them to it.
+  const habits = {
+    cs: section(scriptLayer("cs")[buddyRulesPath], "## Paměť: gbrain"),
+    en: section(scriptLayer("en")[buddyRulesPath], "## Memory: gbrain"),
+  };
+  for (const phrase of [
+    "- Na začátku konverzace a u každé otázky, která se týká člověka, Organizace, projektu, schůzky nebo rozhodnutí, se nejdřív podíváš do gbrainu (`search`, `query`, `get_page`). Teprve potom hledáš na webu nebo v souborech.",
+    "- Co se o uživateli dozvíš, zapíšeš do gbrainu: rozhodnutí, lidi, projekty i vzpomínky z rozhovorů. Po dávce zápisů ověříš, že je zase najdeš.",
+    "- Vestavěná paměť Hermese (nástroj `memory`) je jen na provozní preference. Trvalé znalosti patří do gbrainu.",
+    "- Když nástroje gbrainu nemáš, řekneš to uživateli.",
+  ])
+    expect(habits.cs).toContain(`${phrase}\n`);
+  for (const phrase of [
+    "- At the start of a conversation, and for every question about a person, an Organization, a project, a meeting or a decision, you look in gbrain first (`search`, `query`, `get_page`). Only then do you search the web or files.",
+    "- What you learn about the user, you write to gbrain: decisions, people, projects and memories from conversations. After a batch of writes, you check that you can find them again.",
+    "- Hermes's built-in memory (the `memory` tool) is only for operating preferences. Lasting knowledge belongs in gbrain.",
+    "- When the gbrain tools are missing, you tell the user.",
+  ])
+    expect(habits.en).toContain(`${phrase}\n`);
+  for (const locale of locales) {
+    const lines = habits[locale].split("\n").filter((line) => line !== "");
+    for (const journey of journeys) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      for (const path of outputPaths)
+        for (const text of [...lines, "get_page"])
+          expect({ path, text, found: outputs[path].includes(text) }).toEqual({
+            path,
+            text,
+            found: false,
+          });
+    }
+  }
+});
+
 test("the layer names no person and no Operator: it is about the user, with the address and the names from the persona", () => {
   for (const locale of locales)
     for (const [path, text] of Object.entries(scriptLayer(locale))) {

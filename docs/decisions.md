@@ -1867,6 +1867,38 @@ overwritten and an unknown file kept, a refresh with nothing else to change rest
 layer, and a symlink refused. Not proven: that Hermes follows the rules (generated text is not
 proof of behavior), and the profiles other than Důkladný, which come with Settings → Buddy.
 
+**Addendum 2026-10-21, later the same day: how Buddy works with gbrain (root decision 0210,
+evening addendum of 2026-10-20, point 2; #565).** Buddy uses gbrain implicitly, private records
+included; the other agents use it only on the user's explicit instruction. The layer said only
+that Buddy reads and maintains gbrain and writes there what has to last. The working habits the
+pilot's SOUL.md held went when SOUL.md became the persona only, and without them a Buddy drifts
+to Hermes's built-in memory.
+
+What changes: `.hermes.md` gains the section „Paměť: gbrain“ ("Memory: gbrain") right after
+Buddy's coordination work:
+
+- at the start of a conversation, and for every question about a person, an Organization, a
+  project, a meeting or a decision, gbrain first (`search`, `query`, `get_page`), and only then
+  the web or files;
+- what Buddy learns about the user (decisions, people, projects, memories from conversations)
+  goes to gbrain, and after a batch of writes he checks that he can find it again;
+- Hermes's built-in memory (the `memory` tool) holds only operating preferences, and lasting
+  knowledge goes to gbrain;
+- when the gbrain tools are missing, he tells the user.
+
+Unchanged: what the layer already said (Buddy never stops or updates gbrain, and never stores
+secrets or a task's passing state there), the Lazurio skills, and `AGENTS.md` with every other
+file of the Folder, whose agents keep "gbrain only on the user's explicit instruction".
+
+Template revision `base-instructions-66`. `tests/folder-buddy.test.ts` checks the section in
+both locales and that no line of it, nor `get_page`, reaches `AGENTS.md`, the manual or the
+skills on any preset. `.hermes.md` stays under the 20,000 characters Hermes loads uncut and
+passes Hermes's injection scan (`tools/threat_patterns.py`, Lazurio/hermes-agent d923a5eb) at
+context and strict scope. A Buddy gets the section with the next release; an open conversation
+gets it once its stored prompt is cleared (`hermes sessions repair-prompts <session id> --apply
+--json`, #565 point 4). Not proven: that Hermes follows the habits (generated text is not proof
+of behavior).
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
