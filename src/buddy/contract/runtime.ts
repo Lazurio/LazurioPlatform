@@ -512,9 +512,19 @@ export function checkHistoryQuery(query: string): Checked<HistoryQuery> {
   return yes({ before, limit });
 }
 
-export function checkHistoryPage(input: unknown): Checked<HistoryPage> {
+/** A page of history as the answer to its query: the newest page (no
+ * `before` asked) always carries its snapshot, so the events go on exactly
+ * where the page ends; an older page never does. */
+export function checkHistoryPage(
+  input: unknown,
+  newest: boolean,
+): Checked<HistoryPage> {
   if (!isPlain(input) || !hasKeys(input, ["messages", "before", "snapshot"]))
     return no("not exactly its keys");
+  if ((input.snapshot === null) === newest)
+    return no(
+      newest ? "newest page without snapshot" : "older page with snapshot",
+    );
   const messages = input.messages;
   if (
     !Array.isArray(messages) ||

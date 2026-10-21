@@ -4,7 +4,6 @@ import {
   type ClarifyAnswer,
   checkHistoryPage,
   checkMessageAccepted,
-  checkRuntimeEvent,
   createSseReader,
   isFileName,
   isMimeType,
@@ -22,6 +21,7 @@ import {
 } from "./host";
 import {
   type DraftAttachment,
+  eventAction,
   type FrameAction,
   type FrameState,
   initialState,
@@ -179,7 +179,8 @@ async function loadNewest(): Promise<boolean> {
     dispatch({ type: "signed-out" });
     return false;
   }
-  const page = answer.kind === "ok" ? checkHistoryPage(answer.body) : null;
+  const page =
+    answer.kind === "ok" ? checkHistoryPage(answer.body, true) : null;
   if (page === null || !page.ok) {
     dispatch({ type: "offline" });
     return false;
@@ -194,7 +195,8 @@ async function loadOlder() {
   const answer = await call(
     `/api/v1/history?before=${encodeURIComponent(state.before)}&limit=30`,
   );
-  const page = answer.kind === "ok" ? checkHistoryPage(answer.body) : null;
+  const page =
+    answer.kind === "ok" ? checkHistoryPage(answer.body, false) : null;
   if (page?.ok) dispatch({ type: "older", page: page.value });
   else if (answer.kind === "signed-out") dispatch({ type: "signed-out" });
   else
@@ -258,15 +260,8 @@ async function stream() {
           for (const event of reader.push(
             decoder.decode(value, { stream: true }),
           )) {
-            let data: unknown;
-            try {
-              data = JSON.parse(event.data);
-            } catch {
-              continue;
-            }
-            const checked = checkRuntimeEvent(event.event, data);
-            if (checked.ok)
-              dispatch({ type: "event", id: event.id, event: checked.value });
+            const action = eventAction(event);
+            if (action !== null) dispatch(action);
           }
         }
       } catch {

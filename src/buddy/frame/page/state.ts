@@ -2,9 +2,12 @@ import {
   type BuddyState,
   type Clarify,
   type ConversationMessage,
+  checkRuntimeEvent,
   type HistoryPage,
+  isRuntimeId,
   type RuntimeEvent,
   runtimeLimits,
+  type SseEvent,
 } from "../../contract/runtime";
 import { type CopyKey, channelName, copyOf } from "./copy";
 import type { HostContext, Lang } from "./host";
@@ -43,6 +46,7 @@ export type Pending = Readonly<{
 }>;
 
 export type Notice =
+  | "emptyFile"
   | "tooLarge"
   | "tooMuch"
   | "tooMany"
@@ -95,7 +99,7 @@ export type FrameAction =
   | Readonly<{ type: "history"; page: HistoryPage }>
   | Readonly<{ type: "older-loading" }>
   | Readonly<{ type: "older"; page: HistoryPage }>
-  | Readonly<{ type: "event"; id: string | null; event: RuntimeEvent }>
+  | Readonly<{ type: "event"; id: string; event: RuntimeEvent }>
   | Readonly<{ type: "signed-out" }>
   | Readonly<{ type: "signing-in" }>
   | Readonly<{ type: "offline" }>
@@ -195,14 +199,36 @@ function onEvent(state: FrameState, event: RuntimeEvent): FrameState {
         ? { ...state, clarify: null }
         : state;
     case "error":
+      // The turn ended: Buddy no longer writes, whether or not a status
+      // follows.
       return {
         ...state,
+        buddy: state.clarify === null ? "idle" : "waiting",
         streaming: null,
         progress: null,
         notice:
           event.data.code === "unavailable" ? "turnUnavailable" : "turnFailed",
       };
   }
+}
+
+/** What one event read from the stream does: an event of the contract
+ * whose id the contract allows becomes an action and its id the cursor the
+ * stream goes on from; anything else is dropped whole, cursor and all, so a
+ * defective event can never make the next reconnect ask for a cursor the
+ * contract refuses. */
+export function eventAction(event: SseEvent): FrameAction | null {
+  if (event.id === null || !isRuntimeId(event.id)) return null;
+  let data: unknown;
+  try {
+    data = JSON.parse(event.data);
+  } catch {
+    return null;
+  }
+  const checked = checkRuntimeEvent(event.event, data);
+  return checked.ok
+    ? { type: "event", id: event.id, event: checked.value }
+    : null;
 }
 
 export function reduce(state: FrameState, action: FrameAction): FrameState {
@@ -241,10 +267,7 @@ export function reduce(state: FrameState, action: FrameAction): FrameState {
         before: action.page.before,
       };
     case "event":
-      return {
-        ...onEvent(state, action.event),
-        eventId: action.id ?? state.eventId,
-      };
+      return { ...onEvent(state, action.event), eventId: action.id };
     case "signed-out":
       return { ...state, phase: "signed-out" };
     case "signing-in":
@@ -265,14 +288,17 @@ export function reduce(state: FrameState, action: FrameAction): FrameState {
       const { attachments } = state;
       const size = action.attachment.size;
       const total = attachments.reduce((sum, item) => sum + item.size, 0);
+      // An empty file is no attachment the contract takes.
       const notice: Notice | null =
         attachments.length >= runtimeLimits.attachments
           ? "tooMany"
-          : size > runtimeLimits.attachmentBytes
-            ? "tooLarge"
-            : total + size > runtimeLimits.attachmentsBytes
-              ? "tooMuch"
-              : null;
+          : size === 0
+            ? "emptyFile"
+            : size > runtimeLimits.attachmentBytes
+              ? "tooLarge"
+              : total + size > runtimeLimits.attachmentsBytes
+                ? "tooMuch"
+                : null;
       return notice === null
         ? {
             ...state,

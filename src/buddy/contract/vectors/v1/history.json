@@ -15,6 +15,7 @@
     {
       "name": "the newest page: both voices, a file, the channel and the snapshot",
       "check": "history-page",
+      "newest": true,
       "input": {
         "messages": [
           {
@@ -50,6 +51,7 @@
     {
       "name": "an older page, the conversation's start",
       "check": "history-page",
+      "newest": false,
       "input": {
         "messages": [
           { "message_id": "m-0", "role": "user", "text": "Ahoj", "at": "2026-10-01T00:00:00Z", "via": "telegram", "media": [] }
@@ -62,12 +64,14 @@
     {
       "name": "an empty conversation still names where the events go on",
       "check": "history-page",
+      "newest": true,
       "input": { "messages": [], "before": null, "snapshot": { "event_id": "0", "state": "idle", "clarify": null } },
       "valid": true
     },
     {
       "name": "a question that waits for the person",
       "check": "history-page",
+      "newest": true,
       "input": {
         "messages": [],
         "before": null,
@@ -82,6 +86,7 @@
     {
       "name": "a snapshot without where the events go on",
       "check": "history-page",
+      "newest": true,
       "input": { "messages": [], "before": null, "snapshot": { "event_id": null, "state": "idle", "clarify": null } },
       "valid": false,
       "why": "snapshot event_id"
@@ -89,6 +94,7 @@
     {
       "name": "an unknown state",
       "check": "history-page",
+      "newest": true,
       "input": { "messages": [], "before": null, "snapshot": { "event_id": "e-1", "state": "busy", "clarify": null } },
       "valid": false,
       "why": "snapshot state"
@@ -96,6 +102,7 @@
     {
       "name": "a system message",
       "check": "history-page",
+      "newest": false,
       "input": {
         "messages": [{ "message_id": "m-1", "role": "system", "text": "x", "at": "2026-10-21T09:00:00Z", "via": "lazurio_web", "media": [] }],
         "before": null,
@@ -107,6 +114,7 @@
     {
       "name": "an instant without its zone",
       "check": "history-page",
+      "newest": false,
       "input": {
         "messages": [{ "message_id": "m-1", "role": "user", "text": "x", "at": "2026-10-21T09:00:00", "via": "lazurio_web", "media": [] }],
         "before": null,
@@ -118,6 +126,7 @@
     {
       "name": "a day that does not exist",
       "check": "history-page",
+      "newest": false,
       "input": {
         "messages": [{ "message_id": "m-1", "role": "user", "text": "x", "at": "2026-02-30T09:00:00Z", "via": "lazurio_web", "media": [] }],
         "before": null,
@@ -129,6 +138,7 @@
     {
       "name": "a channel in upper case",
       "check": "history-page",
+      "newest": false,
       "input": {
         "messages": [{ "message_id": "m-1", "role": "user", "text": "x", "at": "2026-10-21T09:00:00Z", "via": "Telegram", "media": [] }],
         "before": null,
@@ -140,6 +150,7 @@
     {
       "name": "a file of negative size",
       "check": "history-page",
+      "newest": false,
       "input": {
         "messages": [
           {
@@ -160,6 +171,7 @@
     {
       "name": "a message without its media",
       "check": "history-page",
+      "newest": false,
       "input": {
         "messages": [{ "message_id": "m-1", "role": "user", "text": "x", "at": "2026-10-21T09:00:00Z", "via": "lazurio_web" }],
         "before": null,
@@ -171,6 +183,7 @@
     {
       "name": "a message with a member more",
       "check": "history-page",
+      "newest": false,
       "input": {
         "messages": [
           { "message_id": "m-1", "role": "user", "text": "x", "at": "2026-10-21T09:00:00Z", "via": "lazurio_web", "media": [], "html": "<b>x</b>" }
@@ -182,8 +195,25 @@
       "why": "message"
     },
     {
+      "name": "the newest page without its snapshot loses the events between page and stream",
+      "check": "history-page",
+      "newest": true,
+      "input": { "messages": [], "before": null, "snapshot": null },
+      "valid": false,
+      "why": "newest page without snapshot"
+    },
+    {
+      "name": "an older page with a snapshot",
+      "check": "history-page",
+      "newest": false,
+      "input": { "messages": [], "before": null, "snapshot": { "event_id": "e-1", "state": "idle", "clarify": null } },
+      "valid": false,
+      "why": "older page with snapshot"
+    },
+    {
       "name": "a page without its cursor",
       "check": "history-page",
+      "newest": false,
       "input": { "messages": [], "snapshot": null },
       "valid": false,
       "why": "exact keys"

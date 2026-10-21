@@ -428,11 +428,12 @@ export function createBuddyFrameHandler(
     if (path === "/api/v1/history" && request.method === "GET") {
       const query = checkHistoryQuery(url.search.slice(1));
       if (!query.ok) return problem("bad-request");
+      const newest = query.value.before === null;
       return exchange(
         `/v1/history${url.search}`,
         { method: "GET" },
         200,
-        checkHistoryPage,
+        (input) => checkHistoryPage(input, newest),
         8 * 1024 * 1024,
       );
     }

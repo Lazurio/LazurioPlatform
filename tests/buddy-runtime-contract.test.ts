@@ -40,6 +40,8 @@ type Case = Readonly<{
   name: string;
   check: string;
   input: unknown;
+  /** For `history-page`: whether the page answers a query without `before`. */
+  newest?: boolean;
   valid?: boolean;
   why?: string;
   expect?: unknown;
@@ -80,13 +82,14 @@ const files: VectorFile[] = readdirSync(directory)
   }));
 
 const validations: Readonly<
-  Record<string, (input: unknown) => Checked<unknown>>
+  Record<string, (input: unknown, entry: Case) => Checked<unknown>>
 > = {
   "page-context": checkPageContext,
   "message-request": checkMessageRequest,
   "message-accepted": checkMessageAccepted,
   "history-query": (input) => checkHistoryQuery(input as string),
-  "history-page": checkHistoryPage,
+  "history-page": (input, entry) =>
+    checkHistoryPage(input, entry.newest === true),
   "events-query": (input) => checkEventsQuery(input as string),
   event: (input) => {
     const { event, data } = input as { event: string; data: unknown };
@@ -152,7 +155,7 @@ for (const file of files)
         test(`${entry.check}: ${entry.name}`, () => {
           const check = validations[entry.check];
           if (check === undefined) throw new Error(`Unknown ${entry.check}`);
-          const result = check(expand(entry.input));
+          const result = check(expand(entry.input), entry);
           expect({ name: entry.name, ok: result.ok }).toEqual({
             name: entry.name,
             ok: entry.valid as boolean,

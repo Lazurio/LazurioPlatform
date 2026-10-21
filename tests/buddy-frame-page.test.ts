@@ -31,6 +31,7 @@ import {
 import {
   canSend,
   dayLabel,
+  eventAction,
   type FrameAction,
   type FrameState,
   initialState,
@@ -523,6 +524,77 @@ describe("the chat's state", () => {
     ).toBeNull();
   });
 
+  test("only an event with an id of the contract is applied, and only it moves the cursor", () => {
+    const status = (
+      id: string | null,
+      data = '{"state":"working"}',
+      name = "status",
+    ) => eventAction({ id, event: name, data });
+    expect(status("e-11")).toEqual({
+      type: "event",
+      id: "e-11",
+      event: { type: "status", data: { state: "working" } },
+    });
+    for (const defective of [
+      status("invalid id"),
+      status(""),
+      status(null),
+      status("e-12", "{not json"),
+      status("e-12", '{"state":"busy"}'),
+      status("e-12", '{"state":"working"}', "message.created"),
+    ])
+      expect(defective).toBeNull();
+    // A stream with a defective event in the middle: the cursor is the last
+    // good event's, so the next reconnect asks for a cursor the contract takes.
+    const applied = (...actions: (FrameAction | null)[]) =>
+      run(
+        actions.filter((action): action is FrameAction => action !== null),
+        loaded,
+      );
+    expect(
+      applied(
+        status("e-11"),
+        status("bad id"),
+        status("e-13", '{"state":"idle"}'),
+      ).eventId,
+    ).toBe("e-13");
+    expect(applied(status("bad id")).eventId).toBe("e-10");
+  });
+
+  test("a turn that ends in an error leaves Buddy idle, or waiting for an open question", () => {
+    const ended = run(
+      [
+        on("e-11", { type: "turn.started", data: { reply_to: "m-2" } }),
+        on("e-12", {
+          type: "error",
+          data: { code: "turn-failed", message_id: "m-2" },
+        }),
+      ],
+      loaded,
+    );
+    expect(ended.buddy).toBe("idle");
+    expect(statusKey(ended)).toBe("online");
+    const clarify = {
+      clarify_id: "q-1",
+      question: "Publikovat?",
+      choices: ["Ano"],
+      multi: false,
+    };
+    const asked = run(
+      [
+        on("e-11", { type: "clarify.request", data: clarify }),
+        on("e-12", { type: "turn.started", data: { reply_to: null } }),
+        on("e-13", {
+          type: "error",
+          data: { code: "internal", message_id: null },
+        }),
+      ],
+      loaded,
+    );
+    expect(asked.buddy).toBe("waiting");
+    expect(statusKey(asked)).toBe("waiting");
+  });
+
   test("signed out, offline and back", () => {
     expect(run([{ type: "signed-out" }], loaded).phase).toBe("signed-out");
     expect(
@@ -552,6 +624,11 @@ describe("the chat's state", () => {
       run([{ type: "attach", attachment: file("a", 5 * MiB + 1) }], loaded)
         .notice,
     ).toBe("tooLarge");
+    // An empty file is refused when it is picked: nothing to send, nothing to retry.
+    const empty = run([{ type: "attach", attachment: file("a", 0) }], loaded);
+    expect(empty.notice).toBe("emptyFile");
+    expect(empty.attachments).toEqual([]);
+    expect(canSend(empty, "")).toBe(false);
     const three = run(
       [
         { type: "attach", attachment: file("a", 4 * MiB) },

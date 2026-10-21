@@ -95,8 +95,10 @@ is `{message_id, role: user|assistant, text, at, via, media}`: `at` an instant i
 (`2026-10-21T09:12:30Z`), `via` the Hermes platform it came through (`lazurio_web`,
 `telegram`), `media` its files `{media_id, name, mime, size}`. `before` is the cursor of
 the next older page, null at the start. Only the newest page (no `before` asked) has a
-`snapshot` `{event_id, state, clarify}`: where the events go on (a cursor even while the
-outbox is empty), what Buddy does and the question that waits, if any. The frame loads
+`snapshot` `{event_id, state, clarify}`, always: where the events go on (a cursor even
+while the outbox is empty), what Buddy does and the question that waits, if any. A
+newest page without it is defective, since the events between the page and the stream
+would be lost; an older page with one is defective too. The frame loads
 the newest page, then reads the events after its `event_id`, so nothing between the two
 is lost.
 
@@ -139,7 +141,7 @@ adds what the frame needs to show them. The adapter follows this file:
 | `message-request` | the body of `POST /v1/messages` |
 | `message-accepted` | its `202` body |
 | `history-query`, `events-query` | the query string, without `?` |
-| `history-page` | the body of `GET /v1/history` |
+| `history-page` | the body of `GET /v1/history`; `newest` says whether it answers a query without `before` (then it must carry its snapshot, else it must not) |
 | `event` | `{event, data}`: an event's name and its parsed `data` |
 | `clarify-answer` | the body of `POST /v1/clarify/<id>` |
 | `empty-body` | the body of `POST /v1/stop` |

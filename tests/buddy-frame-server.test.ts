@@ -307,7 +307,7 @@ describe("the proxy", () => {
     expect(refused.status).toBe(403);
     const page = await ask("/api/v1/history");
     expect(page.status).toBe(200);
-    expect(checkHistoryPage(await page.json()).ok).toBe(true);
+    expect(checkHistoryPage(await page.json(), true).ok).toBe(true);
   });
 
   test("a defective message never reaches Buddy", async () => {
@@ -349,6 +349,35 @@ describe("the proxy", () => {
       error: { code: "adapter-refused" },
     });
     await writeFile(secretFile, `${secret}\n`, { mode: 0o600 });
+  });
+
+  test("a history page without its snapshot, or an older one with it, is the adapter's defect", async () => {
+    const page = (snapshot: unknown) => async () =>
+      Response.json({ messages: [], before: null, snapshot });
+    for (const [path, snapshot] of [
+      ["/api/v1/history", null],
+      [
+        "/api/v1/history?before=c-1",
+        { event_id: "e-1", state: "idle", clarify: null },
+      ],
+    ] as const) {
+      const defective = await startBuddyFrame(
+        { origin, listenPort: 0, adapterPort: 1, secretFile },
+        { personaFile, fetch: page(snapshot) },
+      );
+      try {
+        const answer = await fetch(
+          `http://127.0.0.1:${defective.port}${path}`,
+          { headers: { host } },
+        );
+        expect(answer.status).toBe(502);
+        expect(await answer.json()).toEqual({
+          error: { code: "adapter-defective" },
+        });
+      } finally {
+        await defective.stop();
+      }
+    }
   });
 
   test("Buddy out of reach", async () => {
