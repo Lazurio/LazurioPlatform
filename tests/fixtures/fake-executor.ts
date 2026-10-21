@@ -135,8 +135,9 @@ echo "added 1 package"
 
 const fakeNode = "#!/bin/sh\necho v24.21.0\n";
 
-/** Codex's `mcp get <name> --json` and `mcp add <name> [--env K=V]… --
- * <command> <args…>`, kept in `$CODEX_HOME` (default `~/.codex`). */
+/** Codex's `mcp get <name> --json`, `mcp add <name> [--env K=V]… --
+ * <command> <args…>` and `mcp remove <name>`, kept in `$CODEX_HOME`
+ * (default `~/.codex`). */
 const fakeCodex = String.raw`#!/usr/bin/env bun
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 const home = process.env.HOME;
@@ -171,12 +172,21 @@ if (argv[0] === "mcp" && argv[1] === "add") {
   console.log("Added global MCP server '" + name + "'.");
   process.exit(0);
 }
+if (argv[0] === "mcp" && argv[1] === "remove" && argv.length === 3) {
+  const name = argv[2];
+  if (!Object.hasOwn(servers, name)) { console.error("Error: No MCP server named '" + name + "' found."); process.exit(1); }
+  delete servers[name];
+  writeFileSync(store, JSON.stringify(servers));
+  console.log("Removed global MCP server '" + name + "'.");
+  process.exit(0);
+}
 process.exit(64);
 `;
 
 /** Claude Code's `mcp add --scope user <name> [-e K=V]… -- <command>
- * <args…>`, in the top-level `mcpServers` of `~/.claude.json` (or the one in
- * `$CLAUDE_CONFIG_DIR`); every other key of that file is kept. */
+ * <args…>` and `mcp remove --scope user <name>`, in the top-level
+ * `mcpServers` of `~/.claude.json` (or the one in `$CLAUDE_CONFIG_DIR`);
+ * every other key of that file is kept. */
 const fakeClaude = String.raw`#!/usr/bin/env bun
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 const home = process.env.HOME;
@@ -202,6 +212,15 @@ if (argv[0] === "mcp" && argv[1] === "add" && argv[2] === "--scope" && argv[3] =
   config.mcpServers[name] = { type: "stdio", command, args, env };
   writeFileSync(file, JSON.stringify(config, null, 2));
   console.log("Added stdio MCP server " + name + " to user config");
+  process.exit(0);
+}
+if (argv[0] === "mcp" && argv[1] === "remove" && argv[2] === "--scope" && argv[3] === "user" && argv.length === 5) {
+  const name = argv[4];
+  const config = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
+  if (!Object.hasOwn(config.mcpServers ?? {}, name)) { console.error("No user-scoped MCP server found with name: " + name); process.exit(1); }
+  delete config.mcpServers[name];
+  writeFileSync(file, JSON.stringify(config, null, 2));
+  console.log("Removed MCP server " + name + " from user config");
   process.exit(0);
 }
 process.exit(64);
