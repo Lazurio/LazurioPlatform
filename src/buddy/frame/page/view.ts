@@ -344,10 +344,21 @@ export function createView(
   const gate = el("div", "bw__gate");
   reading.append(older, rows, progress, clarifySlot, gate);
   thread.append(reading);
+  // Like a messenger, the thread keeps to its newest message while the
+  // reader is there, also when a picture or a font arrives after it was
+  // drawn: whether the reader was at the end is read against the height
+  // before it grew, never from a scroll event the frame caused itself.
+  let lastHeight = 0;
+  const atEnd = (height: number) =>
+    thread.scrollTop + thread.clientHeight >= height - 48;
   thread.addEventListener("scroll", () => {
     if (thread.scrollTop < 40 && !older.hidden && !older.disabled)
       handlers.older();
   });
+  new ResizeObserver(() => {
+    if (atEnd(lastHeight)) thread.scrollTop = thread.scrollHeight;
+    lastHeight = thread.scrollHeight;
+  }).observe(reading);
 
   const compose = el("footer", "bw__compose");
   const notice = el("div", "bw__notice");
@@ -440,7 +451,10 @@ export function createView(
       currentLang = lang;
       window_.dataset.phase = state.phase;
       name.textContent = state.name;
+      // His state only once the frame knows it: not while it loads or the
+      // person is signed out.
       status.textContent = `Buddy · ${copy[statusKey(state)]}`;
+      status.hidden = state.phase !== "ready" && state.phase !== "offline";
       const isFull = fullscreen();
       full.replaceChildren(icon(isFull ? "reduce" : "enlarge"));
       full.title = isFull ? copy.reduce : copy.fullscreen;
@@ -471,9 +485,8 @@ export function createView(
       rows.hidden = !state.loaded;
 
       // The thread, row by row, keeping the reader's place.
-      const atBottom =
-        thread.scrollHeight - thread.scrollTop - thread.clientHeight < 48;
       const heightBefore = thread.scrollHeight;
+      const atBottom = atEnd(heightBefore);
       const wanted = state.loaded ? threadRows(state, now, lang) : [];
       const keep = new Set(wanted.map((row) => row.key));
       for (const [key, entry] of nodes)
@@ -522,6 +535,7 @@ export function createView(
       if (prepended && !atBottom)
         thread.scrollTop += thread.scrollHeight - heightBefore;
       else if (atBottom || fresh) thread.scrollTop = thread.scrollHeight;
+      lastHeight = thread.scrollHeight;
 
       // The composer.
       notice.textContent = state.notice === null ? "" : copy[state.notice];

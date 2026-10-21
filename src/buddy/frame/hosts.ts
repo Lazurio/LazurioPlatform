@@ -91,14 +91,60 @@ export function hostOriginOf(
   return hostEnvironmentOf(frameOrigin, origin) === null ? null : origin;
 }
 
+/** The host a page names itself: exactly an origin that may host the
+ * frame, or null. */
+function namedHost(
+  frameOrigin: string,
+  named: string | null | undefined,
+): string | null {
+  if (typeof named !== "string") return null;
+  try {
+    if (new URL(named).origin !== named) return null;
+  } catch {
+    return null;
+  }
+  return hostEnvironmentOf(frameOrigin, named) === null ? null : named;
+}
+
 /** `frame-ancestors` of one of the frame's pages: exactly the origin of the
- * host that asks for it, or `'none'`. A browser enforces it on the real
- * ancestors, so a page cannot name another to be let in. */
+ * host that asks for it, or `'none'`. The host is the request's `Referer`;
+ * when the frame reloads itself (after the popup sign-in), its own document
+ * sends none, so it names its host in `?host=` instead. Either way a browser
+ * enforces the directive on the real ancestors: naming a host lets in that
+ * host and no page that only names it. */
 export function frameAncestors(
   frameOrigin: string,
   referer: string | null | undefined,
+  named?: string | null,
 ): string {
-  return hostOriginOf(frameOrigin, referer) ?? "'none'";
+  return (
+    hostOriginOf(frameOrigin, referer) ??
+    namedHost(frameOrigin, named) ??
+    "'none'"
+  );
+}
+
+/** The host's origin as the frame reads it at load: the first ancestor
+ * origin where the browser lists them (Chromium, Safari), which is the real
+ * parent; else the referrer's origin, else the host the frame named when it
+ * reloaded itself (`?host=`). Null when the frame is not framed or none of
+ * them may host it. A name the parent does not hold harms nothing: the
+ * browser refuses the frame to any other parent, delivers the frame's
+ * messages only to that origin and the frame takes messages only from it. */
+export function hostOriginAtLoad(
+  frameOrigin: string,
+  framed: boolean,
+  ancestorOrigins: readonly string[] | null,
+  referrer: string,
+  named: string | null,
+): string | null {
+  if (!framed) return null;
+  if (ancestorOrigins !== null && ancestorOrigins.length > 0)
+    return namedHost(frameOrigin, ancestorOrigins[0]);
+  return (
+    hostOriginOf(frameOrigin, referrer === "" ? null : referrer) ??
+    namedHost(frameOrigin, named)
+  );
 }
 
 /** Where the popup sign-in starts: the gateway's sign-in on the Osobní

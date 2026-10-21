@@ -25,8 +25,8 @@ import { hostEnvironmentOf } from "../hosts";
 // The frame takes a context only when all of these hold (`acceptContext`):
 //   1. it comes from the frame's parent window, and the frame is framed;
 //   2. its origin is exactly the host origin the frame read at its load
-//      (`location.ancestorOrigins[0]`, else the referrer's origin) and that
-//      origin may host the frame (`hostEnvironmentOf`);
+//      (`hostOriginAtLoad` in hosts.ts) and that origin may host the frame
+//      (`hostEnvironmentOf`);
 //   3. its keys are exactly the ones above, at every level, in plain
 //      objects: a member more refuses the whole message;
 //   4. its strings are bounded and its enums closed: `lang` cs or en,
@@ -60,27 +60,6 @@ export const readyMessage = () =>
 
 export const layoutMessage = (mode: Layout) =>
   Object.freeze({ type: buddyMessage.layout, v: 1, mode });
-
-/** The host's origin as the frame reads it at load: the first ancestor
- * origin where the browser lists them (Chromium, Safari), else the origin of
- * the document's referrer (the shell's iframe sends it); null when the frame
- * is not framed or the value is no origin. */
-export function hostOriginAtLoad(
-  framed: boolean,
-  ancestorOrigins: readonly string[] | null,
-  referrer: string,
-): string | null {
-  if (!framed) return null;
-  const first = ancestorOrigins?.[0];
-  if (typeof first === "string" && first !== "" && first !== "null")
-    return first;
-  if (referrer === "") return null;
-  try {
-    return new URL(referrer).origin;
-  } catch {
-    return null;
-  }
-}
 
 type Data = Readonly<Record<string, unknown>>;
 

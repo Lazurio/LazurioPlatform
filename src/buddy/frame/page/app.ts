@@ -11,11 +11,10 @@ import {
   type MessageRequest,
   type PageContext,
 } from "../../contract/runtime";
-import { hostEnvironmentOf, signInUrl } from "../hosts";
+import { hostOriginAtLoad, signInUrl } from "../hosts";
 import { browserLang } from "./copy";
 import {
   acceptContext,
-  hostOriginAtLoad,
   type Lang,
   type Layout,
   layoutMessage,
@@ -44,11 +43,20 @@ const framed = window.parent !== window;
 const ancestors = location.ancestorOrigins
   ? [...location.ancestorOrigins]
   : null;
-const loadedHost = hostOriginAtLoad(framed, ancestors, document.referrer);
-const hostOrigin =
-  loadedHost !== null && hostEnvironmentOf(frameOrigin, loadedHost) !== null
-    ? loadedHost
-    : null;
+const hostOrigin = hostOriginAtLoad(
+  frameOrigin,
+  framed,
+  ancestors,
+  document.referrer,
+  new URLSearchParams(location.search).get("host"),
+);
+
+/** The frame loads again, signed in: it names its host, because its own
+ * document sends no referrer (`frameAncestors`). */
+const reloadFrame = () =>
+  location.replace(
+    hostOrigin === null ? "/" : `/?host=${encodeURIComponent(hostOrigin)}`,
+  );
 
 let state: FrameState = initialState;
 let lang: Lang = browserLang(navigator.languages ?? [navigator.language]);
@@ -93,7 +101,7 @@ window.addEventListener("message", (event) => {
     (event.data as { type?: unknown } | null)?.type ===
       "lazurio.buddy.signed-in"
   ) {
-    location.reload();
+    reloadFrame();
     return;
   }
   const accepted = acceptContext(
@@ -426,7 +434,7 @@ function signIn() {
         (event.data as { type?: unknown } | null)?.type ===
         "lazurio.buddy.signed-in"
       )
-        location.reload();
+        reloadFrame();
     };
   } catch {
     channel = null;
@@ -442,7 +450,7 @@ function signIn() {
     }
     const answer = await call("/api/persona");
     if (answer.kind === "ok") {
-      location.reload();
+      reloadFrame();
       return;
     }
     setTimeout(poll, 2000);

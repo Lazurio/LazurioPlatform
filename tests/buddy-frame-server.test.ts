@@ -110,6 +110,25 @@ describe("the page", () => {
       );
       await refused.body?.cancel();
     }
+    // The frame reloading itself after the sign-in names its host.
+    const reloaded = await ask(
+      `/?host=${encodeURIComponent("https://launchpad.vm-01.acme.lazurio.io")}`,
+      {},
+      { host },
+    );
+    expect(reloaded.headers.get("content-security-policy")).toContain(
+      "frame-ancestors https://launchpad.vm-01.acme.lazurio.io",
+    );
+    await reloaded.body?.cancel();
+    const misnamed = await ask(
+      `/?host=${encodeURIComponent("https://notes.vm-01.acme.lazurio.io")}`,
+      {},
+      { host },
+    );
+    expect(misnamed.headers.get("content-security-policy")).toContain(
+      "frame-ancestors 'none'",
+    );
+    await misnamed.body?.cancel();
     const none = await ask("/", {}, { host });
     expect(none.headers.get("content-security-policy")).toContain(
       "frame-ancestors 'none'",

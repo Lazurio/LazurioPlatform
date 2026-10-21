@@ -465,11 +465,16 @@ export function createBuddyFrameHandler(
     return problem("not-found");
   }
 
-  async function page(request: Request, path: string): Promise<Response> {
+  async function page(request: Request, url: URL): Promise<Response> {
+    const path = url.pathname;
     const inner = await pages.get(path, request.headers.get("accept"));
     const ancestors =
       path === "/"
-        ? frameAncestors(config.origin, request.headers.get("referer"))
+        ? frameAncestors(
+            config.origin,
+            request.headers.get("referer"),
+            url.searchParams.get("host"),
+          )
         : "'none'";
     return new Response(request.method === "HEAD" ? null : inner.body, {
       status: inner.status,
@@ -523,7 +528,7 @@ export function createBuddyFrameHandler(
     if (path.startsWith("/api/")) return api(request, url, server);
     if (request.method !== "GET" && request.method !== "HEAD")
       return new Response("method-not-allowed", { status: 405 });
-    if (path === "/" || path === "/signed-in") return page(request, path);
+    if (path === "/" || path === "/signed-in") return page(request, url);
     if (path === "/assets/avatar.webp")
       // Its stable address for the shell's launcher; its bytes the design
       // system's PNG (vendor/README.md), named by their true type.

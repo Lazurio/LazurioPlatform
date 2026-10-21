@@ -7,6 +7,7 @@ import type {
 import {
   frameAncestors,
   hostEnvironmentOf,
+  hostOriginAtLoad,
   hostOriginOf,
   isFrameOrigin,
   signInUrl,
@@ -19,7 +20,6 @@ import {
 import {
   acceptContext,
   type HostContext,
-  hostOriginAtLoad,
   layoutMessage,
   readyMessage,
 } from "../src/buddy/frame/page/host";
@@ -88,6 +88,24 @@ describe("who may frame Buddy", () => {
     );
     expect(frameAncestors(frame, "not a url")).toBe("'none'");
     expect(frameAncestors(frame, null)).toBe("'none'");
+    // The frame reloading itself names its host; the Referer still comes first.
+    expect(
+      frameAncestors(frame, null, "https://launchpad.jana.lazurio.io"),
+    ).toBe("https://launchpad.jana.lazurio.io");
+    expect(
+      frameAncestors(
+        frame,
+        "https://t3code.jana.lazurio.io/",
+        "https://launchpad.jana.lazurio.io",
+      ),
+    ).toBe("https://t3code.jana.lazurio.io");
+    for (const named of [
+      "https://notes.vm-01.acme.lazurio.io",
+      "https://launchpad.jana.lazurio.io/",
+      "https://evil.example",
+      "*",
+    ])
+      expect(frameAncestors(frame, null, named)).toBe("'none'");
     expect(hostOriginOf(frame, "https://launchpad.jana.lazurio.io/x?y")).toBe(
       "https://launchpad.jana.lazurio.io",
     );
@@ -144,11 +162,28 @@ describe("the host protocol, the frame's side", () => {
     });
   });
 
-  test("the host's origin at load: the ancestor, else the referrer, only framed", () => {
-    expect(hostOriginAtLoad(true, [host], "")).toBe(host);
-    expect(hostOriginAtLoad(true, null, `${host}/`)).toBe(host);
-    expect(hostOriginAtLoad(true, [], "")).toBeNull();
-    expect(hostOriginAtLoad(false, [host], `${host}/`)).toBeNull();
+  test("the host's origin at load: the parent, else the referrer, else the named host, only framed", () => {
+    expect(hostOriginAtLoad(frame, true, [host], "", null)).toBe(host);
+    expect(hostOriginAtLoad(frame, true, null, `${host}/`, null)).toBe(host);
+    // After the frame reloaded itself: no referrer, the host it named.
+    expect(hostOriginAtLoad(frame, true, null, "", host)).toBe(host);
+    expect(hostOriginAtLoad(frame, true, null, `${frame}/`, host)).toBe(host);
+    // The browser's list is the real parent: a name never overrides it.
+    expect(
+      hostOriginAtLoad(frame, true, ["https://evil.example"], "", host),
+    ).toBeNull();
+    expect(
+      hostOriginAtLoad(
+        frame,
+        true,
+        null,
+        "",
+        "https://notes.vm-01.acme.lazurio.io",
+      ),
+    ).toBeNull();
+    expect(hostOriginAtLoad(frame, true, null, "", `${host}/x`)).toBeNull();
+    expect(hostOriginAtLoad(frame, true, [], "", null)).toBeNull();
+    expect(hostOriginAtLoad(frame, false, [host], `${host}/`, host)).toBeNull();
   });
 
   test("a context from the host is taken whole", () => {
