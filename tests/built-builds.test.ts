@@ -262,6 +262,89 @@ test("a pull while it builds is built instead: the output is never of a mix of t
   expect(await readdir(web.store.directory)).not.toContain(commit(1));
 });
 
+test("a build joined while under way reads the checkout again when it ends: an explicit build right after a pull is not answered by a check that read the commit before it", async () => {
+  const checkout = { commit: commit(1), dirty: false };
+  const fake = fakeBuild(new Map([["web", checkout]]));
+  const builds = builder(fake);
+  const web = app("web", checkout);
+  built(await builds.enqueue(web.job(), "foreground"));
+  // A background check (the one a start leaves) reads commit 1, which is
+  // built, and is held before it answers.
+  let read: () => void = () => {};
+  const reading = new Promise<void>((resolve) => {
+    read = resolve;
+  });
+  let hold: () => void = () => {};
+  const held = new Promise<void>((resolve) => {
+    hold = resolve;
+  });
+  const check = builds.enqueue(
+    web.job({
+      read: async () => {
+        const context = await web.job().read();
+        read();
+        await held;
+        return context;
+      },
+    }),
+    "background",
+  );
+  await reading;
+  // The pull, then a person's explicit build, which joins the check.
+  checkout.commit = commit(2);
+  const explicit = builds.enqueue(web.job({ explicit: true }), "foreground");
+  hold();
+  const outcome = built(await explicit);
+  expect(outcome.already).toBe(false);
+  expect(outcome.record.key).toBe(commit(2));
+  expect(await check).toEqual(outcome);
+  expect(fake.runs).toEqual(["web@01", "web@02"]);
+  await builds.settled();
+});
+
+test("a build joined while under way reads again queued behind a person waiting for another app: the waiting person goes first", async () => {
+  const checkouts = new Map<string, Checkout>([
+    ["a", { commit: commit(3), dirty: false }],
+    ["b", { commit: commit(1), dirty: false }],
+  ]);
+  const fake = fakeBuild(checkouts);
+  const builds = builder(fake);
+  const a = app("a", checkouts.get("a") as Checkout);
+  const b = app("b", checkouts.get("b") as Checkout);
+  built(await builds.enqueue(b.job(), "foreground"));
+  // b's background check reads its built commit 1 and is held.
+  let read: () => void = () => {};
+  const reading = new Promise<void>((resolve) => {
+    read = resolve;
+  });
+  let hold: () => void = () => {};
+  const held = new Promise<void>((resolve) => {
+    hold = resolve;
+  });
+  const check = builds.enqueue(
+    b.job({
+      read: async () => {
+        const context = await b.job().read();
+        read();
+        await held;
+        return context;
+      },
+    }),
+    "background",
+  );
+  await reading;
+  // A person waits for app a; b is pulled and its check is joined.
+  const waited = builds.enqueue(a.job(), "foreground");
+  (checkouts.get("b") as Checkout).commit = commit(2);
+  const joined = builds.enqueue(b.job(), "background");
+  hold();
+  await Promise.all([check, waited, joined]);
+  expect(fake.runs).toEqual(["b@01", "a@03", "b@02"]);
+  expect(built(await joined).record.key).toBe(commit(2));
+  expect(await check).toEqual(await joined);
+  await builds.settled();
+});
+
 test("a failed build keeps what was built, is recorded with its log, and is built again only when asked", async () => {
   const checkout = { commit: commit(1), dirty: false };
   const fake = fakeBuild(new Map([["web", checkout]]));

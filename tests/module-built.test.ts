@@ -653,6 +653,12 @@ posixTest(
       const started = answer(await operations.start("alpha/site"));
       expect(started.build?.mode).toBe("built");
       await until(fixture.page, (page) => page.text === "<p>one</p>");
+      // The start leaves a background check of its build. An explicit build
+      // joins it and answers when it ends, so the pull below lands after it,
+      // and the explicit build after the pull is the one that builds.
+      expect(answer(await operations.build("alpha/site")).outcome).toBe(
+        "current",
+      );
       // Probe the app every 20 ms for the whole swap.
       let probes = 0;
       let refused = 0;
@@ -664,19 +670,25 @@ posixTest(
           await Bun.sleep(20);
         }
       })();
-      // A pull that changes the page and the package (not its serving
-      // declaration): its build is swapped in by the explicit build.
-      const pkgPath = join(fixture.site, "app/package.json");
-      const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
-      pkg.description = "changed by the pull";
-      await writeFile(pkgPath, JSON.stringify(pkg));
-      const second = await fixture.commit("two");
-      const built = answer(await operations.build("alpha/site"));
-      expect(built.outcome).toBe("built");
-      await until(fixture.page, (page) => page.text === "<p>two</p>");
-      await Bun.sleep(300);
-      probing = false;
-      await probe;
+      let second = "";
+      try {
+        // A pull that changes the page and the package (not its serving
+        // declaration): its build is swapped in by the explicit build.
+        const pkgPath = join(fixture.site, "app/package.json");
+        const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
+        pkg.description = "changed by the pull";
+        await writeFile(pkgPath, JSON.stringify(pkg));
+        second = await fixture.commit("two");
+        const built = answer(await operations.build("alpha/site"));
+        expect(built.outcome).toBe("built");
+        await until(fixture.page, (page) => page.text === "<p>two</p>");
+        await Bun.sleep(300);
+      } finally {
+        // A failed expectation must not leave the probe fetching into the
+        // tests after this one.
+        probing = false;
+        await probe;
+      }
       expect(probes).toBeGreaterThan(20);
       expect(refused).toBe(0);
       // Still the same healthy run of the static server, serving the new
