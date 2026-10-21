@@ -16870,7 +16870,7 @@ processes (the static server reads the same listener variables); the Platform ha
 worktree source yet (P9), and a worktree's preview stays the development server of root
 decision 0195 point 6 when it comes.
 
-**Phase 2, not built:** an app with its own server declares `start_script` (one process in
+**Phase 2, not built here** (built by the F58 addendum (2) of 2026-10-21 below): an app with its own server declares `start_script` (one process in
 production mode, root decision 0195 point 19). It runs app code, so it gets the app's
 secrets and siblings and needs its dependencies at run time; the shape is a built
 artifact per key beside the same cache and state, started by the runner like the static
@@ -17048,6 +17048,127 @@ while the sweep reads the siblings leaving the app running; and lsof's evidence 
 `tests/listener-ownership.test.ts` (`observeConnected` before, during and after a real
 connection) and `tests/built-static-server.test.ts` (an idle connection after a request
 still open after 15 s; with Bun's default it closed at about 12).
+
+### F58 addendum (2) of 2026-10-21: an app with its own server runs from `main` as one production process
+
+**Decided by the Organization Admin on 2026-10-21 (root decision 0195, addendum of
+2026-10-21, point 24; plan DEV-6656, phase 2); shaped (variant A of the plan's shaping) and
+implemented here.** The phase 2 left open above: an app with its own server starts from
+`main` as one process in production mode, and its client is built the way a static app is.
+Point 25 of the same addendum governs the shape: parameters, standard capabilities and the
+F58 machinery as it is, no new process and no state of its own.
+
+1. **The declaration.** `lazurio.runtime.start_script` names a script of the app's package
+   that runs its one production process; it may be the same script as `dev_script` when
+   that already is the production server. A client is declared with the existing
+   `build_script` and `build_output` (its client output, `dist`). With `start_script`,
+   `build_output` no longer means "served by the Platform": the app's own process gets its
+   listeners (any number), secrets, siblings and external origin exactly as its
+   development run does, and `static_fallback` is refused (it routes its own requests).
+   The build still gets none of them (point 4's build environment), so nothing secret is
+   built into the client. `start_script` and `build_script` must be scripts of the
+   package.
+2. **The build** is point 4's: the same store, lock, queue, start-time step, output check,
+   failure records, logs and `lazurio module build`. Two differences. **The key is the
+   module's commit alone** (and dirty), whatever data mounts or slots the app has: a
+   server reads its data at run time (root decision 0195 point 6), so a data-only pull,
+   such as a publish from the app's own page, neither builds nor restarts it, and only the
+   module's Git directory is watched. The static server's `--check` is skipped: the app's
+   own process answers its health. A server without a client builds nothing: its build is
+   its key, recorded under the same records with an empty output.
+3. **The start from `main`** (Open, Start, the gateway's `ensure`): the newest build there
+   is, built first when there is none (`build-pending` as point 6), then the start-time
+   step as for a development start (the app runs its code and needs its dependencies),
+   then `bun --no-env-file run <start_script>` in its package with the started
+   application's environment (F26), `NODE_ENV=production` and, with a client,
+   `LAZURIO_RUNTIME_BUILD_OUTPUT`: the installed output of the key it starts with, outside
+   the checkout and never changed once there. The app serves its client from that path
+   (`?? ./dist` for its development run). `served.json` records the key it started with,
+   so that output is kept while it runs.
+4. **After a pull,** point 7's watcher and sweep: a background build of the new key, and
+   when it is built **a plain restart** (the lifecycle's stop, then its start): the
+   branch the swap already had for a static server that must change, taken for every new
+   key of an app's own server. No second process. A run started with `--dev` is never
+   replaced. The same key (a data-only pull, a sweep) restarts nothing.
+5. **Failure.** A failed build: recorded, no restart, the running version keeps serving,
+   with point 9's note ("Nejnovější verzi se nepodařilo sestavit. Dál běží předchozí
+   verze.") and **Spustit vývojovou verzi**. A new commit that builds but does not start:
+   the app ends (`ended`; nothing restarts it by itself), and its page offers **Spustit
+   vývojovou verzi** beside Stop; answers about an ended run keep `build.mode` (what it was
+   started as) for that. The previous version is not kept: its server code lived in the
+   checkout. `main` is guarded by CI (MS-13), so this should be rare.
+6. **The serving digest.** A server run carries the digest of what its process depends on
+   (`serverDigest`: identity, listeners, the start script and its command, the client
+   output it is handed, whether it is the default app and so told its origin, the names
+   of its secrets and siblings), like a built static run's (#561). A pull that changes
+   only a dependency therefore leaves it current, and Open keeps answering, until its
+   restart. This closes #570 for server runs from `main`; a development run still carries
+   its whole declaration.
+7. **The CLI and the Launchpad** show a server run like a static one: "Sestavená verze" or
+   "Vývojový server" in Nová karta's running Modules, `build` in every answer,
+   `lazurio module build` (restarting it onto a new key), `not-static` only for an app
+   with neither `build_output` nor `start_script`.
+
+**What stays.** Static apps, point 6's swap without a restart, point 7's watch and sweep, the
+sleep of the addendum above (a server run sleeps and wakes as its newest build), the
+runners (F8), module-owned ports, the start-time step of every start that runs app code.
+A worktree's preview stays the development server (root decision 0195 point 6). The
+`bun-service` template does not declare `start_script` yet, and the root Module Standard
+does not know it yet: a Module can declare it only after a Platform release that knows the
+key runs on every Environment (a released Platform refuses unknown runtime keys), and the
+root conformance (`RUNTIME_KEYS`, `validateBuiltVersion`) changes in the same window.
+
+| Alternative | Assessment |
+| --- | --- |
+| No restart after a pull; the new key at the next start (variant A′ of the shaping) | No gap, but an older commit while in use; deviates from root decision 0195 point 19; not chosen |
+| Build in place as the preparation (variant B) | The build empties `dist/` under the running server, a failed build leaves nothing; rejected, as for F58 |
+| A bundled server per key outside the checkout (variant C) | The template's server does not run bundled (runtime package resolution, a Worker by `.ts` URL); new machinery for a rare failure; rejected |
+| A second process on a temporary port, then a switch (variant D) | The only way to keep the old version on a failed start; a second identity per app and a port switch; rejected (point 25) |
+| The F58 key (module, data mounts, slots) | A server reading its data at run time would rebuild and restart after every data publish; rejected, point 2 |
+| The whole declaration's digest for a server run | A dependency-only pull would answer "declaration changed" until the restart (#570); rejected, point 6 |
+
+**Failure modes.** A failed build: the running version serves on (point 5). A commit that
+builds but does not start: the app is down with the explicit development start. A server
+without a client builds nothing, so its restart's start-time step is the first to install
+the new commit: when that fails, the app is stopped and its next start names the reason
+(with a client, the build's own step fails first and nothing restarts). A build's
+start-time step installs beneath the running old process when the lockfile changed (as for a
+static app); the old process is replaced seconds later, or, when that build fails, keeps
+running on the new dependencies until its next start.
+
+**Honest limits.**
+- The restart refuses connections for longer than the decision's estimate of about 2 s:
+  3.6 s measured on macOS ARM64 with the Mission Control template app (the session
+  runner's stop confirmation about 1 s, then the start-time step about 2.4 s, then the
+  start and health), 3.7 to 4.0 s in `tests/module-built.test.ts`. Most of it is the
+  start-time step, which every start runs; the same step makes a warm start of that app
+  healthy in 5.2 s on a busy Mac. Linux not measured.
+- A start after a pull that came while the app was stopped and the Launchpad was not
+  running starts the checkout's server with the newest build's client, until the
+  background build of the new commit restarts it (the sweep builds while it sleeps, so
+  this needs both).
+- Two refreshes of one app at once (a start's own check and a watch) may restart it twice
+  in a row; the result is the same version.
+
+**Verified by** `tests/module-runtime.test.ts` (the declaration: `start_script`, a client
+with any listeners and secrets, no fallback, the scripts of the package),
+`tests/module-view.test.ts` (an ended built run offers the development version) and
+`tests/module-built.test.ts` (real processes, an app whose server answers with its mode, the
+output it was handed, the data it reads now and its process: a start from `main` in
+production mode handed its client's build keyed by the module's commit beside a data mount,
+`--dev` and a build that never replaces it; a data-only pull with the same process and key,
+a dependency-only pull that leaves the running server healthy with its link while its build
+runs, then the restart onto the new build; a failed build with the same process serving on,
+a commit that builds but ends at its start, offered the development version, and that
+start). End to end on macOS ARM64 with a scratch copy of the Mission Control template app
+(its declaration as below, through the module operations, session runner): its first open
+healthy in 9.8 s including the build, with `NODE_ENV=production` and
+`LAZURIO_RUNTIME_BUILD_OUTPUT` at the store's key, the module's commit; its page, an asset
+and its API answered with the checkout's own `dist/` removed; a data-only pull built nothing
+and kept the process; a module pull restarted it with the gap above. The template's
+declaration then is `start_script: "dev"` (its `dev` already is its one Bun server),
+`build_script: "prepare:app"` (the Vite build only), `build_output: "dist"`, and its server
+reads `LAZURIO_RUNTIME_BUILD_OUTPUT ?? ./dist`.
 
 ## F59 — Computer Use on a Remote Environment: the Cua Driver's daemon on the screen, one MCP server `computer` for every agent
 
