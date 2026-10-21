@@ -12,6 +12,7 @@ import {
   cardView,
   composioSignIn,
   composioSignInNote,
+  noteAfterReading,
   parseIntegrations,
   toolStatesKey,
 } from "../src/launchpad/integrations-view";
@@ -62,6 +63,12 @@ async function reading(app: App): Promise<IntegrationsOverview> {
   expect(answer.status).toBe(200);
   return (await answer.json()) as IntegrationsOverview;
 }
+// A reading as the page holds it, through the page's own parser.
+const parsed = (overview: IntegrationsOverview) => {
+  const value = parseIntegrations(overview);
+  if (value === null) throw new Error("the page refused the reading");
+  return value;
+};
 const salesforce = (overview: IntegrationsOverview) =>
   overview.apps.find((item) => item.id === "salesforce")?.path;
 
@@ -156,6 +163,18 @@ test("a sign-in completed in the Launchpad makes the next reading current; signe
   expect(after.sources.composio).toBe("ok");
   expect(salesforce(after)).toEqual({ path: "composio", signIn: false });
   expect((await connect(app)).value).toMatchObject({ kind: "authorize" });
+
+  // The page's line asking for the sign-in (#545): kept by the reading
+  // taken while signed out, dropped by the first one after the sign-in;
+  // any other note, and a reading that failed, leave the note as it is.
+  const cs = messages("cs");
+  const asks = composioSignInNote("opened", cs);
+  expect(asks?.text).toBe(cs.integrationsComposioSignIn);
+  expect(noteAfterReading(asks, parsed(before), cs)).toEqual(asks);
+  expect(noteAfterReading(asks, parsed(after), cs)).toBeNull();
+  expect(noteAfterReading(asks, null, cs)).toEqual(asks);
+  const other = { text: cs.integrationsConnectFailed, tone: "danger" as const };
+  expect(noteAfterReading(other, parsed(after), cs)).toEqual(other);
 }, 30_000);
 
 test("the page reads the Integrace again when a tool is installed or switched on or off", () => {
