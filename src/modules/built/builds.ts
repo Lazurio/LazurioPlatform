@@ -111,7 +111,8 @@ export function createBuilds(input: {
     started: boolean;
     /** Joined while under way: it may have read its checkout before the
      * request that joined it (a pull just before an explicit build), so it
-     * reads it once more when it ends, and builds what is there now. */
+     * is queued again when it ends, reads the checkout once more and builds
+     * what is there now; its callers get only that last answer. */
     again: boolean;
     promise: Promise<BuildOutcome>;
     resolve: (outcome: BuildOutcome) => void;
@@ -335,29 +336,33 @@ export function createBuilds(input: {
     active = true;
     next.started = true;
     const directory = next.job.directory;
-    const run = () =>
-      execute(next.job, next.queued).catch(() =>
+    void execute(next.job, next.queued)
+      .catch(() =>
         Object.freeze({
           kind: "failed" as const,
           reason: "build-failed",
           key: null,
         }),
-      );
-    const runs = async () => {
-      let outcome = await run();
-      // Mostly the key it read is built by now, and this answers at once.
-      while (next.again && !closing) {
-        next.again = false;
-        outcome = await run();
-      }
-      return outcome;
-    };
-    void runs().then((outcome) => {
-      entries.delete(directory);
-      active = false;
-      next.resolve(outcome);
-      pump();
-    });
+      )
+      .then((outcome) => {
+        active = false;
+        if (next.again && !closing) {
+          // Joined while under way: it reads the checkout once more, queued
+          // again, so that a person waiting for another app goes first.
+          next.again = false;
+          next.started = false;
+          next.queued = next.foreground
+            ? openBuildStore(directory)
+                .writeQueued(pid, now().toISOString())
+                .catch(() => undefined)
+            : Promise.resolve();
+          pump();
+          return;
+        }
+        entries.delete(directory);
+        next.resolve(outcome);
+        pump();
+      });
   }
 
   return Object.freeze({

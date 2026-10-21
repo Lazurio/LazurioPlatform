@@ -302,6 +302,49 @@ test("a build joined while under way reads the checkout again when it ends: an e
   await builds.settled();
 });
 
+test("a build joined while under way reads again queued behind a person waiting for another app: the waiting person goes first", async () => {
+  const checkouts = new Map<string, Checkout>([
+    ["a", { commit: commit(3), dirty: false }],
+    ["b", { commit: commit(1), dirty: false }],
+  ]);
+  const fake = fakeBuild(checkouts);
+  const builds = builder(fake);
+  const a = app("a", checkouts.get("a") as Checkout);
+  const b = app("b", checkouts.get("b") as Checkout);
+  built(await builds.enqueue(b.job(), "foreground"));
+  // b's background check reads its built commit 1 and is held.
+  let read: () => void = () => {};
+  const reading = new Promise<void>((resolve) => {
+    read = resolve;
+  });
+  let hold: () => void = () => {};
+  const held = new Promise<void>((resolve) => {
+    hold = resolve;
+  });
+  const check = builds.enqueue(
+    b.job({
+      read: async () => {
+        const context = await b.job().read();
+        read();
+        await held;
+        return context;
+      },
+    }),
+    "background",
+  );
+  await reading;
+  // A person waits for app a; b is pulled and its check is joined.
+  const waited = builds.enqueue(a.job(), "foreground");
+  (checkouts.get("b") as Checkout).commit = commit(2);
+  const joined = builds.enqueue(b.job(), "background");
+  hold();
+  await Promise.all([check, waited, joined]);
+  expect(fake.runs).toEqual(["b@01", "a@03", "b@02"]);
+  expect(built(await joined).record.key).toBe(commit(2));
+  expect(await check).toEqual(await joined);
+  await builds.settled();
+});
+
 test("a failed build keeps what was built, is recorded with its log, and is built again only when asked", async () => {
   const checkout = { commit: commit(1), dirty: false };
   const fake = fakeBuild(new Map([["web", checkout]]));
