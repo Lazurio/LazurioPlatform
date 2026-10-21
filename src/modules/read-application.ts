@@ -53,12 +53,13 @@ export async function readModuleApplication(
   const after = await inspectCheckoutDirectory(moduleDirectory);
   if (after.dev !== root.dev || after.ino !== root.ino)
     throw new Error("Module directory changed");
+  // The module's declared default app: the one the gateway serves at the
+  // module's hostname (launchpad-parity B4, B5).
+  const defaultApp =
+    byDefault.kind === "selected" && byDefault.package === selection.package;
   return Object.freeze({
     ...plan,
-    // The module's declared default app: the one the gateway serves at the
-    // module's hostname (launchpad-parity B4, B5).
-    defaultApp:
-      byDefault.kind === "selected" && byDefault.package === selection.package,
+    defaultApp,
     preparation,
     // Include package hooks/toolchain/dependencies, not only the selected script.
     // This is a local change detector, never a publisher or authority proof.
@@ -83,6 +84,37 @@ export async function readModuleApplication(
                 module: plan.runtime.module,
                 listeners: plan.listeners,
                 fallback: plan.runtime.static.fallback,
+              }),
+            )
+            .digest("hex"),
+    // What an app's own server depends on when it runs from `main` (decision
+    // F58, addendum of 2026-10-21): its identity, its listeners, the command
+    // it runs, the output it is handed, whether it is told its origin and the
+    // names of the secrets and siblings it is given, never the rest of its
+    // package. So a pull that changes only a dependency leaves the running
+    // server current until the restart onto its new build (#570). Null for
+    // an app without `start_script`.
+    serverDigest:
+      plan.runtime.server === null
+        ? null
+        : createHash("sha256")
+            .update(
+              JSON.stringify({
+                schema: "lazurio.server-run.v1",
+                id: plan.runtime.id,
+                company: plan.runtime.company,
+                module: plan.runtime.module,
+                listeners: plan.listeners,
+                start: [
+                  plan.runtime.server.start_script,
+                  record(pkg.scripts)[plan.runtime.server.start_script],
+                ],
+                output: plan.runtime.server.build?.output ?? null,
+                // Told its external origin only as the module's default app.
+                defaultApp,
+                secrets: plan.runtime.secrets,
+                optional: plan.runtime.optional_secrets,
+                slots: plan.runtime.optional.required_module_slots ?? null,
               }),
             )
             .digest("hex"),

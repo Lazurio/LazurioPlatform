@@ -6,6 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
+import { messages } from "../src/launchpad/messages";
+import { moduleStatusView } from "../src/launchpad/module-view";
 import type { ApplicationRunner } from "../src/modules/application-runner";
 import { gitCheckoutReader } from "../src/modules/built/checkout";
 import { observeConnected } from "../src/modules/listener-ownership";
@@ -59,14 +61,43 @@ writeFileSync("dist/index.html", "<p>" + page + "</p>");
 writeFileSync("dist/_astro/app." + page + ".js", "/* " + page + " */");
 `;
 
+// The start script of an app with its own server (decision F58, addendum of
+// 2026-10-21): it ends at once at a commit whose page is `crash`, and
+// otherwise answers with its mode, the client it was handed, the module's
+// data as it reads it now and its process.
+const startScript = `
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+if (readFileSync("page.txt", "utf8").trim() === "crash") process.exit(2);
+const output = process.env.LAZURIO_RUNTIME_BUILD_OUTPUT ?? null;
+Bun.serve({
+  hostname: process.env.LAZURIO_RUNTIME_LISTENER_WEB_HOST,
+  port: Number(process.env.LAZURIO_RUNTIME_LISTENER_WEB_PORT),
+  fetch: () =>
+    Response.json({
+      mode: process.env.NODE_ENV,
+      output,
+      page: output === null ? null : readFileSync(join(output, "index.html"), "utf8"),
+      data: existsSync("../db/data.txt") ? readFileSync("../db/data.txt", "utf8").trim() : null,
+      pid: process.pid,
+    }),
+});
+`;
+
 // A module made static: its build script and page, and its own Git
-// repository; returns the repository's git.
-async function makeStatic(directory: string) {
+// repository; returns the repository's git. With `server`, the app runs its
+// own server from main (`start_script`), and its build is its client.
+async function makeStatic(directory: string, server = false) {
   const pkgPath = join(directory, "app/package.json");
   const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
   pkg.scripts.build = `"${process.execPath}" --no-env-file build.ts`;
   pkg.lazurio.runtime.build_script = "build";
   pkg.lazurio.runtime.build_output = "dist";
+  if (server) {
+    pkg.scripts.start = `"${process.execPath}" --no-env-file start.ts`;
+    pkg.lazurio.runtime.start_script = "start";
+    await writeFile(join(directory, "app/start.ts"), startScript);
+  }
   await writeFile(pkgPath, JSON.stringify(pkg));
   await writeFile(join(directory, "app/build.ts"), buildScript);
   await writeFile(join(directory, "app/page.txt"), "one\n");
@@ -109,6 +140,8 @@ async function staticModule(
     runner?: ApplicationRunner;
     /** More of plain's runtime declaration (its required slots). */
     plain?: Record<string, unknown>;
+    /** site runs its own server (`start_script`), its build its client. */
+    server?: boolean;
   }> = {},
 ) {
   const parent = join(root, name);
@@ -153,7 +186,7 @@ async function staticModule(
     home,
   );
   const port3 = await runnableModule(next, home);
-  const git = await makeStatic(site);
+  const git = await makeStatic(site, options.server);
   await makeStatic(next);
   const host: ModuleHost = {
     platform: process.platform,
@@ -215,6 +248,7 @@ async function staticModule(
     operations,
     host,
     folder,
+    git,
     site,
     next,
     port,
@@ -240,6 +274,20 @@ async function staticModule(
           text: await response.text(),
         }))
         .catch(() => ({ status: 0, text: "" })),
+    /** What site's own server answers, or null while nothing does. */
+    server: async () =>
+      fetch(`http://127.0.0.1:${port}/`)
+        .then(
+          (response) =>
+            response.json() as Promise<{
+              mode: string;
+              output: string | null;
+              page: string | null;
+              data: string | null;
+              pid: number;
+            }>,
+        )
+        .catch(() => null),
   };
 }
 
@@ -1157,6 +1205,253 @@ posixTest(
     } finally {
       release();
       await operations.stop("alpha/plain");
+      await operations.close();
+    }
+  },
+  120_000,
+);
+
+// Apps with their own server (decision F58, addendum of 2026-10-21; root
+// decision 0195 point 24): site runs `start_script` from main, handed its
+// client's build; its data is the module's data mount, which it reads at run
+// time.
+
+posixTest(
+  "an app with its own server starts from main as its start_script in production mode, handed its client's build keyed by the module's commit; --dev runs its development script, which a build never replaces",
+  async () => {
+    const home = join(root, "home-server");
+    await mkdir(home);
+    const fixture = await staticModule("server", home, {
+      server: true,
+      dataMount: true,
+    });
+    const { operations } = fixture;
+    try {
+      const first = fixture.head();
+      const started = answer(await operations.start("alpha/site"));
+      expect(started.outcome).toBe("started");
+      // The key is the module's commit alone, data mount or not.
+      expect(started.build).toMatchObject({
+        mode: "built",
+        served: { key: first, commit: first },
+        current: { key: first, commit: first, dirty: false },
+        failure: null,
+      });
+      const served = await until(fixture.server, (page) => page !== null);
+      expect(served).toMatchObject({
+        mode: "production",
+        page: "<p>one+d1</p>",
+        data: "d1",
+      });
+      // The installed output of that key, outside the checkout.
+      const cache = fixture.host.builds?.cacheRoot as string;
+      expect(served?.output?.startsWith(`${cache}/alpha/site/`)).toBe(true);
+      expect(served?.output?.endsWith(`/${first}`)).toBe(true);
+      const healthy = answer(
+        await until(
+          () => operations.status("alpha/site"),
+          (status) => status.kind === "module" && status.healthy,
+        ),
+      );
+      expect(healthy.runtime?.url).toBe(`http://127.0.0.1:${fixture.port}/`);
+      // The start's background check, joined: the key is built.
+      expect(answer(await operations.build("alpha/site")).outcome).toBe(
+        "current",
+      );
+      // The development version, explicitly.
+      const dev = answer(await operations.start("alpha/site", { dev: true }));
+      expect(dev.build?.mode).toBe("dev");
+      await until(fixture.page, (page) => page.text === "synthetic module");
+      // A new commit builds, but never replaces the development run.
+      const second = await fixture.commit("two");
+      const built = answer(await operations.build("alpha/site"));
+      expect(built.outcome).toBe("built");
+      expect(built.build).toMatchObject({
+        mode: "dev",
+        current: { commit: second },
+      });
+      expect((await fixture.page()).text).toBe("synthetic module");
+    } finally {
+      await operations.stop("alpha/site");
+      await operations.close();
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "after a pull an app's own server restarts onto its new build: a data-only pull neither builds nor restarts it, and a pull that changes only a dependency leaves it current until the restart (#570)",
+  async () => {
+    const home = join(root, "home-server-pull");
+    await mkdir(home);
+    const fixture = await staticModule("server-pull", home, {
+      server: true,
+      dataMount: true,
+    });
+    const { operations } = fixture;
+    try {
+      const first = fixture.head();
+      answer(await operations.start("alpha/site"));
+      const before = await until(fixture.server, (page) => page !== null);
+      expect(answer(await operations.build("alpha/site")).outcome).toBe(
+        "current",
+      );
+      const keeper = operations.keepBuilt({ quietMs: 100, sweepMs: 60_000 });
+      await keeper?.sweep();
+      await keeper?.settled();
+      // A data-only pull: the running server reads it; its client, keyed by
+      // the module's commit, is not built again and the process stays.
+      await fixture.publishData("d2");
+      await Bun.sleep(300);
+      await keeper?.sweep();
+      await keeper?.settled();
+      expect(await fixture.server()).toEqual({
+        ...(before as NonNullable<typeof before>),
+        data: "d2",
+      });
+      expect(answer(await operations.status("alpha/site")).build).toMatchObject(
+        {
+          served: { key: first },
+          current: { key: first },
+          building: null,
+        },
+      );
+      // A pull that adds a dependency and changes nothing else; its build
+      // waits, so the running server is read while it is still the old one.
+      await fixture.hold();
+      const app = join(fixture.site, "app");
+      await mkdir(join(app, "two"));
+      await writeFile(
+        join(app, "two/package.json"),
+        JSON.stringify({ name: "fixture-two", version: "1.0.0" }),
+      );
+      const pkg = JSON.parse(await readFile(join(app, "package.json"), "utf8"));
+      pkg.dependencies["fixture-two"] = "file:./two";
+      await writeFile(join(app, "package.json"), JSON.stringify(pkg));
+      const lockfile = Bun.spawn(
+        [process.execPath, "install", "--lockfile-only"],
+        {
+          cwd: app,
+          env: { HOME: home, PATH: "/usr/bin:/bin" },
+          stdout: "ignore",
+          stderr: "ignore",
+        },
+      );
+      expect(await lockfile.exited).toBe(0);
+      fixture.git("add", "-A");
+      fixture.git("commit", "-qm", "A dependency");
+      const second = fixture.head();
+      const building = answer(
+        await until(
+          () => operations.status("alpha/site"),
+          (status) =>
+            status.kind === "module" &&
+            status.build?.building?.commit === second,
+        ),
+      );
+      // Still the running server of the first commit: healthy, with its link,
+      // never "declaration changed".
+      expect(building).toMatchObject({
+        state: "running",
+        healthy: true,
+        runtime: { url: `http://127.0.0.1:${fixture.port}/` },
+        build: { served: { commit: first } },
+      });
+      expect((await fixture.server())?.pid).toBe(before?.pid as number);
+      // The build ends: the app is stopped and started onto it, a new
+      // process handed the new client.
+      await fixture.release();
+      const restarted = await until(
+        fixture.server,
+        (page) => page !== null && page.pid !== before?.pid,
+      );
+      expect(restarted).toMatchObject({
+        mode: "production",
+        page: "<p>one+d2</p>",
+      });
+      expect(restarted?.output?.endsWith(`/${second}`)).toBe(true);
+      await keeper?.settled();
+      expect(
+        answer(
+          await until(
+            () => operations.status("alpha/site"),
+            (status) => status.kind === "module" && status.healthy,
+          ),
+        ).build,
+      ).toMatchObject({
+        mode: "built",
+        served: { commit: second },
+        current: { commit: second },
+      });
+    } finally {
+      await fixture.release();
+      await operations.stop("alpha/site");
+      await operations.close();
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "a failed build keeps an app's own server running the version there was; a commit that builds but does not start ends, and its page offers the development version",
+  async () => {
+    const home = join(root, "home-server-fail");
+    await mkdir(home);
+    const fixture = await staticModule("server-fail", home, { server: true });
+    const { operations } = fixture;
+    try {
+      const first = fixture.head();
+      answer(await operations.start("alpha/site"));
+      const before = await until(fixture.server, (page) => page !== null);
+      expect(answer(await operations.build("alpha/site")).outcome).toBe(
+        "current",
+      );
+      // A build that fails: no restart, the running version serves on.
+      const failing = await fixture.commit("fail");
+      expect(await operations.build("alpha/site")).toMatchObject({
+        kind: "blocked",
+        reason: "build-script-failed",
+        build: {
+          current: { commit: first },
+          failure: { commit: failing, reason: "build-script-failed" },
+        },
+      });
+      const serving = answer(await operations.status("alpha/site"));
+      expect(serving).toMatchObject({
+        healthy: true,
+        build: { mode: "built", served: { commit: first } },
+      });
+      expect(moduleStatusView(serving, messages("cs")).buildNote).toBe(
+        "Nejnovější verzi se nepodařilo sestavit. Dál běží předchozí verze.",
+      );
+      expect((await fixture.server())?.pid).toBe(before?.pid as number);
+      // A commit whose client builds but whose server ends at its start.
+      const crashing = await fixture.commit("crash");
+      expect(answer(await operations.build("alpha/site")).outcome).toBe(
+        "built",
+      );
+      const ended = answer(
+        await until(
+          () => operations.status("alpha/site"),
+          (status) => status.kind === "module" && status.state === "ended",
+        ),
+      );
+      expect(ended).toMatchObject({
+        healthy: false,
+        build: { mode: "built", served: { commit: crashing } },
+      });
+      expect(moduleStatusView(ended, messages("cs"))).toMatchObject({
+        dot: "failed",
+        action: "stop",
+        development: true,
+      });
+      // The explicit development start.
+      const dev = answer(await operations.start("alpha/site", { dev: true }));
+      expect(dev).toMatchObject({ outcome: "started", build: { mode: "dev" } });
+      await until(fixture.page, (page) => page.text === "synthetic module");
+      expect((await fixture.page()).text).toBe("synthetic module");
+    } finally {
+      await operations.stop("alpha/site");
       await operations.close();
     }
   },

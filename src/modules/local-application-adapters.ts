@@ -171,7 +171,13 @@ export function localApplicationAdapters(input: {
     preflightPreparation: preflight(false),
     preflightCleanPreparation: preflight(false, true),
     preflightStartCheck: preflight(true),
-    async prepareLaunch(plan, cwd) {
+    // The app's development script, or with `production` its own server
+    // from `main` (decision F58, addendum of 2026-10-21): the same checks,
+    // siblings, origin and secrets, its `start_script` in production mode.
+    async prepareLaunch(plan, cwd, production) {
+      const server = plan.runtime.server;
+      if (production !== undefined && server === null)
+        throw new Error("Application without its own server");
       const module = await authorize(
         {
           company: plan.runtime.company,
@@ -212,7 +218,13 @@ export function localApplicationAdapters(input: {
       return {
         executable: selected.executable,
         cwd,
-        args: ["--no-env-file", "run", plan.runtime.dev_script],
+        args: [
+          "--no-env-file",
+          "run",
+          production === undefined || server === null
+            ? plan.runtime.dev_script
+            : server.start_script,
+        ],
         env: applicationEnvironment({
           base: selected.env,
           plan,
@@ -221,6 +233,7 @@ export function localApplicationAdapters(input: {
           externalOrigin,
           siblings,
           secrets: secrets.variables,
+          production,
         }),
         ...(secrets.notProvided.length > 0
           ? { secretsNotProvided: secrets.notProvided }

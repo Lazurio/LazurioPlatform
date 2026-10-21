@@ -1405,8 +1405,12 @@ export function createCatalogPanel(
       control.append(button);
     }
     // After a failed build: the start that failed, or a running app whose
-    // newest build failed (decision F58).
-    if (current.development === true || view.buildNote !== undefined) {
+    // newest build failed (decision F58); or a built run that ended.
+    if (
+      current.development === true ||
+      view.buildNote !== undefined ||
+      view.development === true
+    ) {
       const button = element("button", "", copy.moduleStartDev);
       button.type = "button";
       button.dataset.moduleAction = "development";

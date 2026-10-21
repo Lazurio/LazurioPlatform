@@ -27,7 +27,9 @@ import {
 // declared health path, reads the checkouts again and only then installs the
 // output under its key: a pull during the build builds again, so an output
 // is never of a mix of two commits. A failure is recorded and keeps every
-// output there was.
+// output there was. The client of an app with its own server (the addendum
+// of 2026-10-21) builds the same way, without the static server's check; a
+// server without a client builds nothing and records its key.
 
 /** What a build needs of one app, read anew when it starts. */
 export type BuildContext = Readonly<{
@@ -38,10 +40,16 @@ export type BuildContext = Readonly<{
   key: string;
   /** The app's package directory, where its build script runs. */
   cwd: string;
-  script: string;
-  output: string;
-  fallback: StaticFallback;
-  /** The entrypoint's declared health path: the output must answer it. */
+  /** Its build script and the output it writes; both null for an app with
+   * its own server and no client (decision F58, addendum of 2026-10-21),
+   * whose build runs nothing and is its key alone. */
+  script: string | null;
+  output: string | null;
+  /** A static app's fallback; null for an app with its own server, whose
+   * output the static server never checks (the app answers its health). */
+  fallback: StaticFallback | null;
+  /** The entrypoint's declared health path: a static app's output must
+   * answer it. */
   health: string;
   env: Readonly<Record<string, string>>;
 }>;
@@ -211,6 +219,12 @@ export function createBuilds(input: {
           }),
         });
         await store.clearQueued();
+        // Nothing to build (an app's own server without a client): its key,
+        // with an empty output, under the same records.
+        const output =
+          context.script === null || context.output === null
+            ? null
+            : join(context.cwd, context.output);
         const failed = async (reason: string) => {
           state = await record(store, state, {
             building: null,
@@ -223,50 +237,55 @@ export function createBuilds(input: {
           });
           return Object.freeze({ kind: "failed" as const, reason, key });
         };
-        const prepared = await job.prepare();
-        if (closing) {
-          await record(store, state, { building: null });
-          return Object.freeze({ kind: "closing" as const });
+        if (output !== null && context.script !== null) {
+          const prepared = await job.prepare();
+          if (closing) {
+            await record(store, state, { building: null });
+            return Object.freeze({ kind: "closing" as const });
+          }
+          if (prepared !== null) return failed(prepared);
+          await store.prepareLogs();
+          // Fail closed on a stale output: the app's output directory (in
+          // its package, gitignored, which the framework's own build empties
+          // too) is removed first, so whatever is there afterwards was
+          // written by this run; a script that succeeds without writing it,
+          // or writes only part of it, never presents an earlier build as
+          // this key's.
+          await rm(output, { recursive: true, force: true });
+          const started = Date.now();
+          const ran = await runBuild({
+            runner: await input.runner(),
+            runtimeDirectory: input.runtimeDirectory,
+            executable: input.executable,
+            cwd: context.cwd,
+            script: context.script,
+            env: context.env,
+            log: store.logFile(key),
+            timeoutMs: buildTimeoutMs,
+            signal: abort.signal,
+          });
+          if (ran.kind === "cancelled" || closing) {
+            await record(store, state, { building: null });
+            return Object.freeze({ kind: "closing" as const });
+          }
+          if (ran.kind === "timed-out") return failed("build-timed-out");
+          if (ran.kind !== "exited" || ran.code !== 0)
+            return failed("build-script-failed");
+          // Written by this run: there, a real directory, created after it
+          // started (a second of slack for coarse file system clocks).
+          const entry = await lstat(output).catch(() => null);
+          if (
+            entry === null ||
+            !entry.isDirectory() ||
+            entry.ctimeMs < started - 1000
+          )
+            return failed("build-output-missing");
+          if (
+            context.fallback !== null &&
+            !(await input.servable(output, context.health, context.fallback))
+          )
+            return failed("build-output-unservable");
         }
-        if (prepared !== null) return failed(prepared);
-        await store.prepareLogs();
-        // Fail closed on a stale output: the app's output directory (in its
-        // package, gitignored, which the framework's own build empties too)
-        // is removed first, so whatever is there afterwards was written by
-        // this run; a script that succeeds without writing it, or writes only
-        // part of it, never presents an earlier build as this key's.
-        const output = join(context.cwd, context.output);
-        await rm(output, { recursive: true, force: true });
-        const started = Date.now();
-        const ran = await runBuild({
-          runner: await input.runner(),
-          runtimeDirectory: input.runtimeDirectory,
-          executable: input.executable,
-          cwd: context.cwd,
-          script: context.script,
-          env: context.env,
-          log: store.logFile(key),
-          timeoutMs: buildTimeoutMs,
-          signal: abort.signal,
-        });
-        if (ran.kind === "cancelled" || closing) {
-          await record(store, state, { building: null });
-          return Object.freeze({ kind: "closing" as const });
-        }
-        if (ran.kind === "timed-out") return failed("build-timed-out");
-        if (ran.kind !== "exited" || ran.code !== 0)
-          return failed("build-script-failed");
-        // Written by this run: there, a real directory, created after it
-        // started (a second of slack for coarse file system clocks).
-        const entry = await lstat(output).catch(() => null);
-        if (
-          entry === null ||
-          !entry.isDirectory() ||
-          entry.ctimeMs < started - 1000
-        )
-          return failed("build-output-missing");
-        if (!(await input.servable(output, context.health, context.fallback)))
-          return failed("build-output-unservable");
         // A pull while it built: the output may mix two commits. Build the
         // new one instead.
         const after = await job.read();

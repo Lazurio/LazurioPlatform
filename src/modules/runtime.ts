@@ -35,6 +35,7 @@ export function parseAppRuntime(input: unknown) {
       "optional_secrets",
       "build_output",
       "static_fallback",
+      "start_script",
     ],
   );
   if (value.schema_version !== "lazurio.runtime.v1")
@@ -133,7 +134,13 @@ export function parseAppRuntime(input: unknown) {
   });
   if (listeners.filter((item) => item.role === "entrypoint").length !== 1)
     throw new Error("Exactly one entrypoint required");
-  const built = staticOutput(value, listeners, secrets, optionalSecrets);
+  const start = Object.hasOwn(value, "start_script")
+    ? text(value.start_script, /\S/)
+    : null;
+  const built =
+    start === null
+      ? staticOutput(value, listeners, secrets, optionalSecrets)
+      : null;
   return Object.freeze({
     schema_version: "lazurio.runtime.v1" as const,
     id,
@@ -156,8 +163,15 @@ export function parseAppRuntime(input: unknown) {
     /** The app's static output (root decision 0195 point 19, decision F58):
      * its `build_script` writes `output`, a directory of its package, which
      * the Platform keeps per commit outside the checkout and serves itself.
-     * Null for an app that runs its development script only. */
+     * Null for an app that runs its development script only, or its own
+     * server (`server`). */
     static: built,
+    /** The app's own server (decision F58, addendum of 2026-10-21; root
+     * decision 0195 point 24): from `main` it runs `start_script`, one
+     * process in production mode, and its client, when it declares
+     * `build_output`, is built as a static app's is and handed to it.
+     * Null for an app without `start_script`. */
+    server: start === null ? null : serverRun(value, start),
     optional: Object.freeze(optional),
   });
 }
@@ -186,15 +200,7 @@ function staticOutput(
       throw new Error("Static fallback without build output");
     return null;
   }
-  const output = text(value.build_output, /\S/);
-  const segments = output.split("/");
-  if (
-    output.length > 200 ||
-    !segments.every((segment) => outputSegment.test(segment))
-  )
-    throw new Error("Invalid build output");
-  if (!Object.hasOwn(value, "build_script"))
-    throw new Error("Build output without build script");
+  const output = buildOutput(value);
   const fallback = Object.hasOwn(value, "static_fallback")
     ? text(value.static_fallback, /^(404|spa)$/)
     : "404";
@@ -211,6 +217,43 @@ function staticOutput(
     build_script: text(value.build_script, /\S/),
     output,
     fallback: fallback as "404" | "spa",
+  });
+}
+
+// `build_output`: a directory of the app's package its `build_script`
+// writes (decision F58).
+function buildOutput(value: Record<string, unknown>) {
+  const output = text(value.build_output, /\S/);
+  const segments = output.split("/");
+  if (
+    output.length > 200 ||
+    !segments.every((segment) => outputSegment.test(segment))
+  )
+    throw new Error("Invalid build output");
+  if (!Object.hasOwn(value, "build_script"))
+    throw new Error("Build output without build script");
+  return output;
+}
+
+// `start_script` (decision F58, addendum of 2026-10-21): the app's own
+// process, which gets its listeners, secrets and siblings as its development
+// run does, so a client it declares (`build_output`) is bound by neither the
+// one-listener nor the no-secrets rule of a static app; only its build runs
+// without them. It routes its own requests: `static_fallback` would mean
+// nothing.
+function serverRun(value: Record<string, unknown>, start: string) {
+  if (Object.hasOwn(value, "static_fallback"))
+    throw new Error("Static fallback of an app with its own server");
+  return Object.freeze({
+    start_script: start,
+    /** Its client: built from `main` as a static app's output is; null for
+     * a server without one. */
+    build: Object.hasOwn(value, "build_output")
+      ? Object.freeze({
+          output: buildOutput(value),
+          build_script: text(value.build_script, /\S/),
+        })
+      : null,
   });
 }
 
@@ -246,28 +289,25 @@ export function planModuleRuntime(
     throw new Error("Runtime module identity mismatch");
   if (typeof scripts !== "object" || scripts === null || Array.isArray(scripts))
     throw new Error("Package scripts required");
-  const script = Object.getOwnPropertyDescriptor(scripts, runtime.dev_script);
-  if (
-    !script ||
-    !("value" in script) ||
-    typeof script.value !== "string" ||
-    !script.value.trim()
-  )
-    throw new Error("Declared development script missing");
-  // A static app's build script must be one of its package's scripts too.
-  if (runtime.static !== null) {
-    const build = Object.getOwnPropertyDescriptor(
-      scripts,
-      runtime.static.build_script,
-    );
-    if (
-      !build ||
-      !("value" in build) ||
-      typeof build.value !== "string" ||
-      !build.value.trim()
-    )
-      throw new Error("Declared build script missing");
-  }
+  // The command of one of the package's scripts, or null.
+  const command = (name: string) => {
+    const script = Object.getOwnPropertyDescriptor(scripts, name);
+    return script &&
+      "value" in script &&
+      typeof script.value === "string" &&
+      script.value.trim()
+      ? script.value
+      : null;
+  };
+  const script = command(runtime.dev_script);
+  if (script === null) throw new Error("Declared development script missing");
+  // A built app's build and start scripts are its package's scripts too.
+  const build =
+    runtime.static?.build_script ?? runtime.server?.build?.build_script;
+  if (build !== undefined && command(build) === null)
+    throw new Error("Declared build script missing");
+  if (runtime.server !== null && command(runtime.server.start_script) === null)
+    throw new Error("Declared start script missing");
   const listeners = runtime.listeners.map((listener) => {
     const lease = module.port_leases.find((item) => item.id === listener.lease);
     if (!lease) throw new Error("Runtime references unknown module lease");
@@ -276,7 +316,7 @@ export function planModuleRuntime(
   return Object.freeze({
     kind: "declared-runtime-plan" as const,
     package: packagePath,
-    scriptDigest: createHash("sha256").update(script.value).digest("hex"),
+    scriptDigest: createHash("sha256").update(script).digest("hex"),
     runtime,
     listeners: Object.freeze(listeners),
   });

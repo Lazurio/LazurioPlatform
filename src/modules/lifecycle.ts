@@ -80,21 +80,30 @@ function launchOf(input: unknown): {
 /** A built start (decision F58): the record of what the app serves
  * (`served.json` beside its builds), which the Platform's static server
  * reads at its start and again whenever it changes, so that a swap onto a
- * new build never restarts it. */
-export type StaticServe = Readonly<{ served: string }>;
+ * new build never restarts it. An app with its own server (the addendum of
+ * 2026-10-21) is handed `output`, the installed output of the build it
+ * starts with, when it has a client. */
+export type BuiltServe = Readonly<{ served: string; output?: string }>;
 
-function staticServe(input: StaticServe): StaticServe {
-  const value = object(input, ["served"]);
+function builtServe(input: BuiltServe): BuiltServe {
+  const value = object(input, ["served"], ["output"]);
   const served = text(value.served, /^\/.*\/served\.json$/);
-  if (served.split("/").includes("..")) throw new Error("Invalid served path");
-  return Object.freeze({ served });
+  const output = Object.hasOwn(value, "output")
+    ? text(value.output, /^\/./)
+    : undefined;
+  if ([served, output ?? ""].some((path) => path.split("/").includes("..")))
+    throw new Error("Invalid served path");
+  return Object.freeze(output === undefined ? { served } : { served, output });
 }
 
 /** Whether a run was started from this declaration: its whole digest, or
- * for a built run the static serving digest (decision F58). */
+ * for a built run the digest of what its process depends on (decision F58):
+ * the static serving digest, or the app's own server's. */
 const startedFrom = (plan: Plan, digest: string | null) =>
   digest !== null &&
-  (plan.declarationDigest === digest || plan.staticDigest === digest);
+  (plan.declarationDigest === digest ||
+    plan.staticDigest === digest ||
+    plan.serverDigest === digest);
 
 function selection(input: unknown): Selection {
   const value = object(input, ["company", "module", "package"]);
@@ -121,15 +130,22 @@ export function createApplicationLifecycle(adapters: {
   // The launch: `executable`, `cwd`, `args` and `env`, and optionally
   // `secretsNotProvided`, the optional runtime secrets the app starts
   // without (decision F46), which the start's answer reports.
-  prepareLaunch: (plan: Plan, cwd: string) => Promise<unknown>;
-  // The launch of a built start (decision F58): the Platform's static server
-  // on the app's declared listener, serving `serve.root`. It runs nothing of
-  // the app, so a built start has no start-time step. Without it, a built
-  // start is `invalid-or-unavailable`.
+  // With `production`, the app's own server from `main` (decision F58,
+  // addendum of 2026-10-21): its `start_script` in production mode, handed
+  // the installed output of its client's build when it has one.
+  prepareLaunch: (
+    plan: Plan,
+    cwd: string,
+    production?: Readonly<{ buildOutput: string | null }>,
+  ) => Promise<unknown>;
+  // The launch of a static app's built start (decision F58): the Platform's
+  // static server on the app's declared listener, serving `serve.root`. It
+  // runs nothing of the app, so it has no start-time step. Without it, a
+  // static app's built start is `invalid-or-unavailable`.
   prepareStaticLaunch?: (
     plan: Plan,
     cwd: string,
-    serve: StaticServe,
+    serve: BuiltServe,
   ) => Promise<unknown>;
   // Explicit module preparation. Preflight is read-only and checks its actual
   // dependency owner before any app stop. The effect owns bounded subprocess
@@ -327,7 +343,8 @@ export function createApplicationLifecycle(adapters: {
     }
   }
   return Object.freeze({
-    /** A static app's build (decision F58) begins with the app's start-time
+    /** A built app's build (decision F58: a static app's output, or the
+     * client of an app with its own server) begins with the app's start-time
      * step, as a start would run it, under the same exclusion: its
      * dependencies installed from the lockfile, its check, and its
      * preparation when the check fails. The build script itself runs
@@ -348,7 +365,7 @@ export function createApplicationLifecycle(adapters: {
           const cwd = applicationDirectory(value, directory);
           try {
             const plan = await read(value, directory);
-            if (plan.runtime.static === null)
+            if (plan.runtime.static === null && plan.runtime.server === null)
               return Object.freeze({ kind: "not-static" as const });
             if (adapters.preflightStartCheck) {
               const refused = await startCheck(
@@ -514,11 +531,13 @@ export function createApplicationLifecycle(adapters: {
       );
     },
     /** Start the app: its development script, or with `serve` its built
-     * output through the Platform's static server (decision F58), which
-     * runs nothing of the app and so has no start-time step. */
-    start(input: unknown, serve?: StaticServe) {
+     * version (decision F58): a static app's output through the Platform's
+     * static server, which runs nothing of the app and so has no start-time
+     * step, or the app's own server in production mode after it (the
+     * addendum of 2026-10-21). */
+    start(input: unknown, serve?: BuiltServe) {
       const value = selection(input);
-      const served = serve === undefined ? undefined : staticServe(serve);
+      const served = serve === undefined ? undefined : builtServe(serve);
       return mutation(
         value,
         async () => {
@@ -551,7 +570,7 @@ export function createApplicationLifecycle(adapters: {
           let notProvided: readonly RuntimeSecretFinding[] = [];
           try {
             plan = await read(value, directory);
-            if (served !== undefined) {
+            if (served !== undefined && plan.runtime.server === null) {
               if (
                 plan.runtime.static === null ||
                 adapters.prepareStaticLaunch === undefined
@@ -575,7 +594,13 @@ export function createApplicationLifecycle(adapters: {
               }
               if (closing) return Object.freeze({ kind: "closing" as const });
               ({ launch, notProvided } = launchOf(
-                await adapters.prepareLaunch(plan, cwd),
+                await adapters.prepareLaunch(
+                  plan,
+                  cwd,
+                  served === undefined
+                    ? undefined
+                    : { buildOutput: served.output ?? null },
+                ),
               ));
             }
             if (launch.cwd !== cwd) throw new Error("Launch path mismatch");
@@ -618,12 +643,15 @@ export function createApplicationLifecycle(adapters: {
             Object.freeze({
               application: value,
               launch,
-              // A built run is the static server of this declaration's
-              // serving part only (decision F58).
+              // A built run carries what its process depends on only: the
+              // static server's serving part, or the app's own server's
+              // (decision F58).
               declarationDigest:
-                served !== undefined && plan.staticDigest !== null
-                  ? plan.staticDigest
-                  : plan.declarationDigest,
+                served === undefined
+                  ? plan.declarationDigest
+                  : (plan.serverDigest ??
+                    plan.staticDigest ??
+                    plan.declarationDigest),
               ports: Object.freeze(plan.listeners.map((item) => item.port)),
             }),
           );
