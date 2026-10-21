@@ -13,6 +13,7 @@ import {
   checkHistoryQuery,
   checkMessageAccepted,
   checkMessageRequest,
+  isFileName,
   isMimeType,
   isRuntimeId,
   type RuntimeErrorCode,
@@ -192,6 +193,26 @@ async function adapterError(upstream: Response): Promise<Response> {
 
 const inlineImages = /^image\/(?:png|jpeg|gif|webp)$/;
 
+/** A download under the name the page gives it, when that is a file's name
+ * (`isFileName`); the name only suggests where the browser saves it. */
+export function attachmentDisposition(name: string | null): string {
+  if (name === null || !isFileName(name)) return "attachment";
+  const ascii = [...name]
+    .map((character) =>
+      /^[\x20-\x7e]$/.test(character) && character !== '"' && character !== "\\"
+        ? character
+        : "_",
+    )
+    .join("");
+  // RFC 8187: the characters `encodeURIComponent` leaves are not all
+  // attr-chars.
+  const encoded = encodeURIComponent(name).replace(
+    /['()*!]/g,
+    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+}
+
 export function createBuddyFrameHandler(
   config: BuddyFrameConfig,
   pages: Pages,
@@ -352,7 +373,7 @@ export function createBuddyFrameHandler(
     });
   }
 
-  async function media(id: string): Promise<Response> {
+  async function media(id: string, name: string | null): Promise<Response> {
     const asked = await adapter(`/v1/media/${encodeURIComponent(id)}`, {
       method: "GET",
       accept: "*/*",
@@ -379,7 +400,7 @@ export function createBuddyFrameHandler(
         "Content-Type": type,
         "Content-Disposition": inlineImages.test(type)
           ? "inline"
-          : "attachment",
+          : attachmentDisposition(name),
         "Content-Security-Policy": "default-src 'none'; sandbox",
       },
     });
@@ -468,7 +489,9 @@ export function createBuddyFrameHandler(
     const file = /^\/api\/v1\/media\/([^/]+)$/.exec(path);
     if (file !== null && request.method === "GET") {
       const id = decodeURIComponent(file[1] as string);
-      return isRuntimeId(id) ? media(id) : problem("not-found");
+      return isRuntimeId(id)
+        ? media(id, url.searchParams.get("name"))
+        : problem("not-found");
     }
     return problem("not-found");
   }

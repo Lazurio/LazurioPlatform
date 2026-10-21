@@ -218,6 +218,8 @@ export type PageContext = Readonly<{
   organization: Readonly<{ slug: string; name: string }> | null;
   app: PageApp | null;
   page: Readonly<{ path: string }>;
+  /** The explanation the guide last showed on the page and its step,
+   * counted from 1, at most 16 (the shell's `buddyContextLimits.steps`). */
   guide: Readonly<{ explainer: string; step: number }> | null;
 }>;
 
@@ -280,8 +282,8 @@ export function checkPageContext(input: unknown): Checked<PageContext | null> {
     if (
       typeof guide.step !== "number" ||
       !Number.isInteger(guide.step) ||
-      guide.step < 0 ||
-      guide.step > 63
+      guide.step < 1 ||
+      guide.step > 16
     )
       return no("guide step");
   }

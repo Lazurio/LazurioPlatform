@@ -134,7 +134,7 @@ const hostPage = `<!doctype html>
       frame = document.createElement("iframe");
       frame.title = "Buddy";
       frame.src = buddy + "/";
-      frame.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads");
+      frame.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox");
       frame.setAttribute("referrerpolicy", "origin");
       frame.setAttribute("allow", "clipboard-write");
       panel.append(frame);

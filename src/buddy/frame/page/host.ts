@@ -20,7 +20,7 @@ import { hostEnvironmentOf } from "../hosts";
 //   host → frame: {type: "lazurio.buddy.context", v: 1, lang, theme,
 //                  environment: {id, kind, name} | null,
 //                  organization: {slug, name} | null, app, page: {path},
-//                  guide: {explainer, step} | null}
+//                  guide: {explainer, step} | null}   (step counted from 1, at most 16)
 //
 // The frame takes a context only when all of these hold (`acceptContext`):
 //   1. it comes from the frame's parent window, and the frame is framed;
@@ -33,7 +33,8 @@ import { hostEnvironmentOf } from "../hosts";
 //      `theme` light or dark, `kind` personal, work or team, `app` apps,
 //      settings, chat, automate or null;
 //   5. `environment.id` is the Environment of the host's origin, so a page
-//      cannot claim to be another Environment.
+//      cannot claim to be another Environment, and `kind` is personal
+//      exactly where that Environment is an Osobní Prostředí (one label).
 // Anything refused is dropped without an answer, and the frame works
 // without context. It keeps only the last context, in memory. Messages to
 // the host go only to its exact origin, never `*`. Pure: no DOM.
@@ -130,6 +131,9 @@ export function acceptContext(
     !isEnvironmentId(environment.id) ||
     environment.id !== hostEnvironment ||
     !environmentKinds.includes(environment.kind as EnvironmentKind) ||
+    // Personal exactly where the host's base is one label, the Osobní
+    // Prostředí's slug (the shell's `buddy-protocol.ts` sends it so).
+    (environment.kind === "personal") !== !hostEnvironment.includes(".") ||
     !line(environment.name, 128)
   )
     return null;
@@ -155,8 +159,8 @@ export function acceptContext(
       !isExplainerId(guide.explainer) ||
       typeof guide.step !== "number" ||
       !Number.isInteger(guide.step) ||
-      guide.step < 0 ||
-      guide.step > 63)
+      guide.step < 1 ||
+      guide.step > 16)
   )
     return null;
   return Object.freeze({

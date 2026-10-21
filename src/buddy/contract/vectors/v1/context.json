@@ -69,6 +69,18 @@
       "valid": true
     },
     {
+      "name": "the guide's last step, 16",
+      "check": "page-context",
+      "input": {
+        "environment": { "id": "vm-01.acme", "kind": "work", "name": "vm-01" },
+        "organization": null,
+        "app": "apps",
+        "page": { "path": "/" },
+        "guide": { "explainer": "integrations", "step": 16 }
+      },
+      "valid": true
+    },
+    {
       "name": "a member more on top",
       "check": "page-context",
       "input": {
@@ -322,20 +334,20 @@
         "organization": null,
         "app": null,
         "page": { "path": "/" },
-        "guide": { "explainer": "Files", "step": 0 }
+        "guide": { "explainer": "Files", "step": 1 }
       },
       "valid": false,
       "why": "guide explainer"
     },
     {
-      "name": "a negative step",
+      "name": "a step counted from 0",
       "check": "page-context",
       "input": {
         "environment": null,
         "organization": null,
         "app": null,
         "page": { "path": "/" },
-        "guide": { "explainer": "files", "step": -1 }
+        "guide": { "explainer": "files", "step": 0 }
       },
       "valid": false,
       "why": "guide step"
@@ -354,14 +366,14 @@
       "why": "guide step"
     },
     {
-      "name": "a step past 63",
+      "name": "a step past 16",
       "check": "page-context",
       "input": {
         "environment": null,
         "organization": null,
         "app": null,
         "page": { "path": "/" },
-        "guide": { "explainer": "files", "step": 64 }
+        "guide": { "explainer": "files", "step": 17 }
       },
       "valid": false,
       "why": "guide step"

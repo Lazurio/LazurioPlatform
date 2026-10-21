@@ -399,6 +399,24 @@ describe("the proxy", () => {
     await image.body?.cancel();
     const page = await ask(`/api/v1/media/${ids[1]}`);
     expect(page.headers.get("content-disposition")).toBe("attachment");
+    await page.body?.cancel();
+    // Opened in a new tab, a file downloads under its own name.
+    const named = await ask(
+      `/api/v1/media/${ids[1]}?name=${encodeURIComponent("Zpráva (1).html")}`,
+    );
+    expect(named.headers.get("content-disposition")).toBe(
+      `attachment; filename="Zpr_va (1).html"; filename*=UTF-8''Zpr%C3%A1va%20%281%29.html`,
+    );
+    await named.body?.cancel();
+    const traversal = await ask(
+      `/api/v1/media/${ids[1]}?name=${encodeURIComponent("../a.html")}`,
+    );
+    expect(traversal.headers.get("content-disposition")).toBe("attachment");
+    await traversal.body?.cancel();
+    const inline = await ask(`/api/v1/media/${ids[0]}?name=a.png`);
+    expect(inline.headers.get("content-disposition")).toBe("inline");
+    await inline.body?.cancel();
+    expect(page.headers.get("content-disposition")).toBe("attachment");
     expect(page.headers.get("x-content-type-options")).toBe("nosniff");
     await page.body?.cancel();
   });

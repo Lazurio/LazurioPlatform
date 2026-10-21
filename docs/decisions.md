@@ -17336,15 +17336,16 @@ the desktop view exists. The first verification is on a Remote Environment of th
 reference Organization (root decision 0204), after Machines delivers the driver and the
 packages.
 
-## F60 — Buddy's chat on the web: a frame served by the Launchpad's process, its runtime contract with Hermes, the wake back into its channel
+## F61 — Buddy's chat on the web: a frame served by the Launchpad's process, its runtime contract with Hermes, the wake back into its channel
 
 **Direction by Matěj 2026-10-21 (plan DEV-6676, root decision 0210 and its addenda, the
 lead contract `drafts/buddy-web-v1/CONTRACT.md` of the Lazurio root, sections 4, 5 and
 7); the details below are proposed and implemented in this revision.** A person sees a Buddy bubble on the Launchpad,
-Chat and Automate of their Environments; the shell's element (`<lazurio-buddy>`, built
-apart against CONTRACT sections 1 to 3) frames Buddy's chat, which the person's own
-Osobní Prostředí serves on `https://buddy.<slug>.lazurio.io`. This decision is that
-frame, the API between it and Hermes, and the wake of a delegation.
+Chat and Automate of their Environments; the shell's element (`<lazurio-buddy>`,
+decision F60, CONTRACT sections 1 to 3, built apart in Lazurio/LazurioPlatform#588)
+frames Buddy's chat, which the person's own Osobní Prostředí serves on
+`https://buddy.<slug>.lazurio.io`. This decision is that frame, the API between it and
+Hermes, and the wake of a delegation.
 
 1. **The frame is a second listener of the hosted Launchpad's process.** No unit of
    its own: `startLaunchpad` starts it behind a gateway when the Osobní Prostředí
@@ -17376,7 +17377,8 @@ frame, the API between it and Hermes, and the wake of a delegation.
    passes through and ends within 110 s, so every reconnect passes the gateway again;
    an adapter's refusal of the frame (its secret, its Host) is `502 adapter-refused`
    and never reads as signed out; a file of Buddy's shows in place only as a picture,
-   anything else downloads under a sandboxing CSP.
+   anything else opens in a new tab and downloads under its name (the shell frames
+   Buddy without `allow-downloads`) under a sandboxing CSP.
 4. **The runtime contract `lazurio.buddy-runtime.v1` lives here**
    (`src/buddy/contract/`): endpoints, transport, events and errors, with JSON vectors
    that are its truth. The Hermes fork implements and tests against them. It fixes
@@ -17396,8 +17398,11 @@ frame, the API between it and Hermes, and the wake of a delegation.
 6. **The host protocol, the frame's side** (`src/buddy/frame/page/host.ts`): `ready`
    and `layout` out, only to the host's exact origin; `context` in, only from the
    parent window at that origin, exact keys at every level, closed enums, and an
-   `environment.id` that is the host's own Environment; anything defective is dropped.
-   Reconciled with the shell's `src/shell/buddy-protocol.ts` when both exist.
+   `environment.id` that is the host's own Environment, personal exactly where that is
+   an Osobní Prostředí; the guide's step counted from 1, at most 16; anything defective
+   is dropped. These are the messages, keys, enums and caps of the shell's
+   `src/shell/buddy-protocol.ts` (F60); once both are merged the frame takes its checks
+   from there instead of its own copy.
 7. **budíček wakes Buddy where the delegation came from.** A record gains the
    optional `kanal {platform, chat_id}` (still `verze: 1`): first the Hermes session it
    runs in (`HERMES_SESSION_PLATFORM`, `HERMES_SESSION_CHAT_ID`, which Hermes exports to

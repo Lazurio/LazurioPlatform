@@ -132,9 +132,13 @@ function mediaNodes(media: readonly Media[]): Node[] {
       link.append(image);
       return link;
     }
+    // A file opens in a new tab, where it downloads under its name: the
+    // shell frames Buddy without `allow-downloads`, so a download from
+    // inside the frame would be refused.
     const link = el("a", "bw__file", item.name);
-    link.href = address;
-    link.download = item.name;
+    link.href = `${address}?name=${encodeURIComponent(item.name)}`;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
     link.prepend(icon("attach", 14));
     return link;
   });

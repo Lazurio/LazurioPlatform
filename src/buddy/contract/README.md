@@ -63,7 +63,9 @@ words every code itself.
   `environment {id, kind: personal|work|team, name} | null`,
   `organization {slug, name} | null`, `app: apps|settings|chat|automate | null`,
   `page {path}` (a pathname only, never a query or a fragment) and
-  `guide {explainer, step} | null`.
+  `guide {explainer, step} | null` (the step counted from 1, at most 16), the same
+  members and rules as the shell's `lazurio.buddy.context` without `type`, `v`,
+  `lang` and `theme`.
 
 ### Events (`events.json`)
 

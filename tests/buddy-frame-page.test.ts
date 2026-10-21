@@ -200,6 +200,35 @@ describe("the host protocol, the frame's side", () => {
     });
   });
 
+  test("the Osobní Prostředí's own Launchpad is personal, and only it", () => {
+    const own = "https://launchpad.jana.lazurio.io";
+    const personal = {
+      ...context,
+      environment: { id: "jana", kind: "personal", name: "Osobní Prostředí" },
+      organization: null,
+    };
+    expect(
+      acceptContext(event(personal, own), frame, own)?.context.environment,
+    ).toEqual({
+      id: "jana",
+      kind: "personal",
+      name: "Osobní Prostředí",
+    });
+    expect(
+      acceptContext(
+        event(
+          {
+            ...personal,
+            environment: { ...personal.environment, kind: "work" },
+          },
+          own,
+        ),
+        frame,
+        own,
+      ),
+    ).toBeNull();
+  });
+
   test("anything defective drops the whole message", () => {
     const refused: unknown[] = [
       { ...context, extra: true },
@@ -215,6 +244,9 @@ describe("the host protocol, the frame's side", () => {
       },
       { ...context, environment: { ...context.environment, name: "" } },
       { ...context, environment: { ...context.environment, extra: 1 } },
+      { ...context, environment: { ...context.environment, kind: "personal" } },
+      { ...context, guide: { explainer: "files", step: 0 } },
+      { ...context, guide: { explainer: "files", step: 17 } },
       { ...context, organization: { slug: " acme", name: "Acme" } },
       { ...context, app: "module" },
       { ...context, page: { path: "/files?token=1" } },
