@@ -7,6 +7,11 @@ import {
   type EnvironmentBrowser,
 } from "../browser/units";
 import {
+  type ComputerUse,
+  computerUseFinding,
+  convergeComputerUse,
+} from "../computer/computer";
+import {
   type ExecutorReport,
   executorFinding,
   executorScope,
@@ -320,6 +325,15 @@ export async function updateEnvironment(
         hosted: hostedOperator(context),
         entry: () => handoverBrowserEntry(),
       }),
+    computerUnits: () =>
+      convergeComputerUse({
+        base,
+        platform: context.platform,
+        env: context.env,
+        run: context.run ?? runProcess,
+        hosted: hostedOperator(context),
+        declared: async () => (await handoverBrowserEntry()) !== undefined,
+      }),
     executorReport: (() => {
       const report = executorReport(context, base);
       return report === undefined
@@ -523,6 +537,14 @@ const browserFinding = (value: EnvironmentBrowser | undefined): string[] =>
     ? [value.next]
     : [];
 
+/** Computer Use in words after an installation (decision F59). */
+const computerLines = (value: ComputerUse | undefined): string[] =>
+  value?.state === "enabled" && computerUseFinding(value).length === 0
+    ? [
+        "Computer Use starts with this Environment (lazurio-computer.service) and Codex and Claude Code have it as the MCP server computer.",
+      ]
+    : computerUseFinding(value);
+
 /** Executor in words after an installation (decision F44). */
 const executorLines = (value: ExecutorReport | undefined): string[] =>
   value?.state === "running"
@@ -584,6 +606,7 @@ async function installText(
           "The Environment browser starts with this Environment (lazurio-display, lazurio-browser and lazurio-browser-view services).",
         ]
       : browserFinding(result.environmentBrowser)),
+    ...computerLines(result.computerUse),
     ...executorLines(result.executor),
     ...(standard
       ? []
@@ -849,6 +872,7 @@ export async function runUpdateCommand(
             ...refresh(result.folderRefresh),
             ...codexFinding(result.codexAppServer),
             ...browserFinding(result.environmentBrowser),
+            ...computerUseFinding(result.computerUse),
             ...executorFinding(result.executor),
           ].join("\n")
         : result.kind === "up-to-date"
@@ -857,6 +881,7 @@ export async function runUpdateCommand(
               ...refresh(result.folderRefresh),
               ...codexFinding(result.codexAppServer),
               ...browserFinding(result.environmentBrowser),
+              ...computerUseFinding(result.computerUse),
               ...executorFinding(result.executor),
             ].join("\n")
           : "",

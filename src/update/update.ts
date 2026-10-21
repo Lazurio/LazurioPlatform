@@ -4,6 +4,7 @@ import {
   type EnvironmentBrowser,
   environmentBrowserFailed,
 } from "../browser/units";
+import { type ComputerUse, computerUseFailed } from "../computer/computer";
 import {
   type ExecutorReport,
   executorReportFailed,
@@ -87,6 +88,10 @@ export type UpdateEnvironment = Readonly<{
    * supervised hosted base (`convergeEnvironmentBrowser`, decision F38);
    * undefined when there is nothing to converge. Absent: nothing. */
   browserUnits?: (() => Promise<EnvironmentBrowser | undefined>) | undefined;
+  /** After the browser's units: converge Computer Use on the same screen
+   * (`convergeComputerUse`, decision F59); undefined when there is nothing
+   * to converge. Absent: nothing. */
+  computerUnits?: (() => Promise<ComputerUse | undefined>) | undefined;
   /** After a successful run: read Executor's state on a supervised hosted
    * base, never set it up (`reportExecutor`, decision F44, addendum of
    * 2026-10-11: the Launchpad does it after it starts); undefined when there
@@ -279,6 +284,8 @@ export type UpdateResult =
       codexAppServer?: CodexAppServer;
       /** Supervised base only: the Environment browser's units (F38). */
       environmentBrowser?: EnvironmentBrowser;
+      /** Supervised base only: Computer Use (F59). */
+      computerUse?: ComputerUse;
       /** Supervised base only: Executor's state as read (F44). */
       executor?: ExecutorReport;
     }>
@@ -292,6 +299,7 @@ export type UpdateResult =
       folderRefresh: FolderRefresh | null;
       codexAppServer?: CodexAppServer;
       environmentBrowser?: EnvironmentBrowser;
+      computerUse?: ComputerUse;
       executor?: ExecutorReport;
     }>
   | ErrorResult;
@@ -341,18 +349,26 @@ export async function performUpdate(
       : await environment
           .browserUnits()
           .catch(() => environmentBrowserFailed("unit"));
+  const computerUse =
+    environment.computerUnits === undefined
+      ? undefined
+      : await environment
+          .computerUnits()
+          .catch(() => computerUseFailed("unit"));
   const executor =
     environment.executorReport === undefined
       ? undefined
       : await environment.executorReport().catch(() => executorReportFailed);
   return codexAppServer === undefined &&
     environmentBrowser === undefined &&
+    computerUse === undefined &&
     executor === undefined
     ? result
     : Object.freeze({
         ...result,
         ...(codexAppServer === undefined ? {} : { codexAppServer }),
         ...(environmentBrowser === undefined ? {} : { environmentBrowser }),
+        ...(computerUse === undefined ? {} : { computerUse }),
         ...(executor === undefined ? {} : { executor }),
       });
 }

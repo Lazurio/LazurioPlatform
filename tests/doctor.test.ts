@@ -360,7 +360,7 @@ test("a healthy Environment: ok, exit 0, every group, the same answer in both fo
     "tool wacli skipped not-enabled",
     "tool gogcli skipped not-enabled",
     "tool neon skipped not-enabled",
-    // Executor has its own check; a computer is its second wave (F44).
+    // Executor has its own check (F44).
     "executor skipped not-offered",
     "catalog ok",
     "organization alpha ok",
@@ -371,6 +371,7 @@ test("a healthy Environment: ok, exit 0, every group, the same answer in both fo
     "codex-app-server skipped no-user-manager",
     "chat-defaults skipped not-hosted",
     "environment-browser skipped no-user-manager",
+    "computer-use skipped no-user-manager",
   ]);
   expect(find(result.json, "tool", "gh")).toEqual({
     id: "tool",
