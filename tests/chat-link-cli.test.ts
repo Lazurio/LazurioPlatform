@@ -17,7 +17,7 @@ import {
 } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
-import { chatPairing } from "../src/launchpad/chat";
+import { chatPairing, standardPairingScopes } from "../src/launchpad/chat";
 import {
   type ChatContext,
   exitNotHosted,
@@ -41,14 +41,19 @@ afterEach(async () => {
   root = undefined;
 });
 
-// A fake T3 launcher: `t3 lazurio capabilities` without the operator
-// pairing, and `t3 auth pairing create --json`, or a failing call whose
-// stderr holds the credential.
+// A fake T3 launcher: `t3 --version` (a T3 Code that takes `--scope`),
+// `t3 lazurio capabilities` without the operator pairing, and `t3 auth
+// pairing create --json`, or a failing call whose stderr holds the
+// credential.
 async function fakeLauncher(bin: string, mode: "ok" | "fail") {
   const script = join(bin, "t3");
   await writeFile(
     script,
     `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo 't3 v0.1.1-lazurio.1'
+  exit 0
+fi
 if [ "$1 $2" = "lazurio capabilities" ]; then
   echo '{"version":1,"managedFolder":true,"modelRecommendation":true,"providerRefresh":true}'
   exit 0
@@ -146,9 +151,11 @@ test.skipIf(process.platform === "win32")(
     });
     expect(json.stderr).toBeUndefined();
     // The same calls as POST /api/chat/pair: the launcher on PATH asked for
-    // its capabilities, then, without the operator pairing, the resident's
-    // call, labelled for nobody (a terminal names no person).
+    // its capabilities, then, without the operator pairing, for its version
+    // and the resident's call with the standard pairing's own scopes,
+    // labelled for nobody (a terminal names no person).
     const capabilities = [join(bin, "t3"), "lazurio", "capabilities"];
+    const version = [join(bin, "t3"), "--version"];
     const call = [
       join(bin, "t3"),
       "auth",
@@ -161,8 +168,16 @@ test.skipIf(process.platform === "win32")(
       "--label",
       "Lazurio",
       "--json",
+      ...standardPairingScopes.flatMap((scope) => ["--scope", scope]),
     ];
-    expect(runs).toEqual([capabilities, call, capabilities, call]);
+    expect(runs).toEqual([
+      capabilities,
+      version,
+      call,
+      capabilities,
+      version,
+      call,
+    ]);
     expect(await tree(home)).toEqual(before);
   },
 );
@@ -218,8 +233,8 @@ test.skipIf(process.platform === "win32")(
     // The call's output held the credential: it is in neither stream.
     for (const output of [failed, failedHuman])
       expect(JSON.stringify(output)).not.toContain(credential);
-    // Each asked for the capabilities, then failed to pair.
-    expect(runs.length).toBe(4);
+    // Each asked for the capabilities and the version, then failed to pair.
+    expect(runs.length).toBe(6);
 
     // --plain asks for the plain link: nothing is run.
     await fakeLauncher(bin, "ok");
@@ -241,7 +256,7 @@ test.skipIf(process.platform === "win32")(
       },
     ]);
     expect([plainHuman.code, plainHuman.stdout]).toEqual([0, t3codeOrigin]);
-    expect(runs.length).toBe(4);
+    expect(runs.length).toBe(6);
   },
 );
 

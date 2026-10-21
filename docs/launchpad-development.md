@@ -2009,8 +2009,11 @@ way it enters:
 - Such a browser gets T3's operator pairing wherever the installed T3 Code offers it,
   Team Environments included: `t3 lazurio pairing`, which T3 Code announces as
   `operatorPairing` in `t3 lazurio capabilities`. Elsewhere it gets the standard pairing,
-  `t3 auth pairing create`. T3 defines which scopes each carries; the Platform keeps no
-  list of them.
+  `t3 auth pairing create`. T3 defines the operator pairing's scopes. The standard one
+  names its own: T3 Code v0.1.0's standard client scopes (`standardPairingScopes`), never
+  `access:*` or `relay:write`, which T3 Code v0.1.1 added to its default grant
+  (Lazurio/t3code#97). A visitor on a public Environment thus never manages the
+  Environment's access or its T3 Connect.
 - A public Environment's visitors (root decision 0204,
   [F55](decisions.md#f55--a-public-environment-a-demo-onboarding-a-quiet-notice-that-it-is-public-nothing-to-sign-in-to))
   always get the standard pairing.
@@ -2041,7 +2044,11 @@ T3 Code without the command included, selects `t3 auth pairing create`. Both tak
 `--base-dir ~/.t3 --ttl 60s --label "Lazurio · <username>"`, with only `Lazurio` where
 the admission names no Lazurio username and for `lazurio chat link`. The standard call
 adds `--json`; `t3 lazurio pairing` always prints the same JSON and takes no `--json`,
-which T3's CLI would refuse as a flag it does not know (Lazurio/t3code#84). The
+which T3's CLI would refuse as a flag it does not know (Lazurio/t3code#84). Before the
+standard call the launcher is asked `t3 --version`: from T3 Code v0.1.0 on, which takes
+`--scope`, the call adds one `--scope` for each of `standardPairingScopes`, which replaces
+T3's default set; an older T3 Code refuses the flag and pairs as before; with no version
+to read nobody is paired (`t3-pairing-failed`). The
 username counts only by its own rule, so the label stays short plain text. The answer
 (`id`, `credential`, `label`, `scopes`, `expiresAt`) is read for `credential` and
 `expiresAt`, and nothing else of it is passed on. One function mints for the click, the

@@ -22,7 +22,9 @@ import { isPublicEnvironment } from "./public-environment";
 // no session, so every way into Chat is paired, not only the Launchpad's
 // click. Both are minted by `mintChatPairing`: T3's operator pairing where
 // the installed T3 Code offers it, the standard one on a public Environment
-// and on an older T3 Code. Which scopes either carries is T3's own word.
+// and on an older T3 Code. The operator pairing's scopes are T3's own word;
+// the standard one names its scopes itself (`standardPairingScopes`), so a
+// newer T3 Code's wider default grant never reaches a browser paired here.
 
 /** The public parts of the recorded entry (`GET /api/entry`): the origins the
  * page links to, so the page composes none. The admission values (auth
@@ -75,6 +77,39 @@ export const chatPairing = Object.freeze({
 const credentialPattern = /^[A-Za-z0-9_-]{8,128}$/;
 // When the token expires, as T3 prints it (`toISOString`, UTC).
 const instantPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
+
+/** What a standard pairing grants: T3 Code v0.1.0's standard client scopes,
+ * passed as `--scope`, which replaces T3's default set. From v0.1.1 that
+ * default also holds access:read, access:write and relay:write
+ * (pingdotgg/t3code#20432): a browser paired the standard way, a visitor's on
+ * a public Environment above all, must never manage the Environment's access
+ * or its T3 Connect (Lazurio/t3code#97). */
+export const standardPairingScopes = Object.freeze([
+  "orchestration:read",
+  "orchestration:operate",
+  "settings:write",
+  "providers:manage",
+  "environment:maintain",
+  "preview:operate",
+  "diagnostics:read",
+  "terminal:read",
+  "terminal:operate",
+  "source-control:write",
+  "filesystem:read",
+  "filesystem:write",
+  "relay:read",
+] as const);
+
+/** Whether the T3 Code of `t3 --version` takes `--scope` on `t3 auth pairing
+ * create`: upstream v0.1.0 and later. An older one refuses the flag and has
+ * no scopes to narrow, so its pairing stays as it was. Null when there is no
+ * version to read: the caller then pairs nobody. */
+export function takesPairingScopes(version: string | null): boolean | null {
+  const parts = version && /^(\d+)\.(\d+)\.(\d+)/.exec(version);
+  if (!parts) return null;
+  const [major, minor] = [Number(parts[1]), Number(parts[2])];
+  return major > 0 || minor >= 1;
+}
 
 /** One browser's pairing, minted on this Machine: the answer of
  * `GET /.lazurio/chat/pairing` exactly, and the credential of the link
@@ -145,11 +180,14 @@ export function isChatPairingFetch(headers: Headers): boolean {
  * capabilities`, read as the provider refresh reads it), that is `t3 lazurio
  * pairing`, Team Environments included; on a public Environment, and with a
  * T3 Code that does not say so, it is the standard `t3 auth pairing create`,
- * and a public Environment does not even ask. Both print the same JSON: the
- * standard one with `--json`, the operator one always, and it takes no
- * `--json` (Lazurio/t3code#84; T3's CLI refuses a flag it does not know).
- * Any failure is `t3-pairing-failed`: the output can hold the credential and
- * is never passed on. */
+ * and a public Environment does not even ask. The standard one first reads
+ * `t3 --version`: from T3 Code v0.1.0 on it grants `standardPairingScopes`
+ * only, an older T3 Code its own default, and with no version to read
+ * nobody is paired. Both print the same JSON: the standard one with
+ * `--json`, the operator one always, and it takes no `--json`
+ * (Lazurio/t3code#84; T3's CLI refuses a flag it does not know). Any failure
+ * is `t3-pairing-failed`: the output can hold the credential and is never
+ * passed on. */
 export async function mintChatPairing(
   entry: MachineEntry,
   environment: ToolsEnvironment,
@@ -174,6 +212,18 @@ export async function mintChatPairing(
     const operator =
       !isPublicEnvironment(entry) &&
       (await t3Offers(launcher, env, environment.run, "operatorPairing"));
+    let scopes: readonly string[] = [];
+    if (!operator) {
+      const version = await environment.run(
+        [launcher, "--version"],
+        chatPairing.timeoutMs,
+        env,
+      );
+      if (version === "timeout" || version.exitCode !== 0) return failed;
+      const takesScopes = takesPairingScopes(t3Version(version.stdout));
+      if (takesScopes === null) return failed;
+      if (takesScopes) scopes = standardPairingScopes;
+    }
     const result = await environment.run(
       [
         launcher,
@@ -184,7 +234,9 @@ export async function mintChatPairing(
         chatPairing.ttl,
         "--label",
         chatPairingLabel(person),
-        ...(operator ? [] : ["--json"]),
+        ...(operator
+          ? []
+          : ["--json", ...scopes.flatMap((scope) => ["--scope", scope])]),
       ],
       chatPairing.timeoutMs,
       env,
