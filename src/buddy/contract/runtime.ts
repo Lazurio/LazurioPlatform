@@ -706,15 +706,19 @@ export function formatSseEvent(
 }
 
 /** An incremental reader of a `text/event-stream`: feed it the decoded text
- * as it arrives, it returns the events completed so far. Comments (`:` lines,
- * the heartbeat) and `retry` are read and dropped; an event without data is
- * not dispatched, as the standard says. */
+ * as it arrives, it returns the events completed so far. Lines, fields,
+ * comments (`:` lines, the heartbeat), `retry` and events without data are
+ * read as the standard says, with one difference this contract needs: an
+ * event's `id` is its own. The standard keeps the last id for an event that
+ * names none; here such an event has `id` null, because every event of the
+ * contract names its own, and one that borrows its predecessor's would move
+ * a client's cursor back and have the event after it replayed twice. */
 export function createSseReader() {
   let line = "";
   // A `\r` ended the last line: a `\n` right after it belongs to it, even
   // in the next piece.
   let afterReturn = false;
-  // The last event id persists from event to event, as the standard says.
+  // The id this event named, if any.
   let id: string | null = null;
   let event = "";
   let data: string[] = [];
@@ -723,6 +727,7 @@ export function createSseReader() {
     if (line === "") {
       if (data.length > 0)
         events.push({ id, event: event || "message", data: data.join("\n") });
+      id = null;
       event = "";
       data = [];
       return;

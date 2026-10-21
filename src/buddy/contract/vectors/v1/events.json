@@ -234,13 +234,19 @@
       "expect": [{ "id": "e-7", "event": "message.delta", "data": "{\"message_id\":\"m-1\",\n\"text\":\"a\"}" }]
     },
     {
-      "name": "the last id goes on to an event without one",
+      "name": "an event without its own id has none: it never borrows its predecessor's",
       "check": "sse",
       "input": ["id: e-8\nevent: status\ndata: {\"state\":\"idle\"}\n\nevent: status\ndata: {\"state\":\"working\"}\n\n"],
       "expect": [
         { "id": "e-8", "event": "status", "data": "{\"state\":\"idle\"}" },
-        { "id": "e-8", "event": "status", "data": "{\"state\":\"working\"}" }
+        { "id": null, "event": "status", "data": "{\"state\":\"working\"}" }
       ]
+    },
+    {
+      "name": "an id without data is no event and lends its id to none",
+      "check": "sse",
+      "input": ["id: e-20\n\nevent: status\ndata: {\"state\":\"idle\"}\n\n"],
+      "expect": [{ "id": null, "event": "status", "data": "{\"state\":\"idle\"}" }]
     },
     {
       "name": "an event without data is not dispatched",

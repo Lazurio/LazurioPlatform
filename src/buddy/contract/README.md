@@ -70,7 +70,10 @@ words every code itself.
 ### Events (`events.json`)
 
 Each event is `id: <event_id>`, `event: <type>` and one line `data: <JSON object>`,
-from a durable outbox, so `after` replays every event after that id. Comments
+from a durable outbox, so `after` replays every event after that id. Every event names
+its own `id`: unlike a browser's EventSource, the contract's reader never lends an event
+the id of the one before (it would move the client's cursor back and replay the next
+event twice), and the frame drops an event without one. Comments
 (`: ping`) keep the stream alive at least every 15 seconds. The adapter closes the
 stream within 110 seconds; the client reconnects with `after` set to the last id it
 read, so every reconnect passes the gateway's admission again. An `after` older than

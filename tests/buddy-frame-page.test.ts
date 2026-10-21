@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import type {
-  ConversationMessage,
-  HistoryPage,
-  RuntimeEvent,
+import {
+  type ConversationMessage,
+  createSseReader,
+  type HistoryPage,
+  type RuntimeEvent,
 } from "../src/buddy/contract/runtime";
 import {
   frameAncestors,
@@ -559,6 +560,32 @@ describe("the chat's state", () => {
       ).eventId,
     ).toBe("e-13");
     expect(applied(status("bad id")).eventId).toBe("e-10");
+  });
+
+  test("an event without its own id is dropped, and the reconnect replays the answer once", () => {
+    // The stream of the adapter: "A" with its id, then "B" whose id line is
+    // missing; the connection drops.
+    const first = createSseReader().push(
+      'id: e-11\nevent: message.delta\ndata: {"message_id":"m-4","text":"A"}\n\n' +
+        'event: message.delta\ndata: {"message_id":"m-4","text":"B"}\n\n',
+    );
+    let state = loaded;
+    for (const event of first) {
+      const action = eventAction(event);
+      if (action !== null) state = reduce(state, action);
+    }
+    expect(state.streaming).toEqual({ message_id: "m-4", text: "A" });
+    expect(state.eventId).toBe("e-11");
+    // The reconnect asks after e-11 and the adapter replays "B" with its id.
+    const replay = createSseReader().push(
+      'id: e-12\nevent: message.delta\ndata: {"message_id":"m-4","text":"B"}\n\n',
+    );
+    for (const event of replay) {
+      const action = eventAction(event);
+      if (action !== null) state = reduce(state, action);
+    }
+    expect(state.streaming).toEqual({ message_id: "m-4", text: "AB" });
+    expect(state.eventId).toBe("e-12");
   });
 
   test("a turn that ends in an error leaves Buddy idle, or waiting for an open question", () => {
