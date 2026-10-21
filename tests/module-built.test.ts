@@ -1031,7 +1031,7 @@ posixTest(
 );
 
 posixTest(
-  "a sibling another running app requires stays awake while that app runs, though nobody connects to it, and falls asleep after it (root decisions 0176 and 0195 point 23)",
+  "a sibling an app of its Organization declares never falls asleep: without a connection it runs past the idle time, also after its caller slept (root decisions 0176 and 0195 point 23)",
   async () => {
     const home = join(root, "home-sibling");
     await mkdir(home);
@@ -1046,19 +1046,15 @@ posixTest(
     try {
       await sweepAt(0);
       answer(await operations.start("alpha/next"));
-      await sweepAt(0);
       answer(await operations.start("alpha/plain"));
-      await sweepAt(10);
-      // next's own idle time has passed, but plain runs.
+      await sweepAt(0);
+      // Nobody connects to either: the caller sleeps, its sibling runs on.
       await sweepAt(20);
-      await sweepAt(25);
-      expect(await state("alpha/next")).toBe("running");
-      // plain sleeps; next only at the sweep after it.
-      await sweepAt(30);
       expect(await state("alpha/plain")).toBe("stopped");
       expect(await state("alpha/next")).toBe("running");
-      await sweepAt(35);
-      expect(await state("alpha/next")).toBe("stopped");
+      await sweepAt(45);
+      await sweepAt(90);
+      expect(await state("alpha/next")).toBe("running");
     } finally {
       await operations.stop("alpha/plain");
       await operations.stop("alpha/next");

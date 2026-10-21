@@ -48,10 +48,7 @@ const siblingSlot = /^workspace\/([a-z0-9][a-z0-9-]*)$/;
 
 /** The sibling modules among an app's required slots, by module id: each
  * `workspace/<slug>` but the app's own module. */
-export function siblingModules(
-  slots: readonly string[],
-  module: string,
-): string[] {
+function siblingModules(slots: readonly string[], module: string): string[] {
   return slots.flatMap((slot) => {
     const id = siblingSlot.exec(slot)?.[1];
     return id === undefined || id === module ? [] : [id];
@@ -162,4 +159,41 @@ export async function requiredSlotOrigins(input: {
     }
   }
   return Object.freeze(origins);
+}
+
+/** Every module some app of the Organization declares as its sibling (root
+ * decision 0176), by module id, read from the declarations now: the default
+ * apps whose origins a start gives. They never sleep (root decision 0195
+ * point 23), since their callers reach them at their loopback address. An
+ * app whose declaration cannot be read declares none, as it cannot start;
+ * an Organization whose apps cannot be observed throws. */
+export async function declaredSiblings(
+  organizationDirectory: string,
+): Promise<ReadonlySet<string>> {
+  const { result } = await observeOrganizationApplications(
+    organizationDirectory,
+    { admission: "executable" },
+  );
+  if (result.kind !== "applications-observed")
+    throw new Error("Organization applications unavailable");
+  const siblings = new Set<string>();
+  for (const entry of result.entries) {
+    if (entry.kind !== "module-observed" || entry.module === null) continue;
+    for (const app of entry.apps) {
+      if (app.kind !== "runtime-declared") continue;
+      const slots = await readModuleApplication(
+        join(organizationDirectory, entry.path),
+        app.package,
+      )
+        .then((plan) =>
+          plan.kind === "declared-runtime-plan"
+            ? plan.runtime.optional.required_module_slots
+            : undefined,
+        )
+        .catch(() => undefined);
+      if (Array.isArray(slots))
+        for (const id of siblingModules(slots, entry.module)) siblings.add(id);
+    }
+  }
+  return siblings;
 }

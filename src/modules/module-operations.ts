@@ -90,7 +90,7 @@ import {
   userManagerState,
 } from "./service-manager-process";
 import { createSessionRunner } from "./session-runner";
-import { RequiredSlotRefused, siblingModules } from "./sibling-origins";
+import { declaredSiblings, RequiredSlotRefused } from "./sibling-origins";
 import {
   applicationCoordinationLockFile,
   applicationUnitName,
@@ -1445,8 +1445,8 @@ export function createModuleOperations(input: {
   // listeners is in use; one that no sweep has seen in use for a tab's idle
   // time (decision F57) is stopped as a plain Stop would, no more. Its next
   // Open, or the gateway's `ensure`, starts it again as its newest build. A
-  // sibling another running app requires (root decision 0176) sleeps only
-  // after it: that app calls it at its loopback address, which wakes
+  // sibling some app of its Organization declares (root decision 0176) never
+  // sleeps: its caller reaches it at its loopback address, which wakes
   // nothing. `running` names what the service manager runs, so that an app
   // started before a restart of the Launchpad or by the CLI sleeps too, and
   // one it no longer runs is forgotten.
@@ -1463,53 +1463,45 @@ export function createModuleOperations(input: {
       for (const key of inUse.keys()) if (!keys.has(key)) inUse.delete(key);
       for (const key of keys) if (!inUse.has(key)) inUse.set(key, null);
     }
-    const apps = [];
+    // Each Organization's declared siblings, read once per sweep and only
+    // for an app due to sleep; unreadable keeps its apps awake.
+    const siblings = new Map<string, Promise<ReadonlySet<string> | null>>();
     for (const [key, seen] of [...inUse]) {
       const [name, app] = key.split("\0") as [string, string];
       const prepared = await prepare("stop", name, { app });
       if ("kind" in prepared) continue;
-      const plan = await readModuleApplication(
-        prepared.target.moduleDirectory,
-        app,
-      )
+      const { target, runner: kind, selection } = prepared;
+      const plan = await readModuleApplication(target.moduleDirectory, app)
         .then((read) => (read.kind === "declared-runtime-plan" ? read : null))
         .catch(() => null);
-      if (plan !== null) apps.push({ key, seen, prepared, plan });
-    }
-    const required = new Set(
-      apps.flatMap(({ prepared: { target }, plan }) => {
-        const slots = plan.runtime.optional.required_module_slots;
-        return target.personalspace || !Array.isArray(slots)
-          ? []
-          : siblingModules(slots, target.module).map(
-              (id) => `${target.organizationDirectory}\0${id}`,
-            );
-      }),
-    );
-    for (const { key, seen, prepared, plan } of apps) {
-      const { target, runner: kind, selection } = prepared;
+      if (plan === null) continue;
       // Unknown counts as in use.
       const open = await Promise.all(
         plan.listeners.map((listener) => connected(listener.port)),
       );
       // Stopped or started again meanwhile: left as that made it.
       if (inUse.get(key) !== seen) continue;
-      if (seen === null || open.some((state) => state !== false))
+      if (seen === null || open.some((state) => state !== false)) {
         inUse.set(key, at);
-      else if (
-        at - seen >= sleepTimes.idleMs &&
-        !(
-          target.isDefaultApp &&
-          required.has(`${target.organizationDirectory}\0${target.module}`)
-        )
-      ) {
-        inUse.delete(key);
-        await operate("stop", kind, target, async (lifecycle) => {
-          const status = await lifecycle.status(selection);
-          if (status.kind === "status" && status.state === "running")
-            await lifecycle.stop(selection);
-        });
+        continue;
       }
+      if (at - seen < sleepTimes.idleMs) continue;
+      if (!target.personalspace && target.isDefaultApp) {
+        const directory = target.organizationDirectory;
+        if (!siblings.has(directory))
+          siblings.set(
+            directory,
+            declaredSiblings(directory).catch(() => null),
+          );
+        const declared = await siblings.get(directory);
+        if (declared == null || declared.has(target.module)) continue;
+      }
+      inUse.delete(key);
+      await operate("stop", kind, target, async (lifecycle) => {
+        const status = await lifecycle.status(selection);
+        if (status.kind === "status" && status.state === "running")
+          await lifecycle.stop(selection);
+      });
     }
   }
 
