@@ -115,5 +115,5 @@ journalctl --user -u hermes-gateway | grep "kanban notifier: woke agent"
 ```
 
 Tests, from the repository root: `python3 -m unittest src/buddy/budicek/test_budicek.py`
-(standard library only; fake `openmausbot`, `hermes` and `ssh`). The
-repository's CI does not run them yet.
+(standard library only; fake `openmausbot`, `hermes` and `ssh`). CI runs them
+in the static checks job (`.github/workflows/check.yml`).

@@ -490,14 +490,27 @@ class BudicekTest(unittest.TestCase):
     # -- the persona's names
 
     def everything_written(self):
-        """Every text budíček produced: records, bot runs, Kanban cards, sends."""
-        texts = []
-        for name in sorted(os.listdir(self.state)):
-            with open(os.path.join(self.state, name)) as fh:
-                texts.append(fh.read())
-        for name in sorted(os.listdir(self.fake)):
-            with open(os.path.join(self.fake, name)) as fh:
-                texts.append(fh.read())
+        """Every text budíček produced (records, bot runs, Kanban cards, sends),
+        with JSON decoded and written back with ensure_ascii=False: the fakes
+        write escaped JSON, in which a name with diacritics would never match."""
+
+        def readable(path):
+            with open(path, encoding="utf-8") as fh:
+                text = fh.read()
+            try:
+                return json.dumps(json.loads(text), ensure_ascii=False)
+            except ValueError:
+                pass
+            lines = []
+            for line in text.splitlines():
+                try:
+                    lines.append(json.dumps(json.loads(line), ensure_ascii=False))
+                except ValueError:
+                    lines.append(line)
+            return "\n".join(lines)
+
+        texts = [readable(os.path.join(self.state, n)) for n in sorted(os.listdir(self.state))]
+        texts += [readable(os.path.join(self.fake, n)) for n in sorted(os.listdir(self.fake))]
         return "\n".join(texts)
 
     def escalate(self, **env):
@@ -520,8 +533,10 @@ class BudicekTest(unittest.TestCase):
         written = json.dumps(self.rec(rid), ensure_ascii=False)
         self.assertIn("píšu uživateli", written)
         self.assertIn("zpráva uživateli odeslaná", written)
-        for name in ("Alenu", "Aleně", "Rex"):
-            self.assertNotIn(name, self.everything_written())
+        written = self.everything_written()
+        self.assertIn("Buddy za uživatele", written)
+        for name in ("Buddy za Alenu", "píšu Aleně", "zpráva Aleně", "Rex se neprobudil"):
+            self.assertNotIn(name, written)
 
     def test_another_users_persona_leaves_no_trace_of_the_first(self):
         other = {"BUDICEK_USER_ACCUSATIVE": "Boba", "BUDICEK_USER_DATIVE": "Bobovi", "BUDICEK_BUDDY_NAME": "Fido"}
@@ -529,8 +544,14 @@ class BudicekTest(unittest.TestCase):
         self.assertIn("Pracuješ pro Buddyho: Buddy za Boba. Úkol " + rid, self.calls("run")[0]["stdin"])
         self.assertTrue(self.hermes_state()["sends"][0]["text"].startswith("Fido se neprobudil"))
         self.assertIn("píšu Bobovi", json.dumps(self.rec(rid), ensure_ascii=False))
-        for name in ("Alenu", "Aleně", "Rex", "uživatele", "uživateli"):
-            self.assertNotIn(name, self.everything_written())
+        written = self.everything_written()
+        self.assertIn("Buddy za Boba", written)
+        self.assertIn("píšu Bobovi", written)
+        for phrase in (
+            "Buddy za Alenu", "píšu Aleně", "zpráva Aleně", "Rex se neprobudil",
+            "Buddy za uživatele", "píšu uživateli", "zpráva uživateli", "Buddy se neprobudil",
+        ):
+            self.assertNotIn(phrase, written)
 
 
 if __name__ == "__main__":
