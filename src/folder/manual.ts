@@ -746,8 +746,8 @@ const glossary: readonly Text[] = [
     "| Lazurio | The shared framework and product: CLI, Launchpad, Folder Factory, the hosted services around them. |",
   ),
   t(
-    "| Lazurio Folder (Folder) | Složka na Environmentu, ve které Lazurio vlastní soubory `AGENTS.md`, `manual/`, své skilly v `.agents/skills/` a `.claude/skills/` a `.lazurio/`, vedle `organizations/` a `personalspace/` uživatele. |",
-    "| Lazurio Folder (Folder) | The directory in an Environment that Lazurio owns files in: `AGENTS.md`, `manual/`, its skills in `.agents/skills/` and `.claude/skills/`, `.lazurio/`, next to the user's `organizations/` and `personalspace/`. |",
+    "| Lazurio Folder (Folder) | Složka na Environmentu, ve které Lazurio vlastní soubory `AGENTS.md`, `manual/`, své skilly v `.agents/skills/` a `.claude/skills/`, vrstvu Buddyho v `.agents/buddy/` (`.hermes.md` a `skills/lazurio/`) a `.lazurio/`, vedle `organizations/` a `personalspace/` uživatele. |",
+    "| Lazurio Folder (Folder) | The directory in an Environment that Lazurio owns files in: `AGENTS.md`, `manual/`, its skills in `.agents/skills/` and `.claude/skills/`, Buddy's layer in `.agents/buddy/` (`.hermes.md` and `skills/lazurio/`), `.lazurio/`, next to the user's `organizations/` and `personalspace/`. |",
   ),
   t(
     "| Lazurio Environment (Environment) | Prostředí, ve kterém se s Lazuriem pracuje: zvolený preset a profil, Folder a všechny nástroje a přihlášení, které jsou na něm dostupné (decision 0144). Česky ten Environment, na tomto Environmentu. |",

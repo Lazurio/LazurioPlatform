@@ -1076,7 +1076,7 @@ English terms first; the Czech term used by the product and its users is in pare
 | Term | Meaning |
 | --- | --- |
 | Lazurio | The shared framework and product: CLI, Launchpad, Folder Factory, the hosted services around them. |
-| Lazurio Folder (Folder) | The directory in an Environment that Lazurio owns files in: \`AGENTS.md\`, \`manual/\`, its skills in \`.agents/skills/\` and \`.claude/skills/\`, \`.lazurio/\`, next to the user's \`organizations/\` and \`personalspace/\`. |
+| Lazurio Folder (Folder) | The directory in an Environment that Lazurio owns files in: \`AGENTS.md\`, \`manual/\`, its skills in \`.agents/skills/\` and \`.claude/skills/\`, Buddy's layer in \`.agents/buddy/\` (\`.hermes.md\` and \`skills/lazurio/\`), \`.lazurio/\`, next to the user's \`organizations/\` and \`personalspace/\`. |
 | Lazurio Environment (Environment) | Where one works with Lazurio: the selected preset and profile, the Folder, and every tool and sign-in available in it (decision 0144). |
 | Remote Environment | A hosted Environment: an Organization's work Remote Environment at \`launchpad.<machine>.<org>.lazurio.io\` on the Organization's network, or a personal Remote Environment at \`launchpad.<login>.lazurio.io\` on its Owner's home tailnet (decisions 0146, 0153); the same term Codex and T3 Code use (decision F16). |
 | Local Environment (Místní prostředí) | This computer: the device the user is sitting at, which is not a Remote Environment; a personal laptop is never a Remote Environment (decision F16). |
@@ -1130,7 +1130,7 @@ Nejdřív český pojem, v závorce anglický, který používají produkt a tec
 | Pojem | Význam |
 | --- | --- |
 | Lazurio | Sdílený rámec a produkt: CLI, Launchpad, Folder Factory a hostované služby kolem nich. |
-| Lazurio Folder (Folder) | Složka na Environmentu, ve které Lazurio vlastní soubory \`AGENTS.md\`, \`manual/\`, své skilly v \`.agents/skills/\` a \`.claude/skills/\` a \`.lazurio/\`, vedle \`organizations/\` a \`personalspace/\` uživatele. |
+| Lazurio Folder (Folder) | Složka na Environmentu, ve které Lazurio vlastní soubory \`AGENTS.md\`, \`manual/\`, své skilly v \`.agents/skills/\` a \`.claude/skills/\`, vrstvu Buddyho v \`.agents/buddy/\` (\`.hermes.md\` a \`skills/lazurio/\`) a \`.lazurio/\`, vedle \`organizations/\` a \`personalspace/\` uživatele. |
 | Lazurio Environment (Environment) | Prostředí, ve kterém se s Lazuriem pracuje: zvolený preset a profil, Folder a všechny nástroje a přihlášení, které jsou na něm dostupné (decision 0144). Česky ten Environment, na tomto Environmentu. |
 | Remote Environment | Hostovaný Environment: pracovní Remote Environment Organizace na \`launchpad.<machine>.<org>.lazurio.io\` v síti Organizace, nebo osobní Remote Environment na \`launchpad.<login>.lazurio.io\` v domovském tailnetu jeho Ownera (decisions 0146, 0153); stejný pojem jako v Codexu a T3 Code (decision F16). |
 | Místní prostředí (Local Environment) | Tento počítač: zařízení, na kterém uživatel právě sedí a které není Remote Environmentem; osobní laptop nikdy není Remote Environment (decision F16). |
