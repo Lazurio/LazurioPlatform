@@ -8105,7 +8105,8 @@ Decided:
    browser more with the same unit text. No `MemoryHigh`: on systemd 255 without swap,
    a process that grew past it stayed throttled just above it for minutes and never
    reached `MemoryMax`. Every process of the browser that allocated waited with it. The
-   hard limit ends the heaviest tab instead.
+   hard limit ends the heaviest tab instead. *The 30 % limit is replaced by the addendum
+   of 2026-10-20: the Environment's memory minus 4 GiB, at least 30 %.*
 2. **An exhausted budget costs a tab.** `OOMPolicy=continue`: the process the kernel ends
    is mostly one tab's renderer, and only that tab goes. Its window stays, and a
    navigation brings it back. When the main process goes, the unit ends and restarts.
@@ -8239,6 +8240,64 @@ Not decided here:
 Verified by `tests/environment-browser.test.ts` (the addresses taken and refused, the hub's
 refusals, an Environment without the browser, a T3 Code thread's binding and a failed one,
 a Codex thread left alone, the notice) and the CLI contract's vectors.
+
+**Addendum 2026-10-20: the browser may take the Environment's memory except 4 GiB.** Root
+decision 0195 point 22 (approved by the Organization Admin on 2026-10-20), plan DEV-6656.
+At 30 % the browser of a client Environment of 8 GiB without swap had about 2.3 GiB, and
+the kernel ended about 80 of its renderers, of 170–270 MB each, in 7 days
+(Lazurio/LazurioPlatform#525). The browser is a key capability of the Environment, so its
+limit grows with the Environment, while a fixed reserve stays for the core, agents,
+Modules and builds.
+
+Decided:
+1. **The limit is the Environment's memory minus 4 GiB, at least 30 %.** It replaces the
+   30 % sentence of point 1 of the addendum of 2026-10-10. The memory is the one the
+   Environment's system sees (`MemTotal`), so the reserve stays whole: 3.75 GiB on the
+   base Environment of 8 GiB (`MemTotal` 8 131 784 kB), 11.6 GiB on one of 16 GiB
+   (`MemTotal` 16 770 785 280 B). Under about 5.7 GiB the reserve would leave less than
+   30 %, and 30 % stays. In bytes: `max(30 % × MemTotal, MemTotal − 4 GiB)`.
+2. **A cap, not a reservation.** Memory the browser does not use serves the rest. Tabs
+   fall asleep under memory pressure before the limit (F57), and Machines' protection of
+   the core (`MemoryLow`, 0195 point 3) stays as it is.
+3. **Computed at every start of the browser.** `MemoryMax=30%` stays in the unit, as the
+   floor and wherever a start cannot compute more. An optional step after it
+   (`ExecStartPre=-/bin/sh -c '…'`) reads `MemTotal` from `/proc/meminfo`, computes the
+   limit in bytes and sets it on the unit's own name with `systemctl --user set-property
+   --runtime %n MemoryMax=<bytes>`, before Chrome starts. The unit's text therefore stays
+   the same on every Environment, and `install` and `update` rewrite and restart nothing
+   for it. The setting lives in the user manager's runtime directory
+   (`/run/user/<uid>/systemd/user.control/`) until the guest restarts; a resize of the
+   Environment restarts the guest, so its browser starts with the new limit without
+   another step. A meminfo without a positive `MemTotal` in kB, or a manager that refuses
+   the setting, sets nothing: the step fails, the unit ignores it (`-`) and 30 % holds.
+   The step never sets less than 30 %.
+4. **What stays.** `MemorySwapMax=20%`, `OOMPolicy=continue`, `OOMScoreAdjust=250` and no
+   `MemoryHigh` (the addendum of 2026-10-10, points 1–3), the tab-sleep pressure rule
+   (F57) and Machines.
+
+Measured on systemd 255 (Ubuntu 24.04, a user service with the memory controller
+delegated, the rendered unit verbatim with a stand-in for Chrome): the call from the unit's
+own `ExecStartPre` returned at once while the unit was activating (each start 20–35 ms); it
+set `memory.max` of the service's cgroup, the one the browser's main process then ran in;
+`daemon-reload` kept it; a restart, the installer's write, `daemon-reload` and
+`try-restart`, the automatic restart after the main process was killed and a stop and start
+each computed it again over a stale value; the unit file stayed byte for byte the rendered
+text. Fixtures of 4, 8, 16 and 64 GiB guests gave 30 % (1 232 235 724 B), 4 031 979 520 B,
+12 475 817 984 B and 63 127 969 792 B; a meminfo without `MemTotal`, a non-numeric or zero
+one and a missing `systemctl` left the unit's 30 %, with the start going on (PR evidence).
+
+Not taken: computing the bytes in TypeScript at convergence and writing them into the unit.
+The unit's text would then differ by Environment, and after a resize the browser would
+start with the old limit until a convergence rewrote its unit and restarted it.
+
+Rollout: the unit's text changes once, so the first `install` or `update` with this
+version restarts the browser (F39 point 10), as every change of its text does. It ships in
+a release of the Platform through the pipeline, with the reference Organization first
+(root decision 0204); nothing is changed by hand on any Environment.
+
+Verified by `tests/environment-browser.test.ts` (the rendered unit, and its step run as
+systemd runs it against meminfo files of 4, 8, 16 and 64 GiB guests and five that set
+nothing, and with a manager that refuses the setting).
 
 ## F39 — The people's view of the Environment browser: one tab of a person is one remote tab
 

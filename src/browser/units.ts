@@ -172,19 +172,60 @@ const browserSessionsDirectory = join(
   "Sessions",
 );
 
-/** The browser's memory budget (root decision 0195 point 4, plan DEV-6656),
- * so heavy pages cost only the browser's tabs, never the Launchpad, T3 Code
- * or a Module. On 2026-10-10 one Environment of 8 GiB froze with a browser of
- * about 2 GiB, and another thrashed with one of 4.7 GiB.
- * - `MemoryMax=30%`: relative to the Environment's memory, so a larger
- *   Environment gives its browser more with the same unit text; about 2.3 GiB on
- *   the base Environment of 8 GiB. At the limit the kernel first reclaims the
- *   browser's own memory (into swap, where there is swap), then ends a
- *   process inside the browser.
+/** What the browser leaves to the rest of the Environment whatever its size
+ * (root decision 0195 point 22): the core, agents, Modules and builds. */
+const browserMemoryReserve = 4 * 1024 ** 3;
+
+/** The browser's limit never goes below this share of the Environment's
+ * memory: the unit's own `MemoryMax`, and the limit wherever a start cannot
+ * compute more. */
+const browserMemoryFloorPercent = 30;
+
+/** Before each start, the browser's limit for this boot (root decision 0195
+ * point 22): `MemTotal` from `/proc/meminfo`, the memory the Environment's
+ * system sees, so the reserve stays whole, minus `browserMemoryReserve`, and
+ * never below `browserMemoryFloorPercent`. Set in bytes on the unit's own
+ * name (`%n`) with `set-property --runtime`, which holds until the guest
+ * restarts and lives in the user manager's runtime directory, never in the
+ * unit file the installer compares. The unit's text therefore stays the same
+ * on every Environment, and a resized Environment (its guest restarts)
+ * starts its browser with the new limit. Measured on systemd 255 (PR
+ * evidence): from the unit's own ExecStartPre the call returns at once while
+ * the unit is activating; it sets `memory.max` of the cgroup the browser then
+ * runs in; `daemon-reload` keeps it; every start computes it again. A
+ * meminfo without a positive `MemTotal` in kB sets nothing. */
+const browserMemoryLimit = [
+  "m=",
+  'while read -r k v u; do [ "$$k" = MemTotal: ] && [ "$$u" = kB ] && m=$$v; done < /proc/meminfo',
+  'case $$m in ""|0*|*[!0-9]*) exit 1;; esac',
+  "t=$$((m*1024))",
+  `b=$$((t-${browserMemoryReserve}))`,
+  `f=$$((t*${browserMemoryFloorPercent}/100))`,
+  "[ $$b -gt $$f ] || b=$$f",
+  "exec systemctl --user set-property --runtime %n MemoryMax=$$b",
+].join("; ");
+
+/** The browser's memory budget (root decision 0195 points 4 and 22, plan
+ * DEV-6656), so heavy pages cost only the browser's tabs, never the
+ * Launchpad, T3 Code or a Module. On 2026-10-10 one Environment of 8 GiB
+ * froze with a browser of about 2 GiB, and another thrashed with one of
+ * 4.7 GiB.
+ * - The limit is the Environment's memory minus 4 GiB, at least 30 %: the
+ *   browser is a key capability of the Environment, so its limit grows with
+ *   it, while the reserve stays whole. About 3.75 GiB on the base Environment
+ *   of 8 GiB, 11.6 GiB on one of 16 GiB; under about 5.7 GiB the 30 % stays.
+ *   At 30 % the kernel ended about 80 renderers of an Environment of 8 GiB in
+ *   7 days (LazurioPlatform#525). `MemoryMax=30%` is the floor and the
+ *   fallback; the optional ExecStartPre after it (`browserMemoryLimit`)
+ *   raises it before each start. It is a cap, not a reservation: memory the
+ *   browser does not use serves the rest, tabs fall asleep under memory
+ *   pressure before the limit (decision F57), and Machines' protection of
+ *   the core stays. At the limit the kernel first reclaims the browser's own
+ *   memory (into swap, where there is swap), then ends a process inside the
+ *   browser.
  * - `MemorySwapMax=20%`: what the browser may move to swap, relative to the
  *   Environment's memory as systemd 255 resolves it. Swap in memory (zram)
  *   is not charged to the browser, so without it the browser could fill it.
- *   Together at most half the Environment's memory, most of it compressed.
  * - No `MemoryHigh`: without swap, a process past it stays throttled just
  *   above it for minutes, never reaches `MemoryMax`, and every process of the
  *   browser that allocates waits with it (measured on systemd 255). The hard
@@ -196,7 +237,8 @@ const browserSessionsDirectory = join(
  *   Chrome gives each tab's renderer 300. The rest of the browser between them
  *   makes the kernel's order a tab first, then the browser, then a Module. */
 const browserMemoryBudget = Object.freeze([
-  "MemoryMax=30%",
+  `MemoryMax=${browserMemoryFloorPercent}%`,
+  `ExecStartPre=-/bin/sh -c '${browserMemoryLimit}'`,
   "MemorySwapMax=20%",
   "OOMPolicy=continue",
   "OOMScoreAdjust=250",
@@ -259,7 +301,9 @@ export function renderDisplayUnit(): string {
  * so Chrome is the unit's main process. Bound to the screen; restarted
  * whenever it ends (a person closing the last window included), except when
  * there is no Chrome to run. The extension's digest is part of the text, so
- * a new extension is a changed unit, which restarts the browser.
+ * a new extension is a changed unit, which restarts the browser. Its text
+ * names no size of the Environment: each start computes the browser's memory
+ * limit (`browserMemoryBudget`), so a resize changes no unit.
  *
  * It starts without the tabs of the last session (root decision 0195 point
  * 4). Chrome for Testing reopens them by itself on Linux: after a clean exit,
