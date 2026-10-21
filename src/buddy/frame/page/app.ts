@@ -122,6 +122,22 @@ window.addEventListener("message", (event) => {
 
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
 
+/** The stream's wait before it tries again, which „Zkusit znovu“ cuts
+ * short. */
+let wake: (() => void) | null = null;
+const backoffWait = (ms: number) =>
+  new Promise<void>((done) => {
+    const timer = setTimeout(() => {
+      wake = null;
+      done();
+    }, ms);
+    wake = () => {
+      clearTimeout(timer);
+      wake = null;
+      done();
+    };
+  });
+
 type Answer =
   | Readonly<{ kind: "ok"; status: number; body: unknown }>
   | Readonly<{ kind: "signed-out" }>
@@ -208,7 +224,7 @@ async function stream() {
         );
       } catch {
         dispatch({ type: "offline" });
-        await sleep(backoff);
+        await backoffWait(backoff);
         backoff = Math.min(backoff * 2, 15_000);
         continue;
       }
@@ -220,13 +236,13 @@ async function stream() {
         // The outbox no longer holds where the frame was: read the newest
         // page again and go on from its snapshot.
         await response.body?.cancel();
-        if (!(await loadNewest())) await sleep(backoff);
+        if (!(await loadNewest())) await backoffWait(backoff);
         continue;
       }
       if (!response.ok || response.body === null) {
         await response.body?.cancel();
         dispatch({ type: "offline" });
-        await sleep(backoff);
+        await backoffWait(backoff);
         backoff = Math.min(backoff * 2, 15_000);
         continue;
       }
@@ -476,7 +492,8 @@ const view = createView(
     older: () => void loadOlder(),
     signIn,
     retry: () => {
-      if (state.loaded) void stream();
+      if (wake !== null) wake();
+      else if (state.loaded) void stream();
       else void boot();
     },
     resend: (clientId) => {

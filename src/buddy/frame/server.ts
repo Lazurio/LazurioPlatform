@@ -212,7 +212,6 @@ export function createBuddyFrameHandler(
       method: "GET" | "POST";
       body?: string;
       accept?: string;
-      lastEventId?: string;
       signal?: AbortSignal;
     }>,
   ): Promise<Response | { upstream: Response }> {
@@ -292,24 +291,33 @@ export function createBuddyFrameHandler(
     request.signal.addEventListener("abort", () => stop.abort(), {
       once: true,
     });
+    // The bound runs from the request, so an adapter that never answers
+    // holds nothing longer either.
+    const deadline = setTimeout(() => stop.abort(), streamMs);
     const asked = await adapter(
       `/v1/events${after === null ? "" : `?after=${encodeURIComponent(after)}`}`,
       { method: "GET", accept: "text/event-stream", signal: stop.signal },
     );
-    if (asked instanceof Response) return asked;
+    if (asked instanceof Response) {
+      clearTimeout(deadline);
+      return asked;
+    }
     const { upstream } = asked;
-    if (upstream.status >= 400) return adapterError(upstream);
+    if (upstream.status >= 400) {
+      clearTimeout(deadline);
+      return adapterError(upstream);
+    }
     const type = upstream.headers.get("content-type") ?? "";
     if (
       upstream.status !== 200 ||
       upstream.body === null ||
       !type.startsWith("text/event-stream")
     ) {
+      clearTimeout(deadline);
       await upstream.body?.cancel().catch(() => undefined);
       return problem("adapter-defective");
     }
     const source = upstream.body.getReader();
-    const deadline = setTimeout(() => stop.abort(), streamMs);
     const body = new ReadableStream<Uint8Array>({
       async pull(controller) {
         try {
