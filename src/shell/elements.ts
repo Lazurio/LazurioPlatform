@@ -1273,9 +1273,10 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
     this.bubble?.changed();
   }
 
-  /** Whether this element shows Buddy's bubble now. */
+  /** Whether this element shows Buddy's bubble now: it follows the origin
+   * the page's state names (the bubble draws on every change of it). */
   shows(): boolean {
-    return this.bubble?.model() != null;
+    return this.bubble !== null && this.origin() !== null;
   }
   /** The launcher's centre, where the guide's mark starts and ends. */
   bubbleHome(): Readonly<{ x: number; y: number }> | null {
