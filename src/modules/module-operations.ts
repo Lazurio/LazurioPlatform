@@ -166,7 +166,7 @@ export type ModuleHost = Readonly<{
    * (launchpad-parity B7): this Environment's gh and git and the install
    * base's content locks. None: no module provides its data here. */
   dataMounts?: DataMountHost | undefined;
-  /** Where static apps are built and kept (decision F58): the account's
+  /** Where built apps are built and kept (decision F58): the account's
    * build cache and build lock, and its git, which reads the checkouts a
    * build is keyed by. None: every app runs its development script. */
   builds?:
@@ -312,16 +312,17 @@ export type ModuleBlocked = Readonly<{
    * app cannot start without, by its name, and why it has no value. Never
    * a value. */
   secrets?: readonly RuntimeSecretFinding[];
-  /** `build-failed` and the other refusals of a static app's build
+  /** `build-failed` and the other refusals of a built app's build
    * (decision F58): its builds, with the failure and its log. */
   build?: ModuleBuild;
 }>;
 
-/** A static app's builds (decision F58), in every answer about one. */
+/** A built app's builds (decision F58: a static app, or an app with its own
+ * server, the addendum of 2026-10-21), in every answer about one. */
 export type ModuleBuild = Readonly<{
-  /** What the running app was started as: its built output or its
+  /** What the running app was started as: its built version or its
    * development script (also one started before builds existed); null
-   * while it does not run. */
+   * while it does not run. A run that ended by itself keeps it. */
   mode: "built" | "dev" | null;
   /** The build the running app serves. */
   served: Readonly<{ key: string; commit: string }> | null;
@@ -390,7 +391,7 @@ export type ModuleAnswer = Readonly<{
   /** A start: the optional runtime secrets the app started without, and
    * why (decision F46, root decision 0196); a note, not a refusal. */
   secretsNotProvided?: readonly RuntimeSecretFinding[];
-  /** A static app (decision F58): what it serves and its builds. */
+  /** A built app (decision F58): what it serves and its builds. */
   build?: ModuleBuild;
 }>;
 
@@ -414,8 +415,9 @@ export type ModuleOptions = Readonly<{
   app?: string | undefined;
   /** `logs`: how many of the newest lines. */
   lines?: number | undefined;
-  /** `start` of a static app: its development script instead of its build
-   * (decision F58), explicitly; it runs so until it is stopped. */
+  /** `start` of a built app: its development script instead of its build
+   * or its own server (decision F58), explicitly; it runs so until it is
+   * stopped. */
   dev?: boolean | undefined;
 }>;
 
@@ -1007,11 +1009,13 @@ export function createModuleOperations(input: {
     }
   }
 
-  // Static apps (decision F58, root decision 0195 point 19): an app that
-  // declares `build_output` starts from `main` as its build of the
+  // Built apps (decision F58, root decision 0195 points 19 and 24): an app
+  // that declares `build_output` starts from `main` as its build of the
   // checkout's commit, kept outside the checkout and served by the
-  // Platform's static server. Nothing is built where this host keeps no
-  // builds: such an app runs its development script, as before.
+  // Platform's static server; one that declares `start_script` runs that
+  // server of its own in production mode, handed its client's build when it
+  // has one. Nothing is built where this host keeps no builds: such an app
+  // runs its development script, as before.
   const builder =
     host.builds === undefined || host.home === undefined
       ? undefined
@@ -1035,19 +1039,20 @@ export function createModuleOperations(input: {
           runBuild: host.builds.runBuild,
         });
 
-  /** The target's app when it is a static app this host builds. */
-  async function staticPlan(target: Target): Promise<Plan | null> {
-    return readStaticPlan(target).catch(() => null);
+  /** The target's app when it is a built app this host builds. */
+  async function builtPlan(target: Target): Promise<Plan | null> {
+    return readBuiltPlan(target).catch(() => null);
   }
   // The same, but a declaration that cannot be read now throws, where null
-  // means "not a static app" (the sweep's move tells them apart).
-  async function readStaticPlan(target: Target): Promise<Plan | null> {
+  // means "not a built app" (the sweep's move tells them apart).
+  async function readBuiltPlan(target: Target): Promise<Plan | null> {
     if (builder === undefined) return null;
     const plan = await readModuleApplication(
       target.moduleDirectory,
       target.app,
     );
-    return plan.kind === "declared-runtime-plan" && plan.runtime.static !== null
+    return plan.kind === "declared-runtime-plan" &&
+      (plan.runtime.static !== null || plan.runtime.server !== null)
       ? plan
       : null;
   }
@@ -1070,12 +1075,15 @@ export function createModuleOperations(input: {
 
   // The other checkouts a build reads, by their Organization-relative path:
   // the module's own data mounts and the slots its app requires. Null when
-  // the Organization manifest cannot be read.
+  // the Organization manifest cannot be read. None for an app with its own
+  // server, which reads its data at run time: its key is the module's
+  // commit, so a data-only pull neither builds nor restarts it (decision
+  // F58, addendum of 2026-10-21).
   async function buildInputs(
     target: Target,
     plan: Plan,
   ): Promise<BuildInput[] | null> {
-    if (target.personalspace) return [];
+    if (target.personalspace || plan.runtime.server !== null) return [];
     const read = (host.builds as NonNullable<ModuleHost["builds"]>)
       .readCheckout;
     const paths = new Set<string>();
@@ -1102,9 +1110,10 @@ export function createModuleOperations(input: {
 
   // What one build of the target's app reads, now.
   async function buildContext(target: Target) {
-    const plan = await staticPlan(target);
-    if (plan === null || plan.runtime.static === null)
-      return Object.freeze({ refused: "not-static" });
+    const plan = await builtPlan(target);
+    if (plan === null) return Object.freeze({ refused: "not-static" });
+    // A static app's output, or the client of an app with its own server.
+    const built = plan.runtime.static ?? plan.runtime.server?.build ?? null;
     const head = await (
       host.builds as NonNullable<ModuleHost["builds"]>
     ).readCheckout(target.moduleDirectory);
@@ -1121,9 +1130,9 @@ export function createModuleOperations(input: {
       inputs: Object.freeze(inputs),
       key: buildKeyOf(head.commit, inputs),
       cwd,
-      script: plan.runtime.static.build_script,
-      output: plan.runtime.static.output,
-      fallback: plan.runtime.static.fallback,
+      script: built?.build_script ?? null,
+      output: built?.output ?? null,
+      fallback: plan.runtime.static?.fallback ?? null,
       health: entrypoint?.health.kind === "http" ? entrypoint.health.path : "/",
       env: buildEnvironment({
         base: operatorEnvironment(),
@@ -1273,6 +1282,18 @@ export function createModuleOperations(input: {
     });
   }
 
+  // What a built start is given (decision F58): the record its static
+  // server reads, and an app with its own server and a client the installed
+  // output of the build it starts with.
+  const serveOf = (
+    store: ReturnType<typeof storeOf>,
+    plan: Plan,
+    output: string,
+  ) =>
+    plan.runtime.server?.build != null
+      ? { served: store.servedFile, output }
+      : { served: store.servedFile };
+
   // Swap a running built app onto a newer build (decision F58): the record
   // of what it serves is replaced, and its static server serves the new
   // build from its next request, with no restart and no refused connection.
@@ -1280,8 +1301,11 @@ export function createModuleOperations(input: {
   // its development script from before builds existed (moved onto its
   // build), a static server whose serving declaration changed (its
   // address, health path or fallback), or one whose record has no
-  // `previous` (written by a release whose server does not read it). Never
-  // an app started explicitly as its development version.
+  // `previous` (written by a release whose server does not read it). An
+  // app's own server runs the commit it was started from, so it is
+  // restarted onto every other key (the addendum of 2026-10-21: a gap of a
+  // few seconds, no second process). Never an app started explicitly as its
+  // development version.
   async function swap(
     prepared: Prepared,
     plan: Plan,
@@ -1294,19 +1318,19 @@ export function createModuleOperations(input: {
       if (status.kind !== "status" || status.state !== "running") return;
       const served = await store.served();
       if (served?.mode === "dev") return;
-      if (
-        served?.mode === "built" &&
-        served.previous !== undefined &&
-        !("declarationChanged" in status)
-      ) {
-        if (served.key !== built.record.key)
-          await store.writeServed(await servedRecord(store, built.record));
-        return;
+      if (served?.mode === "built" && !("declarationChanged" in status)) {
+        if (plan.runtime.server !== null) {
+          if (served.key === built.record.key) return;
+        } else if (served.previous !== undefined) {
+          if (served.key !== built.record.key)
+            await store.writeServed(await servedRecord(store, built.record));
+          return;
+        }
       }
       const record = await servedRecord(store, built.record);
       if ((await lifecycle.stop(selection)).kind !== "group-stopped") return;
       await store.writeServed(record);
-      await lifecycle.start(selection, { served: store.servedFile });
+      await lifecycle.start(selection, serveOf(store, plan, built.output));
     });
   }
 
@@ -1330,7 +1354,7 @@ export function createModuleOperations(input: {
 
   // The apps the Launchpad keeps built after a pull (decision F58 point
   // 7): every app with a build state (someone opened it), and, until one
-  // sweep has read them all, also every static app that runs without one (a
+  // sweep has read them all, also every built app that runs without one (a
   // development run from before builds existed, moved onto its build), with
   // the Git directories their builds read: the module's and those of the
   // data mounts and required slots its build key includes.
@@ -1399,7 +1423,7 @@ export function createModuleOperations(input: {
       }
       let plan: Plan | null;
       try {
-        plan = await readStaticPlan(prepared.target);
+        plan = await readBuiltPlan(prepared.target);
       } catch {
         if (recorded === undefined) migrated = false;
         continue;
@@ -1539,24 +1563,28 @@ export function createModuleOperations(input: {
       output = outcome.output;
     }
     const newest = record;
+    const serve = serveOf(store, plan, output);
     return operate("start", kind, target, async (lifecycle) => {
       // The record its static server reads at its start, written only when
       // nothing runs: a running app is answered as it runs (a swap moves a
-      // running one).
+      // running one). An app's own server starts here with the newest build
+      // too; a newer commit builds in the background and restarts it.
       const status = await lifecycle.status(selection);
       if (
         status.kind === "not-managed" ||
         (status.kind === "status" && status.state === "ended")
       )
         await store.writeServed(await servedRecord(store, newest));
-      const started = await lifecycle.start(selection, {
-        served: store.servedFile,
-      });
+      const started = await lifecycle.start(selection, serve);
       if (started.kind !== "started" && started.kind !== "already-managed")
         return blocked("start", started.kind, {
           organization: target.organization,
           module: target.module,
           app: target.app,
+          // The file a failed start-time step concerns (decision F25).
+          ...("file" in started && typeof started.file === "string"
+            ? { file: started.file }
+            : {}),
         });
       // Watched from now on, not from the next sweep (#559).
       await keepWatching(prepared, plan);
@@ -1654,17 +1682,14 @@ export function createModuleOperations(input: {
       app: target.app,
     };
     const status = await lifecycle.status(selection);
-    // A static app's builds (decision F58); a start still building when the
-    // answer was due is `build-pending`.
-    const plan = await staticPlan(target);
+    // A built app's builds (decision F58); a start still building when the
+    // answer was due is `build-pending`. A run that ended keeps what it was
+    // started as: a built one is offered its development version.
+    const plan = await builtPlan(target);
     const build =
       plan === null
         ? undefined
-        : await buildInfo(
-            target,
-            plan,
-            status.kind === "status" && status.state !== "ended",
-          );
+        : await buildInfo(target, plan, status.kind === "status");
     const pending =
       outcome === "start-pending" && build?.building != null
         ? "build-pending"
@@ -1765,9 +1790,10 @@ export function createModuleOperations(input: {
         module: target.module,
         app: target.app,
       });
-    // A static app starts as its build, unless its development version is
-    // asked for explicitly (decision F58).
-    const plan = await staticPlan(target);
+    // A built app starts as its build (a static app's output, or its own
+    // server), unless its development version is asked for explicitly
+    // (decision F58).
+    const plan = await builtPlan(target);
     if (plan !== null && options.dev !== true)
       return startBuilt(prepared, plan, options.explicit === true);
     return operate("start", kind, target, async (lifecycle) => {
@@ -1953,7 +1979,7 @@ export function createModuleOperations(input: {
     );
   }
 
-  // Build a static app's checkout now (decision F58), also a commit whose
+  // Build a built app's checkout now (decision F58), also a commit whose
   // last build failed or, when the checkout has uncommitted changes, one
   // built already; then swap a running built app onto it.
   async function buildOwned(
@@ -1967,7 +1993,7 @@ export function createModuleOperations(input: {
     };
     if (builder === undefined)
       return blocked("build", "builds-unavailable", where);
-    const plan = await staticPlan(target);
+    const plan = await builtPlan(target);
     if (plan === null) return blocked("build", "not-static", where);
     const missing = await toolchainMissing("build", target);
     if (missing !== null) return missing;
@@ -2043,8 +2069,9 @@ export function createModuleOperations(input: {
     ): Promise<ModuleAnswer | ModuleBlocked> {
       return answerWithin("prepare", name, options, prepareOwned, answer);
     },
-    /** Build a static app's checkout now and swap a running built app onto
-     * it (decision F58); `not-static` for an app without `build_output`. */
+    /** Build a built app's checkout now and swap a running built app onto
+     * it (decision F58); `not-static` for an app with neither `build_output`
+     * nor `start_script`. */
     async build(
       name: string,
       options: ModuleOptions = {},
@@ -2053,7 +2080,7 @@ export function createModuleOperations(input: {
       return answerWithin("build", name, options, buildOwned, answer);
     },
     /** What a running app of the catalog was started as (decision F58):
-     * a static app's build and its commit, or its development script; for
+     * a built app's build and its commit, or its development script; for
      * the overview of running Modules. Null when it cannot be named. */
     async served(
       name: string,
@@ -2064,14 +2091,14 @@ export function createModuleOperations(input: {
     }> | null> {
       const prepared = await prepare("status", name, { app });
       if ("kind" in prepared) return null;
-      const plan = await staticPlan(prepared.target);
+      const plan = await builtPlan(prepared.target);
       if (plan === null) return Object.freeze({ mode: "dev", commit: null });
       const served = await storeOf(prepared.target, plan).served();
       return served?.mode === "built"
         ? Object.freeze({ mode: "built", commit: served.commit })
         : Object.freeze({ mode: "dev", commit: null });
     },
-    /** Keep the static apps people opened built after a pull (decision F58
+    /** Keep the built apps people opened built after a pull (decision F58
      * point 7): the Launchpad watches the Git directories their builds read
      * and sweeps at its start and every few minutes, building a moved
      * checkout in the background and swapping what runs. Each sweep first

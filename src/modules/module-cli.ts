@@ -35,8 +35,13 @@ export const moduleHelp = `module start <Organization>/<module> [--app <package>
   build, start serves that one and builds the new commit in the background,
   then swaps. A build that fails keeps the build there was and is answered
   with its reason and log (build-script-failed, build-timed-out,
-  build-output-missing, build-output-unservable); --dev starts the app's
-  development script instead, explicitly, until it is stopped. The Organization is named
+  build-output-missing, build-output-unservable). An app with its own
+  server (start_script) starts that script with NODE_ENV=production after
+  the start-time step, handed its client's build (build_output) as
+  LAZURIO_RUNTIME_BUILD_OUTPUT; its build is keyed by the module's commit
+  alone, and after a pull it is restarted onto the new build, never when
+  only its data changed. --dev starts the app's development script
+  instead, explicitly, until it is stopped. The Organization is named
   as in module list: its slug, or its directory name; a slug that two
   directories declare is refused (organization-ambiguous), and a module that
   cannot run is refused with its catalog reason. On a Folder with a
@@ -106,24 +111,26 @@ module prepare <Organization>/<module> [--app <package>] [--folder <F>] [--json]
   while another app of the same Organization runs it is refused
   (other-app-managed). Outcomes as for start, and prepared when done.
 module build <Organization>/<module> [--app <package>] [--folder <F>] [--json]
-  Builds a static app's checkout now, one build at a time in this
+  Builds a built app's checkout now, one build at a time in this
   Environment and at a low priority (on Linux in its own transient unit
   with at most ${buildMemoryMax} of memory and ${buildTimeoutMs / 60_000} minutes): the app's
   start-time step (the frozen install, its check, its prepare_script when
   the check fails), then its build_script with NODE_ENV=production. The
-  build is keyed by the module's commit (and the commits of the data
-  repositories and required slots it reads); a commit already built is
-  current, unless the checkout has uncommitted changes, and a commit whose
-  build failed is built again. A running built app is then swapped onto the
-  new build. The Launchpad does the same by itself after a pull. not-static
-  for an app without build_output.
+  build is keyed by the module's commit (for a static app also the commits
+  of the data repositories and required slots it reads); a commit already
+  built is current, unless the checkout has uncommitted changes, and a
+  commit whose build failed is built again. A running built app is then
+  swapped onto the new build (an app with its own server is restarted onto
+  it; one without a client builds nothing). The Launchpad does the same by
+  itself after a pull. not-static for an app with neither build_output nor
+  start_script.
 module stop <Organization>/<module> [--app <package>] [--folder <F>] [--json]
   Stops the app and confirms its whole process group ended; stopping an app
   that does not run answers not-managed.
 module status <Organization>/<module> [--app <package>] [--folder <F>] [--json]
   What the service manager reports: state (running, starting, stopping,
   ended, stopped), whether the declared health passed, the service invocation
-  and, while healthy, the link runtime.url; for a static app also what it
+  and, while healthy, the link runtime.url; for a built app also what it
   serves (built and its commit, or dev) and its builds: the current one,
   one under way, the last failure and its log. In a Remote Environment the link
   is the module's hostname from its recorded entry, never a localhost
@@ -263,7 +270,7 @@ const explanations: Readonly<Record<string, string>> = {
   "organization-manifest-unreadable":
     "The Organization manifest could not be read, so the data repositories a build reads are not known.",
   "not-static":
-    "This app declares no static output (lazurio.runtime build_output); it runs its development script.",
+    "This app declares neither a static output (lazurio.runtime build_output) nor its own server (start_script); it runs its development script.",
   "builds-unavailable":
     "This Environment keeps no builds (its home is not known).",
   "directory-owner":
@@ -304,7 +311,7 @@ function describe(name: string, result: ModuleResult): string {
   ].join("\n");
 }
 
-// A static app's builds (decision F58), by short commits.
+// A built app's builds (decision F58), by short commits.
 function buildLines(build: ModuleBuild): string[] {
   const short = (commit: string) => commit.slice(0, 12);
   return [

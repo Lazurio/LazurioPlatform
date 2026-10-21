@@ -260,3 +260,81 @@ test("a static app declares its build output beside its build script: one HTTP l
     ).runtime.static?.output,
   ).toBe("dist");
 });
+
+test("an app with its own server declares start_script, and its client build_output beside build_script: any listeners and secrets, no static fallback (decision F58, addendum of 2026-10-21)", () => {
+  const server = (extra: Record<string, unknown>) =>
+    parseAppRuntime({ ...runtime(), start_script: "start", ...extra });
+  // Without `start_script` an app has no server run.
+  expect(parseAppRuntime(runtime()).server).toBeNull();
+  // A server without a client: it builds nothing.
+  expect(server({})).toMatchObject({
+    static: null,
+    server: { start_script: "start", build: null },
+  });
+  // The same script as the development one, when that is the server.
+  expect(server({ start_script: "dev" }).server?.start_script).toBe("dev");
+  // Its client: neither one listener nor no secrets is required, because
+  // its own process gets them as its development run does.
+  const [listener] = runtime().listeners;
+  const withClient = server({
+    build_script: "build",
+    build_output: "dist",
+    secrets: ["EXTERNAL_API_KEY"],
+    optional_secrets: ["OPTIONAL_KEY"],
+    listeners: [
+      listener,
+      {
+        ...listener,
+        id: "events",
+        role: "auxiliary",
+        lease: "events",
+        protocol: "tcp",
+        health: { kind: "tcp" },
+      },
+    ],
+  });
+  expect(withClient.static).toBeNull();
+  expect(withClient.server).toEqual({
+    start_script: "start",
+    build: { output: "dist", build_script: "build" },
+  });
+  // It routes its own requests; a client still needs its build script and
+  // a valid output.
+  expect(() =>
+    server({
+      build_script: "build",
+      build_output: "dist",
+      static_fallback: "spa",
+    }),
+  ).toThrow();
+  expect(() => server({ static_fallback: "404" })).toThrow();
+  expect(() => server({ build_output: "dist" })).toThrow();
+  expect(() =>
+    server({ build_script: "build", build_output: "../dist" }),
+  ).toThrow();
+  for (const start of ["", " ", "a\nb", 7, null])
+    expect(() => server({ start_script: start })).toThrow();
+  // Both scripts must be the package's.
+  const plan = (scripts: Record<string, string>, extra = {}) =>
+    planModuleRuntime(
+      module,
+      { ...runtime(), start_script: "start", ...extra },
+      "app/package.json",
+      scripts,
+    );
+  expect(() => plan({ dev: "fixture" })).toThrow(
+    "Declared start script missing",
+  );
+  expect(() =>
+    plan(
+      { dev: "fixture", start: "fixture start" },
+      { build_script: "build", build_output: "dist" },
+    ),
+  ).toThrow("Declared build script missing");
+  expect(
+    plan(
+      { dev: "fixture", start: "fixture start", build: "fixture build" },
+      { build_script: "build", build_output: "dist" },
+    ).runtime.server?.build?.output,
+  ).toBe("dist");
+});

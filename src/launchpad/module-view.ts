@@ -227,9 +227,13 @@ export type ModuleStatusView = Readonly<{
   link: string | null;
   /** Why a healthy app has no link, in words. */
   noLink: string | null;
-  /** A running static app whose newer build failed (decision F58): it
+  /** A running built app whose newer build failed (decision F58): it
    * serves the previous build; the failure and its log, in words. */
   buildNote?: string;
+  /** A built run that ended by itself, such as an app's own server whose
+   * new commit built but did not start (decision F58, addendum of
+   * 2026-10-21): its page offers the development version explicitly. */
+  development?: true;
 }>;
 
 /** The module's status as its page shows it. `null`: not read yet, or the
@@ -285,6 +289,7 @@ export function moduleStatusView(
         action: "stop",
         ...none,
         ownership,
+        ...(status.build?.mode === "built" ? { development: true } : {}),
       };
     case "stopping":
       return {

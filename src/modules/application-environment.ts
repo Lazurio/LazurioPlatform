@@ -91,6 +91,11 @@ export function applicationEnvironment(input: {
    * decision F46). Only the application's own process gets them: never the
    * preparation's processes, never `LAZURIO_RUNTIME_LISTENERS_JSON`. */
   secrets?: Readonly<Record<string, string>> | undefined;
+  /** A start of the app's own server from `main` (decision F58, addendum of
+   * 2026-10-21): `NODE_ENV=production` and, for an app with a client, the
+   * installed output of the build it starts with as
+   * `LAZURIO_RUNTIME_BUILD_OUTPUT`. None: its development run. */
+  production?: Readonly<{ buildOutput: string | null }> | undefined;
 }): Record<string, string> {
   const { runtime, listeners } = input.plan;
   const entrypoint = listeners.find(
@@ -100,8 +105,8 @@ export function applicationEnvironment(input: {
   const origin = input.externalOrigin ?? null;
   const environment: Record<string, string> = {
     ...input.base,
-    // The declared development task, whatever mode the parent runs in.
-    NODE_ENV: "development",
+    // The declared task's mode, whatever mode the parent runs in.
+    NODE_ENV: input.production === undefined ? "development" : "production",
     // Astro 7 backgrounds its dev and preview servers when it detects an
     // agent; the owner supervises the process, so it must stay attached.
     ASTRO_DEV_BACKGROUND: "1",
@@ -156,6 +161,9 @@ export function applicationEnvironment(input: {
       `LAZURIO_RUNTIME_SIBLING_${listenerVariableKey(module)}_ORIGIN`
     ] = siblingOrigin;
   environment.LAZURIO_RUNTIME_LISTENERS_JSON = JSON.stringify(state);
+  // Outside the checkout, never changed once there (decision F58 point 3).
+  const output = input.production?.buildOutput ?? null;
+  if (output !== null) environment.LAZURIO_RUNTIME_BUILD_OUTPUT = output;
   for (const [name, value] of Object.entries(input.secrets ?? {})) {
     if (!/^LAZURIO_RUNTIME_SECRET_[A-Z][A-Z0-9_]*$/.test(name))
       throw new Error("Invalid runtime secret variable");

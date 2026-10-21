@@ -481,7 +481,7 @@ test("a static app's build (decision F58): building before it runs, its outcomes
       expect(moduleResultMessage(refusal(reason), copy)).not.toContain(reason);
 });
 
-test("a running static app whose newest build failed says so in plain words; one that runs its development version does not (decision F58)", () => {
+test("a running built app whose newest build failed says so in plain words; one that runs its development version does not; a built run that ended offers its development version (decision F58)", () => {
   const failure = {
     commit: "d".repeat(40),
     at: "2026-10-20T08:02:00.000Z",
@@ -513,4 +513,26 @@ test("a running static app whose newest build failed says so in plain words; one
       en,
     ).buildNote,
   ).toBeUndefined();
+  // A built run that ended by itself (an app's own server whose new commit
+  // does not start, the addendum of 2026-10-21) offers the development
+  // version; a development run that ended does not.
+  const ended = { state: "ended" as const, healthy: false, runtime: null };
+  expect(
+    moduleStatusView(
+      answer({ ...ended, build: { ...build, failure: null } }),
+      cs,
+    ),
+  ).toMatchObject({
+    dot: "failed",
+    text: cs.moduleEnded,
+    action: "stop",
+    development: true,
+  });
+  expect(
+    moduleStatusView(
+      answer({ ...ended, build: { ...build, mode: "dev", served: null } }),
+      cs,
+    ).development,
+  ).toBeUndefined();
+  expect(moduleStatusView(answer(ended), cs).development).toBeUndefined();
 });

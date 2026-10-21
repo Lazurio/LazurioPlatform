@@ -394,6 +394,8 @@ async function fixture(name: string, host = "127.0.0.1") {
   const prepareLaunch = async (
     plan: { runtime: { dev_script: string } },
     cwd: string,
+    // A production start (decision F58's addendum of 2026-10-21): unused.
+    _production?: unknown,
   ) => ({
     executable: process.execPath,
     args: ["--no-env-file", "run", plan.runtime.dev_script],
