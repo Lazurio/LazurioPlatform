@@ -5,6 +5,7 @@ import {
   observeEnvironmentBrowser,
 } from "../browser/units";
 import { chatDefaults } from "../chat/defaults";
+import { computerUseReasons, observeComputerUse } from "../computer/computer";
 import { agentRegistrations } from "../executor/agents";
 import {
   type ExecutorHost,
@@ -120,6 +121,7 @@ export const doctorCheckIds = [
   "codex-app-server",
   "chat-defaults",
   "environment-browser",
+  "computer-use",
 ] as const;
 export type DoctorCheckId = (typeof doctorCheckIds)[number];
 
@@ -156,6 +158,7 @@ export const doctorGroupOf: Readonly<Record<DoctorCheckId, DoctorGroup>> =
     "codex-app-server": "machine",
     "chat-defaults": "machine",
     "environment-browser": "machine",
+    "computer-use": "machine",
   });
 
 export type DoctorOutcome = "ok" | "warn" | "fail" | "skipped";
@@ -241,6 +244,7 @@ export const doctorReasons: readonly string[] = Object.freeze([
     ...catalogReasons,
     ...codexAppServerReasons,
     ...environmentBrowserReasons,
+    ...computerUseReasons,
   ]),
 ]);
 
@@ -922,6 +926,19 @@ export async function collectDoctor(
     fetch: environment.fetch ?? ((url, init) => fetch(url, init)),
   });
 
+  // Computer Use on the same screen (decision F59).
+  const computer = await observeComputerUse({
+    platform,
+    env,
+    supervised: service !== null,
+    hosted: async () =>
+      environment.hostedFolder !== undefined &&
+      (await environment.hostedFolder()) !== undefined,
+    declared: handover?.context.entry?.browser !== undefined,
+    run,
+    tools: environment.tools.run,
+  });
+
   const recovered = recovery.checks;
   const facts = observed.facts;
   const [version, available, refresh, template] = productChecks(
@@ -987,6 +1004,7 @@ export async function collectDoctor(
       browser.reason,
       browser.context,
     ),
+    check("computer-use", computer.outcome, computer.reason, computer.context),
   ];
   // Group order, stable within a group.
   const ordered = doctorGroups.flatMap((group) =>

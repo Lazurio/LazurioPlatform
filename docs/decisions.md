@@ -16972,3 +16972,123 @@ while the sweep reads the siblings leaving the app running; and lsof's evidence 
 `tests/listener-ownership.test.ts` (`observeConnected` before, during and after a real
 connection) and `tests/built-static-server.test.ts` (an idle connection after a request
 still open after 15 s; with Bun's default it closed at about 12).
+
+## F59 — Computer Use on a Remote Environment: the Cua Driver's daemon on the screen, one MCP server `computer` for every agent
+
+**Decided by Matěj 2026-10-21 (plan DEV-6673, root decision 0191 points 8 and 42);
+implemented in this revision.** Agents on a Remote Environment, threads of T3 Code and
+bots of Lazurio MausBot alike, control the Environment's one screen through Computer Use
+now, before the web desktop (`desktop.…`, 0191 point 8) exists. Computer Use is a
+service of the Environment offered to every agent as one MCP server named `computer`,
+not a mechanism of MausBot. Agents take turns on the screen: one mouse, one keyboard.
+This amends [F38](#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway)'s
+"Not decided here" for Computer Use; the desktop view stays the second wave.
+
+Before this, no agent on an Environment had Computer Use. Lazurio MausBot's upstream
+spawned the Cua Driver from its Electron app (for macOS TCC attribution, a reason Linux
+does not have) and its server only read a descriptor that app wrote, so on an
+Environment, without Electron, the descriptor never existed; the fork removed that
+machinery. Upstream's own CI proved the same driver on Xvfb from a plain process
+(`dbus-run-session -- xvfb-run`, `cua-driver serve` and `cua-driver mcp --socket`, a
+click and typed text reaching an X window).
+
+1. **One daemon on the screen: `lazurio-computer.service`.** On a supervised base, for
+   the declared operator of a handover whose `entry` carries `browser` (the screen),
+   `install` and `update` ensure one more user unit after the browser's, the F29/F38
+   way (marker, written when it differs, enabled, started, restarted only when its own
+   text changed, never a reason to fail): `cua-driver serve --no-overlay
+   --permission-mode standard --socket %h/.local/state/lazurio-computer/driver.sock` on
+   `DISPLAY=:1` with `XDG_SESSION_TYPE=x11`, the user manager's session bus
+   (`DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus`, where the AT-SPI bus is activated) and
+   the driver's telemetry and update check off (`CUA_DRIVER_RS_TELEMETRY_ENABLED=0`,
+   `CUA_DRIVER_RS_UPDATE_CHECK=0`: both are on by default, and the names and the off
+   values are the driver's own at the pinned commit), `BindsTo=`/`After=` the display.
+   Standalone, not `--embedded`: embedded mode with its liveness pipe belongs to a host
+   app and ends the daemon when its stdin closes, which under systemd is at once.
+   Without the cursor overlay: it is a full-screen X11 window, and on a screen without
+   a compositor it would cover every program. The socket lives in the home, so the
+   agents' entry names it without a runtime directory; the driver creates its
+   directory, removes a stale socket and keeps it owner-only. Texts, directives and
+   results: [product update](update.md#state-on-disk).
+2. **One MCP server `computer`, the driver's own proxy.** Each agent's entry is
+   `~/.local/bin/cua-driver mcp --socket <that socket>` with the same two settings: the
+   driver's documented MCP mode, proxying to the one daemon (the proxy, too, reports
+   telemetry and checks for an update when it starts, so it carries both switches), so the Platform writes no
+   MCP server and no agent starts a runtime of its own (on Linux, `mcp` without
+   `--socket` would own one in its own process). It is registered exactly as
+   Executor's entry ([F44](#f44--executor-in-every-remote-environment-installed-run-and-connected-to-the-agents-by-lazurio)):
+   `codex mcp add` and `claude mcp add --scope user` where the harness is installed,
+   read back with `codex mcp get --json` and `~/.claude.json`; the two now share one
+   implementation (`src/tools/agent-mcp.ts`). A Codex thread of T3 Code and a Codex bot
+   read the same `~/.codex`; whether a Claude bot of MausBot loads the user's servers is
+   MausBot's to settle. Lazurio's entry follows the driver: added where it is there,
+   removed (`codex mcp remove`, `claude mcp remove --scope user`) where it is not, so no
+   agent starts with a server that cannot run. Another entry, and one named `computer`
+   that is not Lazurio's, are never changed. Running chats keep their tools; new chats
+   see the change.
+3. **Machines installs the driver; the Platform pins what it runs.** Root decision 0191
+   point 9 has Machines configure no display, unit or browser, only packages, and
+   Machines delivers every pinned operator tool into `~/.local/bin` from its resident
+   toolchain catalog (URL, SHA-256, digest source). So Machines installs the Cua Driver
+   **0.19.3** as `~/.local/bin/cua-driver` from
+   `https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.19.3/cua-driver-rs-0.19.3-linux-x86_64-binary.tar.gz`
+   (archive SHA-256 `3db9d4257d84bacaf7eb104d225f85613ce67edbb20d6eeb83c1384b6d8a5b10`,
+   member `cua-driver` with SHA-256
+   `ed5844fadf07b9b72c4a3b3802e1c47233c166d66d6198608d5991f807aab4ac`; digest source
+   the GitHub release's asset digest and the trust anchors in Lazurio/OpenMausBot
+   `third_party/cua-driver/README.md`, upstream commit
+   `a1672e7b11951275ecfba3384264d4530185d0db`), and the packages `at-spi2-core`,
+   `dbus-user-session` and `libglib2.0-bin` (`gdbus`, with which the driver's doctor
+   finds the AT-SPI bus). The Platform downloads nothing at run time. Linux x86_64 only,
+   as that archive.
+4. **Degrades to nothing.** Without the driver the unit is skipped by its
+   `ConditionFileIsExecutable=`, never failed, the agents have no entry and `install`
+   says so (`driver-missing`); without AT-SPI the driver still captures, clicks and
+   types by pixels and doctor says what is missing. The screen, the browser, its view
+   and every other unit are unchanged either way.
+5. **Turns are an instruction, not a lock.** One daemon serves every caller, and
+   nothing serialises a bot against a T3 thread. The Folder says it: one agent works on
+   the screen at a time, for the steps it needs, and leaves the others' windows alone;
+   web pages stay in the Environment browser. A lock in the Platform's entry comes only
+   if collisions show. The Folder's lines appear where the recorded entry has the
+   browser (template revision `base-instructions-62`).
+6. **A fact in doctor.** `computer-use`: the driver, the unit, the driver's own
+   `doctor --json` (an X11 display, a reachable AT-SPI bus), then both harnesses'
+   entries; never `fail`, never in `recover`
+   ([doctor](launchpad-development.md#doctor)).
+
+**Not decided here.** The desktop view of the screen (second wave, 0191 point 8, with
+noVNC, Selkies or neko as candidates), a window manager, a lock between agents, an
+approval scope of its own (an agent's harness asks as it asks for any MCP tool;
+full access asks nothing, root 0172), arm64, and Claude bots of MausBot loading the
+Environment's servers.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| MausBot's former Electron-owned daemon and its descriptor, brought back | Only bots would have it, it re-imports a macOS TCC design and the machinery the fork removed; rejected |
+| An MCP server of our own over xdotool and screenshots | Own machinery without accessibility trees, while the driver ships its MCP mode; rejected |
+| Cua's Python `computer-server` | 200 MB+ of Python per Environment for the same driver; rejected |
+| Codex's built-in Computer Use | A plugin of the macOS desktop app; not on Linux, not for Claude; rejected |
+| `cua-driver mcp` without `--socket` per agent | A runtime per agent process on one screen, no shared daemon to watch or restart; rejected |
+| The Platform downloads the driver itself, as it does Executor | Executor is a Platform-run npm service; the screen's packages are Machines' (0191 point 9), and the driver is a pinned binary like the rest of Machines' toolchain; rejected |
+| The driver's daemon as a user unit bound to the screen, its MCP proxy as the server `computer` registered like Executor, the driver installed by Machines (selected) | The driver's documented modes, one daemon for every agent, nothing written that upstream already has |
+
+**Verified by** `tests/computer-use.test.ts` (the unit's text; convergence: skipped
+without a hosted operator or a screen, written once, restarted only when changed, the
+agents' entries through each harness's own CLI with the driver's proxy and both
+settings, nothing added twice; the driver missing: the unit kept, Lazurio's entries
+removed, an operator's entry and a foreign `computer` kept; a foreign unit and a
+refusing manager; doctor: each skip, each warning, the driver's doctor run on `:1` with
+the session bus and both settings off, `ok` with the version and both harnesses; the
+Folder's lines only with the screen, in both languages), `tests/executor-agents.test.ts`
+(Executor's entry unchanged over the shared module), `tests/update-install.test.ts`
+(convergence after the browser's units, the hosted context asked once) and
+`tests/doctor.test.ts`. **Honest limits:** no real systemd, Xvfb or driver ran in these
+tests. Not yet verified on a Remote Environment: the standalone `serve` under systemd,
+Chrome's and other programs' accessibility trees on Xvfb (Chrome exposes its tree only
+when it believes assistive technology is on), stacking of windows without a window
+manager (a 1920×1080 browser window can cover a program; the driver's `bring_to_front`
+is untested there), and a Claude bot's tools. The person cannot watch the screen until
+the desktop view exists. The first verification is on a Remote Environment of the
+reference Organization (root decision 0204), after Machines delivers the driver and the
+packages.
