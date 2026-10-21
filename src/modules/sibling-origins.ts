@@ -46,6 +46,18 @@ export class RequiredSlotRefused extends Error {
 // they are data, never an address.
 const siblingSlot = /^workspace\/([a-z0-9][a-z0-9-]*)$/;
 
+/** The sibling modules among an app's required slots, by module id: each
+ * `workspace/<slug>` but the app's own module. */
+export function siblingModules(
+  slots: readonly string[],
+  module: string,
+): string[] {
+  return slots.flatMap((slot) => {
+    const id = siblingSlot.exec(slot)?.[1];
+    return id === undefined || id === module ? [] : [id];
+  });
+}
+
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -109,12 +121,7 @@ export async function requiredSlotOrigins(input: {
       throw new RequiredSlotRefused("required-slot-missing", slot);
     }
   }
-  const wanted = new Set(
-    input.slots.flatMap((slot) => {
-      const id = siblingSlot.exec(slot)?.[1];
-      return id === undefined || id === input.module ? [] : [id];
-    }),
-  );
+  const wanted = new Set(siblingModules(input.slots, input.module));
   for (const entry of result.entries) {
     if (
       entry.kind !== "module-observed" ||

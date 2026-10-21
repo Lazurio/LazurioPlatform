@@ -16579,14 +16579,23 @@ own.
    direct link (the gateway's `ensure` on a navigation), starts it again; a static app
    starts as its newest build, which the sweep built meanwhile when a pull came. The
    first request waits for the start. What the app held only in memory is lost.
-5. **The static server keeps an idle connection for 255 s,** Bun's longest (its default
+5. **A sibling sleeps after its caller** (added after Pablo's review of the root
+   decision). An app that another app the Launchpad runs requires as its sibling (a
+   `workspace/<slug>` of `required_module_slots`, root decision 0176: the default app of
+   that module, whose loopback origin the caller is given) does not sleep while that app
+   runs. The caller reaches it at its loopback address, past the gateway, and so never
+   wakes it. It sleeps at the first sweep after its caller slept, once its own idle time
+   has passed. The siblings are read by the rule the caller's start reads them by
+   (`siblingModules`, `src/modules/sibling-origins.ts`); there is no wake path and no
+   change of routing.
+6. **The static server keeps an idle connection for 255 s,** Bun's longest (its default
    is 10 s). Changed from the brief, which counted on a browser keeping its connection
    for a few minutes: the server closed it after 10 s, so a person reading a built app
    and clicking now and then was seen by a sweep only by chance (with a click a minute,
    about half the time no sweep in 20 minutes would have seen one). Now a browser or the
    gateway (Caddy keeps an upstream connection for 2 minutes) holds it between a
    person's requests.
-6. **A development run** (`--dev`, or an app without `build_output`) sleeps by the same
+7. **A development run** (`--dev`, or an app without `build_output`) sleeps by the same
    rule. Its framework's development server holds a WebSocket for hot reload while a tab
    is open, so in practice it sleeps once its tabs are closed. Woken, a static app runs
    as its build; `--dev` is asked for again.
@@ -16601,7 +16610,8 @@ evidence; the routes and the Launchpad's pages. A worktree's preview keeps its o
 | Count requests: in the static server, or the gateway's `ensure` | Exact, but a second signal: the static server would need state the Launchpad reads (a file or a port), and `ensure` exists only on a Remote Environment. Rejected; an open connection holds everywhere |
 | `/proc/net/tcp` on Linux, no subprocess | A second reader beside lsof, which both runners already use; rejected |
 | Only the apps this Launchpad started | Misses on Linux every app that outlived a restart of the Launchpad or that the CLI started; rejected |
-| Bun's 10 s idle time in the static server | A built app in use would often sleep (point 5); rejected |
+| Bun's 10 s idle time in the static server | A built app in use would often sleep (point 6); rejected |
+| Wake a caller's siblings with it | A wake path of its own; not asked (point 5), see the limits |
 
 **Honest limits.**
 - A sweep samples. A person who leaves a page open and reads it for longer than the
@@ -16612,6 +16622,9 @@ evidence; the routes and the Launchpad's pages. A worktree's preview keeps its o
   opened from the Launchpad. On a Remote Environment the gateway's `ensure` starts it on
   a navigation; a background request (a lazily loaded asset of a page opened before)
   answers 503 until then.
+- When a caller and its sibling have both slept, opening the caller does not start the
+  sibling. Until the sibling's own Open or link, the caller's calls to it are refused,
+  as they already are for a caller started while its sibling is stopped.
 - Whatever holds a connection keeps the app awake: an agent's tab, a client of the app's
   API. `-iTCP:<port>` also matches a connection of the operator's processes whose remote
   port has the same number; that keeps the app awake, never the reverse.
@@ -16625,7 +16638,8 @@ run asleep twenty minutes after its connection went, a pull built while asleep a
 gateway's `ensure` waking it as that build, an explicit Stop left as it is; an app the
 service manager runs that this Launchpad did not start found and put to sleep, unknown
 evidence counted as in use, a stop and a start between two sweeps starting a new clock;
-and lsof's evidence of a real connection held to and closed from the static server),
+a sibling without connections kept while its caller runs and asleep at the sweep after
+it; and lsof's evidence of a real connection held to and closed from the static server),
 `tests/listener-ownership.test.ts` (`observeConnected` before, during and after a real
 connection) and `tests/built-static-server.test.ts` (an idle connection after a request
 still open after 15 s; with Bun's default it closed at about 12).

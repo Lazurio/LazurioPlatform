@@ -107,6 +107,8 @@ async function staticModule(
     /** One runner for every owner of this host's apps, as the service
      * manager outlives a Launchpad; otherwise one per lifecycle. */
     runner?: ApplicationRunner;
+    /** More of plain's runtime declaration (its required slots). */
+    plain?: Record<string, unknown>;
   }> = {},
 ) {
   const parent = join(root, name);
@@ -123,7 +125,14 @@ async function staticModule(
   const organization = await writeOrganization(folder, "alpha", {
     slug: "alpha",
     state: "current",
-    modules: [{ id: "site" }, { id: "plain" }, { id: "next" }],
+    modules: [
+      { id: "site" },
+      {
+        id: "plain",
+        ...(options.plain === undefined ? {} : { runtime: options.plain }),
+      },
+      { id: "next" },
+    ],
     ...(options.dataMount
       ? {
           slots: [
@@ -1015,6 +1024,44 @@ posixTest(
     } finally {
       socket?.destroy();
       await operations.stop("alpha/site");
+      await operations.close();
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "a sibling another running app requires stays awake while that app runs, though nobody connects to it, and falls asleep after it (root decisions 0176 and 0195 point 23)",
+  async () => {
+    const home = join(root, "home-sibling");
+    await mkdir(home);
+    // plain calls next at its loopback address.
+    const fixture = await staticModule("sibling", home, {
+      plain: { required_module_slots: ["workspace/next"] },
+    });
+    const { operations } = fixture;
+    const sweepAt = sweepsOf(operations, { connected: async () => false });
+    const state = async (name: string) =>
+      answer(await operations.status(name)).state;
+    try {
+      await sweepAt(0);
+      answer(await operations.start("alpha/next"));
+      await sweepAt(0);
+      answer(await operations.start("alpha/plain"));
+      await sweepAt(10);
+      // next's own idle time has passed, but plain runs.
+      await sweepAt(20);
+      await sweepAt(25);
+      expect(await state("alpha/next")).toBe("running");
+      // plain sleeps; next only at the sweep after it.
+      await sweepAt(30);
+      expect(await state("alpha/plain")).toBe("stopped");
+      expect(await state("alpha/next")).toBe("running");
+      await sweepAt(35);
+      expect(await state("alpha/next")).toBe("stopped");
+    } finally {
+      await operations.stop("alpha/plain");
+      await operations.stop("alpha/next");
       await operations.close();
     }
   },
