@@ -323,7 +323,7 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
   `checksum`, `extract`, `place`, `installer`, `verify`) and point to the agent prompt;
   an unsupported platform (Windows included) likewise. Exit 0 installed or already
   installed, 1 failed or unsupported, 2 usage or refused.
-- `tools login <tool> [--phone <+number>] [--ssh-key] [--json]` runs the tool's own
+- `tools login <tool> [--phone <+number>] [--ssh-key] [--device-code] [--json]` runs the tool's own
   sign-in in the foreground and shows its challenge: for gh the one-time code and
   `https://github.com/login/device` (`gh auth login --hostname github.com
   --git-protocol ssh --web --scopes admin:public_key --clipboard=false`; since gh
@@ -403,8 +403,8 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
   switches it (`composio orgs switch --org-id`). The apps connected in Composio belong
   to the account and organization of this Environment.
 - **`tools login codex` and `tools login claude`** (root decision 0201 points 3-6, F19's
-  addendum of 2026-10-15) run the CLI's own browser sign-in, `codex login` (never
-  `--device-auth`) and `claude auth login`, as the current user with the minimal
+  addendum of 2026-10-15) run the CLI's own browser sign-in by default, `codex login`
+  and `claude auth login`, as the current user with the minimal
   environment and the account's name (`USER`, `LOGNAME`). They are no catalog tools of
   agents: `tools list` does not show them and `install` and `logout` refuse them as
   before. Where the sign-in page opens:
@@ -425,8 +425,23 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
   - On a computer of one's own nothing is set: the CLI opens the computer's browser,
     and the printed page is offered beside it (`challenge: { kind: "page", url, code
     }`; on a Remote Environment `{ kind: "page", view, code }`, never the page).
+  - **`tools login codex --device-code`** (root decision 0201 point 10, F19's addendum of
+    2026-10-21) is the browser sign-in's quieter fallback, for codex only (any other
+    tool: `blocked`, `device-code-codex-only`, exit 2): `codex login --device-auth`
+    without the stand-in `BROWSER`. Codex prints, coloured even without a terminal,
+    OpenAI's page and a one-time code; the session reads them plain and offers
+    `challenge: { kind: "device-code", url, code }` only with the exact page
+    `https://auth.openai.com/codex/device` (any other address on a line of its own:
+    `unexpected-url`) and a code of groups of capital letters and digits joined by
+    dashes. The person enters it on that page in any browser, on any device; it needs no
+    Environment browser. Sign-in with a code must first be turned on in the person's
+    ChatGPT security settings (for a work account, by its admin); until then OpenAI's
+    page refuses the code, Codex keeps waiting and the session ends `expired` after the
+    code's 15 minutes. The sign-in lands where the browser sign-in's does, and ends the
+    same way (below). Claude has no sign-in by code.
   - Nothing starts on a Remote Environment without the Environment browser (`blocked`,
-    `no-environment-browser`, exit 2), nor codex where Codex's own `account/read`, asked
+    `no-environment-browser`, exit 2; the browser sign-in only, whose line points to
+    `--device-code` for codex), nor codex where Codex's own `account/read`, asked
     afresh right before `codex login` and never from a reading kept for the page, says
     its provider needs no OpenAI sign-in, the Organization's AI pool (`blocked`,
     `organization-provided`, exit 2). An `account/read` that cannot be read starts
@@ -445,7 +460,7 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
     `driver-mismatch` with the instance that runs another driver, or `failed` with
     `not-enabled` and the CLIs it did not turn on, `not-running`, `refused`,
     `unreadable` or `timeout`). Exit 0 only when signed in and neither the restart nor
-    T3 Code failed; 1 otherwise. The sign-in lives 10 minutes.
+    T3 Code failed; 1 otherwise. The sign-in lives 10 minutes, by code 15.
 
 The Launchpad offers the same over `POST /api/tools/install {tool}`,
 `/api/tools/login/start {tool, phone?}`, `/api/tools/login/poll {tool, session}`,
@@ -461,7 +476,9 @@ take that handle, so a challenge goes only to the browser that started the login
 pending WhatsApp login carries `qrSvg`, the QR code drawn by the server. A tool the
 catalog does not know, or an `agent` tool, is `409 blocked`. `start` takes `sshKey:
 true` for gh only ("Link SSH key"; anything else with it is `400`), and a pending gh
-login says `step: "ssh-key"` while the key is being linked. No answer carries private
+login says `step: "ssh-key"` while the key is being linked. `start` takes `deviceCode:
+true` for codex only (ChatGPT's sign-in by code; any other tool or value, or beside
+`sshKey`, is `400` `invalid-device-code`). No answer carries private
 key content or a public key's blob; only the key's path and SHA-256 fingerprint.
 
 A challenge is never written to a log, a file, the Folder or an error. The Launchpad
