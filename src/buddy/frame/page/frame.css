@@ -1,0 +1,562 @@
+/* Buddy's window (prototypes-lazurio `styles.css` `.buddyw`, rounds 4 and 5
+   of 2026-10-17): every colour from the design system's tokens, light or
+   dark as the host says (`lazurio.buddy.context`), three radii and no
+   framework. The host draws the panel's frame and shadow; the frame fills
+   it, and in full screen reads at most 760 px wide. The brand fonts are
+   declared by the script (app.ts), served from `/fonts/`. */
+
+:root {
+  color-scheme: light;
+  --bw-surface: var(--lz-white);
+  --bw-thread: var(--lz-gray-25);
+  --bw-ink: var(--lz-ink);
+  --bw-muted: var(--lz-ink-muted);
+  --bw-line: var(--lz-line);
+  --bw-line-faint: var(--lz-line-faint);
+  --bw-hover: var(--lz-gray-100);
+  --bw-me: var(--lz-ink);
+  --bw-me-ink: var(--lz-white);
+  --bw-buddy: var(--lz-white);
+  --bw-chip: var(--lz-blue-50);
+  --bw-chip-ink: var(--lz-blue-800);
+  --bw-quiet-chip: var(--lz-gray-100);
+  --bw-code: var(--lz-gray-50);
+  --bw-focus: var(--lz-accent);
+  --bw-danger: var(--lz-danger);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bw-surface: var(--lz-gray-950);
+  --bw-thread: var(--lz-gray-900);
+  --bw-ink: var(--lz-gray-50);
+  --bw-muted: var(--lz-gray-400);
+  --bw-line: var(--lz-gray-700);
+  --bw-line-faint: var(--lz-gray-800);
+  --bw-hover: var(--lz-gray-800);
+  --bw-me: var(--lz-gray-100);
+  --bw-me-ink: var(--lz-gray-950);
+  --bw-buddy: var(--lz-gray-950);
+  --bw-chip: var(--lz-blue-950);
+  --bw-chip-ink: var(--lz-blue-100);
+  --bw-quiet-chip: var(--lz-gray-800);
+  --bw-code: var(--lz-gray-800);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bw-surface);
+  color: var(--bw-ink);
+  font-family: var(--lz-font-sans);
+  font-size: 14px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--bw-focus);
+  outline-offset: 2px;
+}
+
+#buddy {
+  height: 100%;
+}
+
+.bw {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bw-surface);
+}
+
+/* The head: who he is, then full screen and close (the gear waits). */
+.bw__head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px 10px 14px;
+  border-bottom: 1px solid var(--bw-line-faint);
+}
+
+.bw__avatar {
+  width: 32px;
+  height: auto;
+  flex: none;
+}
+
+.bw__who {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.bw__name {
+  overflow: hidden;
+  font-weight: var(--lz-weight-akce);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bw__status {
+  color: var(--bw-muted);
+  font-size: 12px;
+}
+
+.bw__icon,
+.bw__tool {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--lz-radius-sm);
+  background: transparent;
+  color: var(--bw-muted);
+  cursor: pointer;
+}
+
+.bw__tool {
+  width: 28px;
+  height: 28px;
+}
+
+.bw__icon:hover,
+.bw__tool:hover:not(:disabled) {
+  background: var(--bw-hover);
+  color: var(--bw-ink);
+}
+
+.bw__tool:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+/* The thread: one column, in full screen at most 760 px wide. */
+.bw__thread {
+  flex: 1;
+  overflow: auto;
+  background: var(--bw-thread);
+}
+
+.bw__reading {
+  display: flex;
+  max-width: 760px;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 auto;
+  padding: 12px 14px;
+}
+
+.bw__rows {
+  display: flex;
+  margin-top: auto;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bw__older {
+  align-self: center;
+  padding: 3px 10px;
+  border: 1px solid var(--bw-line);
+  border-radius: var(--lz-radius-pill);
+  background: var(--bw-surface);
+  color: var(--bw-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.bw__day {
+  margin: 6px 0;
+  color: var(--bw-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.bw__msg {
+  max-width: 82%;
+  padding: 8px 11px;
+  border-radius: var(--lz-radius-md);
+  font-size: 13.5px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.bw__msg--buddy {
+  align-self: flex-start;
+  border: 1px solid var(--bw-line-faint);
+  border-bottom-left-radius: var(--lz-radius-xs);
+  background: var(--bw-buddy);
+}
+
+.bw__msg--me {
+  align-self: flex-end;
+  border-bottom-right-radius: var(--lz-radius-xs);
+  background: var(--bw-me);
+  color: var(--bw-me-ink);
+}
+
+.bw__msg--me .bw__text {
+  white-space: pre-wrap;
+}
+
+.bw__msg--sending {
+  opacity: 0.65;
+}
+
+.bw__msg--failed {
+  outline: 1px solid var(--bw-danger);
+}
+
+.bw__text p,
+.bw__text ul,
+.bw__text ol,
+.bw__text pre {
+  margin: 0;
+}
+
+.bw__text > * + * {
+  margin-top: 6px;
+}
+
+.bw__text ul,
+.bw__text ol {
+  padding-left: 18px;
+}
+
+.bw__text code {
+  padding: 0 3px;
+  border-radius: var(--lz-radius-xs);
+  background: var(--bw-code);
+  font-family: var(--lz-font-mono);
+  font-size: 12.5px;
+}
+
+.bw__text pre {
+  overflow: auto;
+  padding: 8px;
+  border-radius: var(--lz-radius-sm);
+  background: var(--bw-code);
+}
+
+.bw__text pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.bw__text a {
+  color: inherit;
+}
+
+.bw__heading {
+  font-weight: var(--lz-weight-akce);
+}
+
+.bw__via {
+  display: block;
+  margin-top: 3px;
+  opacity: 0.6;
+  font-size: 11px;
+}
+
+.bw__media {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.bw__media:last-child {
+  margin-bottom: 0;
+}
+
+.bw__image img,
+.bw__thumb {
+  display: block;
+  max-width: 220px;
+  max-height: 180px;
+  border-radius: var(--lz-radius-sm);
+}
+
+.bw__file {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: var(--lz-radius-pill);
+  background: var(--bw-quiet-chip);
+  color: var(--bw-ink);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.bw__msg--me .bw__file {
+  background: rgb(255 255 255 / 0.14);
+  color: inherit;
+}
+
+.bw__again {
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* One line of what Buddy does now. */
+.bw__progress {
+  overflow: hidden;
+  color: var(--bw-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bw__progress::before {
+  content: "· ";
+}
+
+/* A question Buddy asks: the choices, Jiné… and Přeskočit. */
+.bw__clarify {
+  padding: 10px 11px;
+  border: 1px solid var(--bw-line);
+  border-radius: var(--lz-radius-md);
+  background: var(--bw-buddy);
+}
+
+.bw__question {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+}
+
+.bw__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bw__choice {
+  padding: 4px 10px;
+  border: 1px solid var(--bw-line);
+  border-radius: var(--lz-radius-pill);
+  background: var(--bw-surface);
+  color: var(--bw-ink);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.bw__choice:hover:not(:disabled),
+.bw__choice.is-on {
+  border-color: var(--bw-ink);
+}
+
+.bw__choice:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.bw__choice--quiet {
+  border-color: transparent;
+  color: var(--bw-muted);
+}
+
+.bw__words {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.bw__words input {
+  min-width: 0;
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--bw-line);
+  border-radius: var(--lz-radius-xs);
+  background: var(--bw-surface);
+}
+
+/* Sign in, or Buddy out of reach. */
+.bw__gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: auto 0;
+  padding: 24px 8px;
+  text-align: center;
+}
+
+.bw__gate p {
+  margin: 0;
+  color: var(--bw-muted);
+}
+
+.bw__gate .bw__gate-title {
+  color: var(--bw-ink);
+  font-weight: var(--lz-weight-akce);
+}
+
+.bw__primary {
+  padding: 7px 16px;
+  border: 0;
+  border-radius: var(--lz-radius-sm);
+  background: var(--bw-me);
+  color: var(--bw-me-ink);
+  font-weight: var(--lz-weight-akce);
+  cursor: pointer;
+}
+
+/* The composer: the notice, the chips, then the field and its tools. */
+.bw__compose {
+  display: flex;
+  width: 100%;
+  max-width: 788px;
+  flex: none;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 auto;
+  padding: 10px;
+}
+
+.bw__notice {
+  color: var(--bw-danger);
+  font-size: 12px;
+}
+
+.bw__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.bw__context,
+.bw__attachment {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 4px 3px 8px;
+  border: 0;
+  border-radius: var(--lz-radius-pill);
+  background: var(--bw-chip);
+  color: var(--bw-chip-ink);
+  font-size: 12px;
+}
+
+.bw__context span,
+.bw__attachment span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bw__attachment {
+  background: var(--bw-quiet-chip);
+  color: var(--bw-ink);
+}
+
+.bw__attachment .bw__thumb {
+  width: 20px;
+  height: 20px;
+  object-fit: cover;
+  border-radius: var(--lz-radius-xs);
+}
+
+.bw__context--off {
+  padding-right: 8px;
+  background: var(--bw-quiet-chip);
+  color: var(--bw-muted);
+  cursor: pointer;
+}
+
+.bw__context-x {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--lz-radius-pill);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.bw__context-x svg {
+  width: 12px;
+  height: 12px;
+}
+
+.bw__composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--bw-line);
+  border-radius: var(--lz-radius-xs);
+  background: var(--bw-surface);
+}
+
+.bw__composer:has(.bw__input:focus-visible) {
+  border-color: var(--bw-ink);
+}
+
+.bw__input {
+  min-width: 0;
+  max-height: 160px;
+  flex: 1;
+  margin-left: 4px;
+  padding: 4px 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 13.5px;
+  line-height: 1.4;
+  resize: none;
+  field-sizing: content;
+}
+
+.bw__send:not(:disabled) {
+  color: var(--bw-ink);
+}
+
+/* The popup's landing. */
+.bw-signed-in {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: var(--bw-muted);
+  text-align: center;
+}

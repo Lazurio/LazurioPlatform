@@ -18,6 +18,11 @@ import {
   resolveBrowserView,
 } from "../browser/view";
 import { type CdpCall, cdpSeams, ensureThreadWindow } from "../browser/window";
+import {
+  type BuddyFrameDeclaration,
+  processBuddyFrame,
+  startDeclaredBuddyFrame,
+} from "../buddy/frame/start";
 import { createPersonalspaceHolder } from "../content/holder";
 import {
   type ContentHost,
@@ -239,6 +244,12 @@ export type HostedOptions = Readonly<{
    * handover, none where it names none or there is no handover. Trusted
    * composition, never HTTP input; tests supply the key. */
   ownerKey?: () => Promise<string | null>;
+  /** Buddy's frame on an Osobní Prostředí (src/buddy/frame/, buddy-web-v1
+   * CONTRACT section 4), served by this process on a listener of its own:
+   * by default as the variables Machines set for this unit declare it
+   * (`processBuddyFrame`), none where they are absent. Trusted composition,
+   * never HTTP input; tests supply their own or null. */
+  buddyFrame?: BuddyFrameDeclaration;
 }>;
 
 /** The origins of Microsoft's sign-in, whose cookies and storage hold the
@@ -2643,6 +2654,17 @@ export async function startLaunchpad(
       lookAtAudience();
       audienceTimer = setInterval(lookAtAudience, vaultAudienceEveryMs);
     })().catch(() => undefined);
+  // Buddy's frame (buddy-web-v1 CONTRACT section 4), only behind a gateway:
+  // its own loopback listener in this process, so no unit of its own; a
+  // defective declaration or a busy port leaves the Launchpad as it is.
+  const buddyFrame =
+    trust === null
+      ? null
+      : await startDeclaredBuddyFrame(
+          hostedOptions.buddyFrame === undefined
+            ? processBuddyFrame()
+            : hostedOptions.buddyFrame,
+        );
   let closePending: ReturnType<
     ReturnType<typeof createApplicationLifecycle>["close"]
   > | null = null;
@@ -2677,6 +2699,7 @@ export async function startLaunchpad(
           // No more questions; a Folder change in progress completes.
           const settingsClose = settings?.stop();
           await server.stop(true);
+          await buddyFrame?.stop();
           // No more holds; a write under way completes.
           await holder?.stop();
           // An upload cut off by the stop removes its temporary file first.
