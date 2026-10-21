@@ -312,7 +312,9 @@ the Buddy bubble, and knows nothing of Lazurio's data:
   `<lazurio-column-head>` (the Environment picker with the Settings gear, over the app
   switch, in place of the fork's logo at the top of its sidebar) and `<lazurio-buddy>`
   (the bubble; since [F56](decisions.md#f56--průvodce-buddy-nebo-průvodce-lazuria-vysvětlí-stránku-na-místě-kreslí-shell-hostitele-rám-buddyho-smí-jen-požádat-id)
-  the place where the guide draws, [below](#the-guide-decision-f56)).
+  the place where the guide draws, [below](#the-guide-decision-f56), and since
+  [F60](decisions.md#f60--buddys-bubble-in-the-shell-his-origin-in-the-documents-the-protocol-lazuriobuddy-v1-and-lazurio-buddys-launcher-panel-and-full-screen)
+  Buddy's bubble, [below](#buddys-bubble-decision-f60)).
 - The patch in each fork is about 20 lines in about three files: the
   `<script type="module" src="/.lazurio/shell.js">` in `index.html`, the three elements,
   and a fixed rail with `#root { box-sizing: border-box; padding-left:
@@ -573,7 +575,9 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   the host's `data-lazurio-appearance` and the event `lazurio-theme`, and by decision
   F56 with the guide: `<lazurio-buddy lang>`, the page's `marks` `data-guide` and
   `data-guide-help`, the event `lazurio-guide` and the export `provideGuides`, [the
-  guide](#the-guide-decision-f56)); `tests/shell-interface.test.ts` keeps every
+  guide](#the-guide-decision-f56), and by decision F60 with the properties
+  `--lazurio-buddy-right` and `--lazurio-buddy-bottom`, [Buddy's
+  bubble](#buddys-bubble-decision-f60)); `tests/shell-interface.test.ts` keeps every
   promised name, the token names a fork may rely on among them.
 - **A host page that is no Environment's** ([F36's addendum of
   2026-10-05](decisions.md#f36--the-lazurio-shell-one-library-in-the-platform-served-at-lazurioshelljs-with-lazurioshelljson-the-launchpad-is-its-first-consumer),
@@ -1050,6 +1054,49 @@ guide's mark and a card beside it, and the layer lets every click through.
   the beat's finished frame at once. Tests: `tests/shell-guide.test.ts`,
   `tests/shell-guide-protocol.test.ts`, `tests/shell-guide-scenes.test.ts`,
   `tests/launchpad-guide.test.ts`.
+
+### Buddy's bubble (decision F60)
+
+Where the page's merged shell document names Buddy's origin, `<lazurio-buddy>` draws
+his bubble at the bottom right
+([F60](decisions.md#f60--buddys-bubble-in-the-shell-his-origin-in-the-documents-the-protocol-lazuriobuddy-v1-and-lazurio-buddys-launcher-panel-and-full-screen),
+root decision 0210 point 8): a launcher with Buddy's character that opens his frame,
+`https://buddy.<slug>.lazurio.io`, served by the person's Osobní Prostředí. Without
+the origin nothing changes: the neutral guide stays as F56 draws it.
+
+- **Where the origin comes from.** `buddy: {origin}` of `lazurio.shell.v1` only on the
+  Osobní Prostředí itself, from the binding's `buddyOrigin` (`shell-document.ts`), and
+  of `lazurio.account.v1` where the Dashboard says Buddy may show for the requesting
+  Environment. `mergedBuddy` (`merge.ts`) takes the page's own on the Osobní Prostředí,
+  the account's elsewhere, and none on your computer or the Dashboard.
+- **In the shell.** `buddy-protocol.ts` is the pure protocol with the frame
+  (`lazurio.buddy.ready`, `.layout`, `.context`), its checks on both sides, the context
+  builder (`buddyContext`, from the last visit's Environment and Organization, the
+  column head's `active` and `space`, `location.pathname` only, the language, light or
+  dark, and the guide's last step) and the de-duplicated sender; its vectors are in
+  `buddy-vectors/v1/`. `buddy-bubble.ts` decides over seams what the bubble draws and
+  when (the launcher, the frame made at the first click, the panel and full screen in
+  the size kept in `sessionStorage`, the frame's size requests, the context, the guide's
+  receiver), `buddy-element.ts` draws it in the element's shadow root (one `<dialog>`
+  holds the frame: `show()` for the panel, `showModal()` for full screen), and
+  `buddy-styles.ts` places it: z-index 45, 20 px from the edges in the Launchpad, 16 px
+  from the right and 112 px from the bottom in Chat and Automate, above their
+  composers. `elements.ts` wires it: the bubble only in the last connected
+  `<lazurio-buddy>`, the page's message, path and colour-scheme listeners only while the
+  frame exists.
+- **A host moves it** with `--lazurio-buddy-right` and `--lazurio-buddy-bottom` on its
+  `:root` (lengths; the panel follows), or hides it with `hidden`.
+- **Check it in a browser** (root decision 0178): `bun scripts/preview-launchpad.ts
+  personal cs <port> owner buddy` names Buddy's origin `https://buddy.example.lazurio.io`
+  in the personal preview's entry; a browser automation routes
+  `https://launchpad.example.lazurio.io` through the JSON line's `proxy` and stands in
+  for Buddy's origin with a page that sends `ready` and the size requests and shows the
+  context it hears. Check at 1440 and 390 px: the launcher and its fallback mark, the
+  panel, full screen and Escape, a click on the dimmed page, the context after a move to
+  another page, and an explanation asked by the frame (the window steps aside, returns
+  at the end). A work Environment's page gets the bubble from the account (route
+  `/.lazurio/account/environments` to a document with `buddy`). Tests:
+  `tests/shell-buddy.test.ts`, `tests/shell-guide-protocol.test.ts`.
 
 ### The offline guide (decision F41)
 
