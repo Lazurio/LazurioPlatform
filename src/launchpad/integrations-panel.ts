@@ -55,6 +55,7 @@ import {
   monogram,
   type Note,
   type NoticeTone,
+  noteAfterReading,
   noticeIcon,
   parseIntegrations,
   type Removals,
@@ -359,6 +360,7 @@ export function createIntegrationsPanel(
     } finally {
       if (read === reads) {
         loading = false;
+        note = noteAfterReading(note, fresh, options.copy());
         // Only a successful reading without the account ends its "Odpojit";
         // a failed or stale one keeps the row waiting and reads again, a
         // bounded number of times (`removalsRead`).

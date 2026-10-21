@@ -1043,6 +1043,28 @@ export async function composioSignIn(
   return openSignIn() ? "opened" : "settings";
 }
 
+/** The page's note after a reading of the Integrace (#545): the line that
+ * asks for Composio's sign-in goes once a reading shows no Composio card
+ * waiting for it, since the cards then connect in place; every other note,
+ * and a reading that failed, leave the note as it is. */
+export function noteAfterReading(
+  note: Note | null,
+  reading: IntegrationsOverview | null,
+  copy: Copy,
+): Note | null {
+  if (
+    note === null ||
+    reading === null ||
+    note.text !== copy.integrationsComposioSignIn
+  )
+    return note;
+  return reading.apps.some(
+    (app) => app.path.path === "composio" && app.path.signIn,
+  )
+    ? note
+    : null;
+}
+
 /** What the card says after Composio's sign-in (`composioSignIn`): where it
  * is, in Settings → Tools; to try again where Composio could not be read;
  * nothing where it is signed in, since the card then connects. */
