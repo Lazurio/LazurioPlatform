@@ -151,7 +151,7 @@ test("Trezor says the approved video's five lines; in a Personal Environment its
   ).toEqual([
     "Každá Organizace má vlastní trezor",
     "Každé Prostředí v ní má svůj",
-    "Lidé do něj sdílejí hesla ze svého Bitwardenu",
+    "Uživatelé do něj sdílejí hesla ze svého Bitwardenu",
     "Agenti v Prostředí je najdou a použijí bez ptaní",
     "Sdílení můžete kdykoli vzít zpět",
   ]);

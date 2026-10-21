@@ -53,12 +53,12 @@ export function recoveryPrompt(
   const github: Text =
     issue.kind === "prepared"
       ? {
-          cs: `7. **Na GitHub to zapiš v každém případě**, do veřejného repozitáře ${code(issue.repository)}; trvalý mandát pro issues (root rozhodnutí 0163) ti to dovoluje bez ptaní. Nejdřív hledej duplicitu: ${code(searchText(issue))}. Otevřená shoda dostane komentář s tělem; uzavřená shoda je regrese a dostane nové issue, které na ni odkáže; jinak issue vytvoř přesně příkazem, který vypsal ${code("lazurio recover")} (${code("issue.shell")} v ${code("--json")}). Tělo nese jen strukturovaná pole. ${code("evidence.journal")} (sanitizovaný konec journalu Lazuria) a jakýkoli jiný volný text zůstávají v tomto Prostředí: k issue je smíš přidat jen jako komentář, až si je sám přečteš a usoudíš, že jsou veřejně bezpečné; nikdy ne do těla, se kterým issue zakládáš. Tělo si před odesláním přečti a odstraň, co sanitizer přehlédl; když si nejsi jistý, že je veřejně bezpečné, neodesílej ho a předej ho operátorovi. Bez přihlášení ke GitHubu nebo bez sítě dej operátorovi připravené tělo a odkaz ${code("issue.link")}.`,
-          en: `7. **Record it on GitHub either way**, in the public repository ${code(issue.repository)}; the standing mandate for issues (root decision 0163) lets you do it without asking. First search for a duplicate: ${code(searchText(issue))}. An open match gets a comment with the body; a closed match is a regression and gets a new issue that links it; otherwise create the issue with exactly the command ${code("lazurio recover")} printed (${code("issue.shell")} in ${code("--json")}). The body carries structured fields only. ${code("evidence.journal")} (the sanitized tail of the Launchpad's journal) and any other free text stay in this Environment: you may attach them to the issue only as a comment, after you have read them yourself and judged them public-safe; never in the body you create the issue with. Read the body before you send it and remove anything the sanitizer missed; when you are not sure it is public-safe, do not send it: hand it to the operator. Without a GitHub sign-in or network, give the operator the prepared body and the link ${code("issue.link")}.`,
+          cs: `7. **Na GitHub to zapiš v každém případě**, do veřejného repozitáře ${code(issue.repository)}; trvalý mandát pro issues (root rozhodnutí 0163) ti to dovoluje bez ptaní. Nejdřív hledej duplicitu: ${code(searchText(issue))}. Otevřená shoda dostane komentář s tělem; uzavřená shoda je regrese a dostane nové issue, které na ni odkáže; jinak issue vytvoř přesně příkazem, který vypsal ${code("lazurio recover")} (${code("issue.shell")} v ${code("--json")}). Tělo nese jen strukturovaná pole. ${code("evidence.journal")} (sanitizovaný konec journalu Lazuria) a jakýkoli jiný volný text zůstávají v tomto Prostředí: k issue je smíš přidat jen jako komentář, až si je sám přečteš a usoudíš, že jsou veřejně bezpečné; nikdy ne do těla, se kterým issue zakládáš. Tělo si před odesláním přečti a odstraň, co sanitizer přehlédl; když si nejsi jistý, že je veřejně bezpečné, neodesílej ho a předej ho uživateli. Bez přihlášení ke GitHubu nebo bez sítě dej uživateli připravené tělo a odkaz ${code("issue.link")}.`,
+          en: `7. **Record it on GitHub either way**, in the public repository ${code(issue.repository)}; the standing mandate for issues (root decision 0163) lets you do it without asking. First search for a duplicate: ${code(searchText(issue))}. An open match gets a comment with the body; a closed match is a regression and gets a new issue that links it; otherwise create the issue with exactly the command ${code("lazurio recover")} printed (${code("issue.shell")} in ${code("--json")}). The body carries structured fields only. ${code("evidence.journal")} (the sanitized tail of the Launchpad's journal) and any other free text stay in this Environment: you may attach them to the issue only as a comment, after you have read them yourself and judged them public-safe; never in the body you create the issue with. Read the body before you send it and remove anything the sanitizer missed; when you are not sure it is public-safe, do not send it: hand it to the user. Without a GitHub sign-in or network, give the user the prepared body and the link ${code("issue.link")}.`,
         }
       : {
-          cs: `7. **Na GitHub nic neodesílej.** Lazurio odmítlo připravit veřejné tělo issue: po sanitizaci v něm zůstalo ${issue.found.map(code).join(", ")}. Řekni to operátorovi; důkazy zůstávají v tomto Prostředí.`,
-          en: `7. **Send nothing to GitHub.** Lazurio refused to prepare a public issue body: ${issue.found.map(code).join(", ")} survived sanitization. Tell the operator; the evidence stays in this Environment.`,
+          cs: `7. **Na GitHub nic neodesílej.** Lazurio odmítlo připravit veřejné tělo issue: po sanitizaci v něm zůstalo ${issue.found.map(code).join(", ")}. Řekni to uživateli; důkazy zůstávají v tomto Prostředí.`,
+          en: `7. **Send nothing to GitHub.** Lazurio refused to prepare a public issue body: ${issue.found.map(code).join(", ")} survived sanitization. Tell the user; the evidence stays in this Environment.`,
         };
   return [
     pick({
@@ -74,29 +74,29 @@ export function recoveryPrompt(
       en: `1. Read the current state yourself: ${recover}.${byHand.en}`,
     }),
     pick({
-      cs: "2. Než cokoli změníš, pojmenuj operátorovi příčinu dvěma větami.",
-      en: "2. Name the cause to the operator in two sentences before you change anything.",
+      cs: "2. Než cokoli změníš, pojmenuj uživateli příčinu dvěma větami.",
+      en: "2. Name the cause to the user in two sentences before you change anything.",
     }),
     pick({
       cs: `3. **Sám smíš:** spouštět příkazy, které jen čtou; ${code("lazurio update")} na vydání novější než aktivní;${units.cs} ${code("lazurio folder-resume")} nebo ${code("lazurio profile-resume")}, abys dokončil přerušenou změnu Folderu.`,
       en: `3. **On your own you may:** run read-only commands; ${code("lazurio update")} to a release newer than the active one;${units.en} ${code("lazurio folder-resume")} or ${code("lazurio profile-resume")} to finish an interrupted Folder change.`,
     }),
     pick({
-      cs: `4. **Jen na výslovný pokyn operátora v tomto chatu:** mazání, přesouvání nebo úpravy souborů ve Folderu (${code(folderWord)}), v ${code("organizations/")}, ${code("personalspace/")} nebo v instalační bázi; opuštění přerušené změny Folderu; změny nástrojů, přihlášení nebo klíčů; ${code("sudo")}.`,
-      en: `4. **Only on the operator's explicit instruction in this chat:** deleting, moving or editing files in the Folder (${code(folderWord)}), ${code("organizations/")}, ${code("personalspace/")} or the install base; retiring an interrupted Folder change; changes of tools, sign-ins or keys; ${code("sudo")}.`,
+      cs: `4. **Jen na výslovný pokyn uživatele v tomto chatu:** mazání, přesouvání nebo úpravy souborů ve Folderu (${code(folderWord)}), v ${code("organizations/")}, ${code("personalspace/")} nebo v instalační bázi; opuštění přerušené změny Folderu; změny nástrojů, přihlášení nebo klíčů; ${code("sudo")}.`,
+      en: `4. **Only on the user's explicit instruction in this chat:** deleting, moving or editing files in the Folder (${code(folderWord)}), ${code("organizations/")}, ${code("personalspace/")} or the install base; retiring an interrupted Folder change; changes of tools, sign-ins or keys; ${code("sudo")}.`,
     }),
     pick({
       cs: `5. **Nikdy:** ${code("lazurio update rollback")} ani jiný návrat ke starší verzi; instalace verze pod aktivní verzí nebo pod high-water mark; kopírování starší spustitelné verze kamkoli; ruční úpravy ${code("bin/lazurio")} nebo ${code("update/high-water")}; mazání stavu aktualizací, abys obešel ${code("state-invalid")}; vypsání tajemství.`,
       en: `5. **Never:** ${code("lazurio update rollback")} or any other way back to an earlier version; installing a version below the active one or the high-water mark; copying an older executable anywhere; editing ${code("bin/lazurio")} or ${code("update/high-water")} by hand; deleting update state to get past ${code("state-invalid")}; printing a secret.`,
     }),
     pick({
-      cs: `6. **Úspěch je doložený**, když ${recover} odpoví ${code('"verdict": "healthy"')} a stránka Apps se normálně načte. Řekni operátorovi, co bylo špatně a co jsi změnil.`,
-      en: `6. **Success is proven** when ${recover} answers ${code('"verdict": "healthy"')} and the Launchpad page loads normally. Tell the operator what was wrong and what you changed.`,
+      cs: `6. **Úspěch je doložený**, když ${recover} odpoví ${code('"verdict": "healthy"')} a stránka Apps se normálně načte. Řekni uživateli, co bylo špatně a co jsi změnil.`,
+      en: `6. **Success is proven** when ${recover} answers ${code('"verdict": "healthy"')} and the Launchpad page loads normally. Tell the user what was wrong and what you changed.`,
     }),
     pick(github),
     pick({
-      cs: "8. Když to žádné vydání neopraví, řekni operátorovi, že Lazurio v tomto Prostředí zůstane rozbité až do opraveného vydání a že T3 Code, nástrojů ani repozitářů se to netýká. Tam skonči; nic neobcházej.",
-      en: "8. If no release repairs it, tell the operator that Lazurio stays broken in this Environment until a fixed release, and that T3 Code, the tools and the repositories are not affected. Stop there; work around nothing.",
+      cs: "8. Když to žádné vydání neopraví, řekni uživateli, že Lazurio v tomto Prostředí zůstane rozbité až do opraveného vydání a že T3 Code, nástrojů ani repozitářů se to netýká. Tam skonči; nic neobcházej.",
+      en: "8. If no release repairs it, tell the user that Lazurio stays broken in this Environment until a fixed release, and that T3 Code, the tools and the repositories are not affected. Stop there; work around nothing.",
     }),
   ].join("\n\n");
 }

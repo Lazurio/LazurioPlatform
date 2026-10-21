@@ -1377,7 +1377,9 @@ test("AGENTS.md marks a noted tool and the manual quotes the note with its meani
       expect(renderInstructions(source)).toBe(plain.instructions);
       expect(renderManual(source)["manual/this-machine.md"]).toBe(plain.manual);
       expect(plain.manual).not.toContain(
-        locale === "cs" ? "Poznámka operátora" : "Note from the operator",
+        locale === "cs"
+          ? "Poznámka uživatele tohohle Environmentu"
+          : "Note from the user of this Environment",
       );
 
       const noted = render(locale, { composio: note, gh: forged });
