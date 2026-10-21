@@ -17335,3 +17335,103 @@ is untested there), and a Claude bot's tools. The person cannot watch the screen
 the desktop view exists. The first verification is on a Remote Environment of the
 reference Organization (root decision 0204), after Machines delivers the driver and the
 packages.
+
+## F60 — Buddy's chat on the web: a frame served by the Launchpad's process, its runtime contract with Hermes, the wake back into its channel
+
+**Direction by Matěj 2026-10-21 (plan DEV-6676, root decision 0210 and its addenda, the
+lead contract `drafts/buddy-web-v1/CONTRACT.md` of the Lazurio root, sections 4, 5 and
+7); the details below are proposed and implemented in this revision.** A person sees a Buddy bubble on the Launchpad,
+Chat and Automate of their Environments; the shell's element (`<lazurio-buddy>`, built
+apart against CONTRACT sections 1 to 3) frames Buddy's chat, which the person's own
+Osobní Prostředí serves on `https://buddy.<slug>.lazurio.io`. This decision is that
+frame, the API between it and Hermes, and the wake of a delegation.
+
+1. **The frame is a second listener of the hosted Launchpad's process.** No unit of
+   its own: `startLaunchpad` starts it behind a gateway when the Osobní Prostředí
+   declares it and stops it on close; a defective declaration or a busy port is one
+   line on the Launchpad's output and the Launchpad runs on. Until the handover's
+   entry carries Buddy (`entry.buddy {external_origin, listen_port}` and the
+   adapter's port, a Machines schema change the Platform then vendors, as for
+   `entry.browser`), Machines declare it by four variables of the Launchpad's unit in
+   a drop-in of their own: `LAZURIO_BUDDY_FRAME_ORIGIN` (https, no port),
+   `LAZURIO_BUDDY_FRAME_PORT`, `LAZURIO_BUDDY_ADAPTER_PORT` and
+   `LAZURIO_BUDDY_ADAPTER_SECRET_FILE` (`src/buddy/frame/config.ts`). Only one source
+   at a time: the entry replaces the variables when it comes.
+2. **What it serves.** The chat page and `/signed-in` from one bundle (vanilla
+   TypeScript like the Launchpad's page, the design system's tokens, light or dark
+   and Czech or English as the host says), the brand fonts, Buddy's name from his
+   persona (`~/.config/lazurio/buddy/persona.json`, `buddy_name`, else „Buddy“) and his
+   avatar at `/assets/avatar.webp`: the design system's Mattyčus idle frame, vendored
+   byte for byte with its hash (`src/buddy/frame/vendor/README.md`), served as its true
+   type `image/png`. Its CSP allows only its own origin; `frame-ancestors` is exactly
+   the origin of the host that asks, by its `Referer`: the Launchpad, T3 Code or
+   MausBot of the person's own Osobní Prostředí (one label, the frame's slug) or of a
+   work or team Environment (two labels), never a Module's app, another domain or a
+   wildcard; anything else is `'none'` (`src/buddy/frame/hosts.ts`).
+3. **`/api/v1/*` goes to the Hermes `lazurio_web` adapter** on loopback with
+   `Authorization: Bearer <secret>`, the secret read per request from a 0600 file of
+   this account and never in a response. Every request body and every answer is
+   checked against the runtime contract; writes need same-origin Fetch Metadata and
+   the exact Origin, reads come only from the frame's own page; the event stream
+   passes through and ends within 110 s, so every reconnect passes the gateway again;
+   an adapter's refusal of the frame (its secret, its Host) is `502 adapter-refused`
+   and never reads as signed out; a file of Buddy's shows in place only as a picture,
+   anything else downloads under a sandboxing CSP.
+4. **The runtime contract `lazurio.buddy-runtime.v1` lives here**
+   (`src/buddy/contract/`): endpoints, transport, events and errors, with JSON vectors
+   that are its truth. The Hermes fork implements and tests against them. It fixes
+   what the CONTRACT sketch left open: `message.final` carries the role, instant,
+   channel and the person's `client_id`; files are `{media_id, name, mime, size}` with
+   `GET /v1/media/<id>`; a clarify may be skipped; the newest history page carries
+   the snapshot the events go on from, and `409 cursor-expired` names an outbox that
+   no longer holds the cursor.
+5. **Signing in.** The gateway admits only the owner. When it answers a call 401 (or
+   redirects it), the frame shows „Přihlásit“, which opens the gateway's sign-in on
+   the bare domain in a popup, back to `/signed-in`; that page tells the frame through
+   a channel of its origin and its opener, and the frame also asks for its session
+   every two seconds for two minutes. The frame then reloads naming its host
+   (`/?host=<origin>`): its own document sends no referrer, so the server takes a
+   named host only when the `Referer` names none and only if it may host the frame,
+   and the browser still enforces `frame-ancestors` on the real ancestors.
+6. **The host protocol, the frame's side** (`src/buddy/frame/page/host.ts`): `ready`
+   and `layout` out, only to the host's exact origin; `context` in, only from the
+   parent window at that origin, exact keys at every level, closed enums, and an
+   `environment.id` that is the host's own Environment; anything defective is dropped.
+   Reconciled with the shell's `src/shell/buddy-protocol.ts` when both exist.
+7. **budíček wakes Buddy where the delegation came from.** A record gains the
+   optional `kanal {platform, chat_id}` (still `verze: 1`): first the Hermes session it
+   runs in (`HERMES_SESSION_PLATFORM`, `HERMES_SESSION_CHAT_ID`, which Hermes exports to
+   its tools; a session that is no chat counts as none), then `--kanal`, else none and
+   the Telegram DM as before. The wake subscription uses it; the last-resort message to
+   the user stays on the Telegram DM.
+
+**Not decided here.** The shell's element and discovery (CONTRACT sections 1 to 3),
+Hermes's adapter and defaults (section 6), SSH from the Osobní Prostředí (section 8),
+`entry.buddy` in the handover schema (Machines'), Nastavení → Buddy (the gear stays
+hidden), one conversation with Telegram (v2) and a frame in the Dashboard.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A unit of its own (`lazurio buddy serve`), as the shaping proposed | Another supervised process, its own updates and failure modes, for a page and a proxy; rejected while the Launchpad's process can host it |
+| The gateway serves the page, the frame only the API | The page's copy and rules would live in Machines; rejected |
+| `frame-ancestors` for every `*.<base>.lazurio.io` | Admits Modules' apps, which run an Organization's own code; rejected |
+| The browser talks to the adapter's port through the gateway | The secret would reach the browser or the adapter would need the gateway's session; rejected |
+| A second listener in the Launchpad's process, a typed runtime contract with vectors, the popup sign-in (selected) | One process, one bundle pipeline, every rule a function with vectors |
+
+**Verified by** `tests/buddy-runtime-contract.test.ts` (every vector),
+`tests/buddy-frame-server.test.ts` (the page's CSP and framing, the bundle from its own
+origin, the proxy's secret and headers, Origin and Fetch Metadata, defective bodies,
+the secret file's mode, the adapter out of reach or refusing, media, replay after
+`after` and `Last-Event-ID`, `cursor-expired`, the 110 s bound, the configuration),
+`tests/buddy-frame-launchpad.test.ts` (with the hosted Launchpad, and without it),
+`tests/buddy-frame-page.test.ts` (hosts, the host protocol, the chat's state, Markdown)
+and `src/buddy/budicek/test_budicek.py` (the channel). In a browser (Chrome 155,
+headless) against `tests/fixtures/buddy-frame-preview.ts`: signed out, the popup
+sign-in and the reload, history with its days and channel, an answer streamed with its
+progress, a clarify answered, the context chip off and on and following the host, an
+image sent and shown, full screen through the host, dark, English, offline and back
+through `cursor-expired`, and a page elsewhere refused by `frame-ancestors`. A compiled
+executable serves the page, its bundle, the avatar and the fonts. **Honest limits:** no
+real gateway, Hermes adapter or Osobní Prostředí ran; the first acceptance is on Bob's
+Osobní Prostředí of the reference Organization (root decision 0204) once Machines route
+`buddy.` and declare the frame, and the adapter exists.
