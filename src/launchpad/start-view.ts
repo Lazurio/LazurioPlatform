@@ -56,9 +56,15 @@ export type StartStep = Readonly<{
   warning?: string;
 }>;
 
-/** The GitHub step's one action: "Připojit", enabled only once AI is there
- * (0201 point 3). Null when GitHub is connected or not known yet. */
-export type GithubAction = Readonly<{ enabled: boolean }> | null;
+/** The GitHub step's one action, enabled only once AI is there (0201 point
+ * 3): "Připojit"; `reconnect`, "Připojit znovu", where GitHub is connected
+ * badly (signed in, SSH not working here, #515), which finishes the link;
+ * `open`, "Otevřít", which shows the sign-in this page runs again (#516).
+ * Null when GitHub is connected or not known yet. */
+export type GithubAction = Readonly<{
+  enabled: boolean;
+  kind?: "reconnect" | "open";
+}> | null;
 
 /** What the AI step offers besides its line (root decision 0201 points 3-6,
  * the wireframe's states). */
@@ -107,6 +113,10 @@ export type StartFacts = TourFacts &
     aiChoosing?: boolean;
     /** The GitHub login gh is signed in with, when it names one. */
     githubLogin: string | null;
+    /** GitHub's sign-in this page runs, its window open or closed (#516):
+     * waiting for the person's code, or finishing (the SSH key). Absent
+     * when none runs. */
+    githubFlow?: "waiting" | "finishing" | undefined;
     /** What the content routes listed, for the step's title. */
     list: ContentList | null;
   }>;
@@ -282,6 +292,20 @@ function aiStep(facts: StartFacts, copy: Copy): [StartStep, AiAction] {
 
 function githubStep(facts: StartFacts, copy: Copy): [StartStep, GithubAction] {
   const base = { basic: "github" as const, title: copy.startGithubTitle };
+  // A sign-in this page runs (#516): whatever the reading said before it,
+  // the step says it runs, and "Otevřít" shows it again.
+  if (facts.githubFlow !== undefined)
+    return [
+      {
+        ...base,
+        mark: "now",
+        status:
+          facts.githubFlow === "waiting"
+            ? copy.startGithubWaiting
+            : copy.startGithubFinishing,
+      },
+      { enabled: true, kind: "open" },
+    ];
   if (facts.github === "connected")
     return [
       {
@@ -299,6 +323,18 @@ function githubStep(facts: StartFacts, copy: Copy): [StartStep, GithubAction] {
   // Offered once an agent can help (an AI not known is not claimed missing);
   // before, the step waits, its number saying the order.
   const ready = facts.ai !== "missing" && facts.ai !== "loading";
+  // Connected badly (#515): gh signed in, but this Environment does not
+  // reach GitHub over SSH as the account, so its content would not
+  // download. It says so, and "Připojit znovu" finishes the link.
+  if (facts.github === "incomplete")
+    return [
+      {
+        ...base,
+        mark: ready ? "failed" : "later",
+        status: copy.startGithubBroken,
+      },
+      { enabled: ready, kind: "reconnect" },
+    ];
   return [
     {
       ...base,

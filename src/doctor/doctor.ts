@@ -13,7 +13,7 @@ import {
 } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
 import { machineIdentity } from "../folder/machine-binding";
-import { presetNames } from "../folder/presets";
+import { githubIdentity, presetNames } from "../folder/presets";
 import {
   hostedEnvironment,
   isOlderTemplateRevision,
@@ -189,6 +189,9 @@ const ownReasons = [
   "not-enabled",
   "not-offered",
   "version-unreadable",
+  // gh signed in as the person while this Environment does not reach GitHub
+  // over SSH as that account (decision F19, addendum 2026-10-19).
+  "ssh-not-linked",
   // Organizations
   "catalog-unreadable",
   "template-not-runtime",
@@ -548,7 +551,13 @@ type ToolRow = Readonly<{
   offered: boolean;
 }>;
 
-function toolCheck(tool: ToolRow): DoctorCheck {
+/** A tool's check. `ownGithub`: the Environment signs in to GitHub as its
+ * person (the preset's own sign-in, or no Folder: a computer), where gh is
+ * ready only when this Environment reaches GitHub over SSH as the signed-in
+ * account (decision F19, addendum 2026-10-19, #515): a signed-in gh whose
+ * proof failed needs attention. A Team's or a persona's GitHub is not the
+ * person's, and an SSH state that could not be read stays a fact. */
+function toolCheck(tool: ToolRow, ownGithub: boolean): DoctorCheck {
   const context: ErrorContext = {
     tool: tool.name,
     tier: tool.tier,
@@ -567,9 +576,15 @@ function toolCheck(tool: ToolRow): DoctorCheck {
       ? check("tool", "warn", "enabled-missing", context)
       : check("tool", "skipped", "not-enabled", context);
   }
-  return tool.versionError !== undefined
-    ? check("tool", "warn", "version-unreadable", context)
-    : check("tool", "ok", undefined, context);
+  if (tool.versionError !== undefined)
+    return check("tool", "warn", "version-unreadable", context);
+  if (
+    ownGithub &&
+    tool.signIn?.state === "signed-in" &&
+    tool.signIn.ssh?.state === "not-linked"
+  )
+    return check("tool", "warn", "ssh-not-linked", context);
+  return check("tool", "ok", undefined, context);
 }
 
 /** The Folder's tool selection under its read lock (`toolsOverview`), only
@@ -932,7 +947,18 @@ export async function collectDoctor(
     ),
     ...bindingChecks(observed, handover, hostedUnreadable),
     // Executor has its own check (decision F44), not a tool row.
-    ...tools.filter((tool) => tool.name !== executorToolName).map(toolCheck),
+    ...tools
+      .filter((tool) => tool.name !== executorToolName)
+      .map((tool) =>
+        toolCheck(
+          tool,
+          observed.preferences === null ||
+            githubIdentity(
+              observed.preferences.preset.name,
+              observed.preferences.machine,
+            ) === "own-sign-in",
+        ),
+      ),
     executor,
     ...githubChecks(github),
     ...catalogChecks(catalog),

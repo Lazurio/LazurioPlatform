@@ -795,3 +795,78 @@ test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose pa
     ),
   ).toEqual([]);
 });
+
+// #515 and #516 (F19's addendum of 2026-10-19): GitHub signed in while SSH
+// does not work here is connected badly. The step says so and offers one
+// action that finishes it; the content waits for it. A sign-in this page
+// holds (its window closed while it ran, or open) shows as running, and
+// "Otevřít" shows it again.
+test("GitHub connected badly: the step says it does not work and offers to connect again, in both languages", () => {
+  const broken = startView(
+    facts({ ai: "connected", github: "incomplete", githubLogin: "octocat" }),
+    cs,
+  );
+  expect(broken?.steps[1]).toEqual({
+    basic: "github",
+    mark: "failed",
+    title: "GitHub",
+    status: "Připojení nefunguje.",
+  });
+  expect(broken?.github).toEqual({ enabled: true, kind: "reconnect" });
+  expect(broken?.done).toBe(1);
+  // Its turn comes after GitHub: the content is not offered.
+  expect(broken?.steps[2]?.mark).toBe("later");
+  expect(
+    startView(facts({ ai: "connected", github: "incomplete" }), en)?.steps[1]
+      ?.status,
+  ).toBe("The connection does not work.");
+  expect(cs.startGithubReconnect).toBe("Připojit znovu");
+  expect(en.startGithubReconnect).toBe("Connect again");
+  // Before AI it waits for its turn, as a missing GitHub does.
+  const early = startView(facts({ github: "incomplete" }), cs);
+  expect(early?.steps[1]).toMatchObject({
+    mark: "later",
+    status: "Připojení nefunguje.",
+  });
+  expect(early?.github).toEqual({ enabled: false, kind: "reconnect" });
+  expect(startCount(facts({ ai: "connected", github: "incomplete" }))).toBe(
+    "1/3",
+  );
+});
+
+test("a GitHub sign-in that runs shows as running, its window closed or not, and opens again", () => {
+  for (const github of ["missing", "incomplete"] as const) {
+    const waiting = startView(
+      facts({ ai: "connected", github, githubFlow: "waiting" }),
+      cs,
+    );
+    expect(waiting?.steps[1]).toEqual({
+      basic: "github",
+      mark: "now",
+      title: "GitHub",
+      status: "Čeká na vaše potvrzení.",
+    });
+    expect(waiting?.github).toEqual({ enabled: true, kind: "open" });
+    const finishing = startView(
+      facts({ ai: "connected", github, githubFlow: "finishing" }),
+      cs,
+    );
+    expect(finishing?.steps[1]?.status).toBe("Dokončuje se připojení…");
+    expect(finishing?.github).toEqual({ enabled: true, kind: "open" });
+    // Nothing done yet: it is not counted, and the content waits.
+    expect(finishing?.done).toBe(1);
+    expect(finishing?.steps[2]?.mark).toBe("later");
+  }
+  expect(
+    startView(
+      facts({ ai: "connected", github: "missing", githubFlow: "finishing" }),
+      en,
+    )?.steps[1]?.status,
+  ).toBe("Finishing the connection…");
+  expect(
+    startView(
+      facts({ ai: "connected", github: "missing", githubFlow: "waiting" }),
+      en,
+    )?.steps[1]?.status,
+  ).toBe("Waiting for your confirmation.");
+});

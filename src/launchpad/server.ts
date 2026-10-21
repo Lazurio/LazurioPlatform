@@ -107,6 +107,7 @@ import {
   toolsOverview,
 } from "../tools/overview";
 import { qrMatrix, qrSvg } from "../tools/qr";
+import { createSshProofs } from "../tools/ssh-key";
 import { resolveOnPath } from "../tools/status";
 import type { GithubAction } from "../tools/team-github";
 import { toolsUpdate } from "../tools/update";
@@ -733,8 +734,19 @@ export async function startLaunchpad(
   const catalog = createCatalogReading(folder, {
     holder: personalspace.peek,
   });
+  // gh's SSH proof of the status (decision F19, addendum 2026-10-19, #515)
+  // is kept here, per key and account (a pass 5 minutes, a failure 20 s),
+  // for every reading of the sign-ins this Launchpad makes: Settings →
+  // Nástroje's (itself kept a minute, below), Integrace's and the shell
+  // document's GitHub. A gh sign-in or sign-out that starts forgets it, and
+  // a link keeps what it proved, so the reading after it does not prove
+  // again.
+  const toolsWithProofs: ToolsEnvironment = {
+    ...toolsEnvironment,
+    sshProofs: createSshProofs(),
+  };
   // Settings → Nástroje's live facts, kept a minute (tools-reading.ts).
-  const toolsReading = createToolsReading(toolsEnvironment);
+  const toolsReading = createToolsReading(toolsWithProofs);
   // A setup goes on after its answer: its end drops the reading again.
   const forgetToolsAfter = (ended: Promise<void>) =>
     void ended.catch(() => undefined).then(() => toolsReading.forget());
@@ -752,7 +764,7 @@ export async function startLaunchpad(
   // fresh, whether the Organization provides the AI; afterwards the running
   // services read the sign-in, and the AI is read again.
   const logins = createLoginSessions({
-    ...toolsEnvironment,
+    ...toolsWithProofs,
     journal: (journaled) => {
       console.log(JSON.stringify({ scope: "tools-login", ...journaled }));
       // A sign-in that ends, even with nobody polling it, changes what the
@@ -787,7 +799,7 @@ export async function startLaunchpad(
   // document's `setup` and the prompt `prepare-content`: GitHub's sign-in of
   // its person, kept a minute, and its content as the content routes report
   // it (below).
-  const github = createGithubProbe(toolsEnvironment);
+  const github = createGithubProbe(toolsWithProofs);
   let closing = false;
   const headers = {
     "Cache-Control": "no-store",
@@ -953,7 +965,9 @@ export async function startLaunchpad(
       : processExecutorEndpoint(process.env);
   const integrations = createIntegrationsRoutes({
     folder,
-    tools: toolsEnvironment,
+    // Its reading of the tools has the sign-ins: gh's SSH proof is the one
+    // this Launchpad keeps.
+    tools: toolsWithProofs,
     headers,
     seams: () => ({
       executor: integrationExecutor(),
@@ -2062,7 +2076,7 @@ export async function startLaunchpad(
             if (asked.includes(field) && typeof value[field] !== "boolean")
               return response({ error }, 400);
           const signIn = value.signIn === true;
-          const reading = toolsReading.answer(signIn, {
+          let reading = toolsReading.answer(signIn, {
             fresh: value.fresh === true,
             allowStale: value.allowStale === true,
           });
@@ -2077,10 +2091,27 @@ export async function startLaunchpad(
             server.timeout(request, 120);
             await settings?.nudge(settingsWaitMs);
           }
-          const overview = await toolsOverview(folder, toolsEnvironment, {
+          let overview = await toolsOverview(folder, toolsWithProofs, {
             signIn,
             live: () => reading.done,
           });
+          // A change through this Launchpad while the tools were read (a
+          // sign-in, link or sign-out, an installation: `forget`) leaves the
+          // reading from before it: the tools are read again, so neither the
+          // answer nor the shell's GitHub below carries the facts from before
+          // the change (Pablo's review of #524). Three such changes in a row
+          // end as a refusal the page meets as a failed reading, never as the
+          // older facts.
+          for (let again = 0; !reading.stale && !reading.current(); again++) {
+            if (again === 3) return response({ error: "tools-changing" }, 503);
+            const anew = toolsReading.answer(signIn);
+            void anew.done.catch(() => undefined);
+            reading = anew;
+            overview = await toolsOverview(folder, toolsWithProofs, {
+              signIn,
+              live: () => anew.done,
+            });
+          }
           // The shell document's GitHub, and whose Personalspace this is,
           // follow a current reading.
           const gh = overview.tools.find((tool) => tool.name === "gh");

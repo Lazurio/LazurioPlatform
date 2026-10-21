@@ -315,6 +315,7 @@ const en = {
   toolsLoginPairLabel: "Pairing code for {phone}",
   toolsLoginQrAgain: "Show the QR code instead",
   toolsLoginWaiting: "Waiting for your confirmation…",
+  toolsSignInWaiting: "Waiting for the sign-in…",
   toolsLoginSignedIn: "{name} is connected.",
   toolsLoginSignedInAs: "Connected as {account}.",
   toolsLoginAlreadySignedIn: "{name} was already connected; nothing changed.",
@@ -355,10 +356,12 @@ const en = {
   toolsWorksAs: capitalized(teamGithubWorksAs.en),
   toolsLinkSshAction: "Link SSH key",
   toolsLinkSshNamed: "Link the SSH key of {this} to the {name} account",
-  toolsLoginTitleSsh: "Link SSH key: {name}",
   toolsStepLinking: "Linking the SSH key",
   toolsStepLinked: "SSH key linked",
-  toolsLoginLinking: "Connected. Linking the SSH key of {this}…",
+  toolsLoginLinking: "Finishing the connection…",
+  toolsLoginFinishingDetail:
+    "You can close this window; Lazurio finishes the connection on its own.",
+  toolsLoginCancel: "Cancel",
   toolsLoginRefreshText:
     "Your gh sign-in may not manage the SSH keys of your account yet. To allow it, open the GitHub device page on any device (this computer, another one or your phone) and enter this code:",
   toolsSshLinkedDone: "Connected as {account}.",
@@ -400,6 +403,8 @@ const en = {
     "The test connection to GitHub over SSH did not answer with GitHub's greeting.",
   toolsSshFailureProofOtherAccount:
     "Over SSH GitHub greeted another account ({account}): another key of {this} is offered first.",
+  toolsSshFailureUnverified:
+    "It could not be verified that git over SSH works.",
   toolsLoginFailureNotSignedIn:
     "{In this} gh is not signed in. Sign in first; the SSH key is linked as part of it.",
   toolsLoginFailureEnvironment:
@@ -964,6 +969,8 @@ const en = {
   setupAiAction: "Connect AI",
   setupGithub: "GitHub is not connected.",
   setupGithubAction: "Connect GitHub",
+  setupGithubBroken: "The GitHub connection does not work.",
+  setupGithubReconnect: "Connect again",
   setupOrganizationMissing: "{name} is not here yet.",
   setupPersonalMissing: "Your personal space is not here yet.",
   setupOrganizationRunning: "{name} is downloading.",
@@ -1069,6 +1076,10 @@ const en = {
   startGithubTitle: "GitHub",
   startGithubConnected: "Connected as @{login}",
   startGithubConnectedPlain: "Connected",
+  startGithubBroken: "The connection does not work.",
+  startGithubReconnect: "Connect again",
+  startGithubWaiting: "Waiting for your confirmation.",
+  startGithubFinishing: "Finishing the connection…",
   startConnect: "Connect",
   startContentOrganization: "Download {name}",
   startContentPersonal: "Prepare your personal space",
@@ -2053,6 +2064,7 @@ const cs: Record<MessageKey, string> = {
   toolsLoginPairLabel: "Párovací kód pro {phone}",
   toolsLoginQrAgain: "Zobrazit raději QR kód",
   toolsLoginWaiting: "Čekám na potvrzení…",
+  toolsSignInWaiting: "Čekám na přihlášení…",
   toolsLoginSignedIn: "{name} je připojený.",
   toolsLoginSignedInAs: "Připojeno jako {account}.",
   toolsLoginAlreadySignedIn: "{name} už byl připojený; nic se neměnilo.",
@@ -2093,10 +2105,12 @@ const cs: Record<MessageKey, string> = {
   toolsWorksAs: capitalized(teamGithubWorksAs.cs),
   toolsLinkSshAction: "Propojit SSH klíč",
   toolsLinkSshNamed: "Propojit SSH klíč {tohoto} s účtem {name}",
-  toolsLoginTitleSsh: "Propojit SSH klíč: {name}",
   toolsStepLinking: "Propojení SSH klíče",
   toolsStepLinked: "SSH klíč propojený",
-  toolsLoginLinking: "Připojeno. Propojuji SSH klíč {tohoto}…",
+  toolsLoginLinking: "Dokončuji připojení…",
+  toolsLoginFinishingDetail:
+    "Okno můžete zavřít, Lazurio připojení dokončí samo.",
+  toolsLoginCancel: "Zrušit",
   toolsLoginRefreshText:
     "Vaše přihlášení gh zatím nesmí spravovat SSH klíče vašeho účtu. Povolíte to na libovolném zařízení (tomto počítači, jiném nebo telefonu): otevřete stránku zařízení GitHubu a zadejte tento kód:",
   toolsSshLinkedDone: "Připojeno jako {account}.",
@@ -2137,6 +2151,7 @@ const cs: Record<MessageKey, string> = {
     "Zkušební spojení s GitHubem přes SSH neodpovědělo pozdravem GitHubu.",
   toolsSshFailureProofOtherAccount:
     "GitHub přes SSH pozdravil jiný účet ({account}): {toto} nabízí nejdřív jiný klíč.",
+  toolsSshFailureUnverified: "Nepodařilo se ověřit, že git přes SSH funguje.",
   toolsLoginFailureNotSignedIn:
     "gh {v tomto} není přihlášený. Nejdřív se přihlaste; SSH klíč se propojí jako součást přihlášení.",
   toolsLoginFailureEnvironment:
@@ -2678,6 +2693,8 @@ const cs: Record<MessageKey, string> = {
   setupAiAction: "Připojit AI",
   setupGithub: "GitHub není připojený.",
   setupGithubAction: "Připojit GitHub",
+  setupGithubBroken: "Připojení GitHubu nefunguje.",
+  setupGithubReconnect: "Připojit znovu",
   setupOrganizationMissing: "{name} tu ještě není.",
   setupPersonalMissing: "Osobní prostor tu ještě není.",
   setupOrganizationRunning: "Stahuje se {name}.",
@@ -2781,6 +2798,10 @@ const cs: Record<MessageKey, string> = {
   startGithubTitle: "GitHub",
   startGithubConnected: "Připojeno jako @{login}",
   startGithubConnectedPlain: "Připojeno",
+  startGithubBroken: "Připojení nefunguje.",
+  startGithubReconnect: "Připojit znovu",
+  startGithubWaiting: "Čeká na vaše potvrzení.",
+  startGithubFinishing: "Dokončuje se připojení…",
   startConnect: "Připojit",
   startContentOrganization: "Stáhnout {name}",
   startContentPersonal: "Připravit osobní prostor",

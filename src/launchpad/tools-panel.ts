@@ -20,15 +20,22 @@ import {
   composioPollNext,
   composioSignInText,
   connectionLine,
+  createLoginPoll,
   curatedActions,
   currentNotes,
   gitIdentityNote,
   installOutcome,
+  type LoginFlowState,
   type LoginPhase,
+  type LoginPoll,
   type LoginView,
   loginAnswerMs,
+  loginCancelOffered,
+  loginCloseAction,
   loginEndMessage,
+  loginFlowState,
   loginLink,
+  loginPollGivenUp,
   loginProgress,
   loginStepOrder,
   loginSteps,
@@ -44,6 +51,7 @@ import {
   parseToolsOverview,
   qrImageSource,
   signedInMessage,
+  signInMode,
   sourceLink,
   sshOutcome,
   type ToolChange,
@@ -93,6 +101,10 @@ export function createToolsPanel(
     /** Whether this Environment has no Nástroje (a public Environment,
      * decision F55): nothing is read, so nothing is offered. */
     absent?: () => boolean;
+    /** A sign-in this page holds started, moved from waiting for the person
+     * to finishing, or ended (`running`), its window open or closed (#516):
+     * Začínáme says it. */
+    signInsChanged?: () => void;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -117,6 +129,8 @@ export function createToolsPanel(
   const loginStatus = find<HTMLParagraphElement>("#tools-login-status");
   const loginBody = find<HTMLDivElement>("#tools-login-body");
   const loginClose = find<HTMLButtonElement>("#tools-login-close");
+  const loginFoot = find<HTMLDivElement>("#tools-login-foot");
+  const loginCancel = find<HTMLButtonElement>("#tools-login-cancel");
   // The Environment's own vault (decision F53): its own state, read beside
   // the tools; the Environment sets it up itself, and the setup in which the
   // vault becomes ready turns the agents' switch on in the Folder, once per
@@ -260,10 +274,18 @@ export function createToolsPanel(
     );
   });
 
-  // The curated install and login of one tool in the dialog (decision
-  // F19). The browser holds the login through its session handle; closing
-  // the dialog cancels a running login. Everything shown is text, the QR
-  // code an image of the server's own drawing.
+  // The curated install and login of one tool in the dialog (decision F19,
+  // its addendum of 2026-10-19, #516). The browser holds each sign-in
+  // through its session handle, one per tool. Closing the dialog (its ×,
+  // Escape) never ends a sign-in that starts or runs: it is detached
+  // (`loginCloseAction`), the page polls on, and its end runs as it would
+  // with the dialog open; opening the same tool's sign-in again shows it
+  // instead of starting another, which would replace it on the server. Only
+  // "Zrušit", offered while a code, link or QR waits for the person
+  // (`loginCancelOffered`), cancels. A poll that gets no answer ends
+  // nothing: the page asks again until the session's own end has passed.
+  // Everything shown is text, the QR code an image of the server's own
+  // drawing; a detached sign-in keeps no code, link or QR in the page.
   type Flow = {
     tool: ToolOverview;
     /** Install and sign in, sign in, or link the SSH key of a signed-in gh. */
@@ -274,10 +296,24 @@ export function createToolsPanel(
     phase: LoginPhase;
     failedAt: "installing" | "waiting" | "linking";
     handle: string | null;
+    /** The one poll loop of its session (`createLoginPoll`), across its
+     * window hiding and showing again. */
+    poll: LoginPoll | null;
+    /** Composio's reading of its organizations after the sign-in. */
     timer: ReturnType<typeof setTimeout> | null;
     turn: number;
+    /** What the dialog draws now (a challenge's key, `linking`), null when
+     * nothing is drawn: always null while the dialog is closed. */
     challenge: string | null;
     qr: HTMLImageElement | null;
+    /** The status line as last said, drawn again when the dialog shows the
+     * sign-in again. */
+    status: string;
+    /** When the server ends the session by itself at the latest (its
+     * `expiresAt`, in ms). */
+    expiresAt: number | null;
+    /** What `running` last said of it. */
+    reported: LoginFlowState | null;
     /** Composio after its sign-in: what its organizations say, read again
      * while the person has something to do in Composio. */
     composio?: ComposioWatch;
@@ -290,11 +326,29 @@ export function createToolsPanel(
     view: ComposioDialogView | null;
     key: string | null;
   };
+  /** The sign-ins this page holds, one per tool: the one the dialog shows
+   * and those it was closed on while they ran (#516). */
+  const flows = new Map<string, Flow>();
+  /** The sign-in the dialog shows, while it is open. */
   let flow: Flow | null = null;
   let loginOpener: { name: string; control: string } | null = null;
+  /** Still the page's sign-in of its tool. */
+  const live = (current: Flow) => flows.get(current.tool.name) === current;
+  /** The one the dialog shows now. */
+  const visible = (current: Flow) => flow === current;
 
-  function renderSteps() {
-    if (flow === null) return;
+  /** Its row and Začínáme hear when a sign-in starts, moves on or ends
+   * (`running`). */
+  function report(current: Flow) {
+    const state = live(current) ? loginFlowState(current.phase) : null;
+    if (state === current.reported) return;
+    current.reported = state;
+    render();
+    options.signInsChanged?.();
+  }
+
+  function renderSteps(current: Flow) {
+    if (!visible(current)) return;
     const copy = options.copy();
     const keys = {
       done: "toolsStepDone",
@@ -306,12 +360,16 @@ export function createToolsPanel(
       ...loginSteps(
         loginStepOrder({
           mode:
-            flow.mode === "ssh" ? "ssh" : flow.install ? "install" : "login",
-          tool: flow.tool.name,
-          refresh: flow.refresh,
+            current.mode === "ssh"
+              ? "ssh"
+              : current.install
+                ? "install"
+                : "login",
+          tool: current.tool.name,
+          refresh: current.refresh,
         }),
-        flow.phase,
-        flow.failedAt,
+        current.phase,
+        current.failedAt,
         copy,
       ).map((step) => {
         const item = element(
@@ -325,44 +383,107 @@ export function createToolsPanel(
       }),
     );
   }
-  function phase(next: LoginPhase, status: string) {
-    if (flow === null) return;
-    flow.phase = next;
-    renderSteps();
+  /** The status line, with the waiting mark while the sign-in is under way
+   * (installing, waiting for the person, finishing): it runs, also when
+   * the window is closed. */
+  function drawStatus(current: Flow) {
+    if (!visible(current)) return;
     loginStatus.classList.remove("is-connected");
-    if (loginStatus.textContent !== status) loginStatus.textContent = status;
+    const finishing =
+      current.phase === "installing" ||
+      current.phase === "waiting" ||
+      current.phase === "linking";
+    if (
+      loginStatus.textContent === current.status &&
+      (loginStatus.querySelector(".spinner") !== null) === finishing
+    )
+      return;
+    if (!finishing) {
+      loginStatus.textContent = current.status;
+      return;
+    }
+    const spinner = element("span", "spinner");
+    spinner.setAttribute("aria-hidden", "true");
+    loginStatus.replaceChildren(spinner, element("span", "", current.status));
   }
-  function stopPolling() {
-    if (flow?.timer) clearTimeout(flow.timer);
-    if (flow) flow.timer = null;
+  /** "Zrušit" in the dialog's foot, only while a code, link or QR waits. */
+  function drawFoot(current: Flow) {
+    if (!visible(current)) return;
+    loginFoot.hidden = !loginCancelOffered({
+      phase: current.phase,
+      challenge: current.challenge !== null && current.challenge !== "linking",
+    });
+  }
+  function phase(current: Flow, next: LoginPhase, status: string) {
+    current.phase = next;
+    current.status = status;
+    renderSteps(current);
+    drawStatus(current);
+    drawFoot(current);
+    report(current);
+  }
+  function stopPolling(current: Flow) {
+    current.poll?.stop();
+    current.poll = null;
+    if (current.timer) clearTimeout(current.timer);
+    current.timer = null;
+  }
+
+  /** The dialog on `current`, focused on its title. */
+  function showDialog(current: Flow) {
+    const copy = options.copy();
+    flow = current;
+    loginOpener = {
+      name: current.tool.name,
+      control: current.mode === "ssh" ? "link-ssh" : "curated",
+    };
+    loginHeading.textContent = loginTitle(
+      current.tool.name,
+      current.mode,
+      copy,
+    );
+    loginClose.title = copy.toolsClose;
+    loginStatus.textContent = "";
+    loginBody.replaceChildren();
+    loginFoot.hidden = true;
+    if (typeof loginDialog.showModal === "function") loginDialog.showModal();
+    else loginDialog.setAttribute("open", "");
+    loginHeading.focus();
   }
 
   function openLogin(tool: ToolOverview, mode: "install" | "login" | "ssh") {
+    // The same tool's sign-in runs already, its window closed meanwhile:
+    // show it, never start another, which would replace it (#516).
+    const running = flows.get(tool.name);
+    if (running !== undefined) {
+      reattach(running);
+      return;
+    }
     const copy = options.copy();
-    showLogin(tool, mode);
+    const current = showLogin(tool, mode);
     if (overview?.sharedEnvironment === true) {
       // Everyone on a shared Environment uses what is signed in here. The
       // dialog's status says it once; the page already shows the same note.
-      phase("confirm", copy.toolsShared);
+      phase(current, "confirm", copy.toolsShared);
       const go = element("button", "", copy.toolsLoginContinue);
       go.type = "button";
-      go.addEventListener("click", () => void begin());
+      go.addEventListener("click", () => void begin(current));
       const row = element("p", "tool-actions");
       row.append(go);
       loginBody.replaceChildren(row);
       go.focus();
       return;
     }
-    void begin();
+    void begin(current);
   }
 
-  /** The dialog of a tool's sign-in, open and empty, with its flow. */
-  function showLogin(tool: ToolOverview, mode: "install" | "login" | "ssh") {
-    loginOpener = {
-      name: tool.name,
-      control: mode === "ssh" ? "link-ssh" : "curated",
-    };
-    flow = {
+  /** The dialog of a tool's sign-in, open and empty, with its flow: the
+   * page's sign-in of its tool from now on. */
+  function showLogin(
+    tool: ToolOverview,
+    mode: "install" | "login" | "ssh",
+  ): Flow {
+    const current: Flow = {
       tool,
       mode,
       install: mode === "install",
@@ -375,30 +496,50 @@ export function createToolsPanel(
             ? "linking"
             : "waiting",
       handle: null,
+      poll: null,
       timer: null,
       turn: 0,
       challenge: null,
       qr: null,
+      status: "",
+      expiresAt: null,
+      reported: null,
     };
-    loginHeading.textContent = loginTitle(tool.name, mode, options.copy());
-    loginStatus.textContent = "";
-    loginBody.replaceChildren();
-    if (typeof loginDialog.showModal === "function") loginDialog.showModal();
-    else loginDialog.setAttribute("open", "");
-    loginHeading.focus();
+    flows.set(tool.name, current);
+    showDialog(current);
+    return current;
   }
 
-  async function begin() {
-    const current = flow;
-    if (current === null) return;
+  /** The dialog on a sign-in this page runs, its window closed before: its
+   * steps and status as they stand, and its state read at once, which
+   * draws its code, link or QR again (#516). */
+  function reattach(current: Flow) {
+    const copy = options.copy();
+    current.challenge = null;
+    current.qr = null;
+    showDialog(current);
+    renderSteps(current);
+    drawStatus(current);
+    if (current.phase === "linking")
+      loginBody.replaceChildren(
+        element("p", "tools-muted", copy.toolsLoginFinishingDetail),
+      );
+    // Its state at once, from its one poll loop: an answer under way counts
+    // as it comes, and no second loop starts.
+    current.poll?.now();
+  }
+
+  async function begin(current: Flow) {
+    if (!live(current)) return;
     const copy = options.copy();
     const name = current.tool.name;
     if (current.install) {
       current.failedAt = "installing";
-      phase("installing", fill(copy.toolsInstalling, { name }));
-      loginBody.replaceChildren(
-        element("p", "", fill(copy.toolsInstalling, { name })),
-      );
+      phase(current, "installing", fill(copy.toolsInstalling, { name }));
+      if (visible(current))
+        loginBody.replaceChildren(
+          element("p", "", fill(copy.toolsInstalling, { name })),
+        );
       let value: unknown = null;
       try {
         ({ value } = await options.post("/api/tools/install", { tool: name }));
@@ -410,23 +551,29 @@ export function createToolsPanel(
         endNotice(name);
         void refresh();
       }
-      if (flow !== current) return;
+      // Closed while it installed: the sign-in does not start.
+      if (!live(current)) return;
       if (!outcome.ok)
-        return loginFailed(outcome.message, outcome.agent, outcome.detail);
+        return loginFailed(
+          current,
+          outcome.message,
+          outcome.agent,
+          outcome.detail,
+        );
       current.install = true;
-      loginBody.replaceChildren(
-        element("p", "", outcome.message),
-        ...(outcome.detail === undefined ? [] : [folded(outcome.detail)]),
-      );
+      if (visible(current))
+        loginBody.replaceChildren(
+          element("p", "", outcome.message),
+          ...(outcome.detail === undefined ? [] : [folded(outcome.detail)]),
+        );
     }
-    await startLogin();
+    await startLogin(current);
   }
 
-  async function startLogin(phone?: string) {
-    const current = flow;
-    if (current === null) return;
+  async function startLogin(current: Flow, phone?: string) {
+    if (!live(current)) return;
     const copy = options.copy();
-    stopPolling();
+    stopPolling(current);
     const ssh = current.mode === "ssh";
     current.failedAt = ssh ? "linking" : "waiting";
     current.challenge = null;
@@ -436,8 +583,9 @@ export function createToolsPanel(
     // The status names the step; the detail, never the same sentence, says
     // what happens and how long at most.
     const progress = loginProgress(null, copy);
-    phase(ssh ? "linking" : "waiting", progress.status);
+    phase(current, ssh ? "linking" : "waiting", progress.status);
     if (
+      visible(current) &&
       !ssh &&
       progress.detail !== null &&
       (loginBody.childElementCount === 0 || phone === undefined)
@@ -451,81 +599,105 @@ export function createToolsPanel(
       }),
       loginAnswerMs,
     );
-    if (flow !== current || current.turn !== turn) return;
-    if (!answer.answered) return loginFailed(copy.toolsLoginNoAnswer, false);
-    accept(answer.value);
+    // Closed meanwhile, the sign-in goes on: its answer is taken still.
+    if (!live(current) || current.turn !== turn) return;
+    if (!answer.answered)
+      return loginFailed(current, copy.toolsLoginNoAnswer, false);
+    accept(current, answer.value);
   }
 
-  function schedulePoll() {
-    const current = flow;
-    if (current === null || current.handle === null) return;
-    const turn = current.turn;
-    const handle = current.handle;
-    current.timer = setTimeout(async () => {
-      const answer = await answerWithin(
-        options.post("/api/tools/login/poll", {
-          tool: current.tool.name,
-          session: handle,
-        }),
-        loginAnswerMs,
-      );
-      if (flow !== current || current.turn !== turn) return;
-      if (!answer.answered) {
-        // The session is not left running without anyone to watch it.
-        void options
-          .post("/api/tools/login/cancel", {
-            tool: current.tool.name,
-            session: handle,
-          })
-          .catch(() => undefined);
-        return loginFailed(options.copy().toolsLoginNoAnswer, false);
-      }
-      accept(answer.value);
-    }, 2_000);
+  /** The poll loop of the session of the current start: made once, on its
+   * first pending answer, and asked to poll on after each answer. */
+  function pollOn(current: Flow) {
+    if (!live(current) || current.handle === null) return;
+    if (current.poll === null) {
+      const turn = current.turn;
+      const handle = current.handle;
+      const loop = createLoginPoll({
+        ask: () =>
+          answerWithin(
+            options.post("/api/tools/login/poll", {
+              tool: current.tool.name,
+              session: handle,
+            }),
+            loginAnswerMs,
+          ),
+        answered: (answer) => {
+          if (!live(current) || current.turn !== turn || current.poll !== loop)
+            return;
+          // A poll without an answer ends nothing (#516): the session goes
+          // on by itself on the server, so the page asks again, until the
+          // session's own end has surely passed.
+          if (!answer.answered || answer.value === null) {
+            if (loginPollGivenUp(current.expiresAt, Date.now()))
+              return loginFailed(
+                current,
+                options.copy().toolsLoginNoAnswer,
+                false,
+              );
+            loop.schedule();
+            return;
+          }
+          accept(current, answer.value);
+        },
+      });
+      current.poll = loop;
+    }
+    current.poll.schedule();
   }
 
-  function accept(value: unknown) {
-    const current = flow;
-    if (current === null) return;
+  function accept(current: Flow, value: unknown) {
+    if (!live(current)) return;
     const copy = options.copy();
     const state = parseLoginState(value);
     if (state === null || state.tool !== current.tool.name)
-      return loginFailed(copy.toolsLoginUnreadable, false);
+      return loginFailed(current, copy.toolsLoginUnreadable, false);
     if (state.kind === "pending") {
       current.handle = state.session;
+      const expires = Date.parse(state.expiresAt);
+      if (Number.isFinite(expires)) current.expiresAt = expires;
       if (state.step === "ssh-key") {
-        // Signed in: the SSH key of this Machine is being linked.
+        // Signed in: the SSH key of this Environment is being linked. The
+        // dialog never says connected before the proof passed, and says
+        // that its window may be closed.
         current.failedAt = "linking";
+        const progress = loginProgress(state, copy);
         if (current.challenge !== "linking") {
           current.challenge = "linking";
           current.qr = null;
-          // The status line carries the sentence; the body stays empty.
-          loginBody.replaceChildren();
+          if (visible(current))
+            loginBody.replaceChildren(
+              element("p", "tools-muted", progress.detail ?? ""),
+            );
         }
-        phase("linking", copy.toolsLoginLinking);
+        phase(current, "linking", progress.status);
       } else {
         if (current.mode === "ssh" && state.challenge !== undefined)
           current.refresh = true;
         current.failedAt = "waiting";
         // Nothing to act on yet: the status still says it is starting and
         // the detail below stays.
-        phase("waiting", loginProgress(state, copy).status);
-        showChallenge(state);
+        phase(current, "waiting", loginProgress(state, copy).status);
+        showChallenge(current, state);
+        drawFoot(current);
       }
-      schedulePoll();
+      pollOn(current);
       return;
     }
     current.handle = null;
-    if (state.kind === "signed-in") return signedIn(state);
+    if (state.kind === "signed-in") return signedIn(current, state);
     const end = loginEndMessage(state, copy);
-    loginFailed(end.message, end.agent);
+    loginFailed(current, end.message, end.agent);
   }
 
-  // Draws the challenge once; a rotated QR code only replaces the image, so
-  // a phone number being typed stays where it is.
-  function showChallenge(state: Extract<LoginView, { kind: "pending" }>) {
-    const current = flow;
-    if (current === null) return;
+  // Draws the challenge once, only into the open dialog; a rotated QR code
+  // only replaces the image, so a phone number being typed stays where it
+  // is.
+  function showChallenge(
+    current: Flow,
+    state: Extract<LoginView, { kind: "pending" }>,
+  ) {
+    if (!visible(current)) return;
     const copy = options.copy();
     const challenge = state.challenge;
     if (challenge === undefined) return;
@@ -606,7 +778,7 @@ export function createToolsPanel(
     if (challenge.kind === "pair-code") {
       const again = element("button", "", copy.toolsLoginQrAgain);
       again.type = "button";
-      again.addEventListener("click", () => void startLogin());
+      again.addEventListener("click", () => void startLogin(current));
       const row = element("p", "tool-actions");
       row.append(again);
       const label = fill(copy.toolsLoginPairLabel, { phone: challenge.phone });
@@ -630,11 +802,11 @@ export function createToolsPanel(
       source === null
         ? element("p", "tools-warning", copy.toolsLoginUnreadable)
         : image,
-      phoneForm(),
+      phoneForm(current),
     );
   }
 
-  function phoneForm(): HTMLElement {
+  function phoneForm(current: Flow): HTMLElement {
     const copy = options.copy();
     const form = element("form", "tools-phone");
     const title = element("p", "", copy.toolsLoginPhoneTitle);
@@ -659,7 +831,7 @@ export function createToolsPanel(
         input.focus();
         return;
       }
-      void startLogin(number.startsWith("+") ? number : `+${number}`);
+      void startLogin(current, number.startsWith("+") ? number : `+${number}`);
     });
     const row = element("p", "tool-actions");
     row.append(submit);
@@ -699,11 +871,19 @@ export function createToolsPanel(
     });
   }
 
-  function signedIn(state: LoginView) {
-    const current = flow;
-    if (current === null) return;
+  /** A sign-in that ended while its window was closed (#516): the page
+   * holds it no more, and its row and Začínáme read where it ended (with
+   * `read`; a completed one is read by `afterSignIn`). */
+  function endDetached(current: Flow, read: boolean) {
+    stopPolling(current);
+    if (live(current)) flows.delete(current.tool.name);
+    report(current);
+    if (read) void refresh({ signIn: true });
+  }
+
+  function signedIn(current: Flow, state: LoginView) {
     const copy = options.copy();
-    stopPolling();
+    stopPolling(current);
     // A sign-in is the next act on the row: the notice before it ends, and
     // the reading that follows draws the row as it is now.
     endNotice(current.tool.name);
@@ -715,7 +895,10 @@ export function createToolsPanel(
     const identity = gitIdentityNote(state, copy);
     if (ssh !== null && !ssh.linked) {
       current.failedAt = "linking";
+      // Closed meanwhile, `loginFailed` reads the row again itself.
+      if (visible(current)) void refresh({ signIn: true });
       loginFailed(
+        current,
         [
           ssh.message,
           ssh.detail,
@@ -725,11 +908,17 @@ export function createToolsPanel(
           .join(" "),
         true,
       );
-      void refresh({ signIn: true });
+      return;
+    }
+    // Its window was closed meanwhile (#516): it ends as it would with the
+    // window open, said by its row and Začínáme.
+    if (!visible(current)) {
+      endDetached(current, false);
+      afterSignIn(current.tool.name, state);
       return;
     }
     if (ssh !== null) {
-      phase("signed-in", ssh.message);
+      phase(current, "signed-in", ssh.message);
       // Which key it uses is for support: folded.
       loginBody.replaceChildren(
         ...(identity?.set === false
@@ -750,7 +939,7 @@ export function createToolsPanel(
       // not be the one the reading makes current (decision F42, addendum
       // (2) of 2026-10-13, note of 2026-10-17). The organizations decide
       // what the dialog shows.
-      phase("signed-in", copy.toolsComposioOrgLoading);
+      phase(current, "signed-in", copy.toolsComposioOrgLoading);
       loginBody.replaceChildren();
       current.composio = {
         account:
@@ -767,7 +956,7 @@ export function createToolsPanel(
       return;
     }
     const message = signedInMessage(state, copy);
-    phase("signed-in", message);
+    phase(current, "signed-in", message);
     // The status line above already says it; the body adds what follows.
     loginBody.replaceChildren(
       ...(current.tool.name === "wacli" &&
@@ -1047,13 +1236,21 @@ export function createToolsPanel(
       ).focus();
   }
 
-  function loginFailed(message: string, agent: boolean, detail?: string) {
-    const current = flow;
-    if (current === null) return;
-    const copy = options.copy();
-    stopPolling();
+  function loginFailed(
+    current: Flow,
+    message: string,
+    agent: boolean,
+    detail?: string,
+  ) {
+    stopPolling(current);
     current.handle = null;
-    phase("failed", message);
+    // Its window was closed meanwhile (#516): the row and Začínáme say it.
+    if (!visible(current)) {
+      endDetached(current, true);
+      return;
+    }
+    const copy = options.copy();
+    phase(current, "failed", message);
     const row = element("p", "tool-actions");
     if (agent) {
       const finish = element("button", "", copy.toolsFinishWithAgent);
@@ -1082,7 +1279,13 @@ export function createToolsPanel(
         current.mode = "ssh";
         current.install = false;
       }
-      void begin();
+      // Read again as the page's sign-in of its tool, unless another one
+      // of the same tool started meanwhile (it is shown by its own window).
+      if (!live(current)) {
+        if (flows.has(current.tool.name)) return;
+        flows.set(current.tool.name, current);
+      }
+      void begin(current);
     });
     row.append(again);
     loginBody.replaceChildren(
@@ -1093,26 +1296,48 @@ export function createToolsPanel(
     (row.firstElementChild as HTMLElement | null)?.focus();
   }
 
+  // The dialog's ×, and Escape (its `cancel`), close it; what that does to
+  // the sign-in is `loginCloseAction` (#516): a sign-in that starts or runs
+  // goes on without its window, and anything else ends with it.
   loginClose.addEventListener("click", () => loginDialog.close());
+  // "Zrušit": the one way to end a sign-in early, while its code, link or
+  // QR waits for the person.
+  loginCancel.addEventListener("click", () => {
+    const current = flow;
+    if (current === null) return;
+    const handle = current.handle;
+    stopPolling(current);
+    current.handle = null;
+    if (live(current)) flows.delete(current.tool.name);
+    if (handle !== null)
+      void options
+        .post("/api/tools/login/cancel", {
+          tool: current.tool.name,
+          session: handle,
+        })
+        .catch(() => undefined);
+    loginDialog.close();
+  });
   loginDialog.addEventListener("close", () => {
     const current = flow;
     flow = null;
     if (current !== null) {
-      if (current.timer) clearTimeout(current.timer);
-      // Closing the dialog ends a running login and its tool.
-      if (current.handle !== null)
-        void options
-          .post("/api/tools/login/cancel", {
-            tool: current.tool.name,
-            session: current.handle,
-          })
-          .catch(() => undefined);
+      if (live(current) && loginCloseAction(current.phase) === "detach") {
+        // It goes on, polled; nothing of its challenge stays in the page.
+        current.challenge = null;
+        current.qr = null;
+      } else {
+        stopPolling(current);
+        if (live(current)) flows.delete(current.tool.name);
+      }
+      report(current);
     }
     // No code, link or QR stays in the page.
     loginBody.replaceChildren();
     loginStepList.replaceChildren();
     loginStatus.classList.remove("is-connected");
     loginStatus.textContent = "";
+    loginFoot.hidden = true;
     const target = loginOpener;
     loginOpener = null;
     // The row is read again after a sign-in and its buttons are disabled
@@ -1307,21 +1532,36 @@ export function createToolsPanel(
       ? line
       : { text: copy.toolsNotOffered, state: "unknown", ssh: null };
     const status = element("p", "row-status");
+    // A sign-in of this tool that the page runs, its window closed or open
+    // (#516): the line says it runs, with the waiting mark, and the row's
+    // button shows it again.
+    const held = running(tool.name);
     const signIn = element(
       "span",
       "tool-signin",
-      vaultRow?.line.text ?? offeredLine.text,
+      held === "waiting"
+        ? copy.toolsSignInWaiting
+        : held === "finishing"
+          ? copy.toolsLoginLinking
+          : (vaultRow?.line.text ?? offeredLine.text),
     );
-    signIn.dataset.state = vaultRow?.line.state ?? offeredLine.state;
+    signIn.dataset.state =
+      held !== null ? "waiting" : (vaultRow?.line.state ?? offeredLine.state);
+    if (held !== null) {
+      const spinner = element("span", "spinner");
+      spinner.setAttribute("aria-hidden", "true");
+      signIn.prepend(spinner);
+    }
     status.append(signIn);
     // gh's SSH key, as its own part of the line, only when it needs the
-    // person (not linked, in the warning colour) or on a Team Environment.
+    // person (not linked, in the warning colour; not verified, also without
+    // a proof's answer) or on a Team Environment.
     const ssh = tool.signIn?.ssh;
-    if (line.ssh !== null && ssh !== undefined) {
+    if (held === null && line.ssh !== null) {
       const dot = element("span", "", " · ");
       dot.setAttribute("aria-hidden", "true");
       const key = element("span", "tool-ssh", line.ssh);
-      key.dataset.state = team ? "team" : ssh.state;
+      key.dataset.state = team ? "team" : (ssh?.state ?? "unknown");
       status.append(dot, key);
     }
     text.append(status);
@@ -1910,33 +2150,46 @@ export function createToolsPanel(
     void refresh({ signIn: true });
   });
 
-  /** Opens a tool's sign-in as its row's "Připojit" does, when the row
-   * offers one: the arrival of "Připojit GitHub" from the line in Apps or
-   * the shell's column head (root decision 0188). True when it opened. */
+  /** Opens a tool's sign-in as its row does: the arrival of "Připojit
+   * GitHub" from Začínáme, the line in Apps or the shell's column head (root
+   * decision 0188). A sign-in of the tool this page runs, its window closed,
+   * is shown again (#516); a signed-in gh whose SSH does not work here gets
+   * its SSH link (`signInMode`, #515). True when it opened. */
   function openSignIn(name: string): boolean {
-    if (overview === null || busy || loginDialog.open) return false;
+    if (loginDialog.open) return false;
+    const running = flows.get(name);
+    if (running !== undefined) {
+      reattach(running);
+      return true;
+    }
+    if (overview === null || busy) return false;
     const tool = overview.tools.find((entry) => entry.name === name);
     if (tool === undefined) return false;
-    const { primary } = curatedActions(
+    const mode = signInMode(
       tool,
       options.copy(),
       overview.sharedEnvironment === true,
     );
-    if (primary === null || primary.mode === "install-only") return false;
-    openLogin(tool, primary.mode);
+    if (mode === null) return false;
+    openLogin(tool, mode);
     return true;
   }
 
   /** Composio signed in, but not in the organization of its Organization's
    * name (Začínáme's "Dokončit", decision F42, note of 2026-10-19): its
-   * dialog opens at what is left to do in Composio, as after a sign-in. True
-   * when it opened. */
+   * dialog opens at what is left to do in Composio, as after a sign-in. A
+   * Composio sign-in this page runs, its window closed, is shown again
+   * instead, never replaced (#516). True when it opened. */
   function openComposioOrganization(): boolean {
     if (overview === null || busy || loginDialog.open) return false;
+    const running = flows.get("composio");
+    if (running !== undefined) {
+      reattach(running);
+      return true;
+    }
     const tool = overview.tools.find((entry) => entry.name === "composio");
     if (tool?.signIn?.state !== "signed-in") return false;
-    showLogin(tool, "login");
-    signedIn({
+    signedIn(showLogin(tool, "login"), {
       kind: "signed-in",
       tool: tool.name,
       already: true,
@@ -1947,6 +2200,13 @@ export function createToolsPanel(
     return true;
   }
 
+  /** Whether this page runs a sign-in of the tool, its window open or
+   * closed (#516): waiting for the person, or finishing; null when none. */
+  function running(name: string): LoginFlowState | null {
+    const current = flows.get(name);
+    return current === undefined ? null : loginFlowState(current.phase);
+  }
+
   render();
-  return { refresh, openSignIn, openComposioOrganization };
+  return { refresh, openSignIn, openComposioOrganization, running };
 }

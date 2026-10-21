@@ -31,6 +31,7 @@ import {
   type SshContext,
   type SshKeyRemoval,
   type SshLink,
+  type SshProofs,
   type SshRunner,
   sshKeyScope,
 } from "./ssh-key";
@@ -269,6 +270,11 @@ export type LoginEnvironment = Readonly<{
    * sub-steps and the final "signed in". True: refused now. Absent: nothing
    * to re-check (a workstation). */
   refused?: (tool: string, action: "login" | "ssh-key") => Promise<boolean>;
+  /** The SSH proofs the status of this process keeps (decision F19,
+   * addendum 2026-10-19): a gh sign-in or sign-out that starts forgets them,
+   * and a link keeps what it proved, so the reading after it does not prove
+   * again. Absent: nothing is kept (the CLI). */
+  sshProofs?: SshProofs | undefined;
 }>;
 
 // The lifetimes of the documented flows: a GitHub device code is valid for
@@ -778,6 +784,10 @@ export function createLoginSessions(environment: LoginEnvironment) {
           ? { state: "not-linked", reason: "scope-missing", fallback: "agent" }
           : await linkSshKey(await sshContext(session, gh), signedIn.account);
     if (ssh === "gone" || !current(session)) return;
+    // The status of this process reads what the link proved.
+    if (ssh.state === "linked")
+      environment.sshProofs?.passed(ssh.key.fingerprint, signedIn.account);
+    else environment.sshProofs?.forget();
     // The person's Git identity where git has none (decision F19, addendum
     // 2026-10-14), whatever became of the key: commits need it either way.
     // It asks the Team rule again right before it writes.
@@ -1288,6 +1298,9 @@ export function createLoginSessions(environment: LoginEnvironment) {
         }
       }
       cancelRunning(name);
+      // A gh sign-in or link may change the account or the key: what the
+      // status kept no longer holds.
+      if (name === "gh") environment.sshProofs?.forget();
       const path = await locate(entry);
       if (path === undefined) return refused("not-installed");
       const lifetime = lifetimes[name as keyof typeof lifetimes];
@@ -1434,6 +1447,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
       if (entry === undefined || isAiProvider(name))
         throw new Error("Not a curated catalog tool");
       cancelRunning(name);
+      if (name === "gh") environment.sshProofs?.forget();
       const path = await locate(entry);
       if (path === undefined)
         return { kind: "logout-failed", tool: name, reason: "not-installed" };

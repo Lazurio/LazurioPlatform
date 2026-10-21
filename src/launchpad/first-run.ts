@@ -53,8 +53,13 @@ export function signsInAsPerson(preset: string | null | undefined): boolean {
 /** Whether GitHub is connected here, by Settings → Nástroje's own reading
  * (the gh row): `unknown` until the reading of the profile now shown has
  * a sign-in, on a shared (Team) Environment, and when gh could not tell.
- * Not installed is `missing`: "Připojit" installs it first. */
-export type GithubFact = "missing" | "connected" | "unknown";
+ * Not installed is `missing`: "Připojit" installs it first. Connected means
+ * gh signed in and this Environment reaching GitHub over SSH as that account
+ * (decision F19, addendum 2026-10-19, #515): signed in while SSH does not
+ * work is `incomplete`, connected badly, which counts as missing (its one
+ * action finishes the link); signed in while SSH could not be verified is
+ * `unknown`. */
+export type GithubFact = "missing" | "incomplete" | "connected" | "unknown";
 
 type ToolsReading =
   | (Pick<ToolsOverview, "revision" | "sharedEnvironment"> &
@@ -77,11 +82,13 @@ export function githubFact(
   )
     return "unknown";
   if (!github.installed) return "missing";
-  const state = github.signIn?.state;
-  return state === "signed-in"
+  const signIn = github.signIn;
+  if (signIn?.state === "signed-out") return "missing";
+  if (signIn?.state !== "signed-in") return "unknown";
+  return signIn.ssh?.state === "linked"
     ? "connected"
-    : state === "signed-out"
-      ? "missing"
+    : signIn.ssh?.state === "not-linked"
+      ? "incomplete"
       : "unknown";
 }
 
@@ -220,7 +227,7 @@ export function basicState(
   if (basic === "github")
     return facts.github === "connected"
       ? "done"
-      : facts.github === "missing"
+      : facts.github === "missing" || facts.github === "incomplete"
         ? "missing"
         : "unknown";
   const content = facts.content.state;
@@ -501,9 +508,12 @@ export function tourStop(
  * read yet. An AI that could not be checked (`unknown`: a CLI did not
  * answer) does not hold the content back, as it holds nothing else back: a
  * timeout must not lock an Environment out of its content, and a stop then
- * leads to Chat. Elsewhere (a Team or an Automated Environment, whose basics
- * are the Organization's) and on a public Environment, whose visitors sign
- * in to nothing, only a known missing GitHub does. Null: it may start. */
+ * leads to Chat. GitHub connected badly (`incomplete`: signed in, SSH not
+ * working, #515) holds it back as a missing one does: the download clones
+ * over SSH and would fail. Elsewhere (a Team or an Automated Environment,
+ * whose basics are the Organization's or the persona's) and on a public
+ * Environment, whose visitors sign in to nothing, only a known missing
+ * GitHub does. Null: it may start. */
 export type ContentBlock = "ai" | "github" | "unknown";
 
 export function contentBlockedBy(
@@ -513,7 +523,8 @@ export function contentBlockedBy(
     return facts.github === "missing" ? "github" : null;
   if (facts.ai === "missing") return "ai";
   if (facts.ai === "loading") return "unknown";
-  if (facts.github === "missing") return "github";
+  if (facts.github === "missing" || facts.github === "incomplete")
+    return "github";
   if (facts.github === "unknown") return "unknown";
   return null;
 }
@@ -574,9 +585,11 @@ export function autoStartStep(
 /** What a start request of the address (`#lazurio-start=…`, from the line
  * in Apps or an older shell's link) does once the page is on Začínáme:
  * `wait` until what decides it is read; `drop` it; `open-ai` drops it and
- * shows the AI step; `sign-in-gh` opens gh's sign-in; `install` starts the
- * installation. GitHub's sign-in waits for AI as Začínáme offers it, and the
- * installation for its turn (`contentBlockedBy`). */
+ * shows the AI step; `sign-in-gh` opens gh's sign-in, which for a signed-in
+ * gh whose SSH does not work here is its SSH link (`incomplete`, #515;
+ * tools-view `signInMode`); `install` starts the installation. GitHub's
+ * sign-in waits for AI as Začínáme offers it, and the installation for its
+ * turn (`contentBlockedBy`). */
 export type StartDecision =
   | "wait"
   | "drop"
@@ -670,12 +683,20 @@ export function appsSetupLine(
       actions: [{ action: "open-start", label: copy.setupAiAction }],
     };
   if (next === "github")
-    return {
-      tone: "info",
-      icon: "key",
-      text: copy.setupGithub,
-      actions: [{ action: "sign-in-gh", label: copy.setupGithubAction }],
-    };
+    // Connected badly (#515): it does not work, and it connects again.
+    return facts.github === "incomplete"
+      ? {
+          tone: "info",
+          icon: "key",
+          text: copy.setupGithubBroken,
+          actions: [{ action: "sign-in-gh", label: copy.setupGithubReconnect }],
+        }
+      : {
+          tone: "info",
+          icon: "key",
+          text: copy.setupGithub,
+          actions: [{ action: "sign-in-gh", label: copy.setupGithubAction }],
+        };
   const content = facts.content;
   if (content.state === "failed") {
     const resolve = facts.resolve ?? "chat";
@@ -736,8 +757,10 @@ export function appsSetupLine(
 /** The shell document's `setup` from what is known (root decisions 0188 and
  * 0201): undefined where the preset does not sign in as its person, on a
  * public Environment (decision F55) or while GitHub's state is not known;
- * `ai` only when it is known. The server's document and the Launchpad
- * page's own column head both draw from it. */
+ * `ai` only when it is known. GitHub connected badly is `missing` there
+ * (#515): `lazurio.shell.v1` knows connected or missing, and the prompt
+ * leads to Začínáme, which says the rest. The server's document and the
+ * Launchpad page's own column head both draw from it. */
 export function shellSetup(
   input: Readonly<{
     preset: string;
@@ -756,7 +779,7 @@ export function shellSetup(
       : input.ai === "missing"
         ? { ai: "missing" as const }
         : {}),
-    github: input.github,
+    github: input.github === "connected" ? "connected" : "missing",
   } as const;
   if (
     fact.state === "none" ||

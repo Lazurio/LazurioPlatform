@@ -2566,6 +2566,8 @@ that account and organization; wacli the QR code with its text alternative, the 
 WhatsApp in words and the alternative of a pairing code for a phone number. The page
 polls every 2 seconds while the dialog is open; closing it cancels the login. A failure
 shows its reason and "Finish with an agent", which opens the prepared prompt.
+*Amended 2026-10-19 (addendum below, #516):* closing the dialog never cancels a sign-in
+that runs; only "Zrušit", while a code, link or QR code waits, does.
 
 **Deferred.** Windows (the flows are refused as `unsupported-platform` there), further
 tools, automatic updates of curated tools, the hand-over of the prompt into a T3 Code
@@ -2652,7 +2654,11 @@ with `scope-missing` or `unreadable`, and the public fingerprint. The private ke
 not read and nothing connects over SSH on a status call: the host keys and the proof
 are checked by the sign-in and "Link SSH key". The card shows "Signed in as X · SSH key
 linked", "… · SSH key not linked" or "… · SSH key not verified", and the last two offer
-"Link SSH key".
+"Link SSH key". *Amended 2026-10-19 ([addendum below](#f19--curated-installation-and-login-of-catalog-tools),
+#515):* the status now runs the sign-in's own proof, GitHub's host keys and `ssh -T`,
+wherever the key is listed or the list cannot be read, and keeps a passing proof for a
+while; `linked` means this Environment reaches GitHub over SSH as the account, and
+`unknown` only that GitHub could not be reached or read.
 
 *Sign-out.* Before `gh auth logout`, the key of this Machine is removed from the
 account (`gh ssh-key delete <id> --yes`) when the token has `admin:public_key` and the
@@ -3168,6 +3174,161 @@ terminal); `tests/launchpad-ai-sign-in.test.ts` (the routes, the code route, the
 `tests/ai-sign-in.test.ts` and `tests/start-view.test.ts` (the page's controller and the
 step's states); `tests/tools.test.ts` (the probes on the CLIs' real answers). And in a
 browser (root decision 0178) with the fake CLIs, in Czech and English.
+
+**Addendum 2026-10-19 (Matěj, plan DEV-6665, Lazurio/LazurioPlatform#515 and #516): GitHub
+is ready only when SSH works, and closing a sign-in window never breaks a sign-in.** In a
+real onboarding session on a hosted Environment on v0.1.9 a new person confirmed gh's
+device code and closed "Připojit GitHub" while the SSH key was linking. Closing cancelled
+the session, which killed the key's step: gh stayed signed in without a working key,
+Začínáme marked GitHub done because it read only the sign-in, and the Organization's
+download started and failed on `git clone git@github.com:…`. Matěj: during onboarding a
+person must not be able to click out of the sign-in before it is done, because the SSH key
+is then not created properly and the whole installation of the Organization fails; and
+when GitHub does not have the SSH key set up, nothing may look green and working: the page
+must say that GitHub is connected badly and must be connected again.
+
+1. **One truth for "GitHub is ready".** gh is signed in *and* this Environment reaches
+   GitHub over SSH as that account. The sign-in's proof (step 4 of the addendum of
+   2026-09-28) is one function both the sign-in and the status run, `proveSsh` in
+   `src/tools/ssh-key.ts`: every github.com entry of `known_hosts` is one of GitHub's
+   published host keys (`gh api meta`), and `ssh -T -o BatchMode=yes -o
+   StrictHostKeyChecking=yes -o UpdateHostKeys=no -o ConnectTimeout=15 git@github.com`
+   greets the signed-in login. It writes nothing: `UpdateHostKeys=no` keeps ssh from
+   adding the keys the server advertises after the authentication, which OpenSSH does by
+   default; the sign-in still adds the missing host keys before it.
+2. **The status.** gh's `ssh` is `linked` only when that proof passed; `not-linked` with
+   `no-key`, `not-registered` (the account's key list, readable with the token's scopes,
+   does not have the key), `proof-failed` (ssh refused the key or the host, a github.com
+   host key GitHub does not publish, ssh or ssh-keygen missing) or `other-account` (ssh
+   greeted another login); `unknown` (`unreadable`) only when GitHub could not be reached
+   or read (its key list or its published keys did not come, `ssh` did not reach
+   github.com or timed out) or the home is not known. `scope-missing` is gone: a token
+   that cannot read the account's keys leaves the proof alone to decide. Each step is
+   bounded by 20 s.
+3. **The proof's cost.** The status is read often (Settings → Nástroje's reading on every
+   page load, which the Launchpad answers from its reading of the last minute since plan
+   DEV-6656, #535, and from an older one at once, as being checked, while it reads anew,
+   #551; its own readings at its start and when its page is served; Refresh status and
+   the end of every flow, which read anew; Integrace's reading, kept its own minute; the
+   shell document's setup each minute) and the proof is a network round trip (HTTPS,
+   then SSH). So it runs only where it can pass: never
+   without a key, never for a key the readable list does not have. The Launchpad keeps a
+   passing proof in its memory per key fingerprint and GitHub login for 5 minutes
+   (`createSshProofs`), one set for every reading of the sign-ins it makes (its tools
+   environment's `sshProofs`: Nástroje's, Integrace's and the shell's GitHub): a working
+   link changes only when its key, its account, GitHub's list or the host keys change,
+   and another key or account is another entry. A failure, or GitHub out of reach, is
+   kept for 20 s, so a burst of readings asks once while a fix shows on the next fresh
+   reading after it (a page load within the minute shows the kept reading, as it does for
+   every tool's sign-in). Readings that meet share one proof. A gh sign-in or link of this
+   Launchpad keeps what it proved, so the reading right after it does not prove again,
+   and a gh sign-in or sign-out that starts forgets everything; the same sign-in or
+   sign-out drops the kept reading of the tools (#535) and the end of a flow reads anew,
+   so "Připojit znovu" shows the link working at once, and no answer, current or older
+   (#551), carries GitHub's state from before a sign-in, link or sign-out through this
+   Launchpad. Nor does a reading already under way when one happens: its answer is no
+   longer current (`ToolsAnswer.current`), so the status route reads the tools again
+   before it answers or the shell's GitHub takes it (three such changes in a row end as
+   `tools-changing`, which the page meets as a failed reading), and the shell's GitHub
+   probe asks again (after three, `unknown`), never answering the older state (Pablo's
+   review of #524). The CLI (`tools list --sign-in`, `doctor
+   --sign-in`) keeps nothing and proves on each run. The staleness this allows is
+   bounded: a key removed from the account on github.com reads linked for up to 5
+   minutes.
+4. **Everything built on it follows.** `githubFact` gains `incomplete`: signed in, SSH not
+   working, which counts as missing (signed in with an SSH state that could not be read is
+   `unknown`). Začínáme's GitHub step then says "Připojení nefunguje." with the warning
+   mark and one action, "Připojit znovu", which opens the existing "Link SSH key" flow
+   (`signInMode`) under gh's own title, "Připojit GitHub" (Začínáme never names "gh");
+   the count, the next basic, the line in Apps ("Připojení GitHubu nefunguje." with
+   "Připojit znovu"), the tour and the shell's column prompt count it missing
+   (`lazurio.shell.v1`'s `setup.github` stays `connected | missing`). Its
+   `contentBlockedBy` is `github`: the content's download, "Zkusit znovu", a start request
+   and the start by itself wait, and the start by itself comes once the link works, as when
+   GitHub arrives. `startDecision` and `openSignIn("gh")` open the SSH link where that is
+   what is missing. On a Team or an Automated Environment, whose GitHub is the
+   Organization's or the persona's and may work over HTTPS, nothing changes: only a known
+   missing GitHub holds their content back. The server's GitHub probe for the shell's
+   `setup` reads the same status with the same kept proofs.
+5. **Nástroje.** gh's line takes the success colour only while the link works: "Připojeno
+   jako octocat · SSH klíč nepropojený" draws the account in the neutral colour and the key
+   in the warning colour, and a key that could not be verified now says "SSH klíč
+   neověřený" (it said nothing), as does a signed-in gh whose status has no SSH part at all
+   (its shape allows it), which also offers "Propojit SSH klíč"; a gh sign-in that ends
+   without saying what it did with the key ends as not linked, never as a plain success
+   (Pablo's review of #524). An older reading shown as being checked (#551) takes no
+   success colour on any line: an SSH link that broke since, outside this Launchpad, is
+   never drawn green, and as #551 has it, nothing else (Začínáme, the line in Apps, the
+   start by itself, the shell's GitHub) reads it.
+6. **Doctor.** With `--sign-in`, where the Environment signs in as its person (its preset's
+   own sign-in, or no Folder: a computer), a signed-in gh whose proof failed is `warn`
+   `ssh-not-linked`; an SSH state that could not be read stays a fact of its context.
+7. **Closing a sign-in window never breaks a sign-in** (the shared dialog of
+   `tools-panel.ts`: gh, Composio and wacli alike). Its × (now a small icon in its corner)
+   and Escape detach a sign-in that starts or runs (`loginCloseAction`): the page keeps the
+   session handle and its one poll loop (`createLoginPoll`; a session answers its end only
+   once, so the window hiding and showing again never makes a second loop), and the end
+   runs as it would with the window open (`signedIn()` and `afterSignIn()`: the row and
+   Začínáme read it, "Používají agenti" turns on). Opening the same tool's sign-in again,
+   from its row, Začínáme or the line in Apps, shows that sign-in instead of starting
+   another, which would replace it on the server. Only "Zrušit" cancels, offered only
+   while a code, link or QR code waits for the person; the SSH key's steps after the code
+   (30 s each, at most 5 minutes) have no cancel. A poll that gets no answer ends nothing:
+   the page asks again until a minute after the session's own end (its `expiresAt`), since
+   the session goes on by itself and ends by its own expiry when nobody comes back. While
+   the sign-in is under way the status line carries a waiting mark; while it finishes it
+   says "Dokončuji připojení…" and "Okno můžete zavřít, Lazurio připojení dokončí samo.",
+   never "Připojeno" before the proof passed. Začínáme's GitHub step shows a sign-in the
+   page runs ("Čeká na vaše potvrzení." or "Dokončuje se připojení…", with the waiting
+   mark) with "Otevřít", and the tool's row in Nástroje says "Čekám na přihlášení…" or
+   "Dokončuji připojení…". A detached sign-in keeps no code, link or QR in the page. Its
+   poll belongs to the running sign-in and goes on while the page is hidden: polling only
+   while the page is shown (plan DEV-6656, #535) is the update pill's rule, and a browser
+   that slows a hidden page's timers only delays the answer, which the session keeps until
+   it is read. The core (`login.ts`) keeps its rules: an explicit cancel ends a session in
+   any step (the CLI's Ctrl-C) and a new start replaces a running one.
+
+What a closed window cannot cover (a reload of the page, a Launchpad restart, an expiry, a
+failure) the status covers: gh signed in without a working link reads `incomplete`, and
+"Připojit znovu" finishes it.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| No way to close the window while a sign-in runs | Traps the person in a modal for up to 20 minutes; rejected: closing is safe instead |
+| Keep the status cheap (the key listed is linked) | It misses what the sign-in itself reports, missing host keys or another account greeted; rejected (#515) |
+| Prove on every reading | A network round trip on every page load and every shell setup read; rejected for the kept proof |
+| Keep a failure as long as a pass | A fix would show only minutes later; rejected: 20 s |
+| Refuse a cancel during the SSH key in the core | The CLI's Ctrl-C and the Launchpad's shutdown still stop it; the page simply never offers it |
+| `incomplete` holds back a Team's or a persona's content too | Their GitHub is not the person's and may work over HTTPS; not changed |
+
+**Honest limits.** The page that closed a window holds its sign-in in its memory only: a
+reload forgets it (the session runs on and ends by itself, and the status says the
+rest). A key offered by `~/.ssh/config` or an agent instead of the default key counts
+only when the default key is listed: an unlisted default key reads `not-registered`, and
+"Připojit znovu" registers it. On a network that drops GitHub's SSH port, the proof waits
+for ssh's connect timeout (15 s) before the state reads `unknown`; with the failure kept
+20 s and the page's reading kept a minute, a reading pays that wait at most every 20 s.
+The proof ran against the fakes of the sign-in's tests and the real `ssh-keygen`; the
+real `ssh` messages of a network without GitHub are read from OpenSSH's own wording. Composio's own wording and its Začínáme row are the Integrace
+work's (DEV-6626, #507).
+
+Verified by tests: `tests/tools-ssh-status.test.ts` (the status with fake gh and ssh:
+linked, registered without host keys, another account, a host key GitHub does not publish,
+no key and an unlisted key without an SSH connection, GitHub out of reach as unknown, a
+token that cannot read keys, the kept proofs, one set of them for the tools' reading and
+the shell's GitHub); `tests/launchpad-curated.test.ts` (connected badly, then linked,
+then signed out through the Launchpad: each page load, read as the page reads with
+`allowStale`, reads it as it is, never as the reading from before, though the Launchpad
+keeps its reading of the tools a minute, and Refresh status and Integrace's reading use
+the link's proof); `tests/tools-login.test.ts` (a holder that
+stops polling during `gh ssh-key add`: the session still ends signed in, linked and with
+the Git identity, read once, and the status keeps its proof; cancel and replace as
+before); `tests/first-run.test.ts` and `tests/start-view.test.ts` (`incomplete` throughout,
+the step, a running sign-in); `tests/tools-view.test.ts` (the Nástroje line, `signInMode`,
+`loginCloseAction`, `loginCancelOffered`, the finishing words, the one poll loop);
+`tests/first-run-shell.test.ts` (the shell's probe); `tests/doctor.test.ts`; and in a
+headless browser (root decision 0178) on the preview with the fake gh and ssh, in both
+languages.
 
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 

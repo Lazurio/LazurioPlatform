@@ -17,6 +17,7 @@ import {
   parseTourProgress,
   readFragment,
   resolveOf,
+  shellSetup,
   signsInAsPerson,
   startDecision,
   startSection,
@@ -519,12 +520,17 @@ test("the line in Apps: AI first, then GitHub, then the content, a run, a stop",
 });
 
 // GitHub as Settings → Nástroje reads it: never claimed missing from an
-// unknown, unprobed or stale reading, never on a Team Environment.
+// unknown, unprobed or stale reading, never on a Team Environment; and done
+// only when this Environment reaches GitHub over SSH as the signed-in
+// account (#515, F19's addendum of 2026-10-19).
 test("GitHub from the Tools reading of the profile shown", () => {
   const reading = (
     gh: Readonly<{
       installed: boolean;
-      signIn?: { state: "signed-in" | "signed-out" | "unknown" };
+      signIn?: {
+        state: "signed-in" | "signed-out" | "unknown";
+        ssh?: { state: "linked" | "not-linked" | "unknown" };
+      };
     }>,
     revision = 1,
     sharedEnvironment = false,
@@ -533,15 +539,27 @@ test("GitHub from the Tools reading of the profile shown", () => {
     sharedEnvironment,
     tools: [{ name: "gh", ...gh }],
   });
+  const ghSignedIn = (ssh?: "linked" | "not-linked" | "unknown") =>
+    reading({
+      installed: true,
+      signIn: {
+        state: "signed-in",
+        ...(ssh === undefined ? {} : { ssh: { state: ssh } }),
+      },
+    });
   expect(
     githubFact(
       reading({ installed: true, signIn: { state: "signed-out" } }),
       1,
     ),
   ).toBe("missing");
-  expect(
-    githubFact(reading({ installed: true, signIn: { state: "signed-in" } }), 1),
-  ).toBe("connected");
+  expect(githubFact(ghSignedIn("linked"), 1)).toBe("connected");
+  // Signed in, but SSH does not work as the account: connected badly, which
+  // counts as missing.
+  expect(githubFact(ghSignedIn("not-linked"), 1)).toBe("incomplete");
+  // Whether SSH works could not be read: not known, never connected.
+  expect(githubFact(ghSignedIn("unknown"), 1)).toBe("unknown");
+  expect(githubFact(ghSignedIn(), 1)).toBe("unknown");
   // Not installed: "Připojit" installs it first.
   expect(githubFact(reading({ installed: false }), 1)).toBe("missing");
   for (const [overview, revision] of [
@@ -952,4 +970,85 @@ test("Začínáme's organizations reading follows a Composio sign-in that change
   await reader.read(true);
   expect(asked).toEqual(["A", "B", "B"]);
   expect(reader.rule()).toBeNull();
+});
+
+// #515 (F19's addendum of 2026-10-19): gh signed in while this Environment
+// does not reach GitHub over SSH as that account is GitHub connected badly.
+// It counts as missing everywhere the first run looks: the count, the next
+// basic, the content's turn, the start by itself, a start request and the
+// shell's prompt. Its one action finishes the link.
+test("GitHub connected badly counts as missing: no basic done, no content before it, its start opens the link", () => {
+  const work = (overrides: Partial<TourFacts>) =>
+    fresh("hosted-organization-personal", overrides);
+  const broken = work({ ai: "connected", github: "incomplete" });
+  expect(basicsDone(broken)).toBe(1);
+  expect(nextBasic(broken)).toBe("github");
+  expect(tourStep(broken, P, "start")).toBe("github");
+  // The content waits for it, whichever way a start comes.
+  expect(contentBlockedBy(broken)).toBe("github");
+  expect(startDecision("install-content", broken)).toBe("drop");
+  // A start request of GitHub's sign-in opens it (the sign-in of a signed-in
+  // gh whose SSH does not work is its SSH link, tools-view `signInMode`).
+  expect(startDecision("sign-in-gh", broken)).toBe("sign-in-gh");
+  expect(startDecision("sign-in-gh", work({ github: "incomplete" }))).toBe(
+    "open-ai",
+  );
+  // The line in Apps says it does not work and offers to connect again.
+  expect(appsSetupLine(broken, cs)).toEqual({
+    tone: "info",
+    icon: "key",
+    text: "Připojení GitHubu nefunguje.",
+    actions: [{ action: "sign-in-gh", label: "Připojit znovu" }],
+  });
+  expect(appsSetupLine(broken, en)).toEqual({
+    tone: "info",
+    icon: "key",
+    text: "The GitHub connection does not work.",
+    actions: [{ action: "sign-in-gh", label: "Connect again" }],
+  });
+  // The shell's prompt counts it as missing.
+  expect(
+    shellSetup({
+      preset: "hosted-organization-personal",
+      ai: "connected",
+      github: "incomplete",
+      list: { allowed: true, items: [organization] },
+      job: null,
+    }),
+  ).toMatchObject({ ai: "ready", github: "missing", content: "missing" });
+  // On a Team or an Automated Environment, whose GitHub is the
+  // Organization's or the persona's, only a known missing GitHub holds the
+  // content back, as before.
+  for (const preset of [
+    "hosted-organization-team",
+    "hosted-organization-steward",
+  ])
+    expect(
+      contentBlockedBy({ preset, ai: "connected", github: "incomplete" }),
+    ).toBeNull();
+});
+
+test("the content never starts by itself when GitHub arrives without SSH; it starts once the link works", () => {
+  const work = (overrides: Partial<TourFacts>) =>
+    fresh("hosted-organization-personal", overrides);
+  expect(
+    run([
+      work({ ai: "connected", github: "missing" }),
+      // The code was confirmed, the SSH key was not linked (the dialog was
+      // closed, the proof failed): GitHub is there only by its sign-in.
+      work({ ai: "connected", github: "incomplete" }),
+      work({ ai: "connected", github: "incomplete" }),
+      // "Připojit znovu" linked it: now the content starts, once.
+      work({ ai: "connected", github: "connected" }),
+      work({ ai: "connected", github: "connected" }),
+    ]),
+  ).toEqual([3]);
+  // A broken link at load starts nothing either, until it works.
+  expect(
+    run([
+      work({ ai: "loading", github: "unknown" }),
+      work({ ai: "connected", github: "incomplete" }),
+      work({ ai: "connected", github: "connected" }),
+    ]),
+  ).toEqual([2]);
 });
