@@ -343,8 +343,9 @@ export function openBuildStore(directory: string) {
     /** Copies a finished build's output in and makes it the directory of its
      * key in one rename: a reader sees the whole output or none. An older
      * output of the same key (a rebuild of a changed checkout) is moved
-     * aside first and removed after. */
-    async install(source: string, key: string): Promise<string> {
+     * aside first and removed after. No source: an empty output, the build
+     * of an app's own server without a client (its key alone). */
+    async install(source: string | null, key: string): Promise<string> {
       if (!keyPattern.test(key)) throw new Error("Invalid build key");
       await ensure();
       const incoming = join(
@@ -353,12 +354,14 @@ export function openBuildStore(directory: string) {
       );
       const target = join(directory, key);
       try {
-        await cp(source, incoming, {
-          recursive: true,
-          errorOnExist: true,
-          force: false,
-          verbatimSymlinks: true,
-        });
+        if (source === null) await mkdir(incoming, { mode: 0o700 });
+        else
+          await cp(source, incoming, {
+            recursive: true,
+            errorOnExist: true,
+            force: false,
+            verbatimSymlinks: true,
+          });
         let retired: string | null = null;
         if (
           await lstat(target).then(
