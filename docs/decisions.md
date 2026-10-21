@@ -3248,7 +3248,10 @@ must say that GitHub is connected badly and must be connected again.
 5. **Nástroje.** gh's line takes the success colour only while the link works: "Připojeno
    jako octocat · SSH klíč nepropojený" draws the account in the neutral colour and the key
    in the warning colour, and a key that could not be verified now says "SSH klíč
-   neověřený" (it said nothing). An older reading shown as being checked (#551) takes no
+   neověřený" (it said nothing), as does a signed-in gh whose status has no SSH part at all
+   (its shape allows it), which also offers "Propojit SSH klíč"; a gh sign-in that ends
+   without saying what it did with the key ends as not linked, never as a plain success
+   (Pablo's review of #524). An older reading shown as being checked (#551) takes no
    success colour on any line: an SSH link that broke since, outside this Launchpad, is
    never drawn green, and as #551 has it, nothing else (Začínáme, the line in Apps, the
    start by itself, the shell's GitHub) reads it.

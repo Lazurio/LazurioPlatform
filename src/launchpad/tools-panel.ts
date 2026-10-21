@@ -1554,13 +1554,14 @@ export function createToolsPanel(
     }
     status.append(signIn);
     // gh's SSH key, as its own part of the line, only when it needs the
-    // person (not linked, in the warning colour) or on a Team Environment.
+    // person (not linked, in the warning colour; not verified, also without
+    // a proof's answer) or on a Team Environment.
     const ssh = tool.signIn?.ssh;
-    if (held === null && line.ssh !== null && ssh !== undefined) {
+    if (held === null && line.ssh !== null) {
       const dot = element("span", "", " · ");
       dot.setAttribute("aria-hidden", "true");
       const key = element("span", "tool-ssh", line.ssh);
-      key.dataset.state = team ? "team" : ssh.state;
+      key.dataset.state = team ? "team" : (ssh?.state ?? "unknown");
       status.append(dot, key);
     }
     text.append(status);

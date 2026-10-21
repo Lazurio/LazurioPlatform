@@ -814,6 +814,12 @@ test("the sign-in line and the curated action follow what the probe said", () =>
     expect(curatedActions(withSsh("linked"), copy).linkSsh).toBe(false);
     expect(curatedActions(withSsh("not-linked"), copy).linkSsh).toBe(true);
     expect(curatedActions(withSsh("unknown"), copy).linkSsh).toBe(true);
+    expect(
+      curatedActions(
+        { ...gh, signIn: { state: "signed-in", account: "octo" } },
+        copy,
+      ).linkSsh,
+    ).toBe(true);
     for (const agent of [
       tool({ setup: "agent" }),
       tool({ setup: "agent", installed: true, signIn: { state: "signed-in" } }),
@@ -1393,6 +1399,15 @@ test("the SSH outcome of a gh sign-in is read only in its exact form and becomes
     expect(
       sshOutcome({ kind: "signed-in", tool: "composio" }, copy),
     ).toBeNull();
+    // A gh sign-in that says nothing of the key is not a plain success:
+    // not linked, as far as this Launchpad knows (Pablo's review of #524).
+    expect(
+      sshOutcome({ kind: "signed-in", tool: "gh", account: "octocat" }, copy),
+    ).toEqual({
+      linked: false,
+      message: copy.toolsSshNotLinkedDone.replace("{account}", "octocat"),
+      detail: copy.toolsSshFailureUnverified,
+    });
     expect(
       loginEndMessage(
         { kind: "failed", tool: "gh", reason: "not-signed-in" },
@@ -1953,6 +1968,33 @@ test("Nástroje: gh connected but SSH not working is not drawn as connected, and
     // A Team Environment works through Lazurio for GitHub: its line names
     // that, never a person's key.
     expect(gh("not-linked", true).ssh).toBe(copy.toolsSshTeam);
+    // A signed-in gh whose status has no SSH part (its shape allows that) is
+    // not known to work either: never the success colour (Pablo's review of
+    // #524). A Team Environment's and another tool's line stay as they are.
+    const withoutSsh = (name: string, brokered = false) =>
+      connectionLine(
+        tool({
+          name,
+          command: name,
+          installed: true,
+          signIn: { state: "signed-in", account: "octo" },
+        }),
+        copy,
+        brokered,
+      );
+    expect(withoutSsh("gh")).toEqual({
+      text: who,
+      state: "unverified",
+      ssh: copy.toolsSshUnknown,
+    });
+    expect(withoutSsh("gh", true)).toMatchObject({
+      state: "signed-in",
+      ssh: null,
+    });
+    expect(withoutSsh("composio")).toMatchObject({
+      state: "signed-in",
+      ssh: null,
+    });
   }
   expect(messages("cs").toolsSshNotLinked).toBe("SSH klíč nepropojený");
   expect(messages("cs").toolsSshUnknown).toBe("SSH klíč neověřený");
@@ -1985,6 +2027,11 @@ test("opening a tool's sign-in from outside its row: its flow, or the SSH link o
       copy,
     ),
   ).toBeNull();
+  // Without an SSH part it is not known to work: its SSH link (Pablo's
+  // review of #524).
+  expect(signInMode(gh({ state: "signed-in", account: "o" }), copy)).toBe(
+    "ssh",
+  );
   // A Team Environment's gh is never signed in from here.
   expect(signInMode(gh(undefined, false), copy, true)).toBeNull();
   expect(signInMode(gh({ state: "signed-out" }), copy, true)).toBeNull();

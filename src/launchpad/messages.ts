@@ -403,6 +403,8 @@ const en = {
     "The test connection to GitHub over SSH did not answer with GitHub's greeting.",
   toolsSshFailureProofOtherAccount:
     "Over SSH GitHub greeted another account ({account}): another key of {this} is offered first.",
+  toolsSshFailureUnverified:
+    "It could not be verified that git over SSH works.",
   toolsLoginFailureNotSignedIn:
     "{In this} gh is not signed in. Sign in first; the SSH key is linked as part of it.",
   toolsLoginFailureEnvironment:
@@ -2149,6 +2151,7 @@ const cs: Record<MessageKey, string> = {
     "Zkušební spojení s GitHubem přes SSH neodpovědělo pozdravem GitHubu.",
   toolsSshFailureProofOtherAccount:
     "GitHub přes SSH pozdravil jiný účet ({account}): {toto} nabízí nejdřív jiný klíč.",
+  toolsSshFailureUnverified: "Nepodařilo se ověřit, že git přes SSH funguje.",
   toolsLoginFailureNotSignedIn:
     "gh {v tomto} není přihlášený. Nejdřív se přihlaste; SSH klíč se propojí jako součást přihlášení.",
   toolsLoginFailureEnvironment:

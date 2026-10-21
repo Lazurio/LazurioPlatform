@@ -410,9 +410,16 @@ export function connectionLine(
     const { ssh: _, ...signIn } = tool.signIn;
     text = signInLine({ ...tool, signIn }, copy, brokered);
   }
+  const state = tool.signIn?.state ?? "unchecked";
+  // A person's signed-in gh works here only by a passing proof: one whose
+  // status has no SSH part (its shape allows that) is not known to work,
+  // as one whose proof could not run (Pablo's review of #524).
+  const github = tool.name === "gh" && !brokered && state === "signed-in";
   const key =
     ssh === undefined
-      ? null
+      ? github
+        ? copy.toolsSshUnknown
+        : null
       : brokered
         ? copy.toolsSshTeam
         : ssh.state === "not-linked"
@@ -420,17 +427,15 @@ export function connectionLine(
           : ssh.state === "unknown"
             ? copy.toolsSshUnknown
             : null;
-  const state = tool.signIn?.state ?? "unchecked";
   return {
     text,
-    state:
-      state !== "signed-in" || ssh === undefined || brokered
+    state: !github
+      ? state
+      : ssh?.state === "linked"
         ? state
-        : ssh.state === "not-linked"
+        : ssh?.state === "not-linked"
           ? "incomplete"
-          : ssh.state === "unknown"
-            ? "unverified"
-            : state,
+          : "unverified",
     ssh: key,
   };
 }
@@ -707,10 +712,8 @@ export function curatedActions(
     return {
       primary: null,
       logout: true,
-      linkSsh:
-        tool.name === "gh" &&
-        tool.signIn.ssh !== undefined &&
-        tool.signIn.ssh.state !== "linked",
+      // Also without an SSH part: only a passing proof is linked.
+      linkSsh: tool.name === "gh" && tool.signIn.ssh?.state !== "linked",
     };
   return {
     primary: { mode: "login", label: copy.toolsSignInAction },
@@ -1465,9 +1468,20 @@ export function sshOutcome(
   state: LoginView,
   copy: Copy,
 ): Readonly<{ linked: boolean; message: string; detail: string }> | null {
-  if (state.kind !== "signed-in" || state.ssh === undefined) return null;
+  if (state.kind !== "signed-in") return null;
   const account = state.account ?? "gh";
   const ssh = state.ssh;
+  // gh's sign-in always says what it did with the key; one that does not is
+  // not known to have linked it, never a plain success (Pablo's review of
+  // #524). Another tool has no key.
+  if (ssh === undefined)
+    return state.tool === "gh"
+      ? {
+          linked: false,
+          message: fill(copy.toolsSshNotLinkedDone, { account }),
+          detail: copy.toolsSshFailureUnverified,
+        }
+      : null;
   if (ssh.state === "linked")
     return {
       linked: true,
