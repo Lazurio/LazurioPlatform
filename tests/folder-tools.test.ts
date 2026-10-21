@@ -735,7 +735,7 @@ test("a profile change and a handover refresh carry the enabled tools forward", 
 });
 
 test("a Folder rendered by an older template revision is upgraded by a tools change", async () => {
-  expect(instructionTemplateRevision).toBe("base-instructions-61");
+  expect(instructionTemplateRevision).toBe("base-instructions-62");
   const { preferences, manifest } = await planned();
   const older = {
     ...manifest,
