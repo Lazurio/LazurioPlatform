@@ -8,6 +8,7 @@ import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import type { ApplicationRunner } from "../src/modules/application-runner";
 import { gitCheckoutReader } from "../src/modules/built/checkout";
+import { observeConnected } from "../src/modules/listener-ownership";
 import {
   createModuleOperations,
   type ModuleAnswer,
@@ -999,8 +1000,13 @@ posixTest(
       await sweepAt(0);
       await sweepAt(25);
       expect(await state()).toBe("running");
-      // Last seen at 25: asleep at 45.
+      // Last seen at 25: asleep at 45. The next sweep comes once lsof no
+      // longer sees the closed connection.
       socket.destroy();
+      await until(
+        () => observeConnected(fixture.port),
+        (connected) => connected === false,
+      );
       await sweepAt(30);
       await sweepAt(40);
       expect(await state()).toBe("running");
