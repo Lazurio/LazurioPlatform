@@ -45,7 +45,7 @@ module create <Organization>/<module> --stack <stack> --teams <team,team> [--nam
   still names the template's placeholder owner is only a warning (#377).
   --dry-run prints the plan and writes nothing: the repository, the slot, the
   lease, the files with their tree_hash and the plan's digest (plan). Show it
-  to the person; only after they confirm it, --confirm <plan> creates exactly
+  to the user; only after they confirm it, --confirm <plan> creates exactly
   that plan, from a task worktree of the Personalspace beside it
   (personalspace/.worktrees/<task>; personalspace_root_not_task_worktree,
   personalspace_root_on_main), and only one content operation at a time
@@ -182,7 +182,7 @@ function parse(args: string[]) {
     );
   if (!dryRun && values.confirm === undefined)
     throw new ModuleCreateUsageError(
-      `Show the person the plan with --dry-run first; only after they confirm it, run the command with --confirm <plan>, the plan's digest.\n${usage}`,
+      `Show the user the plan with --dry-run first; only after they confirm it, run the command with --confirm <plan>, the plan's digest.\n${usage}`,
     );
   if (
     values.confirm !== undefined &&

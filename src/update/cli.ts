@@ -92,7 +92,7 @@ install [--verify-release <directory>] [--service systemd-user --folder <absolut
   install or update finds this base supervised (its Launchpad unit is this
   base's) in a Remote Environment whose handover declares this account the
   operator, with or without --service, it also ensures
-  lazurio-codex-app-server.service, which runs the operator's own codex
+  lazurio-codex-app-server.service, which runs the user's own codex
   app-server daemon start at boot; that step never fails the command and
   never stops or restarts a running daemon (codexAppServer in --json). There
   it also reads Executor's state (executor in --json) and never sets it up:
@@ -102,7 +102,7 @@ install [--verify-release <directory>] [--service systemd-user --folder <absolut
 install prompt [--locale cs|en] [--json]
   The prepared prompt for an agent who straightens a non-standard
   installation: the standard layout on this platform, what was found instead,
-  what the agent may do and what only on the operator's explicit instruction,
+  what the agent may do and what only on the user's explicit instruction,
   and how success is proven. Reads only; --json says "standard": true when
   nothing deviates.
 update [--version <vX.Y.Z[-rc.N]>] [--folder <absolute Folder>] [--json]

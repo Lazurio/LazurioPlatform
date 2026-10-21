@@ -46,7 +46,7 @@ vault status [--json]
   This Environment's vault as the Launchpad shows it, from bw's local copy
   (no network): connected (its organization and how many items it holds),
   not set up yet (and the next step), needs-connection (a personal
-  Environment whose person has not connected their own Bitwarden yet: only
+  Environment whose user has not connected their own Bitwarden yet: only
   they do it, in the Launchpad's Apps → Vault; never ask for or enter
   that account's credentials), or why this Environment has no vault here.
   The one source of truth: read it before saying anything about the vault.
@@ -61,31 +61,31 @@ vault setup [--json]
   creates the Environment's own vault, an organization named as the handover
   says with the first collection Agenti (or finds it by its ID and renames it
   when the name changed), signs bw in with the account's API key, unlocks the
-  one session and syncs. On a personal Environment whose person connected
+  one session and syncs. On a personal Environment whose user connected
   their own Bitwarden it does the same with the agents' account they
   entered (never registered here), and invites them into the vault once
   they asked for it in Apps → Vault. Safe to
   run again. Remote Environments on Linux only; this computer is the second
-  wave. Exit status: 0 connected, 2 waiting for a person (no vault named,
-  not allowed by the network, revoked, not connected by the person, not
+  wave. Exit status: 0 connected, 2 waiting for a user (no vault named,
+  not allowed by the network, revoked, not connected by the user, not
   available here), 1 failure.
 vault request --item <name> --need <text> --why <text> --where <text>
     --field <Name>[:secret] [--field ...] [--json]
-  Asks a person for a secret you cannot get any other way (root decision
-  0198 point 9 (c)): never in chat. The person opens the printed link, the
+  Asks a user for a secret you cannot get any other way (root decision
+  0198 point 9 (c)): never in chat. The user opens the printed link, the
   request's page in this Environment's Launchpad (Apps → Trezor lists it
   too), fills in the fields and saves them, or declines. Anyone admitted
   to the Environment can answer; no account in the vault is needed. The
   Environment saves the values as one Secure note named <name> in its own
   vault, in the collection Agenti: one custom field per --field, hidden for
   a :secret one, and the need, why and where as its notes. Write it so the
-  person understands what is wanted: --need what you need as you would say
+  user understands what is wanted: --need what you need as you would say
   it mid-sentence (the API key of the invoicing service), --why one short
   line, --where where in the service they find it (Settings → API clients).
   --field is the name the service gives the value; 1 to 10 fields. Prints
   the request's id and link; --json prints {kind: "vault-request", id,
   state, item, need, why, where, fields, createdAt, answeredAt, link}. Give
-  the person the link and go on with other work. Only where the
+  the user the link and go on with other work. Only where the
   Environment's own vault is connected. Exit status: 0 created, 2 refused
   (invalid input, no vault, too many waiting), 1 failure.
 vault request status <id> [--json]
@@ -118,7 +118,7 @@ const reasons: Readonly<Record<VaultUnsupportedReason, string>> = {
   "no-tailnet":
     "this Environment has no vault and gets none: it is reached without a private network (a public Organization's Environment), and a vault answers only inside one",
   "connection-unreadable":
-    "the record of the Bitwarden this personal Environment's person connected cannot be read; they disconnect it in the Launchpad's Apps → Vault and connect it again",
+    "the record of the Bitwarden this personal Environment's user connected cannot be read; they disconnect it in the Launchpad's Apps → Vault and connect it again",
 };
 
 const notSetUp =
@@ -172,7 +172,7 @@ export function statusText(status: VaultStatus): string {
   if (status.state === "unsupported")
     return `Not available: ${reasons[status.reason]}.`;
   if (status.state === "needs-connection")
-    return "Not connected yet: this personal Environment keeps its vault in its person's own Bitwarden (bitwarden.eu or bitwarden.com), which they connect in the Launchpad's Apps → Vault with a separate agents' account. Only they do it there: never ask for that account's credentials or enter them yourself.";
+    return "Not connected yet: this personal Environment keeps its vault in its user's own Bitwarden (bitwarden.eu or bitwarden.com), which they connect in the Launchpad's Apps → Vault with a separate agents' account. Only they do it there: never ask for that account's credentials or enter them yourself.";
   const where = `${status.account} in ${status.vault}`;
   const pilot = status.origin === "pilot-0197";
   switch (status.state) {
@@ -204,7 +204,7 @@ export function statusText(status: VaultStatus): string {
     case "failed":
       return status.region === undefined
         ? `Failed at ${status.stage}: ${status.reason}. An agent can finish it with lazurio tools prompt bitwarden.`
-        : `Failed at ${status.stage}: ${status.reason}. ${personalFailures[status.reason] ?? "The person sees it in the Launchpad's Apps → Vault; lazurio vault setup tries again."}`;
+        : `Failed at ${status.stage}: ${status.reason}. ${personalFailures[status.reason] ?? "The user sees it in the Launchpad's Apps → Vault; lazurio vault setup tries again."}`;
   }
 }
 
@@ -212,9 +212,9 @@ export function statusText(status: VaultStatus): string {
  * Bitwarden (root decision 0203 point 7). */
 const personalFailures: Readonly<Record<string, string>> = {
   "free-organization-limit":
-    "The agents' account owns or administers another free Bitwarden organization already, and Bitwarden allows one; the person disconnects it in the Launchpad's Apps → Vault and connects a new agents' account.",
+    "The agents' account owns or administers another free Bitwarden organization already, and Bitwarden allows one; the user disconnects it in the Launchpad's Apps → Vault and connects a new agents' account.",
   "account-missing":
-    "The agents' account is no longer on this Environment; the person disconnects it in the Launchpad's Apps → Vault and connects it again.",
+    "The agents' account is no longer on this Environment; the user disconnects it in the Launchpad's Apps → Vault and connects it again.",
 };
 
 const phaseText: Readonly<Record<VaultPhase, string>> = {
@@ -351,11 +351,11 @@ const requestRefusals: Readonly<Record<SecretRequestRefusal, string>> = {
   "not-connected": notSetUp,
   "not-found": "there is no request of this id in this Environment's vault",
   answered: "the request is answered already",
-  "too-many": `${secretRequestLimits.pending} requests wait for a person already; wait for their answers (lazurio vault request list)`,
+  "too-many": `${secretRequestLimits.pending} requests wait for a user already; wait for their answers (lazurio vault request list)`,
   "item-invalid": `--item is the vault item's name: one line of 1 to ${secretRequestLimits.item} characters`,
   "need-invalid": `--need says what you need, as you would say it mid-sentence: one line of 3 to ${secretRequestLimits.need} characters`,
   "why-invalid": `--why says why, in one line of 3 to ${secretRequestLimits.why} characters`,
-  "where-invalid": `--where says where in the service the person finds it, in one line of 3 to ${secretRequestLimits.where} characters`,
+  "where-invalid": `--where says where in the service the user finds it, in one line of 3 to ${secretRequestLimits.where} characters`,
   "fields-missing":
     "name at least one --field: the value's name in the service, :secret for a secret one",
   "too-many-fields": `at most ${secretRequestLimits.fields} --field`,
@@ -399,11 +399,11 @@ export function secretRequestText(
 ): string {
   switch (request.state) {
     case "pending":
-      return `Pending: request ${request.id} waits for a person: ${whereToAnswer(request, origin)}`;
+      return `Pending: request ${request.id} waits for a user: ${whereToAnswer(request, origin)}`;
     case "saved":
       return `Saved: the vault holds it as the item "${request.item}" in the collection Agenti. After eval "$(lazurio vault env)" and bw sync, pass its fields from bw get item "${request.item}" straight into the command that needs them; never print them.`;
     case "declined":
-      return `Declined: the person declined request ${request.id}; nothing was saved.`;
+      return `Declined: the user declined request ${request.id}; nothing was saved.`;
   }
 }
 
@@ -487,7 +487,7 @@ async function runVaultRequestCommand(
         ? requestJson(answer, origin)
         : [
             `Request ${answer.id}: ${whereToAnswer(answer, origin)}`,
-            `Give the person this link and go on with other work; lazurio vault request status ${answer.id} says when it is answered.`,
+            `Give the user this link and go on with other work; lazurio vault request status ${answer.id} says when it is answered.`,
           ].join("\n"),
     };
   } catch {

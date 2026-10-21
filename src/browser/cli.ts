@@ -46,22 +46,22 @@ export const browserHelp = `browser window [--session <name>] [--url <url>] [--f
   session. The session is --session, else AGENT_BROWSER_SESSION (T3 Code sets
   it per thread), else codex-<CODEX_THREAD_ID>, else
   claude-<CLAUDE_CODE_SESSION_ID>. Prints the session, the link to its tab in
-  the people's view (https://browser.…/t/<id>), where the Operator works in
+  the users' view (https://browser.…/t/<id>), where the user works in
   the same tab, and the agent-browser command to work in it. --json prints
   {schema: "lazurio.browser-cli.v1", kind: "browser-window", session,
   targetId, created, link, command}.
 browser link [--session <name> | --url <url>] [--folder <absolute Folder>] [--json]
-  The link for the person: with a session, the Launchpad's hand-over to that
+  The link for the user: with a session, the Launchpad's hand-over to that
   session's tab; with --url, a new tab at that address that nobody holds,
   which ends 30 s after its last viewer leaves (root decision 0191 point
-  29); without either, the people's view of a new tab. --json prints
+  29); without either, the users' view of a new tab. --json prints
   {schema: "lazurio.browser-cli.v1", kind: "browser-link", session, link},
   with targetId for --url. Neither command opens an address on the view
   host of an Environment browser (browser.….lazurio.io).
 browser done [--session <name>] [--folder <absolute Folder>] [--json]
   Lets go of the calling thread's window when its work there is done (root
   decision 0191 point 28): its agent-browser daemon stops, and the tab ends
-  once nothing holds it and nobody views it. A person who has it open keeps
+  once nothing holds it and nobody views it. A user who has it open keeps
   it. It asks the session's own agent-browser daemon on its socket to shut
   down; it never signals a process. --json prints {schema:
   "lazurio.browser-cli.v1", kind: "browser-done", session, outcome}, outcome
@@ -87,7 +87,7 @@ browser open <http(s) address> [--folder <absolute Folder>] [--json]
   in your own browser), 2 usage or an address it does not open, 1 the view
   did not open the tab.
 browser serve --port <loopback port> --origin <https://browser.…>
-  The people's view service, as lazurio-browser-view.service runs it; it runs
+  The users' view service, as lazurio-browser-view.service runs it; it runs
   until it is stopped. Not for agents.`;
 
 const synopsis =
@@ -131,12 +131,12 @@ const text = {
       "The window is open, but agent-browser did not bind the session to it.",
     failed: "lazurio browser failed",
     session: "Session",
-    view: "The Operator works with you in this tab",
+    view: "The user works with you in this tab",
     use: "Work in your window with",
     reused: "Your window is open already.",
     created: "Your window is open.",
     "hub-unreachable":
-      "The people's view of the Environment browser did not open the tab. Run lazurio doctor.",
+      "The users' view of the Environment browser did not open the tab. Run lazurio doctor.",
     "invalid-address": "The view does not open that address.",
     stopped:
       "Your window is let go: it ends once nothing holds it and nobody views it. Whoever has it open keeps it.",
@@ -169,7 +169,7 @@ const text = {
       "Okno je otevřené, ale agent-browser k němu sezení nepřipojil.",
     failed: "lazurio browser selhal",
     session: "Sezení",
-    view: "Tady s tebou Operátor pracuje ve stejné záložce",
+    view: "Tady s tebou uživatel pracuje ve stejné záložce",
     use: "Ve svém okně pracuj příkazem",
     reused: "Tvoje okno už je otevřené.",
     created: "Tvoje okno je otevřené.",

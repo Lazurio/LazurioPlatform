@@ -169,7 +169,7 @@ test("a regular file, a foreign link or a directory is never overwritten; instal
   });
   expect(await readFile(entry, "utf8")).toBe("#!/bin/sh\necho mine\n");
   expect(file.kind === "installed" && file.entry?.next[0]).toBe(
-    `${entry} is a regular file that is not Lazurio's; it was left unchanged. Until it is resolved, run Lazurio as ${selector}. Move that entry aside only on the operator's instruction, then run \`lazurio install\` again.`,
+    `${entry} is a regular file that is not Lazurio's; it was left unchanged. Until it is resolved, run Lazurio as ${selector}. Move that entry aside only on the user's instruction, then run \`lazurio install\` again.`,
   );
 
   // A link to something that exists and is not an install base: the legacy
@@ -215,7 +215,7 @@ test("PATH is reported, never changed: on PATH, and another lazurio that resolve
     },
   });
   expect(shadowed.kind === "installed" && shadowed.entry?.next).toEqual([
-    `Another program named lazurio resolves first on PATH: ${join(bun, "lazurio")}. This installation is ${entry}. Nothing was changed about ${join(bun, "lazurio")}; remove it or put ${bin} before its directory on PATH only on the operator's instruction.`,
+    `Another program named lazurio resolves first on PATH: ${join(bun, "lazurio")}. This installation is ${entry}. Nothing was changed about ${join(bun, "lazurio")}; remove it or put ${bin} before its directory on PATH only on the user's instruction.`,
   ]);
   expect(await readFile(join(bun, "lazurio"), "utf8")).toBe("#!/bin/sh\n");
 });
@@ -265,7 +265,7 @@ test("the command surface prints the entry and every warning, and --json carries
       "Lazurio 1.0.0 is installed.",
       `The command is ${entry}.`,
       `Put ${bin} on your PATH. Lazurio never edits shell profiles.`,
-      `Another program named lazurio resolves first on PATH: ${join(bun, "lazurio")}. This installation is ${entry}. Nothing was changed about ${join(bun, "lazurio")}; remove it or put ${bin} before its directory on PATH only on the operator's instruction.`,
+      `Another program named lazurio resolves first on PATH: ${join(bun, "lazurio")}. This installation is ${entry}. Nothing was changed about ${join(bun, "lazurio")}; remove it or put ${bin} before its directory on PATH only on the user's instruction.`,
       // A deviation from the standard is straightened by an agent; the
       // command names this installation, not the program PATH finds first.
       `This installation is not yet the standard one. To have an agent straighten it, give it the prompt that \`${entry} install prompt\` prints (add --locale cs for Czech).`,

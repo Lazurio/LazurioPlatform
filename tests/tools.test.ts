@@ -322,7 +322,7 @@ test.skipIf(!posix)(
       expect(installed.next).toBe(codexUpdatedNext);
     }
     expect(codexUpdatedNext).toBe(
-      "A Codex app-server that is already running keeps the old version until it is replaced; nothing was stopped or restarted. In a Remote Environment, lazurio doctor reports it (codex-app-server, app-server-outdated) and the Folder's manual/troubleshooting.md says how to replace it, with the Operator's consent.",
+      "A Codex app-server that is already running keeps the old version until it is replaced; nothing was stopped or restarted. In a Remote Environment, lazurio doctor reports it (codex-app-server, app-server-outdated) and the Folder's manual/troubleshooting.md says how to replace it, with the user's consent.",
     );
     // The same version again: nothing keeps an older one, no next step.
     const again = await toolsUpdate({ ...common, tool: "codex" });
@@ -1288,11 +1288,11 @@ exit 1
     ).text.split("\n");
     expect(lines.slice(1, 7)).toEqual([
       `gh        required     launchpad  enabled   2.86.0 ${join(bin, "gh")}`,
-      "          operator's note:",
+      "          user's note:",
       "          > Only the Spectoda org.",
       "executor  required     launchpad  enabled   missing https://github.com/UsefulSoftwareCo/executor  (not offered here)",
       "composio  recommended  launchpad  enabled   missing https://docs.composio.dev/docs/cli",
-      "          operator's note:",
+      "          user's note:",
     ]);
     expect(
       JSON.parse(

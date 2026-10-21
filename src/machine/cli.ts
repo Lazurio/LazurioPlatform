@@ -47,7 +47,7 @@ hosted-organization-team; without owner.assignment and without owner.team ->
 hosted-organization-personal). When
 the handover states owner.assignment, --preset may name only the preset it
 derives. A workspace-vm handover with owner.team and no owner.assignment does
-not say whether the Remote Environment is assigned to one operator or shared, so
+not say whether the Remote Environment is assigned to one user or shared, so
 it derives nothing: --preset with one of hosted-organization-personal,
 hosted-organization-team or hosted-organization-steward is required and
 recorded as an explicit choice; without owner.assignment --preset may pick any
@@ -61,7 +61,7 @@ handover reaches the Folder through folder-refresh.
 Run as the declared operator, never root. No path or custody override.
 No Organization checkout, gateway change, resident removal or migration.
 An interrupted recognized journal can be completed using folder-resume;
-missing/damaged journals require operator diagnosis, never blanket cleanup.
+missing/damaged journals require a user's diagnosis, never blanket cleanup.
 machine folder-refresh [--preset <name>]
 Re-render the adopted Folder's generated files (AGENTS.md, manual/) from the
 current handover, keeping the recorded preset and profile. Run it as the
@@ -266,7 +266,7 @@ export async function initializeMachineFolder(
         kind: "blocked",
         reason: "preset-ambiguous",
         allowed,
-        next: "Pass --preset: this handover names a Team but no owner.assignment, so it does not say whether the Remote Environment is assigned to one operator or shared; the Lazurio Machines resident role passes it from the owner infrastructure.",
+        next: "Pass --preset: this handover names a Team but no owner.assignment, so it does not say whether the Remote Environment is assigned to one user or shared; the Lazurio Machines resident role passes it from the owner infrastructure.",
       },
     };
   }

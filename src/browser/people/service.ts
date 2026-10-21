@@ -441,7 +441,7 @@ export function startViewService(options: ViewServiceOptions): ViewService {
   });
   hub.start();
   options.log(
-    `people's view of the Environment browser on 127.0.0.1:${server.port} for ${options.origin}`,
+    `users' view of the Environment browser on 127.0.0.1:${server.port} for ${options.origin}`,
   );
   return Object.freeze({
     server,

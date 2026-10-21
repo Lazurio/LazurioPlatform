@@ -136,7 +136,7 @@ test.skipIf(process.platform === "win32")(
     expect(human.code).toBe(0);
     expect(human.stdout).toBe(url);
     expect(human.stderr).toBe(
-      "A one-time link, valid for 60 seconds: hand it to the operator.",
+      "A one-time link, valid for 60 seconds: hand it to the user.",
     );
     expect(json.code).toBe(0);
     expect(JSON.parse(json.stdout ?? "")).toEqual({
@@ -263,7 +263,7 @@ test.skipIf(process.platform === "win32")(
     expect(human).toEqual({
       code: 10,
       stderr:
-        "No T3 Code link: this Folder has no recorded Remote Environment entry, so T3 Code runs wherever the operator runs it.",
+        "No T3 Code link: this Folder has no recorded Remote Environment entry, so T3 Code runs wherever the user runs it.",
     });
     // No Folder at all (a workstation without a supervised unit): the same.
     const none = await runChatCommand(["link", "--json"], context);

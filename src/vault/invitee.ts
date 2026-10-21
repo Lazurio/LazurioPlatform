@@ -56,7 +56,7 @@ export const inviteeInvitation = (
 
 export class InviteeFailure extends Error {
   constructor() {
-    super("The person is not listed in the vault");
+    super("The user is not listed in the vault");
     this.name = "InviteeFailure";
   }
 }

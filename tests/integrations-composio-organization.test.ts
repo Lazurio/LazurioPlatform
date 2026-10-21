@@ -468,11 +468,11 @@ test("an account without the organization: Composio works in the person's curren
     "jana_workspace",
   );
   expect(integrationsText(overview)).toContain(
-    'Composio: the person\'s account has no organization named "Priklad" (this Environment\'s Organization "Příklad", named as Composio accepts it), so Composio works in the person\'s current organization meanwhile.',
+    'Composio: the user\'s account has no organization named "Priklad" (this Environment\'s Organization "Příklad", named as Composio accepts it), so Composio works in their current organization meanwhile.',
   );
   // Agents learn where the person connects an app the catalog does not list.
   expect(integrationsText(overview)).toContain(
-    "An app the catalog does not list is connected by the person in Composio (https://dashboard.composio.dev/jana_workspace/~/connect/apps); it then shows here.",
+    "An app the catalog does not list is connected by the user in Composio (https://dashboard.composio.dev/jana_workspace/~/connect/apps); it then shows here.",
   );
 });
 
@@ -521,7 +521,7 @@ test("an organization of the name that cannot be made current: nothing of Compos
   // No way to Composio's Apps where its organization cannot be told.
   expect(overview.composio.apps).toBeNull();
   expect(integrationsText(overview)).not.toContain(
-    "connected by the person in Composio",
+    "connected by the user in Composio",
   );
   expect(overview.apps.find((item) => item.id === "gmail")?.accounts).toEqual(
     [],

@@ -45,7 +45,7 @@ export const contentHelp = `organization install <github-login> [--role builder|
   <login>/<login>_GEN3, else the one repository of the Organization this
   account can read, each accepted only when its own lazurio.organization.json
   declares it the root of that login (root-declaration-mismatch for a named
-  one that does not; root-not-found or root-ambiguous after the scan). The scope follows the person's role in the Organization, as
+  one that does not; root-not-found or root-ambiguous after the scan). The scope follows the user's role in the Organization, as
   the resident CLI's: without --role it is the Admin installation, the full
   one, and runs only when GitHub confirms through gh an active Owner
   membership; --role builder, --role steward or --role reader installs
@@ -64,28 +64,28 @@ export const contentHelp = `organization install <github-login> [--role builder|
   no GitHub identity: it installs its own Organization only, as a reader
   (--role reader; any other role fails role-unverified), reads nothing of
   GitHub's API and clones the root and every child over anonymous HTTPS with
-  an isolated git (none of the operator's Git configuration, credential, askpass
+  an isolated git (none of the user's Git configuration, credential, askpass
   or SSH helpers, HTTPS only, exactly https://github.com/<owner>/<repository>.git);
   its root is the one the Folder holds, --root or
   <login>/<login>_GEN3, verified in the clone, and a child anonymous Git
   cannot read is reported (clone-failed). One JSON line per step with --json,
   then the result.
 personalspace install [--folder <absolute Folder>] [--json]
-  Installs the person's Personalspace into personalspace/<login>_GEN3: when
-  <login>/<login>_GEN3 exists on GitHub (private, the person's own), it is
+  Installs the user's Personalspace into personalspace/<login>_GEN3: when
+  <login>/<login>_GEN3 exists on GitHub (private, the user's own), it is
   cloned; otherwise it is created from Lazurio/PersonalspaceTemplate_GEN3 as
-  a private repository of the person's account, cloned, set up by the
+  a private repository of the user's account, cloned, set up by the
   template's own bootstrap (bun run bootstrap -- --login <login>
   --display-name <GitHub profile name, else login> --apply: it names the
   owner and creates and clones the private <login>/<login>-gbrain; the gbrain
   CLI is not installed), and what the bootstrap wrote is committed and pushed
-  to main of both new repositories, by the operator's Git identity, else by
-  the person's GitHub identity (profile name or login, GitHub's noreply
+  to main of both new repositories, by the user's Git identity, else by
+  their GitHub identity (profile name or login, GitHub's noreply
   address) given per commit and never configured. Bun and an identity are
   checked before anything is created (personalspace-toolchain-missing,
   git-identity-missing). A failed bootstrap leaves the created repository
   cloned and unpushed, with the next step in the failure. When a repository
-  of the person was already created from that template under another name,
+  of the user was already created from that template under another name,
   nothing is created (personalspace-elsewhere). Only on a workstation (local)
   and a personal Remote Environment (hosted-personal, only for its owner's
   GitHub account). An existing Personalspace is left as it is and never

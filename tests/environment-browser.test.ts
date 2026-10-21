@@ -1702,7 +1702,7 @@ test.skipIf(process.platform === "win32")(
     );
     expect(unreachable.code).toBe(1);
     expect(unreachable.stderr).toBe(
-      "The people's view of the Environment browser did not open the tab. Run lazurio doctor.",
+      "The users' view of the Environment browser did not open the tab. Run lazurio doctor.",
     );
 
     // An Environment without the browser (a workstation, an entry without

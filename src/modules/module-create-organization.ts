@@ -119,7 +119,7 @@ export async function planOrganizationModule(
     throw new ModuleCreateRefusal(
       "teams-required",
       "An Organization's module names its Teams: they are its slot's teams and its first grants on GitHub.",
-      "Ask the person which Teams work on the module and name them with --teams <team,team>.",
+      "Ask the user which Teams work on the module and name them with --teams <team,team>.",
     );
 
   // 1. Not a Team Environment: it acts under the Team's brokered identity
@@ -362,7 +362,7 @@ export async function planOrganizationModule(
     throw new ModuleCreateRefusal(
       "repository-exists",
       `GitHub already has ${existing.repository.fullName} (names are compared ignoring letter case); an existing repository is never taken over.`,
-      "Ask the person for another name of the module (its slug).",
+      "Ask the user for another name of the module (its slug).",
     );
   if (existing.kind === "unavailable")
     throw new ModuleCreateRefusal(
@@ -444,7 +444,7 @@ export function organizationDryRunSteps(
       `The real run needs a task worktree of the Organization root in ${organizationTaskWorktrees(root)}: git -C '${root}' worktree add -b <branch> '${join(organizationTaskWorktrees(root), "<task>")}' main.`,
     );
   steps.push(
-    `Show the person this plan in the thread: the private repository ${report.repository?.full_name} of the Organization, the Teams ${module.grants.map((grant) => `${grant.team} (${grant.permission})`).join(", ")}, the stack ${module.plan.stack}, the files and the port ${module.plan.lease?.port ?? "(none, no app)"}. Create it only after they confirm it.`,
+    `Show the user this plan in the thread: the private repository ${report.repository?.full_name} of the Organization, the Teams ${module.grants.map((grant) => `${grant.team} (${grant.permission})`).join(", ")}, the stack ${module.plan.stack}, the files and the port ${module.plan.lease?.port ?? "(none, no app)"}. Create it only after they confirm it.`,
     `Then, from ${worktree === null ? "the task worktree" : worktree}: ${confirmCommand(request, report.plan as string)}`,
   );
   return steps;

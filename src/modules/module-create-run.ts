@@ -254,7 +254,7 @@ async function runRefusal(
     return new ModuleCreateRefusal(
       "plan-changed",
       `The plan is not the one confirmed: ${request.confirm} was confirmed, this run would create ${report.plan}.`,
-      "Show the person this plan again (the same command with --dry-run) and run it with its own --confirm only after they confirm it.",
+      "Show the user this plan again (the same command with --dry-run) and run it with its own --confirm only after they confirm it.",
     );
   if (module.scope === "organization") return organizationRunRefusal(module);
   const create = `git -C '${module.space}' worktree add -b <branch> '${join(module.folder, personalspaceName, ".worktrees", "<task>")}' main`;
@@ -645,7 +645,7 @@ async function createData(
         ? `GitHub did not confirm creating ${fullName}, but has it now; it is not taken over and the module has no data mount.`
         : `GitHub did not create ${fullName}; the module was created without its data.`,
       action: uncertain
-        ? `Look at ${fullName} on GitHub with the person: if it is empty and was created just now, mount it with repository-db init (${initCommand(module, data)}) and declare its slot by hand; otherwise leave it.`
+        ? `Look at ${fullName} on GitHub with the user: if it is empty and was created just now, mount it with repository-db init (${initCommand(module, data)}) and declare its slot by hand; otherwise leave it.`
         : `Create the data later: the private repository ${fullName}, then ${initCommand(module, data)}, and declare the report's data slot by hand.`,
     });
     steps.failed("data", code);
@@ -810,7 +810,7 @@ function stopped(
     ],
     "create-uncertain": [
       `GitHub did not confirm creating ${fullName}, but has it now: either this run created it and GitHub's answer was lost, or another request took the name first. It is not taken over and nothing was placed or pushed.`,
-      `Look at ${fullName} on GitHub with the person: if it is empty and was created just now by this run, delete it (or keep it private and empty) and run the command again; otherwise ask the person for another name of the module.`,
+      `Look at ${fullName} on GitHub with the user: if it is empty and was created just now by this run, delete it (or keep it private and empty) and run the command again; otherwise ask them for another name of the module.`,
     ],
     "not-private": [
       `GitHub created ${created?.fullName ?? fullName} public, not private; nothing was placed or pushed.`,
@@ -978,7 +978,7 @@ function organizationCreatedSteps(
     }
   ).root_repository?.locator;
   const steps = [
-    `${declared ? "Commit" : "Once the slot is in them, commit"} ${files} in the task worktree ${worktree?.path} (the slot ${plan.slot.path}), push its branch and open a pull request into ${typeof rootRepository === "string" ? rootRepository : "the Organization root's repository"}; merging it is the Publication of an Operator GitHub lets merge there.`,
+    `${declared ? "Commit" : "Once the slot is in them, commit"} ${files} in the task worktree ${worktree?.path} (the slot ${plan.slot.path}), push its branch and open a pull request into ${typeof rootRepository === "string" ? rootRepository : "the Organization root's repository"}; merging it is the Publication of a user whom GitHub lets merge there.`,
     `After the merge, remove the task worktree: git -C '${organization.root}' worktree remove '${worktree?.path}'.`,
   ];
   const name = `${organization.slug}/${plan.module}`;
@@ -1004,7 +1004,7 @@ function createdSteps(
   const { plan, worktree } = module;
   const personalspace = `${module.login}/${personalspaceRepositoryName(module.login)}`;
   const steps = [
-    `${declared ? "Commit" : "Once the slot is in it, commit"} modules.manifest.json in the task worktree ${worktree?.path} (the slot ${plan.slot.path}${module.addsPool ? ` and module_port_pool ${module.pool.start}-${module.pool.end}` : ""}), push its branch and open a pull request into ${personalspace}; merging it is the person's Publication.`,
+    `${declared ? "Commit" : "Once the slot is in it, commit"} modules.manifest.json in the task worktree ${worktree?.path} (the slot ${plan.slot.path}${module.addsPool ? ` and module_port_pool ${module.pool.start}-${module.pool.end}` : ""}), push its branch and open a pull request into ${personalspace}; merging it is the user's Publication.`,
     `After the merge, remove the task worktree: git -C '${module.space}' worktree remove '${worktree?.path}'.`,
   ];
   if (plan.lease === null)

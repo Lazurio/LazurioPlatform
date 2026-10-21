@@ -40,7 +40,7 @@ export const tokenAdvice = (
   if (answer.kind === "signed-out")
     switch (answer.reason) {
       case "not-signed-in":
-        return `This Environment is not signed in to GitHub for ${organization}. The Operator signs in with ${signIn} and approves the code in their own browser.`;
+        return `This Environment is not signed in to GitHub for ${organization}. The user signs in with ${signIn} and approves the code in their own browser.`;
       case "refresh-rejected":
         return `The GitHub sign-in for ${organization} has ended: GitHub refused to renew it. Sign in again: ${signIn}`;
       case "sign-in-expired":

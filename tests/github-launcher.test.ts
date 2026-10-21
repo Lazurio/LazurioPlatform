@@ -238,7 +238,7 @@ test("a missing shared sign-in fails closed for every owner", async () => {
   expect(await run.run(["pr", "list", "-R", "Other/app"])).toBe(4);
   expect(run.calls).toEqual([]);
   expect(run.stderr.join("")).toContain(
-    "not signed in to GitHub for Example. The Operator signs in with lazurio github sign-in",
+    "not signed in to GitHub for Example. The user signs in with lazurio github sign-in",
   );
 });
 
