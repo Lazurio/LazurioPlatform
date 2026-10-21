@@ -3226,7 +3226,12 @@ must say that GitHub is connected badly and must be connected again.
    sign-out drops the kept reading of the tools (#535) and the end of a flow reads anew,
    so "Připojit znovu" shows the link working at once, and no answer, current or older
    (#551), carries GitHub's state from before a sign-in, link or sign-out through this
-   Launchpad. The CLI (`tools list --sign-in`, `doctor
+   Launchpad. Nor does a reading already under way when one happens: its answer is no
+   longer current (`ToolsAnswer.current`), so the status route reads the tools again
+   before it answers or the shell's GitHub takes it (three such changes in a row end as
+   `tools-changing`, which the page meets as a failed reading), and the shell's GitHub
+   probe asks again (after three, `unknown`), never answering the older state (Pablo's
+   review of #524). The CLI (`tools list --sign-in`, `doctor
    --sign-in`) keeps nothing and proves on each run. The staleness this allows is
    bounded: a key removed from the account on github.com reads linked for up to 5
    minutes.

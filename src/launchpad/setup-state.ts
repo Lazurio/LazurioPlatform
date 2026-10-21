@@ -63,8 +63,11 @@ export function createGithubProbe(
     state: "connected" | "missing" | "unknown";
     at: number;
   }> | null = null;
-  let asking: Promise<"connected" | "missing" | "unknown"> | null = null;
-  // A reading or a forget while a question runs makes its answer stale.
+  type State = "connected" | "missing" | "unknown";
+  let asking: Readonly<{ generation: number; state: Promise<State> }> | null =
+    null;
+  // A reading or a forget while a question runs makes its answer stale: it
+  // is not kept, and not answered either (Pablo's review of #524).
   let generation = 0;
 
   async function ask(): Promise<"connected" | "missing" | "unknown"> {
@@ -103,22 +106,31 @@ export function createGithubProbe(
   }
 
   return {
-    /** The state, asked when it is not known or older than the TTL. */
-    async state(): Promise<"connected" | "missing" | "unknown"> {
-      if (known !== null && now() - known.at < ttl) return known.state;
-      if (asking === null) {
+    /** The state, asked when it is not known or older than the TTL. An
+     * answer that a sign-in, link or sign-out through this Launchpad (or a
+     * reading of Settings → Nástroje) overtook is from before it: asked
+     * again, and after three such changes in a row `unknown`, never the
+     * older state. */
+    async state(): Promise<State> {
+      for (let again = 0; again < 3; again++) {
+        if (known !== null && now() - known.at < ttl) return known.state;
         const asked = generation;
-        asking = ask()
-          .catch(() => "unknown" as const)
-          .then((state) => {
-            if (asked === generation) known = { state, at: now() };
-            return state;
-          })
-          .finally(() => {
-            asking = null;
-          });
+        if (asking?.generation !== asked) {
+          const state: Promise<State> = ask()
+            .catch(() => "unknown" as const)
+            .then((answered) => {
+              if (asked === generation) known = { state: answered, at: now() };
+              return answered;
+            })
+            .finally(() => {
+              if (asking?.state === state) asking = null;
+            });
+          asking = { generation: asked, state };
+        }
+        const answered = await asking.state;
+        if (asked === generation) return answered;
       }
-      return asking;
+      return "unknown";
     },
     /** A reading of Settings → Nástroje: gh installed or not, and its
      * sign-in when it was probed. True when it says otherwise than the state

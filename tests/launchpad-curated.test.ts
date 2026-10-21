@@ -453,6 +453,55 @@ test.skipIf(!keygen)(
   30_000,
 );
 
+// Pablo's review of #524: a status read already under way when gh signs out
+// through this Launchpad read gh before the sign-out. Its answer is never
+// given as current (nor taken for the shell's GitHub, first-run-shell's
+// test of the probe): the route reads the tools again.
+test.skipIf(!posix)(
+  "a status read under way across a sign-out through the Launchpad answers the facts after it, never the ones before",
+  async () => {
+    const opened = await session(["gh"]);
+    try {
+      await writeFile(join(opened.home, "gh.state"), "octocat\n");
+      await writeFile(
+        join(opened.home, "gh.scopes"),
+        "gist read:org repo admin:public_key\n",
+      );
+      // gh's status answers signed in, and that answer is held back.
+      await writeFile(join(opened.home, "hang.auth-status"), "");
+      const reading = opened.json("/api/tools/status", {
+        signIn: true,
+        fresh: true,
+      });
+      const held = await until(
+        async () => ({
+          pid: (
+            await readFile(join(opened.home, "hang.pid"), "utf8").catch(
+              () => "",
+            )
+          ).trim(),
+        }),
+        (value) => value.pid !== "",
+      );
+      await rm(join(opened.home, "hang.auth-status"));
+      // Signed out through this Launchpad while the read waits for gh.
+      const logout = await opened.json("/api/tools/logout", { tool: "gh" });
+      expect(logout.body).toMatchObject({ kind: "logged-out", tool: "gh" });
+      // gh delivers its answer from before the sign-out.
+      process.kill(Number(held.pid));
+      const answer = (await reading).body;
+      expect(answer.stale).toBeUndefined();
+      expect(
+        (answer.tools as Json[]).find((tool) => tool.name === "gh")?.signIn,
+      ).toEqual({ state: "signed-out" });
+    } finally {
+      await opened.close();
+    }
+  },
+  // Real processes (the fakes): slower under a loaded run.
+  30_000,
+);
+
 test.skipIf(!posix)(
   "wacli: the QR is drawn server-side as SVG and replaced when it rotates; cancel and shutdown kill the tool",
   async () => {

@@ -30,7 +30,8 @@ export const githubHostKeys = Object.freeze([
 ]);
 
 // A step that hangs while `$HOME/hang.<name>` exists: its helper's pid goes
-// to `$HOME/hang.pid`, so a test can see that a cancel killed it. A step
+// to `$HOME/hang.pid`, so a test can see that a cancel killed it (or end the
+// hang by killing it: gh's `auth status --json` hangs after its answer). A step
 // with `$HOME/slow.<name>` takes that many seconds and then goes on, as a
 // slow network would (the Launchpad preview's linking that a person closes
 // the dialog on).
@@ -100,6 +101,9 @@ auth)
       else
         echo '{"hosts":{}}'
       fi
+      # Answered as it was when asked, delivered only once it ends: a status
+      # read that a sign-out overtakes.
+      hang auth-status
       exit 0
     fi
     if [ -f "$HOME/gh.state" ]; then

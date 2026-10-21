@@ -2076,7 +2076,7 @@ export async function startLaunchpad(
             if (asked.includes(field) && typeof value[field] !== "boolean")
               return response({ error }, 400);
           const signIn = value.signIn === true;
-          const reading = toolsReading.answer(signIn, {
+          let reading = toolsReading.answer(signIn, {
             fresh: value.fresh === true,
             allowStale: value.allowStale === true,
           });
@@ -2091,10 +2091,27 @@ export async function startLaunchpad(
             server.timeout(request, 120);
             await settings?.nudge(settingsWaitMs);
           }
-          const overview = await toolsOverview(folder, toolsWithProofs, {
+          let overview = await toolsOverview(folder, toolsWithProofs, {
             signIn,
             live: () => reading.done,
           });
+          // A change through this Launchpad while the tools were read (a
+          // sign-in, link or sign-out, an installation: `forget`) leaves the
+          // reading from before it: the tools are read again, so neither the
+          // answer nor the shell's GitHub below carries the facts from before
+          // the change (Pablo's review of #524). Three such changes in a row
+          // end as a refusal the page meets as a failed reading, never as the
+          // older facts.
+          for (let again = 0; !reading.stale && !reading.current(); again++) {
+            if (again === 3) return response({ error: "tools-changing" }, 503);
+            const anew = toolsReading.answer(signIn);
+            void anew.done.catch(() => undefined);
+            reading = anew;
+            overview = await toolsOverview(folder, toolsWithProofs, {
+              signIn,
+              live: () => anew.done,
+            });
+          }
           // The shell document's GitHub, and whose Personalspace this is,
           // follow a current reading.
           const gh = overview.tools.find((tool) => tool.name === "gh");

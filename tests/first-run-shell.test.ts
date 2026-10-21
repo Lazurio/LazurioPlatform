@@ -394,6 +394,71 @@ test("gh's state for the shell: asked with this Environment's gh, kept a minute,
   }
 });
 
+// Pablo's review of #524: an ask under way when a sign-in, link or sign-out
+// through this Launchpad (or a reading of Nástroje) changes GitHub's state is
+// from before the change: it is asked again or answered by that reading,
+// never with the older state.
+test("gh's state for the shell: an ask that a change overtook is never answered", async () => {
+  const home = await mkdtemp(join(tmpdir(), "first-run-gh-overtaken-"));
+  try {
+    await mkdir(join(home, "bin"));
+    await writeFile(join(home, "bin", "gh"), "#!/bin/sh\nexit 1\n", {
+      mode: 0o755,
+    });
+    const signedOut = { exitCode: 1, stdout: "", stderr: "not logged in" };
+    // gh answers as it is when asked: signed out first, then it times out;
+    // a held answer arrives only once released.
+    let answer: "signed-out" | "timeout" = "signed-out";
+    let runs = 0;
+    let hold: Promise<void> | null = null;
+    let release = () => {};
+    const probe = createGithubProbe({
+      path: join(home, "bin"),
+      home,
+      platform: process.platform,
+      run: (async () => {
+        runs += 1;
+        const asked = answer;
+        if (hold !== null) await hold;
+        return asked === "signed-out" ? signedOut : "timeout";
+      }) as ToolRunner,
+    });
+    const held = () => {
+      hold = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    };
+    // A reading of Nástroje says connected while the ask runs: the ask's
+    // older "missing" is not answered, the reading's state is.
+    held();
+    const pending = probe.state();
+    await Bun.sleep(0);
+    probe.remember(true, {
+      state: "signed-in",
+      account: "octocat",
+      ssh: { state: "linked" },
+    });
+    hold = null;
+    release();
+    expect(await pending).toBe("connected");
+    // A sign-out through this Launchpad while an ask runs: asked again, and
+    // the new ask answers (here gh times out: unknown), not the older one.
+    probe.forget();
+    held();
+    const across = probe.state();
+    await Bun.sleep(0);
+    const before = runs;
+    probe.forget();
+    answer = "timeout";
+    hold = null;
+    release();
+    expect(await across).toBe("unknown");
+    expect(runs).toBeGreaterThan(before);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
 test("prepare-content: a Folder prompt for the Environment's operator, opened in the Folder's root", () => {
   expect(isPromptId("prepare-content")).toBe(true);
   expect(promptAudience("prepare-content")).toBe("environment-operator");
