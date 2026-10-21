@@ -112,7 +112,7 @@ const en = {
   updateFailed:
     "The update did not complete: {code}. The installed version keeps working; the same click retries.",
   updateStateInvalid:
-    "Update state needs a user: {path}. Nothing is changed automatically.",
+    "Update state needs the user's intervention: {path}. Nothing is changed automatically.",
   updateStarted: "Update started…",
   updateRefused: "The update was not started; the state shown was refreshed.",
   updateFolderRefresh: "Folder refresh needed. Run: {command}",
