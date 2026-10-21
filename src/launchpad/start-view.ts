@@ -74,8 +74,14 @@ export type AiAction =
   | Readonly<{ kind: "none" }>
   /** "Přihlásit ChatGPT" and "Přihlásit Claude" (both may be signed in),
    * each with its mark and nothing said before them; `cancel` where they
-   * were opened from a connected step. */
-  | Readonly<{ kind: "choose"; cancel: boolean }>
+   * were opened from a connected step. Beneath them `byCode`: ChatGPT's
+   * quieter "Přihlásit kódem" with its one line, that the setting comes
+   * first (root decision 0201 point 10). */
+  | Readonly<{
+      kind: "choose";
+      cancel: boolean;
+      byCode: Readonly<{ hint: string }>;
+    }>
   /** Connected: "Přihlásit jiný účet" opens the choice again. */
   | Readonly<{ kind: "connected" }>
   /** Signing in: "Otevřít přihlášení" (the right panel again, or the page
@@ -88,8 +94,12 @@ export type AiAction =
         note: Readonly<{ text: string; tone: "warn" | "quiet" }> | null;
       }> | null;
     }>
-  /** "Zkusit znovu" for the sign-in that did not finish. */
-  | Readonly<{ kind: "retry"; tool: AiProvider }>;
+  /** ChatGPT's sign-in by code under way: the code and OpenAI's page for it
+   * (the block of gh's code in its sign-in dialog), and "Zrušit". */
+  | Readonly<{ kind: "by-code"; url: string; code: string }>
+  /** "Zkusit znovu" for the sign-in that did not finish; `byCode`: by code
+   * again. */
+  | Readonly<{ kind: "retry"; tool: AiProvider; byCode?: true }>;
 
 export type StartView = Readonly<{
   intro: string;
@@ -180,12 +190,28 @@ function aiStep(facts: StartFacts, copy: Copy): [StartStep, AiAction] {
   const place = facts.aiPlace ?? "own";
   const ready = facts.ai === "organization" || facts.ai === "connected";
   const mark: StartMark = ready ? "done" : "now";
-  const choose: AiAction = { kind: "choose", cancel: ready };
+  const choose: AiAction = {
+    kind: "choose",
+    cancel: ready,
+    byCode: { hint: copy.startAiByCodeSetting },
+  };
+  // A sign-in that did not finish starts again the way it started.
+  const retry = (failed: Extract<AiSignIn, { kind: "failed" }>): AiAction => ({
+    kind: "retry",
+    tool: failed.tool,
+    ...(failed.byCode === true ? { byCode: true as const } : {}),
+  });
   // A sign-in under way says where to finish it.
   if (signIn.kind === "starting")
     return [
       { ...base, mark, status: copy.startAiStarting },
       { kind: "signing-in", reopen: null, code: null },
+    ];
+  // By code: the code and its page, on any device.
+  if (signIn.kind === "by-code")
+    return [
+      { ...base, mark, status: copy.startAiByCodeWaiting },
+      { kind: "by-code", url: signIn.url, code: signIn.code },
     ];
   if (signIn.kind === "waiting") {
     const name = aiProviderName[signIn.tool];
@@ -259,7 +285,7 @@ function aiStep(facts: StartFacts, copy: Copy): [StartStep, AiAction] {
       facts.aiChoosing === true
         ? choose
         : signIn.kind === "failed" && signIn.reason !== "no-environment-browser"
-          ? { kind: "retry", tool: signIn.tool }
+          ? retry(signIn)
           : { kind: "connected" },
     ];
   }
@@ -268,7 +294,7 @@ function aiStep(facts: StartFacts, copy: Copy): [StartStep, AiAction] {
       { ...base, mark: "failed", status: aiFailure(signIn, copy) },
       signIn.reason === "no-environment-browser"
         ? { kind: "none" }
-        : { kind: "retry", tool: signIn.tool },
+        : retry(signIn),
     ];
   // Without the Environment browser the page could not return to the CLI.
   if (place === "none" && facts.ai !== "loading")

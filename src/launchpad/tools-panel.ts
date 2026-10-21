@@ -7,6 +7,7 @@ import {
   composioScene,
   composioStepMarker,
 } from "./composio-scene";
+import { codeBox, deviceCodeBlock, pageButton } from "./device-code-block";
 import { createExecutorPanel } from "./executor-panel";
 import type { MessageKey } from "./messages";
 import { integrationsPath } from "./routes";
@@ -717,38 +718,9 @@ export function createToolsPanel(
       if (source !== null) current.qr.src = source;
       return;
     }
-    const code = (value: string, label: string) => {
-      const box = element("p", "tools-code");
-      box.setAttribute("aria-label", `${label}: ${value.split("").join(" ")}`);
-      box.textContent = value;
-      return box;
-    };
-    // The provider's page, as the dialog's primary button (the
-    // wireframe's "Otevřít GitHub"), in a new tab.
-    const link = (href: string, label: string) => {
-      const anchor = element("a", "button primary tools-open", label);
-      anchor.href = href;
-      anchor.target = "_blank";
-      anchor.rel = "noopener noreferrer";
-      const row = element("p", "tool-actions");
-      row.append(anchor);
-      return row;
-    };
     if (challenge.kind === "device-code") {
-      const url = loginLink(challenge.url, "github.com");
-      // The code and a button that copies it, only when the person clicks.
-      const row = element("div", "tools-code-row");
-      const copyCode = element("button", "", copy.toolsLoginCopyCode);
-      copyCode.type = "button";
-      copyCode.addEventListener("click", () => {
-        void navigator.clipboard.writeText(challenge.code).then(
-          () => {
-            copyCode.textContent = copy.toolsLoginCodeCopied;
-          },
-          () => undefined,
-        );
-      });
-      row.append(code(challenge.code, copy.toolsLoginCodeLabel), copyCode);
+      // The code with its copy button and GitHub's page, the same block as
+      // ChatGPT's sign-in by code in Začínáme (device-code-block.ts).
       loginBody.replaceChildren(
         element(
           "p",
@@ -757,8 +729,16 @@ export function createToolsPanel(
             ? copy.toolsLoginRefreshText
             : copy.toolsLoginGhText,
         ),
-        row,
-        ...(url === null ? [] : [link(url, copy.toolsLoginGhLink)]),
+        ...deviceCodeBlock({
+          code: challenge.code,
+          url: loginLink(challenge.url, "github.com"),
+          labels: {
+            code: copy.toolsLoginCodeLabel,
+            copy: copy.toolsLoginCopyCode,
+            copied: copy.toolsLoginCodeCopied,
+            open: copy.toolsLoginGhLink,
+          },
+        }),
         element("p", "tools-muted", copy.toolsLoginGhHint),
       );
       return;
@@ -771,7 +751,7 @@ export function createToolsPanel(
           "",
           composioSignInText(copy, overview?.sharedEnvironment === true),
         ),
-        ...(url === null ? [] : [link(url, copy.toolsLoginComposioLink)]),
+        ...(url === null ? [] : [pageButton(url, copy.toolsLoginComposioLink)]),
       );
       return;
     }
@@ -785,7 +765,7 @@ export function createToolsPanel(
       loginBody.replaceChildren(
         element("p", "", copy.toolsLoginPairText),
         element("p", "tools-muted", label),
-        code(challenge.code, label),
+        codeBox(challenge.code, label),
         row,
       );
       return;
@@ -1061,17 +1041,7 @@ export function createToolsPanel(
 
   /** "Otevřít Composio": Composio's dashboard in the person's own tab. */
   function composioOpen(): HTMLElement {
-    const open = element(
-      "a",
-      "button primary tools-open",
-      options.copy().toolsLoginComposioLink,
-    );
-    open.href = composioDashboard;
-    open.target = "_blank";
-    open.rel = "noopener noreferrer";
-    const row = element("p", "tool-actions");
-    row.append(open);
-    return row;
+    return pageButton(composioDashboard, options.copy().toolsLoginComposioLink);
   }
 
   /** The quiet line under the button while the dialog waits for Composio. */

@@ -769,9 +769,11 @@ export async function startLaunchpad(
   // unit's journal on a Machine): the tool and the outcome, nothing else.
   // codex and claude sign in through the same sessions (F19's addendum of
   // 2026-10-15): their page opens in the Environment browser of a Remote
-  // Environment, shown in the right panel; the sessions ask Codex itself,
-  // fresh, whether the Organization provides the AI; afterwards the running
-  // services read the sign-in, and the AI is read again.
+  // Environment, shown in the right panel (codex by code opens nothing: its
+  // page and code go to the page, F19's addendum of 2026-10-21); the
+  // sessions ask Codex itself, fresh, whether the Organization provides the
+  // AI; afterwards the running services read the sign-in, and the AI is read
+  // again.
   const logins = createLoginSessions({
     ...toolsWithProofs,
     journal: (journaled) => {
@@ -2187,6 +2189,11 @@ export async function startLaunchpad(
           const withSshKey =
             url.pathname === "/api/tools/login/start" &&
             ownDataValue(input, "sshKey") !== undefined;
+          // ChatGPT's sign-in by code (root decision 0201 point 10), codex's
+          // fallback for its browser sign-in.
+          const withDeviceCode =
+            url.pathname === "/api/tools/login/start" &&
+            ownDataValue(input, "deviceCode") !== undefined;
           const fields: Record<string, readonly string[]> = {
             "/api/tools/install": ["tool"],
             "/api/tools/upgrade": ["tool"],
@@ -2194,6 +2201,7 @@ export async function startLaunchpad(
               "tool",
               ...(withPhone ? ["phone"] : []),
               ...(withSshKey ? ["sshKey"] : []),
+              ...(withDeviceCode ? ["deviceCode"] : []),
             ],
             "/api/tools/login/poll": ["tool", "session"],
             "/api/tools/login/cancel": ["tool", "session"],
@@ -2417,6 +2425,13 @@ export async function startLaunchpad(
             )
               return response({ error: "invalid-phone" }, 400);
             if (
+              value.deviceCode !== undefined &&
+              (value.deviceCode !== true ||
+                tool !== "codex" ||
+                value.sshKey !== undefined)
+            )
+              return response({ error: "invalid-device-code" }, 400);
+            if (
               value.sshKey !== undefined &&
               (value.sshKey !== true ||
                 tool !== "gh" ||
@@ -2433,6 +2448,7 @@ export async function startLaunchpad(
                 ? { phone: value.phone }
                 : {}),
               ...(value.sshKey === true ? { sshKey: true } : {}),
+              ...(value.deviceCode === true ? { deviceCode: true } : {}),
             });
             // Signed in: what connects the apps changed (decision F42,
             // note of 2026-10-19), so Integrace read again.

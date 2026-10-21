@@ -24,6 +24,9 @@ import type { VaultStatus } from "../src/vault/flow";
 
 const cs = messages("cs");
 const en = messages("en");
+// The line beneath "Přihlásit kódem" (root decision 0201 point 10).
+const byCodeHint =
+  "Přihlášení kódem si nejdřív zapněte v nastavení zabezpečení ChatGPT. U pracovního účtu ho povoluje jeho správce.";
 
 const organization: ContentItem = {
   kind: "organization",
@@ -81,8 +84,9 @@ test("a new work Environment: AI now, GitHub after it, the content after GitHub"
     ],
     // "Připojit" is there, disabled until an agent can help.
     github: { enabled: false },
-    // ChatGPT or Claude, nothing said before them.
-    ai: { kind: "choose", cancel: false },
+    // ChatGPT or Claude, nothing said before them; beneath them ChatGPT by
+    // code with the setting it needs (root decision 0201 point 10).
+    ai: { kind: "choose", cancel: false, byCode: { hint: byCodeHint } },
   });
 });
 
@@ -159,16 +163,22 @@ test("Připojit AI: only the title and ChatGPT or Claude, in the Environment bro
         title: copy.startAiTitle,
         status: null,
       },
-      ai: { kind: "choose", cancel: false },
+      ai: {
+        kind: "choose",
+        cancel: false,
+        byCode: { hint: copy.startAiByCodeSetting },
+      },
     });
   expect(step({ aiPlace: "own" }).ai).toEqual({
     kind: "choose",
     cancel: false,
+    byCode: { hint: byCodeHint },
   });
   // An AI that could not be checked is offered too.
   expect(step({ ai: "unknown", aiReading: null, aiPlace: "own" }).ai).toEqual({
     kind: "choose",
     cancel: false,
+    byCode: { hint: byCodeHint },
   });
   // Without the Environment browser the step says why and starts nothing.
   expect(step({ aiPlace: "none" })).toEqual({
@@ -337,6 +347,7 @@ test("Připojit AI that did not finish, and a connected one: Zkusit znovu, the a
   expect(view({ ...connected, aiChoosing: true })?.ai).toEqual({
     kind: "choose",
     cancel: true,
+    byCode: { hint: byCodeHint },
   });
   // Signing the second one in keeps the step done.
   expect(
@@ -415,6 +426,106 @@ test("Připojit AI that did not finish, and a connected one: Zkusit znovu, the a
       },
     })?.steps[0],
   ).not.toHaveProperty("warning");
+});
+
+test("Přihlásit kódem (root decision 0201 point 10): ChatGPT's quieter sign-in by code beneath the two, the code and OpenAI's page while it waits, never for Claude, the Organization's AI or a Team Environment", () => {
+  const view = (overrides: Partial<StartFacts>, copy = cs) =>
+    startView(facts(overrides), copy);
+  const session = "0123456789abcdef0123456789abcdef";
+  const url = "https://auth.openai.com/codex/device";
+  const code = "QX7P-4MZ2K";
+  // Beneath the choice, with the setting it needs, in both languages.
+  expect(en.startAiByCodeSetting).toBe(
+    "Turn on sign-in with a code in your ChatGPT security settings first. For a work account, its admin allows it.",
+  );
+  for (const copy of [cs, en])
+    for (const aiPlace of ["panel", "own"] as const)
+      expect(view({ aiPlace }, copy)?.ai).toEqual({
+        kind: "choose",
+        cancel: false,
+        byCode: { hint: copy.startAiByCodeSetting },
+      });
+  // Starting: the usual line.
+  expect(
+    view({
+      aiPlace: "panel",
+      aiSignIn: { kind: "starting", tool: "codex", byCode: true },
+    })?.steps[0]?.status,
+  ).toBe("Spouštím přihlášení…");
+  // While its code waits: what to do, the code and OpenAI's page, Zrušit.
+  for (const [copy, status] of [
+    [
+      cs,
+      "Otevřete stránku ChatGPT v kterémkoli prohlížeči, třeba v telefonu, a opište kód. Platí 15 minut.",
+    ],
+    [
+      en,
+      "Open the ChatGPT page in any browser, even on your phone, and enter the code. It is valid for 15 minutes.",
+    ],
+  ] as const) {
+    const waiting = view(
+      {
+        aiPlace: "panel",
+        aiSignIn: { kind: "by-code", tool: "codex", session, url, code },
+      },
+      copy,
+    );
+    expect(waiting?.steps[0]).toEqual({
+      basic: "ai",
+      mark: "now",
+      title: copy.startAiTitle,
+      status,
+    });
+    expect(waiting?.ai).toEqual({ kind: "by-code", url, code });
+  }
+  // A sign-in by code that did not finish starts by code again.
+  const expired = view({
+    aiSignIn: {
+      kind: "failed",
+      tool: "codex",
+      reason: "expired",
+      byCode: true,
+    },
+  });
+  expect([expired?.steps[0]?.status, expired?.ai]).toEqual([
+    "Přihlášení vypršelo. Zkuste to prosím znovu.",
+    { kind: "retry", tool: "codex", byCode: true },
+  ]);
+  // Never for Claude's sign-in, the Organization's AI, a reading under way,
+  // an Environment without its browser, or a Team Environment.
+  expect(
+    view({
+      aiSignIn: {
+        kind: "waiting",
+        tool: "claude",
+        session,
+        url: "https://claude.com/cai/oauth/authorize",
+        code: true,
+      },
+    })?.ai,
+  ).toEqual({
+    kind: "signing-in",
+    reopen: { url: "https://claude.com/cai/oauth/authorize" },
+    code: { note: null },
+  });
+  expect(
+    view({ aiSignIn: { kind: "failed", tool: "claude", reason: "expired" } })
+      ?.ai,
+  ).toEqual({ kind: "retry", tool: "claude" });
+  expect(
+    view({
+      ai: "organization",
+      aiReading: {
+        state: "organization",
+        providers: [{ provider: "codex", state: "provided" }],
+      },
+    })?.ai,
+  ).toEqual({ kind: "none" });
+  expect(view({ ai: "loading", aiReading: null })?.ai).toEqual({
+    kind: "none",
+  });
+  expect(view({ aiPlace: "none" })?.ai).toEqual({ kind: "none" });
+  expect(view({ preset: "hosted-organization-team" })).toBeNull();
 });
 
 test("GitHub once AI is there, then the content, then all done", () => {

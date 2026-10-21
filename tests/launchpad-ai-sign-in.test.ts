@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -13,6 +13,7 @@ import type { SignInPage } from "../src/tools/login";
 import { runTool } from "../src/tools/status";
 import {
   codeOfPage,
+  fakeAi,
   fakeAiClis,
   returnFromPage,
 } from "./fixtures/fake-ai-clis";
@@ -429,6 +430,87 @@ posixTest(
       expect(calls.length).toBeGreaterThan(1);
       expect(calls).not.toContain("login");
     } finally {
+      await opened.close();
+    }
+  },
+  30_000,
+);
+
+posixTest(
+  "ChatGPT by code through the Launchpad (root decision 0201 point 10): `deviceCode` for codex only, without the Environment browser too; the page and the code go to the page that started it, never to the journal",
+  async () => {
+    const lines: string[] = [];
+    const log = spyOn(console, "log").mockImplementation(
+      (...values: unknown[]) => {
+        lines.push(values.map(String).join(" "));
+      },
+    );
+    const opened = await launchpad({ signInPage: { kind: "none" } });
+    try {
+      // Any other tool, any other value, or beside a phone or a key: refused.
+      for (const body of [
+        { tool: "claude", deviceCode: true },
+        { tool: "gh", deviceCode: true },
+        { tool: "codex", deviceCode: "yes" },
+        { tool: "codex", deviceCode: false },
+        { tool: "codex", deviceCode: true, sshKey: true },
+      ])
+        expect(await opened.post("/api/tools/login/start", body)).toEqual({
+          status: 400,
+          body: { error: "invalid-device-code" },
+        });
+      const started = await opened.post("/api/tools/login/start", {
+        tool: "codex",
+        deviceCode: true,
+      });
+      expect(started.status).toBe(200);
+      expect(started.body).toMatchObject({
+        kind: "pending",
+        tool: "codex",
+        challenge: {
+          kind: "device-code",
+          url: "https://auth.openai.com/codex/device",
+          code: fakeAi.deviceCode,
+        },
+      });
+      const session = started.body.session as string;
+      // The person enters the code on OpenAI's page.
+      await writeFile(join(opened.home, "codex.approve"), "");
+      const done = await until(
+        async () =>
+          (
+            await opened.post("/api/tools/login/poll", {
+              tool: "codex",
+              session,
+            })
+          ).body,
+        (value) => value.kind !== "pending",
+      );
+      expect(done).toEqual({
+        kind: "signed-in",
+        tool: "codex",
+        services: {
+          appServer: { state: "not-managed" },
+          t3: { state: "not-installed" },
+        },
+      });
+      const journal = lines
+        .filter((line) => line.includes('"scope":"tools-login"'))
+        .map((line) => JSON.parse(line));
+      expect(journal).toEqual([
+        { scope: "tools-login", tool: "codex", event: "start" },
+        {
+          scope: "tools-login",
+          tool: "codex",
+          event: "end",
+          outcome: "signed-in",
+        },
+      ]);
+      expect(lines.some((line) => line.includes(fakeAi.deviceCode))).toBe(
+        false,
+      );
+    } finally {
+      log.mockRestore();
       await opened.close();
     }
   },

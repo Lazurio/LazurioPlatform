@@ -641,7 +641,7 @@ button.dialog-x .icon { width: 18px; height: 18px; }
 #tools-login-steps li[data-state="current"] { color: var(--fg); font-weight: 600; }
 #tools-login-steps li[data-state="done"] { color: var(--success-fg); }
 #tools-login-steps li[data-state="failed"] { color: var(--destructive); font-weight: 600; }
-#tools-login .tools-code { font: 600 2rem/1.2 var(--font-mono); letter-spacing: 0.12em; user-select: all; margin: 0.4rem 0 0.8rem; }
+.tools-code { font: 600 2rem/1.2 var(--font-mono); letter-spacing: 0.12em; user-select: all; margin: 0.4rem 0 0.8rem; }
 #tools-login .tools-qr { display: block; width: 280px; height: 280px; background: #fff; image-rendering: pixelated; margin: 0.6rem 0; border-radius: 0.5rem; }
 #tools-login .tools-phone { border-top: 1px solid var(--border); margin-top: 0.8rem; padding-top: 0.75rem; }
 #tools-login .tools-phone input, #tools-login .tools-orgs select { display: block; margin-top: 0.3rem; width: min(18rem, 100%); }
@@ -1082,7 +1082,7 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
 .content-failure { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--destructive-border); border-radius: var(--radius-control); background: var(--destructive-bg); font-size: 14px; }
 .content-failure details.technical, .content-row details.technical { padding: 0; }
 .tools-code-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-#tools-login .tools-code-row .tools-code { margin: 0; }
+.tools-code-row .tools-code { margin: 0; }
 .tools-open { height: 34px; padding: 0 14px; font-size: 14px; }
 .tools-login-more > summary { cursor: pointer; color: var(--muted-fg); font-size: 13px; }
 /* Composio's sign-in dialog after the sign-in (decision F42, addendum (2) of
@@ -1291,6 +1291,13 @@ button.tour-later:hover { background: transparent; color: var(--fg); }
 .provider-openai { width: 22px; height: 22px; }
 button.primary .provider-openai { color: #ffffff; }
 button:not(.primary) .provider-openai { color: #000000; }
+/* ChatGPT's sign-in by code (root decision 0201 point 10): a quiet button
+   and its line beneath the two sign-ins; while its code waits, the block of
+   gh's code (device-code-block.ts). */
+.start-by-code { display: grid; justify-items: start; gap: 2px; }
+.start-by-code-hint { color: var(--muted-fg); font-size: 13px; }
+.start-by-code-block { display: grid; justify-items: start; gap: 10px; }
+.start-by-code-block .tool-actions { margin: 0; }
 .start-code { display: grid; gap: 6px; max-width: 36rem; }
 .start-code-label { color: var(--muted-fg); font-size: 13.5px; }
 .start-code-row input { flex: 1; min-width: 14rem; font-family: var(--font-mono); }

@@ -6,6 +6,8 @@ import {
   type AiProvider,
   type AiServices,
   aiProviders,
+  codexDeviceCode,
+  codexDevicePage,
   isAiProvider,
 } from "./ai";
 import { converse, readCodex } from "./ai-probe";
@@ -20,6 +22,7 @@ import {
   type PageCapture,
   returnsToCli,
   signInCode,
+  signInPageHosts,
   signInPageOf,
 } from "./sign-in-page";
 import {
@@ -50,11 +53,11 @@ import {
  * it (a `lazurio tools login` command or the Launchpad server). The tool's
  * own sign-in command runs as the current user with a minimal environment;
  * its output is parsed as it arrives and yields a challenge: a URL to open
- * (composio), a device code and its page (gh), a QR payload or a pairing code
- * (wacli), the CLI's own sign-in page (codex, claude). A challenge is
- * sensitive while it is valid: it is returned only to the holder of the
- * session handle and never written to a log, a file, the Folder or an error.
- * The raw output of a tool never leaves this module. */
+ * (composio), a device code and its page (gh, and codex by code), a QR
+ * payload or a pairing code (wacli), the CLI's own sign-in page (codex,
+ * claude). A challenge is sensitive while it is valid: it is returned only
+ * to the holder of the session handle and never written to a log, a file,
+ * the Folder or an error. The raw output of a tool never leaves this module. */
 export type LoginChallenge =
   | Readonly<{ kind: "url"; url: string }>
   | Readonly<{ kind: "device-code"; url: string; code: string }>
@@ -240,9 +243,11 @@ export type LoginEnvironment = Readonly<{
     tool: AiProvider,
     signedIn: readonly AiProvider[],
   ) => Promise<AiServices>;
-  /** Test seams. */
+  /** Test seams. `codex-device`: codex's sign-in by code. */
   now?: () => number;
-  lifetimes?: Partial<Record<"gh" | "composio" | "wacli" | AiProvider, number>>;
+  lifetimes?: Partial<
+    Record<"gh" | "composio" | "wacli" | AiProvider | "codex-device", number>
+  >;
   /** codex and claude on a Remote Environment: how long the sign-in waits
    * for the CLI to hand over the page it opens, once it printed one that
    * does not return to it, before it opens the printed one (default 3 s). */
@@ -281,12 +286,15 @@ export type LoginEnvironment = Readonly<{
 // 15 minutes, a pending Composio login for 10, and WhatsApp pairing gets 5.
 // The AI CLIs wait on localhost for as long as they run; their sign-in gets
 // 10 minutes, as long as the Environment browser keeps a tab nobody views.
+// Codex's code for its sign-in by code is valid for 15 minutes, after which
+// Codex stops waiting for it.
 const defaultLifetimes = {
   gh: 15 * 60_000,
   composio: 10 * 60_000,
   wacli: 5 * 60_000,
   codex: 10 * 60_000,
   claude: 10 * 60_000,
+  "codex-device": 15 * 60_000,
 };
 // A tool that shows nothing to act on for a minute is not starting its
 // sign-in: gh prints its code and composio its link at once, and wacli's
@@ -1072,17 +1080,17 @@ export function createLoginSessions(environment: LoginEnvironment) {
   }
 
   // codex and claude (F19's addendum of 2026-10-15): the CLI's own browser
-  // sign-in (`codex login`, never its device code; `claude auth login`). On
-  // a Remote Environment `BROWSER` is a private stand-in that hands the page
-  // the CLI opens to this session, which opens it in the Environment
-  // browser: the page returns to the CLI on 127.0.0.1 inside the
-  // Environment. A CLI that hands over nothing
-  // within a moment of printing a page that does not return to it (Claude
-  // Code's code page) gets the printed one opened, and its code taken over
-  // `code`. On a workstation nothing is set: the CLI opens the computer's
-  // own browser and the printed page is offered beside it. Signed in is what
-  // the CLI's own status confirms after it ended; then the running services
-  // are asked to read the sign-in.
+  // sign-in (`codex login`, `claude auth login`), the default; codex's
+  // sign-in by code is `startCodexByCode`. On a Remote Environment
+  // `BROWSER` is a private stand-in that hands the page the CLI opens to
+  // this session, which opens it in the Environment browser: the page
+  // returns to the CLI on 127.0.0.1 inside the Environment. A CLI that hands
+  // over nothing within a moment of printing a page that does not return to
+  // it (Claude Code's code page) gets the printed one opened, and its code
+  // taken over `code`. On a workstation nothing is set: the CLI opens the
+  // computer's own browser and the printed page is offered beside it. Signed
+  // in is what the CLI's own status confirms after it ended; then the running
+  // services are asked to read the sign-in (`aiSignInEnd`).
   async function startAi(
     session: Session,
     entry: ToolEntry,
@@ -1186,6 +1194,56 @@ export function createLoginSessions(environment: LoginEnvironment) {
       };
       later(session, 100, tick);
     }
+    await aiSignInEnd(session, entry, path, tool, child);
+  }
+
+  // ChatGPT's sign-in by code (root decision 0201 point 10, F19's addendum
+  // of 2026-10-21), the fallback where the page in the Environment browser
+  // cannot be finished: `codex login --device-auth`, without the stand-in
+  // BROWSER, since the person opens OpenAI's page on any device. Codex
+  // prints the page and the one-time code each on a line of its own,
+  // coloured even without a terminal (`counted` reads them plain). Only the
+  // exact page becomes the challenge, and any other address on a line of
+  // its own stops the CLI (`unexpected-url`); the code is the first line of
+  // a code's shape after the one that names it. Then the same end as the
+  // browser sign-in.
+  async function startCodexByCode(
+    session: Session,
+    entry: ToolEntry,
+    path: string,
+  ) {
+    let url: string | undefined;
+    let code: string | undefined;
+    let named = false;
+    const child = spawnLines(
+      [path, "login", "--device-auth"],
+      processEnv("codex"),
+      counted(session, (line) => {
+        if (session.challenge !== undefined) return;
+        if (/^https?:\/\/\S+$/.test(line)) {
+          if (challengeUrl(line, signInPageHosts.codex) !== codexDevicePage)
+            return fail(session, "unexpected-url");
+          url = codexDevicePage;
+        } else if (named && code === undefined && codexDeviceCode.test(line))
+          code = line;
+        else if (/one-time code/i.test(line)) named = true;
+        if (url !== undefined && code !== undefined)
+          setChallenge(session, { kind: "device-code", url, code });
+      }),
+    );
+    track(session, child);
+    await aiSignInEnd(session, entry, path, "codex", child);
+  }
+
+  // The end of an AI CLI's sign-in, by its page or by code: signed in is
+  // what the CLI's own status confirms after it exited 0.
+  async function aiSignInEnd(
+    session: Session,
+    entry: ToolEntry,
+    path: string,
+    tool: AiProvider,
+    child: Streamed,
+  ) {
     const exitCode = await child.exited;
     if (!current(session)) return;
     session.processes.delete(child);
@@ -1245,10 +1303,15 @@ export function createLoginSessions(environment: LoginEnvironment) {
 
   return {
     /** Starts the tool's sign-in, replacing a running session of the same
-     * tool, and waits briefly for the first challenge. */
+     * tool, and waits briefly for the first challenge. `deviceCode`:
+     * codex's sign-in by code instead of its browser sign-in. */
     async start(
       name: string,
-      options: Readonly<{ phone?: string; sshKey?: boolean }> = {},
+      options: Readonly<{
+        phone?: string;
+        sshKey?: boolean;
+        deviceCode?: boolean;
+      }> = {},
     ): Promise<LoginState> {
       const entry = loginTool(name);
       if (entry === undefined || closed)
@@ -1257,6 +1320,10 @@ export function createLoginSessions(environment: LoginEnvironment) {
         throw new Error("Only wacli pairs with a phone number");
       if (options.sshKey === true && name !== "gh")
         throw new Error("Only gh links an SSH key");
+      // Claude has no sign-in by code; the catalog tools have their own.
+      if (options.deviceCode === true && name !== "codex")
+        throw new Error("Only codex signs in with a code");
+      const byCode = options.deviceCode === true;
       journal({ tool: name, event: "start" });
       // Ended before a session exists: journaled like every other end.
       const refused = (reason: LoginFailure): LoginState => {
@@ -1278,7 +1345,9 @@ export function createLoginSessions(environment: LoginEnvironment) {
           ended(name, outcome);
           return outcome;
         };
-        if (environment.signInPage?.kind === "none")
+        // By code the person opens OpenAI's page on any device: it needs no
+        // Environment browser.
+        if (!byCode && environment.signInPage?.kind === "none")
           return blocked("no-environment-browser");
         // Codex's own `account/read`, asked now, right before its CLI, never
         // from a reading kept for the page (root decision 0201 points 4 and
@@ -1303,7 +1372,9 @@ export function createLoginSessions(environment: LoginEnvironment) {
       if (name === "gh") environment.sshProofs?.forget();
       const path = await locate(entry);
       if (path === undefined) return refused("not-installed");
-      const lifetime = lifetimes[name as keyof typeof lifetimes];
+      const lifetime = byCode
+        ? lifetimes["codex-device"]
+        : lifetimes[name as keyof typeof lifetimes];
       const session: Session = {
         id: randomBytes(16).toString("hex"),
         tool: name,
@@ -1341,7 +1412,9 @@ export function createLoginSessions(environment: LoginEnvironment) {
             );
         });
       const flow = isAiProvider(name)
-        ? startAi(session, entry, path, name)
+        ? byCode
+          ? startCodexByCode(session, entry, path)
+          : startAi(session, entry, path, name)
         : name === "gh"
           ? options.sshKey === true
             ? startGhLink(session, path)

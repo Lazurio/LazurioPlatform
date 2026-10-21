@@ -3058,7 +3058,9 @@ person never types into a terminal, and the sign-in must land where T3, Codex De
 SSH, the terminal and every agent read it.
 
 1. **One command over the CLIs' own sign-in.** `lazurio tools login codex` runs `codex
-   login` (never `--device-auth`), `lazurio tools login claude` runs `claude auth login`,
+   login` (never `--device-auth`; *amended 2026-10-21 ([addendum below](#f19--curated-installation-and-login-of-catalog-tools),
+   root decision 0201 point 10):* `--device-code` runs `codex login --device-auth` as the
+   browser sign-in's quieter fallback), `lazurio tools login claude` runs `claude auth login`,
    both through the curated sessions of this decision, as the Environment user with the
    minimal environment and the account's name (`USER`, `LOGNAME`; Claude Code finds its
    macOS keychain entry by it). Začínáme, agents and a person's terminal use the same
@@ -3094,7 +3096,8 @@ SSH, the terminal and every agent read it.
    while the sign-in waits for one; a code is never logged, stored or answered.
 4. **What starts nothing.** A Remote Environment without the Environment browser
    (`blocked`, `no-environment-browser`): the page could not return to the CLI there, and
-   Začínáme says why. Codex where its own `account/read` answers `requiresOpenaiAuth:
+   Začínáme says why. *(Since the addendum of 2026-10-21 this is the browser sign-in's
+   refusal only: ChatGPT's sign-in by code needs no Environment browser.)* Codex where its own `account/read` answers `requiresOpenaiAuth:
    false` (0201 points 4 and 6): the Organization provides the AI, and a ChatGPT sign-in
    would bypass its provider (`blocked`, `organization-provided`). Claude has no such
    source yet (#422's open question). Exit 2, `409` from the Launchpad. The core asks
@@ -3141,7 +3144,7 @@ SSH, the terminal and every agent read it.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
-| Device code (`codex login --device-auth`) | Needs no browser in the Environment, but is beta and must be enabled in each person's ChatGPT security settings; rejected by 0201 point 4 |
+| Device code (`codex login --device-auth`) | Needs no browser in the Environment, but is beta and must be enabled in each person's ChatGPT security settings; rejected by 0201 point 4 as the way to sign in. *Since 2026-10-21 (0201 point 10, addendum below) it is the browser sign-in's quieter fallback, never the main way* |
 | T3 Code's own "Continue with ChatGPT" | Ends on a dead 127.0.0.1 page of a Remote Environment and keeps a token only T3 sees; rejected by 0201 point 4 (t3code#72 hides it) |
 | The child's `BROWSER` set to `lazurio browser open` itself | One mechanism with the Machines registration, but the Launchpad would not learn the tab its panel must show, and nothing would check the page's host; rejected for the stand-in, which hands the page to the sign-in that opens it |
 | A stand-in for `xdg-open` on the child's PATH | Neither CLI uses it without a display (read in the container); not added |
@@ -3329,6 +3332,104 @@ the step, a running sign-in); `tests/tools-view.test.ts` (the Nástroje line, `s
 `tests/first-run-shell.test.ts` (the shell's probe); `tests/doctor.test.ts`; and in a
 headless browser (root decision 0178) on the preview with the fake gh and ssh, in both
 languages.
+
+**Addendum 2026-10-21 (root decision 0201 point 10, plan DEV-6665,
+Lazurio/LazurioPlatform#517): ChatGPT signs in by code too, as a quieter fallback.** In
+an onboarding on a Remote Environment a new person could not finish "Přihlásit ChatGPT"
+in the Environment browser; Začínáme offered only the same path again, and without the
+Environment browser nothing started at all. The Environment browser knows neither the
+passkey nor the password manager of the person's own computer (0201 point 7), so such a
+sign-in can stop there. Root decision 0201's point 10
+(HumanAndMachines/Lazurio#606) refines its point 4: the browser sign-in stays the main
+way, and beneath it ChatGPT offers a less prominent sign-in by code, which the person
+finishes on OpenAI's page in any browser, on their own computer or phone, after turning
+it on in their ChatGPT security settings (a work account's admin allows it). Claude has
+no sign-in by code; a long-lived `claude setup-token` is not offered.
+
+1. **The same command, one flag.** `lazurio tools login codex --device-code` and `POST
+   /api/tools/login/start {tool: "codex", deviceCode: true}` start the core's
+   `start("codex", { deviceCode: true })`, which runs the official `codex login
+   --device-auth` (Codex CLI 0.46.0 and later) as the browser sign-in runs `codex login`:
+   as the Environment user, with the minimal environment and the account's name, but
+   without the stand-in `BROWSER`, since nothing opens here. The default stays exactly
+   `codex login` with the stand-in. Any other tool with it is refused: the core throws,
+   the command answers `blocked`, `device-code-codex-only` (exit 2), and the route `400`
+   `invalid-device-code` (so does any value but `true`, or `deviceCode` beside `sshKey`);
+   `--device-code` belongs to `login` alone.
+2. **Only OpenAI's exact page and a whole code.** Read in Codex 0.162.0's
+   `codex-rs/login/src/device_code_auth.rs` (the page is `{issuer}/codex/device` with
+   `server.rs`'s default issuer `https://auth.openai.com`) and in the strings of the Codex
+   0.163.0 binary (`/codex/device`, the prompt's lines, "device auth timed out after 15
+   minutes"), without signing in: Codex prints on stdout, coloured with ANSI codes even
+   without a terminal, the page and the one-time code each on a line of its own, then
+   polls OpenAI for 15 minutes and stores the sign-in where the browser sign-in does, so
+   T3, Codex Desktop over SSH, the terminal and agents read it (0201 point 4). The session
+   reads the output plain (`counted`), takes only the exact page
+   `https://auth.openai.com/codex/device` (`codexDevicePage` in `src/tools/ai.ts`, one
+   constant the page checks too), and any other address on a line of its own stops the
+   CLI (`unexpected-url`); the code is the first line after the one naming the one-time
+   code that has a code's shape, groups of capital letters and digits joined by dashes
+   (`codexDeviceCode`). Page and code become gh's challenge kind, `device-code`, returned
+   only to the holder of the session's handle and never journaled, logged or written.
+3. **The same refusals, but one.** Codex's own `account/read` is asked afresh before it,
+   as before: the Organization's provider refuses it (`blocked`,
+   `organization-provided`) and an answer that cannot be read starts nothing (`failed`,
+   `provider-unknown`). A Remote Environment without the Environment browser no longer
+   refuses it: `no-environment-browser` is the browser sign-in's, whose line in the
+   terminal now points to `--device-code`. The command reads no sign-in page for it, so a
+   hosted context that cannot be read, which decides only where a page opens, does not
+   stop it either.
+4. **15 minutes, then the browser sign-in's end.** The session lives as long as the code
+   (`codex-device`, 15 minutes, after which Codex stops polling); never entered, it ends
+   `expired`. A code refused because the setting is off is refused only on OpenAI's page,
+   while Codex just waits, so an expired sign-in by code tells the terminal to turn the
+   setting on first. When Codex exits 0, `codex login status` confirms the sign-in and
+   then, as for the browser sign-in, the Codex app-server unit is restarted and T3 Code
+   reads the providers again (`aiSignInEnd`, one end for both). Cancel kills the CLI.
+5. **Začínáme.** Beneath "Přihlásit ChatGPT" and "Přihlásit Claude" a quiet "Přihlásit
+   kódem" (a link-coloured button, ChatGPT's) with its one line, "Přihlášení kódem si
+   nejdřív zapněte v nastavení zabezpečení ChatGPT. U pracovního účtu ho povoluje jeho
+   správce.": wherever the step offers the choice, also after "Přihlásit jiný účet";
+   never where the Organization provides the AI, while the AI is being read, on a Remote
+   Environment without the Environment browser (the step keeps its line, as before) or on
+   an Environment without the step (Team, Automated, public). While its code waits the
+   step says "Otevřete stránku ChatGPT v kterémkoli prohlížeči, třeba v telefonu, a
+   opište kód. Platí 15 minut." with the waiting mark and "Zrušit", and shows the code
+   with "Kopírovat" and "Otevřít ChatGPT" (a new tab): the block of gh's code in its
+   dialog, one helper for both (`device-code-block.ts`). Nothing opens in the right
+   panel. A sign-in by code that did not finish offers "Zkusit znovu" by code. The page
+   follows it as it follows the browser sign-in (`ai-sign-in.ts`): a poll every 2 s, and
+   a poll left without an answer for 45 s cancels the session, as before.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The code as the main way | Works without the Environment browser, but must first be turned on, by a work account's admin; rejected by 0201 point 10: a fallback |
+| Codex app-server's `account/login/start` with `chatgptDeviceCode` | No second process, but another path than the command agents and the terminal use; rejected for the one command (0201 point 4) |
+| Take the page from any line | Codex's error lines name its API's addresses on the same host; rejected: only a line that is an address, else the CLI's exit says what happened |
+| `claude setup-token` for Claude | A long-lived token Lazurio would keep; rejected by 0201 point 10 |
+
+**Honest limits.** No real sign-in by code ran: the prompt, the page and the 15 minutes
+were read from Codex's source and binary, not seen on OpenAI's page. The code's shape is
+Codex's documented example's; a code of another shape ends the session as
+`no-challenge` after a minute, and the browser sign-in stays. Whether OpenAI's page says
+why it refuses a code is OpenAI's. Like `codex login`, `codex login --device-auth`
+signs a stored ChatGPT account out first (Codex's `clear_existing_auth_before_login`), so
+a sign-in of another account that is cancelled leaves Codex signed out.
+
+Verified by tests: `tests/tools-ai-login.test.ts` (a fake `codex login --device-auth`
+that prints the coloured prompt and signs in once its code is entered: the call without
+`BROWSER` and nothing opened in the Environment browser, the plain page and code, 15
+minutes, nothing of them journaled, the CLI's status and the services; no Environment
+browser needed; only codex; the Organization's provider and an unreadable answer; a page
+on another host, the expiry, cancel, `tool-exit` and `not-confirmed`);
+`tests/tools-ai-login-cli.test.ts` (`--device-code` without the Environment browser, the
+lines, the refusals, the help); `tests/launchpad-ai-sign-in.test.ts` (`deviceCode` for
+codex only, the journal's lines without the code); `tests/ai-sign-in.test.ts` and
+`tests/start-view.test.ts` (the answer by code, the controller, the step's states in both
+languages). And in a headless browser (root decision 0178) on the preview with
+`codex-signed-out`, in Czech and English: the quiet button and its line, the code and
+OpenAI's page, signed in once entered, and gh's dialog with its code through the same
+block.
 
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 

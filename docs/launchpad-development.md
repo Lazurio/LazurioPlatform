@@ -3031,7 +3031,15 @@ Organization's, and it gets none of it.
      and "Přihlásit Claude", each with its mark before its name (OpenAI's Blossom from
      its brand kit, the sprite's `i-openai`, in OpenAI's white or black only; Claude's
      simple-icons mark, `i-claude`; [licensing](licensing.md#bundled-third-party-assets)),
-     nothing said before them (where the AI could not be checked, that line); signing
+     nothing said before them (where the AI could not be checked, that line); beneath
+     them ChatGPT's quieter "Přihlásit kódem" (a link-coloured button) with its one line,
+     "Přihlášení kódem si nejdřív zapněte v nastavení zabezpečení ChatGPT. U pracovního
+     účtu ho povoluje jeho správce." (root decision 0201 point 10, F19's addendum of
+     2026-10-21: `lazurio tools login codex --device-code`), and while its code waits
+     "Otevřete stránku ChatGPT v kterémkoli prohlížeči, třeba v telefonu, a opište kód.
+     Platí 15 minut." with the code, "Kopírovat" and "Otevřít ChatGPT" (the block of gh's
+     code in its dialog, `device-code-block.ts`) and "Zrušit", nothing opened in the right
+     panel; signing
      in, "Dokončete přihlášení k {ChatGPT|Claude} v prohlížeči vpravo." (the
      right panel opens on the Environment browser's tab, as for Integrace) or "… v okně
      prohlížeče." (a workstation, whose CLI opens the computer's browser), with

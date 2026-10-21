@@ -1,4 +1,5 @@
 import type { AiProvider } from "../tools/ai";
+import { deviceCodeBlock } from "./device-code-block";
 import type { ComposioFact } from "./first-run";
 import type { MessageKey } from "./messages";
 import {
@@ -22,7 +23,10 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // aplikace". Every value is drawn with textContent. The AI step signs
 // ChatGPT and Claude in through their CLIs (F19's addendum of 2026-10-15):
 // its two buttons, each with its mark (F36's addendum of 2026-10-16),
-// "Otevřít přihlášení", "Zrušit", "Zkusit znovu", "Přihlásit jiný účet" and
+// beneath them ChatGPT's quieter "Přihlásit kódem" with its line (root
+// decision 0201 point 10) and, while its code waits, the code and OpenAI's
+// page in the block of gh's code (device-code-block.ts), "Otevřít
+// přihlášení", "Zrušit", "Zkusit znovu", "Přihlásit jiný účet" and
 // the field for the code of Claude's code page; the sign-in itself is
 // ai-sign-in.ts. A public Environment (decision F55) shows instead only
 // "Vyzkoušejte" (Apps, a module, Chat) and the tour.
@@ -54,8 +58,8 @@ export function createStartPanel(
     toured: () => boolean | null;
     signInGithub: () => void;
     signInComposio: () => void;
-    /** The AI step's sign-in (ai-sign-in.ts). */
-    signInAi: (tool: AiProvider) => void;
+    /** The AI step's sign-in (ai-sign-in.ts); `byCode`: ChatGPT's by code. */
+    signInAi: (tool: AiProvider, byCode?: boolean) => void;
     cancelAi: () => void;
     reopenAi: () => void;
     sendAiCode: (code: string) => void;
@@ -207,6 +211,20 @@ export function createStartPanel(
     return node;
   };
 
+  /** ChatGPT's sign-in by code beneath the two (root decision 0201 point
+   * 10): a quiet button, then its one line, that the setting comes first. */
+  const byCodeNode = (hint: string, copy: Copy): HTMLElement => {
+    const start = button(copy.startAiByCode, () => {
+      choosing = false;
+      options.signInAi("codex", true);
+    });
+    start.classList.add("link-button");
+    start.dataset.byCode = "codex";
+    const box = element("div", "start-by-code");
+    box.append(start, element("p", "start-by-code-hint", hint));
+    return box;
+  };
+
   /** The AI step's buttons, and what its body holds: the choice of ChatGPT
    * or Claude, or the code's field. */
   function aiParts(
@@ -231,7 +249,7 @@ export function createStartPanel(
           actions: [
             button(
               copy.startAiRetry,
-              () => options.signInAi(action.tool),
+              () => options.signInAi(action.tool, action.byCode === true),
               true,
             ),
           ],
@@ -250,7 +268,30 @@ export function createStartPanel(
               render();
             }),
           );
-        return { actions: [], body: [choices] };
+        return {
+          actions: [],
+          body: [choices, byCodeNode(action.byCode.hint, copy)],
+        };
+      }
+      case "by-code": {
+        // The code and OpenAI's page, as gh's dialog shows its code.
+        const block = element("div", "start-by-code-block");
+        block.append(
+          ...deviceCodeBlock({
+            code: action.code,
+            url: action.url,
+            labels: {
+              code: copy.toolsLoginCodeLabel,
+              copy: copy.toolsLoginCopyCode,
+              copied: copy.toolsLoginCodeCopied,
+              open: copy.startAiByCodeOpen,
+            },
+          }),
+        );
+        return {
+          actions: [button(copy.startAiCancel, () => options.cancelAi())],
+          body: [block],
+        };
       }
       case "signing-in": {
         const actions: HTMLElement[] = [];
@@ -490,7 +531,7 @@ export function createStartPanel(
         copy,
         actions,
         (step.basic === "ai" &&
-          view.ai.kind === "signing-in" &&
+          (view.ai.kind === "signing-in" || view.ai.kind === "by-code") &&
           step.mark !== "failed") ||
           (step.basic === "github" && view.github?.kind === "open"),
       );
