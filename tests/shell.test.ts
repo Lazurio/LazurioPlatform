@@ -593,8 +593,9 @@ const filled = (): Shell => {
     dashboard: "https://dashboard.example.invalid/",
     account: "https://dashboard.example.invalid/settings",
     addOrganization: null,
-    // A member a later producer adds is ignored.
-    buddy: { origin: "https://buddy.example.invalid" },
+    // A member a later producer adds is ignored (`buddy`, which this one
+    // stood for, is decision F60's and has its own rule now).
+    later: { origin: "https://later.example.invalid" },
   });
   if (value === null) throw new Error("The fixture is a valid document");
   return value;

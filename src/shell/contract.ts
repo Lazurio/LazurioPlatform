@@ -183,6 +183,14 @@ export type ShellTheme = Readonly<{
   dark?: ShellThemeValues;
 }>;
 
+/** Buddy's bubble (root decision 0210, plan DEV-6676 P3, decision F60):
+ * where the person's Buddy answers, the origin of his frame,
+ * `https://buddy.<personal-dns-slug>.lazurio.io`, served by the person's
+ * Osobní Prostředí. Only an address: never Buddy's name, character or state,
+ * which stay his (Personalspace). Absent, the page shows the neutral guide of
+ * Lazurio as before. */
+export type ShellBuddy = Readonly<{ origin: string }>;
+
 export type Shell = Readonly<{
   schema: typeof shellSchema;
   /** The language of the person's profile; the elements speak it. */
@@ -236,6 +244,13 @@ export type Shell = Readonly<{
    * design system's `lazurio` while nobody chose another; absent on a page
    * that belongs to no Environment. */
   theme?: ShellTheme;
+  /** Buddy's bubble on the person's own Osobní Prostředí (decision F60,
+   * additive in v1): its Launchpad names it from the recorded hosted entry
+   * where the gateway routes Buddy's frame. Only beside a current Environment
+   * of kind `personal` whose id is the origin's (`environmentIdOf`); absent
+   * everywhere else, where the person's account says whether Buddy may show
+   * (`ShellAccount.buddy`, merge.ts). */
+  buddy?: ShellBuddy;
 }>;
 
 type Data = Readonly<Record<string, unknown>>;
@@ -307,6 +322,29 @@ export const isEnvironmentId: (value: unknown) => value is string =
  * domain, or a base of another depth. */
 export const environmentIdOf: (origin: string) => string | null =
   environmentIdOfOrigin;
+
+/** The origin of Buddy's frame as the documents may name it (decision F60):
+ * exactly `https://buddy.<slug>.lazurio.io`, the label `buddy` before the one
+ * label of a personal Remote Environment's base host, in lowercase, without
+ * a port, path or trailing slash. Its `environmentIdOf` is that slug. */
+const buddyOriginPattern =
+  /^https:\/\/buddy\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.lazurio\.io$/;
+export const isShellBuddyOrigin = (value: unknown): value is string =>
+  typeof value === "string" &&
+  buddyOriginPattern.test(value) &&
+  environmentIdOf(value) !== null;
+
+/** The `buddy` member of either document: absent or null is none
+ * (`undefined`); otherwise an object whose `origin` is Buddy's
+ * (`isShellBuddyOrigin`), or `false` for anything else. Members it does not
+ * know are ignored, as in every member of the documents. */
+export function parseShellBuddy(
+  value: unknown,
+): ShellBuddy | undefined | false {
+  if (value === undefined || value === null) return undefined;
+  if (!isRecord(value) || !isShellBuddyOrigin(value.origin)) return false;
+  return Object.freeze({ origin: value.origin });
+}
 
 /** Whether an entry's id is the one its Apps address gives it: an https
  * Apps address is the Environment's own, so the id is its base host
@@ -579,7 +617,10 @@ export function parseShellTheme(
  * `public` beside a current Environment, kept only when `public`. The
  * optional `theme` (F36's addendum of 2026-10-18) is absent, null or in its
  * exact shape (`parseShellTheme`) beside a current Environment, and absent on
- * a page that belongs to no Environment. */
+ * a page that belongs to no Environment. The optional `buddy` (decision F60)
+ * is absent, null or `{origin}` with Buddy's origin (`parseShellBuddy`)
+ * beside a current Environment of kind `personal` whose id is the origin's,
+ * and absent on a page that belongs to no Environment. */
 export function parseShell(input: unknown): Shell | null {
   if (!isRecord(input) || input.schema !== shellSchema) return null;
   if (!isPageUrl(input.dashboard) || !isPageUrl(input.account)) return null;
@@ -618,6 +659,21 @@ export function parseShell(input: unknown): Shell | null {
   const theme = parseShellTheme(input.theme);
   if (theme === false || (current === null && input.theme !== undefined))
     return null;
+  // Buddy only on his own Osobní Prostředí: the current Environment is
+  // personal and the frame's origin is of its base host. Anywhere else the
+  // account decides (decision F60), so a document of another Environment that
+  // names one is no document of this contract.
+  const buddy = parseShellBuddy(input.buddy);
+  if (
+    buddy === false ||
+    (buddy !== undefined &&
+      (current === null ||
+        shared.environments.find((entry) => entry.id === current)?.kind !==
+          "personal" ||
+        environmentIdOf(buddy.origin) !== current)) ||
+    (current === null && input.buddy !== undefined)
+  )
+    return null;
   return Object.freeze({
     schema: shellSchema,
     locale: shared.locale,
@@ -633,6 +689,7 @@ export function parseShell(input: unknown): Shell | null {
     ...(typeof signOut === "string" ? { signOut } : {}),
     ...(audience === "public" ? { audience } : {}),
     ...(theme === undefined ? {} : { theme }),
+    ...(buddy === undefined ? {} : { buddy }),
   });
 }
 
@@ -728,6 +785,12 @@ export type ShellAccount = Readonly<{
    * Environment's Organization(s). */
   favourites: Readonly<Record<string, readonly AccountFavourite[]>>;
   preferences: Readonly<{ openApps: "tab" | "same" }>;
+  /** Buddy's bubble for the requesting Environment (decision F60, additive in
+   * v1): the Dashboard names it only where Buddy may show there, his own
+   * Osobní Prostředí or an Environment of the same tailnet (root decision
+   * 0210 point 6), and leaves it out everywhere else. Its origin is that of
+   * an Environment of kind `personal` the document lists. */
+  buddy?: ShellBuddy;
 }>;
 
 const accountPersonalSpace = "personal";
@@ -738,9 +801,11 @@ const accountPersonalSpace = "personal";
  * Dashboard answers it to every Environment), so an Environment's Apps
  * address and an Organization's Dashboard page are absolute https URLs,
  * never paths. The account-only members may be absent (`last` none,
- * `lastBySpace` and `favourites` empty, `openApps` `tab`); present, they
- * have their exact shape and name only listed Environments and
- * Organizations. Members this version does not know are ignored. */
+ * `lastBySpace` and `favourites` empty, `openApps` `tab`, `buddy` none);
+ * present, they have their exact shape and name only listed Environments and
+ * Organizations: `buddy`'s origin (`parseShellBuddy`) is that of a listed
+ * Environment of kind `personal`. Members this version does not know are
+ * ignored. */
 export function parseShellAccount(input: unknown): ShellAccount | null {
   if (!isRecord(input) || input.schema !== accountSchema) return null;
   const shared = entries(input);
@@ -828,6 +893,20 @@ export function parseShellAccount(input: unknown): ShellAccount | null {
     if (preferences.openApps === "same") openApps = "same";
   }
 
+  // Buddy's frame is served by the person's own Osobní Prostředí, so its
+  // origin names one the account lists, of kind `personal`.
+  const buddy = parseShellBuddy(input.buddy);
+  if (
+    buddy === false ||
+    (buddy !== undefined &&
+      !shared.environments.some(
+        (entry) =>
+          entry.kind === "personal" &&
+          entry.id === environmentIdOf(buddy.origin),
+      ))
+  )
+    return null;
+
   return Object.freeze({
     schema: accountSchema,
     locale: shared.locale,
@@ -838,6 +917,7 @@ export function parseShellAccount(input: unknown): ShellAccount | null {
     lastBySpace: Object.freeze(lastBySpace),
     favourites: Object.freeze(favourites),
     preferences: Object.freeze({ openApps }),
+    ...(buddy === undefined ? {} : { buddy }),
   });
 }
 
