@@ -198,7 +198,7 @@ const holderActions: Readonly<Record<string, string>> = {
   "github-identity-mismatch":
     "Sign gh in with this Environment's Owner's GitHub account; another account's modules do not belong here.",
   "personalspace-ambiguous":
-    "Leave exactly one directory in personalspace/, the person's own Personalspace; a task worktree goes to personalspace/.worktrees/<task>.",
+    "Leave exactly one directory in personalspace/, the user's own Personalspace; a task worktree goes to personalspace/.worktrees/<task>.",
   "personalspace-unavailable":
     "personalspace/ and its one directory must be real directories of your own account.",
   "personalspace-foreign":
@@ -334,7 +334,7 @@ async function plan(
   if ((request.teams ?? []).length > 0)
     throw new ModuleScaffoldError(
       "teams_not_allowed",
-      "A personal module has no Teams: it is the person's own.",
+      "A personal module has no Teams: it is the user's own.",
       "Leave out the Teams.",
     );
   report.scope = "personalspace";
@@ -347,7 +347,7 @@ async function plan(
   if (!(await folderHasPersonalspace(request.folder)))
     throw new ModuleCreateRefusal(
       "personalspace-not-here",
-      "This Environment holds no Personalspace: personal modules live on a workstation or on the person's personal Remote Environment.",
+      "This Environment holds no Personalspace: personal modules live on a workstation or on the user's personal Remote Environment.",
       "Create the personal module on your own computer or on your personal Remote Environment.",
     );
   const holder = await host.holder(request.folder);
@@ -449,7 +449,7 @@ async function plan(
     throw new ModuleCreateRefusal(
       "repository-exists",
       `GitHub already has ${existing.repository.fullName} (names are compared ignoring letter case); an existing repository is never taken over.`,
-      "Ask the person for another name of the module (its slug).",
+      "Ask the user for another name of the module (its slug).",
     );
   if (existing.kind === "unavailable")
     throw new ModuleCreateRefusal(
@@ -563,7 +563,7 @@ function dryRunSteps(
       `The real run needs a task worktree of the Personalspace beside it in personalspace/.worktrees/ (never inside it, never a second directory in personalspace/): git -C '${module.space}' worktree add -b <branch> '${join(module.folder, personalspaceName, ".worktrees", "<task>")}' main.`,
     );
   steps.push(
-    `Show the person this plan in the thread: the private repository ${report.repository?.full_name} on their own GitHub account, the stack ${module.plan.stack}, the files and the port ${module.plan.lease?.port ?? "(none, no app)"}. Create it only after they confirm it.`,
+    `Show the user this plan in the thread: the private repository ${report.repository?.full_name} on their own GitHub account, the stack ${module.plan.stack}, the files and the port ${module.plan.lease?.port ?? "(none, no app)"}. Create it only after they confirm it.`,
     `Then, from ${worktree === null ? "the task worktree" : worktree}: ${confirmCommand(request, report.plan as string)}`,
   );
   if (module.addsPool)
@@ -626,7 +626,7 @@ export async function planData(
     throw new ModuleCreateRefusal(
       "data-repository-exists",
       `GitHub already has ${existing.repository.fullName} (names are compared ignoring letter case); a module's data repository is never taken over.`,
-      "Ask the person for another name of the module (its slug), or create the module without --data and mount the existing data by hand.",
+      "Ask the user for another name of the module (its slug), or create the module without --data and mount the existing data by hand.",
     );
   if (existing.kind === "unavailable")
     throw new ModuleCreateRefusal(

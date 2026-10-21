@@ -19,15 +19,15 @@ import { readIntegrations } from "./read";
 export const integrationsHelp = `integrations list [--folder <absolute Folder>] [--json]
   The Integrations of this Environment: every app of Lazurio's catalog with
   its one path (by its tool from Settings → Tools, directly through this
-  Environment's Executor, or through Composio with the person's account),
+  Environment's Executor, or through Composio with the user's account),
   whether it is connected, its accounts and the link to its card in Apps →
   Integrations; the apps connected here that the catalog does not know; the
   custom MCP servers in Executor; and the state of each source (tools,
   Executor, Composio), so a source that cannot be read is never taken for
   "nothing connected". Use an Integration where it is connected, in the
   order tool → Executor → Composio; never connect one yourself: send the
-  person the card's link. It connects and removes nothing. On an
-  Organization's Environment it makes the person's Composio organization of
+  user the card's link. It connects and removes nothing. On an
+  Organization's Environment it makes the user's Composio organization of
   the Organization's name current where another one is, and says so on
   stderr (the operation and its outcome, never a name or an id); the tools'
   sign-in checks and Composio may reach the network. Without --folder, the
@@ -81,7 +81,7 @@ export function integrationsText(overview: IntegrationsOverview): string {
   if (notWorking.length > 0)
     lines.push(
       [
-        "Not working (the person signs in again on the card):",
+        "Not working (the user signs in again on the card):",
         ...notWorking.map(connectedLine),
       ].join("\n"),
     );
@@ -111,27 +111,27 @@ export function integrationsText(overview: IntegrationsOverview): string {
       target.state === "unverified" || target.name === null
         ? "Composio: the name of this Environment's Organization cannot be read, so its Composio organization cannot be checked; nothing of Composio counts and nothing connects through it now. Check this Environment's Folder (lazurio doctor)."
         : target.state === "missing"
-          ? `Composio: the person's account has no organization named "${composio}" (this Environment's Organization "${target.name}", named as Composio accepts it), so Composio works in the person's current organization meanwhile. Send them to Apps → Integrations to create it.`
+          ? `Composio: the user's account has no organization named "${composio}" (this Environment's Organization "${target.name}", named as Composio accepts it), so Composio works in their current organization meanwhile. Send them to Apps → Integrations to create it.`
           : target.state === "ambiguous"
-            ? `Composio: the person's account has more than one organization named "${composio}", so Composio works in the person's current organization meanwhile. Send them to Apps → Integrations to keep one.`
+            ? `Composio: the user's account has more than one organization named "${composio}", so Composio works in their current organization meanwhile. Send them to Apps → Integrations to keep one.`
             : `Composio: it could not be switched to the organization "${composio}"; nothing of Composio counts now, and "Check connections" in Apps → Integrations tries again.`,
     );
   // Composio not the build Lazurio pins (decision F42, addendum (b) of
   // 2026-10-14): the person updates it; an agent only on their instruction.
   if (overview.composio.update)
     lines.push(
-      "Composio should be updated: the person does it in the Launchpad under Settings → Tools (Update); until then accounts cannot be disconnected from here and some have no name. Do not update it yourself unless the person asks you to.",
+      "Composio should be updated: the user does it in the Launchpad under Settings → Tools (Update); until then accounts cannot be disconnected from here and some have no name. Do not update it yourself unless they ask you to.",
     );
   lines.push(
     overview.page === null
-      ? "A missing app is connected by the person in the Launchpad under Apps → Integrations; --json lists every app with what it needs."
-      : `A missing app is connected by the person on its card (${overview.page}/app/<id>); --json lists every app with its link.`,
+      ? "A missing app is connected by the user in the Launchpad under Apps → Integrations; --json lists every app with what it needs."
+      : `A missing app is connected by the user on its card (${overview.page}/app/<id>); --json lists every app with its link.`,
   );
   // Composio's own Apps, for an app the catalog does not list (decision
   // F42, addendum of 2026-10-14).
   if (overview.composio.apps !== null)
     lines.push(
-      `An app the catalog does not list is connected by the person in Composio (${overview.composio.apps}); it then shows here.`,
+      `An app the catalog does not list is connected by the user in Composio (${overview.composio.apps}); it then shows here.`,
     );
   return lines.join("\n");
 }

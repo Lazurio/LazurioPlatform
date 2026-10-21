@@ -25,13 +25,13 @@ import { filesUrlPath } from "./rules";
  * Documents adapter as the Launchpad's Files page; it records nothing. */
 export const filesHelp = `files link <path> [--folder <absolute Folder>] [--json]
   The link to a file or folder in the Documents folder of this account
-  (~/Documents), for the Operator. The path is absolute or relative to the
+  (~/Documents), for the user. The path is absolute or relative to the
   current directory and must exist inside ~/Documents; a name starting with a
   dot is never served. In a Remote Environment with a recorded entry it
-  prints <Launchpad origin>/files/<path>: the link opens in the Operator's
+  prints <Launchpad origin>/files/<path>: the link opens in the user's
   browser behind the Environment's sign-in and downloads the file (a folder
   opens on the Files page). Without an entry it prints the absolute path: on
-  a workstation the file is already on the Operator's computer. A path
+  a workstation the file is already on the user's computer. A path
   outside ~/Documents, hidden or missing is refused: save or copy the file
   into ~/Documents/<task>/ first. --json prints {kind: "files-link", hosted,
   url} or {kind: "files-link", hosted, path}, and {kind: "blocked", reason}
@@ -84,8 +84,8 @@ const explanations: Readonly<Record<"cs" | "en", Record<LinkRefusal, string>>> =
 
 const notes = {
   hosted: {
-    en: "Hand this link to the Operator instead of the path: it opens in their browser behind this Environment's sign-in and downloads the file (a folder opens on the Files page).",
-    cs: "Předej Operátorovi tento odkaz místo cesty: otevře se mu v prohlížeči za přihlášením tohoto Prostředí a soubor stáhne (složka se otevře na stránce Soubory).",
+    en: "Hand this link to the user instead of the path: it opens in their browser behind this Environment's sign-in and downloads the file (a folder opens on the Files page).",
+    cs: "Předej uživateli tento odkaz místo cesty: otevře se mu v prohlížeči za přihlášením tohoto Prostředí a soubor stáhne (složka se otevře na stránce Soubory).",
   },
   local: {
     en: "This Environment has no hosted entry: the file is already on this computer, at this path.",

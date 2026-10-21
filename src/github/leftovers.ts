@@ -208,6 +208,6 @@ export function leftoverAdvice(leftover: Leftover): string {
     case "git-helper":
       return "Git consults another credential helper for github.com after the pilot's (git config --global --get-all credential.https://github.com.helper). Remove it.";
     case "ssh-key":
-      return "An SSH key in this Environment still signs in to GitHub as a person (ssh -T git@github.com). Remove it under GitHub Settings → SSH and GPG keys (https://github.com/settings/keys); git already uses HTTPS here.";
+      return "An SSH key in this Environment still signs in to GitHub as a user (ssh -T git@github.com). Remove it under GitHub Settings → SSH and GPG keys (https://github.com/settings/keys); git already uses HTTPS here.";
   }
 }

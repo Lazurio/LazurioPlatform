@@ -570,7 +570,7 @@ Data Modulu žijí v repository-db: složka \`db/\` je samostatný repozitář
 Modulu ignoruje. App k nim přistupuje přes \`@lazurio/repository-db\` (jedna
 vydaná verze v \`app/v1/package.json\`), nikdy přímo přes Git. Commit a push
 dat do \`v3\` je Publikace: dělá ji tlačítko „Publikovat změny“ nebo
-\`repository-db publish\` na pokyn Operátora.
+\`repository-db publish\` na pokyn uživatele.
 `,
     });
 }
@@ -773,7 +773,7 @@ export function assertStack(value: unknown): ModuleStack {
   throw new ModuleScaffoldError(
     "unknown_stack",
     `The stack ${JSON.stringify(value)} does not exist; the stacks are ${moduleScaffoldStacks.join(", ")}.`,
-    "Choose a stack of the Lazurio Module Standard (chapter 6); another stack is the Operator's decision.",
+    "Choose a stack of the Lazurio Module Standard (chapter 6); another stack is the user's decision.",
   );
 }
 
@@ -834,7 +834,7 @@ function normalizeOwner(owner: ScaffoldOwner): Owner {
     )
       throw new ModuleScaffoldError(
         "invalid_owner",
-        `The person's GitHub login ${JSON.stringify(owner.login)} is not valid.`,
+        `The user's GitHub login ${JSON.stringify(owner.login)} is not valid.`,
       );
     return {
       kind: "personal",
@@ -873,7 +873,7 @@ function normalizeTeams(teams: readonly unknown[], owner: Owner): string[] {
     if (teams.length > 0)
       throw new ModuleScaffoldError(
         "teams_not_allowed",
-        "A personal module has no Teams: it is the person's own.",
+        "A personal module has no Teams: it is the user's own.",
         "Leave out the Teams.",
       );
     return [];

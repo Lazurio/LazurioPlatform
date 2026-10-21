@@ -50,7 +50,7 @@ import { toolsUpdate } from "./update";
  * 0161 / F17) and of the tools enabled for agents in a Lazurio Folder
  * (decision 0162 / F18), docs/environment-tools.md. */
 export const toolsHelp = `tools status [--json]
-  The operator's tools (codex, claude, gh, git, node, npm, bun, composio,
+  The user's tools (codex, claude, gh, git, node, npm, bun, composio,
   bw, wacli, gog, neon) as found on this process's PATH: path, real path, the version each reports and whether
   the PATH entry is the standard ~/.local/bin/<tool> (decision 0161).
   Read-only; the version commands never use the network. Versions are facts,
@@ -63,7 +63,7 @@ tools update <tool> [--json]
   in ~/.local/bin and ~/.composio and keeping its sign-in; the update is
   done only when composio --version prints that build. Tools without an
   update path (gh, git, node, npm) are reported with their official source
-  and nothing runs. Run it only with the Operator's consent. Never
+  and nothing runs. Run it only with the user's consent. Never
   downgrades on its own; never touches another tool. A running Codex
   app-server is never stopped: after Codex changed its version, the answer
   says it keeps the old version until it is replaced.
@@ -71,7 +71,7 @@ tools list --folder <absolute Folder> [--sign-in] [--json]
   The catalog tools agents may be told to use (gh required, composio and
   bitwarden recommended, wacli, gogcli and neon optional): tier, setup mode (launchpad:
   a curated Launchpad flow sets it up; agent: an agent does, from the prepared
-  prompt), whether each is enabled in that Folder, the operator's note on it,
+  prompt), whether each is enabled in that Folder, the user's note on it,
   and the same live facts as tools status. Read-only. --sign-in also runs each
   installed tool's sign-in probe (gh auth status, composio whoami, wacli auth
   status, gog auth list --check, neon me) and reports signed in, as whom when
@@ -80,7 +80,7 @@ tools list --folder <absolute Folder> [--sign-in] [--json]
   shown, never the tool's output.
 tools prompt <tool> [--locale cs|en] [--json]
   The prepared prompt for an agent who installs that tool and guides the
-  operator's sign-in: the task, the target state and the rule to enable the
+  user's sign-in: the task, the target state and the rule to enable the
   tool afterwards. Read-only text, no Folder; it installs nothing. In a
   Team Remote Environment (the preset of its operator's Folder) gh's prompt
   sets gh up without any sign-in or SSH key.
@@ -93,10 +93,10 @@ tools disable <tool> --folder <absolute Folder> --expected-revision <n> [--json]
   unchanged, disabling it is refused. Disabling a tool removes its note. On an
   Organization's Environment whose Organization does not allow a tool
   (composio, root decision 0194), the Organization decides it: both are
-  refused (organization-governed) and the person's earlier choice is kept for
+  refused (organization-governed) and the user's earlier choice is kept for
   when it is allowed again. No implicit Folder discovery.
 tools note <tool> --folder <absolute Folder> --expected-revision <n> (--text <text> | --clear) [--json]
-  Records or removes the operator's note for agents on a required or enabled
+  Records or removes the user's note for agents on a required or enabled
   tool: the intent with which it was installed, quoted for agents in
   manual/this-machine.md (AGENTS.md says a note exists). Plain text, 1 to 600
   characters after trimming, at most 6 lines, no control characters. It is
@@ -114,7 +114,7 @@ tools install <tool> [--json]
   is not shadowed. On failure it points to the prepared agent prompt. In a
   Team Environment gh is installed only, never signed in afterwards.
 tools login <tool> [--phone <+number>] [--ssh-key] [--device-code] [--json]
-  Signs the operator in to that tool in the foreground: gh prints a one-time
+  Signs the user in to that tool in the foreground: gh prints a one-time
   code for https://github.com/login/device, composio a sign-in link, wacli a
   WhatsApp QR code drawn here (or, with --phone, a pairing code). Open it on
   any device; nothing is copied to the clipboard and no key is typed. Waits
@@ -159,7 +159,7 @@ tools logout <tool> [--json]
   Environment only (revoke it at the provider); wacli unlinks the device. gh
   first removes this Environment's SSH key from the account when Lazurio
   registered it (title "Lazurio: <host name>"); the key files stay. In a Team
-  Environment gh signs out only a person's account left signed in there, never
+  Environment gh signs out only a user's account left signed in there, never
   a GitHub App (bot) identity or a token from a variable (blocked,
   team-environment).
 tools composio-org [list | switch <id>] [--json]
@@ -633,7 +633,7 @@ async function runFolderToolsCommand(
           ...(tool.note === undefined
             ? []
             : [
-                `${" ".repeat(10)}operator's note:`,
+                `${" ".repeat(10)}user's note:`,
                 ...quoteToolNote(tool.note).map(
                   (line) => `${" ".repeat(10)}${line}`,
                 ),

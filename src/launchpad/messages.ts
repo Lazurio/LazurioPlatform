@@ -112,7 +112,7 @@ const en = {
   updateFailed:
     "The update did not complete: {code}. The installed version keeps working; the same click retries.",
   updateStateInvalid:
-    "Update state needs a person: {path}. Nothing is changed automatically.",
+    "Update state needs the user's intervention: {path}. Nothing is changed automatically.",
   updateStarted: "Update started…",
   updateRefused: "The update was not started; the state shown was refreshed.",
   updateFolderRefresh: "Folder refresh needed. Run: {command}",
@@ -591,7 +591,7 @@ const en = {
   catalogReasonDuplicate:
     "Another directory in this Folder declares the same Organization.",
   catalogReasonPersonalspaceAmbiguous:
-    "personalspace/ holds more than one directory; only the Operator's own may be there, and none is read until it is the only one.",
+    "personalspace/ holds more than one directory; only the user's own may be there, and none is read until it is the only one.",
   catalogReasonPersonalspaceUnavailable:
     "The Personalspace cannot be read: its directories must be real directories owned by you.",
   catalogReasonPersonalspaceForeign:
@@ -677,7 +677,7 @@ const en = {
   moduleSecretsNotProvided:
     "Started without these optional secrets, so the capabilities that need them are off: {secrets}.",
   runtimeSecretPersonalspace:
-    "a Personalspace app reads secrets only in its person's personal Environment",
+    "a Personalspace app reads secrets only in its user's personal Environment",
   runtimeSecretPersonalEnvironment:
     "the vault of a personal Environment serves only Personalspace apps",
   runtimeSecretWorkstation: "this computer has no Environment vault yet",
@@ -815,7 +815,7 @@ const en = {
   machineAssignment: "Assignment",
   machineAssignmentTeam: "Team",
   machineAssignmentAutomation:
-    "automations of an Organization persona; responsible operator {operator}",
+    "automations of an Organization persona; responsible user {operator}",
   machineTailnet: "Tailnet node",
   machineHost: "Host",
   machineRelationships: "Relationships (enforced by Headscale, not here)",
@@ -1428,7 +1428,7 @@ const en = {
   executorFailed: "The setup did not finish ({stage}: {reason}).",
   executorConflictTitle: "Resolve the conflict of executor with an agent",
   executorConflictPrompt:
-    "Task: {in this}, Lazurio's Executor conflicts with another installation. Find out with `lazurio executor status --json` what conflicts: `entry` is `~/.local/bin/executor`, `agents` an MCP server named `executor` in Codex or Claude Code. Show the Operator what is there, and only with their consent remove or rename it; then run `lazurio executor setup --json` and check that it reports `running`. Change nothing else.",
+    "Task: {in this}, Lazurio's Executor conflicts with another installation. Find out with `lazurio executor status --json` what conflicts: `entry` is `~/.local/bin/executor`, `agents` an MCP server named `executor` in Codex or Claude Code. Show the user what is there, and only with their consent remove or rename it; then run `lazurio executor setup --json` and check that it reports `running`. Change nothing else.",
   toolsNotAdded: "Not added yet",
   toolsLoginTitleGh: "Connect GitHub",
   toolsLoginTitleComposio: "Connect your apps",
@@ -1879,7 +1879,7 @@ const cs: Record<MessageKey, string> = {
   updateFailed:
     "Aktualizace se nedokončila: {code}. Nainstalovaná verze běží dál; stejné kliknutí ji zopakuje.",
   updateStateInvalid:
-    "Stav aktualizace vyžaduje zásah člověka: {path}. Automaticky se nic nemění.",
+    "Stav aktualizace vyžaduje zásah uživatele: {path}. Automaticky se nic nemění.",
   updateStarted: "Aktualizace spuštěna…",
   updateRefused: "Aktualizace nebyla spuštěna; zobrazený stav byl obnoven.",
   updateFolderRefresh: "Folder je potřeba obnovit. Spusťte: {command}",
@@ -2344,7 +2344,7 @@ const cs: Record<MessageKey, string> = {
   catalogReasonDuplicate:
     "Jiná složka v tomto Folderu deklaruje stejnou Organizaci.",
   catalogReasonPersonalspaceAmbiguous:
-    "V personalspace/ je víc než jedna složka; smí tam být jen ta Operátorova a žádná se nečte, dokud nezůstane jediná.",
+    "V personalspace/ je víc než jedna složka; smí tam být jen složka uživatele a žádná se nečte, dokud nezůstane jediná.",
   catalogReasonPersonalspaceUnavailable:
     "Personalspace nelze přečíst: jeho složky musí být skutečné složky, které vlastníte.",
   catalogReasonPersonalspaceForeign:
@@ -2429,7 +2429,7 @@ const cs: Record<MessageKey, string> = {
   moduleSecretsNotProvided:
     "Spuštěno bez těchto volitelných tajných údajů, takže schopnosti, které je potřebují, jsou vypnuté: {secrets}.",
   runtimeSecretPersonalspace:
-    "aplikace z Personalspace čte tajné údaje jen v Osobním Prostředí svého člověka",
+    "aplikace z Personalspace čte tajné údaje jen v Osobním Prostředí svého uživatele",
   runtimeSecretPersonalEnvironment:
     "trezor Osobního Prostředí slouží jen aplikacím z Personalspace",
   runtimeSecretWorkstation: "tento počítač zatím trezor Prostředí nemá",
@@ -2565,7 +2565,7 @@ const cs: Record<MessageKey, string> = {
   machineAssignment: "Přiřazení",
   machineAssignmentTeam: "Týmové",
   machineAssignmentAutomation:
-    "Automatizace persony Organizace; odpovědný operátor {operator}",
+    "Automatizace persony Organizace; odpovědný uživatel {operator}",
   machineTailnet: "Uzel tailnetu",
   machineHost: "Host",
   machineRelationships: "Vztahy (vynucuje Headscale, ne tato stránka)",
@@ -3120,7 +3120,7 @@ const cs: Record<MessageKey, string> = {
   executorFailed: "Nastavení se nedokončilo ({stage}: {reason}).",
   executorConflictTitle: "Vyřešit kolizi executoru s pomocí agenta",
   executorConflictPrompt:
-    "Úkol: {v tomto} koliduje Executor Lazuria s jinou instalací. Příkazem `lazurio executor status --json` zjisti, co koliduje: `entry` je `~/.local/bin/executor`, `agents` MCP server jménem `executor` v Codexu nebo Claude Code. Ukaž Operátorovi, co tam je, a jen s jeho souhlasem to odstraň nebo přejmenuj; pak spusť `lazurio executor setup --json` a ověř, že hlásí `running`. Nic dalšího neměň.",
+    "Úkol: {v tomto} koliduje Executor Lazuria s jinou instalací. Příkazem `lazurio executor status --json` zjisti, co koliduje: `entry` je `~/.local/bin/executor`, `agents` MCP server jménem `executor` v Codexu nebo Claude Code. Ukaž uživateli, co tam je, a jen s jeho souhlasem to odstraň nebo přejmenuj; pak spusť `lazurio executor setup --json` a ověř, že hlásí `running`. Nic dalšího neměň.",
   toolsNotAdded: "Ještě není přidané",
   toolsLoginTitleGh: "Připojit GitHub",
   toolsLoginTitleComposio: "Připojit aplikace",

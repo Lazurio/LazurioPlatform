@@ -16,11 +16,11 @@ master password, its API key and its one Bitwarden CLI session itself,
 owner-only, beside the CLI's store on that Environment and nowhere else; the
 key of the Environment's own vault exists only in memory while the vault is
 created, then only in the vault, encrypted to the account. On a personal
-Environment the account is the agents' account its person created in their own
-Bitwarden (root decision 0203 point 7): the person enters its API key and master
+Environment the account is the agents' account its user created in their own
+Bitwarden (root decision 0203 point 7): the user enters its API key and master
 password once in the Launchpad, which checks them and then writes them, the same way
 and in the same place, and nowhere else; disconnecting removes them. Every other secret
-stays in the vault; a value a person enters for an agent's secret request (decision
+stays in the vault; a value a user enters for an agent's secret request (decision
 F54) passes through the Launchpad's memory to bw's standard input and is never
 written. The shared GitHub App sign-in pilot
 (decision F48) is a second exception while switched on: GitHub hands its expiring

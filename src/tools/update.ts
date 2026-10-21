@@ -88,7 +88,7 @@ const updateTimeoutMs = 10 * 60_000;
  * it is replaced, and nothing here stops or restarts it: that would end live
  * sessions (decision F29, issue #173). */
 export const codexUpdatedNext =
-  "A Codex app-server that is already running keeps the old version until it is replaced; nothing was stopped or restarted. In a Remote Environment, lazurio doctor reports it (codex-app-server, app-server-outdated) and the Folder's manual/troubleshooting.md says how to replace it, with the Operator's consent.";
+  "A Codex app-server that is already running keeps the old version until it is replaced; nothing was stopped or restarted. In a Remote Environment, lazurio doctor reports it (codex-app-server, app-server-outdated) and the Folder's manual/troubleshooting.md says how to replace it, with the user's consent.";
 
 async function updateCommand(
   entry: ToolEntry,

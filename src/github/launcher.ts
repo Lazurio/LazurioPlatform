@@ -303,7 +303,7 @@ export async function runGhLauncher(
       return host.runGh(gh, args, withoutTokens(host.env));
     case "refused-auth":
       say(
-        `this Environment uses one shared App sign-in (pilot), so gh auth ${args[1]} is not used here. See lazurio github status; the Operator signs in with lazurio github sign-in.`,
+        `this Environment uses one shared App sign-in (pilot), so gh auth ${args[1]} is not used here. See lazurio github status; the user signs in with lazurio github sign-in.`,
       );
       return 1;
     case "refused-token":

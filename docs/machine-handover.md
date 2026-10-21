@@ -78,7 +78,7 @@ through [`folder-refresh`](#refresh-after-a-handover-rewrite):
 
 - **`owner.assignment`** — Organization branch only; the personal branch refuses it.
   `{kind: "operator", github_login, github_id}`, `{kind: "team"}`, since Machines
-  #277 `{kind: "automation", github_login, github_id}` (the responsible operator of
+  #277 `{kind: "automation", github_login, github_id}` (the responsible user of
   an Automated Environment, decision 0169, never the persona) or, pending the re-pin
   above, `{kind: "services"}` (the services Environment of a server, root decision
   0209, which names nobody), authored per guest in
@@ -130,9 +130,9 @@ one. Reconciled 2026-09-19 with [decision F2](decisions.md#f2--private-and-team-
 this section is accepted direction, and the implemented consumer below remains the
 narrow Linux/remote/human pilot entrypoint.
 
-- **Private hosted workspace:** one person uses the operator account and signs in
+- **Private hosted workspace:** one user uses the operator account and signs in
   with their own provider identity inside it.
-- **Team hosted workspace:** the operator account is shared by the people who
+- **Team hosted workspace:** the operator account is shared by the users who
   connect. It must never acquire anyone's personal credentials, sessions or
   Personalspace. Its provider identity is the brokered Organization identity; `team`
   in the handover is context for that, not a grant and not a roster.
@@ -148,9 +148,9 @@ is present nothing else is read, and a new choice (`--preset`, a profile change,
 Launchpad) may take only the derived preset; a preset the Folder already recorded
 stays valid, and rerunning the `folder-init` that adopted the Folder reports it
 `already-adopted` instead of refusing that preset (issue #107). A `workspace-vm` handover **without** it proves only
-one side: without `owner.team` it is one operator's (`hosted-organization-personal`,
+one side: without `owner.team` it is one user's (`hosted-organization-personal`,
 as before v0.12.61); with `owner.team` it is ambiguous, because an Organization may
-model one operator's VM as a Team named after them, and Platform derives no preset
+model one user's VM as a Team named after them, and Platform derives no preset
 from it. Never from the Machine name, the hostname, the Team name or the operator
 account, and never from `relationships`. For such a handover the Machines resident
 role passes the preset from the owner infrastructure. `folder-init` records the
@@ -159,11 +159,11 @@ configuration together with the **Machine binding** (kind, name, owner, team,
 assignment, tailnet node, host, relationships, entry and the handover digest).
 Machines does not rewrite the identity; a Folder adopted for a different Machine is
 refused, never rewritten. Identity is kind, name, Owner (Organization and Team, or
-a person), tailnet node and host, and it is immutable. Machines rewrites the handover
+a user), tailnet node and host, and it is immutable. Machines rewrites the handover
 on every apply (`installed`, the declared assignment, the derived relationships), so
 the document digest is not identity: a re-apply of the same Machine keeps the Folder
 adopted. The rest of the binding is handover-derived content, not a choice of the
-Operator: `lazurio machine folder-refresh` re-records it from the current handover
+user: `lazurio machine folder-refresh` re-records it from the current handover
 and re-renders the generated files, keeping the recorded preset and profile.
 
 A repeated infrastructure apply must preserve the Machine identity, the Folder
@@ -209,7 +209,7 @@ without it any preset of the machine kind; optional `--locale`, `--detail` and
 
 `folder-init` on an adopted Folder changes nothing, and the profile commands carry the
 recorded binding forward, so a handover rewritten with a new peer (for example the
-operator's work VM added to the personal VM's `relationships`) never reached
+user's work VM added to the personal VM's `relationships`) never reached
 `AGENTS.md` or `manual/this-machine.md` in v0.1.2. The Machines resident role runs,
 as the declared operator, after every handover write on a Machine whose Folder exists:
 
@@ -264,14 +264,14 @@ that appears while a refresh or profile update is interrupted is refused by name
 (`profile-resume` exits 2 with `folder-foreign-entry`); the journal and every output
 stay exactly as the interruption left them, and the resume completes once the entry
 is gone. A workstation Folder (no handover binding) keeps its existing rule: the
-Operator's own top-level files beside the generated ones are preserved, never read
+user's own top-level files beside the generated ones are preserved, never read
 or written.
 
 The Launchpad shows the refreshed binding on its next read; an open panel holding the
 old revision gets `stale-revision` on apply, as after any concurrent change. The
 refresh re-renders what the handover changes, and everything when the active product
 renders a newer template revision than the Folder records: after Machines installs a
-release with new templates, or the operator runs `lazurio update` (which then reports
+release with new templates, or the user runs `lazurio update` (which then reports
 "Folder refresh needed"), the next `folder-refresh` is `refreshed` with the new
 `AGENTS.md` and `manual/`, provided no generated file was edited (otherwise `drift`
 and its path, nothing written). A Folder rendered by a newer revision than the active
@@ -341,8 +341,8 @@ module delivery remain separate pilot gates.
 
 `AGENTS.md` is a deterministic projection of the preset, the recorded binding and
 the profile: which Machine this is and whose, how it is assigned when the handover
-says so (`assigned to Operator <login>` / `shared by the Team` / the Automated
-Environment's responsible Operator / Server services), who the Operator is
+says so (`assigned to user <login>` / `shared by the Team` / the Automated
+Environment's responsible user / Server services), who the user is
 here, the Personalspace boundary, where Organization repositories live, the provider
 identity mode and how work is done (including the two working rules of upstream
 decision 0163: open questions go to GitHub Issues and do not stop the work, and
@@ -359,14 +359,14 @@ and no persona is rendered. The Owner line names the Team only under
 After a handover rewrite `folder-refresh` renders the current assignment and
 relationships ([refresh](#refresh-after-a-handover-rewrite)).
 The Launchpad shows the binding, including the assignment and a compact read-only
-list of the peers, and lets the Operator change the preset (to the recorded one or a
+list of the peers, and lets the user change the preset (to the recorded one or a
 preset the handover offers as a new choice) and the communication axes through the
 ordinary preview → apply flow.
 
 ## The services Environment of a server (root decision 0209)
 
 Every Proxmox server of an Organization has one services Environment `services-NN`,
-to people **Služby serveru** ("Server services"): a work Environment of the
+to users **Služby serveru** ("Server services"): a work Environment of the
 Organization that only its Owners and Admins enter (Machines
 `docs/server-services.md` §2, DEV-6674). Its handover states `owner.assignment`
 `{kind: "services"}`, which names nobody; its `owner.team` is the GitHub Team whose
@@ -378,26 +378,27 @@ Launchpad ([decision F10, amendment of 2026-10-19](decisions.md#f10--workspace-p
 
 - **Preset.** `services` derives `hosted-organization-team`, and a new choice may
   take only that: Služby serveru act on GitHub only as the Organization's brokered
-  identity (Lazurio for GitHub) and a named person publishes from them, exactly as
+  identity (Lazurio for GitHub) and a named user publishes from them, exactly as
   from a Team Environment (root decision 0209 addendum (c), [F31](decisions.md#f31--a-team-environment-publishes-under-the-teams-identity)).
   So the curated gh sign-in and SSH key linking are refused, the GitHub sign-in
   pilot (F48) refuses the Environment, Začínáme asks nobody to sign in and the
   hosting prepares the content.
-- **Words.** To people it is a work Environment named Služby serveru, never a Team
+- **Words.** To users it is a work Environment named Služby serveru, never a Team
   one and never a fourth kind (root decision 0207). The shell document gives kind
-  `work`, label "Služby serveru" or "Server services", no assignee and no operator
-  (`environmentKind` and `environmentLabel` in `src/launchpad/shell-document.ts`).
+  `work`, label "Služby serveru" or "Server services", no `assignee` and no
+  `operator.login` (`environmentKind` and `environmentLabel` in
+  `src/launchpad/shell-document.ts`).
   Toto Prostředí reads "Pracovní Prostředí se službami serveru" with "Owneři a
   Admini Organizace" working there and "Služby serveru" as the assignment for
   support; Obecné names the Team preset it has the same way. The generated Folder
   states the assignment (only Owners and Admins enter, the Team's rules hold, the
-  name people use) and that the Operator is the connected Owner or Admin.
+  name users know it by) and that the user is the connected Owner or Admin.
 - **Not read yet.** The member `services` (each service's id, kind, productionspace
   repository and loopback page port) is accepted exactly as the schema writes it and
   recorded nowhere; the link to a service's page is DEV-6674 S2.1 and S2.2.
 - **Vault and recovery.** The vault follows the preset's kind: as in a Team
-  Environment it adds and removes no person until a live answer of who may enter
-  exists (DEV-6631 C4). Recovery withholds no person for it, since none is named.
+  Environment it adds and removes no user until a live answer of who may enter
+  exists (DEV-6631 C4). Recovery withholds no user for it, since none is named.
 - **Open (DEV-6674 S2.4).** Texts chosen by the brokered identity still say Team,
   such as the GitHub note of Nastavení → Nástroje ("Toto Týmové Prostředí pracuje v
   GitHubu přes Lazurio for GitHub …"), and pages whose words follow the shell's kind
@@ -436,7 +437,7 @@ Launchpad shows nothing for it.
 
 `browser` is optional and present only on a Machine whose gateway roster routes the
 Environment browser's view (root decision 0191, [F38](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway)):
-the view's origin and the loopback port the people's view service listens on (F39).
+the view's origin and the loopback port the users' view service listens on (F39).
 It is also the
 signal the installer converges the browser's units on, and Computer Use on the same
 screen ([F59](decisions.md#f59--computer-use-on-a-remote-environment-the-cua-drivers-daemon-on-the-screen-one-mcp-server-computer-for-every-agent)). Absent, the Environment has no
@@ -460,9 +461,9 @@ for it. Machines writes it only for a pinned Platform at least its
 this Machine has no relay and the Launchpad asks no Dashboard.
 
 `sign_out` is optional and present only on a Machine behind the Platform Launchpad,
-whose gateway serves the person's sign-out on the shell's origins (the Launchpad,
+whose gateway serves the user's sign-out on the shell's origins (the Launchpad,
 T3 Code, MausBot; Machines#358): exactly the path `/.lazurio/sign-out`. It ends the
-Environment's gateway session and the person's Lazurio account session in this
+Environment's gateway session and the user's Lazurio account session in this
 browser and lands on the issuer's signed-out page. The Launchpad passes it into the
 shell document as `signOut` ([F36's addendum of
 2026-10-16](decisions.md#f36-addendum-of-2026-10-16-the-persons-sign-out-from-the-account-in-the-rail)),
@@ -589,7 +590,7 @@ Machines writes the member only for a pinned Platform that reads it, as for
 handover that carries it (`tests/vault-handover.test.ts` shows it). Absent, the
 Environment has no vault yet, or, where it was connected the 0197 way, keeps reading
 that collection (`src/vault/legacy-0197/`); a personal Environment then keeps its
-vault in its person's own Bitwarden, which the person connects in Apps → Vault
+vault in its user's own Bitwarden, which the user connects in Apps → Vault
 (root decision 0203 point 7, [F53's amendment of
 2026-10-16](decisions.md#f53-amendment-of-2026-10-16-a-personal-environments-own-bitwarden)). The member is not part of the Machine's
 identity and is not recorded in the Folder's binding: the vault reads the live
@@ -609,7 +610,7 @@ binary and never from the network. The owner overlay of both hosted lanes
 (`cs` | `en`) verbatim as `--locale` when the overlay declares it; absent, no flag is
 passed and the preset default applies. The field is accepted only when a Platform
 artifact is pinned. The role does not pass `--verify-release`: that is the downloaded
-way in of a person's computer and needs Sigstore's trust root from the network
+way in of a user's computer and needs Sigstore's trust root from the network
 ([first installation](update.md#first-installation)); here the pin is the authority,
 exactly as before. On an existing installation the same command is the
 [offline update](update.md#offline-update): a newer pinned binary is staged,
@@ -619,7 +620,7 @@ nothing, and a pin lower than the active version or the high-water mark is refus
 (`release-invalid`, `below-floor`) — which the role records as a finding, never
 retries with force. Also a **finding, not a failure**: `blocked folder-binding-changed`
 on a Folder adopted before the identity-based comparison. The role never runs
-`lazurio update`: that is the operator's command (below). After writing the handover
+`lazurio update`: that is the user's command (below). After writing the handover
 on a Machine whose Folder exists (and after `updated`), the role runs
 `lazurio machine folder-refresh` (added after v0.1.2; the role needs a pinned release
 that has it) so the Folder follows the current handover: exit 0 `refreshed` or
@@ -628,7 +629,7 @@ that has it) so the Folder follows the current handover: exit 0 `refreshed` or
 
 ### What the Machines role does with the Lazurio version (F17 addendum 2026-09-28)
 
-The operator owns the version of Lazurio on their Machine and updates it with
+The user owns the version of Lazurio on their Machine and updates it with
 `lazurio update`; the pin in the owner overlay is a **minimum**
 ([F17 addendum 2026-09-28](decisions.md#f17--operator-tools-belong-to-the-operator-the-rollout-pins-the-baseline-and-repairs)).
 This is the contract for the Machines role; this repository does not change Machines.
@@ -638,17 +639,17 @@ Every step below uses only what the product already answers.
 | --- | --- |
 | No installation (`<base>/bin/lazurio` absent and no `update/high-water`) | Install the pinned release: `<staged>/lazurio install --base <base> --json`, result `installed` |
 | Broken installation: the selector `<base>/bin/lazurio` is missing or not a link of its shape, while `update/high-water` survives | Repair with the pinned release when it is at or above the mark (`install` self-checks it and switches); a pin **below** the mark is refused `below-floor` and is a finding: that Machine is repaired only by a release at or above the mark (question Q5 of the distribution shaping) |
-| Selector present but dangling, or its executable damaged (`<base>/bin/lazurio --version --json` fails) | Not repaired by `install` of the same version today: it answers `installed` and changes nothing; a lower pin is refused, and only a higher one moves it, as in the next row. A finding for a person; an open gap of the product, not something the role works around |
+| Selector present but dangling, or its executable damaged (`<base>/bin/lazurio --version --json` fails) | Not repaired by `install` of the same version today: it answers `installed` and changes nothing; a lower pin is refused, and only a higher one moves it, as in the next row. A finding for a user; an open gap of the product, not something the role works around |
 | Working installation below the pin (`update status --json`: `active` lower than the pinned version) | Raise it: the same `install --base` is the offline update, result `updated` |
 | Working installation at or above the pin | Nothing. `install --base` with a lower pin answers `release-invalid` / `below-floor`, which the role records as the fact `ahead`, never a failure, retry or force |
-| Any case | Never lower a version; never run `lazurio update` (the operator's command) |
+| Any case | Never lower a version; never run `lazurio update` (the user's command) |
 | `install` over a supervised installation answers `activation-unhealthy` | A Recovery-mode finding for the readback, never a retry: the new version stays active, nothing was undone, and the repair is forward (a fixed release, or the condition the Launchpad's Recovery mode names) |
 | After `installed` or `updated` | Run `lazurio machine folder-refresh` as today (above) |
-| PATH entry | Verify, do not create: `install --json` returns `entry`. `state` `created`, `present` or `replaced` is correct; `conflict` or `failed` is a finding with `entry.next` in the readback, and the role never replaces the occupant. A Machine without the entry is repaired by the next `install`, not by a link the role writes itself. The operator's login shell has `~/.local/bin` on PATH (`workspace_tools` already provides it for npm); `entry.shadowedBy` not `null` is a finding |
+| PATH entry | Verify, do not create: `install --json` returns `entry`. `state` `created`, `present` or `replaced` is correct; `conflict` or `failed` is a finding with `entry.next` in the readback, and the role never replaces the occupant. A Machine without the entry is repaired by the next `install`, not by a link the role writes itself. The operator account's login shell has `~/.local/bin` on PATH (`workspace_tools` already provides it for npm); `entry.shadowedBy` not `null` is a finding |
 | Readback | `lazurio update status --json`: `active`, `highWater`, `lastCheck` and `folderRefresh` are facts to report; an active version above the pin is not drift |
 
 The role keeps its custody-staged, digest-pinned bytes and its attestation check for
-installing and raising. The operator's own `lazurio update` verifies inside the product
+installing and raising. The user's own `lazurio update` verifies inside the product
 (F13). The meaning of the overlay fields changes, not their shape.
 
 ### What the Machines role must stop expecting (no program rollback, 2026-09-28)
@@ -670,7 +671,7 @@ From the first release without rollback (the change of 2026-09-28 in
   error, exit 2), and no executable of an earlier version may be copied or
   selected by hand. "Its owner rolled back" is no longer a reason for `ahead`:
   after such a release the active version equals the floor unless the selector is
-  damaged, so `ahead` means only that the operator updated beyond the pin.
+  damaged, so `ahead` means only that the user updated beyond the pin.
 - **The update TO the first release without rollback is still performed by the
   old updater** (the installed `v0.1.x`): it records `previous` and may switch back
   if the new release's Launchpad is unhealthy. The first `install` or `update` the
@@ -679,14 +680,14 @@ From the first release without rollback (the change of 2026-09-28 in
 ### The Codex app-server unit (F29)
 
 A supervised Launchpad on a hosted Machine has a second installer unit,
-`lazurio-codex-app-server.service`, which runs the operator's own
+`lazurio-codex-app-server.service`, which runs the user's own
 `~/.local/bin/codex app-server daemon start` at boot so a Codex client connecting over
 SSH (the Codex app, for example) finds the daemon ([product update](update.md#state-on-disk),
 [F29](decisions.md#f29--entry-units-of-a-remote-environment-the-launchpad-t3-code-and-the-operators-codex-app-server)).
 The Platform converges it itself: the switch's `install --service systemd-user` (C.2
 step 6 of [Launchpad parity](launchpad-parity.md#c2-the-apply-in-order)) writes it, and
 so does every later `install --base <base> --json` **without** `--service` that raises
-the pin, and every `lazurio update` of the operator, whenever the base's Launchpad unit
+the pin, and every `lazurio update` of the user, whenever the base's Launchpad unit
 is the installer's unit of that base. So Machines switched before this release get it
 from their next apply; the role adds no step and keeps passing `--service` only at the
 switch. `serviceInstalled` still says only whether `--service` was given, so the
@@ -700,8 +701,8 @@ unchanged), a failing `enable` or `start` — the result is still `installed` or
 `skipped-not-hosted`, `foreign-unit` with `next`, `failed` with `step` and `next`); an
 unsupervised base is left alone and has no such key. The role records `foreign-unit` and `failed` as findings, never
 retries with force and never writes, masks, restarts or stops the unit itself: a
-restart ends the operator's live Codex sessions. Codex stays the operator's
-([environment tools](environment-tools.md#operator-tools-are-the-operators-decision-0161-f17));
+restart ends the user's live Codex sessions. Codex stays the user's
+([environment tools](environment-tools.md#user-tools-belong-to-the-user-decision-0161-f17));
 the role never installs or updates it for this unit. The readback lists both units
 (`systemctl --user is-enabled` / `is-active` of each) and reads `lazurio doctor --json`,
 where `codex-app-server` is `ok`, `warn` or `skipped` and never `fail`, so it never
@@ -722,10 +723,10 @@ version/kind and retained directory identities; precreated work directories are
 not mistaken for out-of-order output. It never replaces/moves those directories
 and preserves work subsequently added inside them. A missing/replaced directory,
 edited output, damaged journal, partial write without a receipt or abandoned lock
-requires operator diagnosis. No automatic cleanup or universal recovery is
+requires a user's diagnosis. No automatic cleanup or universal recovery is
 promised. Recreating a disposable VM requires separate infrastructure approval.
 
-Product update follows the [product update contract](update.md): the operator runs
+Product update follows the [product update contract](update.md): the user runs
 `lazurio update`; the Machines role installs, repairs and raises to its pin (above).
 Folder handover does not change that rule.
 The local filesystem boundary assumes no hostile concurrent same-user/root
@@ -748,7 +749,7 @@ module template whose first label is not the whole `{module}`, a changed entry
 recorded by the refresh, and the gateway's label of a module id: normalized,
 reserved and empty), the #277 `automation` assignment (a synthetic Automated
 Environment handover read as written, its refusals, its projection and round-trip
-through the binding, the responsible operator withheld from recovery evidence),
+through the binding, the responsible user withheld from recovery evidence),
 preset derivation from the assignment and the narrowing of new choices to it
 (`folder-init --preset`, the profile change, the Launchpad offer, the refresh after a
 re-assignment, a recorded preset kept valid), that a v0.12.59-shaped

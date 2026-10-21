@@ -709,8 +709,8 @@ const threads: BuddySkill = {
     ),
     t("2. Rozděl je podle stavu:", "2. Sort them by state:"),
     t(
-      "   - `waiting`: čeká na člověka. Otázku nebo schválení ukáže `t3 request list`.",
-      "   - `waiting`: waits for a person. `t3 request list` shows the question or approval.",
+      "   - `waiting`: čeká na uživatele. Otázku nebo schválení ukáže `t3 request list`.",
+      "   - `waiting`: waits for the user. `t3 request list` shows the question or approval.",
     ),
     t(
       "   - `completed` a nevyřízené: hotová práce, často s handoffem a otázkou na Publikaci. Přečti poslední zprávy.",

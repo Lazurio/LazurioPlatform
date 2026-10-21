@@ -143,8 +143,8 @@ private failure evidence and removes only that run's own resources.
 **Integrated personal acceptance:** selected worktree changes are integrated at one
 reviewed source ref and built through the same packaging path as CI. Run the combined
 candidate tests before activation; no worktree build independently replaces daily
-Lazurio. The Operator deliberately activates that exact candidate for the whole
-single-person Machine: ordinary CLI launches and Launchpad use it with the selected
+Lazurio. The user deliberately activates that exact candidate for the whole
+single-user Machine: ordinary CLI launches and Launchpad use it with the selected
 real Lazurio Environment and real Organizations. This is stronger than a temporary shell PATH override.
 If the current Lazurio Folder needs migration, the migration rehearsal and separately authorized
 apply must finish first. Design agreement here is not an instruction to act on a host.
@@ -244,16 +244,16 @@ exactly the bytes and the commit of the candidate's published manifest.
 first rollout ring of every release (root decision 0204 point 7,
 [HumanAndMachines/Lazurio `manual/decision-register.md`](https://github.com/HumanAndMachines/Lazurio/blob/main/manual/decision-register.md),
 row 0204). The qualified candidate is rolled by its exact tag to every one of its
-Environments, the stage's work VMs, and to at least one personal VM of an operator.
+Environments, the stage's work VMs, and to at least one personal VM of a user.
 That personal VM lies outside the Organization, which has none. Each is rolled
 through the path that pins its release (Machines' Plan, Permit and apply; outside
 this repository).
 
 - **No consent or window** in that Organization: rollouts, restarts, reinstalls and
-  redeploys there, candidates included, need neither the consent of the people who
-  use its Environments nor a window. The Agent runs them as part of the release, on
-  the instruction of its Operator, who holds the live Admin role there.
-- **What stays:** the Operator's instruction, source review, the Machines lifecycle
+  redeploys there, candidates included, need neither the consent of the users of
+  its Environments nor a window. The Agent runs them as part of the release, on
+  the instruction of its user, who holds the live Admin role there.
+- **What stays:** the user's instruction, source review, the Machines lifecycle
   gates, release approval, no secrets in Git, the personal VM Owner's consent and
   every other Organization's own consent.
 - **The next ring** (G.5) starts only after browser acceptance on that

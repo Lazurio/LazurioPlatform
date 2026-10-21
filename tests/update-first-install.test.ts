@@ -367,7 +367,7 @@ test("install prompt reads the installation, writes nothing and names every devi
   expect(text).toContain(
     `Another program named lazurio resolves first on PATH: ${join(legacy, "lazurio")}`,
   );
-  expect(text).toContain("Only on the operator's explicit instruction");
+  expect(text).toContain("Only on the user's explicit instruction");
   const czech = (await prompt({ PATH: legacy }, "--locale", "cs")).stdout;
   expect(czech).toStartWith("Úkol: srovnej instalaci Lazuria");
 

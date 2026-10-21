@@ -306,14 +306,14 @@ export async function ensurePathEntry(
   if (state === "conflict")
     next.push(
       occupant?.kind === "parent"
-        ? `${occupant.target} is not a plain directory, so ${path} was not written. Run Lazurio as ${target}. Put ${dirname(target)} on your PATH, or make ${occupant.target} a plain directory on the operator's instruction and run \`lazurio install\` again.`
+        ? `${occupant.target} is not a plain directory, so ${path} was not written. Run Lazurio as ${target}. Put ${dirname(target)} on your PATH, or make ${occupant.target} a plain directory on the user's instruction and run \`lazurio install\` again.`
         : `${path} is ${
             occupant?.kind === "link"
               ? `a link to ${occupant.target}`
               : occupant?.kind === "file"
                 ? "a regular file"
                 : "not a file or a link"
-          } that is not Lazurio's; it was left unchanged. Until it is resolved, run Lazurio as ${target}. Move that entry aside only on the operator's instruction, then run \`lazurio install\` again.`,
+          } that is not Lazurio's; it was left unchanged. Until it is resolved, run Lazurio as ${target}. Move that entry aside only on the user's instruction, then run \`lazurio install\` again.`,
     );
   if (state === "failed")
     next.push(
@@ -325,7 +325,7 @@ export async function ensurePathEntry(
     );
   if (shadowedBy !== null)
     next.push(
-      `Another program named lazurio resolves first on PATH: ${shadowedBy}. This installation is ${linked ? path : target}. Nothing was changed about ${shadowedBy}; remove it or put ${directory} before its directory on PATH only on the operator's instruction.`,
+      `Another program named lazurio resolves first on PATH: ${shadowedBy}. This installation is ${linked ? path : target}. Nothing was changed about ${shadowedBy}; remove it or put ${directory} before its directory on PATH only on the user's instruction.`,
     );
   return Object.freeze({
     path,

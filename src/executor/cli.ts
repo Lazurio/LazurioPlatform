@@ -38,7 +38,7 @@ executor setup [--json]
   Lazurio's is reported and left as it is. Running chats keep their tools;
   new chats see executor. Remote Environments on Linux only; on this
   computer it is the second wave. Exit status: 0 running, 2 waiting for a
-  person (not available here, a conflict), 1 not finished.`;
+  user (not available here, a conflict), 1 not finished.`;
 
 export type ExecutorCliContext = CliContext &
   Readonly<{
@@ -57,7 +57,7 @@ const reasons: Readonly<Record<ExecutorUnsupportedReason, string>> = {
 
 const agentWord: Readonly<Record<AgentRegistration, string>> = {
   registered: "connected",
-  disabled: "switched off by the operator",
+  disabled: "switched off by the user",
   missing: "not connected yet",
   conflict: "has another MCP server named executor",
   absent: "not installed",

@@ -56,7 +56,7 @@ export const moduleHelp = `module start <Organization>/<module> [--app <package>
   the Launchpad restarts, ends with a reboot, and its output goes to the
   journal. Elsewhere apps are children of the Launchpad session and are
   started from the Launchpad (launchpad-required). The toolchain is the
-  operator's Bun at ${standardBun} (toolchain-missing otherwise; see lazurio
+  user's Bun at ${standardBun} (toolchain-missing otherwise; see lazurio
   tools status). Every slot the app requires (lazurio.runtime
   required_module_slots) must be declared by the Organization, active and
   checked out beside it, or nothing is installed or started

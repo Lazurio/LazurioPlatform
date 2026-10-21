@@ -5,7 +5,7 @@ Decision: [F32's addendum of 2026-10-16](decisions.md), root decision 0206, and 
 auxiliary module tiles), #446 (the first proposal, Work / Administration per
 browser, whose tabs pattern and tests this builds on).
 
-## What a person sees
+## What a user sees
 
 Apps keeps two sections, Workspace and Productionspace. When the Organization
 has arranged its Workspace, its tabs stand at the right end of the Workspace
@@ -47,7 +47,7 @@ arrangement.
 
 ### Options compared
 
-| | Org root setting (selected) | Slot field in `modules.manifest.json` | Dashboard database | Per person in the browser (#446) |
+| | Org root setting (selected) | Slot field in `modules.manifest.json` | Dashboard database | Per user in the browser (#446) |
 | --- | --- | --- | --- | --- |
 | Same for every member | yes | yes | yes | no |
 | One truth, versioned and reviewable | yes, Git | yes, Git | no (0194 rejects it) | no |

@@ -424,7 +424,7 @@ test.skipIf(!posix || uid === 0)(
         reason: "connection-unreadable",
       } as Answer);
       expect(record.text).toStartWith(
-        "Not available: the record of the Bitwarden this personal Environment's person connected cannot be read;",
+        "Not available: the record of the Bitwarden this personal Environment's user connected cannot be read;",
       );
       for (const answered of [unreadable, record]) {
         // Neither answer says there is no vault, and neither hands out a

@@ -35,7 +35,7 @@ the source as a substitute for the installed product.
 Use the [default agent voice](docs/agent-voice.md) for all authored communication:
 lead with the point, explain the relevant context in ordinary language and give
 a concrete next step. Adapt to the reader and artifact. Agent instructions use
-the Czech singular; human-facing Czech defaults to formal address. Keep the same
+the Czech singular; user-facing Czech defaults to formal address. Keep the same
 voice and meaning in both locales. The Environment chooses one active variant
 through its profile locale. Preferences own custom text; the Folder transaction
 generates the full active voice near the beginning of AGENTS.md. Keep the
@@ -47,10 +47,10 @@ them rather than copying them into the product. See `docs/folder-context-routing
 
 Work on a review branch in an owner-scoped worktree, preserve all unrelated work,
 commit only scoped changes, open a PR and report exact validation. Primary `main`
-is a reference checkout. Publication requires the Operator's explicit instruction
+is a reference checkout. Publication requires the user's explicit instruction
 and live provider rights. A generated profile never grants permission.
 
-Never read or copy another person's Personalspace. Organization data, credentials,
+Never read or copy another user's Personalspace. Organization data, credentials,
 deployment inventory and planning ledgers do not belong in this product repository.
 Do not import legacy source wholesale: preserve license and provenance for every
 deliberately reused component, and port only behavior justified by a consumer.
@@ -70,7 +70,7 @@ First transition acceptance requires official installation and real CLI/Launchpa
 macOS, Windows and Linux plus actual Codex and Claude Code instruction/skill use.
 Do not equate compilation, prompt text or the preview proof with that acceptance.
 Three parallel worktree tests isolate artifacts, process PATH, fixtures, ports and
-state. They never activate the Operator's daily installation. Whole-Machine candidate
+state. They never activate the user's daily installation. Whole-Machine candidate
 activation is a separate explicit action after integration and recovery qualification;
 this design is not permission to perform it now.
 

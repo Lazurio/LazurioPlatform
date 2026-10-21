@@ -31,8 +31,8 @@ base or the Folder. When something is broken it prints
 
 **Filing is not this command's act.** It is the repair agent's, under the standing
 mandate for issues (root decision 0163): after a duplicate search, with a body that
-passed the gate below, and shown to the operator in the chat. Closing and
-prioritizing stay with the Operator.
+passed the gate below, and shown to the user in the chat. Closing and
+prioritizing stay with the user.
 
 **Exit status:** `0` healthy or nothing installed, `3` broken, `2` usage, `1` the
 command itself failed (no reason printed: it could quote a private path). `3` is new
@@ -147,7 +147,7 @@ The sanitizer and the gate below hold for both tiers.
 The sanitizer (`src/recover/sanitize.ts`) sits **beside** `src/tools/redact.ts` and
 reuses its credential shapes and its plain-text rule, which now have one exported
 home there. It does not change redact.ts's behaviour: redact.ts decides what of a
-tool's output a person on this Machine may see and withholds every long run; a
+tool's output a user on this Machine may see and withholds every long run; a
 public issue needs known identifiers replaced and must keep the commits and digests
 the product prints. Loosening redact.ts for that would loosen the tools screen too.
 
@@ -204,7 +204,7 @@ only. A link longer than 8000 characters carries the title only too.
 
 Known limits, stated rather than hidden:
 
-- A person's GitHub login is known only from the Machine binding or the handover. On a
+- A user's GitHub login is known only from the Machine binding or the handover. On a
   workstation it is not read from `gh` (that would be a sign-in probe and possibly
   network); where it equals the account name it is covered by that.
 - Values shorter than two characters and `localhost` are not treated as private.
@@ -225,7 +225,7 @@ The Launchpad shows the same result in two places, read-only:
   completely (`asset-missing`, or its bundle fails the same check a normal start
   makes), every page path answers the check and the reason as plain text instead.
 - **In normal mode** it is Settings → Recovery (`/settings/recovery`), in the T3 Code
-  settings pattern of the other sections, so operators can find it. On a healthy
+  settings pattern of the other sections, so users can find it. On a healthy
   installation it shows the checks and says so. It runs only when the section is
   opened and on "Check again", because the check runs the active executable's
   self-check.
@@ -238,13 +238,13 @@ What the page shows:
 2. The verdict and every check with its outcome, code or skip reason and context.
 3. When broken: the prompt for a repair agent with **Copy the prompt** (on a hosted
    Machine it goes into a new chat in T3 Code, on a workstation into the agent app
-   the operator uses; decided 2026-09-28, Q3 of the shaping) and, on a hosted Machine,
+   the user uses; decided 2026-09-28, Q3 of the shaping) and, on a hosted Machine,
    **Open T3 Code**, the recorded entry's T3 Code origin in a new tab, the prepared issue
    (title, body preview, **Copy the gh command**, which copies `issue.shell`, and the
    prefilled `issues/new` link opening in a new tab) or, when the gate refused the
    body, only the kinds of what survived, the tier-1 evidence exactly as the issue
    carries it, and the sentence that nothing was filed.
-4. The journal tail (tier 2) never appears unless the operator presses **Show journal
+4. The journal tail (tier 2) never appears unless the user presses **Show journal
    (stays on this Machine)**; it is not in the page until then.
 
 `GET /api/recovery` returns exactly the object `lazurio recover --json --folder
@@ -266,7 +266,7 @@ fragment token, and `/api/recovery` requires it (and this listener's own Host), 
 every read of the normal page does; the plain-text reason and the typed refusals of
 the other routes carry only enumerated ids and need none.
 
-Filing stays the repair agent's act (root decision 0163); the page gives the operator
+Filing stays the repair agent's act (root decision 0163); the page gives the user
 the same prompt and body the agent would use, and Q2 (an issue on every entry into
 Recovery mode) is met by the agent's step 7, not by the page.
 

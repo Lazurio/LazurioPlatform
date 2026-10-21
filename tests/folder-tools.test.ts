@@ -735,7 +735,7 @@ test("a profile change and a handover refresh carry the enabled tools forward", 
 });
 
 test("a Folder rendered by an older template revision is upgraded by a tools change", async () => {
-  expect(instructionTemplateRevision).toBe("base-instructions-63");
+  expect(instructionTemplateRevision).toBe("base-instructions-64");
   const { preferences, manifest } = await planned();
   const older = {
     ...manifest,
@@ -758,7 +758,7 @@ test("a Folder rendered by an older template revision is upgraded by a tools cha
       recorded,
     );
     if (upgrade.kind !== "profile-change") throw new Error("Expected upgrade");
-    expect(upgrade.manifest.templateRevision).toBe("base-instructions-63");
+    expect(upgrade.manifest.templateRevision).toBe("base-instructions-64");
     expect(upgrade.previous).toEqual(older.outputs);
     expect(enabledTools(upgrade.preferences)).toEqual(tools);
     expect(upgrade.files).toEqual(
@@ -1377,7 +1377,9 @@ test("AGENTS.md marks a noted tool and the manual quotes the note with its meani
       expect(renderInstructions(source)).toBe(plain.instructions);
       expect(renderManual(source)["manual/this-machine.md"]).toBe(plain.manual);
       expect(plain.manual).not.toContain(
-        locale === "cs" ? "Poznámka operátora" : "Note from the operator",
+        locale === "cs"
+          ? "Poznámka uživatele tohohle Environmentu"
+          : "Note from the user of this Environment",
       );
 
       const noted = render(locale, { composio: note, gh: forged });

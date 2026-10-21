@@ -57,7 +57,7 @@ github pilot enable --client-id <Iv…> [--json]
   comes from the handover. Changes nothing for gh or Git yet.
 github sign-in [--json]
   Approve a device code in your own browser as this Environment's assigned
-  Operator. The token reaches the intersection of your GitHub rights and
+  user. The token reaches the intersection of your GitHub rights and
   the App's installations and permissions, across Organizations. It is not
   limited to the owning Organization. Anyone sharing the full Environment
   can use that access. No PAT or client secret is needed. Ctrl-C cancels.
@@ -74,7 +74,7 @@ github pilot disable [--json]
 github gh <gh arguments>
   Runs official gh with the shared App's user token in its child environment.
 github credential get|store|erase
-  Git's credential helper (Git runs it; not for people).
+  Git's credential helper (Git runs it; not for users).
 Exit status: 0 done or unchanged, 2 blocked or usage, 1 failure.`;
 
 export const sharedReach =
@@ -119,7 +119,7 @@ const refusalText: Readonly<Record<EnvironmentRefusal["reason"], string>> = {
   "environment-unreadable":
     "The kind of this Environment could not be read, so nothing was changed.",
   "subject-unknown":
-    "This Environment's handover names no assigned operator (owner.assignment), so no sign-in could be checked against the right person. Refresh the Environment's handover (lazurio machine folder-refresh) or ask its Admin.",
+    "This Environment's handover names no assigned user (owner.assignment), so no sign-in could be checked against the right user. Refresh the Environment's handover (lazurio machine folder-refresh) or ask its Admin.",
 };
 
 const wireText: Readonly<Record<WireRefusal, string>> = {

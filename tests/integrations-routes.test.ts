@@ -2517,7 +2517,7 @@ test("`lazurio integrations list --json` answers what the route answers", async 
   // Its only account's sign-in expired: not connected, but the agent sees
   // that the person has to sign in again.
   expect(text.stdout).toContain(
-    "Not working (the person signs in again on the card):\n  Notion (notion) — directly (Executor) · expired",
+    "Not working (the user signs in again on the card):\n  Notion (notion) — directly (Executor) · expired",
   );
   expect(text.stdout).toContain("GitHub (github) — through gh");
   // An app the catalog does not know, by its name and its toolkit, and
@@ -2525,14 +2525,14 @@ test("`lazurio integrations list --json` answers what the route answers", async 
   // 2026-10-14).
   expect(text.stdout).toContain("  Wispr Flow (wispr_flow) — through Composio");
   expect(text.stdout).toContain(
-    "An app the catalog does not list is connected by the person in Composio (https://dashboard.composio.dev/First/~/connect/apps); it then shows here.",
+    "An app the catalog does not list is connected by the user in Composio (https://dashboard.composio.dev/First/~/connect/apps); it then shows here.",
   );
   // Composio's own CLI, not the build Lazurio pins: the person updates it;
   // an agent only on their instruction (decision F42, addendum (b) of
   // 2026-10-14).
   expect(value.composio.update).toBe(true);
   expect(text.stdout).toContain(
-    "Composio should be updated: the person does it in the Launchpad under Settings → Tools (Update); until then accounts cannot be disconnected from here and some have no name. Do not update it yourself unless the person asks you to.",
+    "Composio should be updated: the user does it in the Launchpad under Settings → Tools (Update); until then accounts cannot be disconnected from here and some have no name. Do not update it yourself unless they ask you to.",
   );
   // A wrong invocation is a usage error.
   expect(

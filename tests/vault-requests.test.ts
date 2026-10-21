@@ -252,7 +252,7 @@ test.skipIf(!posix)(
       // Its page in Apps → Trezor (F54 as amended on 2026-10-18).
       expect(match?.[2]).toBe(`${origin}/vault/requests/${id}`);
       expect(next).toBe(
-        `Give the person this link and go on with other work; lazurio vault request status ${id} says when it is answered.`,
+        `Give the user this link and go on with other work; lazurio vault request status ${id} says when it is answered.`,
       );
 
       const json = await w.cli([...invoicing, "--json"]);
@@ -301,7 +301,7 @@ test.skipIf(!posix)(
 
       expect(await w.cli(["request", "status", id])).toEqual({
         code: 0,
-        stdout: `Pending: request ${id} waits for a person: ${origin}/vault/requests/${id}`,
+        stdout: `Pending: request ${id} waits for a user: ${origin}/vault/requests/${id}`,
       });
       expect(
         JSON.parse(
@@ -312,7 +312,7 @@ test.skipIf(!posix)(
       // Without a recorded entry the page is named, not linked.
       w.noOrigin();
       expect((await w.cli(["request", "status", id])).stdout).toBe(
-        `Pending: request ${id} waits for a person: Apps → Trezor in this Environment's Launchpad (/vault/requests/${id})`,
+        `Pending: request ${id} waits for a user: Apps → Trezor in this Environment's Launchpad (/vault/requests/${id})`,
       );
       expect(
         JSON.parse(
@@ -704,7 +704,7 @@ test.skipIf(!posix)(
       expect(await w.vault.calls()).not.toContain("create item");
       expect(await w.cli(["request", "status", id])).toEqual({
         code: 0,
-        stdout: `Declined: the person declined request ${id}; nothing was saved.`,
+        stdout: `Declined: the user declined request ${id}; nothing was saved.`,
       });
       expect(
         await page.post(`/api/vault/requests/${id}/save`, {

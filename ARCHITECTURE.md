@@ -13,7 +13,7 @@ section below says so where it applies.
 
 ## Outcome and invariants
 
-Provide a stable, maintainable product for hundreds of people building their own
+Provide a stable, maintainable product for hundreds of users building their own
 Organizations, on local or hosted environments, including Buddy and AI Colleagues.
 Removing architectural debt is the purpose; converting JavaScript syntax alone is
 insufficient. **Lazurio Platform** is the chosen public source-available product and
@@ -28,18 +28,18 @@ private data and credentials remain in their existing custody boundaries.
 2. Lazurio Folder Factory plans, generates and reconciles only enumerated Lazurio-owned
    instructions/configuration in a non-Git Lazurio Folder.
    Organization repos, Personalspace, Git state and runtime data are never generator inputs to overwrite.
-3. Every operation identifies the actual Operator, Machine Owner and higher host or hosting operator boundary.
+3. Every operation identifies the actual user, Machine Owner and higher host or hosting operator boundary.
    Owner-local work uses the existing Machine/filesystem boundary; GitHub remains
    access authority for connected provider operations. Text, local paths and profile
    labels cannot grant provider access (proposed binding distinction in decision F6).
    On a team workspace provider operations are attributed to the Team through the
-   brokered identity; a connected person is never presented as a named Operator
+   brokered identity; a connected user is never presented as a named individual
    without an actual identity proof.
 4. CLI and UI invoke the same use cases, validation and errors. Each persistent fact has one owner.
 5. A failed operation preserves the last known usable generation or stops with recoverable evidence.
    Unknown state is a refusal to mutate, not permission to rebuild.
 6. The legacy source-working directory is an explicitly transitional path with a
-   retirement gate. A hosted workspace is either private (one person) or a team
+   retirement gate. A hosted workspace is either private (one user) or a team
    workspace (Organization-owned, brokered identity); both are first-class. What
    retires is ad-hoc sharing of a personal environment, not the team workspace.
 7. "Update Lazurio" (product bytes) and "Synchronize content" (Organization
@@ -77,7 +77,7 @@ until their Platform replacement is qualified; current rollouts do not wait for 
 
 This boundary is accepted in [canonical decision 0144](https://github.com/HumanAndMachines/Lazurio/blob/main/manual/decision-register.md).
 Machines delivers the Machine online with its handover identity and selected installed
-Platform release. The local `lazurio` CLI and operator own Environment setup and
+Platform release. The local `lazurio` CLI and the user own Environment setup and
 updates afterwards; Machines is not a second Organization/module reconciler.
 The current increment is **foundation + Folder handover pilot, not Environment
 installation**. Machines must not remove its resident layer on that basis.
@@ -88,7 +88,7 @@ experimental preview until consumer/rollout qualification. The existing Core sch
 is already authoritative; see [contract convergence](docs/organization-contract.md)
 and [module adoption](docs/module-adoption.md).
 The [tool and sign-in proposal](docs/environment-tools.md) separates explicit local
-preparation from operator-owned provider authentication; it does not claim either is implemented.
+preparation from user-owned provider authentication; it does not claim either is implemented.
 
 The nearest controlled pilot is one private canary VM, delivered by Machines, through
 a real GitHub Release, with one agreed preset/Organization/module, a real agent
@@ -112,7 +112,7 @@ are a historical record.
 | Lazurio Folder | Supported source checkout also acts as the working directory | Installed product outside a thin generated non-Git Lazurio Folder |
 | Distribution | Legacy npm gate explicitly expects package-only Launchpad unavailable | Full CLI and Launchpad work from installed artifacts, with source absent |
 | Runtime | Existing CLI/core boundaries and extensive preservation fixtures are useful evidence | Port proven invariants into small owner-focused TypeScript modules |
-| Hosted work | Shared Hosted Team Workspace is current documented model | Two first-class kinds: a private workspace for one person and an Organization-owned team workspace with a brokered identity; higher provider boundary stated for both |
+| Hosted work | Shared Hosted Team Workspace is current documented model | Two first-class kinds: a private workspace for one user and an Organization-owned team workspace with a brokered identity; higher provider boundary stated for both |
 | Profile | Existing resident build profiles and locale contracts; no complete profile switch capability | Versioned preferences regenerate only owned output through one core use case |
 | Dependency repair | Current decision 0133 rebuilds derived dependencies from the lockfile | Preserve that distinction: dependencies are rebuildable; user work is not |
 
@@ -224,14 +224,14 @@ No owner gets a competing recovery lock. Acquiring
 exclusion never clears a pending transaction. Unknown/legacy lock protocols remain
 refused; see the [lock and recovery contract](docs/migration-and-recovery.md).
 
-### The Operator's files
+### The user's files
 
 The Launchpad's Files page ([decision F35](docs/decisions.md#f35--files-the-operators-documents-through-the-launchpad))
 serves exactly the Documents folder of the account the Launchpad runs as,
 `<home>/Documents`, behind the admission every route already has: the gateway session on
-a Remote Environment, the session token locally. The folder is the Operator's own data,
+a Remote Environment, the session token locally. The folder is the user's own data,
 owned neither by the Folder nor by an Organization; the product writes there only what the
-Operator uploads, never replacing a file. One set of path rules in the shared core and one
+user uploads, never replacing a file. One set of path rules in the shared core and one
 Documents adapter serve the routes and `lazurio files link`, which prints the link agents
 hand over. Nothing about it grants access or creates a public link.
 
@@ -254,7 +254,7 @@ Equivalent selections and conditions must produce equivalent outcomes through CL
 and Launchpad, including understandable failures. Installer exit zero, a live process
 or HTTP 200 alone does not establish that this journey works. Opening the application
 must target the selected running instance; on a remote Machine, the access route must
-be qualified rather than assuming that the operator's browser runs on the server.
+be qualified rather than assuming that the user's browser runs on the server.
 
 ### Module-owned dependencies, Platform-owned coordination
 
@@ -414,7 +414,7 @@ or promise every possible combination. It does not grant access to private Perso
 | Axis | Meaning | Does not mean |
 | --- | --- | --- |
 | Platform | Detected OS, architecture, supported ABI and capabilities | Linux is Buddy; Windows is nontechnical |
-| Purpose | Human work, Buddy acting for a human, or AI Colleague seat | Organization role or permission |
+| Purpose | Human work, Buddy acting for a user, or AI Colleague seat | Organization role or permission |
 | Expertise | Domain methods and task competence, e.g. senior marketing specialist | Proven quality from a senior label |
 | Collaboration / proactivity | Responsive drafts or proactive coordination within mandate | A persistent runtime, automatic access, merge or release authority |
 | Explanation detail | Concise outcome versus implementation detail | Different approval authority |
@@ -427,18 +427,18 @@ verified. They are not Machine kinds or independent distributions.
 
 A hosted human environment is one of two first-class kinds (decision F2, upstream
 decisions 0147–0149). A **private hosted workspace** is dedicated to one named
-person, who signs in with their own provider identity; it may be owned by an
-Organization and then does not mount that human's private Personalspace. A **team
+user, who signs in with their own provider identity; it may be owned by an
+Organization and then does not mount that user's private Personalspace. A **team
 hosted workspace** is an Organization-owned Machine with one OS account to which
-several people connect: it holds no personal credentials and no Personalspace, its
+several users connect: it holds no personal credentials and no Personalspace, its
 provider identity is the brokered platform App identity, its changes go through pull
 requests, and attribution and revocation run through that brokered identity. A
 personal environment is never shared ad hoc. The kinds are selected by the four
 hosted [workspace presets](docs/workspace-presets.md): `hosted-personal` (the one
-personal VM of a person), `hosted-organization-personal` (an Organization-owned
-work VM assigned to one Operator), `hosted-organization-team` (an
+personal VM of a user), `hosted-organization-personal` (an Organization-owned
+work VM assigned to one user), `hosted-organization-team` (an
 Organization-owned team VM shared by a Team) and `hosted-organization-steward` (the
-Automated Environment of an Organization persona with one responsible Operator,
+Automated Environment of an Organization persona with one responsible user,
 upstream decision 0169; proposed). `hosted-personal` follows
 `machine.kind`; between the Organization presets the handover's
 `owner.assignment` (Machines v0.12.61, copied from the reviewed owner overlay,
@@ -446,10 +446,10 @@ never inferred) is the only selector, and a handover that carries none is chosen
 explicitly. The earlier names `hosted-private` and `hosted-team` were never
 implemented and have no compatibility path. The presets configure the Environment
 and grant nothing. Buddy
-belongs to its human's private boundary and is not a new Operator. An AI Colleague
+belongs to its user's private boundary and is not another user. An AI Colleague
 has its own seat, identity, dedicated environment and one human custodian; custody
-does not create access to another person's Personalspace. Organization-owned
-work assets remain Organization-owned even when used by one person.
+does not create access to another user's Personalspace. Organization-owned
+work assets remain Organization-owned even when used by one user.
 
 An OS account or container is not sufficient proof of isolation, and the operator
 account named in the Machine identity is an OS execution account, not necessarily a
@@ -465,8 +465,8 @@ scope, decides what to do locally and what to delegate, supplies sufficient boun
 context, follows progress, independently verifies returned artifacts and completes
 the task or names a concrete blocker. Delegation is not completion.
 
-The working profile is defined per Machine, not globally per human identity. One
-person may use a developer/coordinator profile on one Machine and an everyday
+The working profile is defined per Machine, not globally per user. One
+user may use a developer/coordinator profile on one Machine and an everyday
 assistant profile on another. OS does not choose behavior. CLI/UI changes affect
 only the selected local installation; there is no automatic sync, global override
 engine or central Machine registry. Explicit profile import/copy may be considered
@@ -486,12 +486,12 @@ with custom instructions refining defaults. Conflicts with an invariant are surf
 for a decision, never silently resolved by last-write-wins. The generated AGENTS.md
 identifies its input revisions; custom source is the supported authoring surface.
 
-A proposed mandate is not effective authorization. The actual Operator in this
+A proposed mandate is not effective authorization. The actual user in this
 installation must supply explicit scope, consent provenance and revocation within
 live rights. Import cannot transfer the author's consent, credentials or active
 mandate. Mandates can concern a Machine (tools, version activation, owned processes) or
 an exact Organization (campaign, publication, merge). Each requires an authorized
-Operator and its own scope; Machine scope cannot grant Organization rights or the
+user and its own scope; Machine scope cannot grant Organization rights or the
 reverse. An action crossing both boundaries must satisfy both, plus live provider
 rights and higher constraints. Use the existing mandate owner/model, not profile
 metadata as a new IAM. Export
@@ -555,7 +555,7 @@ is rechecked at the operation boundary. A provider outage prevents claims of fre
 rights; safe local inspection may continue under the applicable local boundary.
 Revocation blocks unauthorized provider operations but does not delete local work.
 Wrong identity, stale path or inaccessible repo leads to explanation and a legal
-materialization route, not credential substitution or cloning another person's data.
+materialization route, not credential substitution or cloning another user's data.
 
 ## Profiles, evidence and assistance
 
@@ -587,10 +587,10 @@ Exact packaging and profile acquisition UI remain proposals. A profile transfers
 instructions, not proven competence or identical capabilities across harnesses.
 Codex and Claude Code are the initial supported consumers; others are future extensions.
 
-First work may use the Operator's own files or personal repositories in their own
+First work may use the user's own files or personal repositories in their own
 Personalspace. No Organization or Open Connector is required; external integrations
 are optional through supported tools and the applicable access boundary. Company
-repositories still belong to their Organization; another person's Personalspace
+repositories still belong to their Organization; another user's Personalspace
 is never an onboarding fixture or import source.
 
 ## Technical founder: local preparation before GitHub

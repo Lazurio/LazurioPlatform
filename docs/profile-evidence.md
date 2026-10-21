@@ -2,7 +2,7 @@
 
 Status: accepted requirement to design voluntary minimal measurement from the start;
 proposed contract, no collector/backend or recommendation engine implemented. Its
-consumer is a person comparing profiles for a particular task, model, harness and
+consumer is a user comparing profiles for a particular task, model, harness and
 amount of human oversight. There is no universal best agent score.
 
 ## Separate sources of evidence

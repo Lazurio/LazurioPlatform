@@ -30,7 +30,7 @@ import {
 export const themeHelp = `theme show [--folder <absolute Folder>]
   This Environment's theme (root decision 0208): its id and name, the record's
   revision and when it was set, and the themes it may take. Chat, Apps and
-  Automate take it through the Lazurio shell; a person's own pick of a theme
+  Automate take it through the Lazurio shell; a user's own pick of a theme
   inside T3 Code or MausBot stays theirs. Prints {kind: "theme", theme,
   label, revision, setAt, themes: [{id, label}]}. The Folder is found as for
   lazurio doctor, the record is in this installation's base.
@@ -44,7 +44,7 @@ theme set <${environmentThemeIds.join("|")}> [--expected-revision <n>] [--folder
   theme is fixed, since its visitors share it: set is refused there
   ({kind: "blocked", reason: "public-environment"}, and why on stderr),
   show still answers. Never run T3 Code's own \`t3 theme set\` on a Lazurio
-  Environment: it resets every person's own pick once.
+  Environment: it resets every user's own pick once.
   Exit status: 0 set or unchanged, 2 usage, 1 refused or failed.`;
 
 export type ThemeContext = CliContext &

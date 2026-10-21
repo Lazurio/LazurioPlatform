@@ -460,5 +460,5 @@ test("the agents' texts of the vault name a personal Environment's own Bitwarden
   expect(activation.installation.en).toContain(
     "never ask for that account's credentials or enter them yourself",
   );
-  expect(activation.task?.en).toContain("its person's own Bitwarden");
+  expect(activation.task?.en).toContain("its user's own Bitwarden");
 });

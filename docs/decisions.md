@@ -4757,6 +4757,20 @@ replaced it.
 > such as the handover's `operator` stay. Not changed here: the Launchpad's texts,
 > the CLI help, the tools' installation prompts and code comments. Template revision
 > `base-instructions-61`.
+>
+> **Note of 2026-10-21 (Matěj): the user everywhere.** Asked where else to unify,
+> Matěj chose „Všude“. The term now applies across the Launchpad, the CLI and the
+> prompts too: the Launchpad's and the shell's texts, the CLI's help and messages, the
+> prompts the Launchpad hands to agents (the tools' installation prompts, the custom
+> MCP server's prompt, the recovery and installation prompts), the `AGENTS.md` that
+> `lazurio module create` writes, and the documents of this repository that describe
+> its behaviour. The Launchpad's Czech still addresses the user directly („vy“) and
+> says uživatel only where it speaks of the user in the third person. What the note
+> above keeps stays, and so do the decision records' entries, `docs/evidence/` and
+> code comments. Two phrases that reached the Folder after #556 say uživatel / user
+> too: the kinds of Environment's „vlastní počítač uživatele“ ("the user's own
+> computer") and, in Buddy's overview of threads, `waiting` „čeká na uživatele“
+> ("waits for the user"). Template revision `base-instructions-64`.
 
 **Decided by Matěj 2026-10-02.** The Agents' principal is the **Operator** of the
 Environment: whoever controls an Environment controls the Agents they run in it. Agents

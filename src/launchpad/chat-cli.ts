@@ -28,11 +28,11 @@ export const chatHelp = `chat link [--folder <absolute Folder>] [--plain] [--jso
   The link into T3 Code in this Remote Environment, from the Folder's recorded
   entry, as the Launchpad's Chat entry opens it: a one-time pairing link
   <T3 Code origin>/pair#token=… minted by the T3 launcher t3 on PATH (single
-  use, valid 60 seconds), for the operator's browser. Without the launcher
+  use, valid 60 seconds), for the user's browser. Without the launcher
   (t3-launcher-missing), when the pairing call fails (t3-pairing-failed) or
   with --plain (plain-requested) it prints the plain T3 Code origin, where
   T3 Code asks the browser to pair, and names the reason. Without a recorded
-  entry (a workstation: T3 Code runs where the operator runs it) there is no
+  entry (a workstation: T3 Code runs where the user runs it) there is no
   link (not-hosted). The link alone is on stdout; the reason goes to stderr,
   which never carries the token. --json prints {kind: "chat-link", url,
   pairing, reason?}. The Folder is found as for lazurio doctor.
@@ -68,7 +68,7 @@ const reasons = {
     "t3-pairing-failed":
       "No pairing: T3 Code's pairing call failed. The plain link opens T3 Code, which asks the browser to pair.",
     "not-hosted":
-      "No T3 Code link: this Folder has no recorded Remote Environment entry, so T3 Code runs wherever the operator runs it.",
+      "No T3 Code link: this Folder has no recorded Remote Environment entry, so T3 Code runs wherever the user runs it.",
   },
   cs: {
     "plain-requested":
@@ -78,11 +78,11 @@ const reasons = {
     "t3-pairing-failed":
       "Bez párování: párovací volání T3 Code selhalo. Prostý odkaz otevře T3 Code, které si prohlížeč spáruje samo.",
     "not-hosted":
-      "Žádný odkaz na T3 Code: tento Folder nemá zaznamenaný hostovaný vstup, T3 Code běží tam, kde ho Operátor spouští.",
+      "Žádný odkaz na T3 Code: tento Folder nemá zaznamenaný hostovaný vstup, T3 Code běží tam, kde ho uživatel spouští.",
   },
   paired: {
-    en: "A one-time link, valid for 60 seconds: hand it to the operator.",
-    cs: "Jednorázový odkaz platný 60 sekund: předej ho Operátorovi.",
+    en: "A one-time link, valid for 60 seconds: hand it to the user.",
+    cs: "Jednorázový odkaz platný 60 sekund: předej ho uživateli.",
   },
 } as const satisfies Record<"cs" | "en", Record<ChatLinkReason, string>> &
   Record<"paired", Record<"cs" | "en", string>>;

@@ -1305,7 +1305,7 @@ async function reportExisting(
   const displayName = viewer.name ?? viewer.login;
   steps.skipped(
     "bootstrap",
-    `${where} still holds the template's placeholders (${templateOwnerPlaceholder}): it was created without the template's bootstrap. Its main is the person's, so nothing was changed. Next step: in a task worktree of it (personalspace/.worktrees/<task>) run \`bun run bootstrap -- --login ${viewer.login} --display-name ${JSON.stringify(displayName)} --apply\`, commit ${personalspaceIdentityFiles.join(" and ")} and open a pull request into ${repository ?? `${viewer.login}/${personalspaceRepositoryName(viewer.login)}`}; it creates the private gbrain repository when it is missing (the template's manual/bootstrap-personalspace.md)`,
+    `${where} still holds the template's placeholders (${templateOwnerPlaceholder}): it was created without the template's bootstrap. Its main is the user's, so nothing was changed. Next step: in a task worktree of it (personalspace/.worktrees/<task>) run \`bun run bootstrap -- --login ${viewer.login} --display-name ${JSON.stringify(displayName)} --apply\`, commit ${personalspaceIdentityFiles.join(" and ")} and open a pull request into ${repository ?? `${viewer.login}/${personalspaceRepositoryName(viewer.login)}`}; it creates the private gbrain repository when it is missing (the template's manual/bootstrap-personalspace.md)`,
   );
   return ["personalspace-placeholders"];
 }

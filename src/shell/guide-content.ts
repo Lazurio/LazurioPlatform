@@ -319,8 +319,8 @@ const principles: readonly Principle[] = [
       },
       {
         text: {
-          cs: "Lidé do něj sdílejí hesla ze svého Bitwardenu",
-          en: "People share passwords into it from their Bitwarden",
+          cs: "Uživatelé do něj sdílejí hesla ze svého Bitwardenu",
+          en: "Users share passwords into it from their Bitwarden",
         },
         at: "vault-row",
       },

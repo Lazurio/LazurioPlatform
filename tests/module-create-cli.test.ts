@@ -76,7 +76,7 @@ test("usage errors exit 2 with the command's help, before anything is read", asy
     ],
     [
       ["personalspace/notes", "--stack", "none"],
-      "Show the person the plan with --dry-run first",
+      "Show the user the plan with --dry-run first",
     ],
     [
       [
@@ -111,7 +111,7 @@ test("usage errors exit 2 with the command's help, before anything is read", asy
     ],
     [
       ["Acme/portal", "--stack", "none", "--teams", "core"],
-      "Show the person the plan with --dry-run first",
+      "Show the user the plan with --dry-run first",
     ],
   ];
   for (const [args, message] of cases) {

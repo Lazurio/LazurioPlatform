@@ -172,7 +172,7 @@ test("the status text speaks of conflicts of an agent and of a stopped setup wit
   ).toEqual([
     "Executor 1.6.10 is installed and does not answer on 127.0.0.1:4789; lazurio executor setup starts it.",
     "Service sh.executor.daemon.service: failed; Lazurio's settings: current; lingering: yes.",
-    "Codex: connected. Claude Code: switched off by the operator.",
+    "Codex: connected. Claude Code: switched off by the user.",
     "The setup stopped at service: health-not-answering.",
   ]);
 });

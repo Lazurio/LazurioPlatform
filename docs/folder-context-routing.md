@@ -1,6 +1,6 @@
 # Finding workplace context from the Lazurio Folder
 
-The generated Folder must lead an agent from a person's words to the relevant
+The generated Folder must lead an agent from a user's words to the relevant
 Organization and application. A familiar business term can name a view inside an
 internal app. An empty Integrations result does not establish that no such app
 exists, and a public product with the same name is not evidence of a match.
@@ -63,7 +63,7 @@ product and fail when two companies use the same word differently. Copying every
 Organization's instructions into the generated root would make them stale and mix
 access boundaries. A new semantic index is unnecessary to restore a missing
 instruction over the catalogs and scoped search we already have. Asking before
-looking would shift routine discovery back to the person. The selected order is
+looking would shift routine discovery back to the user. The selected order is
 scoped discovery, confirmation in the owning source, then a question if needed.
 
 No term determines an Organization globally. Owner metadata helps establish the
@@ -94,7 +94,7 @@ tool trace and observed result:
 4. A found module fails startup or has no runtime URL. Report that state without
    synthesizing an address. An unhealthy app is not “opened”.
 5. A clearly identified external service still uses its existing integration path.
-   A person-supplied URL does not require speculative Organization discovery.
+   A user-supplied URL does not require speculative Organization discovery.
 6. “Record the monthly service in the forecast” prepares a business-data Draft;
    it does not provision infrastructure or infer permission to publish the data.
 7. The personal-host preset keeps company work in a work Environment, and every

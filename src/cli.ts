@@ -566,7 +566,7 @@ Both also accept --voice-file <UTF-8 text file> or --voice-default for the selec
 locale. Other language overrides are preserved. A custom text is limited to 8192 bytes.
 profile-update takes the same inputs as profile-preview and APPLIES the change:
 it replaces owned instructions/preferences/manifest and archives the transaction.
-In an installed Environment the Folder is the operator's ~/Lazurio; the change is applied
+In an installed Environment the Folder is the user's ~/Lazurio; the change is applied
 only after the preview and only at the expected revision.
 It refuses missing/unrecognized state, edits and pending recovery; it does not initialize a Folder.
 In a Remote Environment's Folder (adopted from its handover) a top-level entry other than
@@ -579,7 +579,7 @@ current handover through this same transaction, keeping the recorded profile.
 tools enable|disable <tool> --folder <Folder> --expected-revision <n> records which
 catalog tools agents are told to use and re-renders the same owned files through this
 same transaction, keeping the recorded preset and profile; a profile change or a
-refresh keeps the recorded tools. tools note <tool> records the operator's note for
+refresh keeps the recorded tools. tools note <tool> records the user's note for
 agents on a required or enabled tool the same way. It grants no access and installs
 nothing.
 --previous-digest is not accepted by either profile command.
