@@ -827,10 +827,10 @@ it is the second wave (`unsupported`, `workstation`).
   address of their own Bitwarden account (`POST /api/vault/invitee`, exactly
   `{email}`, the same rules; never the agents' account, `same-account`; one address
   per connection, `invited`; only once the vault exists, `not-connected`): the address
-  is kept in the connection and invited at once as a User with Manage on Agenti,
-  never an Admin (the cloud allows one Free organization per Owner or Admin). The
-  cloud e-mails the invitation; once accepted, the next setup or look of the page
-  confirms the user with `bw confirm org-member` (`not-invited`,
+  is kept in the connection and invited at once with the vault role User and Manage
+  on Agenti, never as an Admin (the cloud allows one Free organization per Owner or
+  Admin). The cloud e-mails the invitation; once accepted, the next setup or look of
+  the page confirms the user with `bw confirm org-member` (`not-invited`,
   `invitation-pending`, `accepted`, `member`, `revoked`). "Odpojit Bitwarden" (`POST /api/vault/disconnect`)
   signs bw out and removes the credentials, the session and bw's data, keeps the
   record and the requests and never deletes the organization; the same account
