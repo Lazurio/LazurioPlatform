@@ -30,6 +30,25 @@ export type LastVisit = Readonly<{
   organization: string | null;
 }>;
 
+/** Where a page in `space` is, from the shell document: the current
+ * Environment and the Organization slug of the space (null in the personal
+ * space); null on a page that is no Environment's. The report below and the
+ * context Buddy's bubble gives his frame (buddy-protocol.ts) both say it. */
+export function visitOf(
+  shell: Shell,
+  space: string | null,
+): Omit<LastVisit, "app"> | null {
+  const environment = currentEnvironment(shell);
+  if (environment === null) return null;
+  return {
+    environment: environment.id,
+    organization:
+      space === null || space === personalSpace
+        ? null
+        : (organizationOf(shell, space)?.slug ?? null),
+  };
+}
+
 /** What a page of `app` in `space` reports, from the shell document; null
  * on a page that is no Environment's, which reports nothing. */
 export function lastVisit(
@@ -37,16 +56,14 @@ export function lastVisit(
   app: ShellApp,
   space: string | null,
 ): LastVisit | null {
-  const environment = currentEnvironment(shell);
-  if (environment === null) return null;
-  return {
-    environment: environment.id,
-    app,
-    organization:
-      space === null || space === personalSpace
-        ? null
-        : (organizationOf(shell, space)?.slug ?? null),
-  };
+  const visit = visitOf(shell, space);
+  return visit === null
+    ? null
+    : {
+        environment: visit.environment,
+        app,
+        organization: visit.organization,
+      };
 }
 
 /** What this browser keeps of a page for the rail (`lazurio.shell.last`:

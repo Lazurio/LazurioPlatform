@@ -1,4 +1,7 @@
-import { browserStore, pageAccountJson } from "./account";
+import { browserStore, pageAccountJson, type Store } from "./account";
+import { type BuddyBubble, createBuddyBubble } from "./buddy-bubble";
+import { type BuddyBubbleView, createBuddyBubbleView } from "./buddy-element";
+import type { BuddyTheme } from "./buddy-protocol";
 import {
   currentEnvironment,
   parseShell,
@@ -8,7 +11,12 @@ import {
   shellSchema,
 } from "./contract";
 import { installShellFonts } from "./fonts";
-import { createGuide, type GuideElement } from "./guide";
+import {
+  createGuide,
+  type GuideElement,
+  type GuideEvent,
+  type GuideLayer,
+} from "./guide";
 import { createGuideLayer } from "./guide-layer";
 import { icon } from "./icons";
 import {
@@ -66,10 +74,15 @@ import {
 // leak across. The panel below the head stays the app's own.
 // `<lazurio-buddy>` (decision F56, guide.ts) is where the guide draws: a
 // "?" of the page (`data-guide-help`) makes Buddy, or without him the
-// neutral guide of Lazurio, explain the page in place. It draws nothing and
-// listens to nothing until the page hands over its explanations
-// (`provideGuides`); the forks, which place it and hand over nothing, are
-// unchanged. Buddy's bubble itself (root decision 0180) comes later.
+// neutral guide of Lazurio, explain the page in place. Since decision F60 it
+// is also Buddy's bubble (buddy-bubble.ts, root decision 0210 point 8):
+// where the page's merged document names Buddy's origin, a launcher at the
+// bottom right opens his frame, which hears the page's context and may ask
+// the guide for an explanation. Without explanations handed over
+// (`provideGuides`) and without Buddy's origin it draws nothing and listens
+// to nothing on the page; it only follows the shell's own state to learn
+// whether the origin comes. The forks place it, hand over nothing and get
+// the bubble with the shell, without a release of their own.
 //
 // Data: the `lazurio.shell.v1` document. A host that has it calls
 // `provideShell`; otherwise the elements read `/.lazurio/shell.json` on
@@ -164,12 +177,15 @@ export function provideAccount(account: ShellAccount | null): void {
   state.provideAccount(account);
 }
 
+// The `<lazurio-buddy>` that draws Buddy's bubble (decision F60): the last
+// connected, the one the guide draws in too.
+let bubbleHost: LazurioBuddy | null = null;
+
 // The guide of this page (guide.ts): what it plays and when, drawn by
-// guide-layer.ts in each `<lazurio-buddy>`'s own shadow root.
-const guideLayers = new WeakMap<
-  GuideElement,
-  ReturnType<typeof createGuideLayer>
->();
+// guide-layer.ts in each `<lazurio-buddy>`'s own shadow root. Every step it
+// shows is the last step Buddy's context names (buddy-bubble.ts), and every
+// explanation's start and end reaches Buddy's frame where it asked for it.
+const guideLayers = new WeakMap<GuideElement, GuideLayer>();
 const guide = createGuide({
   shell: () => state.drawn(),
   copy: shellMessages,
@@ -194,19 +210,31 @@ const guide = createGuide({
   layer: (element) => {
     let layer = guideLayers.get(element);
     if (layer === undefined) {
-      layer = createGuideLayer(element as LazurioBuddy, logo);
+      const buddy = element as LazurioBuddy;
+      const drawn = createGuideLayer(buddy, logo, () => buddy.bubbleHome());
+      layer = Object.freeze({
+        draw: (view, actions) => {
+          if (view !== null) buddy.guideShown(view.explanation.id, view.stop);
+          drawn.draw(view, actions);
+        },
+        say: drawn.say,
+      });
       guideLayers.set(element, layer);
     }
     return layer;
   },
-  announce: (element, event) =>
-    (element as LazurioBuddy).dispatchEvent(
+  announce: (element, event) => {
+    const buddy = element as LazurioBuddy;
+    buddy.dispatchEvent(
       new CustomEvent("lazurio-guide", {
         detail: event,
         bubbles: true,
         composed: true,
       }),
-    ),
+    );
+    buddy.guided(event);
+  },
+  buddy: () => bubbleHost?.shows() === true,
 });
 
 /** Hands over the explanations of the page the host shows now (decision
@@ -1028,6 +1056,12 @@ export class LazurioColumnHead extends ShellElement {
       this.dataset.hostTone = dark ? "dark" : "light";
   }
 
+  override attributeChangedCallback() {
+    super.attributeChangedCallback();
+    // The app and the space Buddy's context names (decision F60).
+    bubbleHost?.contextChanged();
+  }
+
   private activeApp(): ShellApp | null {
     const active = this.getAttribute("active");
     return (shellApps as readonly string[]).includes(active ?? "")
@@ -1177,20 +1211,194 @@ export class LazurioColumnHead extends ShellElement {
   }
 }
 
-/** `<lazurio-buddy>`: the guide's place on the page (decision F56). Its
- * `lang` picks the guide's language, else the shell document's. It makes
- * no shadow root and adds no listener of its own: the guide draws in it only
- * once the page takes part. */
+/** This tab's `sessionStorage`, where it can be reached; null otherwise. */
+const sessionStore = (): Store | null => {
+  try {
+    return typeof sessionStorage === "undefined" ? null : sessionStorage;
+  } catch {
+    return null;
+  }
+};
+
+/** The colour scheme the page shows, for Buddy's context: dark where the
+ * Environment theme's dark values are in effect (`--lazurio-color-scheme`),
+ * else by the host's tone as the column head reads it (its
+ * `--lazurio-host-tone`, else the nearest opaque background). */
+function pageTheme(element: Element): BuddyTheme {
+  const scheme = getComputedStyle(document.documentElement)
+    .getPropertyValue("--lazurio-color-scheme")
+    .trim();
+  if (scheme === "dark") return "dark";
+  const declared = getComputedStyle(element)
+    .getPropertyValue("--lazurio-host-tone")
+    .trim();
+  if (declared === "dark" || declared === "light") return declared;
+  return hostIsDark(element) ? "dark" : "light";
+}
+
+/** `<lazurio-buddy>`: the guide's place on the page (decision F56) and
+ * Buddy's bubble (decision F60). Its `lang` picks the guide's language, else
+ * the shell document's. Without explanations handed over and without Buddy's
+ * origin it makes no shadow root and adds no listener to the page: the guide
+ * draws in it only once the page takes part, and the bubble only while the
+ * page's merged document names Buddy's origin. The page's events the frame's
+ * context follows (its messages, the path, the colour scheme) are listened
+ * to only while the frame exists. */
 export class LazurioBuddy extends HTMLElement implements GuideElement {
   static observedAttributes = ["lang"];
+  private bubble: BuddyBubble | null = null;
+  private view: BuddyBubbleView | null = null;
+  private unfollow: (() => void) | null = null;
+  private leavePage: (() => void) | null = null;
+
   connectedCallback() {
+    const before = bubbleHost;
+    bubbleHost = this;
+    // One bubble a page: the element connected before lets go of it.
+    if (before !== null && before !== this) before.follow();
+    this.unfollow ??= state.listen(() => this.follow());
     guide.attach(this);
+    this.follow();
   }
   disconnectedCallback() {
+    this.unfollow?.();
+    this.unfollow = null;
+    if (bubbleHost === this) bubbleHost = null;
+    this.follow();
     guide.detach(this);
   }
   attributeChangedCallback() {
-    if (this.isConnected) guide.changed();
+    if (!this.isConnected) return;
+    guide.changed();
+    this.bubble?.changed();
+  }
+
+  /** Whether this element shows Buddy's bubble now. */
+  shows(): boolean {
+    return this.bubble?.model() != null;
+  }
+  /** The launcher's centre, where the guide's mark starts and ends. */
+  bubbleHome(): Readonly<{ x: number; y: number }> | null {
+    return this.shows() ? (this.view?.home() ?? null) : null;
+  }
+  /** The guide shows a step: the last step Buddy's context names. */
+  guideShown(explainer: string, stop: number): void {
+    this.bubble?.guideShown(explainer, stop);
+  }
+  /** The guide started, was done or closed an explanation. */
+  guided(event: GuideEvent): void {
+    this.bubble?.guided(event);
+  }
+  /** Something Buddy's context says changed outside the element (the
+   * column head's app or space). */
+  contextChanged(): void {
+    this.bubble?.changed();
+  }
+
+  /** Follows the page's state: the bubble while the merged document names
+   * Buddy's origin and this is the page's `<lazurio-buddy>`; otherwise none,
+   * and nothing is made where there never was one. */
+  follow(): void {
+    const origin = this.origin();
+    if (origin === null && this.bubble === null) return;
+    this.bubble ??= createBuddyBubble({
+      origin: () => this.origin(),
+      facts: () => {
+        const shell = state.drawn();
+        if (shell === null) return null;
+        const head = document.querySelector("lazurio-column-head");
+        return {
+          shell,
+          space: head?.getAttribute("space") ?? null,
+          active: head?.getAttribute("active") ?? null,
+          lang: this.getAttribute("lang"),
+          path: location.pathname,
+          theme: pageTheme(this),
+        };
+      },
+      frameWindow: () => this.view?.frameWindow() ?? null,
+      session: sessionStore(),
+      draw: (model) => {
+        if (model !== null)
+          this.view ??= createBuddyBubbleView(this, {
+            logo,
+            toggle: () => this.bubble?.toggle(),
+            escape: () => this.bubble?.escape() ?? false,
+          });
+        this.view?.draw(model);
+        if (model?.frame != null) this.listenPage();
+        else {
+          this.leavePage?.();
+          this.leavePage = null;
+        }
+      },
+      focus: (target) => this.view?.focus(target),
+      guide: {
+        known: guide.known,
+        playing: guide.attention.playing,
+        tour: guide.attention.tourWants,
+        kind: () => {
+          const shell = state.drawn();
+          return shell === null
+            ? null
+            : (currentEnvironment(shell)?.kind ?? null);
+        },
+        play: (explainer) => guide.play(explainer, null),
+      },
+    });
+    this.bubble.update();
+    guide.changed();
+  }
+
+  private origin(): string | null {
+    return this.isConnected && bubbleHost === this
+      ? (state.drawn()?.buddy?.origin ?? null)
+      : null;
+  }
+
+  /** The page's events the frame needs, while it exists: its messages, and
+   * what changes its context (the path, by the Navigation API where the
+   * browser has it, else checked every second; the colour scheme). */
+  private listenPage(): void {
+    if (this.leavePage !== null) return;
+    const changed = () => this.bubble?.changed();
+    const receive = (event: MessageEvent) => this.bubble?.receive(event);
+    window.addEventListener("message", receive);
+    window.addEventListener("popstate", changed);
+    const navigation = (window as unknown as { navigation?: EventTarget })
+      .navigation;
+    navigation?.addEventListener("currententrychange", changed);
+    let path = location.pathname;
+    const timer =
+      navigation === undefined
+        ? setInterval(() => {
+            if (location.pathname === path) return;
+            path = location.pathname;
+            changed();
+          }, 1_000)
+        : undefined;
+    document.addEventListener(environmentTheme.event, changed);
+    const scheme = window.matchMedia("(prefers-color-scheme: dark)");
+    scheme.addEventListener("change", changed);
+    const observer = new MutationObserver(changed);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: [
+        "class",
+        "style",
+        "data-theme",
+        environmentTheme.appearance,
+      ],
+    });
+    this.leavePage = () => {
+      window.removeEventListener("message", receive);
+      window.removeEventListener("popstate", changed);
+      navigation?.removeEventListener("currententrychange", changed);
+      clearInterval(timer);
+      document.removeEventListener(environmentTheme.event, changed);
+      scheme.removeEventListener("change", changed);
+      observer.disconnect();
+    };
   }
 }
 

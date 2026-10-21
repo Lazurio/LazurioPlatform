@@ -6,12 +6,13 @@ import { guideLayerCss } from "./guide-styles";
 import { icon } from "./icons";
 
 // How the guide is drawn (decision F56): in the shadow root of
-// `<lazurio-buddy>`, made only when the guide first shows, so a page that
-// takes no part has an empty element. A ring around the element a step
-// names, a card placed by the rule the Launchpad's tour uses
-// (guide-placement.ts), and the neutral guide's mark, the Lazurio symbol on
-// a white disc, travelling from the bubble's corner at the bottom right to
-// the card. A step names a mark: the host page's `data-guide`, else one of
+// `<lazurio-buddy>`, made only when the guide first shows (or Buddy's bubble
+// draws there first, decision F60), so a page that takes no part has an
+// empty element. A ring around the element a step names, a card placed by
+// the rule the Launchpad's tour uses (guide-placement.ts), and the neutral
+// guide's mark, the Lazurio symbol on a white disc, travelling from the
+// bubble's corner at the bottom right (Buddy's launcher where the page shows
+// it) to the card. A step names a mark: the host page's `data-guide`, else one of
 // the shell's own elements (`shellMarks`); every visible element with it is
 // ringed together, and without one the card stands in the middle. While it
 // shows it follows the page every quarter of a second (the element moves,
@@ -119,11 +120,6 @@ function boxOf(elements: readonly Element[]): TourBox | null {
 }
 
 const markSize = 40;
-/** The mark's home: where Buddy's bubble stands, the bottom right corner. */
-const home = () => {
-  const { width, height } = area();
-  return { x: width - 24 - markSize, y: height - 24 - markSize };
-};
 const travelMs = 700;
 /** The widest the scene's stage is (its height is 9/16 of it): a sheet
  * below 768 px keeps it at this. */
@@ -140,8 +136,22 @@ function make<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-export function createGuideLayer(host: HTMLElement, logo: string): GuideLayer {
+/** `bubble`: the centre of Buddy's launcher where the page shows his bubble
+ * (decision F60), else null. */
+export function createGuideLayer(
+  host: HTMLElement,
+  logo: string,
+  bubble: () => Readonly<{ x: number; y: number }> | null = () => null,
+): GuideLayer {
   const logoUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(logo)}`;
+  /** The mark's home: where Buddy's bubble stands, the bottom right corner,
+   * or his launcher where the page shows it. */
+  const home = () => {
+    const at = bubble();
+    if (at !== null) return { x: at.x - markSize / 2, y: at.y - markSize / 2 };
+    const { width, height } = area();
+    return { x: width - 24 - markSize, y: height - 24 - markSize };
+  };
   let parts: ReturnType<typeof build> | null = null;
   // The scene on the card's stage, and its beat waiting for the card to
   // stand (motion only).
@@ -162,7 +172,9 @@ export function createGuideLayer(host: HTMLElement, logo: string): GuideLayer {
     const root = host.shadowRoot ?? host.attachShadow({ mode: "open" });
     const sheet = new CSSStyleSheet();
     sheet.replaceSync(guideLayerCss);
-    root.adoptedStyleSheets = [sheet];
+    // Beside Buddy's bubble where the element draws it (decision F60): its
+    // own sheet and parts stay, and the layer stands after them, above.
+    root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
     const layer = make("div", "layer");
     layer.hidden = true;
     const ring = make("div", "ring");
@@ -203,7 +215,7 @@ export function createGuideLayer(host: HTMLElement, logo: string): GuideLayer {
     // What only assistive technology hears (`say`).
     const status = make("p", "sr-only");
     status.setAttribute("role", "status");
-    root.replaceChildren(layer, status);
+    root.append(layer, status);
     quit.addEventListener("click", () => actions?.close());
     primary.addEventListener("click", () => {
       if (view === null || actions === null) return;

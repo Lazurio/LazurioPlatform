@@ -74,13 +74,20 @@ export function parseNewTabPageMessage(
     : Object.freeze({ type: newTabMessage.choice, choice });
 }
 
+/** The properties of the shell's interface v1 that are no colours: the
+ * rail's width, the host's tone and where Buddy's launcher stands. */
+const notColours: ReadonlySet<string> = new Set([
+  "--lazurio-rail-width",
+  "--lazurio-host-tone",
+  "--lazurio-buddy-right",
+  "--lazurio-buddy-bottom",
+]);
+
 /** The colour roles of the shell's interface v1 (F36's addendum of
- * 2026-10-04, evening), without the rail's width and the host's tone,
- * which are no colours. */
+ * 2026-10-04, evening), without the properties that are no colours. */
 export const newTabThemeRoles: readonly string[] = Object.freeze(
   shellElementInterface.properties.filter(
-    (property) =>
-      property !== "--lazurio-rail-width" && property !== "--lazurio-host-tone",
+    (property) => !notColours.has(property),
   ),
 );
 

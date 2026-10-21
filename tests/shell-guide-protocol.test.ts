@@ -24,8 +24,8 @@ import {
 // answers `busy`, or drops the message without an answer. Its executable
 // vectors (`src/shell/guide-vectors/v1/`) are its truth, run here by the
 // runner of the Environment browser's contract (decision F50), whose format
-// they share: Buddy's web builds its sender against the same files. No
-// listener exists until Buddy has an origin (plan DEV-6612 M7).
+// they share: Buddy's web builds its sender against the same files. The
+// listener exists only with Buddy's frame (decision F60, buddy-bubble.ts).
 
 const vectorDirectory = join(
   import.meta.dir,
@@ -227,34 +227,59 @@ test("a receiver with an origin that is no https origin answers nothing", () => 
   expect(posted).toEqual([]);
 });
 
-test("until Buddy has an origin, the shell registers no listener for the protocol", async () => {
-  // The shell's script (src/shell/index.ts over elements.ts) defines the
-  // elements; neither the elements nor the guide's engine wire the
-  // protocol's receiver to a message listener in this release (plan
-  // DEV-6612: the wiring comes with milestone M7). The page's one message
-  // listener is the Environment browser's identity answer.
+test("the receiver is wired only by Buddy's bubble, and its listener exists only with his frame", async () => {
+  // Decision F60 (plan DEV-6676 P3) wires the protocol where Buddy's origin
+  // is present: the bubble (buddy-bubble.ts) is the one user of
+  // `createGuideReceiver`, and `<lazurio-buddy>` adds its message listener in
+  // `listenPage`, which runs only once the bubble made its frame
+  // (tests/shell-buddy.test.ts runs that rule). The guide's engine and the
+  // rest of the shell listen to no message; besides the bubble's, the
+  // page's one message listener is the Environment browser's identity
+  // answer.
   const listeners = (source: string) =>
     source.match(/addEventListener\(\s*"message"/g)?.length ?? 0;
-  for (const file of [
-    "src/shell/elements.ts",
-    "src/shell/guide.ts",
-    "src/shell/guide-layer.ts",
-    "src/shell/guide-content.ts",
-    "src/shell/guide-scenes.ts",
-    "src/shell/guide-stage.ts",
-    "src/shell/index.ts",
-  ]) {
+  const expected: Readonly<
+    Record<string, { receiver: boolean; listeners: number }>
+  > = {
+    "src/shell/elements.ts": { receiver: false, listeners: 2 },
+    "src/shell/buddy-bubble.ts": { receiver: true, listeners: 0 },
+    "src/shell/buddy-element.ts": { receiver: false, listeners: 0 },
+    "src/shell/guide.ts": { receiver: false, listeners: 0 },
+    "src/shell/guide-layer.ts": { receiver: false, listeners: 0 },
+    "src/shell/guide-content.ts": { receiver: false, listeners: 0 },
+    "src/shell/guide-scenes.ts": { receiver: false, listeners: 0 },
+    "src/shell/guide-stage.ts": { receiver: false, listeners: 0 },
+    "src/shell/index.ts": { receiver: false, listeners: 0 },
+  };
+  for (const [file, wanted] of Object.entries(expected)) {
     const source = await readFile(file, "utf8");
-    expect({ file, receiver: source.includes("createGuideReceiver") }).toEqual({
-      file,
-      receiver: false,
-    });
     expect({
       file,
+      receiver: source.includes("createGuideReceiver("),
       listeners: listeners(source),
-    }).toEqual({ file, listeners: file === "src/shell/elements.ts" ? 1 : 0 });
+    }).toEqual({ file, ...wanted });
   }
   const elements = await readFile("src/shell/elements.ts", "utf8");
-  const at = elements.indexOf('addEventListener("message"');
-  expect(elements.slice(at - 500, at)).toContain("createIdentityResponder");
+  const at = [...elements.matchAll(/addEventListener\(\s*"message"/g)].map(
+    (match) => match.index ?? -1,
+  );
+  // One in `listenPage`, the bubble's; the other the identity answer's.
+  const listenPage = elements.indexOf("private listenPage(): void {");
+  expect(listenPage).toBeGreaterThan(0);
+  const bubble = at.find(
+    (index) =>
+      index > listenPage &&
+      !elements.slice(listenPage, index).includes("\n  }\n"),
+  );
+  const identity = at.find((index) => index !== bubble);
+  expect(bubble).toBeDefined();
+  expect(elements.slice((identity ?? 0) - 500, identity)).toContain(
+    "createIdentityResponder",
+  );
+  // `listenPage` is called only where the drawn bubble has its frame.
+  expect(
+    [...elements.matchAll(/this\.listenPage\(\)/g)].map((match) =>
+      elements.slice((match.index ?? 0) - 60, match.index),
+    ),
+  ).toEqual([expect.stringContaining("model?.frame != null")]);
 });

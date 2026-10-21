@@ -38,7 +38,16 @@
 // draws nothing and listens to nothing. The ids, the marks and the texts of
 // the shell's own explanations are not promised; the message protocol
 // between Buddy's frame and the host is versioned on its own
-// (guide-protocol.ts).
+// (guide-protocol.ts). Decision F60 (2026-10-21) added, in version 1, Buddy's
+// bubble: the same `<lazurio-buddy>` draws it wherever the page's merged
+// document names Buddy's origin (`buddy` of `lazurio.shell.v1` and
+// `lazurio.account.v1`, contract.ts), with no attribute of its own, and a
+// host moves its launcher off its own controls with the properties
+// `--lazurio-buddy-right` and `--lazurio-buddy-bottom` (lengths, the
+// launcher's distance from the window's right and bottom edges); the
+// standard `hidden` hides the whole element. What the bubble draws, where it
+// stands without them and its messages with Buddy's frame
+// (buddy-protocol.ts, versioned on its own) are not promised.
 export const shellElementInterface = Object.freeze({
   version: 1,
   /** The script an app loads, on its own origin. */
@@ -52,8 +61,8 @@ export const shellElementInterface = Object.freeze({
       "settings",
       "space",
     ]),
-    // Where the guide draws (decision F56; the bubble of root decision 0180
-    // comes later): the language of the guide.
+    // Where the guide draws (decision F56) and Buddy's bubble stands
+    // (decision F60): the language of the guide.
     "lazurio-buddy": Object.freeze(["lang"]),
     // Nová karta (decision F47 point 2): the strip the tab is for, the app's
     // tools as JSON (`[{id, label, key?, icon?}]`), whether the address bar
@@ -170,13 +179,16 @@ export const shellElementInterface = Object.freeze({
     "provideGuides",
   ]),
   /** Custom properties: the rail sets the first on the document; a host may
-   * set the second to override the detected tone. The rest are the colour
-   * roles (F36, addendum of 2026-10-04, evening): a host fills them from its
-   * own theme on its document (`:root`), each one optional; an unset role
-   * keeps the design system's colour, and a set one wins over the tone. */
+   * set the second to override the detected tone, and the next two to move
+   * Buddy's launcher (decision F60). The rest are the colour roles (F36,
+   * addendum of 2026-10-04, evening): a host fills them from its own theme on
+   * its document (`:root`), each one optional; an unset role keeps the
+   * design system's colour, and a set one wins over the tone. */
   properties: Object.freeze([
     "--lazurio-rail-width",
     "--lazurio-host-tone",
+    "--lazurio-buddy-right",
+    "--lazurio-buddy-bottom",
     "--lazurio-surface",
     "--lazurio-ink",
     "--lazurio-ink-muted",

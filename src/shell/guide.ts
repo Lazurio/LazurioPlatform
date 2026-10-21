@@ -25,8 +25,11 @@ import type { ShellCopy } from "./messages";
 // draws nothing, listens to nothing and keeps nothing of the page: the forks,
 // which place `<lazurio-buddy>` and call nothing, are unchanged. A "?" plays
 // a principle or an explanation of this page, directly, without a message.
-// Buddy's frame will ask by id through guide-protocol.ts once Buddy has an
-// origin (plan DEV-6612 M7); until then no listener exists.
+// Where the page shows Buddy's bubble (decision F60, `buddy`), his frame asks
+// by id through guide-protocol.ts (buddy-bubble.ts wires the receiver): the
+// principles are known on every such page, a fork's too, and the page's own
+// explanations where it hands them over; the "?" is listened to only where
+// the page hands them over.
 //
 // Never two tours at once (`attention`): while the page's onboarding tour
 // (the Launchpad's Začínáme) wants the person's attention, a "?" plays
@@ -111,6 +114,10 @@ export type GuideSeams = Readonly<{
   layer: (element: GuideElement) => GuideLayer;
   /** Announces `lazurio-guide` on the element. */
   announce: (element: GuideElement, event: GuideEvent) => void;
+  /** Whether the page shows Buddy's bubble (decision F60): his frame may
+   * then ask for the principles though the page hands over nothing, and an
+   * explanation about Buddy invites nobody to get one. */
+  buddy?: () => boolean;
 }>;
 
 export function createGuide(seams: GuideSeams) {
@@ -132,7 +139,8 @@ export function createGuide(seams: GuideSeams) {
   let unfollow: (() => void) | null = null;
 
   const drawer = (): GuideElement | null => elements.at(-1) ?? null;
-  const active = () => hosted !== null && drawer() !== null;
+  const withBuddy = () => seams.buddy?.() === true;
+  const active = () => (hosted !== null || withBuddy()) && drawer() !== null;
 
   function locale(element: GuideElement): KindLocale {
     const lang = element.getAttribute("lang");
@@ -144,11 +152,11 @@ export function createGuide(seams: GuideSeams) {
     return shell === null ? null : (currentEnvironment(shell)?.kind ?? null);
   };
 
-  /** The ids a "?" (and later Buddy's frame) may play here. */
+  /** The ids a "?" or Buddy's frame may play here. */
   const known = (): readonly string[] =>
-    hosted === null
+    hosted === null && !withBuddy()
       ? []
-      : [...principleIds, ...hosted.map((guide) => guide.id)];
+      : [...principleIds, ...(hosted ?? []).map((guide) => guide.id)];
 
   function explanation(
     id: string,
@@ -193,11 +201,13 @@ export function createGuide(seams: GuideSeams) {
       {
         explanation: found,
         stop: playing.stop,
-        // No Buddy origin exists yet (plan DEV-6612 M7): everyone is guided
-        // by the neutral guide, and asked to get a Buddy at the end of an
-        // explanation about him, where the account lives.
+        // A person without Buddy's bubble on this page is asked to get a
+        // Buddy at the end of an explanation about him, where the account
+        // lives; a person whose Buddy is here is not.
         invite:
-          found.aboutBuddy && last ? (seams.shell()?.dashboard ?? null) : null,
+          found.aboutBuddy && last && !withBuddy()
+            ? (seams.shell()?.dashboard ?? null)
+            : null,
         words: seams.copy(language),
         invoker: playing.invoker,
         scene: guideScene(found.id, playing.stop, language, kind()),
@@ -233,18 +243,22 @@ export function createGuide(seams: GuideSeams) {
     return true;
   }
 
-  /** Takes part, or stops, as the page now asks: the "?" is listened to and
-   * the document followed only while the page hands over its explanations
-   * and a `<lazurio-buddy>` is on it. */
+  /** Takes part, or stops, as the page now asks: the "?" is listened to only
+   * while the page hands over its explanations and a `<lazurio-buddy>` is on
+   * it, and the document followed while it takes part or shows Buddy's
+   * bubble. */
   function settle(): void {
-    if (active()) {
+    if (hosted !== null && drawer() !== null)
       unlistenHelp ??= seams.listenHelp(play);
+    else {
+      unlistenHelp?.();
+      unlistenHelp = null;
+    }
+    if (active()) {
       unfollow ??= seams.follow(() => draw());
       return;
     }
     if (playing !== null) end("closed");
-    unlistenHelp?.();
-    unlistenHelp = null;
     unfollow?.();
     unfollow = null;
   }
@@ -280,8 +294,10 @@ export function createGuide(seams: GuideSeams) {
       if (playing?.element === element) end("closed");
       settle();
     },
-    /** An element's `lang` changed. */
+    /** An element's `lang` changed, or whether the page shows Buddy's
+     * bubble. */
     changed(): void {
+      settle();
       draw();
     },
     play,
@@ -296,6 +312,9 @@ export function createGuide(seams: GuideSeams) {
       tour(wants: boolean): void {
         tourWants = wants;
       },
+      /** Whether it wants it, as the tour last said (Buddy's frame hears
+       * `busy` meanwhile). */
+      tourWants: (): boolean => tourWants,
       /** The explanation out now, or null. */
       playing: (): string | null => playing?.id ?? null,
       /** Called as an explanation starts and ends. */

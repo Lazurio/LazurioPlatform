@@ -30,10 +30,11 @@ import type { ShellEnvironmentKind } from "./contract";
 // work, team or workstation, an automated Environment counting as work.
 //
 // The "?" beside a page's heading plays its explanation directly, without a
-// message. Until a Buddy origin exists (plan DEV-6612 M7) no listener is
-// registered at all; this module and its vectors
-// (`guide-vectors/v1/guide-protocol.json`) are the contract the bubble's
-// sender and the wiring are built against. Pure: no DOM, no I/O.
+// message. Buddy's bubble (decision F60, buddy-bubble.ts) wires the receiver
+// below where the page's document names Buddy's origin, and its listener
+// exists only once the bubble made its frame; this module and its vectors
+// (`guide-vectors/v1/guide-protocol.json`) are the contract the frame's
+// sender is built against. Pure: no DOM, no I/O.
 
 export const guideMessage = Object.freeze({
   play: "lazurio.guide.play",
@@ -190,12 +191,12 @@ export type GuideFrame = Readonly<{
   postMessage(message: unknown, targetOrigin: string): void;
 }>;
 
-/** The host's side, for the wiring that comes with Buddy's origin (plan
- * DEV-6612 M7): a message event to the page's window goes to `receive`, which
- * plays an accepted request or answers `busy`; `reply` answers the frame as
- * an explanation starts, is done or is closed. Every answer is posted to
- * exactly `origin`, and only to the bubble's frame. Nothing here listens:
- * the caller decides whether a listener exists at all. */
+/** The host's side, wired by Buddy's bubble (decision F60): a message event
+ * to the page's window goes to `receive`, which plays an accepted request or
+ * answers `busy`; `reply` answers the frame as an explanation starts, is done
+ * or is closed. Every answer is posted to exactly `origin`, and only to the
+ * bubble's frame. Nothing here listens: the caller decides whether a
+ * listener exists at all. */
 export function createGuideReceiver(
   seams: Readonly<{
     /** Buddy's origin from the shell's document. */
