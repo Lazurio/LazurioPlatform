@@ -24,7 +24,9 @@ import {
   isChatPairingFetch,
   mintChatPairing,
   publicEntry,
+  standardPairingScopes,
   t3PairUrl,
+  takesPairingScopes,
 } from "../src/launchpad/chat";
 import {
   chatHref,
@@ -80,12 +82,12 @@ const capabilitiesOutput = (operatorPairing: boolean) =>
     ...(operatorPairing ? { operatorPairing: true } : {}),
   });
 
-// A fake T3 launcher on a private PATH: it answers `t3 lazurio capabilities`
-// (with the operator pairing when `operator`), refuses a `--json` to `t3
-// lazurio pairing` as T3's CLI refuses a flag it does not know
-// (Lazurio/t3code#84: the command always prints JSON), records the
-// arguments of the pairing call and answers it as T3 does, or as told by
-// `mode`.
+// A fake T3 launcher on a private PATH: it answers `t3 --version` (a T3 Code
+// that takes `--scope`) and `t3 lazurio capabilities` (with the operator
+// pairing when `operator`), refuses a `--json` to `t3 lazurio pairing` as
+// T3's CLI refuses a flag it does not know (Lazurio/t3code#84: the command
+// always prints JSON), records the arguments of the pairing call and answers
+// it as T3 does, or as told by `mode`.
 async function fakeLauncher(directory: string, mode: string, operator = false) {
   const script = join(directory, "t3");
   const outputs: Record<string, string> = {
@@ -100,6 +102,10 @@ async function fakeLauncher(directory: string, mode: string, operator = false) {
   await writeFile(
     script,
     `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo 't3 v0.1.1-lazurio.1'
+  exit 0
+fi
 if [ "$1 $2" = "lazurio capabilities" ]; then
   echo '${capabilitiesOutput(operator)}'
   exit 0
@@ -119,14 +125,24 @@ ${outputs[mode]}
   await chmod(script, 0o755);
 }
 
-// The two calls of one pairing: the capabilities, then the pairing itself,
+// The calls of one pairing: the capabilities, then the pairing itself,
 // `operator` (`t3 lazurio pairing`, which always prints JSON) or standard
-// (`t3 auth pairing create --json`).
+// (`t3 --version`, then `t3 auth pairing create --json` with the scopes it
+// grants).
 const capabilitiesCall = (bin: string, home: string) => ({
   command: [join(bin, "t3"), "lazurio", "capabilities"],
   timeoutMs: 15_000,
   env: { HOME: home, PATH: bin },
 });
+const versionCall = (bin: string, home: string) => ({
+  command: [join(bin, "t3"), "--version"],
+  timeoutMs: chatPairing.timeoutMs,
+  env: { HOME: home, PATH: bin },
+});
+const standardScopeFlags = standardPairingScopes.flatMap((scope) => [
+  "--scope",
+  scope,
+]);
 const pairingCall = (
   bin: string,
   home: string,
@@ -144,7 +160,7 @@ const pairingCall = (
     "60s",
     "--label",
     label,
-    ...(kind === "operator" ? [] : ["--json"]),
+    ...(kind === "operator" ? [] : ["--json", ...standardScopeFlags]),
   ],
   timeoutMs: chatPairing.timeoutMs,
   env: { HOME: home, PATH: bin },
@@ -340,11 +356,12 @@ test.skipIf(process.platform === "win32")(
       // and PATH of this Launchpad's environment.
       expect(runs).toEqual([
         capabilitiesCall(bin, home),
+        versionCall(bin, home),
         pairingCall(bin, home, "standard", "Lazurio"),
       ]);
       expect(
         (await readFile(join(bin, "t3.calls"), "utf8")).trim().split("\n"),
-      ).toEqual(runs[1]?.command.slice(1) ?? []);
+      ).toEqual(runs[2]?.command.slice(1) ?? []);
 
       // A failed call, output that is not the answer, a credential of
       // another shape or without a readable expiry: one reason, and the
@@ -532,6 +549,7 @@ test.skipIf(process.platform === "win32")(
         { kind: "chat-pairing", credential, expiresAt },
       ]);
       expect(runs).toEqual([
+        versionCall(bin, home),
         pairingCall(bin, home, "standard", "Lazurio · visitor"),
       ]);
     } finally {
@@ -665,6 +683,102 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
+test("T3 Code takes the pairing's scopes from v0.1.0, by the version it prints", () => {
+  for (const [version, takes] of [
+    ["0.1.1-lazurio.1", true],
+    ["0.1.0-lazurio.5", true],
+    ["0.1.0-preview.20261021.2", true],
+    ["0.1.0", true],
+    ["1.0.0", true],
+    ["0.0.45-lazurio.9", false],
+    ["0.0.45-preview.20261015.1", false],
+    [null, null],
+  ] as const)
+    expect([version, takesPairingScopes(version)]).toEqual([version, takes]);
+  // Never the scopes that manage the Environment's access or its T3 Connect.
+  expect(standardPairingScopes).toHaveLength(13);
+  for (const scope of ["access:read", "access:write", "relay:write"])
+    expect(standardPairingScopes).not.toContain(scope);
+});
+
+test.skipIf(process.platform === "win32")(
+  "a standard pairing grants only its own scopes on a T3 Code that takes them, and with no version to read nobody is paired",
+  async () => {
+    const directory = await realpath(
+      await mkdtemp(join(tmpdir(), "launchpad-chat-scopes-")),
+    );
+    await writeFile(join(directory, "t3"), "#!/bin/sh\nexit 1\n");
+    await chmod(join(directory, "t3"), 0o755);
+    try {
+      const visited = organizationWithEntry(
+        20000,
+        undefined,
+        false,
+        false,
+        true,
+      ).entry;
+      if (visited === undefined) throw new Error("The fixture has an entry");
+      // The pairing call a public Environment runs after `t3 --version`.
+      const mint = async (version: ToolProcessResult | "timeout") => {
+        const pairings: string[][] = [];
+        const environment: ToolsEnvironment = {
+          path: directory,
+          home: directory,
+          platform: process.platform,
+          run: async (command) => {
+            if (command[1] === "--version") return version;
+            pairings.push(command.slice(1));
+            return { exitCode: 0, stdout: pairingOutput, stderr: "" };
+          },
+        };
+        const pairing = await mintChatPairing(visited, environment);
+        return { kind: pairing.kind, pairings };
+      };
+      const printed = (stdout: string, exitCode = 0) => ({
+        exitCode,
+        stdout,
+        stderr: "",
+      });
+      const scopesOf = (pairings: string[][]) =>
+        pairings.map((call) =>
+          call.flatMap((argument, index) =>
+            call[index - 1] === "--scope" ? [argument] : [],
+          ),
+        );
+      for (const version of [
+        "t3 v0.1.1-lazurio.1",
+        "t3 v0.1.0-lazurio.5",
+        "t3 v0.1.0-preview.20261021.2",
+      ]) {
+        const { kind, pairings } = await mint(printed(version));
+        expect([version, kind, scopesOf(pairings)]).toEqual([
+          version,
+          "chat-pairing",
+          [[...standardPairingScopes]],
+        ]);
+      }
+      // An older T3 Code refuses `--scope`: its own pairing, as before.
+      const older = await mint(printed("t3 v0.0.45-lazurio.5"));
+      expect([older.kind, scopesOf(older.pairings)]).toEqual([
+        "chat-pairing",
+        [[]],
+      ]);
+      // No version to read: no pairing call at all.
+      for (const version of [
+        printed("t3 vnext"),
+        printed("", 1),
+        "timeout" as const,
+      ])
+        expect([version, await mint(version)]).toEqual([
+          version,
+          { kind: "blocked", pairings: [] },
+        ]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
+
 test("a pairing is labelled with the admitted person's Lazurio username, and only with one", () => {
   const named = (username: string | null) =>
     chatPairingLabel({ subject: null, username });
@@ -768,6 +882,8 @@ test.skipIf(process.platform === "win32")(
               if (capabilities instanceof Error) throw capabilities;
               return capabilities;
             }
+            if (command[1] === "--version")
+              return { exitCode: 0, stdout: "t3 v0.1.1-lazurio.1", stderr: "" };
             if (command[1] === "lazurio" && json)
               return { exitCode: 1, stdout: "", stderr: "Unrecognized flag" };
             return { exitCode: 0, stdout: pairingOutput, stderr: "" };
@@ -813,14 +929,14 @@ test.skipIf(process.platform === "win32")(
           capabilities,
           {
             pairing: { kind: "chat-pairing", credential, expiresAt },
-            calls: ["lazurio capabilities", "auth pairing --json"],
+            calls: ["lazurio capabilities", "--version", "auth pairing --json"],
           },
         ]);
       // A public Environment: the standard pairing, and T3 Code is not even
       // asked what it offers.
       expect(await mint(visited, offered(true))).toEqual({
         pairing: { kind: "chat-pairing", credential, expiresAt },
-        calls: ["auth pairing --json"],
+        calls: ["--version", "auth pairing --json"],
       });
     } finally {
       await rm(directory, { recursive: true, force: true });
