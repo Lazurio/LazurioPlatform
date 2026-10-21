@@ -1,8 +1,10 @@
 import { expect, test } from "bun:test";
+import { createConnection } from "node:net";
 import { fileURLToPath } from "node:url";
 import { probeListenerHealth } from "../src/modules/health";
 import {
   compareListenerGroup,
+  observeConnected,
   observeListenerBindings,
   parseListenerBindings,
 } from "../src/modules/listener-ownership";
@@ -126,6 +128,36 @@ test.skipIf(process.platform !== "darwin")(
       clearTimeout(timer);
       if (child.exitCode === null) child.kill("SIGKILL");
       await child.exited;
+    }
+  },
+  10_000,
+);
+
+test.skipIf(!["darwin", "linux"].includes(process.platform))(
+  "a connection on a port is seen while it is open, and none before or after it (root decision 0195 point 23)",
+  async () => {
+    const server = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch: () => new Response("ok"),
+    });
+    const port = server.port as number;
+    let socket: ReturnType<typeof createConnection> | undefined;
+    try {
+      expect(await observeConnected(port)).toBe(false);
+      socket = createConnection({ host: "127.0.0.1", port });
+      await new Promise((resolve) => socket?.once("connect", resolve));
+      expect(await observeConnected(port)).toBe(true);
+      socket.destroy();
+      let connected = await observeConnected(port);
+      for (let tries = 0; connected !== false && tries < 40; tries++) {
+        await Bun.sleep(50);
+        connected = await observeConnected(port);
+      }
+      expect(connected).toBe(false);
+    } finally {
+      socket?.destroy();
+      server.stop(true);
     }
   },
   10_000,

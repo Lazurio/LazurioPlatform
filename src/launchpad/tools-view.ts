@@ -24,7 +24,9 @@ import {
   type SshLink,
   type SshLinkFailure,
   type SshStatus,
+  type SshStatusReason,
   sshLinkFailures,
+  sshStatusReasons,
 } from "../tools/ssh-key";
 import type { ToolSignIn } from "../tools/status";
 import { type GhIdentity, githubActionRefused } from "../tools/team-github";
@@ -55,9 +57,7 @@ function parseSshStatus(input: unknown): SshStatus | null {
       value.state !== "not-linked" &&
       value.state !== "unknown") ||
     (value.reason !== undefined &&
-      !["no-key", "not-registered", "scope-missing", "unreadable"].includes(
-        value.reason as string,
-      )) ||
+      !sshStatusReasons.includes(value.reason as SshStatusReason)) ||
     (value.fingerprint !== undefined && !fingerprint(value.fingerprint))
   )
     return null;
@@ -378,8 +378,12 @@ export function toolDescription(
  * instead that agents start using it once it is (Matěj 2026-10-09): the
  * row's live state, so it is said only while it is true, never kept from
  * the moment the switch was flipped. The SSH key of gh is part of it only
- * when it needs the person (not linked) and on a Team Environment, which
- * works through Lazurio for GitHub. */
+ * when it needs the person (not linked, or not verified) and on a Team
+ * Environment, which works through Lazurio for GitHub. A signed-in gh is
+ * `signed-in`, the success colour, only while this Environment reaches
+ * GitHub over SSH as its account (decision F19, addendum 2026-10-19, #515):
+ * otherwise `incomplete` (not linked) or `unverified` (could not be
+ * checked), in no success colour. */
 export function connectionLine(
   tool: ToolOverview,
   copy: Copy,
@@ -406,17 +410,32 @@ export function connectionLine(
     const { ssh: _, ...signIn } = tool.signIn;
     text = signInLine({ ...tool, signIn }, copy, brokered);
   }
+  const state = tool.signIn?.state ?? "unchecked";
+  // A person's signed-in gh works here only by a passing proof: one whose
+  // status has no SSH part (its shape allows that) is not known to work,
+  // as one whose proof could not run (Pablo's review of #524).
+  const github = tool.name === "gh" && !brokered && state === "signed-in";
   const key =
     ssh === undefined
-      ? null
+      ? github
+        ? copy.toolsSshUnknown
+        : null
       : brokered
         ? copy.toolsSshTeam
         : ssh.state === "not-linked"
           ? copy.toolsSshNotLinked
-          : null;
+          : ssh.state === "unknown"
+            ? copy.toolsSshUnknown
+            : null;
   return {
     text,
-    state: tool.signIn?.state ?? "unchecked",
+    state: !github
+      ? state
+      : ssh?.state === "linked"
+        ? state
+        : ssh?.state === "not-linked"
+          ? "incomplete"
+          : "unverified",
     ssh: key,
   };
 }
@@ -450,13 +469,14 @@ export function composioSignInText(copy: Copy, shared: boolean): string {
 }
 
 /** The title of a tool's sign-in dialog: "Připojit GitHub", "Připojit
- * aplikace" (Composio), otherwise "Připojit <tool>". */
+ * aplikace" (Composio), otherwise "Připojit <tool>". gh keeps its title when
+ * it only links the SSH key (`ssh`, which only gh has): "Připojit znovu" on
+ * Začínáme opens it, and the person never sees "gh" there (#515). */
 export function loginTitle(
   name: string,
   mode: "install" | "login" | "ssh",
   copy: Copy,
 ): string {
-  if (mode === "ssh") return fill(copy.toolsLoginTitleSsh, { name });
   if (name === "gh") return copy.toolsLoginTitleGh;
   if (name === "composio") return copy.toolsLoginTitleComposio;
   return fill(
@@ -692,16 +712,31 @@ export function curatedActions(
     return {
       primary: null,
       logout: true,
-      linkSsh:
-        tool.name === "gh" &&
-        tool.signIn.ssh !== undefined &&
-        tool.signIn.ssh.state !== "linked",
+      // Also without an SSH part: only a passing proof is linked.
+      linkSsh: tool.name === "gh" && tool.signIn.ssh?.state !== "linked",
     };
   return {
     primary: { mode: "login", label: copy.toolsSignInAction },
     logout: false,
     linkSsh: false,
   };
+}
+
+/** What opening a tool's sign-in from outside its row opens (Začínáme, the
+ * line in Apps, a start request in the address; decision F19's addendum of
+ * 2026-10-19, #515): its row's flow, and for a signed-in gh whose SSH does
+ * not work here "Link SSH key", which is what is missing then. Null where
+ * there is nothing to open (signed in and linked, a Team Environment's gh,
+ * a tool the Organization does not allow). */
+export function signInMode(
+  tool: ToolOverview,
+  copy: Copy,
+  brokered = false,
+): "install" | "login" | "ssh" | null {
+  const { primary, linkSsh } = curatedActions(tool, copy, brokered);
+  if (primary !== null)
+    return primary.mode === "install-only" ? null : primary.mode;
+  return linkSsh ? "ssh" : null;
 }
 
 /** What Nástroje's "?" can truthfully point at (decision F56's addendum (2)
@@ -1433,9 +1468,20 @@ export function sshOutcome(
   state: LoginView,
   copy: Copy,
 ): Readonly<{ linked: boolean; message: string; detail: string }> | null {
-  if (state.kind !== "signed-in" || state.ssh === undefined) return null;
+  if (state.kind !== "signed-in") return null;
   const account = state.account ?? "gh";
   const ssh = state.ssh;
+  // gh's sign-in always says what it did with the key; one that does not is
+  // not known to have linked it, never a plain success (Pablo's review of
+  // #524). Another tool has no key.
+  if (ssh === undefined)
+    return state.tool === "gh"
+      ? {
+          linked: false,
+          message: fill(copy.toolsSshNotLinkedDone, { account }),
+          detail: copy.toolsSshFailureUnverified,
+        }
+      : null;
   if (ssh.state === "linked")
     return {
       linked: true,
@@ -1592,17 +1638,73 @@ export function loginEndMessage(
   return { message: copy.toolsLoginEnded, agent: false, retry: true };
 }
 
+/** What closing the sign-in dialog (its ×, Escape) does in a phase
+ * (decision F19, addendum 2026-10-19, #516): `detach` while a sign-in starts
+ * or runs, waiting for the person or finishing (gh's SSH key) — the page
+ * keeps its handle and polls on, the end runs as it would with the dialog
+ * open, and opening the same tool's sign-in again shows it; `close` where
+ * nothing runs (before it starts, while it installs, after its end). Never
+ * a cancel: only "Zrušit" cancels (`loginCancelOffered`). */
+export function loginCloseAction(phase: LoginPhase): "detach" | "close" {
+  return phase === "waiting" || phase === "linking" ? "detach" : "close";
+}
+
+/** Whether the dialog offers "Zrušit": only while a code, a link or a QR
+ * code waits for the person (`challenge`). Never while the sign-in finishes
+ * after it (gh's SSH key: 30 s per step, at most 5 minutes), which has no
+ * cancel; it ends by itself. */
+export function loginCancelOffered(
+  flow: Readonly<{ phase: LoginPhase; challenge: boolean }>,
+): boolean {
+  return flow.phase === "waiting" && flow.challenge;
+}
+
+/** A sign-in the page runs, as Začínáme says it (#516): waiting for the
+ * person (starting, or a code, link or QR shown) or finishing (gh's SSH
+ * key); null where none runs. */
+export type LoginFlowState = "waiting" | "finishing";
+
+export function loginFlowState(phase: LoginPhase): LoginFlowState | null {
+  return phase === "waiting"
+    ? "waiting"
+    : phase === "linking"
+      ? "finishing"
+      : null;
+}
+
+/** How long past a session's own end (`expiresAt`, when the server ends it
+ * by itself at the latest) the page keeps asking while its polls get no
+ * answer. */
+export const loginPollGraceMs = 60_000;
+
+/** Whether the page stops asking about a sign-in whose polls get no answer
+ * (#516): only once its own end has surely passed, never on a missed poll
+ * alone, since the session goes on by itself on the server and a poll ends
+ * nothing. Without a known end it asks on. */
+export function loginPollGivenUp(
+  expiresAt: number | null,
+  now: number,
+): boolean {
+  return expiresAt !== null && now > expiresAt + loginPollGraceMs;
+}
+
 /** What the dialog's status line and detail say while a sign-in runs: before
  * the first answer and while the tool has shown nothing to act on, the status
  * names the step and the detail says what happens and for how long at most,
  * never the same sentence twice; with a challenge the status says it waits
- * for you and the challenge is the detail. */
+ * for you and the challenge is the detail. While it finishes after that
+ * (gh's SSH key) it never says connected before the proof passed: the
+ * status says it finishes, and the detail that the window may be closed
+ * (#516). */
 export function loginProgress(
   state: LoginView | null,
   copy: Copy,
 ): Readonly<{ status: string; detail: string | null }> {
   if (state?.kind === "pending" && state.step === "ssh-key")
-    return { status: copy.toolsLoginLinking, detail: null };
+    return {
+      status: copy.toolsLoginLinking,
+      detail: copy.toolsLoginFinishingDetail,
+    };
   if (state?.kind === "pending" && state.challenge !== undefined)
     return { status: copy.toolsLoginWaiting, detail: null };
   return {
@@ -1638,6 +1740,69 @@ export async function answerWithin(
     clearTimeout(timer);
   }
 }
+
+/** The one poll loop of a sign-in the page holds (#516). A session answers
+ * its end only once, so a second loop could take the end from the first and
+ * lose it; the dialog hiding and showing again never makes another one.
+ * `schedule` plans the next poll unless one is planned or under way; `now`
+ * polls at once, unless one is under way, whose answer then counts as
+ * usual; `stop` ends the loop, and an answer still under way then counts
+ * for nothing. `ask` sends one poll; `answered` takes each answer. */
+export function createLoginPoll(
+  options: Readonly<{
+    ask: () => Promise<
+      Readonly<{ answered: true; value: unknown } | { answered: false }>
+    >;
+    answered: (
+      answer: Readonly<
+        { answered: true; value: unknown } | { answered: false }
+      >,
+    ) => void;
+    intervalMs?: number;
+    setTimer?: (action: () => void, ms: number) => unknown;
+    clearTimer?: (timer: unknown) => void;
+  }>,
+) {
+  const interval = options.intervalMs ?? 2_000;
+  const setTimer =
+    options.setTimer ??
+    ((action: () => void, ms: number) => setTimeout(action, ms));
+  const clearTimer =
+    options.clearTimer ??
+    ((timer: unknown) => clearTimeout(timer as ReturnType<typeof setTimeout>));
+  let timer: unknown = null;
+  let asking = false;
+  let stopped = false;
+  function fire() {
+    timer = null;
+    asking = true;
+    void options
+      .ask()
+      .catch(() => ({ answered: false }) as const)
+      .then((answer) => {
+        asking = false;
+        if (!stopped) options.answered(answer);
+      });
+  }
+  return {
+    schedule(ms = interval): void {
+      if (stopped || asking || timer !== null) return;
+      timer = setTimer(fire, ms);
+    },
+    now(): void {
+      if (stopped || asking) return;
+      if (timer !== null) clearTimer(timer);
+      timer = setTimer(fire, 0);
+    },
+    stop(): void {
+      stopped = true;
+      if (timer !== null) clearTimer(timer);
+      timer = null;
+    },
+  };
+}
+
+export type LoginPoll = ReturnType<typeof createLoginPoll>;
 
 /** "You are signed in to gh as octocat (Org)." */
 export function signedInMessage(state: LoginView, copy: Copy): string {

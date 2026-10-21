@@ -10,13 +10,14 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
-import { createServer } from "node:net";
+import { createConnection, createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   answerStatic,
   resolveStaticRequest,
   servedRoots,
+  serveStatic,
 } from "../src/modules/built/static-server";
 import {
   staticServerFiles,
@@ -358,3 +359,37 @@ test("a record that cannot be read now is read again at the next request; a deve
   await record({ mode: "dev", key: null, previous: null });
   expect((await roots()).root).toBe(join(app, second));
 });
+
+test("a connection a browser keeps after its request stays open past Bun's 10 s, so the app counts as used (root decision 0195 point 23)", async () => {
+  const server = serveStatic({
+    hostname: "127.0.0.1",
+    port: 0,
+    fallback: "404",
+    roots: async () => ({ root: build }),
+  });
+  const socket = createConnection({
+    host: "127.0.0.1",
+    port: server.port as number,
+  });
+  try {
+    let answered = "";
+    let closed = false;
+    socket.on("data", (chunk) => {
+      answered += chunk.toString();
+    });
+    socket.once("close", () => {
+      closed = true;
+    });
+    await new Promise((resolve) => socket.once("connect", resolve));
+    socket.write(
+      `GET / HTTP/1.1\r\nHost: 127.0.0.1:${server.port}\r\nConnection: keep-alive\r\n\r\n`,
+    );
+    while (!answered.includes("<h1>home</h1>")) await Bun.sleep(10);
+    // Bun's default idle time closes it after 10 s, measured at 12.
+    await Bun.sleep(15_000);
+    expect(closed).toBe(false);
+  } finally {
+    socket.destroy();
+    server.stop(true);
+  }
+}, 30_000);

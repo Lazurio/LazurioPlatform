@@ -1843,7 +1843,7 @@ characters escaped), Czech or English by the Folder's locale.
 | product | `template-revision` | `observeFolder` facts | `warn folder-newer` (a newer product rendered it), `warn revision-unknown`; an older one is `folder-refresh` |
 | Folder | `folder-state` | `collectRecovery` Folder state; preset and Machine kind from `observeFolder` | `fail folder-state-pending`, `-absent`, `-unrecognized`, `-unreadable` |
 | Folder | `machine-binding` | recorded `preferences.machine` vs `machineBinding` of the live handover | `warn machine-identity-changed`, `warn handover-changed` (digest; `machine folder-refresh`), `warn binding-absent`, `warn handover-unreadable`; `skipped not-hosted` |
-| tools | `tool` | `toolsOverview` (tiers, enabled), else `toolsStatus` over the catalog | required missing `fail required-missing`; `warn recommended-missing`, `warn enabled-missing`, `warn version-unreadable`; `skipped not-enabled`; `skipped not-offered` for a missing tool Lazurio does not offer in this Environment (`toolOffered`: bitwarden outside a Remote Environment on Linux, decisions F43 and F53; gogcli in a work Environment, F44); Executor is not a tool row but its own check; `signIn`/`ssh` ids with `--sign-in` |
+| tools | `tool` | `toolsOverview` (tiers, enabled), else `toolsStatus` over the catalog | required missing `fail required-missing`; `warn recommended-missing`, `warn enabled-missing`, `warn version-unreadable`; `skipped not-enabled`; `skipped not-offered` for a missing tool Lazurio does not offer in this Environment (`toolOffered`: bitwarden outside a Remote Environment on Linux, decisions F43 and F53; gogcli in a work Environment, F44); Executor is not a tool row but its own check; `signIn`/`ssh` ids with `--sign-in`, and with it `warn ssh-not-linked` for a signed-in gh whose SSH proof failed where the Environment signs in as its person (F19's addendum of 2026-10-19) |
 | tools | `executor` | `executorStatus` ([F44](decisions.md#f44--executor-in-every-remote-environment-installed-run-and-connected-to-the-agents-by-lazurio)): the entry and its marker, `systemctl --user show` of `sh.executor.daemon.service` and its drop-in, `GET 127.0.0.1:4789/api/health`, `codex mcp get executor --json` and `~/.claude.json`; never `fail`, never in `recover` | `ok` running with the installed agents connected (context `toolVersion`, `executorService`, `codexMcp`, `claudeMcp`); `warn executor-not-installed`, `executor-outdated`, `executor-conflict`, `executor-not-running`, `executor-incomplete` (the next step is `lazurio executor setup`, or Settings → Tools → executor); `skipped not-offered` (a computer, not the operator), `skipped handover-unreadable` |
 | organizations | `catalog` | `readFolderCatalog` | counts of the Organizations and their modules only: the Personalspace group is never counted or named; `warn catalog-unreadable` |
 | organizations | `organization` | catalog entry | `warn` with the Organization reason; a template `skipped template-not-runtime` |
@@ -1853,6 +1853,7 @@ characters escaped), Czech or English by the Folder's locale.
 | machine | `machine-entry` | the recorded binding's `entry` on a hosted preset | `warn entry-not-recorded`; `skipped not-hosted` |
 | machine | `codex-app-server` | `observeCodexAppServer` ([F29](decisions.md#f29--entry-units-of-a-remote-environment-the-launchpad-t3-code-and-the-operators-codex-app-server)): `systemctl --user show` of `lazurio-codex-app-server.service`, then, when it is active, `codex app-server daemon version` from `~/.local/bin/codex` (10 s, PATH and HOME only); never `fail`, never in `recover` | `ok` when active and Codex answers `running`; `warn app-server-outdated` with `appServerVersion` and `cliVersion` when Codex answers `running` with two different versions (an app-server a client started over SSH outside the unit; replacing it is the Operator's call, `manual/troubleshooting.md`, issue #173), `warn daemon-not-running`, `warn daemon-state-unknown`, `warn unit-failed`, `unit-inactive`, `unit-not-loaded` (the next step is `systemctl --user start lazurio-codex-app-server.service`, or `lazurio install --service systemd-user --folder <Folder>` when the unit is missing); `skipped no-user-manager`, `not-supervised`, `not-hosted`, `codex-missing`, `user-manager-unreachable`, `unit-state-unknown` |
 | machine | `environment-browser` | `observeEnvironmentBrowser` ([F38](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway)): `systemctl --user show` of `lazurio-display.service`, `lazurio-browser.service` and `lazurio-browser-view.service`, then the browser's DevTools (`127.0.0.1:9222/json/version`) and the view (`127.0.0.1:<entry.browser.listen_port>/`), 3 s each, then every holder file in `$XDG_RUNTIME_DIR/lazurio-browser/holders` (`unreadableHolderFiles`, root decision 0191 point 32); never `fail`, never in `recover`, never `agent-browser doctor` (it cleans files) | `ok` when all three are active, both answer and every holder file can be read; `warn browser-unit-not-loaded`, `browser-unit-failed`, `browser-unit-inactive` with the `unit`, `warn browser-not-answering`, `browser-view-not-answering`, `warn browser-holder-unreadable` with the `files` (or the directory) it could not read: a file the hub read before keeps the tabs of its last reading until it can be read again, a file the hub has not read since the view started holds no tab, and doctor cannot tell the two apart; `skipped no-user-manager`, `not-supervised`, `not-hosted`, `browser-not-declared`, `user-manager-unreachable` |
+| machine | `computer-use` | `observeComputerUse` ([F59](decisions.md#f59--computer-use-on-a-remote-environment-the-cua-drivers-daemon-on-the-screen-one-mcp-server-computer-for-every-agent)): `~/.local/bin/cua-driver` a regular executable, `systemctl --user show` of `lazurio-computer.service`, then the driver's own `cua-driver doctor --json` (15 s, on `DISPLAY=:1` with `XDG_SESSION_TYPE=x11`, the user manager's session bus, telemetry and update check off; on Linux it only reads), then `codex mcp get computer --json` and `~/.claude.json`; never `fail`, never in `recover` | `ok` when the unit is active, the driver's doctor reports an X11 display and a reachable AT-SPI bus and every installed harness has Lazurio's entry (context `toolVersion`, the driver's version, `codexMcp`, `claudeMcp`); `warn computer-driver-missing` (the next step is Machines' install of the pinned driver), `warn computer-unit-not-loaded`, `computer-unit-failed`, `computer-unit-inactive` (`systemctl --user status lazurio-computer.service`, or the same install again), `warn computer-doctor-unreadable` (no JSON answer in time), `warn computer-display-unavailable` (the display probe is not X11, or the X11 connection is an error; no windows yet is still X11), `warn computer-accessibility-unavailable` (no AT-SPI bus: `at-spi2-core`, `dbus-user-session` and `gdbus` are Machines' packages), `warn computer-agents-missing` with `codexMcp`/`claudeMcp` (an entry of that name that is not Lazurio's is `conflict` and stays); `skipped no-user-manager`, `not-supervised`, `not-hosted`, `browser-not-declared` (no screen), `user-manager-unreachable` |
 
 **C.2 step 4.** The apply reads `lazurio doctor --json` and stops on any `fail`; for
 modules it keeps reading `lazurio module list --json`, since only the apply knows which
@@ -2237,8 +2238,13 @@ status" (with them again and `fresh: true`, read anew), and shows:
   nainstaluje, agenti ho začnou používat." when its switch is on, Matěj 2026-10-09:
   said only while it is true, from the live state). The installed
   version, a failed version check, a PATH outside the standard and whether gh's SSH key
-  is linked are in its Details; only a key that is not linked stays on the line, in
-  the warning colour. On the right the one action ("Připojit" / "Connect"; "Přidat a
+  is linked are in its Details; a key that is not linked (in the warning colour) or not
+  verified stays on the line, and gh's account is then not in the success colour, which
+  only a working link gets (F19's addendum of 2026-10-19, #515), and no line has it while
+  the rows show an older reading as being checked (#551). A sign-in the page runs
+  of the tool, its window closed or open, says "Čekám na přihlášení…" or "Dokončuji
+  připojení…" there with the waiting mark (#516). On the right the one action
+  ("Připojit" / "Connect"; "Přidat a
   připojit" / "Add and connect" when it is not installed yet; "Link SSH key" before
   "Odpojit" / "Disconnect"; or, for a tool an agent sets up, "Připojit s pomocí agenta" /
   "Connect with an agent") and the switch with its visible label
@@ -2334,14 +2340,24 @@ marked done, in progress, next or did not finish; none for composio) and a statu
 line with `aria-live`; focus moves to the title. On a shared Environment the shared sign-ins
 warning and "Continue" come first. The dialog then installs (`/api/tools/install`) when
 needed and starts the login (`/api/tools/login/start`), and polls
-`/api/tools/login/poll` every 2 seconds with the session handle while it is open;
-closing it sends `/api/tools/login/cancel`, clears the code, link or QR from the page
-and returns focus to the card. Until the tool shows something to act on, the status
+`/api/tools/login/poll` every 2 seconds with the session handle, one poll loop per
+sign-in (`createLoginPoll`). Its × in the corner and Escape close the window and never
+end a sign-in that starts or runs (`loginCloseAction`, F19's addendum of 2026-10-19,
+#516): the page keeps its handle and polls on, also while the page is hidden (the poll
+belongs to the running sign-in; only the update pill polls only while the page is shown,
+plan DEV-6656), its end runs as with the window open, and opening the same tool's
+sign-in again (its row, Začínáme, the line in Apps) shows it instead of starting
+another. Only "Zrušit" in the dialog's foot sends
+`/api/tools/login/cancel`, offered only while a code, link or QR code waits
+(`loginCancelOffered`). Closing clears the code, link or QR from the page and returns
+focus to the card. Until the tool shows something to act on, the status
 line says "Starting the sign-in…" and the body, never the same sentence, says that
-Lazurio waits for the tool's first step and for at most a minute (#98). A request that
+Lazurio waits for the tool's first step and for at most a minute (#98). A start that
 gets no answer within 45 seconds ends the dialog with "The Launchpad did not answer in
-time", and a sign-in that ends as `not-installed`, `spawn-failed`, `tool-exit`,
-`not-confirmed` or `no-challenge` shows a sentence that says what to do. A tool that was signed in
+time"; a poll without an answer ends nothing and is asked again, until a minute after
+the session's own end (`loginPollGivenUp`); and a sign-in that ends as `not-installed`,
+`spawn-failed`, `tool-exit`, `not-confirmed` or `no-challenge` shows a sentence that
+says what to do. A tool that was signed in
 before (`signed-in` with `already: true`) is reported as "already signed in" and the
 card's state is read again. What it shows:
 
@@ -2390,18 +2406,21 @@ finish, with why under "What happened" in Details) and the tools are read again.
 
 **gh and its SSH key** (F19 addendum 2026-09-28). The gh dialog has a third step,
 "Linking the SSH key", between "Waiting for you" and "Signed in": after the code is
-entered, the status line says that Lazurio links the SSH key of this Machine and checks
-git over SSH. A linked key ends the dialog with "The SSH key of this Machine is linked:
-git clone git@github.com:… works as <account>" and whether the key was created now
+entered, the status line says "Dokončuji připojení…" with the waiting mark and "Okno
+můžete zavřít, Lazurio připojení dokončí samo." (F19's addendum of 2026-10-19; never
+"connected" before the proof), and offers no "Zrušit". A linked key ends the dialog
+with "The SSH key of this Machine is linked: git clone git@github.com:… works as
+<account>" and whether the key was created now
 (without a passphrase, so agents can use it) or an existing one is used unchanged, with
 its path and fingerprint. A key that is not linked marks the step "did not finish" and
 says, in one sentence each, that gh is signed in but git over SSH does not work yet and
 why (a passphrase on the existing key, the key in use by another account, a differing
 github.com host key, a failing proof, …), with "Finish with an agent" and "Try again",
 which links the key only. A signed-in gh whose key is not linked or not verified shows
-"Link SSH key" on its card: the same dialog with the steps "Linking the SSH key" and
-"SSH key linked", and "Waiting for you" first with a device code only when the gh
-sign-in may not manage SSH keys yet (the code widens the sign-in, the text says so).
+"Link SSH key" on its card: the same dialog, under gh's own title "Connect GitHub", with
+the steps "Linking the SSH key" and "SSH key linked", and "Waiting for you" first with a
+device code only when the gh sign-in may not manage SSH keys yet (the code widens the
+sign-in, the text says so).
 "Sign out" of gh also says what happened to the key on the account: removed, kept
 because Lazurio did not register it, or possibly still registered with where to remove
 it.
@@ -2998,7 +3017,10 @@ Organization's, and it gets none of it.
     (`lazurio tools login codex|claude`, F19's addendum of 2026-10-15) only makes this
     reading change: when one ends, the server drops the answer it keeps;
   - GitHub from Settings → Nástroje's own reading of the profile shown (`githubFact`: an
-    unknown, unprobed, stale or Team reading says nothing; gh not installed is missing);
+    unknown, unprobed, stale or Team reading says nothing; gh not installed is missing;
+    connected only when gh is signed in and this Environment reaches GitHub over SSH as
+    that account, `incomplete` when it does not, which counts as missing, F19's addendum
+    of 2026-10-19);
   - the content from the content routes (`content-client.ts`, `content-view.ts`).
 - **Nastavení → Začínáme** (`/settings/start`, first in the Settings column with the
   count "1/3" while a basic is missing; `start-view.ts`, `start-panel.ts`): "Hotovo
@@ -3010,7 +3032,15 @@ Organization's, and it gets none of it.
      and "Přihlásit Claude", each with its mark before its name (OpenAI's Blossom from
      its brand kit, the sprite's `i-openai`, in OpenAI's white or black only; Claude's
      simple-icons mark, `i-claude`; [licensing](licensing.md#bundled-third-party-assets)),
-     nothing said before them (where the AI could not be checked, that line); signing
+     nothing said before them (where the AI could not be checked, that line); beneath
+     them ChatGPT's quieter "Přihlásit kódem" (a link-coloured button) with its one line,
+     "Přihlášení kódem si nejdřív zapněte v nastavení zabezpečení ChatGPT. U pracovního
+     účtu ho povoluje jeho správce." (root decision 0201 point 10, F19's addendum of
+     2026-10-21: `lazurio tools login codex --device-code`), and while its code waits
+     "Otevřete stránku ChatGPT v kterémkoli prohlížeči, třeba v telefonu, a opište kód.
+     Platí 15 minut." with the code, "Kopírovat" and "Otevřít ChatGPT" (the block of gh's
+     code in its dialog, `device-code-block.ts`) and "Zrušit", nothing opened in the right
+     panel; signing
      in, "Dokončete přihlášení k {ChatGPT|Claude} v prohlížeči vpravo." (the
      right panel opens on the Environment browser's tab, as for Integrace) or "… v okně
      prohlížeče." (a workstation, whose CLI opens the computer's browser), with
@@ -3023,7 +3053,11 @@ Organization's, and it gets none of it.
      otevřít.", nothing started. Signed in, the page reads `GET /api/ai?fresh=1` at once;
   2. **GitHub**: "Připojeno jako @login", or "Nepřipojeno" with
      "Připojit" (gh's own sign-in dialog of Nástroje), enabled only once AI is there;
-     before, the step waits under its number;
+     before, the step waits under its number. Connected badly (signed in, SSH not
+     working): "Připojení nefunguje." with the warning mark and "Připojit znovu", which
+     opens "Link SSH key" under the title "Připojit GitHub". A sign-in the page runs, its
+     window closed or open: "Čeká na vaše potvrzení." or "Dokončuje se připojení…" with
+     the waiting mark and "Otevřít", which shows it again (F19's addendum of 2026-10-19);
   3. **Stáhnout <Organizace>** / **Připravit osobní prostor** / both: the content's own
      rows inside the step (the same `content-panel.ts` as Toto Prostředí draws).
      Once this view saw GitHub or the AI arrive (from missing to there; what was there

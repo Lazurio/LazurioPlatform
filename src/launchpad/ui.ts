@@ -701,6 +701,9 @@ const startPanel = createStartPanel({
           aiSignIn: aiSignIn.state(),
           aiPlace: aiSignInPlace(entry),
           githubLogin: githubAccount(toolsOverview),
+          // GitHub's sign-in this page runs, its window closed or not
+          // (#516): the step says it runs, and opens it again.
+          githubFlow: tools.running("gh") ?? undefined,
           list: content.list(),
         };
   },
@@ -731,7 +734,9 @@ const startPanel = createStartPanel({
     if (!tools.openSignIn("composio") && !tools.openComposioOrganization())
       shell.navigate(settingsPath("tools"));
   },
-  signInAi: (tool) => void aiSignIn.start(tool),
+  // "Přihlásit kódem": ChatGPT's sign-in by code (root decision 0201 point 10).
+  signInAi: (tool, byCode) =>
+    void aiSignIn.start(tool, byCode === true ? { byCode: true } : {}),
   cancelAi: () => void aiSignIn.cancel(),
   reopenAi: () => aiSignIn.reopen(),
   sendAiCode: (code) => void aiSignIn.sendCode(code),
@@ -1510,6 +1515,9 @@ const tools = createToolsPanel({
   },
   // A public Environment has no Nástroje (decision F55): nothing to read.
   absent: () => isPublicEnvironment(entry),
+  // A sign-in of this page started, moved on or ended, its window open or
+  // closed (#516): Začínáme follows.
+  signInsChanged: () => firstRun(),
 });
 const voice = voicePanel({
   post,

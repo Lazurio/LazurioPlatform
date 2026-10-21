@@ -1,6 +1,7 @@
 import type { ShellSetup } from "../shell/contract";
 import { ghStatus } from "../tools/gh-status";
 import type { ToolsEnvironment } from "../tools/overview";
+import { sshStatus } from "../tools/ssh-key";
 import { resolveOnPath, type ToolSignIn } from "../tools/status";
 import {
   type ContentJob,
@@ -41,7 +42,12 @@ export async function readContent(
  * that the shell document, read on every page load of Chat and Automate,
  * does not ask GitHub each time. Settings → Nástroje's own readings and
  * every sign-in or sign-out through this Launchpad replace it. Not
- * installed is `missing`; a timeout or a failure is `unknown`. */
+ * installed is `missing`; a timeout or a failure is `unknown`. Connected is
+ * gh signed in and this Environment reaching GitHub over SSH as that
+ * account (decision F19, addendum 2026-10-19, #515): signed in without it
+ * is `missing` for the shell, which counts it so, and the status's SSH part
+ * runs the sign-in's own proof, kept by the environment's `sshProofs` where
+ * it has them (the Launchpad's). */
 export function createGithubProbe(
   environment: ToolsEnvironment,
   options: Readonly<{
@@ -57,8 +63,11 @@ export function createGithubProbe(
     state: "connected" | "missing" | "unknown";
     at: number;
   }> | null = null;
-  let asking: Promise<"connected" | "missing" | "unknown"> | null = null;
-  // A reading or a forget while a question runs makes its answer stale.
+  type State = "connected" | "missing" | "unknown";
+  let asking: Readonly<{ generation: number; state: Promise<State> }> | null =
+    null;
+  // A reading or a forget while a question runs makes its answer stale: it
+  // is not kept, and not answered either (Pablo's review of #524).
   let generation = 0;
 
   async function ask(): Promise<"connected" | "missing" | "unknown"> {
@@ -73,31 +82,55 @@ export function createGithubProbe(
     if (environment.path) env.PATH = environment.path;
     for (const [name, value] of Object.entries(environment.xdg ?? {}))
       env[name] = value;
-    const { signIn } = await ghStatus(
-      (command, timeoutMs) => environment.run(command, timeoutMs, env),
-      gh,
-      timeout,
-    );
-    return stateOf(signIn);
+    const run = (command: readonly string[], timeoutMs: number) =>
+      environment.run(command, timeoutMs, env);
+    const { signIn, scopes } = await ghStatus(run, gh, timeout);
+    if (signIn.state !== "signed-in") return stateOf(signIn);
+    const [keygen, ssh] = await Promise.all([
+      resolveOnPath("ssh-keygen", environment.path, environment.platform),
+      resolveOnPath("ssh", environment.path, environment.platform),
+    ]);
+    return stateOf({
+      ...signIn,
+      ssh: await sshStatus({
+        home: environment.home,
+        gh,
+        account: signIn.account,
+        scopes,
+        keygen,
+        ssh,
+        run,
+        proofs: environment.sshProofs,
+      }),
+    });
   }
 
   return {
-    /** The state, asked when it is not known or older than the TTL. */
-    async state(): Promise<"connected" | "missing" | "unknown"> {
-      if (known !== null && now() - known.at < ttl) return known.state;
-      if (asking === null) {
+    /** The state, asked when it is not known or older than the TTL. An
+     * answer that a sign-in, link or sign-out through this Launchpad (or a
+     * reading of Settings → Nástroje) overtook is from before it: asked
+     * again, and after three such changes in a row `unknown`, never the
+     * older state. */
+    async state(): Promise<State> {
+      for (let again = 0; again < 3; again++) {
+        if (known !== null && now() - known.at < ttl) return known.state;
         const asked = generation;
-        asking = ask()
-          .catch(() => "unknown" as const)
-          .then((state) => {
-            if (asked === generation) known = { state, at: now() };
-            return state;
-          })
-          .finally(() => {
-            asking = null;
-          });
+        if (asking?.generation !== asked) {
+          const state: Promise<State> = ask()
+            .catch(() => "unknown" as const)
+            .then((answered) => {
+              if (asked === generation) known = { state: answered, at: now() };
+              return answered;
+            })
+            .finally(() => {
+              if (asking?.state === state) asking = null;
+            });
+          asking = { generation: asked, state };
+        }
+        const answered = await asking.state;
+        if (asked === generation) return answered;
       }
-      return asking;
+      return "unknown";
     },
     /** A reading of Settings → Nástroje: gh installed or not, and its
      * sign-in when it was probed. True when it says otherwise than the state
@@ -118,10 +151,15 @@ export function createGithubProbe(
   };
 }
 
+// The first run's `githubFact` for the shell: connected only with SSH
+// working, missing also when it does not (connected badly), unknown when it
+// could not be read.
 function stateOf(signIn: ToolSignIn): "connected" | "missing" | "unknown" {
-  return signIn.state === "signed-in"
+  if (signIn.state === "signed-out") return "missing";
+  if (signIn.state !== "signed-in") return "unknown";
+  return signIn.ssh?.state === "linked"
     ? "connected"
-    : signIn.state === "signed-out"
+    : signIn.ssh?.state === "not-linked"
       ? "missing"
       : "unknown";
 }

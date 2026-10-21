@@ -107,6 +107,7 @@ import {
   toolsOverview,
 } from "../tools/overview";
 import { qrMatrix, qrSvg } from "../tools/qr";
+import { createSshProofs } from "../tools/ssh-key";
 import { resolveOnPath } from "../tools/status";
 import type { GithubAction } from "../tools/team-github";
 import { toolsUpdate } from "../tools/update";
@@ -725,16 +726,36 @@ export async function startLaunchpad(
     host: moduleHost,
     personalspace: personalspace.decide,
   });
-  // A static app someone opened is built again after a pull (decision F58).
-  modules.keepBuilt();
+  // What the service manager runs: Nová karta's running Modules, and the
+  // apps the Launchpad's sweep lets sleep when nobody uses them.
+  const running = () =>
+    runningModules({
+      folder,
+      host: moduleHost,
+      personalspace: personalspace.peek,
+    });
+  // A static app someone opened is built again after a pull (decision F58);
+  // an app nobody uses falls asleep (root decision 0195 point 23).
+  modules.keepBuilt({ running });
   // The Folder's catalog, kept while nothing it depends on changed
   // (catalog-reading.ts): the page's boot document, the shell document, the
   // catalog and Apps' questions about one Organization read it.
   const catalog = createCatalogReading(folder, {
     holder: personalspace.peek,
   });
+  // gh's SSH proof of the status (decision F19, addendum 2026-10-19, #515)
+  // is kept here, per key and account (a pass 5 minutes, a failure 20 s),
+  // for every reading of the sign-ins this Launchpad makes: Settings →
+  // Nástroje's (itself kept a minute, below), Integrace's and the shell
+  // document's GitHub. A gh sign-in or sign-out that starts forgets it, and
+  // a link keeps what it proved, so the reading after it does not prove
+  // again.
+  const toolsWithProofs: ToolsEnvironment = {
+    ...toolsEnvironment,
+    sshProofs: createSshProofs(),
+  };
   // Settings → Nástroje's live facts, kept a minute (tools-reading.ts).
-  const toolsReading = createToolsReading(toolsEnvironment);
+  const toolsReading = createToolsReading(toolsWithProofs);
   // A setup goes on after its answer: its end drops the reading again.
   const forgetToolsAfter = (ended: Promise<void>) =>
     void ended.catch(() => undefined).then(() => toolsReading.forget());
@@ -748,11 +769,13 @@ export async function startLaunchpad(
   // unit's journal on a Machine): the tool and the outcome, nothing else.
   // codex and claude sign in through the same sessions (F19's addendum of
   // 2026-10-15): their page opens in the Environment browser of a Remote
-  // Environment, shown in the right panel; the sessions ask Codex itself,
-  // fresh, whether the Organization provides the AI; afterwards the running
-  // services read the sign-in, and the AI is read again.
+  // Environment, shown in the right panel (codex by code opens nothing: its
+  // page and code go to the page, F19's addendum of 2026-10-21); the
+  // sessions ask Codex itself, fresh, whether the Organization provides the
+  // AI; afterwards the running services read the sign-in, and the AI is read
+  // again.
   const logins = createLoginSessions({
-    ...toolsEnvironment,
+    ...toolsWithProofs,
     journal: (journaled) => {
       console.log(JSON.stringify({ scope: "tools-login", ...journaled }));
       // A sign-in that ends, even with nobody polling it, changes what the
@@ -787,7 +810,7 @@ export async function startLaunchpad(
   // document's `setup` and the prompt `prepare-content`: GitHub's sign-in of
   // its person, kept a minute, and its content as the content routes report
   // it (below).
-  const github = createGithubProbe(toolsEnvironment);
+  const github = createGithubProbe(toolsWithProofs);
   let closing = false;
   const headers = {
     "Cache-Control": "no-store",
@@ -953,7 +976,9 @@ export async function startLaunchpad(
       : processExecutorEndpoint(process.env);
   const integrations = createIntegrationsRoutes({
     folder,
-    tools: toolsEnvironment,
+    // Its reading of the tools has the sign-ins: gh's SSH proof is the one
+    // this Launchpad keeps.
+    tools: toolsWithProofs,
     headers,
     seams: () => ({
       executor: integrationExecutor(),
@@ -1037,12 +1062,7 @@ export async function startLaunchpad(
     browser,
     holder,
     host: newTabHost,
-    modules: () =>
-      runningModules({
-        folder,
-        host: moduleHost,
-        personalspace: personalspace.peek,
-      }),
+    modules: running,
     served: (module) =>
       modules.served(`${module.org}/${module.module}`, module.app),
     headers,
@@ -2062,7 +2082,7 @@ export async function startLaunchpad(
             if (asked.includes(field) && typeof value[field] !== "boolean")
               return response({ error }, 400);
           const signIn = value.signIn === true;
-          const reading = toolsReading.answer(signIn, {
+          let reading = toolsReading.answer(signIn, {
             fresh: value.fresh === true,
             allowStale: value.allowStale === true,
           });
@@ -2077,10 +2097,27 @@ export async function startLaunchpad(
             server.timeout(request, 120);
             await settings?.nudge(settingsWaitMs);
           }
-          const overview = await toolsOverview(folder, toolsEnvironment, {
+          let overview = await toolsOverview(folder, toolsWithProofs, {
             signIn,
             live: () => reading.done,
           });
+          // A change through this Launchpad while the tools were read (a
+          // sign-in, link or sign-out, an installation: `forget`) leaves the
+          // reading from before it: the tools are read again, so neither the
+          // answer nor the shell's GitHub below carries the facts from before
+          // the change (Pablo's review of #524). Three such changes in a row
+          // end as a refusal the page meets as a failed reading, never as the
+          // older facts.
+          for (let again = 0; !reading.stale && !reading.current(); again++) {
+            if (again === 3) return response({ error: "tools-changing" }, 503);
+            const anew = toolsReading.answer(signIn);
+            void anew.done.catch(() => undefined);
+            reading = anew;
+            overview = await toolsOverview(folder, toolsWithProofs, {
+              signIn,
+              live: () => anew.done,
+            });
+          }
           // The shell document's GitHub, and whose Personalspace this is,
           // follow a current reading.
           const gh = overview.tools.find((tool) => tool.name === "gh");
@@ -2152,6 +2189,11 @@ export async function startLaunchpad(
           const withSshKey =
             url.pathname === "/api/tools/login/start" &&
             ownDataValue(input, "sshKey") !== undefined;
+          // ChatGPT's sign-in by code (root decision 0201 point 10), codex's
+          // fallback for its browser sign-in.
+          const withDeviceCode =
+            url.pathname === "/api/tools/login/start" &&
+            ownDataValue(input, "deviceCode") !== undefined;
           const fields: Record<string, readonly string[]> = {
             "/api/tools/install": ["tool"],
             "/api/tools/upgrade": ["tool"],
@@ -2159,6 +2201,7 @@ export async function startLaunchpad(
               "tool",
               ...(withPhone ? ["phone"] : []),
               ...(withSshKey ? ["sshKey"] : []),
+              ...(withDeviceCode ? ["deviceCode"] : []),
             ],
             "/api/tools/login/poll": ["tool", "session"],
             "/api/tools/login/cancel": ["tool", "session"],
@@ -2382,6 +2425,13 @@ export async function startLaunchpad(
             )
               return response({ error: "invalid-phone" }, 400);
             if (
+              value.deviceCode !== undefined &&
+              (value.deviceCode !== true ||
+                tool !== "codex" ||
+                value.sshKey !== undefined)
+            )
+              return response({ error: "invalid-device-code" }, 400);
+            if (
               value.sshKey !== undefined &&
               (value.sshKey !== true ||
                 tool !== "gh" ||
@@ -2398,6 +2448,7 @@ export async function startLaunchpad(
                 ? { phone: value.phone }
                 : {}),
               ...(value.sshKey === true ? { sshKey: true } : {}),
+              ...(value.deviceCode === true ? { deviceCode: true } : {}),
             });
             // Signed in: what connects the apps changed (decision F42,
             // note of 2026-10-19), so Integrace read again.

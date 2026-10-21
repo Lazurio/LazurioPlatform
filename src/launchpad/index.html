@@ -588,9 +588,12 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .tool-signin[data-state="signed-in"], .vault-page-state[data-tone="ok"] { color: var(--success-fg); }
 .vault-page-state[data-tone="warn"] { color: var(--warning-fg); }
 .tool-signin[data-state="signed-out"], .tool-ssh[data-state="not-linked"] { color: var(--warning-fg); }
+.tool-signin[data-state="waiting"] .spinner { display: inline-block; margin-right: 6px; vertical-align: -1px; }
 .tools-muted { color: var(--muted-fg); font-size: 12.5px; }
 /* The Launchpad's older reading while it reads the tools anew (tools-reading.ts): shown as being checked. */
 #tools-groups[data-checking] { opacity: 0.6; transition: opacity 0.2s; }
+/* Being checked, it confirms nothing: no line takes the success colour before the current reading, so GitHub is never green from an older reading whose SSH may have broken since (F19's addendum of 2026-10-19). */
+#tools-groups[data-checking] .tool-signin[data-state="signed-in"] { color: inherit; }
 @media (prefers-reduced-motion: reduce) { #tools-groups[data-checking] { transition: none; } }
 .row-details { margin-top: 0.5rem; }
 .row-details[open] > .details-body { display: grid; gap: 0.75rem; margin-top: 0.625rem; padding: 0.75rem; border-radius: var(--radius-control); background: var(--muted); border: 1px solid var(--lz-gray-100); }
@@ -623,11 +626,22 @@ dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 .dialog-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.5rem; margin: 1rem -1.5rem -1.5rem; padding: 1rem 1.5rem; border-top: 1px solid var(--border); background: var(--muted); }
 .dialog-foot [role="status"] { margin-right: auto; color: var(--muted-fg); font-size: 12.5px; }
 #tools-login-status { font-weight: var(--lz-weight-akce); }
+/* The sign-in dialog's head: its title and a small × that closes the window
+   and never ends a sign-in that runs (decision F19, addendum 2026-10-19);
+   "Zrušit" in its foot only while a code waits; a waiting mark beside the
+   status while it finishes. */
+.dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.dialog-head h2 { flex: 1; min-width: 0; }
+button.dialog-x { flex: none; width: 30px; height: 30px; margin: -3px -6px 0 0; padding: 0; border: 0; background: transparent; color: var(--muted-fg); }
+button.dialog-x:hover { background: var(--hover); color: var(--fg); }
+button.dialog-x:focus-visible { outline: 2px solid var(--lz-accent); outline-offset: 2px; }
+button.dialog-x .icon { width: 18px; height: 18px; }
+#tools-login-status .spinner { display: inline-block; margin-right: 8px; vertical-align: -1px; }
 #tools-login-steps { display: flex; flex-wrap: wrap; gap: 0.25rem 1.75rem; margin: 0 0 0.75rem; padding-left: 1.1rem; color: var(--muted-fg); font-size: 12.5px; }
 #tools-login-steps li[data-state="current"] { color: var(--fg); font-weight: 600; }
 #tools-login-steps li[data-state="done"] { color: var(--success-fg); }
 #tools-login-steps li[data-state="failed"] { color: var(--destructive); font-weight: 600; }
-#tools-login .tools-code { font: 600 2rem/1.2 var(--font-mono); letter-spacing: 0.12em; user-select: all; margin: 0.4rem 0 0.8rem; }
+.tools-code { font: 600 2rem/1.2 var(--font-mono); letter-spacing: 0.12em; user-select: all; margin: 0.4rem 0 0.8rem; }
 #tools-login .tools-qr { display: block; width: 280px; height: 280px; background: #fff; image-rendering: pixelated; margin: 0.6rem 0; border-radius: 0.5rem; }
 #tools-login .tools-phone { border-top: 1px solid var(--border); margin-top: 0.8rem; padding-top: 0.75rem; }
 #tools-login .tools-phone input, #tools-login .tools-orgs select { display: block; margin-top: 0.3rem; width: min(18rem, 100%); }
@@ -1068,7 +1082,7 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
 .content-failure { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--destructive-border); border-radius: var(--radius-control); background: var(--destructive-bg); font-size: 14px; }
 .content-failure details.technical, .content-row details.technical { padding: 0; }
 .tools-code-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-#tools-login .tools-code-row .tools-code { margin: 0; }
+.tools-code-row .tools-code { margin: 0; }
 .tools-open { height: 34px; padding: 0 14px; font-size: 14px; }
 .tools-login-more > summary { cursor: pointer; color: var(--muted-fg); font-size: 13px; }
 /* Composio's sign-in dialog after the sign-in (decision F42, addendum (2) of
@@ -1277,6 +1291,13 @@ button.tour-later:hover { background: transparent; color: var(--fg); }
 .provider-openai { width: 22px; height: 22px; }
 button.primary .provider-openai { color: #ffffff; }
 button:not(.primary) .provider-openai { color: #000000; }
+/* ChatGPT's sign-in by code (root decision 0201 point 10): a quiet button
+   and its line beneath the two sign-ins; while its code waits, the block of
+   gh's code (device-code-block.ts). */
+.start-by-code { display: grid; justify-items: start; gap: 2px; }
+.start-by-code-hint { color: var(--muted-fg); font-size: 13px; }
+.start-by-code-block { display: grid; justify-items: start; gap: 10px; }
+.start-by-code-block .tool-actions { margin: 0; }
 .start-code { display: grid; gap: 6px; max-width: 36rem; }
 .start-code-label { color: var(--muted-fg); font-size: 13.5px; }
 .start-code-row input { flex: 1; min-width: 14rem; font-family: var(--font-mono); }
@@ -1810,11 +1831,11 @@ button:not(.primary) .provider-openai { color: #000000; }
 <div class="dialog-foot"><span id="tools-prompt-status" role="status" aria-live="polite"></span><button type="button" id="tools-prompt-close" data-message="toolsClose">Close</button><button type="button" id="tools-prompt-copy" class="primary" data-message="toolsCopy">Copy prompt</button></div>
 </dialog>
 <dialog id="tools-login" aria-labelledby="tools-login-title" aria-describedby="tools-login-status">
-<h2 id="tools-login-title" tabindex="-1"></h2>
+<div class="dialog-head"><h2 id="tools-login-title" tabindex="-1"></h2><button type="button" class="dialog-x" id="tools-login-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="sr-only" data-message="toolsClose">Close</span></button></div>
 <ol id="tools-login-steps"></ol>
 <p id="tools-login-status" role="status" aria-live="polite"></p>
 <div id="tools-login-body"></div>
-<div class="dialog-foot"><button type="button" id="tools-login-close" data-message="toolsClose">Close</button></div>
+<div class="dialog-foot" id="tools-login-foot" hidden><button type="button" id="tools-login-cancel" data-message="toolsLoginCancel">Cancel</button></div>
 </dialog>
 <dialog id="integrations-confirm" aria-labelledby="integrations-confirm-title">
 <h2 id="integrations-confirm-title" tabindex="-1"></h2>

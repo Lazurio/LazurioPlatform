@@ -465,8 +465,14 @@ export function aiServicesLines(tool: string, services: AiServices): string[] {
 }
 
 // What a person reads for one state; `null` when nothing new is to be said.
-// `typing`: a person types in this terminal, where a code can be pasted.
-function loginLines(state: LoginState, typing = false): string[] {
+// `typing`: a person types in this terminal, where a code can be pasted;
+// `deviceCode`: codex signs in by code (root decision 0201 point 10).
+function loginLines(
+  state: LoginState,
+  options: Readonly<{ typing?: boolean; deviceCode?: boolean }> = {},
+): string[] {
+  const { typing = false, deviceCode = false } = options;
+  const again = `lazurio tools login ${state.tool}${deviceCode ? " --device-code" : ""}`;
   switch (state.kind) {
     case "pending": {
       if (state.step === "ssh-key")
@@ -493,13 +499,21 @@ function loginLines(state: LoginState, typing = false): string[] {
           "Waiting for you to finish the sign-in. Ctrl-C cancels.",
         ];
       }
-      if (challenge.kind === "device-code")
+      if (challenge.kind === "device-code") {
+        // gh's sign-in, or ChatGPT's by code, whose setting comes first.
+        const chatgpt = state.tool === "codex";
         return [
-          "Sign in to GitHub on any device (phone or computer):",
+          `Sign in to ${chatgpt ? "ChatGPT" : "GitHub"} on any device (phone or computer):`,
           `  1. Open ${challenge.url}`,
           `  2. Enter the code  ${challenge.code}`,
-          "Waiting for you to finish in the browser. Ctrl-C cancels.",
+          ...(chatgpt
+            ? [
+                "The code is valid for 15 minutes. Sign-in with a code must first be turned on in your ChatGPT security settings; for a work account, its admin allows it.",
+                "Waiting for you to enter the code. Ctrl-C cancels.",
+              ]
+            : ["Waiting for you to finish in the browser. Ctrl-C cancels."]),
         ];
+      }
       if (challenge.kind === "url")
         return [
           "Open this link in a browser on any device and sign in to Composio:",
@@ -554,13 +568,18 @@ function loginLines(state: LoginState, typing = false): string[] {
         `Sign-in of ${state.tool} failed: ${failureText[state.reason] ?? state.reason}.`,
         // An AI CLI has no agent prompt: without AI there is no agent.
         isAiProvider(state.tool)
-          ? `Try again: lazurio tools login ${state.tool}`
+          ? `Try again: ${again}`
           : `Finish it with an agent: lazurio tools prompt ${state.tool}`,
       ];
     case "blocked":
       if (state.reason === "no-environment-browser")
         return [
           `This Remote Environment has no Environment browser, so the sign-in page could not return to ${state.tool} here. Nothing was started; an update of the Environment adds the browser.`,
+          ...(state.tool === "codex"
+            ? [
+                "ChatGPT can sign in with a code on any device instead: lazurio tools login codex --device-code",
+              ]
+            : []),
         ];
       if (state.reason === "organization-provided")
         return [
@@ -569,7 +588,14 @@ function loginLines(state: LoginState, typing = false): string[] {
       return [teamGithubText.en];
     case "expired":
       return [
-        `The sign-in of ${state.tool} expired before it was completed. Start it again: lazurio tools login ${state.tool}`,
+        `The sign-in of ${state.tool} expired before it was completed. Start it again: ${again}`,
+        // OpenAI's page refuses a code while the setting is off, and Codex
+        // only waits.
+        ...(deviceCode
+          ? [
+              "If ChatGPT's page refused the code, turn sign-in with a code on in your ChatGPT security settings first.",
+            ]
+          : []),
       ];
     case "cancelled":
       return [`The sign-in of ${state.tool} was cancelled.`];
@@ -584,12 +610,28 @@ export async function runLogin(
   json: boolean,
   context: CuratedContext,
   sshKey = false,
+  deviceCode = false,
 ): Promise<CuratedOutput> {
   // codex and claude sign in here too (F19's addendum of 2026-10-15),
   // though agents are not told about them as catalog tools.
   const ai = isAiProvider(name);
   const refused = ai ? undefined : refuseTool(name, json);
   if (refused) return refused;
+  // ChatGPT's sign-in by code (root decision 0201 point 10): codex only.
+  if (deviceCode && name !== "codex") {
+    const result = {
+      kind: "blocked",
+      reason: "device-code-codex-only",
+      tool: name,
+    };
+    return {
+      code: 2,
+      result,
+      text: json
+        ? JSON.stringify(result)
+        : "--device-code applies to codex only (ChatGPT's sign-in with a code).",
+    };
+  }
   if (sshKey && name !== "gh") {
     const result = { kind: "blocked", reason: "ssh-key-gh-only", tool: name };
     return {
@@ -622,9 +664,10 @@ export async function runLogin(
   if (environment.kind === "unreadable" && name === "gh")
     return environmentUnreadable(name, json, "login");
   // Where an AI CLI's page opens: the kind of Environment decides it, and
-  // one that cannot be read stops the sign-in before anything runs.
+  // one that cannot be read stops the sign-in before anything runs. By code
+  // the person opens OpenAI's page on any device, so no page opens here.
   let signInPage: SignInPage | undefined;
-  if (ai) {
+  if (ai && !deviceCode) {
     const page =
       environment.kind === "unreadable"
         ? "unreadable"
@@ -682,7 +725,10 @@ export async function runLogin(
   const emit = (state: LoginState) => {
     if (json) context.write(JSON.stringify(state));
     else
-      for (const line of loginLines(state, context.input !== undefined))
+      for (const line of loginLines(state, {
+        typing: context.input !== undefined,
+        deviceCode,
+      }))
         context.write(line);
   };
   const aborted = new Promise<"aborted">((resolve) => {
@@ -714,6 +760,7 @@ export async function runLogin(
     let state = await sessions.start(name, {
       ...(phone === undefined ? {} : { phone }),
       ...(sshKey ? { sshKey } : {}),
+      ...(deviceCode ? { deviceCode } : {}),
     });
     emit(state);
     let shown = JSON.stringify(state);

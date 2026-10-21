@@ -7,9 +7,15 @@ import {
   environmentBrowserFailed,
 } from "../browser/units";
 import {
+  type ComputerUse,
+  computerUseFailed,
+  convergeComputerUse,
+} from "../computer/computer";
+import {
   type ExecutorReport,
   executorReportFailed,
 } from "../executor/converge";
+import type { ToolRunner } from "../tools/status";
 import { activate, withUpdateLock } from "./activation";
 import type { AttestationVerifier } from "./attestation";
 import {
@@ -158,6 +164,9 @@ export type InstallInput = Readonly<{
   /** The handover's `entry.browser`, asked only on a supervised hosted base
    * (decision F38); absent: none, so nothing is converged. */
   browserEntry?: (() => Promise<BrowserEntry | undefined>) | undefined;
+  /** Tests only: the runner of Codex and Claude Code for the agents' MCP
+   * server `computer` (decision F59); absent, the processes themselves. */
+  tools?: ToolRunner | undefined;
   /** Executor's state on a supervised hosted base, read only (decision
    * F44, addendum of 2026-10-11, `reportExecutor`), given the same hosted
    * answer; absent: nothing is read. */
@@ -186,6 +195,8 @@ export type InstallResult =
       /** Only on a supervised base: what became of the Environment
        * browser's units (decision F38). */
       environmentBrowser?: EnvironmentBrowser;
+      /** Only on a supervised base: what became of Computer Use (F59). */
+      computerUse?: ComputerUse;
       /** Only on a supervised base: Executor's state as read (F44). */
       executor?: ExecutorReport;
     }>
@@ -201,6 +212,7 @@ export type InstallResult =
       entry: PathEntry | null;
       codexAppServer?: CodexAppServer;
       environmentBrowser?: EnvironmentBrowser;
+      computerUse?: ComputerUse;
       executor?: ExecutorReport;
     }>
   | ErrorResult;
@@ -500,6 +512,18 @@ async function install(input: InstallInput): Promise<InstallResult> {
       hosted,
       entry: input.browserEntry ?? (async () => undefined),
     }).catch(() => environmentBrowserFailed("unit"));
+  // Computer Use on the same screen (decision F59), after the browser's
+  // units, so its unit binds to a screen that is there.
+  const computerUse: ComputerUse | undefined = await convergeComputerUse({
+    base,
+    platform: input.platform,
+    env: input.env,
+    run: input.run ?? runProcess,
+    tools: input.tools,
+    hosted,
+    declared: async () =>
+      (await (input.browserEntry ?? (async () => undefined))()) !== undefined,
+  }).catch(() => computerUseFailed("unit"));
   // Executor's state the same way (decision F44, addendum of 2026-10-11):
   // read for the hosted operator of a supervised base, never set up here,
   // since its first setup may take minutes, and never a reason for the
@@ -529,6 +553,7 @@ async function install(input: InstallInput): Promise<InstallResult> {
       entry,
       ...(codexAppServer === undefined ? {} : { codexAppServer }),
       ...(environmentBrowser === undefined ? {} : { environmentBrowser }),
+      ...(computerUse === undefined ? {} : { computerUse }),
       ...(executor === undefined ? {} : { executor }),
     });
   return Object.freeze({
@@ -539,6 +564,7 @@ async function install(input: InstallInput): Promise<InstallResult> {
     entry,
     ...(codexAppServer === undefined ? {} : { codexAppServer }),
     ...(environmentBrowser === undefined ? {} : { environmentBrowser }),
+    ...(computerUse === undefined ? {} : { computerUse }),
     ...(executor === undefined ? {} : { executor }),
   });
 }

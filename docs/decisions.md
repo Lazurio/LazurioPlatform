@@ -1857,7 +1857,7 @@ What changes:
 Unchanged: the digest-owned outputs and their transaction, the manifest schema, the Folder's
 top-level boundary, every other text of the Folder.
 
-Template revision `base-instructions-62`; the pin of `tests/folder-template-revision.test.ts`
+Template revision `base-instructions-63`; the pin of `tests/folder-template-revision.test.ts`
 now covers the layer too. `tests/folder-buddy.test.ts` checks the paths, one layer for every
 Environment, the composition from `AGENTS.md`'s fragments, the role's parts, no person's name,
 the skills' frontmatter and today's limits of `openmausbot` and `t3`, the 20,000-character
@@ -2642,6 +2642,8 @@ that account and organization; wacli the QR code with its text alternative, the 
 WhatsApp in words and the alternative of a pairing code for a phone number. The page
 polls every 2 seconds while the dialog is open; closing it cancels the login. A failure
 shows its reason and "Finish with an agent", which opens the prepared prompt.
+*Amended 2026-10-19 (addendum below, #516):* closing the dialog never cancels a sign-in
+that runs; only "Zrušit", while a code, link or QR code waits, does.
 
 **Deferred.** Windows (the flows are refused as `unsupported-platform` there), further
 tools, automatic updates of curated tools, the hand-over of the prompt into a T3 Code
@@ -2728,7 +2730,11 @@ with `scope-missing` or `unreadable`, and the public fingerprint. The private ke
 not read and nothing connects over SSH on a status call: the host keys and the proof
 are checked by the sign-in and "Link SSH key". The card shows "Signed in as X · SSH key
 linked", "… · SSH key not linked" or "… · SSH key not verified", and the last two offer
-"Link SSH key".
+"Link SSH key". *Amended 2026-10-19 ([addendum below](#f19--curated-installation-and-login-of-catalog-tools),
+#515):* the status now runs the sign-in's own proof, GitHub's host keys and `ssh -T`,
+wherever the key is listed or the list cannot be read, and keeps a passing proof for a
+while; `linked` means this Environment reaches GitHub over SSH as the account, and
+`unknown` only that GitHub could not be reached or read.
 
 *Sign-out.* Before `gh auth logout`, the key of this Machine is removed from the
 account (`gh ssh-key delete <id> --yes`) when the token has `admin:public_key` and the
@@ -3128,7 +3134,9 @@ person never types into a terminal, and the sign-in must land where T3, Codex De
 SSH, the terminal and every agent read it.
 
 1. **One command over the CLIs' own sign-in.** `lazurio tools login codex` runs `codex
-   login` (never `--device-auth`), `lazurio tools login claude` runs `claude auth login`,
+   login` (never `--device-auth`; *amended 2026-10-21 ([addendum below](#f19--curated-installation-and-login-of-catalog-tools),
+   root decision 0201 point 10):* `--device-code` runs `codex login --device-auth` as the
+   browser sign-in's quieter fallback), `lazurio tools login claude` runs `claude auth login`,
    both through the curated sessions of this decision, as the Environment user with the
    minimal environment and the account's name (`USER`, `LOGNAME`; Claude Code finds its
    macOS keychain entry by it). Začínáme, agents and a person's terminal use the same
@@ -3164,7 +3172,8 @@ SSH, the terminal and every agent read it.
    while the sign-in waits for one; a code is never logged, stored or answered.
 4. **What starts nothing.** A Remote Environment without the Environment browser
    (`blocked`, `no-environment-browser`): the page could not return to the CLI there, and
-   Začínáme says why. Codex where its own `account/read` answers `requiresOpenaiAuth:
+   Začínáme says why. *(Since the addendum of 2026-10-21 this is the browser sign-in's
+   refusal only: ChatGPT's sign-in by code needs no Environment browser.)* Codex where its own `account/read` answers `requiresOpenaiAuth:
    false` (0201 points 4 and 6): the Organization provides the AI, and a ChatGPT sign-in
    would bypass its provider (`blocked`, `organization-provided`). Claude has no such
    source yet (#422's open question). Exit 2, `409` from the Launchpad. The core asks
@@ -3211,7 +3220,7 @@ SSH, the terminal and every agent read it.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
-| Device code (`codex login --device-auth`) | Needs no browser in the Environment, but is beta and must be enabled in each person's ChatGPT security settings; rejected by 0201 point 4 |
+| Device code (`codex login --device-auth`) | Needs no browser in the Environment, but is beta and must be enabled in each person's ChatGPT security settings; rejected by 0201 point 4 as the way to sign in. *Since 2026-10-21 (0201 point 10, addendum below) it is the browser sign-in's quieter fallback, never the main way* |
 | T3 Code's own "Continue with ChatGPT" | Ends on a dead 127.0.0.1 page of a Remote Environment and keeps a token only T3 sees; rejected by 0201 point 4 (t3code#72 hides it) |
 | The child's `BROWSER` set to `lazurio browser open` itself | One mechanism with the Machines registration, but the Launchpad would not learn the tab its panel must show, and nothing would check the page's host; rejected for the stand-in, which hands the page to the sign-in that opens it |
 | A stand-in for `xdg-open` on the child's PATH | Neither CLI uses it without a display (read in the container); not added |
@@ -3244,6 +3253,259 @@ terminal); `tests/launchpad-ai-sign-in.test.ts` (the routes, the code route, the
 `tests/ai-sign-in.test.ts` and `tests/start-view.test.ts` (the page's controller and the
 step's states); `tests/tools.test.ts` (the probes on the CLIs' real answers). And in a
 browser (root decision 0178) with the fake CLIs, in Czech and English.
+
+**Addendum 2026-10-19 (Matěj, plan DEV-6665, Lazurio/LazurioPlatform#515 and #516): GitHub
+is ready only when SSH works, and closing a sign-in window never breaks a sign-in.** In a
+real onboarding session on a hosted Environment on v0.1.9 a new person confirmed gh's
+device code and closed "Připojit GitHub" while the SSH key was linking. Closing cancelled
+the session, which killed the key's step: gh stayed signed in without a working key,
+Začínáme marked GitHub done because it read only the sign-in, and the Organization's
+download started and failed on `git clone git@github.com:…`. Matěj: during onboarding a
+person must not be able to click out of the sign-in before it is done, because the SSH key
+is then not created properly and the whole installation of the Organization fails; and
+when GitHub does not have the SSH key set up, nothing may look green and working: the page
+must say that GitHub is connected badly and must be connected again.
+
+1. **One truth for "GitHub is ready".** gh is signed in *and* this Environment reaches
+   GitHub over SSH as that account. The sign-in's proof (step 4 of the addendum of
+   2026-09-28) is one function both the sign-in and the status run, `proveSsh` in
+   `src/tools/ssh-key.ts`: every github.com entry of `known_hosts` is one of GitHub's
+   published host keys (`gh api meta`), and `ssh -T -o BatchMode=yes -o
+   StrictHostKeyChecking=yes -o UpdateHostKeys=no -o ConnectTimeout=15 git@github.com`
+   greets the signed-in login. It writes nothing: `UpdateHostKeys=no` keeps ssh from
+   adding the keys the server advertises after the authentication, which OpenSSH does by
+   default; the sign-in still adds the missing host keys before it.
+2. **The status.** gh's `ssh` is `linked` only when that proof passed; `not-linked` with
+   `no-key`, `not-registered` (the account's key list, readable with the token's scopes,
+   does not have the key), `proof-failed` (ssh refused the key or the host, a github.com
+   host key GitHub does not publish, ssh or ssh-keygen missing) or `other-account` (ssh
+   greeted another login); `unknown` (`unreadable`) only when GitHub could not be reached
+   or read (its key list or its published keys did not come, `ssh` did not reach
+   github.com or timed out) or the home is not known. `scope-missing` is gone: a token
+   that cannot read the account's keys leaves the proof alone to decide. Each step is
+   bounded by 20 s.
+3. **The proof's cost.** The status is read often (Settings → Nástroje's reading on every
+   page load, which the Launchpad answers from its reading of the last minute since plan
+   DEV-6656, #535, and from an older one at once, as being checked, while it reads anew,
+   #551; its own readings at its start and when its page is served; Refresh status and
+   the end of every flow, which read anew; Integrace's reading, kept its own minute; the
+   shell document's setup each minute) and the proof is a network round trip (HTTPS,
+   then SSH). So it runs only where it can pass: never
+   without a key, never for a key the readable list does not have. The Launchpad keeps a
+   passing proof in its memory per key fingerprint and GitHub login for 5 minutes
+   (`createSshProofs`), one set for every reading of the sign-ins it makes (its tools
+   environment's `sshProofs`: Nástroje's, Integrace's and the shell's GitHub): a working
+   link changes only when its key, its account, GitHub's list or the host keys change,
+   and another key or account is another entry. A failure, or GitHub out of reach, is
+   kept for 20 s, so a burst of readings asks once while a fix shows on the next fresh
+   reading after it (a page load within the minute shows the kept reading, as it does for
+   every tool's sign-in). Readings that meet share one proof. A gh sign-in or link of this
+   Launchpad keeps what it proved, so the reading right after it does not prove again,
+   and a gh sign-in or sign-out that starts forgets everything; the same sign-in or
+   sign-out drops the kept reading of the tools (#535) and the end of a flow reads anew,
+   so "Připojit znovu" shows the link working at once, and no answer, current or older
+   (#551), carries GitHub's state from before a sign-in, link or sign-out through this
+   Launchpad. Nor does a reading already under way when one happens: its answer is no
+   longer current (`ToolsAnswer.current`), so the status route reads the tools again
+   before it answers or the shell's GitHub takes it (three such changes in a row end as
+   `tools-changing`, which the page meets as a failed reading), and the shell's GitHub
+   probe asks again (after three, `unknown`), never answering the older state (Pablo's
+   review of #524). The CLI (`tools list --sign-in`, `doctor
+   --sign-in`) keeps nothing and proves on each run. The staleness this allows is
+   bounded: a key removed from the account on github.com reads linked for up to 5
+   minutes.
+4. **Everything built on it follows.** `githubFact` gains `incomplete`: signed in, SSH not
+   working, which counts as missing (signed in with an SSH state that could not be read is
+   `unknown`). Začínáme's GitHub step then says "Připojení nefunguje." with the warning
+   mark and one action, "Připojit znovu", which opens the existing "Link SSH key" flow
+   (`signInMode`) under gh's own title, "Připojit GitHub" (Začínáme never names "gh");
+   the count, the next basic, the line in Apps ("Připojení GitHubu nefunguje." with
+   "Připojit znovu"), the tour and the shell's column prompt count it missing
+   (`lazurio.shell.v1`'s `setup.github` stays `connected | missing`). Its
+   `contentBlockedBy` is `github`: the content's download, "Zkusit znovu", a start request
+   and the start by itself wait, and the start by itself comes once the link works, as when
+   GitHub arrives. `startDecision` and `openSignIn("gh")` open the SSH link where that is
+   what is missing. On a Team or an Automated Environment, whose GitHub is the
+   Organization's or the persona's and may work over HTTPS, nothing changes: only a known
+   missing GitHub holds their content back. The server's GitHub probe for the shell's
+   `setup` reads the same status with the same kept proofs.
+5. **Nástroje.** gh's line takes the success colour only while the link works: "Připojeno
+   jako octocat · SSH klíč nepropojený" draws the account in the neutral colour and the key
+   in the warning colour, and a key that could not be verified now says "SSH klíč
+   neověřený" (it said nothing), as does a signed-in gh whose status has no SSH part at all
+   (its shape allows it), which also offers "Propojit SSH klíč"; a gh sign-in that ends
+   without saying what it did with the key ends as not linked, never as a plain success
+   (Pablo's review of #524). An older reading shown as being checked (#551) takes no
+   success colour on any line: an SSH link that broke since, outside this Launchpad, is
+   never drawn green, and as #551 has it, nothing else (Začínáme, the line in Apps, the
+   start by itself, the shell's GitHub) reads it.
+6. **Doctor.** With `--sign-in`, where the Environment signs in as its person (its preset's
+   own sign-in, or no Folder: a computer), a signed-in gh whose proof failed is `warn`
+   `ssh-not-linked`; an SSH state that could not be read stays a fact of its context.
+7. **Closing a sign-in window never breaks a sign-in** (the shared dialog of
+   `tools-panel.ts`: gh, Composio and wacli alike). Its × (now a small icon in its corner)
+   and Escape detach a sign-in that starts or runs (`loginCloseAction`): the page keeps the
+   session handle and its one poll loop (`createLoginPoll`; a session answers its end only
+   once, so the window hiding and showing again never makes a second loop), and the end
+   runs as it would with the window open (`signedIn()` and `afterSignIn()`: the row and
+   Začínáme read it, "Používají agenti" turns on). Opening the same tool's sign-in again,
+   from its row, Začínáme or the line in Apps, shows that sign-in instead of starting
+   another, which would replace it on the server. Only "Zrušit" cancels, offered only
+   while a code, link or QR code waits for the person; the SSH key's steps after the code
+   (30 s each, at most 5 minutes) have no cancel. A poll that gets no answer ends nothing:
+   the page asks again until a minute after the session's own end (its `expiresAt`), since
+   the session goes on by itself and ends by its own expiry when nobody comes back. While
+   the sign-in is under way the status line carries a waiting mark; while it finishes it
+   says "Dokončuji připojení…" and "Okno můžete zavřít, Lazurio připojení dokončí samo.",
+   never "Připojeno" before the proof passed. Začínáme's GitHub step shows a sign-in the
+   page runs ("Čeká na vaše potvrzení." or "Dokončuje se připojení…", with the waiting
+   mark) with "Otevřít", and the tool's row in Nástroje says "Čekám na přihlášení…" or
+   "Dokončuji připojení…". A detached sign-in keeps no code, link or QR in the page. Its
+   poll belongs to the running sign-in and goes on while the page is hidden: polling only
+   while the page is shown (plan DEV-6656, #535) is the update pill's rule, and a browser
+   that slows a hidden page's timers only delays the answer, which the session keeps until
+   it is read. The core (`login.ts`) keeps its rules: an explicit cancel ends a session in
+   any step (the CLI's Ctrl-C) and a new start replaces a running one.
+
+What a closed window cannot cover (a reload of the page, a Launchpad restart, an expiry, a
+failure) the status covers: gh signed in without a working link reads `incomplete`, and
+"Připojit znovu" finishes it.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| No way to close the window while a sign-in runs | Traps the person in a modal for up to 20 minutes; rejected: closing is safe instead |
+| Keep the status cheap (the key listed is linked) | It misses what the sign-in itself reports, missing host keys or another account greeted; rejected (#515) |
+| Prove on every reading | A network round trip on every page load and every shell setup read; rejected for the kept proof |
+| Keep a failure as long as a pass | A fix would show only minutes later; rejected: 20 s |
+| Refuse a cancel during the SSH key in the core | The CLI's Ctrl-C and the Launchpad's shutdown still stop it; the page simply never offers it |
+| `incomplete` holds back a Team's or a persona's content too | Their GitHub is not the person's and may work over HTTPS; not changed |
+
+**Honest limits.** The page that closed a window holds its sign-in in its memory only: a
+reload forgets it (the session runs on and ends by itself, and the status says the
+rest). A key offered by `~/.ssh/config` or an agent instead of the default key counts
+only when the default key is listed: an unlisted default key reads `not-registered`, and
+"Připojit znovu" registers it. On a network that drops GitHub's SSH port, the proof waits
+for ssh's connect timeout (15 s) before the state reads `unknown`; with the failure kept
+20 s and the page's reading kept a minute, a reading pays that wait at most every 20 s.
+The proof ran against the fakes of the sign-in's tests and the real `ssh-keygen`; the
+real `ssh` messages of a network without GitHub are read from OpenSSH's own wording. Composio's own wording and its Začínáme row are the Integrace
+work's (DEV-6626, #507).
+
+Verified by tests: `tests/tools-ssh-status.test.ts` (the status with fake gh and ssh:
+linked, registered without host keys, another account, a host key GitHub does not publish,
+no key and an unlisted key without an SSH connection, GitHub out of reach as unknown, a
+token that cannot read keys, the kept proofs, one set of them for the tools' reading and
+the shell's GitHub); `tests/launchpad-curated.test.ts` (connected badly, then linked,
+then signed out through the Launchpad: each page load, read as the page reads with
+`allowStale`, reads it as it is, never as the reading from before, though the Launchpad
+keeps its reading of the tools a minute, and Refresh status and Integrace's reading use
+the link's proof); `tests/tools-login.test.ts` (a holder that
+stops polling during `gh ssh-key add`: the session still ends signed in, linked and with
+the Git identity, read once, and the status keeps its proof; cancel and replace as
+before); `tests/first-run.test.ts` and `tests/start-view.test.ts` (`incomplete` throughout,
+the step, a running sign-in); `tests/tools-view.test.ts` (the Nástroje line, `signInMode`,
+`loginCloseAction`, `loginCancelOffered`, the finishing words, the one poll loop);
+`tests/first-run-shell.test.ts` (the shell's probe); `tests/doctor.test.ts`; and in a
+headless browser (root decision 0178) on the preview with the fake gh and ssh, in both
+languages.
+
+**Addendum 2026-10-21 (root decision 0201 point 10, plan DEV-6665,
+Lazurio/LazurioPlatform#517): ChatGPT signs in by code too, as a quieter fallback.** In
+an onboarding on a Remote Environment a new person could not finish "Přihlásit ChatGPT"
+in the Environment browser; Začínáme offered only the same path again, and without the
+Environment browser nothing started at all. The Environment browser knows neither the
+passkey nor the password manager of the person's own computer (0201 point 7), so such a
+sign-in can stop there. Root decision 0201's point 10
+(HumanAndMachines/Lazurio#606) refines its point 4: the browser sign-in stays the main
+way, and beneath it ChatGPT offers a less prominent sign-in by code, which the person
+finishes on OpenAI's page in any browser, on their own computer or phone, after turning
+it on in their ChatGPT security settings (a work account's admin allows it). Claude has
+no sign-in by code; a long-lived `claude setup-token` is not offered.
+
+1. **The same command, one flag.** `lazurio tools login codex --device-code` and `POST
+   /api/tools/login/start {tool: "codex", deviceCode: true}` start the core's
+   `start("codex", { deviceCode: true })`, which runs the official `codex login
+   --device-auth` (Codex CLI 0.46.0 and later) as the browser sign-in runs `codex login`:
+   as the Environment user, with the minimal environment and the account's name, but
+   without the stand-in `BROWSER`, since nothing opens here. The default stays exactly
+   `codex login` with the stand-in. Any other tool with it is refused: the core throws,
+   the command answers `blocked`, `device-code-codex-only` (exit 2), and the route `400`
+   `invalid-device-code` (so does any value but `true`, or `deviceCode` beside `sshKey`);
+   `--device-code` belongs to `login` alone.
+2. **Only OpenAI's exact page and a whole code.** Read in Codex 0.162.0's
+   `codex-rs/login/src/device_code_auth.rs` (the page is `{issuer}/codex/device` with
+   `server.rs`'s default issuer `https://auth.openai.com`) and in the strings of the Codex
+   0.163.0 binary (`/codex/device`, the prompt's lines, "device auth timed out after 15
+   minutes"), without signing in: Codex prints on stdout, coloured with ANSI codes even
+   without a terminal, the page and the one-time code each on a line of its own, then
+   polls OpenAI for 15 minutes and stores the sign-in where the browser sign-in does, so
+   T3, Codex Desktop over SSH, the terminal and agents read it (0201 point 4). The session
+   reads the output plain (`counted`), takes only the exact page
+   `https://auth.openai.com/codex/device` (`codexDevicePage` in `src/tools/ai.ts`, one
+   constant the page checks too), and any other address on a line of its own stops the
+   CLI (`unexpected-url`); the code is the first line after the one naming the one-time
+   code that has a code's shape, groups of capital letters and digits joined by dashes
+   (`codexDeviceCode`). Page and code become gh's challenge kind, `device-code`, returned
+   only to the holder of the session's handle and never journaled, logged or written.
+3. **The same refusals, but one.** Codex's own `account/read` is asked afresh before it,
+   as before: the Organization's provider refuses it (`blocked`,
+   `organization-provided`) and an answer that cannot be read starts nothing (`failed`,
+   `provider-unknown`). A Remote Environment without the Environment browser no longer
+   refuses it: `no-environment-browser` is the browser sign-in's, whose line in the
+   terminal now points to `--device-code`. The command reads no sign-in page for it, so a
+   hosted context that cannot be read, which decides only where a page opens, does not
+   stop it either.
+4. **15 minutes, then the browser sign-in's end.** The session lives as long as the code
+   (`codex-device`, 15 minutes, after which Codex stops polling); never entered, it ends
+   `expired`. A code refused because the setting is off is refused only on OpenAI's page,
+   while Codex just waits, so an expired sign-in by code tells the terminal to turn the
+   setting on first. When Codex exits 0, `codex login status` confirms the sign-in and
+   then, as for the browser sign-in, the Codex app-server unit is restarted and T3 Code
+   reads the providers again (`aiSignInEnd`, one end for both). Cancel kills the CLI.
+5. **Začínáme.** Beneath "Přihlásit ChatGPT" and "Přihlásit Claude" a quiet "Přihlásit
+   kódem" (a link-coloured button, ChatGPT's) with its one line, "Přihlášení kódem si
+   nejdřív zapněte v nastavení zabezpečení ChatGPT. U pracovního účtu ho povoluje jeho
+   správce.": wherever the step offers the choice, also after "Přihlásit jiný účet";
+   never where the Organization provides the AI, while the AI is being read, on a Remote
+   Environment without the Environment browser (the step keeps its line, as before) or on
+   an Environment without the step (Team, Automated, public). While its code waits the
+   step says "Otevřete stránku ChatGPT v kterémkoli prohlížeči, třeba v telefonu, a
+   opište kód. Platí 15 minut." with the waiting mark and "Zrušit", and shows the code
+   with "Kopírovat" and "Otevřít ChatGPT" (a new tab): the block of gh's code in its
+   dialog, one helper for both (`device-code-block.ts`). Nothing opens in the right
+   panel. A sign-in by code that did not finish offers "Zkusit znovu" by code. The page
+   follows it as it follows the browser sign-in (`ai-sign-in.ts`): a poll every 2 s, and
+   a poll left without an answer for 45 s cancels the session, as before.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The code as the main way | Works without the Environment browser, but must first be turned on, by a work account's admin; rejected by 0201 point 10: a fallback |
+| Codex app-server's `account/login/start` with `chatgptDeviceCode` | No second process, but another path than the command agents and the terminal use; rejected for the one command (0201 point 4) |
+| Take the page from any line | Codex's error lines name its API's addresses on the same host; rejected: only a line that is an address, else the CLI's exit says what happened |
+| `claude setup-token` for Claude | A long-lived token Lazurio would keep; rejected by 0201 point 10 |
+
+**Honest limits.** No real sign-in by code ran: the prompt, the page and the 15 minutes
+were read from Codex's source and binary, not seen on OpenAI's page. The code's shape is
+Codex's documented example's; a code of another shape ends the session as
+`no-challenge` after a minute, and the browser sign-in stays. Whether OpenAI's page says
+why it refuses a code is OpenAI's. Like `codex login`, `codex login --device-auth`
+signs a stored ChatGPT account out first (Codex's `clear_existing_auth_before_login`), so
+a sign-in of another account that is cancelled leaves Codex signed out.
+
+Verified by tests: `tests/tools-ai-login.test.ts` (a fake `codex login --device-auth`
+that prints the coloured prompt and signs in once its code is entered: the call without
+`BROWSER` and nothing opened in the Environment browser, the plain page and code, 15
+minutes, nothing of them journaled, the CLI's status and the services; no Environment
+browser needed; only codex; the Organization's provider and an unreadable answer; a page
+on another host, the expiry, cancel, `tool-exit` and `not-confirmed`);
+`tests/tools-ai-login-cli.test.ts` (`--device-code` without the Environment browser, the
+lines, the refusals, the help); `tests/launchpad-ai-sign-in.test.ts` (`deviceCode` for
+codex only, the journal's lines without the code); `tests/ai-sign-in.test.ts` and
+`tests/start-view.test.ts` (the answer by code, the controller, the step's states in both
+languages). And in a headless browser (root decision 0178) on the preview with
+`codex-signed-out`, in Czech and English: the quiet button and its line, the code and
+OpenAI's page, signed in once entered, and gh's dialog with its code through the same
+block.
 
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 
@@ -8020,7 +8282,8 @@ Decided:
    browser more with the same unit text. No `MemoryHigh`: on systemd 255 without swap,
    a process that grew past it stayed throttled just above it for minutes and never
    reached `MemoryMax`. Every process of the browser that allocated waited with it. The
-   hard limit ends the heaviest tab instead.
+   hard limit ends the heaviest tab instead. *The 30 % limit is replaced by the addendum
+   of 2026-10-20: the Environment's memory minus 4 GiB, at least 30 %.*
 2. **An exhausted budget costs a tab.** `OOMPolicy=continue`: the process the kernel ends
    is mostly one tab's renderer, and only that tab goes. Its window stays, and a
    navigation brings it back. When the main process goes, the unit ends and restarts.
@@ -8154,6 +8417,64 @@ Not decided here:
 Verified by `tests/environment-browser.test.ts` (the addresses taken and refused, the hub's
 refusals, an Environment without the browser, a T3 Code thread's binding and a failed one,
 a Codex thread left alone, the notice) and the CLI contract's vectors.
+
+**Addendum 2026-10-20: the browser may take the Environment's memory except 4 GiB.** Root
+decision 0195 point 22 (approved by the Organization Admin on 2026-10-20), plan DEV-6656.
+At 30 % the browser of a client Environment of 8 GiB without swap had about 2.3 GiB, and
+the kernel ended about 80 of its renderers, of 170–270 MB each, in 7 days
+(Lazurio/LazurioPlatform#525). The browser is a key capability of the Environment, so its
+limit grows with the Environment, while a fixed reserve stays for the core, agents,
+Modules and builds.
+
+Decided:
+1. **The limit is the Environment's memory minus 4 GiB, at least 30 %.** It replaces the
+   30 % sentence of point 1 of the addendum of 2026-10-10. The memory is the one the
+   Environment's system sees (`MemTotal`), so the reserve stays whole: 3.75 GiB on the
+   base Environment of 8 GiB (`MemTotal` 8 131 784 kB), 11.6 GiB on one of 16 GiB
+   (`MemTotal` 16 770 785 280 B). Under about 5.7 GiB the reserve would leave less than
+   30 %, and 30 % stays. In bytes: `max(30 % × MemTotal, MemTotal − 4 GiB)`.
+2. **A cap, not a reservation.** Memory the browser does not use serves the rest. Tabs
+   fall asleep under memory pressure before the limit (F57), and Machines' protection of
+   the core (`MemoryLow`, 0195 point 3) stays as it is.
+3. **Computed at every start of the browser.** `MemoryMax=30%` stays in the unit, as the
+   floor and wherever a start cannot compute more. An optional step after it
+   (`ExecStartPre=-/bin/sh -c '…'`) reads `MemTotal` from `/proc/meminfo`, computes the
+   limit in bytes and sets it on the unit's own name with `systemctl --user set-property
+   --runtime %n MemoryMax=<bytes>`, before Chrome starts. The unit's text therefore stays
+   the same on every Environment, and `install` and `update` rewrite and restart nothing
+   for it. The setting lives in the user manager's runtime directory
+   (`/run/user/<uid>/systemd/user.control/`) until the guest restarts; a resize of the
+   Environment restarts the guest, so its browser starts with the new limit without
+   another step. A meminfo without a positive `MemTotal` in kB, or a manager that refuses
+   the setting, sets nothing: the step fails, the unit ignores it (`-`) and 30 % holds.
+   The step never sets less than 30 %.
+4. **What stays.** `MemorySwapMax=20%`, `OOMPolicy=continue`, `OOMScoreAdjust=250` and no
+   `MemoryHigh` (the addendum of 2026-10-10, points 1–3), the tab-sleep pressure rule
+   (F57) and Machines.
+
+Measured on systemd 255 (Ubuntu 24.04, a user service with the memory controller
+delegated, the rendered unit verbatim with a stand-in for Chrome): the call from the unit's
+own `ExecStartPre` returned at once while the unit was activating (each start 20–35 ms); it
+set `memory.max` of the service's cgroup, the one the browser's main process then ran in;
+`daemon-reload` kept it; a restart, the installer's write, `daemon-reload` and
+`try-restart`, the automatic restart after the main process was killed and a stop and start
+each computed it again over a stale value; the unit file stayed byte for byte the rendered
+text. Fixtures of 4, 8, 16 and 64 GiB guests gave 30 % (1 232 235 724 B), 4 031 979 520 B,
+12 475 817 984 B and 63 127 969 792 B; a meminfo without `MemTotal`, a non-numeric or zero
+one and a missing `systemctl` left the unit's 30 %, with the start going on (PR evidence).
+
+Not taken: computing the bytes in TypeScript at convergence and writing them into the unit.
+The unit's text would then differ by Environment, and after a resize the browser would
+start with the old limit until a convergence rewrote its unit and restarted it.
+
+Rollout: the unit's text changes once, so the first `install` or `update` with this
+version restarts the browser (F39 point 10), as every change of its text does. It ships in
+a release of the Platform through the pipeline, with the reference Organization first
+(root decision 0204); nothing is changed by hand on any Environment.
+
+Verified by `tests/environment-browser.test.ts` (the rendered unit, and its step run as
+systemd runs it against meminfo files of 4, 8, 16 and 64 GiB guests and five that set
+nothing, and with a manager that refuses the setting).
 
 ## F39 — The people's view of the Environment browser: one tab of a person is one remote tab
 
@@ -16620,3 +16941,230 @@ unit or socket on any runner (a `rename(2)` of the record in its own directory a
 `stat` before each request), so its zero refused connections hold on Linux by
 construction, measured on macOS only; the root decision's measurement
 before and after (point 20) belongs to the plan.
+
+### F58 addendum of 2026-10-21: an app nobody uses falls asleep
+
+**Decided by Matěj (Organization Admin) on 2026-10-21 (root decision 0195, addendum of
+2026-10-21, point 23; plan DEV-6656); shaped and implemented here.** An app started from
+`main` (every app the Launchpad runs: the Platform has no worktree source yet, P9) that
+has had no open connection on its listeners for 20 minutes is stopped by the Launchpad.
+The idle time is a tab's (F57, `sleepTimes.idleMs`): one principle, "what nobody uses
+falls asleep" (point 25 of the same addendum), with one parameter and no machinery of its
+own.
+
+1. **When.** At each sweep of point 7 (the Launchpad's start, then every 5 minutes), for
+   each app it runs. An app with an established TCP connection on one of its declared
+   listeners is in use. The sweep remembers when it last saw it in use, in the
+   Launchpad's memory only: a restarted Launchpad starts every clock again. An app that
+   no sweep has seen in use for the idle time sleeps, in practice 20 to 25 minutes after
+   the last connection a sweep saw. Evidence that cannot be read counts as in use.
+2. **Which apps.** Those this Launchpad started (Open, Start, the gateway's `ensure`, a
+   `--dev` start) and, on Linux, everything the user service manager runs for the
+   catalog (Nová karta's running Modules, `runningModules`). So an app started before a
+   restart of the Launchpad (a Platform update) or by the CLI sleeps too, and one the
+   manager no longer lists is forgotten: a stop and a start between two sweeps begin a
+   new clock.
+3. **The evidence** is the runners' own tool: `lsof -nP -iTCP:<port> -sTCP:ESTABLISHED -t`
+   (`observeConnected`, beside the listener's evidence of F8, on macOS and Linux). It sees
+   the operator's own processes, among them the app's end of every connection to its
+   listener, whoever opened it: a browser on a workstation, the gateway on a Remote
+   Environment.
+4. **Asleep is stopped,** by the lifecycle's ordinary stop of a running app: nothing is
+   recorded and nothing holds it. The Apps list shows it as stopped, and Nová karta's
+   running Modules no longer list it. An app that ended, is starting or was stopped
+   explicitly is left as it is. The stop is decided after the sweep's last read, beside
+   the stop itself: a start under way or done since the sweep read the app (an Open, a
+   Start, a Stop and a Start) leaves it running (review of #573). The next Open, or on a
+   Remote Environment a signed-in
+   direct link (the gateway's `ensure` on a navigation), starts it again; a static app
+   starts as its newest build, which the sweep built meanwhile when a pull came. The
+   first request waits for the start. What the app held only in memory is lost.
+5. **A declared sibling never sleeps** (added after Pablo's reviews of the root
+   decision). An app that any app of its Organization declares as its sibling (a
+   `workspace/<slug>` of `required_module_slots`, root decision 0176: the default app of
+   that module, whose loopback origin a caller is given at its start) keeps today's
+   behavior and runs until it is stopped explicitly. A caller reaches it at its loopback
+   address, past the gateway, which wakes nothing; were both asleep, reopening the caller
+   would leave its calls refused. The siblings are read from the Organization's
+   declarations by the rule the caller's start reads them by
+   (`declaredSiblings`, `src/modules/sibling-origins.ts`), once per sweep and only for an
+   app due to sleep, whether a caller runs or not. A declaration that may name one and
+   cannot be read (the Organization's apps not observed, a module on this Environment
+   that cannot be read, an app whose runtime is invalid) leaves the Organization's apps
+   awake at that sweep, never "declaring none" (review of #573); a module not on this
+   Environment declares nothing, as none of its apps can start. No wake path, no change
+   of routing.
+6. **The static server keeps an idle connection for 255 s,** Bun's longest (its default
+   is 10 s). Changed from the brief, which counted on a browser keeping its connection
+   for a few minutes: the server closed it after 10 s, so a person reading a built app
+   and clicking now and then was seen by a sweep only by chance (with a click a minute,
+   about half the time no sweep in 20 minutes would have seen one). Now a browser or the
+   gateway (Caddy keeps an upstream connection for 2 minutes) holds it between a
+   person's requests.
+7. **A development run** (`--dev`, or an app without `build_output`) sleeps by the same
+   rule. Its framework's development server holds a WebSocket for hot reload while a tab
+   is open, so in practice it sleeps once its tabs are closed. Woken, a static app runs
+   as its build; `--dev` is asked for again.
+
+**What stays.** Point 7's builds and swaps; Stop and its answer; the runners and their
+evidence; the routes and the Launchpad's pages. A worktree's preview keeps its own rule
+(root decision 0195 point 6) when the Platform has one.
+
+| Alternative | Assessment |
+| --- | --- |
+| A timer of its own, per app or every minute | A second clock beside point 7's sweep; rejected (root decision 0195 point 25) |
+| Count requests: in the static server, or the gateway's `ensure` | Exact, but a second signal: the static server would need state the Launchpad reads (a file or a port), and `ensure` exists only on a Remote Environment. Rejected; an open connection holds everywhere |
+| `/proc/net/tcp` on Linux, no subprocess | A second reader beside lsof, which both runners already use; rejected |
+| Only the apps this Launchpad started | Misses on Linux every app that outlived a restart of the Launchpad or that the CLI started; rejected |
+| Bun's 10 s idle time in the static server | A built app in use would often sleep (point 6); rejected |
+| A sibling sleeps after its caller | Reopening the caller would not wake it; replaced by point 5 |
+| Wake a caller's siblings with it | A wake path of its own; not asked |
+
+**Honest limits.**
+- A sweep samples. A person who leaves a page open and reads it for longer than the
+  browser or the gateway keeps its connection may find the app asleep; the next
+  navigation waits for its start.
+- On a workstation the browser reaches the app at its loopback address directly, so a
+  sleeping app answers "connection refused" there (a bookmark, a reload) until it is
+  opened from the Launchpad. On a Remote Environment the gateway's `ensure` starts it on
+  a navigation; a background request (a lazily loaded asset of a page opened before)
+  answers 503 until then.
+- Whatever holds a connection keeps the app awake: an agent's tab, a client of the app's
+  API. `-iTCP:<port>` also matches a connection of the operator's processes whose remote
+  port has the same number; that keeps the app awake, never the reverse.
+- Not yet measured on a Remote Environment over real minutes; the tests below drive the
+  sweep with an injected clock.
+
+**Verified by** `tests/module-built.test.ts` (real processes, the sweep at chosen minutes
+of an injected clock: a static app nobody uses asleep at 20 minutes and stopped like any
+app, an app in use kept, a connection at minute 10 starting a clock again, a development
+run asleep twenty minutes after its connection went, a pull built while asleep and the
+gateway's `ensure` waking it as that build, an explicit Stop left as it is; an app the
+service manager runs that this Launchpad did not start found and put to sleep, unknown
+evidence counted as in use, a stop and a start between two sweeps starting a new clock;
+a declared sibling without connections running past the idle time, also after its caller
+slept, and when the app that declares it cannot be read; an Open, or a Stop and a Start,
+while the sweep reads the siblings leaving the app running; and lsof's evidence of a real connection held to and closed from the static server),
+`tests/listener-ownership.test.ts` (`observeConnected` before, during and after a real
+connection) and `tests/built-static-server.test.ts` (an idle connection after a request
+still open after 15 s; with Bun's default it closed at about 12).
+
+## F59 — Computer Use on a Remote Environment: the Cua Driver's daemon on the screen, one MCP server `computer` for every agent
+
+**Decided by Matěj 2026-10-21 (plan DEV-6673, root decision 0191 points 8 and 42);
+implemented in this revision.** Agents on a Remote Environment, threads of T3 Code and
+bots of Lazurio MausBot alike, control the Environment's one screen through Computer Use
+now, before the web desktop (`desktop.…`, 0191 point 8) exists. Computer Use is a
+service of the Environment offered to every agent as one MCP server named `computer`,
+not a mechanism of MausBot. Agents take turns on the screen: one mouse, one keyboard.
+This amends [F38](#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway)'s
+"Not decided here" for Computer Use; the desktop view stays the second wave.
+
+Before this, no agent on an Environment had Computer Use. Lazurio MausBot's upstream
+spawned the Cua Driver from its Electron app (for macOS TCC attribution, a reason Linux
+does not have) and its server only read a descriptor that app wrote, so on an
+Environment, without Electron, the descriptor never existed; the fork removed that
+machinery. Upstream's own CI proved the same driver on Xvfb from a plain process
+(`dbus-run-session -- xvfb-run`, `cua-driver serve` and `cua-driver mcp --socket`, a
+click and typed text reaching an X window).
+
+1. **One daemon on the screen: `lazurio-computer.service`.** On a supervised base, for
+   the declared operator of a handover whose `entry` carries `browser` (the screen),
+   `install` and `update` ensure one more user unit after the browser's, the F29/F38
+   way (marker, written when it differs, enabled, started, restarted only when its own
+   text changed, never a reason to fail): `cua-driver serve --no-overlay
+   --permission-mode standard --socket %h/.local/state/lazurio-computer/driver.sock` on
+   `DISPLAY=:1` with `XDG_SESSION_TYPE=x11`, the user manager's session bus
+   (`DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus`, where the AT-SPI bus is activated) and
+   the driver's telemetry and update check off (`CUA_DRIVER_RS_TELEMETRY_ENABLED=0`,
+   `CUA_DRIVER_RS_UPDATE_CHECK=0`: both are on by default, and the names and the off
+   values are the driver's own at the pinned commit), `BindsTo=`/`After=` the display.
+   Standalone, not `--embedded`: embedded mode with its liveness pipe belongs to a host
+   app and ends the daemon when its stdin closes, which under systemd is at once.
+   Without the cursor overlay: it is a full-screen X11 window, and on a screen without
+   a compositor it would cover every program. The socket lives in the home, so the
+   agents' entry names it without a runtime directory; the driver creates its
+   directory, removes a stale socket and keeps it owner-only. Texts, directives and
+   results: [product update](update.md#state-on-disk).
+2. **One MCP server `computer`, the driver's own proxy.** Each agent's entry is
+   `~/.local/bin/cua-driver mcp --socket <that socket>` with the same two settings: the
+   driver's documented MCP mode, proxying to the one daemon (the proxy, too, reports
+   telemetry and checks for an update when it starts, so it carries both switches), so the Platform writes no
+   MCP server and no agent starts a runtime of its own (on Linux, `mcp` without
+   `--socket` would own one in its own process). It is registered exactly as
+   Executor's entry ([F44](#f44--executor-in-every-remote-environment-installed-run-and-connected-to-the-agents-by-lazurio)):
+   `codex mcp add` and `claude mcp add --scope user` where the harness is installed,
+   read back with `codex mcp get --json` and `~/.claude.json`; the two now share one
+   implementation (`src/tools/agent-mcp.ts`). A Codex thread of T3 Code and a Codex bot
+   read the same `~/.codex`; whether a Claude bot of MausBot loads the user's servers is
+   MausBot's to settle. Lazurio's entry follows the driver: added where it is there,
+   removed (`codex mcp remove`, `claude mcp remove --scope user`) where it is not, so no
+   agent starts with a server that cannot run. Another entry, and one named `computer`
+   that is not Lazurio's, are never changed. Running chats keep their tools; new chats
+   see the change.
+3. **Machines installs the driver; the Platform pins what it runs.** Root decision 0191
+   point 9 has Machines configure no display, unit or browser, only packages, and
+   Machines delivers every pinned operator tool into `~/.local/bin` from its resident
+   toolchain catalog (URL, SHA-256, digest source). So Machines installs the Cua Driver
+   **0.19.3** as `~/.local/bin/cua-driver` from
+   `https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.19.3/cua-driver-rs-0.19.3-linux-x86_64-binary.tar.gz`
+   (archive SHA-256 `3db9d4257d84bacaf7eb104d225f85613ce67edbb20d6eeb83c1384b6d8a5b10`,
+   member `cua-driver` with SHA-256
+   `ed5844fadf07b9b72c4a3b3802e1c47233c166d66d6198608d5991f807aab4ac`; digest source
+   the GitHub release's asset digest and the trust anchors in Lazurio/OpenMausBot
+   `third_party/cua-driver/README.md`, upstream commit
+   `a1672e7b11951275ecfba3384264d4530185d0db`), and the packages `at-spi2-core`,
+   `dbus-user-session` and `libglib2.0-bin` (`gdbus`, with which the driver's doctor
+   finds the AT-SPI bus). The Platform downloads nothing at run time. Linux x86_64 only,
+   as that archive.
+4. **Degrades to nothing.** Without the driver the unit is skipped by its
+   `ConditionFileIsExecutable=`, never failed, the agents have no entry and `install`
+   says so (`driver-missing`); without AT-SPI the driver still captures, clicks and
+   types by pixels and doctor says what is missing. The screen, the browser, its view
+   and every other unit are unchanged either way.
+5. **Turns are an instruction, not a lock.** One daemon serves every caller, and
+   nothing serialises a bot against a T3 thread. The Folder says it: one agent works on
+   the screen at a time, for the steps it needs, and leaves the others' windows alone;
+   web pages stay in the Environment browser. A lock in the Platform's entry comes only
+   if collisions show. The Folder's lines appear where the recorded entry has the
+   browser (template revision `base-instructions-62`).
+6. **A fact in doctor.** `computer-use`: the driver, the unit, the driver's own
+   `doctor --json` (an X11 display, a reachable AT-SPI bus), then both harnesses'
+   entries; never `fail`, never in `recover`
+   ([doctor](launchpad-development.md#doctor)).
+
+**Not decided here.** The desktop view of the screen (second wave, 0191 point 8, with
+noVNC, Selkies or neko as candidates), a window manager, a lock between agents, an
+approval scope of its own (an agent's harness asks as it asks for any MCP tool;
+full access asks nothing, root 0172), arm64, and Claude bots of MausBot loading the
+Environment's servers.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| MausBot's former Electron-owned daemon and its descriptor, brought back | Only bots would have it, it re-imports a macOS TCC design and the machinery the fork removed; rejected |
+| An MCP server of our own over xdotool and screenshots | Own machinery without accessibility trees, while the driver ships its MCP mode; rejected |
+| Cua's Python `computer-server` | 200 MB+ of Python per Environment for the same driver; rejected |
+| Codex's built-in Computer Use | A plugin of the macOS desktop app; not on Linux, not for Claude; rejected |
+| `cua-driver mcp` without `--socket` per agent | A runtime per agent process on one screen, no shared daemon to watch or restart; rejected |
+| The Platform downloads the driver itself, as it does Executor | Executor is a Platform-run npm service; the screen's packages are Machines' (0191 point 9), and the driver is a pinned binary like the rest of Machines' toolchain; rejected |
+| The driver's daemon as a user unit bound to the screen, its MCP proxy as the server `computer` registered like Executor, the driver installed by Machines (selected) | The driver's documented modes, one daemon for every agent, nothing written that upstream already has |
+
+**Verified by** `tests/computer-use.test.ts` (the unit's text; convergence: skipped
+without a hosted operator or a screen, written once, restarted only when changed, the
+agents' entries through each harness's own CLI with the driver's proxy and both
+settings, nothing added twice; the driver missing: the unit kept, Lazurio's entries
+removed, an operator's entry and a foreign `computer` kept; a foreign unit and a
+refusing manager; doctor: each skip, each warning, the driver's doctor run on `:1` with
+the session bus and both settings off, `ok` with the version and both harnesses; the
+Folder's lines only with the screen, in both languages), `tests/executor-agents.test.ts`
+(Executor's entry unchanged over the shared module), `tests/update-install.test.ts`
+(convergence after the browser's units, the hosted context asked once) and
+`tests/doctor.test.ts`. **Honest limits:** no real systemd, Xvfb or driver ran in these
+tests. Not yet verified on a Remote Environment: the standalone `serve` under systemd,
+Chrome's and other programs' accessibility trees on Xvfb (Chrome exposes its tree only
+when it believes assistive technology is on), stacking of windows without a window
+manager (a 1920×1080 browser window can cover a program; the driver's `bring_to_front`
+is untested there), and a Claude bot's tools. The person cannot watch the screen until
+the desktop view exists. The first verification is on a Remote Environment of the
+reference Organization (root decision 0204), after Machines delivers the driver and the
+packages.

@@ -22,8 +22,9 @@ import {
 // What changes the facts through this Launchpad drops the reading as it
 // starts and again once it has ended (an installation, an update, a sign-in
 // or sign-out, a setup: `forget`), so a reading made while it ran is never
-// answered after it, not even as stale; a person's own "Refresh status" or
-// "Zkontrolovat znovu" reads anew (`fresh`). Only a change made elsewhere, a
+// answered after it, not even as stale, and an answer given before it says
+// it is no longer `current`, for its route to read again; a person's own
+// "Refresh status" or "Zkontrolovat znovu" reads anew (`fresh`). Only a change made elsewhere, a
 // tool installed or signed in from a terminal, can wait up to that minute to
 // show as current, or show as stale until the reading behind it ends.
 
@@ -32,10 +33,15 @@ import {
 export const toolsKeptMs = 60_000;
 
 /** A read's answer: whether it is the last reading answered at once while a
- * new one runs (`stale`), and the live facts it answers with. */
+ * new one runs (`stale`), the live facts it answers with, and whether they
+ * are still the latest facts (`current`): false once something changed them
+ * through this Launchpad (`forget`) after the read was answered, even while
+ * its reading still ran, so a reading under way through a sign-in, link or
+ * sign-out is never taken for the facts after it (Pablo's review of #524). */
 export type ToolsAnswer = Readonly<{
   stale: boolean;
   done: Promise<ToolsLive>;
+  current: () => boolean;
 }>;
 
 export function createToolsReading(
@@ -102,18 +108,31 @@ export function createToolsReading(
     signIn: boolean,
     request: Readonly<{ fresh?: boolean; allowStale?: boolean }> = {},
   ): ToolsAnswer {
+    // Every reading an answer takes is of this generation: a forget drops
+    // the kept one and stops sharing the one under way.
+    const asked = generation;
+    const latest = () => asked === generation;
     if (request.fresh !== true) {
       if (kept !== null && current(kept, signIn))
-        return { stale: false, done: Promise.resolve(kept.live) };
+        return {
+          stale: false,
+          done: Promise.resolve(kept.live),
+          current: latest,
+        };
       const running = shared(signIn);
       if (request.allowStale === true && kept !== null && has(kept, signIn)) {
         // Read anew behind it; its failure is the next read's to meet.
         if (running === null) void start(signIn).done.catch(() => undefined);
-        return { stale: true, done: Promise.resolve(kept.live) };
+        return {
+          stale: true,
+          done: Promise.resolve(kept.live),
+          current: latest,
+        };
       }
-      if (running !== null) return { stale: false, done: running.done };
+      if (running !== null)
+        return { stale: false, done: running.done, current: latest };
     }
-    return { stale: false, done: start(signIn).done };
+    return { stale: false, done: start(signIn).done, current: latest };
   }
 
   return {

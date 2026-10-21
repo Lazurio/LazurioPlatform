@@ -136,6 +136,42 @@ test("a forget drops the reading; one running across a forget answers its read a
   expect(await next).not.toBe(stale);
 });
 
+// Pablo's review of #524: a sign-in, link or sign-out through this
+// Launchpad while a read's reading runs leaves that reading from before it,
+// so the answer says it is no longer current and its route reads again.
+test("an answer given before a forget is no longer current, even while its reading still runs", async () => {
+  const w = world();
+  const before = w.reading.answer(true);
+  expect(before.current()).toBe(true);
+  w.reading.forget();
+  await w.answer(w.live(1, true));
+  await before.done;
+  expect(before.stale).toBe(false);
+  expect(before.current()).toBe(false);
+  // Read again: anew, and current.
+  const again = w.reading.answer(true);
+  expect(w.reads()).toBe(2);
+  await w.answer(w.live(2, true));
+  await again.done;
+  expect(again.current()).toBe(true);
+  // A kept answer is current until the next forget.
+  const kept = w.reading.answer(true);
+  expect(w.reads()).toBe(2);
+  expect(kept.current()).toBe(true);
+  w.reading.forget();
+  expect(kept.current()).toBe(false);
+  // So is an older one answered at once while a new reading runs.
+  const fresh = w.reading.answer(true);
+  await w.answer(w.live(3, true));
+  await fresh.done;
+  w.later(toolsKeptMs);
+  const stale = w.reading.answer(true, { allowStale: true });
+  expect(stale.stale).toBe(true);
+  expect(stale.current()).toBe(true);
+  w.reading.forget();
+  expect(stale.current()).toBe(false);
+});
+
 test("a failed reading is not kept: the next read tries again", async () => {
   const w = world();
   const first = w.reading.live(true);

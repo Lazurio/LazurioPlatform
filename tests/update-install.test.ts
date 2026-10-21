@@ -1143,8 +1143,19 @@ test("lazurio install asks the hosted context and says what became of the Codex 
   expect(asked).toBe(0);
 });
 
-test("on a supervised hosted base whose handover routes the browser's view, install also converges the Environment browser's units; the hosted context is asked once", async () => {
-  const { input, commands } = await scene();
+test("on a supervised hosted base whose handover routes the browser's view, install also converges the Environment browser's units and Computer Use on its screen; the hosted context is asked once", async () => {
+  const scened = await scene();
+  const { commands } = scened;
+  // Codex and Claude Code answer nothing here: whatever is found, nothing is
+  // added or removed.
+  const harnesses: string[][] = [];
+  const input = {
+    ...scened.input,
+    tools: async (command: readonly string[]) => {
+      harnesses.push([...command]);
+      return { exitCode: 1, stdout: "", stderr: "" };
+    },
+  };
   const folder = join(root, "Lazurio");
   await mkdir(folder);
   const units = join(root, "config/systemd/user");
@@ -1164,6 +1175,7 @@ test("on a supervised hosted base whose handover routes the browser's view, inst
     kind: "installed",
     codexAppServer: { state: "enabled" },
     environmentBrowser: { state: "skipped-not-declared" },
+    computerUse: { state: "skipped-not-declared" },
   });
   expect(asked).toBe(1);
   expect((await readdir(units)).sort()).toEqual(
@@ -1182,20 +1194,29 @@ test("on a supervised hosted base whose handover routes the browser's view, inst
   ).toMatchObject({
     kind: "installed",
     environmentBrowser: { state: "enabled" },
+    // No driver in this home yet (Machines installs it): the unit waits.
+    computerUse: { state: "driver-missing" },
   });
   expect(asked).toBe(1);
+  expect(
+    harnesses.filter(
+      (command) => command.includes("add") || command.includes("remove"),
+    ),
+  ).toEqual([]);
   expect((await readdir(units)).sort()).toEqual(
     [
       codexAppServerUnit,
       launchpadUnit,
       "lazurio-browser-view.service",
       "lazurio-browser.service",
+      "lazurio-computer.service",
       "lazurio-display.service",
     ].sort(),
   );
   // A unit written now is a changed unit: the browser and the view are
   // restarted if they ran (F39 point 10); `try-restart` starts nothing.
-  expect(commands.slice(-5)).toEqual([
+  // Computer Use follows, on its own: the screen is not touched again.
+  expect(commands.slice(-9)).toEqual([
     ["systemctl", "--user", "daemon-reload"],
     [
       "systemctl",
@@ -1215,9 +1236,16 @@ test("on a supervised hosted base whose handover routes the browser's view, inst
       "lazurio-browser.service",
       "lazurio-browser-view.service",
     ],
+    ["systemctl", "--user", "daemon-reload"],
+    ["systemctl", "--user", "enable", "lazurio-computer.service"],
+    ["systemctl", "--user", "try-restart", "lazurio-computer.service"],
+    ["systemctl", "--user", "start", "lazurio-computer.service"],
   ]);
   // A workstation: no hosted operator, nothing of the browser.
   expect(
     await performInstall({ ...input, service: { folder }, browserEntry }),
-  ).toMatchObject({ environmentBrowser: { state: "skipped-not-hosted" } });
+  ).toMatchObject({
+    environmentBrowser: { state: "skipped-not-hosted" },
+    computerUse: { state: "skipped-not-hosted" },
+  });
 });

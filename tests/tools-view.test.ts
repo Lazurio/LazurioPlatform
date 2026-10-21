@@ -15,13 +15,19 @@ import {
   composioPollStartMs,
   composioSignInText,
   connectionLine,
+  createLoginPoll,
   curatedActions,
   currentNotes,
   gitIdentityNote,
   installOutcome,
   type LoginView,
+  loginCancelOffered,
+  loginCloseAction,
   loginEndMessage,
+  loginFlowState,
   loginLink,
+  loginPollGivenUp,
+  loginPollGraceMs,
   loginProgress,
   loginStepOrder,
   loginSteps,
@@ -36,6 +42,7 @@ import {
   qrImageSource,
   signedInMessage,
   signInLine,
+  signInMode,
   sourceLink,
   sshOutcome,
   type ToolNotice,
@@ -807,6 +814,12 @@ test("the sign-in line and the curated action follow what the probe said", () =>
     expect(curatedActions(withSsh("linked"), copy).linkSsh).toBe(false);
     expect(curatedActions(withSsh("not-linked"), copy).linkSsh).toBe(true);
     expect(curatedActions(withSsh("unknown"), copy).linkSsh).toBe(true);
+    expect(
+      curatedActions(
+        { ...gh, signIn: { state: "signed-in", account: "octo" } },
+        copy,
+      ).linkSsh,
+    ).toBe(true);
     for (const agent of [
       tool({ setup: "agent" }),
       tool({ setup: "agent", installed: true, signIn: { state: "signed-in" } }),
@@ -1386,6 +1399,15 @@ test("the SSH outcome of a gh sign-in is read only in its exact form and becomes
     expect(
       sshOutcome({ kind: "signed-in", tool: "composio" }, copy),
     ).toBeNull();
+    // A gh sign-in that says nothing of the key is not a plain success:
+    // not linked, as far as this Launchpad knows (Pablo's review of #524).
+    expect(
+      sshOutcome({ kind: "signed-in", tool: "gh", account: "octocat" }, copy),
+    ).toEqual({
+      linked: false,
+      message: copy.toolsSshNotLinkedDone.replace("{account}", "octocat"),
+      detail: copy.toolsSshFailureUnverified,
+    });
     expect(
       loginEndMessage(
         { kind: "failed", tool: "gh", reason: "not-signed-in" },
@@ -1910,4 +1932,245 @@ test("the guide's targets on connecting and on the switch are only what a person
     ]).connect,
   ).toBeNull();
   expect(targets([])).toEqual({ connect: null, agents: null });
+});
+
+// #515 (F19's addendum of 2026-10-19): Nástroje never draws gh connected in
+// the success colour while this Environment does not reach GitHub over SSH
+// as its account, and it names a key it could not verify.
+test("Nástroje: gh connected but SSH not working is not drawn as connected, and an unverified key is named", () => {
+  for (const locale of ["en", "cs"] as const) {
+    const copy = messages(locale);
+    const gh = (state: "linked" | "not-linked" | "unknown", brokered = false) =>
+      connectionLine(
+        tool({
+          name: "gh",
+          command: "gh",
+          tier: "required",
+          installed: true,
+          signIn: { state: "signed-in", account: "octo", ssh: { state } },
+        }),
+        copy,
+        brokered,
+      );
+    const who = copy.toolsSignedInAs.replace("{account}", "octo");
+    // Only a working link is "signed-in", the success colour of the line.
+    expect(gh("linked")).toEqual({ text: who, state: "signed-in", ssh: null });
+    expect(gh("not-linked")).toEqual({
+      text: who,
+      state: "incomplete",
+      ssh: copy.toolsSshNotLinked,
+    });
+    expect(gh("unknown")).toEqual({
+      text: who,
+      state: "unverified",
+      ssh: copy.toolsSshUnknown,
+    });
+    // A Team Environment works through Lazurio for GitHub: its line names
+    // that, never a person's key.
+    expect(gh("not-linked", true).ssh).toBe(copy.toolsSshTeam);
+    // A signed-in gh whose status has no SSH part (its shape allows that) is
+    // not known to work either: never the success colour (Pablo's review of
+    // #524). A Team Environment's and another tool's line stay as they are.
+    const withoutSsh = (name: string, brokered = false) =>
+      connectionLine(
+        tool({
+          name,
+          command: name,
+          installed: true,
+          signIn: { state: "signed-in", account: "octo" },
+        }),
+        copy,
+        brokered,
+      );
+    expect(withoutSsh("gh")).toEqual({
+      text: who,
+      state: "unverified",
+      ssh: copy.toolsSshUnknown,
+    });
+    expect(withoutSsh("gh", true)).toMatchObject({
+      state: "signed-in",
+      ssh: null,
+    });
+    expect(withoutSsh("composio")).toMatchObject({
+      state: "signed-in",
+      ssh: null,
+    });
+  }
+  expect(messages("cs").toolsSshNotLinked).toBe("SSH klíč nepropojený");
+  expect(messages("cs").toolsSshUnknown).toBe("SSH klíč neověřený");
+});
+
+// #515: Začínáme, the line in Apps and a start request open GitHub's
+// sign-in by `signInMode`: for a signed-in gh whose SSH does not work here
+// that is its SSH link.
+test("opening a tool's sign-in from outside its row: its flow, or the SSH link of a signed-in gh", () => {
+  const copy = messages("cs");
+  const gh = (signIn?: ToolOverview["signIn"], installed = true) =>
+    tool({
+      name: "gh",
+      command: "gh",
+      tier: "required",
+      installed,
+      ...(signIn === undefined ? {} : { signIn }),
+    });
+  expect(signInMode(gh(undefined, false), copy)).toBe("install");
+  expect(signInMode(gh({ state: "signed-out" }), copy)).toBe("login");
+  expect(
+    signInMode(
+      gh({ state: "signed-in", account: "o", ssh: { state: "not-linked" } }),
+      copy,
+    ),
+  ).toBe("ssh");
+  expect(
+    signInMode(
+      gh({ state: "signed-in", account: "o", ssh: { state: "linked" } }),
+      copy,
+    ),
+  ).toBeNull();
+  // Without an SSH part it is not known to work: its SSH link (Pablo's
+  // review of #524).
+  expect(signInMode(gh({ state: "signed-in", account: "o" }), copy)).toBe(
+    "ssh",
+  );
+  // A Team Environment's gh is never signed in from here.
+  expect(signInMode(gh(undefined, false), copy, true)).toBeNull();
+  expect(signInMode(gh({ state: "signed-out" }), copy, true)).toBeNull();
+  expect(signInMode(tool({ installed: true }), copy)).toBe("login");
+});
+
+// #516 (F19's addendum of 2026-10-19): closing the shared sign-in dialog (its
+// ×, Escape) never ends a sign-in that runs; it detaches it. Only "Zrušit"
+// cancels, offered only while a code, link or QR code waits for the person.
+test("closing the sign-in dialog detaches a running sign-in and ends nothing; Zrušit only while a code waits", () => {
+  expect(loginCloseAction("waiting")).toBe("detach");
+  expect(loginCloseAction("linking")).toBe("detach");
+  for (const phase of ["confirm", "installing", "signed-in", "failed"] as const)
+    expect([phase, loginCloseAction(phase)]).toEqual([phase, "close"]);
+  expect(loginCancelOffered({ phase: "waiting", challenge: true })).toBe(true);
+  // Starting, before the code: nothing to cancel yet; the SSH key's steps
+  // after the code: no cancel at all.
+  expect(loginCancelOffered({ phase: "waiting", challenge: false })).toBe(
+    false,
+  );
+  for (const phase of [
+    "confirm",
+    "installing",
+    "linking",
+    "signed-in",
+    "failed",
+  ] as const)
+    expect(loginCancelOffered({ phase, challenge: true })).toBe(false);
+  for (const locale of ["en", "cs"] as const) {
+    const copy = messages(locale);
+    // While the sign-in finishes, the dialog never says it is connected: it
+    // says it finishes, and that the window may be closed.
+    const linking = loginProgress(
+      {
+        kind: "pending",
+        tool: "gh",
+        session: "0".repeat(32),
+        expiresAt: "2026-10-19T12:00:00.000Z",
+        step: "ssh-key",
+      },
+      copy,
+    );
+    expect(linking).toEqual({
+      status: copy.toolsLoginLinking,
+      detail: copy.toolsLoginFinishingDetail,
+    });
+    expect(linking.status).not.toMatch(/Připojeno|Connected/);
+  }
+  expect(messages("cs").toolsLoginLinking).toBe("Dokončuji připojení…");
+  expect(messages("cs").toolsLoginFinishingDetail).toBe(
+    "Okno můžete zavřít, Lazurio připojení dokončí samo.",
+  );
+  expect(messages("cs").toolsLoginCancel).toBe("Zrušit");
+  expect(messages("en").toolsLoginCancel).toBe("Cancel");
+});
+
+// #516: a poll that gets no answer ends nothing; the page asks again until
+// the session's own end has surely passed. Začínáme sees a sign-in the page
+// runs as waiting for the person or finishing.
+test("a missed poll ends nothing until the session's own end has passed; a running sign-in waits or finishes", () => {
+  const end = Date.parse("2026-10-19T12:15:00.000Z");
+  expect(loginPollGivenUp(end, end - 1_000)).toBe(false);
+  expect(loginPollGivenUp(end, end + loginPollGraceMs)).toBe(false);
+  expect(loginPollGivenUp(end, end + loginPollGraceMs + 1)).toBe(true);
+  expect(loginPollGivenUp(null, end + 3_600_000)).toBe(false);
+  expect(loginFlowState("waiting")).toBe("waiting");
+  expect(loginFlowState("linking")).toBe("finishing");
+  for (const phase of ["confirm", "installing", "signed-in", "failed"] as const)
+    expect(loginFlowState(phase)).toBeNull();
+});
+
+// #516, the Integrace thread's note: a session answers its end only once, so
+// the sign-in the dialog holds has one poll loop across its window hiding
+// and showing again. Showing it again while a poll is under way starts no
+// second one; that poll's answer, the end included, comes once.
+test("one poll loop per sign-in: showing it again while a poll is under way asks once, and its end comes once", async () => {
+  const timers: { action: () => void; ms: number }[] = [];
+  const asked: ((value: unknown) => void)[] = [];
+  const answers: unknown[] = [];
+  const loop = createLoginPoll({
+    ask: () =>
+      new Promise((resolve) =>
+        asked.push((value) => resolve({ answered: true, value })),
+      ),
+    answered: (answer) =>
+      answers.push(answer.answered ? answer.value : "no answer"),
+    setTimer: (action, ms) => {
+      const timer = { action, ms };
+      timers.push(timer);
+      return timer;
+    },
+    clearTimer: (timer) => {
+      const index = timers.indexOf(timer as (typeof timers)[number]);
+      if (index !== -1) timers.splice(index, 1);
+    },
+  });
+  const fire = () => timers.shift()?.action();
+  // The first poll after the interval; a second schedule plans nothing more.
+  loop.schedule();
+  loop.schedule();
+  expect(timers.map((timer) => timer.ms)).toEqual([2_000]);
+  fire();
+  expect(asked).toHaveLength(1);
+  // The window hides and shows again while that poll is under way: no
+  // second poll.
+  loop.now();
+  loop.schedule();
+  expect(timers).toEqual([]);
+  expect(asked).toHaveLength(1);
+  // Its answer, the end, comes once.
+  asked[0]?.({ kind: "signed-in", tool: "gh" });
+  await Bun.sleep(0);
+  expect(answers).toEqual([{ kind: "signed-in", tool: "gh" }]);
+  // Showing it again between polls asks at once, in place of the planned one.
+  loop.schedule();
+  loop.now();
+  expect(timers.map((timer) => timer.ms)).toEqual([0]);
+  fire();
+  expect(asked).toHaveLength(2);
+  // Stopped (a new start, Zrušit, the end): an answer under way counts for
+  // nothing, and nothing is planned again.
+  loop.stop();
+  asked[1]?.({ kind: "none", tool: "gh" });
+  await Bun.sleep(0);
+  expect(answers).toHaveLength(1);
+  loop.schedule();
+  loop.now();
+  expect(timers).toEqual([]);
+  // A failed request is no answer, which the dialog asks again after.
+  const failing = createLoginPoll({
+    ask: () => Promise.reject(new Error("offline")),
+    answered: (answer) => answers.push(answer.answered ? "answer" : "none"),
+    setTimer: (action) => {
+      action();
+      return null;
+    },
+    clearTimer: () => undefined,
+  });
+  failing.schedule();
+  await Bun.sleep(0);
+  expect(answers.at(-1)).toBe("none");
 });
