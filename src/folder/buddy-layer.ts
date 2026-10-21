@@ -44,9 +44,11 @@ export async function writeBuddyLayerLocked(
       continue;
     await ensureOutputDirectories(folder, path);
     const { directory, name } = outputFile(folder, path);
+    // A new file of its own, removed again unless the rename consumed it.
     const temporary = join(directory, `.${name}.${randomUUID()}.lazurio`);
+    const file = await open(temporary, "wx", 0o600);
+    let renamed = false;
     try {
-      const file = await open(temporary, "wx", 0o600);
       try {
         await file.writeFile(content, "utf8");
         await file.sync();
@@ -55,8 +57,9 @@ export async function writeBuddyLayerLocked(
       }
       await assertHeld();
       await rename(temporary, join(directory, name));
+      renamed = true;
     } finally {
-      await rm(temporary, { force: true });
+      if (!renamed) await rm(temporary, { force: true });
     }
     await syncDirectory(directory);
     written.push(path);

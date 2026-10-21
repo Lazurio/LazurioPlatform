@@ -758,7 +758,7 @@ test("a Folder rendered by an older template revision is upgraded by a tools cha
       recorded,
     );
     if (upgrade.kind !== "profile-change") throw new Error("Expected upgrade");
-    expect(upgrade.manifest.templateRevision).toBe("base-instructions-61");
+    expect(upgrade.manifest.templateRevision).toBe("base-instructions-62");
     expect(upgrade.previous).toEqual(older.outputs);
     expect(enabledTools(upgrade.preferences)).toEqual(tools);
     expect(upgrade.files).toEqual(
