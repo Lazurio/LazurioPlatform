@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { outputPaths } from "../src/folder/outputs";
+import { renderBuddyLayer } from "../src/folder/buddy";
+import { buddyLayerPaths, outputPaths } from "../src/folder/outputs";
 import { presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
 import { instructionTemplateRevision } from "../src/folder/render";
@@ -22,8 +23,8 @@ import { tryBinding } from "./fixtures/try-environments";
 // `bun test -u` does not touch it. The fixtures in `tests/fixtures` feed the
 // compositions too.
 const pinned = {
-  revision: "base-instructions-62",
-  digest: "12b73e717c88da67a97fdec17e56db496b68667e23cb3a3669913b656e6d1042",
+  revision: "base-instructions-64",
+  digest: "56bfde7ec7b507e90172597e5752238ee2dee79482a2e1fc07f1fa59a979f578",
 } as const;
 
 const optionalTools = activatableTools()
@@ -180,6 +181,11 @@ function renderedDigest(): string {
     const outputs = renderOutputs(composition);
     hash.update(`${index}\0`);
     for (const path of outputPaths) hash.update(`${path}\0${outputs[path]}\0`);
+    // Buddy's Lazurio layer carries the same revision (decision F14's
+    // addendum of 2026-10-21).
+    const layer = renderBuddyLayer(composition);
+    for (const path of buddyLayerPaths)
+      hash.update(`${path}\0${layer[path]}\0`);
   }
   return hash.digest("hex");
 }

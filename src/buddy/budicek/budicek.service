@@ -1,0 +1,14 @@
+[Unit]
+Description=Budíček: probudí Buddyho, když jeho bot skončí
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/budicek hlidej
+Restart=always
+RestartSec=5
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

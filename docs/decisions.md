@@ -1791,6 +1791,82 @@ neither recommended everywhere but on the Team, which asks "whom" with the tool;
 that agents in every harness follow the line (generated text is not proof of delivery through a
 harness), and Codex's question tool in Environments before the T3 Code change.
 
+**Addendum 2026-10-21, decided by Matěj: Buddy's Lazurio layer lives in the Folder, in
+`.agents/buddy/` (root decision 0210 with its addenda of 2026-10-20 evening and night,
+#565, plan DEV-6676).** Buddy has four layers with clear owners; the Lazurio layer, his role,
+rules and Lazurio skills, is delivered by Lazurio to every Buddy and updated with every
+release, and Buddy never edits it. Matěj decided that what was tuned on the pilot Buddy
+becomes general mechanics for every user („to by rozhodně nemělo platit jenom čistě pro můj
+počítač… obecná mechanika Lazuria. Pro všechny uživatele“), and on 2026-10-21 that the whole
+layer lies in `.agents/buddy/` rather than at the Folder's top level: a hosted Folder refuses
+every top-level name it does not own (`requireFolderBoundary`), so a `.hermes.md` there would
+stop every change of the Folder on each released Platform.
+
+What changes:
+
+- **Every Folder renders the layer** into `.agents/buddy/` (`src/folder/buddy.ts`):
+  `.hermes.md`, Buddy's role and rules, and `skills/lazurio/<name>/SKILL.md` for
+  `lazurio-t3-orchestration`, `lazurio-mausbot` and `lazurio-buddy-pomocnici`. The Buddy
+  install sets Hermes's `terminal.cwd` to `<Folder>/.agents/buddy` and
+  `skills.external_dirs` to `[<Folder>/.agents/buddy/skills]`. Hermes (Lazurio/hermes-agent
+  d923a5eb) loads `.hermes.md` from its working directory, up to a git root and only the
+  working directory without one, and then loads no `AGENTS.md`; external skill directories are
+  its lowest tier, so a variant Buddy keeps in `~/.hermes/skills` shadows the Lazurio skill of
+  the same name, and a copy left there unedited blocks its updates. Hermes's subagents skip
+  context files and inherit the working directory. No harness discovers `.agents/buddy/`.
+- **`.hermes.md`** is the role Matěj approved on 2026-10-20 (Buddy's DNA), written about the
+  user and never one person: Buddy coordinates and implements nothing; his helpers are MausBot
+  bots briefed through the wake-up service; he may always read the user's T3 Code threads and
+  writes in them, answers in them or creates them only when the user asks; his steps carry
+  „Buddy za <the user's name>“; the persona (his name, the address and the user's name in the
+  forms he needs) is SOUL.md's; the Folder is `~/Lazurio`, his own files live outside it
+  (e.g. `~/Documents/buddy/`); the default profile Důkladný. Because it shadows `AGENTS.md`,
+  it is composed from `AGENTS.md`'s own fragments in `src/folder/render.ts`: the voice, the
+  kinds of Environment, the question tool, the Draft and Publication, full access and
+  Personalspace. Only the default voice: Hermes blocks a whole context file in which its
+  injection scan finds anything (only the user's own SOUL.md is merely warned about), so an
+  Environment's custom voice never reaches `.hermes.md`, and Buddy's tone is his persona's.
+  The same bytes in every Environment for a locale. The role also carries the rules SOUL.md
+  held in the pilot: Buddy never updates, stops or restarts Hermes, gbrain or the
+  Environment's services; never stores secrets or a task's passing state as lasting truth in
+  gbrain; and reports done only when verified, never on a bot's own word. Organization
+  repositories are not in the Osobní Prostředí and Buddy never clones them there; their
+  work goes to bots in that Organization's Pracovní Prostředí. Steering a thread (stopping,
+  restarting, archiving, organizing, approving or denying its requests) is writing too:
+  only at the user's request, a mandate being the user's standing request (0089).
+- **Ownership.** The layer is no output of the digest manifest: nobody but Lazurio owns these
+  files, so no digest proves ownership and no change of a person's is at stake. Every change
+  of the Folder, and a refresh that changes nothing else, writes each file atomically over
+  whatever bytes are there and keeps a file that already has the rendered bytes, such as one
+  an interim install placed before this release (`src/folder/buddy-layer.ts`). Only an unsafe
+  path (a symlink, a hard link, a directory) is refused. Nothing else in `.agents/buddy/`,
+  Buddy's working directory, is listed, refused or removed. The manifest schema and the
+  Folder's top level stay as they are.
+- **`AGENTS.md`** on every preset in both locales gains a "Buddy" section before the working
+  rules: Buddy is the user's personal representative within the user's rights and mandates;
+  his steps carry „Buddy za <jméno uživatele>“ and a message with it is the user's request;
+  agents never message or wake Buddy, the result stays in the thread; questions go through the
+  question tool; Publication only on the user's explicit instruction or within a mandate;
+  gbrain only on the user's explicit instruction.
+- **The wake-up service** (`src/buddy/budicek/`, Python, standard library) is the pilot's,
+  unchanged in behavior and contract; the user's name in two cases and Buddy's name became
+  settings filled from Buddy's persona. Machines install it (HumanAndMachine-ai/Machines#701).
+- `scripts/render-buddy-layer.ts` renders the layer into a directory, for installs before this
+  release.
+
+Unchanged: the digest-owned outputs and their transaction, the manifest schema, the Folder's
+top-level boundary, every other text of the Folder.
+
+Template revision `base-instructions-63`; the pin of `tests/folder-template-revision.test.ts`
+now covers the layer too. `tests/folder-buddy.test.ts` checks the paths, one layer for every
+Environment, the composition from `AGENTS.md`'s fragments, the role's parts, no person's name,
+the skills' frontmatter and today's limits of `openmausbot` and `t3`, the 20,000-character
+budget Hermes loads uncut, the "Buddy" section on every preset, and on a hosted Folder: the
+layer from initialization, an interim install adopted with the same files, edited files
+overwritten and an unknown file kept, a refresh with nothing else to change restoring the
+layer, and a symlink refused. Not proven: that Hermes follows the rules (generated text is not
+proof of behavior), and the profiles other than Důkladný, which come with Settings → Buddy.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
@@ -4691,7 +4767,10 @@ replaced it.
 > its behaviour. The Launchpad's Czech still addresses the user directly („vy“) and
 > says uživatel only where it speaks of the user in the third person. What the note
 > above keeps stays, and so do the decision records' entries, `docs/evidence/` and
-> code comments.
+> code comments. Two phrases that reached the Folder after #556 say uživatel / user
+> too: the kinds of Environment's „vlastní počítač uživatele“ ("the user's own
+> computer") and, in Buddy's overview of threads, `waiting` „čeká na uživatele“
+> ("waits for the user"). Template revision `base-instructions-64`.
 
 **Decided by Matěj 2026-10-02.** The Agents' principal is the **Operator** of the
 Environment: whoever controls an Environment controls the Agents they run in it. Agents

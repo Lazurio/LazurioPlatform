@@ -1,0 +1,793 @@
+#!/usr/bin/env python3
+"""budicek: Buddy's wake-up service for delegated bot work.
+
+Buddy never waits on a bot synchronously. `budicek zadej` records the
+delegation, prepares a Hermes Kanban card with a `wake` subscription and starts
+the bot in MausBot. `budicek hlidej` (a systemd user service) pulls the state of
+every open delegation from MausBot and, on any outcome (done, failed, question,
+missed deadline, MausBot down), completes the Kanban card. Hermes then wakes
+Buddy in his main conversation. Buddy acknowledges with `budicek potvrd`;
+without an acknowledgement the service wakes him again (at most twice) and then
+messages the user directly.
+
+All state lives on disk, one JSON file per delegation, written atomically, so
+the service survives its own restart. Standard library only.
+"""
+
+from __future__ import annotations
+
+import argparse
+import contextlib
+import fcntl
+import json
+import os
+import re
+import secrets
+import shlex
+import shutil
+import subprocess
+import sys
+import time
+import traceback
+from datetime import datetime, timezone
+
+STAV_HOTOVO = "HOTOVO"
+STAV_SELHAL = "SELHAL"
+STAV_PTA_SE = "PTÁ SE"
+STAV_NESTIHL = "NESTIHL TERMÍN"
+STAV_NEODPOVIDA = "MAUSBOT NEODPOVÍDÁ"
+STAV_NESPUSTIL = "NESPUSTIL SE"
+
+# Record states. `budi` (outcome saved, wake not yet confirmed on the board) and
+# `eskaluje` (direct message not yet confirmed) are the crash-safe in-between
+# steps; `nezalozen` means the wake path could not be prepared, so no bot was
+# started and `zadej` failed loudly instead.
+OPEN_STATES = ("zaklada", "bezi", "budi", "probuzen", "eskaluje")
+CLOSED_STATES = ("vyrizeno", "eskalovano", "nezalozen")
+
+MAX_REWAKES = 2
+KANBAN_ASSIGNEE = "mausbot"  # not a Hermes profile, so the dispatcher never claims the card
+
+PREAMBLE = (
+    "Pracuješ pro Buddyho: Buddy za {uzivatel}. Úkol {id}, termín {termin}. "
+    "Výsledek odevzdej jedním závěrečným hlášením: co je hotové, co ne a co musí "
+    "Buddy rozhodnout. Drž se zadání: neimprovizuj, nerozšiřuj ho a nic "
+    "nepublikuj. Když se nemůžeš pohnout, neptej se uživatele a napiš to do hlášení."
+)
+PREAMBLE_VLAKNO = (
+    "Hlídej vlákno T3 Code {vlakno}: počkej přes `t3 thread wait {vlakno}`, "
+    "a nahlas, jak skončilo."
+)
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, "") or default)
+    except ValueError:
+        return default
+
+
+POLL_SECONDS = _env_float("BUDICEK_POLL_SECONDS", 20)
+ACK_SECONDS = _env_float("BUDICEK_ACK_SECONDS", 600)
+UNREACHABLE_SECONDS = _env_float("BUDICEK_UNREACHABLE_SECONDS", 180)
+CMD_TIMEOUT = _env_float("BUDICEK_CMD_TIMEOUT", 90)
+WAIT_TIMEOUT = os.environ.get("BUDICEK_WAIT_TIMEOUT", "5s")
+BUDDY_NAME = os.environ.get("BUDICEK_BUDDY_NAME") or "Buddy"
+# The user's name in the two Czech cases the texts need, from Buddy's persona
+# (the install fills them in): "Buddy za <accusative>", "píšu <dative>".
+USER_ACCUSATIVE = os.environ.get("BUDICEK_USER_ACCUSATIVE") or "uživatele"
+USER_DATIVE = os.environ.get("BUDICEK_USER_DATIVE") or "uživateli"
+
+
+class BudicekError(Exception):
+    pass
+
+
+# --------------------------------------------------------------------------- time
+
+
+def now() -> float:
+    return time.time()
+
+
+def iso(ts: float | None) -> str | None:
+    if ts is None:
+        return None
+    return datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def human_time(ts: float) -> str:
+    try:
+        from zoneinfo import ZoneInfo
+
+        local = datetime.fromtimestamp(ts, ZoneInfo("Europe/Prague"))
+        return local.strftime("%-d. %-m. %Y %H:%M") + " (Praha)"
+    except Exception:
+        return datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+
+def parse_duration(text: str) -> int:
+    m = re.fullmatch(r"\s*(\d+)\s*([smh]?)\s*", text or "")
+    if not m or int(m.group(1)) <= 0:
+        raise BudicekError(f"neplatný termín {text!r}: použij třeba 90s, 30m nebo 2h")
+    return int(m.group(1)) * {"": 1, "s": 1, "m": 60, "h": 3600}[m.group(2)]
+
+
+def log(msg: str) -> None:
+    print(f"{iso(now())} budicek: {msg}", file=sys.stderr, flush=True)
+
+
+def crashpoint(name: str) -> None:
+    """Test hook: die abruptly at a named step (simulates a killed service)."""
+    if os.environ.get("BUDICEK_TEST_CRASH_AT") == name:
+        os._exit(99)
+
+
+# ------------------------------------------------------------------------ storage
+
+
+def state_dir() -> str:
+    path = os.environ.get("BUDICEK_STATE_DIR") or os.path.expanduser(
+        "~/.local/state/lazurio/buddy/delegations"
+    )
+    os.makedirs(path, mode=0o700, exist_ok=True)
+    return path
+
+
+def record_path(rec_id: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9-]+", rec_id or ""):
+        raise BudicekError(f"neplatné id úkolu {rec_id!r}")
+    return os.path.join(state_dir(), rec_id + ".json")
+
+
+def save(rec: dict) -> None:
+    path = record_path(rec["id"])
+    rec["zmeneno"] = iso(now())
+    tmp = f"{path}.tmp-{os.getpid()}"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump(rec, fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, path)
+    dfd = os.open(os.path.dirname(path), os.O_RDONLY)
+    try:
+        os.fsync(dfd)
+    finally:
+        os.close(dfd)
+
+
+def load(rec_id: str) -> dict:
+    path = record_path(rec_id)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+    except FileNotFoundError:
+        raise BudicekError(f"úkol {rec_id} neexistuje") from None
+
+
+def all_ids() -> list[str]:
+    return sorted(n[:-5] for n in os.listdir(state_dir()) if n.endswith(".json"))
+
+
+@contextlib.contextmanager
+def locked(rec_id: str, blocking: bool = True):
+    """Per-delegation lock; released by the kernel if the holder dies."""
+    fd = os.open(os.path.join(state_dir(), rec_id + ".lock"), os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
+        except BlockingIOError:
+            yield False
+            return
+        yield True
+    finally:
+        os.close(fd)
+
+
+def note(rec: dict, text: str) -> None:
+    rec.setdefault("historie", []).append({"at": iso(now()), "udalost": text})
+
+
+# ----------------------------------------------------------------------- commands
+
+
+def run_cmd(argv: list[str], stdin: str | None = None, env: dict | None = None) -> tuple[int, str, str]:
+    try:
+        proc = subprocess.run(
+            argv,
+            input=stdin,
+            capture_output=True,
+            text=True,
+            timeout=CMD_TIMEOUT,
+            env=env,
+        )
+        return proc.returncode, proc.stdout, proc.stderr
+    except FileNotFoundError as exc:
+        return 127, "", str(exc)
+    except subprocess.TimeoutExpired:
+        return 124, "", f"příkaz nedoběhl do {int(CMD_TIMEOUT)} s: {argv[0]}"
+
+
+def parse_json(text: str):
+    text = (text or "").strip()
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except ValueError:
+        # tolerate stray lines before the JSON document
+        start = text.find("{")
+        if start > 0:
+            try:
+                return json.loads(text[start:])
+            except ValueError:
+                return None
+        return None
+
+
+def mausbot(rec: dict, args: list[str], stdin: str | None = None) -> tuple[int, dict | None, str]:
+    """Call MausBot where the bot lives: here, or `ssh <env> openmausbot ...`."""
+    host = rec.get("env")
+    env = dict(os.environ)
+    if host:
+        remote = "openmausbot " + " ".join(shlex.quote(a) for a in args)
+        argv = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=15", host, remote]
+    else:
+        exe = shutil.which("openmausbot")
+        if exe:
+            argv = [exe] + args
+        else:
+            argv = [
+                os.path.expanduser("~/.local/bin/node"),
+                os.path.expanduser("~/.local/share/lazurio/mausbot/current/cli.js"),
+            ] + args
+        if not env.get("OMB_PORT") and not env.get("OPENMAUSBOT_URL"):
+            env["OMB_PORT"] = os.environ.get("BUDICEK_OMB_PORT", "4102")
+    code, out, err = run_cmd(argv, stdin=stdin, env=env)
+    if host and code == 255:
+        code = 5  # ssh could not reach the Environment
+    data = parse_json(out)
+    return code, data if isinstance(data, dict) else None, err.strip()
+
+
+def hermes_argv() -> list[str]:
+    exe = shutil.which("hermes") or os.path.expanduser("~/.local/bin/hermes")
+    return [exe]
+
+
+def hermes(args: list[str]) -> tuple[int, str, str]:
+    return run_cmd(hermes_argv() + args)
+
+
+def telegram_target() -> tuple[str, str]:
+    chat = os.environ.get("BUDICEK_TELEGRAM_CHAT_ID", "").strip()
+    user = os.environ.get("BUDICEK_TELEGRAM_USER_ID", "").strip()
+    if not chat:
+        home = os.environ.get("HERMES_HOME") or os.path.expanduser("~/.hermes")
+        try:
+            with open(os.path.join(home, ".env"), encoding="utf-8") as fh:
+                for line in fh:
+                    if line.startswith("TELEGRAM_ALLOWED_USERS="):
+                        value = line.split("=", 1)[1].strip().strip("'\"")
+                        chat = value.split(",")[0].strip()
+                        break
+        except OSError:
+            pass
+    if not chat:
+        raise BudicekError("chybí Telegram chat Buddyho (BUDICEK_TELEGRAM_CHAT_ID nebo TELEGRAM_ALLOWED_USERS)")
+    return chat, user or chat  # Telegram DM: chat id == user id
+
+
+# ------------------------------------------------------------------ Kanban / wake
+
+
+def one_line(text: str, limit: int) -> str:
+    flat = " ".join((text or "").split())
+    return flat if len(flat) <= limit else flat[: max(0, limit - 1)] + "…"
+
+
+def wake_key(rec: dict, attempt: int) -> str:
+    base = rec["id"] if rec.get("kolo", 1) == 1 else f'{rec["id"]}.k{rec["kolo"]}'
+    return base if attempt == 1 else f"{base}#{attempt}"
+
+
+def wake_title(rec: dict, attempt: int) -> str:
+    title = f'budíček {rec["id"]}: {rec["nazev"]}'
+    if attempt > 1:
+        title += f" (znovu, {attempt}. budík)"
+    return one_line(title, 120)
+
+
+def wake_summary(rec: dict) -> str:
+    head = f'{rec["vysledek_stav"]}: '
+    tail = f' | budicek vysledek {rec["id"]}'
+    return head + one_line(rec.get("vysledek") or "", 200 - len(head) - len(tail)) + tail
+
+
+def kanban_status(task_id: str) -> str:
+    code, out, err = hermes(["kanban", "show", task_id, "--json"])
+    data = parse_json(out)
+    if code != 0 or not isinstance(data, dict):
+        raise BudicekError(f"kanban show {task_id} selhal ({code}): {one_line(err or out, 300)}")
+    task = data.get("task") if isinstance(data.get("task"), dict) else data
+    return str(task.get("status") or "")
+
+
+def ensure_card(rec: dict, attempt: int) -> str:
+    """Create (idempotently) the Kanban card for this wake and its wake subscription."""
+    key = wake_key(rec, attempt)
+    cards = rec.setdefault("kanban", {})
+    task_id = cards.get(key)
+    if not task_id:
+        body = (
+            f'Úkol budíčku {rec["id"]} pro bota {rec["bot"]}'
+            + (f' v Prostředí {rec["env"]}' if rec.get("env") else " v tomto Prostředí")
+            + f'. Termín {rec["termin"]}. Kartu uzavírá budíček; výsledek: budicek vysledek {rec["id"]}.'
+        )
+        code, out, err = hermes(
+            [
+                "kanban", "create", wake_title(rec, attempt),
+                "--assignee", KANBAN_ASSIGNEE,
+                "--idempotency-key", key,
+                "--created-by", "budicek",
+                "--body", body,
+                "--json",
+            ]
+        )
+        data = parse_json(out)
+        task_id = data.get("id") if isinstance(data, dict) else None
+        if code != 0 or not task_id:
+            raise BudicekError(f"kanban create selhal ({code}): {one_line(err or out, 300)}")
+        cards[key] = task_id
+        note(rec, f"karta {task_id} ({key})")
+        save(rec)
+        crashpoint("after_create")
+    subscribed = rec.setdefault("odbery", [])
+    if key not in subscribed:
+        chat, user = telegram_target()
+        code, out, err = hermes(
+            [
+                "kanban", "notify-subscribe", task_id,
+                "--platform", "telegram",
+                "--chat-id", chat,
+                "--user-id", user,
+                "--chat-type", "dm",
+                "--delivery-mode", "wake",
+            ]
+        )
+        if code != 0:
+            raise BudicekError(f"kanban notify-subscribe selhal ({code}): {one_line(err or out, 300)}")
+        subscribed.append(key)
+        save(rec)
+        crashpoint("after_subscribe")
+    return task_id
+
+
+def deliver_wake(rec: dict) -> None:
+    """Complete this attempt's card exactly once; Hermes turns that into the wake."""
+    attempt = rec["budik_pokus"]
+    task_id = ensure_card(rec, attempt)
+    status = kanban_status(task_id)
+    if status == "archived":
+        # Someone archived the card: a fresh card with the same key is a new card.
+        key = wake_key(rec, attempt)
+        rec["kanban"].pop(key, None)
+        rec["odbery"] = [k for k in rec.get("odbery", []) if k != key]
+        note(rec, f"karta {task_id} byla archivovaná, zakládám novou")
+        save(rec)
+        task_id = ensure_card(rec, attempt)
+        status = kanban_status(task_id)
+    if status != "done":
+        args = [
+            "kanban", "complete", task_id,
+            "--result", wake_summary(rec),
+            "--summary", wake_summary(rec),
+            "--metadata", json.dumps(
+                {"budicek_id": rec["id"], "stav": rec["vysledek_stav"], "budik": attempt},
+                ensure_ascii=False,
+            ),
+        ]
+        if status == "running":
+            args.append("--force")
+        code, out, err = hermes(args)
+        crashpoint("after_complete")
+        status = kanban_status(task_id)
+        if status != "done":
+            raise BudicekError(f"kanban complete {task_id} selhal ({code}): {one_line(err or out, 300)}")
+    rec["stav"] = "probuzen"
+    rec["probuzen_ts"] = now()
+    rec["probuzen"] = iso(rec["probuzen_ts"])
+    rec.setdefault("probuzeni", []).append({"budik": attempt, "karta": task_id, "at": rec["probuzen"]})
+    note(rec, f"probuzen ({attempt}. budík, karta {task_id})")
+    save(rec)
+    log(f'{rec["id"]}: {rec["vysledek_stav"]}, {attempt}. budík, karta {task_id}')
+
+
+def set_outcome(rec: dict, stav: str, text: str) -> None:
+    rec["vysledek_stav"] = stav
+    rec["vysledek"] = text.strip() or stav
+    rec["vysledek_ts"] = now()
+    rec["stav"] = "budi"
+    rec["budik_pokus"] = 1
+    note(rec, f"výsledek {stav}")
+    save(rec)
+    crashpoint("after_outcome")
+
+
+# -------------------------------------------------------------------- MausBot map
+
+
+def reply_text(data: dict | None) -> str:
+    """The bot's last text reply: `reply` (run) or the newest bot message (wait)."""
+    data = data or {}
+    reply = data.get("reply") or {}
+    text = (reply.get("text") or "").strip()
+    files = reply.get("files") or []
+    if not text:
+        for msg in reversed(data.get("messages") or []):
+            if isinstance(msg, dict) and msg.get("role") == "bot" and msg.get("kind") == "text":
+                text = (msg.get("text") or "").strip()
+                if text:
+                    break
+    if files:
+        text += "\n\nSoubory: " + ", ".join(str(f) for f in files)
+    return text
+
+
+def questions(data: dict | None) -> str:
+    items = ((data or {}).get("job") or {}).get("needsInput") or []
+    lines = []
+    for item in items:
+        if isinstance(item, dict):
+            who = item.get("botName") or "bot"
+            lines.append(f'{who} se ptá: {(item.get("question") or "").strip()}')
+    return "\n".join(lines)
+
+
+def describe_failure(code: int, data: dict | None, err: str) -> str:
+    data = data or {}
+    parts = [data.get("error"), data.get("hint")]
+    if not any(parts):
+        parts = [err]
+    return f"kód {code}: " + one_line(" ".join(p for p in parts if p), 400)
+
+
+def watch(rec: dict) -> None:
+    t = now()
+    code, data, err = mausbot(
+        rec,
+        [
+            "wait", "--thread", str(rec["threadId"]), "--since", str(rec["since"]),
+            "--timeout", WAIT_TIMEOUT, "--on-input", "exit", "--json", "--quiet",
+        ],
+    )
+    state = str((data or {}).get("state") or "")
+    if code not in (0, 1, 3, 4) or (code == 1 and data is None):
+        # unreachable (5), ssh failure, timeout, missing command or a broken answer
+        if not rec.get("nedostupny_od_ts"):
+            rec["nedostupny_od_ts"] = t
+            note(rec, "MausBot neodpovídá")
+        rec["posledni_chyba"] = describe_failure(code, data, err)
+        if t - rec["nedostupny_od_ts"] >= UNREACHABLE_SECONDS:
+            set_outcome(
+                rec,
+                STAV_NEODPOVIDA,
+                f'MausBot neodpovídá od {iso(rec["nedostupny_od_ts"])} ({rec["posledni_chyba"]}). '
+                "Nevím, jestli bot doběhl; jeho práce může dál běžet. "
+                f'Konverzace {rec["threadId"]}.',
+            )
+            deliver_wake(rec)
+        else:
+            save(rec)
+        return
+    if rec.get("nedostupny_od_ts"):
+        rec["nedostupny_od_ts"] = None
+        note(rec, "MausBot zase odpovídá")
+    if code == 3 or state == "needs-input":
+        text = questions(data) or "Bot čeká na odpověď nebo schválení."
+        set_outcome(rec, STAV_PTA_SE, f'{text}\n\nKonverzace {rec["threadId"]}.')
+        deliver_wake(rec)
+    elif code == 1 or state in ("failed", "stalled", "idle"):
+        reason = (data or {}).get("reason") or ((data or {}).get("job") or {}).get("reason") or ""
+        text = f"Bot nedokončil práci (stav {state or 'neznámý'}"
+        text += f", důvod: {reason})." if reason else ")."
+        body = reply_text(data)
+        set_outcome(rec, STAV_SELHAL, text + (f"\n\nPoslední hlášení:\n{body}" if body else ""))
+        deliver_wake(rec)
+    elif code == 0:
+        body = reply_text(data) or "Bot skončil bez závěrečného hlášení."
+        set_outcome(rec, STAV_HOTOVO, body)
+        deliver_wake(rec)
+    elif t >= rec["termin_ts"]:  # code 4: still running
+        icode, idata, ierr = mausbot(
+            rec, ["interrupt", "--thread", str(rec["threadId"]), "--tree", "--json", "--quiet"]
+        )
+        stopped = "Práci bota jsem zastavil." if icode == 0 else (
+            "Zastavit práci bota se nepodařilo (" + describe_failure(icode, idata, ierr) + ")."
+        )
+        body = reply_text(data)
+        set_outcome(
+            rec,
+            STAV_NESTIHL,
+            f'Termín {rec["termin"]} vypršel a bot nebyl hotový. {stopped}'
+            + (f"\n\nPoslední hlášení:\n{body}" if body else "")
+            + f'\n\nKonverzace {rec["threadId"]}.',
+        )
+        deliver_wake(rec)
+    elif rec.get("posledni_chyba"):
+        rec["posledni_chyba"] = None
+        save(rec)
+
+
+# ---------------------------------------------------------------------- lifecycle
+
+
+def new_id() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-") + secrets.token_hex(2)
+
+
+def cmd_zadej(args) -> int:
+    brief = sys.stdin.read().strip()
+    if not brief:
+        raise BudicekError("zadání čekám na stdin")
+    termin_s = parse_duration(args.termin)
+    t = now()
+    rec = {
+        "id": new_id(),
+        "verze": 1,
+        "nazev": args.nazev.strip() or "bez názvu",
+        "bot": args.bot,
+        "env": args.env or None,
+        "vlakno": args.vlakno or None,
+        "zadani": brief,
+        "termin_s": termin_s,
+        "termin_ts": t + termin_s,
+        "termin": human_time(t + termin_s),
+        "zalozeno": iso(t),
+        "stav": "zaklada",
+        "kolo": 1,
+        "budik_pokus": 0,
+        "threadId": None,
+        "since": None,
+        "spusteni_zahajeno": False,
+    }
+    with locked(rec["id"]):
+        note(rec, "zakládám")
+        save(rec)  # (1) the record exists before anything else happens
+        crashpoint("after_record")
+        try:  # (2) the wake path exists before the bot starts
+            ensure_card(rec, 1)
+        except Exception as exc:
+            rec["stav"] = "nezalozen"
+            rec["posledni_chyba"] = str(exc)
+            note(rec, "budík se nepodařilo připravit, bota nespouštím")
+            save(rec)
+            print(json.dumps({"ok": False, "id": rec["id"], "error": str(exc)}, ensure_ascii=False))
+            return 1
+        preamble = PREAMBLE.format(id=rec["id"], termin=rec["termin"], uzivatel=USER_ACCUSATIVE)
+        if rec["vlakno"]:
+            preamble += " " + PREAMBLE_VLAKNO.format(vlakno=rec["vlakno"])
+        rec["spusteni_zahajeno"] = True
+        save(rec)
+        started_ms = int(now() * 1000)
+        code, data, err = mausbot(  # (3) start the bot, do not wait
+            rec,
+            ["run", args.bot, "-", "--wait", "none", "--title", rec["nazev"], "--json", "--quiet"],
+            stdin=preamble + "\n\n" + brief + "\n",
+        )
+        crashpoint("after_run")
+        if code == 0 and data and data.get("threadId"):
+            rec["threadId"] = data["threadId"]  # (4) remember the job
+            rec["since"] = data.get("since") or started_ms
+            rec["stav"] = "bezi"
+            note(rec, f'bot běží, konverzace {rec["threadId"]}')
+            save(rec)
+            print(json.dumps({"id": rec["id"], "threadId": rec["threadId"], "termin": rec["termin"]}, ensure_ascii=False))
+            return 0
+        set_outcome(rec, STAV_NESPUSTIL, f"Bota {args.bot} se nepodařilo spustit ({describe_failure(code, data, err)}).")
+        try:
+            deliver_wake(rec)
+        except Exception as exc:  # the service retries the wake from state `budi`
+            log(f'{rec["id"]}: budík zatím neprošel: {exc}')
+        print(json.dumps({"ok": False, "id": rec["id"], "threadId": None, "termin": rec["termin"],
+                          "stav": STAV_NESPUSTIL, "error": rec["vysledek"]}, ensure_ascii=False))
+        return 1
+
+
+def recover_unfinished_zadej(rec: dict) -> None:
+    text = "Zadání se nedokončilo: budíček skončil uprostřed zakládání úkolu."
+    if rec.get("spusteni_zahajeno"):
+        text += f' Bot {rec["bot"]} už mohl začít pracovat; zkontroluj jeho konverzace v MausBotu.'
+    else:
+        text += " Bot se nespustil."
+    set_outcome(rec, STAV_NESPUSTIL, text)
+    deliver_wake(rec)
+
+
+def check_ack(rec: dict) -> None:
+    if now() - rec.get("probuzen_ts", 0) < ACK_SECONDS:
+        return
+    if rec["budik_pokus"] < 1 + MAX_REWAKES:
+        rec["budik_pokus"] += 1
+        rec["stav"] = "budi"
+        note(rec, f'bez potvrzení, {rec["budik_pokus"]}. budík')
+        save(rec)
+        crashpoint("after_rewake_saved")
+        deliver_wake(rec)
+    else:
+        rec["stav"] = "eskaluje"
+        note(rec, f"bez potvrzení ani po opakovaném buzení, píšu {USER_DATIVE}")
+        save(rec)
+        escalate(rec)
+
+
+def escalate(rec: dict) -> None:
+    chat, _user = telegram_target()
+    text = (
+        f'{BUDDY_NAME} se neprobudil k úkolu {rec["nazev"]} ({rec["id"]}). '
+        f'Výsledek: budicek vysledek {rec["id"]}.'
+    )
+    code, out, err = hermes(["send", "--to", f"telegram:{chat}", "--quiet", text])
+    if code != 0:
+        raise BudicekError(f"hermes send selhal ({code}): {one_line(err or out, 300)}")
+    rec["stav"] = "eskalovano"
+    rec["eskalovano"] = iso(now())
+    note(rec, f"zpráva {USER_DATIVE} odeslaná")
+    save(rec)
+    log(f'{rec["id"]}: eskalováno {USER_DATIVE}')
+
+
+def process(rec_id: str) -> None:
+    with locked(rec_id, blocking=False) as got:
+        if not got:
+            return  # `zadej` or `potvrd` is working on it right now
+        rec = load(rec_id)
+        stav = rec.get("stav")
+        if stav == "zaklada":
+            recover_unfinished_zadej(rec)
+        elif stav == "bezi":
+            watch(rec)
+        elif stav == "budi":
+            deliver_wake(rec)
+        elif stav == "probuzen":
+            check_ack(rec)
+        elif stav == "eskaluje":
+            escalate(rec)
+
+
+def tick() -> None:
+    for rec_id in all_ids():
+        try:
+            process(rec_id)
+        except Exception as exc:
+            log(f"{rec_id}: {exc}")
+            if os.environ.get("BUDICEK_DEBUG"):
+                traceback.print_exc()
+
+
+def cmd_hlidej(args) -> int:
+    log(f"hlídám {state_dir()} (každých {int(POLL_SECONDS)} s)")
+    while True:
+        try:
+            tick()
+        except Exception as exc:  # never die on one bad round
+            log(f"kolo selhalo: {exc}")
+        if args.jednou:
+            return 0
+        time.sleep(POLL_SECONDS)
+
+
+def cmd_potvrd(args) -> int:
+    with locked(args.id):
+        rec = load(args.id)
+        stav = rec.get("stav")
+        if stav in ("zaklada", "bezi"):
+            raise BudicekError(f"úkol {args.id} ještě běží (stav {stav}), není co potvrdit")
+        if stav == "nezalozen":
+            raise BudicekError(f"úkol {args.id} se nezaložil, není co potvrdit")
+        if args.hlidej_dal:
+            if not rec.get("threadId"):
+                raise BudicekError(f"úkol {args.id} nemá konverzaci bota, není co hlídat")
+            rec["kolo"] = rec.get("kolo", 1) + 1
+            rec["stav"] = "bezi"
+            rec["budik_pokus"] = 0
+            rec["nedostupny_od_ts"] = None
+            for key in ("vysledek_stav", "vysledek", "vysledek_ts", "probuzen", "probuzen_ts"):
+                rec[key] = None
+            if args.termin:
+                rec["termin_s"] = parse_duration(args.termin)
+                rec["termin_ts"] = now() + rec["termin_s"]
+                rec["termin"] = human_time(rec["termin_ts"])
+            note(rec, f'potvrzeno, hlídám dál ({rec["kolo"]}. kolo, termín {rec["termin"]})')
+            save(rec)
+            print(json.dumps({"id": rec["id"], "stav": "bezi", "termin": rec["termin"]}, ensure_ascii=False))
+            return 0
+        if stav != "vyrizeno":
+            rec["stav"] = "vyrizeno"
+            rec["potvrzeno"] = iso(now())
+            note(rec, "potvrzeno")
+            save(rec)
+        print(json.dumps({"id": rec["id"], "stav": "vyrizeno"}, ensure_ascii=False))
+        return 0
+
+
+def cmd_vysledek(args) -> int:
+    rec = load(args.id)
+    if args.json:
+        print(json.dumps(rec, ensure_ascii=False, indent=2))
+        return 0
+    lines = [
+        f'Úkol: {rec["nazev"]} ({rec["id"]})',
+        f'Bot: {rec["bot"]}' + (f' v Prostředí {rec["env"]}' if rec.get("env") else ""),
+        f'Stav: {rec["stav"]}' + (f' / {rec["vysledek_stav"]}' if rec.get("vysledek_stav") else ""),
+        f'Termín: {rec["termin"]}',
+    ]
+    if rec.get("threadId"):
+        lines.append(f'Konverzace: {rec["threadId"]} (since {rec.get("since")})')
+    if rec.get("vlakno"):
+        lines.append(f'Vlákno T3 Code: {rec["vlakno"]}')
+    lines.append("")
+    lines.append(rec.get("vysledek") or "Výsledek zatím není, bot ještě pracuje.")
+    print("\n".join(lines))
+    return 0
+
+
+def cmd_seznam(args) -> int:
+    recs = []
+    for rec_id in all_ids():
+        try:
+            rec = load(rec_id)
+        except Exception:
+            continue
+        if args.otevrene and rec.get("stav") in ("vyrizeno", "nezalozen"):
+            continue
+        recs.append(rec)
+    if args.json:
+        keep = ("id", "nazev", "bot", "env", "stav", "vysledek_stav", "termin", "threadId", "budik_pokus", "zalozeno")
+        print(json.dumps([{k: r.get(k) for k in keep} for r in recs], ensure_ascii=False, indent=2))
+        return 0
+    if not recs:
+        print("Žádné úkoly.")
+    for r in recs:
+        print(f'{r["id"]}  {r["stav"]:<10} {r.get("vysledek_stav") or "-":<18} {r["bot"]:<16} {r["nazev"]}')
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="budicek", description="Budíček: probudí Buddyho, když bot skončí.")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+    p = sub.add_parser("zadej", help="dát botovi úkol (zadání na stdin)")
+    p.add_argument("--bot", required=True)
+    p.add_argument("--termin", required=True, help="např. 90s, 30m, 2h")
+    p.add_argument("--nazev", required=True)
+    p.add_argument("--env", help="ssh host Prostředí, kde bot běží (výchozí: toto Prostředí)")
+    p.add_argument("--vlakno", help="id vlákna T3 Code, které bot hlídá")
+    p.set_defaults(func=cmd_zadej)
+    p = sub.add_parser("hlidej", help="služba: hlídá otevřené úkoly a budí Buddyho")
+    p.add_argument("--jednou", action="store_true", help="jen jedno kolo (diagnostika, testy)")
+    p.set_defaults(func=cmd_hlidej)
+    p = sub.add_parser("potvrd", help="Buddy si výsledek přečetl")
+    p.add_argument("id")
+    p.add_argument("--hlidej-dal", action="store_true", help="bot pracuje dál (třeba po odpovědi na otázku)")
+    p.add_argument("--termin", help="nový termín pro --hlidej-dal")
+    p.set_defaults(func=cmd_potvrd)
+    p = sub.add_parser("vysledek", help="uložený výsledek úkolu")
+    p.add_argument("id")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_vysledek)
+    p = sub.add_parser("seznam", help="úkoly budíčku")
+    p.add_argument("--otevrene", action="store_true")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_seznam)
+    args = parser.parse_args(argv)
+    try:
+        return args.func(args)
+    except BudicekError as exc:
+        print(f"budicek: {exc}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

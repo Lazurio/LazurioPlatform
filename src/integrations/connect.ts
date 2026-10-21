@@ -222,6 +222,10 @@ type Session = {
   readonly company?: true;
 };
 
+/** What a Composio connect needs of an app: its id and its toolkit, a
+ * catalog app's or one the catalog does not know (#534). */
+type ComposioApp = Pick<CatalogApp, "id" | "composio">;
+
 /** An account name: plain text, one line, at most 64 characters. */
 export function accountName(value: unknown): string | null | "invalid" {
   if (value === undefined || value === null) return null;
@@ -942,7 +946,7 @@ export function createConnectSessions(host: () => ConnectHost) {
   }
 
   async function connectComposio(
-    app: CatalogApp,
+    app: ComposioApp,
     name: string | null,
   ): Promise<ConnectStart> {
     const composio = await host().composio();
@@ -955,7 +959,7 @@ export function createConnectSessions(host: () => ConnectHost) {
   }
 
   async function startComposio(
-    app: CatalogApp,
+    app: ComposioApp,
     name: string | null,
     composio: NonNullable<Awaited<ReturnType<ConnectHost["composio"]>>>,
     toolkit: string,
@@ -1050,11 +1054,28 @@ export function createConnectSessions(host: () => ConnectHost) {
         appId === microsoft365CardId
           ? microsoft365Card
           : catalog().apps.find((item) => item.id === appId);
-      if (app === undefined) return { kind: "blocked", reason: "app-unknown" };
+      // A toolkit the catalog does not know is listed from Composio's
+      // accounts under its slug (decision F42, addendum of 2026-10-14), and
+      // another account of it links that toolkit, as `composioToolkitOf`
+      // names it for every other step (#534).
+      const viaComposio: ComposioApp | undefined =
+        app ??
+        (path === "composio"
+          ? { id: appId, composio: composioToolkitOf(catalog(), appId) }
+          : undefined);
+      if (viaComposio === undefined) {
+        journal({
+          event: "connect",
+          app: appId,
+          outcome: "blocked",
+          reason: "app-unknown",
+        });
+        return { kind: "blocked", reason: "app-unknown" };
+      }
       try {
-        return path === "direct"
+        return path === "direct" && app !== undefined
           ? await connectDirect(app, name, again)
-          : await connectComposio(app, name);
+          : await connectComposio(viaComposio, name);
       } catch (error) {
         const reason =
           error instanceof ConnectBlocked ? error.reason : "connect-failed";

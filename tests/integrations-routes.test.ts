@@ -1184,6 +1184,59 @@ test("a second Composio account needs a name, and a name in use is refused befor
   ).toEqual([]);
 });
 
+// A toolkit the catalog does not know is listed from Composio's accounts
+// (decision F42, addendum of 2026-10-14), and its card offers another
+// account: connecting it links that toolkit by its slug, with the same name
+// rules as a catalog app's (#534: it ended in "app-unknown").
+test("another account of a toolkit the catalog does not know connects by its toolkit, with the same name rules", async () => {
+  const { world, app } = await setup(
+    {
+      composio: {
+        accounts: [
+          {
+            id: "ca_7",
+            toolkit: "wispr_flow",
+            status: "ACTIVE",
+            alias: "Work",
+            word_id: "meadow",
+          },
+        ],
+      },
+    },
+    { tools: ["composio"] },
+  );
+  const post = async (body: unknown) => {
+    const answer = await app.post("/api/integrations/connect", body);
+    return { status: answer.status, value: await answer.json() };
+  };
+  expect(await post({ app: "wispr_flow" })).toEqual({
+    status: 409,
+    value: { kind: "blocked", reason: "name-required" },
+  });
+  expect(await post({ app: "wispr_flow", name: "work" })).toEqual({
+    status: 409,
+    value: { kind: "blocked", reason: "name-taken" },
+  });
+  const started = await post({ app: "wispr_flow", name: "Bob's test, #2" });
+  expect(started.value).toMatchObject({ kind: "authorize" });
+  expect(started.status).toBe(200);
+  expect(started.value).toMatchObject({ kind: "authorize" });
+  expect(
+    (await composioCalls(world.home)).filter((call) =>
+      call.includes("--no-wait"),
+    ),
+  ).toEqual([
+    [
+      "link",
+      "wispr_flow",
+      "--no-wait",
+      "--no-browser",
+      "--alias",
+      "Bob's test, #2",
+    ],
+  ]);
+});
+
 // Names and the way to Composio's dashboard (decision F42, addendum of
 // 2026-10-11, #312): `connections list` leaves out a single account's alias,
 // so the reading asks `link <toolkit> --list` for it, once per such toolkit,
