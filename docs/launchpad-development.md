@@ -344,8 +344,9 @@ replaces these.
 **Open.** The narrow display (how the rail and a fork's sidebar collapse; upstream T3
 Code uses an off-canvas sheet); how the context reaches Buddy's iframe (an attribute or a
 `postMessage` per navigation); whether the switch still pairs the browser with T3 Code
-and MausBot on the way (for T3 Code it does until every Environment's T3 Code pairs
-itself, [Chat entry](#chat-entry), 2026-10-17);
+and MausBot on the way (it does until every Environment's T3 Code and MausBot pair
+themselves, [Chat entry](#chat-entry), 2026-10-17, and
+[MausBot entry](#lazurio-mausbot-entry), 2026-10-22);
 where the update pill goes. (How the catalog reads the productionspace repositories
 was settled by F32's addenda: the read-only `repositories`; `infra` is not listed.)
 
@@ -2220,9 +2221,23 @@ already filled in, so the user never types or copies a code. OpenMausBot's `/pai
 page only prefills the code from the fragment: one **Connect** click pairs the browser
 and lands in the app. A browser that is already paired sees "This browser is already
 connected" with **Open the app** instead, and the minted code expires unused after about
-five minutes. Submitting the form by itself would be a small fork change of `/pair`,
-deliberately left for later (the Organization Admin prefers the fork changed as little
-as possible). The old resident Launchpad has no such entry; this one replaces it there.
+five minutes. The old resident Launchpad has no such entry; this one replaces it there.
+
+**MausBot pairs itself (addendum of 2026-10-22,
+[F36](decisions.md#f36-addendum-of-2026-10-22-automate-pairs-itself-as-chat-does)).**
+Only the Launchpad's click paired, so every other way into MausBot ended on its empty
+pairing form, and each click landed on "This browser is already connected": a bookmark,
+the switch from T3 Code, the Environment browser. Now MausBot does what T3 Code does since
+2026-10-17 ([Chat entry](#chat-entry)). Its web client (the fork's branch
+`lazurio/pair-straight-in` in Lazurio/OpenMausBot) asks for
+`GET /.lazurio/mausbot/pairing` on its own origin whenever it has no session, and redeems
+the code itself. A paired browser goes straight into the app. The gateway forwards the
+request as it forwards every `/.lazurio/*` read of MausBot's origin, behind the same
+admission ([hosted entry](hosted-entry.md#the-t3-code-link-chat)); Machines does not
+change. The route has the chat self-pairing's guards and mints through the same function
+as the click, `mintMausbotPairing` in `src/launchpad/mausbot.ts`. The click's pairing
+stays: older MausBot builds need it, and a paired browser passes straight through it. It
+can go once every Environment's MausBot pairs itself.
 In the [target shell](#target-shell) it is **Automate** in the switch, and we call the
 app MausBot: the fork keeps OpenMausBot's upstream look and branding until upstream's
 stable releases.
@@ -2249,6 +2264,7 @@ plain origin, where MausBot asks for a code.
 |---|---|
 | `GET /api/entry` | as for Chat, plus `mausbotOrigin` only when recorded; the loopback port stays on the server |
 | `POST /api/mausbot/pair` (body `{}`) | `{kind: "mausbot-link", url}` with `url` = `<mausbotOrigin>/pair#code=…`; `409 {kind: "blocked", reason}` with `mausbot-unreachable` (no answer on the loopback port within 10 s) or `mausbot-pairing-failed` (any status but 200, a redirect, an answer that is not JSON or a code of another shape); `404` without a recorded MausBot (a workstation, or a Machine without it). Same-origin rule of every state-changing request. Not in Recovery mode (its typed refusal). |
+| `GET /.lazurio/mausbot/pairing` | MausBot's self-pairing (addendum of 2026-10-22): `200` with exactly `{"kind":"mausbot-pairing","code":"XXXX-XXXX-XXXX"}` and `Cache-Control: no-store`, minted as the click's code is. Only a page's own script fetch, the rule of `GET /.lazurio/chat/pairing` (`isOwnScriptFetch`); anything else, `403 {error: "not-allowed"}` with nothing minted. `409 {kind: "blocked", reason}` as above; a query: 400; any method but GET, HEAD included (it mints nothing): 405; `404` without a recorded MausBot. Recovery mode answers it with its plain page and mints nothing. |
 
 **Page.** `mausbotHref` and `mausbotPairLink` in `src/launchpad/chat-view.ts` accept the
 origin only in the recorded shape and a pairing link only on it, path `/pair`, no query, a
@@ -2261,7 +2277,11 @@ and its refusals, the binding projection (both fields or neither, an older entry
 byte), the pairing call against a fake OpenMausBot on loopback (the exact request, loopback
 `Host`, no `Origin` or forwarded headers; 403, 500, a redirect, non-JSON, `null`, no
 code, a code of another shape, a slow answer, nothing listening; the code absent from
-every refusal), the hosted routes behind the admission, and the page's parsers and markup.
+every refusal), the hosted routes behind the admission, the self-pairing (its exact answer
+and `no-store`, the click minting through the same call, every request that is not a
+page's own fetch refused with nothing minted, the method, query and 404 refusals, both
+blocked reasons with the code absent), and the page's parsers and markup. The Recovery
+mode test (`tests/launchpad-recovery-page.test.ts`) asks the self-pairing too.
 A real gateway and a real Lazurio MausBot were **not** exercised: the handover member
 waits for the Machines release that writes it.
 

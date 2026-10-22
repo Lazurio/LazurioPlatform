@@ -2,7 +2,10 @@ import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { initializeHandoverFolder } from "../src/folder/initialize-folder";
+import {
+  initializeFolder,
+  initializeHandoverFolder,
+} from "../src/folder/initialize-folder";
 import { parseMachineBinding } from "../src/folder/machine-binding";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
@@ -16,7 +19,9 @@ import type { AuthFetcher } from "../src/launchpad/hosted-trust";
 import {
   issueMausbotLink,
   mausbotPairing,
+  mausbotPairingPath,
   mausbotPairUrl,
+  mintMausbotPairing,
 } from "../src/launchpad/mausbot";
 import { startLaunchpad } from "../src/launchpad/server";
 import { shellDocument } from "../src/launchpad/shell-document";
@@ -327,6 +332,16 @@ async function hostedLaunchpad(mausbotPort: number | null) {
     "sec-fetch-site": "same-origin",
     "content-type": "application/json",
   };
+  // MausBot's web client asking on its own origin, as the gateway forwards
+  // it here (Machines `ingress.ts` `shellRoute`): the Launchpad's Host, the
+  // session cookie alone and the browser's own Fetch Metadata of a script's
+  // fetch.
+  const ownFetch = {
+    ...valid,
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-dest": "empty",
+  };
   return {
     entry: () => fetch(`${base}/api/entry`, { headers: valid }),
     pair: (headers: Record<string, string> = sameOrigin) =>
@@ -335,7 +350,14 @@ async function hostedLaunchpad(mausbotPort: number | null) {
         headers,
         body: "{}",
       }),
+    selfPair: (
+      headers: Record<string, string> = ownFetch,
+      init: RequestInit = {},
+      path = mausbotPairingPath,
+    ) => fetch(`${base}${path}`, { headers, ...init }),
+    base,
     valid,
+    ownFetch,
     async close() {
       await app.close();
       await rm(parent, { recursive: true, force: true });
@@ -398,6 +420,12 @@ test.skipIf(process.platform === "win32")(
       expect(mausbotHref(parseEntryAnswer(entry))).toBeNull();
       const answer = await hosted.pair();
       expect([answer.status, await answer.json()]).toEqual([
+        404,
+        { error: "not-found" },
+      ]);
+      // Nor MausBot's self-pairing.
+      const self = await hosted.selfPair();
+      expect([self.status, await self.json()]).toEqual([
         404,
         { error: "not-found" },
       ]);
@@ -491,3 +519,262 @@ test("the page's MausBot entry is Automate in the switch next to Chat (decision 
     ["automate", `${mausbotOrigin}/`],
   ]);
 });
+
+// A fake OpenMausBot for the hosted routes: it counts the pairings it mints
+// and answers as `mode` says.
+function countingMausbot() {
+  const state = { minted: 0, mode: "ok" as "ok" | "refuse" };
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    async fetch(request) {
+      if (
+        request.method !== "POST" ||
+        new URL(request.url).pathname !== mausbotPairing.path ||
+        JSON.parse(await request.text()).label !== mausbotPairing.label
+      )
+        return new Response("unexpected", { status: 400 });
+      state.minted += 1;
+      return state.mode === "ok"
+        ? Response.json({ code, credential: "omb_secret_credential" })
+        : Response.json({ code }, { status: 500 });
+    },
+  });
+  const port = server.port;
+  if (port === undefined) throw new Error("The fake listens on a port");
+  return { state, port, stop: () => server.stop(true) };
+}
+
+test("the self-pairing and the click mint through one call: the code alone, or the click's reason", async () => {
+  const fake = countingMausbot();
+  try {
+    const entry =
+      binding(handover(20000, fake.port)).entry ?? (undefined as never);
+    expect(await mintMausbotPairing(entry)).toEqual({
+      kind: "mausbot-pairing",
+      code,
+    });
+    expect(await issueMausbotLink(entry)).toEqual({
+      kind: "mausbot-link",
+      url: mausbotPairUrl(mausbotOrigin, code),
+    });
+    expect(fake.state.minted).toBe(2);
+    fake.state.mode = "refuse";
+    const refused = await mintMausbotPairing(entry);
+    expect(refused).toEqual({
+      kind: "blocked",
+      reason: "mausbot-pairing-failed",
+    });
+    expect(JSON.stringify(refused)).not.toContain(code);
+  } finally {
+    fake.stop();
+  }
+  const without = bindings.organizationEntry.entry;
+  if (without === undefined) throw new Error("The fixture has an entry");
+  expect(await mintMausbotPairing(without)).toEqual({
+    kind: "blocked",
+    reason: "mausbot-pairing-failed",
+  });
+});
+
+test.skipIf(process.platform === "win32")(
+  "hosted: MausBot's own fetch gets its pairing, exactly the JSON and no-store, and the click still pairs through the same call",
+  async () => {
+    const fake = countingMausbot();
+    const hosted = await hostedLaunchpad(fake.port);
+    try {
+      const answer = await hosted.selfPair();
+      expect([answer.status, answer.redirected]).toEqual([200, false]);
+      expect(answer.headers.get("cache-control")).toBe("no-store");
+      expect(answer.headers.get("content-type")).toStartWith(
+        "application/json",
+      );
+      // Byte for byte: nothing else of MausBot's answer is passed on.
+      expect(await answer.text()).toBe(
+        `{"kind":"mausbot-pairing","code":"${code}"}`,
+      );
+      expect(fake.state.minted).toBe(1);
+      // The Launchpad's click is unchanged: a link with the code in its
+      // fragment, minted by the same call.
+      const clicked = await hosted.pair();
+      expect([clicked.status, await clicked.json()]).toEqual([
+        200,
+        { kind: "mausbot-link", url: `${mausbotOrigin}/pair#code=${code}` },
+      ]);
+      expect(fake.state.minted).toBe(2);
+      // A refused pairing: the click's reason, never the code.
+      fake.state.mode = "refuse";
+      const failed = await hosted.selfPair();
+      const failedText = await failed.text();
+      expect([failed.status, JSON.parse(failedText)]).toEqual([
+        409,
+        { kind: "blocked", reason: "mausbot-pairing-failed" },
+      ]);
+      expect(failedText).not.toContain(code);
+      // Nothing listening on the loopback port.
+      fake.stop();
+      const gone = await hosted.selfPair();
+      expect([gone.status, await gone.json()]).toEqual([
+        409,
+        { kind: "blocked", reason: "mausbot-unreachable" },
+      ]);
+    } finally {
+      fake.stop();
+      await hosted.close();
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "hosted: the MausBot self-pairing answers only an admitted page's own fetch: every other request mints nothing",
+  async () => {
+    const fake = countingMausbot();
+    const hosted = await hostedLaunchpad(fake.port);
+    try {
+      const { valid, ownFetch, selfPair } = hosted;
+      // Unadmitted: no session, a session the gateway refuses, or MausBot's
+      // own Host (the gateway must send the Launchpad's).
+      const { cookie: _, ...withoutCookie } = ownFetch;
+      for (const [headers, reason] of [
+        [withoutCookie, "cookie-missing"],
+        [
+          { ...ownFetch, cookie: "__Secure-lazurio-workspace=expired" },
+          "auth-denied",
+        ],
+        [{ ...ownFetch, host: new URL(mausbotOrigin).host }, "host-mismatch"],
+      ] as const) {
+        const denied = await selfPair(headers);
+        const text = await denied.text();
+        expect([reason, denied.status, JSON.parse(text)]).toEqual([
+          reason,
+          401,
+          { error: "denied", reason },
+        ]);
+        expect(text).not.toContain(code);
+      }
+      // Admitted, but not a page's own fetch: no Fetch Metadata at all,
+      // another site, a sibling of the Environment, a typed address, a
+      // navigation on MausBot's own origin (a link, a bookmark), a
+      // subresource and speculative loads.
+      for (const headers of [
+        valid,
+        { ...ownFetch, "sec-fetch-site": "cross-site" },
+        { ...ownFetch, "sec-fetch-site": "same-site" },
+        {
+          ...valid,
+          "sec-fetch-site": "none",
+          "sec-fetch-mode": "navigate",
+          "sec-fetch-dest": "document",
+        },
+        {
+          ...valid,
+          "sec-fetch-site": "same-origin",
+          "sec-fetch-mode": "navigate",
+          "sec-fetch-dest": "document",
+        },
+        { ...ownFetch, "sec-fetch-mode": "no-cors", "sec-fetch-dest": "image" },
+        { ...ownFetch, "sec-purpose": "prefetch" },
+        { ...ownFetch, purpose: "prefetch" },
+        {
+          ...valid,
+          "sec-fetch-site": "same-origin",
+          "sec-fetch-mode": "navigate",
+          "sec-purpose": "prefetch;prerender",
+        },
+      ]) {
+        const refused = await selfPair(headers);
+        const text = await refused.text();
+        expect([headers, refused.status, JSON.parse(text)]).toEqual([
+          headers,
+          403,
+          { error: "not-allowed" },
+        ]);
+        expect(text).not.toContain(code);
+      }
+      // A query, a HEAD and any other method: not the request either.
+      const query = await selfPair(ownFetch, {}, `${mausbotPairingPath}?x=1`);
+      expect([query.status, await query.json()]).toEqual([
+        400,
+        { error: "invalid-request" },
+      ]);
+      const head = await selfPair(ownFetch, { method: "HEAD" });
+      expect(head.status).toBe(405);
+      const posted = await selfPair(
+        {
+          ...ownFetch,
+          origin: `https://launchpad.${host}`,
+          "content-type": "application/json",
+        },
+        { method: "POST", body: "{}" },
+      );
+      expect([posted.status, await posted.json()]).toEqual([
+        405,
+        { error: "method-not-allowed" },
+      ]);
+      expect(fake.state.minted).toBe(0);
+      // Any other path beside it is no pairing: the page's static listener
+      // answers it.
+      const neighbour = await fetch(`${hosted.base}/.lazurio/mausbot/other`, {
+        headers: valid,
+      });
+      expect(neighbour.status).toBe(404);
+      expect(fake.state.minted).toBe(0);
+    } finally {
+      fake.stop();
+      await hosted.close();
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "workstation: no entry, so no MausBot self-pairing: refused without the token, absent with it",
+  async () => {
+    const parent = await realpath(
+      await mkdtemp(join(tmpdir(), "launchpad-mausbot-local-")),
+    );
+    const folder = join(parent, "Lazurio");
+    await initializeFolder(folder, {
+      os: executionOs(process.platform),
+      access: "local",
+      purpose: "human",
+      locale: "en",
+      detail: "concise",
+      coordination: "direct",
+    });
+    const app = await startLaunchpad(
+      folder,
+      undefined,
+      undefined,
+      undefined,
+      {},
+      {
+        path: parent,
+        home: parent,
+        platform: process.platform,
+        run: async () => "timeout",
+      },
+    );
+    try {
+      const url = new URL(app.url);
+      const token = url.hash.slice(1);
+      const ownFetch = {
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-Mode": "cors",
+      };
+      const unadmitted = await fetch(new URL(mausbotPairingPath, url), {
+        headers: ownFetch,
+      });
+      expect(unadmitted.status).toBe(403);
+      const self = await fetch(new URL(mausbotPairingPath, url), {
+        headers: { ...ownFetch, Authorization: `Bearer ${token}` },
+      });
+      expect([self.status, await self.json()]).toEqual([
+        404,
+        { error: "not-found" },
+      ]);
+    } finally {
+      await app.close();
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);

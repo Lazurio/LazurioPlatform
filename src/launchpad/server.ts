@@ -121,7 +121,7 @@ import { createCatalogReading, organizationsOnly } from "./catalog-reading";
 import {
   chatPairingPath,
   createChatPromptCheck,
-  isChatPairingFetch,
+  isOwnScriptFetch,
   issueChatLink,
   mintChatPairing,
   publicEntry,
@@ -146,7 +146,11 @@ import {
   type IntegrationsSeams,
 } from "./integrations-routes";
 import { BodyTooLarge, readJsonBody } from "./json-body";
-import { issueMausbotLink } from "./mausbot";
+import {
+  issueMausbotLink,
+  mausbotPairingPath,
+  mintMausbotPairing,
+} from "./mausbot";
 import { messages } from "./messages";
 import { createMaintainerCheck } from "./module-maintainer";
 import { type LaunchpadHolder, launchpadHolderOf } from "./new-tab/holder";
@@ -419,6 +423,7 @@ const isLazurioDocument = (path: string) =>
   path === browserViewDocumentPath ||
   path === browserViewPath ||
   path === chatPairingPath ||
+  path === mausbotPairingPath ||
   promptRoute.test(path);
 
 // The module lifecycle routes (launchpad-parity B3): `<org>` and `<module>`
@@ -1535,7 +1540,7 @@ export async function startLaunchpad(
         if (entry === null) return response({ error: "not-found" }, 404);
         if ([...url.searchParams.keys()].length > 0)
           return response({ error: "invalid-request" }, 400);
-        if (!isChatPairingFetch(request.headers))
+        if (!isOwnScriptFetch(request.headers))
           return response({ error: "not-allowed" }, 403);
         // `t3 lazurio capabilities`, then the pairing call: 15 s each.
         server.timeout(request, 45);
@@ -1545,6 +1550,30 @@ export async function startLaunchpad(
             toolsEnvironment,
             person,
           );
+          return response(pairing, pairing.kind === "blocked" ? 409 : 200);
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
+      if (url.pathname === mausbotPairingPath) {
+        // MausBot pairs its own browser as T3 Code does (the addendum of
+        // 2026-10-22 to the decision of 2026-10-17): its web client, without
+        // a session, asks here on its own origin, which the gateway forwards
+        // behind the same admission. The chat self-pairing's guards in the
+        // same order, only where the entry records MausBot, minted exactly as
+        // `POST /api/mausbot/pair` mints. A HEAD mints nothing.
+        if (request.method !== "GET")
+          return response({ error: "method-not-allowed" }, 405);
+        if (closing) return response({ error: "closing" }, 503);
+        if (entry?.mausbotOrigin === undefined)
+          return response({ error: "not-found" }, 404);
+        if ([...url.searchParams.keys()].length > 0)
+          return response({ error: "invalid-request" }, 400);
+        if (!isOwnScriptFetch(request.headers))
+          return response({ error: "not-allowed" }, 403);
+        server.timeout(request, 30);
+        try {
+          const pairing = await mintMausbotPairing(entry);
           return response(pairing, pairing.kind === "blocked" ? 409 : 200);
         } catch {
           return response({ error: "operation-failed" }, 500);
@@ -1965,7 +1994,9 @@ export async function startLaunchpad(
         if (url.pathname === "/api/mausbot/pair") {
           // Lazurio MausBot (DEV-6632): a one-time pairing link, minted by
           // MausBot's own API on its recorded loopback port. Only on a
-          // Machine whose entry records MausBot.
+          // Machine whose entry records MausBot. Kept although MausBot now
+          // pairs itself (`GET /.lazurio/mausbot/pairing`): older MausBot
+          // builds need it.
           stateFields(input, []);
           if (entry?.mausbotOrigin === undefined)
             return response({ error: "not-found" }, 404);

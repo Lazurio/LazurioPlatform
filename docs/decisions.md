@@ -7735,6 +7735,47 @@ a theme's dark values with the dark scheme under a dark device with
 `data-lazurio-appearance="device"` and under `class="dark"`. Not yet checked on a hosted
 Environment (Ring 0, point 12) or with the forks' parts.
 
+### F36 addendum of 2026-10-22: Automate pairs itself as Chat does
+
+**Decided by Matěj (Organization Admin) on 2026-10-22 (plan DEV-6632).** Every click on
+Automate landed on MausBot's `/pair` page, "This browser is already connected. Open the
+app", and a browser that opened MausBot's origin directly (a bookmark, the switch from
+T3 Code, the Environment browser) without a session got the empty pairing form, a dead
+end. Point 5 kept pairing on the way through the switch; Chat stopped depending on it
+when T3 Code began to pair itself (the decision of 2026-10-17,
+[Chat entry](launchpad-development.md#chat-entry)). Automate now follows the same model.
+
+1. **The route.** `GET /.lazurio/mausbot/pairing` answers `200` with exactly
+   `{"kind":"mausbot-pairing","code":"XXXX-XXXX-XXXX"}` and `Cache-Control: no-store`.
+   The code is minted as the click's is: MausBot's own `POST /api/auth/pairing` on its
+   recorded loopback port, by one function for both (`mintMausbotPairing`). It is never
+   logged, never in an error and never in a URL.
+2. **The guards are the chat self-pairing's.** Only a page's own script fetch
+   (`isOwnScriptFetch`, the rule of `GET /.lazurio/chat/pairing`), behind the same
+   admission; anything else is `403` with nothing minted. A query is `400`; any method
+   but `GET`, `HEAD` included, is `405`; `409` names `mausbot-unreachable` or
+   `mausbot-pairing-failed` as the click does; `404` without a recorded MausBot; Recovery
+   mode answers with its plain page.
+3. **MausBot redeems the code itself.** Its web client (Lazurio/OpenMausBot, branch
+   `lazurio/pair-straight-in`) asks the route on its own origin whenever it has no
+   session. The gateway already forwards every `GET` and `HEAD` of `/.lazurio/*` on
+   MausBot's origin to the Launchpad after its admission, with the Launchpad's Host and
+   only the session cookie, so Machines does not change.
+4. **The click stays.** Automate's click still pairs on the way: older MausBot builds
+   need it, and with the fork's change a paired browser passes straight through it. It
+   can go once every Environment's MausBot pairs itself, as Chat's can.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Auto-submit the prefilled `/pair` form in the fork | Pairs only the browsers that came through the click; every other way in still ends on the form |
+| A gateway-side pairing in Machines | A second minting place outside the Launchpad and a Machines release for something the forwarded namespace already carries |
+| The T3 Code model: the app asks the Launchpad on its own origin (selected) | One model for both apps; the fork change is MausBot's client only; the route is harmless before the fork's release, because nobody calls it |
+
+**Honest limits.** Before the MausBot release with the fork's change, nothing calls the
+route and Automate behaves as before. Verified by `tests/launchpad-mausbot.test.ts` and
+`tests/launchpad-recovery-page.test.ts`; a real gateway and a real Lazurio MausBot were
+not exercised in this change.
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction

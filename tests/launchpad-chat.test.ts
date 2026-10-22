@@ -21,7 +21,7 @@ import {
   chatPairing,
   chatPairingLabel,
   chatPairingPath,
-  isChatPairingFetch,
+  isOwnScriptFetch,
   mintChatPairing,
   publicEntry,
   standardPairingScopes,
@@ -811,7 +811,7 @@ test("a pairing is labelled with the admitted person's Lazurio username, and onl
 
 test("only a page's own script fetch on its origin asks for the pairing", () => {
   const ownFetch = (headers: Record<string, string>) =>
-    isChatPairingFetch(new Headers(headers));
+    isOwnScriptFetch(new Headers(headers));
   expect(
     ownFetch({ "sec-fetch-site": "same-origin", "sec-fetch-mode": "cors" }),
   ).toBe(true);
