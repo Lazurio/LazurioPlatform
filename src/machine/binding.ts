@@ -73,7 +73,9 @@ function relationships(input: HandoverRelationships): MachineRelationships {
 // One member to one (docs/machine-handover.md#the-hosted-entry-decision-f16).
 // The binding's own parser checks every value by the wire rules again, so a
 // projection that would not read back refuses the handover instead of being
-// recorded.
+// recorded. Of Buddy's member only the origin is recorded: the shell document
+// names it and the Launchpad pairs his T3 Code on it; his T3 Code's loopback
+// port is the gateway's and nothing here talks to it.
 function entry(input: HandoverEntry): MachineEntry {
   try {
     return parseMachineEntry({
@@ -102,6 +104,9 @@ function entry(input: HandoverEntry): MachineEntry {
         ? {}
         : { signOutPath: input.sign_out.path }),
       ...(input.audience === undefined ? {} : { audience: input.audience }),
+      ...(input.buddy === undefined
+        ? {}
+        : { buddyOrigin: input.buddy.external_origin }),
     });
   } catch {
     throw new MachineContextError("machine-context-invalid");

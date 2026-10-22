@@ -11,13 +11,18 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`
-from the merge of Machines pull request **#664** into `main` (commit
+from Machines **v0.12.191** (tag commit `811b3f7c706331be4db931dbfa5913538e6db99b`,
+which carries the merge of pull request **#811**, `3cc8e002be8840838a74d6ebd52c747a375b1ba1`;
+SHA-256 `a23925e1da2da6e32acc1bcbfb4855dea02e6b2cf39f294cf7a2b2bfe1882bca`), which adds
+only the personal branch's optional `entry.buddy` ([below](#the-hosted-entry-decision-f16),
+root decision 0210) and forbids it on the Organization branch, and changes nothing
+else. Before it, the merge of Machines pull request **#664** into `main` (commit
 `3c7d9fb00ca06ea7c30812e7e4e33c387b20be1d`, SHA-256
-`587179a16dc61ed605479d98920024ac9087baf59b894c811ede715246a8944a`), which adds only
+`587179a16dc61ed605479d98920024ac9087baf59b894c811ede715246a8944a`), which added only
 the closed assignment branch `{kind: "services"}` and the optional Organization-branch
 member `services`
-([the services Environment of a server](#the-services-environment-of-a-server-root-decision-0209))
-and changes nothing else. Before it, the merge of Machines pull request **#633** into
+([the services Environment of a server](#the-services-environment-of-a-server-root-decision-0209)).
+Before that, the merge of Machines pull request **#633** into
 `main` (commit `a9debf519e09d94f76a9ddacb866063996543262`, SHA-256
 `85628496202a4b95ef6c1472e47caf4e0f13f406bc837e620480c04aac16ae38`), which added only
 the optional `entry.browser.local_port` (LazurioPlatform#504). Before that, the merge of Machines pull request **#560** into
@@ -483,6 +488,20 @@ It grants nothing; the gateway's admission decides who enters. Machines writes i
 for a pinned Platform at least its `PLATFORM_ENTRY_AUDIENCE_MINIMUM`, the first release
 that reads it. Absent, the Environment is not public.
 
+`buddy` is optional and present only on a personal VM that declares Buddy (root
+decision 0210, Machines #811), as its last member: `{"external_origin":
+"https://buddy.<login>.lazurio.io", "listen_port": 3774}`, the origin and loopback port
+of Buddy's own T3 Code on the Osobní Prostředí. The Organization branch of the schema
+forbids it. The binding records the origin only (`buddyOrigin`, of the Launchpad's own
+base host, which the binding's parser checks); the port is the gateway's, and nothing
+of the Platform talks to it. The shell document names the origin
+([F60](decisions.md#f60--buddys-bubble-in-the-shell-his-origin-in-the-documents-the-protocol-lazuriobuddy-v1-and-lazurio-buddys-launcher-panel-and-full-screen)),
+and the Launchpad pairs Buddy's own T3 Code for a page on it
+([F61's addendum of 2026-10-22](decisions.md#f61-addendum-of-2026-10-22-the-pairing-on-buddys-origin-his-own-runtime-a-final-wake-refusal)).
+Machines write it only for a pinned Platform at least their
+`PLATFORM_ENTRY_BUDDY_MINIMUM`, the first release that reads it. Absent, the
+Osobní Prostředí's own documents name no Buddy.
+
 On a personal VM the Machine hostname has no Organization label
 (`https://launchpad.<login>.lazurio.io`, `https://{module}.<login>.lazurio.io`).
 
@@ -503,6 +522,7 @@ The binding records it one member to one, as `entry` next to the relationships:
 | `environment_relay.socket` | `environmentRelaySocket` (optional) | `/run/<directory>/<name>.sock`, lowercase letters, digits and `-`, at most 100 characters |
 | `sign_out.path` | `signOutPath` (optional) | exactly `/.lazurio/sign-out` |
 | `audience` | `audience` (optional) | exactly `public` |
+| `buddy.external_origin` | `buddyOrigin` (optional, a personal VM only) | `https://buddy.<slug>.lazurio.io` of the Launchpad origin's own base host |
 
 The relay's socket and the sign-out's path are recorded only when the handover
 carries them; neither is rendered into the Folder or part of the Launchpad's public

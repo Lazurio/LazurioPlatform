@@ -86,7 +86,11 @@ export type MachineService = Readonly<{
 // VM whose gateway admits any Lazurio account: its Environment is public.
 // `browser.local_port` (LazurioPlatform#504, F39's addendum of 2026-10-18)
 // only where the gateway runs its loopback entry for the Environment browser,
-// which serves the Environment's own apps without a sign-in.
+// which serves the Environment's own apps without a sign-in. `buddy` (root
+// decision 0210, Machines #811, F61's addendum of 2026-10-22) only on a
+// personal VM that declares Buddy: the origin and loopback port of his own T3
+// Code, of the same base host as the Launchpad's origin; the work branch of
+// the schema forbids it.
 export type MachineEntry = Readonly<{
   launchpad: Readonly<{
     external_origin: string;
@@ -105,6 +109,7 @@ export type MachineEntry = Readonly<{
   environment_relay?: Readonly<{ socket: string }>;
   sign_out?: Readonly<{ path: string }>;
   audience?: "public";
+  buddy?: Readonly<{ external_origin: string; listen_port: number }>;
 }>;
 // This Environment's own vault (root decision 0198 point 1, DEV-6631 contract
 // C2): the network's Lazurio Vaultwarden, the technical account the network

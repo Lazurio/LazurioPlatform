@@ -123,9 +123,10 @@ export type MachineRelationships = Readonly<{
 // Machines #560). The origin of Buddy's frame (`buddyOrigin`, root decision
 // 0210, decision F60) is recorded only on a personal VM whose gateway routes
 // it, `https://buddy.<slug>.lazurio.io` of the same base host as its
-// Launchpad; the Launchpad names it in its shell document. The handover
-// carries it once Machines declare `entry.buddy` in `lazurio.machine.v1`;
-// until then no binding has it.
+// Launchpad; the Launchpad names it in its shell document and pairs Buddy's
+// own T3 Code on it (F61's addendum of 2026-10-22). It is projected from the
+// handover's `entry.buddy.external_origin` (Machines v0.12.191, #811), which
+// Machines write only for a Platform that reads it.
 export type MachineEntry = HostedEntry &
   Readonly<{
     t3codeOrigin: string;

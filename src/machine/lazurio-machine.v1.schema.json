@@ -48,7 +48,7 @@
         },
         "network": { "$ref": "#/$defs/network" },
         "relationships": { "allOf": [{ "$ref": "#/$defs/relationships" }, { "type": "object", "properties": { "zone": { "const": "work" } } }] },
-        "entry": { "$ref": "#/$defs/entry" },
+        "entry": { "allOf": [{ "$ref": "#/$defs/entry" }, { "type": "object", "properties": { "buddy": false } }] },
         "vault": { "$ref": "#/$defs/vault_work" },
         "services": {
           "description": "The services of a services Environment (root decision 0209, Machines docs/server-services.md §2.1), rendered only for a Platform that reads them: each one's id and kind, its one productionspace repository (the same on every server) and the loopback port of its page, which the Environment browser opens. No service has a hostname.",
@@ -316,6 +316,16 @@
         "audience": {
           "description": "Present only on a work VM whose gateway admits any Lazurio account (root decision 0204, the public-account admission): its Environment is public and shared by its visitors. A Platform reads it to say so and to keep visitors' own accounts out of the Environment; it grants nothing and does not replace the gateway's admission. A reader vendoring an earlier schema refuses a document carrying it.",
           "const": "public"
+        },
+        "buddy": {
+          "description": "Buddy on this personal VM (root decision 0210): his own T3 Code instance in its Buddy mode, present only on a personal VM whose roster routes it; an Organization work VM never carries it. The gateway admits only the owner to it; without a session it serves only its own static sign-in pages, so that the bubble's frame can offer the sign-in. Its origin has the same base host as launchpad.external_origin, which a reader must check. A reader vendoring an earlier schema refuses a document carrying it.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["external_origin", "listen_port"],
+          "properties": {
+            "external_origin": { "description": "Origin of Buddy on the gateway: https://buddy.<personal-dns-slug>.lazurio.io.", "type": "string", "maxLength": 57, "pattern": "^https://buddy\\.[a-z0-9]+(?:-[a-z0-9]+)*\\.lazurio\\.io$" },
+            "listen_port": { "description": "Loopback port on 127.0.0.1 Buddy's T3 instance listens on, the one the gateway proxies to.", "type": "integer", "minimum": 1024, "maximum": 65535 }
+          }
         }
       }
     },
