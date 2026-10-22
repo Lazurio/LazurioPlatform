@@ -17655,8 +17655,10 @@ persona, memory, tools and model), and ACP is the only seam between them. The Pl
    It writes nothing outside the user's own Osobní Prostředí (`not-personal`), without Buddy's
    layer in the Folder's `.agents/buddy`, with the layer inside a Git work tree (T3 Code would
    keep checkpoints there, and a rollback would start a second Hermes session), or without
-   Hermes's ACP server (`hermes acp --check`). A file T3 Code could not decode, a link or a
-   directory is left for the user. Machines run it after they install Buddy's T3 Code (M2′), as
+   Hermes's ACP server (`hermes acp --check`). A file that is no plain JSON object is left as
+   it is: one T3 Code could not decode stays for the user to repair, and one with comments,
+   which T3 Code reads but a rewrite would drop, stays the person's; so do a link and a
+   directory. Machines run it after they install Buddy's T3 Code (M2′), as
    they run `lazurio chat defaults --apply` for Chat. F51 is unchanged: the person's Chat
    (`~/.t3`) has the settings T3 Code writes itself. This home exists only for Buddy, and these
    members are Buddy's, not a choice of the person's.
@@ -17715,8 +17717,8 @@ agent CLI against the person's Chat (3773).
 
 **Verified by** `tests/buddy-chat.test.ts` (the members in T3 Code's shape; every other member
 kept; reading and applying, private modes, nothing rewritten when in place; T3 Code's order and
-its own members still in place; each refusal writing nothing; a file it could not decode, a link
-or a directory left as it is; another writer between the read and the write; other
+its own members still in place; each refusal writing nothing; a file that is no plain JSON
+object, one with comments, a link or a directory left as it is; another writer between the read and the write; other
 Environments skipped; the command's JSON and exits), `src/buddy/budicek/test_budicek.py` (the
 channel recorded, the thread before the bot, one queued message with its key and text, a bounded
 report, a restart right after the send and at every other step waking once, T3 Code down and

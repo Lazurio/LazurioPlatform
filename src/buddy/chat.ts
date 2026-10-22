@@ -93,7 +93,10 @@ const isObject = (value: unknown): value is Json =>
 /** `current` with Lazurio's members in place and every other member as it
  * was: the person's or T3's own settings, another provider instance, a
  * variable, a configuration key or a colour of Buddy's that Lazurio does not
- * set. An instance Lazurio turns off keeps everything but `enabled`. */
+ * set. An instance Lazurio turns off keeps everything but `enabled`. Buddy's
+ * own keeps no `enabled` in its configuration either: T3 Code reads a false
+ * there as off whatever the instance says (`resolveProviderInstanceEnabled`),
+ * so the instance's `enabled` is his one switch. */
 export function reconcileBuddyChatSettings(
   current: Readonly<Json>,
   paths: BuddyChatPaths,
@@ -112,6 +115,9 @@ export function reconcileBuddyChatSettings(
         (variable) => !(isObject(variable) && names.has(variable.name)),
       )
     : [];
+  const { enabled: _folded, ...config } = isObject(buddy.config)
+    ? buddy.config
+    : {};
   const off = (instance: unknown, driver: string): Json =>
     isObject(instance)
       ? { ...instance, enabled: false }
@@ -128,10 +134,7 @@ export function reconcileBuddyChatSettings(
         displayName: own.displayName,
         enabled: own.enabled,
         environment: [...variables, ...own.environment],
-        config: {
-          ...(isObject(buddy.config) ? buddy.config : {}),
-          ...own.config,
-        },
+        config: { ...config, ...own.config },
       },
       codex: off(instances.codex, "codex"),
       claudeAgent: off(instances.claudeAgent, "claudeAgent"),
@@ -293,10 +296,12 @@ async function insideGitWorkTree(directory: string): Promise<boolean> {
   }
 }
 
-/** `settings.json` as it is now: absent (`raw` null), or a JSON object whose
- * `providerInstances` is absent or an object. Anything else, or a link or
- * another kind of file on the way, is not read further: T3 Code keeps a file
- * it cannot decode for the user to repair, and so does this. */
+/** `settings.json` as it is now: absent (`raw` null), or plain JSON, an
+ * object whose `providerInstances` is absent or an object. Anything else is
+ * left as it is: a file T3 Code cannot decode stays for the user to repair,
+ * as T3 Code keeps it, and one with comments, which T3 Code reads but a
+ * rewrite would drop, stays the person's. So does a link or another kind of
+ * file on the way. */
 async function readSettings(
   directories: readonly string[],
   path: string,

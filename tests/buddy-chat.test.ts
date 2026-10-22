@@ -93,6 +93,8 @@ test("every member Lazurio does not own stays: the user's settings, other instan
           source: "registry",
           agentId: "hermes",
           customModels: ["x"],
+          // T3 Code reads a false here as off, whatever `enabled` says.
+          enabled: false,
         },
       },
     },
@@ -369,7 +371,7 @@ posix(
 );
 
 posix(
-  "a file T3 Code could not decode, a link or another kind of file is left as it is",
+  "a file that is no plain JSON object, one with comments T3 Code would read but a rewrite would drop, a link or another kind of file is left as it is",
   () =>
     within([bindings.personal], async (env) => {
       await mkdir(join(env.home, ".t3-buddy", "userdata"), { recursive: true });
