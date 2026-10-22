@@ -10682,7 +10682,9 @@ is [integrations](integrations.md#the-microsoft-365-company-app).
    So where Executor's failure names AADSTS50076, 50074, 50079 or 50072, the
    company app's sign-in ends as `mfa-required` and is journaled with that reason.
    On a sign-in that ran in the person's own browser of a Remote Environment, the
-   return page and the card say that Microsoft wants the code, and the card offers
+   return page and the card say that Microsoft wants multi-factor authentication
+   (for example the authenticator app's code; 50079 and 50072 mean a method to
+   register first, so the copy names no single step), and the card offers
    "Přihlásit v prohlížeči Prostředí". That button starts a new sign-in in the
    Environment browser, which returns to Executor's callback on localhost even
    where the Launchpad's callback is registered (`POST /api/integrations/connect`

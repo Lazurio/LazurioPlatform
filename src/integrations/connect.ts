@@ -172,7 +172,7 @@ export type ConnectProgress =
   | Readonly<{ kind: "connected"; app: string }>
   | Readonly<{ kind: "ended"; reason: "failed" | "expired" | "cancelled" }>
   /** Microsoft refused the company app's code because the sign-in did not
-   * complete MFA where it asks for it (#596). `retry` names the browser a
+   * complete the multi-factor authentication it wants (#596). `retry` names the browser a
    * new sign-in should run in: the Environment browser, where the sign-in
    * comes from the address the code is redeemed at, so Microsoft asks for
    * the code there; null where this Environment has none. */
@@ -183,8 +183,11 @@ export type ConnectProgress =
     }>;
 
 /** Microsoft's answers that ask for multi-factor authentication: required
- * (50076, 50074, 50079 when it must be registered first, 50072 to enrol).
- * Executor carries them only in its failure's text (1.6.10). */
+ * (50076), strong authentication required (50074), a method to register
+ * first (50079, 50072). The copy says only that Microsoft wants MFA, never
+ * which step, since these differ; the Environment browser's sign-in asks
+ * for whichever it is. Executor carries them only in its failure's text
+ * (1.6.10). */
 const mfaRequiredCodes = /\bAADSTS(?:50072|50074|50076|50079)\b/;
 
 /** Whether an OAuth result of Executor failed because Microsoft wants MFA. */

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PresetName } from "../src/folder/presets";
 import { recordOrganizationSettings } from "../src/folder/update-profile";
+import { mfaRequired } from "../src/integrations/connect";
 import {
   type Microsoft365Part,
   microsoft365AuthTemplate,
@@ -790,6 +791,27 @@ test("where the Launchpad's callback is not registered, the sign-in runs in the 
   expect(forgotten).toEqual(["forgotten", "forgotten"]);
 });
 
+test("every answer of Microsoft that wants MFA is recognised, in Executor's summary or its detail, and no other (#596)", () => {
+  for (const code of ["50076", "50074", "50079", "50072"])
+    for (const field of ["error", "errorDetails"])
+      expect(
+        mfaRequired({
+          ok: false,
+          [field]: `OAuth token exchange failed: AADSTS${code}: …`,
+        }),
+      ).toBe(true);
+  for (const text of [
+    "access_denied",
+    "AADSTS65001: The user or administrator has not consented",
+    "AADSTS500761",
+    "AADSTS7000218: client_assertion or client_secret",
+  ])
+    expect(mfaRequired({ ok: false, error: text, errorDetails: text })).toBe(
+      false,
+    );
+  expect(mfaRequired({ ok: false })).toBe(false);
+});
+
 test("Microsoft refusing the code for MFA says so, and the sign-in runs again in the Environment browser, where it asks for the code (#596)", async () => {
   const { world, app, opened } = await setup();
   const started = (await (
@@ -806,7 +828,7 @@ test("Microsoft refusing the code for MFA says so, and the sign-in runs again in
   );
   expect(back.status).toBe(200);
   const page = await back.text();
-  expect(page).toContain("ověření kódem");
+  expect(page).toContain("vícefázové ověření");
   expect(page).toContain("v prohlížeči Prostředí");
   expect(await settled(app, started.session)).toEqual({
     kind: "ended",
