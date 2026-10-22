@@ -155,11 +155,10 @@ test("the links lead into the network's vault by the vault's exact ids, and nowh
     `${vault}:8443`,
     "https://user@vaultwarden.example.lazurio.io",
   ])
-    expect(vaultPageLinks({ ...connected(), vault: origin })).toEqual({
-      add: null,
-      open: null,
-      account: null,
-    });
+    for (const address of [null, "jana@account.lazurio.ai"])
+      expect(
+        vaultPageLinks({ ...connected(), vault: origin }, address),
+      ).toEqual({ add: null, open: null, account: null });
   expect(
     vaultPageLinks({
       kind: "vault-status",
@@ -167,6 +166,61 @@ test("the links lead into the network's vault by the vault's exact ids, and nowh
       reason: "workstation",
     }),
   ).toEqual({ add: null, open: null, account: null });
+});
+
+// Matěj, 2026-10-22: the vault's "Sign in with Lazurio" asked for an e-mail
+// address first. With the person's own address, the account link is the
+// vault's `#/sso?email=<address>`, which goes straight to the Lazurio
+// sign-in; the vault starts it from the address (F53's addendum of
+// 2026-10-22).
+test("with the person's own address the account link starts the Lazurio sign-in with it, encoded; the other links do not change", () => {
+  const add = `${vault}/#/vault?organizationId=${organizationId}&collectionId=${collectionId}`;
+  const open = `${vault}/#/vault?organizationId=${organizationId}`;
+  expect(vaultPageLinks(connected(), "jana@account.lazurio.ai")).toEqual({
+    add,
+    open,
+    account: `${vault}/#/sso?email=jana%40account.lazurio.ai`,
+  });
+  expect(
+    vaultPageLinks(
+      { ...connected(), origin: "pilot-0197" },
+      "jana@account.lazurio.ai",
+    ),
+  ).toEqual({
+    add: null,
+    open: add,
+    account: `${vault}/#/sso?email=jana%40account.lazurio.ai`,
+  });
+  expect(
+    vaultPageLinks(
+      { kind: "vault-status", state: "not-set-up", ...facts, next: "install" },
+      "jana-novak2@account.lazurio.ai",
+    ),
+  ).toEqual({
+    add: null,
+    open: null,
+    account: `${vault}/#/sso?email=jana-novak2%40account.lazurio.ai`,
+  });
+  // Encoded as a query value: a "+" stays a "+" (the vault's router reads a
+  // bare one as a space), and "&", "=", "#" or a space neither end the value
+  // nor add a parameter. No Lazurio username has them; the link does not
+  // rely on that.
+  for (const [address, email] of [
+    ["jana+vault@account.lazurio.ai", "jana%2Bvault%40account.lazurio.ai"],
+    ["a&b=c#d e@account.lazurio.ai", "a%26b%3Dc%23d%20e%40account.lazurio.ai"],
+  ] as const)
+    expect(vaultPageLinks(connected(), address)).toEqual({
+      add,
+      open,
+      account: `${vault}/#/sso?email=${email}`,
+    });
+  // Without the address (the answer not there yet, a sign-in without a
+  // Lazurio username, an answer that failed): the vault's sign-in page.
+  expect(vaultPageLinks(connected(), null)).toEqual({
+    add,
+    open,
+    account: `${vault}/#/login`,
+  });
 });
 
 test("a member adds and opens; without an account only the sign-in, and only where the vault takes it", () => {
@@ -199,6 +253,42 @@ test("a member adds and opens; without an account only the sign-in, and only whe
         ),
       ),
     ).toEqual([["account", "Vytvořit účet v trezoru", `${vault}/#/login`]]);
+    // With the person's own address in their answer, the button starts the
+    // Lazurio sign-in with it (F53's addendum of 2026-10-22), also while the
+    // vault does not answer, by the links the page recorded.
+    const address = "jana-novak2@account.lazurio.ai";
+    for (const fresh of [
+      null,
+      {
+        kind: "vault-status",
+        state: "unreachable",
+        ...facts,
+        reason: "timeout",
+      } as const,
+    ])
+      expect(
+        labels(
+          vaultPageView(
+            model(connected()),
+            { kind: "known", state, signIn: true, address },
+            en,
+            fresh,
+          ),
+        ),
+      ).toEqual([
+        [
+          "account",
+          "Create an account in the vault",
+          `${vault}/#/sso?email=jana-novak2%40account.lazurio.ai`,
+        ],
+      ]);
+    expect(
+      vaultPageView(
+        model(connected()),
+        { kind: "known", state, signIn: false, address },
+        cs,
+      ).actions,
+    ).toEqual([]);
     expect(
       vaultPageView(
         model(connected()),
@@ -207,6 +297,17 @@ test("a member adds and opens; without an account only the sign-in, and only whe
       ).actions,
     ).toEqual([]);
   }
+  // A member's answer carries the address too: "Přidat položku" and
+  // "Otevřít trezor" lead where they did.
+  expect(
+    labels(
+      vaultPageView(
+        model(connected()),
+        { ...member, address: "jana@account.lazurio.ai" },
+        cs,
+      ),
+    ),
+  ).toEqual(labels(view));
   // Not known (nobody named, the vault busy or away): the vault opens.
   for (const reason of ["no-identity", "busy", "unreachable"] as const) {
     const unknown = vaultPageView(

@@ -14014,6 +14014,11 @@ token on argv, in the journal or in an answer.
 > The page is Apps → Trezor, `/vault`, under Integrace; `/settings/vault` leads to it
 > for good.
 >
+> **Point 1's "Vytvořit účet v trezoru" amended on 2026-10-22 ([F53 addendum of
+> 2026-10-22](#f53-addendum-of-2026-10-22-the-account-button-starts-the-lazurio-sign-in-with-the-persons-address)).**
+> With the person's own address it opens `<server_url>/#/sso?email=<address>`, straight
+> to the Lazurio sign-in; `#/login` only without it.
+>
 > **Amended on 2026-10-16 by root decision 0203 ([F53 amendment of
 > 2026-10-16](#f53-amendment-of-2026-10-16-the-address-of-the-lazurio-username)).**
 > Point 3's address is now `<Lazurio username>@account.lazurio.ai`, built from the
@@ -15179,6 +15184,53 @@ the preset). Against the code before, the four that hide it and the never-connec
 pilot fail. In headless Chrome (playwright-core, the installed Chrome; root decision
 0178) against `scripts/preview-launchpad.ts`: see the pull request. These are no
 rendered-page CI gates.
+
+### F53 addendum of 2026-10-22: the account button starts the Lazurio sign-in with the person's address
+
+**Asked for by Matěj (Organization Admin) on 2026-10-22, plan DEV-6631. Amends point 1 of
+the [addendum of 2026-10-14](#f53-addendum-of-2026-10-14-nastavení--trezor-and-the-správci).**
+He opened his Organization's Lazurio Vaultwarden and clicked its "Sign in with Lazurio",
+and the vault asked for an e-mail address first ("Input is required"). He expects one
+button.
+
+1. **The link.** Where the person's membership answer carries their own address ([the
+   addendum of
+   2026-10-16](#f53-addendum-of-2026-10-16-bitwarden-in-codex-desktop-and-the-persons-browser),
+   point 3), "Vytvořit účet v trezoru" opens `<server_url>/#/sso?email=<address>`, the
+   address encoded as a query value (`vaultPageLinks` in `vault-page-view.ts`). The
+   vault then goes straight to the Lazurio sign-in (Lazurio Auth, then GitHub), past its
+   own sign-in page and its "SSO identifier" page: the address is what lets its SSO
+   start without an identifier. The vault also keys the account by the address, from
+   which the client derives the key of the master password, so the link carries exactly
+   the address the answer carries and the page never composes one. A first sign-in
+   creates the account and asks for a new master password, which is what the button
+   says. Without the address (the answer not there yet, a sign-in without a Lazurio
+   username, an answer that failed) the link stays `<server_url>/#/login`, which asks
+   for it.
+2. **Unchanged.** "Přidat položku", "Otevřít trezor", where the button shows, and the
+   steps for the Bitwarden extension: the extension is Bitwarden's own client, so the
+   person still pastes the address into "E-mailová adresa" and clicks "Použít jednotné
+   přihlášení". Opening the vault's address directly still asks for the address, which
+   the vault needs before the sign-in. No text of the page changes, nor the Folder's
+   (its template revision stays).
+
+Checked on 2026-10-22 against Lazurio Vaultwarden 1.37.4-lazurio.2 (web vault 2026.7.0),
+on the public sign-in page of an Organization's vault, nothing submitted:
+`#/login?email=<address>` prefills the address, `#/sso?email=<address>` redirects to the
+Lazurio sign-in, and `#/sso` without one shows the "SSO identifier" page. Bitwarden's
+SSO page reads `email` from its route's query (bitwarden/clients
+`libs/auth/src/angular/sso/sso.component.ts`), which Angular's router decodes, a bare `+`
+as a space; hence the encoding. Verified by `tests/vault-page-view.test.ts` (the link
+with the address, its `@`, a `+`, `&`, `=`, `#` and a space encoded; `#/login` without
+it; the other links unchanged; the button's link also while the vault does not answer)
+and `tests/launchpad-vault-page.test.ts` over HTTP (from the real membership answer the
+button leads to `#/sso` with the person's address, from an answer without it to
+`#/login`); against the code before, both fail. In headless Chrome (playwright-core, the
+installed Chrome; root decision 0178) against `scripts/preview-launchpad.ts` on a work
+Environment, in Czech and English: the button's link is `#/sso` with the fictional
+address the extension's step offers to copy, `#/login` with the answer's address held
+back, and a member's "Přidat položku" and "Otevřít trezor" lead where they did. These are
+no rendered-page CI gates.
 
 ## F54 — An agent's secret request: a person fills it in the Launchpad, the Environment saves it into its own vault
 

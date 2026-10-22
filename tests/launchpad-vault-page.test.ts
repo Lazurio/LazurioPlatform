@@ -526,15 +526,26 @@ test.skipIf(!posix)(
         operation: "members",
         outcome: "no-account",
       });
-      // The page's one action: "Vytvořit účet v trezoru", the vault's sign-in.
+      // The page's one action: "Vytvořit účet v trezoru", which starts the
+      // vault's Lazurio sign-in with the person's own address from their
+      // answer (F53's addendum of 2026-10-22); an answer without the address
+      // leads to the vault's sign-in page, which asks for it first.
       const model = parseVaultPage((await s.page("owner")).body);
-      const standing = parseVaultMembership((await s.membership("owner")).body);
-      expect(
-        vaultPageView(model, standing, messages("cs")).actions.map((action) => [
-          action.label,
-          action.href,
-        ]),
-      ).toEqual([["Vytvořit účet v trezoru", `${vaultOrigin}/#/login`]]);
+      const actions = (answer: Json) =>
+        vaultPageView(
+          model,
+          parseVaultMembership(answer),
+          messages("cs"),
+        ).actions.map((action) => [action.label, action.href]);
+      expect(actions(await s.answer("owner"))).toEqual([
+        [
+          "Vytvořit účet v trezoru",
+          `${vaultOrigin}/#/sso?email=${person.username}%40account.lazurio.ai`,
+        ],
+      ]);
+      expect(actions((await s.membership("owner")).body)).toEqual([
+        ["Vytvořit účet v trezoru", `${vaultOrigin}/#/login`],
+      ]);
       // Where the network's vault does not take the Lazurio sign-in, no
       // account button at all.
       const late = await hosted({ kind: "personal" });
