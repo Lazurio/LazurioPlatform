@@ -154,7 +154,8 @@ export function chatPairingLabel(person: AdmittedPerson = nobody): string {
 }
 
 /** Whether a request is a page's own script fetching on its own origin, the
- * one request `GET /.lazurio/chat/pairing` answers: `Sec-Fetch-Site:
+ * one request the self-pairings answer (`GET /.lazurio/chat/pairing` and
+ * `GET /.lazurio/mausbot/pairing`): `Sec-Fetch-Site:
  * same-origin`, the mode of a script's fetch (`cors` or `same-origin`) in
  * `Sec-Fetch-Mode`, and no prefetch or prerender named by `Sec-Purpose` or
  * the older `Purpose`. A browser sets these headers itself; no page's script
@@ -162,7 +163,7 @@ export function chatPairingLabel(person: AdmittedPerson = nobody): string {
  * (`no-cors`), a speculative load, another site and a client that sends no
  * Fetch Metadata mint nothing. A rule after admission, never an access
  * decision: whom the gateway admits decides who may enter. */
-export function isChatPairingFetch(headers: Headers): boolean {
+export function isOwnScriptFetch(headers: Headers): boolean {
   const mode = headers.get("sec-fetch-mode");
   const purpose = `${headers.get("sec-purpose") ?? ""};${headers.get("purpose") ?? ""}`;
   return (

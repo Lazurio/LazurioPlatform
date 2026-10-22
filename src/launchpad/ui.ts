@@ -1649,7 +1649,11 @@ controls.apply.addEventListener("click", async () => {
 // Since the decision of 2026-10-17 T3 Code pairs an unpaired browser itself
 // (`GET /.lazurio/chat/pairing`); Chat's click still pairs on the way, which
 // is harmless and what older T3 Code builds need. It can go once every
-// Environment's T3 Code pairs itself.
+// Environment's T3 Code pairs itself. Since the addendum of 2026-10-22
+// MausBot pairs an unpaired browser the same way
+// (`GET /.lazurio/mausbot/pairing`); Automate's click still pairs on the way,
+// which a paired browser passes straight through and older MausBot builds
+// need. It can go once every Environment's MausBot pairs itself.
 const pairing: Readonly<
   Record<
     string,

@@ -236,8 +236,9 @@ same-origin rule above; a Launchpad without an entry has neither the link nor th
 route. T3 Code's own admission behind the gateway is unchanged (not in scope below).
 Lazurio MausBot is entered the same way when the entry records it
 ([contract](launchpad-development.md#lazurio-mausbot-entry)): `mausbotOrigin` is in the
-public parts, the loopback port is not, and the code rides only in the fragment of
-`<mausbotOrigin>/pair`.
+public parts, the loopback port is not, and the click's code rides only in the fragment
+of `<mausbotOrigin>/pair`. Since 2026-10-22 MausBot also pairs itself, as T3 Code does
+(below).
 The Environment browser's users' view ([F38](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway),
 [F39](decisions.md#f39--the-peoples-view-of-the-environment-browser-one-tab-of-a-person-is-one-remote-tab))
 follows the same pattern: `browserOrigin` is in the public parts, the loopback port is
@@ -278,6 +279,16 @@ the script of the same origin reads, never in a URL. Like the click's route, it 
 behind the whole-Environment admission: an app-only session
 ([root 0192](environment-access.md#platform-consumer-qualification)) must be refused
 here as there. T3 Code's own pairing page and its sessions stay T3's.
+
+**MausBot pairs itself the same way (addendum of 2026-10-22,
+[contract](launchpad-development.md#lazurio-mausbot-entry)).** MausBot's web client asks
+for `GET /.lazurio/mausbot/pairing` on its own origin whenever it has no session. The
+gateway forwards it exactly as above, so nothing of the gateway changes. The route has the
+same rule (only a page's own script fetch, behind the whole-Environment admission like the
+chat self-pairing) and answers `{"kind":"mausbot-pairing","code":"XXXX-XXXX-XXXX"}`
+with `Cache-Control: no-store`. The code rides only in that response body, and MausBot's
+client redeems it with MausBot's own API. MausBot's pairing form and its sessions stay
+MausBot's.
 
 ### Files links (decision F35)
 

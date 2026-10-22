@@ -341,6 +341,24 @@ test.skipIf(process.platform === "win32")(
         503,
         "Lazurio Launchpad: Recovery mode\ncheck: start-refused\nreason: folder-transaction-pending\n",
       ]);
+      // MausBot's own fetch neither (addendum of 2026-10-22).
+      const mausbotSelfPairing = await fetch(
+        `${base}/.lazurio/mausbot/pairing`,
+        {
+          headers: {
+            ...valid,
+            "sec-fetch-site": "same-origin",
+            "sec-fetch-mode": "cors",
+          },
+        },
+      );
+      expect([
+        mausbotSelfPairing.status,
+        await mausbotSelfPairing.text(),
+      ]).toEqual([
+        503,
+        "Lazurio Launchpad: Recovery mode\ncheck: start-refused\nreason: folder-transaction-pending\n",
+      ]);
     } finally {
       await app.close();
     }
