@@ -13,6 +13,7 @@ decoy that only records being run.
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -964,6 +965,29 @@ class BudicekTest(unittest.TestCase):
             os.rename(os.path.dirname(self.t3_runtime), os.path.join(versions, ".old"))
             os.symlink(self.bindir, os.path.dirname(self.t3_runtime))
 
+        def home_leads_to_the_chat():
+            # Buddy's T3 home is a link to the Chat's, which holds a working
+            # `t3` where the unit's path leads (Pablo's review of #599).
+            chat = os.path.join(self.tmp.name, ".t3")
+            os.makedirs(os.path.join(chat, "runtime", "versions", T3_VERSION))
+            shutil.copy2(self.t3_runtime, os.path.join(chat, "runtime", "versions", T3_VERSION, "t3"))
+            os.rename(self.t3_home, self.t3_home + "-aside")
+            os.symlink(chat, self.t3_home)
+
+        def link_on_the_way(path):
+            # The real directory goes aside, and a link to it takes its place.
+            def breaks():
+                os.rename(path, path + "-aside")
+                os.symlink(path + "-aside", path)
+            return breaks
+
+        def unit_text(text):
+            def breaks():
+                with open(self.t3_unit, "w", encoding="utf-8") as fh:
+                    fh.write(text)
+            return breaks
+
+        start = f"ExecStart={self.t3_runtime} serve --base-dir {self.t3_home}"
         return [
             ("no unit", remove_unit, f"{unit_missing} {self.t3_unit} chybí nebo se nedá přečíst"),
             ("a link to a unit", link_unit, f"{unit_missing} {self.t3_unit} chybí nebo se nedá přečíst"),
@@ -975,9 +999,17 @@ class BudicekTest(unittest.TestCase):
              f"{unit_missing} {self.t3_unit} nespouští t3"),
             ("two ExecStart", lambda: self.write_unit(f"{self.t3_runtime} serve\nExecStart={self.t3_runtime} serve"),
              f"{unit_missing} {self.t3_unit} nespouští t3"),
+            # Read as systemd and the Launchpad read it: a byte order mark stays a
+            # character, and a line ends only at a line feed.
+            ("a byte order mark", unit_text(f"﻿{start}\n"), f"{unit_missing} {self.t3_unit} nespouští t3"),
+            ("another line separator", unit_text(f"Description=Buddy {start}\n"),
+             f"{unit_missing} {self.t3_unit} nespouští t3"),
             ("runtime missing", runtime_missing, f"t3 Buddyho {self.t3_runtime} chybí"),
             ("runtime not executable", runtime_not_executable, f"t3 Buddyho {self.t3_runtime} chybí"),
             ("a version leading out", version_leads_out, f"t3 Buddyho {self.t3_runtime} chybí"),
+            ("the T3 home a link to the Chat's", home_leads_to_the_chat, f"t3 Buddyho {self.t3_runtime} chybí"),
+            ("runtime a link", link_on_the_way(os.path.join(self.t3_home, "runtime")), f"t3 Buddyho {self.t3_runtime} chybí"),
+            ("versions a link", link_on_the_way(versions), f"t3 Buddyho {self.t3_runtime} chybí"),
         ]
 
     def test_without_buddys_own_runtime_a_chat_delegation_starts_nothing_and_nothing_else_runs(self):

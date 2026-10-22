@@ -84,7 +84,8 @@ async function readUnit(home: string): Promise<string | undefined> {
         length += bytesRead;
         if (length > unitBytes) return undefined;
       }
-      return new TextDecoder("utf-8", { fatal: true }).decode(
+      // A byte order mark stays a character, as budíček's Python reads it.
+      return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
         buffer.subarray(0, length),
       );
     } finally {
@@ -96,11 +97,14 @@ async function readUnit(home: string): Promise<string | undefined> {
 }
 
 /** Buddy's own `t3`: the runtime his T3 Code's unit names (`buddyT3RuntimeOf`)
- * for the user's absolute `home`, only while that runtime is an executable
- * regular file inside his T3 home's runtimes, links resolved. Undefined
- * otherwise: no unit (a person without his T3 Code, a work Environment), a
- * unit of another shape, a runtime missing or not executable, a link out of
- * the runtimes. Nothing is ever run in its place. */
+ * for the user's absolute `home`, only while his T3 home, its `runtime` and
+ * its `versions` are real directories of that home, no link on the way (as
+ * Machines refuse such links, `t3_buddy_paths` and `t3_buddy_prune`), and the
+ * runtime is an executable regular file inside them, a link among the
+ * runtimes resolved. Undefined otherwise: no unit (a person without his T3
+ * Code, a work Environment), a unit of another shape, a runtime missing or
+ * not executable, a link out of the runtimes, or a T3 home or runtimes that
+ * lead elsewhere, the Chat's among them. Nothing is ever run in its place. */
 export async function buddyT3Runtime(
   home: string | undefined,
 ): Promise<string | undefined> {
@@ -109,11 +113,13 @@ export async function buddyT3Runtime(
   const runtime = unit === undefined ? undefined : buddyT3RuntimeOf(unit, home);
   if (runtime === undefined) return undefined;
   try {
-    const [runtimes, resolved] = await Promise.all([
+    const [user, runtimes, resolved] = await Promise.all([
+      realpath(home),
       realpath(buddyT3Runtimes(home)),
       realpath(runtime),
     ]);
     if (
+      runtimes !== buddyT3Runtimes(user) ||
       !resolved.startsWith(`${runtimes}${sep}`) ||
       !(await stat(resolved)).isFile()
     )

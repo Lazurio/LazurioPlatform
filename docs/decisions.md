@@ -17929,8 +17929,12 @@ and `lazurio buddy chat --apply` has run on an Osobní Prostředí, none of this
    on PATH: that one follows the user's Chat and may be newer after an update in the app. The
    unit is read as Machines' own reader reads it: exactly one `ExecStart`, whose command is
    `~/.t3-buddy/runtime/versions/<version>/t3` with a Semantic Versioning version and whose
-   first argument is `serve`. The unit must be a regular file, never a link, and the runtime an
-   executable regular file inside those runtimes once links are resolved. The Launchpad
+   first argument is `serve`. The unit must be a regular file, never a link. His T3 home, its
+   `runtime` and its `versions` must be real directories of the user's home, never links, as
+   Machines refuse them too (`t3_buddy_paths`, `t3_buddy_prune`): a link there would lead the
+   unit's own path to another executable, the Chat's among them (Pablo's review of #599). The
+   runtime must be an executable regular file inside those runtimes, a link among them
+   resolved. The Launchpad
    (`src/buddy/t3-runtime.ts`) and budíček (`t3_runtime`) carry the same rule. Anything else
    fails closed, and nothing runs in its place. budíček says why in Czech: a delegation from
    the chat then ends `nezalozen`, and a wake already owed waits, logged every round.
@@ -17961,9 +17965,11 @@ and `lazurio buddy chat --apply` has run on an Osobní Prostředí, none of this
 **Verified by** `tests/buddy-t3-runtime.test.ts` (the unit as Machines render it naming its
 runtime; no `ExecStart` or two, the Chat's launcher, another home, a path up and out, a version
 that is none, a deeper path, another verb, a systemd prefix, a quote and a specifier naming
-none; a runtime not executable, a directory, missing, or a link out of the runtimes, and a
-version directory leading out, refused, a link inside them taken; no unit, a link to one, a
-directory, a unit too large or not UTF-8, and no absolute home, none),
+none; a runtime not executable, a directory, missing, or a link out of the runtimes, a
+version directory leading out, and the T3 home (to the Chat's), its `runtime` or its `versions`
+a link, refused, a link inside the runtimes taken; no unit, a link to one, a directory, a unit
+too large or not UTF-8, a byte order mark or another line separator before its `ExecStart`, and
+no absolute home, none),
 `tests/launchpad-chat.test.ts` (on exactly Buddy's recorded origin one call, his runtime, his
 home and the standard scopes, and the Chat's `t3` never run; the Chat's and the Launchpad's
 origins, Buddy's host over http, without the scheme, a look-alike, a repeated header and no
@@ -17973,13 +17979,15 @@ its output on; an entry without Buddy pairing the Chat), `tests/shell-buddy.test
 handover's `entry.buddy` projected as `buddyOrigin` alone and named by the Launchpad's document;
 refused on an Organization's VM, of another base host and in every shape the schema refuses),
 and `src/buddy/budicek/test_budicek.py` (budíček running the unit's runtime and never the
-`t3` on PATH; every broken unit or runtime starting nothing, with its reason; a runtime gone
+`t3` on PATH; every broken unit or runtime, the same links and line ends as the Launchpad's
+included, starting nothing, with its reason; a runtime gone
 and back waking once; each final code recorded and waking Buddy once in Telegram; a restart
 after the record and at every step of the card waking once with nothing more sent to T3 Code;
 a failure that may pass keeping its key and landing once in the chat; a re-wake after a
 refusal reaching the chat with its own key). Mutation checks: each of the scheme check, the
-recorded-origin check, the runtime's containment, Buddy's home in the call, one final code,
-the recorded refusal, the unit's runtime and the final codes themselves, taken out or
+recorded-origin check, the runtime's containment, the real T3 home and runtimes in both
+readers, the kept byte order mark, the line feed split, Buddy's home in the call, one final
+code, the recorded refusal, the unit's runtime and the final codes themselves, taken out or
 loosened, fails a test. **Honest limits:** no real T3 Code, gateway or Osobní Prostředí ran.
 The forwarded headers are Caddy's default, which Machines count on but do not yet state or
 prove for the shell route (HumanAndMachine-ai/Machines#825). The Buddy layer still says a wake

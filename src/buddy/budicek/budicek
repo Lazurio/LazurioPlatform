@@ -361,9 +361,12 @@ T3_EXACT_VERSION = re.compile(
 
 def t3_runtime() -> str:
     """The runtime the unit of Buddy's T3 Code names, only while the unit is a
-    regular file (never through a link) and the runtime an executable file
-    inside his T3 home's runtimes, links resolved. Anything else fails closed:
-    nothing runs in its place."""
+    regular file (never through a link), his T3 home, its `runtime` and its
+    `versions` are real directories, no link on the way (as Machines refuse
+    such links), and the runtime is an executable file inside them, a link
+    among the runtimes resolved. Anything else fails closed, a T3 home or
+    runtimes that lead elsewhere (the Chat's among them) too: nothing runs in
+    its place."""
     try:
         fd = os.open(T3_UNIT, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
         with os.fdopen(fd, "rb") as fh:
@@ -375,8 +378,10 @@ def t3_runtime() -> str:
         text = raw.decode("utf-8")
     except (OSError, UnicodeDecodeError):
         raise BudicekError(f"jednotka T3 Code Buddyho {T3_UNIT} chybí nebo se nedá přečíst") from None
-    versions = os.path.join(T3_HOME, "runtime", "versions")
-    starts = [line[len("ExecStart="):] for line in text.splitlines() if line.startswith("ExecStart=")]
+    home = os.path.normpath(T3_HOME)
+    versions = os.path.join(home, "runtime", "versions")
+    # Lines as systemd and the Launchpad split them: only at a line feed.
+    starts = [line[len("ExecStart="):] for line in text.split("\n") if line.startswith("ExecStart=")]
     program = starts[0].strip().split(" ") if len(starts) == 1 else []
     exe = program[0] if len(program) >= 2 and program[1] == "serve" else ""
     version, name = "", ""
@@ -384,8 +389,16 @@ def t3_runtime() -> str:
         version, _, name = exe[len(versions) + 1:].partition("/")
     if name != "t3" or not T3_EXACT_VERSION.fullmatch(version):
         raise BudicekError(f"jednotka T3 Code Buddyho {T3_UNIT} nespouští t3 z {versions}/<verze>/t3")
+    # The runtimes where they are, in the real directory above the T3 home:
+    # a link on the T3 home, `runtime` or `versions` would lead elsewhere.
+    runtimes = os.path.join(os.path.realpath(os.path.dirname(home)), os.path.basename(home), "runtime", "versions")
     real = os.path.realpath(exe)
-    if not (real.startswith(os.path.realpath(versions) + os.sep) and os.path.isfile(real) and os.access(real, os.X_OK)):
+    if not (
+        os.path.realpath(versions) == runtimes
+        and real.startswith(runtimes + os.sep)
+        and os.path.isfile(real)
+        and os.access(real, os.X_OK)
+    ):
         raise BudicekError(f"t3 Buddyho {exe} chybí, nedá se spustit nebo vede mimo {versions}")
     return exe
 

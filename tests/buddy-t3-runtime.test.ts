@@ -4,6 +4,7 @@ import {
   mkdir,
   mkdtemp,
   realpath,
+  rename,
   rm,
   symlink,
   writeFile,
@@ -177,6 +178,45 @@ posix(
 );
 
 posix(
+  "a T3 home, runtime or versions that is a link, to the Chat's home or anywhere, gives no runtime, though the unit's path leads to an executable",
+  async () => {
+    const home = await installed();
+    try {
+      const buddyHome = join(home.user, ".t3-buddy");
+      const runtime = join(buddyHome, "runtime");
+      // The Chat's home, with an executable where the unit's path would lead
+      // through a link (Pablo's review of #599).
+      const chat = join(home.user, ".t3", "runtime", "versions", version);
+      await mkdir(chat, { recursive: true });
+      await writeFile(join(chat, "t3"), "#!/bin/sh\nexit 0\n");
+      await chmod(join(chat, "t3"), 0o755);
+      const aside = join(home.user, "aside");
+      for (const [why, path, target] of [
+        [".t3-buddy to the Chat's home", buddyHome, join(home.user, ".t3")],
+        ["runtime elsewhere", runtime, aside],
+        ["versions elsewhere", home.versions, aside],
+      ] as const) {
+        // The real directory goes aside, a link takes its place.
+        await rename(path, aside);
+        await symlink(target, path);
+        expect([why, await buddyT3Runtime(home.user)]).toEqual([
+          why,
+          undefined,
+        ]);
+        await rm(path);
+        await rename(aside, path);
+        expect([why, await buddyT3Runtime(home.user)]).toEqual([
+          why,
+          home.executable,
+        ]);
+      }
+    } finally {
+      await home.cleanup();
+    }
+  },
+);
+
+posix(
   "without the unit, through a link to it, or with a unit too large or not in UTF-8, there is no runtime",
   async () => {
     const home = await installed();
@@ -199,6 +239,14 @@ posix(
         unit,
         Buffer.concat([Buffer.from(text), Buffer.from([0xff, 0x0a])]),
       );
+      expect(await buddyT3Runtime(home.user)).toBeUndefined();
+      // Read as systemd and budíček read it: a byte order mark stays a
+      // character, and a line ends only at a line feed, never at another
+      // separator, so neither puts an ExecStart at the start of a line.
+      const start = text.split("\n").find((line) => line.startsWith("Exec"));
+      await writeFile(unit, `﻿${start}\n`);
+      expect(await buddyT3Runtime(home.user)).toBeUndefined();
+      await writeFile(unit, `Description=Buddy ${start}\n`);
       expect(await buddyT3Runtime(home.user)).toBeUndefined();
       // The same text again: the runtime.
       await writeFile(unit, text);

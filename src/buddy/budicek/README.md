@@ -156,8 +156,9 @@ copy there shadows the Lazurio skill and blocks its updates.
   without the acting-sender claim (#106) ignores the variable, and the wake
   shows as another agent's message.
 - Without the unit of Buddy's T3 Code, with a unit whose `ExecStart` names
-  anything but his runtime, or with that runtime missing or not executable,
-  budíček runs no `t3` at all: a delegation from the chat ends `nezalozen`
+  anything but his runtime, with that runtime missing or not executable, or
+  with his T3 home, its `runtime` or its `versions` a link, budíček runs no
+  `t3` at all: a delegation from the chat ends `nezalozen`
   with the reason, and a wake already owed waits, logged every round.
 - A wake that cannot be delivered, in either channel, is retried every round
   and logged, and nothing escalates it to the user. In the chat the exception
