@@ -473,7 +473,7 @@ posixTest(
         "Sign in to ChatGPT on any device (phone or computer):",
         "  1. Open https://auth.openai.com/codex/device",
         `  2. Enter the code  ${fakeAi.deviceCode}`,
-        "The code is valid for 15 minutes. Sign-in with a code must first be turned on in your ChatGPT security settings; for a work account, its admin allows it.",
+        "The code is valid for 15 minutes. If ChatGPT's page refuses it, turn sign-in with a code on in your ChatGPT security settings (for a work account, its admin allows it) and enter it again.",
         "Waiting for you to enter the code. Ctrl-C cancels.",
         "Signed in. Asking the running services (the Codex app-server, Chat) to use the new sign-in…",
         "codex: signed in.",

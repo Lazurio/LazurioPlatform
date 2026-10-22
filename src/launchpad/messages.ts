@@ -1070,7 +1070,7 @@ const en = {
   // ChatGPT's sign-in by code (root decision 0201 point 10).
   startAiByCode: "Sign in with a code",
   startAiByCodeSetting:
-    "Turn on sign-in with a code in your ChatGPT security settings first. For a work account, its admin allows it.",
+    "If the ChatGPT page refuses the code, turn on sign-in with a code in your ChatGPT security settings. For a work account, its admin allows it.",
   startAiByCodeWaiting:
     "Open the ChatGPT page in any browser, even on your phone, and enter the code. It is valid for 15 minutes.",
   startAiByCodeOpen: "Open ChatGPT",
@@ -2798,7 +2798,7 @@ const cs: Record<MessageKey, string> = {
   startAiCodeSent: "Kód je odeslaný. Chvíli počkejte.",
   startAiByCode: "Přihlásit kódem",
   startAiByCodeSetting:
-    "Přihlášení kódem si nejdřív zapněte v nastavení zabezpečení ChatGPT. U pracovního účtu ho povoluje jeho správce.",
+    "Kdyby stránka ChatGPT kód nepřijala, zapněte si přihlášení kódem v nastavení zabezpečení ChatGPT. U pracovního účtu ho povoluje jeho správce.",
   startAiByCodeWaiting:
     "Otevřete stránku ChatGPT v kterémkoli prohlížeči, třeba v telefonu, a opište kód. Platí 15 minut.",
   startAiByCodeOpen: "Otevřít ChatGPT",
