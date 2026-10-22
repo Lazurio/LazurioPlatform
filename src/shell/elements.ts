@@ -4,6 +4,7 @@ import { type BuddyBubbleView, createBuddyBubbleView } from "./buddy-element";
 import type { BuddyTheme } from "./buddy-protocol";
 import {
   currentEnvironment,
+  isBuddysOwnPage,
   parseShell,
   type Shell,
   type ShellAccount,
@@ -82,7 +83,10 @@ import {
 // (`provideGuides`) and without Buddy's origin it draws nothing and listens
 // to nothing on the page; it only follows the shell's own state to learn
 // whether the origin comes. The forks place it, hand over nothing and get
-// the bubble with the shell, without a release of their own.
+// the bubble with the shell, without a release of their own. Buddy's own
+// page, his chat on his origin inside the bubble's window, loads the shell
+// too (F60's addendum of 2026-10-22): there neither the rail nor the bubble
+// draws anything.
 //
 // Data: the `lazurio.shell.v1` document. A host that has it calls
 // `provideShell`; otherwise the elements read `/.lazurio/shell.json` on
@@ -180,6 +184,11 @@ export function provideAccount(account: ShellAccount | null): void {
 // The `<lazurio-buddy>` that draws Buddy's bubble (decision F60): the last
 // connected, the one the guide draws in too.
 let bubbleHost: LazurioBuddy | null = null;
+
+/** Whether this page is Buddy's own (`isBuddysOwnPage`, decision F60's
+ * addendum of 2026-10-22): his chat in his window, around which the shell
+ * draws no rail and no bubble. */
+const onBuddysOwnPage = (): boolean => isBuddysOwnPage(location.origin);
 
 // The guide of this page (guide.ts): what it plays and when, drawn by
 // guide-layer.ts in each `<lazurio-buddy>`'s own shadow root. Every step it
@@ -680,9 +689,13 @@ export class LazurioRail extends ShellElement {
   private tip: HTMLDivElement | null = null;
   private jump: HTMLDialogElement | null = null;
   constructor() {
-    super(railCss);
+    // On Buddy's own page (decision F60's addendum of 2026-10-22) there is
+    // no rail: not even its empty column, which its styles draw.
+    super(onBuddysOwnPage() ? "" : railCss);
   }
   override connectedCallback() {
+    // Nor a width kept for it, a jump, or anything read or reported.
+    if (onBuddysOwnPage()) return;
     document.documentElement.style.setProperty(
       "--lazurio-rail-width",
       railWidth,
@@ -858,6 +871,10 @@ export class LazurioRail extends ShellElement {
   }
 
   protected render() {
+    if (onBuddysOwnPage()) {
+      this.root.replaceChildren();
+      return;
+    }
     const signedOut = state.signedOut();
     if (signedOut !== null) {
       this.renderSignedOut(signedOut);
@@ -1351,8 +1368,10 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
     guide.changed();
   }
 
+  /** Buddy's origin while this is the page's bubble; none on Buddy's own
+   * page, where no Buddy is drawn inside Buddy. */
   private origin(): string | null {
-    return this.isConnected && bubbleHost === this
+    return this.isConnected && bubbleHost === this && !onBuddysOwnPage()
       ? (state.drawn()?.buddy?.origin ?? null)
       : null;
   }

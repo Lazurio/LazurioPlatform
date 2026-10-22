@@ -334,6 +334,16 @@ export const isShellBuddyOrigin = (value: unknown): value is string =>
   buddyOriginPattern.test(value) &&
   environmentIdOf(value) !== null;
 
+/** Whether a page on `origin` is Buddy's own (decision F60's addendum of
+ * 2026-10-22): his chat, a T3 Code of his own served on his origin, which
+ * the bubble frames and which loads the shell like every app of an
+ * Environment. Nothing but Buddy is served on an origin of this shape, and
+ * the merged document's `buddy.origin` always has it, so the page knows
+ * before any document arrives. There the shell draws no rail and no bubble:
+ * no Environment's chrome inside Buddy's window and no Buddy inside Buddy. */
+export const isBuddysOwnPage = (origin: string): boolean =>
+  isShellBuddyOrigin(origin);
+
 /** The `buddy` member of either document: absent or null is none
  * (`undefined`); otherwise an object whose `origin` is Buddy's
  * (`isShellBuddyOrigin`), or `false` for anything else. Members it does not

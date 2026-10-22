@@ -5,6 +5,7 @@ import {
   runBrowserCommand,
 } from "./browser/cli";
 import { runViewService } from "./browser/people/serve";
+import { buddyHelp, runBuddyCommand } from "./buddy/cli";
 import {
   ContentUsageError,
   contentHelp,
@@ -317,6 +318,9 @@ async function runOtherCommand(args: string[]): Promise<number> {
   // The link alone on stdout; the notice follows on stderr.
   if (args[0] === "chat")
     return emit(await runChatCommand(args.slice(1), processContext()));
+  // Buddy's chat (decision F61): its JSON on stdout.
+  if (args[0] === "buddy")
+    return emit(await runBuddyCommand(args.slice(1), processContext()));
   // The Environment's theme (root decision 0208): its JSON on stdout.
   if (args[0] === "theme")
     return emit(await runThemeCommand(args.slice(1), processContext()));
@@ -648,6 +652,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     console.log(recoverHelp);
     console.log(doctorHelp);
     console.log(chatHelp);
+    console.log(buddyHelp);
     console.log(themeHelp);
     console.log(browserHelp);
     console.log(filesHelp);
