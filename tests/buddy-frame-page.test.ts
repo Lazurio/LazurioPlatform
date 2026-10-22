@@ -20,6 +20,7 @@ import {
 } from "../src/buddy/frame/page/copy";
 import {
   acceptContext,
+  escapeLayout,
   type HostContext,
   layoutMessage,
   readyMessage,
@@ -162,6 +163,25 @@ describe("the host protocol, the frame's side", () => {
       v: 1,
       mode: "fullscreen",
     });
+  });
+
+  test("Escape typed in the frame in full screen asks the host for the panel, nothing else does", () => {
+    const key = (
+      name: string,
+      isComposing = false,
+      defaultPrevented = false,
+    ) => ({
+      key: name,
+      isComposing,
+      defaultPrevented,
+    });
+    expect(escapeLayout(key("Escape"), true)).toBe("panel");
+    // In the panel Escape asks for nothing: closing is the host's.
+    expect(escapeLayout(key("Escape"), false)).toBeNull();
+    expect(escapeLayout(key("Enter"), true)).toBeNull();
+    // An input method's Escape, or one a control already handled, stays.
+    expect(escapeLayout(key("Escape", true), true)).toBeNull();
+    expect(escapeLayout(key("Escape", false, true), true)).toBeNull();
   });
 
   test("the host's origin at load: the parent, else the referrer, else the named host, only framed", () => {

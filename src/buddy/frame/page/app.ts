@@ -14,6 +14,7 @@ import { hostOriginAtLoad, signInUrl } from "../hosts";
 import { browserLang } from "./copy";
 import {
   acceptContext,
+  escapeLayout,
   type Lang,
   type Layout,
   layoutMessage,
@@ -501,6 +502,13 @@ const view = createView(
 );
 
 window.addEventListener("resize", () => view.render(state, lang, new Date()));
+// Escape from full screen while the focus is in here (escapeLayout).
+document.addEventListener("keydown", (event) => {
+  const mode = escapeLayout(event, fullscreen());
+  if (mode === null) return;
+  event.preventDefault();
+  post(layoutMessage(mode));
+});
 view.render(state, lang, new Date());
 post(readyMessage());
 void boot();

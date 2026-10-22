@@ -62,6 +62,25 @@ export const readyMessage = () =>
 export const layoutMessage = (mode: Layout) =>
   Object.freeze({ type: buddyMessage.layout, v: 1, mode });
 
+/** Escape in full screen asks the host for the panel (contract section 3).
+ * The host's page never sees keys typed in this frame, so the frame asks;
+ * a key an input method composes, or one a control already handled, stays
+ * where it is. */
+export const escapeLayout = (
+  key: Readonly<{
+    key: string;
+    isComposing: boolean;
+    defaultPrevented: boolean;
+  }>,
+  fullscreen: boolean,
+): Layout | null =>
+  key.key === "Escape" &&
+  !key.isComposing &&
+  !key.defaultPrevented &&
+  fullscreen
+    ? "panel"
+    : null;
+
 type Data = Readonly<Record<string, unknown>>;
 
 function plain(value: unknown): value is Data {
