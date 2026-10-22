@@ -119,10 +119,12 @@ import type { LaunchpadBoot } from "./boot";
 import { launchpadBoot, vaultInAppsOf, withBoot } from "./boot-document";
 import { createCatalogReading, organizationsOnly } from "./catalog-reading";
 import {
+  asksForBuddy,
   chatPairingPath,
   createChatPromptCheck,
   isOwnScriptFetch,
   issueChatLink,
+  mintBuddyPairing,
   mintChatPairing,
   publicEntry,
 } from "./chat";
@@ -1533,7 +1535,9 @@ export async function startLaunchpad(
         // origin, which the gateway forwards behind the same admission. Only
         // a page's own fetch (chat.ts), only where Chat is T3 Code behind
         // this Launchpad, minted for the admitted person exactly as
-        // `POST /api/chat/pair` mints. A HEAD mints nothing.
+        // `POST /api/chat/pair` mints. On exactly Buddy's recorded origin
+        // it is his own T3 Code's pairing instead (F61's addendum of
+        // 2026-10-22). A HEAD mints nothing.
         if (request.method !== "GET")
           return response({ error: "method-not-allowed" }, 405);
         if (closing) return response({ error: "closing" }, 503);
@@ -1545,11 +1549,9 @@ export async function startLaunchpad(
         // `t3 lazurio capabilities`, then the pairing call: 15 s each.
         server.timeout(request, 45);
         try {
-          const pairing = await mintChatPairing(
-            entry,
-            toolsEnvironment,
-            person,
-          );
+          const pairing = asksForBuddy(entry, request.headers)
+            ? await mintBuddyPairing(toolsEnvironment, person)
+            : await mintChatPairing(entry, toolsEnvironment, person);
           return response(pairing, pairing.kind === "blocked" ? 409 : 200);
         } catch {
           return response({ error: "operation-failed" }, 500);

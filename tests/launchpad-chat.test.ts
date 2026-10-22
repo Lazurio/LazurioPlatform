@@ -47,6 +47,7 @@ import {
   binding,
   handoverEntry,
   organizationWithEntry,
+  personalWithEntry,
 } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 import { freePort } from "./fixtures/ports";
@@ -166,6 +167,58 @@ const pairingCall = (
   env: { HOME: home, PATH: bin },
 });
 
+// Buddy's own T3 Code on the Osobní Prostředí as Machines install it (F61's
+// addendum of 2026-10-22): the unit `lazurio-t3-buddy.service` naming its
+// pinned runtime in `~/.t3-buddy/runtime/versions/<version>/t3`, which records
+// the arguments of the pairing call beside itself and answers as T3 does, or
+// as told by `mode`.
+async function buddyRuntime(home: string, mode = "ok") {
+  const versions = join(home, ".t3-buddy", "runtime", "versions");
+  const runtime = join(versions, "0.1.1-lazurio.1", "t3");
+  await mkdir(join(versions, "0.1.1-lazurio.1"), { recursive: true });
+  const outputs: Record<string, string> = {
+    ok: `echo '${pairingOutput}'`,
+    fail: `echo 'could not pair ${credential}' >&2; exit 3`,
+    unreadable: "echo 'not json'",
+  };
+  await writeFile(
+    runtime,
+    `#!/bin/sh
+printf '%s\\n' "$@" > "${runtime}.calls"
+${outputs[mode]}
+`,
+  );
+  await chmod(runtime, 0o755);
+  const units = join(home, ".config", "systemd", "user");
+  await mkdir(units, { recursive: true });
+  await writeFile(
+    join(units, "lazurio-t3-buddy.service"),
+    `[Service]\nEnvironment=T3CODE_LAZURIO_BUDDY=1\nExecStart=${runtime} serve --base-dir ${join(home, ".t3-buddy")} --host 127.0.0.1 --port 3774\n`,
+  );
+  return runtime;
+}
+
+// The pairing call on Buddy's origin: his own runtime, his own home, the
+// standard call with the Chat's standard scopes.
+const buddyPairingCall = (runtime: string, bin: string, home: string) => ({
+  command: [
+    runtime,
+    "auth",
+    "pairing",
+    "create",
+    "--base-dir",
+    join(home, ".t3-buddy"),
+    "--ttl",
+    "60s",
+    "--label",
+    "Lazurio · example",
+    "--json",
+    ...standardScopeFlags,
+  ],
+  timeoutMs: chatPairing.timeoutMs,
+  env: { HOME: home, PATH: bin },
+});
+
 async function hostedLaunchpad(
   options: Readonly<{
     /** The Lazurio username the gateway's answer names. */
@@ -174,6 +227,8 @@ async function hostedLaunchpad(
     audience?: boolean;
     /** A Team Environment. */
     team?: boolean;
+    /** An Osobní Prostředí whose entry routes Buddy (root decision 0210). */
+    buddy?: boolean;
   }> = {},
 ) {
   const parent = await realpath(
@@ -186,16 +241,20 @@ async function hostedLaunchpad(
   await mkdir(folder, { mode: 0o700 });
   await mkdir(join(folder, "organizations"), { mode: 0o755 });
   await mkdir(join(folder, "personalspace"), { mode: 0o700 });
-  const preset = options.team
-    ? "hosted-organization-team"
-    : "hosted-organization-personal";
+  const preset = options.buddy
+    ? "hosted-personal"
+    : options.team
+      ? "hosted-organization-team"
+      : "hosted-organization-personal";
   const port = freePort();
-  const machine = options.team
-    ? binding({
-        ...organization,
-        entry: handoverEntry("workspace.example.lazurio.io", port),
-      })
-    : organizationWithEntry(port, undefined, false, false, options.audience);
+  const machine = options.buddy
+    ? personalWithEntry(port, false, false, true)
+    : options.team
+      ? binding({
+          ...organization,
+          entry: handoverEntry("workspace.example.lazurio.io", port),
+        })
+      : organizationWithEntry(port, undefined, false, false, options.audience);
   const entry = machine.entry;
   if (entry === undefined) throw new Error("The fixture has an entry");
   await initializeHandoverFolder(folder, {
@@ -594,6 +653,163 @@ test.skipIf(process.platform === "win32")(
         ]);
         expect(text).not.toContain(credential);
       }
+    } finally {
+      await hosted.close();
+    }
+  },
+);
+
+// Buddy's own T3 Code (F61's addendum of 2026-10-22): the gateway forwards
+// `/.lazurio/chat/pairing` of his origin here too, with the Launchpad's Host;
+// its Caddy names the host and scheme the browser addressed.
+const onOrigin = (origin: string) => {
+  const { host, protocol } = new URL(origin);
+  return {
+    "x-forwarded-host": host,
+    "x-forwarded-proto": protocol.slice(0, -1),
+  };
+};
+
+test.skipIf(process.platform === "win32")(
+  "hosted: on exactly Buddy's recorded origin his own T3 Code pairs, with the runtime its unit names and the standard scopes, never the Chat's t3",
+  async () => {
+    const hosted = await hostedLaunchpad({ username: "example", buddy: true });
+    try {
+      const { entry, home, bin, runs, ownFetch, selfPair } = hosted;
+      expect(entry.buddyOrigin).toBe("https://buddy.example.lazurio.io");
+      // The Chat's launcher is on PATH and offers its operator pairing.
+      await fakeLauncher(bin, "ok", true);
+      const runtime = await buddyRuntime(home);
+      const buddy = {
+        ...ownFetch,
+        ...onOrigin("https://buddy.example.lazurio.io"),
+      };
+      const answer = await selfPair(buddy);
+      expect([answer.status, answer.headers.get("cache-control")]).toEqual([
+        200,
+        "no-store",
+      ]);
+      expect(await answer.text()).toBe(
+        `{"kind":"chat-pairing","credential":"${credential}","expiresAt":"${expiresAt}"}`,
+      );
+      // One call: his runtime, his home, the standard pairing with the
+      // Chat's standard scopes; T3 Code is not asked what it offers.
+      expect(runs).toEqual([buddyPairingCall(runtime, bin, home)]);
+      expect(
+        (await readFile(`${runtime}.calls`, "utf8")).trim().split("\n"),
+      ).toEqual(runs[0]?.command.slice(1) ?? []);
+
+      // The Chat's origin, the Launchpad's, Buddy's host over another
+      // scheme, a look-alike, a repeated header and no forwarded headers at
+      // all: the Chat's pairing, as before.
+      for (const headers of [
+        { ...ownFetch, ...onOrigin(entry.t3codeOrigin) },
+        { ...ownFetch, ...onOrigin(entry.externalOrigin) },
+        { ...ownFetch, ...onOrigin("http://buddy.example.lazurio.io") },
+        {
+          ...ownFetch,
+          "x-forwarded-host": "buddy.example.lazurio.io",
+        },
+        { ...ownFetch, ...onOrigin("https://buddy.other.lazurio.io") },
+        {
+          ...ownFetch,
+          ...onOrigin("https://buddy.example.lazurio.io"),
+          "x-forwarded-host":
+            "buddy.example.lazurio.io, buddy.example.lazurio.io",
+        },
+        ownFetch,
+      ]) {
+        runs.length = 0;
+        const chat = await selfPair(headers);
+        expect([headers, chat.status]).toEqual([headers, 200]);
+        expect([headers, runs]).toEqual([
+          headers,
+          [
+            capabilitiesCall(bin, home),
+            pairingCall(bin, home, "operator", "Lazurio · example"),
+          ],
+        ]);
+      }
+      // Buddy's origin still asks as a page's own fetch only.
+      runs.length = 0;
+      const navigated = await selfPair({
+        ...buddy,
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-dest": "document",
+      });
+      expect([navigated.status, runs]).toEqual([403, []]);
+    } finally {
+      await hosted.close();
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "hosted: without Buddy's own runtime nothing runs on his origin, not even the Chat's t3, and a failed call never passes its output on",
+  async () => {
+    const hosted = await hostedLaunchpad({ username: "example", buddy: true });
+    try {
+      const { home, bin, runs, ownFetch, selfPair } = hosted;
+      await fakeLauncher(bin, "ok", true);
+      const buddy = {
+        ...ownFetch,
+        ...onOrigin("https://buddy.example.lazurio.io"),
+      };
+      const missing = await selfPair(buddy);
+      expect([missing.status, await missing.json()]).toEqual([
+        409,
+        { kind: "blocked", reason: "buddy-t3-missing" },
+      ]);
+      // A unit that names the Chat's launcher is no runtime of his.
+      const units = join(home, ".config", "systemd", "user");
+      await mkdir(units, { recursive: true });
+      await writeFile(
+        join(units, "lazurio-t3-buddy.service"),
+        `[Service]\nExecStart=${join(bin, "t3")} serve --base-dir ${join(home, ".t3-buddy")}\n`,
+      );
+      const foreign = await selfPair(buddy);
+      expect([foreign.status, await foreign.json()]).toEqual([
+        409,
+        { kind: "blocked", reason: "buddy-t3-missing" },
+      ]);
+      expect(runs).toEqual([]);
+      for (const mode of ["fail", "unreadable"]) {
+        const runtime = await buddyRuntime(home, mode);
+        runs.length = 0;
+        const failed = await selfPair(buddy);
+        const text = await failed.text();
+        expect([mode, failed.status, JSON.parse(text)]).toEqual([
+          mode,
+          409,
+          { kind: "blocked", reason: "t3-pairing-failed" },
+        ]);
+        expect(text).not.toContain(credential);
+        expect(runs).toEqual([buddyPairingCall(runtime, bin, home)]);
+      }
+    } finally {
+      await hosted.close();
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "hosted: where the entry names no Buddy, a request through a Buddy-like host pairs the Chat as before",
+  async () => {
+    const hosted = await hostedLaunchpad({ username: "example" });
+    try {
+      const { home, bin, runs, ownFetch, selfPair } = hosted;
+      expect(hosted.entry.buddyOrigin).toBeUndefined();
+      await fakeLauncher(bin, "ok", true);
+      await buddyRuntime(home);
+      const answer = await selfPair({
+        ...ownFetch,
+        ...onOrigin("https://buddy.workspace.example.lazurio.io"),
+      });
+      expect(answer.status).toBe(200);
+      expect(runs).toEqual([
+        capabilitiesCall(bin, home),
+        pairingCall(bin, home, "operator", "Lazurio · example"),
+      ]);
     } finally {
       await hosted.close();
     }

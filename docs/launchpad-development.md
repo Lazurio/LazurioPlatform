@@ -1066,7 +1066,9 @@ root decision 0210 point 8): a launcher with Buddy's character that opens his fr
 the origin nothing changes: the neutral guide stays as F56 draws it.
 
 - **Where the origin comes from.** `buddy: {origin}` of `lazurio.shell.v1` only on the
-  Osobní Prostředí itself, from the binding's `buddyOrigin` (`shell-document.ts`), and
+  Osobní Prostředí itself, from the binding's `buddyOrigin`, which the handover's
+  `entry.buddy` gives ([machine handover](machine-handover.md#the-hosted-entry-decision-f16);
+  `shell-document.ts`), and
   of `lazurio.account.v1` where the Dashboard says Buddy may show for the requesting
   Environment. `mergedBuddy` (`merge.ts`) takes the page's own on the Osobní Prostředí,
   the account's elsewhere, and none on your computer or the Dashboard.
@@ -2065,6 +2067,15 @@ way it enters:
 - A public Environment's visitors (root decision 0204,
   [F55](decisions.md#f55--a-public-environment-a-demo-onboarding-a-quiet-notice-that-it-is-public-nothing-to-sign-in-to))
   always get the standard pairing.
+- Buddy's own T3 Code on the Osobní Prostředí asks the same path on his origin
+  ([F61's addendum of 2026-10-22](decisions.md#f61-addendum-of-2026-10-22-the-pairing-on-buddys-origin-his-own-runtime-a-final-wake-refusal)).
+  A request the gateway forwarded from exactly the recorded `buddyOrigin` (its
+  `X-Forwarded-Host` and `X-Forwarded-Proto`, [hosted entry](hosted-entry.md#the-t3-code-link-chat))
+  gets the standard pairing of his T3 Code: `t3 auth pairing create --base-dir
+  ~/.t3-buddy` with the same `standardPairingScopes`, never the operator pairing, run by
+  the runtime the unit `lazurio-t3-buddy.service` names in its `ExecStart`
+  (`src/buddy/t3-runtime.ts`), never the `t3` on PATH, which follows the Chat. Every
+  other request pairs the Chat as before.
 - Each pairing is labelled with the admitted user's Lazurio username, `Lazurio ·
   <username>`, so T3 Code's Settings → Connections shows whose browser each session is.
 - T3 Code's desktop and mobile apps pair with device tokens from T3's Settings →
@@ -2109,7 +2120,7 @@ hosted, the fragment token locally):
 |---|---|
 | `GET /api/entry` | `{kind: "entry", entry: {launchpadOrigin, t3codeOrigin, moduleOriginTemplate, mausbotOrigin?, browserOrigin?} \| null}`: the recorded entry's public parts, read-only (`browserOrigin` offers [the right panel](#the-right-panel-the-environment-browser)); the auth endpoint, cookie name and port stay on the server. `null` on a workstation. Any other method: 405. Recovery mode answers it too. |
 | `POST /api/chat/pair` (body `{}`) | `{kind: "chat-link", url}` with `url` = `<t3codeOrigin>/pair#token=…`; `409 {kind: "blocked", reason}` with `t3-launcher-missing` (no `t3` on PATH, nothing run) or `t3-pairing-failed` (a non-zero exit, a timeout of 15 s, output that is not JSON, a credential of another shape or no readable `expiresAt`); `404` on a workstation. Same-origin rule of every state-changing request. Not in Recovery mode (its typed refusal). |
-| `GET /.lazurio/chat/pairing` | T3 Code's self-pairing (decision of 2026-10-17): `200` with exactly `{"kind":"chat-pairing","credential":"…","expiresAt":"…"}` and `Cache-Control: no-store`, minted for the admitted user as the click's pairing is. Only a page's own script fetch: `Sec-Fetch-Site: same-origin`, `Sec-Fetch-Mode` `cors` or `same-origin`, and neither `Sec-Purpose` nor `Purpose` naming a prefetch or prerender. Anything else, `403 {error: "not-allowed"}` with nothing run: a navigation (a bookmark, a link, a typed address), a subresource, a speculative load, another site, a request without Fetch Metadata. `409 {kind: "blocked", reason}` as above; a query: 400; any method but GET, HEAD included (it mints nothing): 405; `404` on a workstation. Recovery mode answers it with its plain page and mints nothing. |
+| `GET /.lazurio/chat/pairing` | T3 Code's self-pairing (decision of 2026-10-17): `200` with exactly `{"kind":"chat-pairing","credential":"…","expiresAt":"…"}` and `Cache-Control: no-store`, minted for the admitted user as the click's pairing is. Only a page's own script fetch: `Sec-Fetch-Site: same-origin`, `Sec-Fetch-Mode` `cors` or `same-origin`, and neither `Sec-Purpose` nor `Purpose` naming a prefetch or prerender. Anything else, `403 {error: "not-allowed"}` with nothing run: a navigation (a bookmark, a link, a typed address), a subresource, a speculative load, another site, a request without Fetch Metadata. `409 {kind: "blocked", reason}` as above; on Buddy's origin the same answers for his own T3 Code, and `409` with `buddy-t3-missing` (no unit of his T3 Code, a unit of another shape or its runtime missing, nothing run); a query: 400; any method but GET, HEAD included (it mints nothing): 405; `404` on a workstation. Recovery mode answers it with its plain page and mints nothing. |
 | `GET /api/chat/prompt-handoff` | `{kind: "chat-prompt-handoff", accepted}`: whether Chat on this Environment takes a prepared prompt by link ([prompt hand-off](#prompt-hand-off-to-chat)); `accepted: false` on a workstation without running anything. Any other method: 405. |
 
 **CLI.** `lazurio chat link [--folder <absolute Folder>] [--plain] [--json]`

@@ -146,6 +146,7 @@ Machine binding in the Folder, shown and never edited in the Launchpad.
 | T3 Code origin | `entry.t3code.external_origin` | `entry.t3codeOrigin` |
 | Lazurio MausBot origin and loopback port (optional) | `entry.mausbot.*` | `entry.mausbotOrigin`, `mausbotListenPort` |
 | Environment browser view origin and loopback port (optional, F38) | `entry.browser.*` | `entry.browserOrigin`, `browserListenPort` |
+| Buddy's origin (optional, only a personal VM, root decision 0210) | `entry.buddy.external_origin` | `entry.buddyOrigin` |
 | A module's origin | `entry.modules.origin_template` | `entry.moduleOriginTemplate`, filled by `moduleOrigin(template, moduleId)` |
 
 The Platform composes nothing but this one substitution: `moduleOrigin` fills the one
@@ -279,6 +280,22 @@ the script of the same origin reads, never in a URL. Like the click's route, it 
 behind the whole-Environment admission: an app-only session
 ([root 0192](environment-access.md#platform-consumer-qualification)) must be refused
 here as there. T3 Code's own pairing page and its sessions stay T3's.
+
+**Buddy's own T3 Code pairs itself the same way ([F61's addendum of
+2026-10-22](decisions.md#f61-addendum-of-2026-10-22-the-pairing-on-buddys-origin-his-own-runtime-a-final-wake-refusal)).**
+On an Osobní Prostředí whose entry records `buddyOrigin`, the gateway forwards the same
+path of Buddy's origin here, again with the Launchpad's own `Host`. What tells the two
+apart is the host the browser addressed, which the gateway's Caddy names in
+`X-Forwarded-Host` and its scheme in `X-Forwarded-Proto`. Caddy sets both from the
+request itself and never takes a browser's value, since the gateway trusts no proxy in
+front of it; Machines already count on every request behind the gateway carrying them
+(Lazurio MausBot, Machines `workloads/workspace-vm/README.md`). Only a request whose two
+values are exactly the recorded `buddyOrigin`'s is paired with Buddy's T3 Code; every
+other request pairs the Chat as before. This is not the request sniffing rejected
+above: no origin, admission or adapter comes from a header. The recorded entry names
+the origin, and the header only says which recorded origin a request came through.
+After admission it chooses which of the admitted person's two T3 Codes the credential
+is for, and a shell on the Machine can mint either.
 
 **MausBot pairs itself the same way (addendum of 2026-10-22,
 [contract](launchpad-development.md#lazurio-mausbot-entry)).** MausBot's web client asks
