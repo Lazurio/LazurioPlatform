@@ -19,8 +19,14 @@ import { resolveOnPath } from "../tools/status";
 //
 // - the provider instance `buddy`: T3's ACP driver with a local command,
 //   `hermes acp`, with `HERMES_HOME` (Buddy's one Hermes home, shared with
-//   his Telegram gateway) and `LAZURIO_BUDDY_CHANNEL=t3`, which every tool
-//   Buddy runs there inherits, so budíček wakes him back in this chat;
+//   his Telegram gateway), `LAZURIO_BUDDY_CHANNEL=t3`, which every tool
+//   Buddy runs there inherits, so budíček wakes him back in this chat, and
+//   T3 Code's acting-sender claim (Lazurio/t3code#106): `T3CODE_ACTING_SENDER
+//   =buddy` with the user's name from Buddy's persona, as it stands alone
+//   and after „za“, so what Buddy's `t3` writes or decides in the user's
+//   threads shows „Buddy za <jméno>“. The claim lives only here, in Buddy's
+//   own provider: never in a T3 Code service's environment or in the user's
+//   Chat (`~/.t3`), whose agents would all inherit it;
 // - Codex and Claude off: the only built-in instances T3 Code turns on by
 //   itself, so Buddy is this instance's only provider;
 // - no turn continues by itself after an update (one conversation: a
@@ -49,16 +55,19 @@ export const buddyInstanceId = "buddy";
 /** The channel budíček records for a delegation from this chat. */
 export const buddyChannel = "t3";
 
-export type BuddyChatPaths = Readonly<{
+export type BuddyChatInputs = Readonly<{
   /** The user's home, absolute. */
   home: string;
   /** Hermes's command, absolute. */
   hermes: string;
+  /** The user's name from Buddy's persona, as it stands alone and after
+   * Czech „za“. */
+  user: Readonly<{ nominative: string; accusative: string }>;
 }>;
 
 /** The members of Buddy's T3 settings that Lazurio owns, as T3 Code keeps
  * them. */
-export function buddyChatSettings(paths: BuddyChatPaths) {
+export function buddyChatSettings(inputs: BuddyChatInputs) {
   return {
     continueThreadsAfterServerUpdate: false,
     enableAgentBrowserAccess: false,
@@ -70,7 +79,7 @@ export function buddyChatSettings(paths: BuddyChatPaths) {
         environment: [
           {
             name: "HERMES_HOME",
-            value: join(paths.home, ".hermes"),
+            value: join(inputs.home, ".hermes"),
             sensitive: false,
           },
           {
@@ -78,10 +87,21 @@ export function buddyChatSettings(paths: BuddyChatPaths) {
             value: buddyChannel,
             sensitive: false,
           },
+          { name: "T3CODE_ACTING_SENDER", value: "buddy", sensitive: false },
+          {
+            name: "T3CODE_ACTING_FOR",
+            value: inputs.user.nominative,
+            sensitive: false,
+          },
+          {
+            name: "T3CODE_ACTING_FOR_ACCUSATIVE",
+            value: inputs.user.accusative,
+            sensitive: false,
+          },
         ],
         config: {
           source: "local",
-          commandPath: paths.hermes,
+          commandPath: inputs.hermes,
           commandArgs: ["acp"],
         },
       },
@@ -104,9 +124,9 @@ const isObject = (value: unknown): value is Json =>
  * so the instance's `enabled` is his one switch. */
 export function reconcileBuddyChatSettings(
   current: Readonly<Json>,
-  paths: BuddyChatPaths,
+  inputs: BuddyChatInputs,
 ): Json {
-  const owned = buddyChatSettings(paths);
+  const owned = buddyChatSettings(inputs);
   const own = owned.providerInstances[buddyInstanceId];
   const instances = isObject(current.providerInstances)
     ? current.providerInstances
@@ -169,6 +189,7 @@ export type BuddyChatReason =
   | "folder-unreadable"
   | "buddy-layer-missing"
   | "buddy-layer-in-git"
+  | "buddy-persona-unreadable"
   | "hermes-missing"
   | "hermes-acp-unavailable"
   | "t3-running"
@@ -224,7 +245,8 @@ function ownT3Home(stateDirectory: string): Database | undefined {
  * (`outdated`); with `apply`, writes them first. Only on the user's own
  * Osobní Prostředí, with Buddy's layer in the Folder outside any Git work
  * tree (a Git root would give T3 Code checkpoints, and its rollback a second
- * Hermes session) and Hermes's ACP server ready (`hermes acp --check`):
+ * Hermes session), the user's name in Buddy's persona and Hermes's ACP server
+ * ready (`hermes acp --check`):
  * otherwise nothing is written, so no instance points at a Buddy without
  * his rules or his server. Settings already in place need nothing; a change
  * needs T3 Code's ownership of the home (`t3-running` while its server
@@ -255,6 +277,9 @@ export async function buddyChat(
     return answer("unavailable", "buddy-layer-missing");
   if (await insideGitWorkTree(join(options.folder, dirname(buddyRulesPath))))
     return answer("unavailable", "buddy-layer-in-git");
+  const user = await personaUser(home);
+  if (user === undefined)
+    return answer("unavailable", "buddy-persona-unreadable");
   const hermes =
     (await resolveOnPath("hermes", tools.path, tools.platform)) ??
     (await resolveOnPath(
@@ -276,7 +301,7 @@ export async function buddyChat(
   if (check === "timeout" || check.exitCode !== 0)
     return answer("unavailable", "hermes-acp-unavailable");
 
-  const paths = { home, hermes };
+  const inputs = { home, hermes, user };
   const directories = [
     join(home, buddyChatHome),
     join(home, buddyChatHome, "userdata"),
@@ -286,7 +311,7 @@ export async function buddyChat(
     read.raw !== null &&
     sameSettings(
       read.document,
-      reconcileBuddyChatSettings(read.document, paths),
+      reconcileBuddyChatSettings(read.document, inputs),
     );
   const first = await readSettings(directories, settings);
   if (first === "unsafe")
@@ -303,7 +328,7 @@ export async function buddyChat(
         return answer("unavailable", "t3-settings-unreadable");
       await options.during?.("read");
       if (inPlace(read)) return answer("managed");
-      const next = reconcileBuddyChatSettings(read.document, paths);
+      const next = reconcileBuddyChatSettings(read.document, inputs);
       const replaced = await replaceIfUnchanged(
         settings,
         read.raw,
@@ -315,6 +340,46 @@ export async function buddyChat(
     return answer("unavailable", "t3-settings-busy");
   } finally {
     owner.close();
+  }
+}
+
+/** A name T3 Code takes for an acting sender (Lazurio/t3code#106,
+ * `apps/server/src/lazurio/actingSender.ts`): 1 to 64 characters on one line,
+ * nothing to trim, no control, formatting, private-use or separator
+ * characters. A name it refused would fail every `t3` command Buddy runs. */
+const isActingName = (value: unknown): value is string =>
+  typeof value === "string" &&
+  value.length >= 1 &&
+  value.length <= 64 &&
+  value === value.trim() &&
+  !/[\p{Cc}\p{Cf}\p{Co}\p{Cs}\p{Zl}\p{Zp}]/u.test(value);
+
+/** The user's name from Buddy's persona, `~/.config/lazurio/buddy/
+ * persona.json` (`lazurio.buddy-persona.v1`, written by Buddy's install):
+ * its `user.nominative` and `user.accusative`, each a name T3 Code takes;
+ * undefined for anything else. */
+async function personaUser(
+  home: string,
+): Promise<BuddyChatInputs["user"] | undefined> {
+  try {
+    const persona: unknown = JSON.parse(
+      await readFile(
+        join(home, ".config", "lazurio", "buddy", "persona.json"),
+        "utf8",
+      ),
+    );
+    if (
+      !isObject(persona) ||
+      persona.schema_version !== "lazurio.buddy-persona.v1" ||
+      !isObject(persona.user)
+    )
+      return undefined;
+    const { nominative, accusative } = persona.user;
+    return isActingName(nominative) && isActingName(accusative)
+      ? { nominative, accusative }
+      : undefined;
+  } catch {
+    return undefined;
   }
 }
 

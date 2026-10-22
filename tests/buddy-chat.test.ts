@@ -30,14 +30,20 @@ import { bindings } from "./fixtures/machine-bindings";
 // ~/.t3-buddy that Lazurio owns, in T3 Code's keys and shapes
 // (Lazurio/t3code packages/contracts settings.ts and providerInstance.ts,
 // packages/provider-acp-registry settings.ts), written only on the user's
-// Osobní Prostředí with Buddy's layer and Hermes's ACP server ready, beside
-// everything else the file holds. Example names only.
+// Osobní Prostředí with Buddy's layer, the user's name in his persona and
+// Hermes's ACP server ready, beside everything else the file holds. Example
+// names only.
 
-const paths = { home: "/home/ada", hermes: "/home/ada/.local/bin/hermes" };
+const inputs = {
+  home: "/home/ada",
+  hermes: "/home/ada/.local/bin/hermes",
+  user: { nominative: "Ada", accusative: "Adu" },
+};
 
 // What Lazurio owns, exactly as T3 Code decodes it: an ACP instance with a
-// local command, its two variables, and the two built-in instances T3 Code
-// turns on by itself, off.
+// local command, its variables (T3 Code's acting-sender claim among them,
+// Lazurio/t3code#106), and the two built-in instances T3 Code turns on by
+// itself, off.
 const owned = {
   continueThreadsAfterServerUpdate: false,
   enableAgentBrowserAccess: false,
@@ -49,6 +55,13 @@ const owned = {
       environment: [
         { name: "HERMES_HOME", value: "/home/ada/.hermes", sensitive: false },
         { name: "LAZURIO_BUDDY_CHANNEL", value: "t3", sensitive: false },
+        { name: "T3CODE_ACTING_SENDER", value: "buddy", sensitive: false },
+        { name: "T3CODE_ACTING_FOR", value: "Ada", sensitive: false },
+        {
+          name: "T3CODE_ACTING_FOR_ACCUSATIVE",
+          value: "Adu",
+          sensitive: false,
+        },
       ],
       config: {
         source: "local",
@@ -61,9 +74,9 @@ const owned = {
   },
 } as const;
 
-test("Lazurio's members of Buddy's T3 settings: the instance buddy runs hermes acp with its two variables, Codex and Claude are off, no turn continues by itself, no T3 browser for agents", () => {
-  expect(buddyChatSettings(paths)).toEqual(owned);
-  expect(reconcileBuddyChatSettings({}, paths)).toEqual(owned);
+test("Lazurio's members of Buddy's T3 settings: the instance buddy runs hermes acp with its variables and acts as „Buddy za Adu“, Codex and Claude are off, no turn continues by itself, no T3 browser for agents", () => {
+  expect(buddyChatSettings(inputs)).toEqual(owned);
+  expect(reconcileBuddyChatSettings({}, inputs)).toEqual(owned);
 });
 
 test("every member Lazurio does not own stays: the user's settings, other instances, Buddy's own variables, configuration and colour; an instance turned off keeps all but enabled", () => {
@@ -89,6 +102,8 @@ test("every member Lazurio does not own stays: the user's settings, other instan
             value: "telegram",
             sensitive: false,
           },
+          // A name from before the persona changed.
+          { name: "T3CODE_ACTING_FOR", value: "Adéla", sensitive: false },
         ],
         config: {
           source: "registry",
@@ -100,7 +115,7 @@ test("every member Lazurio does not own stays: the user's settings, other instan
       },
     },
   };
-  const next = reconcileBuddyChatSettings(current, paths);
+  const next = reconcileBuddyChatSettings(current, inputs);
   expect(next).toEqual({
     favorites: [{ provider: "buddy", model: "default" }],
     continueThreadsAfterServerUpdate: false,
@@ -133,7 +148,7 @@ test("every member Lazurio does not own stays: the user's settings, other instan
     },
   });
   // Once in place, nothing more changes.
-  expect(reconcileBuddyChatSettings(next, paths)).toEqual(next);
+  expect(reconcileBuddyChatSettings(next, inputs)).toEqual(next);
 });
 
 // ---- On an Environment -----------------------------------------------------
@@ -146,10 +161,21 @@ const noChoices = {
   coordination: undefined,
 } as const;
 
-/** The user's home with a Folder initialized from `machine`'s handover, and
- * Hermes's command where its installer puts it. */
+/** Buddy's persona as his install writes it, for a fictional user. */
+const persona = {
+  schema_version: "lazurio.buddy-persona.v1",
+  buddy_name: "Rex",
+  address: "ty",
+  user: { nominative: "Ada", accusative: "Adu", dative: "Adě" },
+};
+
+/** The user's home with a Folder initialized from `machine`'s handover,
+ * Buddy's persona, and Hermes's command where its installer puts it. */
 async function environment(machine = bindings.personal) {
   const home = await realpath(await mkdtemp(join(tmpdir(), "buddy-chat-")));
+  const personaFile = join(home, ".config", "lazurio", "buddy", "persona.json");
+  await mkdir(join(personaFile, ".."), { recursive: true, mode: 0o700 });
+  await writeFile(personaFile, JSON.stringify(persona), { mode: 0o600 });
   const folder = join(home, "Lazurio");
   await mkdir(folder, { mode: 0o700 });
   await mkdir(join(folder, "organizations"), { mode: 0o700 });
@@ -188,6 +214,7 @@ async function environment(machine = bindings.personal) {
     home,
     folder,
     hermes,
+    personaFile,
     tools,
     settings,
     checks,
@@ -221,6 +248,7 @@ posix(
       const expected = buddyChatSettings({
         home: env.home,
         hermes: env.hermes,
+        user: persona.user,
       });
       expect(await buddyChat(env.tools, { folder: env.folder })).toEqual({
         kind: "buddy-chat",
@@ -434,7 +462,11 @@ posix(
       expect(writes).toBe(2);
       expect(await written(env.settings)).toEqual({
         defaultTheme: "ocean",
-        ...buddyChatSettings({ home: env.home, hermes: env.hermes }),
+        ...buddyChatSettings({
+          home: env.home,
+          hermes: env.hermes,
+          user: persona.user,
+        }),
       });
       await writeFile(env.settings, "{}");
       let generation = 0;
@@ -569,6 +601,101 @@ posix(
         state: "unavailable",
         reason: "home-unknown",
       });
+    }),
+);
+
+posix(
+  "Buddy acts as „Buddy za <jméno>“ only in his own provider: never in his T3 Code's unit, never in the user's Chat, and without a usable name in his persona nothing is written",
+  () =>
+    within([bindings.personal], async (env) => {
+      // The user's Chat and the unit of Buddy's T3 Code, as Machines and T3
+      // Code leave them.
+      const chat = join(env.home, ".t3", "userdata", "settings.json");
+      await mkdir(join(chat, ".."), { recursive: true });
+      await writeFile(chat, '{"defaultTheme":"ocean"}\n');
+      const unit = join(
+        env.home,
+        ".config",
+        "systemd",
+        "user",
+        "lazurio-t3-buddy.service",
+      );
+      await mkdir(join(unit, ".."), { recursive: true });
+      const unitText =
+        "[Service]\nEnvironment=T3CODE_LAZURIO_BUDDY=1\nExecStart=t3 serve --base-dir %h/.t3-buddy --port 3774\n";
+      await writeFile(unit, unitText);
+      expect(
+        await buddyChat(env.tools, { folder: env.folder, apply: true }),
+      ).toEqual({ kind: "buddy-chat", state: "managed" });
+      const settings = await written(env.settings);
+      const acting = JSON.stringify(settings).match(/T3CODE_ACTING_\w+/g);
+      expect(acting).toEqual([
+        "T3CODE_ACTING_SENDER",
+        "T3CODE_ACTING_FOR",
+        "T3CODE_ACTING_FOR_ACCUSATIVE",
+      ]);
+      const instances = settings.providerInstances as Record<
+        string,
+        { environment?: { name: string; value: string }[] }
+      >;
+      expect(
+        instances.buddy?.environment?.filter(({ name }) =>
+          name.startsWith("T3CODE_ACTING_"),
+        ),
+      ).toEqual([
+        { name: "T3CODE_ACTING_SENDER", value: "buddy", sensitive: false },
+        { name: "T3CODE_ACTING_FOR", value: "Ada", sensitive: false },
+        {
+          name: "T3CODE_ACTING_FOR_ACCUSATIVE",
+          value: "Adu",
+          sensitive: false,
+        },
+      ] as never);
+      expect(await readFile(chat, "utf8")).toBe('{"defaultTheme":"ocean"}\n');
+      expect(await readFile(unit, "utf8")).toBe(unitText);
+      // Hermes's check of its ACP server runs without the claim too.
+      expect(
+        env.environments.some((variables) =>
+          Object.keys(variables).some((name) =>
+            name.startsWith("T3CODE_ACTING_"),
+          ),
+        ),
+      ).toBe(false);
+      // A persona T3 Code could not take a name from: nothing is written.
+      await rm(env.settings);
+      const unusable = {
+        kind: "buddy-chat",
+        state: "unavailable",
+        reason: "buddy-persona-unreadable",
+      } as const;
+      for (const user of [
+        undefined,
+        { nominative: "Ada" },
+        { nominative: " Ada", accusative: "Adu" },
+        { nominative: "Ada", accusative: "Adu\u200b" },
+        { nominative: "A".repeat(65), accusative: "Adu" },
+        { nominative: "Ada\nB", accusative: "Adu" },
+      ]) {
+        await writeFile(env.personaFile, JSON.stringify({ ...persona, user }));
+        expect(
+          await buddyChat(env.tools, { folder: env.folder, apply: true }),
+        ).toEqual(unusable);
+      }
+      await writeFile(
+        env.personaFile,
+        JSON.stringify({
+          ...persona,
+          schema_version: "lazurio.buddy-persona.v2",
+        }),
+      );
+      expect(
+        await buddyChat(env.tools, { folder: env.folder, apply: true }),
+      ).toEqual(unusable);
+      await rm(env.personaFile);
+      expect(
+        await buddyChat(env.tools, { folder: env.folder, apply: true }),
+      ).toEqual(unusable);
+      await expect(lstat(env.settings)).rejects.toThrow();
     }),
 );
 

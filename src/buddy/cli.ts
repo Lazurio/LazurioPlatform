@@ -22,15 +22,20 @@ export const buddyHelp = `buddy chat [--apply] [--folder <absolute Folder>] [--j
   ~/.t3-buddy on the user's Osobní Prostředí, whose one provider is Buddy,
   the Hermes Agent over ACP. Reads, without writing, whether its settings hold
   Lazurio's members: the provider instance buddy runs \`hermes acp\` with
-  HERMES_HOME=~/.hermes and LAZURIO_BUDDY_CHANNEL=t3; Codex and Claude are
-  off; no turn continues by itself after an update; agents get no T3
+  HERMES_HOME=~/.hermes, LAZURIO_BUDDY_CHANNEL=t3 and T3 Code's acting
+  sender (T3CODE_ACTING_SENDER=buddy, T3CODE_ACTING_FOR and
+  T3CODE_ACTING_FOR_ACCUSATIVE, the user's name from Buddy's persona), so
+  his steps in the user's threads show „Buddy za <jméno>“; Codex and Claude
+  are off; no turn continues by itself after an update; agents get no T3
   browser. --apply writes these members of ~/.t3-buddy/userdata/settings.json
   and keeps every other one. Settings already in place need nothing; a change
   takes T3 Code's ownership of that home, as T3's own offline commands do, so
   while Buddy's T3 Code runs it is refused (t3-running): stop its unit, apply,
   start it. Unavailable, and nothing written, without Hermes's ACP server
   (hermes acp --check), without Buddy's layer in the Folder's .agents/buddy,
-  or with the layer inside a Git work tree; on any other Environment it does
+  with the layer inside a Git work tree, or without a name in
+  ~/.config/lazurio/buddy/persona.json that T3 Code takes
+  (buddy-persona-unreadable); on any other Environment it does
   nothing (not-personal). The instance's unit, port, route and project are
   Machines'; the composer's steer and queue are T3 Code's own. JSON on
   stdout: {kind: "buddy-chat", state, reason?}. The Folder is found as for
