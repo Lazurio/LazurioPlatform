@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
-"""Contract tests for budicek with fake `openmausbot`, `hermes`, `t3` and `ssh` on PATH.
+"""Contract tests for budicek with fake `openmausbot`, `hermes`, `ssh` and `t3`.
 
 A "wake" is what reaches Buddy. In Telegram it is a `completed` event on a
 Kanban card that has a `wake` subscription; the fake `hermes` records exactly
 those, so the tests count wakes the way the real gateway would see them. In
 his chat in Lazurio (channel `t3`) it is a message in his one T3 Code thread;
 the fake `t3` keeps one message per idempotency key, as T3 Code does with the
-key's command id, and records every send.
+key's command id, and records every send. It is installed as Machines install
+Buddy's own runtime, named by the unit of his T3 Code; the `t3` on PATH is a
+decoy that only records being run.
 """
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -114,7 +117,7 @@ d = os.environ["FAKE_DIR"]
 path = os.path.join(d, "t3.json")
 lock = open(os.path.join(d, "t3.lock"), "w")
 fcntl.flock(lock, fcntl.LOCK_EX)
-st = json.load(open(path)) if os.path.exists(path) else {"calls": [], "sends": [], "messages": [], "keys": {}, "refused": [], "n": 0}
+st = json.load(open(path)) if os.path.exists(path) else {"calls": [], "sends": [], "messages": [], "keys": {}, "refused": {}, "n": 0}
 a = sys.argv[1:]
 def opt(name):
     return a[a.index(name) + 1] if name in a else None
@@ -141,13 +144,20 @@ if a[:2] == ["thread", "send"] and opt("--message-file") == "-" and opt("--idemp
     key = opt("--idempotency-key")
     text = sys.stdin.read()
     st["sends"].append({"key": key, "text": text, "acting": sender})
-    # T3 Code keeps a command's receipt: a refused key stays refused, a sent one sends nothing more.
-    if key in st["refused"] or (os.environ.get("FAKE_T3_REFUSE") and key not in st["keys"]):
-        if key not in st["refused"]:
-            st["refused"].append(key)
-        refuse("orchestration_error", "T3 Code refused the message.")
+    # T3 Code keeps a command's receipt (Lazurio/t3code#105): a key it refused
+    # stays refused, and a sent one sends nothing more.
+    if key in st["refused"]:
+        refuse(st["refused"][key], "T3 Code refused the message for this key.")
     if key in st["keys"]:
         done(0, st["keys"][key])
+    passing = os.environ.get("FAKE_T3_FAIL")
+    if passing:  # a failure that may pass: nothing sent, nothing kept
+        refuse(passing, "T3 Code could not take the message now.")
+    final = os.environ.get("FAKE_T3_REFUSE")
+    if final:  # a final refusal; the two that spend the key stay with it
+        if final in ("command_rejected", "idempotency_conflict"):
+            st["refused"][key] = final
+        refuse(final, "T3 Code refused the message.")
     st["n"] += 1
     result = {"threadId": a[2], "runId": "run-%d" % st["n"], "status": "queued", "delivery": "queued"}
     st["keys"][key] = result
@@ -158,6 +168,32 @@ if a[:2] == ["thread", "send"] and opt("--message-file") == "-" and opt("--idemp
     done(0, result)
 refuse("invalid_request", "unknown command")
 '''
+
+# The `t3` on PATH, as the user's Chat has it: budíček must never run it.
+DECOY_T3 = r'''
+import json, os, sys
+with open(os.path.join(os.environ["FAKE_DIR"], "path-t3.jsonl"), "a") as fh:
+    fh.write(json.dumps({"argv": sys.argv[1:]}) + "\n")
+print(json.dumps({"error": {"code": "server_not_running", "message": "the Chat's t3"}}))
+sys.exit(3)
+'''
+
+# Buddy's own runtime and the unit of his T3 Code that names it, as Machines
+# render it (workloads/workspace-vm/buddy-t3.ts).
+T3_VERSION = "0.1.1-lazurio.1"
+T3_UNIT = """[Unit]
+Description=Lazurio Buddy's T3 Code server
+
+[Service]
+Type=simple
+WorkingDirectory=%h
+Environment=T3CODE_LAZURIO_BUDDY=1
+ExecStart={start}
+Restart=always
+
+[Install]
+WantedBy=default.target
+"""
 
 FAKE_SSH = r'''
 import json, os, subprocess, sys
@@ -198,12 +234,23 @@ class BudicekTest(unittest.TestCase):
         bindir = os.path.join(root, "bin")
         for p in (self.fake, bindir):
             os.makedirs(p)
+        self.bindir = bindir
         self.t3_home = os.path.join(root, "t3-buddy")
-        for name, src in (("hermes", FAKE_HERMES), ("openmausbot", FAKE_MAUSBOT), ("ssh", FAKE_SSH), ("t3", FAKE_T3)):
-            path = os.path.join(bindir, name)
+        self.t3_runtime = os.path.join(self.t3_home, "runtime", "versions", T3_VERSION, "t3")
+        self.t3_unit = os.path.join(root, ".config", "systemd", "user", "lazurio-t3-buddy.service")
+        os.makedirs(os.path.dirname(self.t3_runtime))
+        os.makedirs(os.path.dirname(self.t3_unit))
+        for path, src in (
+            (os.path.join(bindir, "hermes"), FAKE_HERMES),
+            (os.path.join(bindir, "openmausbot"), FAKE_MAUSBOT),
+            (os.path.join(bindir, "ssh"), FAKE_SSH),
+            (os.path.join(bindir, "t3"), DECOY_T3),
+            (self.t3_runtime, FAKE_T3),
+        ):
             with open(path, "w") as fh:
                 fh.write(f"#!{sys.executable}\n{src}")
             os.chmod(path, 0o755)
+        self.write_unit()
         self.env = {
             "PATH": bindir + os.pathsep + os.environ.get("PATH", "/usr/bin:/bin"),
             "HOME": root,
@@ -222,6 +269,20 @@ class BudicekTest(unittest.TestCase):
         self.tmp.cleanup()
 
     # -- helpers
+
+    def write_unit(self, start=None):
+        """The unit of Buddy's T3 Code with `ExecStart=<start>`, by default as
+        Machines render it."""
+        start = start or f"{self.t3_runtime} serve --base-dir {self.t3_home} --host 127.0.0.1 --port 3774"
+        with open(self.t3_unit, "w") as fh:
+            fh.write(T3_UNIT.format(start=start))
+
+    def path_t3_runs(self):
+        path = os.path.join(self.fake, "path-t3.jsonl")
+        if not os.path.exists(path):
+            return []
+        with open(path) as fh:
+            return [json.loads(line) for line in fh]
 
     def budicek(self, *args, stdin=None, **env):
         e = dict(self.env, **env)
@@ -738,18 +799,91 @@ class BudicekTest(unittest.TestCase):
         self.assertEqual([c["acting"] for c in self.calls()], ["buddy", None])
         self.assertNotIn("budicek", self.hermes_state().get("acting", []))
 
-    def test_a_refused_send_keeps_its_key_and_waits_never_sending_twice(self):
-        # T3 Code keeps a refusal for its key, and `t3` reports it as it
-        # reports a failure that passes (`orchestration_error`), so the key
-        # never changes: the wake waits, retried and logged every round.
+    # The refusals `t3 thread send` names final (Lazurio/t3code#105, its
+    # docs/user/agent-cli.md): sending the same key again never helps.
+    FINAL = ("idempotency_conflict", "command_rejected", "thread_not_found", "thread_not_sendable",
+             "invalid_request", "capability_denied", "runtime_mode_escalation_denied",
+             "interaction_mode_escalation_denied")
+
+    def test_a_final_refusal_ends_the_chat_s_wake_and_wakes_buddy_once_in_telegram(self):
+        for refusal in self.FINAL:
+            with self.subTest(refusal=refusal):
+                self.tearDown()
+                self.setUp()
+                self.mausbot_says(wait=[DONE])
+                rid = self.zadej_ok(**self.T3)
+                self.hlidej(FAKE_T3_REFUSE=refusal)
+                rec = self.rec(rid)
+                self.assertEqual(rec["stav"], "probuzen")
+                # Recorded with its code, in the record and in its history.
+                self.assertEqual(rec["t3"][rid], {"vlakno": "buddy-thread-1", "odmitnuto": refusal})
+                notes = [h["udalost"] for h in rec["historie"]]
+                self.assertIn(
+                    f"T3 Code natrvalo odmítl budík {rid} ({refusal}: T3 Code refused the message.), budím v Telegramu",
+                    notes,
+                )
+                # The result still reaches Buddy: one Kanban wake, as without the channel.
+                wakes = self.wakes()
+                self.assertEqual([w["key"] for w in wakes], [rid])
+                self.assertTrue(wakes[0]["summary"].startswith("HOTOVO: hotovo"))
+                self.assertEqual(rec["probuzeni"], [{"budik": 1, "karta": rec["kanban"][rid], "at": rec["probuzen"]}])
+                self.assertEqual(self.messages(), [])
+                # Later rounds never send that wake to T3 Code again.
+                self.hlidej()
+                self.hlidej()
+                self.assertEqual([s["key"] for s in self.t3_state()["sends"]], [rid])
+                self.assertEqual(len(self.wakes()), 1)
+                p = self.budicek("potvrd", rid)
+                self.assertEqual(p.returncode, 0, p.stderr)
+                self.assertEqual(self.rec(rid)["stav"], "vyrizeno")
+
+    def test_a_restart_after_a_final_refusal_still_wakes_buddy_once_in_telegram(self):
+        for crash_at in ("after_t3_refused", "after_create", "after_subscribe", "after_complete"):
+            with self.subTest(crash_at=crash_at):
+                self.tearDown()
+                self.setUp()
+                self.mausbot_says(wait=[DONE])
+                rid = self.zadej_ok(**self.T3)
+                p = self.budicek("hlidej", "--jednou", FAKE_T3_REFUSE="command_rejected",
+                                 BUDICEK_TEST_CRASH_AT=crash_at)
+                self.assertEqual(p.returncode, 99, (crash_at, p.stderr))
+                for _ in range(3):
+                    self.hlidej()
+                self.assertEqual(self.rec(rid)["stav"], "probuzen")
+                self.assertEqual([w["key"] for w in self.wakes()], [rid])
+                # The refusal was recorded before the card: never sent again.
+                self.assertEqual([s["key"] for s in self.t3_state()["sends"]], [rid])
+                self.assertEqual(self.messages(), [])
+
+    def test_a_failure_that_may_pass_keeps_its_key_and_the_wake_lands_once_in_the_chat(self):
+        # Nothing went out, and nothing says sending again cannot help: the
+        # same key every round until T3 Code takes it, and no Telegram wake.
+        for passing in ("orchestration_error", "request_failed", "auth_unavailable", "a_code_of_tomorrow"):
+            with self.subTest(passing=passing):
+                self.tearDown()
+                self.setUp()
+                self.mausbot_says(wait=[DONE])
+                rid = self.zadej_ok(**self.T3)
+                self.hlidej(FAKE_T3_FAIL=passing)
+                self.hlidej(FAKE_T3_FAIL=passing)
+                self.assertEqual(self.rec(rid)["stav"], "budi")
+                self.assertNotIn("odmitnuto", json.dumps(self.rec(rid)))
+                self.hlidej()
+                self.assertEqual(self.rec(rid)["stav"], "probuzen")
+                self.assertEqual([s["key"] for s in self.t3_state()["sends"]], [rid, rid, rid])
+                self.assertEqual([m["key"] for m in self.messages()], [rid])
+                self.assertEqual(self.wakes(), [])
+
+    def test_after_a_final_refusal_a_rewake_tries_the_chat_again_with_its_own_key(self):
         self.mausbot_says(wait=[DONE])
         rid = self.zadej_ok(**self.T3)
-        self.hlidej(FAKE_T3_REFUSE="1")
-        self.hlidej()
-        self.hlidej()
-        self.assertEqual(self.rec(rid)["stav"], "budi")
-        self.assertEqual([s["key"] for s in self.t3_state()["sends"]], [rid, rid, rid])
-        self.assertEqual(self.messages(), [])
+        env = {"BUDICEK_ACK_SECONDS": "0"}
+        self.hlidej(FAKE_T3_REFUSE="command_rejected", **env)  # the wake: refused, so Telegram
+        self.assertEqual([w["key"] for w in self.wakes()], [rid])
+        self.hlidej(**env)  # no confirmation: the re-wake reaches the chat
+        self.assertEqual([m["key"] for m in self.messages()], [rid + "#2"])
+        self.assertEqual(len(self.wakes()), 1)
+        self.assertEqual([("karta" in w, w["budik"]) for w in self.rec(rid)["probuzeni"]], [(True, 1), (False, 2)])
 
     def test_an_answer_that_never_said_what_happened_keeps_the_key_and_the_wake_lands_once(self):
         # The message went out, but its answer was lost (`request_failed`) or
@@ -793,6 +927,120 @@ class BudicekTest(unittest.TestCase):
         self.assertEqual(len(self.wakes()), 1)
         self.assertEqual(self.t3_state()["calls"], [])
 
+    # -- Buddy's own t3: the runtime the unit of his T3 Code names (F61's addendum of 2026-10-22)
+
+    def test_budicek_runs_the_runtime_buddys_unit_names_never_the_t3_on_path(self):
+        self.mausbot_says(wait=[DONE])
+        rid = self.zadej_ok(**self.T3)
+        self.hlidej()
+        self.assertEqual(self.rec(rid)["stav"], "probuzen")
+        self.assertEqual([m["key"] for m in self.messages()], [rid])
+        # The thread's lookup at `zadej`, then the lookup and the send: all three
+        # ran his runtime, and the Chat's `t3` on PATH never ran.
+        self.assertEqual(len(self.t3_state()["calls"]), 3)
+        self.assertEqual(self.path_t3_runs(), [])
+
+    def broken_runtimes(self):
+        """Ways Buddy's runtime is not there to run, each with the start of
+        budíček's message."""
+        unit_missing = "jednotka T3 Code Buddyho"
+        elsewhere = os.path.join(self.tmp.name, "elsewhere.service")
+        versions = os.path.join(self.t3_home, "runtime", "versions")
+
+        def remove_unit():
+            os.remove(self.t3_unit)
+
+        def link_unit():
+            os.replace(self.t3_unit, elsewhere)
+            os.symlink(elsewhere, self.t3_unit)
+
+        def runtime_not_executable():
+            os.chmod(self.t3_runtime, 0o644)
+
+        def runtime_missing():
+            os.remove(self.t3_runtime)
+
+        def version_leads_out():
+            # The version's directory is a link to where the Chat's `t3` is.
+            os.rename(os.path.dirname(self.t3_runtime), os.path.join(versions, ".old"))
+            os.symlink(self.bindir, os.path.dirname(self.t3_runtime))
+
+        def home_leads_to_the_chat():
+            # Buddy's T3 home is a link to the Chat's, which holds a working
+            # `t3` where the unit's path leads (Pablo's review of #599).
+            chat = os.path.join(self.tmp.name, ".t3")
+            os.makedirs(os.path.join(chat, "runtime", "versions", T3_VERSION))
+            shutil.copy2(self.t3_runtime, os.path.join(chat, "runtime", "versions", T3_VERSION, "t3"))
+            os.rename(self.t3_home, self.t3_home + "-aside")
+            os.symlink(chat, self.t3_home)
+
+        def link_on_the_way(path):
+            # The real directory goes aside, and a link to it takes its place.
+            def breaks():
+                os.rename(path, path + "-aside")
+                os.symlink(path + "-aside", path)
+            return breaks
+
+        def unit_text(text):
+            def breaks():
+                with open(self.t3_unit, "w", encoding="utf-8") as fh:
+                    fh.write(text)
+            return breaks
+
+        start = f"ExecStart={self.t3_runtime} serve --base-dir {self.t3_home}"
+        return [
+            ("no unit", remove_unit, f"{unit_missing} {self.t3_unit} chybí nebo se nedá přečíst"),
+            ("a link to a unit", link_unit, f"{unit_missing} {self.t3_unit} chybí nebo se nedá přečíst"),
+            ("the Chat's t3", lambda: self.write_unit(f"{self.bindir}/t3 serve"), f"{unit_missing} {self.t3_unit} nespouští t3"),
+            ("~/.local/bin/t3", lambda: self.write_unit(os.path.join(self.tmp.name, ".local/bin/t3") + " serve"),
+             f"{unit_missing} {self.t3_unit} nespouští t3"),
+            ("no version", lambda: self.write_unit(f"{versions}/../../../bin/t3 serve"), f"{unit_missing} {self.t3_unit} nespouští t3"),
+            ("not serve", lambda: self.write_unit(f"{self.t3_runtime} __service-launcher"),
+             f"{unit_missing} {self.t3_unit} nespouští t3"),
+            ("two ExecStart", lambda: self.write_unit(f"{self.t3_runtime} serve\nExecStart={self.t3_runtime} serve"),
+             f"{unit_missing} {self.t3_unit} nespouští t3"),
+            # Read as systemd and the Launchpad read it: a byte order mark stays a
+            # character, and a line ends only at a line feed.
+            ("a byte order mark", unit_text(f"﻿{start}\n"), f"{unit_missing} {self.t3_unit} nespouští t3"),
+            ("another line separator", unit_text(f"Description=Buddy {start}\n"),
+             f"{unit_missing} {self.t3_unit} nespouští t3"),
+            ("runtime missing", runtime_missing, f"t3 Buddyho {self.t3_runtime} chybí"),
+            ("runtime not executable", runtime_not_executable, f"t3 Buddyho {self.t3_runtime} chybí"),
+            ("a version leading out", version_leads_out, f"t3 Buddyho {self.t3_runtime} chybí"),
+            ("the T3 home a link to the Chat's", home_leads_to_the_chat, f"t3 Buddyho {self.t3_runtime} chybí"),
+            ("runtime a link", link_on_the_way(os.path.join(self.t3_home, "runtime")), f"t3 Buddyho {self.t3_runtime} chybí"),
+            ("versions a link", link_on_the_way(versions), f"t3 Buddyho {self.t3_runtime} chybí"),
+        ]
+
+    def test_without_buddys_own_runtime_a_chat_delegation_starts_nothing_and_nothing_else_runs(self):
+        for why, *_ in self.broken_runtimes():
+            with self.subTest(why=why):
+                self.tearDown()
+                self.setUp()
+                _, breaks, says = next(case for case in self.broken_runtimes() if case[0] == why)
+                breaks()
+                p = self.zadej(**self.T3)
+                self.assertEqual(p.returncode, 1, (why, p.stderr))
+                out = json.loads(p.stdout)
+                self.assertTrue(out["error"].startswith(says), (why, out["error"]))
+                self.assertEqual(self.rec(out["id"])["stav"], "nezalozen")
+                self.assertEqual(self.calls("run"), [])
+                self.assertEqual(self.t3_state()["calls"], [])
+                self.assertEqual(self.path_t3_runs(), [])
+
+    def test_when_buddys_runtime_goes_missing_the_wake_waits_and_lands_once_when_it_is_back(self):
+        self.mausbot_says(wait=[DONE])
+        rid = self.zadej_ok(**self.T3)
+        os.chmod(self.t3_runtime, 0o644)
+        p = self.hlidej()
+        self.assertIn(f"t3 Buddyho {self.t3_runtime} chybí, nedá se spustit nebo vede mimo", p.stderr)
+        self.assertEqual(self.rec(rid)["stav"], "budi")
+        self.assertEqual(self.wakes(), [])
+        self.assertEqual(self.path_t3_runs(), [])
+        os.chmod(self.t3_runtime, 0o755)
+        self.hlidej()
+        self.assertEqual(self.rec(rid)["stav"], "probuzen")
+        self.assertEqual([m["key"] for m in self.messages()], [rid])
 
     # -- the persona's names
 

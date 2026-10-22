@@ -17893,3 +17893,103 @@ Code's server takes it (`node:sqlite`, `BEGIN EXCLUSIVE`), the Platform's attemp
 owns the home once that process lets go. **Honest limits:** no real T3 Code with Hermes, no T4
 command and no Osobní Prostředí ran; the first acceptance is on Bob's Osobní Prostředí of the
 reference Organization (root decision 0204), once T1 to T4 and M1′ exist.
+
+### F61 addendum of 2026-10-22: the pairing on Buddy's origin, his own runtime, a final wake refusal
+
+**Follows Lazurio/LazurioPlatform#597 under Matěj's mandate for Buddy on the web (2026-10-21,
+plan DEV-6676); the details below are proposed by the agent and implemented in this
+revision.** These were missing before Buddy's T3 Code can be switched on for a person, while
+Machines run and route it (HumanAndMachine-ai/Machines#811), and the T3 Code fork gives it its
+surface and commands (Lazurio/t3code#104, #105, #107, #108). Until Machines write `entry.buddy`
+and `lazurio buddy chat --apply` has run on an Osobní Prostředí, none of this changes anything.
+
+1. **The handover's `entry.buddy`.** The vendored `lazurio.machine.v1` is Machines v0.12.191's
+   (HumanAndMachine-ai/Machines#811), which adds only the personal branch's `entry.buddy
+   {external_origin, listen_port}` and forbids it on the Organization branch. The binding
+   records the origin as `buddyOrigin`, which F60's parser already takes: a personal VM only,
+   of the Launchpad's own base host. The port is the gateway's, and nothing of the Platform
+   talks to it. From then on the shell document of the Osobní Prostředí names Buddy (F60),
+   which ends F60's honest limit that no binding has `buddyOrigin`. Machines write the member
+   only for a Platform at least `PLATFORM_ENTRY_BUDDY_MINIMUM`, still `null`. This is the
+   Platform's step of #590; the frame's variables #590 also names went with point 5.
+2. **The pairing on Buddy's origin.** T3 Code's web client asks `GET /.lazurio/chat/pairing` on
+   its own origin, and the gateway forwards it from Buddy's origin too, with the Launchpad's
+   own Host. A request whose `X-Forwarded-Host` and `X-Forwarded-Proto` are exactly the
+   recorded `buddyOrigin`'s (`asksForBuddy`) is paired with his T3 Code. The gateway's Caddy
+   sets both from the request itself and never takes a browser's value. The pairing is the
+   standard one, `t3 auth pairing create --base-dir ~/.t3-buddy` with the Chat's
+   `standardPairingScopes`, label and 60 seconds, run by his own runtime (point 3). It is never
+   the operator pairing: his surface manages no access. Without that runtime the route
+   answers `409` `buddy-t3-missing` and runs nothing. Every other request pairs the Chat as
+   before. The recorded entry names the origin; the header only says which recorded origin a
+   request came through, after admission, like the route's Fetch Metadata rule. Machines are
+   asked to state and prove the headers in their contract (HumanAndMachine-ai/Machines#825).
+3. **Buddy's own runtime.** Whatever runs `t3 … --base-dir ~/.t3-buddy` runs the runtime the
+   unit `lazurio-t3-buddy.service` names in its `ExecStart` (Machines' contract), never the `t3`
+   on PATH: that one follows the user's Chat and may be newer after an update in the app. The
+   unit is read as Machines' own reader reads it: exactly one `ExecStart`, whose command is
+   `~/.t3-buddy/runtime/versions/<version>/t3` with a Semantic Versioning version and whose
+   first argument is `serve`. The unit must be a regular file, never a link. His T3 home, its
+   `runtime` and its `versions` must be real directories of the user's home, never links, as
+   Machines refuse them too (`t3_buddy_paths`, `t3_buddy_prune`): a link there would lead the
+   unit's own path to another executable, the Chat's among them (Pablo's review of #599). The
+   runtime must be an executable regular file inside those runtimes, a link among them
+   resolved. The Launchpad
+   (`src/buddy/t3-runtime.ts`) and budíček (`t3_runtime`) carry the same rule. Anything else
+   fails closed, and nothing runs in its place. budíček says why in Czech: a delegation from
+   the chat then ends `nezalozen`, and a wake already owed waits, logged every round.
+4. **A wake T3 Code refused for good.** `t3 thread send` now names the refusals that sending
+   the same key again never fixes (Lazurio/t3code#105, its `docs/user/agent-cli.md`):
+   `idempotency_conflict`, `command_rejected`, `thread_not_found`, `thread_not_sendable`,
+   `invalid_request`, and the session refusals `capability_denied`,
+   `runtime_mode_escalation_denied` and `interaction_mode_escalation_denied`. On one of them
+   budíček ends that wake in the chat. It records the code (`t3.<key>.odmitnuto` and a note in
+   `historie`) and saves it before anything else, then wakes Buddy through the Kanban card in
+   Telegram, as for a record without the channel, so the result still reaches him. A restart at
+   any step after that record sends nothing more to T3 Code and completes one card. A re-wake
+   has its own key and tries the chat again. Every other failure keeps its key and is retried
+   every round, as before. This supersedes point 2's „A wake T3 Code refused for good waits,
+   retried and logged every round“ and settles the refusal F61 left open.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A path of its own for Buddy's pairing | T3 Code's web client asks one path on its own origin in either mode; another would need a fork release and a gateway route; rejected for the forwarded host against the recorded origin |
+| The page's `Referer` | A page may send none, and a same-origin `GET` sends no `Origin`; rejected for the headers the gateway sets |
+| Buddy's origin from the shape `buddy.<slug>` of the Launchpad's host | A hostname convention (F16); rejected for the handover's `entry.buddy` |
+| The operator pairing on Buddy's origin, as in Chat | It grants access management in Settings → Connections, which his surface does not have; rejected for the standard scopes |
+| The `t3` on PATH, or the newest runtime in `~/.t3-buddy/runtime/versions` | The first follows the Chat; the second need not be what the unit runs; rejected for the unit's own `ExecStart` |
+| Only the four codes #597 lists | T3 Code's list also calls `thread_not_sendable` and the session refusals final; retrying them would never wake Buddy; rejected for T3 Code's list |
+| A new key after a final refusal | The other final codes refuse a new key just as well, and the result would still wait; rejected for the Telegram wake |
+| Telegram for every later wake of the record after one refusal | A re-wake's own key may pass, and the delegation came from the chat (root decision 0210 point 7); rejected for each wake trying the chat first |
+
+**Verified by** `tests/buddy-t3-runtime.test.ts` (the unit as Machines render it naming its
+runtime; no `ExecStart` or two, the Chat's launcher, another home, a path up and out, a version
+that is none, a deeper path, another verb, a systemd prefix, a quote and a specifier naming
+none; a runtime not executable, a directory, missing, or a link out of the runtimes, a
+version directory leading out, and the T3 home (to the Chat's), its `runtime` or its `versions`
+a link, refused, a link inside the runtimes taken; no unit, a link to one, a directory, a unit
+too large or not UTF-8, a byte order mark or another line separator before its `ExecStart`, and
+no absolute home, none),
+`tests/launchpad-chat.test.ts` (on exactly Buddy's recorded origin one call, his runtime, his
+home and the standard scopes, and the Chat's `t3` never run; the Chat's and the Launchpad's
+origins, Buddy's host over http, without the scheme, a look-alike, a repeated header and no
+forwarded headers pairing the Chat; a navigation refused; `buddy-t3-missing` without his
+runtime and with a unit naming the Chat's launcher, nothing run; a failing call never passing
+its output on; an entry without Buddy pairing the Chat), `tests/shell-buddy.test.ts` (the
+handover's `entry.buddy` projected as `buddyOrigin` alone and named by the Launchpad's document;
+refused on an Organization's VM, of another base host and in every shape the schema refuses),
+and `src/buddy/budicek/test_budicek.py` (budíček running the unit's runtime and never the
+`t3` on PATH; every broken unit or runtime, the same links and line ends as the Launchpad's
+included, starting nothing, with its reason; a runtime gone
+and back waking once; each final code recorded and waking Buddy once in Telegram; a restart
+after the record and at every step of the card waking once with nothing more sent to T3 Code;
+a failure that may pass keeping its key and landing once in the chat; a re-wake after a
+refusal reaching the chat with its own key). Mutation checks: each of the scheme check, the
+recorded-origin check, the runtime's containment, the real T3 home and runtimes in both
+readers, the kept byte order mark, the line feed split, Buddy's home in the call, one final
+code, the recorded refusal, the unit's runtime and the final codes themselves, taken out or
+loosened, fails a test. **Honest limits:** no real T3 Code, gateway or Osobní Prostředí ran.
+The forwarded headers are Caddy's default, which Machines count on but do not yet state or
+prove for the shell route (HumanAndMachine-ai/Machines#825). The Buddy layer still says a wake
+comes in the conversation the work was given from; after a final refusal it comes in
+Telegram.

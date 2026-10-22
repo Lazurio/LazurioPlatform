@@ -40,10 +40,12 @@ test("the vendored schema is Machines #500's: the member with a work and a perso
   // Re-pinned since to Machines #543, which adds only `entry.sign_out`
   // (tests/shell-sign-out.test.ts), and then to Machines #560, which adds
   // only `entry.audience` (tests/public-environment.test.ts), and then to
-  // Machines #633, which adds only `entry.browser.local_port`, and then to
-  // Machines #664, which adds only the `services` assignment and list.
+  // Machines #633, which adds only `entry.browser.local_port`, then to
+  // Machines #664, which adds only the `services` assignment and list, and
+  // then to Machines #811 (v0.12.191), which adds only `entry.buddy`
+  // (tests/shell-buddy.test.ts).
   expect(provenance.source_pull_request).toBe(
-    "https://github.com/HumanAndMachine-ai/Machines/pull/664",
+    "https://github.com/HumanAndMachine-ai/Machines/pull/811",
   );
   const defs = (
     schema as unknown as {

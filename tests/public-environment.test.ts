@@ -99,10 +99,11 @@ const posixTest = test.skipIf(process.platform === "win32");
 test("the vendored schema carries Machines #560's entry.audience, exactly the constant public", () => {
   // Re-pinned since to Machines #633, which adds only
   // `entry.browser.local_port` (tests/environment-browser-loopback-entry.test.ts),
-  // and then to Machines #664, which adds only the `services` assignment and
-  // list (tests/server-services-environment.test.ts).
+  // then to Machines #664, which adds only the `services` assignment and
+  // list (tests/server-services-environment.test.ts), and then to Machines
+  // #811 (v0.12.191), which adds only `entry.buddy` (tests/shell-buddy.test.ts).
   expect(provenance.source_pull_request).toBe(
-    "https://github.com/HumanAndMachine-ai/Machines/pull/664",
+    "https://github.com/HumanAndMachine-ai/Machines/pull/811",
   );
   const audience = (
     schema as unknown as {

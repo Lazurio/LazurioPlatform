@@ -150,6 +150,23 @@ export function withAudience<T extends object>(
   return { ...entry, audience };
 }
 
+// Root decision 0210 (Machines #811, v0.12.191): the entry of a personal VM
+// that declares Buddy, as Machines writes `entry.buddy`, last: his own T3
+// Code's origin on the Machine hostname `host` and its loopback port.
+export function withBuddy<T extends object>(
+  entry: T,
+  host = "example.lazurio.io",
+  listenPort = 3774,
+) {
+  return {
+    ...entry,
+    buddy: {
+      external_origin: `https://buddy.${host}`,
+      listen_port: listenPort,
+    },
+  };
+}
+
 // The handover shapes the presets derive from, projected exactly as the
 // machine CLI would project a validated root-issued document.
 export function binding(document: unknown) {
@@ -202,18 +219,21 @@ export function organizationWithRelay(
   });
 }
 // A personal VM of `example` with its entry on `port`, with `browser` the
-// Environment browser's view and with `signOut` the person's sign-out.
+// Environment browser's view, with `signOut` the person's sign-out and with
+// `buddy` Buddy's own T3 Code (root decision 0210).
 export function personalWithEntry(
   listenPort = 20000,
   browser = false,
   signOut = false,
+  buddy = false,
 ) {
   const host = "example.lazurio.io";
   const entry = handoverEntry(host, listenPort);
   const routed = browser ? withBrowser(entry, host) : entry;
+  const signed = signOut ? withSignOut(routed) : routed;
   return binding({
     ...personal,
-    entry: signOut ? withSignOut(routed) : routed,
+    entry: buddy ? withBuddy(signed, host) : signed,
   });
 }
 // The Automated Environment of decision 0169 as the binding records it: a work

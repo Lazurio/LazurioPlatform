@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { buddyT3Home, buddyT3Runtime } from "../buddy/t3-runtime";
 import type { MachineEntry } from "../folder/machine-binding";
 import { t3Offers } from "../tools/ai-services";
 import type { ToolsEnvironment } from "../tools/overview";
@@ -25,6 +26,12 @@ import { isPublicEnvironment } from "./public-environment";
 // and on an older T3 Code. The operator pairing's scopes are T3's own word;
 // the standard one names its scopes itself (`standardPairingScopes`), so a
 // newer T3 Code's wider default grant never reaches a browser paired here.
+//
+// Buddy's own T3 Code on the Osobní Prostředí (F61's addendum of 2026-10-22)
+// asks the same path on his origin, which the gateway forwards here too: a
+// request addressed to exactly the recorded `buddyOrigin` (`asksForBuddy`) is
+// paired with his T3 Code, `--base-dir ~/.t3-buddy`, by the runtime its unit
+// names (`mintBuddyPairing`); every other request pairs the Chat as before.
 
 /** The public parts of the recorded entry (`GET /api/entry`): the origins the
  * page links to, so the page composes none. The admission values (auth
@@ -208,7 +215,6 @@ export async function mintChatPairing(
   if (!environment.home) return failed;
   const env: Record<string, string> = { HOME: environment.home };
   if (environment.path) env.PATH = environment.path;
-  let answer: { credential?: unknown; expiresAt?: unknown } | null;
   try {
     const operator =
       !isPublicEnvironment(entry) &&
@@ -243,9 +249,21 @@ export async function mintChatPairing(
       env,
     );
     if (result === "timeout" || result.exitCode !== 0) return failed;
-    answer = JSON.parse(result.stdout);
+    return pairingOf(result.stdout) ?? failed;
   } catch {
     return failed;
+  }
+}
+
+/** The pairing a T3 call printed (`t3 auth pairing create --json`, `t3
+ * lazurio pairing`): its `credential` and `expiresAt`, each of its own shape,
+ * and nothing else of T3's answer; null for anything else. */
+function pairingOf(stdout: string): ChatPairing | null {
+  let answer: { credential?: unknown; expiresAt?: unknown } | null;
+  try {
+    answer = JSON.parse(stdout);
+  } catch {
+    return null;
   }
   const credential = answer?.credential;
   const expiresAt = answer?.expiresAt;
@@ -256,8 +274,88 @@ export async function mintChatPairing(
     !instantPattern.test(expiresAt) ||
     Number.isNaN(Date.parse(expiresAt))
   )
-    return failed;
+    return null;
   return Object.freeze({ kind: "chat-pairing", credential, expiresAt });
+}
+
+/** No pairing on Buddy's origin: no runtime of his own T3 Code to run
+ * (`buddy-t3-missing`: no unit of his T3 Code, a unit of another shape or its
+ * runtime missing; nothing run), or the call failed. */
+export type BuddyPairingBlocked = Readonly<{
+  kind: "blocked";
+  reason: "buddy-t3-missing" | "t3-pairing-failed";
+}>;
+
+/** Whether a request for a pairing was addressed to this Machine's Buddy
+ * origin, exactly the recorded entry's `buddyOrigin` (root decision 0210,
+ * F61's addendum of 2026-10-22). The gateway forwards `/.lazurio/*` of every
+ * shell origin, Buddy's included, to this Launchpad with the Launchpad's own
+ * `Host` (Machines `ingress.ts` `shellRoute`), and a same-origin `GET` carries
+ * no `Origin`. The gateway's Caddy names the host and the scheme the browser
+ * addressed in `X-Forwarded-Host` and `X-Forwarded-Proto`, set from the request
+ * itself and never taken from the browser. Both must be the recorded origin's:
+ * anything else, a request without them and an entry without Buddy answer no.
+ * Which origin to pair on is the recorded entry's; the headers only say which
+ * of its origins the request came through. A rule after admission, never an
+ * access decision: it only chooses which of the admitted person's two T3 Codes
+ * the page's credential is for, and a shell on the Machine can mint either. */
+export function asksForBuddy(entry: MachineEntry, headers: Headers): boolean {
+  if (entry.buddyOrigin === undefined) return false;
+  const buddy = new URL(entry.buddyOrigin);
+  return (
+    headers.get("x-forwarded-proto") === buddy.protocol.slice(0, -1) &&
+    headers.get("x-forwarded-host") === buddy.host
+  );
+}
+
+/** A fresh pairing of one browser with Buddy's own T3 Code (F61's addendum of
+ * 2026-10-22), for `person` (the label), as the Chat's standard pairing:
+ * `t3 auth pairing create --base-dir ~/.t3-buddy --ttl 60s --label … --json`
+ * with one `--scope` for each of `standardPairingScopes`. Never the operator
+ * pairing: his surface manages no access. Run by the runtime the unit of his
+ * T3 Code names (`buddyT3Runtime`), never the `t3` on PATH, which follows the
+ * Chat; that runtime is a Lazurio T3 Code from the first release with his
+ * surface, which takes `--scope`, and an older one would refuse the flag and
+ * pair nobody. Without it the answer is `buddy-t3-missing` and nothing runs;
+ * any failure is `t3-pairing-failed`, and the output, which can hold the
+ * credential, is never passed on. */
+export async function mintBuddyPairing(
+  environment: ToolsEnvironment,
+  person: AdmittedPerson = nobody,
+): Promise<ChatPairing | BuddyPairingBlocked> {
+  const runtime = await buddyT3Runtime(environment.home);
+  if (runtime === undefined || !environment.home)
+    return Object.freeze({ kind: "blocked", reason: "buddy-t3-missing" });
+  const failed = Object.freeze({
+    kind: "blocked" as const,
+    reason: "t3-pairing-failed" as const,
+  });
+  const env: Record<string, string> = { HOME: environment.home };
+  if (environment.path) env.PATH = environment.path;
+  try {
+    const result = await environment.run(
+      [
+        runtime,
+        "auth",
+        "pairing",
+        "create",
+        "--base-dir",
+        join(environment.home, buddyT3Home),
+        "--ttl",
+        chatPairing.ttl,
+        "--label",
+        chatPairingLabel(person),
+        "--json",
+        ...standardPairingScopes.flatMap((scope) => ["--scope", scope]),
+      ],
+      chatPairing.timeoutMs,
+      env,
+    );
+    if (result === "timeout" || result.exitCode !== 0) return failed;
+    return pairingOf(result.stdout) ?? failed;
+  } catch {
+    return failed;
+  }
 }
 
 /** A fresh pairing link for this Machine's T3 Code, minted for `person` by

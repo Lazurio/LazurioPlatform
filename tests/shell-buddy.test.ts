@@ -7,6 +7,8 @@ import {
   parseMachineEntry,
 } from "../src/folder/machine-binding";
 import { shellDocument } from "../src/launchpad/shell-document";
+import { machineBinding } from "../src/machine/binding";
+import { parseMachineContext } from "../src/machine/context";
 import type { Store } from "../src/shell/account";
 import {
   type BuddyBubbleModel,
@@ -47,7 +49,15 @@ import {
   describeVectors,
   readVectorFiles,
 } from "./fixtures/browser-contract-vectors";
-import { bindings } from "./fixtures/machine-bindings";
+import {
+  binding,
+  bindings,
+  entries,
+  personalWithEntry,
+  withBuddy as withHandoverBuddy,
+} from "./fixtures/machine-bindings";
+import organization from "./fixtures/machine-context.json";
+import personal from "./fixtures/machine-context-personal.json";
 
 // Buddy's bubble, the shell's side (decision F60; root decision 0210 point
 // 8, plan DEV-6676 P3, the contract of drafts/buddy-web-v1 sections 1 to 3):
@@ -370,6 +380,83 @@ test("the binding records Buddy's origin only on a personal Machine, of its own 
       withBuddy(work, "https://buddy.workspace.example.lazurio.io"),
     ),
   ).toThrow();
+});
+
+// The handover's `entry.buddy` (Machines #811, v0.12.191; F61's addendum of
+// 2026-10-22): a personal VM that declares Buddy carries his own T3 Code's
+// origin and loopback port, and the binding records the origin.
+test("the handover's entry.buddy projects Buddy's origin into the binding, and its Launchpad names him", () => {
+  const document = { ...personal, entry: withHandoverBuddy(entries.personal) };
+  const context = parseMachineContext(Buffer.from(JSON.stringify(document)));
+  expect(context.entry?.buddy).toEqual({
+    external_origin: "https://buddy.example.lazurio.io",
+    listen_port: 3774,
+  });
+  const recorded = binding(document);
+  expect(recorded.entry?.buddyOrigin).toBe("https://buddy.example.lazurio.io");
+  // Only the origin: the loopback port of his T3 Code is the gateway's.
+  expect(JSON.stringify(recorded)).not.toContain("3774");
+  expect(recorded).toEqual(personalWithEntry(20000, false, false, true));
+  // It reads back as the Folder records it, and the Launchpad names him.
+  expect(parseMachineBinding(JSON.parse(JSON.stringify(recorded)))).toEqual(
+    recorded,
+  );
+  expect(
+    shellDocument({
+      preset: "hosted-personal",
+      machine: recorded,
+      locale: "cs",
+      catalog: { kind: "catalog", organizations: [] },
+    }).buddy,
+  ).toEqual({ origin: "https://buddy.example.lazurio.io" });
+  // A handover without it projects exactly as before.
+  expect(binding({ ...personal, entry: entries.personal })).toEqual(
+    bindings.personalEntry,
+  );
+});
+
+test("entry.buddy is refused on an Organization's VM, beside another Machine's base host and in any shape the schema does not take", () => {
+  const refused = (document: unknown) => {
+    const bytes = Buffer.from(JSON.stringify(document));
+    expect(() =>
+      machineBinding(parseMachineContext(bytes), "a".repeat(64)),
+    ).toThrow("machine-context-invalid");
+  };
+  // The work branch of the schema forbids the member.
+  refused({
+    ...organization,
+    entry: withHandoverBuddy(
+      entries.organization,
+      "workspace.example.lazurio.io",
+    ),
+  });
+  // Another person's Buddy on this Machine: the schema takes the shape, the
+  // binding refuses another base host than its Launchpad's.
+  refused({
+    ...personal,
+    entry: withHandoverBuddy(entries.personal, "other.lazurio.io"),
+  });
+  const buddyOf = (buddy: unknown) => ({
+    ...personal,
+    entry: { ...entries.personal, buddy },
+  });
+  for (const buddy of [
+    { external_origin: "http://buddy.example.lazurio.io", listen_port: 3774 },
+    { external_origin: "https://buddy.example.lazurio.io/", listen_port: 3774 },
+    {
+      external_origin: "https://chat.example.lazurio.io",
+      listen_port: 3774,
+    },
+    { external_origin: "https://buddy.example.lazurio.io", listen_port: 80 },
+    { external_origin: "https://buddy.example.lazurio.io" },
+    {
+      external_origin: "https://buddy.example.lazurio.io",
+      listen_port: 3774,
+      adapter_port: 4105,
+    },
+    null,
+  ])
+    refused(buddyOf(buddy));
 });
 
 test("the Launchpad of an Osobní Prostředí names Buddy where its entry routes him; nowhere else", () => {
