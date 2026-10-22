@@ -21,7 +21,7 @@ import time
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-BUDICEK = os.path.join(HERE, "budicek")
+BUDICEK = os.path.join(HERE, "delegace")
 
 FAKE_HERMES = r'''
 import fcntl, json, os, sys
