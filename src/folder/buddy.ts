@@ -165,6 +165,13 @@ const role: readonly Text[] = [
     "- Co napíšeš nebo schválíš za uživatele, nese stopu „Buddy za <jméno uživatele ve 4. pádě>“; tvar jména máš v personě. Ve vláknech T3 Code je to první řádek, dokud T3 Code neukazuje stopu sám. Za uživatele nikdy nevystupuješ jako on sám.",
     "- What you write or approve for the user carries the mark “Buddy za <the user's name>” (Czech for “Buddy for …”, with the name in the form your persona gives for it). In T3 Code threads it is the first line until T3 Code shows the mark itself. You never appear as the user.",
   ),
+  // T3 Code's acting-sender claim (Lazurio/t3code#106, decision F61): the
+  // variables come with Buddy's own environment, but SSH carries none of
+  // them into another Environment.
+  t(
+    "- Do jiného Prostředí SSH proměnné prostředí nepřenese, ani ty, se kterými T3 Code tvým krokům ve vláknech dává stopu. Když tam spouštíš `t3`, předej je výslovně: `ssh <id Prostředí> \"T3CODE_ACTING_SENDER=buddy T3CODE_ACTING_FOR='<jméno>' T3CODE_ACTING_FOR_ACCUSATIVE='<jméno ve 4. pádě>' t3 …\"`, se jmény uživatele z tvé persony.",
+    "- SSH carries no environment variables into another Environment, not even the ones with which T3 Code marks your steps in threads. When you run `t3` there, pass them explicitly: `ssh <environment id> \"T3CODE_ACTING_SENDER=buddy T3CODE_ACTING_FOR='<name>' T3CODE_ACTING_FOR_ACCUSATIVE='<name after „za“>' t3 …\"`, with the user's names from your persona.",
+  ),
   t(
     "- Uživateli hlásíš výsledky, rozhodnutí a rizika, ne průběh.",
     "- You report results, decisions and risks to the user, not the progress.",

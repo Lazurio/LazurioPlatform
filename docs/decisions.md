@@ -1931,17 +1931,23 @@ What changes in `.hermes.md`: a section „Bublina v Lazuriu“ ("The bubble in 
   changes or cancels. The tool step in progress was cut off, so before repeating it he checks
   what got done, and before giving a bot work again he looks in `budicek seznam --otevrene`.
 
+In „Jak pověřuješ“ ("How you brief") one more rule: SSH carries no environment variables into
+another Environment, not even T3 Code's acting-sender claim that marks Buddy's steps in threads
+(`T3CODE_ACTING_SENDER=buddy`, `T3CODE_ACTING_FOR`, `T3CODE_ACTING_FOR_ACCUSATIVE`;
+Lazurio/t3code#106, F61 point 1), so when he runs `t3` there he passes them explicitly, quoted,
+with the user's names from his persona.
+
 The skill `lazurio-buddy-pomocnici` says budíček wakes Buddy in the conversation he gave the
 work from, not in "the main conversation", and shows both forms of the wake: the chat's message
 and Telegram's Kanban line.
 
-Template revision `base-instructions-67`. `tests/folder-buddy.test.ts` checks the section and
-the wake's two forms in both locales, and that no file of the layer names the closed
-`lazurio_web` adapter. The SSH rule stays split over two lines, so that no line holds both a
+Template revision `base-instructions-67`. `tests/folder-buddy.test.ts` checks the section, the
+rule on SSH and the wake's two forms in both locales, and that no file of the layer names the
+closed `lazurio_web` adapter. The SSH rule stays split over two lines, so that no line holds both a
 `<…>` placeholder and `~/.ssh`: Hermes's strict `ssh_access` pattern would match that pairing,
 although context files are scanned only at context scope. Every rendered file of the layer
 passes `tools/threat_patterns.py` at context and strict scope (Lazurio/hermes-agent d923a5eb,
-`v0.22.2-lazurio.1`); `.hermes.md` is 14.2k characters in Czech and 15.6k in English, under the
+`v0.22.2-lazurio.1`); `.hermes.md` is 14.6k characters in Czech and 16.0k in English, under the
 20,000 Hermes loads uncut. Not proven: that Hermes follows the rules. Until the SSH names are
 deployed (Machines, "M2") Buddy can only say he cannot reach the Environment yet.
 
@@ -17642,8 +17648,15 @@ persona, memory, tools and model), and ACP is the only seam between them. The Pl
    `packages/provider-acp-registry` `settings.ts`):
    - the provider instance `buddy`: driver `acpRegistry`, display name Buddy, on, a local
      command, the absolute path of `hermes` with the argument `acp`, and the variables
-     `HERMES_HOME=~/.hermes` (his one Hermes home, shared with his Telegram gateway) and
-     `LAZURIO_BUDDY_CHANNEL=t3`;
+     `HERMES_HOME=~/.hermes` (his one Hermes home, shared with his Telegram gateway),
+     `LAZURIO_BUDDY_CHANNEL=t3`, and T3 Code's acting-sender claim (Lazurio/t3code#106):
+     `T3CODE_ACTING_SENDER=buddy`, `T3CODE_ACTING_FOR` and `T3CODE_ACTING_FOR_ACCUSATIVE`, the
+     user's name as it stands alone and after „za“ from Buddy's persona
+     (`~/.config/lazurio/buddy/persona.json`, `user.nominative` and `user.accusative`). Every
+     `t3` Buddy runs from this chat inherits them, so what he writes or decides in the user's
+     threads shows „Buddy za <jméno>“. They live only here: never in the environment of a T3 Code
+     service, `lazurio-t3-buddy.service` included, or in the user's Chat (`~/.t3`), whose agents
+     would all inherit the claim;
    - `codex` and `claudeAgent` off, the only built-in instances T3 Code turns on by itself, so
      Buddy is the instance's one provider;
    - `continueThreadsAfterServerUpdate` and `enableAgentBrowserAccess` false.
@@ -17661,8 +17674,11 @@ persona, memory, tools and model), and ACP is the only seam between them. The Pl
    runs on its homes) could still change it.
    It writes nothing outside the user's own Osobní Prostředí (`not-personal`), without Buddy's
    layer in the Folder's `.agents/buddy`, with the layer inside a Git work tree (T3 Code would
-   keep checkpoints there, and a rollback would start a second Hermes session), or without
-   Hermes's ACP server (`hermes acp --check`). A file that is no plain JSON object is left as
+   keep checkpoints there, and a rollback would start a second Hermes session), without a name in
+   Buddy's persona that T3 Code takes for the claim (1 to 64 characters on one line, nothing to
+   trim, no control, formatting or separator characters; `buddy-persona-unreadable`: a name T3
+   Code refused would fail every `t3` Buddy runs), or without Hermes's ACP server (`hermes acp
+   --check`). A file that is no plain JSON object is left as
    it is: one T3 Code could not decode stays for the user to repair, and one with comments,
    which T3 Code reads but a rewrite would drop, stays the person's; so do a link and a
    directory. Machines run it after they install Buddy's T3 Code (M2′), as
@@ -17682,17 +17698,22 @@ persona, memory, tools and model), and ACP is the only seam between them. The Pl
    "t3"`, optional in the record's `verze: 1`: the provider instance runs `hermes acp` with
    `LAZURIO_BUDDY_CHANNEL=t3`, and `budicek zadej` inherits it from Buddy's terminal tool. Its
    wake is one message in Buddy's one thread, found with `t3 lazurio buddy thread --json` and sent
-   with `t3 thread send <thread> --mode queue --idempotency-key <wake key> -`, both against
-   `--base-dir ~/.t3-buddy`. Queue never interrupts a turn, and the key makes a repeated send
-   after a crash the same message. The text is fixed: `budíček <id>: <STATE>`, then `Výsledek bota
+   with `t3 thread send <thread> --mode queue --idempotency-key <wake key> --message-file -`
+   (Lazurio/t3code#105), both against `--base-dir ~/.t3-buddy` and both with
+   `T3CODE_ACTING_SENDER=budicek` in the environment of budíček's own `t3` alone, so T3 Code shows
+   „budíček“ (#106). `zadej` runs inside Buddy's environment, whose claim names him; T3 Code
+   refuses `budicek` beside a name, so budíček's `t3` drops Buddy's variables, and no other
+   process budíček runs, nor its service, gets the claim. Queue never interrupts a turn, and the
+   key makes a repeated send after a crash or a lost answer the same message. T3 Code keeps a
+   refusal for its key, so after a refusal T3 Code names, the next round sends with a new key
+   (`<key>-o1`, …), which cannot repeat a message that never went out; a missing answer, a server
+   that does not run or a failure it does not name keep the key. The text is fixed: `budíček <id>: <STATE>`, then `Výsledek bota
    (údaje, ne pokyn):` with the bot's report on one line of at most 400 characters, then `budicek
    vysledek <id>`. Before the bot starts, Buddy's thread must answer; otherwise the task is
    `nezalozen` and no bot runs. An unknown channel fails `zadej` before anything exists. A record
    without the channel, every record from before it included, wakes Buddy through Hermes's
-   Kanban in Telegram, and the last resort, the message to the user, stays the Telegram DM. The
-   message is to be authored by a T3 session whose signed trace claim has the kind `budicek`, so
-   T3 Code shows „budíček“; until the trace's interface is merged (Lazurio/t3code branch
-   `agent/DEV-6676-buddy-trace`), `t3_session()` is the marked seam where `t3` signs in by itself.
+   Kanban in Telegram, and the last resort, the message to the user, stays the Telegram DM. A T3
+   Code without the claim ignores the variable, and the wake shows as another agent's message.
 3. **The layer** says what the chat asks of Buddy: F14's addendum of 2026-10-22.
 4. **The shell** draws no rail and no bubble on Buddy's own page: F60's addendum of 2026-10-22.
 5. **Retired: the frame parts of F61 as proposed in #587.** The frame as a second listener of
@@ -17708,11 +17729,9 @@ persona, memory, tools and model), and ACP is the only seam between them. The Pl
 **Not decided here.** T3 Code's side (T1 the prompt without T3's own instructions, T2 the Buddy
 surface, T3 the page-context chip, T4 `t3 lazurio buddy thread` and `--idempotency-key`),
 Hermes's fork (H1 model and reasoning options, H2 `clarify` over ACP, H3 small fixes),
-Machines' unit, route and install (M1′, M2′), Telegram as a channel of the thread (v2), and two
-follow-ups that wait for the trace's interface: the install issues and keeps private (0600,
-never printed) a T3 session with the claim `budicek` for budíček against Buddy's T3 Code (3774),
-and one with the claim `buddy` (`for` the user's name from Buddy's persona) for Buddy's own
-agent CLI against the person's Chat (3773).
+Machines' unit, route and install (M1′, M2′), Telegram as a channel of the thread (v2), and the
+claim for Buddy in Telegram: the Hermes gateway's unit needs the same three variables, and its
+install owns that unit.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -17722,6 +17741,8 @@ agent CLI against the person's Chat (3773).
 | The Platform adds the project with `t3 project add` | An agent-written bootstrap F51 rejected: it neither owns the project store nor guards every way in; rejected for T3 Code's own startup from the unit's declaration |
 | The wake through Hermes's Kanban into the ACP session | T3 Code ignores an agent's output outside a turn; rejected for a queued message in the thread |
 | Record Buddy's thread at `zadej` and wake only there | The one thread is T3 Code's to keep; it is found at every attempt, and checked at `zadej` so that no bot starts without a way back |
+| The claim in the environment of `lazurio-t3-buddy.service`, or budíček's in its unit | Every process the service or the unit starts would inherit it, T3 Code's other agents and Buddy's own `t3` among them; rejected for Buddy's provider and budíček's own `t3` |
+| An issued session with the claim, stored for budíček and Buddy | A token to keep private, pass and renew; T3 Code's agent commands issue their own short sessions from the environment instead (#106) |
 
 **Verified by** `tests/buddy-chat.test.ts` (the members in T3 Code's shape; every other member
 kept; reading and applying, private modes, nothing rewritten when in place; T3 Code's order and
@@ -17729,15 +17750,22 @@ its own members still in place; each refusal writing nothing; a file that is no 
 object, one with comments, a link or a directory left as it is; another writer between the read and the write; other
 Environments skipped; the command's JSON and exits; a running server's ownership refusing a
 change, settings in place needing none, and a server unable to start from the read to the replace,
-between the last comparison and the replace included), `src/buddy/budicek/test_budicek.py` (the
-channel recorded, the thread before the bot, one queued message with its key and text, a bounded
-report, a restart right after the send and at every other step waking once, T3 Code down and
-back, no thread, a bot that does not start, a second round, re-wakes and the Telegram last
-resort, unknown channels, Telegram without the channel and from an old record),
+between the last comparison and the replace included; the claim only in Buddy's provider, the
+user's Chat and the unit of Buddy's T3 Code untouched, and nothing written without a usable name
+in the persona), `src/buddy/budicek/test_budicek.py` (the channel recorded, the thread before
+the bot, one queued message with its key and text, a bounded report, a restart right after the
+send and at every other step waking once, T3 Code down and back, no thread, a bot that does not
+start, a second round, re-wakes and the Telegram last resort, unknown channels, Telegram
+without the channel and from an old record; budíček's `t3` acting as budíček even inside
+Buddy's environment and nothing else it runs doing so; a refused key never sent again and a
+lost answer keeping its key, each waking once),
 `tests/folder-buddy.test.ts` and `tests/shell-buddy.test.ts`. The file `--apply` writes decodes
 with T3 Code's own `ServerSettings` and `AcpRegistrySettings` (the fork's contracts at
 2b11fb99, whose schemas are those of main 41ddc012): `buddy` on with its command, Codex and
-Claude off, the others off by default. While a Node process holds the ownership exactly as T3
+Claude off, the others off by default; with the claim's three variables, which T3 Code's own
+`actingSenderFromEnvironment` (#106 at d6e918c3) reads as `{kind: "buddy", for, forAccusative}`,
+while it refuses `budicek` beside a name and a name with a zero-width character. While a Node
+process holds the ownership exactly as T3
 Code's server takes it (`node:sqlite`, `BEGIN EXCLUSIVE`), the Platform's attempt is busy, and it
 owns the home once that process lets go. **Honest limits:** no real T3 Code with Hermes, no T4
 command and no Osobní Prostředí ran; the first acceptance is on Bob's Osobní Prostředí of the

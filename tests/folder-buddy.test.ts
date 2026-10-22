@@ -285,6 +285,26 @@ test(".hermes.md says how Buddy treats his chat in Lazurio: one conversation, it
     "`budicek seznam --otevrene` first, so you never give it twice",
   ])
     expect(bubble.en).toContain(phrase);
+  // SSH carries no environment, so Buddy passes T3 Code's acting-sender
+  // claim (Lazurio/t3code#106) to `t3` in another Environment himself.
+  const rules = {
+    cs: section(scriptLayer("cs")[buddyRulesPath], "## Jak pověřuješ"),
+    en: section(scriptLayer("en")[buddyRulesPath], "## How you brief"),
+  };
+  expect(rules.cs).toContain(
+    "Do jiného Prostředí SSH proměnné prostředí nepřenese",
+  );
+  expect(rules.en).toContain(
+    "SSH carries no environment variables into another Environment",
+  );
+  for (const text of [rules.cs, rules.en])
+    for (const phrase of [
+      "ssh <",
+      "\"T3CODE_ACTING_SENDER=buddy T3CODE_ACTING_FOR='<",
+      "T3CODE_ACTING_FOR_ACCUSATIVE='<",
+      "' t3 …\"`",
+    ])
+      expect(text).toContain(phrase);
   // The closed web adapter's channel is gone from every file of the layer.
   for (const locale of locales)
     for (const text of Object.values(scriptLayer(locale)))
