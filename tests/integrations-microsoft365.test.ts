@@ -25,6 +25,7 @@ import {
   readBounded,
 } from "../src/integrations/microsoft365-executor";
 import type { IntegrationsOverview } from "../src/integrations/model";
+import { messages } from "../src/launchpad/messages";
 import {
   forgetMicrosoftSignInOf,
   microsoftSignInOrigins,
@@ -812,6 +813,57 @@ test("every answer of Microsoft that wants MFA is recognised, in Executor's summ
   expect(mfaRequired({ ok: false })).toBe(false);
 });
 
+test("a method to register first (50079, 50072) ends the same way, and no words promise a code it cannot ask for yet (#596)", async () => {
+  const { world, app } = await setup();
+  for (const [state, code] of [
+    ["state1", "50079"],
+    ["state2", "50072"],
+  ] as const) {
+    const started = (await (
+      await app.post("/api/integrations/connect", { app: card })
+    ).json()) as { session: string };
+    world.executor.finish(
+      state,
+      false,
+      undefined,
+      `OAuth code exchange failed: AADSTS${code}: Due to a configuration change made by your administrator, or because you moved to a new location, you must enroll in multi-factor authentication.`,
+    );
+    expect(await settled(app, started.session)).toEqual({
+      kind: "ended",
+      reason: "mfa-required",
+      retry: "environment-browser",
+    });
+  }
+  const cs = messages("cs");
+  const en = messages("en");
+  expect(cs.integrationsConnectMfa).toBe(
+    "Microsoft chce u aplikace {app} vícefázové ověření. Přihlaste se znovu v prohlížeči Prostředí: Microsoft vás tam provede ověřením, případně nejdřív nastavením ověřovací metody.",
+  );
+  expect(cs.integrationsReturnMfaEnvironment).toBe(
+    "Microsoft chce u aplikace {app} vícefázové ověření. Vraťte se do Lazuria a přihlaste se znovu v prohlížeči Prostředí: Microsoft vás tam provede ověřením, případně nejdřív nastavením ověřovací metody.",
+  );
+  expect(en.integrationsConnectMfa).toBe(
+    "Microsoft wants multi-factor authentication for {app}. Sign in again in the Environment browser: there Microsoft guides you through it, or through setting up a verification method first.",
+  );
+  expect(en.integrationsReturnMfaEnvironment).toBe(
+    "Microsoft wants multi-factor authentication for {app}. Go back to Lazurio and sign in again in the Environment browser: there Microsoft guides you through it, or through setting up a verification method first.",
+  );
+  for (const text of [
+    cs.integrationsConnectMfa,
+    cs.integrationsReturnMfaEnvironment,
+    cs.integrationsConnectMfaHere,
+    cs.integrationsReturnMfa,
+  ])
+    expect(text).not.toMatch(/kód/);
+  for (const text of [
+    en.integrationsConnectMfa,
+    en.integrationsReturnMfaEnvironment,
+    en.integrationsConnectMfaHere,
+    en.integrationsReturnMfa,
+  ])
+    expect(text).not.toMatch(/\bcode\b/);
+});
+
 test("Microsoft refusing the code for MFA says so, and the sign-in runs again in the Environment browser, where it asks for the code (#596)", async () => {
   const { world, app, opened } = await setup();
   const started = (await (
@@ -828,8 +880,9 @@ test("Microsoft refusing the code for MFA says so, and the sign-in runs again in
   );
   expect(back.status).toBe(200);
   const page = await back.text();
-  expect(page).toContain("vícefázové ověření");
-  expect(page).toContain("v prohlížeči Prostředí");
+  expect(page).toContain(
+    "Microsoft chce u aplikace Microsoft 365 vícefázové ověření. Vraťte se do Lazuria a přihlaste se znovu v prohlížeči Prostředí: Microsoft vás tam provede ověřením, případně nejdřív nastavením ověřovací metody.",
+  );
   expect(await settled(app, started.session)).toEqual({
     kind: "ended",
     reason: "mfa-required",

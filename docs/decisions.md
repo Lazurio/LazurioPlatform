@@ -10683,15 +10683,17 @@ is [integrations](integrations.md#the-microsoft-365-company-app).
    company app's sign-in ends as `mfa-required` and is journaled with that reason.
    On a sign-in that ran in the person's own browser of a Remote Environment, the
    return page and the card say that Microsoft wants multi-factor authentication
-   (for example the authenticator app's code; 50079 and 50072 mean a method to
-   register first, so the copy names no single step), and the card offers
+   and guides the person through it in the Environment browser, or first through
+   setting up a verification method (50079 and 50072 mean a method to register
+   first, so the copy never promises a code), and the card offers
    "Přihlásit v prohlížeči Prostředí". That button starts a new sign-in in the
    Environment browser, which returns to Executor's callback on localhost even
    where the Launchpad's callback is registered (`POST /api/integrations/connect`
    with `browser: "environment"`).
 
    There the sign-in comes from the address the code is redeemed at, so Microsoft
-   asks for the code in that browser, and the code carries the completed MFA. It
+   asks for the MFA step (or the registration of a method) in that browser, and the
+   code carries the completed MFA. It
    was verified on the test tenant in two parts: the Environment browser's sign-in
    asked for the code, and a code with MFA done redeemed from that address. Its
    Microsoft session is cleared afterwards as in point 5. A refusal there, or on an

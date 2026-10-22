@@ -1554,7 +1554,7 @@ const en = {
   integrationsReturnMfa:
     "Microsoft wants multi-factor authentication for {app}, which the sign-in did not complete. Go back to Lazurio and sign in again.",
   integrationsReturnMfaEnvironment:
-    "Microsoft wants multi-factor authentication for {app}, for example a code from the authenticator app. Go back to Lazurio and sign in again in the Environment browser, where Microsoft asks for it.",
+    "Microsoft wants multi-factor authentication for {app}. Go back to Lazurio and sign in again in the Environment browser: there Microsoft guides you through it, or through setting up a verification method first.",
   integrationsReturnUnknown:
     "This sign-in is no longer valid. Start connecting again in Lazurio.",
   integrationsConnectFailed: "The connection could not be started.",
@@ -1564,7 +1564,7 @@ const en = {
     "It still does not work: Executor cannot use this account. Try again later, or disconnect it.",
   integrationsConnectEnded: "The connection was not finished.",
   integrationsConnectMfa:
-    "Microsoft wants multi-factor authentication for {app}, for example a code from the authenticator app. Sign in again in the Environment browser, where Microsoft asks for it.",
+    "Microsoft wants multi-factor authentication for {app}. Sign in again in the Environment browser: there Microsoft guides you through it, or through setting up a verification method first.",
   integrationsConnectMfaHere:
     "Microsoft wants multi-factor authentication for {app}, which the sign-in did not complete. Sign in again.",
   integrationsSignInInEnvironment: "Sign in in the Environment browser",
@@ -3246,7 +3246,7 @@ const cs: Record<MessageKey, string> = {
   integrationsReturnMfa:
     "Microsoft chce u aplikace {app} vícefázové ověření, které přihlášení nedokončilo. Vraťte se do Lazuria a přihlaste se znovu.",
   integrationsReturnMfaEnvironment:
-    "Microsoft chce u aplikace {app} vícefázové ověření, například kód z aplikace Authenticator. Vraťte se do Lazuria a přihlaste se znovu v prohlížeči Prostředí, kde si o něj Microsoft řekne.",
+    "Microsoft chce u aplikace {app} vícefázové ověření. Vraťte se do Lazuria a přihlaste se znovu v prohlížeči Prostředí: Microsoft vás tam provede ověřením, případně nejdřív nastavením ověřovací metody.",
   integrationsReturnUnknown:
     "Toto přihlášení už neplatí. Spusťte připojení znovu v Lazuriu.",
   integrationsConnectFailed: "Připojení se nepodařilo spustit.",
@@ -3256,7 +3256,7 @@ const cs: Record<MessageKey, string> = {
     "Pořád to nefunguje: Executor tento účet použít neumí. Zkuste to později, nebo účet odpojte.",
   integrationsConnectEnded: "Připojení se nedokončilo.",
   integrationsConnectMfa:
-    "Microsoft chce u aplikace {app} vícefázové ověření, například kód z aplikace Authenticator. Přihlaste se znovu v prohlížeči Prostředí, kde si o něj Microsoft řekne.",
+    "Microsoft chce u aplikace {app} vícefázové ověření. Přihlaste se znovu v prohlížeči Prostředí: Microsoft vás tam provede ověřením, případně nejdřív nastavením ověřovací metody.",
   integrationsConnectMfaHere:
     "Microsoft chce u aplikace {app} vícefázové ověření, které přihlášení nedokončilo. Přihlaste se znovu.",
   integrationsSignInInEnvironment: "Přihlásit v prohlížeči Prostředí",
