@@ -3088,8 +3088,9 @@ Organization's, and it gets none of it.
      simple-icons mark, `i-claude`; [licensing](licensing.md#bundled-third-party-assets)),
      nothing said before them (where the AI could not be checked, that line); beneath
      them ChatGPT's quieter "Přihlásit kódem" (a link-coloured button) with its one line,
-     "Přihlášení kódem si nejdřív zapněte v nastavení zabezpečení ChatGPT. U pracovního
-     účtu ho povoluje jeho správce." (root decision 0201 point 10, F19's addendum of
+     "Kdyby stránka ChatGPT kód nepřijala, zapněte si přihlášení kódem v nastavení
+     zabezpečení ChatGPT. U pracovního účtu ho povoluje jeho správce." (root decision 0201
+     point 10, F19's addendum of
      2026-10-21: `lazurio tools login codex --device-code`), and while its code waits
      "Otevřete stránku ChatGPT v kterémkoli prohlížeči, třeba v telefonu, a opište kód.
      Platí 15 minut." with the code, "Kopírovat" and "Otevřít ChatGPT" (the block of gh's

@@ -24,9 +24,10 @@ import type { VaultStatus } from "../src/vault/flow";
 
 const cs = messages("cs");
 const en = messages("en");
-// The line beneath "Přihlásit kódem" (root decision 0201 point 10).
+// The line beneath "Přihlásit kódem" (root decision 0201 point 10, wording
+// of 2026-10-22): the setting only for a code ChatGPT's page refuses.
 const byCodeHint =
-  "Přihlášení kódem si nejdřív zapněte v nastavení zabezpečení ChatGPT. U pracovního účtu ho povoluje jeho správce.";
+  "Kdyby stránka ChatGPT kód nepřijala, zapněte si přihlášení kódem v nastavení zabezpečení ChatGPT. U pracovního účtu ho povoluje jeho správce.";
 
 const organization: ContentItem = {
   kind: "organization",
@@ -434,9 +435,10 @@ test("Přihlásit kódem (root decision 0201 point 10): ChatGPT's quieter sign-i
   const session = "0123456789abcdef0123456789abcdef";
   const url = "https://auth.openai.com/codex/device";
   const code = "QX7P-4MZ2K";
-  // Beneath the choice, with the setting it needs, in both languages.
+  // Beneath the choice, with the setting for a code ChatGPT's page refuses,
+  // in both languages.
   expect(en.startAiByCodeSetting).toBe(
-    "Turn on sign-in with a code in your ChatGPT security settings first. For a work account, its admin allows it.",
+    "If the ChatGPT page refuses the code, turn on sign-in with a code in your ChatGPT security settings. For a work account, its admin allows it.",
   );
   for (const copy of [cs, en])
     for (const aiPlace of ["panel", "own"] as const)

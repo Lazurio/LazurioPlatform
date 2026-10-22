@@ -3510,9 +3510,11 @@ passkey nor the password manager of the person's own computer (0201 point 7), so
 sign-in can stop there. Root decision 0201's point 10
 (HumanAndMachines/Lazurio#606) refines its point 4: the browser sign-in stays the main
 way, and beneath it ChatGPT offers a less prominent sign-in by code, which the person
-finishes on OpenAI's page in any browser, on their own computer or phone, after turning
-it on in their ChatGPT security settings (a work account's admin allows it). Claude has
-no sign-in by code; a long-lived `claude setup-token` is not offered.
+finishes on OpenAI's page in any browser, on their own computer or phone; where OpenAI's
+page refuses the code, the person turns sign-in with a code on in their ChatGPT security
+settings (a work account's admin allows it). *Amended 2026-10-22 (note below): the hint
+is now conditional, since a real account signed in without turning anything on.* Claude
+has no sign-in by code; a long-lived `claude setup-token` is not offered.
 
 1. **The same command, one flag.** `lazurio tools login codex --device-code` and `POST
    /api/tools/login/start {tool: "codex", deviceCode: true}` start the core's
@@ -3555,9 +3557,10 @@ no sign-in by code; a long-lived `claude setup-token` is not offered.
    then, as for the browser sign-in, the Codex app-server unit is restarted and T3 Code
    reads the providers again (`aiSignInEnd`, one end for both). Cancel kills the CLI.
 5. **Začínáme.** Beneath "Přihlásit ChatGPT" and "Přihlásit Claude" a quiet "Přihlásit
-   kódem" (a link-coloured button, ChatGPT's) with its one line, "Přihlášení kódem si
-   nejdřív zapněte v nastavení zabezpečení ChatGPT. U pracovního účtu ho povoluje jeho
-   správce.": wherever the step offers the choice, also after "Přihlásit jiný účet";
+   kódem" (a link-coloured button, ChatGPT's) with its one line, since 2026-10-22 "Kdyby
+   stránka ChatGPT kód nepřijala, zapněte si přihlášení kódem v nastavení zabezpečení
+   ChatGPT. U pracovního účtu ho povoluje jeho správce." (before it: "Přihlášení kódem si
+   nejdřív zapněte…"): wherever the step offers the choice, also after "Přihlásit jiný účet";
    never where the Organization provides the AI, while the AI is being read, on a Remote
    Environment without the Environment browser (the step keeps its line, as before) or on
    an Environment without the step (Team, Automated, public). While its code waits the
@@ -3598,6 +3601,33 @@ languages). And in a headless browser (root decision 0178) on the preview with
 `codex-signed-out`, in Czech and English: the quiet button and its line, the code and
 OpenAI's page, signed in once entered, and gh's dialog with its code through the same
 block.
+
+**Note of 2026-10-22: accepted with a real account (root decision 0178), and the hint
+made conditional.** The real `lazurio tools login codex --device-code` from main
+`435446a` ran on the user's Mac, in an isolated `HOME` and `CODEX_HOME` with file
+storage. The Mac's own Codex sign-in was untouched and the isolated home was deleted
+after each run.
+
+- Without an account, against OpenAI's live service:
+  - the page was exactly `codexDevicePage` and the prompt said "expires in 15 minutes";
+  - codes came as `AAA9-AAAA9` and `AA9A-A9A99`, both of `codexDeviceCode`'s shape, coloured
+    with ANSI codes and read plain;
+  - Ctrl-C ended the session `cancelled` and `codex` was gone.
+- With the user's own ChatGPT account:
+  - an unentered code ended `expired` exactly at its `expiresAt`;
+  - an entered one ended `signed-in`, exit 0, and `codex login status` answered "Logged in
+    using ChatGPT". On macOS there is no app-server unit (`not-managed`) and no `t3`
+    command (`not-installed`).
+
+OpenAI's page took the code without the user turning anything on. Telling every user
+to change a security setting first would send people on a detour they may not need. So Začínáme's line, the terminal's line with the code and `--help` now mention the
+setting only for a code OpenAI's page refuses (root decision 0201 point 10, wording
+refined on 2026-10-22, HumanAndMachines/Lazurio#618). The terminal's line after an expiry
+already said so.
+
+Still unseen: OpenAI's own refusal of a code where the setting is off. Also unchecked:
+Začínáme's button on a real Environment, which Example cannot show, since its AI there
+is the Organization's. The evidence is on Lazurio/LazurioPlatform#576 and #517.
 
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 

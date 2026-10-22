@@ -434,10 +434,11 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
     `https://auth.openai.com/codex/device` (any other address on a line of its own:
     `unexpected-url`) and a code of groups of capital letters and digits joined by
     dashes. The user enters it on that page in any browser, on any device; it needs no
-    Environment browser. Sign-in with a code must first be turned on in the user's
-    ChatGPT security settings (for a work account, by its admin); until then OpenAI's
-    page refuses the code, Codex keeps waiting and the session ends `expired` after the
-    code's 15 minutes. The sign-in lands where the browser sign-in's does, and ends the
+    Environment browser. Where sign-in with a code is off for the account, OpenAI's page
+    refuses the code and Codex keeps waiting: the user turns it on in their ChatGPT
+    security settings (for a work account, its admin does) and enters the same code
+    again, or the session ends `expired` after the code's 15 minutes. On 2026-10-22 a
+    real account signed in without turning anything on. The sign-in lands where the browser sign-in's does, and ends the
     same way (below). Claude has no sign-in by code.
   - Nothing starts on a Remote Environment without the Environment browser (`blocked`,
     `no-environment-browser`, exit 2; the browser sign-in only, whose line points to
