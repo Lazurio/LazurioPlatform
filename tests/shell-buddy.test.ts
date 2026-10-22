@@ -25,6 +25,7 @@ import {
   parseBuddyContext,
 } from "../src/shell/buddy-protocol";
 import {
+  isBuddysOwnPage,
   isShellBuddyOrigin,
   parseShell,
   parseShellAccount,
@@ -291,6 +292,43 @@ test("merged: on the Osobní Prostředí its own document's, else the account's 
   const plain = shellOf("work");
   expect(mergeAccount(plain, null)).toBe(plain);
   expect(mergeAccount(own, null)).toBe(own);
+});
+
+// F60's addendum of 2026-10-22: Buddy's chat is a T3 Code of his own on his
+// origin, which loads the shell like every app of an Environment. On that
+// page the rail and the bubble draw nothing (src/shell/elements.ts); every
+// other page keeps them as F60 draws them.
+test("Buddy's own page: the origin the merged document names as his, known before any document; no app's page, no other Environment's", () => {
+  expect(isBuddysOwnPage(buddy)).toBe(true);
+  // Every origin a merged document may name as Buddy's is his own page.
+  const account = accountOf({ buddy: { origin: buddy } });
+  for (const merged of [
+    mergeAccount(shellOf("personal", { buddy: { origin: buddy } }), null),
+    mergeAccount(shellOf("personal"), account),
+    mergeAccount(shellOf("work"), account),
+    mergeAccount(shellOf("team"), account),
+  ]) {
+    const origin = merged.buddy?.origin;
+    expect(origin !== undefined && isBuddysOwnPage(origin)).toBe(true);
+  }
+  for (const page of [
+    // The apps that frame him keep their rail and their bubble.
+    "https://launchpad.ada.lazurio.io",
+    "https://t3code.ada.lazurio.io",
+    "https://mausbot.ada.lazurio.io",
+    "https://launchpad.vm-01.example.lazurio.io",
+    // An Environment's base, an Organization's VM, the Dashboard, your
+    // computer, and what only looks like Buddy's origin.
+    "https://ada.lazurio.io",
+    "https://buddy.vm-01.example.lazurio.io",
+    "https://dashboard.lazurio.ai",
+    "http://localhost:3773",
+    "http://buddy.ada.lazurio.io",
+    "https://buddy.ada.lazurio.io:8443",
+    "https://buddy.ada.lazurio.io.evil.example",
+    "null",
+  ])
+    expect({ page, own: isBuddysOwnPage(page) }).toEqual({ page, own: false });
 });
 
 // ---- The hosted entry and the Launchpad's document ------------------------
