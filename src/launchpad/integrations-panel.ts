@@ -113,6 +113,9 @@ type Session = Readonly<{
   id: string;
   app: string;
   window: Window | null;
+  /** What started it, for a sign-in asked for again (#596). */
+  name: string | null;
+  again?: IntegrationAccount;
 }>;
 
 /** The page of a custom MCP server while its route is shown: the server
@@ -485,6 +488,7 @@ export function createIntegrationsPanel(
       if (kind === "pending") continue;
       sessions.delete(session.id);
       busy = new Set([...busy].filter((id) => id !== session.app));
+      const ended = (answer.value ?? {}) as Record<string, unknown>;
       if (kind === "connected") {
         // Its window has done its part; the person is back on the card.
         session.window?.close();
@@ -495,6 +499,29 @@ export function createIntegrationsPanel(
           text: fill(copy.integrationsConnectedNow, { app: name }),
           tone: "success",
         };
+      } else if (ended.reason === "mfa-required") {
+        // Microsoft wanted MFA the sign-in did not do (#596): once more in
+        // the Environment browser, where Microsoft guides the MFA step or a
+        // method's setup.
+        session.window?.close();
+        const app = overview?.apps.find((item) => item.id === session.app);
+        const name = app?.name ?? session.app;
+        note =
+          ended.retry === "environment-browser" && app !== undefined
+            ? {
+                text: fill(copy.integrationsConnectMfa, { app: name }),
+                tone: "warning",
+                action: {
+                  label: copy.integrationsSignInInEnvironment,
+                  run: () => {
+                    void connect(app, session.name, session.again, true);
+                  },
+                },
+              }
+            : {
+                text: fill(copy.integrationsConnectMfaHere, { app: name }),
+                tone: "warning",
+              };
       } else note = { text: copy.integrationsConnectEnded, tone: "warning" };
       await load(true);
       return;
@@ -506,11 +533,17 @@ export function createIntegrationsPanel(
     app: string,
     answer: { value: unknown; ok: boolean },
     reserved: Window | null,
+    retry: Pick<Session, "name" | "again"> = { name: null },
   ) {
     const copy = options.copy();
     const value = (answer.value ?? {}) as Record<string, unknown>;
     if (value.kind === "authorize" && typeof value.session === "string") {
-      const session: Session = { id: value.session, app, window: reserved };
+      const session: Session = {
+        id: value.session,
+        app,
+        window: reserved,
+        ...retry,
+      };
       sessions.set(session.id, session);
       if (typeof value.view === "string") {
         reserved?.close();
@@ -585,16 +618,21 @@ export function createIntegrationsPanel(
   }
 
   /** Starts connecting an app the way its card says; `again` signs one of
-   * its accounts in again. */
+   * its accounts in again; `inEnvironment` signs the company app in in the
+   * Environment browser (#596). */
   async function connect(
     app: IntegrationApp,
     name: string | null,
     again?: IntegrationAccount,
+    inEnvironment = false,
   ) {
     if (busy.has(app.id)) return;
     // Claimed in the click, before anything is awaited; closed again where
-    // the server answers no address for it.
-    const reserved = window.open("about:blank", "_blank");
+    // the server answers no address for it. The Environment browser needs
+    // no window of the person's own.
+    const reserved = inEnvironment
+      ? null
+      : window.open("about:blank", "_blank");
     busy = new Set([...busy, app.id]);
     note = null;
     render();
@@ -605,8 +643,12 @@ export function createIntegrationsPanel(
         ...(again?.path === "direct" && again.selector !== null
           ? { account: again.selector }
           : {}),
+        ...(inEnvironment ? { browser: "environment" } : {}),
       });
-      await started(app.id, answer, reserved);
+      await started(app.id, answer, reserved, {
+        name,
+        ...(again === undefined ? {} : { again }),
+      });
     } catch {
       reserved?.close();
       busy = new Set([...busy].filter((id) => id !== app.id));
@@ -1876,8 +1918,22 @@ export function createIntegrationsPanel(
     // region: `speak` says what changed.
     alert.hidden = note === null;
     alert.dataset.kind = note?.tone ?? "info";
+    const action = note?.action;
     alert.replaceChildren(
-      ...(note === null ? [] : noticeParts(note.tone, note.text)),
+      ...(note === null
+        ? []
+        : noticeParts(
+            note.tone,
+            note.text,
+            action === undefined
+              ? []
+              : [
+                  button(action.label, "", () => {
+                    note = null;
+                    action.run();
+                  }),
+                ],
+          )),
     );
     const problems: HTMLElement[] = [];
     // A reading that failed says so, with its retry, above the last one it

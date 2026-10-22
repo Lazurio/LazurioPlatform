@@ -170,7 +170,35 @@ export type ConnectRefusal =
 export type ConnectProgress =
   | Readonly<{ kind: "pending" }>
   | Readonly<{ kind: "connected"; app: string }>
-  | Readonly<{ kind: "ended"; reason: "failed" | "expired" | "cancelled" }>;
+  | Readonly<{ kind: "ended"; reason: "failed" | "expired" | "cancelled" }>
+  /** Microsoft refused the company app's code because the sign-in did not
+   * complete the multi-factor authentication it wants (#596). `retry` names the browser a
+   * new sign-in should run in: the Environment browser, where the sign-in
+   * comes from the address the code is redeemed at, so Microsoft asks for
+   * the step (or a method's registration) there; null where this
+   * Environment has none. */
+  | Readonly<{
+      kind: "ended";
+      reason: "mfa-required";
+      retry: "environment-browser" | null;
+    }>;
+
+/** Microsoft's answers that ask for multi-factor authentication: required
+ * (50076), strong authentication required (50074), a method to register
+ * first (50079, 50072). The copy says Microsoft wants MFA and guides it, or
+ * the registration of a method, in the Environment browser; it never
+ * promises a code. Executor carries them only in its failure's text
+ * (1.6.10). */
+const mfaRequiredCodes = /\bAADSTS(?:50072|50074|50076|50079)\b/;
+
+/** Whether an OAuth result of Executor failed because Microsoft wants MFA. */
+export function mfaRequired(
+  result: Readonly<Record<string, unknown>>,
+): boolean {
+  return [result.error, result.errorDetails].some(
+    (text) => typeof text === "string" && mfaRequiredCodes.test(text),
+  );
+}
 
 /** Why a custom server cannot be read or saved as one. */
 export type CustomRefusal =
@@ -572,14 +600,29 @@ export function createConnectSessions(host: () => ConnectHost) {
           result.status === 200 &&
           result.body !== null
         ) {
-          const ok = record(result.body).ok === true;
+          const answer = record(result.body);
+          const ok = answer.ok === true;
+          // Only the company app's own-browser sign-in can be retried in the
+          // Environment browser; one that already ran there is not (#596).
+          const mfa = !ok && session.company === true && mfaRequired(answer);
           session.outcome = ok
             ? { kind: "connected", app: session.app }
-            : { kind: "ended", reason: "failed" };
+            : mfa
+              ? {
+                  kind: "ended",
+                  reason: "mfa-required",
+                  retry:
+                    session.oauth?.launchpad === true &&
+                    host().environmentBrowser !== null
+                      ? "environment-browser"
+                      : null,
+                }
+              : { kind: "ended", reason: "failed" };
           journal({
             event: "connect",
             app: session.app,
             outcome: ok ? "connected" : "failed",
+            ...(mfa ? { reason: "mfa-required" } : {}),
           });
           ended(session);
           return;
@@ -628,10 +671,13 @@ export function createConnectSessions(host: () => ConnectHost) {
     app: CatalogApp,
     name: string | null,
     again: string | undefined,
+    inEnvironment: boolean,
   ): Promise<ConnectStart> {
     const executor = host().executor;
     if (executor === null)
       return { kind: "blocked", reason: "executor-unavailable" };
+    if (inEnvironment && host().environmentBrowser === null)
+      return { kind: "blocked", reason: "browser-unavailable" };
     const here = (await host().microsoft365?.()) ?? null;
     if (here === null || here.parts.length === 0)
       return { kind: "blocked", reason: "path-unavailable" };
@@ -656,10 +702,14 @@ export function createConnectSessions(host: () => ConnectHost) {
         return { kind: "blocked", reason: "account-unknown" };
       againName = connection;
     }
+    // Asked for again in the Environment browser (#596), the sign-in
+    // returns to Executor there even where the Launchpad's callback is
+    // registered.
     const callback = host().oauthCallback ?? null;
-    const redirectUri = microsoft365Registered(here.setting, callback)
-      ? callback
-      : null;
+    const redirectUri =
+      !inEnvironment && microsoft365Registered(here.setting, callback)
+        ? callback
+        : null;
     const started = record(
       answerOf(
         await executorCall(executor, "POST", "/oauth/start", {
@@ -718,8 +768,10 @@ export function createConnectSessions(host: () => ConnectHost) {
     app: CatalogApp,
     name: string | null,
     again: string | undefined,
+    inEnvironment: boolean,
   ): Promise<ConnectStart> {
-    if (app.id === microsoft365CardId) return connectCompany(app, name, again);
+    if (app.id === microsoft365CardId)
+      return connectCompany(app, name, again, inEnvironment);
     const executor = host().executor;
     if (executor === null)
       return { kind: "blocked", reason: "executor-unavailable" };
@@ -1047,6 +1099,9 @@ export function createConnectSessions(host: () => ConnectHost) {
       name: string | null,
       /** Signs this account in again (an expired or failed one). */
       again?: string,
+      /** The company app's sign-in runs in the Environment browser, asked
+       * for after Microsoft wanted MFA there (#596). */
+      inEnvironment = false,
     ): Promise<ConnectStart> {
       // The company app's card is no catalog entry: it stands for Outlook,
       // OneDrive and SharePoint where the Organization set it up.
@@ -1074,7 +1129,7 @@ export function createConnectSessions(host: () => ConnectHost) {
       }
       try {
         return path === "direct" && app !== undefined
-          ? await connectDirect(app, name, again)
+          ? await connectDirect(app, name, again, inEnvironment)
           : await connectComposio(viaComposio, name);
       } catch (error) {
         const reason =

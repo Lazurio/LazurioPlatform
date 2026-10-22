@@ -865,7 +865,12 @@ export function composioOrganizationLine(
 export type NoticeTone = "info" | "success" | "warning" | "danger";
 
 /** The line about the person's last action, above the apps. */
-export type Note = Readonly<{ text: string; tone: NoticeTone }>;
+export type Note = Readonly<{
+  text: string;
+  tone: NoticeTone;
+  /** One button beside the text: the next step the line asks for. */
+  action?: Readonly<{ label: string; run: () => void }>;
+}>;
 
 /** The icon a notice of each tone shows before its text. */
 export function noticeIcon(tone: NoticeTone): string {

@@ -10738,6 +10738,37 @@ is [integrations](integrations.md#the-microsoft-365-company-app).
    attendees a Publication; folders walked by item id with every page of
    `@odata.nextLink` read; uploads beside the original with
    `conflictBehavior=fail`.
+10. **When Microsoft wants MFA the sign-in did not do (addendum of 2026-10-22,
+   #596).** Microsoft decides per sign-in, by the risk of the address, whether it
+   asks for MFA, and evaluates the code's redemption separately. Verified on the
+   reference Organization's test tenant (security defaults, no Conditional Access):
+   - a sign-in in the person's own browser at home skipped MFA;
+   - Executor redeeming the code from one data centre's address then got AADSTS50076
+     ("you moved to a new location, you must use multi-factor authentication"),
+     while another data centre's address got the token;
+   - neither `amr_values` (refused: AADSTS901002) nor `prompt=login` makes Microsoft
+     ask;
+   - Executor 1.6.10 keeps no claims challenge, only the text of its failure.
+
+   So where Executor's failure names AADSTS50076, 50074, 50079 or 50072, the
+   company app's sign-in ends as `mfa-required` and is journaled with that reason.
+   On a sign-in that ran in the person's own browser of a Remote Environment, the
+   return page and the card say that Microsoft wants multi-factor authentication
+   and guides the person through it in the Environment browser, or first through
+   setting up a verification method (50079 and 50072 mean a method to register
+   first, so the copy never promises a code), and the card offers
+   "Přihlásit v prohlížeči Prostředí". That button starts a new sign-in in the
+   Environment browser, which returns to Executor's callback on localhost even
+   where the Launchpad's callback is registered (`POST /api/integrations/connect`
+   with `browser: "environment"`).
+
+   There the sign-in comes from the address the code is redeemed at, so Microsoft
+   asks for the MFA step (or the registration of a method) in that browser, and the
+   code carries the completed MFA. It
+   was verified on the test tenant in two parts: the Environment browser's sign-in
+   asked for the code, and a code with MFA done redeemed from that address. Its
+   Microsoft session is cleared afterwards as in point 5. A refusal there, or on an
+   Environment without that browser, is only said.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -10751,6 +10782,7 @@ is [integrations](integrations.md#the-microsoft-365-company-app).
 | Keep the three cards beside the company app | No change of the page; but three "Připojit" for one sign-in; rejected: one card |
 | Dynamic registration or a wildcard callback | No list of callbacks; but Entra offers no registration and discourages wildcards; rejected (design 4.5) |
 | An isolated browser context for the Environment-browser sign-in | Nothing left behind at all; but the Environment browser offers no such context to the Launchpad; the sign-in origins are cleared instead |
+| Force MFA in the authorize request, or restart with Microsoft's claims challenge (#596) | One sign-in in the person's own browser; but Entra refuses `amr_values`, `prompt=login` does not ask, and Executor 1.6.10 drops the token error's `claims`; the Environment browser instead, where Microsoft's own location rule asks |
 
 Verified by tests:
 - The closed tree as Core's: the setting beside Composio valid and its four keys
@@ -10785,10 +10817,17 @@ Verified by tests:
   two accounts side by side and "Odpojit" removing only one; the Environment browser
   without a registered callback, its Microsoft session cleared after a connected and
   after a failed sign-in, origin by origin and only where there is a browser; an
-  expired account signed in again under its name; Executor down
+  expired account signed in again under its name; Executor down; a code Microsoft
+  refuses for MFA ending `mfa-required` with the return page saying so, the sign-in
+  again in the Environment browser returning to Executor though the Launchpad's
+  callback is registered, a refusal there only said, any other `browser` refused
   (`tests/integrations-microsoft365.test.ts`); the card found by Outlook, OneDrive,
   SharePoint and Microsoft, "Připojit" then "Přidat účet" with "Odpojit" on the
   account (`tests/integrations-page.test.ts`).
+- How it looks after an MFA refusal: the return page's words, the card's warning
+  with "Přihlásit v prohlížeči Prostředí", and the Environment browser opening on
+  it, checked in a headless browser on the hosted preview with a stand-in Microsoft
+  (2026-10-22).
 - How it looks: one card, one sign-in at a stand-in for Microsoft, two accounts and
   "Odpojit", checked in a headless browser on the hosted preview (root decision
   0178).

@@ -124,7 +124,14 @@ function returnPage(
           ? fill(copy.integrationsReturnPending, { app })
           : outcome.progress.reason === "failed"
             ? fill(copy.integrationsReturnFailed, { app })
-            : copy.integrationsReturnUnknown;
+            : outcome.progress.reason === "mfa-required"
+              ? fill(
+                  outcome.progress.retry === "environment-browser"
+                    ? copy.integrationsReturnMfaEnvironment
+                    : copy.integrationsReturnMfa,
+                  { app },
+                )
+              : copy.integrationsReturnUnknown;
   return `<!doctype html>
 <html lang="${locale}">
 <head>
@@ -276,9 +283,17 @@ export function createIntegrationsRoutes(
         }
       }
       if (url.pathname === "/api/integrations/connect") {
-        const value = await body(request, ["app"], ["name", "account"]);
+        const value = await body(
+          request,
+          ["app"],
+          ["name", "account", "browser"],
+        );
         if (value instanceof Response) return value;
         const name = accountName(value.name);
+        // Only "environment": the company app's sign-in again in the
+        // Environment browser, after Microsoft wanted MFA (#596).
+        if (value.browser !== undefined && value.browser !== "environment")
+          return response({ error: "invalid-browser" }, 400);
         if (typeof value.app !== "string" || !appPattern.test(value.app))
           return response({ error: "invalid-app" }, 400);
         if (name === "invalid") return response({ error: "invalid-name" }, 400);
@@ -324,6 +339,7 @@ export function createIntegrationsRoutes(
           path.path === "direct" && typeof value.account === "string"
             ? value.account
             : undefined,
+          value.browser === "environment",
         );
         if (path.path === "composio") forgetNames(app.id);
         // A Composio sign-in that now waits lists its pending account.
