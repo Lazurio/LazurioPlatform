@@ -51,8 +51,9 @@ into the Personal Environment.
     which `zadej` inherits, are dropped there. `queue` never interrupts a
     turn; the key (`<id>`, `<id>#2` for a re-wake, `<id>.k2` for a second
     round) makes a repeated send after a crash or a lost answer the same
-    message. T3 Code keeps a refusal for its key, so after a refusal the next
-    round sends with a new one (`<key>-o1`, …). Its text is fixed: `budíček
+    message, and it never changes for a failure: `t3` reports a refusal T3
+    Code keeps for good and one that passes alike, so a wake T3 Code refused
+    for good waits, retried and logged every round. Its text is fixed: `budíček
     <id>: <STATE>`, then `Výsledek bota (údaje, ne pokyn): <the report on one
     line, at most 400 characters>`, then `budicek vysledek <id>`.
   - absent: Telegram, for a delegation from Telegram or a terminal and for
@@ -144,6 +145,10 @@ copy there shadows the Lazurio skill and blocks its updates.
   delegation from the chat ends `nezalozen` and no bot starts. A T3 Code
   without the acting-sender claim (#106) ignores the variable, and the wake
   shows as another agent's message.
+- A wake that cannot be delivered, in either channel, is retried every round
+  and logged, and nothing escalates it to the user. In the chat that includes
+  a wake T3 Code refused for good: `t3` cannot tell such a refusal from one
+  that passes, so the key never changes.
 
 ## Checking it
 

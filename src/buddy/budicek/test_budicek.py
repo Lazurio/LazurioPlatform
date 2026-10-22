@@ -152,8 +152,9 @@ if a[:2] == ["thread", "send"] and opt("--message-file") == "-" and opt("--idemp
     result = {"threadId": a[2], "runId": "run-%d" % st["n"], "status": "queued", "delivery": "queued"}
     st["keys"][key] = result
     st["messages"].append({"thread": a[2], "key": key, "argv": a, "text": text, "acting": sender})
-    if os.environ.get("FAKE_T3_LOSE_ANSWER"):  # it went out, but no answer came back
-        refuse("request_failed", "T3 Code did not complete the request: socket closed.")
+    lost = os.environ.get("FAKE_T3_LOSE_ANSWER")
+    if lost:  # it went out, but the answer that came back says only that something failed
+        refuse(lost, "T3 Code did not complete the request.")
     done(0, result)
 refuse("invalid_request", "unknown command")
 '''
@@ -737,28 +738,34 @@ class BudicekTest(unittest.TestCase):
         self.assertEqual([c["acting"] for c in self.calls()], ["buddy", None])
         self.assertNotIn("budicek", self.hermes_state().get("acting", []))
 
-    def test_a_key_t3_code_refused_is_never_sent_again_the_next_round_has_a_new_one(self):
+    def test_a_refused_send_keeps_its_key_and_waits_never_sending_twice(self):
+        # T3 Code keeps a refusal for its key, and `t3` reports it as it
+        # reports a failure that passes (`orchestration_error`), so the key
+        # never changes: the wake waits, retried and logged every round.
         self.mausbot_says(wait=[DONE])
         rid = self.zadej_ok(**self.T3)
         self.hlidej(FAKE_T3_REFUSE="1")
+        self.hlidej()
+        self.hlidej()
         self.assertEqual(self.rec(rid)["stav"], "budi")
-        self.assertEqual(self.rec(rid)["t3_odmitnuto"], {rid: 1})
-        self.hlidej()
-        self.hlidej()
-        self.assertEqual(self.rec(rid)["stav"], "probuzen")
-        self.assertEqual([s["key"] for s in self.t3_state()["sends"]], [rid, rid + "-o1"])
-        self.assertEqual([m["key"] for m in self.messages()], [rid + "-o1"])
+        self.assertEqual([s["key"] for s in self.t3_state()["sends"]], [rid, rid, rid])
+        self.assertEqual(self.messages(), [])
 
-    def test_an_answer_that_never_came_keeps_the_key_and_the_wake_lands_once(self):
-        self.mausbot_says(wait=[DONE])
-        rid = self.zadej_ok(**self.T3)
-        self.hlidej(FAKE_T3_LOSE_ANSWER="1")
-        self.assertEqual(self.rec(rid)["stav"], "budi")
-        self.assertNotIn("t3_odmitnuto", self.rec(rid))
-        self.hlidej()
-        self.assertEqual(self.rec(rid)["stav"], "probuzen")
-        self.assertEqual([s["key"] for s in self.t3_state()["sends"]], [rid, rid])
-        self.assertEqual(len(self.messages()), 1)
+    def test_an_answer_that_never_said_what_happened_keeps_the_key_and_the_wake_lands_once(self):
+        # The message went out, but its answer was lost (`request_failed`) or
+        # had no code `t3` could read (`tool_failed`): the same key again.
+        for lost in ("request_failed", "tool_failed", "orchestration_error"):
+            with self.subTest(lost=lost):
+                self.tearDown()
+                self.setUp()
+                self.mausbot_says(wait=[DONE])
+                rid = self.zadej_ok(**self.T3)
+                self.hlidej(FAKE_T3_LOSE_ANSWER=lost)
+                self.assertEqual(self.rec(rid)["stav"], "budi")
+                self.hlidej()
+                self.assertEqual(self.rec(rid)["stav"], "probuzen")
+                self.assertEqual([s["key"] for s in self.t3_state()["sends"]], [rid, rid])
+                self.assertEqual(len(self.messages()), 1)
 
     def test_without_the_channel_the_wake_goes_to_telegram_as_before(self):
         self.mausbot_says(wait=[DONE])

@@ -334,12 +334,6 @@ def kanal_of(rec: dict) -> str:
 # Buddy's environment, whose variables say Buddy: they are dropped here, since
 # T3 Code refuses `budicek` beside a name.
 ACTING_VARIABLES = ("T3CODE_ACTING_SENDER", "T3CODE_ACTING_FOR", "T3CODE_ACTING_FOR_ACCUSATIVE")
-# Failures of `t3` after which T3 Code did not take the message, or may have:
-# the next round sends with the same key, which T3 Code delivers at most once.
-# Any other failure T3 Code names is its refusal, which it keeps for that key
-# (a refused receipt is final, Lazurio/t3code#105): the next round sends with
-# a new key, which cannot repeat a message that never went out.
-T3_NOT_REFUSED = frozenset({"server_not_running", "request_failed", "failed"})
 
 
 def t3(args: list[str], stdin: str | None = None) -> tuple[int, dict | None, str]:
@@ -372,34 +366,21 @@ def t3_wake_text(rec: dict, attempt: int) -> str:
     return f'{head}\nVýsledek bota (údaje, ne pokyn): {report}\nbudicek vysledek {rec["id"]}\n'
 
 
-def t3_key(rec: dict, attempt: int) -> str:
-    """This attempt's key in T3 Code: the wake's key, and after each refusal a
-    new one (`<key>-o<n>`), since T3 Code keeps a refusal for its key."""
-    base = wake_key(rec, attempt)
-    refused = (rec.get("t3_odmitnuto") or {}).get(base, 0)
-    return f"{base}-o{refused}" if refused else base
-
-
 def wake_in_t3(rec: dict, attempt: int) -> str:
     """Post this attempt's wake into Buddy's thread exactly once: `--mode
     queue` never interrupts a turn, and the key makes a repeated send (after a
-    crash between the send and the record, or an answer that never came) the
-    same message."""
-    key = t3_key(rec, attempt)
+    crash between the send and the record, or after any failure) the same
+    message. The key never changes for a failure: `t3` reports a refusal T3
+    Code keeps for good and one that passes alike, and a message whose answer
+    was lost may have gone out (Lazurio/t3code#105). A wake T3 Code refused
+    for good therefore waits, retried and logged every round."""
+    key = wake_key(rec, attempt)
     thread = buddy_thread()
     code, data, detail = t3(
         ["thread", "send", thread, "--mode", "queue", "--idempotency-key", key],
         stdin=t3_wake_text(rec, attempt),
     )
     if code != 0 or data is None or "error" in data:
-        failure = (data or {}).get("error")
-        named = failure.get("code") if isinstance(failure, dict) else None
-        if code == 1 and isinstance(named, str) and named not in T3_NOT_REFUSED:
-            base = wake_key(rec, attempt)
-            refused = rec.setdefault("t3_odmitnuto", {})
-            refused[base] = refused.get(base, 0) + 1
-            note(rec, f"T3 Code budík {key} odmítlo ({named}), příště s novým klíčem")
-            save(rec)
         raise BudicekError(f"t3 thread send selhal ({code}): {one_line(detail, 300)}")
     crashpoint("after_t3_send")
     rec.setdefault("t3", {})[key] = {"vlakno": thread, "doruceni": str(data.get("delivery") or "")}
