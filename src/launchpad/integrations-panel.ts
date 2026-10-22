@@ -501,7 +501,8 @@ export function createIntegrationsPanel(
         };
       } else if (ended.reason === "mfa-required") {
         // Microsoft wanted MFA the sign-in did not do (#596): once more in
-        // the Environment browser, where Microsoft asks for the code.
+        // the Environment browser, where Microsoft guides the MFA step or a
+        // method's setup.
         session.window?.close();
         const app = overview?.apps.find((item) => item.id === session.app);
         const name = app?.name ?? session.app;
