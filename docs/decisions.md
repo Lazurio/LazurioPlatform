@@ -17921,7 +17921,9 @@ persona, memory, tools and model), and ACP is the only seam between them. The Pl
    Lazurio's own words never name the mechanism, a command, a state or an error code, and the
    delegation's id appears nowhere: a path in the task's own folder, which the brief asks every
    helper to write to, keeps only the path inside it, and the folder or any other mention of the
-   id becomes the task's title (Pablo's review of #604). A T3 Code without the
+   id becomes the task's title (Pablo's reviews of #604). The path's whole home goes, anchored on
+   its start (the service's own home, `~`, `/home/<name>`, `/Users/<name>` or `/root`, a name
+   with spaces included), so the words before a path stay as written. A T3 Code without the
    claim ignores the variable, and the notice shows as another agent's message; one whose claim
    lacks the kind `delegace` refuses every `t3` Delegace runs, so a Platform with the rename
    ships together with a T3 Code that carries #106 with that kind.
@@ -17970,7 +17972,8 @@ the bot, one queued message with its key and text, a bounded report, a restart r
 send and at every other step notifying once, T3 Code down and back, no thread, a bot that does
 not start, a second round, repeated notices and the Telegram last resort in Lazurio's words for
 every state, without the delegation's id from a report's or a question's absolute paths here and
-in another Environment's home, unknown channels, Telegram without the channel and from an old record, a record
+in another Environment's home, a home with spaces among them, and with the words before a path
+left as written, unknown channels, Telegram without the channel and from an old record, a record
 from before the rename going on; Delegace's `t3` acting with its kind even inside Buddy's
 environment and nothing else it runs doing so; a refused send keeping its key and never sending
 twice; a message that went out with a lost or unreadable answer, `request_failed`, `tool_failed`

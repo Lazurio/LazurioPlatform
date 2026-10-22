@@ -97,7 +97,11 @@ into the Personal Environment.
   appears nowhere in the message: the brief asks every helper to write its
   files into the task's own folder, named by the id, so a path there keeps
   only the path inside it (`rozbor.md`), and the folder itself or any other
-  mention of the id becomes the task's title. The helper's words are
+  mention of the id becomes the task's title. The whole home of such a path
+  goes, anchored on its start: this service's own home, `~`, or a home under
+  `/home/`, `/Users/` or `/root`, whose own name may hold spaces
+  (`/home/Jane Doe/…`); words before the path stay as written. A path in any
+  other home only loses the id to the title. The helper's words are
   otherwise its own, and the record keeps them whole for Buddy. For a
   finished task:
 

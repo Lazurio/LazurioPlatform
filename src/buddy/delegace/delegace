@@ -921,8 +921,16 @@ PERSON_SAYS = {
     STAV_NESPUSTIL: "Úkol „{nazev}“ se nepodařilo předat pomocníkovi {bot}.",
 }
 PERSON_TEXT_LIMIT = 1500
-# A path segment as a report writes one: no space, quote, bracket or slash.
-PATH_SEGMENT = r"[^/\s`'\"„“‚‘<>()\[\]{}]+"
+# The homes a task's folder is written in, besides this service's own, which
+# `output_dir` names exactly: `~`, as the brief names another Environment's,
+# and the homes of a Linux or macOS user. The whole home is anchored on its
+# known start, so a home's own segment may hold spaces or punctuation (never
+# a slash or a line end) and the match never reaches into the words before
+# the path (Pablo's review of #604).
+HOME_SHAPES = (r"~", r"/home/[^/\n]+", r"/Users/[^/\n]+", r"/root")
+# What starts a path inside the task's folder, rather than end a sentence or
+# a quotation after the folder itself.
+PATH_START = r"[^\s`'\"„“‚‘<>()\[\]{},;:!?.]"
 
 
 def without_id(rec: dict, text: str) -> str:
@@ -932,8 +940,9 @@ def without_id(rec: dict, text: str) -> str:
     inside it, and the folder itself or any other mention of the id becomes
     the task's title. The words are the helper's own; nothing else changes."""
     title = f'„{rec["nazev"]}“'
-    folder = rf'(?:~|(?:/{PATH_SEGMENT})*)/Documents/buddy/{re.escape(rec["id"])}'
-    text = re.sub(folder + r"/(?=[^\s`'\"„“‚‘<>()\[\]{},;:!?.])", "", text)
+    homes = "|".join((re.escape(os.path.expanduser("~")),) + HOME_SHAPES)
+    folder = rf'(?:{homes})/Documents/buddy/{re.escape(rec["id"])}'
+    text = re.sub(rf"{folder}/(?={PATH_START})", "", text)
     text = re.sub(folder + "/?", lambda _match: title, text)
     return text.replace(rec["id"], title)
 

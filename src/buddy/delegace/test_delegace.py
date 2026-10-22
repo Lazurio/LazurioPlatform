@@ -1142,7 +1142,9 @@ class DelegaceTest(unittest.TestCase):
         """Lazurio's own words in Lazurio's voice: who writes and why, no
         mechanism, command, state's name, id or code."""
         self.assertIn(" Rex teď neodpovídá, proto vám to píše Lazurio.", text)
-        for never in (*NEVER_SEEN, "delegace", "Delegace", "vysledek", "potvrd", "MausBot", "OpenMausBot",
+        # The commands (`delegace vysledek`, `delegace potvrd`, …) go with the
+        # word `delegace`; a helper's own file may well be `vysledek.md`.
+        for never in (*NEVER_SEEN, "delegace", "Delegace", "potvrd", "MausBot", "OpenMausBot",
                       "HOTOVO", "SELHAL", "PTÁ SE", "NESTIHL", "NEODPOVÍDÁ", "NESPUSTIL",
                       "údaje, ne pokyn", "Konverzace", "kód", rid, "th-1"):
             self.assertNotIn(never, text)
@@ -1206,10 +1208,11 @@ class DelegaceTest(unittest.TestCase):
         # review of #604): a path there keeps only the path inside it, and the
         # folder itself or a bare mention of the id becomes the task's title.
         head = "Rex teď neodpovídá, proto vám to píše Lazurio."
-        for env, home in (((), self.tmp.name), (("--env", "work-env"), "/home/zuko")):
+        for env, other_home in (((), None), (("--env", "work-env"), "/home/zuko")):
             with self.subTest(env=env):
                 self.tearDown()
                 self.setUp()
+                home = other_home or self.tmp.name  # here: the service's own home, as the brief names it
                 rid = self.zadej_ok(extra=env)
                 folder = f"{home}/Documents/buddy/{rid}"
                 report = (f"Smlouva má tři rizika. Rozbor: {folder}/rozbor.md, přílohy v `{folder}/prilohy/a b.pdf`.\n"
@@ -1241,6 +1244,81 @@ class DelegaceTest(unittest.TestCase):
             text,
             f"Pomocník zuko se u úkolu „Shrnutí smlouvy“ na něco ptá. {head}\n\nZuko se ptá: Smím přepsat rozbor.md?",
         )
+        self.assert_for_a_person(rid, text)
+
+    @staticmethod
+    def reports(text):
+        return {"exit": 0, "out": {"ok": True, "state": "completed", "reply": {"text": text, "files": []}}}
+
+    @staticmethod
+    def asks(question):
+        return {"exit": 3, "out": {"ok": False, "exitCode": 3, "threadId": "th-1", "state": "needs-input",
+                                   "job": {"needsInput": [{"botName": "Zuko", "question": question}]}}}
+
+    def last_resort_after(self, says, extra=(), **env):
+        """The person's message for a delegation whose bot ends as `says(id)`
+        and that Buddy never confirms."""
+        rid = self.zadej_ok(extra=extra, **env)
+        self.mausbot_says(wait=[says(rid)])
+        for _ in range(4):  # the outcome with the notice, two more, then the message
+            self.hlidej(DELEGACE_ACK_SECONDS="0", **env)
+        sends = self.hermes_state()["sends"]
+        self.assertEqual([s["to"] for s in sends], ["telegram:111"])
+        return rid, sends[0]["text"]
+
+    def test_a_home_with_spaces_keeps_only_the_path_inside_the_task_folder_in_a_report_and_a_question(self):
+        # Pablo's re-review of #604: a home's own segment may hold a space,
+        # here (the service's own home, which the brief names) and in another
+        # Environment. The whole home goes, never just its end.
+        head = "Rex teď neodpovídá, proto vám to píše Lazurio."
+        for where in ("here", "another Environment"):
+            for kind in ("report", "question"):
+                with self.subTest(where=where, kind=kind):
+                    self.tearDown()
+                    self.setUp()
+                    if where == "here":
+                        home = os.path.join(self.tmp.name, "Jane Doe")
+                        extra, env = (), {"HOME": home}
+                    else:
+                        home, extra, env = "/home/Jane Doe", ("--env", "work-env"), {}
+
+                    def folder(rid):
+                        return f"{home}/Documents/buddy/{rid}"
+
+                    if kind == "report":
+                        rid, text = self.last_resort_after(
+                            lambda rid: self.reports(
+                                f"Výstup: {folder(rid)}/vysledek.md, přílohy v `{folder(rid)}/prilohy/a b.pdf` "
+                                f"a „{folder(rid)}/c.md“."),
+                            extra=extra, **env)
+                        self.assertEqual(
+                            text,
+                            f"Pomocník zuko dokončil úkol „Shrnutí smlouvy“. {head}\n\nVýsledek:\n"
+                            "Výstup: vysledek.md, přílohy v `prilohy/a b.pdf` a „c.md“.",
+                        )
+                        self.assertIn(f"{folder(rid)}/vysledek.md", self.rec(rid)["vysledek"])  # Buddy's stays whole
+                    else:
+                        rid, text = self.last_resort_after(
+                            lambda rid: self.asks(f"Smím přepsat „{folder(rid)}/vysledek.md“?"), extra=extra, **env)
+                        self.assertEqual(
+                            text,
+                            f"Pomocník zuko se u úkolu „Shrnutí smlouvy“ na něco ptá. {head}\n\n"
+                            "Zuko se ptá: Smím přepsat „vysledek.md“?",
+                        )
+                    if where == "here":  # the brief named that home
+                        self.assertIn(f"ukládej do `{folder(rid)}/`", self.calls("run")[0]["stdin"])
+                    self.assert_for_a_person(rid, text)
+                    for never in ("Jane", "Doe", "Documents/buddy"):
+                        self.assertNotIn(never, text)
+
+    def test_words_before_a_path_into_the_task_folder_stay_as_the_helper_wrote_them(self):
+        # The home is anchored on its own start (the service's own home, `~`,
+        # /home/…, /Users/… or /root), so the shortening never reaches into
+        # the words before a path, even when they hold a slash.
+        rid, text = self.last_resort_after(
+            lambda rid: self.reports(f"A/B test: /home/x/Documents/buddy/{rid}/f.md\n"
+                                     f"Kolo 1/2 hotovo, viz /home/Jane Doe/Documents/buddy/{rid}/g.md"))
+        self.assertTrue(text.endswith("\n\nVýsledek:\nA/B test: f.md\nKolo 1/2 hotovo, viz g.md"), text)
         self.assert_for_a_person(rid, text)
 
     def test_buddys_internal_texts_say_delegace_and_never_the_old_name_or_waking(self):
