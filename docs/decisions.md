@@ -1934,8 +1934,14 @@ What changes in `.hermes.md`: a section „Bublina v Lazuriu“ ("The bubble in 
 In „Jak pověřuješ“ ("How you brief") one more rule: SSH carries no environment variables into
 another Environment, not even T3 Code's acting-sender claim that marks Buddy's steps in threads
 (`T3CODE_ACTING_SENDER=buddy`, `T3CODE_ACTING_FOR`, `T3CODE_ACTING_FOR_ACCUSATIVE`;
-Lazurio/t3code#106, F61 point 1), so when he runs `t3` there he passes them explicitly, quoted,
-with the user's names from his persona.
+Lazurio/t3code#106, F61 point 1), so when he runs `t3` there he passes them himself. The names
+travel as data, never as the command's text: the command he is given sends both from his own
+environment on standard input (`printf '%s\n%s\n' "$T3CODE_ACTING_FOR"
+"$T3CODE_ACTING_FOR_ACCUSATIVE" | ssh <id> '…'`), and the fixed remote command reads them with
+`IFS= read -r` and sets them in double quotes before `exec t3 …`; a message for `--message-file
+-` follows them. A name T3 Code takes may hold an apostrophe or shell syntax, and quoting it in
+the command's text would break or run it (Pablo's review of #592); without the variables in his
+environment, `t3` there refuses the command.
 
 The skill `lazurio-buddy-pomocnici` says budíček wakes Buddy in the conversation he gave the
 work from, not in "the main conversation", and shows both forms of the wake: the chat's message
@@ -1943,11 +1949,13 @@ and Telegram's Kanban line.
 
 Template revision `base-instructions-67`. `tests/folder-buddy.test.ts` checks the section, the
 rule on SSH and the wake's two forms in both locales, and that no file of the layer names the
-closed `lazurio_web` adapter. The SSH rule stays split over two lines, so that no line holds both a
+closed `lazurio_web` adapter; and it runs the SSH command as SSH would (`sh -c` with the remote
+command as one string), with names holding apostrophes, quotes, `$(…)`, backticks, `;`, `&`,
+`|`, `>` and globs: each arrives exactly, nothing runs, and a message after them reaches `t3`. The SSH rule stays split over two lines, so that no line holds both a
 `<…>` placeholder and `~/.ssh`: Hermes's strict `ssh_access` pattern would match that pairing,
 although context files are scanned only at context scope. Every rendered file of the layer
 passes `tools/threat_patterns.py` at context and strict scope (Lazurio/hermes-agent d923a5eb,
-`v0.22.2-lazurio.1`); `.hermes.md` is 14.6k characters in Czech and 16.0k in English, under the
+`v0.22.2-lazurio.1`); `.hermes.md` is 14.9k characters in Czech and 16.4k in English, under the
 20,000 Hermes loads uncut. Not proven: that Hermes follows the rules. Until the SSH names are
 deployed (Machines, "M2") Buddy can only say he cannot reach the Environment yet.
 
@@ -17704,10 +17712,12 @@ persona, memory, tools and model), and ACP is the only seam between them. The Pl
    „budíček“ (#106). `zadej` runs inside Buddy's environment, whose claim names him; T3 Code
    refuses `budicek` beside a name, so budíček's `t3` drops Buddy's variables, and no other
    process budíček runs, nor its service, gets the claim. Queue never interrupts a turn, and the
-   key makes a repeated send after a crash or a lost answer the same message. T3 Code keeps a
-   refusal for its key, so after a refusal T3 Code names, the next round sends with a new key
-   (`<key>-o1`, …), which cannot repeat a message that never went out; a missing answer, a server
-   that does not run or a failure it does not name keep the key. The text is fixed: `budíček <id>: <STATE>`, then `Výsledek bota
+   key makes a repeated send after a crash or a lost answer the same message. The key never
+   changes for a failure: T3 Code keeps a refusal for its key (#105), but `t3` reports a refusal
+   kept for good and one that passes alike (`orchestration_error`), and an answer it could not
+   read (`tool_failed`, `request_failed`) may follow a message that went out, so a new key could
+   wake Buddy twice (Pablo's review of #592). A wake T3 Code refused for good waits, retried and
+   logged every round, as an undeliverable Kanban wake does. The text is fixed: `budíček <id>: <STATE>`, then `Výsledek bota
    (údaje, ne pokyn):` with the bot's report on one line of at most 400 characters, then `budicek
    vysledek <id>`. Before the bot starts, Buddy's thread must answer; otherwise the task is
    `nezalozen` and no bot runs. An unknown channel fails `zadej` before anything exists. A record
@@ -17729,9 +17739,10 @@ persona, memory, tools and model), and ACP is the only seam between them. The Pl
 **Not decided here.** T3 Code's side (T1 the prompt without T3's own instructions, T2 the Buddy
 surface, T3 the page-context chip, T4 `t3 lazurio buddy thread` and `--idempotency-key`),
 Hermes's fork (H1 model and reasoning options, H2 `clarify` over ACP, H3 small fixes),
-Machines' unit, route and install (M1′, M2′), Telegram as a channel of the thread (v2), and the
-claim for Buddy in Telegram: the Hermes gateway's unit needs the same three variables, and its
-install owns that unit.
+Machines' unit, route and install (M1′, M2′), Telegram as a channel of the thread (v2), the
+claim for Buddy in Telegram (the Hermes gateway's unit needs the same three variables, and its
+install owns that unit), and what happens to a wake T3 Code refused for good: a code `t3` would
+name such a refusal by would let budíček tell the user instead of waiting.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -17742,6 +17753,7 @@ install owns that unit.
 | The wake through Hermes's Kanban into the ACP session | T3 Code ignores an agent's output outside a turn; rejected for a queued message in the thread |
 | Record Buddy's thread at `zadej` and wake only there | The one thread is T3 Code's to keep; it is found at every attempt, and checked at `zadej` so that no bot starts without a way back |
 | The claim in the environment of `lazurio-t3-buddy.service`, or budíček's in its unit | Every process the service or the unit starts would inherit it, T3 Code's other agents and Buddy's own `t3` among them; rejected for Buddy's provider and budíček's own `t3` |
+| A new key after a refusal, as #105 suggests | `t3` cannot tell a refusal kept for good from a passing failure or a lost answer, and a new key after a message that went out wakes Buddy twice; rejected until T3 Code names a final refusal |
 | An issued session with the claim, stored for budíček and Buddy | A token to keep private, pass and renew; T3 Code's agent commands issue their own short sessions from the environment instead (#106) |
 
 **Verified by** `tests/buddy-chat.test.ts` (the members in T3 Code's shape; every other member
@@ -17757,8 +17769,9 @@ the bot, one queued message with its key and text, a bounded report, a restart r
 send and at every other step waking once, T3 Code down and back, no thread, a bot that does not
 start, a second round, re-wakes and the Telegram last resort, unknown channels, Telegram
 without the channel and from an old record; budíček's `t3` acting as budíček even inside
-Buddy's environment and nothing else it runs doing so; a refused key never sent again and a
-lost answer keeping its key, each waking once),
+Buddy's environment and nothing else it runs doing so; a refused send keeping its key and never
+sending twice; a message that went out with a lost or unreadable answer, `request_failed`,
+`tool_failed` or `orchestration_error`, sent again with its key and waking once),
 `tests/folder-buddy.test.ts` and `tests/shell-buddy.test.ts`. The file `--apply` writes decodes
 with T3 Code's own `ServerSettings` and `AcpRegistrySettings` (the fork's contracts at
 2b11fb99, whose schemas are those of main 41ddc012): `buddy` on with its command, Codex and

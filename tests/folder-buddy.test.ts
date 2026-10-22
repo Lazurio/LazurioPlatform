@@ -4,6 +4,7 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   realpath,
   rm,
@@ -286,7 +287,8 @@ test(".hermes.md says how Buddy treats his chat in Lazurio: one conversation, it
   ])
     expect(bubble.en).toContain(phrase);
   // SSH carries no environment, so Buddy passes T3 Code's acting-sender
-  // claim (Lazurio/t3code#106) to `t3` in another Environment himself.
+  // claim (Lazurio/t3code#106) to `t3` in another Environment himself, the
+  // names as data on standard input (the end-to-end test below).
   const rules = {
     cs: section(scriptLayer("cs")[buddyRulesPath], "## Jak pověřuješ"),
     en: section(scriptLayer("en")[buddyRulesPath], "## How you brief"),
@@ -294,17 +296,11 @@ test(".hermes.md says how Buddy treats his chat in Lazurio: one conversation, it
   expect(rules.cs).toContain(
     "Do jiného Prostředí SSH proměnné prostředí nepřenese",
   );
+  expect(rules.cs).toContain("Do textu příkazu je nikdy nevkládej");
   expect(rules.en).toContain(
     "SSH carries no environment variables into another Environment",
   );
-  for (const text of [rules.cs, rules.en])
-    for (const phrase of [
-      "ssh <",
-      "\"T3CODE_ACTING_SENDER=buddy T3CODE_ACTING_FOR='<",
-      "T3CODE_ACTING_FOR_ACCUSATIVE='<",
-      "' t3 …\"`",
-    ])
-      expect(text).toContain(phrase);
+  expect(rules.en).toContain("Never put them into the command's text");
   // The closed web adapter's channel is gone from every file of the layer.
   for (const locale of locales)
     for (const text of Object.values(scriptLayer(locale)))
@@ -330,6 +326,84 @@ test(".hermes.md says how Buddy treats his chat in Lazurio: one conversation, it
     expect(helpers.en).toContain(phrase);
   expect(helpers.en).not.toContain("main conversation");
 });
+
+// The command .hermes.md gives Buddy for `t3` in another Environment, run as
+// SSH would run it: the remote side is the user's shell with `-c` and the
+// remote command as one string. Every name T3 Code takes for the claim
+// arrives exactly, and none is ever shell syntax, whatever it holds.
+const posixShell = test.skipIf(process.platform === "win32");
+posixShell(
+  "the SSH command passes any of the user's names to t3 exactly and never runs one: apostrophes, quotes and shell syntax arrive as data, and a message follows them",
+  async () => {
+    const commands = locales.map((locale) =>
+      section(
+        scriptLayer(locale)[buddyRulesPath],
+        locale === "cs" ? "## Jak pověřuješ" : "## How you brief",
+      )
+        .split("\n")
+        .find((line) => line.startsWith("printf '%s\\n%s\\n' ")),
+    );
+    expect(commands[0]?.replace("<id Prostředí>", "<environment id>")).toBe(
+      commands[1] as string,
+    );
+    const template = commands[0] as string;
+    // `ssh <host> '<command>'` runs `$SHELL -c '<command>'` there; `t3`
+    // prints what it got.
+    const asSsh = (tail: string) =>
+      template
+        .replace("ssh <id Prostředí> ", "sh -c ")
+        .replace("exec t3 …'", `${tail}'`);
+    const directory = await mkdtemp(join(tmpdir(), "buddy-ssh-"));
+    try {
+      for (const [name, accusative] of [
+        ["O'Neil", "O'Neila"],
+        ["Ada'; touch PWNED; #", "Adu' && touch PWNED"],
+        ["$(touch PWNED)", "`touch PWNED`"],
+        ['Jan "Honza" Novák', "Jana \\\\ Nováka"],
+        ["Žofie & Co | x > y", "* ? [a] $HOME"],
+      ] as const) {
+        const run = Bun.spawnSync(["/bin/sh", "-c", asSsh("exec env")], {
+          cwd: directory,
+          env: {
+            PATH: process.env.PATH ?? "/usr/bin:/bin",
+            T3CODE_ACTING_FOR: name,
+            T3CODE_ACTING_FOR_ACCUSATIVE: accusative,
+          },
+        });
+        expect(run.exitCode).toBe(0);
+        const got = run.stdout.toString().split("\n");
+        expect({
+          name,
+          got: got.filter((line) => line.startsWith("T3CODE_ACTING_")).sort(),
+        }).toEqual({
+          name,
+          got: [
+            `T3CODE_ACTING_FOR=${name}`,
+            `T3CODE_ACTING_FOR_ACCUSATIVE=${accusative}`,
+            "T3CODE_ACTING_SENDER=buddy",
+          ].sort(),
+        });
+      }
+      expect(await readdir(directory)).toEqual([]);
+      // A message for `--message-file -` follows both names on the input.
+      const withMessage = asSsh("exec cat").replace(
+        `printf '%s\\n%s\\n' "$T3CODE_ACTING_FOR" "$T3CODE_ACTING_FOR_ACCUSATIVE" |`,
+        `{ printf '%s\\n%s\\n' "$T3CODE_ACTING_FOR" "$T3CODE_ACTING_FOR_ACCUSATIVE"; printf 'Zpráva\\nna dva řádky\\n'; } |`,
+      );
+      const message = Bun.spawnSync(["/bin/sh", "-c", withMessage], {
+        cwd: directory,
+        env: {
+          PATH: process.env.PATH ?? "/usr/bin:/bin",
+          T3CODE_ACTING_FOR: "O'Neil",
+          T3CODE_ACTING_FOR_ACCUSATIVE: "O'Neila",
+        },
+      });
+      expect(message.stdout.toString()).toBe("Zpráva\nna dva řádky\n");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
 
 test("the layer names no person and no Operator: it is about the user, with the address and the names from the persona", () => {
   for (const locale of locales)

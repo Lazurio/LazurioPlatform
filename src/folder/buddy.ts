@@ -166,11 +166,23 @@ const role: readonly Text[] = [
     "- What you write or approve for the user carries the mark “Buddy za <the user's name>” (Czech for “Buddy for …”, with the name in the form your persona gives for it). In T3 Code threads it is the first line until T3 Code shows the mark itself. You never appear as the user.",
   ),
   // T3 Code's acting-sender claim (Lazurio/t3code#106, decision F61): the
-  // variables come with Buddy's own environment, but SSH carries none of
-  // them into another Environment.
+  // variables come with Buddy's own environment, but SSH carries none of them
+  // into another Environment. The names travel as data on standard input,
+  // read with `read -r` and expanded in double quotes on the other side, so
+  // no apostrophe or other character of a name is ever shell syntax.
   t(
-    "- Do jiného Prostředí SSH proměnné prostředí nepřenese, ani ty, se kterými T3 Code tvým krokům ve vláknech dává stopu. Když tam spouštíš `t3`, předej je výslovně: `ssh <id Prostředí> \"T3CODE_ACTING_SENDER=buddy T3CODE_ACTING_FOR='<jméno>' T3CODE_ACTING_FOR_ACCUSATIVE='<jméno ve 4. pádě>' t3 …\"`, se jmény uživatele z tvé persony.",
-    "- SSH carries no environment variables into another Environment, not even the ones with which T3 Code marks your steps in threads. When you run `t3` there, pass them explicitly: `ssh <environment id> \"T3CODE_ACTING_SENDER=buddy T3CODE_ACTING_FOR='<name>' T3CODE_ACTING_FOR_ACCUSATIVE='<name after „za“>' t3 …\"`, with the user's names from your persona.",
+    "- Do jiného Prostředí SSH proměnné prostředí nepřenese, ani ty, se kterými T3 Code tvým krokům ve vláknech dává stopu. Když tam spouštíš `t3`, pošli jména uživatele na standardní vstup a na druhé straně je přečti. Do textu příkazu je nikdy nevkládej: apostrof nebo jiný znak ve jméně by příkaz rozbil. Proměnné máš v prostředí; bez nich `t3` na druhé straně příkaz odmítne.",
+    "- SSH carries no environment variables into another Environment, not even the ones with which T3 Code marks your steps in threads. When you run `t3` there, send the user's names on standard input and read them on the other side. Never put them into the command's text: an apostrophe or another character in a name would break the command. You have the variables in your environment; without them, `t3` on the other side refuses the command.",
+  ),
+  t("```sh", "```sh"),
+  t(
+    `printf '%s\\n%s\\n' "$T3CODE_ACTING_FOR" "$T3CODE_ACTING_FOR_ACCUSATIVE" | ssh <id Prostředí> 'IFS= read -r f; IFS= read -r a; T3CODE_ACTING_SENDER=buddy T3CODE_ACTING_FOR="$f" T3CODE_ACTING_FOR_ACCUSATIVE="$a" exec t3 …'`,
+    `printf '%s\\n%s\\n' "$T3CODE_ACTING_FOR" "$T3CODE_ACTING_FOR_ACCUSATIVE" | ssh <environment id> 'IFS= read -r f; IFS= read -r a; T3CODE_ACTING_SENDER=buddy T3CODE_ACTING_FOR="$f" T3CODE_ACTING_FOR_ACCUSATIVE="$a" exec t3 …'`,
+  ),
+  t("```", "```"),
+  t(
+    "Zprávu pro `--message-file -` pošli na standardní vstup až za oběma jmény.",
+    "A message for `--message-file -` goes on standard input after both names.",
   ),
   t(
     "- Uživateli hlásíš výsledky, rozhodnutí a rizika, ne průběh.",
