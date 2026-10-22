@@ -908,9 +908,10 @@ def check_ack(rec: dict) -> None:
 
 
 # The last resort is the one text of this service a person reads: Lazurio's
-# own short message, in Lazurio's voice (formal address, plain words), never
-# the mechanism, a command, a state's name or a record's id (root decision
-# 0210, addendum of 2026-10-22, point 2). What happened to the work, by state:
+# own short message, in Lazurio's voice (formal address, plain words), whose
+# own words never name the mechanism, a command, a state or an error code,
+# and in which the delegation's id appears nowhere (root decision 0210,
+# addendum of 2026-10-22, point 2). What happened to the work, by state:
 PERSON_SAYS = {
     STAV_HOTOVO: "Pomocník {bot} dokončil úkol „{nazev}“.",
     STAV_PTA_SE: "Pomocník {bot} se u úkolu „{nazev}“ na něco ptá.",
@@ -920,21 +921,36 @@ PERSON_SAYS = {
     STAV_NESPUSTIL: "Úkol „{nazev}“ se nepodařilo předat pomocníkovi {bot}.",
 }
 PERSON_TEXT_LIMIT = 1500
+# A path segment as a report writes one: no space, quote, bracket or slash.
+PATH_SEGMENT = r"[^/\s`'\"„“‚‘<>()\[\]{}]+"
+
+
+def without_id(rec: dict, text: str) -> str:
+    """The helper's words without the delegation's id, which the brief puts
+    into its world: a path in the task's own folder (`output_dir`, written
+    absolutely, here or in another Environment's home) keeps only the path
+    inside it, and the folder itself or any other mention of the id becomes
+    the task's title. The words are the helper's own; nothing else changes."""
+    title = f'„{rec["nazev"]}“'
+    folder = rf'(?:~|(?:/{PATH_SEGMENT})*)/Documents/buddy/{re.escape(rec["id"])}'
+    text = re.sub(folder + r"/(?=[^\s`'\"„“‚‘<>()\[\]{},;:!?.])", "", text)
+    text = re.sub(folder + "/?", lambda _match: title, text)
+    return text.replace(rec["id"], title)
 
 
 def helper_words(rec: dict) -> str:
     """What the helper itself said, for the person: its report when it is
-    done, its question when it asks, without the conversation's id. The other
-    states' texts are this service's words for Buddy, so the person gets none
-    of them."""
+    done, its question when it asks, without the conversation's line and the
+    delegation's id. The other states' texts are this service's words for
+    Buddy, so the person gets none of them."""
     text = (rec.get("vysledek") or "").strip()
     stav = rec.get("vysledek_stav")
     if stav == STAV_PTA_SE:
         tail = conversation_line(rec)
         text = (text[: -len(tail)] if text.endswith(tail) else text).strip()
-        text = "" if text == NO_QUESTION else text
+        text = "" if text == NO_QUESTION else without_id(rec, text)
     elif stav == STAV_HOTOVO:
-        text = "" if text == NO_REPORT else f"Výsledek:\n{text}"
+        text = "" if text == NO_REPORT else "Výsledek:\n" + without_id(rec, text)
     else:
         text = ""
     return text if len(text) <= PERSON_TEXT_LIMIT else text[: PERSON_TEXT_LIMIT - 1].rstrip() + "…"

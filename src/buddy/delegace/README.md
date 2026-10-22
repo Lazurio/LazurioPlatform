@@ -92,8 +92,14 @@ into the Personal Environment.
   (formal address, plain words): what the helper did with the task, that
   Buddy is not answering now and that Lazurio writes instead, then the
   helper's own words when there are any (its report, at most 1,500
-  characters, or its question). It never names the mechanism, a command, a
-  state, an id or an error code. For a finished task:
+  characters, or its question). Lazurio's own words never name the
+  mechanism, a command, a state or an error code, and the delegation's id
+  appears nowhere in the message: the brief asks every helper to write its
+  files into the task's own folder, named by the id, so a path there keeps
+  only the path inside it (`rozbor.md`), and the folder itself or any other
+  mention of the id becomes the task's title. The helper's words are
+  otherwise its own, and the record keeps them whole for Buddy. For a
+  finished task:
 
   ```text
   Pomocník Zuko dokončil úkol „Shrnutí smlouvy“. Rex teď neodpovídá, proto vám to píše Lazurio.

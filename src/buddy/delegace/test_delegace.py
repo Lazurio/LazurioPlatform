@@ -1200,6 +1200,49 @@ class DelegaceTest(unittest.TestCase):
             text, "Pomocník zuko se u úkolu „Shrnutí smlouvy“ na něco ptá. Rex teď neodpovídá, proto vám to píše Lazurio."
         )
 
+    def test_the_last_resort_never_carries_the_delegations_id_from_the_helpers_words(self):
+        # The brief asks every helper to write its files into the task's own
+        # folder, named by the id, and to write paths absolutely (Pablo's
+        # review of #604): a path there keeps only the path inside it, and the
+        # folder itself or a bare mention of the id becomes the task's title.
+        head = "Rex teď neodpovídá, proto vám to píše Lazurio."
+        for env, home in (((), self.tmp.name), (("--env", "work-env"), "/home/zuko")):
+            with self.subTest(env=env):
+                self.tearDown()
+                self.setUp()
+                rid = self.zadej_ok(extra=env)
+                folder = f"{home}/Documents/buddy/{rid}"
+                report = (f"Smlouva má tři rizika. Rozbor: {folder}/rozbor.md, přílohy v `{folder}/prilohy/a b.pdf`.\n"
+                          f"Soubory jsou ve složce {folder}/. Úkol {rid} je hotový.")
+                self.mausbot_says(wait=[{"exit": 0, "out": {"ok": True, "state": "completed",
+                                                            "reply": {"text": report, "files": []}}}])
+                for _ in range(4):
+                    self.hlidej(DELEGACE_ACK_SECONDS="0")
+                text = self.hermes_state()["sends"][0]["text"]
+                self.assertEqual(
+                    text,
+                    f"Pomocník zuko dokončil úkol „Shrnutí smlouvy“. {head}\n\nVýsledek:\n"
+                    "Smlouva má tři rizika. Rozbor: rozbor.md, přílohy v `prilohy/a b.pdf`.\n"
+                    "Soubory jsou ve složce „Shrnutí smlouvy“. Úkol „Shrnutí smlouvy“ je hotový.",
+                )
+                self.assert_for_a_person(rid, text)
+                self.assertIn(folder, self.rec(rid)["vysledek"])  # Buddy keeps the paths
+        self.tearDown()
+        self.setUp()
+        rid = self.zadej_ok()
+        asks = {"exit": 3, "out": {"ok": False, "exitCode": 3, "threadId": "th-1", "state": "needs-input",
+                                   "job": {"needsInput": [{"botName": "Zuko", "question":
+                                           f"Smím přepsat {self.tmp.name}/Documents/buddy/{rid}/rozbor.md?"}]}}}
+        self.mausbot_says(wait=[asks])
+        for _ in range(4):
+            self.hlidej(DELEGACE_ACK_SECONDS="0")
+        text = self.hermes_state()["sends"][0]["text"]
+        self.assertEqual(
+            text,
+            f"Pomocník zuko se u úkolu „Shrnutí smlouvy“ na něco ptá. {head}\n\nZuko se ptá: Smím přepsat rozbor.md?",
+        )
+        self.assert_for_a_person(rid, text)
+
     def test_buddys_internal_texts_say_delegace_and_never_the_old_name_or_waking(self):
         # Through every way a notice goes: the chat (with a repeat), a final
         # refusal's Telegram card, a Telegram delegation, the last resort.
