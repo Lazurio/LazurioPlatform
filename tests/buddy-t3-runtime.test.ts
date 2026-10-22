@@ -240,7 +240,7 @@ posix(
         Buffer.concat([Buffer.from(text), Buffer.from([0xff, 0x0a])]),
       );
       expect(await buddyT3Runtime(home.user)).toBeUndefined();
-      // Read as systemd and budíček read it: a byte order mark stays a
+      // Read as systemd and Delegace read it: a byte order mark stays a
       // character, and a line ends only at a line feed, never at another
       // separator, so neither puts an ExecStart at the start of a line.
       const start = text.split("\n").find((line) => line.startsWith("Exec"));

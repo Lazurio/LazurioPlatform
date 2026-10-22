@@ -72,10 +72,10 @@ jobs:
       - name: Lint, typecheck, public guard, proof build and smoke
         if: needs.scope.outputs.lane != 'docs'
         run: bun run check:static
-      # Buddy's wake-up service (src/buddy/delegace) is Python with the standard
-      # library only; its contract tests run against fake openmausbot, hermes
-      # and ssh.
-      - name: Wake-up service (budíček) tests
+      # Buddy's delegation service, Delegace (src/buddy/delegace), is Python
+      # with the standard library only; its contract tests run against fake
+      # openmausbot, hermes, t3 and ssh.
+      - name: Delegation service (Delegace) tests
         if: needs.scope.outputs.lane != 'docs'
         env:
           PYTHONDONTWRITEBYTECODE: "1"

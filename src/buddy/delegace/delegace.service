@@ -1,10 +1,10 @@
 [Unit]
-Description=Budíček: probudí Buddyho, když jeho bot skončí
+Description=Delegace: dá Buddymu vědět, jak dopadla práce jeho botů
 After=network-online.target
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/budicek hlidej
+ExecStart=%h/.local/bin/delegace hlidej
 Restart=always
 RestartSec=5
 Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin

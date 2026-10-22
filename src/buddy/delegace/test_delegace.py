@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Contract tests for budicek with fake `openmausbot`, `hermes`, `ssh` and `t3`.
+"""Contract tests for delegace with fake `openmausbot`, `hermes`, `ssh` and `t3`.
 
-A "wake" is what reaches Buddy. In Telegram it is a `completed` event on a
-Kanban card that has a `wake` subscription; the fake `hermes` records exactly
-those, so the tests count wakes the way the real gateway would see them. In
-his chat in Lazurio (channel `t3`) it is a message in his one T3 Code thread;
-the fake `t3` keeps one message per idempotency key, as T3 Code does with the
-key's command id, and records every send. It is installed as Machines install
-Buddy's own runtime, named by the unit of his T3 Code; the `t3` on PATH is a
-decoy that only records being run.
+A "wake" (the notice Buddy gets) is what reaches Buddy. In Telegram it is a
+`completed` event on a Kanban card that has a `wake` subscription; the fake
+`hermes` records exactly those, so the tests count wakes the way the real
+gateway would see them. In his chat in Lazurio (channel `t3`) it is a message
+in his one T3 Code thread; the fake `t3` keeps one message per idempotency
+key, as T3 Code does with the key's command id, and records every send. It is
+installed as Machines install Buddy's own runtime, named by the unit of his
+T3 Code; the `t3` on PATH is a decoy that only records being run.
 """
 
 import json
@@ -21,7 +21,13 @@ import time
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-BUDICEK = os.path.join(HERE, "delegace")
+DELEGACE = os.path.join(HERE, "delegace")
+# T3 Code's acting-sender claim kind for Delegace (Lazurio/t3code#106), the
+# service's ACTING_SENDER.
+CLAIM_KIND = "delegace"
+# The words a person must never meet (root decision 0210, addendum of
+# 2026-10-22, point 1), in any form: the old name and waking.
+NEVER_SEEN = ("budíč", "budic", "budík", "probud", "probuz")
 
 FAKE_HERMES = r'''
 import fcntl, json, os, sys
@@ -51,7 +57,8 @@ if a[0] == "kanban":
                 done(0, {"id": tid, "status": t["status"]})
         st["n"] += 1
         tid = "t_%d" % st["n"]
-        st["tasks"][tid] = {"title": a[2], "key": key, "status": "ready", "subs": []}
+        st["tasks"][tid] = {"title": a[2], "key": key, "status": "ready", "subs": [],
+                            "body": opt("--body"), "created_by": opt("--created-by")}
         done(0, {"id": tid, "status": "ready"})
     if verb == "notify-subscribe":
         t = st["tasks"][a[2]]
@@ -69,7 +76,8 @@ if a[0] == "kanban":
             print("cannot complete", file=sys.stderr); done(1)
         t["status"] = "done"
         if any(s["mode"] == "wake" for s in t["subs"]):
-            st["events"].append({"task": a[2], "key": t["key"], "title": t["title"], "summary": opt("--summary")})
+            st["events"].append({"task": a[2], "key": t["key"], "title": t["title"], "summary": opt("--summary"),
+                                 "metadata": json.loads(opt("--metadata") or "null")})
         done(0, "completed")
     if verb == "archive":
         st["tasks"][a[2]]["status"] = "archived"
@@ -127,11 +135,12 @@ def done(code, out):
     sys.exit(code)
 def refuse(code, message):
     done(1, {"error": {"code": code, "message": message}})
-# Who the command acts as, by T3 Code's rules (Lazurio/t3code#106): empty is unset.
+# Who the command acts as, by T3 Code's rules (Lazurio/t3code#106): empty is
+# unset, and the kinds are `buddy` with the user's names and `delegace` alone.
 var = lambda name: os.environ.get(name, "").strip()
 sender, named = var("T3CODE_ACTING_SENDER"), bool(var("T3CODE_ACTING_FOR") or var("T3CODE_ACTING_FOR_ACCUSATIVE"))
 st["calls"].append({"argv": a, "acting": sender or None, "named": named})
-if (not sender and named) or sender not in ("", "buddy", "budicek") or (sender == "budicek" and named) \
+if (not sender and named) or sender not in ("", "buddy", "delegace") or (sender == "delegace" and named) \
         or (sender == "buddy" and not var("T3CODE_ACTING_FOR")):
     refuse("invalid_request", "T3CODE_ACTING_SENDER and its names do not fit.")
 if os.environ.get("FAKE_T3_DOWN"):
@@ -169,7 +178,7 @@ if a[:2] == ["thread", "send"] and opt("--message-file") == "-" and opt("--idemp
 refuse("invalid_request", "unknown command")
 '''
 
-# The `t3` on PATH, as the user's Chat has it: budíček must never run it.
+# The `t3` on PATH, as the user's Chat has it: Delegace must never run it.
 DECOY_T3 = r'''
 import json, os, sys
 with open(os.path.join(os.environ["FAKE_DIR"], "path-t3.jsonl"), "a") as fh:
@@ -209,7 +218,7 @@ sys.exit(subprocess.run(["sh", "-c", a[-1]]).returncode)
 
 # `wait --json` as MausBot 0.1.115 prints it: no `reply`, the answer is the newest bot text message.
 DONE = {"exit": 0, "out": {"status": "settled", "state": "completed", "taskId": "th-1",
-                           "job": {"state": "completed", "reason": "budicek-test finished", "needsInput": []},
+                           "job": {"state": "completed", "reason": "zuko finished", "needsInput": []},
                            "messages": [{"role": "user", "kind": "text", "text": "Pracuješ pro Buddyho…"},
                                         {"role": "bot", "kind": "text", "text": "hotovo"},
                                         {"role": "bot", "kind": "digest", "text": "[digest] · reply:"}]}}
@@ -220,12 +229,12 @@ FAILED = {"exit": 1, "out": {"status": "settled", "state": "failed", "taskId": "
                              "job": {"state": "failed", "reason": "the engine exited", "needsInput": []},
                              "messages": []}}
 QUESTION = {"exit": 3, "out": {"ok": False, "exitCode": 3, "threadId": "th-1", "state": "needs-input",
-                               "job": {"needsInput": [{"botName": "budicek-test",
+                               "job": {"needsInput": [{"botName": "Zuko",
                                                        "question": "Smím smazat složku tmp?"}]}}}
 DOWN = {"exit": 5, "out": {"ok": False, "exitCode": 5, "error": "cannot reach OpenMausBot"}}
 
 
-class BudicekTest(unittest.TestCase):
+class DelegaceTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         root = self.tmp.name
@@ -255,14 +264,14 @@ class BudicekTest(unittest.TestCase):
             "PATH": bindir + os.pathsep + os.environ.get("PATH", "/usr/bin:/bin"),
             "HOME": root,
             "FAKE_DIR": self.fake,
-            "BUDICEK_STATE_DIR": self.state,
-            "BUDICEK_T3_HOME": self.t3_home,
-            "BUDICEK_TELEGRAM_CHAT_ID": "111",
-            "BUDICEK_POLL_SECONDS": "0",
+            "DELEGACE_STATE_DIR": self.state,
+            "DELEGACE_T3_HOME": self.t3_home,
+            "DELEGACE_TELEGRAM_CHAT_ID": "111",
+            "DELEGACE_POLL_SECONDS": "0",
             # A fictional user's persona: her name's two cases and her Buddy's name.
-            "BUDICEK_USER_ACCUSATIVE": "Alenu",
-            "BUDICEK_USER_DATIVE": "Aleně",
-            "BUDICEK_BUDDY_NAME": "Rex",
+            "DELEGACE_USER_ACCUSATIVE": "Alenu",
+            "DELEGACE_USER_DATIVE": "Aleně",
+            "DELEGACE_BUDDY_NAME": "Rex",
         }
 
     def tearDown(self):
@@ -284,9 +293,9 @@ class BudicekTest(unittest.TestCase):
         with open(path) as fh:
             return [json.loads(line) for line in fh]
 
-    def budicek(self, *args, stdin=None, **env):
+    def delegace(self, *args, stdin=None, **env):
         e = dict(self.env, **env)
-        return subprocess.run([sys.executable, BUDICEK, *args], input=stdin, capture_output=True,
+        return subprocess.run([sys.executable, DELEGACE, *args], input=stdin, capture_output=True,
                               text=True, env=e, timeout=60)
 
     def mausbot_says(self, **cfg):
@@ -294,7 +303,7 @@ class BudicekTest(unittest.TestCase):
             json.dump(cfg, fh)
 
     def zadej(self, termin="30m", extra=(), **env):
-        p = self.budicek("zadej", "--bot", "budicek-test", "--termin", termin, "--nazev", "TEST budíčku",
+        p = self.delegace("zadej", "--bot", "zuko", "--termin", termin, "--nazev", "Shrnutí smlouvy",
                          *extra, stdin="Odpověz jedním slovem: hotovo.", **env)
         return p
 
@@ -304,7 +313,7 @@ class BudicekTest(unittest.TestCase):
         return json.loads(p.stdout)["id"]
 
     def hlidej(self, **env):
-        p = self.budicek("hlidej", "--jednou", **env)
+        p = self.delegace("hlidej", "--jednou", **env)
         self.assertEqual(p.returncode, 0, p.stderr)
         return p
 
@@ -380,12 +389,12 @@ class BudicekTest(unittest.TestCase):
         self.assertTrue(wakes[0]["summary"].startswith("HOTOVO: hotovo"))
         self.assertIn(rid, wakes[0]["title"])
         self.assertLessEqual(len(wakes[0]["summary"]), 200)
-        p = self.budicek("vysledek", rid)
+        p = self.delegace("vysledek", rid)
         self.assertIn("hotovo", p.stdout)
-        p = self.budicek("potvrd", rid)
+        p = self.delegace("potvrd", rid)
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(self.rec(rid)["stav"], "vyrizeno")
-        p = self.budicek("seznam", "--otevrene", "--json")
+        p = self.delegace("seznam", "--otevrene", "--json")
         self.assertEqual(json.loads(p.stdout), [])
 
     def test_done_with_reply_field(self):
@@ -414,7 +423,7 @@ class BudicekTest(unittest.TestCase):
         self.assertEqual(len(wakes), 1)
         self.assertIn("Smím smazat složku tmp?", wakes[0]["summary"])
         # Buddy answered the bot and wants the end of the job too
-        p = self.budicek("potvrd", rid, "--hlidej-dal", "--termin", "10m")
+        p = self.delegace("potvrd", rid, "--hlidej-dal", "--termin", "10m")
         self.assertEqual(p.returncode, 0, p.stderr)
         self.mausbot_says(wait=[DONE])
         self.hlidej()
@@ -443,7 +452,7 @@ class BudicekTest(unittest.TestCase):
     def test_unreachable_wakes_after_grace(self):
         self.mausbot_says(wait=[DOWN])
         rid = self.zadej_ok()
-        env = {"BUDICEK_UNREACHABLE_SECONDS": "1"}
+        env = {"DELEGACE_UNREACHABLE_SECONDS": "1"}
         self.hlidej(**env)
         rec = self.rec(rid)
         self.assertEqual(rec["stav"], "bezi")
@@ -488,7 +497,7 @@ class BudicekTest(unittest.TestCase):
     def test_no_ack_rewakes_twice_then_messages_the_user(self):
         self.mausbot_says(wait=[DONE])
         rid = self.zadej_ok()
-        env = {"BUDICEK_ACK_SECONDS": "0"}
+        env = {"DELEGACE_ACK_SECONDS": "0"}
         self.hlidej(**env)  # first wake
         self.hlidej(**env)  # second
         self.hlidej(**env)  # third
@@ -496,13 +505,14 @@ class BudicekTest(unittest.TestCase):
         self.assertEqual(len(wakes), 3)
         self.assertEqual([w["key"] for w in wakes], [rid, rid + "#2", rid + "#3"])
         self.assertEqual(self.hermes_state()["sends"], [])
-        self.hlidej(**env)  # no ack after the second re-wake: message the user
+        self.hlidej(**env)  # no ack after the second re-wake: Lazurio writes to the person
         sends = self.hermes_state()["sends"]
         self.assertEqual(len(sends), 1)
         self.assertEqual(sends[0]["to"], "telegram:111")
         self.assertEqual(
             sends[0]["text"],
-            f"Rex se neprobudil k úkolu TEST budíčku ({rid}). Výsledek: budicek vysledek {rid}.",
+            "Pomocník zuko dokončil úkol „Shrnutí smlouvy“. Rex teď neodpovídá, proto vám to píše Lazurio."
+            "\n\nVýsledek:\nhotovo",
         )
         self.assertEqual(self.rec(rid)["stav"], "eskalovano")
         self.hlidej(**env)
@@ -512,10 +522,10 @@ class BudicekTest(unittest.TestCase):
     def test_ack_stops_rewakes(self):
         self.mausbot_says(wait=[DONE])
         rid = self.zadej_ok()
-        self.hlidej(BUDICEK_ACK_SECONDS="0")
-        self.budicek("potvrd", rid)
-        self.hlidej(BUDICEK_ACK_SECONDS="0")
-        self.hlidej(BUDICEK_ACK_SECONDS="0")
+        self.hlidej(DELEGACE_ACK_SECONDS="0")
+        self.delegace("potvrd", rid)
+        self.hlidej(DELEGACE_ACK_SECONDS="0")
+        self.hlidej(DELEGACE_ACK_SECONDS="0")
         self.assertEqual(len(self.wakes()), 1)
         self.assertEqual(self.rec(rid)["stav"], "vyrizeno")
 
@@ -533,14 +543,14 @@ class BudicekTest(unittest.TestCase):
 
     def assert_one_wake_after_restart(self, crash_at, phase):
         self.mausbot_says(wait=[DONE])
-        crash = {"BUDICEK_TEST_CRASH_AT": crash_at}
+        crash = {"DELEGACE_TEST_CRASH_AT": crash_at}
         if phase == "zadej":
             p = self.zadej(**crash)
             self.assertEqual(p.returncode, 99, (crash_at, p.stderr))
             self.assertEqual(self.wakes(), [])
         else:
             self.zadej_ok()
-            p = self.budicek("hlidej", "--jednou", **crash)
+            p = self.delegace("hlidej", "--jednou", **crash)
             self.assertEqual(p.returncode, 99, (crash_at, p.stderr))
         rid = self.only_id()
         for _ in range(3):
@@ -574,13 +584,13 @@ class BudicekTest(unittest.TestCase):
         self.mausbot_says(wait=[DONE])
         rid = self.zadej_ok()
         self.hlidej()
-        p = self.budicek("hlidej", "--jednou", BUDICEK_ACK_SECONDS="0", BUDICEK_TEST_CRASH_AT="after_rewake_saved")
+        p = self.delegace("hlidej", "--jednou", DELEGACE_ACK_SECONDS="0", DELEGACE_TEST_CRASH_AT="after_rewake_saved")
         self.assertEqual(p.returncode, 99)
         self.assertEqual(len(self.wakes()), 1)
         self.hlidej()
         self.hlidej()
         self.assertEqual([w["key"] for w in self.wakes()], [rid, rid + "#2"])
-        p = self.budicek("hlidej", "--jednou", BUDICEK_ACK_SECONDS="0", BUDICEK_TEST_CRASH_AT="after_complete")
+        p = self.delegace("hlidej", "--jednou", DELEGACE_ACK_SECONDS="0", DELEGACE_TEST_CRASH_AT="after_complete")
         self.assertEqual(p.returncode, 99)
         self.hlidej()
         self.assertEqual([w["key"] for w in self.wakes()], [rid, rid + "#2", rid + "#3"])
@@ -595,7 +605,7 @@ class BudicekTest(unittest.TestCase):
             ssh = [json.loads(line)["argv"] for line in fh]
         self.assertEqual(len(ssh), 2)
         self.assertIn("work-env", ssh[0])
-        self.assertTrue(ssh[0][-1].startswith("openmausbot run budicek-test - --wait none"))
+        self.assertTrue(ssh[0][-1].startswith("openmausbot run zuko - --wait none"))
         self.assertTrue(ssh[1][-1].startswith("openmausbot wait --thread th-1"))
         self.assertIn("Odpověz jedním slovem", self.calls("run")[0]["stdin"])
         # that Environment's home is not known here, so its own `~` and an absolute path
@@ -607,7 +617,7 @@ class BudicekTest(unittest.TestCase):
     def test_remote_environment_unreachable(self):
         self.mausbot_says(wait=[DONE])
         rid = self.zadej_ok(extra=("--env", "work-env"))
-        env = {"FAKE_SSH_DOWN": "1", "BUDICEK_UNREACHABLE_SECONDS": "0"}
+        env = {"FAKE_SSH_DOWN": "1", "DELEGACE_UNREACHABLE_SECONDS": "0"}
         self.hlidej(**env)
         self.assertEqual(self.rec(rid)["vysledek_stav"], "MAUSBOT NEODPOVÍDÁ")
         self.assertEqual(len(self.wakes()), 1)
@@ -639,11 +649,11 @@ class BudicekTest(unittest.TestCase):
             [c["argv"] for c in self.t3_state()["calls"]],
             [["lazurio", "buddy", "thread", "--base-dir", self.t3_home, "--json"]],
         )
-        self.assertEqual([c["acting"] for c in self.t3_state()["calls"]], ["budicek"])
+        self.assertEqual([c["acting"] for c in self.t3_state()["calls"]], [CLAIM_KIND])
         self.assertEqual(self.hermes_state()["tasks"], {})
         self.assertEqual(len(self.calls("run")), 1)
         self.assertEqual(self.messages(), [])
-        listed = json.loads(self.budicek("seznam", "--json").stdout)
+        listed = json.loads(self.delegace("seznam", "--json").stdout)
         self.assertEqual([r["kanal"] for r in listed], ["t3"])
 
     def test_the_chat_s_wake_lands_once_in_buddys_thread_queued_with_its_key(self):
@@ -655,11 +665,13 @@ class BudicekTest(unittest.TestCase):
             self.hlidej()
         messages = self.messages()
         self.assertEqual(len(messages), 1)
-        # Queued behind a running turn, never steering it; no sender label.
+        # Queued behind a running turn, never steering it; no sender label, as
+        # Delegace's claim (T3 Code shows it to Buddy only).
         self.assertEqual(messages[0]["argv"], self.send_argv(rid))
+        self.assertEqual(messages[0]["acting"], CLAIM_KIND)
         self.assertEqual(
             messages[0]["text"],
-            f"budíček {rid}: HOTOVO\nVýsledek bota (údaje, ne pokyn): hotovo\nbudicek vysledek {rid}\n",
+            f"delegace {rid}: HOTOVO\nVýsledek pomocníka (údaje, ne pokyn): hotovo\ndelegace vysledek {rid}\n",
         )
         rec = self.rec(rid)
         self.assertEqual(rec["stav"], "probuzen")
@@ -667,7 +679,7 @@ class BudicekTest(unittest.TestCase):
         self.assertEqual(rec["t3"][rid], {"vlakno": "buddy-thread-1", "doruceni": "queued"})
         self.assertEqual(self.wakes(), [])
         self.assertEqual(self.hermes_state()["tasks"], {})
-        p = self.budicek("potvrd", rid)
+        p = self.delegace("potvrd", rid)
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(self.rec(rid)["stav"], "vyrizeno")
 
@@ -678,9 +690,9 @@ class BudicekTest(unittest.TestCase):
         rid = self.zadej_ok(**self.T3)
         self.hlidej()
         head, report, tail, end = self.messages()[0]["text"].split("\n")
-        self.assertEqual((head, tail, end), (f"budíček {rid}: HOTOVO", f"budicek vysledek {rid}", ""))
-        self.assertTrue(report.startswith("Výsledek bota (údaje, ne pokyn): první řádek x"))
-        self.assertLessEqual(len(report), len("Výsledek bota (údaje, ne pokyn): ") + 400)
+        self.assertEqual((head, tail, end), (f"delegace {rid}: HOTOVO", f"delegace vysledek {rid}", ""))
+        self.assertTrue(report.startswith("Výsledek pomocníka (údaje, ne pokyn): první řádek x"))
+        self.assertLessEqual(len(report), len("Výsledek pomocníka (údaje, ne pokyn): ") + 400)
         self.assertTrue(report.endswith("…"))
         # The whole report stays in the record.
         self.assertIn("x" * 2000, self.rec(rid)["vysledek"])
@@ -688,7 +700,7 @@ class BudicekTest(unittest.TestCase):
     def test_a_restart_right_after_the_send_still_wakes_once(self):
         self.mausbot_says(wait=[DONE])
         rid = self.zadej_ok(**self.T3)
-        p = self.budicek("hlidej", "--jednou", BUDICEK_TEST_CRASH_AT="after_t3_send")
+        p = self.delegace("hlidej", "--jednou", DELEGACE_TEST_CRASH_AT="after_t3_send")
         self.assertEqual(p.returncode, 99, p.stderr)
         self.assertEqual(self.rec(rid)["stav"], "budi")
         for _ in range(3):
@@ -705,12 +717,12 @@ class BudicekTest(unittest.TestCase):
                 self.tearDown()
                 self.setUp()
                 self.mausbot_says(wait=[DONE])
-                crash = dict(self.T3, BUDICEK_TEST_CRASH_AT=crash_at)
+                crash = dict(self.T3, DELEGACE_TEST_CRASH_AT=crash_at)
                 if phase == "zadej":
                     self.assertEqual(self.zadej(**crash).returncode, 99)
                 else:
                     self.zadej_ok(**self.T3)
-                    self.assertEqual(self.budicek("hlidej", "--jednou", BUDICEK_TEST_CRASH_AT=crash_at).returncode, 99)
+                    self.assertEqual(self.delegace("hlidej", "--jednou", DELEGACE_TEST_CRASH_AT=crash_at).returncode, 99)
                 rid = self.only_id()
                 for _ in range(3):
                     self.hlidej()
@@ -744,7 +756,7 @@ class BudicekTest(unittest.TestCase):
         self.assertEqual(p.returncode, 1)
         rid = json.loads(p.stdout)["id"]
         self.assertEqual([m["key"] for m in self.messages()], [rid])
-        self.assertTrue(self.messages()[0]["text"].startswith(f"budíček {rid}: NESPUSTIL SE\n"))
+        self.assertTrue(self.messages()[0]["text"].startswith(f"delegace {rid}: NESPUSTIL SE\n"))
         self.hlidej()
         self.assertEqual(len(self.messages()), 1)
 
@@ -753,7 +765,7 @@ class BudicekTest(unittest.TestCase):
         rid = self.zadej_ok(**self.T3)
         self.hlidej()
         self.assertIn("Smím smazat složku tmp?", self.messages()[0]["text"])
-        p = self.budicek("potvrd", rid, "--hlidej-dal")
+        p = self.delegace("potvrd", rid, "--hlidej-dal")
         self.assertEqual(p.returncode, 0, p.stderr)
         self.mausbot_says(wait=[DONE])
         self.hlidej()
@@ -762,12 +774,13 @@ class BudicekTest(unittest.TestCase):
     def test_the_chat_s_rewakes_follow_it_and_the_last_resort_is_telegram(self):
         self.mausbot_says(wait=[DONE])
         rid = self.zadej_ok(**self.T3)
-        env = {"BUDICEK_ACK_SECONDS": "0"}
+        env = {"DELEGACE_ACK_SECONDS": "0"}
         for _ in range(4):  # the wake, two re-wakes, then the message
             self.hlidej(**env)
         messages = self.messages()
         self.assertEqual([m["key"] for m in messages], [rid, rid + "#2", rid + "#3"])
-        self.assertTrue(messages[1]["text"].startswith(f"budíček {rid}: HOTOVO (znovu, 2. budík)\n"))
+        self.assertTrue(messages[1]["text"].startswith(f"delegace {rid}: HOTOVO (znovu, 2. upozornění)\n"))
+        self.assertTrue(messages[2]["text"].startswith(f"delegace {rid}: HOTOVO (znovu, 3. upozornění)\n"))
         self.assertEqual(self.wakes(), [])
         self.assertEqual([s["to"] for s in self.hermes_state()["sends"]], ["telegram:111"])
         self.assertEqual(self.rec(rid)["stav"], "eskalovano")
@@ -782,22 +795,22 @@ class BudicekTest(unittest.TestCase):
         self.assertEqual(self.calls("run"), [])
         self.assertEqual(self.t3_state()["calls"], [])
 
-    def test_budicek_acts_as_budicek_in_its_own_t3_only_even_inside_buddys_environment(self):
+    def test_delegace_acts_as_its_claim_kind_in_its_own_t3_only_even_inside_buddys_environment(self):
         # `zadej` runs in Buddy's environment, which names him (and the user);
-        # T3 Code refuses `budicek` beside a name, so budíček's own `t3` drops them.
+        # T3 Code refuses Delegace's kind beside a name, so its own `t3` drops them.
         buddy = dict(self.T3, T3CODE_ACTING_SENDER="buddy", T3CODE_ACTING_FOR="Ada",
                      T3CODE_ACTING_FOR_ACCUSATIVE="Adu")
         self.mausbot_says(wait=[DONE])
         rid = self.zadej_ok(**buddy)
         self.hlidej()
         calls = self.t3_state()["calls"]
-        self.assertEqual([(c["acting"], c["named"]) for c in calls], [("budicek", False)] * 3)
-        self.assertEqual([m["acting"] for m in self.messages()], ["budicek"])
+        self.assertEqual([(c["acting"], c["named"]) for c in calls], [(CLAIM_KIND, False)] * 3)
+        self.assertEqual([m["acting"] for m in self.messages()], [CLAIM_KIND])
         self.assertEqual(self.rec(rid)["stav"], "probuzen")
-        # Nothing else budíček runs acts as budíček: not the bot's start that
-        # came after the thread's lookup, not the service's MausBot or Hermes.
+        # Nothing else Delegace runs acts with its claim: not the bot's start
+        # that came after the thread's lookup, not the service's MausBot or Hermes.
         self.assertEqual([c["acting"] for c in self.calls()], ["buddy", None])
-        self.assertNotIn("budicek", self.hermes_state().get("acting", []))
+        self.assertNotIn(CLAIM_KIND, self.hermes_state().get("acting", []))
 
     # The refusals `t3 thread send` names final (Lazurio/t3code#105, its
     # docs/user/agent-cli.md): sending the same key again never helps.
@@ -819,7 +832,8 @@ class BudicekTest(unittest.TestCase):
                 self.assertEqual(rec["t3"][rid], {"vlakno": "buddy-thread-1", "odmitnuto": refusal})
                 notes = [h["udalost"] for h in rec["historie"]]
                 self.assertIn(
-                    f"T3 Code natrvalo odmítl budík {rid} ({refusal}: T3 Code refused the message.), budím v Telegramu",
+                    f"T3 Code natrvalo odmítl upozornění {rid} ({refusal}: T3 Code refused the message.),"
+                    " upozornění jde do Telegramu",
                     notes,
                 )
                 # The result still reaches Buddy: one Kanban wake, as without the channel.
@@ -833,7 +847,7 @@ class BudicekTest(unittest.TestCase):
                 self.hlidej()
                 self.assertEqual([s["key"] for s in self.t3_state()["sends"]], [rid])
                 self.assertEqual(len(self.wakes()), 1)
-                p = self.budicek("potvrd", rid)
+                p = self.delegace("potvrd", rid)
                 self.assertEqual(p.returncode, 0, p.stderr)
                 self.assertEqual(self.rec(rid)["stav"], "vyrizeno")
 
@@ -844,8 +858,8 @@ class BudicekTest(unittest.TestCase):
                 self.setUp()
                 self.mausbot_says(wait=[DONE])
                 rid = self.zadej_ok(**self.T3)
-                p = self.budicek("hlidej", "--jednou", FAKE_T3_REFUSE="command_rejected",
-                                 BUDICEK_TEST_CRASH_AT=crash_at)
+                p = self.delegace("hlidej", "--jednou", FAKE_T3_REFUSE="command_rejected",
+                                 DELEGACE_TEST_CRASH_AT=crash_at)
                 self.assertEqual(p.returncode, 99, (crash_at, p.stderr))
                 for _ in range(3):
                     self.hlidej()
@@ -877,7 +891,7 @@ class BudicekTest(unittest.TestCase):
     def test_after_a_final_refusal_a_rewake_tries_the_chat_again_with_its_own_key(self):
         self.mausbot_says(wait=[DONE])
         rid = self.zadej_ok(**self.T3)
-        env = {"BUDICEK_ACK_SECONDS": "0"}
+        env = {"DELEGACE_ACK_SECONDS": "0"}
         self.hlidej(FAKE_T3_REFUSE="command_rejected", **env)  # the wake: refused, so Telegram
         self.assertEqual([w["key"] for w in self.wakes()], [rid])
         self.hlidej(**env)  # no confirmation: the re-wake reaches the chat
@@ -914,7 +928,7 @@ class BudicekTest(unittest.TestCase):
         # existed, its outcome saved and its wake still to deliver.
         os.makedirs(self.state, exist_ok=True)
         rec = {
-            "id": "20261020-210000-abcd", "verze": 1, "nazev": "starý úkol", "bot": "budicek-test",
+            "id": "20261020-210000-abcd", "verze": 1, "nazev": "starý úkol", "bot": "zuko",
             "env": None, "vlakno": None, "zadani": "x", "termin_s": 1800, "termin_ts": time.time() + 1800,
             "termin": "21:30", "zalozeno": "2026-10-20T21:00:00Z", "stav": "budi", "kolo": 1,
             "budik_pokus": 1, "threadId": "th-1", "since": 1234, "spusteni_zahajeno": True,
@@ -929,7 +943,7 @@ class BudicekTest(unittest.TestCase):
 
     # -- Buddy's own t3: the runtime the unit of his T3 Code names (F61's addendum of 2026-10-22)
 
-    def test_budicek_runs_the_runtime_buddys_unit_names_never_the_t3_on_path(self):
+    def test_delegace_runs_the_runtime_buddys_unit_names_never_the_t3_on_path(self):
         self.mausbot_says(wait=[DONE])
         rid = self.zadej_ok(**self.T3)
         self.hlidej()
@@ -942,7 +956,7 @@ class BudicekTest(unittest.TestCase):
 
     def broken_runtimes(self):
         """Ways Buddy's runtime is not there to run, each with the start of
-        budíček's message."""
+        Delegace's message."""
         unit_missing = "jednotka T3 Code Buddyho"
         elsewhere = os.path.join(self.tmp.name, "elsewhere.service")
         versions = os.path.join(self.t3_home, "runtime", "versions")
@@ -1045,7 +1059,7 @@ class BudicekTest(unittest.TestCase):
     # -- the persona's names
 
     def everything_written(self):
-        """Every text budíček produced (records, bot runs, Kanban cards, sends),
+        """Every text Delegace produced (records, bot runs, Kanban cards, sends),
         with JSON decoded and written back with ensure_ascii=False: the fakes
         write escaped JSON, in which a name with diacritics would never match."""
 
@@ -1071,42 +1085,184 @@ class BudicekTest(unittest.TestCase):
     def escalate(self, **env):
         self.mausbot_says(wait=[DONE])
         rid = self.zadej_ok(**env)
-        env = dict(env, BUDICEK_ACK_SECONDS="0")
+        env = dict(env, DELEGACE_ACK_SECONDS="0")
         for _ in range(4):  # the wake, two re-wakes, then the message
             self.hlidej(**env)
         self.assertEqual(self.rec(rid)["stav"], "eskalovano")
         return rid
 
     def test_without_a_persona_the_texts_are_neutral(self):
-        neutral = {"BUDICEK_USER_ACCUSATIVE": "", "BUDICEK_USER_DATIVE": "", "BUDICEK_BUDDY_NAME": ""}
+        neutral = {"DELEGACE_USER_ACCUSATIVE": "", "DELEGACE_USER_DATIVE": "", "DELEGACE_BUDDY_NAME": ""}
         rid = self.escalate(**neutral)
         self.assertIn("Pracuješ pro Buddyho: Buddy za uživatele. Úkol " + rid, self.calls("run")[0]["stdin"])
         self.assertEqual(
             self.hermes_state()["sends"][0]["text"],
-            f"Buddy se neprobudil k úkolu TEST budíčku ({rid}). Výsledek: budicek vysledek {rid}.",
+            "Pomocník zuko dokončil úkol „Shrnutí smlouvy“. Buddy teď neodpovídá, proto vám to píše Lazurio."
+            "\n\nVýsledek:\nhotovo",
         )
         written = json.dumps(self.rec(rid), ensure_ascii=False)
         self.assertIn("píšu uživateli", written)
         self.assertIn("zpráva uživateli odeslaná", written)
         written = self.everything_written()
         self.assertIn("Buddy za uživatele", written)
-        for name in ("Buddy za Alenu", "píšu Aleně", "zpráva Aleně", "Rex se neprobudil"):
+        for name in ("Buddy za Alenu", "píšu Aleně", "zpráva Aleně", "Rex teď neodpovídá"):
             self.assertNotIn(name, written)
 
     def test_another_users_persona_leaves_no_trace_of_the_first(self):
-        other = {"BUDICEK_USER_ACCUSATIVE": "Boba", "BUDICEK_USER_DATIVE": "Bobovi", "BUDICEK_BUDDY_NAME": "Fido"}
+        other = {"DELEGACE_USER_ACCUSATIVE": "Boba", "DELEGACE_USER_DATIVE": "Bobovi", "DELEGACE_BUDDY_NAME": "Fido"}
         rid = self.escalate(**other)
         self.assertIn("Pracuješ pro Buddyho: Buddy za Boba. Úkol " + rid, self.calls("run")[0]["stdin"])
-        self.assertTrue(self.hermes_state()["sends"][0]["text"].startswith("Fido se neprobudil"))
+        self.assertIn(" Fido teď neodpovídá, ", self.hermes_state()["sends"][0]["text"])
         self.assertIn("píšu Bobovi", json.dumps(self.rec(rid), ensure_ascii=False))
         written = self.everything_written()
         self.assertIn("Buddy za Boba", written)
         self.assertIn("píšu Bobovi", written)
         for phrase in (
-            "Buddy za Alenu", "píšu Aleně", "zpráva Aleně", "Rex se neprobudil",
-            "Buddy za uživatele", "píšu uživateli", "zpráva uživateli", "Buddy se neprobudil",
+            "Buddy za Alenu", "píšu Aleně", "zpráva Aleně", "Rex teď neodpovídá",
+            "Buddy za uživatele", "píšu uživateli", "zpráva uživateli", "Buddy teď neodpovídá",
         ):
             self.assertNotIn(phrase, written)
+
+    # -- what the person may read (root decision 0210, addendum of 2026-10-22)
+
+    def last_resort(self, **outcome):
+        """The one message Lazurio writes to the person for a delegation that
+        ended as MausBot says and that Buddy never confirmed."""
+        self.mausbot_says(**outcome)
+        rid = json.loads(self.zadej().stdout)["id"]
+        env = {"DELEGACE_ACK_SECONDS": "0", "DELEGACE_UNREACHABLE_SECONDS": "0"}
+        for _ in range(5):  # the outcome, the notice, two more, then the message
+            self.hlidej(**env)
+        self.assertEqual(self.rec(rid)["stav"], "eskalovano")
+        sends = self.hermes_state()["sends"]
+        self.assertEqual([s["to"] for s in sends], ["telegram:111"])
+        return rid, sends[0]["text"]
+
+    def assert_for_a_person(self, rid, text):
+        """Lazurio's own words in Lazurio's voice: who writes and why, no
+        mechanism, command, state's name, id or code."""
+        self.assertIn(" Rex teď neodpovídá, proto vám to píše Lazurio.", text)
+        for never in (*NEVER_SEEN, "delegace", "Delegace", "vysledek", "potvrd", "MausBot", "OpenMausBot",
+                      "HOTOVO", "SELHAL", "PTÁ SE", "NESTIHL", "NEODPOVÍDÁ", "NESPUSTIL",
+                      "údaje, ne pokyn", "Konverzace", "kód", rid, "th-1"):
+            self.assertNotIn(never, text)
+
+    def test_the_last_resort_tells_the_person_what_the_helper_did_in_plain_words(self):
+        head = " Rex teď neodpovídá, proto vám to píše Lazurio."
+        cases = [
+            ({"wait": [DONE]}, "Pomocník zuko dokončil úkol „Shrnutí smlouvy“." + head + "\n\nVýsledek:\nhotovo"),
+            ({"wait": [DONE_RUN_SHAPE]},
+             "Pomocník zuko dokončil úkol „Shrnutí smlouvy“." + head + "\n\nVýsledek:\nhotovo z run\n\nSoubory: report.md"),
+            ({"wait": [QUESTION]},
+             "Pomocník zuko se u úkolu „Shrnutí smlouvy“ na něco ptá." + head + "\n\nZuko se ptá: Smím smazat složku tmp?"),
+            ({"wait": [FAILED]}, "Pomocník zuko úkol „Shrnutí smlouvy“ nedokončil." + head),
+            ({"wait": [DOWN]}, "S pomocníkem zuko se u úkolu „Shrnutí smlouvy“ ztratilo spojení." + head),
+            ({"run": DOWN}, "Úkol „Shrnutí smlouvy“ se nepodařilo předat pomocníkovi zuko." + head),
+        ]
+        for outcome, says in cases:
+            with self.subTest(outcome=outcome):
+                self.tearDown()
+                self.setUp()
+                rid, text = self.last_resort(**outcome)
+                self.assertEqual(text, says)
+                self.assert_for_a_person(rid, text)
+
+    def test_the_last_resort_after_a_missed_deadline_names_no_mechanism(self):
+        self.mausbot_says(wait=[RUNNING])
+        rid = self.zadej_ok(termin="1s")
+        time.sleep(1.2)
+        env = {"DELEGACE_ACK_SECONDS": "0"}
+        for _ in range(4):
+            self.hlidej(**env)
+        text = self.hermes_state()["sends"][0]["text"]
+        self.assertEqual(
+            text, "Pomocník zuko nestihl úkol „Shrnutí smlouvy“ do termínu. Rex teď neodpovídá, proto vám to píše Lazurio."
+        )
+        self.assert_for_a_person(rid, text)
+
+    def test_the_last_resort_gives_a_long_report_bounded_and_no_empty_answer(self):
+        long = {"exit": 0, "out": {"ok": True, "state": "completed", "reply": {"text": "y" * 3000, "files": []}}}
+        rid, text = self.last_resort(wait=[long])
+        self.assertTrue(text.endswith("…"))
+        self.assertLessEqual(len(text.split("\n\nVýsledek:\n", 1)[1]), 1500)
+        self.assertIn("y" * 3000, self.rec(rid)["vysledek"])  # the whole report stays for Buddy
+        self.tearDown()
+        self.setUp()
+        silent = {"exit": 0, "out": {"ok": True, "state": "completed", "reply": {"text": "", "files": []}}}
+        _, text = self.last_resort(wait=[silent])
+        self.assertEqual(text, "Pomocník zuko dokončil úkol „Shrnutí smlouvy“. Rex teď neodpovídá, proto vám to píše Lazurio.")
+        self.tearDown()
+        self.setUp()
+        approval = {"exit": 3, "out": {"ok": False, "exitCode": 3, "threadId": "th-1", "state": "needs-input",
+                                       "job": {"needsInput": []}}}
+        _, text = self.last_resort(wait=[approval])
+        self.assertEqual(
+            text, "Pomocník zuko se u úkolu „Shrnutí smlouvy“ na něco ptá. Rex teď neodpovídá, proto vám to píše Lazurio."
+        )
+
+    def test_buddys_internal_texts_say_delegace_and_never_the_old_name_or_waking(self):
+        # Through every way a notice goes: the chat (with a repeat), a final
+        # refusal's Telegram card, a Telegram delegation, the last resort.
+        self.mausbot_says(wait=[DONE])
+        rid = self.zadej_ok(**self.T3)
+        env = {"DELEGACE_ACK_SECONDS": "0"}
+        self.hlidej(FAKE_T3_REFUSE="command_rejected", **env)
+        for _ in range(3):
+            self.hlidej(**env)
+        rid2 = self.zadej_ok()
+        for _ in range(4):
+            self.hlidej(**env)
+        hermes = self.hermes_state()
+        self.assertEqual([t["created_by"] for t in hermes["tasks"].values()], ["delegace"] * 4)
+        card = hermes["tasks"][self.rec(rid2)["kanban"][rid2]]
+        self.assertEqual(card["title"], f"delegace {rid2}: Shrnutí smlouvy")
+        self.assertEqual(
+            card["body"],
+            f"Delegace {rid2} pro bota zuko v tomto Prostředí. Termín {self.rec(rid2)['termin']}. "
+            f"Kartu uzavírá Delegace; výsledek: delegace vysledek {rid2}.",
+        )
+        self.assertEqual([e["title"] for e in hermes["events"]][-1], f"delegace {rid2}: Shrnutí smlouvy (znovu, 3. upozornění)")
+        self.assertEqual(hermes["events"][0]["metadata"], {"delegace_id": rid, "stav": "HOTOVO", "upozorneni": 1})
+        self.assertTrue(hermes["events"][0]["summary"].endswith(f" | delegace vysledek {rid}"))
+        notes = [h["udalost"] for r in (rid, rid2) for h in self.rec(r)["historie"]]
+        self.assertIn("Buddy upozorněn (2. upozornění, vlákno buddy-thread-1)", notes)
+        self.assertIn(f"Buddy upozorněn (1. upozornění, karta {self.rec(rid)['kanban'][rid]})", notes)
+        self.assertIn("bez potvrzení, 3. upozornění", notes)
+        self.assertIn("bez potvrzení ani po opakovaném upozornění, píšu Aleně", notes)
+        texts = [m["text"] for m in self.messages()]
+        texts += [t["title"] for t in hermes["tasks"].values()] + [t["body"] for t in hermes["tasks"].values()]
+        texts += [e["summary"] for e in hermes["events"]] + [s["text"] for s in hermes["sends"]] + notes
+        texts += [self.rec(r)["vysledek"] for r in (rid, rid2)]
+        # The service's own lines too; a record's state names are its format
+        # (`verze: 1`) and stay as they are.
+        texts += [self.delegace("hlidej", "--jednou").stderr, self.delegace("potvrd", "neni-takova").stderr]
+        texts += [self.delegace("--help").stdout]
+        texts += [self.delegace(command, "--help").stdout for command in ("zadej", "hlidej", "potvrd", "vysledek", "seznam")]
+        for text in texts:
+            for never in NEVER_SEEN:
+                self.assertNotIn(never, text.lower(), text)
+
+    def test_a_delegation_from_before_the_rename_goes_on(self):
+        # A record the service wrote under its old name is the same record
+        # (`verze: 1` in the same directory): the new service delivers its
+        # notice, and `potvrd` closes it.
+        os.makedirs(self.state, exist_ok=True)
+        rec = {
+            "id": "20261022-180000-beef", "verze": 1, "nazev": "starý úkol", "bot": "zuko", "env": None,
+            "vlakno": None, "zadani": "x", "termin_s": 1800, "termin_ts": time.time() + 1800, "termin": "18:30",
+            "zalozeno": "2026-10-22T18:00:00Z", "stav": "bezi", "kolo": 1, "budik_pokus": 0, "threadId": "th-1",
+            "since": 1234, "spusteni_zahajeno": True, "kanal": "t3",
+            "historie": [{"at": "2026-10-22T18:00:00Z", "udalost": "zakládám"}],
+        }
+        with open(os.path.join(self.state, rec["id"] + ".json"), "w", encoding="utf-8") as fh:
+            json.dump(rec, fh, ensure_ascii=False)
+        self.mausbot_says(wait=[DONE])
+        self.hlidej()
+        after = self.rec(rec["id"])
+        self.assertEqual((after["stav"], after["budik_pokus"], after["verze"]), ("probuzen", 1, 1))
+        self.assertEqual([m["key"] for m in self.messages()], [rec["id"]])
+        self.assertEqual(self.delegace("potvrd", rec["id"]).returncode, 0)
+        self.assertEqual(self.rec(rec["id"])["stav"], "vyrizeno")
 
 
 if __name__ == "__main__":
