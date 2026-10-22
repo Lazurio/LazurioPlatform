@@ -7,6 +7,7 @@ import { buddyRulesPath } from "../folder/outputs";
 import { readFolderState } from "../folder/read-state";
 import type { ToolsEnvironment } from "../tools/overview";
 import { resolveOnPath } from "../tools/status";
+import { buddyT3Home } from "./t3-runtime";
 
 // Buddy's chat in Lazurio (decision F61; root decision 0210 point 8 and the
 // Organization Admin's decisions of 2026-10-22): a T3 Code of its own on the
@@ -48,8 +49,6 @@ import { resolveOnPath } from "../tools/status";
 // replaced atomically, only while it still holds what was read. The server
 // decodes the members like any other and its own later writes keep them.
 
-/** The home of Buddy's T3 Code, under the user's home. */
-export const buddyChatHome = ".t3-buddy";
 /** The provider instance that is Buddy. */
 export const buddyInstanceId = "buddy";
 /** The channel budíček records for a delegation from this chat. */
@@ -303,8 +302,8 @@ export async function buddyChat(
 
   const inputs = { home, hermes, user };
   const directories = [
-    join(home, buddyChatHome),
-    join(home, buddyChatHome, "userdata"),
+    join(home, buddyT3Home),
+    join(home, buddyT3Home, "userdata"),
   ];
   const settings = join(directories[1] as string, "settings.json");
   const inPlace = (read: Settings) =>
