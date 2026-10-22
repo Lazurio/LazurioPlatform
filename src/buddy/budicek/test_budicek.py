@@ -227,6 +227,10 @@ class BudicekTest(unittest.TestCase):
         self.assertIn("Pracuješ pro Buddyho: Buddy za Alenu. Úkol " + rid, run["stdin"])
         self.assertIn("nic nepublikuj", run["stdin"])
         self.assertIn("Odpověz jedním slovem: hotovo.", run["stdin"])
+        # files go to the task's own folder as an absolute path, never into the Folder
+        self.assertIn(f"ukládej do `{self.tmp.name}/Documents/buddy/{rid}/`", run["stdin"])
+        self.assertIn("do kořene ~/Lazurio nikdy nic", run["stdin"])
+        self.assertFalse(os.path.exists(os.path.join(self.tmp.name, "Documents")))  # the bot creates it
         self.assertEqual(self.rec(rid)["stav"], "bezi")
         self.assertEqual(self.wakes(), [])
         # a broken record next to it must not stop the round
@@ -464,6 +468,9 @@ class BudicekTest(unittest.TestCase):
         self.assertTrue(ssh[0][-1].startswith("openmausbot run budicek-test - --wait none"))
         self.assertTrue(ssh[1][-1].startswith("openmausbot wait --thread th-1"))
         self.assertIn("Odpověz jedním slovem", self.calls("run")[0]["stdin"])
+        # that Environment's home is not known here, so its own `~` and an absolute path
+        self.assertIn(f"ukládej do `~/Documents/buddy/{rid}/`", self.calls("run")[0]["stdin"])
+        self.assertNotIn(self.tmp.name, self.calls("run")[0]["stdin"])
         self.assertEqual(self.rec(rid)["vysledek_stav"], "HOTOVO")
         self.assertEqual(len(self.wakes()), 1)
 
