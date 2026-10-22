@@ -25,9 +25,10 @@ export const buddyHelp = `buddy chat [--apply] [--folder <absolute Folder>] [--j
   HERMES_HOME=~/.hermes and LAZURIO_BUDDY_CHANNEL=t3; Codex and Claude are
   off; no turn continues by itself after an update; agents get no T3
   browser. --apply writes these members of ~/.t3-buddy/userdata/settings.json
-  and keeps every other one, replacing the file only while it still holds
-  what was read, as T3's own commands do beside its running server.
-  Unavailable, and nothing written, without Hermes's ACP server
+  and keeps every other one. Settings already in place need nothing; a change
+  takes T3 Code's ownership of that home, as T3's own offline commands do, so
+  while Buddy's T3 Code runs it is refused (t3-running): stop its unit, apply,
+  start it. Unavailable, and nothing written, without Hermes's ACP server
   (hermes acp --check), without Buddy's layer in the Folder's .agents/buddy,
   or with the layer inside a Git work tree; on any other Environment it does
   nothing (not-personal). The instance's unit, port, route and project are

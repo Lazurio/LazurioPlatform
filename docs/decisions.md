@@ -17649,9 +17649,16 @@ persona, memory, tools and model), and ACP is the only seam between them. The Pl
    - `continueThreadsAfterServerUpdate` and `enableAgentBrowserAccess` false.
 
    Without `--apply` it reads whether they are in place; with it, it writes them and keeps every
-   other member, of the file and of an instance it touches. It replaces the file atomically only
-   while it still holds what was read, and reads again otherwise, at most five times: T3 Code's
-   own `t3 theme set` writes the file the same way beside its running server, which watches it.
+   other member, of the file and of an instance it touches. Settings already in place need
+   nothing. A change takes T3 Code's ownership of the home first, the exclusive transaction on
+   `server-owner.sqlite` that a running T3 Code server (0.1.0 and later) holds for as long as it
+   runs and that T3 Code's own offline commands take before they change a home
+   (`apps/server/src/serverOwnership.ts`). So no server writes the file between the read and the
+   replace, and none starts meanwhile; while Buddy's T3 Code runs, a change is refused
+   (`t3-running`), and Machines stop its unit, apply and start it. Holding it, the command replaces
+   the file atomically, only while it still holds what was read, and reads again otherwise, at most
+   five times: a T3 command that writes without the ownership (`t3 theme set`, which Lazurio never
+   runs on its homes) could still change it.
    It writes nothing outside the user's own Osobní Prostředí (`not-personal`), without Buddy's
    layer in the Folder's `.agents/buddy`, with the layer inside a Git work tree (T3 Code would
    keep checkpoints there, and a rollback would start a second Hermes session), or without
@@ -17711,6 +17718,7 @@ agent CLI against the person's Chat (3773).
 | --- | --- |
 | T3 Code creates the instance from variables of the unit | Buddy's command and environment would live in Machines' unit, and each change would need a T3 Code release; rejected |
 | A Lazurio route of T3 Code applies the members through the running server, as `t3 lazurio model` does for Chat | The server stays the only writer, but a dedicated home's fixed members, which nobody chooses, would need a fork release; open if T3 Code starts writing them itself |
+| Compare and replace beside a running server, as `t3 theme set` does | A server's own write between the last comparison and the replace would be lost, and the command would still answer `managed` (Pablo's review of #592); rejected for T3 Code's ownership of the home |
 | The Platform adds the project with `t3 project add` | An agent-written bootstrap F51 rejected: it neither owns the project store nor guards every way in; rejected for T3 Code's own startup from the unit's declaration |
 | The wake through Hermes's Kanban into the ACP session | T3 Code ignores an agent's output outside a turn; rejected for a queued message in the thread |
 | Record Buddy's thread at `zadej` and wake only there | The one thread is T3 Code's to keep; it is found at every attempt, and checked at `zadej` so that no bot starts without a way back |
@@ -17719,7 +17727,9 @@ agent CLI against the person's Chat (3773).
 kept; reading and applying, private modes, nothing rewritten when in place; T3 Code's order and
 its own members still in place; each refusal writing nothing; a file that is no plain JSON
 object, one with comments, a link or a directory left as it is; another writer between the read and the write; other
-Environments skipped; the command's JSON and exits), `src/buddy/budicek/test_budicek.py` (the
+Environments skipped; the command's JSON and exits; a running server's ownership refusing a
+change, settings in place needing none, and a server unable to start from the read to the replace,
+between the last comparison and the replace included), `src/buddy/budicek/test_budicek.py` (the
 channel recorded, the thread before the bot, one queued message with its key and text, a bounded
 report, a restart right after the send and at every other step waking once, T3 Code down and
 back, no thread, a bot that does not start, a second round, re-wakes and the Telegram last
@@ -17727,6 +17737,8 @@ resort, unknown channels, Telegram without the channel and from an old record),
 `tests/folder-buddy.test.ts` and `tests/shell-buddy.test.ts`. The file `--apply` writes decodes
 with T3 Code's own `ServerSettings` and `AcpRegistrySettings` (the fork's contracts at
 2b11fb99, whose schemas are those of main 41ddc012): `buddy` on with its command, Codex and
-Claude off, the others off by default. **Honest limits:** no real T3 Code with Hermes, no T4
+Claude off, the others off by default. While a Node process holds the ownership exactly as T3
+Code's server takes it (`node:sqlite`, `BEGIN EXCLUSIVE`), the Platform's attempt is busy, and it
+owns the home once that process lets go. **Honest limits:** no real T3 Code with Hermes, no T4
 command and no Osobní Prostředí ran; the first acceptance is on Bob's Osobní Prostředí of the
 reference Organization (root decision 0204), once T1 to T4 and M1′ exist.

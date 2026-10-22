@@ -1,3 +1,4 @@
+import { Database, constants as sqliteFlags } from "bun:sqlite";
 import { expect, test } from "bun:test";
 import {
   lstat,
@@ -411,13 +412,13 @@ posix(
   "another writer of the file between the read and the write: read again and keep its change; one that never stops is busy",
   () =>
     within([bindings.personal], async (env) => {
+      // A T3 command that writes the file without the ownership (as `t3
+      // theme set` may) between the read and the comparison.
       let writes = 0;
-      const meanwhile = async () => {
+      const meanwhile = async (step: "read" | "replace") => {
+        if (step !== "read") return;
         writes += 1;
         if (writes > 1) return;
-        await mkdir(join(env.home, ".t3-buddy", "userdata"), {
-          recursive: true,
-        });
         await writeFile(
           env.settings,
           JSON.stringify({ defaultTheme: "ocean" }),
@@ -427,7 +428,7 @@ posix(
         await buddyChat(env.tools, {
           folder: env.folder,
           apply: true,
-          afterRead: meanwhile,
+          during: meanwhile,
         }),
       ).toEqual({ kind: "buddy-chat", state: "managed" });
       expect(writes).toBe(2);
@@ -441,11 +442,13 @@ posix(
         await buddyChat(env.tools, {
           folder: env.folder,
           apply: true,
-          afterRead: () =>
-            writeFile(
-              env.settings,
-              JSON.stringify({ generation: ++generation }),
-            ),
+          during: async (step) => {
+            if (step === "read")
+              await writeFile(
+                env.settings,
+                JSON.stringify({ generation: ++generation }),
+              );
+          },
         }),
       ).toEqual({
         kind: "buddy-chat",
@@ -454,11 +457,84 @@ posix(
       });
       expect(generation).toBe(5);
       expect(await written(env.settings)).toEqual({ generation: 5 });
-      // No temporary file of an attempt stays behind.
+      // No temporary file of an attempt stays behind; the ownership's file
+      // is T3 Code's own, never removed.
       const { readdir } = await import("node:fs/promises");
-      expect(await readdir(join(env.home, ".t3-buddy", "userdata"))).toEqual([
-        "settings.json",
-      ]);
+      expect(
+        (await readdir(join(env.home, ".t3-buddy", "userdata"))).sort(),
+      ).toEqual(["server-owner.sqlite", "settings.json"]);
+    }),
+);
+
+/** T3 Code's ownership of `stateDirectory` as its server takes it
+ * (apps/server/src/serverOwnership.ts), in this process. */
+function own(stateDirectory: string): Database {
+  const owner = new Database(
+    join(stateDirectory, "server-owner.sqlite"),
+    sqliteFlags.SQLITE_OPEN_READWRITE | sqliteFlags.SQLITE_OPEN_CREATE,
+  );
+  owner.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE;");
+  return owner;
+}
+
+/** Whether a server starting now in another process would own
+ * `stateDirectory`, as it tries at its start. */
+function serverCouldStart(stateDirectory: string): "owned" | "busy" {
+  const probe = Bun.spawnSync([
+    process.execPath,
+    "-e",
+    `const { Database, constants } = require("bun:sqlite");
+     const owner = new Database(process.argv[1], constants.SQLITE_OPEN_READWRITE | constants.SQLITE_OPEN_CREATE);
+     try { owner.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE;"); console.log("owned"); }
+     catch (error) { console.log(error.code === "SQLITE_BUSY" ? "busy" : String(error)); }`,
+    join(stateDirectory, "server-owner.sqlite"),
+  ]);
+  return probe.stdout.toString().trim() as "owned" | "busy";
+}
+
+posix(
+  "while Buddy's T3 Code runs it owns its home: a change waits for it to stop, settings in place need none, and from the read to the replace no server starts, so none writes in between",
+  () =>
+    within([bindings.personal], async (env) => {
+      const userdata = join(env.home, ".t3-buddy", "userdata");
+      await mkdir(userdata, { recursive: true });
+      const server = own(userdata);
+      try {
+        expect(
+          await buddyChat(env.tools, { folder: env.folder, apply: true }),
+        ).toEqual({
+          kind: "buddy-chat",
+          state: "unavailable",
+          reason: "t3-running",
+        });
+        await expect(lstat(env.settings)).rejects.toThrow();
+      } finally {
+        server.close();
+      }
+      // Stopped: the change holds the ownership from its read to its
+      // replace, between the last comparison and the replace included.
+      const tried: string[] = [];
+      expect(
+        await buddyChat(env.tools, {
+          folder: env.folder,
+          apply: true,
+          during: async (step) => {
+            tried.push(`${step}: ${serverCouldStart(userdata)}`);
+          },
+        }),
+      ).toEqual({ kind: "buddy-chat", state: "managed" });
+      expect(tried).toEqual(["read: busy", "replace: busy"]);
+      // Released when it is done: the server starts again.
+      expect(serverCouldStart(userdata)).toBe("owned");
+      // In place, a running server needs no change.
+      const running = own(userdata);
+      try {
+        expect(
+          await buddyChat(env.tools, { folder: env.folder, apply: true }),
+        ).toEqual({ kind: "buddy-chat", state: "managed" });
+      } finally {
+        running.close();
+      }
     }),
 );
 

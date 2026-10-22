@@ -1,3 +1,4 @@
+import { Database, constants as sqlite } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, mkdir, open, readFile, rename, rm } from "node:fs/promises";
@@ -31,11 +32,15 @@ import { resolveOnPath } from "../tools/status";
 // `settings.ts`, as of the v0.1.1 rebuild). The person's Chat (`~/.t3`) is
 // never touched here: there T3 Code writes its settings itself (decision
 // F51). This home exists only for Buddy, so the Platform writes its members
-// into `settings.json` the way T3 Code's own commands write that file beside
-// its running server (`t3 theme set`): read it, change only these members,
-// and replace it atomically only while it still holds what was read. The
-// server watches the file and takes the change; its own later writes keep
-// the members, which it decodes like any other.
+// into `settings.json` itself, the way T3 Code's own offline commands change
+// a home (`t3 project add` without a running server): only while it holds T3
+// Code's ownership of the home, which a running server holds for as long as
+// it runs. So no server writes the file between the read and the replace,
+// and none starts meanwhile; a running one makes `--apply` refuse
+// (`t3-running`) when there is something to change, and Machines stop the
+// unit, apply and start it. Only these members change, and the file is
+// replaced atomically, only while it still holds what was read. The server
+// decodes the members like any other and its own later writes keep them.
 
 /** The home of Buddy's T3 Code, under the user's home. */
 export const buddyChatHome = ".t3-buddy";
@@ -166,6 +171,7 @@ export type BuddyChatReason =
   | "buddy-layer-in-git"
   | "hermes-missing"
   | "hermes-acp-unavailable"
+  | "t3-running"
   | "t3-settings-unreadable"
   | "t3-settings-busy";
 
@@ -186,8 +192,33 @@ const answer = (
   });
 
 /** How many times a write yields to another writer of the file before the
- * answer is `t3-settings-busy`, as T3 Code's own `t3 theme set` does. */
+ * answer is `t3-settings-busy`. With T3 Code's ownership held, no server is
+ * one; a T3 command that writes without it (`t3 theme set`, which Lazurio
+ * never runs on its homes) still could be. */
 const writeAttempts = 5;
+
+/** T3 Code's ownership of its state directory (Lazurio/t3code
+ * `apps/server/src/serverOwnership.ts`): an exclusive transaction on
+ * `server-owner.sqlite`, a file that holds no data and is never removed.
+ * T3 Code's server holds it for as long as it runs, refuses to start without
+ * it, and its own offline commands take it before they change anything; the
+ * system releases it when its holder ends, however it ends. Undefined while a
+ * server of this home runs. */
+function ownT3Home(stateDirectory: string): Database | undefined {
+  // Opened as T3 Code opens it, so both lock the same file.
+  const owner = new Database(
+    join(stateDirectory, "server-owner.sqlite"),
+    sqlite.SQLITE_OPEN_READWRITE | sqlite.SQLITE_OPEN_CREATE,
+  );
+  try {
+    owner.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE;");
+    return owner;
+  } catch (error) {
+    owner.close();
+    if ((error as { code?: string }).code === "SQLITE_BUSY") return undefined;
+    throw error;
+  }
+}
 
 /** Whether Buddy's T3 Code has Lazurio's members (`managed`) or not yet
  * (`outdated`); with `apply`, writes them first. Only on the user's own
@@ -195,15 +226,18 @@ const writeAttempts = 5;
  * tree (a Git root would give T3 Code checkpoints, and its rollback a second
  * Hermes session) and Hermes's ACP server ready (`hermes acp --check`):
  * otherwise nothing is written, so no instance points at a Buddy without
- * his rules or his server. */
+ * his rules or his server. Settings already in place need nothing; a change
+ * needs T3 Code's ownership of the home (`t3-running` while its server
+ * runs). */
 export async function buddyChat(
   tools: ToolsEnvironment,
   options: Readonly<{
     folder: string;
     apply?: boolean;
-    /** Tests only: runs after each read of `settings.json`, before the
-     * write, as another writer of the file would. */
-    afterRead?: () => Promise<void>;
+    /** Tests only: runs inside the change, after each read of
+     * `settings.json` (`read`) and between the last comparison and the
+     * replace (`replace`), as another writer or a starting server would. */
+    during?: (step: "read" | "replace") => Promise<void>;
   }>,
 ): Promise<BuddyChat> {
   const home = tools.home;
@@ -248,26 +282,40 @@ export async function buddyChat(
     join(home, buddyChatHome, "userdata"),
   ];
   const settings = join(directories[1] as string, "settings.json");
-  for (let attempt = 0; attempt < writeAttempts; attempt += 1) {
-    const read = await readSettings(directories, settings);
-    if (read === "unsafe")
-      return answer("unavailable", "t3-settings-unreadable");
-    const next = reconcileBuddyChatSettings(read.document, paths);
-    if (read.raw !== null && sameSettings(read.document, next))
-      return answer("managed");
-    if (!options.apply) return answer("outdated");
-    await options.afterRead?.();
-    for (const directory of directories) await ensureDirectory(directory);
-    if (
-      await replaceIfUnchanged(
+  const inPlace = (read: Settings) =>
+    read.raw !== null &&
+    sameSettings(
+      read.document,
+      reconcileBuddyChatSettings(read.document, paths),
+    );
+  const first = await readSettings(directories, settings);
+  if (first === "unsafe")
+    return answer("unavailable", "t3-settings-unreadable");
+  if (inPlace(first)) return answer("managed");
+  if (!options.apply) return answer("outdated");
+  for (const directory of directories) await ensureDirectory(directory);
+  const owner = ownT3Home(directories[1] as string);
+  if (owner === undefined) return answer("unavailable", "t3-running");
+  try {
+    for (let attempt = 0; attempt < writeAttempts; attempt += 1) {
+      const read = await readSettings(directories, settings);
+      if (read === "unsafe")
+        return answer("unavailable", "t3-settings-unreadable");
+      await options.during?.("read");
+      if (inPlace(read)) return answer("managed");
+      const next = reconcileBuddyChatSettings(read.document, paths);
+      const replaced = await replaceIfUnchanged(
         settings,
         read.raw,
         `${JSON.stringify(next, null, 2)}\n`,
-      )
-    )
-      return answer("managed");
+        () => options.during?.("replace") ?? Promise.resolve(),
+      );
+      if (replaced) return answer("managed");
+    }
+    return answer("unavailable", "t3-settings-busy");
+  } finally {
+    owner.close();
   }
-  return answer("unavailable", "t3-settings-busy");
 }
 
 const missing = (error: unknown) =>
@@ -302,10 +350,12 @@ async function insideGitWorkTree(directory: string): Promise<boolean> {
  * as T3 Code keeps it, and one with comments, which T3 Code reads but a
  * rewrite would drop, stays the person's. So does a link or another kind of
  * file on the way. */
+type Settings = Readonly<{ raw: string | null; document: Json }>;
+
 async function readSettings(
   directories: readonly string[],
   path: string,
-): Promise<Readonly<{ raw: string | null; document: Json }> | "unsafe"> {
+): Promise<Settings | "unsafe"> {
   for (const directory of directories) {
     try {
       if (!(await lstat(directory)).isDirectory()) return "unsafe";
@@ -350,11 +400,13 @@ async function ensureDirectory(directory: string) {
 
 /** Replaces `path` with `contents` atomically (a new file renamed over it)
  * only while it still holds `raw` (null: while it is absent); false when
- * another writer changed it meanwhile and nothing was replaced. */
+ * another writer changed it meanwhile and nothing was replaced. `between`
+ * runs between that last comparison and the rename (tests only). */
 async function replaceIfUnchanged(
   path: string,
   raw: string | null,
   contents: string,
+  between: () => Promise<void>,
 ): Promise<boolean> {
   const directory = dirname(path);
   const temporary = join(directory, `.settings.json.${randomUUID()}.lazurio`);
@@ -372,6 +424,7 @@ async function replaceIfUnchanged(
       throw error;
     });
     if (now !== raw) return false;
+    await between();
     await rename(temporary, path);
     renamed = true;
   } finally {
