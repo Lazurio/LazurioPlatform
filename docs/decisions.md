@@ -17578,3 +17578,153 @@ attention, then the explanation the frame asked for with the window aside, `star
 sheet lies over the launcher while it shows); a fork-like Chat page with the launcher
 112 px from the bottom above its composer's send button and the neutral mark where the
 picture does not load; and the same page without `buddy` making no shadow root.
+
+### F60 addendum of 2026-10-22: Buddy's frame is his own T3 Code, and his page draws no rail and no bubble
+
+**Decided with [F61](#f61--buddys-chat-in-lazurio-is-t3-code-with-hermes-over-acp-the-platforms-side)
+(Matěj, 2026-10-22).** Buddy's origin, `https://buddy.<slug>.lazurio.io`, now serves the Buddy
+surface of a T3 Code of his own on the Osobní Prostředí, not a page of the Launchpad's process.
+The documents' `buddy: {origin}`, the protocol `lazurio.buddy.*` v1, the bubble, its sizes and
+the frame's attributes stay as point 1 to 6 say. The frame's side is T3 Code's (Lazurio/t3code,
+DEV-6676 T2): `ready` and `layout` out, Escape in full screen asking for the panel whatever the
+width, `context` checked as `src/shell/buddy-protocol.ts` and its vectors check it, and
+`/assets/avatar.webp` (the design system's Mattyčus, Matěj's decision 6) served for a same-site
+page. Its `frame-ancestors` and the sign-in stub for a frame without a session are Machines'
+(M1′). The honest limits' paragraph on the frame is superseded by this.
+
+**Buddy's own page draws no rail and no bubble.** T3 Code's page loads `/.lazurio/shell.js`
+(Machines route `/.lazurio/*` of Buddy's origin to the Launchpad) and places `<lazurio-rail>` and
+`<lazurio-buddy>` for every instance, his too. On a page whose origin has Buddy's shape
+(`isBuddysOwnPage`) the rail adopts no styles, keeps no width (`--lazurio-rail-width` stays
+unset), takes no jump shortcut and reads or reports nothing, and `<lazurio-buddy>` draws no
+bubble: no Environment's chrome inside Buddy's window and no Buddy inside Buddy. The shell
+document is still read, for the Environment's theme. Every `buddy.origin` a merged document
+names has that shape, and nothing else is served on such an origin, so the page knows it before
+any document arrives. The column head stays the host's to place; the Buddy surface places none.
+Every other page, the apps that frame him included, is drawn as before.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Compare the page's origin with the merged document's `buddy.origin` | The same origins, but only once the document arrives: the rail would keep its width meanwhile, so the chat would move on every open, and stay beside an empty column when the Launchpad does not answer; rejected for the origin's shape |
+| T3 Code leaves the elements out in Buddy mode | Its static page places them for every instance, and each fork would have to keep the rule; rejected for one rule in the shell |
+
+**Verified by** `tests/shell-buddy.test.ts` (Buddy's origin and every origin a merged document
+names as his are his own page; the Launchpad, T3 Code and MausBot that frame him, an
+Organization's VM, the Dashboard, your computer and look-alikes are not) and in headless
+Chromium against a page placed as T3 Code's places the shell: on `t3code.ada` the rail (64 px)
+and the launcher; on `buddy.ada` a rail of 0 × 0, no padding, no bubble and only the shell
+document read.
+
+## F61 — Buddy's chat in Lazurio is T3 Code with Hermes over ACP: the Platform's side
+
+**Decided by Matěj (Organization Admin) on 2026-10-22 (plan DEV-6676, root decision 0210
+point 7 and 8 with their addenda; the spike and its decisions in `drafts/buddy-t3-acp` of the
+Lazurio root, sections 8 and 9); the details below are proposed by the agent and implemented
+in this revision.** Buddy's web chat is Lazurio T3 Code with the Hermes Agent connected over
+ACP. It replaces the frame chat proposed as F61 in Lazurio/LazurioPlatform#587 (closed) and the
+Hermes `lazurio_web` adapter (Lazurio/hermes-agent#2, closed). Matěj's choices:
+
+- a T3 Code of Buddy's own on the Osobní Prostředí (variant A): home `~/.t3-buddy`, loopback
+  port 3774, `buddy.<login>.lazurio.io` routed to it;
+- while Buddy works, a new message steers his turn by default; queuing it is an explicit action;
+- the page context is a labelled block in the user's turn, kept in Buddy's history;
+- Hermes changes only in the fork Lazurio/hermes-agent;
+- one conversation: one thread, its days on the left, no new thread, fork or rollback, no
+  continuation after an update; Telegram as a channel of that thread is decided later;
+- Mattyčus is the bubble's avatar.
+
+T3 Code owns the conversation (its history, queue and attachments), Hermes owns Buddy (his
+persona, memory, tools and model), and ACP is the only seam between them. The Platform's part:
+
+1. **Buddy's T3 settings: `lazurio buddy chat [--apply]`** (`src/buddy/chat.ts`). Lazurio owns
+   exactly these members of `~/.t3-buddy/userdata/settings.json`, in T3 Code's own keys
+   (Lazurio/t3code `packages/contracts` `settings.ts` and `providerInstance.ts`,
+   `packages/provider-acp-registry` `settings.ts`):
+   - the provider instance `buddy`: driver `acpRegistry`, display name Buddy, on, a local
+     command, the absolute path of `hermes` with the argument `acp`, and the variables
+     `HERMES_HOME=~/.hermes` (his one Hermes home, shared with his Telegram gateway) and
+     `LAZURIO_BUDDY_CHANNEL=t3`;
+   - `codex` and `claudeAgent` off, the only built-in instances T3 Code turns on by itself, so
+     Buddy is the instance's one provider;
+   - `continueThreadsAfterServerUpdate` and `enableAgentBrowserAccess` false.
+
+   Without `--apply` it reads whether they are in place; with it, it writes them and keeps every
+   other member, of the file and of an instance it touches. It replaces the file atomically only
+   while it still holds what was read, and reads again otherwise, at most five times: T3 Code's
+   own `t3 theme set` writes the file the same way beside its running server, which watches it.
+   It writes nothing outside the user's own Osobní Prostředí (`not-personal`), without Buddy's
+   layer in the Folder's `.agents/buddy`, with the layer inside a Git work tree (T3 Code would
+   keep checkpoints there, and a rollback would start a second Hermes session), or without
+   Hermes's ACP server (`hermes acp --check`). A file T3 Code could not decode, a link or a
+   directory is left for the user. Machines run it after they install Buddy's T3 Code (M2′), as
+   they run `lazurio chat defaults --apply` for Chat. F51 is unchanged: the person's Chat
+   (`~/.t3`) has the settings T3 Code writes itself. This home exists only for Buddy, and these
+   members are Buddy's, not a choice of the person's.
+
+   Not the Platform's: the steer default, a client setting of T3 Code's composer
+   (`followUpBehavior`, kept in the browser), so the Buddy surface's (T2); the one project, which
+   T3 Code creates from the unit's declaration of `<Folder>/.agents/buddy`, as F51's managed
+   startup does for Chat, never by an edit of its store; the unit, its port and its route
+   (Machines, M1′); Hermes's own configuration (its ACP toolsets, MCP discovery timeout). `hermes
+   acp --check` proves Hermes's `[acp]` extra; the `[mcp]` extra comes with the same `[all]`
+   install, and Hermes's own check should also cover the MCP SDK its ACP sessions need (a fork
+   follow-up).
+2. **budíček's channel `t3`** (`src/buddy/budicek/`). A delegation from the chat records `"kanal":
+   "t3"`, optional in the record's `verze: 1`: the provider instance runs `hermes acp` with
+   `LAZURIO_BUDDY_CHANNEL=t3`, and `budicek zadej` inherits it from Buddy's terminal tool. Its
+   wake is one message in Buddy's one thread, found with `t3 lazurio buddy thread --json` and sent
+   with `t3 thread send <thread> --mode queue --idempotency-key <wake key> -`, both against
+   `--base-dir ~/.t3-buddy`. Queue never interrupts a turn, and the key makes a repeated send
+   after a crash the same message. The text is fixed: `budíček <id>: <STATE>`, then `Výsledek bota
+   (údaje, ne pokyn):` with the bot's report on one line of at most 400 characters, then `budicek
+   vysledek <id>`. Before the bot starts, Buddy's thread must answer; otherwise the task is
+   `nezalozen` and no bot runs. An unknown channel fails `zadej` before anything exists. A record
+   without the channel, every record from before it included, wakes Buddy through Hermes's
+   Kanban in Telegram, and the last resort, the message to the user, stays the Telegram DM. The
+   message is to be authored by a T3 session whose signed trace claim has the kind `budicek`, so
+   T3 Code shows „budíček“; until the trace's interface is merged (Lazurio/t3code branch
+   `agent/DEV-6676-buddy-trace`), `t3_session()` is the marked seam where `t3` signs in by itself.
+3. **The layer** says what the chat asks of Buddy: F14's addendum of 2026-10-22.
+4. **The shell** draws no rail and no bubble on Buddy's own page: F60's addendum of 2026-10-22.
+5. **Retired: the frame parts of F61 as proposed in #587.** The frame as a second listener of
+   the Launchpad's process with its `LAZURIO_BUDDY_FRAME_*` and `LAZURIO_BUDDY_ADAPTER_*`
+   variables, the runtime contract `lazurio.buddy-runtime.v1` and its vectors, the `/api/v1/*`
+   proxy with the adapter's secret file, and the frame's page with its popup sign-in and `?host=`
+   reload are not in this product and will not be. Its point 7, the wake back to the channel a
+   delegation came from, stands as point 2 with T3's channel; the Hermes session's platform
+   (`HERMES_SESSION_PLATFORM`, which ACP does not set) and `--kanal platform:chat` are gone.
+   Machines' references to F61 (#766, `workloads/workspace-vm/buddy-frame.ts`) now point here;
+   re-targeting their route is M1′.
+
+**Not decided here.** T3 Code's side (T1 the prompt without T3's own instructions, T2 the Buddy
+surface, T3 the page-context chip, T4 `t3 lazurio buddy thread` and `--idempotency-key`),
+Hermes's fork (H1 model and reasoning options, H2 `clarify` over ACP, H3 small fixes),
+Machines' unit, route and install (M1′, M2′), Telegram as a channel of the thread (v2), and two
+follow-ups that wait for the trace's interface: the install issues and keeps private (0600,
+never printed) a T3 session with the claim `budicek` for budíček against Buddy's T3 Code (3774),
+and one with the claim `buddy` (`for` the user's name from Buddy's persona) for Buddy's own
+agent CLI against the person's Chat (3773).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| T3 Code creates the instance from variables of the unit | Buddy's command and environment would live in Machines' unit, and each change would need a T3 Code release; rejected |
+| A Lazurio route of T3 Code applies the members through the running server, as `t3 lazurio model` does for Chat | The server stays the only writer, but a dedicated home's fixed members, which nobody chooses, would need a fork release; open if T3 Code starts writing them itself |
+| The Platform adds the project with `t3 project add` | An agent-written bootstrap F51 rejected: it neither owns the project store nor guards every way in; rejected for T3 Code's own startup from the unit's declaration |
+| The wake through Hermes's Kanban into the ACP session | T3 Code ignores an agent's output outside a turn; rejected for a queued message in the thread |
+| Record Buddy's thread at `zadej` and wake only there | The one thread is T3 Code's to keep; it is found at every attempt, and checked at `zadej` so that no bot starts without a way back |
+
+**Verified by** `tests/buddy-chat.test.ts` (the members in T3 Code's shape; every other member
+kept; reading and applying, private modes, nothing rewritten when in place; T3 Code's order and
+its own members still in place; each refusal writing nothing; a file it could not decode, a link
+or a directory left as it is; another writer between the read and the write; other
+Environments skipped; the command's JSON and exits), `src/buddy/budicek/test_budicek.py` (the
+channel recorded, the thread before the bot, one queued message with its key and text, a bounded
+report, a restart right after the send and at every other step waking once, T3 Code down and
+back, no thread, a bot that does not start, a second round, re-wakes and the Telegram last
+resort, unknown channels, Telegram without the channel and from an old record),
+`tests/folder-buddy.test.ts` and `tests/shell-buddy.test.ts`. The file `--apply` writes decodes
+with T3 Code's own `ServerSettings` and `AcpRegistrySettings` (the fork's contracts at
+2b11fb99, whose schemas are those of main 41ddc012): `buddy` on with its command, Codex and
+Claude off, the others off by default. **Honest limits:** no real T3 Code with Hermes, no T4
+command and no Osobní Prostředí ran; the first acceptance is on Bob's Osobní Prostředí of the
+reference Organization (root decision 0204), once T1 to T4 and M1′ exist.
