@@ -332,15 +332,19 @@ describe("the host's message", () => {
         "--lazurio-surface": "#151515",
         "--lazurio-ink": "url(https://example.com/)",
         "--lazurio-rail-width": "64px",
+        "--lazurio-buddy-bottom": "112px",
         "--elsewhere": "#fff",
       }),
     ).toEqual({ "--lazurio-surface": "#151515" });
-    // The roles are the interface's colour roles, without the rail's width
-    // and the host's tone.
+    // The roles are the interface's colour roles, without the rail's width,
+    // the host's tone and where Buddy's launcher stands (decision F60).
     expect(newTabThemeRoles).toEqual(
       shellElementInterface.properties.filter(
         (role) =>
-          role !== "--lazurio-rail-width" && role !== "--lazurio-host-tone",
+          role !== "--lazurio-rail-width" &&
+          role !== "--lazurio-host-tone" &&
+          role !== "--lazurio-buddy-right" &&
+          role !== "--lazurio-buddy-bottom",
       ),
     );
     expect(newTabThemeRoles).toHaveLength(12);

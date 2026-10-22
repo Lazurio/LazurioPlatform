@@ -108,7 +108,12 @@
 // Začínáme offers "Přihlásit ChatGPT", "Přihlásit Claude" and beneath them
 // "Přihlásit kódem" (root decision 0201 point 10): ChatGPT's code is entered
 // on OpenAI's page by creating the file `codexApprove` of the JSON line, as
-// the person would on any device. Synthetic names only; stop it with Ctrl-C.
+// the person would on any device. With `buddy` anywhere after the mode, a
+// personal preview's entry routes Buddy's frame
+// (`https://buddy.example.lazurio.io`, decision F60), so its shell document
+// names Buddy and `<lazurio-buddy>` draws his bubble; nothing serves that
+// origin, which a browser automation stands in for (the JSON line's
+// `buddy`). Synthetic names only; stop it with Ctrl-C.
 import {
   chmod,
   mkdir,
@@ -204,6 +209,9 @@ const ghSlow = process.argv.slice(3).includes("gh-slow");
 // The fake codex and claude signed out: Začínáme's AI step with ChatGPT's
 // sign-in by code (root decision 0201 point 10).
 const codexSignedOut = process.argv.slice(3).includes("codex-signed-out");
+// Buddy's frame routed by a personal preview's entry (decision F60).
+const withBuddy =
+  process.argv[2] === "personal" && process.argv.slice(3).includes("buddy");
 const noVault =
   process.argv
     .slice(3)
@@ -230,6 +238,12 @@ const role =
 const host =
   mode === "personal" ? "example.lazurio.io" : "vm-01.example.lazurio.io";
 const browserOrigin = `https://browser.${host}`;
+const buddyOrigin = withBuddy ? `https://buddy.${host}` : null;
+/** A personal binding whose entry routes Buddy's frame, with `buddy`. */
+const buddyRouted = <T extends { entry?: object }>(binding: T): T =>
+  buddyOrigin === null || binding.entry === undefined
+    ? binding
+    : { ...binding, entry: { ...binding.entry, buddyOrigin } };
 const parent = await realpath(
   await mkdtemp(join(tmpdir(), "launchpad-preview-")),
 );
@@ -263,7 +277,7 @@ else {
     // `public` a public Environment's audience (decision F55).
     machine:
       mode === "personal"
-        ? personalWithEntry(listenPort, true, true)
+        ? buddyRouted(personalWithEntry(listenPort, true, true))
         : organizationWithEntry(
             listenPort,
             host,
@@ -1080,6 +1094,7 @@ console.log(
     url: app.url,
     proxy,
     browser: mode === "local" ? null : browserOrigin,
+    ...(buddyOrigin === null ? {} : { buddy: buddyOrigin }),
     folder,
     ...(bitwarden === null ? {} : { bitwarden }),
     ...(composioSignedOut

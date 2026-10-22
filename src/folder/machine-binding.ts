@@ -8,6 +8,7 @@ import {
   type EntryAudience,
   isEntryAudience,
 } from "../launchpad/public-environment";
+import { environmentIdOf, isShellBuddyOrigin } from "../shell/contract";
 import { ownDataValue, stateFields } from "./state-fields";
 
 // The handover part of a hosted Folder: a projection of the root-issued
@@ -119,7 +120,12 @@ export type MachineRelationships = Readonly<{
 // decision 0194, DEV-6653 contract C3), the path of the person's sign-out
 // on the shell's origins (`entry.sign_out.path`, Machines#358) and the
 // audience of a public Environment (`entry.audience`, root decision 0204,
-// Machines #560).
+// Machines #560). The origin of Buddy's frame (`buddyOrigin`, root decision
+// 0210, decision F60) is recorded only on a personal VM whose gateway routes
+// it, `https://buddy.<slug>.lazurio.io` of the same base host as its
+// Launchpad; the Launchpad names it in its shell document. The handover
+// carries it once Machines declare `entry.buddy` in `lazurio.machine.v1`;
+// until then no binding has it.
 export type MachineEntry = HostedEntry &
   Readonly<{
     t3codeOrigin: string;
@@ -131,6 +137,7 @@ export type MachineEntry = HostedEntry &
     environmentRelaySocket?: string;
     signOutPath?: string;
     audience?: EntryAudience;
+    buddyOrigin?: string;
   }>;
 
 /** The socket of the Environment's relay, by the wire schema's rule: one
@@ -354,13 +361,15 @@ function relationships(input: unknown): MachineRelationships {
 // All six members or none, each by the rule of the wire schema, as written;
 // Lazurio MausBot's two members and the Environment browser's two members are
 // optional, each pair only together, and so are the relay's socket, the
-// sign-out's path and the audience.
+// sign-out's path, the audience and Buddy's origin (of the Launchpad's own
+// base host).
 export function parseMachineEntry(input: unknown): MachineEntry {
   const withMausbot = ownDataValue(input, "mausbotOrigin") !== undefined;
   const withBrowser = ownDataValue(input, "browserOrigin") !== undefined;
   const withRelay = ownDataValue(input, "environmentRelaySocket") !== undefined;
   const withSignOut = ownDataValue(input, "signOutPath") !== undefined;
   const withAudience = ownDataValue(input, "audience") !== undefined;
+  const withBuddy = ownDataValue(input, "buddyOrigin") !== undefined;
   const {
     t3codeOrigin,
     moduleOriginTemplate,
@@ -371,6 +380,7 @@ export function parseMachineEntry(input: unknown): MachineEntry {
     environmentRelaySocket,
     signOutPath: signOut,
     audience,
+    buddyOrigin,
     ...launchpad
   }: Record<string, unknown> = stateFields(input, [
     "externalOrigin",
@@ -384,6 +394,7 @@ export function parseMachineEntry(input: unknown): MachineEntry {
     ...(withRelay ? ["environmentRelaySocket"] : []),
     ...(withSignOut ? ["signOutPath"] : []),
     ...(withAudience ? ["audience"] : []),
+    ...(withBuddy ? ["buddyOrigin"] : []),
   ]);
   const hosted = parseHostedEntry(launchpad);
   if (!isHttpsOrigin(t3codeOrigin))
@@ -419,6 +430,14 @@ export function parseMachineEntry(input: unknown): MachineEntry {
     if (!isEntryAudience(audience))
       throw new Error("Invalid hosted entry audience");
     entry = { ...entry, audience };
+  }
+  if (withBuddy) {
+    if (
+      !isShellBuddyOrigin(buddyOrigin) ||
+      environmentIdOf(buddyOrigin) !== environmentIdOf(entry.externalOrigin)
+    )
+      throw new Error("Invalid hosted entry Buddy origin");
+    entry = { ...entry, buddyOrigin };
   }
   return Object.freeze(entry);
 }
@@ -468,6 +487,9 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
     host: Object.freeze({ kind: host.kind, id: host.id }),
   };
   const entry = withEntry ? parseMachineEntry(value.entry) : undefined;
+  // Buddy's frame is served by the person's Osobní Prostředí alone.
+  if (entry?.buddyOrigin !== undefined && !personalVm)
+    throw new Error("Only a personal Machine binding routes Buddy's frame");
   if (!withRelationships)
     return Object.freeze(entry ? { ...binding, entry } : binding);
   const related = relationships(value.relationships);

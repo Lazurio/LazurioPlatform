@@ -16416,6 +16416,20 @@ Verified by:
   app or by a reload, opens it again at its start. In the third state the box never
   opens, and the "?" plays `vault-agents`.
 
+### F56 addendum (5) of 2026-10-21: Buddy's frame asks through his bubble
+
+**Decided with [F60](#f60--buddys-bubble-in-the-shell-his-origin-in-the-documents-the-protocol-lazuriobuddy-v1-and-lazurio-buddys-launcher-panel-and-full-screen)
+(root decision 0210 point 8, plan DEV-6676 P3).** Point 4's receiver is wired where the
+page's merged document names Buddy's origin, by his bubble, and its message listener
+exists only once the bubble made its frame. On such a page the principles are known
+even where the page hands over nothing (the forks), a request counts only while
+Buddy's window shows, and his window steps aside while the explanation he asked for
+plays. The guide's mark travels from Buddy's launcher there, and an explanation about
+Buddy invites nobody to get one. Point 3's promise keeps its meaning: without
+explanations and without Buddy's origin, `<lazurio-buddy>` draws nothing and listens to
+nothing on the page; it only follows the shell's own state to learn whether the origin
+arrives.
+
 ## F57 — Sleeping tabs: a tab nobody uses closes its window and keeps its place, under its id
 
 **Proposed by the agent on 2026-10-20 on Matěj's direction of the same day (root decision 0195
@@ -17335,3 +17349,186 @@ is untested there), and a Claude bot's tools. The person cannot watch the screen
 the desktop view exists. The first verification is on a Remote Environment of the
 reference Organization (root decision 0204), after Machines delivers the driver and the
 packages.
+
+## F60 — Buddy's bubble in the shell: his origin in the documents, the protocol `lazurio.buddy.*` v1 and `<lazurio-buddy>`'s launcher, panel and full screen
+
+**Decided by Matěj (Organization Admin) on 2026-10-21: root decision 0210 point 8 with
+its addenda of 2026-10-20 (the bubble on every page of Lazurio but the Dashboard; the
+neutral guide without an Osobní Prostředí, in an Environment of another tailnet and on
+the pages of work Environments for an Osobní Prostředí without a tailnet), plan
+DEV-6676 P3 (= DEV-6612 M7, no unread count in v1) and the cross-repository contract of
+the Buddy lead thread of 2026-10-21 (its sections 1 to 3; the frame on Buddy's origin,
+its runtime API and the wake-up service are a separate change).** A person on the
+Launchpad, Chat (T3 Code) or Automate (MausBot) of an Environment in the same tailnet
+as their Osobní Prostředí talks with their Buddy, the Hermes Agent in that Osobní
+Prostředí, from a bubble at the bottom right; every message carries where the person
+asks from, so Buddy can reach that Environment. The bubble's window is a frame served by
+the Osobní Prostředí on its own origin, `https://buddy.<slug>.lazurio.io` (root decision
+0180), so Buddy's name, character, state and conversation never reach the host page.
+Every app of an Environment loads `/.lazurio/shell.js`, so the shell draws the bubble
+and the forks get it without a release of their own.
+
+1. **Discovery: an optional `buddy: {origin}` in both documents** (additive in v1, F36's
+   addendum of 2026-10-05). The origin is exactly `https://buddy.<slug>.lazurio.io`, one
+   label below `lazurio.io` like a personal Remote Environment's base host
+   (`isShellBuddyOrigin`); present with any other shape, the whole document is refused,
+   and members of it a later release adds are ignored. Absent means no Buddy, and the
+   neutral guide stays exactly as F56 drew it.
+   - `lazurio.shell.v1`: only on the person's own Osobní Prostředí. Its Launchpad names
+     it from the recorded hosted entry, `buddyOrigin` of the binding, which only a
+     personal VM's entry may carry and only of its Launchpad's own base host. The
+     parser refuses it beside any other current Environment, on your computer and on a
+     page that belongs to no Environment.
+   - `lazurio.account.v1`: the Dashboard names it for the requesting Environment only
+     where Buddy may show there: the person's own Osobní Prostředí, or an Environment
+     whose registry entry is in the same tailnet (root decision 0210 point 6). Its
+     origin is that of a listed Environment of kind `personal`.
+   - Merged (`mergedBuddy`): on the Osobní Prostředí its own document's, else the
+     account's where it names that same Environment; on a work, Team or Automated
+     Environment only the account's; never on your computer or a page that is no
+     Environment's (the Dashboard has none, 0210's addendum of 2026-10-20 point 1), and
+     never from another Environment's own document, whatever it carries.
+2. **The protocol `lazurio.buddy.*` v1** (`src/shell/buddy-protocol.ts`, pure, with
+   vectors in `src/shell/buddy-vectors/v1/` for F50's runner, which the frame runs
+   against the same files):
+   - frame → host: `{type: "lazurio.buddy.ready", v: 1}`, `{type:
+     "lazurio.buddy.layout", v: 1, mode: "panel" | "fullscreen" | "closed"}`, and
+     F56's `lazurio.guide.play`;
+   - host → frame: `{type: "lazurio.buddy.context", v: 1, lang, theme, environment:
+     {id, kind, name} | null, organization: {slug, name} | null, app, page: {path},
+     guide: {explainer, step} | null}`: the language and colour scheme (`light` or
+     `dark`) the page shows, the current Environment with the kind of root decision
+     0207 (`personal`, `work`, `team`; an automated one is `work`) and its name as the
+     picker shows it, the Organization of the space the page is in (null in the
+     personal space), the column head's `active` (`chat`, `apps`, `automate`,
+     `settings`, or null without a column head), `location.pathname` only (never a
+     query or fragment, which may carry tokens; anything that is no page path goes as
+     `/`), and the explanation the guide last showed on this page with its step counted
+     from 1, until the path changes. Names 1 to 128 characters without control
+     characters, the path at most 512, the step 1 to 16;
+   - the context goes after every `ready` and after every change, never the same twice
+     (`createBuddyContextSender`), only to the frame's window and only to exactly
+     Buddy's origin;
+   - each side takes a message only from the other's window, on its exact origin, with
+     exactly its keys at every level (an added member refuses the whole message), `v`
+     1 and the closed values; a defect drops the message without an answer. The host
+     takes the frame's messages only on the origin the merged document names
+     (`acceptBuddyFrameMessage`); the frame takes a context only from its parent on the
+     origin of the page around it, which must be the Launchpad, T3 Code or MausBot of an
+     Environment (`https://(launchpad|t3code|mausbot).<base>.lazurio.io`,
+     `buddyHostOriginOf` from `location.ancestorOrigins`, else from the referrer the
+     frame is created with), and only about that page's own Environment: its id is the
+     host origin's base host and it is personal exactly where that base host has one
+     label (`acceptBuddyContext`). Exact keys make any new member the protocol's v2.
+3. **`<lazurio-buddy>` draws the bubble** (`buddy-bubble.ts` decides over seams,
+   `buddy-element.ts` draws, `buddy-styles.ts`; the last connected element, as the
+   guide's). With Buddy's origin: a launcher, a 58 px disc with Buddy's character from
+   his origin (`/assets/avatar.webp`), or the neutral guide's mark where it does not
+   load; a button with `aria-expanded` and `aria-controls`. Its first click makes the
+   frame, never earlier: `src` the root of Buddy's origin, `sandbox` Nová karta's
+   (scripts, its own origin, forms, popups that escape the sandbox, for the sign-in
+   window), `referrerpolicy="origin"` (the Launchpad sends `no-referrer`, and the frame
+   needs the host's origin for its `frame-ancestors`), `allow="clipboard-write"`, never
+   `credentialless`. One `<dialog>` holds the frame for as long as the origin stays (a
+   frame moved to another parent loads again): the panel above the launcher (about 400
+   × 600, never past the window's edges) shown beside the page, full screen as a modal
+   over the page (760 px of reading width, the page behind inert and dimmed), closed
+   with the frame kept alive, so the conversation is as it was. It opens in the size the
+   person last chose in this tab (`sessionStorage`). Escape on the host's page returns
+   from full screen to the panel (and that is the choice now) and closes the panel; a
+   click on the dimmed page returns to the panel. The frame draws its window's controls
+   and asks for a size with `lazurio.buddy.layout`: it resizes or closes a window the
+   person opened, and never opens one. The page's message listener, the path's
+   (`navigation`'s `currententrychange` and `popstate`, else a check every second) and
+   the colour scheme's exist only while the frame does.
+4. **Where it stands.** z-index 45: above an app's own content, below the overlays a
+   host keeps at its body (T3 Code's sheets from 46, both forks' dialogs from 50,
+   menus, toasts, tooltips), so no dialog of the app is covered; full screen is in the
+   top layer. 20 px from the window's right and bottom edges in the Launchpad. In Chat
+   and Automate (the column head's `active`) the bottom right is the composer's at every
+   width: T3 Code's composer comes within 48 px of the edge where it is as wide as its
+   column (below about 1230 px, or Wide and Full), its send button 65 px from the edge
+   and up to 101 px from the bottom with the branch strip, and MausBot's composer comes
+   within 20 px of the edge, two rows up to 92 px high; so there the launcher stands
+   112 px from the bottom and 16 px from the right, above the composer. The device's safe area adds to both. A host
+   moves it with `--lazurio-buddy-right` and `--lazurio-buddy-bottom`, and the panel
+   follows.
+5. **The guide's receiver is wired** (`createGuideReceiver`, F56 point 4) by the bubble,
+   only where Buddy's origin is: the frame asks by id while its window shows (a hidden
+   frame plays nothing), the principles are known on every page with the bubble, a
+   fork's too, and the page's own explanations where it hands them over; the "?" is
+   still listened to only where the page hands them over. While an explanation the frame
+   asked for plays, the window steps aside and the frame hears `started`, then `done` or
+   `closed`, and the window returns; `busy` while another plays or Začínáme comes first.
+   An explanation started by a "?" is not answered to the frame. The guide's mark
+   travels from Buddy's launcher, and an explanation about Buddy invites nobody to get
+   one where his bubble is. F56 point 3's promise holds with one addition: without
+   explanations handed over and without Buddy's origin, `<lazurio-buddy>` draws nothing
+   and listens to nothing on the page, and it follows the shell's own state to learn
+   whether the origin arrives.
+6. **Interface v1 grows by two properties**, `--lazurio-buddy-right` and
+   `--lazurio-buddy-bottom` (lengths): no attribute, export or event. The standard
+   `hidden` hides the whole element. What the bubble draws, where it stands without the
+   properties and the protocol (versioned on its own) are not promised. Nová karta's
+   colour roles leave the two out.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The host draws the window's controls (the shaping) | The frame knows its own header (settings, full screen, close), the host only obeys a size; rejected for the frame's request `lazurio.buddy.layout` |
+| No `ready`: the host sends the context on the frame's `load` | A cross-origin frame's listener and its sign-in reload are the frame's; `ready` says it hears; rejected |
+| The frame may open its window by itself | A page would pop Buddy up unasked, and v1 has no unread count; rejected |
+| The panel as a popover in the top layer | One element must hold the frame in both sizes, and a `<dialog>` shown as a popover is hidden by the browser's own rules; z-index 45 keeps the app's dialogs above it. Rejected for one `<dialog>`, `show()` and `showModal()` |
+| One place at the bottom right everywhere | Covers the send button of both forks' composers; rejected for the column head's app and the host's properties |
+| A neutral bubble without Buddy (the shaping) | The contract keeps the guide as it is without Buddy; not in v1 |
+| The host's colour roles as the theme (Nová karta's) | The frame paints Buddy's own window and needs only the scheme; a closed `light` or `dark` |
+
+**Honest limits.** Nobody sees the bubble until a document names Buddy: the handover does
+not carry `entry.buddy` yet (Machines declare it in `lazurio.machine.v1` and the
+Platform vendors that schema; until then no binding has `buddyOrigin`), and the
+Dashboard sets the account's `buddy` in a change of its own. The frame on Buddy's origin
+is a separate change; it must answer Escape inside itself (it has the focus) with a
+request for the panel, serve `/assets/avatar.webp` so a same-site page may show it
+(`Cross-Origin-Resource-Policy` at least `same-site`), and stay on its address: a frame
+that navigated itself has its own origin as its referrer and, in a browser without
+`ancestorOrigins` (Firefox), hears no context until it is framed again. At any offset
+the launcher may cover T3 Code's preview mini-player and right panel content, MausBot's
+cards above its composer and the team map's zoom bar when pushed up, and a composer
+grown tall; the shell cannot know T3 Code's composer width. The theme says light or
+dark, not the Environment theme's palette. Checked in headless Chromium only; Safari and
+Firefox are not.
+
+**Verified by** `tests/shell-buddy.test.ts` (every vector of `buddy-protocol.json`
+through F50's runner, each acceptance and refusal: another origin or window, an added
+member at any level, a missing one, `v` 2 or a text, another type, a list, null or a
+`__proto__` member, an Environment other than the host's or its kind against the depth
+of its base, an automated or unknown kind, names and paths past their caps or with a
+control character, a query, a fragment, `//`, a relative path, a step out of bounds, a
+host that is a Module, the Dashboard or another depth; Buddy's origin by its rule; the
+documents' `buddy` on the Osobní Prostředí only and in the account only for a listed
+personal Environment, each other shape refusing the document; the merge on each kind,
+your computer and the Dashboard, and a forged member ignored; the binding on a personal
+Machine only and of its own base host; the Launchpad's document; the context in the
+picker's words and kinds, never a query or fragment; the sends after `ready` without
+repeats and only to Buddy's origin; the bubble over a faked page: nothing without the
+origin, the launcher, the frame made at the first click with exactly its attributes,
+full screen, Escape and the tab's memory, the frame never opening its window, the
+context following the page and the guide's step, the explanation the frame asks for
+with its answers, `busy` and the window's return, another origin another frame; the
+engine knowing the principles with the bubble and inviting nobody),
+`tests/shell-guide-protocol.test.ts` (the receiver wired only by the bubble, its
+listener only in the frame's path), `tests/shell-interface.test.ts` (interface v1 with
+the two properties) and `tests/shell-new-tab.test.ts` (Nová karta's colour roles without
+them), and in headless Chromium (root decision 0178) against the personal preview with
+`buddy`, its entry origin routed through the preview's proxy and Buddy's origin stood in
+for by a page that sends `ready` and the size requests: the launcher with Buddy's picture
+58 px at 20 px from the edges and no frame before the click; the frame's attributes; the
+panel 400 × 600 above the launcher; the frame learning its host from
+`ancestorOrigins` and the referrer; the context of the Osobní Prostředí's Apps; full
+screen 760 px as a modal, Escape in the frame and a click on the dimmed page back to the
+panel, the choice in `sessionStorage`, Escape on the launcher closing it, the frame
+kept; the context after a move to `/settings/general`; `busy` while Začínáme wants
+attention, then the explanation the frame asked for with the window aside, `started` and
+`done` and the step in the context; at 390 px the panel inside the window (Začínáme's
+sheet lies over the launcher while it shows); a fork-like Chat page with the launcher
+112 px from the bottom above its composer's send button and the neutral mark where the
+picture does not load; and the same page without `buddy` making no shadow root.

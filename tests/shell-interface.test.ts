@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
+import { buddyBubbleCss } from "../src/shell/buddy-styles";
 import {
   parseShell,
   type ShellThemeValues,
@@ -39,7 +40,9 @@ const themeValues = Object.fromEntries(
 // nothing; decision F56 (2026-10-18) added the guide: `<lazurio-buddy>`'s
 // attribute `lang`, the page's `marks` `data-guide` and `data-guide-help`,
 // the event `lazurio-guide` and the export `provideGuides`, and removed
-// nothing.
+// nothing; decision F60 (2026-10-21) added Buddy's bubble in the same
+// element and the properties `--lazurio-buddy-right` and
+// `--lazurio-buddy-bottom`, and removed nothing.
 
 test("the promised interface v1 is exactly this", () => {
   expect(JSON.parse(JSON.stringify(shellElementInterface))).toEqual({
@@ -111,6 +114,8 @@ test("the promised interface v1 is exactly this", () => {
     properties: [
       "--lazurio-rail-width",
       "--lazurio-host-tone",
+      "--lazurio-buddy-right",
+      "--lazurio-buddy-bottom",
       "--lazurio-surface",
       "--lazurio-ink",
       "--lazurio-ink-muted",
@@ -164,13 +169,17 @@ test("the elements keep every promised name", async () => {
   for (const event of shellElementInterface.events)
     expect(`${source}${newTab}`).toContain(`new CustomEvent("${event}"`);
   // The rail width and the tone in the script, the colour roles in the
-  // styles of both elements.
+  // styles of both elements, where Buddy's launcher stands in the bubble's
+  // (decision F60).
   for (const property of shellElementInterface.properties)
-    expect(
-      source.includes(`"${property}"`) ||
+    expect({
+      property,
+      read:
+        source.includes(`"${property}"`) ||
         (railCss.includes(`var(${property},`) &&
-          columnHeadCss.includes(`var(${property},`)),
-    ).toBe(true);
+          columnHeadCss.includes(`var(${property},`)) ||
+        buddyBubbleCss.includes(`var(${property},`),
+    }).toEqual({ property, read: true });
   // Every promised value of `active` marks something in the head: an app
   // its tab of the switch, `settings` the gear.
   const shell = parseShell({

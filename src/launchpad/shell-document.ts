@@ -405,6 +405,11 @@ export function shellDocument(
     ...(entry?.signOutPath === undefined ? {} : { signOut: entry.signOutPath }),
     ...(visitors ? { audience: "public" as const } : {}),
     ...(input.theme === undefined ? {} : { theme: input.theme }),
+    // Buddy's bubble on the person's own Osobní Prostředí, where the gateway
+    // routes his frame (decision F60); everywhere else the account says.
+    ...(kind === "personal" && entry?.buddyOrigin !== undefined
+      ? { buddy: { origin: entry.buddyOrigin } }
+      : {}),
   };
   // The producer's own output passes the same parser as every consumer's.
   const parsed = parseShell(document);

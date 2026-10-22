@@ -1,8 +1,10 @@
 import {
   type AccountVisit,
   dashboardSlug,
+  environmentIdOf,
   type Shell,
   type ShellAccount,
+  type ShellBuddy,
   type ShellEnvironment,
   type ShellOrganization,
 } from "./contract";
@@ -41,9 +43,48 @@ import {
 // - The operator is the account's: the person signed in at the browser,
 //   whom a Team or another person's work Environment does not know.
 // - The locale and the Dashboard's addresses stay the local document's.
+// - Buddy's bubble (decision F60, `mergedBuddy`): on the person's own
+//   Osobní Prostředí its document's, else the account's where it names that
+//   same Environment; on a work or Team Environment only the account's,
+//   which the Dashboard gives only where Buddy may show (root decision 0210
+//   point 6); never on your computer or a page that is no Environment's (the
+//   Dashboard has no Buddy, 0210's addendum of 2026-10-20 point 1), and
+//   never from another Environment's own document.
 
 const canonical = (slug: string): string =>
   dashboardSlug(slug) ?? slug.toLowerCase();
+
+/** Buddy's bubble on the page of `local`, the person's `account` merged in
+ * (decision F60): the rule above, whatever either document carries. */
+export function mergedBuddy(
+  local: Shell,
+  account: ShellAccount | null,
+): ShellBuddy | undefined {
+  const current =
+    local.current === null
+      ? undefined
+      : local.environments.find((entry) => entry.id === local.current);
+  if (current === undefined || current.kind === "workstation") return undefined;
+  if (current.kind === "personal") {
+    if (
+      local.buddy !== undefined &&
+      environmentIdOf(local.buddy.origin) === current.id
+    )
+      return local.buddy;
+    const named = account?.buddy;
+    return named !== undefined && environmentIdOf(named.origin) === current.id
+      ? named
+      : undefined;
+  }
+  return account?.buddy;
+}
+
+/** The document with exactly `buddy` as its bubble. */
+function withBuddy(shell: Shell, buddy: ShellBuddy | undefined): Shell {
+  if (shell.buddy === buddy) return shell;
+  const { buddy: _buddy, ...rest } = shell;
+  return Object.freeze(buddy === undefined ? rest : { ...rest, buddy });
+}
 
 /** The Dashboard slugs more than one entry of a list reduces to. */
 function ambiguousSlugs(
@@ -72,7 +113,8 @@ export function mergeAccount(
   local: Shell,
   account: ShellAccount | null,
 ): Shell {
-  if (account === null) return local;
+  const buddy = mergedBuddy(local, account);
+  if (account === null) return withBuddy(local, buddy);
 
   const ambiguous = ambiguousSlugs(local.organizations, account.organizations);
   const sameLanguage = account.locale === local.locale;
@@ -134,11 +176,13 @@ export function mergeAccount(
   }
   const unlisted = local.environments.filter((entry) => !listed.has(entry.id));
 
+  const { buddy: _local, ...document } = local;
   return Object.freeze({
-    ...local,
+    ...document,
     operator: account.operator,
     environments: Object.freeze([...unlisted, ...environments]),
     organizations: Object.freeze([...organizations, ...onlyLocal]),
+    ...(buddy === undefined ? {} : { buddy }),
   });
 }
 
