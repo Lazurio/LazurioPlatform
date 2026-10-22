@@ -95,9 +95,20 @@ export type FakeExecutor = Readonly<{
   /** The person signs in (or not) at the authorization URL of `state`;
    * `identity` is the account the ID token names (by default
    * person@example.test). */
-  finish: (state: string, ok: boolean, identity?: string) => void;
+  finish: (
+    state: string,
+    ok: boolean,
+    identity?: string,
+    /** The failure's full detail (Executor's `errorDetails`), e.g. the
+     * authorization server's answer to the code. */
+    details?: string,
+  ) => void;
   stop: () => Promise<void>;
 }>;
+
+/** Executor 1.6.10's text for a code Microsoft refuses for MFA. */
+export const mfaRefusal =
+  "OAuth code exchange failed: OAuth token exchange failed: AADSTS50076: Due to a configuration change made by your administrator, or because you moved to a new location, you must use multi-factor authentication to access '00000003-0000-0000-c000-000000000000'. (HTTP 400 Bad Request from login.microsoftonline.com)";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -742,9 +753,12 @@ export async function startFakeExecutor(
       if (request.method === "GET" && path === "/oauth/callback") {
         const state = url.searchParams.get("state") ?? "";
         // A code `as:<account>` signs that account in (the preview's
-        // stand-in for an authorization server names who signed in).
+        // stand-in for an authorization server names who signed in); a code
+        // `mfa:` is one Microsoft refuses for MFA when Executor redeems it.
         const code = url.searchParams.get("code");
-        if (flows.has(state))
+        if (flows.has(state) && code?.startsWith("mfa:") === true)
+          finish(state, false, undefined, mfaRefusal);
+        else if (flows.has(state))
           finish(
             state,
             code !== null && url.searchParams.get("error") === null,
@@ -774,7 +788,12 @@ export async function startFakeExecutor(
       return tagged("NotFound", 404);
     },
   });
-  function finish(state: string, ok: boolean, identity?: string) {
+  function finish(
+    state: string,
+    ok: boolean,
+    identity?: string,
+    details?: string,
+  ) {
     const flow = flows.get(state);
     if (flow === undefined) throw new Error(`No flow ${state}`);
     flows.delete(state);
@@ -803,7 +822,8 @@ export async function startFakeExecutor(
             type: "executor:oauth-result",
             ok: false,
             sessionId: state,
-            error: "access_denied",
+            error: details === undefined ? "access_denied" : "OAuth failed",
+            ...(details === undefined ? {} : { errorDetails: details }),
           },
     );
   }

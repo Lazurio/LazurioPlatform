@@ -28,7 +28,7 @@ import {
   forgetMicrosoftSignInOf,
   microsoftSignInOrigins,
 } from "../src/launchpad/server";
-import type { FakeIntegration } from "./fixtures/fake-executor-api";
+import { type FakeIntegration, mfaRefusal } from "./fixtures/fake-executor-api";
 import {
   integrationsWorld,
   worldLaunchpad,
@@ -788,6 +788,78 @@ test("where the Launchpad's callback is not registered, the sign-in runs in the 
   for (let tries = 0; tries < 20 && forgotten.length < 2; tries += 1)
     await Bun.sleep(20);
   expect(forgotten).toEqual(["forgotten", "forgotten"]);
+});
+
+test("Microsoft refusing the code for MFA says so, and the sign-in runs again in the Environment browser, where it asks for the code (#596)", async () => {
+  const { world, app, opened } = await setup();
+  const started = (await (
+    await app.post("/api/integrations/connect", { app: card })
+  ).json()) as { kind: string; session: string; url: string };
+  expect(started.kind).toBe("authorize");
+  expect(opened).toEqual([]);
+  const url = new URL(started.url);
+  expect(url.searchParams.get("redirect_uri")).toBe(returnAddress);
+  // The person signed in without MFA; Microsoft refuses Executor's code.
+  const back = await returned(
+    app,
+    `/api/integrations/oauth/callback?state=${url.searchParams.get("state")}&code=mfa:refused`,
+  );
+  expect(back.status).toBe(200);
+  const page = await back.text();
+  expect(page).toContain("ověření kódem");
+  expect(page).toContain("v prohlížeči Prostředí");
+  expect(await settled(app, started.session)).toEqual({
+    kind: "ended",
+    reason: "mfa-required",
+    retry: "environment-browser",
+  });
+  expect(world.executor.connections).toEqual([]);
+  // Again in the Environment browser: it returns to Executor there, never
+  // to the Launchpad, even with the Launchpad's callback registered.
+  const again = (await (
+    await app.post("/api/integrations/connect", {
+      app: card,
+      browser: "environment",
+    })
+  ).json()) as { kind: string; session: string; view: string };
+  expect(again).toEqual({
+    kind: "authorize",
+    session: expect.any(String),
+    view: environmentView(1),
+  });
+  const start = calls(world, "POST", "/api/oauth/start").at(-1)?.body as Record<
+    string,
+    unknown
+  >;
+  expect(start.redirectUri).toBeUndefined();
+  expect(new URL(opened[0] ?? "").searchParams.get("redirect_uri")).toBe(
+    "http://localhost:4789/api/oauth/callback",
+  );
+  world.executor.finish("state2", true, "ada@contoso.example");
+  expect(await settled(app, again.session)).toEqual({
+    kind: "connected",
+    app: card,
+  });
+  // Refused there too, nothing better is offered than saying so.
+  const third = (await (
+    await app.post("/api/integrations/connect", {
+      app: card,
+      browser: "environment",
+    })
+  ).json()) as { session: string };
+  world.executor.finish("state3", false, undefined, mfaRefusal);
+  expect(await settled(app, third.session)).toEqual({
+    kind: "ended",
+    reason: "mfa-required",
+    retry: null,
+  });
+  // Any other browser is refused before anything starts.
+  const invalid = await app.post("/api/integrations/connect", {
+    app: card,
+    browser: "own",
+  });
+  expect(invalid.status).toBe(400);
+  expect(await invalid.json()).toEqual({ error: "invalid-browser" });
 });
 
 test("an expired account signs in again under its own name; an Executor that is down is said", async () => {
