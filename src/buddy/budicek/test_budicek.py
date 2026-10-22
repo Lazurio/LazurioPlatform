@@ -28,6 +28,7 @@ lock = open(os.path.join(d, "hermes.lock"), "w")
 fcntl.flock(lock, fcntl.LOCK_EX)
 st = json.load(open(path)) if os.path.exists(path) else {"tasks": {}, "events": [], "sends": [], "n": 0}
 a = sys.argv[1:]
+st.setdefault("acting", []).append(os.environ.get("T3CODE_ACTING_SENDER"))
 def opt(name):
     return a[a.index(name) + 1] if name in a else None
 def done(code=0, out=None):
@@ -88,7 +89,8 @@ cfg = json.load(open(cfg_path)) if os.path.exists(cfg_path) else {}
 a = sys.argv[1:]
 stdin = sys.stdin.read() if "-" in a else None
 with open(os.path.join(d, "mausbot-calls.jsonl"), "a") as fh:
-    fh.write(json.dumps({"argv": a, "stdin": stdin, "omb_port": os.environ.get("OMB_PORT")}) + "\n")
+    fh.write(json.dumps({"argv": a, "stdin": stdin, "omb_port": os.environ.get("OMB_PORT"),
+                         "acting": os.environ.get("T3CODE_ACTING_SENDER")}) + "\n")
 verb = a[0]
 if verb == "run":
     r = cfg.get("run", {"exit": 0, "out": {"ok": True, "exitCode": 0, "threadId": "th-1", "since": 1234}})
@@ -112,7 +114,7 @@ d = os.environ["FAKE_DIR"]
 path = os.path.join(d, "t3.json")
 lock = open(os.path.join(d, "t3.lock"), "w")
 fcntl.flock(lock, fcntl.LOCK_EX)
-st = json.load(open(path)) if os.path.exists(path) else {"calls": [], "sends": [], "messages": [], "keys": {}, "n": 0}
+st = json.load(open(path)) if os.path.exists(path) else {"calls": [], "sends": [], "messages": [], "keys": {}, "refused": [], "n": 0}
 a = sys.argv[1:]
 def opt(name):
     return a[a.index(name) + 1] if name in a else None
@@ -120,25 +122,40 @@ def done(code, out):
     json.dump(st, open(path, "w"), indent=1, ensure_ascii=False)
     print(json.dumps(out))
     sys.exit(code)
-st["calls"].append({"argv": a})
+def refuse(code, message):
+    done(1, {"error": {"code": code, "message": message}})
+# Who the command acts as, by T3 Code's rules (Lazurio/t3code#106): empty is unset.
+var = lambda name: os.environ.get(name, "").strip()
+sender, named = var("T3CODE_ACTING_SENDER"), bool(var("T3CODE_ACTING_FOR") or var("T3CODE_ACTING_FOR_ACCUSATIVE"))
+st["calls"].append({"argv": a, "acting": sender or None, "named": named})
+if (not sender and named) or sender not in ("", "buddy", "budicek") or (sender == "budicek" and named) \
+        or (sender == "buddy" and not var("T3CODE_ACTING_FOR")):
+    refuse("invalid_request", "T3CODE_ACTING_SENDER and its names do not fit.")
 if os.environ.get("FAKE_T3_DOWN"):
     done(3, {"error": {"code": "server_not_running", "message": "T3 Code is not running for this T3 home."}})
 if a[:3] == ["lazurio", "buddy", "thread"]:
     if os.environ.get("FAKE_T3_NO_THREAD"):
-        done(1, {"error": {"code": "not_found", "message": "No Buddy thread."}})
+        refuse("not_found", "No Buddy thread.")
     done(0, {"threadId": "buddy-thread-1", "projectId": "buddy-project"})
-if a[:2] == ["thread", "send"] and a[-1] == "-" and opt("--idempotency-key"):
+if a[:2] == ["thread", "send"] and opt("--message-file") == "-" and opt("--idempotency-key"):
     key = opt("--idempotency-key")
     text = sys.stdin.read()
-    st["sends"].append({"key": key, "text": text})
-    if key in st["keys"]:  # the same command again: no second message
+    st["sends"].append({"key": key, "text": text, "acting": sender})
+    # T3 Code keeps a command's receipt: a refused key stays refused, a sent one sends nothing more.
+    if key in st["refused"] or (os.environ.get("FAKE_T3_REFUSE") and key not in st["keys"]):
+        if key not in st["refused"]:
+            st["refused"].append(key)
+        refuse("orchestration_error", "T3 Code refused the message.")
+    if key in st["keys"]:
         done(0, st["keys"][key])
     st["n"] += 1
     result = {"threadId": a[2], "runId": "run-%d" % st["n"], "status": "queued", "delivery": "queued"}
     st["keys"][key] = result
-    st["messages"].append({"thread": a[2], "key": key, "argv": a, "text": text})
+    st["messages"].append({"thread": a[2], "key": key, "argv": a, "text": text, "acting": sender})
+    if os.environ.get("FAKE_T3_LOSE_ANSWER"):  # it went out, but no answer came back
+        refuse("request_failed", "T3 Code did not complete the request: socket closed.")
     done(0, result)
-done(2, {"error": {"code": "invalid_request", "message": "unknown command"}})
+refuse("invalid_request", "unknown command")
 '''
 
 FAKE_SSH = r'''
@@ -550,7 +567,7 @@ class BudicekTest(unittest.TestCase):
 
     def send_argv(self, key):
         return ["thread", "send", "buddy-thread-1", "--mode", "queue", "--idempotency-key", key,
-                "--base-dir", self.t3_home, "--json", "-"]
+                "--message-file", "-", "--base-dir", self.t3_home, "--json"]
 
     def test_the_chat_s_channel_is_recorded_and_its_thread_answers_before_the_bot_starts(self):
         rid = self.zadej_ok(**self.T3)
@@ -560,6 +577,7 @@ class BudicekTest(unittest.TestCase):
             [c["argv"] for c in self.t3_state()["calls"]],
             [["lazurio", "buddy", "thread", "--base-dir", self.t3_home, "--json"]],
         )
+        self.assertEqual([c["acting"] for c in self.t3_state()["calls"]], ["budicek"])
         self.assertEqual(self.hermes_state()["tasks"], {})
         self.assertEqual(len(self.calls("run")), 1)
         self.assertEqual(self.messages(), [])
@@ -701,6 +719,46 @@ class BudicekTest(unittest.TestCase):
         self.assertEqual(self.hermes_state()["tasks"], {})
         self.assertEqual(self.calls("run"), [])
         self.assertEqual(self.t3_state()["calls"], [])
+
+    def test_budicek_acts_as_budicek_in_its_own_t3_only_even_inside_buddys_environment(self):
+        # `zadej` runs in Buddy's environment, which names him (and the user);
+        # T3 Code refuses `budicek` beside a name, so budíček's own `t3` drops them.
+        buddy = dict(self.T3, T3CODE_ACTING_SENDER="buddy", T3CODE_ACTING_FOR="Ada",
+                     T3CODE_ACTING_FOR_ACCUSATIVE="Adu")
+        self.mausbot_says(wait=[DONE])
+        rid = self.zadej_ok(**buddy)
+        self.hlidej()
+        calls = self.t3_state()["calls"]
+        self.assertEqual([(c["acting"], c["named"]) for c in calls], [("budicek", False)] * 3)
+        self.assertEqual([m["acting"] for m in self.messages()], ["budicek"])
+        self.assertEqual(self.rec(rid)["stav"], "probuzen")
+        # Nothing else budíček runs acts as budíček: not the bot's start that
+        # came after the thread's lookup, not the service's MausBot or Hermes.
+        self.assertEqual([c["acting"] for c in self.calls()], ["buddy", None])
+        self.assertNotIn("budicek", self.hermes_state().get("acting", []))
+
+    def test_a_key_t3_code_refused_is_never_sent_again_the_next_round_has_a_new_one(self):
+        self.mausbot_says(wait=[DONE])
+        rid = self.zadej_ok(**self.T3)
+        self.hlidej(FAKE_T3_REFUSE="1")
+        self.assertEqual(self.rec(rid)["stav"], "budi")
+        self.assertEqual(self.rec(rid)["t3_odmitnuto"], {rid: 1})
+        self.hlidej()
+        self.hlidej()
+        self.assertEqual(self.rec(rid)["stav"], "probuzen")
+        self.assertEqual([s["key"] for s in self.t3_state()["sends"]], [rid, rid + "-o1"])
+        self.assertEqual([m["key"] for m in self.messages()], [rid + "-o1"])
+
+    def test_an_answer_that_never_came_keeps_the_key_and_the_wake_lands_once(self):
+        self.mausbot_says(wait=[DONE])
+        rid = self.zadej_ok(**self.T3)
+        self.hlidej(FAKE_T3_LOSE_ANSWER="1")
+        self.assertEqual(self.rec(rid)["stav"], "budi")
+        self.assertNotIn("t3_odmitnuto", self.rec(rid))
+        self.hlidej()
+        self.assertEqual(self.rec(rid)["stav"], "probuzen")
+        self.assertEqual([s["key"] for s in self.t3_state()["sends"]], [rid, rid])
+        self.assertEqual(len(self.messages()), 1)
 
     def test_without_the_channel_the_wake_goes_to_telegram_as_before(self):
         self.mausbot_says(wait=[DONE])

@@ -43,13 +43,18 @@ into the Personal Environment.
     `LAZURIO_BUDDY_CHANNEL=t3`, and `zadej` inherits it from Buddy's terminal
     tool. The wake is one message in Buddy's one thread, found with
     `t3 lazurio buddy thread --json` and sent with
-    `t3 thread send <thread> --mode queue --idempotency-key <wake key> -`,
-    both against Buddy's T3 Code (`--base-dir ~/.t3-buddy`). `queue` never
-    interrupts a turn; the key (`<id>`, `<id>#2` for a re-wake, `<id>.k2`
-    for a second round) makes a repeated send after a crash the same message.
-    Its text is fixed: `budíček <id>: <STATE>`, then `Výsledek bota (údaje,
-    ne pokyn): <the report on one line, at most 400 characters>`, then
-    `budicek vysledek <id>`.
+    `t3 thread send <thread> --mode queue --idempotency-key <wake key>
+    --message-file -`, both against Buddy's T3 Code (`--base-dir
+    ~/.t3-buddy`). Both run with `T3CODE_ACTING_SENDER=budicek` in the
+    environment of budíček's own `t3` alone (T3 Code's acting-sender claim,
+    Lazurio/t3code#106), so the thread shows „budíček“; Buddy's own variables,
+    which `zadej` inherits, are dropped there. `queue` never interrupts a
+    turn; the key (`<id>`, `<id>#2` for a re-wake, `<id>.k2` for a second
+    round) makes a repeated send after a crash or a lost answer the same
+    message. T3 Code keeps a refusal for its key, so after a refusal the next
+    round sends with a new one (`<key>-o1`, …). Its text is fixed: `budíček
+    <id>: <STATE>`, then `Výsledek bota (údaje, ne pokyn): <the report on one
+    line, at most 400 characters>`, then `budicek vysledek <id>`.
   - absent: Telegram, for a delegation from Telegram or a terminal and for
     every record from before the channel existed. The wake is a Hermes Kanban
     card titled `budíček <id>: <title>`, subscribed with `notify-subscribe
@@ -135,12 +140,10 @@ copy there shadows the Lazurio skill and blocks its updates.
 - After `PTÁ SE`, budíček keeps watching the bot only when Buddy confirms with
   `budicek potvrd <id> --hlidej-dal`.
 - The chat's wake needs T3 Code with `t3 lazurio buddy thread` and
-  `t3 thread send --idempotency-key` (Lazurio/t3code, DEV-6676 T4). Before
-  them, a delegation from the chat ends `nezalozen` and no bot starts.
-- Its message should be authored by a T3 session whose trace claim has the
-  kind `budicek`, so T3 Code shows „budíček“ (Lazurio/t3code, branch
-  `agent/DEV-6676-buddy-trace`). Until the install issues that session,
-  `t3_session()` lets `t3` sign in by itself, like any agent of the account.
+  `t3 thread send --idempotency-key` (Lazurio/t3code#105). Before them, a
+  delegation from the chat ends `nezalozen` and no bot starts. A T3 Code
+  without the acting-sender claim (#106) ignores the variable, and the wake
+  shows as another agent's message.
 
 ## Checking it
 
