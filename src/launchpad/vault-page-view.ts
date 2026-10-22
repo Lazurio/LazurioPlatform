@@ -224,15 +224,24 @@ function origin(value: string): string | null {
  *   vault build opens New itself in phase 2);
  * - `open`: the vault (a 0197 pilot: its collection in the person's
  *   organization);
- * - `account`: the sign-in, where the first sign-in with the Lazurio account
- *   creates the person's account. */
+ * - `account`: the vault's Lazurio sign-in, where the person's first
+ *   sign-in creates their account. With the person's own address, as their
+ *   membership answer carries it (`address`), it is
+ *   `#/sso?email=<address>`: the vault starts its sign-in from the address,
+ *   so the link leads straight to the Lazurio sign-in, past the vault's own
+ *   sign-in page and its "SSO identifier". Without the address it is that
+ *   sign-in page (`#/login`), which asks for the address first (F53's
+ *   addendum of 2026-10-22). */
 export type VaultPageLinks = Readonly<{
   add: string | null;
   open: string | null;
   account: string | null;
 }>;
 
-export function vaultPageLinks(status: VaultStatus | null): VaultPageLinks {
+export function vaultPageLinks(
+  status: VaultStatus | null,
+  address: string | null = null,
+): VaultPageLinks {
   const none = { add: null, open: null, account: null };
   if (
     status === null ||
@@ -242,7 +251,12 @@ export function vaultPageLinks(status: VaultStatus | null): VaultPageLinks {
     return none;
   const base = origin(status.vault);
   if (base === null) return none;
-  const account = `${base}/#/login`;
+  // Encoded as a query value: the web vault's router reads a bare "+" as a
+  // space, and "&" or "#" would end the value.
+  const account =
+    address === null
+      ? `${base}/#/login`
+      : `${base}/#/sso?email=${encodeURIComponent(address)}`;
   if (
     status.state !== "connected" ||
     !id(status.organizationId) ||
@@ -370,7 +384,8 @@ function rowLine(
  * - the actions follow the person: with an account in the network's vault
  *   "Přidat položku" and "Otevřít trezor"; without one (or without a master
  *   password yet) only "Vytvořit účet v trezoru", and only where the vault
- *   takes the Lazurio sign-in; not known, "Otevřít trezor", and when the
+ *   takes the Lazurio sign-in, which it starts with the person's own address
+ *   where their answer carries it; not known, "Otevřít trezor", and when the
  *   sign-in did not carry the person's Lazurio username, a line that says
  *   so and asks them to sign in again. A 0197 pilot has "Otevřít trezor" to
  *   its collection. A Team or Automated Environment, or a network whose
@@ -446,6 +461,7 @@ export function vaultPageView(
     return view({ guide, row, hint: copy.vaultPageAgentsOnly });
   const links = vaultPageLinks(
     status.state === "unreachable" ? model.status : status,
+    person?.address ?? null,
   );
   if (status.region !== undefined)
     return personalBitwardenView(status, setup, person, links, copy, {
