@@ -45,17 +45,27 @@ into the Personal Environment.
     `t3 lazurio buddy thread --json` and sent with
     `t3 thread send <thread> --mode queue --idempotency-key <wake key>
     --message-file -`, both against Buddy's T3 Code (`--base-dir
-    ~/.t3-buddy`). Both run with `T3CODE_ACTING_SENDER=budicek` in the
+    ~/.t3-buddy`) and both run by his own runtime: the one the unit
+    `~/.config/systemd/user/lazurio-t3-buddy.service` names in its
+    `ExecStart`, `~/.t3-buddy/runtime/versions/<version>/t3`, never the `t3`
+    on PATH, which follows the user's Chat and may be newer. Both run with
+    `T3CODE_ACTING_SENDER=budicek` in the
     environment of budíček's own `t3` alone (T3 Code's acting-sender claim,
     Lazurio/t3code#106), so the thread shows „budíček“; Buddy's own variables,
     which `zadej` inherits, are dropped there. `queue` never interrupts a
     turn; the key (`<id>`, `<id>#2` for a re-wake, `<id>.k2` for a second
     round) makes a repeated send after a crash or a lost answer the same
-    message, and it never changes for a failure: `t3` reports a refusal T3
-    Code keeps for good and one that passes alike, so a wake T3 Code refused
-    for good waits, retried and logged every round. Its text is fixed: `budíček
-    <id>: <STATE>`, then `Výsledek bota (údaje, ne pokyn): <the report on one
-    line, at most 400 characters>`, then `budicek vysledek <id>`.
+    message, and it never changes for a failure that may pass. A refusal `t3`
+    names final (`idempotency_conflict`, `command_rejected`, `thread_not_found`,
+    `thread_not_sendable`, `invalid_request` and the session refusals
+    `capability_denied`, `runtime_mode_escalation_denied`,
+    `interaction_mode_escalation_denied`; Lazurio/t3code#105) ends that wake in
+    the chat: budíček records it (`t3.<key>.odmitnuto` and a note in
+    `historie`) and wakes Buddy with the Kanban card in Telegram instead, as
+    for a record without the channel, so the result still reaches him. A
+    re-wake has its own key and tries the chat again. Its text is fixed:
+    `budíček <id>: <STATE>`, then `Výsledek bota (údaje, ne pokyn): <the report
+    on one line, at most 400 characters>`, then `budicek vysledek <id>`.
   - absent: Telegram, for a delegation from Telegram or a terminal and for
     every record from before the channel existed. The wake is a Hermes Kanban
     card titled `budíček <id>: <title>`, subscribed with `notify-subscribe
@@ -103,7 +113,7 @@ yet.
 | `BUDICEK_USER_DATIVE` | the record's notes, „píšu <dative>“ | `uživateli` |
 | `BUDICEK_BUDDY_NAME` | the message to the user, „<name> se neprobudil …“ | `Buddy` |
 | `BUDICEK_TELEGRAM_CHAT_ID`, `BUDICEK_TELEGRAM_USER_ID` | where Hermes delivers the wake and the message | `TELEGRAM_ALLOWED_USERS` in `~/.hermes/.env` |
-| `BUDICEK_T3_HOME` | the home of Buddy's T3 Code, for the chat's wake | `~/.t3-buddy` |
+| `BUDICEK_T3_HOME` | the home of Buddy's T3 Code, for the chat's wake; his runtime must be in its `runtime/versions` | `~/.t3-buddy` |
 
 ```ini
 # ~/.config/systemd/user/budicek.service.d/persona.conf
@@ -145,10 +155,15 @@ copy there shadows the Lazurio skill and blocks its updates.
   delegation from the chat ends `nezalozen` and no bot starts. A T3 Code
   without the acting-sender claim (#106) ignores the variable, and the wake
   shows as another agent's message.
+- Without the unit of Buddy's T3 Code, with a unit whose `ExecStart` names
+  anything but his runtime, or with that runtime missing or not executable,
+  budíček runs no `t3` at all: a delegation from the chat ends `nezalozen`
+  with the reason, and a wake already owed waits, logged every round.
 - A wake that cannot be delivered, in either channel, is retried every round
-  and logged, and nothing escalates it to the user. In the chat that includes
-  a wake T3 Code refused for good: `t3` cannot tell such a refusal from one
-  that passes, so the key never changes.
+  and logged, and nothing escalates it to the user. In the chat the exception
+  is a final refusal, whose wake goes to Telegram. That card is made only when
+  it is needed: a delegation from the chat does not prepare it before the bot
+  starts, so without Buddy's Telegram chat such a wake waits too.
 
 ## Checking it
 
@@ -158,7 +173,9 @@ journalctl --user -u budicek -n 50
 budicek seznam --otevrene
 hermes kanban list
 journalctl --user -u hermes-gateway | grep "kanban notifier: woke agent"
-t3 lazurio buddy thread --json --base-dir ~/.t3-buddy
+# Buddy's own t3: the runtime the unit of his T3 Code names
+t3buddy=$(sed -n 's/^ExecStart=\([^ ]*\) serve .*/\1/p' ~/.config/systemd/user/lazurio-t3-buddy.service)
+"$t3buddy" lazurio buddy thread --json --base-dir ~/.t3-buddy
 ```
 
 Tests, from the repository root: `python3 -m unittest src/buddy/budicek/test_budicek.py`

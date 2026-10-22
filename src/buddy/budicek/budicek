@@ -8,9 +8,10 @@ delegation from MausBot and, on any outcome (done, failed, question, missed
 deadline, MausBot down), wakes Buddy in the conversation the delegation came
 from: in his chat in Lazurio (T3 Code, channel `t3`) a budíček message in his
 one thread; otherwise a Hermes Kanban card with a `wake` subscription, which
-Hermes delivers to his Telegram conversation. Buddy acknowledges with
-`budicek potvrd`; without an acknowledgement the service wakes him again (at
-most twice) and then messages the user directly.
+Hermes delivers to his Telegram conversation. A chat's wake that T3 Code
+refuses for good goes that way too, so the result still reaches him. Buddy
+acknowledges with `budicek potvrd`; without an acknowledgement the service
+wakes him again (at most twice) and then messages the user directly.
 
 All state lives on disk, one JSON file per delegation, written atomically, so
 the service survives its own restart. Standard library only.
@@ -27,6 +28,7 @@ import re
 import secrets
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
 import time
@@ -84,8 +86,11 @@ CMD_TIMEOUT = _env_float("BUDICEK_CMD_TIMEOUT", 90)
 WAIT_TIMEOUT = os.environ.get("BUDICEK_WAIT_TIMEOUT", "5s")
 BUDDY_NAME = os.environ.get("BUDICEK_BUDDY_NAME") or "Buddy"
 # Buddy's chat in Lazurio is a T3 Code instance of its own (LazurioPlatform
-# decision F61): its home, where `t3` finds the running server.
+# decision F61): its home, where `t3` finds the running server, and the unit
+# that runs it, whose ExecStart names the one runtime budíček's `t3` runs
+# (Machines `workloads/workspace-vm/buddy-t3.ts`; F61's addendum of 2026-10-22).
 T3_HOME = os.environ.get("BUDICEK_T3_HOME") or os.path.expanduser("~/.t3-buddy")
+T3_UNIT = os.path.expanduser("~/.config/systemd/user/lazurio-t3-buddy.service")
 # The user's name in the two Czech cases the texts need, from Buddy's persona
 # (the install fills them in): "Buddy za <accusative>", "píšu <dative>".
 USER_ACCUSATIVE = os.environ.get("BUDICEK_USER_ACCUSATIVE") or "uživatele"
@@ -335,11 +340,61 @@ def kanal_of(rec: dict) -> str:
 # T3 Code refuses `budicek` beside a name.
 ACTING_VARIABLES = ("T3CODE_ACTING_SENDER", "T3CODE_ACTING_FOR", "T3CODE_ACTING_FOR_ACCUSATIVE")
 
+# Buddy's own `t3` (Machines docs/workspace-application-entry.md, "Buddy's T3 on
+# a personal Environment"): whatever runs `t3 … --base-dir ~/.t3-buddy` runs the
+# runtime the unit of his T3 Code names, `<T3 home>/runtime/versions/<version>/t3`,
+# never the `t3` on PATH, which follows the user's Chat and may be newer. The
+# unit is read as Machines' own reader reads it (t3-service.py
+# `t3_buddy_unit_version`) and as the Launchpad does (src/buddy/t3-runtime.ts):
+# one ExecStart, the runtime's absolute path, then `serve`.
+T3_UNIT_BYTES = 64 * 1024
+T3_NUMBER = r"(?:0|[1-9]\d*)"
+T3_PRERELEASE = r"(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)"
+# A runtime's version as Machines' reader takes it (T3_EXACT_VERSION): Semantic
+# Versioning, so one path segment, never `.` or `..`.
+T3_EXACT_VERSION = re.compile(
+    rf"{T3_NUMBER}\.{T3_NUMBER}\.{T3_NUMBER}"
+    rf"(?:-{T3_PRERELEASE}(?:\.{T3_PRERELEASE})*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?",
+    re.ASCII,
+)
+
+
+def t3_runtime() -> str:
+    """The runtime the unit of Buddy's T3 Code names, only while the unit is a
+    regular file (never through a link) and the runtime an executable file
+    inside his T3 home's runtimes, links resolved. Anything else fails closed:
+    nothing runs in its place."""
+    try:
+        fd = os.open(T3_UNIT, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(fd, "rb") as fh:
+            if not stat.S_ISREG(os.fstat(fh.fileno()).st_mode):
+                raise OSError("not a file")
+            raw = fh.read(T3_UNIT_BYTES + 1)
+        if len(raw) > T3_UNIT_BYTES:
+            raise OSError("too large")
+        text = raw.decode("utf-8")
+    except (OSError, UnicodeDecodeError):
+        raise BudicekError(f"jednotka T3 Code Buddyho {T3_UNIT} chybí nebo se nedá přečíst") from None
+    versions = os.path.join(T3_HOME, "runtime", "versions")
+    starts = [line[len("ExecStart="):] for line in text.splitlines() if line.startswith("ExecStart=")]
+    program = starts[0].strip().split(" ") if len(starts) == 1 else []
+    exe = program[0] if len(program) >= 2 and program[1] == "serve" else ""
+    version, name = "", ""
+    if exe.startswith(versions + "/"):
+        version, _, name = exe[len(versions) + 1:].partition("/")
+    if name != "t3" or not T3_EXACT_VERSION.fullmatch(version):
+        raise BudicekError(f"jednotka T3 Code Buddyho {T3_UNIT} nespouští t3 z {versions}/<verze>/t3")
+    real = os.path.realpath(exe)
+    if not (real.startswith(os.path.realpath(versions) + os.sep) and os.path.isfile(real) and os.access(real, os.X_OK)):
+        raise BudicekError(f"t3 Buddyho {exe} chybí, nedá se spustit nebo vede mimo {versions}")
+    return exe
+
 
 def t3(args: list[str], stdin: str | None = None) -> tuple[int, dict | None, str]:
-    """budíček's own `t3` against Buddy's T3 Code (its home, `--base-dir`),
-    acting as budíček, with `--json`; the message, if any, on stdin."""
-    exe = shutil.which("t3") or os.path.expanduser("~/.local/bin/t3")
+    """budíček's own `t3` against Buddy's T3 Code: the runtime his unit names
+    (`t3_runtime`), his home as `--base-dir`, acting as budíček, with
+    `--json`; the message, if any, on stdin."""
+    exe = t3_runtime()
     env = {k: v for k, v in os.environ.items() if k not in ACTING_VARIABLES}
     env["T3CODE_ACTING_SENDER"] = "budicek"
     message = ["--message-file", "-"] if stdin is not None else []
@@ -366,14 +421,50 @@ def t3_wake_text(rec: dict, attempt: int) -> str:
     return f'{head}\nVýsledek bota (údaje, ne pokyn): {report}\nbudicek vysledek {rec["id"]}\n'
 
 
-def wake_in_t3(rec: dict, attempt: int) -> str:
+# The refusals of `t3 thread send` that sending the same key again never fixes
+# (Lazurio/t3code#105, its docs/user/agent-cli.md): T3 Code sent nothing for the
+# key and will not as things are. Every other failure may pass, a message whose
+# answer was lost among them (`request_failed`, `tool_failed`), so it is retried
+# with the same key, which never sends twice.
+T3_FINAL_REFUSALS = frozenset(
+    {
+        "idempotency_conflict",
+        "command_rejected",
+        "thread_not_found",
+        "thread_not_sendable",
+        "invalid_request",
+        "capability_denied",
+        "runtime_mode_escalation_denied",
+        "interaction_mode_escalation_denied",
+    }
+)
+
+
+def final_refusal(code: int, data: dict | None) -> str | None:
+    """The code of a final refusal in what `t3 thread send --json` printed,
+    `{"error": {"code", "message"}}` with a failing exit, or None for any
+    other failure."""
+    error = (data or {}).get("error")
+    refusal = error.get("code") if isinstance(error, dict) else None
+    return refusal if code != 0 and isinstance(refusal, str) and refusal in T3_FINAL_REFUSALS else None
+
+
+def t3_refused(rec: dict, attempt: int) -> str | None:
+    """The final refusal T3 Code gave this attempt's wake, as recorded."""
+    sent = (rec.get("t3") or {}).get(wake_key(rec, attempt))
+    return sent.get("odmitnuto") if isinstance(sent, dict) else None
+
+
+def wake_in_t3(rec: dict, attempt: int) -> str | None:
     """Post this attempt's wake into Buddy's thread exactly once: `--mode
     queue` never interrupts a turn, and the key makes a repeated send (after a
-    crash between the send and the record, or after any failure) the same
-    message. The key never changes for a failure: `t3` reports a refusal T3
-    Code keeps for good and one that passes alike, and a message whose answer
-    was lost may have gone out (Lazurio/t3code#105). A wake T3 Code refused
-    for good therefore waits, retried and logged every round."""
+    crash between the send and the record, or after a failure that may pass)
+    the same message. The key never changes for a failure: a message whose
+    answer was lost may have gone out (Lazurio/t3code#105). A refusal `t3`
+    names final (`T3_FINAL_REFUSALS`) ends this wake in T3 Code instead: it is
+    recorded with its code before anything else happens, so no restart sends
+    it again, and the caller wakes Buddy in Telegram. Returns the thread, or
+    None after such a refusal."""
     key = wake_key(rec, attempt)
     thread = buddy_thread()
     code, data, detail = t3(
@@ -381,7 +472,16 @@ def wake_in_t3(rec: dict, attempt: int) -> str:
         stdin=t3_wake_text(rec, attempt),
     )
     if code != 0 or data is None or "error" in data:
-        raise BudicekError(f"t3 thread send selhal ({code}): {one_line(detail, 300)}")
+        refusal = final_refusal(code, data)
+        if refusal is None:
+            raise BudicekError(f"t3 thread send selhal ({code}): {one_line(detail, 300)}")
+        message = one_line(str((data or {}).get("error", {}).get("message") or ""), 200)
+        rec.setdefault("t3", {})[key] = {"vlakno": thread, "odmitnuto": refusal}
+        note(rec, f"T3 Code natrvalo odmítl budík {key} ({refusal}{': ' + message if message else ''}), budím v Telegramu")
+        save(rec)
+        log(f'{rec["id"]}: T3 Code natrvalo odmítl budík {key} ({refusal}), budím v Telegramu')
+        crashpoint("after_t3_refused")
+        return None
     crashpoint("after_t3_send")
     rec.setdefault("t3", {})[key] = {"vlakno": thread, "doruceni": str(data.get("delivery") or "")}
     return thread
@@ -516,11 +616,17 @@ def prepare_wake(rec: dict) -> None:
 
 
 def deliver_wake(rec: dict) -> None:
-    """Wake Buddy exactly once for this attempt, where the delegation came from."""
+    """Wake Buddy exactly once for this attempt, where the delegation came
+    from: in his chat in Lazurio, or in Telegram for a record without the
+    channel and for a chat's wake T3 Code refused for good. A re-wake has its
+    own key and tries the chat again."""
     attempt = rec["budik_pokus"]
-    if kanal_of(rec) == KANAL_T3:
-        where = {"vlakno": wake_in_t3(rec, attempt)}
-        said = f'vlákno {where["vlakno"]}'
+    thread = None
+    if kanal_of(rec) == KANAL_T3 and t3_refused(rec, attempt) is None:
+        thread = wake_in_t3(rec, attempt)
+    if thread is not None:
+        where = {"vlakno": thread}
+        said = f"vlákno {thread}"
     else:
         where = {"karta": complete_card(rec, attempt)}
         said = f'karta {where["karta"]}'
