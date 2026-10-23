@@ -1816,7 +1816,7 @@ What changes:
   context files and inherit the working directory. No harness discovers `.agents/buddy/`.
 - **`.hermes.md`** is the role Matěj approved on 2026-10-20 (Buddy's DNA), written about the
   user and never one person: Buddy coordinates and implements nothing; his helpers are MausBot
-  bots briefed through the wake-up service; he may always read the user's T3 Code threads and
+  bots briefed through the delegation service, Delegace; he may always read the user's T3 Code threads and
   writes in them, answers in them or creates them only when the user asks; his steps carry
   „Buddy za <the user's name>“; the persona (his name, the address and the user's name in the
   forms he needs) is SOUL.md's; the Folder is `~/Lazurio`, his own files live outside it
@@ -1845,12 +1845,14 @@ What changes:
 - **`AGENTS.md`** on every preset in both locales gains a "Buddy" section before the working
   rules: Buddy is the user's personal representative within the user's rights and mandates;
   his steps carry „Buddy za <jméno uživatele>“ and a message with it is the user's request;
-  agents never message or wake Buddy, the result stays in the thread; questions go through the
+  agents never message or notify Buddy, the result stays in the thread; questions go through the
   question tool; Publication only on the user's explicit instruction or within a mandate;
   gbrain only on the user's explicit instruction.
-- **The wake-up service** (`src/buddy/budicek/`, Python, standard library) is the pilot's,
-  unchanged in behavior and contract; the user's name in two cases and Buddy's name became
-  settings filled from Buddy's persona. Machines install it (HumanAndMachine-ai/Machines#701).
+- **The delegation service, Delegace** (`src/buddy/delegace/`, Python, standard library; named
+  budíček until the root decision 0210 addendum of 2026-10-22, HumanAndMachines/Lazurio#619) is
+  the pilot's, unchanged in behavior and contract; the user's name in two cases and Buddy's name
+  became settings filled from Buddy's persona. Machines install it
+  (HumanAndMachine-ai/Machines#701).
 - `scripts/render-buddy-layer.ts` renders the layer into a directory, for installs before this
   release.
 
@@ -1903,8 +1905,8 @@ of behavior).
 Admin's decisions of 2026-10-22).** The user can write to Buddy from the bubble in Lazurio's web
 apps. That chat is T3 Code with Hermes connected over ACP, in a T3 Code of its own (F61). Buddy
 needs to know what that asks of him: it is one conversation, its T3 tools are its own, each
-message may carry the page the user has open, his wakes arrive there, and a stop or a steer
-joins his earlier request to the next message.
+message may carry the page the user has open, Delegace's notices for him arrive there, and a stop
+or a steer joins his earlier request to the next message.
 
 What changes in `.hermes.md`: a section „Bublina v Lazuriu“ ("The bubble in Lazurio") after
 "Where things are". Its rules:
@@ -1922,14 +1924,15 @@ What changes in `.hermes.md`: a section „Bublina v Lazuriu“ ("The bubble in 
   the network grants (root 0210 evening addendum, point 4). Otherwise he says he cannot reach it
   yet. He never guesses an address or a host key and never accepts an unknown one;
 - in another Environment he looks and verifies. Work there goes to a bot in that Environment via
-  `budicek zadej --env <environment id>`;
-- for work given from the chat, budíček's wake arrives in it as its fixed message (F61 point 2).
-  It is budíček's automatic message, not the user's words;
+  `delegace zadej --env <environment id>`;
+- for work given from the chat, Delegace's notice arrives in it as its fixed message (F61 point
+  2). It is an internal notice for him, not the user's words, and the user does not see it, only
+  his reply (root decision 0210, addendum of 2026-10-22; Lazurio/t3code#106);
 - a stop, or a message while he works (steer, the chat's default, Matěj's decision 2), ends his
   turn. Hermes joins the interrupted request to the next message after „User correction/guidance
   after interrupt:“. Buddy follows the new message and does not finish an earlier request it
   changes or cancels. The tool step in progress was cut off, so before repeating it he checks
-  what got done, and before giving a bot work again he looks in `budicek seznam --otevrene`.
+  what got done, and before giving a bot work again he looks in `delegace seznam --otevrene`.
 
 In „Jak pověřuješ“ ("How you brief") one more rule: SSH carries no environment variables into
 another Environment, not even T3 Code's acting-sender claim that marks Buddy's steps in threads
@@ -1943,21 +1946,43 @@ environment on standard input (`printf '%s\n%s\n' "$T3CODE_ACTING_FOR"
 the command's text would break or run it (Pablo's review of #592); without the variables in his
 environment, `t3` there refuses the command.
 
-The skill `lazurio-buddy-pomocnici` says budíček wakes Buddy in the conversation he gave the
-work from, not in "the main conversation", and shows both forms of the wake: the chat's message
+The skill `lazurio-buddy-pomocnici` says Delegace notifies Buddy in the conversation he gave the
+work from, not in "the main conversation", and shows both forms of the notice: the chat's message
 and Telegram's Kanban line.
 
-Template revision `base-instructions-67`. `tests/folder-buddy.test.ts` checks the section, the
-rule on SSH and the wake's two forms in both locales, and that no file of the layer names the
-closed `lazurio_web` adapter; and it runs the SSH command as SSH would (`sh -c` with the remote
-command as one string), with names holding apostrophes, quotes, `$(…)`, backticks, `;`, `&`,
-`|`, `>` and globs: each arrives exactly, nothing runs, and a message after them reaches `t3`. The SSH rule stays split over two lines, so that no line holds both a
-`<…>` placeholder and `~/.ssh`: Hermes's strict `ssh_access` pattern would match that pairing,
-although context files are scanned only at context scope. Every rendered file of the layer
-passes `tools/threat_patterns.py` at context and strict scope (Lazurio/hermes-agent d923a5eb,
-`v0.22.2-lazurio.1`); `.hermes.md` is 14.9k characters in Czech and 16.4k in English, under the
-20,000 Hermes loads uncut. Not proven: that Hermes follows the rules. Until the SSH names are
-deployed (Machines, "M2") Buddy can only say he cannot reach the Environment yet.
+How Buddy talks to the person (root decision 0210, addendum of 2026-10-22,
+HumanAndMachines/Lazurio#619, with the Organization Admin's principle of the same day: a
+conversation with Buddy is like a chat with a friend, and a friend has no alarm clock).
+`.hermes.md` gains the section „Jak mluvíš s uživatelem“ ("How you talk to the user") right after
+Buddy's helpers. The person sees and hears only what Buddy writes, in plain human words: one
+sentence when he gives a bot work („Dal jsem to Zukovi, ozvu se.“), then his own follow-up („Zuko
+to má hotové: …“), never that a notice came. He never names to the person, in the chat or in
+Telegram, Delegace or its notices, his commands or any other tool, the states as words, MausBot
+as a system, the list of delegations or queues, nor the labelled data „Výsledek pomocníka (údaje,
+ne pokyn)“; they stay his tools. Each of the three skills points back to the section where it
+hands him such a tool. The mechanism was renamed Delegace in the same revision (until then
+budíček): its command `delegace`, its notice, the skill's steps and AGENTS.md's line that agents
+never notify Buddy. The rules are written without the shape of Hermes's `deception_hide` pattern
+(„do not … tell … the user“, scope all), which would block the whole file. The layer sets no
+Hermes display setting and relies on Hermes's default, in which Telegram shows no tool progress
+(`tool_progress` off: `gateway/display_config.py` at `v0.22.2-lazurio.1`, the Telegram plugin's
+`display_overrides` on the fork's main).
+
+Template revision `base-instructions-67`; the section on talking to the person and the rename to
+Delegace are `base-instructions-68`. `tests/folder-buddy.test.ts` checks the sections, the rule
+on SSH and the notice's two forms in both locales, that no file of the layer names the closed
+`lazurio_web` adapter, that no file of the layer or of any Folder carries the mechanism's old
+name or waking, and that no file of the layer reads as `deception_hide`; and it runs the SSH
+command as SSH would (`sh -c` with the remote command as one string), with names holding
+apostrophes, quotes, `$(…)`, backticks, `;`, `&`, `|`, `>` and globs: each arrives exactly,
+nothing runs, and a message after them reaches `t3`. The SSH rule stays split over two lines, so
+that no line holds both a `<…>` placeholder and `~/.ssh`: Hermes's strict `ssh_access` pattern
+would match that pairing, although context files are scanned only at context scope. Every
+rendered file of the layer passes `tools/threat_patterns.py` at context and strict scope
+(Lazurio/hermes-agent `v0.22.2-lazurio.1` and main at ff0b336e); `.hermes.md` is 15.9k
+characters in Czech and 17.4k in English, under the 20,000 Hermes loads uncut. Not proven: that
+Hermes follows the rules. Until the SSH names are deployed (Machines, "M2") Buddy can only say he
+cannot reach the Environment yet.
 
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
@@ -17628,7 +17653,7 @@ neutral guide without an Osobní Prostředí, in an Environment of another tailn
 the pages of work Environments for an Osobní Prostředí without a tailnet), plan
 DEV-6676 P3 (= DEV-6612 M7, no unread count in v1) and the cross-repository contract of
 the Buddy lead thread of 2026-10-21 (its sections 1 to 3; the frame on Buddy's origin,
-its runtime API and the wake-up service are a separate change).** A person on the
+its runtime API and the delegation service, Delegace, are a separate change).** A person on the
 Launchpad, Chat (T3 Code) or Automate (MausBot) of an Environment in the same tailnet
 as their Osobní Prostředí talks with their Buddy, the Hermes Agent in that Osobní
 Prostředí, from a bubble at the bottom right; every message carries where the person
@@ -17912,28 +17937,44 @@ persona, memory, tools and model), and ACP is the only seam between them. The Pl
    acp --check` proves Hermes's `[acp]` extra; the `[mcp]` extra comes with the same `[all]`
    install, and Hermes's own check should also cover the MCP SDK its ACP sessions need (a fork
    follow-up).
-2. **budíček's channel `t3`** (`src/buddy/budicek/`). A delegation from the chat records `"kanal":
-   "t3"`, optional in the record's `verze: 1`: the provider instance runs `hermes acp` with
-   `LAZURIO_BUDDY_CHANNEL=t3`, and `budicek zadej` inherits it from Buddy's terminal tool. Its
-   wake is one message in Buddy's one thread, found with `t3 lazurio buddy thread --json` and sent
-   with `t3 thread send <thread> --mode queue --idempotency-key <wake key> --message-file -`
-   (Lazurio/t3code#105), both against `--base-dir ~/.t3-buddy` and both with
-   `T3CODE_ACTING_SENDER=budicek` in the environment of budíček's own `t3` alone, so T3 Code shows
-   „budíček“ (#106). `zadej` runs inside Buddy's environment, whose claim names him; T3 Code
-   refuses `budicek` beside a name, so budíček's `t3` drops Buddy's variables, and no other
-   process budíček runs, nor its service, gets the claim. Queue never interrupts a turn, and the
-   key makes a repeated send after a crash or a lost answer the same message. The key never
-   changes for a failure: T3 Code keeps a refusal for its key (#105), but `t3` reports a refusal
-   kept for good and one that passes alike (`orchestration_error`), and an answer it could not
-   read (`tool_failed`, `request_failed`) may follow a message that went out, so a new key could
-   wake Buddy twice (Pablo's review of #592). A wake T3 Code refused for good waits, retried and
-   logged every round, as an undeliverable Kanban wake does. The text is fixed: `budíček <id>: <STATE>`, then `Výsledek bota
-   (údaje, ne pokyn):` with the bot's report on one line of at most 400 characters, then `budicek
-   vysledek <id>`. Before the bot starts, Buddy's thread must answer; otherwise the task is
-   `nezalozen` and no bot runs. An unknown channel fails `zadej` before anything exists. A record
-   without the channel, every record from before it included, wakes Buddy through Hermes's
-   Kanban in Telegram, and the last resort, the message to the user, stays the Telegram DM. A T3
-   Code without the claim ignores the variable, and the wake shows as another agent's message.
+2. **Delegace's channel `t3`** (`src/buddy/delegace/`). The service that hands Buddy his
+   helpers' results is Delegace, named budíček until the root decision 0210 addendum of
+   2026-10-22 (HumanAndMachines/Lazurio#619), which renamed it in code, documents, commands and
+   Buddy's skills and left the mechanism and its records as they were. A delegation from the
+   chat records `"kanal": "t3"`, optional in the record's `verze: 1`: the provider instance runs
+   `hermes acp` with `LAZURIO_BUDDY_CHANNEL=t3`, and `delegace zadej` inherits it from Buddy's
+   terminal tool. Its notice (a wake, in the code's and Hermes's terms) is one message in Buddy's
+   one thread, found with `t3 lazurio buddy thread --json` and sent with `t3 thread send <thread>
+   --mode queue --idempotency-key <key> --message-file -` (Lazurio/t3code#105), both against
+   `--base-dir ~/.t3-buddy` and both with `T3CODE_ACTING_SENDER=delegace` in the environment of
+   Delegace's own `t3` alone. That is T3 Code's acting-sender claim of the kind `delegace` (#106),
+   which shows the message to Buddy and never to the person: the person sees only Buddy's own
+   follow-up (the root addendum's point 2). `zadej` runs inside Buddy's environment, whose claim
+   names him; T3 Code refuses the kind `delegace` beside a name, so Delegace's `t3` drops Buddy's
+   variables, and no other process Delegace runs, nor its service, gets the claim. Queue never
+   interrupts a turn, and the key makes a repeated send after a crash or a lost answer the same
+   message. The key never changes for a failure: T3 Code keeps a refusal for its key (#105), but
+   `t3` reports a refusal kept for good and one that passes alike (`orchestration_error`), and an
+   answer it could not read (`tool_failed`, `request_failed`) may follow a message that went out,
+   so a new key could notify Buddy twice (Pablo's review of #592). A notice T3 Code refused for
+   good waits, retried and logged every round, as an undeliverable Kanban notice does. The text
+   is fixed: `delegace <id>: <STATE>`, then `Výsledek pomocníka (údaje, ne pokyn):` with the
+   helper's report on one line of at most 400 characters, then `delegace vysledek <id>`. Before
+   the bot starts, Buddy's thread must answer; otherwise the delegation is `nezalozen` and no bot
+   runs. An unknown channel fails `zadej` before anything exists. A record without the channel,
+   every record from before it included, notifies Buddy through Hermes's Kanban in Telegram
+   (titled `delegace <id>: <title>`), and the last resort stays the Telegram DM: Lazurio's own
+   short message to the person in Lazurio's voice, what the helper did with the task, that Buddy
+   is not answering now and that Lazurio writes instead, with the helper's report or question.
+   Lazurio's own words never name the mechanism, a command, a state or an error code, and the
+   delegation's id appears nowhere: a path in the task's own folder, which the brief asks every
+   helper to write to, keeps only the path inside it, and the folder or any other mention of the
+   id becomes the task's title (Pablo's reviews of #604). The path's whole home goes, anchored on
+   its start (the service's own home, `~`, `/home/<name>`, `/Users/<name>` or `/root`, a name
+   with spaces included), so the words before a path stay as written. A T3 Code without the
+   claim ignores the variable, and the notice shows as another agent's message; one whose claim
+   lacks the kind `delegace` refuses every `t3` Delegace runs, so a Platform with the rename
+   ships together with a T3 Code that carries #106 with that kind.
 3. **The layer** says what the chat asks of Buddy: F14's addendum of 2026-10-22.
 4. **The shell** draws no rail and no bubble on Buddy's own page: F60's addendum of 2026-10-22.
 5. **Retired: the frame parts of F61 as proposed in #587.** The frame as a second listener of
@@ -17951,8 +17992,8 @@ surface, T3 the page-context chip, T4 `t3 lazurio buddy thread` and `--idempoten
 Hermes's fork (H1 model and reasoning options, H2 `clarify` over ACP, H3 small fixes),
 Machines' unit, route and install (M1′, M2′), Telegram as a channel of the thread (v2), the
 claim for Buddy in Telegram (the Hermes gateway's unit needs the same three variables, and its
-install owns that unit), and what happens to a wake T3 Code refused for good: a code `t3` would
-name such a refusal by would let budíček tell the user instead of waiting.
+install owns that unit), and what happens to a notice T3 Code refused for good: a code `t3` would
+name such a refusal by would let Delegace tell the user instead of waiting.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -17962,9 +18003,9 @@ name such a refusal by would let budíček tell the user instead of waiting.
 | The Platform adds the project with `t3 project add` | An agent-written bootstrap F51 rejected: it neither owns the project store nor guards every way in; rejected for T3 Code's own startup from the unit's declaration |
 | The wake through Hermes's Kanban into the ACP session | T3 Code ignores an agent's output outside a turn; rejected for a queued message in the thread |
 | Record Buddy's thread at `zadej` and wake only there | The one thread is T3 Code's to keep; it is found at every attempt, and checked at `zadej` so that no bot starts without a way back |
-| The claim in the environment of `lazurio-t3-buddy.service`, or budíček's in its unit | Every process the service or the unit starts would inherit it, T3 Code's other agents and Buddy's own `t3` among them; rejected for Buddy's provider and budíček's own `t3` |
-| A new key after a refusal, as #105 suggests | `t3` cannot tell a refusal kept for good from a passing failure or a lost answer, and a new key after a message that went out wakes Buddy twice; rejected until T3 Code names a final refusal |
-| An issued session with the claim, stored for budíček and Buddy | A token to keep private, pass and renew; T3 Code's agent commands issue their own short sessions from the environment instead (#106) |
+| The claim in the environment of `lazurio-t3-buddy.service`, or Delegace's in its unit | Every process the service or the unit starts would inherit it, T3 Code's other agents and Buddy's own `t3` among them; rejected for Buddy's provider and Delegace's own `t3` |
+| A new key after a refusal, as #105 suggests | `t3` cannot tell a refusal kept for good from a passing failure or a lost answer, and a new key after a message that went out notifies Buddy twice; rejected until T3 Code names a final refusal |
+| An issued session with the claim, stored for Delegace and Buddy | A token to keep private, pass and renew; T3 Code's agent commands issue their own short sessions from the environment instead (#106) |
 
 **Verified by** `tests/buddy-chat.test.ts` (the members in T3 Code's shape; every other member
 kept; reading and applying, private modes, nothing rewritten when in place; T3 Code's order and
@@ -17974,20 +18015,24 @@ Environments skipped; the command's JSON and exits; a running server's ownership
 change, settings in place needing none, and a server unable to start from the read to the replace,
 between the last comparison and the replace included; the claim only in Buddy's provider, the
 user's Chat and the unit of Buddy's T3 Code untouched, and nothing written without a usable name
-in the persona), `src/buddy/budicek/test_budicek.py` (the channel recorded, the thread before
+in the persona), `src/buddy/delegace/test_delegace.py` (the channel recorded, the thread before
 the bot, one queued message with its key and text, a bounded report, a restart right after the
-send and at every other step waking once, T3 Code down and back, no thread, a bot that does not
-start, a second round, re-wakes and the Telegram last resort, unknown channels, Telegram
-without the channel and from an old record; budíček's `t3` acting as budíček even inside
-Buddy's environment and nothing else it runs doing so; a refused send keeping its key and never
-sending twice; a message that went out with a lost or unreadable answer, `request_failed`,
-`tool_failed` or `orchestration_error`, sent again with its key and waking once),
+send and at every other step notifying once, T3 Code down and back, no thread, a bot that does
+not start, a second round, repeated notices and the Telegram last resort in Lazurio's words for
+every state, without the delegation's id from a report's or a question's absolute paths here and
+in another Environment's home, a home with spaces among them, and with the words before a path
+left as written, unknown channels, Telegram without the channel and from an old record, a record
+from before the rename going on; Delegace's `t3` acting with its kind even inside Buddy's
+environment and nothing else it runs doing so; a refused send keeping its key and never sending
+twice; a message that went out with a lost or unreadable answer, `request_failed`, `tool_failed`
+or `orchestration_error`, sent again with its key and notifying once; no text the service
+writes carrying the old name or waking),
 `tests/folder-buddy.test.ts` and `tests/shell-buddy.test.ts`. The file `--apply` writes decodes
 with T3 Code's own `ServerSettings` and `AcpRegistrySettings` (the fork's contracts at
 2b11fb99, whose schemas are those of main 41ddc012): `buddy` on with its command, Codex and
 Claude off, the others off by default; with the claim's three variables, which T3 Code's own
 `actingSenderFromEnvironment` (#106 at d6e918c3) reads as `{kind: "buddy", for, forAccusative}`,
-while it refuses `budicek` beside a name and a name with a zero-width character. While a Node
+while it refuses the service's kind beside a name and a name with a zero-width character. While a Node
 process holds the ownership exactly as T3
 Code's server takes it (`node:sqlite`, `BEGIN EXCLUSIVE`), the Platform's attempt is busy, and it
 owns the home once that process lets go. **Honest limits:** no real T3 Code with Hermes, no T4
@@ -18035,21 +18080,21 @@ and `lazurio buddy chat --apply` has run on an Osobní Prostředí, none of this
    unit's own path to another executable, the Chat's among them (Pablo's review of #599). The
    runtime must be an executable regular file inside those runtimes, a link among them
    resolved. The Launchpad
-   (`src/buddy/t3-runtime.ts`) and budíček (`t3_runtime`) carry the same rule. Anything else
-   fails closed, and nothing runs in its place. budíček says why in Czech: a delegation from
-   the chat then ends `nezalozen`, and a wake already owed waits, logged every round.
-4. **A wake T3 Code refused for good.** `t3 thread send` now names the refusals that sending
+   (`src/buddy/t3-runtime.ts`) and Delegace (`t3_runtime`) carry the same rule. Anything else
+   fails closed, and nothing runs in its place. Delegace says why in Czech: a delegation from
+   the chat then ends `nezalozen`, and a notice already owed waits, logged every round.
+4. **A notice T3 Code refused for good.** `t3 thread send` now names the refusals that sending
    the same key again never fixes (Lazurio/t3code#105, its `docs/user/agent-cli.md`):
    `idempotency_conflict`, `command_rejected`, `thread_not_found`, `thread_not_sendable`,
    `invalid_request`, and the session refusals `capability_denied`,
    `runtime_mode_escalation_denied` and `interaction_mode_escalation_denied`. On one of them
-   budíček ends that wake in the chat. It records the code (`t3.<key>.odmitnuto` and a note in
-   `historie`) and saves it before anything else, then wakes Buddy through the Kanban card in
-   Telegram, as for a record without the channel, so the result still reaches him. A restart at
-   any step after that record sends nothing more to T3 Code and completes one card. A re-wake
-   has its own key and tries the chat again. Every other failure keeps its key and is retried
-   every round, as before. This supersedes point 2's „A wake T3 Code refused for good waits,
-   retried and logged every round“ and settles the refusal F61 left open.
+   Delegace ends that notice in the chat. It records the code (`t3.<key>.odmitnuto` and a note
+   in `historie`) and saves it before anything else, then notifies Buddy through the Kanban card
+   in Telegram, as for a record without the channel, so the result still reaches him. A restart
+   at any step after that record sends nothing more to T3 Code and completes one card. A
+   repeated notice has its own key and tries the chat again. Every other failure keeps its key
+   and is retried every round, as before. This supersedes point 2's „A notice T3 Code refused
+   for good waits, retried and logged every round“ and settles the refusal F61 left open.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -18078,18 +18123,18 @@ runtime and with a unit naming the Chat's launcher, nothing run; a failing call 
 its output on; an entry without Buddy pairing the Chat), `tests/shell-buddy.test.ts` (the
 handover's `entry.buddy` projected as `buddyOrigin` alone and named by the Launchpad's document;
 refused on an Organization's VM, of another base host and in every shape the schema refuses),
-and `src/buddy/budicek/test_budicek.py` (budíček running the unit's runtime and never the
+and `src/buddy/delegace/test_delegace.py` (Delegace running the unit's runtime and never the
 `t3` on PATH; every broken unit or runtime, the same links and line ends as the Launchpad's
 included, starting nothing, with its reason; a runtime gone
-and back waking once; each final code recorded and waking Buddy once in Telegram; a restart
-after the record and at every step of the card waking once with nothing more sent to T3 Code;
-a failure that may pass keeping its key and landing once in the chat; a re-wake after a
-refusal reaching the chat with its own key). Mutation checks: each of the scheme check, the
+and back notifying once; each final code recorded and notifying Buddy once in Telegram; a
+restart after the record and at every step of the card notifying once with nothing more sent to
+T3 Code; a failure that may pass keeping its key and landing once in the chat; a repeated notice
+after a refusal reaching the chat with its own key). Mutation checks: each of the scheme check, the
 recorded-origin check, the runtime's containment, the real T3 home and runtimes in both
 readers, the kept byte order mark, the line feed split, Buddy's home in the call, one final
 code, the recorded refusal, the unit's runtime and the final codes themselves, taken out or
 loosened, fails a test. **Honest limits:** no real T3 Code, gateway or Osobní Prostředí ran.
 The forwarded headers are Caddy's default, which Machines count on but do not yet state or
-prove for the shell route (HumanAndMachine-ai/Machines#825). The Buddy layer still says a wake
+prove for the shell route (HumanAndMachine-ai/Machines#825). The Buddy layer still says a notice
 comes in the conversation the work was given from; after a final refusal it comes in
 Telegram.

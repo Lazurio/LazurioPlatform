@@ -21,7 +21,7 @@ import { buddyT3Home } from "./t3-runtime";
 // - the provider instance `buddy`: T3's ACP driver with a local command,
 //   `hermes acp`, with `HERMES_HOME` (Buddy's one Hermes home, shared with
 //   his Telegram gateway), `LAZURIO_BUDDY_CHANNEL=t3`, which every tool
-//   Buddy runs there inherits, so budíček wakes him back in this chat, and
+//   Buddy runs there inherits, so Delegace notifies him back in this chat, and
 //   T3 Code's acting-sender claim (Lazurio/t3code#106): `T3CODE_ACTING_SENDER
 //   =buddy` with the user's name from Buddy's persona, as it stands alone
 //   and after „za“, so what Buddy's `t3` writes or decides in the user's
@@ -51,7 +51,7 @@ import { buddyT3Home } from "./t3-runtime";
 
 /** The provider instance that is Buddy. */
 export const buddyInstanceId = "buddy";
-/** The channel budíček records for a delegation from this chat. */
+/** The channel Delegace records for a delegation from this chat. */
 export const buddyChannel = "t3";
 
 export type BuddyChatInputs = Readonly<{
