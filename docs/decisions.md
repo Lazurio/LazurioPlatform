@@ -15305,6 +15305,17 @@ address the extension's step offers to copy, `#/login` with the answer's address
 back, and a member's "Přidat položku" and "Otevřít trezor" lead where they did. These are
 no rendered-page CI gates.
 
+### F53 addendum of 2026-10-23: ChatGPT Desktop, not Codex Desktop, in the Launchpad's words
+
+OpenAI renamed Codex Desktop to ChatGPT Desktop, and Matěj asked on 2026-10-23 to keep
+the new name. The generated Folder has said ChatGPT Desktop since the F14 addendum of
+2026-10-04 (night); the Launchpad now says it too: Začínáme's optional rows (the
+ChatGPT Desktop row and "Trezor v Bitwardenu") and Nastavení → Trezor, its heading and
+the extension's step. That step adds "dřív Codex Desktop" once, for people who still
+know the app by its old name. Identifiers keep their names: the `codex://` scheme,
+`~/.codex`, the row's id `codex`. Earlier entries in this log keep "Codex Desktop" as
+history; the guide video is unchanged.
+
 ## F54 — An agent's secret request: a person fills it in the Launchpad, the Environment saves it into its own vault
 
 > **Amended on 2026-10-16 by root decision 0203 point 7 ([F53 amendment of

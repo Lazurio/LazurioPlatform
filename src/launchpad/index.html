@@ -699,7 +699,7 @@ button.dialog-x .icon { width: 18px; height: 18px; }
 .vault-invite input { width: min(20rem, 100%); font-family: inherit; font-size: 14px; }
 .vault-disconnect { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; }
 .vault-disconnect[hidden] { display: none; }
-/* The vault in the Bitwarden extension of Codex Desktop and the person's
+/* The vault in the Bitwarden extension of ChatGPT Desktop and the person's
    own browser (F53's addendum of 2026-10-16): numbered steps on one card, a
    value in the monospace face with its Copy button under its step. */
 #vault-bitwarden { scroll-margin-top: 72px; }
@@ -1579,12 +1579,12 @@ button:not(.primary) .provider-openai { color: #000000; }
 <form class="card vault-invite" id="vault-invite" novalidate hidden><div class="row"><div class="vault-invite-field"><p class="row-title" data-message="vaultInviteTitle">Want to see your agents' passwords in your own Bitwarden too?</p><label for="vault-invite-email" class="row-desc" data-message="vaultInviteEmail">Your Bitwarden e-mail</label><span class="vault-request-value"><input id="vault-invite-email" name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="254"><button type="submit" class="primary" id="vault-invite-submit" disabled>Invite me</button></span><p class="vault-request-error" id="vault-invite-error" role="alert"></p></div></div></form>
 <div class="vault-disconnect" id="vault-page-disconnect" hidden><p class="group-note" data-message="vaultDisconnectNote">The vault and its passwords stay in Bitwarden.</p><button type="button" id="vault-disconnect" data-message="vaultDisconnect">Disconnect Bitwarden</button></div>
 </section>
-<!-- The vault in the Bitwarden extension of Codex Desktop and the person's
+<!-- The vault in the Bitwarden extension of ChatGPT Desktop and the person's
      own browser (F53's addendum of 2026-10-16): the steps, a value with its
      Copy button; drawn by vault-page-panel.ts, hidden where the person has
      no vault to add here. Začínáme's "Návod" brings it into view. -->
 <section class="group" id="vault-bitwarden" aria-labelledby="vault-bitwarden-heading" hidden>
-<div class="group-head"><h2 id="vault-bitwarden-heading" tabindex="-1" data-message="vaultBitwardenTitle">In Codex Desktop and your browser</h2></div>
+<div class="group-head"><h2 id="vault-bitwarden-heading" tabindex="-1" data-message="vaultBitwardenTitle">In ChatGPT Desktop and your browser</h2></div>
 <!-- The guide's video (guide-video.ts): "Přehrát video", then the browser's
      own player in its place. -->
 <div class="guide-video" id="vault-bitwarden-video"></div>

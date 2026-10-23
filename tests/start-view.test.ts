@@ -634,7 +634,7 @@ test("a Team or an Automated Environment has no Začínáme; the count shows onl
   ).toBeNull();
 });
 
-test("Volitelné: Composio where Tools offer it, SSH and Codex Desktop on a Remote Environment", () => {
+test("Volitelné: Composio where Tools offer it, SSH and ChatGPT Desktop on a Remote Environment", () => {
   expect(
     optionalRows(
       {
@@ -662,8 +662,8 @@ test("Volitelné: Composio where Tools offer it, SSH and Codex Desktop on a Remo
     },
     {
       id: "codex",
-      title: "Codex Desktop",
-      text: "Pracujte s tímto Prostředím z aplikace Codex.",
+      title: "ChatGPT Desktop",
+      text: "Pracujte s tímto Prostředím z ChatGPT Desktopu.",
       status: null,
       action: { label: "Návod", to: "/settings/ssh" },
     },
@@ -776,14 +776,14 @@ test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose pa
     {
       id: "bitwarden",
       title: "Trezor v Bitwardenu",
-      text: "Hesla z Trezoru Prostředí i v Codex Desktopu a ve vašem prohlížeči.",
+      text: "Hesla z Trezoru Prostředí i v ChatGPT Desktopu a ve vašem prohlížeči.",
       status: null,
       action: { label: "Návod", to: "/vault", part: "bitwarden" },
     },
     {
       id: "codex",
-      title: "Codex Desktop",
-      text: "Pracujte s tímto Prostředím z aplikace Codex.",
+      title: "ChatGPT Desktop",
+      text: "Pracujte s tímto Prostředím z ChatGPT Desktopu.",
       status: null,
       action: { label: "Návod", to: "/settings/ssh" },
     },
@@ -791,7 +791,7 @@ test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose pa
   expect(optionalRows(remote, en)[1]).toEqual({
     id: "bitwarden",
     title: "Vault in Bitwarden",
-    text: "Your Environment vault's passwords in Codex Desktop and your browser too.",
+    text: "Your Environment vault's passwords in ChatGPT Desktop and your browser too.",
     status: null,
     action: { label: "Guide", to: "/vault", part: "bitwarden" },
   });
