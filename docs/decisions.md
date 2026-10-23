@@ -12559,6 +12559,44 @@ implied by writing this contract.
 
 ## F49 — SSH from the person's devices is registered in Launchpad Settings
 
+### Addendum 2026-10-23: device enrollment before SSH setup
+
+The bilingual laptop prompt ends with a clickable Markdown Codex deep link
+in the agent's chat; the person performs the final click. The agent does not
+add the project itself or work around application security restrictions.
+If the first click adds nothing, the person can click that same link again
+(an observed intermittent workaround, not a mandatory double-click). Success
+means the Lazurio folder appears in the sidebar. An Organization name may
+replace its display label, never the SSH alias or remote filesystem path.
+The manual fallback is also performed by the person using the page's exact
+connection values. This changes the handoff, not the link generator or grants.
+
+
+The generated Folder now carries the existing device naming and admission
+procedure in `manual/this-machine.md`, linked from every preset's `AGENTS.md`.
+A new client is named `<login>-<device>` on the source computer before Admin
+approval. The same device label stays across tailnets; the verified control
+server and DNS suffix distinguish the networks. A second computer uses the
+same person account and existing assigned Environment, with its own exact
+approval and SSH key.
+
+The chapter covers identity discovery, existing clients and headless sockets,
+explicit hostname at enrollment, fresh client and administrator readback,
+collisions, and coordinated changes to already approved bindings. It grants
+no access and executes no enrollment or rename. Existing SSH Settings remain
+the owner of SSH key registration; Machines and the host owner's Deployment
+Repo remain the owners of network changes. Generic examples only.
+
+Template revision moves to `base-instructions-68`. Existing installations
+receive the text only through a released Platform update and normal Folder
+refresh. Generation tests establish delivery into each preset in both
+locales; they do not prove a real device's enrollment or runtime rollout.
+
+The standard client flag is documented in
+[Tailscale machine names](https://tailscale.com/kb/1098/machine-names).
+
+
+
 **Decided by the Operator 2026-10-12; implemented in this revision.** A person connects
 SSH from their own computer into their Environment without touching a console inside
 it. They give the agent on their computer (Codex on macOS or Windows, which drives its
