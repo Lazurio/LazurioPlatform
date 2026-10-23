@@ -102,11 +102,15 @@ test("device admission and desktop handoff distinguish personal and Organization
       );
       expect(manual).toContain(
         locale === "cs"
-          ? "Prostředí produktu 1 bez tailnetového SSH"
-          : "A Product 1 Environment without tailnet SSH",
+          ? "Osobní Prostředí bez tailnetu a SSH"
+          : "A personal Environment without tailnet or SSH",
       );
       if (journey.machine !== null) {
-        expect(manual).toContain("Lumbio");
+        expect(manual).toContain(
+          locale === "cs"
+            ? "prostě názvem Organizace"
+            : "simply be named after the Organization",
+        );
         expect(manual).toContain("ChatGPT Desktop");
         expect(outputs["AGENTS.md"]).toContain(
           locale === "cs"

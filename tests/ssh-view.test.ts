@@ -49,7 +49,11 @@ test("the laptop handoff carries the Environment recipe without inventing connec
         locale === "cs" ? "nikdy SSH alias" : "never the SSH alias",
       );
       expect(prompt).toContain("ChatGPT Desktop");
-      expect(prompt).toContain("Lumbio");
+      expect(prompt).toContain(
+        locale === "cs"
+          ? "prostě názvem Organizace"
+          : "simply name it after the Organization",
+      );
       expect(prompt).toContain(
         locale === "cs" ? "osobní projekt" : "personal project",
       );
