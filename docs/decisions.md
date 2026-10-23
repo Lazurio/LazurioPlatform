@@ -12559,44 +12559,6 @@ implied by writing this contract.
 
 ## F49 — SSH from the person's devices is registered in Launchpad Settings
 
-### Addendum 2026-10-23: device enrollment before SSH setup
-
-The bilingual laptop prompt ends with a clickable Markdown Codex deep link
-in the agent's chat; the person performs the final click. The agent does not
-add the project itself or work around application security restrictions.
-If the first click adds nothing, the person can click that same link again
-(an observed intermittent workaround, not a mandatory double-click). Success
-means the Lazurio folder appears in the sidebar. An Organization name may
-replace its display label, never the SSH alias or remote filesystem path.
-The manual fallback is also performed by the person using the page's exact
-connection values. This changes the handoff, not the link generator or grants.
-
-
-The generated Folder now carries the existing device naming and admission
-procedure in `manual/this-machine.md`, linked from every preset's `AGENTS.md`.
-A new client is named `<login>-<device>` on the source computer before Admin
-approval. The same device label stays across tailnets; the verified control
-server and DNS suffix distinguish the networks. A second computer uses the
-same person account and existing assigned Environment, with its own exact
-approval and SSH key.
-
-The chapter covers identity discovery, existing clients and headless sockets,
-explicit hostname at enrollment, fresh client and administrator readback,
-collisions, and coordinated changes to already approved bindings. It grants
-no access and executes no enrollment or rename. Existing SSH Settings remain
-the owner of SSH key registration; Machines and the host owner's Deployment
-Repo remain the owners of network changes. Generic examples only.
-
-Template revision moves to `base-instructions-68`. Existing installations
-receive the text only through a released Platform update and normal Folder
-refresh. Generation tests establish delivery into each preset in both
-locales; they do not prove a real device's enrollment or runtime rollout.
-
-The standard client flag is documented in
-[Tailscale machine names](https://tailscale.com/kb/1098/machine-names).
-
-
-
 **Decided by the Operator 2026-10-12; implemented in this revision.** A person connects
 SSH from their own computer into their Environment without touching a console inside
 it. They give the agent on their computer (Codex on macOS or Windows, which drives its
@@ -12742,6 +12704,51 @@ synonym for `name`, not an independent display-name parameter; do not send both.
 There is no `projectName` parameter. This is implementation evidence for that build,
 not a published stable URI schema or a completed laptop acceptance test. Source
 inspection and rendered guidance do not prove successful registration on another device.
+
+### Addendum 2026-10-23: device enrollment before SSH setup
+
+The bilingual laptop prompt ends with a clickable Markdown `codex://` deep link
+for ChatGPT Desktop (formerly Codex Desktop) in the source computer's agent chat;
+the person performs the final click. The agent does not add the project itself
+or work around application security restrictions. Matěj observed on 2026-10-23
+that if the first click adds nothing, the person can click the same link again:
+not a mandatory double-click or a proven general app defect. Success means the
+Lazurio folder appears in the sidebar. A single Organization project can simply
+be named “Lumbio”; several Environments of one Organization need distinct names
+or kinds, while a personal project needs its own personal label. Only the display
+name changes, never the SSH alias or remote filesystem path. The manual fallback
+uses the page's exact connection values. This changes no link generator or grant.
+
+The generated Folder now carries the existing device naming and admission
+procedure in `manual/this-machine.md`, linked from every preset's `AGENTS.md`.
+A new client is named `<login>-<device>` on the source computer before approval.
+The same device label stays across tailnets; the verified control server and DNS
+suffix distinguish the networks. A second computer uses the same person account
+and existing assigned Environment, with its own exact approval and SSH key.
+Work or Team admission belongs to the Organization Admin; personal tailnet entry
+to a personal Environment belongs to the Conglomerate Host owner's reviewed
+change. Fresh Headscale readback is the evidence for both devices, not a device
+list in the Organization overview. Product 1 without tailnet SSH gains no path.
+
+The chapter covers identity discovery, existing clients and headless sockets,
+explicit hostname at enrollment, fresh client and administrator readback,
+collisions, and coordinated changes to already approved bindings. It grants
+no access and executes no enrollment or rename. Existing SSH Settings remain
+the owner of SSH key registration; Machines and the host owner's Deployment
+Repo remain the owners of network changes. Generic examples only.
+
+At current `main` (8ed52514), the published template revision is
+`base-instructions-67`; the parent PR's first draft proposed 68. This changed
+generated text takes `base-instructions-69`, with a new digest and snapshots.
+Other open PRs #585 and #604 also propose 68; any distinct output merged later
+must take a revision newer than the last merged revision, with matching digests
+and snapshots. Existing installations receive this text only through a
+released Platform update and normal Folder refresh. Generation tests establish
+delivery into each preset in both locales, not actual desktop project creation,
+device enrollment or runtime rollout.
+
+The standard client flag is documented in
+[Tailscale machine names](https://tailscale.com/kb/1098/machine-names).
 
 ## F50 — The Environment browser's contract: one module, executable vectors and an attested artifact for the forks
 

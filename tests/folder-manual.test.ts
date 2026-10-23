@@ -83,6 +83,40 @@ test("the manual follows the locale with the same structure in both languages an
     }
 });
 
+test("device admission and desktop handoff distinguish personal and Organization paths", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      const manual = outputs["manual/this-machine.md"];
+      expect(manual).toContain("Headscale");
+      expect(manual).toContain("Conglomerate Host");
+      expect(manual).not.toContain(
+        "In the Organization overview check both computers",
+      );
+      expect(manual).not.toContain(
+        "V Přehledu Organizace zkontroluj oba počítače",
+      );
+      expect(manual).toContain(
+        locale === "cs"
+          ? "Prostředí produktu 1 bez tailnetového SSH"
+          : "A Product 1 Environment without tailnet SSH",
+      );
+      if (journey.machine !== null) {
+        expect(manual).toContain("Lumbio");
+        expect(manual).toContain("ChatGPT Desktop");
+        expect(outputs["AGENTS.md"]).toContain(
+          locale === "cs"
+            ? "Připojení počítače a projektu v ChatGPT Desktopu"
+            : "Connecting a computer and a ChatGPT Desktop project",
+        );
+      }
+    }
+});
+
 // The hosted rules of base-instructions-4: SSH only by tailnet hostname with a
 // pinned key, updates by the Machines pin, content sync not in the product.
 test("hosted presets carry the SSH and update rules; a workstation keeps its own update path", () => {

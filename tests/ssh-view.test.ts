@@ -46,7 +46,12 @@ test("the laptop handoff carries the Environment recipe without inventing connec
           : "click the same link once again",
       );
       expect(prompt).toContain(
-        locale === "cs" ? "zachovat SSH alias" : "keeping the SSH alias",
+        locale === "cs" ? "nikdy SSH alias" : "never the SSH alias",
+      );
+      expect(prompt).toContain("ChatGPT Desktop");
+      expect(prompt).toContain("Lumbio");
+      expect(prompt).toContain(
+        locale === "cs" ? "osobní projekt" : "personal project",
       );
       expect(prompt).toContain(`~/.ssh/${alias}-ed25519`);
       expect(prompt).toContain(`%USERPROFILE%\\.ssh\\${alias}-ed25519`);
