@@ -12730,6 +12730,54 @@ There is no `projectName` parameter. This is implementation evidence for that bu
 not a published stable URI schema or a completed laptop acceptance test. Source
 inspection and rendered guidance do not prove successful registration on another device.
 
+### Addendum 2026-10-23: device enrollment before SSH setup
+
+The bilingual laptop prompt ends with a clickable Markdown `codex://` deep link
+for ChatGPT Desktop (formerly Codex Desktop) in the source computer's agent chat;
+the person performs the final click. The agent does not add the project itself
+or work around application security restrictions. Matěj observed on 2026-10-23
+that if the first click adds nothing, the person can click the same link again:
+not a mandatory double-click or a proven general app defect. The generated text
+says only that this sometimes happens; it names no person and no date. Success
+means the Lazurio folder appears in the sidebar. A single Organization project
+can simply carry the Organization's name; several Environments of one
+Organization add their kind (work, Team), and a personal project gets its own
+personal label. No real Organization serves as the example. Only the display
+name changes, never the SSH alias or remote filesystem path. The manual fallback
+uses the page's exact connection values. This changes no link generator or grant.
+
+The generated Folder now carries the existing device naming and admission
+procedure in `manual/this-machine.md`, linked from every preset's `AGENTS.md`.
+A new client is named `<login>-<device>` on the source computer before approval.
+The same device label stays across tailnets; the verified control server and DNS
+suffix distinguish the networks. A second computer uses the same person account
+and existing assigned Environment, with its own exact approval and SSH key.
+Work or Team admission belongs to the Organization Admin; entry to a personal
+Environment, a node of its home tailnet only (root decision 0155), belongs to the
+Conglomerate Host owner's reviewed change. Fresh Headscale readback is the
+evidence for both devices, not a device list in the Organization overview. A
+personal Environment without tailnet or SSH (root decision 0207) gains no path.
+
+The chapter covers identity discovery, existing clients and headless sockets,
+explicit hostname at enrollment, fresh client and administrator readback,
+collisions, and coordinated changes to already approved bindings. It grants
+no access and executes no enrollment or rename. Existing SSH Settings remain
+the owner of SSH key registration; Machines and the host owner's Deployment
+Repo remain the owners of network changes. Generic examples only.
+
+`main` reached `base-instructions-68` with #604 (838537c3), the revision this
+PR's first draft had also proposed. This text, merged with that `main`, takes
+`base-instructions-69`, with the digest and snapshots of the merged output.
+Open #585 still proposes 68; any distinct output merged later must take a
+revision newer than the last merged revision, with matching digests and
+snapshots. Existing installations receive this text only through a
+released Platform update and normal Folder refresh. Generation tests establish
+delivery into each preset in both locales, not actual desktop project creation,
+device enrollment or runtime rollout.
+
+The standard client flag is documented in
+[Tailscale machine names](https://tailscale.com/kb/1098/machine-names).
+
 ## F50 — The Environment browser's contract: one module, executable vectors and an attested artifact for the forks
 
 **Decided by Matěj 2026-10-12 on the agent's proposal (root decision 0191's addendum of

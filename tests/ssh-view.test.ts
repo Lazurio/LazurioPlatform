@@ -35,7 +35,28 @@ test("the laptop handoff carries the Environment recipe without inventing connec
         messages(locale),
       );
       expect(prompt).toContain(url);
-      expect(prompt).toContain(desktopLink);
+      expect(prompt).toContain(`](${desktopLink})`);
+      expect(prompt).toContain("Settings → Connections → SSH");
+      expect(prompt).toContain(
+        locale === "cs" ? "Kliknutí nech na mně" : "Let me click it",
+      );
+      expect(prompt).toContain(
+        locale === "cs"
+          ? "kliknout ještě jednou"
+          : "click the same link once again",
+      );
+      expect(prompt).toContain(
+        locale === "cs" ? "nikdy SSH alias" : "never the SSH alias",
+      );
+      expect(prompt).toContain("ChatGPT Desktop");
+      expect(prompt).toContain(
+        locale === "cs"
+          ? "prostě názvem Organizace"
+          : "simply name it after the Organization",
+      );
+      expect(prompt).toContain(
+        locale === "cs" ? "osobní projekt" : "personal project",
+      );
       expect(prompt).toContain(`~/.ssh/${alias}-ed25519`);
       expect(prompt).toContain(`%USERPROFILE%\\.ssh\\${alias}-ed25519`);
       expect(prompt).toContain("Tailscale");

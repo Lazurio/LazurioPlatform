@@ -2099,13 +2099,48 @@ function enabledToolsSection(
 
 // F49: Launchpad owns SSH enrollment and supplies the laptop handoff.
 // The desktop link registers a client connection, never a network grant.
+// Existing device naming and approval contract (root 0155/0192). This
+// chapter ships to local and hosted Folders; execution stays on the device.
+const deviceEnrollment: readonly Text[] = [
+  blank,
+  t("## Přidání počítače do tailnetu", "## Adding a computer to a tailnet"),
+  t(
+    "Nejdřív urči uživatele, zařízení a cílový tailnet, potom jeho stálé jméno. Počítač se přidává ke stávajícímu účtu uživatele; druhý počítač nevytváří další účet ani další Prostředí. Agente, příkazy pro klienta spouštěj na zdrojovém počítači. Pokud běžíš v hostovaném Prostředí, připrav postup pro agenta na zdrojovém počítači; nepřejmenovávej toto Prostředí.",
+    "Establish the user, device and target tailnet, then choose its stable name. Add the computer to the user's existing account; a second computer creates neither another account nor another Environment. Run client commands on the source computer. If you run in a hosted Environment, prepare the procedure for the agent on the source computer; do not rename this Environment.",
+  ),
+  t(
+    "1. Ověř identitu účtu a Headscale login server z přihlášeného Lazuria nebo od správce daného tailnetu. Login neodvozuj ze jména OS účtu, e-mailu ani cílového Environmentu. U propojeného GitHub účtu použij lowercase login zmrazený při založení osobního Headscale usera; u účtu bez GitHubu použij jeho existující štítek. GitHub kvůli názvu nepropojuj. Když identitu neznáš, nejdřív ji dohledej nebo si ji vyžádej.",
+    "1. Verify the account identity and Headscale login server from signed-in Lazurio or the administrator of that tailnet. Do not derive the login from the OS account, email or target Environment. For a linked GitHub account use the lowercase login frozen when its personal Headscale user was created; without GitHub use its existing label. Do not link GitHub for a name. If the identity is unknown, find it or ask for it first.",
+  ),
+  t(
+    "2. Nový počítač pojmenuj `<login>-<zařízení>`, například `example-user-macbook` nebo `example-user-windows`. Použij malá písmena, číslice a spojovníky, bez emoji a výchozích jmen `node`, `localhost` či náhodného názvu OS. Štítek zařízení zvol jednou a drž ho ve všech tailnetech; pro dvě zařízení stejného druhu zvol stálé rozlišení, například `macbook-air` a `macbook-pro`. Organizaci ani Conglomerate do jména zařízení nepřidávej: síť rozlišuje ověřený login server a DNS suffix. Jméno není identita ani oprávnění. Koncovka `-personal-vm` patří osobnímu hostovanému Environmentu, ne notebooku.",
+    "2. Name a new computer `<login>-<device>`, for example `example-user-macbook` or `example-user-windows`. Use lowercase letters, digits and hyphens, without emoji or defaults such as `node`, `localhost` or a random OS name. Choose the device label once and keep it across tailnets; distinguish two devices of the same kind with stable labels such as `macbook-air` and `macbook-pro`. Do not add an Organization or Conglomerate to the device name: the verified login server and DNS suffix distinguish the network. A name is neither identity nor permission. The `-personal-vm` suffix belongs to a hosted personal Environment, not a laptop.",
+  ),
+  t(
+    "3. Před registrací zkontroluj existujícího klienta: `tailscale debug prefs` (`ControlURL`) a `tailscale status --json`. Nesprávný aktivní tailnet sám nepřepínej, neodhlašuj jej a neresetuj jeho stav. Existuje-li pro cílovou síť schválený headless klient, použij jeho socket ve všech příkazech (`tailscale --socket=<socket> …`). Nového dalšího klienta nevytvářej jen pro tento úkol. Headless klient stejného počítače má jméno `<login>-<zařízení>-cli`, nejvýš jeden na počítač a tailnet, a vlastní schválení.",
+    "3. Before enrollment inspect the existing client: `tailscale debug prefs` (`ControlURL`) and `tailscale status --json`. Do not switch, log out or reset a different active tailnet yourself. If an approved headless client exists for the target network, use its socket in every command (`tailscale --socket=<socket> …`). Do not create another client just for this task. A headless client of the same computer is named `<login>-<device>-cli`, at most one per computer and tailnet, with its own approval.",
+  ),
+  t(
+    "4. Při prvním připojení nastav explicitní `--hostname=<jméno>` spolu s ověřeným `--login-server=<adresa>` v podporovaném přihlašovacím postupu klienta. OIDC přihlášení dokončí uživatel svým Lazurio účtem; pokud podporované přihlášení chybí, předej to správci místo improvizované staré registrace. U nově zaregistrovaného, dosud neschváleného zařízení se špatným jménem použij na zařízení `tailscale set --hostname=<jméno>`; ostatní nastavení zachovej. Má-li macOS CLI mimo PATH, použij klienta dodaného nainstalovanou aplikací. Kvůli názvu neinstaluj druhý daemon a neměň systémové jméno počítače. Na Conglomerate Hostu ručně nepoužívej `headscale nodes rename`.",
+    "4. On first connection pass an explicit `--hostname=<name>` with the verified `--login-server=<address>` through the client's supported sign-in procedure. The user completes OIDC sign-in with their Lazurio account; if supported sign-in is unavailable, hand off to the administrator instead of improvising legacy enrollment. For a newly enrolled, still unapproved device with a wrong name, run `tailscale set --hostname=<name>` on the device; preserve its other settings. If the macOS CLI is outside PATH, use the client supplied by the installed app. Do not install a second daemon or change the OS computer name for this. Never manually run `headscale nodes rename` on the Conglomerate Host.",
+  ),
+  t(
+    "5. Ověř výsledek: `ControlURL` odpovídá cílové síti a `Self.DNSName` z `tailscale status --json` má přesný zvolený první štítek a správný suffix. Správce porovná čerstvý Headscale readback: node ID, machine key, konečné jméno, vlastníka a IPv4/IPv6. Přípona `-1` nebo jiné jméno není úspěch: dořeš kolizi nebo dřívější ruční přejmenování se správcem, cizí uzel nemaž. Už schválené zařízení nepřejmenovávej jen kvůli konvenci: jméno je součástí přesných vazeb přístupu, takže jeho změna potřebuje koordinovaný plán a nové ověření. Stejně postupuj při novém přihlášení, které změní node ID nebo machine key.",
+    "5. Verify the result: `ControlURL` matches the target network and `Self.DNSName` from `tailscale status --json` has exactly the chosen first label and the correct suffix. The administrator compares fresh Headscale readback: node ID, machine key, final name, owner and IPv4/IPv6. A `-1` suffix or another name is not success: resolve a collision or an earlier manual rename with the administrator; do not delete another node. Do not rename an approved device just for convention: its name is part of exact access bindings, so a change needs a coordinated plan and new verification. Treat re-enrollment changing the node ID or machine key the same way.",
+  ),
+  t(
+    "6. Registrace do tailnetu ještě přístup neuděluje. Pro Pracovní nebo Týmové Prostředí schvaluje Admin Organizace konkrétní zařízení a jeho přidělenou cestu v řízeném postupu správce sítě. Do Osobního Prostředí zařízení Admin Organizace neschvaluje: vstup v domovském tailnetu povolí reviewovaná změna vlastníka Conglomerate Hostu. Každý počítač má vlastní vazbu a vlastní SSH klíč; privátní klíč se nekopíruje. Správce porovná čerstvý Headscale readback z kroku 5 pro oba počítače a jejich přesné síťové vazby; nepředpokládej seznam zařízení v Přehledu Organizace. Až po schválení a nasazení, pokud cílové Prostředí nabízí SSH, pokračuj v jeho Nastavení → SSH ze zařízení, připni klíč hostu a ověř `ssh <alias> true`. Osobní Prostředí bez tailnetu a SSH, do kterého se vstupuje jen přihlášením Lazurio účtem z webu, tento postup nemá. Rozlišuj registraci, schválení, nasazení a test; řekni, co chybí.",
+    "6. Tailnet registration grants no access yet. For a work or Team Environment, the Organization Admin approves the exact device and its assigned path through the network administrator's managed procedure. No Organization Admin approves a device for a personal Environment: a reviewed change by the Conglomerate Host owner admits it in the home tailnet. Each computer has its own binding and SSH key; never copy a private key. The administrator compares fresh Headscale readback from step 5 for both computers and their exact network bindings; do not assume a device list in the Organization overview. Only after approval and deployment, if the target Environment offers SSH, continue in its Settings → SSH from your devices, pin its host key and verify `ssh <alias> true`. A personal Environment without tailnet or SSH, entered only by signing in with the Lazurio account on the web, has no such path. Distinguish registration, approval, deployment and the test; say what is missing.",
+  ),
+];
+
 function deviceSsh(machine: MachineBinding): readonly Text[] {
   const origin = machine.entry?.externalOrigin;
   return [
     blank,
     t(
-      "## Připojení počítače a projektu v Codexu",
-      "## Connecting a computer and a Codex project",
+      "## Připojení počítače a projektu v ChatGPT Desktopu",
+      "## Connecting a computer and a ChatGPT Desktop project",
     ),
     t(
       "Připojení nastavuje agent na počítači uživatele, ne ty. Jsi v Environmentu, ke kterému se počítač připojuje, a soukromý klíč počítače sem nepatří.",
@@ -2117,9 +2152,13 @@ function deviceSsh(machine: MachineBinding): readonly Text[] {
           "The handover gives no Launchpad address, so do not guess it. Ask the Environment's administrator to add it.",
         )
       : t(
-          `Pošli uživateli odkaz na [Nastavení → SSH ze zařízení](${origin}/settings/ssh). Čeká tam hotový prompt pro agenta na jeho počítači: jednoznačný alias tohoto Environmentu, klíč hostu a odkaz, který přidá tento Lazurio Folder do Codexu jako projekt. Údaje ber z té stránky.`,
-          `Send the user the link to [Settings → SSH from your devices](${origin}/settings/ssh). A prompt for the agent on their computer is ready there: a distinct alias for this Environment, its host key and a link that adds this Lazurio Folder to Codex as a project. Take the values from that page.`,
+          `Pošli uživateli odkaz na [Nastavení → SSH ze zařízení](${origin}/settings/ssh). Čeká tam hotový prompt pro agenta na jeho počítači: jednoznačný alias tohoto Prostředí, klíč hostu a odkaz, který přidá tuto složku Lazurio do ChatGPT Desktopu (dřív Codex Desktop) jako projekt. Údaje ber z té stránky.`,
+          `Send the user the link to [Settings → SSH from your devices](${origin}/settings/ssh). A prompt for the agent on their computer is ready there: a distinct alias for this Environment, its host key and a link that adds this Lazurio Folder to ChatGPT Desktop (formerly Codex Desktop) as a project. Take the values from that page.`,
         ),
+    t(
+      "Agent na zdrojovém počítači po úspěšném testu SSH zakončí odpověď v chatu klikacím Markdown odkazem do ChatGPT Desktopu převzatým přesně ze stránky. Projekt sám nepřidává ani neobchází bezpečnostní omezení aplikace: klikne uživatel. Vysvětlí mu, že pokud první kliknutí projekt nepřidá, může na stejný odkaz kliknout ještě jednou; občas se to stává, není to povinný dvojklik. Po úspěchu uživatel vidí vlevo složku Lazurio. Jediný projekt Organizace může pojmenovat prostě názvem Organizace; více Prostředí téže Organizace rozliší i druhem, třeba Pracovní a Týmové, a osobní projekt vlastním osobním označením. Mění se jen zobrazovaný název, nikdy SSH alias ani vzdálená cesta. Pokud odkaz stále nefunguje, proveď uživatele ručním přidáním přesných hodnot ze stránky v Settings → Connections → SSH.",
+      "After a successful SSH test, the agent on the source computer ends its chat reply with a clickable Markdown link to ChatGPT Desktop taken exactly from the page. It does not add the project itself or bypass app security restrictions: the user clicks. Explain that if the first click adds no project, they can click the same link once again; this sometimes happens and is not a required double-click. Once successful, the user sees the Lazurio folder in the left sidebar. A single Organization project may simply be named after the Organization; distinguish several Environments of one Organization by kind as well, such as work and Team, and give a personal project its own personal label. Only the display name changes, never the SSH alias or remote path. If the link still fails, guide the user through adding the page's exact values manually in Settings → Connections → SSH.",
+    ),
     t(
       "Zaregistrovaný klíč sám přístup do sítě nedává. Která zařízení se do sítě dostanou, rozhoduje správce sítě (Headscale a povolení SSH). Profil Tailscale na počítači uživatele nepřepínej.",
       "A registered key gives no network access by itself. The network administrator decides which devices reach the network (Headscale and the SSH grant). Do not switch the Tailscale profile on the user's computer.",
@@ -2503,6 +2542,7 @@ function thisMachine(source: InstructionSource): string {
         "## Boundaries in this Environment",
       ),
       ...boundaries(preset, machine),
+      ...deviceEnrollment,
       ...botTeam(preset, machine),
       ...(machine === null ? [] : [blank, ...operatorClient(preset, machine)]),
       ...(entry?.browserOrigin === undefined
