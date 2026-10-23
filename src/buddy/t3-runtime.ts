@@ -5,14 +5,14 @@ import { isAbsolute, join, sep } from "node:path";
 // Buddy's own `t3` (Machines `docs/workspace-application-entry.md`, "Buddy's
 // T3 on a personal Environment"; F61's addendum of 2026-10-22): whatever runs
 // `t3 … --base-dir ~/.t3-buddy`, the Launchpad's pairing on Buddy's origin and
-// budíček alike, runs the runtime that the unit of his T3 Code names in its
+// Delegace alike, runs the runtime that the unit of his T3 Code names in its
 // `ExecStart`, `~/.t3-buddy/runtime/versions/<version>/t3`. Never the `t3` on
 // PATH (`~/.local/bin/t3`): it follows the person's Chat T3 and may be newer
 // after an update in the app, and a newer T3 Code migrates a home it opens
 // forward. Machines render that unit (`workloads/workspace-vm/buddy-t3.ts`)
 // and install exactly its pinned runtime; this reads the unit as Machines' own
-// reader does (`t3_buddy_unit_version` in `t3-service.py`), and budíček,
-// which is Python, carries the same rule (`t3_runtime` in `budicek/budicek`).
+// reader does (`t3_buddy_unit_version` in `t3-service.py`), and Delegace,
+// which is Python, carries the same rule (`t3_runtime` in `delegace/delegace`).
 
 /** The home of Buddy's T3 Code, under the user's home. */
 export const buddyT3Home = ".t3-buddy";
@@ -84,7 +84,7 @@ async function readUnit(home: string): Promise<string | undefined> {
         length += bytesRead;
         if (length > unitBytes) return undefined;
       }
-      // A byte order mark stays a character, as budíček's Python reads it.
+      // A byte order mark stays a character, as Delegace's Python reads it.
       return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
         buffer.subarray(0, length),
       );
