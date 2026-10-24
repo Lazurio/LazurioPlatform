@@ -564,8 +564,9 @@ test("the skills: the directory's name is the frontmatter's, a description Herme
       expect(mausbot).toContain(fact);
     expect(mausbot).not.toContain("OpenMausBot#55");
     const threads = layer[buddySkillPath("lazurio-t3-orchestration")];
-    // T3 Code 0.1.2 sends with `queue` by default (0.1.1 with `auto`) and
-    // launches in the project's mode, so Buddy always names the mode.
+    // T3 Code 0.1.2 sends with `queue` by default (0.1.1 with `auto`), so
+    // Buddy always names the mode; it launches in the project's mode, while
+    // 0.1.1 always launches with full access, and the launch line says both.
     for (const fact of [
       "0.1.0-lazurio.5",
       "Lazurio/t3code#94",
@@ -575,6 +576,11 @@ test("the skills: the directory's name is the frontmatter's, a description Herme
     ])
       expect(threads).toContain(fact);
     expect(threads).not.toContain("(`--mode auto`");
+    const launch = threads
+      .split("\n")
+      .find((line) => line.startsWith("- `t3 thread launch`"));
+    for (const fact of ["0.1.2", "0.1.1", "(decision 0172)"])
+      expect(launch).toContain(fact);
     const helpers = layer[buddySkillPath("lazurio-buddy-pomocnici")];
     for (const fact of [
       "delegace zadej --bot <bot> --termin",

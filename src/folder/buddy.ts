@@ -875,8 +875,8 @@ const threads: BuddySkill = {
       "## New work in a thread (only at the user's request)",
     ),
     t(
-      "- `t3 thread launch` založí vlákno v projektu Lazurio Folderu s výchozím modelem a v režimu projektu, výchozí je plný přístup (decision 0172). Model ani režim nevybíráš.",
-      "- `t3 thread launch` creates the thread in the Lazurio Folder's project with the default model and the project's mode, full access by default (decision 0172). You choose neither the model nor the mode.",
+      "- `t3 thread launch` založí vlákno v projektu Lazurio Folderu s výchozím modelem. Od T3 Code 0.1.2 v režimu projektu, jehož výchozí hodnota je plný přístup (decision 0172); verze 0.1.1 zakládá vždycky s plným přístupem. Model ani režim nevybíráš.",
+      "- `t3 thread launch` creates the thread in the Lazurio Folder's project with the default model. From T3 Code 0.1.2 in the project's mode, full access by default (decision 0172); version 0.1.1 always launches with full access. You choose neither the model nor the mode.",
     ),
     t(
       "- T3 Code 0.1.0-lazurio.5 vlákno odmítne založit („the project has no default model“), když záznam projektu nemá starý výchozí model; opraví to Lazurio/t3code#94 ve verzi .6. Nastavení T3 Code kvůli tomu neměň: řekni to uživateli a vlákno založí on.",

@@ -1991,11 +1991,15 @@ describes. `t3 thread send` without `--mode` now queues (until 0.1.1 it was `aut
 default is still full access (`DEFAULT_RUNTIME_MODE`, `full-access`), and the agent CLI's ceiling
 caps it (`resolveRuntimeMode`). The skill therefore names the mode in its `send` row
 (`--mode queue`, also `steer`, `auto`, `restart`). It tells Buddy to always pass `--mode` and,
-unless the user asks otherwise, to send `queue`. It says `launch` uses the project's mode, full
-access by default (root decision 0172). The text holds for both versions, so it ships ahead of
-any Environment's move to 0.1.2. Delegace needs no change: it passes `--mode queue` itself and
-never launches. Template revision `base-instructions-70`; `tests/folder-buddy.test.ts` checks the
-new facts in both locales.
+unless the user asks otherwise, to send `queue`, which holds for both versions. Its `launch` line
+names the difference: from 0.1.2 the project's mode, full access by default (root decision
+0172), while 0.1.1 always launches with full access and ignores a narrower mode set on the
+project (Pablo's review of #613). For the Lazurio Folder's project both launch the same unless
+the user narrowed its mode: on 2026-10-23 at 22:53Z on Ring 0, `0.1.2-preview.20261023.1`
+(25d9a218) launched there with `full-access`. So the text ships ahead of any Environment's move
+to 0.1.2. Delegace needs no change: it passes `--mode queue` itself and never launches. Template
+revision `base-instructions-70`; `tests/folder-buddy.test.ts` checks the new facts in both
+locales and that the `launch` line names both versions.
 
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
