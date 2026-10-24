@@ -27,7 +27,11 @@ import {
 import { executionOs } from "../src/folder/platform";
 import { githubIdentity, presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
-import { ownSignInIdentity, questionTool } from "../src/folder/render";
+import {
+  ownSignInIdentity,
+  questionTool,
+  visitorsOf,
+} from "../src/folder/render";
 import { resumeInitialization } from "../src/folder/resume-initialization";
 import { updateProfile } from "../src/folder/update-profile";
 import { journeys } from "./fixtures/journeys";
@@ -41,6 +45,7 @@ import {
 import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
 import { runChild } from "./fixtures/run-child";
+import { tryBinding } from "./fixtures/try-environments";
 
 const os = executionOs(process.platform);
 
@@ -1866,5 +1871,71 @@ test("the agent's work is a pull request, GitHub is the authority for source cod
         environment.os !== "windows",
         environment.preset === "local" && environment.os === "macos",
       ]);
+    }
+});
+
+// That the Lazurio account holds entry to Environments is root decision 0192's
+// target, not today's gate everywhere: until the move to the account's grants
+// is done, the existing path still decides, a Team Environment's GitHub Team
+// for one (docs/environment-access.md, Pablo's review of #621). So every line
+// of a generated file, Buddy's layer included, that names the Lazurio account
+// as the entry authority also names the existing path. The texts are where
+// they must be: in `manual/lazurio.md` on every Environment, and in AGENTS.md
+// and `manual/this-machine.md` where the user's own sign-ins are used or the
+// visitors' section renders (try-01).
+test("every statement that the Lazurio account holds entry also names the existing path until the move", () => {
+  const environments = [
+    ...journeys,
+    {
+      preset: "hosted-organization-team",
+      machine: bindings.teamPublic,
+      os: "linux",
+    },
+    {
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationPublic,
+      os: "linux",
+    },
+    { preset: "hosted-organization-team", machine: tryBinding(), os: "linux" },
+    {
+      preset: "hosted-organization-personal",
+      machine: tryBinding(),
+      os: "linux",
+    },
+  ] as const;
+  const authority = {
+    cs: /vst(?:up|oup)\p{L}* do (?:Environment|Prostředí)\p{L}*.*Lazurio účet|Lazurio účet.*vst(?:up|oup)\p{L}* do (?:Environment|Prostředí)/iu,
+    en: /\b(?:entry to|enters? an?) Environments?\b.*\bLazurio account\b|\bLazurio account\b.*\b(?:entry to|enters? an?) Environments?\b/i,
+  };
+  const existingPath = { cs: "dosavadní cesta", en: "the existing path" };
+  for (const environment of environments)
+    for (const locale of ["cs", "en"] as const) {
+      const composition = {
+        preset: environment.preset,
+        machine: environment.machine,
+        profile: presetProfile(environment.preset, environment.os, { locale }),
+      };
+      const outputs = renderOutputs(composition);
+      const layer = renderBuddyLayer(composition);
+      const where = [environment.preset, environment.machine?.name, locale];
+      const statements = (text: string) =>
+        text.split("\n").filter((line) => authority[locale].test(line));
+      for (const [path, text] of [
+        ...Object.entries(outputs),
+        ...buddyLayerPaths.map((path) => [path, layer[path]] as const),
+      ])
+        for (const line of statements(text))
+          expect([...where, path, line.includes(existingPath[locale])]).toEqual(
+            [...where, path, true],
+          );
+      const named =
+        githubIdentity(environment.preset, environment.machine) ===
+          "own-sign-in" || visitorsOf(environment.machine) !== null;
+      expect([
+        ...where,
+        statements(outputs["manual/lazurio.md"]).length >= 2,
+        statements(outputs["AGENTS.md"]).length > 0,
+        statements(outputs["manual/this-machine.md"]).length > 0,
+      ]).toEqual([...where, true, named, named]);
     }
 });

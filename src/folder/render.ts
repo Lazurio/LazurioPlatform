@@ -511,12 +511,13 @@ export const publicIdentity: Text = {
 
 // The identity line of an Environment where the user's own sign-ins are used,
 // the same in AGENTS.md and the manual. GitHub is the authority for source
-// code; entry to Environments and the network have their own authorities
-// (root decision 0192; decision F14's addendum of 2026-10-24), as
-// `manual/lazurio.md` says in full.
+// code and Headscale holds the network; that the Lazurio account holds entry
+// is root decision 0192's target, and until the move the existing path still
+// decides (docs/environment-access.md; decision F14's addendum of 2026-10-24;
+// Pablo's review of #621). `manual/lazurio.md` says it in full.
 export const ownSignInIdentity: Text = {
-  cs: "- Identita: vlastní přihlášení uživatele. GitHub je autoritou zdrojového kódu (repozitáře, review, Publikace); vstup do Environmentů drží Lazurio účet a síť Headscale (`manual/lazurio.md`).",
-  en: "- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication); entry to Environments is held by the Lazurio account, and the network by Headscale (`manual/lazurio.md`).",
+  cs: "- Identita: vlastní přihlášení uživatele. GitHub je autoritou zdrojového kódu (repozitáře, review, Publikace), síť drží Headscale. Vstup do Environmentů má cílově držet Lazurio účet (root decision 0192); dokud přechod není hotový, rozhoduje dosavadní cesta, třeba GitHub Team týmového Environmentu (`manual/lazurio.md`).",
+  en: "- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication), and Headscale holds the network. Entry to Environments is to be held by the Lazurio account (the target of root decision 0192); until that move is done, the existing path decides, a Team Environment's GitHub Team, say (`manual/lazurio.md`).",
 };
 
 // The identity line of the Henry Environment (decision 0169), the same in
@@ -562,8 +563,8 @@ const withheldNames: Readonly<Record<VisitorPreset["withheld"][number], Text>> =
  * `manual/this-machine.md` says what each thing is. */
 function visitorsExplain(browser: boolean): Text {
   return {
-    cs: `- **Co vysvětlit.** Prostě a stručně vysvětli, co je Lazurio a co se dá v tomto Prostředí ukázat: Apps; veřejné moduly a data Organizace, která se tu čtou anonymně; Chat s agenty;${browser ? " prohlížeč Prostředí;" : ""} Trezor, jen pokud ho toto Prostředí má (ověř to příkazem \`lazurio vault status\`); a jak funguje skutečná Organizace: o zdrojovém kódu rozhoduje GitHub a o vstupu do Prostředí Lazurio účet, členové mají vlastní Pracovní Prostředí a Týmové Prostředí jedná pod brokerovanou identitou. Ukazuj jen to, co tu opravdu je, a funkce si nevymýšlej.`,
-    en: `- **What to explain.** Explain plainly and briefly what Lazurio is and what this Environment can show: Apps; the Organization's public modules and data, read anonymously here; Chat with agents;${browser ? " the Environment browser;" : ""} the Vault, only where this Environment has one (check with \`lazurio vault status\`); and how a real Organization works: GitHub decides on source code and the Lazurio account on entry to Environments, members have their own Work Environments, and a Team Environment acts under a brokered identity. Show only what really exists here and never invent a feature.`,
+    cs: `- **Co vysvětlit.** Prostě a stručně vysvětli, co je Lazurio a co se dá v tomto Prostředí ukázat: Apps; veřejné moduly a data Organizace, která se tu čtou anonymně; Chat s agenty;${browser ? " prohlížeč Prostředí;" : ""} Trezor, jen pokud ho toto Prostředí má (ověř to příkazem \`lazurio vault status\`); a jak funguje skutečná Organizace: o zdrojovém kódu rozhoduje GitHub, o vstupu do Prostředí má cílově rozhodovat Lazurio účet (do té doby dosavadní cesta, třeba GitHub Team Týmového Prostředí), členové mají vlastní Pracovní Prostředí a Týmové Prostředí jedná pod brokerovanou identitou. Ukazuj jen to, co tu opravdu je, a funkce si nevymýšlej.`,
+    en: `- **What to explain.** Explain plainly and briefly what Lazurio is and what this Environment can show: Apps; the Organization's public modules and data, read anonymously here; Chat with agents;${browser ? " the Environment browser;" : ""} the Vault, only where this Environment has one (check with \`lazurio vault status\`); and how a real Organization works: GitHub decides on source code, the Lazurio account is to decide entry to Environments (until then the existing path, a Team Environment's GitHub Team, say), members have their own Work Environments, and a Team Environment acts under a brokered identity. Show only what really exists here and never invent a feature.`,
   };
 }
 

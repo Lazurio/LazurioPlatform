@@ -29,7 +29,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - Personalspace: \`personalspace/\` is the intimate space of one user, the Owner of this Environment, and their optional Buddy. Nobody else reads it and it is never shared.
 - Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work happens in Environments the Organization owns (see below).
 - Work in another Environment: when you work for the user over SSH in an Organization's Environment, its boundaries and its \`AGENTS.md\` apply there, not these. Its browser and files belong to the Organization: do not take the user's personal matters or their sign-ins there.
-- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication); entry to Environments is held by the Lazurio account, and the network by Headscale (\`manual/lazurio.md\`).
+- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication), and Headscale holds the network. Entry to Environments is to be held by the Lazurio account (the target of root decision 0192); until that move is done, the existing path decides, a Team Environment's GitHub Team, say (\`manual/lazurio.md\`).
 
 ## Adding a computer to a tailnet
 Establish the user, device and target tailnet, then choose its stable name. Add the computer to the user's existing account; a second computer creates neither another account nor another Environment. Run client commands on the source computer. If you run in a hosted Environment, prepare the procedure for the agent on the source computer; do not rename this Environment.
@@ -129,7 +129,7 @@ Environmenty a klienti jednoho uživatele tvoří dvě zóny. **Osobní zóna** 
 - Personalspace: \`personalspace/\` je intimní prostor jednoho uživatele, Ownera tohohle Environmentu, a jeho volitelného Buddyho. Nikdo cizí ho nečte a nikdy se nesdílí.
 - Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci probíhá na Environmentech, které Organizace vlastní (viz níže).
 - Práce v jiném Environmentu: když pro uživatele pracuješ přes SSH v Environmentu Organizace, platí tam jeho hranice a jeho \`AGENTS.md\`, ne tyhle. Jeho prohlížeč a soubory patří Organizaci: osobní věci uživatele ani jejich přihlášení do nich nenos.
-- Identita: vlastní přihlášení uživatele. GitHub je autoritou zdrojového kódu (repozitáře, review, Publikace); vstup do Environmentů drží Lazurio účet a síť Headscale (\`manual/lazurio.md\`).
+- Identita: vlastní přihlášení uživatele. GitHub je autoritou zdrojového kódu (repozitáře, review, Publikace), síť drží Headscale. Vstup do Environmentů má cílově držet Lazurio účet (root decision 0192); dokud přechod není hotový, rozhoduje dosavadní cesta, třeba GitHub Team týmového Environmentu (\`manual/lazurio.md\`).
 
 ## Přidání počítače do tailnetu
 Nejdřív urči uživatele, zařízení a cílový tailnet, potom jeho stálé jméno. Počítač se přidává ke stávajícímu účtu uživatele; druhý počítač nevytváří další účet ani další Prostředí. Agente, příkazy pro klienta spouštěj na zdrojovém počítači. Pokud běžíš v hostovaném Prostředí, připrav postup pro agenta na zdrojovém počítači; nepřejmenovávej toto Prostředí.
@@ -226,7 +226,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - Personalspace: \`personalspace/\` is the intimate space of one user, the Owner of this Environment, and their optional Buddy. Nobody else reads it and it is never shared.
 - Organizations: repositories live under \`organizations/<org>/\`; each Organization is its own access boundary and its own git repository with its own \`AGENTS.md\`.
 - Work in another Environment: when you work for the user over SSH in an Organization's Environment, its boundaries and its \`AGENTS.md\` apply there, not these. Its browser and files belong to the Organization: do not take the user's personal matters or their sign-ins there.
-- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication); entry to Environments is held by the Lazurio account, and the network by Headscale (\`manual/lazurio.md\`).
+- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication), and Headscale holds the network. Entry to Environments is to be held by the Lazurio account (the target of root decision 0192); until that move is done, the existing path decides, a Team Environment's GitHub Team, say (\`manual/lazurio.md\`).
 
 ## Adding a computer to a tailnet
 Establish the user, device and target tailnet, then choose its stable name. Add the computer to the user's existing account; a second computer creates neither another account nor another Environment. Run client commands on the source computer. If you run in a hosted Environment, prepare the procedure for the agent on the source computer; do not rename this Environment.
@@ -276,7 +276,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - Personalspace: \`personalspace/\` is the intimate space of one user, the Owner of this Environment, and their optional Buddy. Nobody else reads it and it is never shared.
 - Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work happens in Environments the Organization owns (see below).
 - Work in another Environment: when you work for the user over SSH in an Organization's Environment, its boundaries and its \`AGENTS.md\` apply there, not these. Its browser and files belong to the Organization: do not take the user's personal matters or their sign-ins there.
-- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication); entry to Environments is held by the Lazurio account, and the network by Headscale (\`manual/lazurio.md\`).
+- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication), and Headscale holds the network. Entry to Environments is to be held by the Lazurio account (the target of root decision 0192); until that move is done, the existing path decides, a Team Environment's GitHub Team, say (\`manual/lazurio.md\`).
 
 ## Adding a computer to a tailnet
 Establish the user, device and target tailnet, then choose its stable name. Add the computer to the user's existing account; a second computer creates neither another account nor another Environment. Run client commands on the source computer. If you run in a hosted Environment, prepare the procedure for the agent on the source computer; do not rename this Environment.
@@ -367,7 +367,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 ## Boundaries in this Environment
 - Personalspace: never present in an Organization-owned Environment. Do not create or mount one and never copy personal data or sign-ins here.
 - Organizations: repositories live under \`organizations/<org>/\`; each Organization is its own access boundary and its own git repository with its own \`AGENTS.md\`.
-- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication); entry to Environments is held by the Lazurio account, and the network by Headscale (\`manual/lazurio.md\`).
+- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication), and Headscale holds the network. Entry to Environments is to be held by the Lazurio account (the target of root decision 0192); until that move is done, the existing path decides, a Team Environment's GitHub Team, say (\`manual/lazurio.md\`).
 
 ## Adding a computer to a tailnet
 Establish the user, device and target tailnet, then choose its stable name. Add the computer to the user's existing account; a second computer creates neither another account nor another Environment. Run client commands on the source computer. If you run in a hosted Environment, prepare the procedure for the agent on the source computer; do not rename this Environment.
@@ -2157,7 +2157,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 ## Boundaries in this Environment
 - Personalspace: never present in an Organization-owned Environment. Do not create or mount one and never copy personal data or sign-ins here.
 - Organizations: repositories live under \`organizations/<org>/\`; each Organization is its own access boundary and its own git repository with its own \`AGENTS.md\`.
-- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication); entry to Environments is held by the Lazurio account, and the network by Headscale (\`manual/lazurio.md\`).
+- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication), and Headscale holds the network. Entry to Environments is to be held by the Lazurio account (the target of root decision 0192); until that move is done, the existing path decides, a Team Environment's GitHub Team, say (\`manual/lazurio.md\`).
 
 ## Adding a computer to a tailnet
 Establish the user, device and target tailnet, then choose its stable name. Add the computer to the user's existing account; a second computer creates neither another account nor another Environment. Run client commands on the source computer. If you run in a hosted Environment, prepare the procedure for the agent on the source computer; do not rename this Environment.
@@ -2251,7 +2251,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 ## Boundaries in this Environment
 - Personalspace: never present in an Organization-owned Environment. Do not create or mount one and never copy personal data or sign-ins here.
 - Organizations: repositories live under \`organizations/<org>/\`; each Organization is its own access boundary and its own git repository with its own \`AGENTS.md\`.
-- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication); entry to Environments is held by the Lazurio account, and the network by Headscale (\`manual/lazurio.md\`).
+- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication), and Headscale holds the network. Entry to Environments is to be held by the Lazurio account (the target of root decision 0192); until that move is done, the existing path decides, a Team Environment's GitHub Team, say (\`manual/lazurio.md\`).
 
 ## Adding a computer to a tailnet
 Establish the user, device and target tailnet, then choose its stable name. Add the computer to the user's existing account; a second computer creates neither another account nor another Environment. Run client commands on the source computer. If you run in a hosted Environment, prepare the procedure for the agent on the source computer; do not rename this Environment.
