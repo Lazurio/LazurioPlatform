@@ -17263,7 +17263,9 @@ build` / `vite build` writes. Measured on the reference Environment: an Astro mo
    see the cause's code or the log's path (no developer copy in the interface); both stay
    in `lazurio module build`/`status` and the API's `build.failure`, for the agent. The
    Launchpad has no "Vyřešit v Chatu" hand-off for module findings, so none is offered.
-   Nová karta's running Modules show "Sestavená verze" or "Vývojový server". The `astro`, `astro-starlight` and
+   Nová karta's running Modules show "Sestavená verze · main · <commit>" (the build's
+   commit shortened to seven characters, amended 2026-10-24 by root decision 0212
+   point 7) or "Vývojový server · main". The `astro`, `astro-starlight` and
    `vite-react` templates of `lazurio module create` declare `build_output: "dist"`
    (`vite-react` also `static_fallback: "spa"`), so a new static module is built from
    its first open.
@@ -17509,8 +17511,8 @@ F58 machinery as it is, no new process and no state of its own.
    only a dependency therefore leaves it current, and Open keeps answering, until its
    restart. This closes #570 for server runs from `main`; a development run still carries
    its whole declaration.
-7. **The CLI and the Launchpad** show a server run like a static one: "Sestavená verze" or
-   "Vývojový server" in Nová karta's running Modules, `build` in every answer,
+7. **The CLI and the Launchpad** show a server run like a static one: "Sestavená verze"
+   with its commit or "Vývojový server" in Nová karta's running Modules, `build` in every answer,
    `lazurio module build` (restarting it onto a new key), `not-static` only for an app
    with neither `build_output` nor `start_script`.
 
