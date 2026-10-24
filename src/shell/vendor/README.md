@@ -65,7 +65,11 @@ reaches it too.
 
 The design system's Lazurio stones (`content/brand/icons/*-96.png`, Lazurio's own
 artwork, 96 × 96 px, drawn at 48 × 48 on a tile and 20 × 20 in a list), byte-for-byte
-from the same commit (unchanged since `4439aef645b7432181216aab3799d7f7819d6592`). `src/shell/stones.ts`
+from `HumanAndMachine-ai/design-system-lazurio` at commit
+`190e735c9c4ad2e2910ada07768191c6c5a0e983` (2026-10-11, "Prvky: Module stones on a
+transparent background", #76): the surrounding of every stone is transparent instead
+of a baked-in off-white square, so the stone alone sits on any surface; the stone
+and its symbol are unchanged. `src/shell/stones.ts`
 picks one by a generic semantic key only (the app's declared `icon`, or the
 org-agnostic fallback of the root Launchpad), never by an Organization or a
 module's name, as `content/brand/icons/icons.md` and the root Launchpad's
@@ -73,19 +77,19 @@ module's name, as `content/brand/icons/icons.md` and the root Launchpad's
 
 | File | Source path | SHA-256 |
 | --- | --- | --- |
-| `stones/brainstorm-96.png` | `content/brand/icons/brainstorm-96.png` | `9dadbe8fc531ecbde2b72bcaaf4dbf7ef863065534df8b00a096b49014ae2453` |
-| `stones/clients-96.png` | `content/brand/icons/clients-96.png` | `b5464469cb9957d5d7f3252119ae546decc6fdd91c409d208e132dd214d50f6c` |
-| `stones/content-96.png` | `content/brand/icons/content-96.png` | `655fd8310b1094cb5c3e434071bbdc0b4b263cca15803ca6c03fcf8b8f13754d` |
-| `stones/deals-96.png` | `content/brand/icons/deals-96.png` | `54f89c003d5155a25b1ee4e04ef45c1a73c7fa7ca49928b539b1f20861da3aa6` |
-| `stones/guide-96.png` | `content/brand/icons/guide-96.png` | `e228601424c4f630d0bb2a556f806467203bc1891b97abff3d1e762ecb804836` |
-| `stones/invoices-96.png` | `content/brand/icons/invoices-96.png` | `4442cd37d0d5279fa2aaa62fa235e8867049872b36d1d799c5f8ad5963cf5c16` |
-| `stones/knowledgebase-96.png` | `content/brand/icons/knowledgebase-96.png` | `5ddbc3c440af249093b497ba08b449ead6c306dd0ff7f608e5a21e44ad04af74` |
-| `stones/lazurio-design-system-96.png` | `content/brand/icons/lazurio-design-system-96.png` | `bb4cc9c78b5e83813ff4fa6736a8633a733ec8c8ea8e4fa4429bf8a7ca156418` |
-| `stones/mission-control-96.png` | `content/brand/icons/mission-control-96.png` | `1e91a80054049ac0a3dfa984a105536b37ddf34f47726ed00d09559a76b7ac1a` |
-| `stones/presentation-96.png` | `content/brand/icons/presentation-96.png` | `0c77dbbaa25726035fb9f9ac534f4e532e68f85fcf6e2f363e3b77f20644246d` |
-| `stones/pricebook-96.png` | `content/brand/icons/pricebook-96.png` | `760a4913432987a9a68944880a47c21b0c6e7d8cc8af6fb875b42467c082216c` |
-| `stones/settings-96.png` | `content/brand/icons/settings-96.png` | `79b0857e7cbdcd6137e13ad1751ed2353a523378aa29c5b5592b77f6700afd1f` |
-| `stones/website-lazurio-96.png` | `content/brand/icons/website-lazurio-96.png` | `b107e0950ebb7d555619735cd6b7d82f3fcb2b2464eed3778582f230dc79c731` |
+| `stones/brainstorm-96.png` | `content/brand/icons/brainstorm-96.png` | `81b3e063e4ba41703d1f7a3729b462bd5168126fada3a61a2d4726dcbc5dc2ab` |
+| `stones/clients-96.png` | `content/brand/icons/clients-96.png` | `ba430854d9cca2cbc966d1ae8d5d5227a276de9a507737bb13a7064e07885f4b` |
+| `stones/content-96.png` | `content/brand/icons/content-96.png` | `3abfcd00573c073aba9c6398820267977aadd9bd9a21201cf3da69b48311d66f` |
+| `stones/deals-96.png` | `content/brand/icons/deals-96.png` | `b198ecb48cff559d48bdffca9bd4ca6eb8b2a77b4db9913c1bdcc49cfc174aea` |
+| `stones/guide-96.png` | `content/brand/icons/guide-96.png` | `e0deb1ac7e0dd695b3ee60115844743bb8f4c55ef67e2a1081fe51c91f7ff43a` |
+| `stones/invoices-96.png` | `content/brand/icons/invoices-96.png` | `4ec8e212266ef58df65de0a531ac5626655064a73cfb9dea37377b682cdb79e9` |
+| `stones/knowledgebase-96.png` | `content/brand/icons/knowledgebase-96.png` | `8457375f3e8ff9c7e83c1fc317e93024b71a5f96068fdb9e3ccb5798df67a264` |
+| `stones/lazurio-design-system-96.png` | `content/brand/icons/lazurio-design-system-96.png` | `dd2a80f3be54bf846efa5bddd20899f065b53da9c3d8d6b0811ea7e9df993551` |
+| `stones/mission-control-96.png` | `content/brand/icons/mission-control-96.png` | `e22f7a5f8cf4298884cb8b02c9972c039d666e6378d0f6319eeca162f8280bca` |
+| `stones/presentation-96.png` | `content/brand/icons/presentation-96.png` | `ebe0d2511ea30d2f84ddb6a5a0eecc3288dd165de52c61dd9b215a6f1544dc5a` |
+| `stones/pricebook-96.png` | `content/brand/icons/pricebook-96.png` | `6461b920fe470539883cf8203477d42a03dcfeddc92c1337645909e3f266ebd5` |
+| `stones/settings-96.png` | `content/brand/icons/settings-96.png` | `76c4a0ed829370a4c952c0ee645a9ffd931ace8b746c3d603a40844e36171838` |
+| `stones/website-lazurio-96.png` | `content/brand/icons/website-lazurio-96.png` | `0507f7f7012f05164144c254729dd7db844f4f4e7fc971ed3d7a54f8194a55b0` |
 
 ## Fonts
 
