@@ -9,6 +9,7 @@ import {
   type CatalogOrganizationSelection,
   selectCatalogOrganization,
 } from "../organizations/catalog-selection";
+import { organizationModulesIndexPath } from "../organizations/modules-index";
 import { organizationDocumentFiles } from "../organizations/read-documents";
 import { readCheckoutFileBytes } from "../providers/owned-json";
 import {
@@ -496,14 +497,28 @@ async function readText(path: string): Promise<string | null> {
   }
 }
 
+async function readModulesIndex(directory: string): Promise<string | null> {
+  try {
+    await inspectCheckoutDirectory(join(directory, "generated"));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return null;
+    throw new ModuleCreateRefusal(
+      "manifest_invalid",
+      "The Organization generated directory is not a safe checkout directory.",
+    );
+  }
+  return readText(join(directory, organizationModulesIndexPath));
+}
+
 /** The texts of an Organization root's three documents in `directory`. */
 export async function readOrganizationDocumentTexts(
   directory: string,
 ): Promise<OrganizationDocumentTexts> {
-  const [canonical, modules, legacy] = await Promise.all([
+  const [canonical, modules, legacy, modulesIndex] = await Promise.all([
     readText(join(directory, organizationDocumentFiles.canonical)),
     readText(join(directory, organizationDocumentFiles.modules)),
     readText(join(directory, organizationDocumentFiles.legacy)),
+    readModulesIndex(directory),
   ]);
   if (modules === null)
     throw new ModuleCreateRefusal(
@@ -517,7 +532,7 @@ export async function readOrganizationDocumentTexts(
       `${join(directory, organizationDocumentFiles.canonical)} is missing.`,
       "Run the command from a task worktree of the Organization root.",
     );
-  return Object.freeze({ canonical, modules, legacy });
+  return Object.freeze({ canonical, modules, legacy, modulesIndex });
 }
 
 // The slots of the primary checkout, which the task branch may lack.

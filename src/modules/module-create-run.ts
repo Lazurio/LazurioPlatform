@@ -11,7 +11,12 @@ import {
 } from "../content/materialize";
 import { sameRepository } from "../content/model";
 import { personalspaceRepositoryName } from "../content/status";
+import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { readFolderCatalog } from "../organizations/catalog";
+import {
+  compileOrganizationModulesIndex,
+  organizationModulesIndexPath,
+} from "../organizations/modules-index";
 import { personalspaceName } from "../organizations/personalspace";
 import {
   observeModuleDirectory,
@@ -903,7 +908,8 @@ async function declareOrganization(
     if (
       current.canonical !== before.canonical ||
       current.modules !== before.modules ||
-      current.legacy !== before.legacy
+      current.legacy !== before.legacy ||
+      current.modulesIndex !== before.modulesIndex
     )
       return {
         code: "manifest_changed",
@@ -911,6 +917,10 @@ async function declareOrganization(
         action,
       };
     next = declareOrganizationSlots(current, slots);
+    if (next.modulesIndex !== undefined) {
+      await mkdir(join(directory, "generated"), { recursive: true });
+      await inspectCheckoutDirectory(join(directory, "generated"));
+    }
   } catch (error) {
     return {
       code:
@@ -923,6 +933,11 @@ async function declareOrganization(
     };
   }
   const writes: [string, string][] = [
+    ...(next.modulesIndex === undefined
+      ? []
+      : [
+          [organizationModulesIndexPath, next.modulesIndex] as [string, string],
+        ]),
     [organizationDocumentFiles.modules, next.modules],
     [organizationDocumentFiles.canonical, next.canonical],
     ...(next.legacy === null
@@ -950,7 +965,12 @@ async function declareOrganization(
 
 // `text` into `path` with a rename, keeping the file's mode.
 async function replaceFile(path: string, text: string) {
-  const { mode } = await stat(path);
+  const mode = await stat(path)
+    .then((value) => value.mode)
+    .catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return 0o644;
+      throw error;
+    });
   const temporary = `${path}.lazurio-module-create-${process.pid}.tmp`;
   await writeFile(temporary, text, {
     encoding: "utf8",
@@ -966,6 +986,12 @@ function organizationCreatedSteps(
 ): string[] {
   const { plan, worktree, organization } = module;
   const files = [
+    ...(compileOrganizationModulesIndex(
+      JSON.parse(module.documents.texts.canonical),
+      JSON.parse(module.documents.texts.modules),
+    ) === null
+      ? []
+      : [organizationModulesIndexPath]),
     organizationDocumentFiles.modules,
     organizationDocumentFiles.canonical,
     ...(module.documents.texts.legacy === null
