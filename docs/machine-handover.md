@@ -398,9 +398,17 @@ Launchpad ([decision F10, amendment of 2026-10-19](decisions.md#f10--workspace-p
   support; Obecné names the Team preset it has the same way. The generated Folder
   states the assignment (only Owners and Admins enter, the Team's rules hold, the
   name users know it by) and that the user is the connected Owner or Admin.
-- **Not read yet.** The member `services` (each service's id, kind, productionspace
-  repository and loopback page port) is accepted exactly as the schema writes it and
-  recorded nowhere; the link to a service's page is DEV-6674 S2.1 and S2.2.
+- **Services.** The member `services` (each service's id, kind, productionspace
+  repository and loopback page port) is accepted exactly as the schema writes it,
+  recorded nowhere in the Folder, and read only by the catalog, only where the
+  assignment is `services`: Productionspace lists every service that names a
+  repository, and a service with a page opens it on this Environment's loopback in
+  its Environment browser, also from `/service/<id>`
+  ([F32's addendum of 2026-10-24](decisions.md#f32--teams-are-not-a-presentation-axis-of-the-launchpad-an-environment-is-one-workspace)).
+  The handover has no page path: the Platform knows the AI pool's
+  (`/management.html`) and no other. The link from the server's other Environments
+  waits for every guest's handover to name its server's services Environment
+  (DEV-6674 phase 2).
 - **Vault and recovery.** The vault follows the preset's kind: as in a Team
   Environment it adds and removes no user until a live answer of who may enter
   exists (DEV-6631 C4). Recovery withholds no user for it, since none is named.

@@ -56,9 +56,13 @@ export type OrganizationAssignment =
 // docs/server-services.md §2.1): each one's id and kind, its one
 // productionspace repository and the loopback port of its page. Only the
 // Organization branch carries it, and Machines writes it together with the
-// `services` assignment. The handover is read with it exactly as written;
-// nothing here reads it yet (the link to a service's page is DEV-6674 S2.1
-// and S2.2).
+// `services` assignment. The handover is read with it exactly as written.
+// The catalog reads it, only where the assignment is `services`
+// (`serverServicesOf` in src/organizations/catalog.ts): Productionspace
+// lists the services that name a repository, and a service's page opens on
+// this Environment's loopback in its Environment browser (decision F32's
+// addendum of 2026-10-24). The page's path is not here: the Platform knows
+// it per kind (src/organizations/server-services.ts).
 export type MachineService = Readonly<{
   id: string;
   kind:

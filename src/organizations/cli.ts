@@ -8,6 +8,7 @@ import {
   type CatalogOrganization,
   catalogModules,
   findCatalogOrganization,
+  handoverServerServices,
   readFolderCatalog,
 } from "./catalog";
 import { personalspaceName, unverifiedPersonalspace } from "./personalspace";
@@ -25,8 +26,11 @@ export const catalogHelp = `organization list [--folder <absolute Folder>] [--js
   Folder is --folder, otherwise the supervised unit's, or in a Remote
   Environment the declared operator's (as for lazurio update). --json prints the whole
   catalog: modules, the read-only productionspace/* repositories with
-  whether each is checked out, and on a Folder with a Personalspace its group
-  (personalspace), which is not an Organization and is not in the table.
+  whether each is checked out (in Server services also the repositories of
+  the services of this Environment, each with its services and the page a
+  service opens on this Environment's loopback), and on a Folder with a
+  Personalspace its group (personalspace), which is not an Organization and
+  is not in the table.
 module list [<Organization>] [--folder <absolute Folder>] [--json]
   The modules of every Organization, or of the one named by its slug or
   directory name: its workspace modules and, when declared with a
@@ -163,7 +167,9 @@ export async function runCatalogCommand(
   context: CliContext,
   // Test seam: the catalog core; the product reads the Folder, and whose
   // Personalspace this is (#186) through this process's gh where the output
-  // shows the Personalspace group (`personalspace`).
+  // shows the Personalspace group (`personalspace`), and in Server services
+  // the handover's services, as the Launchpad's catalog does (root decision
+  // 0209 point 6).
   read: (folder: string, personalspace: boolean) => Promise<Catalog> = (
     folder,
     personalspace,
@@ -173,6 +179,7 @@ export async function runCatalogCommand(
       personalspace
         ? processPersonalspaceHolder(context.env, context.platform)
         : unverifiedPersonalspace,
+      handoverServerServices,
     ),
 ): Promise<CatalogCommandOutput> {
   let values: { folder?: string | undefined; json?: boolean | undefined };

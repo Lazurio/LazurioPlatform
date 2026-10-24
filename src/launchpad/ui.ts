@@ -76,7 +76,12 @@ import { createHelpVideo } from "./page-help";
 import { isPublicEnvironment, publicRoute } from "./public-environment";
 import { createRecoveryPanel } from "./recovery-panel";
 import { type RecoveryMode, recoveryModeAnswer } from "./recovery-view";
-import { type PageRoute, routeFrame, settingsPath } from "./routes";
+import {
+  type PageRoute,
+  routeFrame,
+  serviceRequest,
+  settingsPath,
+} from "./routes";
 import { createShell } from "./shell";
 import { createSshPanel } from "./ssh-panel";
 import { keyGroups, parseSshOverview } from "./ssh-view";
@@ -166,6 +171,11 @@ const controls = {
 // catalog and the entry, so that it draws its final state at once and reads
 // none of them again; a workstation's page carries none and reads them.
 const boot = parseBoot(document.getElementById(bootElementId)?.textContent);
+// A service's link (`/service/<id>`, root decision 0209 point 6, decision
+// F32's addendum of 2026-10-24): the service whose page this load opens in
+// the Environment browser, taken once from the address before the frame
+// shows the Apps home under `/` in its place (`openAskedService`).
+let askedService = serviceRequest(location.pathname);
 let locale: "cs" | "en" = boot?.locale ?? "en";
 // The catalog names the kind of this Environment wherever a text is about it
 // (decision F28's addendum of 2026-10-18): the kind its shell document names,
@@ -368,6 +378,7 @@ const catalog = createCatalogPanel({
     // A public Environment's Začínáme names the module to try.
     startPanel.render();
     showWhenDrawn();
+    openAskedService();
   },
   entry: () => entry,
   avatar: (slug) =>
@@ -420,6 +431,8 @@ const catalog = createCatalogPanel({
       ? []
       : switchTabs(shellDocument, shellMessages(locale), "apps"),
   holder: () => personalHolder,
+  // A service's page shows in the right panel (root decision 0209 point 6).
+  showView: (view) => browser.showView(view),
 });
 // The first run of an Environment (root decisions 0188 and 0201): Nastavení →
 // Začínáme, the line in Apps and the shell's prompt until it has its basics,
@@ -1801,7 +1814,20 @@ async function readEntry() {
   // Trezor waited for the entry (plan DEV-6668 slice 6): drawn now, whether
   // the entry changed or not.
   drawVaultNav();
+  openAskedService();
   await handoff;
+}
+// The service a `/service/<id>` link asked for (`askedService`), opened
+// once the catalog and the entry are known (root decision 0209 point 6): its
+// page in the Environment browser's panel, as its tile opens it, and only
+// once: the frame already shows `/`, so neither Back nor a reload asks
+// again.
+function openAskedService() {
+  if (askedService === null || catalog.current() === null || !entryKnown)
+    return;
+  const service = askedService;
+  askedService = null;
+  void catalog.openService(service);
 }
 async function readPromptHandoff() {
   try {
@@ -1823,6 +1849,7 @@ if (boot === null) {
   if (boot.catalog === null) void catalog.refresh();
   relabel();
   browser.render();
+  openAskedService();
 }
 // The themes for Settings → Obecné; nothing to read on a public Environment.
 void theme.load();

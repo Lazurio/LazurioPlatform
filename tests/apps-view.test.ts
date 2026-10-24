@@ -273,7 +273,11 @@ test("what a tile does: open the app, or say why not, in the wireframe's words",
   const [workspace, productionspace] = appsSections(catalog, group, cs, entry);
   expect(
     workspace?.tiles.map((tile) =>
-      tile.action.kind === "open" ? tile.action.target.kind : tile.action.text,
+      tile.action.kind === "open"
+        ? tile.action.target.kind
+        : tile.action.kind === "say"
+          ? tile.action.text
+          : tile.action.kind,
     ),
   ).toEqual([
     "hosted",

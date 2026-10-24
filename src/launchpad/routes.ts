@@ -1,6 +1,7 @@
 import { filesUrlPath, parseUrlPath } from "../files/rules";
 import { customServerIdPattern } from "../integrations/custom-server";
 import { integrationIdPattern } from "../integrations/path";
+import { isServiceId } from "../organizations/server-services";
 import { isSecretRequestId, secretRequestPath } from "../vault/request-id";
 import type { MessageKey } from "./messages";
 
@@ -37,6 +38,16 @@ export type PageRoute =
   | Readonly<{ view: "home" }>
   | Readonly<{ view: "organization"; organization: string }>
   | Readonly<{ view: "module"; organization: string; module: string }>
+  /** A service repository's page, "Informace o repozitáři" (root decision
+   * 0209 point 6, decision F32's addendum of 2026-10-24):
+   * `/o/<org>/productionspace/<repository>`, `<repository>` its slug in the
+   * catalog. A production repository without a service of this Environment
+   * has no page (F32's final addendum). */
+  | Readonly<{
+      view: "repository";
+      organization: string;
+      repository: string;
+    }>
   /** A section of Settings. */
   | Readonly<{ view: "settings"; section: SettingsSection }>
   /** Trezor, the way into the Environment's own vault (root decision 0198
@@ -107,6 +118,10 @@ export const pagePaths: readonly string[] = [
   "/",
   "/o/:organization",
   "/o/:organization/:module",
+  "/o/:organization/productionspace/:repository",
+  // A service's page, opened in the Environment browser and dropped from
+  // the address (`serviceRequest`).
+  "/service/:id",
   "/files",
   "/files/*",
   "/integrations",
@@ -132,6 +147,33 @@ export function organizationPath(organization: string): string {
 
 export function modulePath(organization: string, module: string): string {
   return `${organizationPath(organization)}/${encodeURIComponent(module)}`;
+}
+
+/** A service repository's page (root decision 0209 point 6). */
+export function repositoryPath(
+  organization: string,
+  repository: string,
+): string {
+  return `${organizationPath(organization)}/productionspace/${encodeURIComponent(repository)}`;
+}
+
+/** The link of a service's page (root decision 0209 point 6, decision F32's
+ * addendum of 2026-10-24): `/service/<id>` on this Launchpad opens the page
+ * of this Environment's service `<id>` in its Environment browser. No route
+ * of its own: the page takes the link once (`serviceRequest`) and shows the
+ * Apps home under `/`, so the link leaves the address and Back never opens
+ * the page again. Another Environment's Launchpad can link here (DEV-6674
+ * phase 2). */
+export function servicePath(service: string): string {
+  return `/service/${encodeURIComponent(service)}`;
+}
+
+/** The service a location path asks to open (`servicePath`), or null: only
+ * one segment that is a service's id, with or without a trailing slash. */
+export function serviceRequest(pathname: string): string | null {
+  const match = /^\/service\/([^/]+)\/?$/.exec(pathname);
+  const service = segment(match?.[1]);
+  return service !== null && isServiceId(service) ? service : null;
 }
 
 /** The path of an Integrace tab, or of one app's card. */
@@ -175,8 +217,9 @@ function vaultRoute(rest: string): PageRoute {
 
 /** The route of a location path. `/settings` and an unknown section open the
  * default section (the caller rewrites the address to its canonical path);
- * `/o/<org>` and `/o/<org>/<module>` are the catalog; anything else is the
- * Launchpad home. */
+ * `/o/<org>`, `/o/<org>/<module>` and `/o/<org>/productionspace/<repository>`
+ * are the catalog; anything else, a service's link (`servicePath`) among
+ * it, is the Launchpad home. */
 export function pageRoute(pathname: string): PageRoute {
   // A Files path keeps its encoding until the rules decode it; one they
   // refuse (a hidden name, an encoded separator) opens the Documents
@@ -226,6 +269,13 @@ export function pageRoute(pathname: string): PageRoute {
     const parts = path.slice("/o/".length).split("/");
     const organization = segment(parts[0]);
     const module = parts.length === 2 ? segment(parts[1]) : null;
+    // A service repository's page (root decision 0209 point 6).
+    const repository =
+      parts.length === 3 && parts[1] === "productionspace"
+        ? segment(parts[2])
+        : null;
+    if (organization !== null && repository !== null)
+      return { view: "repository", organization, repository };
     if (organization === null || parts.length > 2) return { view: "home" };
     if (parts.length === 1) return { view: "organization", organization };
     return module === null
@@ -265,6 +315,8 @@ export function routePath(route: PageRoute): string {
     return organizationPath(route.organization);
   if (route.view === "module")
     return modulePath(route.organization, route.module);
+  if (route.view === "repository")
+    return repositoryPath(route.organization, route.repository);
   if (route.view === "files") return filesUrlPath(route.path);
   if (route.view === "integrations")
     return route.form !== undefined
@@ -309,6 +361,13 @@ export function routeTitle(
     return {
       heading: route.module,
       document: `${route.module} · ${organization} — ${copy.title}`,
+    };
+  }
+  if (route.view === "repository") {
+    const organization = displayName(route.organization) ?? route.organization;
+    return {
+      heading: route.repository,
+      document: `${route.repository} · ${organization} — ${copy.title}`,
     };
   }
   if (route.view === "marketplace")
