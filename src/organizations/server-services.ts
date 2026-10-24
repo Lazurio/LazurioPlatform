@@ -39,7 +39,8 @@ export const isServiceId = (value: unknown): value is string =>
  * renderer of `ai-pool`). A kind without a path here has no page in the
  * Launchpad, whatever port the handover names: a link to the wrong page is
  * worse than none. Once Machines hands the path over itself (a `page_path`
- * the Platform reads first and Machines writes after), this table goes. */
+ * the Platform reads first and Machines writes after,
+ * HumanAndMachine-ai/Machines#902), this table goes. */
 export const servicePagePaths: Readonly<Partial<Record<ServiceKind, string>>> =
   Object.freeze({ "ai-pool": "/management.html" });
 

@@ -5610,7 +5610,8 @@ address of its own. Machines lists the services in that Environment's handover
    is chosen over waiting for Machines to hand the path over, because the deployed
    handover drives the link now and the schema is Machines', which the Platform vendors
    unchanged. The follow-up is a `page_path` the Platform reads first and Machines
-   writes after, as with every new member; the table then goes.
+   writes after, as with every new member (HumanAndMachine-ai/Machines#902); the
+   table then goes.
 4. **The link.** A tile whose repository has one service page says "Otevřít stránku
    služby" in the link's blue and opens that page; with several, it leads to the
    repository's page; with none, it says that the repository has no app. The page
