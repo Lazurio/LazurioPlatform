@@ -17225,8 +17225,8 @@ build` / `vite build` writes. Measured on the reference Environment: an Astro mo
    in `lazurio module build`/`status` and the API's `build.failure`, for the agent. The
    Launchpad has no "Vyřešit v Chatu" hand-off for module findings, so none is offered.
    Nová karta's running Modules show "Sestavená verze · main · <commit>" (the build's
-   commit shortened to seven characters, amended 2026-10-24 by root decision 0195 point
-   29) or "Vývojový server · main". The `astro`, `astro-starlight` and
+   commit shortened to seven characters, amended 2026-10-24 by root decision 0212
+   point 7) or "Vývojový server · main". The `astro`, `astro-starlight` and
    `vite-react` templates of `lazurio module create` declare `build_output: "dist"`
    (`vite-react` also `static_fallback: "spa"`), so a new static module is built from
    its first open.

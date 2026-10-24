@@ -972,7 +972,7 @@ describe("running Modules, Navrhované and the notes", () => {
     });
     expect(rows[0]?.stone).toEqual(expect.any(String));
     // A built app names the commit its build is of, shortened as Git does
-    // (root decision 0195 point 29): the person sees it is the build, and
+    // (root decision 0212 point 7): the person sees it is the build, and
     // of which commit.
     const built = moduleRows(
       [
