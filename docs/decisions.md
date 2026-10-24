@@ -2023,6 +2023,81 @@ Lazurio/hermes-agent#10: over ACP, Hermes would show the silence marker to the p
 Template revision `base-instructions-71`. `tests/folder-buddy.test.ts` checks the new rules in
 both locales and that the old "until T3 Code shows the mark itself" is gone.
 
+**Addendum of 2026-10-24, decided by Matěj: the agent's work is a pull request, not a Draft;
+GitHub is the authority for source code; Git, fork and safety rules for every agent** (plan
+DEV-6617, root decision 0192). Lazurio's "Draft" collided with GitHub's Draft PR: one word
+named both the agent's whole work and one state of a pull request, so "mark it Ready, finished
+work never stays a Draft" read two ways. Matěj also asked that rules learned the hard way reach
+every agent, not only the agents of one Machine. What changes, on every preset in both locales:
+
+1. **"Draft" is no Lazurio term.** For code the agent's work is simply a pull request; in an
+   external application it is the prepared, unsent state inside that application, whose own
+   feature may be named (an e-mail saved as a draft in Outlook). Publication stays exactly as
+   defined, and so does "Publish" as the full mandate to finish that work (the addendum of
+   2026-10-05). GitHub's Draft PR is named as GitHub's feature. `AGENTS.md`'s Publication line
+   (shared with Buddy's `.hermes.md`), the Team and public lines, the manual's section "Your work,
+   Publication, Release", the glossary (a Pull request row replaces the Draft row), the roles, the
+   connected applications and the catalog's usage of tools that write outside say so.
+2. **The pull-request lifecycle** of the decision of 2026-09-22, refined: from the first push a
+   GitHub Draft PR (`gh pr create --draft`) where the repository's GitHub plan allows one; where it
+   does not (a private repository on GitHub Free, where GitHub refuses a Draft PR), a normal pull
+   request whose description says it is in progress. After verification the agent marks it ready
+   for review: `gh pr ready` for a Draft PR, the description for a normal one. The assignee, the
+   review request and "Ready is not Publication" stay. The skill `new-module` marks its two pull
+   requests ready the same way.
+3. **Authority.** GitHub is the authority for source code: repositories, review and Publication.
+   Entry to Environments and their applications is held by the Lazurio account (membership and
+   the exact grant) and the network by Headscale with an approved device (root decision 0192);
+   where the move to the account's grants is not done yet, the existing path decides entry, such
+   as a Team Environment's GitHub Team. No text says GitHub is the only access authority any
+   more: the identity line of `AGENTS.md` and `manual/this-machine.md` (one fragment,
+   `ownSignInIdentity`), the persona's identity line, `manual/lazurio.md` and what a visitor's
+   agent explains. "No second, invented ACL" stays a rule. Nothing deployed is claimed: the
+   texts name who holds which truth, not which gateway enforces it today.
+4. **"AI Kolega" and the AI seat are gone** from the generated texts. Automated work for an
+   Organization is carried by an Environment that does its work by itself through bots, with a
+   responsible user (root decision 0169), named Henry where it needs a name (root decision 0170);
+   the Opatrovník (root decision 0094) is held there by that responsible user, as 0169 says.
+5. **Forks** (`manual/working-here.md`, "Git and GitHub"): a distribution fork is a thin overlay
+   on an exact upstream release (the exact upstream commit, own changes as separate readable
+   commits, refreshes from upstream stable releases, an immutable release tag for each published
+   state); a full fork follows its own direction and takes selected changes (Lazurio MausBot is
+   heading there); a feature or a name in a fork starts from the Lazurio model, not the fork's;
+   before a force-move every dropped commit is accounted for in the history, not just the tree,
+   and the rewrite happens only where the fork's release contract allows it, with an exact lease.
+   A fork as a way around a missing right stays forbidden.
+6. **Git and GitHub rules** in the same section: before a merge on the user's Publication the
+   approving review belongs to the exact head (its `commit.oid` equals `headRefOid`; GitHub can
+   keep an old approval, so `reviewDecision` alone is no proof) and the merge passes
+   `--match-head-commit <head sha>`; conflicts are resolved hunk by hunk, never `git checkout
+   --ours/--theirs` on a conflicted file; multi-line text reaches `gh` through a file
+   (`--body-file`/`-F`); pull requests stacked on a branch are retargeted to `main` before it is
+   deleted. The handoff's merge bullet points there, and one line of `AGENTS.md` points there
+   wherever something can be merged or pushed (not on a public Environment).
+7. **Safe habits** ("Safe habits" in the manual, one line in `AGENTS.md`): disk space is freed
+   only with certainty, and caches or state not proven unused are listed for the user; a time
+   written into a record comes from `date -u` (on a Windows workstation from PowerShell's
+   `[DateTime]::UtcNow.ToString('u')`). The Documents line adds that `/tmp` keeps nothing that
+   must survive (a reboot wipes it), on macOS and Linux; it already covered every work product
+   outside a repository. A macOS workstation's `AGENTS.md` says that macOS has no `timeout`, so
+   a check built on it silently passes.
+
+Unchanged: what Publication and Release are, who may Publish, the handoff and its question, the
+Team's never-merge rule (F31), every behavior of the product (only generated text changes), and
+operator matters of the hosting (Machines lanes, Plans and caches are no rules for every user).
+repository-db's own "draft card" stays that library's name for its card.
+
+Template revision `base-instructions-72`. `tests/folder-manual.test.ts` checks, on every preset
+and both public Environments in both locales, over every generated file and Buddy's layer: no
+Lazurio "Draft" (only GitHub's Draft PR), no "AI Kolega" or AI seat, no "only access authority";
+the Publication definition and the prepare-first rule; the lifecycle's three steps; the identity
+line where the user's own sign-ins are used and the authorities in `manual/lazurio.md`; the Git,
+GitHub and fork rules; the `AGENTS.md` pointer except on a public Environment; the safe habits;
+`/tmp` except on Windows; and `timeout` only on a macOS workstation. The Buddy layer passes
+Hermes's threat scan at context and strict scope and stays under 20,000 characters (16.4k in
+Czech, 17.9k in English). Not proven: that agents follow the rules (generated text is not proof
+of behavior).
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
