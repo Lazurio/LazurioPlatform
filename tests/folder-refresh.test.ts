@@ -815,7 +815,7 @@ const rc13 = {
   },
 } as const;
 const toolchainLine =
-  /^- (Toolchain je Bun uživatele|The toolchain is the user's Bun) .*$/m;
+  /^- (Bun, který aplikace připíná|The Bun an app pins) .*$/m;
 
 async function renderedByRc13(folder: string, locale: "cs" | "en") {
   const path = join(folder, ".lazurio", "instructions.json");

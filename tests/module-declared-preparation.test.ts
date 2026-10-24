@@ -457,8 +457,10 @@ posixTest(
         join(app("stubborn"), "package.json"),
         JSON.stringify(stubborn),
       );
+      // An unpublished pinned Bun (decision F62): the registry's refusal,
+      // never another Bun.
       expect((await run("prepare", "stubborn")).result).toMatchObject({
-        reason: "preparation-toolchain-mismatch",
+        reason: "runtime-version-unknown",
         file: "app/package.json",
       });
       expect(await exists(join(app("stubborn"), ".operation-lock"))).toBe(

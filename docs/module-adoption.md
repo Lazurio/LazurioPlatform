@@ -259,8 +259,10 @@ This intermediate boundary is not completion of either candidate's full module j
 The development `launchpad` command can now opt into local application execution with
 both `--organization-directory` and `--bun-executable`. Without the explicit executable,
 discovery remains read-only. It does not download a toolchain or select one from PATH.
-The executable must match the module's exact Bun version when the package pins one
-(`packageManager`); a package that pins none uses it as it is (F25). Only HOME, PATH and optional
+A package that pins another exact Bun version (`packageManager`) runs that version,
+resolved as the App's runtime from the runtime cache of the account's HOME or fetched
+there with the executable as Bun's installer (decision F62); a package that pins none
+uses the executable as it is (F25). Only HOME, PATH and optional
 TMPDIR enter the selected process environment; module scripts still run as the local
 account and can access its files, so this is not a sandbox or provider permission check.
 

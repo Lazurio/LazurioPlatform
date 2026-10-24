@@ -4346,6 +4346,12 @@ and the operator saw only `operation-failed`. Both are fixed with the decision.
    which is what the replaced Launchpad did; real application packages do not
    guarantee a `packageManager`. Any other `packageManager` value is refused. This rule
    is the install authority's and holds for a declared preparation too.
+   *Amended by [F62](#f62--the-bun-an-app-pins-is-its-runtime-the-users-bun-when-it-is-that-version-else-the-runtime-cache-else-a-verified-fetch) (2026-10-24):* the pinned Bun is
+   no longer refused when the operator's Bun is another version. It is the App's
+   runtime, resolved for every path that runs the App's code: the operator's Bun when it
+   is exactly that version, otherwise Lazurio's runtime cache, otherwise a verified fetch
+   with Bun's own installer, never another version.
+   `preparation-toolchain-mismatch` stays as the final check of the selected executable.
 4. **The catalog tells the truth.** `executable` means that a start of the default app
    can proceed as far as is known without running anything: after the declarations and
    the Organization's admission, the preparation in effect is inspected read-only
@@ -4389,6 +4395,10 @@ and the operator saw only `operation-failed`. Both are fixed with the decision.
    only `preparation-toolchain-mismatch` and `preparation-install-failed` (with the
    lockfile). The CLI and the Launchpad explain each in words (English and Czech on the
    page). `operation-failed` stays for a throw without a known cause.
+   *Amended by [F62](#f62--the-bun-an-app-pins-is-its-runtime-the-users-bun-when-it-is-that-version-else-the-runtime-cache-else-a-verified-fetch):* a start, a preparation or a build also
+   answers the refusals of the pinned Bun (`runtime-unavailable`,
+   `runtime-integrity-failed`, `runtime-version-unknown`, `runtime-disk-full`,
+   `runtime-unsupported-platform`), named by the package that pins it.
 
 6. **Application packages of one module do not overlap under the default.** The
    default install writes the application directory's `node_modules`, beneath any other
@@ -18365,3 +18375,180 @@ The forwarded headers are Caddy's default, which Machines count on but do not ye
 prove for the shell route (HumanAndMachine-ai/Machines#825). The Buddy layer still says a notice
 comes in the conversation the work was given from; after a final refusal it comes in
 Telegram.
+
+## F62 — The Bun an App pins is its runtime: the user's Bun when it is that version, else the runtime cache, else a verified fetch
+
+**Decided on 2026-10-24 (root decision 0171, addendum of 2026-10-24,
+HumanAndMachines/Lazurio#624, in review; root decision 0161, addendum of the same day;
+plan DEV-6682; issue #618); the design was approved before this change and is
+implemented in this revision.** Every path that runs an App's code with Bun ran the
+user's Bun (`~/.local/bin/bun`, B2) and refused an App whose `package.json#packageManager`
+pins another exact version (`preparation-toolchain-mismatch`, F25 point 3). The user's
+Bun moves with their own updates (root decision 0161 point 2) and Module authors move
+their pins independently: a read-only readback on 2026-10-24 found Bun 1.4.2, 1.4.3 and
+1.4.4 on the Environments of one Organization while its Modules pinned 1.4.2 or 1.4.3,
+so on every Environment each App whose pin differed did not start, and
+`lazurio tools update bun` (`bun upgrade`) would have refused every pinned App of an
+Environment at once. People fixed a start by moving a Module's pin to their own Bun,
+which broke the same App for their colleagues.
+
+1. **A runtime, not a tool.** The Bun an App pins (exactly `bun@x.y.z`) is that App's
+   runtime, as T3 Code's own Node is the service's (root decision 0161 point 4). It is
+   not one of the user's tools and not a second copy of one; the rule "no second copy of
+   tools" does not cover it (0161 addendum of 2026-10-24). The user's tools stay the
+   user's: nothing here writes into `~/.local/bin`, `~/.bun` or their configuration.
+2. **The order** (`createModuleBunResolver`, `src/modules/bun-runtime.ts`):
+   1. the user's Bun when its `--version` is exactly the pin: nothing is downloaded, and
+      the App's processes get exactly the environment and PATH they had;
+   2. otherwise the runtime cache, `~/.local/share/lazurio/runtimes/bun/<version>/`,
+      under the user's home and off their PATH, its program at
+      `node_modules/@oven/bun-<target>/bin/bun` with `bunx` beside it. A version's
+      directory is never changed once placed. A cached program must report the version;
+      one that does not run or reports another version is moved aside and fetched again,
+      once, never in a loop;
+   3. otherwise a verified fetch (point 3).
+3. **The fetch** is Bun's own installer, run by the user's Bun: `bun add --exact
+   --ignore-scripts --no-progress --no-summary --registry=https://registry.npmjs.org/
+   --cache-dir=<private> @oven/bun-<target>@<version>`, never `curl | sh`.
+   - It runs in a private directory beside the cache (`runtimes/bun/.tmp-<random>`)
+     that gets its own `package.json` first: without one, `bun add` adds the package to
+     the nearest `package.json` above it (observed while this was shaped, in a scratch
+     directory under a checkout). A private home and cache inside it mean nothing of the
+     user's npm or Bun configuration and nothing of their cache is read, so the source is
+     Bun's official npm distribution whatever a configuration names. It is bounded at 5
+     minutes and starts only when at least 300 MB are free there.
+   - Bun checks the registry's sha512 integrity before it extracts anything, and no
+     install script runs. The installed program must be a regular file and report exactly
+     the pinned version; then the private home and cache go, and the directory is renamed
+     to `<version>` in one step.
+   - Concurrent resolutions of one version in a process join one fetch. Across
+     processes, everything that changes a version's directory happens under that
+     version's exclusion: one kernel `flock` on `runtimes/bun.locks/<version>`
+     (`acquireFileLock`), which a dead holder releases by itself. That covers moving a
+     broken copy aside and placing a fetched one. The cache is read again once the
+     exclusion is held, so a second process waits for the first and then reads the
+     copy it placed. No process can remove a copy another one has just placed and
+     handed out (Pablo's review of #626). A version that is ready is read without the
+     exclusion. A waiter waits for one fetch at most, then refuses with
+     `runtime-unavailable`. Where there is no qualified `flock` (Windows, for now, or a
+     filesystem without it), the exclusion is absent; the identity check before a broken
+     copy is moved aside and the one-step rename remain. A private directory older than
+     an hour (a fetch whose process ended) is removed at the next fetch.
+4. **Targets.** darwin-aarch64, darwin-x64, linux-x64 and linux-aarch64 (glibc),
+   windows-x64, and windows-aarch64 from Bun 1.3.10. An x64 CPU without AVX2 needs the
+   baseline build: on Linux `/proc/cpuinfo` decides up front; elsewhere, and on Linux when
+   it cannot be read, the baseline is fetched once when the plain build does not run.
+   Linux with musl, FreeBSD and anything else are refused for now.
+5. **Typed refusals, never another version.** Added to F25's closed set
+   (`preparationReasons`), each named by the App's own package.json and explained in the
+   CLI and, in both languages, the Launchpad:
+   - `runtime-unavailable`: not cached, and the registry did not answer (offline, or not
+     within the bound);
+   - `runtime-integrity-failed`: Bun's installer refused the integrity, or the program
+     reports another version;
+   - `runtime-version-unknown`: the registry does not know that version (a 404);
+   - `runtime-disk-full`: less than 300 MB free, or the disk filled during the fetch;
+   - `runtime-unsupported-platform`: no build of that version runs on this system.
+
+   `toolchain-missing` stays what it was: no user's Bun at `~/.local/bin/bun`, refused
+   before anything else (the user's Bun is also the installer). A user's Bun that does
+   not run while a fetch is needed stays an unnamed failure, as a broken Bun was before.
+6. **Every path that runs an App's code** resolves its own pin and runs exactly it:
+   - the start-time step (the frozen install, `check_script`, `prepare_script`) and the
+     explicit preparation, resolved after the preparation's binding and before anything
+     runs (`declared-bun-preparation.ts`), so a refusal installs nothing;
+   - the development start and an App's own server's `start_script` (F58 addendum (2),
+     `local-application-adapters.ts`);
+   - the F58 build script (`bun --no-env-file run <build_script>`, the build job's
+     `runtime`), whoever asks for the build: a person's start or Open, the gateway's
+     `ensure`, the background build after a pull (the watcher and its sweep) and
+     `lazurio module build`.
+
+   The version's directory goes first on the PATH of the App's processes
+   (`withModuleBun`), so a nested `bun`, `bun x` or `bunx` is the same version (Bun's
+   `run` also puts its own executable first for the scripts it runs). The Platform's own
+   processes, the static server and its check of a build's output included, are not an
+   App's code and stay on the user's Bun.
+7. **Unattended.** A fetch in the background asks nobody. Its failure is the build's
+   recorded reason, which the Launchpad shows as any failed build (F58 point 9), and the
+   answer of a build refused for its runtime names the App's package.json. A refusal that
+   may pass by itself (`runtime-unavailable`, `runtime-disk-full`) is built again by the
+   next sweep or watch, as it would be by a person's Open; the others (a download that
+   did not verify, an unknown version, an unsupported system) wait for a person's start,
+   `lazurio module build` or a new commit, as every failed build (F58 point 6), so a
+   download that does not verify is never repeated unattended.
+8. **F25.** Refusal becomes resolution. `preparation-toolchain-mismatch` stays as the
+   final check of the selected executable (`inspectBunToolchain` at the preflight, before
+   each install or script process and at the launch); it is reached only when the pin or
+   the program changed between the resolution and that check. A package that pins no Bun
+   keeps the user's Bun, observed (F25 point 3, unchanged). The catalog still decides
+   without running anything and never resolves or fetches.
+9. **Pre-warm.** `prewarmModuleRuntimes(resolve, pins)` makes each distinct pin
+   available ahead of a start with the same resolver, cache and verification: one result
+   per pin, `cached`, `fetched` or `refused` with the reason a start would give, never a
+   throw; the caller reads each App's pin (`readPinnedBun`). Root decision 0212
+   (HumanAndMachines/Lazurio#625, in review) has `lazurio update` run it after content
+   synchronization and before the preparation and builds of what moved. It is not wired
+   here: the composition of `lazurio update` is on plan DEV-6656's branch, with a no-op
+   tools step as its seam, and whichever change merges second plugs it in.
+10. **`lazurio tools update bun` needs no guard.** The user's Bun no longer decides
+    whether a pinned App starts: it runs one only when it is exactly the pinned version,
+    and otherwise only installs (`bun add` with flags every Bun 1.x has). What still
+    follows the user's Bun is what followed it by design: Apps that pin none (F25), the
+    Platform's static server and the Personalspace template's bootstrap. A guard in the
+    same release as the resolver would protect nothing the resolver does not.
+
+**Honest limits.**
+- Versions accumulate in the cache, about 70 MB each; nothing removes an unused one yet.
+- The cache is always `~/.local/share/lazurio/runtimes/bun`, not under `XDG_DATA_HOME`:
+  one place for the CLI and the Launchpad whatever their environment, and the place the
+  root resolver on computers can share (root decision 0171 addendum point 7).
+- Only the official registry is asked: an Environment that reaches npm only through a
+  mirror named in its own npm configuration answers `runtime-unavailable`.
+- A fetch at a start runs inside the lifecycle's exclusion of the Organization, as the
+  frozen install does, so another app of that Organization starts after it (at most the
+  5-minute bound).
+- A build's failure is recorded with its reason only (F58's build state has no file).
+- Windows targets are named, but the module lifecycle does not run on Windows yet.
+- Not yet run on a hosted Linux Environment.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep refusing; authors move their pins | Breaks the App for every colleague whose Bun differs: the cause of #618; rejected |
+| Run the user's Bun whatever the pin | Silently another version; rejected |
+| A version manager (mise, proto) | Another tool that can be missing (root decision 0171 addendum point 3); rejected |
+| Bun's install script (`curl … \| bash`) per version | A script from the network; the version known only after it ran; rejected |
+| Download and verify the tarball against the registry ourselves, as Executor's pinned install does | A second implementation of what Bun's installer already verifies; rejected for Bun's own installer |
+| Leave PATH as it is for a resolved Bun | A nested `bunx`, or `bun` outside Bun's `run`, would be the user's version; rejected |
+| No exclusion across processes, only the one-step rename | Rejected after Pablo's review of #626: a process repairing a broken copy could move aside, and delete, the copy another process had just placed and handed out to an App. Adopted instead: one `flock` per version around every change of its directory |
+| Retry every runtime failure in the background | A download that does not verify would repeat unattended every few minutes; rejected for point 7 |
+| A guard in `lazurio tools update bun` until the resolver ships | Ships with the resolver, so it protects nothing (point 10); not built |
+
+**Verified by** `tests/bun-runtime.test.ts` (the resolver with an injected installer: the
+user's Bun when it is the pin and a package without one, nothing downloaded and the
+environment unchanged; another version fetched once into the cache from its own private
+project, home and cache, placed whole with `bunx`, then from the cache; each refusal named
+by the package, with nothing kept; the target table and the systems refused; the baseline
+when the plain build does not run, and only the baseline on Linux without AVX2; five
+concurrent resolutions fetching once; two processes fetching one version once, the second
+waiting for the first's exclusion and reading its copy; two processes repairing one broken
+cached version at once, neither removing the copy the other placed; a corrupt
+cached program fetched again once, never in a loop; the pre-warm's per-pin results; and
+the real `bun add` against a registry on the loopback interface: a version fetched and
+run, a project's package.json above it and the user's npm and Bun configuration left
+alone, no install script run, a tarball whose integrity does not match refused, an unknown
+version and a registry that does not answer), `tests/module-bun-runtime.test.ts` (the module
+operations with real processes: Apps pinned to two other versions and one to the user's Bun
+running side by side, each preparing, checking and starting with its own Bun first on its
+PATH, the one on the user's Bun with its PATH unchanged and nothing fetched; a version that
+cannot be fetched refusing the start and the preparation with its reason and package, then
+starting once it can; a built App building with its pinned Bun when opened, by
+`lazurio module build` and after a pull in the background, while the static server never
+runs it; a build whose runtime could not be fetched recorded and built by the next sweep;
+the CLI naming the reason), `tests/built-builds.test.ts` (the build's executable and PATH,
+the reason recorded, the background retry only of a refusal that may pass) and
+`tests/module-view.test.ts` (each refusal in words in both languages, naming the
+package). Template revision `base-instructions-73` (the generated manual's module chapter
+and "Where the tools live"). The opt-in case (`LAZURIO_TEST_NETWORK=1`) fetched Bun 1.4.3
+from npm on macOS ARM64 with a user's Bun 1.4.2 in 18.4 s, and the fetched program, a
+nested `bun` and `bunx` all ran as 1.4.3; the second resolution came from the cache.

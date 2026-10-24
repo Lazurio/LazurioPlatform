@@ -1,6 +1,10 @@
 import { expect } from "bun:test";
 import { readFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import {
+  type BunInstaller,
+  createModuleBunResolver,
+} from "../../src/modules/bun-runtime";
 import type { ModuleHost } from "../../src/modules/module-operations";
 import {
   createSystemdUserRunner,
@@ -202,6 +206,14 @@ export async function dependencyFreeModule(moduleDirectory: string) {
   return port;
 }
 
+/** Bun's npm distribution as these hosts see it: a registry that knows no
+ * version, so an App pinned to another Bun than the user's is refused as an
+ * unpublished version is (decision F62), and nothing is downloaded. */
+export const emptyBunRegistry: BunInstaller = async () => ({
+  kind: "refused",
+  reason: "runtime-version-unknown",
+});
+
 /** A Linux host over the in-memory user manager: a started unit's main
  * process (pid 4242) listens on the declared port (or each of the declared
  * ports) and answers its health. */
@@ -219,6 +231,18 @@ export function linuxHost(
     runtimeDirectory: manager.runtimeDirectory,
     platformExecutable: binary,
     bunExecutable: process.execPath,
+    resolveBun: createModuleBunResolver({
+      home,
+      userBun: process.execPath,
+      path: "/usr/bin:/bin",
+      install: emptyBunRegistry,
+      system: async () => ({
+        platform: "linux",
+        arch: "arm64",
+        libc: "glibc",
+        avx2: null,
+      }),
+    }),
     runnerKind: async () => "systemd-user",
     createRunner: (_kind, organizationDirectory) =>
       createSystemdUserRunner({

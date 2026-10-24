@@ -71,6 +71,32 @@ The Platform's surface for the user's tools, implemented in `src/tools/`:
   `app-server-outdated`, and nothing is stopped or restarted (F29 addendum, issue
   #173).
 
+### The user's tools and Module runtimes ([F62](decisions.md#f62--the-bun-an-app-pins-is-its-runtime-the-users-bun-when-it-is-that-version-else-the-runtime-cache-else-a-verified-fetch))
+
+The Bun a Module's App pins in its `package.json` (`packageManager: bun@x.y.z`) is that
+App's runtime, not one of the user's tools (root decision 0171, addendum of
+2026-10-24): like T3 Code's own Node, it is not a second copy of a tool either. Every
+path that runs the App's code (its preparation, its start, its own server, its build in
+the foreground or the background, `lazurio module build`) runs exactly that version:
+
+- the user's Bun, `~/.local/bin/bun`, when it reports exactly that version;
+- otherwise that version from Lazurio's runtime cache,
+  `~/.local/share/lazurio/runtimes/bun/<version>/`, off the user's PATH;
+- otherwise that version fetched into the cache by Bun's own installer from Bun's
+  official npm distribution (`bun add --exact --ignore-scripts
+  @oven/bun-<target>@<version>` in a private directory with its own home and cache;
+  sha512 integrity before extraction, no install scripts, and the program must report
+  the pinned version before it is placed).
+
+What cannot be had is refused by name (`runtime-unavailable`, `runtime-integrity-failed`,
+`runtime-version-unknown`, `runtime-disk-full`, `runtime-unsupported-platform`), never run
+with another Bun. An App that pins none runs with the user's Bun, whichever version it is
+(F25). The user's tools are untouched: the cache is not on PATH, nothing is written into
+`~/.local/bin` or `~/.bun`, and `lazurio tools status` lists the user's tools only.
+`lazurio tools update bun` therefore changes only the user's own Bun: a pinned App keeps
+starting with its pin, and no guard refuses a newer Bun. The cache is not a second
+installation to repair or remove; an agent leaves it alone.
+
 ### Enabled tools of a Folder (decision 0162, F18)
 
 Agents use what the Folder tells them to use. The catalog marks the tools that may be
@@ -1097,7 +1123,7 @@ The unit text is in [product update](update.md#state-on-disk).
 | --- | --- | --- |
 | Standalone Lazurio CLI | Verify the release, stage and activate the selected artifact; no external Bun/Node prerequisite | Approve the release (`latest` or one exact tag) and target; Machines performs its infrastructure installation handover |
 | Git and GitHub CLI (`gh`) | Diagnose availability and required capabilities; propose explicit preparation of missing tools | Authorize package/system changes; authenticate as the intended user and grant actual repo access |
-| Module runtime (for example Bun) | Coordinate the module's declared preparation; report missing/incompatible runtime without claiming readiness | Module owns exact dependency/runtime requirements and preparation; user approves installation |
+| Module runtime (for example Bun) | Coordinate the module's declared preparation; run the Bun an App pins as its runtime, the user's when it is that version, else from Lazurio's runtime cache, else fetched and verified with Bun's own installer ([F62](decisions.md#f62--the-bun-an-app-pins-is-its-runtime-the-users-bun-when-it-is-that-version-else-the-runtime-cache-else-a-verified-fetch)); refuse by name what cannot be had, without claiming readiness | Module owns exact dependency/runtime requirements (its `packageManager` pin) and preparation; the user's own Bun stays theirs |
 | Codex / Claude harness | Diagnose the selected harness, instruction loading and required capabilities; provide one Folder-owned instruction contract; in a Remote Environment start the user's Codex app-server daemon at boot (`lazurio-codex-app-server.service`, F29) and report it in `lazurio doctor` | Choose the harness, accounts/model access and consent; complete provider-native sign-in; install, update and configure Codex itself |
 | Environment browser (Remote Environment, F38, F39) | Run the virtual screen, the one Chromium with its persistent profile and the Lazurio extension, and the users' view (`lazurio browser serve`) as user units; open a thread's window (`lazurio browser window`); open a page as the Environment's default browser (`lazurio browser open`, root decision 0201 point 5); answer the view of a thread's tab behind the gateway; report it in `lazurio doctor` | Machines delivers Xvfb, Chrome for Testing through agent-browser and the `browser.` route with `entry.browser`, and registers `lazurio browser open` as the Environment user's default browser (`BROWSER`, `xdg-open`); the user signs in to websites in the view and decides what may be signed in there |
 | Computer Use (Remote Environment, [F59](decisions.md#f59--computer-use-on-a-remote-environment-the-cua-drivers-daemon-on-the-screen-one-mcp-server-computer-for-every-agent)) | Run the Cua Driver's daemon on the Environment's screen as the user unit `lazurio-computer.service`; give every agent its MCP proxy as the server `computer` (`codex mcp add`, `claude mcp add --scope user`, like Executor's) while the driver is there, and remove Lazurio's own entry while it is not; tell agents in the Folder that one agent works on the screen at a time; report it in `lazurio doctor` | Machines delivers the pinned driver as `~/.local/bin/cua-driver` (0.19.3, its resident toolchain) and the packages `at-spi2-core`, `dbus-user-session` and `libglib2.0-bin`; the user cannot watch the screen until the desktop view of the second wave (root 0191 point 8) |

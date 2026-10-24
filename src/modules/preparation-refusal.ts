@@ -2,9 +2,12 @@ import { refusedFileName } from "../providers/checkout-custody";
 
 // Why a module's preparation cannot run (decision F25): a closed set of
 // reasons, each with the package or lockfile it concerns, instead of the
-// `operation-failed` a throw without a reason becomes. All but the last three
-// are known without running anything, so the catalog reports them as well;
-// the last three only a run of the preparation (a start or `prepare`) can know.
+// `operation-failed` a throw without a reason becomes. Those up to and
+// including `preparation-dependency-missing` are known without running
+// anything, so the catalog reports them as well; the rest only a run can know:
+// the preparation's (a start or `prepare`), and the `runtime-*` refusals of
+// the Bun the package pins, which every path that runs the App's code
+// resolves (decision F62): its preparation, its start and its build.
 
 export const preparationReasons = [
   /** The preparation owner's package.json is missing, is not a package
@@ -39,8 +42,10 @@ export const preparationReasons = [
   /** A local `file:` dependency that is not there; named by the package
    * that declares it. */
   "preparation-dependency-missing",
-  /** The owner pins an exact Bun (`packageManager`) the operator's Bun is
-   * not. */
+  /** The Bun selected for the owner does not report the exact version it
+   * pins (`packageManager`). The pinned version is resolved before (decision
+   * F62), so this is the final check of the selected executable: the pin
+   * changed while the App was being started, or the program changed. */
   "preparation-toolchain-mismatch",
   /** The frozen install from the lockfile failed (for example, the lockfile
    * no longer matches the package, or a dependency cannot be fetched). */
@@ -48,6 +53,21 @@ export const preparationReasons = [
   /** The declared `prepare_script` exited non-zero after the install; named
    * by the owner's package.json that declares it. */
   "preparation-script-failed",
+  // The Bun the owner pins could not be had (decision F62); each is named by
+  // the owner's package.json, and none ever runs the App with another Bun.
+  /** Not in the runtime cache, and the npm registry did not answer (offline,
+   * or the fetch did not finish in time). */
+  "runtime-unavailable",
+  /** Downloaded, but Bun's installer refused its sha512 integrity, or the
+   * installed program does not report the pinned version. */
+  "runtime-integrity-failed",
+  /** The npm registry does not know that version of Bun for this system. */
+  "runtime-version-unknown",
+  /** Less free space than a fetch needs where the runtimes are kept. */
+  "runtime-disk-full",
+  /** Bun publishes no build of that version that runs on this system
+   * (Linux with musl, FreeBSD, …), or the one it publishes does not run. */
+  "runtime-unsupported-platform",
 ] as const;
 export type PreparationReason = (typeof preparationReasons)[number];
 
