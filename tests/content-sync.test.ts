@@ -367,13 +367,14 @@ posixTest(
   "a checkout's own core.fsmonitor program never runs: not for a checkout on another branch, not for a dirty one, not for a fast-forward (Pablo's review of #620)",
   async () => {
     world = await createWorld();
+    const root = world.root;
     const fixture = await organization(world, { modules: ["dirty", "other"] });
-    const marker = join(world.root, "fsmonitor-ran");
+    const marker = join(root, "fsmonitor-ran");
     // A program that, if Git ran it, would leave a marker and change the
     // checkout's tracked file a.txt.
     const monitor = async (name: string) => {
       const directory = fixture.at(`workspace/${name}`);
-      const script = join(world.root, `fsmonitor-${name}.sh`);
+      const script = join(root, `fsmonitor-${name}.sh`);
       await writeFile(
         script,
         `#!/bin/sh\necho ${name} >> '${marker}'\nprintf 'changed\\n' >> '${join(directory, "a.txt")}'\nexit 1\n`,
