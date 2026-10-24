@@ -716,6 +716,23 @@ function isWorkspaceTab(value: unknown): boolean {
   );
 }
 
+/** Služby serveru's services group as the core writes it: in the shape of an
+ * Organization with a slug, an empty directory, no GitHub binding (so nobody
+ * is offered to found a module in it) and no modules, every repository a
+ * service repository. */
+function isServicesGroup(value: unknown): value is CatalogOrganization {
+  if (!isOrganization(value)) return false;
+  return (
+    value.directory === "" &&
+    value.organization !== null &&
+    value.organization.length > 0 &&
+    value.forgeLogin === undefined &&
+    value.modules.length === 0 &&
+    value.repositories.length > 0 &&
+    value.repositories.every((entry) => entry.services !== undefined)
+  );
+}
+
 /** The catalog, when the answer is one; null otherwise. */
 export function parseCatalog(input: unknown): Catalog | null {
   if (!input || typeof input !== "object") return null;
@@ -723,7 +740,12 @@ export function parseCatalog(input: unknown): Catalog | null {
   return value.kind === "catalog" &&
     Array.isArray(value.organizations) &&
     value.organizations.every(isOrganization) &&
-    (value.personalspace === undefined || isOrganization(value.personalspace))
+    (value.personalspace === undefined ||
+      isOrganization(value.personalspace)) &&
+    // Služby serveru's services group (root decision 0209 point 6): no
+    // directory, no modules, only service repositories.
+    (value.serverServices === undefined ||
+      isServicesGroup(value.serverServices))
     ? (value as Catalog)
     : null;
 }

@@ -11,8 +11,11 @@ import { addressKey } from "../src/browser/people/sleep";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import {
+  appsHeading,
+  appsHomeParts,
   appsScope,
   appsSections,
+  newModuleOffer,
   repositoryAction,
 } from "../src/launchpad/apps-view";
 import {
@@ -20,6 +23,7 @@ import {
   reduceStrip,
   stripEntries,
 } from "../src/launchpad/browser-panel-view";
+import { organizationsOnly } from "../src/launchpad/catalog-reading";
 import {
   catalogSelection,
   parseCatalog,
@@ -39,6 +43,7 @@ import {
   serviceRequest,
 } from "../src/launchpad/routes";
 import { startLaunchpad } from "../src/launchpad/server";
+import { shellOrganizations } from "../src/launchpad/shell-document";
 import {
   machineContextPath,
   parseMachineContext,
@@ -48,11 +53,18 @@ import {
   type Catalog,
   type CatalogOrganization,
   type CatalogRepository,
+  catalogModules,
   handoverServerServices,
+  noServerServices,
   readFolderCatalog,
   serverServicesOf,
   withServiceRepositories,
 } from "../src/organizations/catalog";
+import {
+  catalogGroups,
+  selectCatalogOrganization,
+  selectOwnerOrganization,
+} from "../src/organizations/catalog-selection";
 import { runCatalogCommand } from "../src/organizations/cli";
 import {
   isServicePage,
@@ -356,16 +368,252 @@ test("the catalog lists Služby serveru's services in its owning Organization on
     expect(await readFolderCatalog(folder, undefined, services)).toEqual(
       before,
     );
-  // An owner the Folder does not hold lists them nowhere.
-  expect(
-    await readFolderCatalog(folder, undefined, async () =>
-      served === null
-        ? null
-        : { ...served, owner: { login: "elsewhere", key: null } },
-    ),
-  ).toEqual(before);
-  // The page's parser admits the answer.
+  // An owner the Folder does not hold: its Organizations stay as they were,
+  // and the services are a group of their own beside them.
+  const elsewhere = await readFolderCatalog(folder, undefined, async () =>
+    served === null
+      ? null
+      : { ...served, owner: { login: "elsewhere", key: null } },
+  );
+  expect(elsewhere.organizations).toEqual(before.organizations);
+  expect(elsewhere.serverServices?.organization).toBe("elsewhere");
+  // The page's parser admits both answers.
   expect(parseCatalog(JSON.parse(JSON.stringify(after)))).toEqual(after);
+  expect(parseCatalog(JSON.parse(JSON.stringify(elsewhere)))).toEqual(
+    elsewhere,
+  );
+});
+
+test("the owner is the one Organization settings and Composio name (`selectOwnerOrganization`): two candidates bound to the owner's login take no service and make no group, since which one owns this Machine is never guessed", async () => {
+  const parent = await temporary("server-services-ambiguous-");
+  const folder = join(parent, "Lazurio");
+  await initializeFolder(folder, {
+    os: executionOs(process.platform),
+    access: "local",
+    purpose: "human",
+    locale: "cs",
+    detail: "concise",
+    coordination: "direct",
+  });
+  for (const slug of ["first", "second"])
+    await writeOrganization(folder, slug, {
+      slug,
+      state: "current",
+      modules: [],
+      forge: "example",
+    });
+  const before = await readFolderCatalog(folder);
+  const after = await readFolderCatalog(folder, undefined, async () => served);
+  expect(selectOwnerOrganization(after, "example").kind).toBe("ambiguous");
+  expect(after).toEqual(before);
+  expect(after.serverServices).toBeUndefined();
+});
+
+// ---- Služby serveru whose Organization is not installed ----------------------
+
+// The reference Organization's services-01 as Matěj found it on 2026-10-24:
+// its Folder holds no Organization (the Organization install has not run
+// there), and its Apps said only "There are no apps in this Work
+// Environment yet". The handover still says what runs there.
+async function emptyServicesFolder(withOrganizations = true) {
+  const parent = await temporary("server-services-empty-");
+  const folder = join(parent, "Lazurio");
+  await initializeFolder(folder, {
+    os: executionOs(process.platform),
+    access: "local",
+    purpose: "human",
+    locale: "cs",
+    detail: "concise",
+    coordination: "direct",
+  });
+  if (!withOrganizations)
+    await rm(join(folder, "organizations"), { recursive: true, force: true });
+  return folder;
+}
+
+test("where the Folder holds no Organization of theirs, Služby serveru's services are a group of their own: named as the handover names its owner, with no root, no Teams and no modules, never among the Organizations", async () => {
+  for (const withOrganizations of [true, false]) {
+    const folder = await emptyServicesFolder(withOrganizations);
+    const catalog = await readFolderCatalog(
+      folder,
+      undefined,
+      async () => served,
+    );
+    expect(catalog).toEqual({
+      kind: "catalog",
+      organizations: [],
+      serverServices: {
+        directory: "",
+        organization: "Example",
+        displayName: null,
+        state: null,
+        issues: [],
+        executable: false,
+        teams: [],
+        modules: [],
+        repositories: [
+          {
+            slug: "CLIProxyAPI",
+            path: null,
+            checkedOut: false,
+            url: cliProxy,
+            services: [
+              { id: "try", kind: "ai-gateway", page: null },
+              { id: "members", kind: "ai-pool", page: members },
+            ],
+          },
+        ],
+      },
+    });
+    // Without a key the handover names its owner by its login.
+    expect(
+      (
+        await readFolderCatalog(folder, undefined, async () =>
+          served === null
+            ? null
+            : { ...served, owner: { login: "example", key: null } },
+        )
+      ).serverServices?.organization,
+    ).toBe("example");
+    // Without services, or anywhere but Služby serveru, there is none.
+    for (const services of [async () => null, noServerServices])
+      expect(await readFolderCatalog(folder, undefined, services)).toEqual({
+        kind: "catalog",
+        organizations: [],
+      });
+  }
+});
+
+test("no reader of Organizations takes the group for an installed one: not the routes that ask about one Organization, not the Machine's owner rule, not the rail's held Organizations, and it has no module to start", async () => {
+  const folder = await emptyServicesFolder();
+  const catalog = await readFolderCatalog(
+    folder,
+    undefined,
+    async () => served,
+  );
+  const group = catalog.serverServices;
+  if (group === undefined) throw new Error("The services group");
+  // The page shows and selects it, by its slug in any letter case, never by
+  // a directory.
+  expect(catalogGroups(catalog)).toEqual([group]);
+  for (const name of ["Example", "example"])
+    expect(selectCatalogOrganization(catalog, name)).toEqual({
+      kind: "found",
+      organization: group,
+    });
+  expect(selectCatalogOrganization(catalog, "")).toEqual({ kind: "missing" });
+  // The Owner question, a Steward's maintain and the prompts read the
+  // installed Organizations only.
+  expect(organizationsOnly(catalog)).toEqual({
+    kind: "catalog",
+    organizations: [],
+  });
+  // Organization settings and Composio: no Organization owns this Machine.
+  expect(selectOwnerOrganization(catalog, "example")).toEqual({
+    kind: "missing",
+  });
+  // The rail's held Organizations: none (the shell document names the owner
+  // from the handover by itself).
+  expect(shellOrganizations(catalog)).toEqual([]);
+  // Nothing to start, prepare or found a module in.
+  expect(catalogModules(catalog)).toEqual([]);
+  expect(group.forgeLogin).toBeUndefined();
+  expect(parseCatalog(JSON.parse(JSON.stringify(catalog)))).toEqual(catalog);
+  // The page refuses a group that looks installed.
+  for (const forged of [
+    { ...group, directory: "Example_GEN3" },
+    { ...group, forgeLogin: "Example" },
+    { ...group, modules: [{ module: "x" }] },
+    { ...group, repositories: [] },
+    {
+      ...group,
+      repositories: [
+        { slug: "x", path: "productionspace/x", checkedOut: true, url: null },
+      ],
+    },
+  ])
+    expect(
+      parseCatalog(
+        JSON.parse(JSON.stringify({ ...catalog, serverServices: forged })),
+      ),
+    ).toBeNull();
+});
+
+test("Apps of Služby serveru whose Organization is not installed: the Organization's name over a Productionspace with the service's link, its Dashboard page, and no Workspace or \"+ Nový modul\" even for an Owner", async () => {
+  const folder = await emptyServicesFolder();
+  const catalog = await readFolderCatalog(
+    folder,
+    undefined,
+    async () => served,
+  );
+  const dashboard = (slug: string) =>
+    slug.toLowerCase() === "example"
+      ? "https://dashboard.example.invalid/orgs/example"
+      : null;
+  for (const [copy, flag, kinds, link] of [
+    [
+      cs,
+      "Productionspace",
+      "Brána AI · AI pool Organizace",
+      "Otevřít stránku služby",
+    ],
+    [
+      en,
+      "Productionspace",
+      "AI gateway · The Organization's AI pool",
+      "Open the service's page",
+    ],
+  ] as const) {
+    const group = appsScope(catalog, { view: "home" }, copy);
+    if (group === null) throw new Error("The services group is the home");
+    expect(group.name).toBe("Example");
+    expect(group.href).toBe("/o/Example");
+    expect(appsHeading(group, copy, dashboard)).toEqual({
+      text: "Example",
+      link: {
+        href: "https://dashboard.example.invalid/orgs/example",
+        title: copy.appsOrganizationDashboard,
+      },
+    });
+    const parts = appsHomeParts(catalog, group, copy, {
+      entry: null,
+      favorites: [],
+      holder: null,
+      setup: false,
+      tabs: [],
+      // An Owner or Admin is who enters Služby serveru.
+      owner: true,
+    });
+    expect(parts.map((part) => part.kind)).toEqual(["section"]);
+    const [part] = parts;
+    if (part?.kind !== "section") throw new Error("Productionspace");
+    expect(part.offer).toBeNull();
+    expect(part.section.kind).toBe("productionspace");
+    expect(part.section.title).toBe(flag);
+    const [tile] = part.section.tiles;
+    expect(tile).toMatchObject({
+      kind: "repository",
+      name: "CLIProxyAPI",
+      description: kinds,
+      action: { kind: "service", service: "members", href: "/service/members" },
+      info: "/o/Example/productionspace/CLIProxyAPI",
+    });
+    expect(copy.appsServiceOpen).toBe(link);
+    expect(newModuleOffer(group, copy, { owner: true, holder: null })).toBe(
+      null,
+    );
+  }
+  // The service repository's page and the service's page resolve in it.
+  const selection = catalogSelection(
+    catalog,
+    pageRoute("/o/Example/productionspace/CLIProxyAPI"),
+  );
+  expect(selection.kind).toBe("repository");
+  expect(servicePageOf(catalog, "members")).toBe(members);
+  // A module route in it has nothing to show.
+  expect(
+    catalogSelection(catalog, pageRoute("/o/Example/mission-control")),
+  ).toEqual({ kind: "missing" });
 });
 
 const posixTest = test.skipIf(!["darwin", "linux"].includes(process.platform));
@@ -418,6 +666,81 @@ posixTest(
         expect([path, page.status]).toEqual([path, 200]);
         expect(await page.text()).toBe(home_);
       }
+    } finally {
+      expect((await app.close()).kind).toBe("closed");
+    }
+  },
+  30_000,
+);
+
+posixTest(
+  "a Launchpad whose Folder holds no Organization answers Služby serveru's services group as `lazurio organization list --json` does, and nothing that acts on an installed Organization reaches it",
+  async () => {
+    const folder = await emptyServicesFolder();
+    const home = join(dirname(folder), "home");
+    await mkdir(home);
+    const app = await startLaunchpad(folder, undefined, undefined, undefined, {
+      serverServices: async () => served,
+    });
+    const session = new URL(app.url);
+    const headers = {
+      Origin: session.origin,
+      Authorization: `Bearer ${session.hash.slice(1)}`,
+    };
+    try {
+      const answer = await fetch(new URL("/api/catalog", session), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: "{}",
+      });
+      expect(answer.status).toBe(200);
+      const value = (await answer.json()) as Catalog;
+      const cli = await runCatalogCommand(
+        ["organization", "list", "--folder", folder, "--json"],
+        {
+          identity: { version: "1.0.0", commit: "0".repeat(40), target: "x" },
+          platform: process.platform,
+          env: { HOME: home },
+          executable: join(home, "lazurio"),
+          hostedFolder: async () => undefined,
+        },
+        (path) => readFolderCatalog(path, undefined, async () => served),
+      );
+      expect(value).toEqual(JSON.parse(cli.text));
+      expect(value.organizations).toEqual([]);
+      expect(value.serverServices?.organization).toBe("Example");
+      // The human table lists the installed Organizations only.
+      const table = await runCatalogCommand(
+        ["organization", "list", "--folder", folder],
+        {
+          identity: { version: "1.0.0", commit: "0".repeat(40), target: "x" },
+          platform: process.platform,
+          env: { HOME: home },
+          executable: join(home, "lazurio"),
+          hostedFolder: async () => undefined,
+        },
+        (path) => readFolderCatalog(path, undefined, async () => served),
+      );
+      expect(table.text).toBe(
+        "No Organizations in this Folder's organizations/.",
+      );
+      // The Owner question reads the installed Organizations only: none.
+      expect(
+        await (
+          await fetch(new URL("/api/organizations/Example/owner", session), {
+            headers,
+          })
+        ).json(),
+      ).toEqual({ kind: "organization-owner", owner: false });
+      // Module start reads the Folder's own Organizations: none is Example.
+      expect(
+        await (
+          await fetch(
+            new URL("/api/modules/Example/mission-control/status", session),
+            { headers },
+          )
+        ).json(),
+      ).toMatchObject({ kind: "blocked", reason: "organization-unknown" });
     } finally {
       expect((await app.close()).kind).toBe("closed");
     }

@@ -5,13 +5,22 @@ import type { Catalog, CatalogOrganization } from "./catalog";
 // type-only, so the browser bundle can import it without the reader.
 
 /** The catalog's groups in the order they are shown: the Organizations, then
- * the Personalspace group when there is one (launchpad-parity B11). */
+ * Služby serveru's services where the Folder holds no Organization of theirs
+ * (`serverServices`, root decision 0209 point 6), then the Personalspace
+ * group when there is one (launchpad-parity B11). */
 export function catalogGroups(
   catalog: Catalog,
 ): readonly CatalogOrganization[] {
-  return catalog.personalspace === undefined
-    ? catalog.organizations
-    : [...catalog.organizations, catalog.personalspace];
+  if (
+    catalog.serverServices === undefined &&
+    catalog.personalspace === undefined
+  )
+    return catalog.organizations;
+  return [
+    ...catalog.organizations,
+    ...(catalog.serverServices === undefined ? [] : [catalog.serverServices]),
+    ...(catalog.personalspace === undefined ? [] : [catalog.personalspace]),
+  ];
 }
 
 export type CatalogOrganizationSelection =
@@ -29,7 +38,8 @@ export type CatalogOrganizationSelection =
  * or another, selects none of them. Only when no slug matches, the directory
  * name under `organizations/`, exactly. The Personalspace group takes part
  * under its name `personalspace`, so an Organization whose slug is
- * `personalspace` is ambiguous with it. */
+ * `personalspace` is ambiguous with it; Služby serveru's services group
+ * under its slug, and never by a directory, since it has none. */
 export function selectCatalogOrganization(
   catalog: Catalog,
   name: string,

@@ -28,9 +28,12 @@ export const catalogHelp = `organization list [--folder <absolute Folder>] [--js
   catalog: modules, the read-only productionspace/* repositories with
   whether each is checked out (in Server services also the repositories of
   the services of this Environment, each with its services and the page a
-  service opens on this Environment's loopback), and on a Folder with a
-  Personalspace its group (personalspace), which is not an Organization and
-  is not in the table.
+  service opens on this Environment's loopback; where the Folder holds no
+  Organization that owns this Machine, in serverServices, named as the
+  Machine handover names its owner, with no directory and no modules, which
+  is not an installed Organization and is not in the table), and on a Folder
+  with a Personalspace its group (personalspace), which is not an
+  Organization and is not in the table.
 module list [<Organization>] [--folder <absolute Folder>] [--json]
   The modules of every Organization, or of the one named by its slug or
   directory name: its workspace modules and, when declared with a

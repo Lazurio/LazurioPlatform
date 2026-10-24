@@ -314,8 +314,9 @@ export function createCatalogReading(
 
 export type CatalogReading = ReturnType<typeof createCatalogReading>;
 
-/** The catalog without its Personalspace group: what the routes that ask
- * about one Organization read (owner, maintainer, prompts), as a reader that
+/** The catalog without its Personalspace group and without Služby serveru's
+ * services group (`serverServices`): what the routes that ask about one
+ * installed Organization read (owner, maintainer, prompts), as a reader that
  * cannot ask GitHub would. */
 export function organizationsOnly(catalog: Catalog): Catalog {
   return Object.freeze({

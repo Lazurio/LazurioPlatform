@@ -27,7 +27,11 @@ import {
   type CheckoutReason,
   checkoutRefusal,
 } from "../providers/checkout-custody";
-import { catalogGroups, selectCatalogOrganization } from "./catalog-selection";
+import {
+  catalogGroups,
+  selectCatalogOrganization,
+  selectOwnerOrganization,
+} from "./catalog-selection";
 import {
   organizationSettings,
   type WorkspaceTab,
@@ -258,6 +262,19 @@ export type Catalog = Readonly<{
    * no reader of Organizations (the Doctor, `organization list`) ever lists
    * its modules by accident. */
   personalspace?: CatalogOrganization;
+  /** Služby serveru's services where this Folder holds no Organization that
+   * owns this Machine (root decision 0209 point 6, decision F32's addendum
+   * of 2026-10-24): they run here whether or not the Organization is
+   * installed in the Folder, so they are listed in the shape of an
+   * Organization named as the handover names its owner
+   * (`owner.organization_key`, else its login). It has no root here: its
+   * directory is empty, and it has no state, Teams, modules or GitHub
+   * binding; its repositories are the service repositories. Kept apart from
+   * `organizations`, as the Personalspace group is, so that no reader of
+   * Organizations (module start and creation, Organization settings,
+   * Composio, the Doctor, the Owner question) ever takes it for an
+   * installed one. */
+  serverServices?: CatalogOrganization;
 }>;
 
 type Data = Readonly<Record<string, unknown>>;
@@ -640,40 +657,61 @@ export function withServiceRepositories(
   return Object.freeze([...merged, ...named]);
 }
 
-// The one Organization the handover names as its owner: bound to its
-// GitHub login, or carrying it or the handover's own slug as its slug,
-// whatever the letter case (as the shell document finds it). None when no
-// readable candidate is, or more than one.
+/** Služby serveru's services where the Folder holds no Organization of
+ * theirs (`Catalog.serverServices`): in the shape of an Organization named
+ * as the handover names its owner, its own slug where it gives one (as the
+ * shell document names the owner it does not hold), with no root here. */
+export function serverServicesGroup(
+  served: ServerServices,
+): CatalogOrganization {
+  return Object.freeze({
+    directory: "",
+    organization: served.owner.key ?? served.owner.login,
+    displayName: null,
+    state: null,
+    issues: Object.freeze([]),
+    executable: false,
+    teams: Object.freeze([]),
+    modules: Object.freeze([]),
+    repositories: withServiceRepositories([], served.services),
+  });
+}
+
+// Služby serveru's services in the catalog (root decision 0209 point 6),
+// under the Organization that owns this Machine by the one rule Organization
+// settings and Composio read it by (`selectOwnerOrganization`): merged into
+// its Productionspace where the Folder holds it; in a group of their own
+// where it holds none, as on a services Environment whose Organization was
+// not installed (`serverServices`); and where two or more candidates answer,
+// nowhere, since which one is the owner is never guessed.
 function withServerServices(
   organizations: readonly CatalogOrganization[],
   served: ServerServices | null,
-): readonly CatalogOrganization[] {
-  if (served === null || served.services.length === 0) return organizations;
-  const same = (left: string | null | undefined, right: string | null) =>
-    typeof left === "string" &&
-    right !== null &&
-    left.toLowerCase() === right.toLowerCase();
-  const { login, key } = served.owner;
-  const owners = organizations.filter(
-    (entry) =>
-      entry.organization !== null &&
-      (same(entry.forgeLogin, login) ||
-        same(entry.organization, login) ||
-        same(entry.organization, key)),
+): Readonly<{
+  organizations: readonly CatalogOrganization[];
+  serverServices?: CatalogOrganization;
+}> {
+  if (served === null || served.services.length === 0) return { organizations };
+  const owner = selectOwnerOrganization(
+    { kind: "catalog", organizations },
+    served.owner.login,
   );
-  const [owner] = owners;
-  if (owner === undefined || owners.length !== 1) return organizations;
-  return organizations.map((entry) =>
-    entry === owner
-      ? Object.freeze({
-          ...entry,
-          repositories: withServiceRepositories(
-            entry.repositories,
-            served.services,
-          ),
-        })
-      : entry,
-  );
+  if (owner.kind === "ambiguous") return { organizations };
+  if (owner.kind === "missing")
+    return { organizations, serverServices: serverServicesGroup(served) };
+  return {
+    organizations: organizations.map((entry) =>
+      entry === owner.organization
+        ? Object.freeze({
+            ...entry,
+            repositories: withServiceRepositories(
+              entry.repositories,
+              served.services,
+            ),
+          })
+        : entry,
+    ),
+  };
 }
 
 // The declared remote of a slot, as the legacy projection reads it.
@@ -1006,11 +1044,13 @@ async function readCatalogPersonalspace(
  * preset that has a Personalspace the catalog also carries its group, read
  * by `holder`'s decision whose Personalspace this Environment holds (#186):
  * a reader that cannot ask GitHub takes no owner directory for the
- * Operator's (`unverifiedPersonalspace`). In Služby serveru the owning
- * Organization's Productionspace also lists the services `services` reads
- * from the handover (root decision 0209 point 6): the Launchpad and
- * `lazurio organization list` name `handoverServerServices`, so both answer
- * the same; every other reader lists none. */
+ * Operator's (`unverifiedPersonalspace`). In Služby serveru the catalog
+ * also lists the services `services` reads from the handover (root decision
+ * 0209 point 6): in the Productionspace of the Organization that owns this
+ * Machine, or in a group of their own where the Folder holds none
+ * (`serverServices`). The Launchpad and `lazurio organization list` name
+ * `handoverServerServices`, so both answer the same; every other reader
+ * lists none. */
 export async function readFolderCatalog(
   folder: string,
   holder: PersonalspaceHolderRead = unverifiedPersonalspace,
@@ -1026,19 +1066,29 @@ export async function readFolderCatalog(
     },
   );
   const environment = folderSecretEnvironment(folder);
-  const personalspace = await readCatalogPersonalspace(
-    folder,
-    holder,
-    environment,
-  );
+  const [personalspace, served] = await Promise.all([
+    readCatalogPersonalspace(folder, holder, environment),
+    services().catch(() => null),
+  ]);
   const withPersonalspace =
     personalspace === undefined ? {} : { personalspace };
-  if (!present)
+  // The Organizations with this Environment's services where they run: in
+  // the owning Organization, or beside the Organizations in a group of
+  // their own.
+  const catalogOf = (
+    organizations: readonly CatalogOrganization[],
+  ): Catalog => {
+    const listed = withServerServices(organizations, served);
     return Object.freeze({
       kind: "catalog",
-      organizations: Object.freeze([]),
+      organizations: Object.freeze(listed.organizations),
+      ...(listed.serverServices === undefined
+        ? {}
+        : { serverServices: listed.serverServices }),
       ...withPersonalspace,
     });
+  };
+  if (!present) return catalogOf([]);
   // `organizations/` holds the operator's checkouts and is the operator's own
   // (decision F23); the Folder above keeps the strict rule.
   await inspectCheckoutDirectory(root);
@@ -1054,21 +1104,12 @@ export async function readFolderCatalog(
     )
     .map((entry) => entry.name)
     .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-  const [organizations, served] = await Promise.all([
-    Promise.all(
-      names.map((name) =>
-        readCatalogOrganization(join(root, name), name, environment),
-      ),
+  const organizations = await Promise.all(
+    names.map((name) =>
+      readCatalogOrganization(join(root, name), name, environment),
     ),
-    services().catch(() => null),
-  ]);
-  return Object.freeze({
-    kind: "catalog",
-    organizations: Object.freeze(
-      withServerServices(isolateDuplicates(organizations), served),
-    ),
-    ...withPersonalspace,
-  });
+  );
+  return catalogOf(isolateDuplicates(organizations));
 }
 
 /** Every module of the catalog, the Personalspace's last, optionally of one
