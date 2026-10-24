@@ -975,9 +975,9 @@ test("a public Environment's agents' texts say it has no GitHub identity, reads 
     en: "**In a public Environment** you have no GitHub identity: you only read the Organization's public repositories anonymously and publish nothing from here, no push, pull request or issue, also where another rule here asks for one.",
     cs: "**Na veřejném Environmentu** nemáš na GitHubu žádnou identitu: veřejné repozitáře Organizace jen čteš anonymně a nic odsud nepublikuješ, žádný push, pull request ani issue, ani tam, kde o ně žádá jiné pravidlo tady.",
   };
-  const draft = {
-    en: "- Your work is a Draft in a worktree. Nothing is published from this public Environment: no push, pull request, issue or merge, also where another rule here asks for one.",
-    cs: "- Tvoje práce je Draft ve worktree. Z tohoto veřejného Environmentu se nic nepublikuje: žádný push, pull request, issue ani merge, ani tam, kde o ně žádá jiné pravidlo tady.",
+  const work = {
+    en: "- Your work stays in a worktree. Nothing is published from this public Environment: no push, pull request, issue or merge, also where another rule here asks for one.",
+    cs: "- Tvoje práce zůstává ve worktree. Z tohoto veřejného Environmentu se nic nepublikuje: žádný push, pull request, issue ani merge, ani tam, kde o ně žádá jiné pravidlo tady.",
   };
   // What a Team's texts say about its GitHub identity and its ways to
   // propose a change or ask for a right, none of which a public one has.
@@ -1006,7 +1006,7 @@ test("a public Environment's agents' texts say it has no GitHub identity, reads 
         expect(manual).toContain(line);
       }
       expect(manual).toContain(publication[locale]);
-      expect(agents).toContain(draft[locale]);
+      expect(agents).toContain(work[locale]);
       // The preset's own meaning stays, with what the public Environment
       // changes of it.
       expect(manual).toContain(
@@ -1025,7 +1025,7 @@ test("a public Environment's agents' texts say it has no GitHub identity, reads 
     expect(team.manual).toContain("(Lazurio for GitHub)");
     const both = `${team.agents}\n${team.manual}`;
     for (const line of teamOnly[locale]) expect(both).toContain(line);
-    for (const line of [...expected[locale], draft[locale]])
+    for (const line of [...expected[locale], work[locale]])
       expect(both).not.toContain(line);
   }
 });

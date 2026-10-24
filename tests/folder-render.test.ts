@@ -313,7 +313,7 @@ test("the Steward preset renders the persona, its bot team and the publication r
   const en = steward("en");
   for (const line of [
     "- Assignment: an automated Environment of an Organization persona; responsible user `example` (GitHub id 12345).",
-    "- Identity: the persona's own GitHub user account, a bot account, signed in to `gh` by the responsible user, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the user's own account or anyone else's here; GitHub is the only access authority.",
+    "- Identity: the persona's own GitHub user account, a bot account, signed in to `gh` by the responsible user, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the user's own account or anyone else's here.",
     "## Persona bot team",
     "`/lazurio publish`",
     "Organization `example`",

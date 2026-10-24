@@ -26,11 +26,11 @@ import {
 import { presetNames, presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
 import {
-  draftRule,
   environmentWording,
   fullAccess,
   instructionTemplateRevision,
   personalspaceRules,
+  publicationRule,
   questionTool,
 } from "../src/folder/render";
 import { voiceSection } from "../src/folder/voice";
@@ -110,7 +110,7 @@ test("every Environment renders the same layer for a locale, and it is what the 
   ).toBe(true);
 });
 
-test(".hermes.md is composed from AGENTS.md's own fragments: the voice, the kinds of Environment, the question tool, the Draft and Publication, full access and Personalspace", () => {
+test(".hermes.md is composed from AGENTS.md's own fragments: the voice, the kinds of Environment, the question tool, preparing first and Publication, full access and Personalspace", () => {
   for (const locale of locales) {
     const rules = scriptLayer(locale)[buddyRulesPath];
     const pick = (text: { cs: string; en: string }) => text[locale];
@@ -121,7 +121,7 @@ test(".hermes.md is composed from AGENTS.md's own fragments: the voice, the kind
     for (const fragment of [
       environmentWording,
       questionTool,
-      draftRule,
+      publicationRule,
       fullAccess,
       ...personalspaceRules,
     ]) {

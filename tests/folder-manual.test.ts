@@ -11,17 +11,23 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { renderBuddyLayer } from "../src/folder/buddy";
 import { FolderAdoptionError } from "../src/folder/handover-layout";
 import {
   initializeFolder,
   initializeHandoverFolder,
 } from "../src/folder/initialize-folder";
 import { renderManual } from "../src/folder/manual";
-import { manualPaths, outputFile, outputPaths } from "../src/folder/outputs";
+import {
+  buddyLayerPaths,
+  manualPaths,
+  outputFile,
+  outputPaths,
+} from "../src/folder/outputs";
 import { executionOs } from "../src/folder/platform";
-import { presetProfile } from "../src/folder/presets";
+import { githubIdentity, presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
-import { questionTool } from "../src/folder/render";
+import { ownSignInIdentity, questionTool } from "../src/folder/render";
 import { resumeInitialization } from "../src/folder/resume-initialization";
 import { updateProfile } from "../src/folder/update-profile";
 import { journeys } from "./fixtures/journeys";
@@ -1612,6 +1618,229 @@ test("an Organization's Environment asks who needs a secret before it names one 
         ...where,
         agentsOnly.map(() => entry.agentsOnly),
         withPeople.map(() => !entry.agentsOnly),
+      ]);
+    }
+});
+
+// Matěj's decisions of 2026-10-24 (decision F14's addendum of that day), on
+// every preset and both public Environments, in both locales, over every
+// generated file and Buddy's layer:
+// - "Draft" is no Lazurio term (it collides with GitHub's Draft PR); only
+//   GitHub's own Draft PR keeps the word, and Publication stays as defined;
+// - the pull-request lifecycle: a Draft PR where the repository's GitHub plan
+//   allows one, else a normal pull request that says it is in progress, then
+//   marked ready after verification;
+// - GitHub is the authority for source code, the Lazurio account holds entry
+//   and Headscale the network (root decision 0192); no text says GitHub is
+//   the only access authority;
+// - "AI Kolega" and the AI seat are gone;
+// - the Git and GitHub rules and the fork guidance in the manual, with one
+//   pointer in AGENTS.md wherever something can be merged or pushed;
+// - the safe habits: disk space only with certainty, a time from `date -u`,
+//   nothing that must survive in `/tmp` (not on Windows), and on a macOS
+//   workstation the missing `timeout`.
+test("the agent's work is a pull request, GitHub is the authority for source code, and every agent has the Git, fork and safety rules (decisions of 2026-10-24)", () => {
+  const environments = [
+    ...journeys,
+    {
+      preset: "hosted-organization-team",
+      machine: bindings.teamPublic,
+      os: "linux",
+    },
+    {
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationPublic,
+      os: "linux",
+    },
+  ] as const;
+  const retired = [
+    // The Lazurio term "Draft", in any form; GitHub's own "Draft PR" stays.
+    /\bDraft(?! PR\b)/,
+    /\bAI[ -]Koleg/i,
+    /\bAI colleague/i,
+    /\bAI seat/i,
+    /jediná autorita přístupů|only access authority/i,
+    /přístupy určuje GitHub|GitHub decides (?:access|membership)/i,
+  ];
+  for (const environment of environments)
+    for (const locale of ["cs", "en"] as const) {
+      const cs = locale === "cs";
+      const composition = {
+        preset: environment.preset,
+        machine: environment.machine,
+        profile: presetProfile(environment.preset, environment.os, { locale }),
+      };
+      const outputs = renderOutputs(composition);
+      const layer = renderBuddyLayer(composition);
+      const where = [environment.preset, environment.os, locale];
+      const identity = githubIdentity(environment.preset, environment.machine);
+      const isPublic = identity === "none";
+      const clock =
+        environment.os === "windows"
+          ? "`[DateTime]::UtcNow.ToString('u')`"
+          : "`date -u`";
+      for (const [path, text] of [
+        ...Object.entries(outputs),
+        ...buddyLayerPaths.map((path) => [path, layer[path]] as const),
+      ])
+        for (const pattern of retired)
+          expect([...where, path, pattern.exec(text)?.[0] ?? null]).toEqual([
+            ...where,
+            path,
+            null,
+          ]);
+
+      const agents = outputs["AGENTS.md"];
+      const workingHere = outputs["manual/working-here.md"];
+      // Publication stays exactly as defined, and the work is prepared first.
+      for (const sentence of cs
+        ? [
+            "- **Publikace** je akt, kterým se tvoje práce stává těžko vratnou nebo viditelnou navenek: merge, odeslání, nasazení;",
+            "- **Nejdřív připravit, pak Publikovat.**",
+            "e-mail uložený jako koncept v Outlooku",
+          ]
+        : [
+            "- **Publication** is the act that makes your work hard to revert or visible outside: a merge, sending, deploying;",
+            "- **Prepare first, then Publication.**",
+            "an e-mail saved as a draft in Outlook",
+          ])
+        expect([...where, sentence, workingHere.includes(sentence)]).toEqual([
+          ...where,
+          sentence,
+          true,
+        ]);
+      // The lifecycle follows what the repository's GitHub plan allows.
+      for (const sentence of cs
+        ? [
+            "jako GitHub Draft PR (`gh pr create --draft`), kde ho plán GitHubu pro repozitář dovoluje",
+            "otevři běžný pull request a v jeho popisu napiš, že je rozpracovaný",
+            "Draft PR přepneš na Ready for review (`gh pr ready`), u běžného pull requestu to napíšeš do jeho popisu",
+          ]
+        : [
+            "as a GitHub Draft PR (`gh pr create --draft`) where the repository's GitHub plan allows one",
+            "open a normal pull request and say in its description that it is in progress",
+            "a Draft PR you switch to Ready for review (`gh pr ready`), and for a normal pull request you say so in its description",
+          ])
+        expect([...where, sentence, workingHere.includes(sentence)]).toEqual([
+          ...where,
+          sentence,
+          true,
+        ]);
+      // GitHub for source code, the Lazurio account for entry, Headscale for
+      // the network: in the identity line where the user's own sign-ins are
+      // used, and in full in `manual/lazurio.md`.
+      expect([
+        ...where,
+        agents.includes(ownSignInIdentity[locale]),
+        outputs["manual/this-machine.md"].includes(ownSignInIdentity[locale]),
+      ]).toEqual([
+        ...where,
+        identity === "own-sign-in",
+        identity === "own-sign-in",
+      ]);
+      for (const sentence of cs
+        ? [
+            "- **Každý přístup má svou autoritu.** O zdrojovém kódu rozhoduje GitHub",
+            "Vstup do Environmentů a jejich aplikací drží Lazurio účet, členství v Organizaci a konkrétní grant",
+            "Žádné druhé, vymyšlené ACL neexistuje",
+            "## Kdo rozhoduje o přístupu",
+          ]
+        : [
+            "- **Every access has its own authority.** GitHub decides on source code",
+            "Entry to Environments and their applications is held by the Lazurio account, membership in the Organization and the exact grant",
+            "There is no second, invented ACL",
+            "## Who decides access",
+          ])
+        expect([
+          ...where,
+          sentence,
+          outputs["manual/lazurio.md"].includes(sentence),
+        ]).toEqual([...where, sentence, true]);
+      // The Git and GitHub rules and the fork guidance, in the manual.
+      for (const sentence of cs
+        ? [
+            "## Git a GitHub",
+            "samotné `reviewDecision` není důkaz",
+            "`gh pr merge <číslo> --match-head-commit <sha headu>`",
+            "Na soubor v konfliktu nikdy nepoužívej `git checkout --ours` ani `--theirs`",
+            "(`--body-file <soubor>`, krátce `-F <soubor>`), nikdy v uvozovkách přímo v příkazu",
+            "`gh pr edit <číslo> --base main`",
+            "### Fork",
+            "- **Distribuční fork** je tenká vrstva nad přesným releasem upstreamu.",
+            "- **Plný fork** jde vlastním směrem",
+            "- **Nejdřív model Lazuria.**",
+            "`git log --oneline <nová>..<stará>`",
+          ]
+        : [
+            "## Git and GitHub",
+            "`reviewDecision` alone is no proof",
+            "`gh pr merge <number> --match-head-commit <head sha>`",
+            "Never run `git checkout --ours` or `--theirs` on a conflicted file",
+            "(`--body-file <file>`, short `-F <file>`), never in quotes inside the command",
+            "`gh pr edit <number> --base main`",
+            "### A fork",
+            "- **A distribution fork** is a thin overlay on an exact upstream release.",
+            "- **A full fork** follows its own direction",
+            "- **The Lazurio model first.**",
+            "`git log --oneline <new>..<old>`",
+          ])
+        expect([...where, sentence, workingHere.includes(sentence)]).toEqual([
+          ...where,
+          sentence,
+          true,
+        ]);
+      // One pointer in AGENTS.md, wherever something can be merged or pushed.
+      expect([
+        ...where,
+        agents.includes(
+          cs
+            ? "se řiď oddílem Git a GitHub v `manual/working-here.md`."
+            : "follow the section Git and GitHub in `manual/working-here.md`.",
+        ),
+      ]).toEqual([...where, !isPublic]);
+      // The safe habits: in AGENTS.md in one line, in the manual in full.
+      for (const [text, sentence] of cs
+        ? ([
+            [
+              agents,
+              "- Místo na disku uvolňuj jen tím, o čem víš jistě, že se nepoužívá;",
+            ],
+            [
+              agents,
+              `Než zapíšeš čas do PR, plánu nebo poznámky, spusť ${clock}`,
+            ],
+            [workingHere, "- **Místo na disku jen s jistotou.**"],
+            [workingHere, "- **Čas podle hodin.**"],
+          ] as const)
+        : ([
+            [
+              agents,
+              "- Free disk space only with what you know for certain is unused;",
+            ],
+            [
+              agents,
+              `Before you write a time into a PR, a plan or a note, run ${clock}`,
+            ],
+            [workingHere, "- **Disk space only with certainty.**"],
+            [workingHere, "- **Time from the clock.**"],
+          ] as const))
+        expect([...where, sentence, text.includes(sentence)]).toEqual([
+          ...where,
+          sentence,
+          true,
+        ]);
+      expect([
+        ...where,
+        agents.includes("`/tmp`"),
+        agents.includes(
+          cs
+            ? "- macOS sám příkaz `timeout` nemá"
+            : "- macOS itself has no `timeout` command",
+        ),
+      ]).toEqual([
+        ...where,
+        environment.os !== "windows",
+        environment.preset === "local" && environment.os === "macos",
       ]);
     }
 });

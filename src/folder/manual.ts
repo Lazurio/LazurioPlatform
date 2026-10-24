@@ -22,6 +22,7 @@ import {
   notesMeaning,
   operatorConnectsOverSsh,
   organizationForbidsComposio,
+  ownSignInIdentity,
   parseInstructionSource,
   peerLine,
   personaIdentity,
@@ -117,9 +118,13 @@ const lazurio: readonly Text[] = [
     "Users and machines work in one world that is held together by hierarchy, precisely drawn boundaries and defined processes, not by ad-hoc trust.",
   ),
   blank,
+  // Each access has its own authority (root decision 0192, decision F14's
+  // addendum of 2026-10-24): GitHub for source code, the Lazurio account for
+  // entry, Headscale for the network. True before the move to the account's
+  // grants is complete and after it.
   t(
-    "- **GitHub je jediná autorita přístupů.** Co kdo smí, určuje členství, Teamy, granty na repozitáře a branch rules. Žádné druhé, vymyšlené ACL neexistuje a samotný název role nic neautorizuje; rozhodují živá práva na GitHubu. Pravidla rostou s Organizací: mladý modul může mít `main` vědomě otevřenou i Builderovi, zamčenou `main` merguje ten, komu to branch rules dovolí, typicky Steward nebo Admin (decisions 0102/0103).",
-    "- **GitHub is the only access authority.** Membership, Teams, repository grants and branch rules decide what anyone may do. There is no second, invented ACL, and the name of a role authorizes nothing; live GitHub rights do. Rules grow with the Organization: a young module may keep `main` open to a Builder, a locked `main` is merged by whoever the branch rules allow, typically a Steward or an Admin (decisions 0102/0103).",
+    "- **Každý přístup má svou autoritu.** O zdrojovém kódu rozhoduje GitHub: kdo smí do repozitáře zapisovat, schvalovat review a Publikovat, určují živá práva na GitHubu (granty na repozitáře, Teamy a branch rules). Vstup do Environmentů a jejich aplikací drží Lazurio účet, členství v Organizaci a konkrétní grant, a síť Headscale, do které zařízení pustí až jeho schválení (root decision 0192); kde přechod na tyto granty ještě není hotový, rozhoduje o vstupu dosavadní cesta, třeba GitHub Team týmového Environmentu. Žádné druhé, vymyšlené ACL neexistuje a samotný název role nic neautorizuje; rozhoduje živá odpověď té autority. Pravidla rostou s Organizací: mladý modul může mít `main` vědomě otevřenou i Builderovi, zamčenou `main` merguje ten, komu to branch rules dovolí, typicky Steward nebo Admin (decisions 0102/0103).",
+    "- **Every access has its own authority.** GitHub decides on source code: live GitHub rights (repository grants, Teams and branch rules) decide who may write to a repository, approve a review and Publish. Entry to Environments and their applications is held by the Lazurio account, membership in the Organization and the exact grant, and the network by Headscale, which lets a device in only once it is approved (root decision 0192); where the move to these grants is not done yet, the existing path decides entry, a Team Environment's GitHub Team, say. There is no second, invented ACL, and the name of a role authorizes nothing; that authority's live answer does. Rules grow with the Organization: a young module may keep `main` open to a Builder, a locked `main` is merged by whoever the branch rules allow, typically a Steward or an Admin (decisions 0102/0103).",
   ),
   t(
     "- **Environment je hranice, ne druh hardwaru.** Technicky běží na **Machine**: fyzické zařízení, virtuální server nebo providerem izolovaný hostovaný pracovní prostor, který tvoří jednu sdílenou runtime, bezpečnostní a recovery hranici se známým Ownerem. Proces, modul, worktree, unixový účet ani kontejner takovou hranicí samy nejsou. Hostovaný Team workspace je Remote Environment Teamu na tenantní vrstvě; host, na kterém běží, zůstává vyšší doménou kompromitace a obnovy. Vždy pojmenuj konkrétní Environment, jeho Ownera a případnou vyšší hranici providera nebo provozovatele. Uživatelům říkej Environment, hostovanému Remote Environment; **Machine** zůstává pojmem architektury, identifikátorů a příkazů.",
@@ -142,13 +147,10 @@ const lazurio: readonly Text[] = [
     "- **Full access inside the Environment.** An agent works here without a sandbox and without per-command approvals; the Environment is the boundary (decision 0172). Whoever needs narrower rights gets a separate Environment. Full access is a capability, not consent: Publication, writes to connected applications, Personalspace and the separation of Organizations still apply. The user sets the harness's permissions; the Resident's (Buddy's) sandbox stays.",
   ),
   blank,
+  t("## Kdo rozhoduje o přístupu", "## Who decides access"),
   t(
-    "## Přístupy drží existující provideři",
-    "## Access is held by existing providers",
-  ),
-  t(
-    "Členství, přístup k repozitářům, review a publikaci určuje GitHub. Síťový dosah určuje Headscale (Tailscale) nebo jiná schválená přístupová vrstva. Vlastnictví infrastruktury a cestu obnovy drží provider, na kterém Environment běží. Lazurio z toho nic nekopíruje do interního IAM a nevede žádný registr Environmentů; lokální checkout nikdy nedokazuje přístup u providera.",
-    "GitHub decides membership, repository access, review and publication. Headscale (Tailscale) or another approved access layer decides network reach. The provider the Environment runs on holds infrastructure ownership and the recovery path. Lazurio copies none of this into an internal IAM and keeps no registry of Environments; a local checkout never proves access at a provider.",
+    "Přístup k repozitářům, review a Publikaci kódu určuje GitHub. Kdo vstoupí do Environmentu a do jeho aplikací, drží Lazurio účet: členství v Organizaci a grant k Environmentu nebo aplikaci (root decision 0192); dokud přechod na tyto granty není hotový, může o vstupu rozhodovat i dosavadní cesta, třeba GitHub Team týmového Environmentu. Síťový dosah určuje Headscale (Tailscale) nebo jiná schválená přístupová vrstva. Vlastnictví infrastruktury a cestu obnovy drží provider, na kterém Environment běží. Environment ani agent si z toho nic nekopírují do vlastního ACL a nevedou žádný registr Environmentů; lokální checkout nikdy nedokazuje přístup.",
+    "GitHub decides repository access, review and the Publication of code. Who enters an Environment and its applications is held by the Lazurio account: membership in the Organization and the grant to the Environment or application (root decision 0192); until the move to these grants is done, the existing path may still decide entry, a Team Environment's GitHub Team, say. Headscale (Tailscale) or another approved access layer decides network reach. The provider the Environment runs on holds infrastructure ownership and the recovery path. Neither the Environment nor an agent copies any of this into an ACL of its own or keeps a registry of Environments; a local checkout never proves access.",
   ),
   blank,
   t(
@@ -255,8 +257,8 @@ function readOnlyProposal(preset: PresetName): readonly Text[] {
           "- **Check the live right.** `gh api repos/<owner>/<repo> --jq .permissions`; `push` decides. A local checkout or an earlier answer is no proof.",
         ),
     t(
-      "- **S právem push** jdi obvyklou cestou Draftu: worktree a pull request (Draft a Publikace výše).",
-      "- **With push,** take the usual Draft path: a worktree and a pull request (Draft and Publication above).",
+      "- **S právem push** jdi obvyklou cestou: worktree a pull request (oddíl Tvoje práce, Publikace, Release výše).",
+      "- **With push,** take the usual path: a worktree and a pull request (the section Your work, Publication, Release above).",
     ),
     t(
       "- **Bez práva push** pull request nezkoušej. Do toho repozitáře zapiš issue s návrhem: co se má změnit, proč, a navržený text nebo diff. Duplicity a obsah zkontroluj jako u každého issue; když issue zapsat nejde, platí oddíl o otevřených otázkách výše.",
@@ -323,6 +325,75 @@ const missingRights: readonly Text[] = [
   t(
     "- Když zápis issue nejde, postupuj podle oddílu o otevřených otázkách výše.",
     "- When filing the issue is not possible, follow the section on open questions above.",
+  ),
+];
+
+// The Git and GitHub rules every agent follows, and working in a fork
+// (Matěj's rules of 2026-10-24, decision F14's addendum of that day): each
+// rule prevents a silent mistake that happened, an unreviewed head merged, a
+// side of a conflict dropped, text the shell ran, stacked pull requests
+// closed, a fork's history lost. On every preset, like the handoff that points
+// here; on a public Environment its own paragraph keeps everything unpublished.
+const gitAndGitHub: readonly Text[] = [
+  t("## Git a GitHub", "## Git and GitHub"),
+  t(
+    "Tahle pravidla brání tichým chybám: merge headu, který nikdo neschválil, ztraceným změnám, poškozenému textu a zavřeným pull requestům.",
+    "These rules prevent silent mistakes: merging a head nobody approved, lost changes, mangled text and closed pull requests.",
+  ),
+  blank,
+  t(
+    "- **Merge přesného headu.** Než na Publikaci uživatele mergneš, zjisti SHA headu (`gh pr view <číslo> --json headRefOid,reviews`). Stojí-li merge na schválení, musí schvalující review patřit přesně tomuto headu: jeho `commit.oid` se rovná SHA headu. GitHub může staré schválení po nových commitech ponechat, takže samotné `reviewDecision` není důkaz. Merguj s `gh pr merge <číslo> --match-head-commit <sha headu>` a metodou, kterou repozitář povoluje; když se head mezitím změní, GitHub merge odmítne.",
+    "- **Merge the exact head.** Before you merge on the user's Publication, get the head SHA (`gh pr view <number> --json headRefOid,reviews`). When the merge rests on an approval, the approving review must belong to exactly this head: its `commit.oid` equals the head SHA. GitHub can keep an old approval after new commits, so `reviewDecision` alone is no proof. Merge with `gh pr merge <number> --match-head-commit <head sha>` and a method the repository allows; when the head changed meanwhile, GitHub refuses the merge.",
+  ),
+  t(
+    "- **Konflikt po úsecích.** Konflikt při merge nebo rebase řeš úsek po úseku (hunk po hunku): uprav každé místo se značkami konfliktu a zachovej z obou stran, co tam patří; `git checkout -m <soubor>` značky obnoví. Na soubor v konfliktu nikdy nepoužívej `git checkout --ours` ani `--theirs`: vezme celý soubor z jedné strany a potichu zahodí i čisté úseky druhé strany v tomtéž souboru.",
+    "- **Conflicts hunk by hunk.** Resolve a merge or rebase conflict hunk by hunk: edit each place with conflict markers and keep from both sides what belongs there; `git checkout -m <file>` restores the markers. Never run `git checkout --ours` or `--theirs` on a conflicted file: it takes the whole file from one side and silently drops the other side's clean hunks in that same file.",
+  ),
+  t(
+    "- **Víceřádkový text pro `gh` přes soubor.** Popis PR, komentář i review předej `gh` ze souboru (`--body-file <soubor>`, krátce `-F <soubor>`), nikdy v uvozovkách přímo v příkazu: obrácené apostrofy v textu by shell spustil jako příkazy.",
+    "- **Multi-line text for `gh` through a file.** Pass a PR description, a comment or a review to `gh` from a file (`--body-file <file>`, short `-F <file>`), never in quotes inside the command: the shell would run backticks in the text as commands.",
+  ),
+  t(
+    "- **Navazující pull requesty před smazáním branche.** Než smažeš mergnutou branch (i přes `gh pr merge --delete-branch`), přesměruj pull requesty, které na ní stojí, na `main`: najdeš je přes `gh pr list --base <branch>` a přesměruješ `gh pr edit <číslo> --base main`. Smazání branche je může zavřít.",
+    "- **Stacked pull requests before deleting a branch.** Before you delete a merged branch (also through `gh pr merge --delete-branch`), retarget the pull requests stacked on it to `main`: `gh pr list --base <branch>` finds them and `gh pr edit <number> --base main` retargets them. Deleting the branch can close them.",
+  ),
+  blank,
+  t("### Fork", "### A fork"),
+  t(
+    "Fork je vlastní kopie cizího repozitáře, kterou někdo vědomě rozvíjí: Lazurio tak rozvíjí třeba T3 Code nebo Lazurio MausBot a uživatel si stejně může forknout komponentu Lazuria. Fork jako cesta kolem chybějícího práva zůstává zakázaný. Jaký fork to je, říká jeho `AGENTS.md` nebo release kontrakt; když to tam není, zeptej se uživatele.",
+    "A fork is one's own copy of someone else's repository, developed deliberately: that is how Lazurio develops T3 Code or Lazurio MausBot, say, and a user may fork a Lazurio component the same way. A fork as a way around a missing right stays forbidden. Which kind of fork it is, its `AGENTS.md` or release contract says; when they do not, ask the user.",
+  ),
+  blank,
+  t(
+    "- **Distribuční fork** je tenká vrstva nad přesným releasem upstreamu. Jeho základem je přesný commit releasu upstreamu, vlastní změny jsou samostatné, čitelné commity nad ním, obnova přichází ze stabilních releasů upstreamu a každý publikovaný stav má neměnný release tag.",
+    "- **A distribution fork** is a thin overlay on an exact upstream release. Its base is the exact commit of an upstream release, own changes are separate, readable commits on top, refreshes come from upstream's stable releases, and every published state has an immutable release tag.",
+  ),
+  t(
+    "- **Plný fork** jde vlastním směrem a upstream je pro něj jen zdroj vybraných změn, které přebírá vědomě. Tímto směrem jde Lazurio MausBot.",
+    "- **A full fork** follows its own direction, and upstream is only a source of selected changes it takes deliberately. Lazurio MausBot is heading this way.",
+  ),
+  t(
+    "- **Nejdřív model Lazuria.** Než ve forku navrhneš funkci nebo název, vyjdi z modelu Lazuria (jeho rozhodnutí v `docs/decisions.md` a `ARCHITECTURE.md` veřejného repozitáře `Lazurio/LazurioPlatform` a tenhle manuál), ne z modelu forkovaného projektu.",
+    "- **The Lazurio model first.** Before you shape a feature or a name in a fork, ground it in the Lazurio model (its decisions in `docs/decisions.md` and `ARCHITECTURE.md` of the public repository `Lazurio/LazurioPlatform`, and this manual), not in the forked project's own model.",
+  ),
+  t(
+    "- **Než branch forku přepíšeš** (force-move), dolož, že každý commit, který přepsání zahodí, je podchycený: projdi historii (`git log --oneline <nová>..<stará>` vypíše zahazované commity), ne jen výsledný strom. Každý z nich je v novém stavu jinak (jako přenesený commit nebo v upstreamu), nebo ho uživatel vědomě opouští. Přepisuj jen tam, kde to release kontrakt forku dovoluje, a jen přesným `--force-with-lease=<ref>:<očekávaný sha>`.",
+    "- **Before you force-move a fork's branch,** prove that every commit the move drops is accounted for: go through the history (`git log --oneline <new>..<old>` lists the dropped commits), not just the resulting tree. Each of them is in the new state another way (as a carried commit or in upstream), or the user deliberately abandons it. Rewrite only where the fork's release contract allows it, and only with an exact `--force-with-lease=<ref>:<expected sha>`.",
+  ),
+];
+
+// Habits that keep an agent from silent damage on every Environment (Matěj's
+// rules of 2026-10-24, decision F14's addendum of that day); AGENTS.md says
+// them in one line.
+const safeHabits: readonly Text[] = [
+  t("## Bezpečné návyky", "## Safe habits"),
+  t(
+    "- **Místo na disku jen s jistotou.** Smaž jen to, o čem víš jistě, že se nepoužívá a nikdo to nebude chtít zpátky, třeba výstup vlastního hotového úkolu. Mezipaměti, stav nástrojů a služeb ani nic, u čeho to dokázat nemůžeš, nemaž: vypiš to uživateli i s velikostí a nech ho rozhodnout.",
+    "- **Disk space only with certainty.** Delete only what you know for certain is unused and nobody will want back, such as the output of your own finished task. Never delete caches, the state of tools and services, or anything you cannot prove unused: list it for the user with its size and let them decide.",
+  ),
+  t(
+    "- **Čas podle hodin.** Než zapíšeš čas do jakéhokoli záznamu (text PR, plán, poznámka, issue), spusť `date -u` (v PowerShellu `[DateTime]::UtcNow.ToString('u')`) a zapiš čas podle jeho výstupu. Vlastní odhad času agenta se rozchází se skutečností.",
+    "- **Time from the clock.** Before you write a time into any record (a PR's text, a plan, a note, an issue), run `date -u` (in PowerShell `[DateTime]::UtcNow.ToString('u')`) and write the time from its output. An agent's own estimate of the time drifts.",
   ),
 ];
 
@@ -398,32 +469,42 @@ function workingHere(
       "When the meaning is unclear, briefly say what you found and ask a specific question. A missing checkout, missing access and an unclear term are different situations. Likewise, a business record about a service is not the act of provisioning that service: first establish what the user means, then check the rights it requires. Do not refuse a task because of the rights for a different operation. A useful clarification belongs in the owning Organization's glossary or instructions through its normal review process; do not copy it into the generated Folder files or another company.",
     ),
     blank,
-    t("## Draft, Publikace, Release", "## Draft, Publication, Release"),
+    // "Draft" is no Lazurio term: it collides with GitHub's Draft PR (decision
+    // F14's addendum of 2026-10-24). The work is a pull request for code and
+    // the unsent state inside an external application, whose own draft (an
+    // Outlook draft) is named as that application's.
     t(
-      "- **Draft** je tvoje práce: vratný a hlavně editovatelný kus práce, změna ve worktree, rozepsaný e-mail, otevřený pull request.",
-      "- **Draft** is your work: a revertible and, above all, editable piece of work, a change in a worktree, a drafted e-mail, an open pull request.",
+      "## Tvoje práce, Publikace, Release",
+      "## Your work, Publication, Release",
     ),
     t(
-      "- **Publikace** je akt, kterým se Draft stává těžko vratným nebo viditelným navenek: merge, odeslání, nasazení; v datových aplikacích už commit a push tlačítkem „Publikovat změny“. Publikace patří uživateli: provedeš ji jen na jeho explicitní pokyn, který platí v aktuálním threadu a nepřenáší se dál. Jestli ji uživatel smí schválit, rozhodují jeho živá práva k přesné operaci.",
-      "- **Publication** is the act that makes a Draft hard to revert or visible outside: a merge, sending, deploying; in data applications already the commit and push of the “Publish changes” button. Publication belongs to the user: you perform it only on their explicit instruction, which holds in the current thread and does not carry over. Whether the user may approve it is decided by their live rights to the exact operation.",
+      "- **Tvoje práce** zůstává vratná a hlavně upravitelná, dokud se nepublikuje: změna ve worktree, otevřený pull request, e-mail uložený jako koncept.",
+      "- **Your work** stays revertible and, above all, editable until it is published: a change in a worktree, an open pull request, an e-mail saved as a draft.",
     ),
-    // Every task is a Draft first; an instruction to "send" at the start of a
-    // task is the brief for a Draft, and the explicit "Publish" for it is the
-    // full mandate to finish it (F14 addendum 2026-10-05). A Team Environment's
-    // pull request stays with its named publisher (F31).
     t(
-      `- **Nejdřív Draft, pak Publikace.** Platí pro každý úkol: kód, e-mail, zprávu, pozvánku, vyplnění formuláře i jinou práci v externí aplikaci. U kódu je Draftem pull request. V externí aplikaci připrav Draft přímo v ní a předej ho uživateli nedokončený (e-mail jako koncept v Outlooku, vyplněný a neodeslaný formulář, neodeslaná zpráva); uprav ho podle jeho připomínek. Pokyn „pošli e-mail …“ na začátku úkolu je zadání Draftu, ne Publikace. Výslovné „Publikuj“ (nebo jednoznačné „odešli to“) k tomu konkrétnímu Draftu je plný mandát uživatele k jeho dokončení: odešli, odevzdej nebo zveřejni ho, podle toho, co dokončení v té aplikaci znamená, a ohlas, že je hotovo.${team ? " Pull request z týmového Environmentu ale vždy publikuje jmenovaný uživatel (odstavec o týmovém Environmentu níže)." : ""}`,
-      `- **A Draft first, then Publication.** This holds for every task: code, an e-mail, a message, an invitation, filling in a form and any other work in an external application. For code the Draft is the pull request. In an external application prepare the Draft inside it and hand it to the user unfinished (an e-mail as a draft in Outlook, a filled-in form not submitted, an unsent message); revise it according to their comments. An instruction “send an e-mail …” at the start of a task is the brief for a Draft, not a Publication. An explicit “Publish” (or an unambiguous “send it”) for that particular Draft is the user's full mandate to finish it: send, submit or make it public, whatever finishing means in that application, and report that it is done.${team ? " A pull request from a Team Environment, however, is always published by a named user (the Team Environment paragraph below)." : ""}`,
+      "- **Publikace** je akt, kterým se tvoje práce stává těžko vratnou nebo viditelnou navenek: merge, odeslání, nasazení; v datových aplikacích už commit a push tlačítkem „Publikovat změny“. Publikace patří uživateli: provedeš ji jen na jeho explicitní pokyn, který platí v aktuálním threadu a nepřenáší se dál. Jestli ji uživatel smí schválit, rozhodují jeho živá práva k přesné operaci.",
+      "- **Publication** is the act that makes your work hard to revert or visible outside: a merge, sending, deploying; in data applications already the commit and push of the “Publish changes” button. Publication belongs to the user: you perform it only on their explicit instruction, which holds in the current thread and does not carry over. Whether the user may approve it is decided by their live rights to the exact operation.",
+    ),
+    // Every task is prepared first; an instruction to "send" at the start of
+    // a task is the brief to prepare it, and the explicit "Publish" for it is
+    // the full mandate to finish it (F14 addendum 2026-10-05). A Team
+    // Environment's pull request stays with its named publisher (F31).
+    t(
+      `- **Nejdřív připravit, pak Publikovat.** Platí pro každý úkol: kód, e-mail, zprávu, pozvánku, vyplnění formuláře i jinou práci v externí aplikaci. U kódu je tvou prací pull request. V externí aplikaci připrav práci přímo v ní a předej ji uživateli nedokončenou (e-mail uložený jako koncept v Outlooku, vyplněný a neodeslaný formulář, neodeslaná zpráva); uprav ji podle jeho připomínek. Pokyn „pošli e-mail …“ na začátku úkolu je zadání k přípravě, ne Publikace. Výslovné „Publikuj“ (nebo jednoznačné „odešli to“) k té konkrétní připravené práci je plný mandát uživatele k jejímu dokončení: odešli, odevzdej nebo zveřejni ji, podle toho, co dokončení v té aplikaci znamená, a ohlas, že je hotovo.${team ? " Pull request z týmového Environmentu ale vždy publikuje jmenovaný uživatel (odstavec o týmovém Environmentu níže)." : ""}`,
+      `- **Prepare first, then Publication.** This holds for every task: code, an e-mail, a message, an invitation, filling in a form and any other work in an external application. For code your work is the pull request. In an external application prepare the work inside it and hand it to the user unfinished (an e-mail saved as a draft in Outlook, a filled-in form not submitted, an unsent message); revise it according to their comments. An instruction “send an e-mail …” at the start of a task is the brief to prepare it, not a Publication. An explicit “Publish” (or an unambiguous “send it”) for that particular prepared work is the user's full mandate to finish it: send, submit or make it public, whatever finishing means in that application, and report that it is done.${team ? " A pull request from a Team Environment, however, is always published by a named user (the Team Environment paragraph below)." : ""}`,
     ),
     t(
       "- **Release** je vydání označené verze ven přes GitHub Release. Není to Publikace; spouští ho jen ten, komu to GitHub dovolí (typicky Steward nebo Admin), a pro tebe platí stejný explicitní pokyn.",
       "- **Release** is a tagged version going out through a GitHub Release. It is not a Publication; only whoever GitHub allows (typically a Steward or an Admin) triggers it, and for you the same explicit instruction applies.",
     ),
     blank,
+    // The pull-request lifecycle (decision F14, 2026-09-22, with its addendum
+    // of 2026-10-24): GitHub's Draft PR where the repository's plan allows
+    // one, else a normal pull request that says it is in progress.
     t("## Bez ptaní smíš", "## Without asking you may"),
     t(
-      "Zakládat worktrees, průběžně commitovat a pushovat do PR branche a otevírat pull requesty. Práce nikdy nezůstává jen lokálně. Životní cyklus pull requestu: od prvního pushe je rozpracovaná práce vidět jako GitHub Draft PR; jakmile je hotová a ověřená, přepneš pull request na Ready for review sám; a pull request přiřadíš (GitHub assignee a k tomu žádost o review) GitHub uživateli, jehož ověření žádáš, aby věděl, že kontrola je teď na něm. Assignee vlastní další krok. Ready není Publikace, říká jen „připraveno ke kontrole“. Hotová práce nikdy nezůstává jako Draft a vzdálená branch bez pull requestu není handoff.",
-      "Create worktrees, commit and push to the PR branch continuously, and open pull requests. Work never stays only local. The pull-request lifecycle: from the first push the work is visible as a GitHub Draft PR while it is in progress; once it is finished and verified, you mark the pull request Ready for review yourself; and you assign the pull request (the GitHub assignee, plus the review request) to the GitHub user whose verification you are asking for, so that user knows the work is theirs to check. The assignee is the owner of the next step. Ready is not Publication; it only says “ready to be checked”. Finished work never stays a Draft, and a remote branch without a pull request is not a handoff.",
+      "Zakládat worktrees, průběžně commitovat a pushovat do PR branche a otevírat pull requesty. Práce nikdy nezůstává jen lokálně. Životní cyklus pull requestu: od prvního pushe je rozpracovaná práce vidět jako GitHub Draft PR (`gh pr create --draft`), kde ho plán GitHubu pro repozitář dovoluje. Kde ne (například soukromý repozitář na GitHub Free, kde GitHub Draft PR odmítne), otevři běžný pull request a v jeho popisu napiš, že je rozpracovaný. Jakmile je práce hotová a ověřená, označíš ji sám jako připravenou ke kontrole: Draft PR přepneš na Ready for review (`gh pr ready`), u běžného pull requestu to napíšeš do jeho popisu. Pull request přiřadíš (GitHub assignee a k tomu žádost o review) GitHub uživateli, jehož ověření žádáš, aby věděl, že kontrola je teď na něm. Assignee vlastní další krok. Ready není Publikace, říká jen „připraveno ke kontrole“. Hotová práce nikdy nezůstává označená jako rozpracovaná a vzdálená branch bez pull requestu není handoff.",
+      "Create worktrees, commit and push to the PR branch continuously, and open pull requests. Work never stays only local. The pull-request lifecycle: from the first push the work in progress is visible as a GitHub Draft PR (`gh pr create --draft`) where the repository's GitHub plan allows one. Where it does not (a private repository on GitHub Free, say, where GitHub refuses a Draft PR), open a normal pull request and say in its description that it is in progress. Once the work is finished and verified, you mark it ready for review yourself: a Draft PR you switch to Ready for review (`gh pr ready`), and for a normal pull request you say so in its description. You assign the pull request (the GitHub assignee, plus the review request) to the GitHub user whose verification you are asking for, so that user knows the work is theirs to check. The assignee is the owner of the next step. Ready is not Publication; it only says “ready to be checked”. Finished work never stays marked as in progress, and a remote branch without a pull request is not a handoff.",
     ),
     blank,
     t(
@@ -464,13 +545,17 @@ function workingHere(
       "- Remove a worktree, with its sidecar, only when it is clean including untracked files, has no local-only commit, its HEAD is on the remote, its PR is merged or explicitly abandoned and no runtime uses it.",
     ),
     blank,
+    ...gitAndGitHub,
+    blank,
+    ...safeHabits,
+    blank,
     t(
       "## Architektonická odpovědnost (decision 0132)",
       "## Architecture responsibility (decision 0132)",
     ),
     t(
-      "Uživatel určuje chtěný výsledek, priority a omezení; ty odpovídáš za elegantní a čisté řešení v návrhu i v Draftu. Odděl záměr od navrženého mechanismu, chraň jednu pravdu a jejího přirozeného ownera, dej přednost standardní schopnosti před vlastní mašinérií a nech systém konvergovat místo přidávání paralelních cest. Malá změna dostane rychlou kontrolu; nová dlouhodobá abstrakce, stav, autorita, hranice, rozhraní, závislost nebo migrace potřebuje plné vytvarování: srovnání variant, failure modes a důkaz na skutečném consumerovi. Pokud čisté řešení vyžaduje změnu cíle nebo schváleného principu, vrať volbu uživateli s doporučením; nikdy ji potichu neimplementuj jako technický detail.",
-      "The user owns the desired outcome, priorities and constraints; you own an elegant and clean solution in design and Draft. Separate intent from the proposed mechanism, protect one truth and its natural owner, prefer a standard capability over own machinery, and let the system converge instead of adding parallel paths. A small change gets a quick check; a new long-lived abstraction, state, authority, boundary, interface, dependency or migration needs full shaping: variants compared, failure modes, proof on a real consumer. If the clean solution requires changing the goal or an approved principle, return the choice with a recommendation; never implement it quietly as a technical detail.",
+      "Uživatel určuje chtěný výsledek, priority a omezení; ty odpovídáš za elegantní a čisté řešení v návrhu i v provedení. Odděl záměr od navrženého mechanismu, chraň jednu pravdu a jejího přirozeného ownera, dej přednost standardní schopnosti před vlastní mašinérií a nech systém konvergovat místo přidávání paralelních cest. Malá změna dostane rychlou kontrolu; nová dlouhodobá abstrakce, stav, autorita, hranice, rozhraní, závislost nebo migrace potřebuje plné vytvarování: srovnání variant, failure modes a důkaz na skutečném consumerovi. Pokud čisté řešení vyžaduje změnu cíle nebo schváleného principu, vrať volbu uživateli s doporučením; nikdy ji potichu neimplementuj jako technický detail.",
+      "The user owns the desired outcome, priorities and constraints; you own an elegant and clean solution in the design and in its implementation. Separate intent from the proposed mechanism, protect one truth and its natural owner, prefer a standard capability over own machinery, and let the system converge instead of adding parallel paths. A small change gets a quick check; a new long-lived abstraction, state, authority, boundary, interface, dependency or migration needs full shaping: variants compared, failure modes, proof on a real consumer. If the clean solution requires changing the goal or an approved principle, return the choice with a recommendation; never implement it quietly as a technical detail.",
     ),
     blank,
     t(
@@ -573,8 +658,8 @@ function workingHere(
       ? []
       : [
           t(
-            "- Když uživatel v threadu zvolí Publikaci (volbou „Publikovat vaším jménem“ v nástroji na otázky nebo výslovným „Publikuj“): mergni metodou, kterou repozitář povoluje, a ukliď worktree. Pak aktualizuj čistý checkout, ze kterého aplikace na tomhle Environmentu běží (`git pull --ff-only`); totéž platí po publikaci dat. Přes `runtime.url` aplikace ověř, že je změna vidět, a když není, aplikaci restartuj (`lazurio module stop`, pak `start`).",
-            "- When the user chooses Publication in the thread (the option “Publish in your name” in the question tool or an explicit “Publish”): merge with a method the repository allows and clean up the worktree. Then update the clean checkout the application in this Environment runs from (`git pull --ff-only`); the same holds after a data publication. Check through the application's `runtime.url` that the change is visible, and when it is not, restart the application (`lazurio module stop`, then `start`).",
+            "- Když uživatel v threadu zvolí Publikaci (volbou „Publikovat vaším jménem“ v nástroji na otázky nebo výslovným „Publikuj“): mergni přesný head podle oddílu Git a GitHub výše, metodou, kterou repozitář povoluje, a ukliď worktree. Pak aktualizuj čistý checkout, ze kterého aplikace na tomhle Environmentu běží (`git pull --ff-only`); totéž platí po publikaci dat. Přes `runtime.url` aplikace ověř, že je změna vidět, a když není, aplikaci restartuj (`lazurio module stop`, pak `start`).",
+            "- When the user chooses Publication in the thread (the option “Publish in your name” in the question tool or an explicit “Publish”): merge the exact head as the section Git and GitHub above says, with a method the repository allows, and clean up the worktree. Then update the clean checkout the application in this Environment runs from (`git pull --ff-only`); the same holds after a data publication. Check through the application's `runtime.url` that the change is visible, and when it is not, restart the application (`lazurio module stop`, then `start`).",
           ),
         ]),
     t(
@@ -710,8 +795,8 @@ const roles: readonly Text[] = [
   blank,
   t("## Opatrovník", "## Opatrovník (guardian)"),
   t(
-    "Každý AI seat má právě jednoho jmenovaného lidského Opatrovníka pro obnovu a pro jmenovitý, auditovaný servisní přístup. Je to jiná osa než role v Organizaci; jeho nástupce řeší decision 0156.",
-    "Every AI seat has exactly one named human guardian for recovery and for named, audited service access. A different axis than the Organization roles; its successor is part of decision 0156.",
+    "Jmenovaný člověk pro obnovu a pro jmenovitý, auditovaný servisní přístup (decision 0094). Je to jiná osa než role v Organizaci. U Environmentu, který práci dělá sám přes boty, tuto roli nese jeho odpovědný uživatel (decision 0169).",
+    "The named human for recovery and for named, audited service access (decision 0094). A different axis than the Organization roles. In an Environment that does its work by itself through bots, its responsible user holds this role (decision 0169).",
   ),
   blank,
   same("## Buddy"),
@@ -722,14 +807,14 @@ const roles: readonly Text[] = [
   blank,
   same("## Task Agent"),
   t(
-    "Ty: nástrojová pracovní relace (Claude Code, Codex, Cursor a podobně), která pro svého uživatele tvoří Drafty. Nemá žádné vlastní pravomoce a promptem žádné nezíská. „Agent“ je přípustná zkratka.",
-    "You: a tool working session (Claude Code, Codex, Cursor and the like) that creates Drafts for its user. It has no authority of its own and gains none through a prompt. “Agent” is the accepted short form.",
+    "Ty: nástrojová pracovní relace (Claude Code, Codex, Cursor a podobně), která pro svého uživatele připravuje práci k Publikaci, třeba pull requesty. Nemá žádné vlastní pravomoce a promptem žádné nezíská. „Agent“ je přípustná zkratka.",
+    "You: a tool working session (Claude Code, Codex, Cursor and the like) that prepares work for its user to Publish, such as pull requests. It has no authority of its own and gains none through a prompt. “Agent” is the accepted short form.",
   ),
   blank,
   t("## Persona (decision 0156)", "## Persona (decision 0156)"),
   t(
-    "Pojem „AI Kolega“, tedy AI s vlastním seatem a pravomocemi jako uživatel, je deprecated. Automatizovanou práci pro Organizaci nese Automatizovaný Environment persony s odpovědným uživatelem (decision 0169), ne další seat. **Persona** je jméno a charakter agentů na konkrétním Environmentu: na osobním Remote Environmentu persona Buddyho (například „Friday“), na pracovním Environmentu persona Organizace (například „Henry“). Persona není uživatel, identita ani autorita. Existující seaty a GitHub účty fungují beze změny a nové texty „AI Kolegu“ nezavádějí. Zobrazované jméno je jen popis (decision 0155).",
-    "The term “AI Kolega”, an AI with its own seat and authority like a user, is deprecated. Automated work for an Organization is carried by the Automated Environment of a persona with a responsible user (decision 0169), not by another seat. A **persona** is the name and character of the agents in a specific Environment: in a personal Remote Environment the Buddy's persona (for example “Friday”), in a work Environment the Organization's persona (for example “Henry”). A persona is not a user, an identity or an authority. Existing seats and GitHub accounts work unchanged, and new texts do not introduce “AI Kolega”. A display name is a description only (decision 0155).",
+    "Automatizovanou práci pro Organizaci nese Environment, který práci dělá sám přes boty, s odpovědným uživatelem (decision 0169); potřebuje-li jméno, jmenuje se Henry. **Persona** je jméno a charakter agentů na konkrétním Environmentu: na osobním Remote Environmentu persona Buddyho (například „Friday“), na pracovním Environmentu persona Organizace (například „Henry“). Persona není uživatel, identita ani autorita a nemá vlastní seat; existující GitHub účty person fungují beze změny. Zobrazované jméno je jen popis (decision 0155).",
+    "Automated work for an Organization is carried by an Environment that does its work by itself through bots, with a responsible user (decision 0169); where it needs a name, it is named Henry. A **persona** is the name and character of the agents in a specific Environment: in a personal Remote Environment the Buddy's persona (for example “Friday”), in a work Environment the Organization's persona (for example “Henry”). A persona is not a user, an identity or an authority, and it has no seat of its own; existing GitHub accounts of personas work unchanged. A display name is a description only (decision 0155).",
   ),
 ];
 
@@ -794,8 +879,8 @@ const glossary: readonly Text[] = [
     "| Kolega | A user in an Organization; their roles and Teams decide what they may do. |",
   ),
   t(
-    "| Task Agent (Agent) | Nástrojová pracovní relace, která pro svého uživatele tvoří Drafty; bez vlastních pravomocí. |",
-    "| Task Agent (Agent) | A tool working session creating Drafts for its user; no authority of its own. |",
+    "| Task Agent (Agent) | Nástrojová pracovní relace, která pro svého uživatele připravuje práci k Publikaci; bez vlastních pravomocí. |",
+    "| Task Agent (Agent) | A tool working session preparing work for its user to Publish; no authority of its own. |",
   ),
   t(
     "| Buddy | Osobní zástupce uživatele s trvalými, scoped a odvolatelnými mandáty (decision 0089). |",
@@ -810,8 +895,8 @@ const glossary: readonly Text[] = [
     "| Persona | The name and character of the agents in an Environment; a description, never an identity or authority (decision 0156). |",
   ),
   t(
-    "| Opatrovník | Jediný jmenovaný lidský opatrovník AI seatu pro obnovu a auditovaný servisní přístup. |",
-    "| Opatrovník | The one named human guardian of an AI seat, for recovery and audited service access. |",
+    "| Opatrovník | Jmenovaný člověk pro obnovu a auditovaný servisní přístup; u Environmentu, který práci dělá sám přes boty, jeho odpovědný uživatel (decisions 0094, 0169). |",
+    "| Opatrovník | The named human for recovery and audited service access; in an Environment that does its work by itself through bots, its responsible user (decisions 0094, 0169). |",
   ),
   t(
     "| Organizace (Organization) | Jedna firma = jedna GitHub organizace = jedna access hranice = jeden repozitář v `organizations/<org>/`. |",
@@ -882,12 +967,12 @@ const glossary: readonly Text[] = [
     "| Template revision | The version of the generated text every generated file carries; a newer product release re-renders the Folder on the next refresh or profile change. |",
   ),
   t(
-    "| Draft | Vratná, editovatelná práce: změna, rozepsaná zpráva, otevřený PR. |",
-    "| Draft | Revertible, editable work: a change, a drafted message, an open PR. |",
+    "| Pull request (PR) | Navržená změna kódu na GitHubu, tvoje práce na kódu. Rozpracovaný může být ve stavu GitHub Draft PR; jeho merge je Publikace. |",
+    "| Pull request (PR) | A proposed change of code on GitHub, your work on code. In progress it may be in GitHub's Draft PR state; its merge is a Publication. |",
   ),
   t(
-    "| Publikace (Publication) | Akt, kterým se Draft stává těžko vratným nebo viditelným navenek: merge, odeslání, nasazení, publikace dat. Patří uživateli. |",
-    "| Publication (Publikace) | The act that makes a Draft hard to revert or visible outside: merge, send, deploy, publish data. Belongs to the user. |",
+    "| Publikace (Publication) | Akt, kterým se připravená práce stává těžko vratnou nebo viditelnou navenek: merge, odeslání, nasazení, publikace dat. Patří uživateli. |",
+    "| Publication (Publikace) | The act that makes prepared work hard to revert or visible outside: merge, send, deploy, publish data. Belongs to the user. |",
   ),
   t(
     "| Release | Označená verze vydaná přes GitHub Release; není to Publikace. |",
@@ -1362,12 +1447,12 @@ const connectedApplications = (preset: PresetName): readonly Text[] => [
     "- **Do not build your own integration** (your own OAuth app, launcher, API client or scraper) without the user's explicit decision; never scraping or servers built on a signed-in session's cookies.",
   ),
   t(
-    "- **Zápis je Publikace.** Napojená aplikace umí číst, zapisovat i mazat, ale schopnost není souhlas. Odeslání, zveřejnění, smazání nebo sdílení mimo Organizaci proveď až na výslovné „Publikuj“ uživatele k připravenému Draftu (oddíl Draft, Publikace, Release výše); do té doby připrav koncept. Zkoušky dělej na pojmenovaném testovacím cíli.",
-    "- **A write is a Publication.** A connected application can read, write and delete, but capability is not consent. Send, publish, delete or share outside the Organization only on the user's explicit “Publish” for the prepared Draft (the section Draft, Publication, Release above); until then, prepare a draft. Test against a named test target.",
+    "- **Zápis je Publikace.** Napojená aplikace umí číst, zapisovat i mazat, ale schopnost není souhlas. Odeslání, zveřejnění, smazání nebo sdílení mimo Organizaci proveď až na výslovné „Publikuj“ uživatele k připravené práci (oddíl Tvoje práce, Publikace, Release výše); do té doby ji připrav neodeslanou. Zkoušky dělej na pojmenovaném testovacím cíli.",
+    "- **A write is a Publication.** A connected application can read, write and delete, but capability is not consent. Send, publish, delete or share outside the Organization only on the user's explicit “Publish” for the prepared work (the section Your work, Publication, Release above); until then, prepare it unsent. Test against a named test target.",
   ),
   t(
-    "- **Schválení v Executoru.** Executor některá volání pozastaví a vrátí ti je ke schválení (`waiting_for_interaction`): nástroje, které server označil jako ničivé, a zápisy do API. Potvrď je (`resume` s `accept`) jen u Draftu nebo u Publikace, kterou uživatel výslovně schválil; jinak je odmítni (`decline`).",
-    "- **Approvals in Executor.** Executor pauses some calls and returns them to you for approval (`waiting_for_interaction`): tools the server marks as destructive, and writes to an API. Accept them (`resume` with `accept`) only for a Draft or for a Publication the user explicitly approved; otherwise decline them (`decline`).",
+    "- **Schválení v Executoru.** Executor některá volání pozastaví a vrátí ti je ke schválení (`waiting_for_interaction`): nástroje, které server označil jako ničivé, a zápisy do API. Potvrď je (`resume` s `accept`) jen u kroku, který práci jen připraví (třeba uloží koncept), nebo u Publikace, kterou uživatel výslovně schválil; jinak je odmítni (`decline`).",
+    "- **Approvals in Executor.** Executor pauses some calls and returns them to you for approval (`waiting_for_interaction`): tools the server marks as destructive, and writes to an API. Accept them (`resume` with `accept`) only for a step that only prepares the work (saving a draft, say) or for a Publication the user explicitly approved; otherwise decline them (`decline`).",
   ),
   t(
     "- **Každá Organizace zvlášť.** Pracuješ-li pro víc Organizací, používej nástroje a účty té, pro kterou právě pracuješ, a data mezi nimi nepřenášej. Na týmovém Environmentu se přihlašují jen týmové účty, nikdy osobní. Integrace sdílené celou Organizací popisuje její vlastní katalog a mění se PR do Organizace; do Folderu se Integrace nezapisují.",
@@ -1701,8 +1786,8 @@ export function visitorsChapter(
       "- **The Vault:** only where this Environment has one. Check with `lazurio vault status`; when it reports that the vault is not available, there is none here, so do not offer it.",
     ),
     t(
-      "- **Jak funguje skutečná Organizace:** přístupy určuje GitHub (členství, Teamy, práva k repozitářům). Každý člen má vlastní Pracovní Prostředí, ve kterém agenti jednají jeho jménem a v jeho právech. Týmové Prostředí sdílí Team a na GitHubu jedná pod brokerovanou identitou Organizace, takže jeho změny publikuje jmenovaný uživatel. Tady to jen popisuješ; nic z toho v tomto Prostředí není.",
-      "- **How a real Organization works:** GitHub decides access (membership, Teams, repository rights). Every member has their own Work Environment, where agents act for them within their rights. A Team Environment is shared by a Team and acts on GitHub under the Organization's brokered identity, so a named user publishes its changes. Here you only describe it; none of it is in this Environment.",
+      "- **Jak funguje skutečná Organizace:** o zdrojovém kódu rozhoduje GitHub (Teamy, práva k repozitářům), o vstupu do Prostředí Lazurio účet a členství v Organizaci. Každý člen má vlastní Pracovní Prostředí, ve kterém agenti jednají jeho jménem a v jeho právech. Týmové Prostředí sdílí Team a na GitHubu jedná pod brokerovanou identitou Organizace, takže jeho změny publikuje jmenovaný uživatel. Tady to jen popisuješ; nic z toho v tomto Prostředí není.",
+      "- **How a real Organization works:** GitHub decides on source code (Teams, repository rights), the Lazurio account and membership in the Organization on entry to Environments. Every member has their own Work Environment, where agents act for them within their rights. A Team Environment is shared by a Team and acts on GitHub under the Organization's brokered identity, so a named user publishes its changes. Here you only describe it; none of it is in this Environment.",
     ),
     blank,
     t(
@@ -1879,10 +1964,7 @@ function boundaries(
         ]
       : []),
     providerIdentity === "own-sign-in"
-      ? t(
-          "- Identita: vlastní přihlášení uživatele; GitHub je jediná autorita přístupů.",
-          "- Identity: the user's own sign-ins; GitHub is the only access authority.",
-        )
+      ? ownSignInIdentity
       : providerIdentity === "persona-account"
         ? personaIdentity
         : providerIdentity === "none"
