@@ -52,7 +52,7 @@ const current = {
   version: "0.1.12",
 } as const;
 
-test("the parts run in order, content and builds before Lazurio itself, and each line is heard under way and then with its answer", async () => {
+test("the parts run in order, content, tools and builds before Lazurio itself, and each line is heard under way and then with its answer", async () => {
   const order: string[] = [];
   const seen: UpdateLine[][] = [];
   const items = await updateEverything(
@@ -98,7 +98,7 @@ test("the parts run in order, content and builds before Lazurio itself, and each
     },
     (lines) => seen.push([...lines]),
   );
-  expect(order).toEqual(["content", "builds", "tools", "product"]);
+  expect(order).toEqual(["content", "tools", "builds", "product"]);
   expect(items).toEqual([
     { part: "content", ...moved },
     { part: "content", ...entry(".") },

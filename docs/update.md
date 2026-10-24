@@ -50,7 +50,7 @@ release that publishes every platform at once.
   There is no second updater, no worker entrypoint and no installer logic
   outside the product. Since root decision 0212 point 3 the plain command also
   brings the content and the builds up to date before it updates Lazurio itself
-  ([One `lazurio update`](#one-lazurio-update-content-builds-tools-and-lazurio-itself)); each
+  ([One `lazurio update`](#one-lazurio-update-content-tools-builds-and-lazurio-itself)); each
   part keeps its own core, lock and outcome.
 - **The user owns the version.** The user of the Environment runs
   `lazurio update`, on a hosted Machine as on their own computer. A provider's pin
@@ -842,7 +842,7 @@ if the new release is unhealthy, which its Recovery mode (`503` on the health
 socket) makes the correct decision. From the first mutating command the new
 release runs, the migration removes all of it.
 
-## One `lazurio update`: content, builds, tools and Lazurio itself
+## One `lazurio update`: content, tools, builds and Lazurio itself
 
 Root decision 0212 point 3 (Matěj, 2026-10-24; [F9's second amendment of
 2026-10-24](decisions.md#second-amendment-of-2026-10-24-one-lazurio-update-composes-content-builds-and-lazurio-itself)).
@@ -857,7 +857,9 @@ Aktualizovat button runs it by hand. One composition (`updateEverything` in
    When another content operation holds the Folder's lock (the hourly round, an
    installation) it asks again every 2 seconds for up to 2 minutes, then answers
    `content-busy`.
-2. **Builds.** Every built app with a build state (someone opened it once) whose checkout
+2. **Tools** the modules declare (root decision 0171): a seam for DEV-6682, nothing yet. They
+   come before any build, so a build never runs before the Bun its module pins is there.
+3. **Builds.** Every built app with a build state (someone opened it once) whose checkout
    moved past its build is built in the foreground and swapped in where it runs (decision
    F58's refresh, `refreshBuilt` in the module core). A commit whose last build failed is
    not built again here (an explicit `lazurio module build` does that), and an app nobody
@@ -865,7 +867,6 @@ Aktualizovat button runs it by hand. One composition (`updateEverything` in
    its apps in its own session (macOS), that Launchpad owns their dependency trees until it
    ends, so the CLI leaves their builds to it: its build watcher builds and swaps what the
    content brought within seconds, or at its next start.
-3. **Tools** the modules declare (root decision 0171): a seam for DEV-6682, nothing yet.
 4. **Lazurio itself**, as the rest of this document describes, last.
 
 **Why this order.** Content and builds change nothing that runs until a build swaps, and a
@@ -948,7 +949,7 @@ The pipeline owns the minimum version (a pin is a minimum, F17's addendum of 202
   update and with `state-invalid`; "up to date" and a running check show nothing
   (Matěj 2026-09-28, as in T3 Code). The Folder refresh line below is
   independent of the pill.
-- **CLI.** `lazurio update` (everything, [above](#one-lazurio-update-content-builds-tools-and-lazurio-itself)), `--check`, `--version <tag>`, `update status
+- **CLI.** `lazurio update` (everything, [above](#one-lazurio-update-content-tools-builds-and-lazurio-itself)), `--check`, `--version <tag>`, `update status
   [--json]`, `--folder <Folder>` on `update` and `update status`,
   `lazurio install [--verify-release <directory>] [--service
   systemd-user]` (from a newer executable over an existing installation: the offline

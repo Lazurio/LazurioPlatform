@@ -9,9 +9,10 @@ import type { BuiltProgress, BuiltRefresh } from "../modules/module-operations";
 //
 //   1. content: the clean primary checkouts of the Organizations this
 //      Environment holds on their published branch (`syncContent`);
-//   2. builds: every built app someone opened whose checkout moved past its
+//   2. tools: what the modules declare (DEV-6682; a seam, nothing yet),
+//      before any build, so a build never runs without its module's Bun;
+//   3. builds: every built app someone opened whose checkout moved past its
 //      build, built and swapped in (`refreshBuilt`, decision F58);
-//   3. tools: what the modules declare (DEV-6682; a seam, nothing yet);
 //   4. product: Lazurio itself to the newest public release, last, because
 //      its activation restarts the Launchpad (docs/update.md).
 //
@@ -169,7 +170,15 @@ export async function updateEverything(
     failed("content");
   }
 
-  // 2. Builds of what changed, the content's new commits among them.
+  // 2. The tools the modules declare (DEV-6682), before any build, so that
+  // a build never runs before the Bun its module pins is there.
+  try {
+    for (const item of (await parts.tools?.()) ?? []) set(item);
+  } catch {
+    failed("tools");
+  }
+
+  // 3. Builds of what changed, the content's new commits among them.
   try {
     const built = await parts.builds((progress) =>
       set({ part: "build", ...progress }),
@@ -177,13 +186,6 @@ export async function updateEverything(
     for (const answer of built) set({ part: "build", ...answer });
   } catch {
     failed("build");
-  }
-
-  // 3. The tools the modules declare (DEV-6682).
-  try {
-    for (const item of (await parts.tools?.()) ?? []) set(item);
-  } catch {
-    failed("tools");
   }
 
   // 4. Lazurio itself, last: its activation restarts the Launchpad.
