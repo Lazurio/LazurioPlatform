@@ -454,10 +454,10 @@ export type OptionalRow = Readonly<{
 
 /** "Volitelné": Composio where Tools offer it; on a Remote Environment SSH
  * from the person's own computer (`sshDevices`: how many devices have a
- * key, null when not known) and Codex Desktop, which works over that SSH
+ * key, null when not known) and ChatGPT Desktop, which works over that SSH
  * (its state is the person's computer's, so it has none here). Between them
  * "Trezor v Bitwardenu" where Apps → Trezor gives the steps that add the
- * Environment's vault to Bitwarden in Codex Desktop and the person's browser
+ * Environment's vault to Bitwarden in ChatGPT Desktop and the person's browser
  * (`bitwarden`, `offersBitwarden`; F53's addendum of 2026-10-16): no state
  * either, since the extension is on the person's computer. */
 export function optionalRows(
@@ -524,7 +524,7 @@ export function optionalRows(
   if (remote)
     rows.push({
       id: "codex",
-      title: "Codex Desktop",
+      title: "ChatGPT Desktop",
       text: copy.startCodexText,
       status: null,
       action: { label: copy.startGuide, to: "/settings/ssh" },

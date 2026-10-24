@@ -752,7 +752,7 @@ export type BitwardenStep = Readonly<{
   picture: Readonly<{ name: BitwardenPicture; alt: string }> | null;
 }>;
 
-/** "V Codex Desktopu a ve vašem prohlížeči" on Nastavení → Trezor. */
+/** "V ChatGPT Desktopu a ve vašem prohlížeči" on Nastavení → Trezor. */
 export type BitwardenGuide = Readonly<{
   kind: BitwardenTarget["kind"];
   /** Before the steps: create the account first, while the page offers
@@ -765,7 +765,7 @@ export type BitwardenGuide = Readonly<{
 
 /**
  * The steps that add this Environment's vault to the Bitwarden extension in
- * Codex Desktop (Nastavení → Prohlížeč → Rozšíření) and in the person's own
+ * ChatGPT Desktop (Nastavení → Prohlížeč → Rozšíření) and in the person's own
  * browser (F53's addendum of 2026-10-16), in the extension's own words. First
  * the extension, with its page in the Chrome Web Store. Then an
  * Organization's Lazurio Vaultwarden: "vlastní server" under "Přistupujete

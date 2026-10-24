@@ -1107,15 +1107,15 @@ const en = {
   startSet: "Set up",
   startNotSet: "Not set up",
   startGuide: "Guide",
-  startCodexText: "Work with {this} from the Codex app.",
-  // The Bitwarden extension in Codex Desktop and the person's own browser
+  startCodexText: "Work with {this} from ChatGPT Desktop.",
+  // The Bitwarden extension in ChatGPT Desktop and the person's own browser
   // (F53's addendum of 2026-10-16): the row leads to Apps → Trezor.
   startBitwardenTitle: "Vault in Bitwarden",
   // What the optional rows Composio and Trezor v Bitwardenu give, at the
   // choice (kept by Pablo's review of #503: no step of Začínáme's "?" says
   // it).
   startBitwardenText:
-    "Your Environment vault's passwords in Codex Desktop and your browser too.",
+    "Your Environment vault's passwords in ChatGPT Desktop and your browser too.",
   startTourGroup: "App tour",
   startTourTitle: "Apps, Chat and Automate",
   startToured: "Seen",
@@ -1330,16 +1330,16 @@ const en = {
   // username (root decision 0203 point 4): no address, so nobody is added.
   vaultPageNoUsername:
     "Your sign-in does not include your Lazurio username yet, so {this} cannot add you to its vault. Please sign in again.",
-  // The vault in the Bitwarden extension of Codex Desktop and the person's
+  // The vault in the Bitwarden extension of ChatGPT Desktop and the person's
   // own browser (F53's addendum of 2026-10-16). The extension's own labels
   // are quoted as its version 2026.10.0 shows them.
-  vaultBitwardenTitle: "In Codex Desktop and your browser",
+  vaultBitwardenTitle: "In ChatGPT Desktop and your browser",
   // A guide's video (guide-video.ts): the button that opens the browser's
   // own player; its accessible name names the video.
   guideVideoPlay: "Play video",
   guideVideoPlayNamed: "Play video: {title}",
   vaultBitwardenAdd:
-    "Open the Bitwarden extension in the Chrome Web Store and click “Add to Chrome”. In Codex Desktop, do this in its browser; the extension then appears in Settings → Browser → Extensions.",
+    "Open the Bitwarden extension in the Chrome Web Store and click “Add to Chrome”. In ChatGPT Desktop (formerly Codex Desktop), do this in its browser; the extension then appears in Settings → Browser → Extensions.",
   vaultBitwardenStore: "Bitwarden in the Chrome Web Store",
   vaultBitwardenServer:
     "At the bottom, next to “Accessing”, choose “self-hosted”. Paste this address into the “Server URL” field and click “Save”:",
@@ -2844,10 +2844,10 @@ const cs: Record<MessageKey, string> = {
   startSet: "Nastaveno",
   startNotSet: "Nenastaveno",
   startGuide: "Návod",
-  startCodexText: "Pracujte s {tímto} z aplikace Codex.",
+  startCodexText: "Pracujte s {tímto} z ChatGPT Desktopu.",
   startBitwardenTitle: "Trezor v Bitwardenu",
   startBitwardenText:
-    "Hesla z Trezoru Prostředí i v Codex Desktopu a ve vašem prohlížeči.",
+    "Hesla z Trezoru Prostředí i v ChatGPT Desktopu a ve vašem prohlížeči.",
   startTourGroup: "Prohlídka aplikace",
   startTourTitle: "Apps, Chat a Automate",
   startToured: "Prohlédnuto",
@@ -3039,11 +3039,11 @@ const cs: Record<MessageKey, string> = {
   vaultPageCreateAccount: "Vytvořit účet v trezoru",
   vaultPageNoUsername:
     "Vaše přihlášení zatím neobsahuje uživatelské jméno v Lazuriu, proto vás {toto} nemůže přidat do svého trezoru. Přihlaste se prosím znovu.",
-  vaultBitwardenTitle: "V Codex Desktopu a ve vašem prohlížeči",
+  vaultBitwardenTitle: "V ChatGPT Desktopu a ve vašem prohlížeči",
   guideVideoPlay: "Přehrát video",
   guideVideoPlayNamed: "Přehrát video: {title}",
   vaultBitwardenAdd:
-    "Otevřete rozšíření Bitwarden v Chrome Web Store a klikněte na „Přidat do Chromu“. V Codex Desktopu to udělejte v jeho prohlížeči, rozšíření pak najdete v Nastavení → Prohlížeč → Rozšíření.",
+    "Otevřete rozšíření Bitwarden v Chrome Web Store a klikněte na „Přidat do Chromu“. V ChatGPT Desktopu (dřív Codex Desktop) to udělejte v jeho prohlížeči, rozšíření pak najdete v Nastavení → Prohlížeč → Rozšíření.",
   vaultBitwardenStore: "Bitwarden v Chrome Web Store",
   vaultBitwardenServer:
     "Dole u „Přistupujete na“ zvolte „vlastní server“. Do pole „URL serveru“ vložte tuto adresu a klikněte na „Uložit“:",

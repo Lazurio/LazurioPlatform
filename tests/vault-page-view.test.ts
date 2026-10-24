@@ -1272,7 +1272,7 @@ test("an Organization's vault: the extension from the Chrome Web Store, the vaul
     first: null,
     steps: [
       {
-        text: "Otevřete rozšíření Bitwarden v Chrome Web Store a klikněte na „Přidat do Chromu“. V Codex Desktopu to udělejte v jeho prohlížeči, rozšíření pak najdete v Nastavení → Prohlížeč → Rozšíření.",
+        text: "Otevřete rozšíření Bitwarden v Chrome Web Store a klikněte na „Přidat do Chromu“. V ChatGPT Desktopu (dřív Codex Desktop) to udělejte v jeho prohlížeči, rozšíření pak najdete v Nastavení → Prohlížeč → Rozšíření.",
         value: null,
         missing: null,
         link: store,
@@ -1313,7 +1313,7 @@ test("an Organization's vault: the extension from the Chrome Web Store, the vaul
     first: null,
     steps: [
       {
-        text: "Open the Bitwarden extension in the Chrome Web Store and click “Add to Chrome”. In Codex Desktop, do this in its browser; the extension then appears in Settings → Browser → Extensions.",
+        text: "Open the Bitwarden extension in the Chrome Web Store and click “Add to Chrome”. In ChatGPT Desktop (formerly Codex Desktop), do this in its browser; the extension then appears in Settings → Browser → Extensions.",
         value: null,
         missing: null,
         link: { ...store, label: "Bitwarden in the Chrome Web Store" },
@@ -1521,7 +1521,7 @@ test("a personal Environment's own Bitwarden: the extension, its service by the 
       first: null,
       steps: [
         {
-          text: "Otevřete rozšíření Bitwarden v Chrome Web Store a klikněte na „Přidat do Chromu“. V Codex Desktopu to udělejte v jeho prohlížeči, rozšíření pak najdete v Nastavení → Prohlížeč → Rozšíření.",
+          text: "Otevřete rozšíření Bitwarden v Chrome Web Store a klikněte na „Přidat do Chromu“. V ChatGPT Desktopu (dřív Codex Desktop) to udělejte v jeho prohlížeči, rozšíření pak najdete v Nastavení → Prohlížeč → Rozšíření.",
           value: null,
           missing: null,
           link: {
