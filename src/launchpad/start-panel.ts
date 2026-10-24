@@ -438,10 +438,12 @@ export function createStartPanel(
   }
 
   /** A public Environment's Začínáme: "Vyzkoušejte" and the tour, never a
-   * sign-in. */
+   * sign-in, and no sentence under the title (F56's addendum (6) of
+   * 2026-10-24). */
   function renderDemo(view: DemoStartView, copy: Copy) {
     notHere.hidden = true;
-    intro.hidden = false;
+    intro.hidden = true;
+    intro.textContent = "";
     for (const group of groups) group.hidden = group !== tourGroup;
     vaultGroup.hidden = true;
     demoGroup.hidden = false;
@@ -449,7 +451,6 @@ export function createStartPanel(
     const now = JSON.stringify(["demo", view, toured]);
     if (now === drawn) return;
     drawn = now;
-    intro.textContent = view.intro;
     demoRows.replaceChildren(...view.rows.map(demoNode));
     tourState.textContent =
       toured === true ? copy.startToured : copy.startNotToured;

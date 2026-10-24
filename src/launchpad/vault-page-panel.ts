@@ -65,9 +65,6 @@ export function createVaultPagePanel(
     copy: () => Copy;
     /** Whether the page shows this section now. */
     shown: () => boolean;
-    /** This Environment's Chat (T3 Code's origin as recorded), or null on a
-     * workstation: the guide's button opens it as the shell's Chat does. */
-    chat: () => string | null;
     /** Called after the page is drawn: what its "?" plays may have changed
      * (`facts`). */
     drawn?: () => void;
@@ -85,7 +82,6 @@ export function createVaultPagePanel(
   const state = find<HTMLParagraphElement>("#vault-page-state");
   const actions = find<HTMLDivElement>("#vault-page-actions");
   const hint = find<HTMLParagraphElement>("#vault-page-hint");
-  const guide = find<HTMLParagraphElement>("#vault-page-guide");
   const again = find<HTMLButtonElement>("#vault-page-refresh");
   const connectSection = find<HTMLElement>("#vault-connect");
   const pictureLabel = find<HTMLElement>("#vault-connect-picture-label");
@@ -321,8 +317,6 @@ export function createVaultPagePanel(
     actions.replaceChildren(...view.actions.map(link));
     hint.hidden = view.hint === null;
     hint.textContent = view.hint ?? "";
-    guide.hidden = !view.guide;
-    guide.replaceChildren(...(view.guide ? guideOf(copy) : []));
     drawBitwarden(bitwardenGuide(model, person, copy, view), copy);
     options.drawn?.();
   }
@@ -502,27 +496,6 @@ export function createVaultPagePanel(
     const box = element("span", "vault-bitwarden-copy");
     box.append(shown, button, said);
     return box;
-  }
-
-  /** The way to use the vault: one line, and Chat to start in. Chat opens
-   * as the shell's own Chat entry does (the `lazurio-app` event pairs it);
-   * without a Chat (a workstation) only the line. */
-  function guideOf(copy: Copy): Node[] {
-    const line = element("span", "", copy.vaultPageGuide);
-    const href = options.chat();
-    if (href === null) return [line];
-    const anchor = element("a", "button", copy.vaultPageGuideChat);
-    anchor.href = href;
-    anchor.dataset.control = "vault-chat";
-    anchor.addEventListener("click", (event) => {
-      const asked = new CustomEvent("lazurio-app", {
-        detail: { app: "chat", href },
-        cancelable: true,
-      });
-      document.dispatchEvent(asked);
-      if (asked.defaultPrevented) event.preventDefault();
-    });
-    return [line, document.createTextNode(" "), anchor];
   }
 
   /** The form's values as typed: the master password exactly so. */

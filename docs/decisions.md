@@ -16953,6 +16953,67 @@ explanations and without Buddy's origin, `<lazurio-buddy>` draws nothing and lis
 nothing on the page; it only follows the shell's own state to learn whether the origin
 arrives.
 
+### F56 addendum (6) of 2026-10-24: no sentence under a page title
+
+**Decided by Matěj (Organization Admin) on 2026-10-24 and recorded in the Lazurio design
+system (HumanAndMachine-ai/design-system-lazurio#110: "Hlas a tón", its sections
+"Vysvětlení na vyžádání" and "Prostředí a Integrace"; "Prvky", the page title's row and
+"Obrazovky nastavení"); Lazurio/LazurioPlatform#631.** A page in Lazurio has no
+explanatory sentence under its title, a settings screen and Integrace included. It
+carries its title, its controls and its "?", and Buddy, or without him the neutral
+guide, explains it on request. This ends the design system's rule of 2026-10-16 that a
+settings screen opens with one sentence, and Integrace's line under its title.
+
+1. **Settings and Integrace already had none.** The addenda of 2026-10-18 above moved
+   their sentences into each page's "?" (Integrace's "Připojené aplikace, které používají
+   všichni agenti a boti tohoto Prostředí." among them). Checked again in headless Chrome
+   against the local, hosted, personal, Team and public previews, in Czech and English:
+   no explanation stands under the title of Začínáme, Obecné, Komunikace agentů, Toto
+   Prostředí, Nástroje, SSH ze zařízení, Obnova or Integrace (Vše, Vlastní, an app's card,
+   the page of a custom MCP server).
+2. **The last two go.**
+   - **Začínáme of a public Environment** (F55) loses "Vyzkoušejte si Lazurio v tomto
+     ukázkovém Prostředí." ("Try Lazurio in this demo Environment."). Its group
+     "Vyzkoušejte" says what to try, and the column's notice says the Environment is
+     public. `DemoStartView` has no `intro`, `#start-intro` stays hidden there, and the
+     word `startDemoIntro` is gone.
+   - **Trezor** loses its line "Potřebuje agent heslo nebo klíč? Řekněte mu to v Chatu.
+     O hodnotu si řekne tady, vy ji vyplníte a uloží se rovnou do trezoru." ("Does an
+     agent need a password or a key? Tell it in Chat. It asks for the value here, you
+     fill it in, and it goes straight into the vault.") with its "Otevřít Chat", which
+     point 5 of the addendum of 2026-10-18 kept. `VaultPageView` has no `guide`;
+     `#vault-page-guide`, the panel's `chat` option and the words `vaultPageGuide` and
+     `vaultPageGuideChat` are gone.
+3. **What stays under a title is a state, never an explanation:** Začínáme's count
+   ("Hotovo 1 ze 3 kroků.", "Prostředí je připravené.") and "Tady není co nastavovat."
+   where nothing is to be set up; Trezor's line where this Environment has no vault, and
+   why; Obnova's result and a reading that failed; the Marketplace's "Již brzy"; the Apps
+   home's line until the Environment has its basics (what is missing and its button, root
+   decisions 0188 and 0201); and a module overview's own description, which names the
+   module as its tile does. The line of a group or a row is not under a page's title and
+   keeps the rules of the addendum (2) above: the theme's note, the SSH form's hint and
+   notes, and a Personal Environment's "Agenti dostanou vlastní účet a do toho vašeho
+   nevidí." under its picture.
+4. **No room is left where a sentence was** (the design system's "Pro další tvorbu").
+   A page's head (`.section-head-text`) that shows nothing takes no room: it stands
+   out of the flow as `.sr-only` does, so its live status line is still heard, and the
+   page's first group starts where it starts on Obecné. This also closes the gap the
+   addendum (2) above left on SSH ze zařízení and a Personal Environment's Trezor.
+
+**Honest limits.** Trezor's line said how a secret reaches the vault: ask the agent in
+Chat, and it asks for the value on Trezor (F54). No "?" of Trezor says it: `vault-agents`
+names the vault, the agents' use and who sees its passwords, and the video and the
+principle `vault` are the approved ones. Where that is the way in (a Team or Automated
+Environment, whose people are not added to the vault) the explanation belongs to
+Trezor's "?", with words still to be decided; this addendum writes none. An agent that
+needs a secret still asks for it on Trezor, where the page lists the agents' requests.
+
+Verified by `tests/launchpad-guide.test.ts` (both sentences, the element and the three
+words gone from the page and the catalog in both languages and every kind; the states
+that stay), `tests/public-environment.test.ts` (Začínáme of a public Environment without
+a sentence), `tests/vault-page-view.test.ts` and `tests/public-vault.test.ts`, and in
+headless Chrome against the previews before and after (root decision 0178).
+
 ## F57 — Sleeping tabs: a tab nobody uses closes its window and keeps its place, under its id
 
 **Proposed by the agent on 2026-10-20 on Matěj's direction of the same day (root decision 0195

@@ -319,6 +319,11 @@ main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-w
 .voice-meta { justify-content: space-between; color: var(--muted-fg); font-size: 14px; }
 #voice-text { width: 100%; resize: vertical; min-height: 320px; font: inherit; line-height: 1.65; padding: 14px; }
 .section-head-text { display: grid; gap: 0.75rem; }
+/* Under a page's title stands only a state (F56's addendum (6) of
+   2026-10-24): with none shown, the head takes no room and leaves no gap
+   where a sentence was, and its live status line stays heard, out of the
+   flow as .sr-only is. */
+.section-head-text:not(:has(> :not([hidden]):not(:empty))) { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 /* Settings → Obecné → Vzhled (root decision 0208, theme-panel.ts): a card
    per theme the Environment may take, on the design system's tile (a
    hairline, radius-md, the ink's edge once chosen, never a shadow). Each
@@ -1562,7 +1567,6 @@ button:not(.primary) .provider-openai { color: #000000; }
 </div>
 <div class="section-head-text">
 <p class="intro" id="vault-page-note" hidden></p>
-<p class="intro vault-page-guide" id="vault-page-guide" hidden></p>
 <p id="vault-page-status" class="row-status" role="status" aria-live="polite"></p>
 </div>
 <!-- Žádosti agentů (root decision 0198 point 9 (c), decision F54): the

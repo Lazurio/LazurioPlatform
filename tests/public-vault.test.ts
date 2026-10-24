@@ -232,8 +232,6 @@ function visitorTexts(
     view.row?.line ?? "",
     view.hint ?? "",
     ...view.actions.map((action) => action.label),
-    // Shown under the row once the vault is connected.
-    ...(view.guide ? [copy.vaultPageGuide, copy.vaultPageGuideChat] : []),
     ...vaultAgentsGuide(copy).steps.map((step) => step.text),
   ].filter((text) => text !== "");
 }
@@ -266,7 +264,6 @@ test("a public Environment's vault, connected, shows the agents' rule and nothin
     // No "Vytvořit účet v trezoru", no "Přidat položku": nobody is added.
     expect(view.actions).toEqual([]);
     expect(view.hint).toBe(copy.vaultPageAgentsOnly);
-    expect(view.guide).toBe(true);
     // No steps for the visitor's own Bitwarden in Codex Desktop.
     expect(bitwardenTarget(model, person)).toBeNull();
     for (const text of visitorTexts(model, person, locale)) {

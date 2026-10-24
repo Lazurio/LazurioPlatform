@@ -544,8 +544,9 @@ export type DemoRow = Readonly<{
   action: Readonly<{ label: string; href: string; app?: "chat" }> | null;
 }>;
 
+/** The group "Vyzkoušejte": no sentence stands under the page's title
+ * (F56's addendum (6) of 2026-10-24). */
 export type DemoStartView = Readonly<{
-  intro: string;
   rows: readonly DemoRow[];
 }>;
 
@@ -587,7 +588,6 @@ export function demoStartView(
   copy: Copy,
 ): DemoStartView {
   return {
-    intro: copy.startDemoIntro,
     rows: [
       {
         id: "apps",
