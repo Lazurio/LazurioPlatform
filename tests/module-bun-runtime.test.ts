@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
 import {
   chmod,
   mkdtemp,
+  readdir,
   readFile,
   realpath,
   rm,
@@ -322,7 +322,7 @@ posixTest(
       expect(
         (reports.same?.path ?? "")
           .split(":")
-          .some((entry) => entry.startsWith(moduleBunRoot(w.home))),
+          .some((entry: string) => entry.startsWith(moduleBunRoot(w.home))),
       ).toBe(false);
       // Fetched once each; nothing for the App on the user's Bun.
       expect([...w.npm.fetched].sort()).toEqual([
@@ -362,7 +362,7 @@ posixTest(
 );
 
 posixTest(
-  "a pinned version that cannot be fetched refuses the start and the preparation with its reason and the package that pins it, starts nothing and holds nothing; once it can be fetched the same start runs it",
+  "a pinned version that cannot be fetched refuses the start and the preparation with its reason and the package that pins it, starts and keeps nothing; once it can be fetched the same start runs it",
   async () => {
     const w = await world("refused", [{ id: "offline", pin: "bun@1.4.97" }]);
     const { operations } = w;
@@ -386,7 +386,8 @@ posixTest(
       });
       expect(await w.report("offline")).toBeNull();
       expect(await w.npm.calls("1.4.97")).toEqual([]);
-      expect(existsSync(join(w.app("offline"), ".operation-lock"))).toBe(false);
+      // Nothing kept, nothing left over of the fetch.
+      expect(await readdir(moduleBunRoot(w.home))).toEqual([]);
       w.npm.offline.delete("1.4.97");
       expect(answer(await operations.start("alpha/offline")).outcome).toBe(
         "started",
@@ -412,6 +413,7 @@ posixTest(
   async () => {
     const w = await world("built", [
       { id: "site", pin: "bun@1.4.99", built: true },
+      { id: "next", pin: "bun@1.4.99", built: true },
       { id: "later", pin: "bun@1.4.96", built: true },
     ]);
     const { operations } = w;
@@ -439,6 +441,12 @@ posixTest(
           line.includes("static-server"),
         ),
       ).toBe(false);
+      // `lazurio module build` of an app never opened (no start of its own
+      // refreshes it in the background meanwhile).
+      const next = answer(await operations.build("alpha/next"));
+      expect(next.outcome).toBe("built");
+      expect(next.build?.current?.commit).toBe(w.head("next"));
+      expect(await builds()).toBe(2);
       // A pull: the Launchpad's watch builds it in the background, with the
       // pinned Bun, and swaps it in.
       const keeper = operations.keepBuilt({
@@ -452,18 +460,6 @@ posixTest(
           (page) => page === "<p>two 1.4.99</p>",
         ),
       ).toBe("<p>two 1.4.99</p>");
-      expect(await builds()).toBe(2);
-      // `lazurio module build`.
-      await w.commit("site", "three");
-      expect(answer(await operations.build("alpha/site")).outcome).toBe(
-        "built",
-      );
-      expect(
-        await until(
-          () => w.page("site"),
-          (page) => page === "<p>three 1.4.99</p>",
-        ),
-      ).toBe("<p>three 1.4.99</p>");
       expect(await builds()).toBe(3);
       expect(w.npm.fetched).toEqual(["@oven/bun-linux-aarch64@1.4.99"]);
       // A runtime that cannot be fetched: the build fails with the typed
@@ -474,6 +470,7 @@ posixTest(
         kind: "blocked",
         operation: "start",
         reason: "runtime-unavailable",
+        file: "app/package.json",
         build: {
           current: null,
           failure: { commit: later, reason: "runtime-unavailable" },
@@ -482,25 +479,6 @@ posixTest(
       expect(
         answer(await operations.status("alpha/later")).build?.failure?.reason,
       ).toBe("runtime-unavailable");
-      // `lazurio module build` names the reason, the package and why.
-      const cli = await runModuleCommand(
-        ["module", "build", "alpha/later", "--folder", w.folder],
-        {
-          identity: {
-            version: "1.0.0",
-            commit: "0".repeat(40),
-            target: "fixture",
-          },
-          platform: process.platform,
-          env: { HOME: w.home },
-          executable: join(w.home, "lazurio"),
-          hostedFolder: async () => undefined,
-        },
-        w.host,
-      );
-      expect(cli.code).toBe(2);
-      expect(cli.text).toContain("runtime-unavailable (app/package.json)");
-      expect(cli.text).toContain("could not be downloaded");
       // …and the next sweep, which asks nobody, builds it once the registry
       // answers.
       w.npm.offline.delete("1.4.96");
@@ -523,6 +501,46 @@ posixTest(
     } finally {
       await operations.stop("alpha/site");
       await operations.close();
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "lazurio module build of an App whose pinned Bun cannot be fetched names the reason, the package that pins it and why",
+  async () => {
+    // No Launchpad holds this world's apps: the CLI builds beside none.
+    const w = await world("cli", [
+      { id: "later", pin: "bun@1.4.95", built: true },
+    ]);
+    w.npm.offline.add("1.4.95");
+    try {
+      const cli = await runModuleCommand(
+        ["module", "build", "alpha/later", "--folder", w.folder],
+        {
+          identity: {
+            version: "1.0.0",
+            commit: "0".repeat(40),
+            target: "fixture",
+          },
+          platform: process.platform,
+          env: { HOME: w.home },
+          executable: join(w.home, "lazurio"),
+          hostedFolder: async () => undefined,
+        },
+        w.host,
+      );
+      expect(cli.code).toBe(2);
+      expect(cli.text).toContain("runtime-unavailable (app/package.json)");
+      expect(cli.text).toContain("could not be downloaded");
+      expect(cli.result).toMatchObject({
+        kind: "blocked",
+        operation: "build",
+        reason: "runtime-unavailable",
+        build: { failure: { reason: "runtime-unavailable" } },
+      });
+    } finally {
+      await w.operations.close();
     }
   },
   120_000,

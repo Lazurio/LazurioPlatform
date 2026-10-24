@@ -25,6 +25,7 @@ import {
   createModuleBunResolver,
   type ModuleBun,
   moduleBunRoot,
+  prewarmModuleRuntimes,
   runtimeFreeBytesMin,
   withModuleBun,
 } from "../src/modules/bun-runtime";
@@ -125,7 +126,9 @@ function fakeInstaller(
   return { install, calls };
 }
 
-const refusalOf = async (pending: Promise<ModuleBun>) => {
+const refusalOf = async (
+  pending: Promise<ModuleBun>,
+): Promise<{ reason: string; path: string }> => {
   const error = await pending.then(
     () => null,
     (caught: unknown) => caught,
@@ -165,7 +168,7 @@ posixTest(
       system: async () => linuxArm,
       freeBytes: plenty,
     });
-    const user = {
+    const user: ModuleBun = {
       executable: process.execPath,
       binDir: null,
       source: "user",
@@ -178,7 +181,7 @@ posixTest(
     expect(existsSync(moduleBunRoot(home))).toBe(false);
     // Its process environment stays exactly as it is.
     const env = { HOME: home, PATH: "/usr/bin:/bin", BUN_OPTIONS: "--x" };
-    expect(withModuleBun(env, user as ModuleBun)).toEqual(env);
+    expect(withModuleBun(env, user)).toEqual(env);
   },
 );
 
@@ -290,8 +293,8 @@ test("the package of Bun's npm distribution for each system, the baseline build 
     avx2: null,
     ...overrides,
   });
-  const bun = (name: string) => ({ name, executable: "bun" });
-  const exe = (name: string) => ({ name, executable: "bun.exe" });
+  const bun = (name: string) => ({ name, executable: "bun" as const });
+  const exe = (name: string) => ({ name, executable: "bun.exe" as const });
   expect(
     bunTargets(
       system({ platform: "darwin", arch: "arm64", libc: null }),
@@ -541,6 +544,65 @@ posixTest(
   },
 );
 
+posixTest(
+  "a pre-warm (root decision 0212) makes each distinct pinned Bun available with the resolver a start uses: one result per pin, cached, fetched or refused with the start's reason, never a throw",
+  async () => {
+    const { home, owner } = await place("prewarm");
+    const fake = fakeInstaller({
+      refuse: (input) =>
+        input.version === "1.4.98" ? "runtime-version-unknown" : undefined,
+    });
+    const resolve = createModuleBunResolver({
+      home,
+      userBun: process.execPath,
+      path: "/usr/bin:/bin",
+      install: fake.install,
+      system: async () => linuxArm,
+      freeBytes: plenty,
+    });
+    const executable = cachedExecutable(home, "1.4.99", "linux-aarch64");
+    expect(
+      await prewarmModuleRuntimes(resolve, [
+        "bun@1.4.99",
+        null,
+        "bun@1.4.99",
+        `bun@${Bun.version}`,
+        "bun@1.4.98",
+        "npm@10.0.0",
+      ]),
+    ).toEqual([
+      { packageManager: "bun@1.4.99", kind: "fetched", executable },
+      {
+        packageManager: `bun@${Bun.version}`,
+        kind: "cached",
+        executable: process.execPath,
+      },
+      {
+        packageManager: "bun@1.4.98",
+        kind: "refused",
+        reason: "runtime-version-unknown",
+      },
+      {
+        packageManager: "npm@10.0.0",
+        kind: "refused",
+        reason: "preparation-package-manager-unsupported",
+      },
+    ]);
+    expect(fake.calls.map((call) => call.version)).toEqual([
+      "1.4.99",
+      "1.4.98",
+    ]);
+    // Again: there already, nothing downloaded; a start then finds it.
+    expect(await prewarmModuleRuntimes(resolve, ["bun@1.4.99"])).toEqual([
+      { packageManager: "bun@1.4.99", kind: "cached", executable },
+    ]);
+    expect(fake.calls).toHaveLength(2);
+    expect(
+      await resolve({ packageManager: "bun@1.4.99", owner }),
+    ).toMatchObject({ executable, source: "cache" });
+  },
+);
+
 // A registry on the loopback interface, as npm's answers it: a package
 // document per name and its tarballs, each version with its integrity or
 // deliberately another one.
@@ -550,7 +612,7 @@ async function loopbackRegistry(
   versions: Record<string, { reports: string; integrity: "good" | "bad" }>,
   marker: string,
 ) {
-  const tarballs = new Map<string, Uint8Array>();
+  const tarballs = new Map<string, ArrayBuffer>();
   const documents: Record<string, unknown> = {};
   for (const [version, { reports, integrity }] of Object.entries(versions)) {
     const staging = join(directory, `tarball-${version}`);
@@ -570,17 +632,22 @@ async function loopbackRegistry(
       env: { PATH: "/usr/bin:/bin", COPYFILE_DISABLE: "1" },
     });
     expect(tar.exitCode).toBe(0);
-    const bytes = new Uint8Array(await Bun.file(file).arrayBuffer());
+    const bytes = await Bun.file(file).arrayBuffer();
     tarballs.set(version, bytes);
     const digest = createHash("sha512")
-      .update(integrity === "good" ? bytes : Buffer.from("another tarball"))
+      .update(
+        integrity === "good"
+          ? new Uint8Array(bytes)
+          : Buffer.from("another tarball"),
+      )
       .digest("base64");
     documents[version] = { name: packageName, version, digest };
   }
+  let port = 0;
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
-    fetch(request) {
+    fetch(request): Response {
       const url = new URL(request.url);
       const tarball = /^\/tarballs\/(.+)\.tgz$/.exec(url.pathname);
       if (tarball !== null) {
@@ -601,7 +668,7 @@ async function loopbackRegistry(
               name: packageName,
               version,
               dist: {
-                tarball: `http://127.0.0.1:${server.port}/tarballs/${version}.tgz`,
+                tarball: `http://127.0.0.1:${port}/tarballs/${version}.tgz`,
                 integrity: `sha512-${(value as { digest: string }).digest}`,
               },
             },
@@ -610,6 +677,7 @@ async function loopbackRegistry(
       });
     },
   });
+  port = server.port ?? 0;
   return server;
 }
 
