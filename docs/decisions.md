@@ -901,14 +901,15 @@ and 7, HumanAndMachines/Lazurio#625; plan DEV-6656); implemented here for v0.1.1
 cores; it is no longer true of the commands. Root decision 0212 point 3: one `lazurio
 update`, with the same meaning on a computer and on an Environment, brings everything
 the user owns up to date, and agents run it before every task. Contract:
-[product update, One `lazurio update`](update.md#one-lazurio-update-content-builds-tools-and-lazurio-itself)
+[product update, One `lazurio update`](update.md#one-lazurio-update-content-tools-builds-and-lazurio-itself)
 and [content synchronization, When it runs](content-sync.md#when-it-runs).
 
 1. **One composition, four parts.** `updateEverything` (`src/update/everything.ts`) runs
-   the content (`syncContent`, every Organization the Environment holds), the builds
-   (`refreshBuilt`: every built app with a build state whose checkout moved past its
-   build, built in the foreground and swapped in, decision F58), the tools the modules
-   declare (a seam for DEV-6682, nothing yet) and Lazurio itself (`performUpdate`), and
+   the content (`syncContent`, every Organization the Environment holds), the tools the
+   modules declare (a seam for DEV-6682, nothing yet, before any build so a build never
+   runs without its module's Bun), the builds (`refreshBuilt`: every built app with a
+   build state whose checkout moved past its build, built in the foreground and swapped
+   in, decision F58) and Lazurio itself (`performUpdate`), and
    answers an item per repository, built app and the product. Plain `lazurio update` runs
    it; `--version` and `--check` stay Lazurio's only, and so does the pill.
 2. **Each core keeps its lock, outcome and failure isolation.** A part that fails or
