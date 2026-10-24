@@ -1984,6 +1984,19 @@ characters in Czech and 17.4k in English, under the 20,000 Hermes loads uncut. N
 Hermes follows the rules. Until the SSH names are deployed (Machines, "M2") Buddy can only say he
 cannot reach the Environment yet.
 
+**Addendum of 2026-10-24: T3 Code 0.1.2.** Lazurio/t3code `v0.1.2-lazurio.1` (the rebuild on
+upstream v0.1.2) changes two defaults of the `t3` command that `lazurio-t3-orchestration`
+describes. `t3 thread send` without `--mode` now queues (until 0.1.1 it was `auto`), and
+`t3 thread launch` starts the thread in the project's runtime mode instead of full access. Its
+default is still full access (`DEFAULT_RUNTIME_MODE`, `full-access`), and the agent CLI's ceiling
+caps it (`resolveRuntimeMode`). The skill therefore names the mode in its `send` row
+(`--mode queue`, also `steer`, `auto`, `restart`). It tells Buddy to always pass `--mode` and,
+unless the user asks otherwise, to send `queue`. It says `launch` uses the project's mode, full
+access by default (root decision 0172). The text holds for both versions, so it ships ahead of
+any Environment's move to 0.1.2. Delegace needs no change: it passes `--mode queue` itself and
+never launches. Template revision `base-instructions-70`; `tests/folder-buddy.test.ts` checks the
+new facts in both locales.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered

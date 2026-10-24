@@ -805,8 +805,8 @@ const threads: BuddySkill = {
       "| a new thread | `t3 thread launch --title <title> --message-file - --json` |",
     ),
     t(
-      "| další zpráva | `t3 thread send <vlákno> --message-file - --json` (`--mode auto`, `queue`, `steer`, `restart`) |",
-      "| another message | `t3 thread send <thread> --message-file - --json` (`--mode auto`, `queue`, `steer`, `restart`) |",
+      "| další zpráva | `t3 thread send <vlákno> --mode queue --message-file - --json` (dále `steer`, `auto`, `restart`) |",
+      "| another message | `t3 thread send <thread> --mode queue --message-file - --json` (also `steer`, `auto`, `restart`) |",
     ),
     t(
       "| zastavit tah | `t3 thread interrupt <vlákno> --json` |",
@@ -841,6 +841,11 @@ const threads: BuddySkill = {
       "| changes in real time | `t3 events --follow --json` |",
     ),
     blank,
+    t(
+      "U `send` vždycky uveď `--mode`: výchozí režim se mezi verzemi T3 Code liší (do 0.1.1 `auto`, od 0.1.2 `queue`). Bez jiného pokynu uživatele posílej `queue`, zpráva počká, až agent dokončí rozdělaný tah.",
+      "Always pass `--mode` to `send`: the default differs between T3 Code versions (`auto` up to 0.1.1, `queue` from 0.1.2). Unless the user asks otherwise, send `queue`, so the message waits until the agent finishes the turn in progress.",
+    ),
+    blank,
     t("## Přehled pro uživatele", "## The overview for the user"),
     t(
       "1. `t3 thread list --json | jq '.threads[] | {threadId, title, status, projectTitle, pendingRequest, settled}'`",
@@ -870,8 +875,8 @@ const threads: BuddySkill = {
       "## New work in a thread (only at the user's request)",
     ),
     t(
-      "- `t3 thread launch` založí vlákno v projektu Lazurio Folderu s výchozím modelem a s plným přístupem. Model ani režim nevybíráš.",
-      "- `t3 thread launch` creates the thread in the Lazurio Folder's project with the default model and full access. You choose neither the model nor the mode.",
+      "- `t3 thread launch` založí vlákno v projektu Lazurio Folderu s výchozím modelem a v režimu projektu, výchozí je plný přístup (decision 0172). Model ani režim nevybíráš.",
+      "- `t3 thread launch` creates the thread in the Lazurio Folder's project with the default model and the project's mode, full access by default (decision 0172). You choose neither the model nor the mode.",
     ),
     t(
       "- T3 Code 0.1.0-lazurio.5 vlákno odmítne založit („the project has no default model“), když záznam projektu nemá starý výchozí model; opraví to Lazurio/t3code#94 ve verzi .6. Nastavení T3 Code kvůli tomu neměň: řekni to uživateli a vlákno založí on.",
