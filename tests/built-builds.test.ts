@@ -17,6 +17,7 @@ import {
   createBuilds,
 } from "../src/modules/built/builds";
 import { buildKeyOf, openBuildStore } from "../src/modules/built/store";
+import { PreparationRefused } from "../src/modules/preparation-refusal";
 import { acquireFileLock } from "../src/platform/flock";
 
 // The builds of an Environment's static apps (decision F58) over fakes of
@@ -56,9 +57,15 @@ function app(name: string, checkout: Checkout) {
       output: "dist",
       fallback: "404" as const,
       health: "/",
-      env: {},
+      env: { PATH: "/usr/bin:/bin" },
     }),
     prepare: async () => null,
+    // The App's own Bun (decision F62): the user's here.
+    runtime: async () => ({
+      executable: process.execPath,
+      binDir: null,
+      source: "user" as const,
+    }),
     ...extra,
   });
   return { cwd, job, store: openBuildStore(join(root, "cache", name)) };
@@ -76,9 +83,11 @@ function fakeBuild(checkouts: Map<string, Checkout>) {
   const failing = new Set<string>();
   const during = new Map<string, () => void>();
   const quirks = new Map<string, "noop" | "partial">();
+  const inputs: BuildProcessInput[] = [];
   const run = async (input: BuildProcessInput) => {
     active++;
     most = Math.max(most, active);
+    inputs.push(input);
     const name = input.cwd.split("/").at(-1) as string;
     const checkout = checkouts.get(name) as Checkout;
     runs.push(`${name}@${checkout.commit.slice(-2)}`);
@@ -121,6 +130,7 @@ function fakeBuild(checkouts: Map<string, Checkout>) {
   return {
     run,
     runs,
+    inputs,
     most: () => most,
     gate(name: string) {
       gates.set(name, () => {});
@@ -139,7 +149,6 @@ function builder(fake: ReturnType<typeof fakeBuild>, lockWaitMs?: number) {
   return createBuilds({
     lockFile: join(root, "state/lazurio/builds.lock"),
     runner: async () => "session",
-    executable: process.execPath,
     servable: async (output) => Bun.file(join(output, "index.html")).exists(),
     runBuild: fake.run,
     ...(lockWaitMs === undefined ? {} : { lockWaitMs }),
@@ -392,7 +401,6 @@ test("a failed build keeps what was built, is recorded with its log, and is buil
   const unservable = createBuilds({
     lockFile: join(root, "state/lazurio/builds.lock"),
     runner: async () => "session",
-    executable: process.execPath,
     servable: async () => false,
     runBuild: fake.run,
   });
@@ -401,6 +409,94 @@ test("a failed build keeps what was built, is recorded with its log, and is buil
     reason: "build-output-unservable",
   });
   expect(await web.store.output(commit(4))).toBeNull();
+});
+
+test("a build runs the App's own Bun with its directory first on PATH (decision F62); a pinned Bun that could not be had is the build's recorded reason, built again by the background only when it may pass by itself", async () => {
+  const checkout = { commit: commit(1), dirty: false };
+  const fake = fakeBuild(new Map([["web", checkout]]));
+  const builds = builder(fake);
+  const web = app("web", checkout);
+  const bin = "/runtimes/bun/1.4.99/node_modules/@oven/bun-linux-aarch64/bin";
+  const pinned = {
+    executable: `${bin}/bun`,
+    binDir: bin,
+    source: "cache" as const,
+  };
+  built(
+    await builds.enqueue(
+      web.job({ runtime: async () => pinned }),
+      "foreground",
+    ),
+  );
+  expect(fake.inputs.at(-1)).toMatchObject({
+    executable: pinned.executable,
+    env: { PATH: `${bin}:/usr/bin:/bin` },
+  });
+  // The App's runtime refused when the build asks for it: the reason is
+  // recorded with the key, and no script runs.
+  checkout.commit = commit(2);
+  expect(
+    await builds.enqueue(
+      web.job({
+        runtime: async () => {
+          throw new PreparationRefused(
+            "runtime-disk-full",
+            join(web.cwd, "package.json"),
+            "Pinned Bun unavailable",
+          );
+        },
+      }),
+      "background",
+    ),
+  ).toEqual({ kind: "failed", reason: "runtime-disk-full", key: commit(2) });
+  expect((await web.store.state())?.failure).toMatchObject({
+    key: commit(2),
+    reason: "runtime-disk-full",
+  });
+  expect(fake.runs).toEqual(["web@01"]);
+  // The start-time step resolves it first (the real composition): a
+  // registry that did not answer, or a full disk, may pass by itself, so
+  // the background, which asks nobody, builds the same key again…
+  let available = false;
+  const step = (reason: string) => async () => (available ? null : reason);
+  for (const [n, reason] of [
+    [3, "runtime-unavailable"],
+    [4, "runtime-disk-full"],
+  ] as const) {
+    checkout.commit = commit(n);
+    available = false;
+    expect(
+      await builds.enqueue(web.job({ prepare: step(reason) }), "background"),
+    ).toMatchObject({ kind: "failed", reason, key: commit(n) });
+    available = true;
+    built(
+      await builds.enqueue(web.job({ prepare: step(reason) }), "background"),
+    );
+  }
+  // …while a version that did not verify, one the registry does not know
+  // and a system Bun has no build for are built again only when a person
+  // asks, as every failed build (decision F58).
+  for (const [n, reason] of [
+    [5, "runtime-integrity-failed"],
+    [6, "runtime-version-unknown"],
+    [7, "runtime-unsupported-platform"],
+  ] as const) {
+    checkout.commit = commit(n);
+    available = false;
+    expect(
+      await builds.enqueue(web.job({ prepare: step(reason) }), "background"),
+    ).toMatchObject({ kind: "failed", reason });
+    available = true;
+    expect(
+      await builds.enqueue(web.job({ prepare: step(reason) }), "background"),
+    ).toMatchObject({ kind: "failed", reason });
+    built(
+      await builds.enqueue(
+        web.job({ prepare: step(reason), explicit: true }),
+        "foreground",
+      ),
+    );
+  }
 });
 
 test("another process's build holds the lock: busy after the wait, nothing recorded", async () => {
