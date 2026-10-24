@@ -2191,6 +2191,22 @@ Windows; and `timeout` only on a macOS workstation. The Buddy layer passes Herme
 at context and strict scope and stays under 20,000 characters (16.4k in Czech, 17.9k in
 English). Not proven: that agents follow the rules (generated text is not proof of behavior).
 
+**Addendum of 2026-10-24: a request that the person does something is a question too** (root
+decision 0211, addendum of 2026-10-24, HumanAndMachines/Lazurio#623). Matěj asked that when an
+agent needs the person to do something, such as enter a verification code, it asks with the
+question tool, so the request pops up as a notification in T3 Code. That day a sign-in code
+written only into a message expired.
+
+The question rule (`questionTool` in `src/folder/render.ts`, in every Folder's `AGENTS.md` and
+in Buddy's `.hermes.md`) now says: ask the same way when the user has to do something. That
+covers entering a verification code, signing in, or confirming or checking something. The
+question says exactly what to do, with the link, the code and until when it is valid, and its
+options say how it went ("Hotovo", "Nejde to"). A question pops up as a notification in T3
+Code and in Codex Desktop; text in a message does not.
+
+The rest of the rule is unchanged. Template revision `base-instructions-74`;
+`tests/folder-manual.test.ts` checks the new sentences in both locales.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
