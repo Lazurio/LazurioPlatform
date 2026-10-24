@@ -27,7 +27,8 @@ export type BuildProcessInput = Readonly<{
   runner: "systemd-user" | "session";
   /** `XDG_RUNTIME_DIR` of the user manager (systemd-user only). */
   runtimeDirectory?: string | undefined;
-  /** The operator's Bun. */
+  /** The Bun the app pins, its runtime (decision F62): the user's when it
+   * is that version. */
   executable: string;
   /** The app's package directory. */
   cwd: string;

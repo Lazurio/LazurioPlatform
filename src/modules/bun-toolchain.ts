@@ -7,11 +7,19 @@ import { parseProcessLaunch } from "./process-launch";
 
 const execute = promisify(execFile);
 
+/** The version `bun --version` reported: exactly `x.y.z` and a line end on
+ * stdout and nothing on stderr, or null. */
+export function parseBunVersion(stdout: string, stderr: string): string | null {
+  const version = stdout.replace(/\r?\n$/, "");
+  return stderr.length || !/^\d+\.\d+\.\d+$/.test(version) ? null : version;
+}
+
 // Explicit trusted executable selection, not PATH discovery or publisher proof.
 // A program can lie about its version; its provenance remains the tool owner’s duty.
 // `packageManager` is the exact Bun the package pins, or null when it pins
 // none: then the selected Bun is observed, whichever version it reports
-// (decision F25).
+// (decision F25). The executable is the one resolved for that pin (decision
+// F62, `bun-runtime.ts`); this is the final check of it.
 export async function inspectBunToolchain(input: {
   executable: string;
   cwd: string;
@@ -45,12 +53,8 @@ export async function inspectBunToolchain(input: {
         windowsHide: true,
       },
     );
-    const version = stdout.replace(/\r?\n$/, "");
-    if (
-      stderr.length ||
-      !/^\d+\.\d+\.\d+$/.test(version) ||
-      /[\r\n]/.test(version)
-    )
+    const version = parseBunVersion(stdout, stderr);
+    if (version === null)
       return Object.freeze({ kind: "toolchain-unavailable" as const });
     const actual = `bun@${version}`;
     if (input.packageManager !== null && actual !== input.packageManager)
@@ -72,7 +76,10 @@ export async function inspectBunToolchain(input: {
 
 /** The observed toolchain, or the refusal of the start: a pinned Bun the
  * selected one is not is `preparation-toolchain-mismatch`, named by the
- * owner's package.json (decision F25); an unavailable one stays untyped. */
+ * owner's package.json (decision F25); an unavailable one stays untyped.
+ * Since the pinned version is resolved first (decision F62), a mismatch here
+ * means the pin or the program changed between the resolution and this
+ * check. */
 export function requireBunToolchain(
   observed: Awaited<ReturnType<typeof inspectBunToolchain>>,
   owner: string,

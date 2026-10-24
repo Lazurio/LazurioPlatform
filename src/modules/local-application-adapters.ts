@@ -7,6 +7,11 @@ import {
   moduleProcessEnvironment,
 } from "./application-environment";
 import type { ApplicationRunner } from "./application-runner";
+import {
+  createModuleBunResolver,
+  type ModuleBunResolver,
+  withModuleBun,
+} from "./bun-runtime";
 import { inspectBunToolchain, requireBunToolchain } from "./bun-toolchain";
 import {
   preflightDeclaredBunPreparation,
@@ -31,7 +36,13 @@ type Adapters = Parameters<typeof createApplicationLifecycle>[0];
 // Module scripts are trusted code under the selected local account, not sandboxed.
 export function localApplicationAdapters(input: {
   organizationDirectory: string;
+  /** The user's Bun (B2): what runs an App that pins none or pins it, and
+   * the Platform's static server. */
   bunExecutable: string;
+  /** The Bun an App pins, as its runtime (decision F62); by default the
+   * resolver of the account `environment.HOME` names, with `bunExecutable`
+   * as the user's Bun. */
+  resolveBun?: ModuleBunResolver;
   platformExecutable: string;
   environment: Record<string, string>;
   // The explicitly selected owner of running applications. Bounded preparation
@@ -82,6 +93,25 @@ export function localApplicationAdapters(input: {
     env: moduleProcessEnvironment(input.environment),
   });
   const platformExecutable = input.platformExecutable;
+  // Every path that runs an App's code (its start-time step, its
+  // preparation, its development script, its own server) resolves the Bun
+  // the App pins (decision F62); the static server below is the Platform's
+  // own process and stays on the user's Bun.
+  let resolver = input.resolveBun;
+  const resolveBun: ModuleBunResolver = (pinned) => {
+    if (resolver === undefined) {
+      const home = selected.env.HOME;
+      if (home === undefined || !home.startsWith("/"))
+        throw new Error("Explicit account home required");
+      resolver = createModuleBunResolver({
+        home,
+        userBun: selected.executable,
+        path: selected.env.PATH,
+        tmpdir: selected.env.TMPDIR,
+      });
+    }
+    return resolver(pinned);
+  };
   const owners = createOwnerOperations();
   const coordination = input.coordination;
   if (input.runner.survivesOwnerExit !== (coordination !== undefined))
@@ -149,6 +179,7 @@ export function localApplicationAdapters(input: {
         applicationPackage: plan.package,
         organizationDirectory: selected.cwd,
         executable: selected.executable,
+        resolveBun,
         platformExecutable,
         env: selected.env,
         timeoutMs: 600_000,
@@ -197,11 +228,18 @@ export function localApplicationAdapters(input: {
         binding.authority.owner !== cwd
       )
         throw new Error("Application preparation changed");
+      // The App's own Bun (decision F62), checked once more as F25 checks
+      // the selected one, with its directory first on the App's PATH.
+      const bun = await resolveBun({
+        packageManager: binding.authority.packageManager,
+        owner: binding.authority.owner,
+      });
+      const base = withModuleBun(selected.env, bun);
       requireBunToolchain(
         await inspectBunToolchain({
-          executable: selected.executable,
+          executable: bun.executable,
           cwd,
-          env: selected.env,
+          env: base,
           packageManager: binding.authority.packageManager,
         }),
         cwd,
@@ -216,7 +254,7 @@ export function localApplicationAdapters(input: {
       // app at its next start. Only the app's own process gets them.
       const secrets = await readRuntimeSecrets(secretInput(plan));
       return {
-        executable: selected.executable,
+        executable: bun.executable,
         cwd,
         args: [
           "--no-env-file",
@@ -226,7 +264,7 @@ export function localApplicationAdapters(input: {
             : server.start_script,
         ],
         env: applicationEnvironment({
-          base: selected.env,
+          base,
           plan,
           cwd,
           organizationRoot: input.organizationRoot,
