@@ -75,6 +75,14 @@ export type ContentGit = Readonly<{
     directory: string,
     remote: Readonly<{ url: string; credentialHelper?: string | undefined }>,
   ): Promise<Readonly<{ ok: true }> | Readonly<{ ok: false; detail: string }>>;
+  /** Whether a present checkout is a partial clone: a promisor remote or
+   * `extensions.partialClone` in its configuration. Git fetches a missing
+   * object of such a checkout implicitly, through the remote's configured
+   * upload-pack, from any read that needs it (Pablo's review of #620), and
+   * Git before 2.44 has no `GIT_NO_LAZY_FETCH`. Installation never makes
+   * one, so synchronization leaves it as it is. Reads the configuration
+   * only; null when Git could not answer. */
+  partial(directory: string): Promise<boolean | null>;
   /** Synchronization of a present primary checkout (docs/content-sync.md,
    * "Existing repositories"): whether its tracked or untracked files differ
    * from `HEAD`, and whether Git has an operation under way in `gitDir`
@@ -275,7 +283,7 @@ export function processContentGit(environment: GitEnvironment): ContentGit {
     const result = await environment.run(
       [executable, "-C", directory, ...args],
       inspectTimeoutMs,
-      env(),
+      { ...env(), GIT_NO_LAZY_FETCH: "1" },
     );
     return result !== "timeout" && result.exitCode === 0
       ? result.stdout.replace(/\n$/, "")
@@ -525,12 +533,38 @@ export function processContentGit(environment: GitEnvironment): ContentGit {
     const result = await environment.run(
       [executable, "-C", directory, "merge-base", "--is-ancestor", a, b],
       inspectTimeoutMs,
-      env(),
+      { ...env(), GIT_NO_LAZY_FETCH: "1" },
     );
     if (result === "timeout") return null;
     return result.exitCode === 0 ? true : result.exitCode === 1 ? false : null;
   };
   return Object.freeze({
+    async partial(directory) {
+      const executable = await git();
+      if (executable === undefined) return null;
+      const result = await environment.run(
+        [
+          executable,
+          "-C",
+          directory,
+          "config",
+          "--get-regexp",
+          "^(remote\\..*\\.promisor|extensions\\.partialclone)$",
+        ],
+        inspectTimeoutMs,
+        { ...env(), GIT_NO_LAZY_FETCH: "1" },
+      );
+      if (result === "timeout") return null;
+      // 1: no such key.
+      if (result.exitCode === 1) return false;
+      if (result.exitCode !== 0) return null;
+      return result.stdout.split("\n").some((line) => {
+        const [key = "", ...rest] = line.trim().split(/\s+/);
+        const value = rest.join(" ").toLowerCase();
+        if (key === "extensions.partialclone") return value !== "";
+        return ["true", "yes", "on", "1", ""].includes(value) && key !== "";
+      });
+    },
     async changes(directory, gitDir) {
       const executable = await git();
       if (executable === undefined) return null;
@@ -546,7 +580,7 @@ export function processContentGit(environment: GitEnvironment): ContentGit {
           "--untracked-files=all",
         ],
         inspectTimeoutMs,
-        { ...env(), GIT_OPTIONAL_LOCKS: "0" },
+        { ...env(), GIT_OPTIONAL_LOCKS: "0", GIT_NO_LAZY_FETCH: "1" },
       );
       if (status === "timeout" || status.exitCode !== 0) return null;
       let operation = false;

@@ -418,6 +418,60 @@ posixTest(
 );
 
 posixTest(
+  "a partial clone is left as it is before any read could fetch its missing objects through the remote's upload-pack (Pablo's review of #620)",
+  async () => {
+    world = await createWorld();
+    const root = world.root;
+    const fixture = await organization(world, { modules: ["lazy"] });
+    const marker = join(root, "upload-pack-ran");
+    const directory = fixture.at("workspace/lazy");
+    const script = join(root, "upload-pack.sh");
+    await writeFile(script, `#!/bin/sh\necho ran >> '${marker}'\nexit 1\n`);
+    await chmod(script, 0o755);
+    // A newer commit on the remote that this checkout does not have.
+    const remote = await advance(world, "Alpha/lazy", (checkout) =>
+      writeFile(join(checkout, "a.txt"), "2\n"),
+    );
+    await ok(directory, "config", "remote.origin.promisor", "true");
+    await ok(directory, "config", "remote.origin.uploadpack", script);
+    const before = await snapshot(directory);
+    const run = await ran(fixture);
+    const ranUploadPack = await lstat(marker).then(
+      () => true,
+      () => false,
+    );
+    expect(byPath(run.entries)).toMatchObject({
+      "workspace/lazy": "blocked:unexpected-checkout",
+      "workspace/web": "current",
+    });
+    expect(ranUploadPack).toBe(false);
+    expect(await snapshot(directory)).toEqual(before);
+    // Where Git knows GIT_NO_LAZY_FETCH (2.44 and later), the reads that
+    // decide a relation never fetch either: an unknown commit is unknown.
+    const version = (await ok(directory, "version")).match(/(\d+)\.(\d+)/);
+    if (
+      version !== null &&
+      Number(version[1]) * 100 + Number(version[2]) >= 244
+    ) {
+      expect(
+        await fixture.host.git.relation(
+          directory,
+          await head(directory),
+          remote,
+        ),
+      ).toBeNull();
+      expect(
+        await lstat(marker).then(
+          () => true,
+          () => false,
+        ),
+      ).toBe(false);
+    }
+  },
+  60_000,
+);
+
+posixTest(
   "dirty tracked, untracked, another branch, ahead, diverged, detached and every operation in progress are blocked, and the checkout stays byte for byte as it was",
   async () => {
     world = await createWorld();

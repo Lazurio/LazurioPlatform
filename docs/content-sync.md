@@ -202,15 +202,20 @@ about a minute:
 
 1. The place: a primary checkout (not a linked worktree) of the declared repository, or
    `unexpected-checkout`; nothing there, or an empty directory, is `absent`.
-2. Local state, without Git's optional index refresh and never through the checkout's own
+2. A partial clone (a promisor remote or `extensions.partialClone` in its configuration)
+   is `blocked` (`unexpected-checkout`) before anything else is read: its reads would fetch
+   missing objects implicitly through the remote's upload-pack, and Git before 2.44 cannot
+   turn that off (`GIT_NO_LAZY_FETCH`, which its status, object and ancestry reads set anyway). Installation never
+   makes one.
+3. Local state, without Git's optional index refresh and never through the checkout's own
    `core.fsmonitor` program (every Git command of a synchronization runs with it off): an operation under way
    (`MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `BISECT_LOG`, `rebase-merge`,
    `rebase-apply`, `sequencer`), then a detached `HEAD`, another branch, tracked or
    untracked changes: `blocked`, before anything is asked of the network.
-3. One `git ls-remote` of the branch (cheap where a credential helper mints a token per
+4. One `git ls-remote` of the branch (cheap where a credential helper mints a token per
    call). Equal to `HEAD`: `current`, nothing fetched. Known here as an ancestor of
    `HEAD` or unrelated to it: `ahead` or `diverged`, nothing fetched.
-4. Otherwise one fetch of that branch into `refs/remotes/origin/<branch>` (no tags,
+5. Otherwise one fetch of that branch into `refs/remotes/origin/<branch>` (no tags,
    submodules or `FETCH_HEAD`), the local state checked again, and a strict
    fast-forward (`git merge --ff-only` with hooks, fsmonitor, autostash, submodule recursion
    and background maintenance off) to exactly the fetched commit: `fast-forwarded` with

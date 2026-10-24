@@ -425,6 +425,12 @@ async function syncCheckout(
     // A linked worktree is never a primary checkout.
     if (tree === null || tree.gitDir !== tree.commonDir)
       return blocked("unexpected-checkout");
+    // Nor is a partial clone, whose reads would fetch missing objects
+    // implicitly; decided from its configuration before any other read.
+    const partial = await git.partial(directory);
+    if (partial === null)
+      return { result: "failed", reason: "status-unreadable" };
+    if (partial) return blocked("unexpected-checkout");
     const local = await localBlock(
       git,
       directory,
