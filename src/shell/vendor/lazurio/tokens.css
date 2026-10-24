@@ -160,15 +160,15 @@
 	--lz-green-900: #18442c;
 	--lz-green-950: #112c1e;
 
-	--lz-danger: var(--lz-red-600); /* text a ikona chyby */
-	--lz-danger-bg: var(--lz-red-50);
-	--lz-danger-border: var(--lz-red-200);
-	--lz-warning: #876612;
-	--lz-warning-bg: #f9f7f3;
-	--lz-warning-border: #eadbb6;
-	--lz-success: var(--lz-green-700);
-	--lz-success-bg: var(--lz-green-50);
-	--lz-success-border: var(--lz-green-200);
+	--lz-danger: #c33350; /* text a ikona chyby */
+	--lz-danger-bg: #fff0f2;
+	--lz-danger-border: #f6d6de;
+	--lz-warning: #93600c;
+	--lz-warning-bg: #fff7dc;
+	--lz-warning-border: #efdfac;
+	--lz-success: #087d55;
+	--lz-success-bg: #e7fbef;
+	--lz-success-border: #c8efdb;
 	--lz-info: var(--lz-blue-700);
 	--lz-info-bg: var(--lz-blue-50);
 	--lz-info-border: var(--lz-blue-200);
@@ -341,10 +341,10 @@
  *   blue-400 na gray-900 ... 2,86:1  -> POD prahem, nesmí být nejtmavší
  *
  * Sémantické barvy, text na svém podkladu:
- *   danger  na danger-bg .. 6,83:1
- *   warning na warning-bg . 4,98:1
- *   success na success-bg . 4,92:1
+ *   danger  na danger-bg .. 4,86:1
+ *   warning na warning-bg . 5,00:1
+ *   success na success-bg . 4,77:1
  *   info    na info-bg .... 9,51:1
- *   po simulaci deuteranopie žádná dvojice nedá 3:1 (nejhorší 1,08:1)
+ *   simulace deuteranopie: některé dvojice zůstávají pod 3:1
  *   -> barva sama NESTAČÍ; počítá se živě na stránce Barvy
  */

@@ -26,7 +26,7 @@ these brand assets in this public repository (2026-10-03).
 
 | File | Source path | SHA-256 |
 | --- | --- | --- |
-| `lazurio/tokens.css` | `tokens.css` | `f5ebb3382c24432f800b86144e549bfc0f064423531d42308f3dd750bd3bb191` |
+| `lazurio/tokens.css` | `tokens.css` | `a8e4be9f818a896537ccac7dd6a97fa58985ca4a05842b804e2eae2ab4093251` |
 | `lazurio/symbol-color.svg` | `content/brand/logo/symbol-color.svg` | `657d021e5fab5f28df6b10488d68f567149783ec51d44f44ba18b129ce9c1941` |
 | `lazurio/lockup-color.svg` | `content/brand/logo/lockup-color.svg` | `56148f482211a3bdb62311ccabb9f943f61440c7b2c23101f120fb1e0f02aefe` |
 
@@ -126,3 +126,10 @@ byte-for-byte from the design system at the pinned commit
 | File | Source path | SHA-256 |
 | --- | --- | --- |
 | `LICENSE-iconoir.txt` | `content/brand/icons/LICENSE-iconoir.txt` | `869b60da1ada5b896d1f285c3c24ca193d612e308d1710a77a58f2f572eb4fa2` |
+
+## Svěží palette refresh (2026-10-19)
+
+`tokens.css` is a byte-for-byte copy from `HumanAndMachine-ai/design-system-lazurio`
+commit `f3eb7117e81ea52b341a03b0d45a8842a9b81525` (reviewed PR #99). Success, warning and danger
+use the approved semantic foreground, background and border values. Other assets
+retain the provenance recorded above.
