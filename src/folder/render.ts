@@ -263,8 +263,8 @@ function assignmentText(assignment: MachineAssignment): Text {
       return servicesAssignment;
     case "automation":
       return {
-        cs: `- Přiřazení: automatizovaný Environment persony Organizace; odpovědný uživatel \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
-        en: `- Assignment: an automated Environment of an Organization persona; responsible user \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
+        cs: `- Přiřazení: pracovní Environment Henry persony Organizace; odpovědný uživatel \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
+        en: `- Assignment: the Henry Environment of an Organization persona; responsible user \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
       };
     case "operator":
       return {
@@ -359,8 +359,8 @@ function machineSection(
       en: "- User: whichever Team member is connected now. The OS account is shared by the Team and is not a person. On GitHub you act as the brokered Organization identity, not as that user, and changes are attributed to the Team.",
     },
     "hosted-organization-steward": {
-      cs: "- Uživatel: Owner nebo Admin Organizace, který za tenhle Automatizovaný Environment odpovídá. Pracuje tu tým botů persony; agenti jednají jako GitHub účet persony v jeho živých právech a přes SSH se sem připojuje jen uživatel, pro servisní zákroky.",
-      en: "- User: the Owner or Admin of the Organization who answers for this Automated Environment. The persona's bot team works here; agents act as the persona's GitHub account within its live rights, and only the user connects over SSH, for service interventions.",
+      cs: "- Uživatel: Owner nebo Admin Organizace, který za tento Environment Henry odpovídá. Pracuje tu tým botů persony; agenti jednají jako GitHub účet persony v jeho živých právech a přes SSH se sem připojuje jen uživatel, pro servisní zákroky.",
+      en: "- User: the Owner or Admin of the Organization who answers for this Henry Environment. The persona's bot team works here; agents act as the persona's GitHub account within its live rights, and only the user connects over SSH, for service interventions.",
     },
     local: { cs: "", en: "" },
   }[preset];
@@ -519,7 +519,7 @@ export const ownSignInIdentity: Text = {
   en: "- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication); entry to Environments is held by the Lazurio account, and the network by Headscale (`manual/lazurio.md`).",
 };
 
-// The identity line of the Automated Environment (decision 0169), the same in
+// The identity line of the Henry Environment (decision 0169), the same in
 // AGENTS.md and the manual.
 export const personaIdentity: Text = {
   cs: "- Identita: vlastní GitHub uživatelský účet persony (účet bota), který v `gh` přihlašuje odpovědný uživatel a který drží i jeho dvoufázové ověření a obnovu. Všechny nástroje, T3 Code i každý bot jednají jako tento účet v jeho živých GitHub právech. Vlastní účet uživatele ani nikoho jiného sem nepřihlašuj.",
@@ -628,7 +628,7 @@ export function visitorsSection(
   ];
 }
 
-// The bot team of the Automated Environment (decision 0169) in its short form;
+// The bot team of the Henry Environment (decision 0169) in its short form;
 // `manual/this-machine.md` lists the configuration. Nothing on other presets.
 function botTeamSection(
   preset: PresetName,

@@ -129,7 +129,7 @@ const presets: Readonly<Record<PresetName, WorkspacePreset>> = Object.freeze({
     supervision: "os-service-manager",
     botTeam: null,
   }),
-  // Decision 0169: the Automated Environment of an Organization persona. An
+  // Decision 0169: the Henry Environment of an Organization persona. An
   // Organization work VM with one responsible operator (an Owner or Admin)
   // whose GitHub identity is the persona's own account; Lazurio MausBot runs
   // the persona's bot team as a service next to the Launchpad and T3 Code.
@@ -309,7 +309,7 @@ export function parsePresetReference(input: unknown): PresetReference {
 }
 
 // The one fact the Organization presets differ on: is the work VM assigned
-// to ONE operator, shared by a Team, the Automated Environment of a persona
+// to ONE operator, shared by a Team, the Henry Environment of a persona
 // with one responsible operator (decision 0169), or the services Environment
 // of a server (root decision 0209)? Since Machines v0.12.61 the handover
 // states it as `owner.assignment` ({kind: "operator", github_login,

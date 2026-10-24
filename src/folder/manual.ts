@@ -754,8 +754,8 @@ const roles: readonly Text[] = [
   blank,
   t("## Uživatel", "## User (uživatel)"),
   t(
-    "Člověk, který tento Environment používá a pro kterého pracují jeho agenti; decision records mu říkají Operátor (anglicky Operator). Ovládá Environment, a tím i Agenty, které v něm spouští. Agenti jednají za něj a v jeho živých právech; on dává pokyn k Publikaci a má vždy poslední slovo. Na osobním Environmentu je to jeho Owner, na pracovním Remote Environmentu ten, komu ho Organizace přiřadila, na týmovém Remote Environmentu člen Teamu, který je právě připojený, a na Automatizovaném Environmentu odpovědný Owner nebo Admin Organizace (decision F30). Nepleť si ho s rolí User v Organizaci (níže).",
-    "The human who uses this Environment and for whom its agents work; the decision records call this the Operator (in Czech Operátor). The user controls the Environment, and with it the Agents they run in it. Agents act for them, within their live rights; they give the instruction to Publish and always have the last word. In a personal Environment that is its Owner, in a work Remote Environment the one the Organization assigned it to, in a Team Remote Environment whichever Team member is connected now, and in an Automated Environment the responsible Owner or Admin of the Organization (decision F30). Do not confuse the user with the Organization role User (below).",
+    "Člověk, který tento Environment používá a pro kterého pracují jeho agenti; decision records mu říkají Operátor (anglicky Operator). Ovládá Environment, a tím i Agenty, které v něm spouští. Agenti jednají za něj a v jeho živých právech; on dává pokyn k Publikaci a má vždy poslední slovo. Na osobním Environmentu je to jeho Owner, na pracovním Remote Environmentu ten, komu ho Organizace přiřadila, na týmovém Remote Environmentu člen Teamu, který je právě připojený, a na Environmentu Henry odpovědný Owner nebo Admin Organizace (decision F30). Nepleť si ho s rolí User v Organizaci (níže).",
+    "The human who uses this Environment and for whom its agents work; the decision records call this the Operator (in Czech Operátor). The user controls the Environment, and with it the Agents they run in it. Agents act for them, within their live rights; they give the instruction to Publish and always have the last word. In a personal Environment that is its Owner, in a work Remote Environment the one the Organization assigned it to, in a Team Remote Environment whichever Team member is connected now, and in a Henry Environment the responsible Owner or Admin of the Organization (decision F30). Do not confuse the user with the Organization role User (below).",
   ),
   blank,
   t(
@@ -945,6 +945,10 @@ const glossary: readonly Text[] = [
   t(
     "| Týmový Remote Environment (Hosted Team Workspace) | Sdílený Remote Environment Teamu vlastněný Organizací s jedním OS účtem; preset `hosted-organization-team`. |",
     "| Team Remote Environment (Hosted Team Workspace) | An Organization-owned shared Remote Environment of a Team with one OS account; preset `hosted-organization-team`. |",
+  ),
+  t(
+    "| Environment Henry | Obyčejný pracovní Environment Organizace s nastavenými automatizacemi, žádný zvláštní druh (root rozhodnutí 0170, dodatek 2026-10-19): pracuje v něm tým botů persony s jedním odpovědným uživatelem (decision 0169); preset `hosted-organization-steward`, třeba `henry-01`. |",
+    "| Henry Environment | An ordinary work Environment of an Organization with automations set up, no kind of its own (root decision 0170, addendum 2026-10-19): the persona's bot team works in it, with one responsible user (decision 0169); preset `hosted-organization-steward`, for example `henry-01`. |",
   ),
   t(
     "| Zóna (zone) | Osobní nebo pracovní strana Environmentů a klientů jednoho uživatele; určuje, kdo smí na koho (decision 0155). |",
@@ -1475,7 +1479,7 @@ const connectedApplications = (preset: PresetName): readonly Text[] => [
 // both keep the text without the kinds.
 function secrets(preset: PresetName, isPublic: boolean): readonly Text[] {
   const kinds = preset !== "local" && preset !== "hosted-personal" && !isPublic;
-  // A Team or Automated Environment adds no people to its vault yet
+  // A Team or Henry Environment adds no people to its vault yet
   // (src/vault/members.ts, `not-managed`), so only its agents use it, while
   // everyone who enters it has its passwords (root decision 0198 point 2;
   // Trezor's "?" says the same, #499).
@@ -1824,8 +1828,8 @@ const presetMeaning: Readonly<Record<PresetName, Text>> = {
     "An Organization-owned Team Remote Environment: one OS account shared by the Team's members. The user is whichever Team member is connected; the OS account is not a person. It never holds personal credentials, sessions or a Personalspace. Its provider identity is the brokered Organization identity with short-lived tokens, and changes are attributed to the Team (decisions 0147/0149). Applications are owned by the OS service manager.",
   ),
   "hosted-organization-steward": t(
-    "Automatizovaný Environment persony Organizace (decision 0169): Remote Environment vlastněný Organizací s jedním odpovědným uživatelem, Ownerem nebo Adminem Organizace, který automatizace nastavuje a odpovídá za ně. GitHub identitou je vlastní GitHub uživatelský účet persony (účet bota), ne účet uživatele ani Lazurio for GitHub. Lazurio MausBot tu vedle Launchpadu a T3 Code provozuje tým botů persony. Personalspace tu nikdy není. Repozitáře Organizací žijí v `organizations/<org>/`. Aplikace i boty vlastní OS service manager.",
-    "The Automated Environment of an Organization persona (decision 0169): an Organization-owned Remote Environment with one responsible user, an Owner or Admin of the Organization, who configures its automation and answers for it. Its GitHub identity is the persona's own GitHub user account, a bot account, not the user's account and not Lazurio for GitHub. Lazurio MausBot runs the persona's bot team here next to the Launchpad and T3 Code. Personalspace is never present. Organization repositories live under `organizations/<org>/`. Applications and bots are owned by the OS service manager.",
+    "Pracovní Environment Henry persony Organizace (decision 0169): Remote Environment vlastněný Organizací s jedním odpovědným uživatelem, Ownerem nebo Adminem Organizace, který automatizace nastavuje a odpovídá za ně. GitHub identitou je vlastní GitHub uživatelský účet persony (účet bota), ne účet uživatele ani Lazurio for GitHub. Lazurio MausBot tu vedle Launchpadu a T3 Code provozuje tým botů persony. Personalspace tu nikdy není. Repozitáře Organizací žijí v `organizations/<org>/`. Aplikace i boty vlastní OS service manager.",
+    "The Henry Environment of an Organization persona (decision 0169): an Organization-owned Remote Environment with one responsible user, an Owner or Admin of the Organization, who configures its automation and answers for it. Its GitHub identity is the persona's own GitHub user account, a bot account, not the user's account and not Lazurio for GitHub. Lazurio MausBot runs the persona's bot team here next to the Launchpad and T3 Code. Personalspace is never present. Organization repositories live under `organizations/<org>/`. Applications and bots are owned by the OS service manager.",
   ),
 };
 
@@ -1924,8 +1928,8 @@ function zoneOfThisMachine(
       );
     case "hosted-organization-steward":
       return t(
-        `Tento Environment je Automatizovaný Environment persony v pracovní zóně Organizace \`${organization}\` s jedním odpovědným uživatelem. Připojuje se do něj jen tento uživatel, přes SSH pro servisní zákroky; Kolegové s personou spolupracují přes GitHub. Do osobního Environmentu nikdy nesmí.`,
-        `This is the Automated Environment of a persona in the work zone of Organization \`${organization}\`, with one responsible user. Only that user connects to it, over SSH for service interventions; colleagues work with the persona through GitHub. It never reaches a personal Environment.`,
+        `Tento Environment Henry persony je v pracovní zóně Organizace \`${organization}\` a má jednoho odpovědného uživatele. Připojuje se do něj jen tento uživatel, přes SSH pro servisní zákroky; Kolegové s personou spolupracují přes GitHub. Do osobního Environmentu nikdy nesmí.`,
+        `This is the Henry Environment of a persona in the work zone of Organization \`${organization}\`, with one responsible user. Only that user connects to it, over SSH for service interventions; colleagues work with the persona through GitHub. It never reaches a personal Environment.`,
       );
   }
 }

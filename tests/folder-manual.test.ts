@@ -1633,7 +1633,10 @@ test("an Organization's Environment asks who needs a secret before it names one 
 // - GitHub is the authority for source code, the Lazurio account holds entry
 //   and Headscale the network (root decision 0192); no text says GitHub is
 //   the only access authority;
-// - "AI Kolega" and the AI seat are gone;
+// - "AI Kolega" and the AI seat are gone, and so is the retired name
+//   "Automated Environment": an Environment with automations is an ordinary
+//   work Environment named Henry, which the glossary says once (root decision
+//   0170, addendum of 2026-10-19);
 // - the Git and GitHub rules and the fork guidance in the manual, with one
 //   pointer in AGENTS.md wherever something can be merged or pushed;
 // - the safe habits: disk space only with certainty, a time from `date -u`,
@@ -1660,6 +1663,7 @@ test("the agent's work is a pull request, GitHub is the authority for source cod
     /\bAI colleague/i,
     /\bAI seat/i,
     /jediná autorita přístupů|only access authority/i,
+    /automatizovan\p{L}* Environment|\bautomated Environment/iu,
     /přístupy určuje GitHub|GitHub decides (?:access|membership)/i,
   ];
   for (const environment of environments)
@@ -1692,6 +1696,26 @@ test("the agent's work is a pull request, GitHub is the authority for source cod
 
       const agents = outputs["AGENTS.md"];
       const workingHere = outputs["manual/working-here.md"];
+      // The glossary says once what a Henry Environment is.
+      const henry = outputs["manual/glossary.md"]
+        .split("\n")
+        .filter((line) =>
+          line.startsWith(
+            cs ? "| Environment Henry |" : "| Henry Environment |",
+          ),
+        );
+      expect([
+        ...where,
+        henry.length,
+        henry.every((line) =>
+          line.includes(
+            cs
+              ? "Obyčejný pracovní Environment Organizace s nastavenými automatizacemi"
+              : "An ordinary work Environment of an Organization with automations set up",
+          ),
+        ),
+        henry.every((line) => line.includes("0170")),
+      ]).toEqual([...where, 1, true, true]);
       // Publication stays exactly as defined, and the work is prepared first.
       for (const sentence of cs
         ? [

@@ -519,12 +519,12 @@ exports[`rendered manual/this-machine.md snapshot: hosted-organization-steward 1
 ## Identity, from the recorded handover
 - Name: \`workspace\` (workspace-vm).
 - Owner: Organization \`example\`.
-- Assignment: an automated Environment of an Organization persona; responsible user \`example\` (GitHub id 12345).
+- Assignment: the Henry Environment of an Organization persona; responsible user \`example\` (GitHub id 12345).
 - Tailnet: Headscale node \`example-workspace\`.
 - Host: virtualization-host \`example-host\`, a higher administration and recovery domain than this Environment.
 
 ## Preset \`hosted-organization-steward\` (version 1)
-The Automated Environment of an Organization persona (decision 0169): an Organization-owned Remote Environment with one responsible user, an Owner or Admin of the Organization, who configures its automation and answers for it. Its GitHub identity is the persona's own GitHub user account, a bot account, not the user's account and not Lazurio for GitHub. Lazurio MausBot runs the persona's bot team here next to the Launchpad and T3 Code. Personalspace is never present. Organization repositories live under \`organizations/<org>/\`. Applications and bots are owned by the OS service manager.
+The Henry Environment of an Organization persona (decision 0169): an Organization-owned Remote Environment with one responsible user, an Owner or Admin of the Organization, who configures its automation and answers for it. Its GitHub identity is the persona's own GitHub user account, a bot account, not the user's account and not Lazurio for GitHub. Lazurio MausBot runs the persona's bot team here next to the Launchpad and T3 Code. Personalspace is never present. Organization repositories live under \`organizations/<org>/\`. Applications and bots are owned by the OS service manager.
 
 ## Zones: what may reach what (decision 0155)
 One user's Environments and clients form two zones. The **personal zone** holds the user's personal clients (laptop, phone) and their one personal Remote Environment; its Owner is the user. The **work zone** holds the work Remote Environments assigned to this user (possibly several, across Organizations of the same Conglomerate) and a work laptop issued by an Organization; its Owner is the Organization. The zone follows \`owner\` and \`operator\`, both bound to immutable GitHub IDs, never a Headscale user or a name.
@@ -537,7 +537,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.
 - Administration of the Conglomerate Host belongs to the Owner of the Organization that owns it, only from their personal laptop and personal Remote Environment.
 
-**This Environment's zone.** This is the Automated Environment of a persona in the work zone of Organization \`example\`, with one responsible user. Only that user connects to it, over SSH for service interventions; colleagues work with the persona through GitHub. It never reaches a personal Environment.
+**This Environment's zone.** This is the Henry Environment of a persona in the work zone of Organization \`example\`, with one responsible user. Only that user connects to it, over SSH for service interventions; colleagues work with the persona through GitHub. It never reaches a personal Environment.
 
 ## Boundaries in this Environment
 - Personalspace: never present in an Organization-owned Environment. Do not create or mount one and never copy personal data or sign-ins here.
@@ -1111,7 +1111,7 @@ exports[`rendered manual/roles.md snapshot 1`] = `
 Names authorize nothing. In every role below, what a user may do is decided by their live rights at the providers, above all on GitHub (decisions 0102/0103).
 
 ## User (uživatel)
-The human who uses this Environment and for whom its agents work; the decision records call this the Operator (in Czech Operátor). The user controls the Environment, and with it the Agents they run in it. Agents act for them, within their live rights; they give the instruction to Publish and always have the last word. In a personal Environment that is its Owner, in a work Remote Environment the one the Organization assigned it to, in a Team Remote Environment whichever Team member is connected now, and in an Automated Environment the responsible Owner or Admin of the Organization (decision F30). Do not confuse the user with the Organization role User (below).
+The human who uses this Environment and for whom its agents work; the decision records call this the Operator (in Czech Operátor). The user controls the Environment, and with it the Agents they run in it. Agents act for them, within their live rights; they give the instruction to Publish and always have the last word. In a personal Environment that is its Owner, in a work Remote Environment the one the Organization assigned it to, in a Team Remote Environment whichever Team member is connected now, and in a Henry Environment the responsible Owner or Admin of the Organization (decision F30). Do not confuse the user with the Organization role User (below).
 
 The OS account the Environment runs under, which owns the Lazurio Folder, need not be a person: in a Team Remote Environment the whole Team shares it. The hosting operator (Lazurio Machines), who delivers and updates a Remote Environment, is a different role.
 
@@ -1147,7 +1147,7 @@ exports[`rendered manual/roles.md snapshot 2`] = `
 Názvy nic neautorizují. U každé role níže rozhodují o tom, co uživatel smí, jeho živá práva u providerů, především na GitHubu (decisions 0102/0103).
 
 ## Uživatel
-Člověk, který tento Environment používá a pro kterého pracují jeho agenti; decision records mu říkají Operátor (anglicky Operator). Ovládá Environment, a tím i Agenty, které v něm spouští. Agenti jednají za něj a v jeho živých právech; on dává pokyn k Publikaci a má vždy poslední slovo. Na osobním Environmentu je to jeho Owner, na pracovním Remote Environmentu ten, komu ho Organizace přiřadila, na týmovém Remote Environmentu člen Teamu, který je právě připojený, a na Automatizovaném Environmentu odpovědný Owner nebo Admin Organizace (decision F30). Nepleť si ho s rolí User v Organizaci (níže).
+Člověk, který tento Environment používá a pro kterého pracují jeho agenti; decision records mu říkají Operátor (anglicky Operator). Ovládá Environment, a tím i Agenty, které v něm spouští. Agenti jednají za něj a v jeho živých právech; on dává pokyn k Publikaci a má vždy poslední slovo. Na osobním Environmentu je to jeho Owner, na pracovním Remote Environmentu ten, komu ho Organizace přiřadila, na týmovém Remote Environmentu člen Teamu, který je právě připojený, a na Environmentu Henry odpovědný Owner nebo Admin Organizace (decision F30). Nepleť si ho s rolí User v Organizaci (níže).
 
 OS účet, pod kterým Environment běží a který vlastní Lazurio Folder, osobou být nemusí: na týmovém Remote Environmentu ho sdílí celý Team. Provozovatel hostingu (Lazurio Machines), který Remote Environment dodává a aktualizuje, je jiná role.
 
@@ -1214,6 +1214,7 @@ English terms first; the Czech term used by the product and its users is in pare
 | Personal Remote Environment | A user's one personal Remote Environment (decision 0153); preset \`hosted-personal\`, kind \`personal-vm\`. |
 | Work Remote Environment | An Organization-owned Remote Environment assigned to one user; preset \`hosted-organization-personal\`. |
 | Team Remote Environment (Hosted Team Workspace) | An Organization-owned shared Remote Environment of a Team with one OS account; preset \`hosted-organization-team\`. |
+| Henry Environment | An ordinary work Environment of an Organization with automations set up, no kind of its own (root decision 0170, addendum 2026-10-19): the persona's bot team works in it, with one responsible user (decision 0169); preset \`hosted-organization-steward\`, for example \`henry-01\`. |
 | Zone (zóna) | The personal or the work side of one user's Environments and clients; decides who may reach whom (decision 0155). |
 | Handover | Lazurio Machines delivering a Remote Environment online with \`lazurio.machine.json\`; from then on the inside belongs to the installed product (decision 0144). The Folder records its immutable projection (\`machine\`): kind, name, Owner, Team, assignment, tailnet node, host, relationships. |
 | Workspace preset | A named, versioned composition of the profile's fixed axes, defaults, Personalspace policy, identity mode and surfaces. |
@@ -1268,6 +1269,7 @@ Nejdřív český pojem, v závorce anglický, který používají produkt a tec
 | Osobní Remote Environment | Jediný osobní Remote Environment uživatele (decision 0153); preset \`hosted-personal\`, druh \`personal-vm\`. |
 | Pracovní Remote Environment | Remote Environment vlastněný Organizací a přiřazený jednomu uživateli; preset \`hosted-organization-personal\`. |
 | Týmový Remote Environment (Hosted Team Workspace) | Sdílený Remote Environment Teamu vlastněný Organizací s jedním OS účtem; preset \`hosted-organization-team\`. |
+| Environment Henry | Obyčejný pracovní Environment Organizace s nastavenými automatizacemi, žádný zvláštní druh (root rozhodnutí 0170, dodatek 2026-10-19): pracuje v něm tým botů persony s jedním odpovědným uživatelem (decision 0169); preset \`hosted-organization-steward\`, třeba \`henry-01\`. |
 | Zóna (zone) | Osobní nebo pracovní strana Environmentů a klientů jednoho uživatele; určuje, kdo smí na koho (decision 0155). |
 | Handover | Předání Remote Environmentu online z Lazurio Machines se souborem \`lazurio.machine.json\`; od té chvíle vnitřek patří nainstalovanému produktu (decision 0144). Folder zaznamená jeho neměnnou projekci (\`machine\`): druh, jméno, Owner, Team, přiřazení, tailnet node, host, vztahy. |
 | Workspace preset | Pojmenovaná, verzovaná kompozice pevných os profilu, výchozích hodnot, politiky Personalspace, režimu identity a povrchů. |

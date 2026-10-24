@@ -2058,6 +2058,11 @@ every agent, not only the agents of one Machine. What changes, on every preset i
    Organization is carried by an Environment that does its work by itself through bots, with a
    responsible user (root decision 0169), named Henry where it needs a name (root decision 0170);
    the Opatrovník (root decision 0094) is held there by that responsible user, as 0169 says.
+   The retired name "Automated Environment" (Automatizovaný Environment, root decision 0170's
+   addendum of 2026-10-19) goes too: the Steward preset's assignment, user, preset and zone
+   lines, the roles chapter and the `machine folder-init` help say the Henry Environment, and the
+   glossary says once that it is an ordinary work Environment with automations. The preset name
+   and the `automation` assignment stay as identifiers.
 5. **Forks** (`manual/working-here.md`, "Git and GitHub"): a distribution fork is a thin overlay
    on an exact upstream release (the exact upstream commit, own changes as separate readable
    commits, refreshes from upstream stable releases, an immutable release tag for each published
@@ -2089,14 +2094,14 @@ repository-db's own "draft card" stays that library's name for its card.
 
 Template revision `base-instructions-72`. `tests/folder-manual.test.ts` checks, on every preset
 and both public Environments in both locales, over every generated file and Buddy's layer: no
-Lazurio "Draft" (only GitHub's Draft PR), no "AI Kolega" or AI seat, no "only access authority";
-the Publication definition and the prepare-first rule; the lifecycle's three steps; the identity
-line where the user's own sign-ins are used and the authorities in `manual/lazurio.md`; the Git,
-GitHub and fork rules; the `AGENTS.md` pointer except on a public Environment; the safe habits;
-`/tmp` except on Windows; and `timeout` only on a macOS workstation. The Buddy layer passes
-Hermes's threat scan at context and strict scope and stays under 20,000 characters (16.4k in
-Czech, 17.9k in English). Not proven: that agents follow the rules (generated text is not proof
-of behavior).
+Lazurio "Draft" (only GitHub's Draft PR), no "AI Kolega" or AI seat, no "Automated Environment"
+and the Henry row once in the glossary, no "only access authority"; the Publication definition
+and the prepare-first rule; the lifecycle's three steps; the identity line where the user's own
+sign-ins are used and the authorities in `manual/lazurio.md`; the Git, GitHub and fork rules;
+the `AGENTS.md` pointer except on a public Environment; the safe habits; `/tmp` except on
+Windows; and `timeout` only on a macOS workstation. The Buddy layer passes Hermes's threat scan
+at context and strict scope and stays under 20,000 characters (16.4k in Czech, 17.9k in
+English). Not proven: that agents follow the rules (generated text is not proof of behavior).
 
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 

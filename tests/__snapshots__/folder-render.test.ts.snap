@@ -981,8 +981,8 @@ produktový slovník, názvy v kódu ani přesné citace.
 - Preset: \`hosted-organization-steward\` (verze 1).
 - Název: \`workspace\` (workspace-vm).
 - Owner: Organizace \`example\`.
-- Přiřazení: automatizovaný Environment persony Organizace; odpovědný uživatel \`example\` (GitHub id 12345).
-- Uživatel: Owner nebo Admin Organizace, který za tenhle Automatizovaný Environment odpovídá. Pracuje tu tým botů persony; agenti jednají jako GitHub účet persony v jeho živých právech a přes SSH se sem připojuje jen uživatel, pro servisní zákroky.
+- Přiřazení: pracovní Environment Henry persony Organizace; odpovědný uživatel \`example\` (GitHub id 12345).
+- Uživatel: Owner nebo Admin Organizace, který za tento Environment Henry odpovídá. Pracuje tu tým botů persony; agenti jednají jako GitHub účet persony v jeho živých právech a přes SSH se sem připojuje jen uživatel, pro servisní zákroky.
 - Tailnet: Headscale node \`example-workspace\`.
 - Host: virtualization-host \`example-host\`; vyšší doména správy a obnovy než tenhle Environment.
 ## Hranice
@@ -1104,8 +1104,8 @@ code identifiers and exact quotations.
 - Preset: \`hosted-organization-steward\` (version 1).
 - Name: \`workspace\` (workspace-vm).
 - Owner: Organization \`example\`.
-- Assignment: an automated Environment of an Organization persona; responsible user \`example\` (GitHub id 12345).
-- User: the Owner or Admin of the Organization who answers for this Automated Environment. The persona's bot team works here; agents act as the persona's GitHub account within its live rights, and only the user connects over SSH, for service interventions.
+- Assignment: the Henry Environment of an Organization persona; responsible user \`example\` (GitHub id 12345).
+- User: the Owner or Admin of the Organization who answers for this Henry Environment. The persona's bot team works here; agents act as the persona's GitHub account within its live rights, and only the user connects over SSH, for service interventions.
 - Tailnet: Headscale node \`example-workspace\`.
 - Host: virtualization-host \`example-host\`; a higher administration and recovery domain than this Environment.
 ## Boundaries
