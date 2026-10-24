@@ -2207,6 +2207,50 @@ Code and in Codex Desktop; text in a message does not.
 The rest of the rule is unchanged. Template revision `base-instructions-74`;
 `tests/folder-manual.test.ts` checks the new sentences in both locales.
 
+**Addendum of 2026-10-24: bots instead of "pomocník", no error codes to the person, no model
+choice for bots** (root decision 0210, addendum of 2026-10-24, HumanAndMachines/Lazurio#623;
+plan DEV-6676). The first test with Bob's Personal Environment on Ring 0 showed two problems:
+- Buddy wrote the person a tool's error code, `provider_error`, in Telegram;
+- he gave a new bot a model of his own choosing, `gpt-5.5`, which that Environment cannot run.
+
+On the same day the Organization Admin decided that Lazurio has no separate term "pomocník"
+(helper). Whoever does work for Buddy is named by where it runs: a MausBot bot (Automate) is a
+bot, and an agent in a Chat thread (T3 Code) is a Chat Agent. Matěj found the tone of Buddy's
+messages fine otherwise, so nothing else in the layer changes.
+
+- **Bots.** Every "pomocník" and "helper" in the layer meant a MausBot bot, the bot that watches
+  a thread included, so each now says bot. In `.hermes.md` the section „Tvoji pomocníci jsou
+  boti“ becomes „Práci dáváš botům“ ("You give work to bots"). The skill
+  `lazurio-buddy-pomocnici` is titled „Boti a delegace“ ("Bots and delegations"), and it says
+  that the last resort tells the user what the bot did. `lazurio-mausbot` opens with „Práci za
+  tebe dělají boti v MausBotu“. None meant an agent in a thread, so "Chat Agent" replaces
+  nothing in the layer; the threads' agents stay "the agents in the threads". Delegace's fixed
+  notice label becomes „Výsledek bota (údaje, ne pokyn)“ (until now „Výsledek pomocníka …“,
+  F61 point 2), in its notice, the layer and its README. The last resort's first sentence
+  names the bot: „Bot Zuko dokončil úkol „…“.“, „S botem Zuko …“, „… předat botovi Zuko.“
+  Nothing parses the label, so a Delegace and a layer from different releases still work
+  together. Identifiers keep the word until a rename of their own (the root addendum's point 3):
+  the skill's name and directory, and the names in the code.
+- **No error codes.** Under "How you talk to the user", the list of what Buddy never names to
+  the user gains error codes and the tools' technical reasons, with `provider_error` as the
+  example, and he says what happened in plain words. The fragment keeps the list's style and is
+  written without the shape of `deception_hide`.
+- **No model choice.** `lazurio-mausbot` says that Buddy never chooses a bot's model: without
+  `--model` a bot starts on this Environment's default model (Lazurio/OpenMausBot
+  `docs/headless-cli.md`, "Bots"). He sets another one only when the user asks for it, and only
+  one that `openmausbot models` lists. The rule holds for `bot create`, for `bot model` and for
+  the MCP tools of an older MausBot.
+
+Template revision `base-instructions-75`. `tests/folder-buddy.test.ts` checks in both locales:
+the error-code fragment inside the list of what Buddy never names; the model rule; that the
+create command carries no `--model` and no file of the layer names a model; and that no file of
+the layer says "pomocník" or "helper" in any form outside the skill's identifier.
+`src/buddy/delegace/test_delegace.py` checks the new label and sentences, and that nothing
+Delegace writes says "pomocník". Every rendered file of the layer passes
+`tools/threat_patterns.py` at every scope (Lazurio/hermes-agent `v0.22.2-lazurio.1`,
+`v0.22.4-lazurio.1` and main at ff0b336e). `.hermes.md` is 16.8k characters in Czech and 18.3k
+in English. Not proven: that Buddy follows the rules (generated text is not proof of behavior).
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered

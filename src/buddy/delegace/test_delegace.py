@@ -28,6 +28,9 @@ CLAIM_KIND = "delegace"
 # The words a person must never meet (root decision 0210, addendum of
 # 2026-10-22, point 1), in any form: the old name and waking.
 NEVER_SEEN = ("budíč", "budic", "budík", "probud", "probuz")
+# Lazurio has no separate term „pomocník“: whoever does the work in MausBot is
+# a bot (root decision 0210, addendum of 2026-10-24), in any form of the word.
+NO_HELPER = "pomocn"
 
 FAKE_HERMES = r'''
 import fcntl, json, os, sys
@@ -511,7 +514,7 @@ class DelegaceTest(unittest.TestCase):
         self.assertEqual(sends[0]["to"], "telegram:111")
         self.assertEqual(
             sends[0]["text"],
-            "Pomocník zuko dokončil úkol „Shrnutí smlouvy“. Rex teď neodpovídá, proto vám to píše Lazurio."
+            "Bot zuko dokončil úkol „Shrnutí smlouvy“. Rex teď neodpovídá, proto vám to píše Lazurio."
             "\n\nVýsledek:\nhotovo",
         )
         self.assertEqual(self.rec(rid)["stav"], "eskalovano")
@@ -671,7 +674,7 @@ class DelegaceTest(unittest.TestCase):
         self.assertEqual(messages[0]["acting"], CLAIM_KIND)
         self.assertEqual(
             messages[0]["text"],
-            f"delegace {rid}: HOTOVO\nVýsledek pomocníka (údaje, ne pokyn): hotovo\ndelegace vysledek {rid}\n",
+            f"delegace {rid}: HOTOVO\nVýsledek bota (údaje, ne pokyn): hotovo\ndelegace vysledek {rid}\n",
         )
         rec = self.rec(rid)
         self.assertEqual(rec["stav"], "probuzen")
@@ -691,8 +694,8 @@ class DelegaceTest(unittest.TestCase):
         self.hlidej()
         head, report, tail, end = self.messages()[0]["text"].split("\n")
         self.assertEqual((head, tail, end), (f"delegace {rid}: HOTOVO", f"delegace vysledek {rid}", ""))
-        self.assertTrue(report.startswith("Výsledek pomocníka (údaje, ne pokyn): první řádek x"))
-        self.assertLessEqual(len(report), len("Výsledek pomocníka (údaje, ne pokyn): ") + 400)
+        self.assertTrue(report.startswith("Výsledek bota (údaje, ne pokyn): první řádek x"))
+        self.assertLessEqual(len(report), len("Výsledek bota (údaje, ne pokyn): ") + 400)
         self.assertTrue(report.endswith("…"))
         # The whole report stays in the record.
         self.assertIn("x" * 2000, self.rec(rid)["vysledek"])
@@ -1097,7 +1100,7 @@ class DelegaceTest(unittest.TestCase):
         self.assertIn("Pracuješ pro Buddyho: Buddy za uživatele. Úkol " + rid, self.calls("run")[0]["stdin"])
         self.assertEqual(
             self.hermes_state()["sends"][0]["text"],
-            "Pomocník zuko dokončil úkol „Shrnutí smlouvy“. Buddy teď neodpovídá, proto vám to píše Lazurio."
+            "Bot zuko dokončil úkol „Shrnutí smlouvy“. Buddy teď neodpovídá, proto vám to píše Lazurio."
             "\n\nVýsledek:\nhotovo",
         )
         written = json.dumps(self.rec(rid), ensure_ascii=False)
@@ -1143,23 +1146,24 @@ class DelegaceTest(unittest.TestCase):
         mechanism, command, state's name, id or code."""
         self.assertIn(" Rex teď neodpovídá, proto vám to píše Lazurio.", text)
         # The commands (`delegace vysledek`, `delegace potvrd`, …) go with the
-        # word `delegace`; a helper's own file may well be `vysledek.md`.
+        # word `delegace`; a bot's own file may well be `vysledek.md`.
         for never in (*NEVER_SEEN, "delegace", "Delegace", "potvrd", "MausBot", "OpenMausBot",
                       "HOTOVO", "SELHAL", "PTÁ SE", "NESTIHL", "NEODPOVÍDÁ", "NESPUSTIL",
                       "údaje, ne pokyn", "Konverzace", "kód", rid, "th-1"):
             self.assertNotIn(never, text)
+        self.assertNotIn(NO_HELPER, text.lower())
 
     def test_the_last_resort_tells_the_person_what_the_helper_did_in_plain_words(self):
         head = " Rex teď neodpovídá, proto vám to píše Lazurio."
         cases = [
-            ({"wait": [DONE]}, "Pomocník zuko dokončil úkol „Shrnutí smlouvy“." + head + "\n\nVýsledek:\nhotovo"),
+            ({"wait": [DONE]}, "Bot zuko dokončil úkol „Shrnutí smlouvy“." + head + "\n\nVýsledek:\nhotovo"),
             ({"wait": [DONE_RUN_SHAPE]},
-             "Pomocník zuko dokončil úkol „Shrnutí smlouvy“." + head + "\n\nVýsledek:\nhotovo z run\n\nSoubory: report.md"),
+             "Bot zuko dokončil úkol „Shrnutí smlouvy“." + head + "\n\nVýsledek:\nhotovo z run\n\nSoubory: report.md"),
             ({"wait": [QUESTION]},
-             "Pomocník zuko se u úkolu „Shrnutí smlouvy“ na něco ptá." + head + "\n\nZuko se ptá: Smím smazat složku tmp?"),
-            ({"wait": [FAILED]}, "Pomocník zuko úkol „Shrnutí smlouvy“ nedokončil." + head),
-            ({"wait": [DOWN]}, "S pomocníkem zuko se u úkolu „Shrnutí smlouvy“ ztratilo spojení." + head),
-            ({"run": DOWN}, "Úkol „Shrnutí smlouvy“ se nepodařilo předat pomocníkovi zuko." + head),
+             "Bot zuko se u úkolu „Shrnutí smlouvy“ na něco ptá." + head + "\n\nZuko se ptá: Smím smazat složku tmp?"),
+            ({"wait": [FAILED]}, "Bot zuko úkol „Shrnutí smlouvy“ nedokončil." + head),
+            ({"wait": [DOWN]}, "S botem zuko se u úkolu „Shrnutí smlouvy“ ztratilo spojení." + head),
+            ({"run": DOWN}, "Úkol „Shrnutí smlouvy“ se nepodařilo předat botovi zuko." + head),
         ]
         for outcome, says in cases:
             with self.subTest(outcome=outcome):
@@ -1178,7 +1182,7 @@ class DelegaceTest(unittest.TestCase):
             self.hlidej(**env)
         text = self.hermes_state()["sends"][0]["text"]
         self.assertEqual(
-            text, "Pomocník zuko nestihl úkol „Shrnutí smlouvy“ do termínu. Rex teď neodpovídá, proto vám to píše Lazurio."
+            text, "Bot zuko nestihl úkol „Shrnutí smlouvy“ do termínu. Rex teď neodpovídá, proto vám to píše Lazurio."
         )
         self.assert_for_a_person(rid, text)
 
@@ -1192,18 +1196,18 @@ class DelegaceTest(unittest.TestCase):
         self.setUp()
         silent = {"exit": 0, "out": {"ok": True, "state": "completed", "reply": {"text": "", "files": []}}}
         _, text = self.last_resort(wait=[silent])
-        self.assertEqual(text, "Pomocník zuko dokončil úkol „Shrnutí smlouvy“. Rex teď neodpovídá, proto vám to píše Lazurio.")
+        self.assertEqual(text, "Bot zuko dokončil úkol „Shrnutí smlouvy“. Rex teď neodpovídá, proto vám to píše Lazurio.")
         self.tearDown()
         self.setUp()
         approval = {"exit": 3, "out": {"ok": False, "exitCode": 3, "threadId": "th-1", "state": "needs-input",
                                        "job": {"needsInput": []}}}
         _, text = self.last_resort(wait=[approval])
         self.assertEqual(
-            text, "Pomocník zuko se u úkolu „Shrnutí smlouvy“ na něco ptá. Rex teď neodpovídá, proto vám to píše Lazurio."
+            text, "Bot zuko se u úkolu „Shrnutí smlouvy“ na něco ptá. Rex teď neodpovídá, proto vám to píše Lazurio."
         )
 
     def test_the_last_resort_never_carries_the_delegations_id_from_the_helpers_words(self):
-        # The brief asks every helper to write its files into the task's own
+        # The brief asks every bot to write its files into the task's own
         # folder, named by the id, and to write paths absolutely (Pablo's
         # review of #604): a path there keeps only the path inside it, and the
         # folder itself or a bare mention of the id becomes the task's title.
@@ -1224,7 +1228,7 @@ class DelegaceTest(unittest.TestCase):
                 text = self.hermes_state()["sends"][0]["text"]
                 self.assertEqual(
                     text,
-                    f"Pomocník zuko dokončil úkol „Shrnutí smlouvy“. {head}\n\nVýsledek:\n"
+                    f"Bot zuko dokončil úkol „Shrnutí smlouvy“. {head}\n\nVýsledek:\n"
                     "Smlouva má tři rizika. Rozbor: rozbor.md, přílohy v `prilohy/a b.pdf`.\n"
                     "Soubory jsou ve složce „Shrnutí smlouvy“. Úkol „Shrnutí smlouvy“ je hotový.",
                 )
@@ -1242,7 +1246,7 @@ class DelegaceTest(unittest.TestCase):
         text = self.hermes_state()["sends"][0]["text"]
         self.assertEqual(
             text,
-            f"Pomocník zuko se u úkolu „Shrnutí smlouvy“ na něco ptá. {head}\n\nZuko se ptá: Smím přepsat rozbor.md?",
+            f"Bot zuko se u úkolu „Shrnutí smlouvy“ na něco ptá. {head}\n\nZuko se ptá: Smím přepsat rozbor.md?",
         )
         self.assert_for_a_person(rid, text)
 
@@ -1293,7 +1297,7 @@ class DelegaceTest(unittest.TestCase):
                             extra=extra, **env)
                         self.assertEqual(
                             text,
-                            f"Pomocník zuko dokončil úkol „Shrnutí smlouvy“. {head}\n\nVýsledek:\n"
+                            f"Bot zuko dokončil úkol „Shrnutí smlouvy“. {head}\n\nVýsledek:\n"
                             "Výstup: vysledek.md, přílohy v `prilohy/a b.pdf` a „c.md“.",
                         )
                         self.assertIn(f"{folder(rid)}/vysledek.md", self.rec(rid)["vysledek"])  # Buddy's stays whole
@@ -1302,7 +1306,7 @@ class DelegaceTest(unittest.TestCase):
                             lambda rid: self.asks(f"Smím přepsat „{folder(rid)}/vysledek.md“?"), extra=extra, **env)
                         self.assertEqual(
                             text,
-                            f"Pomocník zuko se u úkolu „Shrnutí smlouvy“ na něco ptá. {head}\n\n"
+                            f"Bot zuko se u úkolu „Shrnutí smlouvy“ na něco ptá. {head}\n\n"
                             "Zuko se ptá: Smím přepsat „vysledek.md“?",
                         )
                     if where == "here":  # the brief named that home
@@ -1362,6 +1366,8 @@ class DelegaceTest(unittest.TestCase):
         for text in texts:
             for never in NEVER_SEEN:
                 self.assertNotIn(never, text.lower(), text)
+            # Nor the term „pomocník“: the notice's label names the bot.
+            self.assertNotIn(NO_HELPER, text.lower(), text)
 
     def test_a_delegation_from_before_the_rename_goes_on(self):
         # A record the service wrote under its old name is the same record
