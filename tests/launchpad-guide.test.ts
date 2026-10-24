@@ -942,6 +942,45 @@ test("the sentences the '?' replaced are gone from the page and its words", () =
   expect(messages("en").filesEmptyRoot).toBe("No files yet.");
 });
 
+// No page has a sentence under its title (Matěj 2026-10-24, the design
+// system's "Vysvětlení na vyžádání", design-system-lazurio#110,
+// Lazurio/LazurioPlatform#631; F56's addendum (6) of 2026-10-24). Settings
+// and Integrace lost theirs with the "?"; the last two went with it:
+// Začínáme of a public Environment, whose group "Vyzkoušejte" says what to
+// try, and Trezor's line on how the vault is used, with its "Otevřít Chat".
+// What stays under a title is a state: Začínáme's count, an empty state, an
+// error, a page that is not available here.
+test("no page has a sentence under its title: Začínáme of a public Environment and Trezor's line are gone from the page and its words", () => {
+  const catalog = locales.flatMap((locale) =>
+    kinds.flatMap((kind) => Object.values(messages(locale, kind))),
+  );
+  for (const sentence of [
+    "Vyzkoušejte si Lazurio v tomto ukázkovém Prostředí.",
+    "Try Lazurio in this demo Environment.",
+    "Potřebuje agent heslo nebo klíč?",
+    "Řekněte mu to v Chatu.",
+    "Does an agent need a password or a key?",
+    "Tell it in Chat.",
+  ])
+    expect({
+      sentence,
+      page: page.includes(sentence),
+      words: catalog.some((text) => text.includes(sentence)),
+    }).toEqual({ sentence, page: false, words: false });
+  expect(
+    elements.some((n) => n.attributes.get("id") === "vault-page-guide"),
+  ).toBe(false);
+  for (const key of ["startDemoIntro", "vaultPageGuide", "vaultPageGuideChat"])
+    for (const locale of locales)
+      expect({ key, here: Object.hasOwn(messages(locale), key) }).toEqual({
+        key,
+        here: false,
+      });
+  // The states that stay under a title.
+  expect(messages("cs").startIntro).toBe("Hotovo {done} ze {total} kroků.");
+  expect(messages("en").startNotHere).toBe("There is nothing to set up here.");
+});
+
 test('the "?" of Trezor waits until the vault\'s state is read, in a Personal Environment too, and then shows what it plays', () => {
   const trezor = { view: "vault" } as const;
   const facts = (vault: VaultGuideFacts): PageGuideFacts => ({
