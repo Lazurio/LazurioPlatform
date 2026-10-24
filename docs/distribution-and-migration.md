@@ -282,7 +282,7 @@ repository read-only; clones and fetches keep working.
 | Adoption of an existing directory on a workstation | **Not built** (`src/folder/initialize-folder.ts`: never adopts) | migration | S5, P14 |
 | Read-only inventory, manual and prompt | **Not built** | migration | S5 |
 | Launchpad over all Organizations | Built (P4) | daily work | — |
-| Organization and Personalspace installation | Built (F9 addendum 2026-10-04 and 2026-10-05); synchronization **not built** (P10); agents fast-forward meanwhile (F17 addendum 2026-10-02) | new computers | S9, P10 |
+| Organization and Personalspace installation | Built (F9 addendum 2026-10-04 and 2026-10-05); synchronization of existing repositories built (F9 amendment 2026-10-24: the Launchpad's sweep and `lazurio organization sync`); `organization add` (P10) not built | new computers | S9, P10 |
 | `lazurio doctor` | Built, read-only (P8) | daily work | — |
 | `lazurio module …` lifecycle without a Launchpad session | Built on Linux (P5); on macOS the control socket is **not built** | daily work | P14 |
 | Recovery mode instead of rollback | Built in the pre-releases (F21) | every Environment | — |
@@ -333,7 +333,7 @@ cites them.
 | S5 | Workstation adoption (`folder-init --adopt`), `migration inspect`, `migration prompt`, the manual of 4.4 | Platform | **Not built** |
 | S6 | Canary of the workstation migration: one Linux computer, then macOS | — | After S5 |
 | S7 | Daily-work gaps: worktree mechanism, skills and the Claude Code entry, macOS control socket (P14), desktop launcher (P15) | Platform | **Not built** |
-| S9 | Content synchronization (F9, P10) | Platform | Installation done; synchronization **not built** |
+| S9 | Content synchronization (F9, P10) | Platform | Installation done; synchronization of existing repositories done (2026-10-24) |
 | S10 | Windows build and its migration section | Platform | **Not built** |
 | S11 | Archive: manuals and register moved (Q9), root issues and pull requests closed or transferred, root README becomes a pointer, archive | root and owners | After the last Environment, Windows included |
 

@@ -174,7 +174,7 @@ recommendations.
   Environments get their modules cloned by an agent from the manual (H4).
 - **Explicit only.** Content synchronization runs only when a user or an authorized
   agent invokes it; "no first render, status request, health check, login … synchronizes
-  anything" ([content sync](content-sync.md#explicit-only)).
+  anything" ([content sync](content-sync.md#when-it-runs)).
 - **The Lazurio Account is optional and identifies a service user only.** "Account
   login (OIDC) is added when the Launchpad needs a named user or managed-service
   enrollment … It does not admit a browser to a workspace, does not supply repository

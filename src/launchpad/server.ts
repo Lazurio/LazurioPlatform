@@ -21,10 +21,12 @@ import { type CdpCall, cdpSeams, ensureThreadWindow } from "../browser/window";
 import { createPersonalspaceHolder } from "../content/holder";
 import {
   type ContentHost,
+  contentLockDirectory,
   preparationAnswer,
   processContentHost,
   processGitHubHost,
 } from "../content/host";
+import { syncContent } from "../content/sync";
 import type { ExecutorHost } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
 import { type DocumentsHost, processDocumentsHost } from "../files/documents";
@@ -741,9 +743,33 @@ export async function startLaunchpad(
       host: moduleHost,
       personalspace: personalspace.peek,
     });
+  // The Folder's primary checkouts follow their published branch (decision
+  // F9's amendment of 2026-10-24, root decision 0212 points 2 and 4): the installed
+  // Launchpad fast-forwards the clean ones at its start and then hourly
+  // (`contentSyncEveryMs`), within the sweep that builds what moved. Its
+  // content lock and record are the install base's, as the CLI's; a
+  // development run without a base never synchronizes.
+  const syncCheckouts =
+    installed === undefined
+      ? undefined
+      : () =>
+          syncContent(
+            folder,
+            contentHost ?? {
+              ...processGitHubHost({
+                env: process.env,
+                platform: toolsEnvironment.platform,
+                tools: toolsEnvironment,
+              }),
+              lockDirectory: contentLockDirectory(installed.base),
+            },
+          );
   // A static app someone opened is built again after a pull (decision F58);
   // an app nobody uses falls asleep (root decision 0195 point 23).
-  modules.keepBuilt({ running });
+  modules.keepBuilt({
+    running,
+    ...(syncCheckouts === undefined ? {} : { sync: syncCheckouts }),
+  });
   // The Folder's catalog, kept while nothing it depends on changed
   // (catalog-reading.ts): the page's boot document, the shell document, the
   // catalog and Apps' questions about one Organization read it.

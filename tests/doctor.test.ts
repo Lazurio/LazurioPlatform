@@ -16,6 +16,8 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { contentLockDirectory } from "../src/content/host";
+import { recordSync, type SyncEntry } from "../src/content/sync-record";
 import {
   type DoctorContext,
   exitAttention,
@@ -331,6 +333,50 @@ async function tree(directory: string): Promise<string[]> {
   ).then((lines) => lines.sort());
 }
 
+test("a recorded synchronization: a blocked checkout needs attention with its Organization and place, a merely behind one is none", async () => {
+  const world = await createWorld();
+  await writeOrganization(world.folder, "alpha", {
+    slug: "alpha",
+    state: "current",
+    modules: [{ id: "web" }],
+  });
+  const locks = contentLockDirectory(world.base);
+  await mkdir(locks, { recursive: true, mode: 0o700 });
+  const at = new Date().toISOString();
+  const entry = (path: string, result: SyncEntry["result"], reason?: string) =>
+    ({
+      organization: "alpha",
+      root: "organizations/alpha",
+      path,
+      kind: path === "." ? "root" : "module",
+      branch: "main",
+      result,
+      ...(reason === undefined ? {} : { reason }),
+      at,
+    }) as const;
+  await recordSync(
+    locks,
+    world.folder,
+    [entry(".", "current"), entry("workspace/web", "blocked", "dirty")],
+    { replace: "all" },
+    at,
+  );
+  const result = await doctor(world);
+  expect(result.json.verdict).toBe("attention");
+  expect(
+    result.json.checks.filter(
+      (check: DoctorCheck) => check.id === "content-sync",
+    ),
+  ).toEqual([
+    {
+      id: "content-sync",
+      outcome: "warn",
+      reason: "sync-dirty",
+      context: { organization: "alpha", file: "workspace/web" },
+    },
+  ]);
+});
+
 test("a healthy Environment: ok, exit 0, every group, the same answer in both forms, nothing written", async () => {
   const world = await createWorld();
   await writeOrganization(world.folder, "alpha", {
@@ -365,6 +411,9 @@ test("a healthy Environment: ok, exit 0, every group, the same answer in both fo
     "catalog ok",
     "organization alpha ok",
     "module alpha/web ok",
+    // No synchronization of the checkouts recorded yet (decision F9's
+    // amendment of 2026-10-24).
+    "content-sync skipped never-synced",
     "launchpad-unit skipped no-user-manager",
     "launchpad-health skipped not-supervised",
     "machine-entry skipped not-hosted",

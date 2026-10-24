@@ -19,7 +19,8 @@ for the build, qualification and promotion lifecycle and the two distinct test p
 and `docs/hosted-assistance.md` before any hosted advice/execution work. Read
 `docs/content-sync.md`, `docs/workspace-presets.md` and `docs/hosted-entry.md` before
 work on repository synchronization, presets or hosted entry; content sync records
-accepted direction with its installation half implemented (`src/content/`), hosted
+accepted direction with installation and the synchronization of existing repositories
+implemented (`src/content/`), hosted
 entry records accepted direction, not implemented behavior, and workspace presets
 record the implemented local preset model next to the accepted typed-request
 direction. This foundation is a proposal and bounded

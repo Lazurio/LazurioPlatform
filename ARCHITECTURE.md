@@ -162,8 +162,9 @@ execute directly from the CLI; application operations address the same OS-owned
 services through the same core. Boundary 5's service-manager ownership is implemented
 for Linux (systemd user services; status and stop also work from the CLI without a
 Launchpad, start and preparation do not);
-boundary 4's synchronization and boundary 7's typed requests are accepted direction,
-not implemented; see [module adoption](docs/module-adoption.md#application-lifetime--implemented-for-linux-session-scoped-on-macos),
+boundary 4's synchronization of existing repositories is implemented (the
+Launchpad's sweep and `lazurio organization sync`, decision F9's amendment of
+2026-10-24) and boundary 7's typed requests are accepted direction, not implemented; see [module adoption](docs/module-adoption.md#application-lifetime--implemented-for-linux-session-scoped-on-macos),
 [content synchronization](docs/content-sync.md) and
 [workspace presets](docs/workspace-presets.md).
 
@@ -185,7 +186,7 @@ installed executable, not a separate implementation of installation/profile logi
 | 2 | Workspace preset reference and explicit local overrides | The same Machine-local settings owner | Immutable reference plus revisioned overrides; never grants, rosters, tokens, mandates or analytics consent (accepted direction) |
 | 3 | Lazurio Folder generation and expected digests | Lazurio Folder Factory and its installed generation manifest | CLI or Launchpad invokes the shared core locally and replaces only listed owned paths |
 | 4 | Organization identity, repo and app declarations | Organization manifests | Discovery and lifecycle consume them; Platform source never creates a second allowlist |
-| 4 | Organization repository checkouts | Their Organization and Git; Platform coordinates explicit synchronization | Absent destinations materialized atomically; existing ones fast-forwarded; dirty, wrong-branch or diverged state blocks (accepted direction) |
+| 4 | Organization repository checkouts | Their Organization and Git; Platform coordinates explicit installation and synchronization | Absent destinations materialized atomically by the explicit installation; clean existing ones fast-forwarded by the Launchpad's sweep or `lazurio organization sync`; dirty, wrong-branch or diverged state blocks (implemented 2026-10-24) |
 | 4 | Git access, membership, publication permission | GitHub | Live checks for online mutations through the workspace's provider identity; offline state is not fresh authority |
 | 4 | Planning and delivery status | Owning Organization Mission Control | Links to code and knowledge; no product-local task ledger |
 | 5 | Module-specific preparation, dependencies and database setup | Owning module under its Organization's standard | Explicit module preparation through the shared core; read-only status never provisions or repairs |
