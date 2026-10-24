@@ -1,5 +1,6 @@
 import { join, relative, sep } from "node:path";
 import { preflightBunPreparation } from "./bun-preparation";
+import { type ModuleBunResolver, withModuleBun } from "./bun-runtime";
 import { verifyInstallAuthority } from "./install-authority";
 import {
   applicationsOverlap,
@@ -22,6 +23,10 @@ type Input = Omit<
   // The Organization (or Personalspace owner) directory holding the module:
   // where the default preparation's local dependencies may lie (F25).
   organizationDirectory?: string;
+  // The Bun the owner pins, as the App's runtime (decision F62): the install
+  // and the scripts run with it, its directory first on their PATH. Without
+  // it, `executable` runs them, and a pin it is not is refused (F25).
+  resolveBun?: ModuleBunResolver;
 };
 
 // Trusted composition inside the existing authorized lifecycle/owner queue.
@@ -40,23 +45,35 @@ export async function preflightDeclaredBunPreparation(input: Input) {
   const verifyPrepared = input.verifyPrepared;
   const organizationDirectory = input.organizationDirectory;
   const requested = input.operation;
+  const resolveBun = input.resolveBun;
+  const binding = await inspectPreparationBinding(
+    moduleDirectory,
+    applicationPackage,
+    launch.env,
+    organizationDirectory,
+  );
+  const declaration = binding.preparation;
+  requireQualifiedInstall(declaration, applicationPackage, binding.authority);
+  // The Bun the owner pins, resolved before anything runs (decision F62): a
+  // version that cannot be had refuses here, named by the owner's
+  // package.json, and nothing is installed. The install authority of the
+  // run below is inspected with the environment its processes get.
+  const bun =
+    resolveBun === undefined
+      ? null
+      : await resolveBun({
+          packageManager: binding.authority.packageManager,
+          owner: binding.authority.owner,
+        });
   const options = {
-    executable: launch.executable,
+    executable: bun?.executable ?? launch.executable,
     platformExecutable: input.platformExecutable,
-    env: launch.env,
+    env: bun === null ? launch.env : withModuleBun(launch.env, bun),
     timeoutMs: input.timeoutMs,
     ...(input.cleanInstall === undefined
       ? {}
       : { cleanInstall: input.cleanInstall }),
   };
-  const binding = await inspectPreparationBinding(
-    moduleDirectory,
-    applicationPackage,
-    options.env,
-    organizationDirectory,
-  );
-  const declaration = binding.preparation;
-  requireQualifiedInstall(declaration, applicationPackage, binding.authority);
   // The default preparation (decision F25) has no check: its start-time
   // step is its preparation, the frozen install, which leaves matching
   // registry dependencies as they are (Bun still copies local `file:`

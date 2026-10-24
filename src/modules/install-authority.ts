@@ -223,17 +223,11 @@ function unusedLockfile(owner: string, locks: readonly string[]) {
   return null;
 }
 
-/** The owner's package and which lockfile beside it installs, null for a
- * package that declares nothing to install (issue #253): what the install
- * authority snapshots and a read-only check of the preparation (the catalog)
- * can know without the rest of the snapshot (decision F25), so both give
- * one verdict. The caller has inspected the owner's directories. Each
- * refusal names the owner's package.json, except a lockfile left beside a
- * package with nothing to install, which is named itself. */
-export async function readInstallOwner(
-  owner: string,
-  dependencyBoundary: string = owner,
-) {
+/** The owner's package.json under the checkout's file rule (a regular file
+ * of the operator, never through a symlink), parsed with unique members; a
+ * missing one, or one that is no package object, is
+ * `preparation-owner-invalid`. */
+async function readOwnerPackage(owner: string) {
   const packagePath = join(owner, "package.json");
   const refused = (reason: PreparationReason, message: string) =>
     new PreparationRefused(reason, packagePath, message);
@@ -254,10 +248,22 @@ export async function readInstallOwner(
   );
   if (!pkg || typeof pkg !== "object" || Array.isArray(pkg))
     throw refused("preparation-owner-invalid", "Package object required");
-  const manifest = pkg as Readonly<Record<string, unknown>>;
-  // A package that pins its Bun gets exactly that Bun, never the Platform
-  // build runtime substituted for it. A package that names none installs
-  // and runs with the operator's Bun, whichever version it is (F25).
+  return {
+    packageBytes,
+    manifest: pkg as Readonly<Record<string, unknown>>,
+    refused,
+  };
+}
+
+// A package that pins its Bun gets exactly that Bun, never the Platform build
+// runtime substituted for it: the user's when it is that version, otherwise
+// that version resolved as the App's runtime (decision F62). A package that
+// names none installs and runs with the operator's Bun, whichever version it
+// is (F25).
+function pinnedBun(
+  manifest: Readonly<Record<string, unknown>>,
+  refused: (reason: PreparationReason, message: string) => Error,
+): string | null {
   const declared = Object.hasOwn(manifest, "packageManager")
     ? manifest.packageManager
     : undefined;
@@ -271,7 +277,30 @@ export async function readInstallOwner(
       "preparation-package-manager-unsupported",
       "Exact Bun packageManager required",
     );
-  const packageManager = declared ?? null;
+  return declared ?? null;
+}
+
+/** The exact Bun the package in `owner` pins (`bun@x.y.z`), or null when it
+ * pins none, by the rule the install authority reads it by: what a build
+ * asks its App's runtime for (decision F62). */
+export async function readPinnedBun(owner: string): Promise<string | null> {
+  const { manifest, refused } = await readOwnerPackage(owner);
+  return pinnedBun(manifest, refused);
+}
+
+/** The owner's package and which lockfile beside it installs, null for a
+ * package that declares nothing to install (issue #253): what the install
+ * authority snapshots and a read-only check of the preparation (the catalog)
+ * can know without the rest of the snapshot (decision F25), so both give
+ * one verdict. The caller has inspected the owner's directories. Each
+ * refusal names the owner's package.json, except a lockfile left beside a
+ * package with nothing to install, which is named itself. */
+export async function readInstallOwner(
+  owner: string,
+  dependencyBoundary: string = owner,
+) {
+  const { packageBytes, manifest, refused } = await readOwnerPackage(owner);
+  const packageManager = pinnedBun(manifest, refused);
   const locks: string[] = [];
   for (const name of lockNames)
     if (await present(join(owner, name))) locks.push(name);

@@ -55,9 +55,17 @@ export const moduleHelp = `module start <Organization>/<module> [--app <package>
   manager the app is a transient systemd user service: it keeps running when
   the Launchpad restarts, ends with a reboot, and its output goes to the
   journal. Elsewhere apps are children of the Launchpad session and are
-  started from the Launchpad (launchpad-required). The toolchain is the
-  user's Bun at ${standardBun} (toolchain-missing otherwise; see lazurio
-  tools status). Every slot the app requires (lazurio.runtime
+  started from the Launchpad (launchpad-required). The Bun an app pins
+  (package.json packageManager, bun@x.y.z) is its runtime: the user's Bun at
+  ${standardBun} when it is exactly that version, otherwise that version from
+  Lazurio's runtime cache (~/.local/share/lazurio/runtimes/bun), fetched once
+  from Bun's npm distribution with Bun's own installer and verified; its
+  preparation, start and build all run with it, and never with another
+  version (runtime-unavailable, runtime-integrity-failed,
+  runtime-version-unknown, runtime-disk-full, runtime-unsupported-platform).
+  An app that pins none runs with the user's Bun. Without the user's Bun at
+  ${standardBun}: toolchain-missing (see lazurio tools status). Every slot
+  the app requires (lazurio.runtime
   required_module_slots) must be declared by the Organization, active and
   checked out beside it, or nothing is installed or started
   (required-slot-undeclared, required-slot-planned, required-slot-missing,
@@ -115,14 +123,17 @@ module build <Organization>/<module> [--app <package>] [--folder <F>] [--json]
   Environment and at a low priority (on Linux in its own transient unit
   with at most ${buildMemoryMax} of memory and ${buildTimeoutMs / 60_000} minutes): the app's
   start-time step (the frozen install, its check, its prepare_script when
-  the check fails), then its build_script with NODE_ENV=production. The
+  the check fails), then its build_script with NODE_ENV=production, all with
+  the Bun the app pins. The
   build is keyed by the module's commit (for a static app also the commits
   of the data repositories and required slots it reads); a commit already
   built is current, unless the checkout has uncommitted changes, and a
   commit whose build failed is built again. A running built app is then
   swapped onto the new build (an app with its own server is restarted onto
   it; one without a client builds nothing). The Launchpad does the same by
-  itself after a pull. not-static for an app with neither build_output nor
+  itself after a pull; it builds a failed commit again by itself only when
+  its pinned Bun could not be fetched (runtime-unavailable,
+  runtime-disk-full). not-static for an app with neither build_output nor
   start_script.
 module stop <Organization>/<module> [--app <package>] [--folder <F>] [--json]
   Stops the app and confirms its whole process group ended; stopping an app
@@ -240,7 +251,18 @@ const explanations: Readonly<Record<string, string>> = {
     "This package depends on a local package (file:…) outside its Organization's checkout (or, with a declared preparation, outside its owner); a local dependency must lie in the same Organization.",
   "preparation-dependency-missing":
     "This package depends on a local package (file:…) that is not in the checkout; check out the repository that holds it.",
-  "preparation-toolchain-mismatch": `This package pins a Bun version (packageManager) that the Bun at ${standardBun} is not.`,
+  "preparation-toolchain-mismatch":
+    "The Bun selected for this package did not report the version it pins (packageManager): the pin changed during the start, or the program did. Start again.",
+  "runtime-unavailable":
+    "This package pins a Bun version (packageManager) that is not in this Environment's runtime cache, and it could not be downloaded: the npm registry did not answer (offline, or not in time). Nothing was started; start again when the registry is reachable. Lazurio never runs the app with another Bun.",
+  "runtime-integrity-failed":
+    "The Bun version this package pins was downloaded but did not verify: Bun's installer refused its sha512 integrity, or the program does not report the pinned version. It was not kept and nothing was started; start again, and report it when it keeps failing.",
+  "runtime-version-unknown":
+    "The npm registry does not know the Bun version this package pins (packageManager); set it to a published Bun version.",
+  "runtime-disk-full":
+    "Less than 300 MB is free where Lazurio keeps the Bun versions apps pin (~/.local/share/lazurio/runtimes/bun), so the pinned version was not downloaded; free space and start again.",
+  "runtime-unsupported-platform":
+    "Bun publishes no build of the version this package pins that runs on this system (Linux with musl, FreeBSD and other systems are not supported yet), so the app cannot run here.",
   "preparation-install-failed":
     "bun install --frozen-lockfile from this lockfile failed: the lockfile may not match the package, or a dependency could not be fetched (a private Git dependency needs your GitHub access in this Environment).",
   "preparation-recovery-required":

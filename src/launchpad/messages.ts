@@ -669,7 +669,17 @@ const en = {
   preparationReasonDependencyMissing:
     "{file} depends on a local package (file:…) that is not in the checkout; check out the repository that holds it.",
   preparationReasonToolchainMismatch:
-    "{file} pins a Bun version (packageManager) that the Bun in ~/.local/bin is not.",
+    "The Bun selected for {file} did not report the version it pins (packageManager); the pin may have changed while the app was starting. Start it again.",
+  moduleReasonRuntimeUnavailable:
+    "The app needs the Bun version that {file} pins. It is not {in this} yet, and it could not be downloaded: the npm registry did not answer. Start the app again once {this} is online.",
+  moduleReasonRuntimeIntegrity:
+    "The Bun version that {file} pins was downloaded but did not pass its check, so it was not used and the app did not start. Start it again; if it fails again, ask an agent in Chat to look at it.",
+  moduleReasonRuntimeVersionUnknown:
+    "{file} pins a Bun version that the npm registry does not know, so the app cannot start. Change packageManager there to a published Bun version.",
+  moduleReasonRuntimeDiskFull:
+    "There is not enough free space {in this} to download the Bun version that {file} pins (300 MB are needed). Free some space and start the app again.",
+  moduleReasonRuntimeUnsupported:
+    "Bun has no build of the version that {file} pins for this system, so the app cannot run {in this}.",
   preparationReasonInstallFailed:
     "Installing the dependencies from {file} failed (bun install --frozen-lockfile): the lockfile may not match the package, or a dependency could not be fetched.",
   preparationReasonScriptFailed:
@@ -2456,7 +2466,17 @@ const cs: Record<MessageKey, string> = {
   preparationReasonDependencyMissing:
     "{file} závisí na lokálním balíčku (file:…), který v checkoutu není; naklonujte repozitář, ve kterém je.",
   preparationReasonToolchainMismatch:
-    "{file} vyžaduje verzi Bunu (packageManager), kterou Bun v ~/.local/bin nemá.",
+    "Bun vybraný pro {file} nehlásí verzi, kterou připíná (packageManager); pin se možná změnil, zatímco se aplikace spouštěla. Spusťte ji znovu.",
+  moduleReasonRuntimeUnavailable:
+    "Aplikace potřebuje verzi Bunu, kterou připíná {file}. {V tomto} zatím není a nepodařilo se ji stáhnout, protože registr npm neodpověděl. Spusťte aplikaci znovu, až bude {toto} online.",
+  moduleReasonRuntimeIntegrity:
+    "Verze Bunu, kterou připíná {file}, se stáhla, ale neprošla kontrolou, takže se nepoužila a aplikace se nespustila. Spusťte ji znovu; když to selže i podruhé, požádejte agenta v Chatu, ať se na to podívá.",
+  moduleReasonRuntimeVersionUnknown:
+    "{file} připíná verzi Bunu, kterou registr npm nezná, takže se aplikace nemůže spustit. Změňte tam packageManager na vydanou verzi Bunu.",
+  moduleReasonRuntimeDiskFull:
+    "{V tomto} není dost volného místa na stažení verze Bunu, kterou připíná {file} (je potřeba 300 MB). Uvolněte místo a spusťte aplikaci znovu.",
+  moduleReasonRuntimeUnsupported:
+    "Bun pro tento systém nemá build verze, kterou připíná {file}, takže aplikace {v tomto} běžet nemůže.",
   preparationReasonInstallFailed:
     "Instalace závislostí z {file} selhala (bun install --frozen-lockfile): lockfile možná neodpovídá balíčku, nebo nešlo stáhnout některou závislost.",
   preparationReasonScriptFailed:

@@ -71,10 +71,16 @@ import {
   type WatchedApp,
 } from "./built/watcher";
 import {
+  createModuleBunResolver,
+  isRuntimeReason,
+  type ModuleBunResolver,
+} from "./bun-runtime";
+import {
   type DataMountHost,
   moduleDataMounts,
   provideDataMounts,
 } from "./data-mounts";
+import { readPinnedBun } from "./install-authority";
 import { createApplicationLifecycle } from "./lifecycle";
 import { observeConnected } from "./listener-ownership";
 import { localApplicationAdapters } from "./local-application-adapters";
@@ -149,6 +155,11 @@ export type ModuleHost = Readonly<{
   platformExecutable: string;
   /** A development or test override of the standard Bun path. */
   bunExecutable?: string | undefined;
+  /** The Bun an App pins, as its runtime (decision F62): the user's when it
+   * is that version, else the runtime cache under `home`, else a verified
+   * fetch with Bun's own installer. By default the resolver of `home` with
+   * the user's Bun; a test seam. */
+  resolveBun?: ModuleBunResolver | undefined;
   /** Who owns started applications on this Machine. */
   runnerKind: () => Promise<RunnerKind>;
   createRunner: (
@@ -182,7 +193,8 @@ export type ModuleHost = Readonly<{
 }>;
 
 /** The standard Bun of the operator's account (B2): one rule for the CLI, the
- * Launchpad and every Machine, following the operator's own Bun updates. */
+ * Launchpad and every Machine, following the operator's own Bun updates. An
+ * App that pins another version runs that version, its runtime (F62). */
 export const standardBun = "~/.local/bin/bun";
 
 /** The host of this process: its account, the standard toolchain path and
@@ -912,6 +924,20 @@ export function createModuleOperations(input: {
     });
   }
 
+  // The Bun each App pins (decision F62), one resolver for this host: its
+  // fetches under way are shared by every lifecycle and build here.
+  let resolver: ModuleBunResolver | undefined = host.resolveBun;
+  const resolveBun: ModuleBunResolver = (pinned) => {
+    resolver ??= createModuleBunResolver({
+      home: host.home as string,
+      userBun:
+        host.bunExecutable ?? join(host.home as string, ".local/bin/bun"),
+      path: host.path,
+      tmpdir: host.tmpdir,
+    });
+    return resolver(pinned);
+  };
+
   // The closed environment every process of a module starts from: the
   // operator's HOME, the started apps' PATH and TMPDIR (decision F26).
   function operatorEnvironment(): Record<string, string> {
@@ -933,6 +959,7 @@ export function createModuleOperations(input: {
         organizationDirectory,
         bunExecutable:
           host.bunExecutable ?? join(host.home as string, ".local/bin/bun"),
+        resolveBun,
         platformExecutable: host.platformExecutable,
         environment,
         runner,
@@ -1021,7 +1048,10 @@ export function createModuleOperations(input: {
   // Platform's static server; one that declares `start_script` runs that
   // server of its own in production mode, handed its client's build when it
   // has one. Nothing is built where this host keeps no builds: such an app
-  // runs its development script, as before.
+  // runs its development script, as before. The build script runs with the
+  // Bun the App pins (each job's `runtime`, decision F62); the static
+  // server's check of an output, like the static server itself, is the
+  // Platform's own process on the user's Bun.
   const builder =
     host.builds === undefined || host.home === undefined
       ? undefined
@@ -1029,7 +1059,6 @@ export function createModuleOperations(input: {
           lockFile: host.builds.lockFile,
           runner: () => host.runnerKind(),
           runtimeDirectory: host.runtimeDirectory,
-          executable: host.bunExecutable ?? join(host.home, ".local/bin/bun"),
           servable: async (root, path, fallback) =>
             staticServerServes({
               executable:
@@ -1161,7 +1190,9 @@ export function createModuleOperations(input: {
         app: target.app,
       }),
       read: () => buildContext(target),
-      // The app's start-time step, as its start would run it.
+      // The app's start-time step, as its start would run it: it resolves
+      // the Bun the app pins first (decision F62), so a version that cannot
+      // be had is the build's reason.
       prepare: async () => {
         const prepared = await operate("start", kind, target, (lifecycle) =>
           lifecycle.prepareBuild(selection),
@@ -1170,6 +1201,15 @@ export function createModuleOperations(input: {
         return "reason" in prepared && typeof prepared.reason === "string"
           ? prepared.reason
           : prepared.kind;
+      },
+      // The Bun its build script runs with: the one its package pins, as
+      // its start-time step just resolved it (decision F62).
+      runtime: async () => {
+        const owner = dirname(join(target.moduleDirectory, target.app));
+        return resolveBun({
+          packageManager: await readPinnedBun(owner),
+          owner,
+        });
       },
       explicit,
     });
@@ -1244,20 +1284,21 @@ export function createModuleOperations(input: {
     plan: Plan,
     outcome: Exclude<BuildOutcome, { kind: "built" }>,
   ): Promise<ModuleBlocked> {
-    return blocked(
-      operation,
+    const reason =
       outcome.kind === "failed"
         ? outcome.reason
         : outcome.kind === "busy"
           ? "build-busy"
-          : "closing",
-      {
-        organization: target.organization,
-        module: target.module,
-        app: target.app,
-        build: await buildInfo(target, plan, false),
-      },
-    );
+          : "closing";
+    return blocked(operation, reason, {
+      organization: target.organization,
+      module: target.module,
+      app: target.app,
+      // The Bun the app pins could not be had (decision F62): named by the
+      // app's own package.json, which pins it, as at a start.
+      ...(isRuntimeReason(reason) ? { file: target.app } : {}),
+      build: await buildInfo(target, plan, false),
+    });
   }
 
   // What a built start or a swap serves (decision F58): the newest build,

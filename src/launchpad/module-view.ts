@@ -128,6 +128,12 @@ const reasonKeys: Readonly<Record<string, MessageKey>> = {
   "preparation-toolchain-mismatch": "preparationReasonToolchainMismatch",
   "preparation-install-failed": "preparationReasonInstallFailed",
   "preparation-script-failed": "preparationReasonScriptFailed",
+  // The Bun the app pins could not be had (decision F62).
+  "runtime-unavailable": "moduleReasonRuntimeUnavailable",
+  "runtime-integrity-failed": "moduleReasonRuntimeIntegrity",
+  "runtime-version-unknown": "moduleReasonRuntimeVersionUnknown",
+  "runtime-disk-full": "moduleReasonRuntimeDiskFull",
+  "runtime-unsupported-platform": "moduleReasonRuntimeUnsupported",
   // A build that gave nothing to serve, in plain words whatever its cause
   // (decision F58): the cause and the log are for the CLI, `status` and the
   // agent, never the page.

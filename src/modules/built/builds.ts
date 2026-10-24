@@ -1,6 +1,8 @@
 import { lstat, mkdir, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { acquireFileLock, FileLockError } from "../../platform/flock";
+import { type ModuleBun, runtimeMayPass, withModuleBun } from "../bun-runtime";
+import { PreparationRefused } from "../preparation-refusal";
 import {
   type BuildProcessInput,
   type BuildProcessOutcome,
@@ -29,7 +31,10 @@ import {
 // is never of a mix of two commits. A failure is recorded and keeps every
 // output there was. The client of an app with its own server (the addendum
 // of 2026-10-21) builds the same way, without the static server's check; a
-// server without a client builds nothing and records its key.
+// server without a client builds nothing and records its key. The build
+// script runs with the Bun the app pins (decision F62), whoever asked for
+// the build: a person waiting, the background after a pull, or
+// `lazurio module build`.
 
 /** What a build needs of one app, read anew when it starts. */
 export type BuildContext = Readonly<{
@@ -62,6 +67,9 @@ export type BuildJob = Readonly<{
   read: () => Promise<BuildContext | Readonly<{ refused: string }>>;
   /** The app's start-time step; null when it passed, else its reason. */
   prepare: () => Promise<string | null>;
+  /** The Bun the app pins, which its build script runs with (decision
+   * F62); a `runtime-*` refusal is the build's reason. */
+  runtime: () => Promise<ModuleBun>;
   /** An explicit build: also of a key whose last build failed, and again
    * of a key already built when the checkout has uncommitted changes. */
   explicit?: boolean | undefined;
@@ -93,7 +101,6 @@ export function createBuilds(input: {
   lockFile: string;
   runner: () => Promise<"systemd-user" | "session">;
   runtimeDirectory?: string | undefined;
-  executable: string;
   /** Whether the static server answers `path` of `root` with a file: the
    * check of a build before it is kept. */
   servable: (
@@ -204,7 +211,14 @@ export function createBuilds(input: {
             output: there,
             already: true,
           });
-        if (!job.explicit && state.failure?.key === key)
+        // A failed key is built again only when asked, unless what failed
+        // may pass by itself: the App's pinned Bun could not be fetched
+        // (decision F62), which the next background build tries again.
+        if (
+          !job.explicit &&
+          state.failure?.key === key &&
+          !runtimeMayPass(state.failure.reason)
+        )
           return Object.freeze({
             kind: "failed" as const,
             reason: state.failure.reason,
@@ -244,6 +258,19 @@ export function createBuilds(input: {
             return Object.freeze({ kind: "closing" as const });
           }
           if (prepared !== null) return failed(prepared);
+          let bun: ModuleBun;
+          try {
+            bun = await job.runtime();
+          } catch (error) {
+            if (error instanceof PreparationRefused)
+              return failed(error.reason);
+            throw error;
+          }
+          // A shutdown while the runtime was resolved starts no build.
+          if (closing) {
+            await record(store, state, { building: null });
+            return Object.freeze({ kind: "closing" as const });
+          }
           await store.prepareLogs();
           // Fail closed on a stale output: the app's output directory (in
           // its package, gitignored, which the framework's own build empties
@@ -256,10 +283,10 @@ export function createBuilds(input: {
           const ran = await runBuild({
             runner: await input.runner(),
             runtimeDirectory: input.runtimeDirectory,
-            executable: input.executable,
+            executable: bun.executable,
             cwd: context.cwd,
             script: context.script,
-            env: context.env,
+            env: withModuleBun(context.env, bun),
             log: store.logFile(key),
             timeoutMs: buildTimeoutMs,
             signal: abort.signal,

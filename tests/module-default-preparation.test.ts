@@ -358,7 +358,9 @@ posixTest(
           check_script: "check",
         };
       });
-      // An exact Bun the Machine's Bun is not.
+      // An exact Bun the user's Bun is not and the registry does not know:
+      // the start resolves the pinned Bun (decision F62) and is refused by
+      // the registry's answer, never run with another Bun.
       await variant(world, "pinned", (pkg) => {
         pkg.packageManager = "bun@0.0.1";
       });
@@ -392,7 +394,7 @@ posixTest(
         });
       }
       const onlyTheStart = {
-        pinned: ["preparation-toolchain-mismatch", "app/package.json"],
+        pinned: ["runtime-version-unknown", "app/package.json"],
         unlocked: ["preparation-install-failed", "app/bun.lock"],
       };
       for (const [id, [reason, file]] of Object.entries(onlyTheStart)) {

@@ -240,6 +240,13 @@ test("the sentence after Start or Stop names what happened or why not", () => {
     ["preparation-install-failed", "app/bun.lock"],
     ["preparation-script-failed", "app/package.json"],
     ["preparation-toolchain-mismatch", "app/package.json"],
+    // The Bun the package pins could not be had (decision F62): named by the
+    // package that pins it.
+    ["runtime-unavailable", "app/package.json"],
+    ["runtime-integrity-failed", "app/package.json"],
+    ["runtime-version-unknown", "app/package.json"],
+    ["runtime-disk-full", "app/package.json"],
+    ["runtime-unsupported-platform", "app/package.json"],
     // A required slot that is not there (root decision 0176 point 4) names
     // the slot, relative to the Organization root.
     ["required-slot-undeclared", "workspace/prices"],

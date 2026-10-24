@@ -81,6 +81,13 @@ const reasonKeys: Readonly<
   "preparation-toolchain-mismatch": "preparationReasonToolchainMismatch",
   "preparation-install-failed": "preparationReasonInstallFailed",
   "preparation-script-failed": "preparationReasonScriptFailed",
+  // Only a start or a build knows them (decision F62); the catalog never
+  // fetches.
+  "runtime-unavailable": "moduleReasonRuntimeUnavailable",
+  "runtime-integrity-failed": "moduleReasonRuntimeIntegrity",
+  "runtime-version-unknown": "moduleReasonRuntimeVersionUnknown",
+  "runtime-disk-full": "moduleReasonRuntimeDiskFull",
+  "runtime-unsupported-platform": "moduleReasonRuntimeUnsupported",
   "runtime-secret-unavailable": "moduleReasonRuntimeSecretUnavailable",
 };
 

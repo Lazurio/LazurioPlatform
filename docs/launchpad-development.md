@@ -1583,7 +1583,10 @@ for the default its install. It never prepares beneath a running app: a service-
 app is `application-running`, another managed app of the Organization
 `other-app-managed`, and a session app is stopped for its own preparation, as before. The toolchain is the user's Bun at
 `<home>/.local/bin/bun` (B2); missing, start is refused as `toolchain-missing` before any
-effect (`--bun-executable` stays a development flag of the old panel only). On Linux with
+effect (`--bun-executable` stays a development flag of the old panel only). An App that
+pins another exact Bun (`packageManager`) runs that version as its runtime, from
+Lazurio's runtime cache or fetched and verified with Bun's own installer, in its
+preparation, start and build alike, or is refused by name (`runtime-*`, decision F62). On Linux with
 a reachable user manager the app is a transient systemd user unit (`systemd-user`
 runner): it survives a Launchpad restart (same `InvocationID`), ends with a reboot, and
 writes to the journal (`StandardOutput/Error=journal`); `logs` is `journalctl --user
