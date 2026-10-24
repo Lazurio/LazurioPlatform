@@ -42,11 +42,12 @@ export {
 // Production Space repositories, `infra` and the Personalspace are never
 // touched. The Launchpad runs it at its start and then every hour
 // (`contentSyncEveryMs`) within its build sweep
-// (`keepBuilt`), the CLI as `lazurio organization sync`: one core, one content
-// lock, one record; a later surface (the product update, an "Aktualizovat"
-// button, an Open) calls the same core, for one repository too
-// (`SyncRequest.repository`) and with progress per repository
-// (`onProgress`).
+// (`keepBuilt`), the CLI as `lazurio organization sync`, and since decision
+// F9's second amendment of 2026-10-24 (root decision 0212 points 3, 4 and 7)
+// `lazurio update` and Nová karta's Aktualizovat (`updateEverything`, with
+// progress per repository, `onProgress`) and the Open of one module
+// (`createOpenSync`, one repository, `SyncRequest.repository`): one core, one
+// content lock, one record.
 
 export type SyncRun =
   | Readonly<{
@@ -79,6 +80,9 @@ export type SyncProgress = Readonly<{
   kind: SyncEntry["kind"];
   branch: string;
   step: "checking" | "fetching" | "fast-forwarding" | "done";
+  /** `fetching` and `fast-forwarding`: the commit the remote's branch
+   * names, the one the checkout is to move to. */
+  to?: string;
   /** `done`: the answer. */
   entry?: SyncEntry;
 }>;
@@ -210,28 +214,27 @@ export async function syncContent(
         path: string,
         kind: SyncEntry["kind"],
         branch: string,
-        run: (progress: (step: CheckoutStep) => void) => Promise<Outcome>,
+        run: (
+          progress: (step: CheckoutStep, to: string) => void,
+        ) => Promise<Outcome>,
       ): Promise<SyncEntry> => {
         const where = { organization: login, root, path, kind, branch };
-        const report = (step: SyncProgress["step"], entry?: SyncEntry) => {
+        const report = (
+          step: SyncProgress["step"],
+          extra: Readonly<{ to?: string; entry?: SyncEntry }> = {},
+        ) => {
           try {
-            request.onProgress?.(
-              Object.freeze({
-                ...where,
-                step,
-                ...(entry === undefined ? {} : { entry }),
-              }),
-            );
+            request.onProgress?.(Object.freeze({ ...where, step, ...extra }));
           } catch {}
         };
         report("checking");
-        const outcome = await run(report);
+        const outcome = await run((step, to) => report(step, { to }));
         const entry: SyncEntry = Object.freeze({
           ...where,
           ...outcome,
           at: now().toISOString(),
         });
-        report("done", entry);
+        report("done", { entry });
         return entry;
       };
       const directory = join(folder, root);
@@ -409,7 +412,7 @@ async function syncCheckout(
   directory: string,
   expected: (repository: string) => boolean,
   branch: string,
-  progress: (step: CheckoutStep) => void = () => {},
+  progress: (step: CheckoutStep, to: string) => void = () => {},
 ): Promise<Outcome> {
   const { git } = context;
   const deadline = Date.now() + context.timeoutMs;
@@ -446,7 +449,7 @@ async function syncCheckout(
     // Known here already: ahead or diverged is decided without a fetch.
     const known = await git.relation(directory, observed.commit, head.commit);
     if (known === "ahead" || known === "diverged") return blocked(known);
-    progress("fetching");
+    progress("fetching", head.commit);
     const fetched = await git.fetchBranch(
       directory,
       remote,
@@ -472,7 +475,7 @@ async function syncCheckout(
       return blocked(relation);
     if (relation === null)
       return { result: "failed", reason: "relation-unknown" };
-    progress("fast-forwarding");
+    progress("fast-forwarding", fetched.commit);
     return (await git.fastForward(directory, fetched.commit))
       ? { result: "fast-forwarded", from: now.commit, to: fetched.commit }
       : { result: "failed", reason: "fast-forward-failed" };

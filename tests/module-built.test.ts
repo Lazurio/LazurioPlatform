@@ -25,9 +25,17 @@ import {
 import { createSessionRunner } from "../src/modules/session-runner";
 import { type Catalog, readFolderCatalog } from "../src/organizations/catalog";
 import { runTool } from "../src/tools/status";
+import { type CliContext, runUpdateCommand } from "../src/update/cli";
+import { updateEverything } from "../src/update/everything";
 import { writeOrganization } from "./fixtures/catalog-folder";
 import { compilePlatform, runnableModule } from "./fixtures/module-host";
 import { mkdirOwnedFixture as mkdir } from "./fixtures/owned-files";
+import {
+  closeSharedSigstore,
+  commitOf,
+  createWorld as createUpdateWorld,
+  target,
+} from "./fixtures/update-world";
 
 // A static app through the module lifecycle (decision F58, root decision
 // 0195 point 19), with real processes: a synthetic module whose build script
@@ -47,6 +55,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   if (root) await rm(root, { recursive: true, force: true });
+  await closeSharedSigstore();
 });
 
 // The build script: a page naming the checkout's `page.txt`, a content-named
@@ -789,6 +798,250 @@ posixTest(
     }
   },
   60_000,
+);
+
+/** `staticModule` whose Organization root and site are primary checkouts of
+ * their published repositories (bare repositories reached as github.com
+ * through git's own `insteadOf`), with the content host that reaches them;
+ * `publish` puts a new page on site's published main from elsewhere. */
+async function publishedSite(name: string, home: string) {
+  const remotes = join(root, `${name}-remotes`);
+  await mkdir(join(remotes, "alpha"), { recursive: true });
+  const gitEnv = {
+    GIT_CONFIG_COUNT: "2",
+    GIT_CONFIG_KEY_0: `url.${remotes}/.insteadOf`,
+    GIT_CONFIG_VALUE_0: "git@github.com:",
+    GIT_CONFIG_KEY_1: "protocol.file.allow",
+    GIT_CONFIG_VALUE_1: "always",
+  };
+  const content: DataMountHost = {
+    github: {
+      remote: async (repository: string) => ({
+        url: `git@github.com:${repository}.git`,
+      }),
+    } as unknown as ContentGitHub,
+    git: processContentGit({
+      path: Bun.env.PATH,
+      home,
+      platform: process.platform,
+      run: runTool,
+      env: gitEnv,
+    }),
+    lockDirectory: join(root, `${name}-base`, "content"),
+  };
+  const fixture = await staticModule(name, home, {
+    published: true,
+    dataMounts: content,
+  });
+  const git = (cwd: string, ...args: string[]) =>
+    execFileSync(
+      "git",
+      [
+        "-C",
+        cwd,
+        "-c",
+        "user.name=fixture",
+        "-c",
+        "user.email=fixture@example.invalid",
+        "-c",
+        "commit.gpgsign=false",
+        ...args,
+      ],
+      { encoding: "utf8", env: { ...process.env, ...gitEnv } },
+    ).trim();
+  const organization = join(fixture.folder, "organizations", "alpha");
+  await writeFile(join(organization, ".gitignore"), "workspace/\n");
+  git(organization, "init", "-q", "-b", "main");
+  git(organization, "add", "-A");
+  git(organization, "commit", "-qm", "Root");
+  for (const [directory, repository] of [
+    [organization, "alpha"],
+    [fixture.site, "site"],
+  ] as const) {
+    git(remotes, "clone", "-q", "--bare", directory, `alpha/${repository}.git`);
+    git(
+      directory,
+      "remote",
+      "add",
+      "origin",
+      `git@github.com:alpha/${repository}.git`,
+    );
+    git(directory, "fetch", "-q", "origin");
+  }
+  const scratch = join(root, name, "scratch");
+  git(root, "clone", "-q", "git@github.com:alpha/site.git", scratch);
+  return {
+    ...fixture,
+    content,
+    publish: async (page: string) => {
+      await writeFile(join(scratch, "app/page.txt"), `${page}\n`);
+      git(scratch, "commit", "-qam", page);
+      git(scratch, "push", "-q", "origin", "main");
+      return git(scratch, "rev-parse", "HEAD");
+    },
+  };
+}
+
+posixTest(
+  "lazurio update with no newer Lazurio and a module behind: its checkout fast-forwards, --json lists every item with Lazurio last, and the new commit is built and swapped in (root decision 0212 point 3)",
+  async () => {
+    const home = join(root, "home-update");
+    await mkdir(home);
+    const fixture = await publishedSite("update", home);
+    const { operations, folder } = fixture;
+    // No newer Lazurio: the latest release is the running version.
+    const product = await createUpdateWorld();
+    await product.release("1.0.0");
+    const context: CliContext = {
+      identity: { version: "1.0.0", commit: commitOf("1.0.0"), target },
+      platform: process.platform,
+      env: { HOME: product.root, XDG_DATA_HOME: product.root },
+      executable: join(product.root, "downloaded-lazurio"),
+      environment: product.environment("1.0.0"),
+      modules: () => ({ host: fixture.host }),
+    };
+    const update = (...args: string[]) =>
+      runUpdateCommand(
+        ["--base", product.base, "--folder", folder, ...args],
+        context,
+      );
+    try {
+      // site runs as its build, a session's app of this Launchpad.
+      const started = answer(await operations.start("alpha/site"));
+      expect(started.build?.mode).toBe("built");
+      await until(fixture.page, (page) => page.text === "<p>one</p>");
+      const keeper = operations.keepBuilt({ quietMs: 100, sweepMs: 60_000 });
+      await keeper?.sweep();
+      await keeper?.settled();
+      const published = await fixture.publish("two");
+      const ran = await update("--json");
+      expect(ran.code).toBe(0);
+      const result = JSON.parse(ran.stdout ?? "");
+      expect(result).toMatchObject({ kind: "up-to-date", running: "1.0.0" });
+      // One item per repository and the product, in the order the parts
+      // ran, Lazurio last. A session's apps are built by their Launchpad,
+      // which owns their dependency trees: no build item from the CLI.
+      expect(
+        result.items.map((item: Record<string, string>) =>
+          [item.part, item.path ?? "", item.result].join(" "),
+        ),
+      ).toEqual([
+        "content . current",
+        "content workspace/site fast-forwarded",
+        "product  current",
+      ]);
+      expect(result.items[1]).toMatchObject({
+        organization: "alpha",
+        branch: "main",
+        to: published,
+      });
+      expect(fixture.head()).toBe(published);
+      // The Launchpad's watch of site's checkout builds the new commit and
+      // swaps it in.
+      const swapped = answer(
+        await until(
+          () => operations.status("alpha/site"),
+          (status) =>
+            status.kind === "module" &&
+            status.build?.served?.commit === published,
+        ),
+      );
+      expect(swapped.build?.served?.commit).toBe(published);
+      expect((await fixture.page()).text).toBe("<p>two</p>");
+      // In words: the content's summary, then Lazurio's own line.
+      expect((await update()).stdout).toBe(
+        [
+          "Content: 2 repositories checked, 0 fast-forwarded, 0 left as they are.",
+          "Lazurio 1.0.0 is up to date.",
+        ].join("\n"),
+      );
+      // A product that fails still answers what the content did.
+      await product.close();
+      const offline = await update("--json");
+      expect(offline.code).toBe(1);
+      const failed = JSON.parse(offline.stdout ?? "");
+      expect(failed.kind).toBe("error");
+      expect(
+        failed.items.map((item: Record<string, string>) => item.result),
+      ).toEqual(["current", "current", "failed"]);
+      const words = await update();
+      expect(words.stdout).toContain("Content: 2 repositories checked");
+      expect(words.stderr).toStartWith("Update failed: ");
+    } finally {
+      await operations.stop("alpha/site");
+      await operations.close();
+      await product.close().catch(() => undefined);
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "the Launchpad's own run builds what changed and swaps it at once; a commit whose build failed is not built again, and an app nobody opened is not built for the first time",
+  async () => {
+    const home = join(root, "home-refresh");
+    await mkdir(home);
+    const fixture = await publishedSite("refresh", home);
+    const { operations, folder, content } = fixture;
+    const run = () =>
+      updateEverything({
+        content: (onProgress) => syncContent(folder, content, { onProgress }),
+        builds: (onProgress) => operations.refreshBuilt(onProgress),
+        product: async () => ({
+          part: "product",
+          result: "current",
+          version: "1.0.0",
+        }),
+      });
+    try {
+      answer(await operations.start("alpha/site"));
+      await until(fixture.page, (page) => page.text === "<p>one</p>");
+      const two = await fixture.publish("two");
+      const items = await run();
+      expect(items.filter((item) => item.part === "build")).toEqual([
+        {
+          part: "build",
+          organization: "alpha",
+          module: "site",
+          app: "app/package.json",
+          result: "built",
+          commit: two,
+        },
+      ]);
+      // Swapped by this run itself, no sweep.
+      expect((await fixture.page()).text).toBe("<p>two</p>");
+      // A commit whose build fails: the previous build keeps serving, and
+      // the next run does not build it again.
+      const broken = await fixture.publish("fail");
+      const failed = (await run()).find((item) => item.part === "build");
+      expect(failed).toMatchObject({
+        result: "failed",
+        reason: "build-script-failed",
+        commit: broken,
+      });
+      expect((await fixture.page()).text).toBe("<p>two</p>");
+      const failure = async () =>
+        answer(await operations.status("alpha/site")).build?.failure;
+      const recorded = await failure();
+      expect(recorded?.commit).toBe(broken);
+      expect((await run()).find((item) => item.part === "build")).toMatchObject(
+        { result: "failed", reason: "build-script-failed" },
+      );
+      // The same failure, not a new attempt.
+      expect(await failure()).toEqual(recorded);
+      // next was never opened: it has no build state, and gets none here.
+      expect(
+        (await run()).some(
+          (item) =>
+            item.part === "build" && "module" in item && item.module === "next",
+        ),
+      ).toBe(false);
+    } finally {
+      await operations.stop("alpha/site");
+      await operations.close();
+    }
+  },
+  120_000,
 );
 
 posixTest(
