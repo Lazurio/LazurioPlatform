@@ -579,8 +579,35 @@ test("the skills: the directory's name is the frontmatter's, a description Herme
     const launch = threads
       .split("\n")
       .find((line) => line.startsWith("- `t3 thread launch`"));
-    for (const fact of ["0.1.2", "0.1.1", "(decision 0172)"])
-      expect(launch).toContain(fact);
+    // Each version is bound to its own behaviour: 0.1.1 always full access,
+    // even under a narrower project mode; from 0.1.2 the project's mode, full
+    // access by default. A sentence with the versions swapped fails.
+    const meaning = {
+      cs: {
+        says: [
+          "Od T3 Code 0.1.2 v režimu projektu, jehož výchozí hodnota je plný přístup (decision 0172)",
+          "verze 0.1.1 zakládá vždycky s plným přístupem",
+        ],
+        never: [
+          "Od T3 Code 0.1.1",
+          "0.1.1 v režimu projektu",
+          "verze 0.1.2 zakládá vždycky",
+        ],
+      },
+      en: {
+        says: [
+          "From T3 Code 0.1.2 in the project's mode, full access by default (decision 0172)",
+          "version 0.1.1 always launches with full access",
+        ],
+        never: [
+          "From T3 Code 0.1.1",
+          "0.1.1 in the project's mode",
+          "version 0.1.2 always launches",
+        ],
+      },
+    }[locale];
+    for (const fact of meaning.says) expect(launch).toContain(fact);
+    for (const fact of meaning.never) expect(launch).not.toContain(fact);
     const helpers = layer[buddySkillPath("lazurio-buddy-pomocnici")];
     for (const fact of [
       "delegace zadej --bot <bot> --termin",
