@@ -18365,3 +18365,56 @@ The forwarded headers are Caddy's default, which Machines count on but do not ye
 prove for the shell route (HumanAndMachine-ai/Machines#825). The Buddy layer still says a notice
 comes in the conversation the work was given from; after a final refusal it comes in
 Telegram.
+
+### F61 addendum of 2026-10-24: Delegace takes the chat's channel from Hermes's session
+
+**Follows Lazurio/LazurioPlatform#627 under Matěj's mandate for Buddy on the web (plan
+DEV-6676); proposed by the agent and implemented in this revision.** On Ring 0 a task Buddy gave
+a bot from his chat in Lazurio reported back on Telegram, and in the chat Buddy never came back.
+Point 2 of F61 assumed that `hermes acp`, started with `LAZURIO_BUDDY_CHANNEL=t3`, runs Buddy's
+tools, so `delegace zadej` inherits the variable. With Hermes v0.22.4 it does not. `hermes acp`
+only views a session of Hermes's gateway (`acp_adapter/server.py` returns `GatewayACPAgent`
+whenever no session manager is injected, which the entry point never does), and the gateway runs
+the turn and every tool in it with its own environment. The record therefore had no `kanal`, and
+the notice went through the Kanban card to Telegram.
+
+1. **The channel from Hermes's session.** The gateway hands every command a turn runs the
+   session it runs for, as `HERMES_SESSION_*` (`tools/environments/local.py`,
+   `_finalize_child_env` and `_inject_session_context_env`). A variable the turn does not bind is
+   removed, never inherited from another session. A session `hermes acp` opens has the source
+   `acp` (`acp_adapter/gateway_server.py`, `session.create`), which the gateway binds as
+   `HERMES_SESSION_SOURCE` for each of its turns (`tui_gateway/server.py`,
+   `_set_session_context`). A Telegram turn binds `HERMES_SESSION_PLATFORM=telegram` and no source
+   (`gateway/run.py`, `_set_session_env`). So `zadej` records `kanal: t3` when
+   `HERMES_SESSION_SOURCE` is exactly `acp`. Any other source, or none, means Telegram as before:
+   Hermes's terminal UI, a desktop app and a Kanban worker are not the chat. All of this was read
+   on the fork's release tag `v0.22.4-lazurio.1`.
+2. **`LAZURIO_BUDDY_CHANNEL` stays and comes first.** It still names the chat wherever it reaches
+   a command: a command run by hand, or a Hermes that runs ACP in its own process. Any other value
+   of it still fails `zadej` before anything exists, whatever the session says. The provider
+   instance keeps setting it (`lazurio buddy chat`). Taking it out of settings already written
+   would need a list of retired members, and nothing would change.
+3. **Nothing else changes.** The record (`verze: 1` with the optional `kanal`), the notice in
+   Buddy's thread and its refusals, the Kanban card for Telegram and the last resort stay as they
+   were. The acting claim on the provider instance also reaches only `hermes acp`. In the gateway
+   it comes from the gateway's own environment, which this addendum leaves as it is.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A Hermes change passing the ACP client's environment to the gateway's tools | One gateway runs every session, so one client's variables would reach other sessions' turns; rejected for the session Hermes already binds to each command |
+| The shape of `HERMES_SESSION_KEY` | A key is an identifier, not a contract; rejected for the session's source |
+| Every session that is not Telegram is the chat | Hermes's terminal UI, a desktop app or a Kanban worker would wake a chat the task did not come from; rejected for exactly `acp` |
+| The variable on Hermes's gateway service | It would name the chat for Telegram's turns too; rejected for the per-turn session |
+
+**Verified by** `src/buddy/delegace/test_delegace.py`. Every test of the chat's channel now runs
+`zadej` with the session a gateway turn of the chat binds (the source `acp`, its key and id, no
+variable), so the channel, its wake in Buddy's thread, its refusals and its restarts are proven
+on that path. A Telegram turn's session records no channel and wakes the Kanban card. The sources
+`tui`, `desktop`, `kanban`, `ACP`, `acp-viewer` and `t3` record none. `LAZURIO_BUDDY_CHANNEL=t3`
+alone still records the chat. An unknown value of it starts nothing without a session, in the
+chat's session and in Telegram's. Mutation checks: each of these fails a test: the session check
+taken out, any source taken as the chat, the session decided before the variable is checked,
+and the source compared without its case. **Honest limits:** no real gateway ran in these tests.
+The variables are the ones the release tag's code binds, read from its source. The Ring 0
+acceptance waits for this revision on an Osobní Prostředí: a task given in the chat answered in
+the chat, and one given on Telegram answered on Telegram.

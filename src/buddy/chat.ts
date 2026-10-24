@@ -20,14 +20,19 @@ import { buddyT3Home } from "./t3-runtime";
 //
 // - the provider instance `buddy`: T3's ACP driver with a local command,
 //   `hermes acp`, with `HERMES_HOME` (Buddy's one Hermes home, shared with
-//   his Telegram gateway), `LAZURIO_BUDDY_CHANNEL=t3`, which every tool
-//   Buddy runs there inherits, so Delegace notifies him back in this chat, and
-//   T3 Code's acting-sender claim (Lazurio/t3code#106): `T3CODE_ACTING_SENDER
-//   =buddy` with the user's name from Buddy's persona, as it stands alone
-//   and after „za“, so what Buddy's `t3` writes or decides in the user's
-//   threads shows „Buddy za <jméno>“. The claim lives only here, in Buddy's
-//   own provider: never in a T3 Code service's environment or in the user's
-//   Chat (`~/.t3`), whose agents would all inherit it;
+//   his Telegram gateway), `LAZURIO_BUDDY_CHANNEL=t3`, the channel Delegace
+//   records for a delegation from this chat, and T3 Code's acting-sender
+//   claim (Lazurio/t3code#106): `T3CODE_ACTING_SENDER=buddy` with the user's
+//   name from Buddy's persona, as it stands alone and after „za“, so what
+//   Buddy's `t3` writes or decides in the user's threads shows „Buddy za
+//   <jméno>“. The claim lives only in Buddy's own provider: never in a T3
+//   Code service's environment or in the user's Chat (`~/.t3`), whose agents
+//   would all inherit it. These variables reach the `hermes acp` process.
+//   That process only views a session of Hermes's gateway, which runs
+//   Buddy's turns and tools with its own environment, so there Delegace
+//   takes the channel from Hermes's session (`HERMES_SESSION_SOURCE=acp`,
+//   F61's addendum of 2026-10-24) and the claim comes from the gateway's own
+//   environment;
 // - Codex and Claude off: the only built-in instances T3 Code turns on by
 //   itself, so Buddy is this instance's only provider;
 // - no turn continues by itself after an update (one conversation: a
