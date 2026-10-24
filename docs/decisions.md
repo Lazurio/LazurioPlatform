@@ -18421,10 +18421,19 @@ which broke the same App for their colleagues.
      install script runs. The installed program must be a regular file and report exactly
      the pinned version; then the private home and cache go, and the directory is renamed
      to `<version>` in one step.
-   - Concurrent resolutions of one version in a process join one fetch. Two processes
-     racing both fetch; the first rename wins, and the other discards its copy and uses
-     the winner's. A private directory older than an hour (a fetch whose process ended) is
-     removed at the next fetch.
+   - Concurrent resolutions of one version in a process join one fetch. Across
+     processes, everything that changes a version's directory happens under that
+     version's exclusion: one kernel `flock` on `runtimes/bun.locks/<version>`
+     (`acquireFileLock`), which a dead holder releases by itself. That covers moving a
+     broken copy aside and placing a fetched one. The cache is read again once the
+     exclusion is held, so a second process waits for the first and then reads the
+     copy it placed. No process can remove a copy another one has just placed and
+     handed out (Pablo's review of #626). A version that is ready is read without the
+     exclusion. A waiter waits for one fetch at most, then refuses with
+     `runtime-unavailable`. Where there is no qualified `flock` (Windows, for now, or a
+     filesystem without it), the exclusion is absent; the identity check before a broken
+     copy is moved aside and the one-step rename remain. A private directory older than
+     an hour (a fetch whose process ended) is removed at the next fetch.
 4. **Targets.** darwin-aarch64, darwin-x64, linux-x64 and linux-aarch64 (glibc),
    windows-x64, and windows-aarch64 from Bun 1.3.10. An x64 CPU without AVX2 needs the
    baseline build: on Linux `/proc/cpuinfo` decides up front; elsewhere, and on Linux when
@@ -18511,7 +18520,7 @@ which broke the same App for their colleagues.
 | Bun's install script (`curl … \| bash`) per version | A script from the network; the version known only after it ran; rejected |
 | Download and verify the tarball against the registry ourselves, as Executor's pinned install does | A second implementation of what Bun's installer already verifies; rejected for Bun's own installer |
 | Leave PATH as it is for a resolved Bun | A nested `bunx`, or `bun` outside Bun's `run`, would be the user's version; rejected |
-| A lock file per version across processes | One more file and a wait; the atomic rename already keeps one copy, and the loser discards its own |
+| No exclusion across processes, only the one-step rename | Rejected after Pablo's review of #626: a process repairing a broken copy could move aside, and delete, the copy another process had just placed and handed out to an App. Adopted instead: one `flock` per version around every change of its directory |
 | Retry every runtime failure in the background | A download that does not verify would repeat unattended every few minutes; rejected for point 7 |
 | A guard in `lazurio tools update bun` until the resolver ships | Ships with the resolver, so it protects nothing (point 10); not built |
 
@@ -18521,7 +18530,9 @@ environment unchanged; another version fetched once into the cache from its own 
 project, home and cache, placed whole with `bunx`, then from the cache; each refusal named
 by the package, with nothing kept; the target table and the systems refused; the baseline
 when the plain build does not run, and only the baseline on Linux without AVX2; five
-concurrent resolutions fetching once, and two processes racing keeping one copy; a corrupt
+concurrent resolutions fetching once; two processes fetching one version once, the second
+waiting for the first's exclusion and reading its copy; two processes repairing one broken
+cached version at once, neither removing the copy the other placed; a corrupt
 cached program fetched again once, never in a loop; the pre-warm's per-pin results; and
 the real `bun add` against a registry on the loopback interface: a version fetched and
 run, a project's package.json above it and the user's npm and Bun configuration left

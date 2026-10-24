@@ -30,6 +30,7 @@ import {
   withModuleBun,
 } from "../src/modules/bun-runtime";
 import { PreparationRefused } from "../src/modules/preparation-refusal";
+import { acquireFileLock } from "../src/platform/flock";
 
 // The Bun an App pins is that App's runtime (decision F62, root decision 0171
 // addendum of 2026-10-24): the user's Bun when it is exactly that version,
@@ -462,21 +463,13 @@ posixTest(
     const executable = cachedExecutable(home, "1.4.99", "linux-aarch64");
     for (const result of results) expect(result.executable).toBe(executable);
     expect(fake.calls).toHaveLength(1);
-    // Two processes: each its own in-flight fetches, one cache. Both fetch,
-    // both finish only once both started, so both try to place their copy.
+    // Two processes: each its own in-flight fetches, one cache. The first
+    // fetches under the version's exclusion; the second waits for it and
+    // then reads the placed copy, so the version is fetched once.
     const racing = await place("racing");
-    let started = 0;
-    let both: () => void = () => {};
-    const ready = new Promise<void>((resolve) => {
-      both = resolve;
-    });
-    const racer = fakeInstaller({
-      gate: async () => {
-        started++;
-        if (started === 2) both();
-        await ready;
-      },
-    });
+    const fetched = gated();
+    const racer = fakeInstaller({ gate: () => fetched.wait });
+    const locks = countedLock();
     const processes = [0, 1].map(() =>
       createModuleBunResolver({
         home: racing.home,
@@ -486,20 +479,113 @@ posixTest(
         system: async () => linuxArm,
         freeBytes: plenty,
         fetches: new Map(),
+        lock: locks.lock,
       }),
     );
-    const raced = await Promise.all(
-      processes.map((resolveIn) =>
-        resolveIn({ packageManager: "bun@1.4.99", owner: racing.owner }),
-      ),
-    );
+    const first = processes[0]?.({
+      packageManager: "bun@1.4.99",
+      owner: racing.owner,
+    });
+    await until(() => racer.calls.length === 1);
+    const second = processes[1]?.({
+      packageManager: "bun@1.4.99",
+      owner: racing.owner,
+    });
+    await until(() => locks.attempts === 2);
+    fetched.open();
+    const raced = await Promise.all([first, second]);
     const placed = cachedExecutable(racing.home, "1.4.99", "linux-aarch64");
-    expect(racer.calls).toHaveLength(2);
-    for (const result of raced) expect(result.executable).toBe(placed);
+    expect(racer.calls).toHaveLength(1);
+    for (const result of raced) expect(result?.executable).toBe(placed);
+    expect(raced.map((result) => result?.source)).toEqual(["fetched", "cache"]);
     expect(run(placed, ["--version"])).toBe("1.4.99");
     expect(await readdir(moduleBunRoot(racing.home))).toEqual(["1.4.99"]);
   },
 );
+
+posixTest(
+  "two processes repairing one broken cached version at once: one moves it aside and places a fetched copy, the other waits and reads that copy, and neither removes the replacement",
+  async () => {
+    const { home, owner } = await place("repair-race");
+    const versionDirectory = join(moduleBunRoot(home), "1.4.99");
+    // A broken copy: its program says another version.
+    await fakeBun(
+      join(
+        versionDirectory,
+        "node_modules",
+        "@oven",
+        "bun-linux-aarch64",
+        "bin",
+        "bun",
+      ),
+      "1.4.97",
+    );
+    const fetched = gated();
+    const fake = fakeInstaller({ gate: () => fetched.wait });
+    const locks = countedLock();
+    const [repairing, waiting] = [0, 1].map(() =>
+      createModuleBunResolver({
+        home,
+        userBun: process.execPath,
+        path: "/usr/bin:/bin",
+        install: fake.install,
+        system: async () => linuxArm,
+        freeBytes: plenty,
+        fetches: new Map(),
+        lock: locks.lock,
+      }),
+    );
+    const first = repairing?.({ packageManager: "bun@1.4.99", owner });
+    // The first holds the exclusion, has moved the broken copy aside and is
+    // fetching; the second sees no ready copy and waits for the exclusion.
+    await until(() => fake.calls.length === 1);
+    const second = waiting?.({ packageManager: "bun@1.4.99", owner });
+    await until(() => locks.attempts === 2);
+    fetched.open();
+    const placed = await first;
+    const identity = await lstat(versionDirectory);
+    const read = await second;
+    const executable = cachedExecutable(home, "1.4.99", "linux-aarch64");
+    expect(placed?.executable).toBe(executable);
+    expect(read?.executable).toBe(executable);
+    expect([placed?.source, read?.source]).toEqual(["fetched", "cache"]);
+    // The copy the first placed (and handed out) is the one still there.
+    const after = await lstat(versionDirectory);
+    expect(`${after.dev}:${after.ino}`).toBe(`${identity.dev}:${identity.ino}`);
+    expect(run(executable, ["--version"])).toBe("1.4.99");
+    expect(fake.calls).toHaveLength(1);
+    expect(await readdir(moduleBunRoot(home))).toEqual(["1.4.99"]);
+  },
+);
+
+/** A gate a test opens. */
+function gated() {
+  let open: () => void = () => {};
+  const wait = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  return { wait, open: () => open() };
+}
+
+/** The real exclusion, counting how often it was asked for. */
+function countedLock() {
+  const counted = {
+    attempts: 0,
+    lock: async (path: string, timeoutMs: number) => {
+      counted.attempts++;
+      return acquireFileLock(path, { timeoutMs });
+    },
+  };
+  return counted;
+}
+
+async function until(condition: () => boolean, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error("Condition not reached");
+    await Bun.sleep(10);
+  }
+}
 
 posixTest(
   "a cached version whose program does not run or says another version is fetched again once, never in a loop",

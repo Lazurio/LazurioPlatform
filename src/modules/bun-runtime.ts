@@ -13,6 +13,11 @@ import {
 } from "node:fs/promises";
 import { delimiter, dirname, join } from "node:path";
 import { promisify } from "node:util";
+import {
+  acquireFileLock,
+  type FileLock,
+  FileLockError,
+} from "../platform/flock";
 import { parseBunVersion } from "./bun-toolchain";
 import {
   type PreparationReason,
@@ -93,6 +98,11 @@ const leftoverAgeMs = 60 * 60_000;
  * off their PATH. */
 export const moduleBunRoot = (home: string) =>
   join(home, ".local", "share", "lazurio", "runtimes", "bun");
+
+/** The lock files of the versions' exclusions, beside the cache and never
+ * removed (a waiter may hold one open). */
+export const moduleBunLocks = (home: string) =>
+  join(home, ".local", "share", "lazurio", "runtimes", "bun.locks");
 
 /** A refusal that may pass by itself, so a build of the background (which
  * asks nobody) tries the same commit again at the next sweep: the registry
@@ -322,6 +332,29 @@ class RuntimeFailure extends Error {
  * resolutions of one version fetch it once. */
 const fetchesOfThisProcess = new Map<string, Promise<ModuleBun>>();
 
+/** The exclusion of one version's directory across processes: one kernel
+ * `flock` (`acquireFileLock`) on `<version>` in `moduleBunLocks`, which a
+ * dead holder releases by itself. Null where there is none to take: a system
+ * without a qualified `flock` (Windows, for now) or a filesystem that does
+ * not support it; there two processes repairing one broken version at once
+ * are not excluded from each other. */
+export type RuntimeLock = (
+  path: string,
+  timeoutMs: number,
+) => Promise<FileLock | null>;
+
+const versionLock: RuntimeLock = async (path, timeoutMs) => {
+  if (process.platform !== "darwin" && process.platform !== "linux")
+    return null;
+  try {
+    return await acquireFileLock(path, { timeoutMs });
+  } catch (error) {
+    if (error instanceof FileLockError && error.reason === "unsupported")
+      return null;
+    throw error;
+  }
+};
+
 /** The resolver of one account's Apps (decision F62). */
 export function createModuleBunResolver(options: {
   /** The user's home: the runtime cache is under it (`moduleBunRoot`). */
@@ -332,12 +365,14 @@ export function createModuleBunResolver(options: {
   path?: string | undefined;
   tmpdir?: string | undefined;
   /** Test seams: this system, Bun's installer, the free space, the fetches
-   * of this process (another map is another process) and the fetch bound. */
+   * of this process (another map is another process), the fetch bound and
+   * the exclusion of a version across processes. */
   system?: (() => Promise<BunSystem>) | undefined;
   install?: BunInstaller | undefined;
   freeBytes?: ((directory: string) => Promise<number>) | undefined;
   fetches?: Map<string, Promise<ModuleBun>> | undefined;
   fetchTimeoutMs?: number | undefined;
+  lock?: RuntimeLock | undefined;
 }): ModuleBunResolver {
   const { home, userBun } = options;
   const path = options.path ?? "/usr/bin:/bin";
@@ -345,6 +380,7 @@ export function createModuleBunResolver(options: {
   const install = options.install ?? bunInstaller();
   const fetches = options.fetches ?? fetchesOfThisProcess;
   const fetchTimeoutMs = options.fetchTimeoutMs ?? runtimeFetchTimeoutMs;
+  const lock = options.lock ?? versionLock;
   const freeBytes =
     options.freeBytes ??
     (async (directory: string) => {
@@ -526,28 +562,52 @@ export function createModuleBunResolver(options: {
   }
 
   // The cache, or one fetch: a broken cached version is fetched again once.
+  // A version that is ready is only read, without any exclusion. Everything
+  // that changes a version's directory (moving a broken one aside, placing a
+  // fetched one) happens under that version's exclusion across processes, and
+  // the cache is read again once it is held. So no process removes a copy that
+  // another one has just placed and may have handed out already (Pablo's
+  // review of #626): a second process waits, then finds it ready.
   async function provide(
     version: string,
     targets: readonly BunTarget[],
     userRuns: boolean,
   ): Promise<ModuleBun> {
     const directory = join(root, version);
-    for (let look = 0; look < 2; look++) {
-      const there = await cached(directory, version, targets);
-      if (there.kind === "ready") return there.bun;
-      if (there.kind === "absent") break;
-      if (await discard(directory, there.identity)) break;
-    }
-    // Bun's installer is the user's Bun: without one that runs, nothing can
-    // be fetched (as for a broken Bun before, an unnamed failure).
-    if (!userRuns) throw new Error("Required Bun toolchain unavailable");
+    const first = await cached(directory, version, targets);
+    if (first.kind === "ready") return first.bun;
+    const locks = moduleBunLocks(home);
+    await mkdir(locks, { recursive: true, mode: 0o700 });
+    let held: FileLock | null;
     try {
-      return await fetchVersion(directory, version, targets);
+      // A waiter waits for one fetch at most, then refuses as a registry
+      // that did not answer (which the next background build tries again).
+      held = await lock(join(locks, version), fetchTimeoutMs + 60_000);
     } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code === "ENOSPC" || code === "EDQUOT")
-        throw new RuntimeFailure("runtime-disk-full");
+      if (error instanceof FileLockError)
+        throw new RuntimeFailure("runtime-unavailable");
       throw error;
+    }
+    try {
+      for (let look = 0; look < 2; look++) {
+        const there = await cached(directory, version, targets);
+        if (there.kind === "ready") return there.bun;
+        if (there.kind === "absent") break;
+        if (await discard(directory, there.identity)) break;
+      }
+      // Bun's installer is the user's Bun: without one that runs, nothing
+      // can be fetched (as for a broken Bun before, an unnamed failure).
+      if (!userRuns) throw new Error("Required Bun toolchain unavailable");
+      try {
+        return await fetchVersion(directory, version, targets);
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code === "ENOSPC" || code === "EDQUOT")
+          throw new RuntimeFailure("runtime-disk-full");
+        throw error;
+      }
+    } finally {
+      await held?.release();
     }
   }
 
