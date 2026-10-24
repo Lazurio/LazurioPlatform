@@ -139,12 +139,12 @@ const installation = (cs: string, en: string): ToolText => ({
   en: `${en} ${never.en}`,
 });
 // The usage of a tool that writes outside: the externally visible write is a
-// Publication. The agent prepares the Draft and leaves it unfinished; the
-// Operator's explicit "Publish" for that Draft is the full mandate to finish
-// it (decision F14, addendum 2026-10-05).
+// Publication. The agent prepares the work and leaves it unfinished; the
+// user's explicit "Publish" for it is the full mandate to finish it (decision
+// F14, addenda of 2026-10-05 and 2026-10-24: "Draft" is no Lazurio term).
 const writingUsage = (cs: string, en: string, write: ToolText): ToolText => ({
-  cs: `${cs} ${write.cs} je Publikace: připrav Draft a nedokončuj ho; výslovné „Publikuj“ uživatele k tomu Draftu je plný mandát k jeho dokončení (\`manual/working-here.md\`).`,
-  en: `${en} ${write.en} is a Publication: prepare the Draft and leave it unfinished; the user's explicit “Publish” for that Draft is the full mandate to finish it (\`manual/working-here.md\`).`,
+  cs: `${cs} ${write.cs} je Publikace: práci připrav a nech ji nedokončenou; výslovné „Publikuj“ uživatele k ní je plný mandát k jejímu dokončení (\`manual/working-here.md\`).`,
+  en: `${en} ${write.en} is a Publication: prepare the work and leave it unfinished; the user's explicit “Publish” for it is the full mandate to finish it (\`manual/working-here.md\`).`,
 });
 
 export const toolCatalog: readonly ToolEntry[] = Object.freeze([

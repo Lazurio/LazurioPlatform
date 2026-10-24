@@ -7,12 +7,12 @@ import {
 } from "./outputs";
 import type { FolderProfile } from "./profile";
 import {
-  draftRule,
   environmentWording,
   fullAccess,
   instructionTemplateRevision,
   parseInstructionSource,
   personalspaceRules,
+  publicationRule,
   questionTool,
   type Text,
 } from "./render";
@@ -28,8 +28,8 @@ import { voiceSection } from "./voice";
 // d923a5eb, agent/prompt_builder.py `_CONTEXT_FILE_CANDIDATES`), so the
 // rules every agent follows reach Buddy here, composed from the same
 // fragments as AGENTS.md: the voice, the kinds of Environment, the question
-// tool, the Draft and Publication, full access and Personalspace. The role is
-// Buddy's DNA as the Organization Admin approved it on 2026-10-20 (the
+// tool, preparing first and Publication, full access and Personalspace. The
+// role is Buddy's DNA as the Organization Admin approved it on 2026-10-20 (the
 // coordinator who never implements, whose helpers are MausBot bots and who
 // enters the user's T3 Code threads only to read them, unless the user asks),
 // written about the user and never about one person; the persona (name,
@@ -415,7 +415,7 @@ export function renderBuddyRules(input: unknown): string {
     pick(t("## Jak se tu pracuje", "## How work is done here")),
     pick(environmentWording),
     pick(questionTool),
-    pick(draftRule),
+    pick(publicationRule),
     pick(fullAccess),
     ...personalspaceRules.map(pick),
     "",
