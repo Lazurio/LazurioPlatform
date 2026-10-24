@@ -840,7 +840,7 @@ commits behind, so the settings the Owner changed in the Dashboard never reached
 3. **What it leaves, and reports.** Dirty work (tracked or untracked), another branch,
    an ahead, diverged or detached state, an operation in progress, or something else at
    the place: `blocked` with its reason, byte for byte as it was. Never a stash, switch,
-   reset, merge, hook or clone; never a worktree, a Production Space repository,
+   reset, merge, hook, fsmonitor program or clone; never a worktree, a Production Space repository,
    `infra` or the Personalspace; never an absent repository (installation stays
    explicit). A blocked root stops its Organization.
 4. **Data mounts too, when clean.** This amends the contract's exclusion of repository

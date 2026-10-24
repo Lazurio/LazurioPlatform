@@ -395,8 +395,13 @@ export function processContentGit(environment: GitEnvironment): ContentGit {
   // ---- synchronization of a present checkout (docs/content-sync.md) ----
   // Never interactive: no terminal or askpass prompt, and SSH in batch mode,
   // with the operator's own SSH command where one is configured. Never a
-  // hook, a stash, a submodule or Git's background maintenance.
+  // hook, a stash, a submodule or Git's background maintenance, and never a
+  // checkout's own `core.fsmonitor` program, which `git status` and a merge
+  // would run and which may write into the checkout (Pablo's review of #620).
+  // `-c` reaches the Git processes these start too (GIT_CONFIG_PARAMETERS).
   const quiet = [
+    "-c",
+    "core.fsmonitor=false",
     "-c",
     "core.hooksPath=/dev/null",
     "-c",
@@ -534,6 +539,7 @@ export function processContentGit(environment: GitEnvironment): ContentGit {
           executable,
           "-C",
           directory,
+          ...quiet,
           "status",
           "--porcelain=v1",
           "-z",

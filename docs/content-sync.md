@@ -202,7 +202,8 @@ about a minute:
 
 1. The place: a primary checkout (not a linked worktree) of the declared repository, or
    `unexpected-checkout`; nothing there, or an empty directory, is `absent`.
-2. Local state, without Git's optional index refresh: an operation under way
+2. Local state, without Git's optional index refresh and never through the checkout's own
+   `core.fsmonitor` program (every Git command of a synchronization runs with it off): an operation under way
    (`MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `BISECT_LOG`, `rebase-merge`,
    `rebase-apply`, `sequencer`), then a detached `HEAD`, another branch, tracked or
    untracked changes: `blocked`, before anything is asked of the network.
@@ -211,8 +212,8 @@ about a minute:
    `HEAD` or unrelated to it: `ahead` or `diverged`, nothing fetched.
 4. Otherwise one fetch of that branch into `refs/remotes/origin/<branch>` (no tags,
    submodules or `FETCH_HEAD`), the local state checked again, and a strict
-   fast-forward (`git merge --ff-only` with hooks, autostash, submodule recursion and
-   background maintenance off) to exactly the fetched commit: `fast-forwarded` with
+   fast-forward (`git merge --ff-only` with hooks, fsmonitor, autostash, submodule recursion
+   and background maintenance off) to exactly the fetched commit: `fast-forwarded` with
    `from` and `to`. A fetch that shows divergence leaves only the remote-tracking ref
    moved.
 

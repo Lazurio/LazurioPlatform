@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import {
+  chmod,
   lstat,
   mkdtemp,
   readdir,
@@ -151,7 +152,13 @@ async function snapshot(directory: string, remotes = true) {
       .split("\n")
       .filter((line) => remotes || !line.startsWith("refs/remotes/")),
     head: await readFile(join(directory, ".git", "HEAD"), "utf8"),
-    index: await ok(directory, "ls-files", "--stage"),
+    index: await ok(
+      directory,
+      "-c",
+      "core.fsmonitor=false",
+      "ls-files",
+      "--stage",
+    ),
     files,
   };
 }
@@ -352,6 +359,59 @@ posixTest(
     expect(syncChecks(record, true, new Date())).toEqual([
       { id: "content-sync", outcome: "ok", context: { organizations: 1 } },
     ]);
+  },
+  60_000,
+);
+
+posixTest(
+  "a checkout's own core.fsmonitor program never runs: not for a checkout on another branch, not for a dirty one, not for a fast-forward (Pablo's review of #620)",
+  async () => {
+    world = await createWorld();
+    const fixture = await organization(world, { modules: ["dirty", "other"] });
+    const marker = join(world.root, "fsmonitor-ran");
+    // A program that, if Git ran it, would leave a marker and change the
+    // checkout's tracked file a.txt.
+    const monitor = async (name: string) => {
+      const directory = fixture.at(`workspace/${name}`);
+      const script = join(world.root, `fsmonitor-${name}.sh`);
+      await writeFile(
+        script,
+        `#!/bin/sh\necho ${name} >> '${marker}'\nprintf 'changed\\n' >> '${join(directory, "a.txt")}'\nexit 1\n`,
+      );
+      await chmod(script, 0o755);
+      await ok(directory, "config", "core.fsmonitor", script);
+      return directory;
+    };
+    const web = await advance(world, "Alpha/web", (directory) =>
+      writeFile(join(directory, "a.txt"), "2\n"),
+    );
+    const behind = await monitor("web");
+    const dirty = await monitor("dirty");
+    await writeFile(join(dirty, "draft.txt"), "draft\n");
+    await ok(fixture.at("workspace/other"), "switch", "--quiet", "-c", "other");
+    const other = await monitor("other");
+    const before = {
+      dirty: await snapshot(dirty),
+      other: await snapshot(other),
+    };
+    // Only the synchronization's own Git commands from here on.
+    await rm(marker, { force: true });
+    const run = await ran(fixture);
+    const ranMonitor = await lstat(marker).then(
+      () => true,
+      () => false,
+    );
+    expect(byPath(run.entries)).toMatchObject({
+      "workspace/web": "fast-forwarded",
+      "workspace/dirty": "blocked:dirty",
+      "workspace/other": "blocked:wrong-branch",
+    });
+    // Git never ran any of the three programs.
+    expect(ranMonitor).toBe(false);
+    expect(await snapshot(dirty)).toEqual(before.dirty);
+    expect(await snapshot(other)).toEqual(before.other);
+    expect(await head(behind)).toBe(web);
+    expect(await readFile(join(behind, "a.txt"), "utf8")).toBe("2\n");
   },
   60_000,
 );
