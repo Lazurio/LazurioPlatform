@@ -898,6 +898,14 @@ const en = {
   guideVaultAgentsOwn: "{This} has its own vault",
   guideVaultAgentsUse: "Agents take passwords from it without asking",
   guideVaultAgentsSee: "Everyone {in this} sees its passwords",
+  // Where the vault takes an agent's request (decision F54): how a value the
+  // agent asks for gets into it. Trezor's line until F56's addendum (6) of
+  // 2026-10-24, moved into its "?" by Matěj's decision of that day: its first
+  // sentence is the step, the rest the quieter line, without the final full
+  // stop.
+  guideVaultRequest: "Does an agent need a password or a key?",
+  guideVaultRequestSub:
+    "Tell it in Chat. It asks for the value here, you fill it in, and it goes straight into the vault",
   // The guide of every Settings section (decision F56's addendum of
   // 2026-10-18, guides.ts): their explanations, which took the sections'
   // explaining sentences. The same rules.
@@ -2654,6 +2662,9 @@ const cs: Record<MessageKey, string> = {
   guideVaultAgentsOwn: "{Toto} má vlastní trezor",
   guideVaultAgentsUse: "Agenti z něj berou hesla bez ptaní",
   guideVaultAgentsSee: "Hesla vidí každý {v tomto}",
+  guideVaultRequest: "Potřebuje agent heslo nebo klíč?",
+  guideVaultRequestSub:
+    "Řekněte mu to v Chatu. O hodnotu si řekne tady, vy ji vyplníte a uloží se rovnou do trezoru",
   guideStartSteps: "Kroky, které připraví {toto} k práci",
   guideStartAi: "Nejdřív připojte svůj účet AI",
   guideStartGithub: "Po GitHubu se moduly stáhnou samy",

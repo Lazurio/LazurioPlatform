@@ -698,15 +698,16 @@ export function createVaultPagePanel(
       return model !== null || loading;
     },
     /** What the page read, which its "?" is chosen by (guides.ts
-     * `vaultHelp`): the vault core's answer, newest first, and where the
-     * person stands in the vault; each null until read. */
+     * `vaultHelp`, `vaultTakesRequests`): the vault core's answer, newest
+     * first, the setup running now, and where the person stands in the
+     * vault; each null until read. */
     get facts(): VaultGuideFacts {
       const status = outcome ?? fresh ?? model?.status ?? null;
       return {
         vault:
           model === null || status === null
             ? null
-            : { status, environment: model.environment },
+            : { status, environment: model.environment, setup: model.setup },
         person,
       };
     },
