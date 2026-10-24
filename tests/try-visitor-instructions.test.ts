@@ -87,7 +87,7 @@ const expected = {
   },
   publish: {
     cs: "Žádný push, pull request, issue, e-mail ani jiný krok navenek. Rozpracovaná práce zůstává jen tady a může zmizet: toto Prostředí se může kdykoli smazat nebo založit znovu.",
-    en: "No push, pull request, issue, e-mail or other outward action. Draft work stays only here and may be wiped: this Environment can be wiped or deployed again at any time.",
+    en: "No push, pull request, issue, e-mail or other outward action. Work in progress stays only here and may be wiped: this Environment can be wiped or deployed again at any time.",
   },
   withheld: {
     cs: "Návštěvníci nemají Integrace ani Nastavení → Nástroje",

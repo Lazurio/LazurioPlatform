@@ -8,8 +8,10 @@ import { shown } from "../organizations/cli";
 import { type CliContext, installBase, operatorFolder } from "../update/cli";
 import {
   type ContentHost,
+  contentLockDirectory,
   preparationAnswer,
   processContentHost,
+  processGitHubHost,
 } from "./host";
 import { type InstallRequest, installContent } from "./install";
 import {
@@ -19,10 +21,12 @@ import {
   itemLabel,
   repositoryPattern,
 } from "./model";
+import { type SyncEntry, type SyncHost, syncContent } from "./sync";
 
-/** `lazurio organization install` and `lazurio personalspace install`: the
- * terminal surface of content installation. The Launchpad's
- * `POST /api/content/install` runs the same core. */
+/** `lazurio organization install`, `lazurio organization sync` and
+ * `lazurio personalspace install`: the terminal surface of content
+ * installation and synchronization. The Launchpad's
+ * `POST /api/content/install` and its sweep run the same cores. */
 export const contentHelp = `organization install <github-login> [--role builder|steward|reader] [--root <owner>/<repository>] [--folder <absolute Folder>] [--json]
   Installs the Organization bound to that GitHub login into the Folder: its
   root repository first (cloned into a temporary sibling, verified — remote,
@@ -96,7 +100,33 @@ Neither runs on a Team Environment, whose content the hosting
 prepares (prepared-by-hosting), unless it is public. One content operation runs at a time per
 Folder (content-busy). The Folder is found as for organization list.
 Exit status: 0 installed, 1 failed (the step and its code are printed), 2
-usage or not allowed on this Environment.`;
+usage or not allowed on this Environment.
+organization sync [<github-login>] [--folder <absolute Folder>] [--json]
+  Keeps the primary checkouts of that Organization (without a login, of every
+  Organization this Environment holds) on their published branch, as the
+  Launchpad does by itself at its start and then hourly: the root first, then, from the
+  root's declaration as it is after that, its workspace modules, root-level
+  applications and their declared data mounts (on the mount's declared
+  branch) that are in the Folder. Per repository one ls-remote of its branch,
+  and only when it differs a fetch, then a fast-forward to exactly the
+  fetched commit, never a merge, stash, switch, reset or hook, and never
+  interactive (no prompt, SSH in batch mode, about a minute per repository).
+  A checkout changes only when its tracked and untracked files are clean, it
+  is on its branch and no merge, rebase, cherry-pick, revert, bisect or am is
+  under way; otherwise it is blocked with its reason (dirty, wrong-branch,
+  detached, ahead, diverged, operation-in-progress, unexpected-checkout) and
+  left exactly as it is. A blocked or unreadable root stops its Organization.
+  Each repository answers fast-forwarded (from and to), current, blocked,
+  absent (declared, not in the Folder: never cloned here, that is
+  organization install), denied, unavailable or failed. Production Space
+  repositories, infra, worktrees and the Personalspace are never touched. The
+  identity is this Environment's: gh's sign-in (gh as the HTTPS helper), a
+  Team Environment's configured helper, or on a public Environment anonymous
+  HTTPS. The answers are recorded for the doctor and the Launchpad. With
+  --json one line {kind: "content-sync", at, organizations, entries}.
+  Exit status: 0 every repository current, fast-forwarded or absent; 1 any
+  other answer, another content operation (content-busy) or no such
+  Organization here; 2 usage or not on this Environment.`;
 
 export class ContentUsageError extends Error {}
 
@@ -106,12 +136,92 @@ const isScopedRole = (value: string): value is (typeof scopedRoles)[number] =>
   (scopedRoles as readonly string[]).includes(value);
 
 const usage =
-  "Usage: organization install <github-login> [--role builder|steward|reader] [--root <owner>/<repository>] [--folder <Folder>] [--json] | personalspace install [--folder <Folder>] [--json]";
+  "Usage: organization install <github-login> [--role builder|steward|reader] [--root <owner>/<repository>] [--folder <Folder>] [--json] | organization sync [<github-login>] [--folder <Folder>] [--json] | personalspace install [--folder <Folder>] [--json]";
 
 /** Whether `args` is a content command (the dispatcher's question). */
 export const isContentCommand = (args: readonly string[]) =>
-  (args[0] === "organization" || args[0] === "personalspace") &&
-  args[1] === "install";
+  ((args[0] === "organization" || args[0] === "personalspace") &&
+    args[1] === "install") ||
+  (args[0] === "organization" && args[1] === "sync");
+
+function humanSync(entry: SyncEntry): string {
+  const where = entry.path === "." ? entry.root : `${entry.root}/${entry.path}`;
+  const reason = entry.reason === undefined ? "" : ` ${entry.reason}`;
+  const moved =
+    entry.from === undefined || entry.to === undefined
+      ? ""
+      : ` ${entry.from.slice(0, 12)}..${entry.to.slice(0, 12)}`;
+  return `${shown(where)} (${entry.branch})  ${entry.result}${reason}${moved}`;
+}
+
+/** `lazurio organization sync`: the explicit form of the Launchpad's
+ * synchronization, the same core (`syncContent`). */
+async function runSyncCommand(
+  login: string | undefined,
+  folder: string,
+  json: boolean,
+  context: CliContext,
+  write: (line: string) => void,
+  hostFor?: (folder: string) => ContentHost,
+): Promise<number> {
+  const print = (result: Record<string, unknown>, text: string) =>
+    write(json ? JSON.stringify(result) : text);
+  let host: SyncHost;
+  if (hostFor !== undefined) host = hostFor(folder);
+  else {
+    let base: string;
+    try {
+      base = installBase(context, undefined);
+    } catch {
+      print(
+        { kind: "blocked", reason: "base-unknown" },
+        "No per-user install base on this platform.",
+      );
+      return 1;
+    }
+    host = {
+      ...processGitHubHost({ env: context.env, platform: context.platform }),
+      lockDirectory: contentLockDirectory(base),
+    };
+  }
+  const run = await syncContent(folder, host, {
+    ...(login === undefined ? {} : { organization: login }),
+  });
+  if (run.kind === "not-allowed") {
+    print(
+      { kind: "blocked", reason: run.reason },
+      run.reason === "folder-unreadable"
+        ? "The Folder's state could not be read (folder-unreadable)."
+        : `This Environment does not keep ${login === undefined ? "any Organization" : `organization ${shown(login)}`} (not-for-this-environment).`,
+    );
+    return run.reason === "folder-unreadable" ? 1 : 2;
+  }
+  if (run.kind === "busy") {
+    print(
+      { kind: "blocked", reason: "content-busy" },
+      "Another content operation runs on this Folder (content-busy).",
+    );
+    return 1;
+  }
+  if (login !== undefined && run.organizations.length === 0) {
+    print(
+      { kind: "blocked", reason: "organization-missing" },
+      `This Folder holds no Organization bound to ${shown(login)} (organization-missing).`,
+    );
+    return 1;
+  }
+  if (!json) for (const entry of run.entries) write(humanSync(entry));
+  const settled = run.entries.every((entry) =>
+    ["current", "fast-forwarded", "absent"].includes(entry.result),
+  );
+  print(
+    run,
+    settled
+      ? `${run.entries.length} repositories: published branch.`
+      : `${run.entries.length} repositories: some are left as they are (see above).`,
+  );
+  return settled ? 0 : 1;
+}
 
 function humanStep(step: ContentStep): string {
   const label = shown(itemLabel(step.item));
@@ -163,6 +273,29 @@ export async function runContentCommand(
   const [noun, verb, ...rest] = positionals;
   const organization = noun === "organization";
   const login = rest[0];
+  if (organization && verb === "sync") {
+    if (
+      rest.length > 1 ||
+      (login !== undefined && !githubLoginPattern.test(login)) ||
+      values.root !== undefined ||
+      values.role !== undefined ||
+      (values.folder !== undefined &&
+        (!isAbsolute(values.folder) ||
+          resolve(values.folder) !== values.folder))
+    )
+      throw new ContentUsageError(usage);
+    const json = values.json === true;
+    const folder = values.folder ?? (await operatorFolder(context));
+    if (folder === undefined) {
+      write(
+        json
+          ? JSON.stringify({ kind: "blocked", reason: "folder-unknown" })
+          : "No Folder known: name it with --folder <absolute Folder>.",
+      );
+      return 2;
+    }
+    return runSyncCommand(login, folder, json, context, write, hostFor);
+  }
   if (
     verb !== "install" ||
     (organization &&

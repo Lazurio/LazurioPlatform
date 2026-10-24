@@ -448,7 +448,7 @@ const failureDetails: Readonly<Record<string, string>> = {
   "organization-template": "the repository is a template, not an Organization",
 };
 
-type Child = Readonly<{
+export type Child = Readonly<{
   path: string;
   segments: readonly string[];
   repository: string | null;
@@ -481,7 +481,7 @@ const record = (value: unknown): Readonly<Record<string, unknown>> =>
 // a verified Admin, and are otherwise `excluded_by_role_scope`; a slot whose
 // access declaration (its own or one above it) is malformed is never
 // materialized, for any role. Neither asks GitHub anything.
-function declaredChildren(
+export function declaredChildren(
   inventory: ReturnType<typeof inspectCanonicalInventory>,
   restricted: "include" | "exclude",
 ): Child[] {

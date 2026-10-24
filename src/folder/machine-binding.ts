@@ -22,7 +22,7 @@ import { ownDataValue, stateFields } from "./state-fields";
 
 // The assignment of an Organization work VM, copied by Machines from the owner
 // Deployment Repo (schema v0.12.61) and never inferred. It is the one fact the
-// Organization presets differ on. `automation` is the Automated Environment
+// Organization presets differ on. `automation` is the Henry Environment
 // of decision 0169: the work VM of an Organization persona, with the one
 // responsible operator (an Owner or Admin of the Organization) named exactly
 // like `operator`; the handover carries it since Machines #277. `services` is
@@ -47,7 +47,7 @@ export function unknownAssignment(_assignment: never): never {
 }
 
 /** The person an assignment names, with their immutable GitHub id: the
- * assigned operator, or the responsible operator of an Automated
+ * assigned operator, or the responsible operator of a Henry
  * Environment. A Team Environment and the services Environment of a server
  * name nobody, and neither does a handover without an assignment. */
 export function assignedPerson(

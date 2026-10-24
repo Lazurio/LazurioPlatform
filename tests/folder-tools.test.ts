@@ -169,9 +169,9 @@ test("the catalog tiers and setup modes; the operator's other tools are not acti
       expect(activation.purpose[locale].length).toBeGreaterThan(20);
     }
   // A tool that writes outside (mail, messages, forms, connected
-  // applications) points to the Draft-first rule: an unfinished Draft, and the
-  // Operator's explicit “Publish” for it is the full mandate to finish it
-  // (decision F14, addendum 2026-10-05).
+  // applications) points to the prepare-first rule: unfinished work, and the
+  // user's explicit “Publish” for it is the full mandate to finish it
+  // (decision F14, addenda 2026-10-05 and 2026-10-24).
   for (const [name, writesOutside] of [
     ["gh", false],
     ["executor", true],
@@ -187,17 +187,17 @@ test("the catalog tiers and setup modes; the operator's other tools are not acti
         locale,
         findTool(name)?.activation?.usage[locale].endsWith(
           locale === "cs"
-            ? " je Publikace: připrav Draft a nedokončuj ho; výslovné „Publikuj“ uživatele k tomu Draftu je plný mandát k jeho dokončení (`manual/working-here.md`)."
-            : " is a Publication: prepare the Draft and leave it unfinished; the user's explicit “Publish” for that Draft is the full mandate to finish it (`manual/working-here.md`).",
+            ? " je Publikace: práci připrav a nech ji nedokončenou; výslovné „Publikuj“ uživatele k ní je plný mandát k jejímu dokončení (`manual/working-here.md`)."
+            : " is a Publication: prepare the work and leave it unfinished; the user's explicit “Publish” for it is the full mandate to finish it (`manual/working-here.md`).",
         ),
       ]).toEqual([name, locale, writesOutside]);
   // Composio serves only the Integrace whose path it is, and an agent never
   // connects an app: the person does, on its card (decision F42).
   expect(findTool("composio")?.activation?.usage.cs).toContain(
-    "Composio používej jen pro Integrace, jejichž cestou je Composio (`lazurio integrations list --json`): nástroje najdeš přes `composio search` a spustíš přes `composio execute`. Aplikaci sám nepřipojuj; chybí-li, pošli uživateli odkaz na její kartu v Apps → Integrace. Zápis viditelný navenek (odeslání, odevzdání formuláře, zveřejnění, smazání) je Publikace: připrav Draft a nedokončuj ho;",
+    "Composio používej jen pro Integrace, jejichž cestou je Composio (`lazurio integrations list --json`): nástroje najdeš přes `composio search` a spustíš přes `composio execute`. Aplikaci sám nepřipojuj; chybí-li, pošli uživateli odkaz na její kartu v Apps → Integrace. Zápis viditelný navenek (odeslání, odevzdání formuláře, zveřejnění, smazání) je Publikace: práci připrav a nech ji nedokončenou;",
   );
   expect(findTool("composio")?.activation?.usage.en).toContain(
-    "Use Composio only for the Integrations whose path is Composio (`lazurio integrations list --json`): find tools with `composio search` and run them with `composio execute`. Never connect an app yourself; when one is missing, send the user the link to its card in Apps → Integrations. An externally visible write (sending, submitting a form, publishing, deleting) is a Publication: prepare the Draft and leave it unfinished;",
+    "Use Composio only for the Integrations whose path is Composio (`lazurio integrations list --json`): find tools with `composio search` and run them with `composio execute`. Never connect an app yourself; when one is missing, send the user the link to its card in Apps → Integrations. An externally visible write (sending, submitting a form, publishing, deleting) is a Publication: prepare the work and leave it unfinished;",
   );
   for (const locale of ["cs", "en"] as const) {
     const composio = findTool("composio")?.activation;
@@ -735,7 +735,7 @@ test("a profile change and a handover refresh carry the enabled tools forward", 
 });
 
 test("a Folder rendered by an older template revision is upgraded by a tools change", async () => {
-  expect(instructionTemplateRevision).toBe("base-instructions-71");
+  expect(instructionTemplateRevision).toBe("base-instructions-72");
   const { preferences, manifest } = await planned();
   const older = {
     ...manifest,
@@ -758,7 +758,7 @@ test("a Folder rendered by an older template revision is upgraded by a tools cha
       recorded,
     );
     if (upgrade.kind !== "profile-change") throw new Error("Expected upgrade");
-    expect(upgrade.manifest.templateRevision).toBe("base-instructions-71");
+    expect(upgrade.manifest.templateRevision).toBe("base-instructions-72");
     expect(upgrade.previous).toEqual(older.outputs);
     expect(enabledTools(upgrade.preferences)).toEqual(tools);
     expect(upgrade.files).toEqual(

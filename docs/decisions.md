@@ -458,7 +458,9 @@ upstream decision 0137 and requires the amendment listed above. The contract is 
 ## F9 — Update Lazurio and Synchronize content are separate operations
 
 **Accepted direction (2026-09-19); installation implemented 2026-10-04 (addendum
-below), synchronization not.** "Update Lazurio" changes product
+below); synchronization of existing repositories implemented 2026-10-24 (amendment
+below), automatic in the Launchpad (at its start, then hourly) and
+explicit as `lazurio organization sync`.** "Update Lazurio" changes product
 bytes; its contract is the product update document (`docs/update.md`, separate PR).
 "Synchronize content" changes Organization repositories; its contract is
 [content synchronization](content-sync.md). They have separate commands, buttons,
@@ -466,6 +468,8 @@ locks and outcomes. Product update never clones, stashes, regenerates preference
 upgrades tools or runs data migrations. Content synchronization is explicit only and
 blocks on dirty or wrong-branch checkouts instead of stashing and switching, a
 deliberate change from the legacy engine that requires the 0129 amendment above.
+*"Explicit only" is amended on 2026-10-24 (below): the installed Launchpad
+fast-forwards clean primary checkouts by itself; the blocking rule is unchanged.*
 
 ### Amendment of 2026-10-12: ordinary content installation for Automated Environments
 
@@ -803,6 +807,90 @@ Personalspace with the operator's gh and git, so a template regression reaches n
 installs directly (its `main` is checked by its CI, and the marker and the clean check
 guard against an unexpected repository); a Personalspace created before this change
 keeps its placeholders until its owner merges the pull request.
+
+### Amendment of 2026-10-24: the Launchpad keeps primary checkouts on their published branch
+
+**Decided by Matěj (Organization Admin) on 2026-10-24 through the question tool (root
+decision 0212 points 2 and 4, being written
+in `HumanAndMachines/Lazurio`; plan DEV-6656); implemented here, Lazurio/LazurioPlatform#281.**
+A merged module, a data publication or an Organization setting reached only the
+Environment where someone then pulled by hand: on one Organization's Team Environments a
+merged module took about 37 hours, a data publication was missing on five of eight
+Environments three days later, and a reference Environment's Organization root was 14
+commits behind, so the settings the Owner changed in the Dashboard never reached it
+(#281). Contract: [content synchronization, Synchronization](content-sync.md#synchronization--implemented-2026-10-24).
+
+1. **Automatic, on its own cadence inside the existing sweep.** The installed Launchpad
+   runs the synchronization of existing repositories at its start and then every hour
+   (Matěj's choice of 2026-10-24, root decision 0212 point 4; one parameter,
+   `contentSyncEveryMs`), within the build sweep of F58 point 7, before that sweep reads
+   the built apps, with errors swallowed as the sleep's are. The build sweep stays at 5
+   minutes and builds whatever a synchronization brought. No daemon, timer or process
+   of its own (F8). A development run without an install base never synchronizes. It
+   stays available explicitly as `lazurio organization sync [<github-login>]`, the same
+   core, which also takes one repository and reports progress per repository for the
+   later surfaces (the product update, an "Aktualizovat" button, the Open of one
+   module), none of which is built here. This amends "explicit only" above and the
+   section "When it runs" (formerly "Explicit only") of the contract.
+2. **What it changes.** The clean primary checkouts of the Organizations the
+   Environment holds: the root first, then, from the root's fresh declaration, its
+   workspace modules, root-level applications and their declared data mounts (on the
+   mount's declared `git.branch`). Per repository one `ls-remote` of the branch, a
+   fetch only when it differs, then a strict fast-forward to exactly the fetched commit.
+3. **What it leaves, and reports.** Dirty work (tracked or untracked), another branch,
+   an ahead, diverged or detached state, an operation in progress, a partial clone (whose
+   reads would fetch implicitly), or something else at the place: `blocked` with its reason, byte for byte as it was. Never a stash, switch,
+   reset, merge, hook, fsmonitor program or clone; never a worktree, a Production Space repository,
+   `infra` or the Personalspace; never an absent repository (installation stays
+   explicit). A blocked root stops its Organization.
+4. **Data mounts too, when clean.** This amends the contract's exclusion of repository
+   databases for a module's declared data mount: a draft lives in the data app's working
+   tree, so a draft means dirty and the checkout is untouched.
+5. **The identity is the Environment's.** The person's git and SSH configuration with
+   gh as the HTTPS helper; on a Team Environment, whose content the hosting prepared,
+   git's configured helper, the brokered identity; on a public Environment anonymous
+   HTTPS through the isolated git of anonymous installation.
+6. **Visibility.** The last answer per repository is recorded beside the content lock;
+   the doctor's `content-sync` check warns about blocked checkouts and ones denied or
+   unavailable for a day, never about one that is only behind. A module whose own
+   checkout is blocked says one line on its page.
+7. **A running app is never stopped or prepared by it.** A built app follows through
+   F58 (a static app's build swaps, an app's own server restarts after its build). A
+   development run from `main` keeps running on the new source until it sleeps or is
+   stopped; its next start runs the start-time step. That is a known limit; every app
+   is to become a build.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Explicit only, as before | Nobody on a Team Environment asks for it, and on the others it depends on an agent remembering; #281's evidence is exactly that; rejected by the decision |
+| A Lazurio daemon or a systemd timer per Environment | A second lifecycle to install, update and secure beside the Launchpad's sweep, which already runs every 5 minutes and watches the same checkouts (F8, F58 point 7); rejected |
+| Synchronize at every 5-minute sweep | The first form of the decision; reopened by Matěj the same day, who chose an hour plus the Open of one module (root decision 0212 point 4, the Open in a later release): an hour is enough for a publication to arrive, with a twelfth of the remote reads; the build sweep keeps its 5 minutes |
+| Synchronize from Machines (the hosting) | Covers only hosted Environments, not a workstation; a second implementation of the same rule with the hosting's identity instead of the Environment's; rejected |
+| Stash dirty work and switch to `main`, as the legacy engine does (0129) | Interrupts active work, on a Team Environment of someone who did not ask; F9 already rejected it; rejected again |
+| Fetch every repository on every sweep | A fetch per repository and per call is a broker token on a Team Environment and the full negotiation everywhere; one `ls-remote` decides first |
+| Also clone declared repositories that are absent | Installation decides role scope and reads GitHub's rights first; done implicitly every hour it would clone what a person chose not to hold; left to the explicit installation |
+| Record the answers in `${XDG_STATE_HOME}/lazurio/` | Proposed in the brief; the record lives beside the content lock in the install base instead, the owner of content coordination that the CLI, the doctor and the Launchpad already resolve, and which a test's base isolates |
+
+Tests: `tests/content-sync.test.ts` (on real git: a behind checkout fast-forwarded to
+exactly the remote's commit, an equal one current, a data mount on its branch; dirty
+tracked, untracked, another branch, ahead, diverged, detached and a merge, rebase,
+cherry-pick, revert, bisect and am in progress blocked with byte-identical refs, index
+and working tree; a denied and a silent remote leaving the checkout; the root first,
+a child newly declared by its new commit synchronized when present and `absent`, never
+cloned, when not, a blocked root stopping its children; a data mount with a draft
+untouched; Production Space, `infra`, a worktree and the Personalspace untouched; the
+content lock held by an install making it `busy`; the record of one Organization's run;
+one repository on its own with progress per repository; the scope per preset; the CLI; the module page's line; the doctor's findings) and
+`tests/module-built.test.ts` (through the real Launchpad sweep: a built app's module
+gets a new commit on its remote, one sweep fast-forwards it and the served build swaps
+to it; then a draft in it is left and its status carries the reason; the cadence: the
+first sweep and then once the interval passed, never at every 5-minute round, a failing
+synchronization never stopping the sweep). Risks: a synchronization
+holds the content lock for its run (a few seconds when nothing changed), so an
+installation or a data mount's clone at a start in that moment answers `content-busy`
+and is tried again; an Organization root whose `.gitignore` does not ignore its module
+directories is always dirty and never synchronized, which the doctor names; a public
+Environment's fetch still reads the checkout's own `url.*.insteadOf` (HTTPS only).
 
 ## F10 — Workspace presets and typed owner requests
 
@@ -2022,6 +2110,86 @@ Lazurio/hermes-agent#10: over ACP, Hermes would show the silence marker to the p
 
 Template revision `base-instructions-71`. `tests/folder-buddy.test.ts` checks the new rules in
 both locales and that the old "until T3 Code shows the mark itself" is gone.
+
+**Addendum of 2026-10-24, decided by Matěj: the agent's work is a pull request, not a Draft;
+GitHub is the authority for source code; Git, fork and safety rules for every agent** (plan
+DEV-6617, root decision 0192). Lazurio's "Draft" collided with GitHub's Draft PR: one word
+named both the agent's whole work and one state of a pull request, so "mark it Ready, finished
+work never stays a Draft" read two ways. Matěj also asked that rules learned the hard way reach
+every agent, not only the agents of one Machine. What changes, on every preset in both locales:
+
+1. **"Draft" is no Lazurio term.** For code the agent's work is simply a pull request; in an
+   external application it is the prepared, unsent state inside that application, whose own
+   feature may be named (an e-mail saved as a draft in Outlook). Publication stays exactly as
+   defined, and so does "Publish" as the full mandate to finish that work (the addendum of
+   2026-10-05). GitHub's Draft PR is named as GitHub's feature. `AGENTS.md`'s Publication line
+   (shared with Buddy's `.hermes.md`), the Team and public lines, the manual's section "Your work,
+   Publication, Release", the glossary (a Pull request row replaces the Draft row), the roles, the
+   connected applications and the catalog's usage of tools that write outside say so.
+2. **The pull-request lifecycle** of the decision of 2026-09-22, refined: from the first push a
+   GitHub Draft PR (`gh pr create --draft`) where the repository's GitHub plan allows one; where it
+   does not (a private repository on GitHub Free, where GitHub refuses a Draft PR), a normal pull
+   request whose description says it is in progress. After verification the agent marks it ready
+   for review: `gh pr ready` for a Draft PR, the description for a normal one. The assignee, the
+   review request and "Ready is not Publication" stay. The skill `new-module` marks its two pull
+   requests ready the same way.
+3. **Authority.** GitHub is the authority for source code: repositories, review and Publication.
+   Entry to Environments and their applications is held by the Lazurio account (membership and
+   the exact grant) and the network by Headscale with an approved device (root decision 0192);
+   where the move to the account's grants is not done yet, the existing path decides entry, such
+   as a Team Environment's GitHub Team. No text says GitHub is the only access authority any
+   more: the identity line of `AGENTS.md` and `manual/this-machine.md` (one fragment,
+   `ownSignInIdentity`), the persona's identity line, `manual/lazurio.md` and what a visitor's
+   agent explains. "No second, invented ACL" stays a rule. Nothing deployed is claimed: the
+   texts name who holds which truth, not which gateway enforces it today.
+4. **"AI Kolega" and the AI seat are gone** from the generated texts. Automated work for an
+   Organization is carried by an Environment that does its work by itself through bots, with a
+   responsible user (root decision 0169), named Henry where it needs a name (root decision 0170);
+   the Opatrovník (root decision 0094) is held there by that responsible user, as 0169 says.
+   The retired name "Automated Environment" (Automatizovaný Environment, root decision 0170's
+   addendum of 2026-10-19) goes too: the Steward preset's assignment, user, preset and zone
+   lines, the roles chapter and the `machine folder-init` help say the Henry Environment, and the
+   glossary says once that it is an ordinary work Environment with automations. The preset name
+   and the `automation` assignment stay as identifiers.
+5. **Forks** (`manual/working-here.md`, "Git and GitHub"): a distribution fork is a thin overlay
+   on an exact upstream release (the exact upstream commit, own changes as separate readable
+   commits, refreshes from upstream stable releases, an immutable release tag for each published
+   state); a full fork follows its own direction and takes selected changes (Lazurio MausBot is
+   heading there); a feature or a name in a fork starts from the Lazurio model, not the fork's;
+   before a force-move every dropped commit is accounted for in the history, not just the tree,
+   and the rewrite happens only where the fork's release contract allows it, with an exact lease.
+   A fork as a way around a missing right stays forbidden.
+6. **Git and GitHub rules** in the same section: before a merge on the user's Publication the
+   approving review belongs to the exact head (its `commit.oid` equals `headRefOid`; GitHub can
+   keep an old approval, so `reviewDecision` alone is no proof) and the merge passes
+   `--match-head-commit <head sha>`; conflicts are resolved hunk by hunk, never `git checkout
+   --ours/--theirs` on a conflicted file; multi-line text reaches `gh` through a file
+   (`--body-file`/`-F`); pull requests stacked on a branch are retargeted to `main` before it is
+   deleted. The handoff's merge bullet points there, and one line of `AGENTS.md` points there
+   wherever something can be merged or pushed (not on a public Environment).
+7. **Safe habits** ("Safe habits" in the manual, one line in `AGENTS.md`): disk space is freed
+   only with certainty, and caches or state not proven unused are listed for the user; a time
+   written into a record comes from `date -u` (on a Windows workstation from PowerShell's
+   `[DateTime]::UtcNow.ToString('u')`). The Documents line adds that `/tmp` keeps nothing that
+   must survive (a reboot wipes it), on macOS and Linux; it already covered every work product
+   outside a repository. A macOS workstation's `AGENTS.md` says that macOS has no `timeout`, so
+   a check built on it silently passes.
+
+Unchanged: what Publication and Release are, who may Publish, the handoff and its question, the
+Team's never-merge rule (F31), every behavior of the product (only generated text changes), and
+operator matters of the hosting (Machines lanes, Plans and caches are no rules for every user).
+repository-db's own "draft card" stays that library's name for its card.
+
+Template revision `base-instructions-72`. `tests/folder-manual.test.ts` checks, on every preset
+and both public Environments in both locales, over every generated file and Buddy's layer: no
+Lazurio "Draft" (only GitHub's Draft PR), no "AI Kolega" or AI seat, no "Automated Environment"
+and the Henry row once in the glossary, no "only access authority"; the Publication definition
+and the prepare-first rule; the lifecycle's three steps; the identity line where the user's own
+sign-ins are used and the authorities in `manual/lazurio.md`; the Git, GitHub and fork rules;
+the `AGENTS.md` pointer except on a public Environment; the safe habits; `/tmp` except on
+Windows; and `timeout` only on a macOS workstation. The Buddy layer passes Hermes's threat scan
+at context and strict scope and stays under 20,000 characters (16.4k in Czech, 17.9k in
+English). Not proven: that agents follow the rules (generated text is not proof of behavior).
 
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
@@ -17196,7 +17364,9 @@ them to this task) stay, because they serve the agents' windows nobody watches.
 checkout on `main`. Opening an app from `main` gives the optimized build of the
 checkout's current commit; after a pull (`lazurio update`, an agent's or a person's `git
 pull`) the Launchpad builds the new commit in the background and swaps, so the next
-open again gets a build. (F57 is the tab-sleep decision of the same plan, written
+open again gets a build. *Since F9's amendment of 2026-10-24 the Launchpad's own sweep
+(point 7) is such a pull at its start and then hourly: it
+fast-forwards the clean primary checkouts first.* (F57 is the tab-sleep decision of the same plan, written
 beside this one.)
 
 **Why.** Every app runs its development script today (`bun --no-env-file run
@@ -17322,7 +17492,12 @@ build` / `vite build` writes. Measured on the reference Environment: an Astro mo
    sweep at its start and every 5 minutes reads the apps again (every app with a build
    state, that is every app someone opened), moves its watches and refreshes each, which
    also covers a change no event reported (a branch with slashes, a dropped watch, a
-   data mount that appeared since). A refresh always computes the full key, so **a
+   data mount that appeared since). *Amended 2026-10-24 (F9): the first sweep, and
+   then the first sweep an hour after the last synchronization,
+   first fast-forwards the Folder's clean primary checkouts (the module's, its data
+   mount's, the Organization root's) to their published commit, so a publication
+   anywhere is built and swapped in here within that sweep; this point no longer waits
+   for someone to pull.* A refresh always computes the full key, so **a
    data-only pull** (a new commit of `workspace/<module>/db` or of a required slot, the
    module's commit unchanged) builds and swaps exactly as a module pull does: from the
    watch of that repository's Git directory after its quiet, at the latest at the next

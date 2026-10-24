@@ -6,6 +6,13 @@ import {
 } from "../browser/units";
 import { chatDefaults } from "../chat/defaults";
 import { computerUseReasons, observeComputerUse } from "../computer/computer";
+import { contentLockDirectory } from "../content/host";
+import {
+  readSyncRecord,
+  type SyncEntry,
+  syncBlockedReasons,
+  syncFindings,
+} from "../content/sync-record";
 import { agentRegistrations } from "../executor/agents";
 import {
   type ExecutorHost,
@@ -113,6 +120,9 @@ export const doctorCheckIds = [
   "catalog",
   "organization",
   "module",
+  // The last synchronization of the Folder's primary checkouts (decision
+  // F9's amendment of 2026-10-24): blocked or long-unreachable ones.
+  "content-sync",
   // Launchpad
   "launchpad-unit",
   "launchpad-health",
@@ -152,6 +162,7 @@ export const doctorGroupOf: Readonly<Record<DoctorCheckId, DoctorGroup>> =
     catalog: "organizations",
     organization: "organizations",
     module: "organizations",
+    "content-sync": "organizations",
     "launchpad-unit": "launchpad",
     "launchpad-health": "launchpad",
     "machine-entry": "machine",
@@ -198,6 +209,14 @@ const ownReasons = [
   // Organizations
   "catalog-unreadable",
   "template-not-runtime",
+  // The synchronization of primary checkouts (decision F9's amendment of
+  // 2026-10-24): no run recorded yet, a checkout left as it is, or one
+  // GitHub refused, did not answer or failed for a day.
+  "never-synced",
+  ...syncBlockedReasons.map((reason) => `sync-${reason}` as const),
+  "sync-denied",
+  "sync-unavailable",
+  "sync-failed",
   // Executor (decision F44): its state as `lazurio executor status` says it.
   "executor-not-installed",
   "executor-outdated",
@@ -719,6 +738,43 @@ export function catalogChecks(
   return checks;
 }
 
+/** The last synchronization of the Folder's primary checkouts (decision F9's
+ * amendment of 2026-10-24), as recorded beside the content lock: a warning
+ * per blocked checkout and per one GitHub refused, did not answer or failed
+ * for a day (`syncFindings`), with its Organization and its path in it; a
+ * checkout that is only behind is none, the next sweep fast-forwards it. */
+export function syncChecks(
+  entries: readonly SyncEntry[] | null,
+  hasFolder: boolean,
+  now: Date,
+): DoctorCheck[] {
+  if (!hasFolder) return [check("content-sync", "skipped", "no-folder")];
+  if (entries === null)
+    return [check("content-sync", "skipped", "never-synced")];
+  const findings = syncFindings(entries, now);
+  if (findings.length === 0)
+    return [
+      check("content-sync", "ok", undefined, {
+        organizations: new Set(
+          entries.map((entry) => entry.organization.toLowerCase()),
+        ).size,
+      }),
+    ];
+  return findings.map((entry) =>
+    check(
+      "content-sync",
+      "warn",
+      entry.result === "blocked"
+        ? `sync-${entry.reason ?? "unexpected-checkout"}`
+        : `sync-${entry.result}`,
+      {
+        organization: safeName(entry.organization),
+        file: entry.path === "." ? "." : entry.path,
+      },
+    ),
+  );
+}
+
 // ---- The use case -----------------------------------------------------------
 
 export type DoctorEnvironment = RecoveryEnvironment &
@@ -979,6 +1035,13 @@ export async function collectDoctor(
     executor,
     ...githubChecks(github),
     ...catalogChecks(catalog),
+    ...syncChecks(
+      folder === undefined
+        ? null
+        : await readSyncRecord(contentLockDirectory(base), folder),
+      folder !== undefined,
+      environment.now(),
+    ),
     fromRecovery("launchpad-unit", recovered, "launchpad-unit"),
     fromRecovery(
       "launchpad-health",

@@ -427,8 +427,8 @@ const personalModuleRest: readonly Text[] = [
   blank,
   t("## 7. Publikace osobního modulu", "## 7. Publishing a personal module"),
   t(
-    "- Hotová práce má dva pull requesty: první verzi modulu do `<login>/<slug>` a slot z task worktree Personalspace do `<login>/<login>_GEN3` (commitni `modules.manifest.json`, pushni branch a otevři pull request). Když jsou hotové a ověřené, přepni je na Ready for review.",
-    "- The finished work is two pull requests: the module's first version into `<login>/<slug>` and the slot from the Personalspace's task worktree into `<login>/<login>_GEN3` (commit `modules.manifest.json`, push the branch and open the pull request). When they are finished and verified, mark them Ready for review.",
+    "- Hotová práce má dva pull requesty: první verzi modulu do `<login>/<slug>` a slot z task worktree Personalspace do `<login>/<login>_GEN3` (commitni `modules.manifest.json`, pushni branch a otevři pull request). Když jsou hotové a ověřené, označ je jako připravené ke kontrole (`manual/working-here.md`).",
+    "- The finished work is two pull requests: the module's first version into `<login>/<slug>` and the slot from the Personalspace's task worktree into `<login>/<login>_GEN3` (commit `modules.manifest.json`, push the branch and open the pull request). When they are finished and verified, mark them ready for review (`manual/working-here.md`).",
   ),
   t(
     "- Merge obou je Publikace uživatele: zeptej se ho, jestli je máš Publikovat, a merguj až na jeho výslovné „Publikuj“ (`manual/working-here.md`).",
