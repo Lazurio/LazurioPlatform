@@ -2001,6 +2001,28 @@ to 0.1.2. Delegace needs no change: it passes `--mode queue` itself and never la
 revision `base-instructions-70`; `tests/folder-buddy.test.ts` checks the new facts in both
 locales and that the `launch` line names both versions.
 
+**Addendum of 2026-10-24: in his own chat, only his own words** (Lazurio/LazurioPlatform#612).
+The first Telegram conversation with Bob's Buddy on Ring 0 showed two problems:
+- he greeted the person by naming `/help`;
+- he signed his messages „*Buddy za Boba*“.
+
+`.hermes.md` now says under "How you talk to the user" that he introduces himself and talks
+like a person. He names commands, tools, settings, models or Hermes only when the user asks.
+He never signs his messages to the user, and the mark belongs neither in their chat nor on
+Telegram.
+
+The mark rule under "How you brief" now covers only what he writes or approves for the user
+for others: T3 Code threads, comments and documents. T3 Code from `0.1.1-lazurio.2` shows the
+mark itself on what he sends, answers or approves in a thread (the acting-sender record of
+Lazurio/t3code#106). So only an older version (`t3 --version`) needs it as the first line.
+`lazurio-t3-orchestration` says the same for a brief, an answer and „Publikuj“.
+
+The third part of #612, staying silent on a notice that brings nothing new, waits for
+Lazurio/hermes-agent#10: over ACP, Hermes would show the silence marker to the person.
+
+Template revision `base-instructions-71`. `tests/folder-buddy.test.ts` checks the new rules in
+both locales and that the old "until T3 Code shows the mark itself" is gone.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
