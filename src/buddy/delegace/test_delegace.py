@@ -635,7 +635,17 @@ class DelegaceTest(unittest.TestCase):
 
     # -- the wake in Buddy's chat in Lazurio (channel t3, LazurioPlatform F61)
 
-    T3 = {"LAZURIO_BUDDY_CHANNEL": "t3"}
+    # A command Buddy runs in a turn of his chat, as Hermes's gateway runs it:
+    # the session `hermes acp` opened, bound per command (Platform#627). The
+    # provider instance's LAZURIO_BUDDY_CHANNEL never reaches it there.
+    T3 = {"HERMES_SESSION_SOURCE": "acp", "HERMES_SESSION_KEY": "20261024_172006_c0ffee",
+          "HERMES_SESSION_ID": "20261024_172006_c0ffee", "HERMES_SESSION_PROFILE": "default",
+          "HERMES_CRON_SESSION": ""}
+    # The same command in a turn of his Telegram conversation.
+    TELEGRAM = {"HERMES_SESSION_PLATFORM": "telegram", "HERMES_SESSION_CHAT_ID": "111",
+                "HERMES_SESSION_CHAT_TYPE": "dm", "HERMES_SESSION_USER_ID": "111",
+                "HERMES_SESSION_KEY": "agent:main:telegram:dm:111", "HERMES_SESSION_ID": "20261024_171500_beef",
+                "HERMES_CRON_SESSION": ""}
 
     def send_argv(self, key):
         return ["thread", "send", "buddy-thread-1", "--mode", "queue", "--idempotency-key", key,
@@ -787,9 +797,10 @@ class DelegaceTest(unittest.TestCase):
 
     def test_an_unknown_channel_starts_nothing(self):
         for wrong in ("lazurio_web", "T3", "telegram", "t3:buddy"):
-            p = self.zadej(LAZURIO_BUDDY_CHANNEL=wrong)
-            self.assertEqual(p.returncode, 2, wrong)
-            self.assertIn("kanál", p.stderr)
+            for session in ({}, self.T3, self.TELEGRAM):
+                p = self.zadej(LAZURIO_BUDDY_CHANNEL=wrong, **session)
+                self.assertEqual(p.returncode, 2, (wrong, session))
+                self.assertIn("kanál", p.stderr)
         self.assertFalse(os.path.exists(self.state) and os.listdir(self.state))
         self.assertEqual(self.hermes_state()["tasks"], {})
         self.assertEqual(self.calls("run"), [])
@@ -922,6 +933,30 @@ class DelegaceTest(unittest.TestCase):
         self.hlidej()
         self.assertEqual(len(self.wakes()), 1)
         self.assertEqual(self.t3_state()["calls"], [])
+
+    def test_a_task_from_telegram_reports_back_on_telegram(self):
+        self.mausbot_says(wait=[DONE])
+        rid = self.zadej_ok(**self.TELEGRAM)
+        self.assertNotIn("kanal", self.rec(rid))
+        self.hlidej()
+        self.assertEqual(len(self.wakes()), 1)
+        self.assertEqual(self.t3_state()["calls"], [])
+
+    def test_only_the_session_hermes_acp_opened_is_the_chat(self):
+        # Hermes's other sessions: its terminal UI, a desktop app, a Kanban
+        # worker, and sources that only look like `acp`.
+        for source in ("tui", "desktop", "kanban", "ACP", "acp-viewer", "t3"):
+            rid = self.zadej_ok(**dict(self.T3, HERMES_SESSION_SOURCE=source))
+            self.assertNotIn("kanal", self.rec(rid), source)
+        self.assertEqual(self.t3_state()["calls"], [])
+
+    def test_the_channel_variable_still_names_the_chat_where_it_reaches(self):
+        rid = self.zadej_ok(LAZURIO_BUDDY_CHANNEL="t3")
+        self.assertEqual(self.rec(rid)["kanal"], "t3")
+        self.assertEqual(
+            [c["argv"] for c in self.t3_state()["calls"]],
+            [["lazurio", "buddy", "thread", "--base-dir", self.t3_home, "--json"]],
+        )
 
     def test_a_record_from_before_the_channel_still_wakes_telegram(self):
         # A `verze: 1` record exactly as `zadej` wrote it before `kanal`

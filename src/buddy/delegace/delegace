@@ -311,29 +311,42 @@ def telegram_target() -> tuple[str, str]:
 #
 # The notice goes back to the conversation the delegation came from (root
 # decision 0210 point 7). Buddy's chat in Lazurio is T3 Code with Hermes as an
-# ACP agent (LazurioPlatform decision F61): its provider instance runs
-# `hermes acp` with LAZURIO_BUDDY_CHANNEL=t3, and every tool Buddy runs there,
-# `delegace zadej` included, inherits it. Without it (Telegram, a terminal) the
+# ACP agent (LazurioPlatform decision F61). Its provider instance runs
+# `hermes acp`, but that process only views a session of Hermes's gateway: the
+# gateway runs the chat's turns and every tool Buddy runs in them, so the
+# instance's own variables never reach `delegace zadej` (Platform#627). Hermes
+# hands each command the session it runs for instead, as HERMES_SESSION_*
+# (`tools/environments/local.py`, `_inject_session_context_env`), and a session
+# `hermes acp` opened has the source `acp` (`acp_adapter/gateway_server.py`).
+# That is the chat; a Telegram turn has the platform `telegram` and no source.
+# LAZURIO_BUDDY_CHANNEL=t3, set on the provider instance, still names the chat
+# wherever it reaches a command. Without either (Telegram, a terminal) the
 # record has no `kanal` and the notice goes through Hermes's Kanban to his
 # Telegram conversation, as for every record from before the channel existed.
 
 CHANNEL_ENV = "LAZURIO_BUDDY_CHANNEL"
 KANAL_T3 = "t3"
+SESSION_SOURCE_ENV = "HERMES_SESSION_SOURCE"
+ACP_SOURCE = "acp"  # the source of a session `hermes acp` opens in the gateway
 THREAD_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}")
 
 
 def channel_from_env() -> str | None:
-    """The channel of the conversation `zadej` runs in: `t3`, or None. Any
-    other value fails before anything exists: a notice sent elsewhere would
-    reach a conversation Buddy is not in."""
+    """The channel of the conversation `zadej` runs in: `t3`, or None.
+    LAZURIO_BUDDY_CHANNEL says it where it is set, and any other value of it
+    fails before anything exists: a notice sent elsewhere would reach a
+    conversation Buddy is not in. Without it, Hermes's session does: a turn
+    of the session `hermes acp` opened is the chat."""
     value = os.environ.get(CHANNEL_ENV, "").strip()
-    if not value:
-        return None
-    if value != KANAL_T3:
+    if value and value != KANAL_T3:
         raise DelegaceError(
             f"neznámý kanál {value!r} v {CHANNEL_ENV}: znám jen {KANAL_T3}; bez něj jde upozornění do Telegramu"
         )
-    return value
+    if value:
+        return value
+    if os.environ.get(SESSION_SOURCE_ENV, "").strip() == ACP_SOURCE:
+        return KANAL_T3
+    return None
 
 
 def kanal_of(rec: dict) -> str:

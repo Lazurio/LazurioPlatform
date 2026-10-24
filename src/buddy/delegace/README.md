@@ -49,9 +49,14 @@ into the Personal Environment.
 - The notice goes back to the conversation the delegation came from, recorded
   as the optional `"kanal"` (still `verze: 1`):
   - `"t3"`: Buddy's chat in Lazurio, T3 Code with Hermes over ACP (decision
-    F61). Its provider instance runs `hermes acp` with
-    `LAZURIO_BUDDY_CHANNEL=t3`, and `zadej` inherits it from Buddy's terminal
-    tool. The notice is one message in Buddy's one thread, found with
+    F61). Hermes's gateway runs the chat's turns and every tool Buddy runs in
+    them; `hermes acp` only views them, so its own variables never reach
+    `zadej`. The gateway hands each command its session instead, and a turn
+    of the session `hermes acp` opened has `HERMES_SESSION_SOURCE=acp`, which
+    `zadej` reads; a Telegram turn has `HERMES_SESSION_PLATFORM=telegram` and
+    no source. `LAZURIO_BUDDY_CHANNEL=t3`, set on the provider instance, names
+    the chat too wherever it reaches a command, and comes first. The notice
+    is one message in Buddy's one thread, found with
     `t3 lazurio buddy thread --json` and sent with
     `t3 thread send <thread> --mode queue --idempotency-key <key>
     --message-file -`, both against Buddy's T3 Code (`--base-dir
