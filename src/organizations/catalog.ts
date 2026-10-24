@@ -661,9 +661,7 @@ export function withServiceRepositories(
  * theirs (`Catalog.serverServices`): in the shape of an Organization named
  * as the handover names its owner, its own slug where it gives one (as the
  * shell document names the owner it does not hold), with no root here. */
-export function serverServicesGroup(
-  served: ServerServices,
-): CatalogOrganization {
+function serverServicesGroup(served: ServerServices): CatalogOrganization {
   return Object.freeze({
     directory: "",
     organization: served.owner.key ?? served.owner.login,
