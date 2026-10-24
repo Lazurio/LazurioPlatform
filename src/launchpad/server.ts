@@ -123,7 +123,12 @@ import { createSshProofs } from "../tools/ssh-key";
 import { resolveOnPath } from "../tools/status";
 import type { GithubAction } from "../tools/team-github";
 import { toolsUpdate } from "../tools/update";
-import { createUpdateJobs, updateEverything } from "../update/everything";
+import {
+  contentNotRun,
+  createUpdateJobs,
+  productNotInstalled,
+  updateEverything,
+} from "../update/everything";
 import { embeddedIdentity } from "../update/identity";
 import { runProcess } from "../update/self-check";
 import type { VaultHost } from "../vault/flow";
@@ -825,7 +830,7 @@ export async function startLaunchpad(
               {
                 content: async (onProgress) =>
                   syncCheckouts === undefined
-                    ? { kind: "not-run", reason: "not-installed" }
+                    ? contentNotRun("not-installed")
                     : syncCheckouts({ onProgress }),
                 builds: (onProgress) => modules.refreshBuilt(onProgress),
                 product: async () =>
@@ -833,7 +838,7 @@ export async function startLaunchpad(
                     ? {
                         part: "product",
                         result: "not-run",
-                        reason: "not-installed",
+                        reason: productNotInstalled,
                       }
                     : pill.updateNow(),
               },

@@ -23,12 +23,23 @@ import type { BuiltProgress, BuiltRefresh } from "../modules/module-operations";
 // Aktualizovat button of Nová karta.
 
 /** Why the content part did not run. */
-export type ContentNotRun =
-  | "folder-unknown"
-  | "folder-unreadable"
-  | "not-for-this-environment"
-  | "content-busy"
-  | "not-installed";
+export const contentNotRunReasons = [
+  "folder-unreadable",
+  "not-for-this-environment",
+  "content-busy",
+  "not-installed",
+] as const;
+export type ContentNotRun = (typeof contentNotRunReasons)[number];
+
+/** A content part that does not run here, and why. */
+export const contentNotRun = (why: ContentNotRun) =>
+  Object.freeze({ kind: "not-run" as const, reason: why });
+
+/** Why a part answered as a whole: it threw (`partFailed`), or Lazurio is
+ * not installed here (`productNotInstalled`). Items, not the update's error
+ * contexts (`updateErrorReasons`). */
+export const partFailed = "operation-failed";
+export const productNotInstalled = "not-installed";
 
 /** The product part's answer. */
 export type ProductItem =
@@ -44,7 +55,11 @@ export type ProductItem =
    * outlives the restart it causes (docs/update.md "Activation"). */
   | Readonly<{ part: "product"; result: "started"; to: string }>
   | Readonly<{ part: "product"; result: "failed"; code: string }>
-  | Readonly<{ part: "product"; result: "not-run"; reason: "not-installed" }>;
+  | Readonly<{
+      part: "product";
+      result: "not-run";
+      reason: typeof productNotInstalled;
+    }>;
 
 /** One item of the answer. */
 export type UpdateItem =
@@ -55,7 +70,7 @@ export type UpdateItem =
   | Readonly<{
       part: "content" | "build" | "tools" | "product";
       result: "failed";
-      reason: "operation-failed";
+      reason: typeof partFailed;
     }>;
 
 /** An item while it is under way. */
@@ -121,7 +136,7 @@ export async function updateEverything(
     } catch {}
   };
   const failed = (part: UpdateItem["part"]) =>
-    set({ part, result: "failed", reason: "operation-failed" });
+    set({ part, result: "failed", reason: partFailed });
   const sleep = options.sleep ?? ((ms: number) => Bun.sleep(ms));
 
   // 1. Content, waiting a while for another content operation.
@@ -141,11 +156,15 @@ export async function updateEverything(
       await sleep(options.busyPollMs ?? contentBusyPollMs);
       run = await parts.content(onProgress);
     }
-    if (run.kind === "busy")
-      set({ part: "content", result: "not-run", reason: "content-busy" });
-    else if (run.kind === "not-run" || run.kind === "not-allowed")
-      set({ part: "content", result: "not-run", reason: run.reason });
-    else for (const entry of run.entries) set({ part: "content", ...entry });
+    const why: ContentNotRun | null =
+      run.kind === "busy"
+        ? "content-busy"
+        : run.kind === "not-run" || run.kind === "not-allowed"
+          ? run.reason
+          : null;
+    if (why !== null) set({ part: "content", result: "not-run", reason: why });
+    else if (run.kind === "content-sync")
+      for (const entry of run.entries) set({ part: "content", ...entry });
   } catch {
     failed("content");
   }
@@ -261,8 +280,7 @@ const where = (entry: SyncEntry) =>
 /** What `lazurio update` prints of content and builds, before the product's
  * own lines: a repository that moved or is left as it is, and a summary;
  * a built app that was built or could not be. Nothing where the part had
- * nothing to do here (no Folder, or an Environment that keeps no
- * Organization). */
+ * nothing to do here (an Environment that keeps no Organization). */
 export function everythingText(items: readonly UpdateItem[]): string[] {
   const lines: string[] = [];
   const entries: SyncEntry[] = [];
