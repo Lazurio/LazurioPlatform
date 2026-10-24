@@ -1300,8 +1300,15 @@ repository ([F32's addendum of 2026-10-24](decisions.md#f32--teams-are-not-a-pre
 root decision 0209 point 6): a declared one with the GitHub page of a service's
 repository gets `services` (`{id, kind, page}`, the page on this Environment's
 loopback or null), and a repository only services name follows the declared ones with
-`path: null`. The Launchpad and `lazurio organization list` read them from the
-root-custodied handover; every other reader of the catalog lists none.
+`path: null`. The owning Organization is the one `selectOwnerOrganization` names, as
+for Organization settings and Composio. Where the Folder holds none, the catalog
+carries `serverServices` instead: a group in the shape of an Organization named as the
+handover names its owner, with an empty directory and no state, Teams, modules or
+GitHub binding, its repositories the service repositories. It is kept apart from
+`organizations` like the Personalspace group, shown and selected by `catalogGroups`,
+and absent from `organizationsOnly`. The Launchpad and `lazurio organization list`
+read the services from the root-custodied handover; every other reader of the catalog
+lists none.
 
 **Teams.** The canonical form is `module_slots[].teams`. The catalog resolves membership
 exactly as the resident's read model does (`organizationSlotTeams` in the legacy root's

@@ -405,6 +405,9 @@ Launchpad ([decision F10, amendment of 2026-10-19](decisions.md#f10--workspace-p
   repository, and a service with a page opens it on this Environment's loopback in
   its Environment browser, also from `/service/<id>`
   ([F32's addendum of 2026-10-24](decisions.md#f32--teams-are-not-a-presentation-axis-of-the-launchpad-an-environment-is-one-workspace)).
+  They are listed whether or not the Folder holds the owning Organization: where it
+  holds none, under the owner as this handover names it (`organization_key`, else
+  `owner.organization`), never as an installed Organization.
   The handover has no page path: the Platform knows the AI pool's
   (`/management.html`) and no other. The link from the server's other Environments
   waits for every guest's handover to name its server's services Environment

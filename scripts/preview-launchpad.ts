@@ -88,7 +88,11 @@
 // then also lists the services of a handover shaped like the reference
 // Organization's services-01, and "Otevřít stránku služby" opens the AI
 // pool's page through a fake hub on the entry's port 4848 (decision F32's
-// addendum of 2026-10-24; `servicesWorld` below). With `vault-member` anywhere
+// addendum of 2026-10-24; `servicesWorld` below); with `fresh` as well
+// (`hosted cs <port> owner fresh services`), the Folder holds no
+// Organization, as on a services Environment whose Organization install has
+// not run, and Apps lists the services in a group of their own, named as
+// the handover names its owner. With `vault-member` anywhere
 // after the mode, the fictional person jana already has her Lazurio account
 // with a master password in the hosted work Environment's vault, so Apps →
 // Trezor adds and confirms her and finds her a member: the vault's video
@@ -1031,9 +1035,15 @@ const app = await startLaunchpad(
   mode === "local"
     ? {}
     : {
+        // Služby serveru's services, and the owner's own slug the shell
+        // document names it by, both from the same handover as on a services
+        // Environment (`handoverServerServices`, `handoverOwnerKey`).
         ...(services === null
           ? {}
-          : { serverServices: async () => services.served }),
+          : {
+              serverServices: async () => services.served,
+              ownerKey: async () => services.served?.owner.key ?? null,
+            }),
         // A hosted preview's gateway names a fictional person with a Lazurio
         // username, as Lazurio Auth's answer does, so Apps → Trezor
         // offers her own address (F53's addendum of 2026-10-16).
