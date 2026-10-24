@@ -1,6 +1,6 @@
 import { constants } from "node:fs";
 import { access, stat } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { sleepTimes } from "../browser/people/sleep";
 import {
   contentLockDirectory,
@@ -8,6 +8,7 @@ import {
   readFolderKind,
 } from "../content/host";
 import { contentScope } from "../content/model";
+import { readSyncRecord } from "../content/sync-record";
 import { withFolderReadLock } from "../folder/lock";
 import { canonicalCheckoutDirectory } from "../folder/owned-directory";
 import { readFolderState } from "../folder/read-state";
@@ -393,6 +394,11 @@ export type ModuleAnswer = Readonly<{
   secretsNotProvided?: readonly RuntimeSecretFinding[];
   /** A built app (decision F58): what it serves and its builds. */
   build?: ModuleBuild;
+  /** The module's primary checkout does not follow its published branch by
+   * itself (decision F9's amendment of 2026-10-24): the last synchronization
+   * left it as it is, for this reason (`syncBlockedReasons`). Absent
+   * otherwise. */
+  sync?: Readonly<{ result: "blocked"; reason: string }>;
 }>;
 
 export type ModuleLogs = Readonly<{
@@ -1694,6 +1700,7 @@ export function createModuleOperations(input: {
       outcome === "start-pending" && build?.building != null
         ? "build-pending"
         : outcome;
+    const sync = await syncOf(target);
     const base = {
       kind: "module" as const,
       operation,
@@ -1701,6 +1708,7 @@ export function createModuleOperations(input: {
       runner: kind,
       survivesLaunchpadRestart: kind === "systemd-user",
       ...(build === undefined ? {} : { build }),
+      ...(sync === null ? {} : { sync }),
     };
     if (status.kind === "not-managed")
       return Object.freeze({
@@ -1730,6 +1738,28 @@ export function createModuleOperations(input: {
         ? await link(lifecycle, target, selection)
         : { runtime: null }),
     });
+  }
+
+  // What the last synchronization of content said about the module's own
+  // checkout (decision F9's amendment of 2026-10-24), read from its record
+  // beside the content lock: only a blocked one is named. Never for the
+  // Personalspace, which is never synchronized.
+  async function syncOf(
+    target: Target,
+  ): Promise<Readonly<{ result: "blocked"; reason: string }> | null> {
+    if (target.personalspace || host.dataMounts === undefined) return null;
+    const entries = await readSyncRecord(host.dataMounts.lockDirectory, folder);
+    const own = relative(folder, target.moduleDirectory).split(sep).join("/");
+    const entry = entries?.find(
+      (candidate) =>
+        candidate.kind !== "data" &&
+        (candidate.path === "."
+          ? candidate.root
+          : `${candidate.root}/${candidate.path}`) === own,
+    );
+    return entry?.result === "blocked" && entry.reason !== undefined
+      ? Object.freeze({ result: "blocked" as const, reason: entry.reason })
+      : null;
   }
 
   // The toolchain from the standard path, checked before any effect.
@@ -2119,6 +2149,11 @@ export function createModuleOperations(input: {
         siblings?: (
           organizationDirectory: string,
         ) => Promise<ReadonlySet<string>>;
+        /** Keeps the Folder's primary checkouts on their published branch
+         * first (decision F9's amendment of 2026-10-24, `syncContent`), so
+         * the sweep builds what a fast-forward brought; the Launchpad's
+         * composition. Its failure never stops the sweep. */
+        sync?: () => Promise<unknown>;
       }> = {},
     ) {
       if (
@@ -2133,10 +2168,12 @@ export function createModuleOperations(input: {
         now = Date.now,
         connected = observeConnected,
         siblings = declaredSiblings,
+        sync,
         ...watching
       } = options;
       keeper = createBuildWatcher({
         apps: async () => {
+          if (sync !== undefined) await sync().catch(() => undefined);
           await sleepUnused(now(), connected, running, siblings).catch(
             () => undefined,
           );

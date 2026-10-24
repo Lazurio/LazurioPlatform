@@ -725,6 +725,10 @@ const en = {
   moduleStartDev: "Start the development version",
   moduleBuildFailedNote:
     "The newest version could not be built. The previous version keeps running.",
+  moduleSyncBlockedChanges:
+    "This module doesn't update by itself because its main version has unfinished changes.",
+  moduleSyncBlockedBranch:
+    "This module doesn't update by itself because its main version is on another branch.",
   moduleReasonBuildFailed: "The app could not be built.",
   moduleReasonBuildBusy:
     "Another build has been running for long; try again shortly.",
@@ -2486,6 +2490,10 @@ const cs: Record<MessageKey, string> = {
   moduleStartDev: "Spustit vývojovou verzi",
   moduleBuildFailedNote:
     "Nejnovější verzi se nepodařilo sestavit. Dál běží předchozí verze.",
+  moduleSyncBlockedChanges:
+    "Tento modul se sám neaktualizuje, protože jeho hlavní verze má rozpracované změny.",
+  moduleSyncBlockedBranch:
+    "Tento modul se sám neaktualizuje, protože jeho hlavní verze je na jiné větvi.",
   moduleReasonBuildFailed: "Aplikaci se nepodařilo sestavit.",
   moduleReasonBuildBusy:
     "Jiné sestavení běží už dlouho; zkuste to za chvíli znovu.",

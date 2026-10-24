@@ -1383,6 +1383,8 @@ export function createCatalogPanel(
       text.append(element("p", "row-desc", view.noLink));
     if (view.buildNote !== undefined)
       text.append(element("p", "row-desc", view.buildNote));
+    if (view.syncNote !== undefined)
+      text.append(element("p", "row-desc", view.syncNote));
     const message = element("p", "row-status", current.message ?? "");
     message.setAttribute("role", "status");
     message.setAttribute("aria-live", "polite");

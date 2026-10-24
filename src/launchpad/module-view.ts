@@ -234,11 +234,42 @@ export type ModuleStatusView = Readonly<{
    * new commit built but did not start (decision F58, addendum of
    * 2026-10-21): its page offers the development version explicitly. */
   development?: true;
+  /** The module's primary checkout does not follow its published branch by
+   * itself (decision F9's amendment of 2026-10-24): one line in plain words,
+   * never the reason's code. */
+  syncNote?: string;
 }>;
+
+// Why the module's checkout stays as it is, in one line: unfinished work in
+// its main version, or another branch (or commit) checked out there.
+const syncNoteKeys: Readonly<Record<string, MessageKey>> = {
+  dirty: "moduleSyncBlockedChanges",
+  ahead: "moduleSyncBlockedChanges",
+  diverged: "moduleSyncBlockedChanges",
+  "operation-in-progress": "moduleSyncBlockedChanges",
+  "wrong-branch": "moduleSyncBlockedBranch",
+  detached: "moduleSyncBlockedBranch",
+};
 
 /** The module's status as its page shows it. `null`: not read yet, or the
  * answer could not be read. */
 export function moduleStatusView(
+  status: ModuleAnswer | ModuleBlocked | null,
+  copy: Copy,
+): ModuleStatusView {
+  const view = lifecycleView(status, copy);
+  const reason =
+    status?.kind === "module" && status.sync?.result === "blocked"
+      ? status.sync.reason
+      : undefined;
+  const key =
+    reason !== undefined && Object.hasOwn(syncNoteKeys, reason)
+      ? syncNoteKeys[reason]
+      : undefined;
+  return key === undefined ? view : { ...view, syncNote: copy[key] };
+}
+
+function lifecycleView(
   status: ModuleAnswer | ModuleBlocked | null,
   copy: Copy,
 ): ModuleStatusView {
