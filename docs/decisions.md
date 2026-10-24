@@ -12651,6 +12651,77 @@ the view's own bar is the only toolbar there. [F39's addendum of
 ends that bar with Kvalita obrazu and, inside an app's frame, Otevřít samostatně. The
 Launchpad's strip and T3 Code's panel change in their own steps.
 
+**Addendum 2026-10-24: Aktualizovat in Přehled, and the standalone page for Codex Desktop
+(Matěj, Organization Admin; root decision 0212 point 7, HumanAndMachines/Lazurio#625; plan
+DEV-6656; for v0.1.12).** Root decision 0212 point 7: Nová karta has an Aktualizovat button
+that runs `lazurio update` and shows its progress per module, and Codex Desktop, whose right
+panel Lazurio cannot change, opens Nová karta as a standalone page of the Launchpad in its side
+browser.
+
+1. **Where.** The button is in the title of Spuštěné Moduly, in Přehled of the page `/new-tab`.
+   It is the same page wherever Nová karta is: in the Launchpad's panel, in T3 Code's and
+   MausBot's `<lazurio-new-tab>`, and standalone. The page is on the Launchpad's own origin,
+   so the button's request is same-origin with the Launchpad behind its usual admission,
+   whichever app frames it, as Přehled and Zastavit already are. Nothing changes in the
+   element, its protocol or the gateway.
+2. **What it runs.** `POST /api/update/everything` starts the composition of one `lazurio
+   update` as a job of the Launchpad ([F9's second amendment of
+   2026-10-24](#second-amendment-of-2026-10-24-one-lazurio-update-composes-content-builds-and-lazurio-itself)):
+   the content, the builds of what changed, and Lazurio itself last through the pill's own
+   action. A click while a run is under way joins it. A page that opens while a run is under
+   way shows that run (`GET /api/update/everything`). While a run is under way the button
+   says "Aktualizuji…" and does nothing more.
+3. **Progress per module.** Below Spuštěné Moduly the run's rows appear under "Aktualizace",
+   read every second while the page is visible (`updateView` in `new-tab-view.ts`). Each row
+   is one module, named from the boot catalog as Apps names it, or Lazurio itself, last. A
+   module's repositories (its checkout and its data mounts) and its apps' builds are one
+   row. Its state, in Czech with formal address and in English:
+   - checking ("Kontroluje se");
+   - a newer version found and fetched, with the short commit ("Nalezena novější verze
+     1a2b3c4, stahuje se", then "Stažena novější verze 1a2b3c4");
+   - building ("Sestavuje se verze 1a2b3c4");
+   - done ("Hotovo, verze 1a2b3c4");
+   - up to date ("Aktuální");
+   - or a finding in plain words: unfinished work or another branch in the main version,
+     GitHub refusing or silent, a build that failed while the previous one keeps running.
+
+   An Organization root shows only when it is a finding, under the Organization's name; an
+   absent repository shows nothing. Another update holding the content is one sentence for
+   the run. No code, path or reason id is ever shown.
+4. **Across Lazurio's restart.** When the run started Lazurio's update, the Launchpad
+   restarts and the run goes with it. The page keeps the run's last rows and waits up to
+   two minutes for the Launchpad to answer again. Once it runs the new version
+   (`GET /api/update/status`), Lazurio's row says "Aktualizováno na verzi …".
+5. **The standalone page is `/new-tab` itself.** Codex Desktop's side browser opens
+   `https://launchpad.<Environment's host>/new-tab` (the Launchpad's origin, `apps` in
+   `shell.json`) on its own, as step 3 of this decision already describes. It is the
+   decision of 2026-10-11, in effect. Unframed, the page draws Nová karta at full height
+   with the Launchpad's strip and no tools, behind the Launchpad's normal sign-in and
+   admission, and since this addendum with Aktualizovat. The Folder's instructions can point
+   Codex Desktop agents at that address. It is offered where Nová karta is, a Remote
+   Environment with the Environment browser; elsewhere the page says that this Environment
+   has no browser, as it always did.
+6. **Not on a public Environment.** Its visitors do not own the Environment: the routes
+   answer 404 and the button is not shown.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A new standalone route that hosts `<lazurio-new-tab>` in a page of its own | The element would only frame `/new-tab` again inside it, a second page and frame for what `/new-tab` already is unframed (Matěj 2026-10-11); rejected |
+| The button in the element (shadow DOM) with its own request from the host's origin | Writes from T3 Code's and MausBot's origins would need a relay with its own admission in the gateway, exactly what point 1 of this decision rejected; rejected |
+| The button in the Launchpad's update pill only | The pill is Lazurio's alone, shows only when a release is available, and is not in T3 Code or MausBot; the decision puts the button in Nová karta; rejected |
+| Progress per repository rather than per module | A person thinks in modules; a module's data mounts and builds are one thing to them; rejected for one row per module |
+| Push the progress (WebSocket or server-sent events) | A run lasts seconds to minutes and the page already reads Přehled every 5 s; a read per second while a run is under way is simpler and needs no new channel; rejected |
+| Keep the run on disk so that it outlives the restart | A state file for a progress view; the page keeps the last rows and the owners keep what the run did; rejected |
+
+Tests: `tests/new-tab-view.test.ts` (the answer read field by field; a module through
+checking, a newer version found and fetched, building and done, named from the catalog;
+up to date, a data mount folded into its module, an unknown module by its id, an absent one
+left out; the findings in Czech and English; Lazurio started, then updated once the
+restarted Launchpad runs that version; joining a run under way) and, for the routes,
+`tests/launchpad-update.test.ts` (F9's second amendment). The page itself is checked in a
+browser (root decision 0178): the button in Spuštěné Moduly, the rows, a second click
+joining.
+
 ## F48 — One shared GitHub App sign-in in a Work Environment (pilot)
 
 **Decided by the Operator 2026-10-11, replacing the unpublished per-Organization

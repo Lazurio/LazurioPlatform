@@ -20,6 +20,7 @@ import {
 import { bootElementId, parseBoot } from "./boot";
 import {
   actionFailure,
+  afterRestart,
   catalogModuleLook,
   closeOutcome,
   closeWarning,
@@ -39,13 +40,18 @@ import {
   type PendingUndo,
   pageStrip,
   parseOverview,
+  parseUpdateJob,
   settleOverrides,
+  startedLazurio,
   suggestions,
   type TabOverride,
   type TabRow,
   tabRows,
   toastModel,
   toolForKey,
+  type UpdateJob,
+  type UpdateRow,
+  updateView,
   viewOriginOf,
   withOverride,
 } from "./new-tab-view";
@@ -154,6 +160,13 @@ let pending: PendingUndo | null = null;
 let pendingTimer: ReturnType<typeof setTimeout> | undefined;
 let note: string | null = null;
 let noteTimer: ReturnType<typeof setTimeout> | undefined;
+// Aktualizovat (root decision 0212 point 7): whether this Launchpad runs
+// `lazurio update` (its `GET /api/update/everything` answered), and the run
+// shown, the newest this page knows: kept after the Launchpad went away for
+// the Lazurio the run started, so its rows stay.
+let updateOffered = false;
+let updateJob: UpdateJob | null = null;
+let updateStarting = false;
 
 // ---- Drawing ----------------------------------------------------------------
 
@@ -375,6 +388,35 @@ function moduleItem(row: ModuleRow): HTMLLIElement {
   return item;
 }
 
+/** A row of the run: the module (or Lazurio), and its state in words. */
+function updateItem(row: UpdateRow): HTMLLIElement {
+  const item = element("li", "nto-update-row");
+  if (row.stone === null) item.append(icon("grid"));
+  else {
+    const stone = element("img", "nt-stone");
+    stone.alt = "";
+    stone.width = 16;
+    stone.height = 16;
+    stone.src = row.stone;
+    item.append(stone);
+  }
+  const text = element("span", "nto-text");
+  const state = element(
+    "span",
+    `nto-update-state${
+      row.state === "finding"
+        ? " is-finding"
+        : ["checking", "fetching", "fetched", "building"].includes(row.state)
+          ? " is-working"
+          : ""
+    }`,
+    row.text,
+  );
+  text.append(element("span", "nto-name", row.name), state);
+  item.append(text);
+  return item;
+}
+
 function group(title: string, count: number | null): HTMLElement {
   const box = element("section", "nto-group");
   const head = element("h3", "nto-group-title", title);
@@ -414,6 +456,8 @@ function drawOverview(force = false) {
           copy,
           locale,
         );
+  const update =
+    updateJob === null ? null : updateView(updateJob, catalog, copy);
   const signature = JSON.stringify([
     overviewState,
     overview === null,
@@ -422,6 +466,10 @@ function drawOverview(force = false) {
     modules,
     [...stopping],
     locale,
+    updateOffered,
+    updateStarting,
+    updateJob?.running,
+    update,
   ]);
   if (!force && signature === drawnOverview) return;
   drawnOverview = signature;
@@ -506,6 +554,19 @@ function drawOverview(force = false) {
     copy.modulesTitle,
     modules === null ? null : modules.length,
   );
+  if (updateOffered) {
+    const running = updateStarting || updateJob?.running === true;
+    const button = element(
+      "button",
+      "nto-action",
+      running ? copy.updating : copy.update,
+    );
+    button.type = "button";
+    button.disabled = running;
+    button.dataset.focusKey = "update";
+    button.addEventListener("click", () => void startUpdate());
+    modulesBox.querySelector("h3")?.append(button);
+  }
   if (modules === null)
     modulesBox.append(element("p", "nto-empty", copy.modulesUnknown));
   else if (modules.length === 0)
@@ -516,6 +577,18 @@ function drawOverview(force = false) {
     modulesBox.append(list);
   }
   parts.push(modulesBox);
+  if (update !== null && (update.rows.length > 0 || update.note !== null)) {
+    const box = group(copy.updateProgress, null);
+    if (update.note !== null)
+      box.append(element("p", "nto-status", update.note));
+    if (update.rows.length > 0) {
+      const list = element("ul", "nto-list");
+      list.setAttribute("aria-live", "polite");
+      list.append(...update.rows.map(updateItem));
+      box.append(list);
+    }
+    parts.push(box);
+  }
   overviewBody.replaceChildren(...parts);
   if (focused !== null)
     overviewBody
@@ -859,6 +932,110 @@ async function stopModule(row: ModuleRow) {
   void poll();
 }
 
+// ---- Aktualizovat -------------------------------------------------------------------
+
+let updateTimer: ReturnType<typeof setTimeout> | undefined;
+/** How often a run under way is read while the page is visible. */
+const updateEveryMs = 1_000;
+/** How long the page waits for a Launchpad that restarts for the Lazurio
+ * the run started. */
+const restartWaitMs = 120_000;
+let restartSince: number | null = null;
+
+async function readJson(path: string): Promise<NewTabAnswer> {
+  try {
+    const response = await fetch(path, {
+      credentials: "same-origin",
+      cache: "no-store",
+      signal: AbortSignal.timeout(15_000),
+    });
+    return {
+      status: response.status,
+      value: await response.json().catch(() => null),
+    };
+  } catch {
+    return { status: 0, value: null };
+  }
+}
+
+/** The run is gone with the Launchpad that restarted for the Lazurio it
+ * started: its last rows, with Lazurio updated once the Launchpad runs it. */
+async function settleAfterRestart(job: UpdateJob): Promise<boolean> {
+  const status = await readJson("/api/update/status");
+  if (status.status !== 200) return false;
+  const value = status.value as Record<string, unknown> | null;
+  updateJob = afterRestart(
+    job,
+    typeof value?.running === "string" ? value.running : null,
+  );
+  return true;
+}
+
+/** One reading of the newest run, then the next while one is under way
+ * and the page is visible. */
+async function readUpdate(): Promise<void> {
+  clearTimeout(updateTimer);
+  updateTimer = undefined;
+  const answer = await readJson("/api/update/everything");
+  const read = answer.status === 200 ? parseUpdateJob(answer.value) : undefined;
+  // The run this page showed under way, if any.
+  const shown = updateJob?.running === true ? updateJob : null;
+  if (read !== undefined) {
+    updateOffered = true;
+    if (shown !== null && (read === null || read.id !== shown.id)) {
+      // A new Launchpad, which does not know the run that restarted it.
+      if (startedLazurio(shown) === null)
+        updateJob = Object.freeze({ ...shown, running: false });
+      else if (!(await settleAfterRestart(shown))) scheduleUpdate(2_000);
+    } else if (read !== null) {
+      updateJob = read;
+      restartSince = null;
+    }
+  } else if (shown !== null) {
+    // The Launchpad does not answer: a restart for Lazurio, most likely.
+    restartSince ??= Date.now();
+    if (Date.now() - restartSince < restartWaitMs) scheduleUpdate(2_000);
+    else updateJob = Object.freeze({ ...shown, running: false });
+  } else if (answer.status !== 0) updateOffered = false;
+  drawOverview();
+  if (updateJob?.running === true && updateTimer === undefined)
+    scheduleUpdate(updateEveryMs);
+}
+
+function scheduleUpdate(ms: number) {
+  clearTimeout(updateTimer);
+  updateTimer =
+    document.visibilityState === "visible"
+      ? setTimeout(() => void readUpdate(), ms)
+      : undefined;
+}
+
+/** Aktualizovat: one `lazurio update` on this Environment, or the run under
+ * way, which the click joins. */
+async function startUpdate(): Promise<void> {
+  if (updateStarting || updateJob?.running === true) return;
+  updateStarting = true;
+  drawOverview();
+  const answer = await post("/api/update/everything", {});
+  updateStarting = false;
+  const value =
+    typeof answer.value === "object" && answer.value !== null
+      ? (answer.value as Record<string, unknown>)
+      : {};
+  if (answer.status === 202 && typeof value.job === "string") {
+    updateJob =
+      updateJob?.id === value.job
+        ? Object.freeze({ ...updateJob, running: true })
+        : Object.freeze({ id: value.job, running: true, lines: [] });
+    restartSince = null;
+    drawOverview();
+    void readUpdate();
+    return;
+  }
+  say(actionFailure(answer, copy.updateStartFailed, copy));
+  drawOverview();
+}
+
 // ---- Reading Přehled -------------------------------------------------------------
 
 let pollTimer: ReturnType<typeof setTimeout> | undefined;
@@ -919,10 +1096,14 @@ async function poll(): Promise<void> {
 }
 
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") void poll();
-  else {
+  if (document.visibilityState === "visible") {
+    void poll();
+    if (updateJob?.running === true) void readUpdate();
+  } else {
     clearTimeout(pollTimer);
     pollTimer = undefined;
+    clearTimeout(updateTimer);
+    updateTimer = undefined;
   }
 });
 
@@ -1002,3 +1183,4 @@ if (mode === "standalone") focusAddress();
 void readShell().then(announce);
 void readViewOrigin();
 void poll();
+void readUpdate();

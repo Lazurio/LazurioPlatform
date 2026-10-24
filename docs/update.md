@@ -923,7 +923,10 @@ starts `lazurio update --version` in the unit that outlives the restart it cause
 (`result: "started"`). The job lives in the Launchpad's memory and ends with it; what the
 run did stays in its owners' records (the content's record, the builds' states, the
 selector). A Launchpad that is not an installed one answers `503 update-unavailable`; a
-public Environment, whose visitors do not own it, `404`.
+public Environment, whose visitors do not own it, `404`. Nová karta's Aktualizovat is its
+button, wherever Nová karta is, standalone too: Codex Desktop's side browser opens it at
+`https://launchpad.<Environment's host>/new-tab` ([F47's addendum of
+2026-10-24](decisions.md#f47--nová-karta-one-shell-element-for-every-apps-right-panel-the-places-that-hold-a-remote-tab-and-the-environments-overview)).
 
 **In the background, never Lazurio itself.** The Launchpad's own content and builds every
 hour and at the Open of one module ([content synchronization](content-sync.md#when-it-runs))
