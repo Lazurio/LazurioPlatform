@@ -745,9 +745,10 @@ export async function startLaunchpad(
     });
   // The Folder's primary checkouts follow their published branch (decision
   // F9's amendment of 2026-10-24, root decision 0195 point 26): the installed
-  // Launchpad fast-forwards the clean ones at each sweep, before it builds
-  // what moved. Its content lock and record are the install base's, as the
-  // CLI's; a development run without a base never synchronizes.
+  // Launchpad fast-forwards the clean ones at its start and then hourly
+  // (`contentSyncEveryMs`), within the sweep that builds what moved. Its
+  // content lock and record are the install base's, as the CLI's; a
+  // development run without a base never synchronizes.
   const syncCheckouts =
     installed === undefined
       ? undefined

@@ -9,12 +9,15 @@ import {
   rm,
 } from "node:fs/promises";
 import { join } from "node:path";
+import { runContentCommand } from "../src/content/cli";
 import { processContentGit } from "../src/content/git";
+import type { ContentHost } from "../src/content/host";
 import { tryContentLock } from "../src/content/lock";
 import {
   readSyncRecord,
   type SyncEntry,
   type SyncHost,
+  type SyncProgress,
   syncContent,
   syncFindings,
   syncScope,
@@ -24,6 +27,7 @@ import { messages } from "../src/launchpad/messages";
 import { moduleStatusView } from "../src/launchpad/module-view";
 import type { ModuleAnswer } from "../src/modules/module-operations";
 import { runTool } from "../src/tools/status";
+import type { CliContext } from "../src/update/cli";
 import { type Slot, writeModule } from "./fixtures/catalog-folder";
 import {
   createWorld,
@@ -726,6 +730,76 @@ posixTest(
   60_000,
 );
 
+posixTest(
+  "one repository on its own: its root first, then only it and its data mounts, with progress per repository as it goes",
+  async () => {
+    world = await createWorld();
+    const fixture = await organization(world);
+    await ran(fixture);
+    const mission = await advance(world, "Alpha/mission-control", (d) =>
+      writeFile(join(d, "a.txt"), "2\n"),
+    );
+    const web = await head(fixture.at("workspace/web"));
+    await advance(world, "Alpha/web", (d) =>
+      writeFile(join(d, "a.txt"), "2\n"),
+    );
+    const progress: string[] = [];
+    const run = await ran(fixture, {
+      organization: "Alpha",
+      repository: "mission-control",
+      onProgress: (event: SyncProgress) =>
+        progress.push(
+          `${event.path} ${event.step}${event.entry ? ` ${event.entry.result}` : ""}`,
+        ),
+    });
+    expect(byPath(run.entries)).toEqual({
+      ".": "current",
+      "mission-control": "fast-forwarded",
+      "mission-control/db": "current",
+    });
+    expect(await head(fixture.at("mission-control"))).toBe(mission);
+    // web is behind, but not asked for.
+    expect(await head(fixture.at("workspace/web"))).toBe(web);
+    // Each repository's own steps in their order; repositories overlap.
+    const steps = (path: string) =>
+      progress
+        .filter((line) => line.split(" ")[0] === path)
+        .map((line) => line.split(" ").slice(1).join(" "));
+    expect(steps(".")).toEqual(["checking", "done current"]);
+    expect(steps("mission-control")).toEqual([
+      "checking",
+      "fetching",
+      "fast-forwarding",
+      "done fast-forwarded",
+    ]);
+    expect(steps("mission-control/db")).toEqual(["checking", "done current"]);
+    expect(progress.indexOf(". done current")).toBeLessThan(
+      progress.indexOf("mission-control checking"),
+    );
+    expect(new Set(progress)).toEqual(
+      new Set([
+        ". checking",
+        ". done current",
+        "mission-control checking",
+        "mission-control fetching",
+        "mission-control fast-forwarding",
+        "mission-control done fast-forwarded",
+        "mission-control/db checking",
+        "mission-control/db done current",
+      ]),
+    );
+    // The record keeps the other repositories' last answers.
+    const record = await readSyncRecord(world.lockDirectory, fixture.folder);
+    expect(byPath(record ?? [])).toEqual({
+      ".": "current",
+      "workspace/web": "current",
+      "mission-control": "fast-forwarded",
+      "mission-control/db": "current",
+    });
+  },
+  60_000,
+);
+
 test("which Organizations an Environment keeps on their published branch, and through which identity", () => {
   expect(syncScope("local", null)).toEqual({
     organizations: "folder",
@@ -795,3 +869,51 @@ test("a module whose checkout is blocked says so in one line, in words; nothing 
   ).toBeUndefined();
   expect(moduleStatusView(status(), messages("en")).syncNote).toBeUndefined();
 });
+
+posixTest(
+  "lazurio organization sync: the same core, one JSON line, its exit status",
+  async () => {
+    world = await createWorld();
+    const fixture = await organization(world);
+    await advance(world, "Alpha/web", (d) =>
+      writeFile(join(d, "a.txt"), "2\n"),
+    );
+    const context: CliContext = {
+      identity: { version: "1.0.0", commit: "0".repeat(40), target: "fixture" },
+      platform: process.platform,
+      env: { HOME: world.home },
+      executable: join(world.home, "lazurio"),
+      hostedFolder: async () => undefined,
+    };
+    const command = async (...args: string[]) => {
+      const lines: string[] = [];
+      const code = await runContentCommand(
+        ["organization", "sync", ...args, "--folder", fixture.folder],
+        context,
+        (line) => lines.push(line),
+        () => fixture.host as ContentHost,
+      );
+      return { code, lines };
+    };
+    const json = await command("Alpha", "--json");
+    expect(json.code).toBe(0);
+    expect(json.lines).toHaveLength(1);
+    const result = JSON.parse(json.lines[0] as string);
+    expect(result.kind).toBe("content-sync");
+    expect(
+      result.entries.find((e: SyncEntry) => e.path === "workspace/web").result,
+    ).toBe("fast-forwarded");
+    // A blocked checkout: exit 1, its line names the reason.
+    await writeFile(join(fixture.at("workspace/web"), "a.txt"), "local\n");
+    const text = await command();
+    expect(text.code).toBe(1);
+    expect(text.lines).toContain(
+      "organizations/alpha_GEN3/workspace/web (main)  blocked dirty",
+    );
+    // An Organization this Folder does not hold.
+    expect((await command("Other")).code).toBe(1);
+    // Usage.
+    await expect(command("Alpha", "--role", "builder")).rejects.toThrow();
+  },
+  60_000,
+);

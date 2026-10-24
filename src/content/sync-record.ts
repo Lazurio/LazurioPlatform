@@ -60,10 +60,18 @@ export type SyncEntry = Readonly<{
 // base (`<base>/content/sync-<digest of the Folder>.json`), so the CLI, the
 // doctor and the Launchpad read the same: written whole by a rename, under
 // the content lock, by the run that answered. A run for one Organization
-// replaces that Organization's entries only; a run for all of them replaces
-// the record. Coordination and visibility only: nothing decides on it.
+// replaces that Organization's entries only, a run for one repository that
+// repository's, a run for all of them the record. Coordination and
+// visibility only: nothing decides on it.
 
 const recordSchema = "lazurio.content-sync.v1";
+
+/** How often the Launchpad keeps the Folder's primary checkouts on their
+ * published branch: at its start, then every hour (to be confirmed; root
+ * decision 0195, addendum of 2026-10-24, point 26). Its 5-minute build sweep
+ * stays and builds whatever a synchronization brought. One constant, so the
+ * cadence is one line to change. */
+export const contentSyncEveryMs = 60 * 60 * 1000;
 
 /** The record of one Folder (its canonical path) in `lockDirectory`. */
 export function syncRecordFile(lockDirectory: string, folder: string) {
@@ -126,11 +134,19 @@ const keyOf = (entry: SyncEntry) =>
 const lasting = (result: SyncResult) =>
   result !== "current" && result !== "fast-forwarded" && result !== "absent";
 
+/** Which recorded entries a run's answers replace: all of them, those of
+ * the Organizations it ran for, or only the repositories it answered (a run
+ * for one repository). */
+export type RecordScope =
+  | Readonly<{ replace: "all" }>
+  | Readonly<{ replace: "organizations"; organizations: readonly string[] }>
+  | Readonly<{ replace: "answered" }>;
+
 export async function recordSync(
   lockDirectory: string,
   folder: string,
   entries: readonly SyncEntry[],
-  scope: "all" | readonly string[],
+  scope: RecordScope,
   at: string,
 ): Promise<readonly SyncEntry[]> {
   const previous = (await readSyncRecord(lockDirectory, folder)) ?? [];
@@ -146,14 +162,18 @@ export async function recordSync(
         : entry.at;
     return Object.freeze({ ...entry, since });
   });
-  const replaced =
-    scope === "all" ? null : new Set(scope.map((login) => login.toLowerCase()));
-  const kept =
-    replaced === null
-      ? []
-      : previous.filter(
-          (entry) => !replaced.has(entry.organization.toLowerCase()),
-        );
+  const organizations =
+    scope.replace === "organizations"
+      ? new Set(scope.organizations.map((login) => login.toLowerCase()))
+      : null;
+  const answeredKeys = new Set(entries.map(keyOf));
+  const kept = previous.filter((entry) =>
+    scope.replace === "all"
+      ? false
+      : organizations !== null
+        ? !organizations.has(entry.organization.toLowerCase())
+        : !answeredKeys.has(keyOf(entry)),
+  );
   const file = syncRecordFile(lockDirectory, folder);
   const temporary = `${file}.${randomBytes(6).toString("hex")}.tmp`;
   await writeFile(

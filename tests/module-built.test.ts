@@ -4,12 +4,16 @@ import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { processContentGit } from "../src/content/git";
+import type { ContentGitHub } from "../src/content/github";
+import { syncContent } from "../src/content/sync";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { messages } from "../src/launchpad/messages";
 import { moduleStatusView } from "../src/launchpad/module-view";
 import type { ApplicationRunner } from "../src/modules/application-runner";
 import { gitCheckoutReader } from "../src/modules/built/checkout";
+import type { DataMountHost } from "../src/modules/data-mounts";
 import { observeConnected } from "../src/modules/listener-ownership";
 import {
   createModuleOperations,
@@ -20,6 +24,7 @@ import {
 } from "../src/modules/module-operations";
 import { createSessionRunner } from "../src/modules/session-runner";
 import { type Catalog, readFolderCatalog } from "../src/organizations/catalog";
+import { runTool } from "../src/tools/status";
 import { writeOrganization } from "./fixtures/catalog-folder";
 import { compilePlatform, runnableModule } from "./fixtures/module-host";
 import { mkdirOwnedFixture as mkdir } from "./fixtures/owned-files";
@@ -142,6 +147,11 @@ async function staticModule(
     plain?: Record<string, unknown>;
     /** site runs its own server (`start_script`), its build its client. */
     server?: boolean;
+    /** site's slot declares its GitHub repository, `alpha/site`. */
+    published?: boolean;
+    /** This host's gh, git and content locks (data mounts, and the record
+     * of the synchronization). */
+    dataMounts?: DataMountHost;
   }> = {},
 ) {
   const parent = join(root, name);
@@ -159,7 +169,12 @@ async function staticModule(
     slug: "alpha",
     state: "current",
     modules: [
-      { id: "site" },
+      {
+        id: "site",
+        ...(options.published
+          ? { slot: { git: { url: "git@github.com:alpha/site.git" } } }
+          : {}),
+      },
       {
         id: "plain",
         ...(options.plain === undefined ? {} : { runtime: options.plain }),
@@ -198,6 +213,9 @@ async function staticModule(
     runnerKind: async () => "session",
     createRunner: () => options.runner ?? createSessionRunner(binary),
     readJournal: async () => ({ kind: "unavailable" }) as const,
+    ...(options.dataMounts === undefined
+      ? {}
+      : { dataMounts: options.dataMounts }),
     builds: {
       cacheRoot: join(parent, "cache"),
       lockFile: join(parent, "state/lazurio/builds.lock"),
@@ -609,6 +627,168 @@ posixTest(
     }
   },
   120_000,
+);
+
+posixTest(
+  "the Launchpad's sweep fast-forwards a built app's clean primary checkout to its published commit, and the served build swaps onto it (decision F9's amendment of 2026-10-24)",
+  async () => {
+    const home = join(root, "home-sync");
+    await mkdir(home);
+    // The published side: bare repositories reached as github.com through
+    // git's own `insteadOf`, as an operator's configuration may.
+    const remotes = join(root, "sync-remotes");
+    await mkdir(join(remotes, "alpha"), { recursive: true });
+    const gitEnv = {
+      GIT_CONFIG_COUNT: "2",
+      GIT_CONFIG_KEY_0: `url.${remotes}/.insteadOf`,
+      GIT_CONFIG_VALUE_0: "git@github.com:",
+      GIT_CONFIG_KEY_1: "protocol.file.allow",
+      GIT_CONFIG_VALUE_1: "always",
+    };
+    const content: DataMountHost = {
+      github: {
+        remote: async (name: string) => ({ url: `git@github.com:${name}.git` }),
+      } as unknown as ContentGitHub,
+      git: processContentGit({
+        path: Bun.env.PATH,
+        home,
+        platform: process.platform,
+        run: runTool,
+        env: gitEnv,
+      }),
+      lockDirectory: join(root, "sync-base", "content"),
+    };
+    const fixture = await staticModule("sync", home, {
+      published: true,
+      dataMounts: content,
+    });
+    const { operations, folder, site } = fixture;
+    const git = (cwd: string, ...args: string[]) =>
+      execFileSync(
+        "git",
+        [
+          "-C",
+          cwd,
+          "-c",
+          "user.name=fixture",
+          "-c",
+          "user.email=fixture@example.invalid",
+          "-c",
+          "commit.gpgsign=false",
+          ...args,
+        ],
+        { encoding: "utf8", env: { ...process.env, ...gitEnv } },
+      ).trim();
+    // The Organization root and site, each a primary checkout of its
+    // published repository.
+    const organization = join(folder, "organizations", "alpha");
+    await writeFile(join(organization, ".gitignore"), "workspace/\n");
+    git(organization, "init", "-q", "-b", "main");
+    git(organization, "add", "-A");
+    git(organization, "commit", "-qm", "Root");
+    for (const [directory, name] of [
+      [organization, "alpha"],
+      [site, "site"],
+    ] as const) {
+      git(remotes, "clone", "-q", "--bare", directory, `alpha/${name}.git`);
+      git(
+        directory,
+        "remote",
+        "add",
+        "origin",
+        `git@github.com:alpha/${name}.git`,
+      );
+      git(directory, "fetch", "-q", "origin");
+    }
+    const sync = () => syncContent(folder, content);
+    try {
+      const started = answer(await operations.start("alpha/site"));
+      expect(started.build?.mode).toBe("built");
+      await until(fixture.page, (page) => page.text === "<p>one</p>");
+      const keeper = operations.keepBuilt({
+        quietMs: 100,
+        sweepMs: 60_000,
+        sync,
+        // Every sweep here; the cadence has its own test below.
+        syncEveryMs: 0,
+      });
+      await keeper?.sweep();
+      await keeper?.settled();
+      // Someone publishes: a new commit on site's main, nowhere else.
+      const scratch = join(root, "sync", "scratch");
+      git(root, "clone", "-q", "git@github.com:alpha/site.git", scratch);
+      await writeFile(join(scratch, "app/page.txt"), "two\n");
+      git(scratch, "commit", "-qam", "two");
+      git(scratch, "push", "-q", "origin", "main");
+      const published = git(scratch, "rev-parse", "HEAD");
+      // One sweep: the checkout fast-forwards, the build follows.
+      await keeper?.sweep();
+      expect(fixture.head()).toBe(published);
+      const swapped = answer(
+        await until(
+          () => operations.status("alpha/site"),
+          (status) =>
+            status.kind === "module" &&
+            status.healthy &&
+            status.build?.served?.commit === published,
+        ),
+      );
+      expect(swapped.build?.served?.commit).toBe(published);
+      expect((await fixture.page()).text).toBe("<p>two</p>");
+      expect(git(site, "status", "--porcelain")).toBe("");
+      expect(swapped.sync).toBeUndefined();
+      // Unfinished work in site's main version: the next sweep leaves it,
+      // and its page says so in one line.
+      await writeFile(join(site, "notes.txt"), "draft\n");
+      await keeper?.sweep();
+      const left = answer(await operations.status("alpha/site"));
+      expect(left.sync).toEqual({ result: "blocked", reason: "dirty" });
+      expect(moduleStatusView(left, messages("en")).syncNote).toBe(
+        "This module doesn't update by itself because its main version has unfinished changes.",
+      );
+    } finally {
+      await operations.stop("alpha/site");
+      await operations.close();
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "the sweep synchronizes content at its first round and then once its own interval has passed, not at every 5-minute round",
+  async () => {
+    const home = join(root, "home-cadence");
+    await mkdir(home);
+    const { operations } = await staticModule("cadence", home);
+    let clock = 1_000_000;
+    let runs = 0;
+    try {
+      const keeper = operations.keepBuilt({
+        quietMs: 100,
+        sweepMs: 60_000,
+        now: () => clock,
+        // A synchronization that fails never stops the sweep.
+        sync: async () => {
+          runs += 1;
+          throw new Error("unreachable");
+        },
+        syncEveryMs: 60 * 60 * 1000,
+      });
+      await keeper?.sweep();
+      expect(runs).toBe(1);
+      for (const minutes of [5, 30, 59]) {
+        clock = 1_000_000 + minutes * 60 * 1000;
+        await keeper?.sweep();
+      }
+      expect(runs).toBe(1);
+      clock = 1_000_000 + 60 * 60 * 1000;
+      await keeper?.sweep();
+      expect(runs).toBe(2);
+    } finally {
+      await operations.close();
+    }
+  },
+  60_000,
 );
 
 posixTest(

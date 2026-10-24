@@ -18,6 +18,7 @@ import {
 } from "./sync-record";
 
 export {
+  contentSyncEveryMs,
   readSyncRecord,
   type SyncBlockedReason,
   type SyncEntry,
@@ -39,8 +40,13 @@ export {
 // is under way; anything else is reported and left as it is. Never a stash,
 // a switch, a reset, a merge, a clone, a hook or a preparation. Worktrees,
 // Production Space repositories, `infra` and the Personalspace are never
-// touched. The Launchpad runs it at its sweep (`keepBuilt`), the CLI as
-// `lazurio organization sync`: one core, one content lock, one record.
+// touched. The Launchpad runs it at its start and then every hour
+// (`contentSyncEveryMs`, to be confirmed) within its build sweep
+// (`keepBuilt`), the CLI as `lazurio organization sync`: one core, one content
+// lock, one record; a later surface (the product update, an "Aktualizovat"
+// button, an Open) calls the same core, for one repository too
+// (`SyncRequest.repository`) and with progress per repository
+// (`onProgress`).
 
 export type SyncRun =
   | Readonly<{
@@ -61,10 +67,33 @@ export type SyncHost = Pick<
   "github" | "git" | "lockDirectory" | "readCatalog"
 >;
 
+/** One repository's progress, as it happens: `checking` (its local state
+ * and its remote's branch), `fetching` (the remote has a commit this
+ * checkout does not), `fast-forwarding`, then `done` with its answer. For a
+ * surface that shows progress per repository; the run answers the same
+ * entries. */
+export type SyncProgress = Readonly<{
+  organization: string;
+  root: string;
+  path: string;
+  kind: SyncEntry["kind"];
+  branch: string;
+  step: "checking" | "fetching" | "fast-forwarding" | "done";
+  /** `done`: the answer. */
+  entry?: SyncEntry;
+}>;
+
 export type SyncRequest = Readonly<{
   /** Only this Organization, by GitHub login; absent: every one this
    * Environment holds. */
   organization?: string | undefined;
+  /** With `organization`, only this declared repository, by its path
+   * relative to the Organization root (`workspace/<module>`,
+   * `mission-control`; `.` the root alone): the root is still synchronized
+   * first, then the module and its data mounts. */
+  repository?: string | undefined;
+  /** Each repository's progress; a listener that throws is ignored. */
+  onProgress?: ((progress: SyncProgress) => void) | undefined;
   /** Test seams: the clock, the bound of one repository and how many
    * repositories run at once. */
   now?: () => Date;
@@ -125,6 +154,8 @@ export async function syncContent(
   } catch {
     return { kind: "not-allowed", reason: "folder-unreadable" };
   }
+  if (request.repository !== undefined && request.organization === undefined)
+    throw new Error("A repository is named within its Organization");
   if (
     scope.organizations === "none" ||
     (request.organization !== undefined && !admits(scope, request.organization))
@@ -166,69 +197,93 @@ export async function syncContent(
       },
     };
     const entries: SyncEntry[] = [];
+    // A repository filter: that module and the data mounts below it.
+    const wanted = (path: string) =>
+      request.repository === undefined ||
+      path === request.repository ||
+      path.startsWith(`${request.repository}/`);
     for (const organization of held) {
       const login = organization.forgeLogin as string;
       const root = join("organizations", organization.directory);
-      const entry = (
+      // One repository: its progress as it goes, then its answer.
+      const one = async (
         path: string,
         kind: SyncEntry["kind"],
         branch: string,
-        outcome: Outcome,
-      ): SyncEntry =>
-        Object.freeze({
-          organization: login,
-          root,
-          path,
-          kind,
-          branch,
+        run: (progress: (step: CheckoutStep) => void) => Promise<Outcome>,
+      ): Promise<SyncEntry> => {
+        const where = { organization: login, root, path, kind, branch };
+        const report = (step: SyncProgress["step"], entry?: SyncEntry) => {
+          try {
+            request.onProgress?.(
+              Object.freeze({
+                ...where,
+                step,
+                ...(entry === undefined ? {} : { entry }),
+              }),
+            );
+          } catch {}
+        };
+        report("checking");
+        const outcome = await run(report);
+        const entry: SyncEntry = Object.freeze({
+          ...where,
           ...outcome,
           at: now().toISOString(),
         });
+        report("done", entry);
+        return entry;
+      };
       const directory = join(folder, root);
-      const rootOutcome = await syncCheckout(
-        context,
-        directory,
-        (repository) =>
-          repository.split("/")[0]?.toLowerCase() === login.toLowerCase(),
-        "main",
+      const rootEntry = await one(".", "root", "main", (progress) =>
+        syncCheckout(
+          context,
+          directory,
+          (repository) =>
+            repository.split("/")[0]?.toLowerCase() === login.toLowerCase(),
+          "main",
+          progress,
+        ),
       );
-      entries.push(entry(".", "root", "main", rootOutcome));
+      entries.push(rootEntry);
       // A root that did not end on its published commit stops this
       // Organization: its children are never taken from a stale
       // declaration.
       if (
-        rootOutcome.result !== "current" &&
-        rootOutcome.result !== "fast-forwarded"
+        rootEntry.result !== "current" &&
+        rootEntry.result !== "fast-forwarded"
       )
         continue;
-      const children = await childrenOf(directory);
-      const outcomes = await pool(
-        children,
-        request.concurrency ?? syncConcurrency,
-        (child) =>
-          syncCheckout(
-            context,
-            join(directory, child.path),
-            (repository) => sameRepository(repository, child.repository),
-            child.branch,
-          ),
+      const children = (await childrenOf(directory)).filter((child) =>
+        wanted(child.path),
       );
-      for (const [index, child] of children.entries())
-        entries.push(
-          entry(
-            child.path,
-            child.kind,
-            child.branch,
-            outcomes[index] as Outcome,
-          ),
-        );
+      entries.push(
+        ...(await pool(
+          children,
+          request.concurrency ?? syncConcurrency,
+          (child) =>
+            one(child.path, child.kind, child.branch, (progress) =>
+              syncCheckout(
+                context,
+                join(directory, child.path),
+                (repository) => sameRepository(repository, child.repository),
+                child.branch,
+                progress,
+              ),
+            ),
+        )),
+      );
     }
     const organizations = held.map((entry) => entry.forgeLogin as string);
     const recorded = await recordSync(
       host.lockDirectory,
       folder,
       entries,
-      request.organization === undefined ? "all" : organizations,
+      request.organization === undefined
+        ? { replace: "all" }
+        : request.repository === undefined
+          ? { replace: "organizations", organizations }
+          : { replace: "answered" },
       at,
     ).catch(() => entries);
     return Object.freeze({
@@ -247,6 +302,8 @@ type RunContext = Readonly<{
   timeoutMs: number;
   remote: (repository: string) => Promise<SyncRemote>;
 }>;
+
+type CheckoutStep = "fetching" | "fast-forwarding";
 
 type Outcome = Readonly<{
   result: SyncResult;
@@ -352,6 +409,7 @@ async function syncCheckout(
   directory: string,
   expected: (repository: string) => boolean,
   branch: string,
+  progress: (step: CheckoutStep) => void = () => {},
 ): Promise<Outcome> {
   const { git } = context;
   const deadline = Date.now() + context.timeoutMs;
@@ -382,6 +440,7 @@ async function syncCheckout(
     // Known here already: ahead or diverged is decided without a fetch.
     const known = await git.relation(directory, observed.commit, head.commit);
     if (known === "ahead" || known === "diverged") return blocked(known);
+    progress("fetching");
     const fetched = await git.fetchBranch(
       directory,
       remote,
@@ -407,6 +466,7 @@ async function syncCheckout(
       return blocked(relation);
     if (relation === null)
       return { result: "failed", reason: "relation-unknown" };
+    progress("fast-forwarding");
     return (await git.fastForward(directory, fetched.commit))
       ? { result: "fast-forwarded", from: now.commit, to: fetched.commit }
       : { result: "failed", reason: "fast-forward-failed" };

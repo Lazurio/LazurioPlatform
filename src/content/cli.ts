@@ -104,7 +104,7 @@ usage or not allowed on this Environment.
 organization sync [<github-login>] [--folder <absolute Folder>] [--json]
   Keeps the primary checkouts of that Organization (without a login, of every
   Organization this Environment holds) on their published branch, as the
-  Launchpad does by itself every 5 minutes: the root first, then, from the
+  Launchpad does by itself at its start and then hourly: the root first, then, from the
   root's declaration as it is after that, its workspace modules, root-level
   applications and their declared data mounts (on the mount's declared
   branch) that are in the Folder. Per repository one ls-remote of its branch,

@@ -2,12 +2,17 @@
 
 Status: **accepted direction of Matěj (2026-09-19). Installation of absent content
 is implemented (2026-10-04, [F9 addendum](decisions.md#addendum-of-2026-10-04-content-installation-the-personalspace-and-the-presets),
-root decision 0188); synchronization of existing repositories is not.** `lazurio
-organization install`, `lazurio personalspace install` and the Launchpad's
-`/api/content*` routes materialize absent repositories as described in
-[Installation](#installation--implemented-2026-10-04). No Platform command fetches or
-fast-forwards a repository today. This document is the contract for both operations
-and for their separation from product update. See
+root decision 0188). Synchronization of existing repositories is implemented
+(2026-10-24, [F9 amendment](decisions.md#amendment-of-2026-10-24-the-launchpad-keeps-primary-checkouts-on-their-published-branch),
+root decision 0195, addendum of 2026-10-24, point 26):** the installed Launchpad
+fast-forwards the clean primary checkouts of the Organizations an Environment holds at
+its start and then every hour (to be confirmed), within the build sweep it already
+runs, and `lazurio organization sync` runs the same core explicitly ([Synchronization](#synchronization--implemented-2026-10-24)).
+Declared data mounts are included when clean. `lazurio organization install`,
+`lazurio personalspace install` and the Launchpad's `/api/content*` routes materialize
+absent repositories as described in [Installation](#installation--implemented-2026-10-04);
+synchronization never does. This document is the contract for both operations and for
+their separation from product update. See
 [decision F9](decisions.md#f9--update-lazurio-and-synchronize-content-are-separate-operations).
 
 ## Two operations, never one
@@ -25,12 +30,20 @@ Product update must never clone a repository, create a stash, switch a branch,
 regenerate preferences, upgrade tools or run a data migration. Content synchronization
 must never select, download or activate a product version.
 
-## Explicit only
+## When it runs
 
-Synchronization runs only when a user or an authorized Task Agent invokes it for a
-selected Organization. No first render, status request, health check, login, product
-update or Launchpad start synchronizes anything. Read-only inspection may report that
-content is behind; it fetches nothing.
+*Amended on 2026-10-24 ([F9 amendment](decisions.md#amendment-of-2026-10-24-the-launchpad-keeps-primary-checkouts-on-their-published-branch)).*
+Synchronization of existing repositories runs in the installed Launchpad at its start
+and then every hour (to be confirmed; one parameter, `contentSyncEveryMs`), inside the
+build sweep it already runs every 5 minutes (decision F58 point 7), which then builds
+whatever a synchronization brought. It also runs whenever a user or an authorized Task
+Agent invokes `lazurio organization sync`, and later surfaces (the product update, an
+"Aktualizovat" button, the Open of one module) are to call the same core, which takes
+one repository and reports progress per repository. Nothing else synchronizes: no
+first render, status request, health check, login, product update or installation
+fetches anything, and the sweep never materializes an absent repository, which stays the
+explicit installation. Read-only inspection (the doctor, a module's page) reports the
+last recorded answer; it fetches nothing.
 
 ## Hierarchy
 
@@ -38,7 +51,8 @@ content is behind; it fetches nothing.
 2. Re-read the Organization manifest from the resulting commit. Children are taken
    from this fresh declaration, never from a manifest read before step 1.
 3. Process the declared children: managed Organization-level repositories and
-   workspace modules.
+   workspace modules (for synchronization: workspace modules, the root-level
+   applications and their declared data mounts, below).
 
 A failed or blocked root stops that Organization: its children are not processed from
 a stale declaration. A failed or blocked child is reported individually; healthy
@@ -60,10 +74,11 @@ which only the same operation kind may remove after recognizing it as its own.
 
 ## Existing repositories
 
-Fetch, then fast-forward the default branch to the exact commit that was inspected
-after the fetch. The operation changes a checkout only when all of these hold: clean
-tracked and untracked state, the expected branch, no operation in progress
-(merge, rebase, cherry-pick, bisect, am) and a strict fast-forward relation.
+Fetch, then fast-forward the default branch (a data mount's declared branch) to the
+exact commit that was inspected after the fetch. The operation changes a checkout only
+when all of these hold: clean tracked and untracked state, the expected branch, no
+operation in progress (merge, rebase, cherry-pick, revert, bisect, am) and a strict
+fast-forward relation. Implemented on 2026-10-24: [Synchronization](#synchronization--implemented-2026-10-24).
 
 **Dirty or wrong-branch checkouts block by default.** Synchronization reports the
 exact repository and reason and changes nothing in it. It does not create a recovery
@@ -87,10 +102,17 @@ Following the exclusions of upstream decision 0129, these are never synchronized
 materialized or inspected for cleanliness by this operation:
 
 - Production Space repositories, which keep their own branch and release models;
+- `infra` and every other slot that is neither a module nor a module's data mount;
 - Personalspace, which is private to its Owner and absent from
   Organization-owned Machines;
 - worktrees, including task and pull-request worktrees of any repository;
-- repository databases, which publish through their own application contract.
+- repository databases other than a module's declared data mount.
+
+*Amended on 2026-10-24:* a module's declared data mount (`materialization:
+"repository_db_mount"` at `mission-control/db` or `workspace/<module>/db`) is
+synchronized like a module, on its declared `git.branch`, but only when clean. A data
+app's drafts live in its working tree, so a draft makes the checkout dirty and leaves it
+untouched; its publication stays the application's own contract.
 
 Installation (below) is a different operation with its own rules: since decision F33
 (1.1 point 4) it materializes absent Production Space repositories, and since the F9
@@ -129,12 +151,105 @@ share the dependency owner's coordination boundary with
 and a running application blocks preparation of its own tree rather than being
 stopped implicitly.
 
+Synchronization never stops, starts or prepares an application (2026-10-24). A built
+app follows its fast-forwarded checkout through decision F58: the Launchpad's watch and
+sweep build the new commit in the background and swap a static app's served build, or
+restart an app's own server (`start_script`) after its build (F58's addendum (2) of
+2026-10-21). **Known limit:** a development run from `main` (an app without
+`build_output` or `start_script`, or `--dev`) keeps running on the new source beneath it
+until it sleeps or is stopped; its next start runs the start-time step. Every app is to
+be converted to a build anyway.
+
 ## Results
 
 Each repository returns exactly one of `materialized`, `fast-forwarded`, `current`,
 `blocked` (dirty, wrong-branch, diverged, detached, operation in progress, occupied
 destination), `denied`, `unavailable` or `failed`, with locale-neutral reason codes.
+Synchronization adds `absent` (declared, not in the Folder, never cloned by it) and
+answers `blocked` with `dirty`, `wrong-branch`, `ahead`, `diverged`, `detached`,
+`operation-in-progress` or `unexpected-checkout`.
 CLI and Launchpad invoke the same use case and return equivalent results.
+
+## Synchronization — implemented 2026-10-24
+
+Matěj's decision of 2026-10-24 ("Hlavní checkout drží publikovaný main.", root decision
+0195, addendum of 2026-10-24, point 26; [F9 amendment](decisions.md#amendment-of-2026-10-24-the-launchpad-keeps-primary-checkouts-on-their-published-branch);
+Lazurio/LazurioPlatform#281). One core, `syncContent` in `src/content/sync.ts`, for the
+Launchpad's sweep and for `lazurio organization sync`.
+
+**Which Organizations, through which identity.** Those the Environment's content holds
+(`contentScope`): a workstation's Organizations, a work or Automated Environment's
+handover Organization; a personal Remote Environment none. A Team Environment, whose
+content the hosting prepared, keeps its handover's Organization through git's configured
+credential helper, which the hosting points at the broker (one short-lived token per
+call). A workstation and a work Environment read with the person's own git and SSH
+configuration, with gh as github.com's HTTPS helper as a clone has it. A public
+Environment reads exactly `https://github.com/<owner>/<repository>.git` with the
+isolated git of anonymous installation (`anonymousGitEnvironment`, HTTPS only; the
+checkout's own credential helpers, extra headers and SSH command are reset). The
+Personalspace is never synchronized.
+
+**Hierarchy.** The root (`organizations/<directory>`, a checkout of a repository of the
+Organization's login, on `main`) first; a root that does not end current or
+fast-forwarded stops its Organization. Then, from the root's declaration as it is after
+that, its workspace modules and root-level applications (`mission-control`,
+`design-system`) on `main` and their declared data mounts on their declared branch,
+those with a GitHub remote, four at a time. A child's answer never stops its siblings.
+
+**Per repository** (`syncCheckout`), never interactive (`GIT_TERMINAL_PROMPT=0`, no
+askpass, SSH with `BatchMode=yes` added to the person's own SSH command) and bounded to
+about a minute:
+
+1. The place: a primary checkout (not a linked worktree) of the declared repository, or
+   `unexpected-checkout`; nothing there, or an empty directory, is `absent`.
+2. Local state, without Git's optional index refresh: an operation under way
+   (`MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `BISECT_LOG`, `rebase-merge`,
+   `rebase-apply`, `sequencer`), then a detached `HEAD`, another branch, tracked or
+   untracked changes: `blocked`, before anything is asked of the network.
+3. One `git ls-remote` of the branch (cheap where a credential helper mints a token per
+   call). Equal to `HEAD`: `current`, nothing fetched. Known here as an ancestor of
+   `HEAD` or unrelated to it: `ahead` or `diverged`, nothing fetched.
+4. Otherwise one fetch of that branch into `refs/remotes/origin/<branch>` (no tags,
+   submodules or `FETCH_HEAD`), the local state checked again, and a strict
+   fast-forward (`git merge --ff-only` with hooks, autostash, submodule recursion and
+   background maintenance off) to exactly the fetched commit: `fast-forwarded` with
+   `from` and `to`. A fetch that shows divergence leaves only the remote-tracking ref
+   moved.
+
+GitHub refusing the identity (`repository-denied`), the network or GitHub not answering
+in time (`remote-unavailable`), a missing branch (`remote-branch-missing`) and any other
+failure leave the checkout as it is.
+
+**One at a time.** The run holds the Folder's content lock; while an installation holds
+it the sweep's round is `busy` and changes nothing, and the next sweep tries again.
+
+**The record.** The last answer per repository (with `since` for a lasting non-current
+answer) is written whole, by a rename, beside the content lock in the install base:
+`<base>/content/sync-<digest of the Folder>.json`. A run for one Organization replaces
+only that Organization's entries. The doctor's `content-sync` check reads it: a warning
+per blocked checkout (`sync-dirty`, `sync-wrong-branch`, …) and per one denied,
+unavailable or failed for a day (`sync-denied`, `sync-unavailable`, `sync-failed`),
+never for a checkout that is only behind. A module's status answer carries
+`sync: {result: "blocked", reason}` for its own checkout, and its page says one line in
+words: "Tento modul se sám neaktualizuje, protože jeho hlavní verze má rozpracované
+změny." (dirty, ahead, diverged, an operation) or "… je na jiné větvi." (another branch,
+detached).
+
+**The surfaces.** `lazurio organization sync [<github-login>] [--folder <Folder>]
+[--json]`: one line per repository, then the result (with `--json` one line
+`{kind: "content-sync", at, organizations, entries}`); exit 0 when every repository is
+current, fast-forwarded or absent, 1 otherwise (also `content-busy` and an Organization
+the Folder does not hold, `organization-missing`), 2 usage or not on this Environment.
+The Launchpad runs it only when installed (`launchpad --base`), with that base's
+content lock, at its first sweep and then at the first sweep an hour (to be confirmed)
+after the last run started; a development run without a base never synchronizes.
+
+**For later surfaces.** `syncContent` takes one repository within its Organization
+(`repository`, a path relative to the root: its root is still synchronized first, then
+that module and its data mounts, and only those entries of the record are replaced) and
+an `onProgress` listener that hears `checking`, `fetching`, `fast-forwarding` and `done`
+with the answer for each repository as it happens. The product update, an
+"Aktualizovat" button and an Open of one module are to use them; none is built here.
 
 ## Installation — implemented 2026-10-04
 
@@ -465,8 +580,10 @@ above are unchanged and run after the root is known.
 
 - It is not a port of the legacy updater's source-root update; the product is not a
   repository on the Machine.
-- It does not make Platform an Organization reconciler running in the background.
+- It does not make Platform an Organization reconciler that adds, removes, switches or
+  repairs content in the background.
 - It does not grant, cache or infer provider access.
-- Synchronization (fetch, fast-forward of existing repositories) is not implemented;
-  installation of absent content is, and it runs only when a user or an authorized
-  Task Agent invokes it for their own Environment.
+- It is not a background reconciler of its own: synchronization of existing
+  repositories (fetch, strict fast-forward of clean primary checkouts) runs at the
+  Launchpad's existing sweep and as an explicit command; installation of absent content
+  runs only when a user or an authorized Task Agent invokes it for their own Environment.

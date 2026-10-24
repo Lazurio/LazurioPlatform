@@ -8,7 +8,7 @@ import {
   readFolderKind,
 } from "../content/host";
 import { contentScope } from "../content/model";
-import { readSyncRecord } from "../content/sync-record";
+import { contentSyncEveryMs, readSyncRecord } from "../content/sync-record";
 import { withFolderReadLock } from "../folder/lock";
 import { canonicalCheckoutDirectory } from "../folder/owned-directory";
 import { readFolderState } from "../folder/read-state";
@@ -2131,10 +2131,12 @@ export function createModuleOperations(input: {
     /** Keep the built apps people opened built after a pull (decision F58
      * point 7): the Launchpad watches the Git directories their builds read
      * and sweeps at its start and every few minutes, building a moved
-     * checkout in the background and swapping what runs. Each sweep first
-     * lets the apps nobody uses sleep (root decision 0195 point 23). The
-     * Launchpad's own process, no daemon (F8); nothing where this host keeps
-     * no builds. */
+     * checkout in the background and swapping what runs. A sweep first
+     * keeps the primary checkouts on their published branch when `sync` is
+     * due (at the first sweep, then hourly; decision F9's amendment of
+     * 2026-10-24), then lets the apps nobody uses sleep (root decision 0195
+     * point 23). The Launchpad's own process, no daemon (F8); nothing where
+     * this host keeps no builds. */
     keepBuilt(
       options: Readonly<{
         watch?: DirectoryWatch;
@@ -2150,10 +2152,14 @@ export function createModuleOperations(input: {
           organizationDirectory: string,
         ) => Promise<ReadonlySet<string>>;
         /** Keeps the Folder's primary checkouts on their published branch
-         * first (decision F9's amendment of 2026-10-24, `syncContent`), so
-         * the sweep builds what a fast-forward brought; the Launchpad's
-         * composition. Its failure never stops the sweep. */
+         * (decision F9's amendment of 2026-10-24, `syncContent`): at the
+         * first sweep, then at the first sweep `syncEveryMs` after the last
+         * start of one, before the sweep reads the apps, so that sweep
+         * builds what a fast-forward brought. The Launchpad's composition;
+         * its failure never stops the sweep. */
         sync?: () => Promise<unknown>;
+        /** How often `sync` runs (`contentSyncEveryMs`, an hour). */
+        syncEveryMs?: number;
       }> = {},
     ) {
       if (
@@ -2169,11 +2175,20 @@ export function createModuleOperations(input: {
         connected = observeConnected,
         siblings = declaredSiblings,
         sync,
+        syncEveryMs = contentSyncEveryMs,
         ...watching
       } = options;
+      // When the last synchronization started; null before the first.
+      let synced: number | null = null;
       keeper = createBuildWatcher({
         apps: async () => {
-          if (sync !== undefined) await sync().catch(() => undefined);
+          if (
+            sync !== undefined &&
+            (synced === null || now() - synced >= syncEveryMs)
+          ) {
+            synced = now();
+            await sync().catch(() => undefined);
+          }
           await sleepUnused(now(), connected, running, siblings).catch(
             () => undefined,
           );
