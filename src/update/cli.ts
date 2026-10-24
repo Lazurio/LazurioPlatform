@@ -54,6 +54,7 @@ import {
   updateError,
 } from "./errors";
 import {
+  contentNotRun,
   everythingText,
   type ProductItem,
   type UpdateItem,
@@ -840,18 +841,14 @@ function productItem(result: UpdateResult): ProductItem {
  * decision 0212 point 3): the content core with this install base's content
  * lock, and the module core as its CLI owner, which swaps an app the service
  * manager runs and leaves a session's app to its Launchpad's sweep. Nothing
- * without a Folder or without the context's module host. */
+ * without a Folder or without the context's module host: then `lazurio
+ * update` is Lazurio's alone and answers exactly as before. */
 function contentAndBuilds(
   context: CliContext,
   base: string,
   folder: string | undefined,
 ): Pick<UpdateParts, "content" | "builds"> | null {
-  if (context.modules === undefined) return null;
-  if (folder === undefined)
-    return {
-      content: async () => ({ kind: "not-run", reason: "folder-unknown" }),
-      builds: async () => [],
-    };
+  if (context.modules === undefined || folder === undefined) return null;
   const { host, personalspace } = context.modules();
   const content = host.dataMounts;
   const operations = createModuleOperations({
@@ -863,7 +860,7 @@ function contentAndBuilds(
   return {
     content: async (onProgress) =>
       content === undefined
-        ? { kind: "not-run", reason: "not-installed" }
+        ? contentNotRun("not-installed")
         : syncContent(
             folder,
             { ...content, lockDirectory: contentLockDirectory(base) },

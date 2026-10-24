@@ -894,8 +894,8 @@ repository, built app and the product, in the order the parts gave them:
 
 A content item is a repository's answer of the synchronization (`fast-forwarded`,
 `current`, `blocked` with its reason, `absent`, `denied`, `unavailable`, `failed`), or the
-part as a whole: `{"part":"content","result":"not-run","reason"}` with `folder-unknown`,
-`folder-unreadable`, `not-for-this-environment`, `content-busy` or `not-installed`. A
+part as a whole: `{"part":"content","result":"not-run","reason"}` with `folder-unreadable`,
+`not-for-this-environment`, `content-busy` or `not-installed`. A
 build item is `built`, `current` or `failed` with the build's own reason; what runs stays
 as it was. The product item is `current`, `updated` (`from`, `to`), `started` (the
 Launchpad's run, below), `failed` with its code, or `not-run`. A part that threw is
@@ -905,7 +905,7 @@ or not built, then the product's own lines as before. The exit status is the pro
 as before: a blocked checkout or a failed build is a finding in its item, never a failed
 command. Content and builds need the Folder (`--folder`, the supervised unit's, or in a
 Remote Environment the declared operator's); without one only Lazurio is updated and its
-answer is unchanged. `lazurio update --version <tag>` and `--check` name Lazurio only,
+answer is exactly as before, without `items`. `lazurio update --version <tag>` and `--check` name Lazurio only,
 as does the Launchpad's pill.
 
 **In the Launchpad.** `POST /api/update/everything` with `{}` starts the same composition

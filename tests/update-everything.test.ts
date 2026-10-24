@@ -307,7 +307,7 @@ test("the CLI's words: what moved, what is left and a summary, what was built or
   ]);
   expect(
     everythingText([
-      { part: "content", result: "not-run", reason: "folder-unknown" },
+      { part: "content", result: "not-run", reason: "not-installed" },
       {
         part: "content",
         result: "not-run",
