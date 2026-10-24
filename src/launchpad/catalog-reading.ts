@@ -3,7 +3,9 @@ import { dirname, join } from "node:path";
 import {
   type Catalog,
   type CatalogOrganization,
+  noServerServices,
   readFolderCatalog,
+  type ServerServices,
 } from "../organizations/catalog";
 import type {
   PersonalspaceHolder,
@@ -34,9 +36,10 @@ import type {
 // may still answer the reading before it.
 //
 // A change outside those directories (a dependency elsewhere in the
-// Organization) has no watch: a kept reading older than a minute still
-// answers, and is read anew behind it, so such a change shows from the read
-// after that one. So does a reading that found a directory for the first
+// Organization, or Služby serveru's services in the Machine handover, which
+// only an apply rewrites) has no watch: a kept reading older than a minute
+// still answers, and is read anew behind it, so such a change shows from the
+// read after that one. So does a reading that found a directory for the first
 // time, which it watches only from then on. Where the Folder cannot be
 // watched (a directory refused, a watch that fails, more directories than the
 // bound) a reading is kept only a moment, for the reads of one page load.
@@ -103,6 +106,8 @@ function directoriesOf(
         directories.add(dirname(join(directory, app.package)));
     }
     for (const repository of organization.repositories) {
+      // A repository only a service names has no place in the Folder.
+      if (repository.path === null) continue;
       const directory = join(root, repository.path);
       directories.add(dirname(directory));
       directories.add(directory);
@@ -121,6 +126,10 @@ export function createCatalogReading(
     /** Whose Personalspace this Environment holds (#186): the Launchpad's
      * last decision, never waiting for GitHub. */
     holder: PersonalspaceHolderRead;
+    /** This Environment's services, for Služby serveru's Productionspace
+     * (root decision 0209 point 6): the Launchpad names the handover's;
+     * none by default. */
+    services?: () => Promise<ServerServices | null>;
     read?: (
       folder: string,
       holder: PersonalspaceHolderRead,
@@ -133,7 +142,11 @@ export function createCatalogReading(
     watchLimit?: number;
   }>,
 ) {
-  const read = options.read ?? readFolderCatalog;
+  const services = options.services ?? noServerServices;
+  const read =
+    options.read ??
+    ((folder: string, holder: PersonalspaceHolderRead) =>
+      readFolderCatalog(folder, holder, services));
   const watch = options.watch === undefined ? osDirectoryWatch : options.watch;
   const now = options.now ?? Date.now;
   const keepMs = options.keepMs ?? catalogKeptMs;

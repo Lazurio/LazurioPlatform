@@ -6,6 +6,13 @@ import {
   inspectOwnedDirectory,
 } from "../folder/owned-directory";
 import { readFolderState } from "../folder/read-state";
+import {
+  type MachineContext,
+  type MachineContextSource,
+  type OrganizationWorkspaceContext,
+  productionMachineContextSource,
+  readMachineContext,
+} from "../machine/context";
 import { inspectPreparationShape } from "../modules/preparation-binding";
 import {
   type PreparationReason,
@@ -38,6 +45,7 @@ import {
   observeOrganizationApplications,
 } from "./read-applications";
 import type { OrganizationRootState } from "./root-resolution";
+import { type CatalogService, servicePage } from "./server-services";
 
 // The catalog of a Lazurio Folder (launchpad-parity B1): every directory in
 // `<Folder>/organizations/` is one candidate, resolved by the canonical reader
@@ -179,12 +187,18 @@ export type CatalogTeam = Readonly<{ slug: string; displayName: string }>;
  * decision 0041), which the Launchpad lists read-only in its Productionspace
  * section: never a module, never started, opened or given a page of its own
  * (F32 addendum of 2026-10-03, final). The Organization's `infra` is neither
- * a module nor a production repository and is not listed (decision F24). */
+ * a module nor a production repository and is not listed (decision F24). In
+ * Služby serveru the services of this Environment are productionspace
+ * repositories too (root decision 0209 point 6, F32's addendum of
+ * 2026-10-24): a declared one carries the services that run from it, and a
+ * repository only a service names follows the declared ones. */
 export type CatalogRepository = Readonly<{
-  /** The slot's id: its `slug`, else the last segment of its path. */
+  /** The slot's id: its `slug`, else the last segment of its path; for a
+   * repository only a service names, the repository's name. */
   slug: string;
-  /** The slot path, relative to the Organization root. */
-  path: string;
+  /** The slot path, relative to the Organization root; null for a
+   * repository only a service names, which has no place in the Folder. */
+  path: string | null;
   /** Whether its directory is a Git checkout of the operator's (a real,
    * caller-owned directory holding `.git`, decision F23); anything else,
    * a missing directory included, is not checked out. */
@@ -193,6 +207,10 @@ export type CatalogRepository = Readonly<{
    * or `repository`) when that names a github.com repository; null
    * otherwise. Nothing is fetched. */
   url: string | null;
+  /** The services of this Environment that run from it, in the handover's
+   * order: only in Služby serveru (root decision 0209 point 6), never empty
+   * where present. */
+  services?: readonly CatalogService[];
 }>;
 
 export type CatalogOrganization = Readonly<{
@@ -217,8 +235,9 @@ export type CatalogOrganization = Readonly<{
   teams: readonly CatalogTeam[];
   modules: readonly CatalogModule[];
   /** Its declared productionspace repositories, read-only, in declaration
-   * order; empty for an Organization that could not be read and
-   * for the Personalspace group. */
+   * order, and in Služby serveru after them the repositories only its
+   * services name (root decision 0209 point 6); empty for an Organization
+   * that could not be read and for the Personalspace group. */
   repositories: readonly CatalogRepository[];
   /** The Organization's own tabs in Apps' Workspace, in its order: its
    * setting `workspace.tabs` (decision F32's addendum of 2026-10-16, root
@@ -500,6 +519,161 @@ export function repositoryPage(remote: unknown): string | null {
   return match === null || /^\.+$/.test(match[2] ?? ".")
     ? null
     : `https://github.com/${match[1]}/${match[2]}`;
+}
+
+/** The services of Služby serveru that name a repository, as the catalog
+ * lists them (root decision 0209 point 6, Machines docs/server-services.md
+ * §2.1), and the owning Organization as the handover names it: its GitHub
+ * login (`owner.organization`) and its own slug (`owner.organization_key`),
+ * where it gives one. */
+export type ServerServices = Readonly<{
+  owner: Readonly<{ login: string; key: string | null }>;
+  services: readonly Readonly<
+    CatalogService & {
+      /** Its repository's GitHub page, as a declared slot's `url` reads. */
+      url: string;
+    }
+  >[];
+}>;
+
+/** What a handover gives the catalog: only on an Organization's work VM
+ * whose assignment is `services`, Služby serveru, since only there is a
+ * page's port this Environment's own loopback; only the services that name
+ * a repository GitHub can have, in the handover's order. Null anywhere
+ * else, so every other Environment's catalog stays as it was. */
+export function serverServicesOf(
+  context: MachineContext,
+): ServerServices | null {
+  if (
+    context.machine.kind !== "workspace-vm" ||
+    context.owner.kind !== "organization" ||
+    context.owner.assignment?.kind !== "services"
+  )
+    return null;
+  const work = context as OrganizationWorkspaceContext;
+  return Object.freeze({
+    owner: Object.freeze({
+      login: work.owner.organization,
+      key: work.owner.organization_key ?? null,
+    }),
+    services: Object.freeze(
+      (work.services ?? []).flatMap((service) => {
+        const url =
+          service.repository === undefined
+            ? null
+            : repositoryPage(`https://github.com/${service.repository}`);
+        return url === null
+          ? []
+          : [
+              Object.freeze({
+                id: service.id,
+                kind: service.kind,
+                page: servicePage(service),
+                url,
+              }),
+            ];
+      }),
+    ),
+  });
+}
+
+/** This Environment's services from its root-custodied handover; none where
+ * there is no readable handover (a workstation) or it is not Služby
+ * serveru's. Never throws. */
+export async function handoverServerServices(
+  source: MachineContextSource = productionMachineContextSource,
+): Promise<ServerServices | null> {
+  try {
+    return serverServicesOf((await readMachineContext(source)).context);
+  } catch {
+    return null;
+  }
+}
+
+/** No services: every reader of the catalog but the Launchpad and `lazurio
+ * organization list`, which name the handover's. */
+export const noServerServices = async (): Promise<ServerServices | null> =>
+  null;
+
+/** Productionspace with this Environment's services (root decision 0209
+ * point 6): a declared repository carries the services that run from it,
+ * matched by its GitHub page whatever the letter case (as GitHub names
+ * repositories); a repository only services name follows the declared ones,
+ * in the handover's order, without a path. One entry per repository. */
+export function withServiceRepositories(
+  declared: readonly CatalogRepository[],
+  services: ServerServices["services"],
+): readonly CatalogRepository[] {
+  const byRepository = new Map<
+    string,
+    { url: string; services: CatalogService[] }
+  >();
+  for (const { url, ...service } of services) {
+    const key = url.toLowerCase();
+    const group = byRepository.get(key) ?? { url, services: [] };
+    group.services.push(Object.freeze(service));
+    byRepository.set(key, group);
+  }
+  const taken = new Set<string>();
+  const merged = declared.map((repository) => {
+    const key = repository.url?.toLowerCase();
+    const group = key === undefined ? undefined : byRepository.get(key);
+    if (key === undefined || group === undefined || taken.has(key))
+      return repository;
+    taken.add(key);
+    return Object.freeze({
+      ...repository,
+      services: Object.freeze(group.services),
+    });
+  });
+  const named = [...byRepository]
+    .filter(([key]) => !taken.has(key))
+    .map(([, group]) =>
+      Object.freeze({
+        slug: group.url.slice(group.url.lastIndexOf("/") + 1),
+        path: null,
+        checkedOut: false,
+        url: group.url,
+        services: Object.freeze(group.services),
+      }),
+    );
+  return Object.freeze([...merged, ...named]);
+}
+
+// The one Organization the handover names as its owner: bound to its
+// GitHub login, or carrying it or the handover's own slug as its slug,
+// whatever the letter case (as the shell document finds it). None when no
+// readable candidate is, or more than one.
+function withServerServices(
+  organizations: readonly CatalogOrganization[],
+  served: ServerServices | null,
+): readonly CatalogOrganization[] {
+  if (served === null || served.services.length === 0) return organizations;
+  const same = (left: string | null | undefined, right: string | null) =>
+    typeof left === "string" &&
+    right !== null &&
+    left.toLowerCase() === right.toLowerCase();
+  const { login, key } = served.owner;
+  const owners = organizations.filter(
+    (entry) =>
+      entry.organization !== null &&
+      (same(entry.forgeLogin, login) ||
+        same(entry.organization, login) ||
+        same(entry.organization, key)),
+  );
+  const [owner] = owners;
+  if (owner === undefined || owners.length !== 1) return organizations;
+  return organizations.map((entry) =>
+    entry === owner
+      ? Object.freeze({
+          ...entry,
+          repositories: withServiceRepositories(
+            entry.repositories,
+            served.services,
+          ),
+        })
+      : entry,
+  );
 }
 
 // The declared remote of a slot, as the legacy projection reads it.
@@ -832,10 +1006,15 @@ async function readCatalogPersonalspace(
  * preset that has a Personalspace the catalog also carries its group, read
  * by `holder`'s decision whose Personalspace this Environment holds (#186):
  * a reader that cannot ask GitHub takes no owner directory for the
- * Operator's (`unverifiedPersonalspace`). */
+ * Operator's (`unverifiedPersonalspace`). In Služby serveru the owning
+ * Organization's Productionspace also lists the services `services` reads
+ * from the handover (root decision 0209 point 6): the Launchpad and
+ * `lazurio organization list` name `handoverServerServices`, so both answer
+ * the same; every other reader lists none. */
 export async function readFolderCatalog(
   folder: string,
   holder: PersonalspaceHolderRead = unverifiedPersonalspace,
+  services: () => Promise<ServerServices | null> = noServerServices,
 ): Promise<Catalog> {
   await inspectOwnedDirectory(folder);
   const root = join(folder, "organizations");
@@ -875,14 +1054,19 @@ export async function readFolderCatalog(
     )
     .map((entry) => entry.name)
     .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-  const organizations = await Promise.all(
-    names.map((name) =>
-      readCatalogOrganization(join(root, name), name, environment),
+  const [organizations, served] = await Promise.all([
+    Promise.all(
+      names.map((name) =>
+        readCatalogOrganization(join(root, name), name, environment),
+      ),
     ),
-  );
+    services().catch(() => null),
+  ]);
   return Object.freeze({
     kind: "catalog",
-    organizations: Object.freeze(isolateDuplicates(organizations)),
+    organizations: Object.freeze(
+      withServerServices(isolateDuplicates(organizations), served),
+    ),
     ...withPersonalspace,
   });
 }

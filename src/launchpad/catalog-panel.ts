@@ -1,8 +1,10 @@
+import { launchpadStrip } from "../browser/contract/pure";
 import type { ModuleAnswer, ModuleBlocked } from "../modules/module-operations";
 import type {
   Catalog,
   CatalogModule,
   CatalogOrganization,
+  CatalogRepository,
 } from "../organizations/catalog";
 import { catalogOrganizationKey } from "../organizations/catalog-selection";
 import { icon } from "../shell/icons";
@@ -47,7 +49,12 @@ import {
   organizationRoute,
   parseCatalog,
   personalspaceRereadMs,
+  repositoryFacts,
   routeOrganization,
+  serviceFacts,
+  servicePageOf,
+  servicePages,
+  servicesText,
 } from "./catalog-view";
 import type { PublicEntry } from "./chat";
 import type { PromptLink } from "./chat-view";
@@ -68,7 +75,7 @@ import {
   parseModuleResult,
 } from "./module-view";
 import { createOwnerAnswers } from "./owner-answer";
-import { type PageRoute, settingsPath } from "./routes";
+import { type PageRoute, servicePath, settingsPath } from "./routes";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
@@ -118,8 +125,11 @@ export type HomeEnvironment = Readonly<{
 // ends with "+ Nový modul". In the personal space its holder sees, "Co
 // dalšího tu můžete dělat" follows everything else: links into Chat,
 // Automate, Integrace and Soubory (root decision 0185's addendum of
-// 2026-10-13). Teams are shown nowhere (decision F32). Every value from the
-// server is drawn with textContent.
+// 2026-10-13). In Služby serveru a service repository's tile opens its
+// service's page in the right panel, and its menu leads to its own page
+// (root decision 0209 point 6, decision F32's addendum of 2026-10-24).
+// Teams are shown nowhere (decision F32). Every value from the server is
+// drawn with textContent.
 export function createCatalogPanel(
   options: Readonly<{
     post: (
@@ -177,6 +187,10 @@ export function createCatalogPanel(
     /** The catalog the page already carries (its boot document, F36's
      * addendum of 2026-10-08): drawn at once, without a first read. */
     catalog?: Catalog | null;
+    /** Opens the right panel on one remote tab by its view (the panel's
+     * `showView`): false where no panel is offered. A service's page shows
+     * there (root decision 0209 point 6). */
+    showView: (view: string) => boolean;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -503,11 +517,78 @@ export function createCatalogPanel(
     return link;
   }
 
+  // --- Opening a service's page ------------------------------------------
+
+  // A service's page in Služby serveru (root decision 0209 point 6, decision
+  // F32's addendum of 2026-10-24): on this Environment's loopback, in its
+  // Environment browser, shown in the right panel. It opens as Nová karta
+  // opens a page for the Launchpad's strip (`POST /api/new-tab/open`, F47
+  // point 8): the Launchpad holds the tab, and the hub answers a second
+  // click with the tab of the strip that already shows the page (F57 point
+  // 7), so one service has one tab. The page opens signed out; nothing here
+  // touches its key (0209 addendum (a)).
+  let opening: string | null = null;
+  async function openService(id: string): Promise<void> {
+    const copy = options.copy();
+    const page = catalog === null ? null : servicePageOf(catalog, id);
+    if (page === null) {
+      say(copy.appsServiceNoPage);
+      return;
+    }
+    // A second click while the first one opens is the same tab anyway.
+    if (opening === id) return;
+    opening = id;
+    let view: string | null = null;
+    try {
+      const { value, ok } = await options.post("/api/new-tab/open", {
+        url: page,
+        strip: launchpadStrip,
+      });
+      const answer = ok && value !== null && typeof value === "object";
+      const shown = answer ? (value as { view?: unknown }).view : undefined;
+      view = typeof shown === "string" ? shown : null;
+    } catch {
+      view = null;
+    } finally {
+      opening = null;
+    }
+    if (view === null || !options.showView(view))
+      say(copy.appsServiceOpenFailed);
+  }
+
+  // A link to a service's page: a plain click opens it here; the link
+  // itself (`/service/<id>`) opens it from a new tab of this browser too.
+  function serviceLink(
+    action: Extract<AppsTile["action"], { kind: "service" }>,
+    className: string,
+  ): HTMLAnchorElement {
+    const link = element("a", className);
+    link.href = action.href;
+    link.addEventListener("click", (event) => {
+      if (
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      )
+        return;
+      event.preventDefault();
+      void openService(action.service);
+    });
+    return link;
+  }
+
   // What a tile, or a favourite in the column, is: a link that opens the
-  // app, or a button that says why there is nothing to open.
+  // app or a service's page, a service repository's page, or a button that
+  // says why there is nothing to open.
   function actionNode(item: AppsTile, className: string): HTMLElement {
     if (item.action.kind === "open")
       return openLink(item.action.target, item.name, className);
+    if (item.action.kind === "service")
+      return serviceLink(item.action, className);
+    if (item.action.kind === "route")
+      return routeLink(item.action.href, className);
     const text = item.action.text;
     const button = element("button", `${className} is-button`);
     button.type = "button";
@@ -620,11 +701,13 @@ export function createCatalogPanel(
     });
     list.append(star);
     if (item.info !== null) {
-      const info =
-        item.kind === "module"
-          ? routeLink(item.info, "tile-menu-item")
-          : element("a", "tile-menu-item");
-      if (item.kind === "repository") {
+      // A module's overview and a service repository's page are routes of
+      // this page; any other repository's information is its GitHub page.
+      const route = item.kind === "module" || item.info.startsWith("/");
+      const info = route
+        ? routeLink(item.info, "tile-menu-item")
+        : element("a", "tile-menu-item");
+      if (!route) {
         info.href = item.info;
         info.target = "_blank";
         info.rel = "noopener noreferrer";
@@ -728,6 +811,10 @@ export function createCatalogPanel(
     }
     const text = element("span", "tile-body");
     text.append(name, element("span", "tile-desc", item.description));
+    // A service repository's one extended function, in the wireframe's
+    // blue (root decision 0209 point 6, prototypes-lazurio #71).
+    if (item.action.kind === "service")
+      text.append(element("span", "tile-service", copy.appsServiceOpen));
     node.append(tileMark(item, 48), text);
     wrap.append(node, tileMenu(item, group, owner));
     return wrap;
@@ -1272,6 +1359,84 @@ export function createCatalogPanel(
     ];
   }
 
+  // A service repository's page, "Informace o repozitáři" (root decision
+  // 0209 point 6, decision F32's addendum of 2026-10-24; the wireframe's
+  // `RepositoryPage`, prototypes-lazurio #71): read-only, its folder where
+  // the Organization declares it and its GitHub page, then a card "Služba"
+  // per service of this Environment from it, with where it runs and the
+  // address of its page. With one page the head opens it, as the tile does;
+  // with more, each card opens its own. No app lifecycle, branches or log:
+  // a repository has no app.
+  function repositoryView(
+    value: Catalog,
+    scope: CatalogGroupEntry | null,
+    repository: CatalogRepository,
+  ): Node[] {
+    const copy = options.copy();
+    const back = routeLink(scopeRoute(value, scope), "back");
+    back.append(svg("chevron-left"), copy.appsAll);
+    const top = element("div", "module-head");
+    const heading = element("h1", "module-title", repository.slug);
+    heading.tabIndex = -1;
+    heading.dataset.pageHeading = "";
+    const text = element("div", "module-head-text");
+    const services = repository.services ?? [];
+    text.append(
+      heading,
+      element("p", "module-meta", servicesText(services, copy)),
+    );
+    const mark = element("span", "module-mark");
+    mark.setAttribute("aria-hidden", "true");
+    mark.append(svg("folder"));
+    top.append(mark, text);
+    const pages = servicePages(repository);
+    const [only] = pages;
+    const opener = (service: string, className: string) => {
+      const link = serviceLink(
+        { kind: "service", service, href: servicePath(service) },
+        className,
+      );
+      link.append(copy.appsServiceOpen);
+      return link;
+    };
+    if (only !== undefined && pages.length === 1)
+      top.append(opener(only.id, "button primary module-open"));
+    const about = factsCard(repositoryFacts(repository, copy));
+    if (repository.url !== null) {
+      // Its GitHub page, where the repository itself is read.
+      const row = element("div", "row");
+      const main = element("div", "row-main");
+      const detail = element("dd");
+      const link = element(
+        "a",
+        "",
+        repository.url.replace(/^https:\/\/github\.com\//, ""),
+      );
+      link.href = repository.url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      detail.append(link);
+      main.append(element("dt", "", copy.appsRepositoryGithub), detail);
+      row.append(main);
+      about.append(row);
+    }
+    const environment = options.environment()?.name ?? null;
+    return [
+      back,
+      top,
+      group(copy.appsRepositoryAbout, about),
+      ...services.map((service) => {
+        const card = factsCard(serviceFacts(service, environment, copy));
+        // Several pages: each card opens its own, under its address.
+        if (service.page !== null && pages.length > 1)
+          card.lastElementChild
+            ?.querySelector("dd")
+            ?.append(" ", opener(service.id, "link-button"));
+        return group(copy.appsServiceCard, card);
+      }),
+    ];
+  }
+
   // The request path of one module: the name that selects exactly its
   // Organization, as its route uses, and the module id, each URL-encoded.
   function modulePathOf(
@@ -1477,7 +1642,8 @@ export function createCatalogPanel(
     if (
       route.view !== "home" &&
       route.view !== "organization" &&
-      route.view !== "module"
+      route.view !== "module" &&
+      route.view !== "repository"
     )
       return;
     if (selection.kind === "missing") {
@@ -1502,14 +1668,19 @@ export function createCatalogPanel(
     const tabFocused =
       document.activeElement?.classList.contains("workspace-tab") === true;
     if (selection.kind !== "module") lifecycle = null;
-    head.hidden = selection.kind === "module";
-    if (selection.kind !== "module") drawHead(scope);
+    // A module's and a service repository's page draw their own head.
+    const ownPage =
+      selection.kind === "module" || selection.kind === "repository";
+    head.hidden = ownPage;
+    if (!ownPage) drawHead(scope);
     body.replaceChildren(
       ...(selection.kind === "ambiguous"
         ? ambiguousView(catalog, selection.candidates)
         : selection.kind === "module"
           ? moduleView(catalog, scope, selection.organization, selection.module)
-          : appsHome(catalog, scope)),
+          : selection.kind === "repository"
+            ? repositoryView(catalog, scope, selection.repository)
+            : appsHome(catalog, scope)),
     );
     if (tabFocused) focusTab();
     const action = body.querySelector<HTMLButtonElement>(
@@ -1576,6 +1747,10 @@ export function createCatalogPanel(
       render(route);
     },
     refresh,
+    /** Opens the page of this Environment's service `id` in the right panel
+     * (root decision 0209 point 6), as its tile does; a short message says
+     * when there is none or it could not open. */
+    openService,
     /** Whether the catalog is being read for the first time. */
     reading: () => state === "loading",
     /** The catalog as last read; null before the first answer. */

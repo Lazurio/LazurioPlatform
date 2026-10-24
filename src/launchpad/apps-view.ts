@@ -21,6 +21,9 @@ import {
   catalogSelection,
   catalogTree,
   moduleRoute,
+  repositoryRoute,
+  servicePages,
+  servicesText,
 } from "./catalog-view";
 import type { PublicEntry } from "./chat";
 import type { ContentList } from "./content-client";
@@ -31,7 +34,7 @@ import {
 } from "./favorites";
 import { moduleOrigin } from "./hosted-entry";
 import type { MessageKey } from "./messages";
-import { integrationsPath, type PageRoute } from "./routes";
+import { integrationsPath, type PageRoute, servicePath } from "./routes";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
@@ -67,7 +70,11 @@ export function appsScope(
 ): CatalogGroupEntry | null {
   const groups = appsScopes(catalog, copy);
   const selection = catalogSelection(catalog, route);
-  if (selection.kind === "organization" || selection.kind === "module")
+  if (
+    selection.kind === "organization" ||
+    selection.kind === "module" ||
+    selection.kind === "repository"
+  )
     return (
       groups.find((group) => group.organization === selection.organization) ??
       null
@@ -199,13 +206,21 @@ export function pluralKey(
 
 /** What a click on a tile does: open the module's app (hosted on its own
  * origin, locally through the lifecycle), or say in a short message why
- * there is nothing to open. */
+ * there is nothing to open. A service repository in Služby serveru (root
+ * decision 0209 point 6) opens its service's page in the Environment
+ * browser, or where more than one of its services has a page, its own page
+ * to choose from. */
 export type TileAction =
   | Readonly<{
       kind: "open";
       target: Extract<TileTarget, { kind: "hosted" } | { kind: "start" }>;
     }>
-  | Readonly<{ kind: "say"; text: string }>;
+  | Readonly<{ kind: "say"; text: string }>
+  /** The page of the service `service`; `href` its link (`servicePath`),
+   * which opens it in a new tab of the person's browser as well. */
+  | Readonly<{ kind: "service"; service: string; href: string }>
+  /** A route of this page: a service repository's page. */
+  | Readonly<{ kind: "route"; href: string }>;
 
 export type AppsTile =
   | Readonly<{
@@ -223,7 +238,10 @@ export type AppsTile =
       favorite: boolean;
     }>
   /** A production repository: read-only, no app, no page of its own
-   * (decision F32's final addendum); its menu leads to its GitHub page. */
+   * (decision F32's final addendum); its menu leads to its GitHub page. A
+   * service repository of Služby serveru (root decision 0209 point 6) says
+   * what its services are and opens its service's page; its menu leads to
+   * its own page, a route of this page (`info` then starts with `/`). */
   | Readonly<{
       kind: "repository";
       key: string;
@@ -352,21 +370,52 @@ export function appsTiles(
     modules: modules.map(moduleTile),
     repositories: repositories.map(({ repository }): AppsTile => {
       const key = repositoryFavorite(repository.slug);
+      const services = repository.services;
       return {
         kind: "repository",
         key,
         repository,
         name: repository.slug,
-        description: repository.path,
-        action: {
-          kind: "say",
-          text: copy.appsSayRepository.replace("{name}", repository.slug),
-        },
-        info: repository.url,
+        description:
+          services === undefined
+            ? (repository.path ?? "")
+            : servicesText(services, copy),
+        action: repositoryAction(catalog, group, repository, copy),
+        // A service repository's own page; any other's GitHub page.
+        info:
+          services === undefined
+            ? repository.url
+            : repositoryRoute(catalog, group.organization, repository),
         favorite: favorites.includes(key),
       };
     }),
   };
+}
+
+/** What a click on a repository's tile does: the one page of its services
+ * opens in the Environment browser; with more than one, its own page lets
+ * the person choose; anything else says that it has no app (root decision
+ * 0209 point 6, decision F32's addenda). */
+export function repositoryAction(
+  catalog: Catalog,
+  group: CatalogGroupEntry,
+  repository: CatalogRepository,
+  copy: Copy,
+): TileAction {
+  const pages = servicePages(repository);
+  const [page] = pages;
+  if (page !== undefined && pages.length === 1)
+    return { kind: "service", service: page.id, href: servicePath(page.id) };
+  const own =
+    pages.length > 1
+      ? repositoryRoute(catalog, group.organization, repository)
+      : null;
+  return own === null
+    ? {
+        kind: "say",
+        text: copy.appsSayRepository.replace("{name}", repository.slug),
+      }
+    : { kind: "route", href: own };
 }
 
 /** The sections of one group, in order, favourites first in each; empty

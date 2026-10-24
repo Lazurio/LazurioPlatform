@@ -67,6 +67,10 @@ import {
   launchpadSettingsPoller,
   type OrganizationSettingsSeams,
 } from "../organization-settings/host";
+import {
+  handoverServerServices,
+  type ServerServices,
+} from "../organizations/catalog";
 import { selectCatalogOrganization } from "../organizations/catalog-selection";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import type { RecoveryResult } from "../recover/recover";
@@ -245,6 +249,12 @@ export type HostedOptions = Readonly<{
    * handover, none where it names none or there is no handover. Trusted
    * composition, never HTTP input; tests supply the key. */
   ownerKey?: () => Promise<string | null>;
+  /** Where the catalog reads this Environment's services for Služby
+   * serveru's Productionspace (root decision 0209 point 6): by default the
+   * root-custodied Machine handover, none where it is not Služby serveru's
+   * or there is no handover. Trusted composition, never HTTP input; tests
+   * and the preview supply their own. */
+  serverServices?: () => Promise<ServerServices | null>;
 }>;
 
 /** The origins of Microsoft's sign-in, whose cookies and storage hold the
@@ -746,9 +756,12 @@ export async function startLaunchpad(
   modules.keepBuilt({ running });
   // The Folder's catalog, kept while nothing it depends on changed
   // (catalog-reading.ts): the page's boot document, the shell document, the
-  // catalog and Apps' questions about one Organization read it.
+  // catalog and Apps' questions about one Organization read it. In Služby
+  // serveru its Productionspace lists the handover's services (root decision
+  // 0209 point 6), as `lazurio organization list` does.
   const catalog = createCatalogReading(folder, {
     holder: personalspace.peek,
+    services: hostedOptions.serverServices ?? handoverServerServices,
   });
   // gh's SSH proof of the status (decision F19, addendum 2026-10-19, #515)
   // is kept here, per key and account (a pass 5 minutes, a failure 20 s),
