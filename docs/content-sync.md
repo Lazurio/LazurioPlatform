@@ -4,9 +4,9 @@ Status: **accepted direction of Matěj (2026-09-19). Installation of absent cont
 is implemented (2026-10-04, [F9 addendum](decisions.md#addendum-of-2026-10-04-content-installation-the-personalspace-and-the-presets),
 root decision 0188). Synchronization of existing repositories is implemented
 (2026-10-24, [F9 amendment](decisions.md#amendment-of-2026-10-24-the-launchpad-keeps-primary-checkouts-on-their-published-branch),
-root decision 0195, addendum of 2026-10-24, point 26):** the installed Launchpad
+root decision 0212 points 2 and 4):** the installed Launchpad
 fast-forwards the clean primary checkouts of the Organizations an Environment holds at
-its start and then every hour (to be confirmed), within the build sweep it already
+its start and then every hour (root decision 0212 point 4), within the build sweep it already
 runs, and `lazurio organization sync` runs the same core explicitly ([Synchronization](#synchronization--implemented-2026-10-24)).
 Declared data mounts are included when clean. `lazurio organization install`,
 `lazurio personalspace install` and the Launchpad's `/api/content*` routes materialize
@@ -34,7 +34,7 @@ must never select, download or activate a product version.
 
 *Amended on 2026-10-24 ([F9 amendment](decisions.md#amendment-of-2026-10-24-the-launchpad-keeps-primary-checkouts-on-their-published-branch)).*
 Synchronization of existing repositories runs in the installed Launchpad at its start
-and then every hour (to be confirmed; one parameter, `contentSyncEveryMs`), inside the
+and then every hour (root decision 0212 point 4; one parameter, `contentSyncEveryMs`), inside the
 build sweep it already runs every 5 minutes (decision F58 point 7), which then builds
 whatever a synchronization brought. It also runs whenever a user or an authorized Task
 Agent invokes `lazurio organization sync`, and later surfaces (the product update, an
@@ -172,8 +172,8 @@ CLI and Launchpad invoke the same use case and return equivalent results.
 
 ## Synchronization — implemented 2026-10-24
 
-Matěj's decision of 2026-10-24 ("Hlavní checkout drží publikovaný main.", root decision
-0195, addendum of 2026-10-24, point 26; [F9 amendment](decisions.md#amendment-of-2026-10-24-the-launchpad-keeps-primary-checkouts-on-their-published-branch);
+Matěj's decision of 2026-10-24 (root decision
+0212 points 2 and 4; [F9 amendment](decisions.md#amendment-of-2026-10-24-the-launchpad-keeps-primary-checkouts-on-their-published-branch);
 Lazurio/LazurioPlatform#281). One core, `syncContent` in `src/content/sync.ts`, for the
 Launchpad's sweep and for `lazurio organization sync`.
 
@@ -241,7 +241,7 @@ detached).
 current, fast-forwarded or absent, 1 otherwise (also `content-busy` and an Organization
 the Folder does not hold, `organization-missing`), 2 usage or not on this Environment.
 The Launchpad runs it only when installed (`launchpad --base`), with that base's
-content lock, at its first sweep and then at the first sweep an hour (to be confirmed)
+content lock, at its first sweep and then at the first sweep an hour
 after the last run started; a development run without a base never synchronizes.
 
 **For later surfaces.** `syncContent` takes one repository within its Organization

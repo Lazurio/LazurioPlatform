@@ -744,7 +744,7 @@ export async function startLaunchpad(
       personalspace: personalspace.peek,
     });
   // The Folder's primary checkouts follow their published branch (decision
-  // F9's amendment of 2026-10-24, root decision 0195 point 26): the installed
+  // F9's amendment of 2026-10-24, root decision 0212 points 2 and 4): the installed
   // Launchpad fast-forwards the clean ones at its start and then hourly
   // (`contentSyncEveryMs`), within the sweep that builds what moved. Its
   // content lock and record are the install base's, as the CLI's; a

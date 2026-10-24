@@ -459,7 +459,7 @@ upstream decision 0137 and requires the amendment listed above. The contract is 
 
 **Accepted direction (2026-09-19); installation implemented 2026-10-04 (addendum
 below); synchronization of existing repositories implemented 2026-10-24 (amendment
-below), automatic in the Launchpad (at its start, then hourly, to be confirmed) and
+below), automatic in the Launchpad (at its start, then hourly) and
 explicit as `lazurio organization sync`.** "Update Lazurio" changes product
 bytes; its contract is the product update document (`docs/update.md`, separate PR).
 "Synchronize content" changes Organization repositories; its contract is
@@ -810,8 +810,8 @@ keeps its placeholders until its owner merges the pull request.
 
 ### Amendment of 2026-10-24: the Launchpad keeps primary checkouts on their published branch
 
-**Decided by Matěj (Organization Admin) on 2026-10-24, "Hlavní checkout drží
-publikovaný main." (root decision 0195, addendum of 2026-10-24, point 26, being written
+**Decided by Matěj (Organization Admin) on 2026-10-24 through the question tool (root
+decision 0212 points 2 and 4, being written
 in `HumanAndMachines/Lazurio`; plan DEV-6656); implemented here, Lazurio/LazurioPlatform#281.**
 A merged module, a data publication or an Organization setting reached only the
 Environment where someone then pulled by hand: on one Organization's Team Environments a
@@ -822,7 +822,7 @@ commits behind, so the settings the Owner changed in the Dashboard never reached
 
 1. **Automatic, on its own cadence inside the existing sweep.** The installed Launchpad
    runs the synchronization of existing repositories at its start and then every hour
-   (**to be confirmed**: Matěj reopened the cadence on 2026-10-24; it is one parameter,
+   (Matěj's choice of 2026-10-24, root decision 0212 point 4; one parameter,
    `contentSyncEveryMs`), within the build sweep of F58 point 7, before that sweep reads
    the built apps, with errors swallowed as the sleep's are. The build sweep stays at 5
    minutes and builds whatever a synchronization brought. No daemon, timer or process
@@ -864,7 +864,7 @@ commits behind, so the settings the Owner changed in the Dashboard never reached
 | --- | --- |
 | Explicit only, as before | Nobody on a Team Environment asks for it, and on the others it depends on an agent remembering; #281's evidence is exactly that; rejected by the decision |
 | A Lazurio daemon or a systemd timer per Environment | A second lifecycle to install, update and secure beside the Launchpad's sweep, which already runs every 5 minutes and watches the same checkouts (F8, F58 point 7); rejected |
-| Synchronize at every 5-minute sweep | The first form of the decision; reopened by Matěj the same day: an hour (to be confirmed) is enough for a publication to arrive, with a twelfth of the remote reads; the build sweep keeps its 5 minutes |
+| Synchronize at every 5-minute sweep | The first form of the decision; reopened by Matěj the same day, who chose an hour plus the Open of one module (root decision 0212 point 4, the Open in a later release): an hour is enough for a publication to arrive, with a twelfth of the remote reads; the build sweep keeps its 5 minutes |
 | Synchronize from Machines (the hosting) | Covers only hosted Environments, not a workstation; a second implementation of the same rule with the hosting's identity instead of the Environment's; rejected |
 | Stash dirty work and switch to `main`, as the legacy engine does (0129) | Interrupts active work, on a Team Environment of someone who did not ask; F9 already rejected it; rejected again |
 | Fetch every repository on every sweep | A fetch per repository and per call is a broker token on a Team Environment and the full negotiation everywhere; one `ls-remote` decides first |
@@ -17162,7 +17162,7 @@ checkout on `main`. Opening an app from `main` gives the optimized build of the
 checkout's current commit; after a pull (`lazurio update`, an agent's or a person's `git
 pull`) the Launchpad builds the new commit in the background and swaps, so the next
 open again gets a build. *Since F9's amendment of 2026-10-24 the Launchpad's own sweep
-(point 7) is such a pull at its start and then hourly (to be confirmed): it
+(point 7) is such a pull at its start and then hourly: it
 fast-forwards the clean primary checkouts first.* (F57 is the tab-sleep decision of the same plan, written
 beside this one.)
 
@@ -17290,7 +17290,7 @@ build` / `vite build` writes. Measured on the reference Environment: an Astro mo
    state, that is every app someone opened), moves its watches and refreshes each, which
    also covers a change no event reported (a branch with slashes, a dropped watch, a
    data mount that appeared since). *Amended 2026-10-24 (F9): the first sweep, and
-   then the first sweep an hour (to be confirmed) after the last synchronization,
+   then the first sweep an hour after the last synchronization,
    first fast-forwards the Folder's clean primary checkouts (the module's, its data
    mount's, the Organization root's) to their published commit, so a publication
    anywhere is built and swapped in here within that sweep; this point no longer waits

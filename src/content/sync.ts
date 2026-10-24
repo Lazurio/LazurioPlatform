@@ -29,8 +29,8 @@ export {
 } from "./sync-record";
 
 // Synchronization of existing repositories (docs/content-sync.md, "Existing
-// repositories"; decision F9's amendment of 2026-10-24, root decision 0195,
-// addendum of 2026-10-24, point 26): the primary checkouts of an
+// repositories"; decision F9's amendment of 2026-10-24, root decision 0212
+// points 2 and 4): the primary checkouts of an
 // Organization's root, its modules (workspace modules and the root-level
 // applications) and their declared data mounts are kept on their published
 // branch. Per repository: one `ls-remote` of its branch, and only when that
@@ -41,7 +41,7 @@ export {
 // a switch, a reset, a merge, a clone, a hook or a preparation. Worktrees,
 // Production Space repositories, `infra` and the Personalspace are never
 // touched. The Launchpad runs it at its start and then every hour
-// (`contentSyncEveryMs`, to be confirmed) within its build sweep
+// (`contentSyncEveryMs`) within its build sweep
 // (`keepBuilt`), the CLI as `lazurio organization sync`: one core, one content
 // lock, one record; a later surface (the product update, an "Aktualizovat"
 // button, an Open) calls the same core, for one repository too

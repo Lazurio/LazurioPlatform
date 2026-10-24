@@ -67,8 +67,8 @@ export type SyncEntry = Readonly<{
 const recordSchema = "lazurio.content-sync.v1";
 
 /** How often the Launchpad keeps the Folder's primary checkouts on their
- * published branch: at its start, then every hour (to be confirmed; root
- * decision 0195, addendum of 2026-10-24, point 26). Its 5-minute build sweep
+ * published branch: at its start, then every hour (root
+ * decision 0212 points 2 and 4). Its 5-minute build sweep
  * stays and builds whatever a synchronization brought. One constant, so the
  * cadence is one line to change. */
 export const contentSyncEveryMs = 60 * 60 * 1000;
