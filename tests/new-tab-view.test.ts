@@ -532,6 +532,26 @@ describe("the tabs of Přehled", () => {
           mode: "dev",
           source: "main",
         },
+        {
+          org: "example",
+          module: "knowledgebase",
+          app: "app/v2/package.json",
+          unit: "lazurio-app-example-knowledgebase.service",
+          memory: 7 * MiB,
+          mode: "built",
+          commit: "a03dd7c5f1e2b3c4d5e6f708192a3b4c5d6e7f80",
+          source: "main",
+        },
+        {
+          org: "example",
+          module: "website",
+          app: "app/v1/package.json",
+          unit: "lazurio-app-example-website.service",
+          memory: null,
+          mode: "built",
+          commit: "../not a commit",
+          source: "main",
+        },
         { org: "example", module: "broken" },
       ],
     });
@@ -562,7 +582,14 @@ describe("the tabs of Přehled", () => {
       },
     ]);
     expect(read?.memory).toMatchObject({ browser: null, modules: null });
-    expect(read?.modules?.map((module) => module.module)).toEqual(["deals"]);
+    expect(
+      read?.modules?.map((module) => [module.module, module.commit]),
+    ).toEqual([
+      ["deals", null],
+      ["knowledgebase", "a03dd7c5f1e2b3c4d5e6f708192a3b4c5d6e7f80"],
+      // A commit that is no hex object name is not shown.
+      ["website", null],
+    ]);
     // The hub not answering, and which Modules run not known.
     expect(
       parseOverview({ hub: "unreachable", tabs: null, memory, modules: null }),
@@ -922,6 +949,7 @@ describe("running Modules, Navrhované and the notes", () => {
       memory,
       mode: "dev",
       source: "main",
+      commit: null,
     });
     const rows = moduleRows(
       [unit("knowledgebase", 410 * MiB), unit("deals", 780 * MiB)].concat(
@@ -943,6 +971,30 @@ describe("running Modules, Navrhované and the notes", () => {
       unit: "lazurio-app-example-deals.service",
     });
     expect(rows[0]?.stone).toEqual(expect.any(String));
+    // A built app names the commit its build is of, shortened as Git does
+    // (root decision 0195 point 29): the person sees it is the build, and
+    // of which commit.
+    const built = moduleRows(
+      [
+        {
+          ...unit("knowledgebase", 7 * MiB),
+          mode: "built",
+          commit: "a03dd7c5f1e2b3c4d5e6f708192a3b4c5d6e7f80",
+        },
+      ],
+      catalogModuleLook(catalog),
+      cs,
+      "cs",
+    );
+    expect(built[0]?.line).toBe("Sestavená verze · main · a03dd7c");
+    expect(
+      moduleRows(
+        [{ ...unit("knowledgebase", 7 * MiB), mode: "built" }],
+        catalogModuleLook(catalog),
+        cs,
+        "cs",
+      )[0]?.line,
+    ).toBe("Sestavená verze · main");
     // Without a catalog every Module keeps its id.
     expect(catalogModuleLook(null)("example", "deals")).toBeNull();
     expect(catalogModuleLook(catalog)("other", "deals")).toBeNull();

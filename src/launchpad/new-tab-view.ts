@@ -339,6 +339,9 @@ export type NewTabModule = Readonly<{
   memory: number | null;
   mode: string;
   source: string;
+  /** The commit a built app serves (decision F58); null for a development
+   * run or when the answer does not name one. */
+  commit: string | null;
 }>;
 
 export type NewTabOverview = Readonly<{
@@ -441,6 +444,10 @@ function parseModule(value: unknown): NewTabModule | null {
     memory: bytes(value.memory),
     mode,
     source,
+    commit:
+      typeof value.commit === "string" && /^[0-9a-f]{7,64}$/.test(value.commit)
+        ? value.commit
+        : null,
   };
 }
 
@@ -987,7 +994,8 @@ export type ModuleRow = Readonly<{
   stone: string | null;
   memory: string | null;
   heavy: boolean;
-  /** "Vývojový server · main". */
+  /** "Vývojový server · main", or a build with its commit: "Sestavená
+   * verze · main · 1a2b3c4". */
   line: string;
   /** Zastavit: the Module's existing stop and its body. */
   stop: string;
@@ -1017,7 +1025,17 @@ export function moduleRows(
         memory:
           module.memory === null ? null : formatMemory(module.memory, locale),
         heavy: module.memory !== null && module.memory >= heavyBytes,
-        line: `${module.mode === "dev" ? copy.moduleDev : module.mode === "built" ? copy.moduleBuilt : module.mode} · ${module.source}`,
+        line: [
+          module.mode === "dev"
+            ? copy.moduleDev
+            : module.mode === "built"
+              ? copy.moduleBuilt
+              : module.mode,
+          module.source,
+          ...(module.mode === "built" && module.commit !== null
+            ? [module.commit.slice(0, 7)]
+            : []),
+        ].join(" · "),
         stop: `/api/modules/${encodeURIComponent(module.org)}/${encodeURIComponent(module.module)}/stop`,
         app: module.app,
       };
