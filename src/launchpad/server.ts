@@ -31,7 +31,8 @@ import {
   processContentHost,
   processGitHubHost,
 } from "../content/host";
-import { syncContent } from "../content/sync";
+import { createOpenSync, openedModule } from "../content/open-sync";
+import { readSyncRecord, type SyncRequest, syncContent } from "../content/sync";
 import type { ExecutorHost } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
 import { type DocumentsHost, processDocumentsHost } from "../files/documents";
@@ -122,6 +123,7 @@ import { createSshProofs } from "../tools/ssh-key";
 import { resolveOnPath } from "../tools/status";
 import type { GithubAction } from "../tools/team-github";
 import { toolsUpdate } from "../tools/update";
+import { createUpdateJobs, updateEverything } from "../update/everything";
 import { embeddedIdentity } from "../update/identity";
 import { runProcess } from "../update/self-check";
 import type { VaultHost } from "../vault/flow";
@@ -765,27 +767,79 @@ export async function startLaunchpad(
   // (`contentSyncEveryMs`), within the sweep that builds what moved. Its
   // content lock and record are the install base's, as the CLI's; a
   // development run without a base never synchronizes.
-  const syncCheckouts =
+  const syncHost =
     installed === undefined
       ? undefined
-      : () =>
-          syncContent(
-            folder,
-            contentHost ?? {
-              ...processGitHubHost({
-                env: process.env,
-                platform: toolsEnvironment.platform,
-                tools: toolsEnvironment,
-              }),
-              lockDirectory: contentLockDirectory(installed.base),
-            },
-          );
+      : (contentHost ?? {
+          ...processGitHubHost({
+            env: process.env,
+            platform: toolsEnvironment.platform,
+            tools: toolsEnvironment,
+          }),
+          lockDirectory: contentLockDirectory(installed.base),
+        });
+  const syncCheckouts =
+    syncHost === undefined
+      ? undefined
+      : (request?: SyncRequest) => syncContent(folder, syncHost, request);
   // A static app someone opened is built again after a pull (decision F58);
   // an app nobody uses falls asleep (root decision 0195 point 23).
   modules.keepBuilt({
     running,
-    ...(syncCheckouts === undefined ? {} : { sync: syncCheckouts }),
+    ...(syncCheckouts === undefined ? {} : { sync: () => syncCheckouts() }),
   });
+  // The Open of one module keeps its checkout on its published branch in the
+  // background (root decision 0212 point 4): after the answer to a person's
+  // Start or Open, or to the gateway's `ensure` of a navigation, at most once
+  // per module in 5 minutes and never for a checkout the last round left
+  // blocked. The build watcher builds and swaps what it brings.
+  const openSync =
+    syncHost === undefined || syncCheckouts === undefined
+      ? undefined
+      : createOpenSync({
+          sync: syncCheckouts,
+          record: () => readSyncRecord(syncHost.lockDirectory, folder),
+        });
+  const opened = (answer: ModuleAnswer | ModuleBlocked) => {
+    if (openSync === undefined || answer.kind !== "module") return;
+    void catalog
+      .read()
+      .then((read) => {
+        const module = openedModule(read, answer);
+        if (module !== null) openSync.opened(module);
+      })
+      .catch(() => undefined);
+  };
+  // One `lazurio update` from Nová karta's Aktualizovat (root decision 0212
+  // points 3 and 7): the CLI's composition, run here as a job: the content,
+  // the builds of what changed (swapped in by this Launchpad), and Lazurio
+  // itself last through the pill, whose unit outlives the restart it causes.
+  // Only on an installed Launchpad, and never on a public Environment, whose
+  // visitors do not own it.
+  const updates =
+    installed === undefined || publicEnvironment
+      ? undefined
+      : createUpdateJobs({
+          run: (onChange) =>
+            updateEverything(
+              {
+                content: async (onProgress) =>
+                  syncCheckouts === undefined
+                    ? { kind: "not-run", reason: "not-installed" }
+                    : syncCheckouts({ onProgress }),
+                builds: (onProgress) => modules.refreshBuilt(onProgress),
+                product: async () =>
+                  pill === undefined
+                    ? {
+                        part: "product",
+                        result: "not-run",
+                        reason: "not-installed",
+                      }
+                    : pill.updateNow(),
+              },
+              onChange,
+            ),
+        });
   // The Folder's catalog, kept while nothing it depends on changed
   // (catalog-reading.ts): the page's boot document, the shell document, the
   // catalog and Apps' questions about one Organization read it. In Služby
@@ -1334,6 +1388,8 @@ export async function startLaunchpad(
           ? {}
           : { waitMs: hostedOptions.ensureWaitMs }),
       });
+      // A navigation's `ensure` is an Open (root decision 0212 point 4).
+      if (mayStart) opened(result);
       const status = ensureStatus(result);
       return status === 204
         ? new Response(null, { status, headers })
@@ -1815,6 +1871,20 @@ export async function startLaunchpad(
           return response({ error: "operation-failed" }, 500);
         }
       }
+      if (
+        request.method === "GET" &&
+        url.pathname === "/api/update/everything"
+      ) {
+        // The newest run of Aktualizovat, running or ended (root decision
+        // 0212 point 7): what Nová karta draws and joins.
+        if (closing) return response({ error: "closing" }, 503);
+        if (publicEnvironment) return response({ error: "not-found" }, 404);
+        if (!updates) return response({ error: "update-unavailable" }, 503);
+        return response({
+          kind: "update-everything",
+          job: updates.latest(),
+        });
+      }
       if (request.method === "GET" && url.pathname === "/api/update/status") {
         if (closing) return response({ error: "closing" }, 503);
         if (!pill) return response({ error: "update-unavailable" }, 503);
@@ -1924,6 +1994,8 @@ export async function startLaunchpad(
                   : moduleRequest[3] === "stop"
                     ? await modules.stop(name, options)
                     : await modules.status(name, options);
+          // A person's Start or Open (root decision 0212 point 4).
+          if (moduleRequest[3] === "start") opened(result);
           return response(
             result,
             result.kind === "blocked"
@@ -2083,6 +2155,17 @@ export async function startLaunchpad(
         if (closing) return response({ error: "closing" }, 503);
         changesTools = toolsChangePaths.has(url.pathname);
         if (changesTools) toolsReading.forget();
+        if (url.pathname === "/api/update/everything") {
+          // Aktualizovat: one `lazurio update` (root decision 0212 points 3
+          // and 7), or the run already under way, which the click joins.
+          stateFields(input, []);
+          if (publicEnvironment) return response({ error: "not-found" }, 404);
+          if (!updates) return response({ error: "update-unavailable" }, 503);
+          return response(
+            { kind: "update-everything", ...updates.start() },
+            202,
+          );
+        }
         if (url.pathname === "/api/update/apply") {
           if (!pill) return response({ error: "update-unavailable" }, 503);
           const value = stateFields(input, ["version"]);

@@ -1,5 +1,6 @@
 import type { FolderRefresh } from "../folder/refresh-needed";
 import { type UpdateError, UpdateFailure, updateError } from "../update/errors";
+import type { ProductItem } from "../update/everything";
 import { isProductVersion } from "../update/identity";
 import type { Activation, Activator } from "../update/launchpad-activation";
 import {
@@ -233,6 +234,11 @@ export type UpdatePill = Readonly<{
   stop(): void;
   status(): Promise<PillStatus>;
   apply(version: string): Promise<ApplyResult>;
+  /** The product part of one `lazurio update` from the Launchpad (root
+   * decision 0212 point 3): a check now, and when it verifies a newer
+   * release, the pill's own action for it, which starts `lazurio update`
+   * in the unit that outlives the restart it causes. */
+  updateNow(): Promise<ProductItem>;
 }>;
 
 export function createUpdatePill(input: {
@@ -247,6 +253,35 @@ export function createUpdatePill(input: {
     () => checkForUpdate(environment),
     input.poller,
   );
+  const apply = async (version: string): Promise<ApplyResult> => {
+    const failed = (failure: UpdateError): ApplyResult =>
+      Object.freeze({ kind: "error" as const, ...failure });
+    if (!isProductVersion(version))
+      return failed(updateError("internal", { reason: "version" }));
+    const status = await readStatus(environment);
+    if (status.stateInvalid !== null)
+      return failed(
+        updateError("state-invalid", { path: status.stateInvalid }),
+      );
+    const latest = status.lastCheck?.latest ?? null;
+    if (latest !== version) {
+      // The click meant what it saw; a fresh check shows what is true now.
+      void poller.checkNow();
+      return Object.freeze({ kind: "stale" as const, version, latest });
+    }
+    if ((await activator.observe()).inFlight)
+      return failed(updateError("busy"));
+    try {
+      await activator.start(version);
+    } catch (error) {
+      return failed(
+        error instanceof UpdateFailure
+          ? error.failure
+          : updateError("internal", { stage: "start" }),
+      );
+    }
+    return Object.freeze({ kind: "started" as const, version });
+  };
   return Object.freeze({
     start: poller.start,
     stop: poller.stop,
@@ -259,34 +294,29 @@ export function createUpdatePill(input: {
         now: now(),
       });
     },
-    async apply(version) {
-      const failed = (failure: UpdateError): ApplyResult =>
-        Object.freeze({ kind: "error" as const, ...failure });
-      if (!isProductVersion(version))
-        return failed(updateError("internal", { reason: "version" }));
-      const status = await readStatus(environment);
-      if (status.stateInvalid !== null)
-        return failed(
-          updateError("state-invalid", { path: status.stateInvalid }),
-        );
-      const latest = status.lastCheck?.latest ?? null;
-      if (latest !== version) {
-        // The click meant what it saw; a fresh check shows what is true now.
-        void poller.checkNow();
-        return Object.freeze({ kind: "stale" as const, version, latest });
-      }
-      if ((await activator.observe()).inFlight)
-        return failed(updateError("busy"));
-      try {
-        await activator.start(version);
-      } catch (error) {
-        return failed(
-          error instanceof UpdateFailure
-            ? error.failure
-            : updateError("internal", { stage: "start" }),
-        );
-      }
-      return Object.freeze({ kind: "started" as const, version });
+    apply,
+    async updateNow() {
+      const failed = (code: string): ProductItem =>
+        Object.freeze({ part: "product", result: "failed", code });
+      const checked = await poller.checkNow();
+      if (checked.kind === "error") return failed(checked.code);
+      if (checked.kind === "up-to-date")
+        return Object.freeze({
+          part: "product",
+          result: "current",
+          version: checked.running,
+        });
+      let applied = await apply(checked.latest);
+      // A check that another one overtook names the newer release: once.
+      if (applied.kind === "stale" && applied.latest !== null)
+        applied = await apply(applied.latest);
+      if (applied.kind === "started")
+        return Object.freeze({
+          part: "product",
+          result: "started",
+          to: applied.version,
+        });
+      return failed(applied.kind === "stale" ? "internal" : applied.code);
     },
   });
 }
