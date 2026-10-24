@@ -48,15 +48,19 @@ release that publishes every platform at once.
 
 - **One core, one command.** CLI and Launchpad run the same `lazurio update`.
   There is no second updater, no worker entrypoint and no installer logic
-  outside the product.
+  outside the product. Since root decision 0212 point 3 the plain command also
+  brings the content and the builds up to date before it updates Lazurio itself
+  ([One `lazurio update`](#one-lazurio-update-content-builds-tools-and-lazurio-itself)); each
+  part keeps its own core, lock and outcome.
 - **The user owns the version.** The user of the Environment runs
   `lazurio update`, on a hosted Machine as on their own computer. A provider's pin
   is a minimum: a rollout installs a missing or broken installation and may raise
   one below the pin through the offline update, and never lowers a version
   ([F17 addendum 2026-09-28](decisions.md#f17--operator-tools-belong-to-the-operator-the-rollout-pins-the-baseline-and-repairs)).
 - **Explicit activation.** Checking and showing availability are automatic;
-  download and activation start only from `lazurio update` or the Launchpad
-  action.
+  download and activation start only from `lazurio update` or a Launchpad
+  action (the pill, or Nová karta's Aktualizovat, which runs the same
+  composition); the Launchpad's background work never starts them.
 - **No wedge.** Every failure before the switch leaves the installed product as
   it was and the next attempt possible. Downloads are scratch files; there is no
   pending download, no journal and no activation marker.
@@ -838,6 +842,94 @@ if the new release is unhealthy, which its Recovery mode (`503` on the health
 socket) makes the correct decision. From the first mutating command the new
 release runs, the migration removes all of it.
 
+## One `lazurio update`: content, builds, tools and Lazurio itself
+
+Root decision 0212 point 3 (Matěj, 2026-10-24; [F9's second amendment of
+2026-10-24](decisions.md#second-amendment-of-2026-10-24-one-lazurio-update-composes-content-builds-and-lazurio-itself)).
+`lazurio update` has the same meaning on a computer and on an Environment: it brings
+everything the user owns up to date. Agents run it before every task; Nová karta's
+Aktualizovat button runs it by hand. One composition (`updateEverything` in
+`src/update/everything.ts`) runs these parts, in this order:
+
+1. **Content.** The clean primary checkouts of the Organizations the Environment holds go
+   to their published branch: the same core, lock and record as the Launchpad's hourly
+   round and `lazurio organization sync` ([content synchronization](content-sync.md#synchronization--implemented-2026-10-24)).
+   When another content operation holds the Folder's lock (the hourly round, an
+   installation) it asks again every 2 seconds for up to 2 minutes, then answers
+   `content-busy`.
+2. **Builds.** Every built app with a build state (someone opened it once) whose checkout
+   moved past its build is built in the foreground and swapped in where it runs (decision
+   F58's refresh, `refreshBuilt` in the module core). A commit whose last build failed is
+   not built again here (an explicit `lazurio module build` does that), and an app nobody
+   opened gets no first build: its first Open builds it. On a computer whose Launchpad runs
+   its apps in its own session (macOS), that Launchpad owns their dependency trees until it
+   ends, so the CLI leaves their builds to it: its build watcher builds and swaps what the
+   content brought within seconds, or at its next start.
+3. **Tools** the modules declare (root decision 0171): a seam for DEV-6682, nothing yet.
+4. **Lazurio itself**, as the rest of this document describes, last.
+
+**Why this order.** Content and builds change nothing that runs until a build swaps, and a
+swap refuses no connection (F58); the product's activation restarts the Launchpad. Run
+last, a restart never interrupts the other parts, and in the Launchpad the job has done
+everything else before it goes down with the restart. A new Lazurio that would build
+differently does so at its own first sweep. The decision lists the parts with Lazurio
+first; the order is the Platform's choice for these reasons.
+
+**Isolation.** A part that fails, or cannot run here, is one item of the answer and never
+stops the next: content is synchronized when the release cannot be verified, and Lazurio
+is updated when GitHub refuses a repository.
+
+**The answer.** With `--json`, the product's own answer as before (`updated`,
+`up-to-date` or `error`, with every key this document names) gains `items`, one per
+repository, built app and the product, in the order the parts gave them:
+
+```json
+{"kind":"up-to-date","running":"0.1.12","latest":"0.1.12","folderRefresh":null,
+ "items":[
+  {"part":"content","organization":"Alpha","root":"organizations/alpha","path":".","kind":"root","branch":"main","result":"current","at":"…"},
+  {"part":"content","organization":"Alpha","root":"organizations/alpha","path":"workspace/site","kind":"module","branch":"main","result":"fast-forwarded","from":"…","to":"…","at":"…"},
+  {"part":"build","organization":"alpha","module":"site","app":"app/package.json","result":"built","commit":"…"},
+  {"part":"product","result":"current","version":"0.1.12"}]}
+```
+
+A content item is a repository's answer of the synchronization (`fast-forwarded`,
+`current`, `blocked` with its reason, `absent`, `denied`, `unavailable`, `failed`), or the
+part as a whole: `{"part":"content","result":"not-run","reason"}` with `folder-unknown`,
+`folder-unreadable`, `not-for-this-environment`, `content-busy` or `not-installed`. A
+build item is `built`, `current` or `failed` with the build's own reason; what runs stays
+as it was. The product item is `current`, `updated` (`from`, `to`), `started` (the
+Launchpad's run, below), `failed` with its code, or `not-run`. A part that threw is
+`{"part","result":"failed","reason":"operation-failed"}`. Without `--json` the lines of a
+repository that moved or is left as it is, a summary of the content, a line per app built
+or not built, then the product's own lines as before. The exit status is the product's,
+as before: a blocked checkout or a failed build is a finding in its item, never a failed
+command. Content and builds need the Folder (`--folder`, the supervised unit's, or in a
+Remote Environment the declared operator's); without one only Lazurio is updated and its
+answer is unchanged. `lazurio update --version <tag>` and `--check` name Lazurio only,
+as does the Launchpad's pill.
+
+**In the Launchpad.** `POST /api/update/everything` with `{}` starts the same composition
+as a job of the installed Launchpad, behind the admission of every `/api/*` route (the
+local token, or the gateway's session and the same origin for a write), and answers `202
+{kind: "update-everything", job, joined}`; while a run is under way it answers that run
+with `joined: true`, so a second click joins it. `GET /api/update/everything` answers the
+newest run, `{kind, job: {id, state: "running" | "succeeded", lines} | null}`, where each
+line is an item's step while under way (`checking`, `fetching` and `fast-forwarding` with
+the commit it moves to, `building` with its commit, Lazurio's `checking`) and then its
+answer. Its content part is the Launchpad's own synchronization, its builds are swapped
+in by the Launchpad at once, and Lazurio is updated through the pill's own action, which
+starts `lazurio update --version` in the unit that outlives the restart it causes
+(`result: "started"`). The job lives in the Launchpad's memory and ends with it; what the
+run did stays in its owners' records (the content's record, the builds' states, the
+selector). A Launchpad that is not an installed one answers `503 update-unavailable`; a
+public Environment, whose visitors do not own it, `404`.
+
+**In the background, never Lazurio itself.** The Launchpad's own content and builds every
+hour and at the Open of one module ([content synchronization](content-sync.md#when-it-runs))
+never check, download or activate a product version: that stays this explicit command.
+The pipeline owns the minimum version (a pin is a minimum, F17's addendum of 2026-09-28);
+`lazurio update` takes Lazurio above it (root decision 0212 point 5).
+
 ## Surfaces
 
 - **Launchpad.** Poller: first check shortly after start, then every few minutes
@@ -856,7 +948,7 @@ release runs, the migration removes all of it.
   update and with `state-invalid`; "up to date" and a running check show nothing
   (Matěj 2026-09-28, as in T3 Code). The Folder refresh line below is
   independent of the pill.
-- **CLI.** `lazurio update`, `--check`, `--version <tag>`, `update status
+- **CLI.** `lazurio update` (everything, [above](#one-lazurio-update-content-builds-tools-and-lazurio-itself)), `--check`, `--version <tag>`, `update status
   [--json]`, `--folder <Folder>` on `update` and `update status`,
   `lazurio install [--verify-release <directory>] [--service
   systemd-user]` (from a newer executable over an existing installation: the offline

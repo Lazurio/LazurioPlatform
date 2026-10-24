@@ -4,6 +4,8 @@ import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { startLaunchpad } from "../src/launchpad/server";
 import { createUpdatePill } from "../src/launchpad/update-pill";
+import type { ModuleHost } from "../src/modules/module-operations";
+import { createSessionRunner } from "../src/modules/session-runner";
 import type { UpdateError } from "../src/update/errors";
 import type { Activator } from "../src/update/launchpad-activation";
 import {
@@ -154,5 +156,198 @@ test.skipIf(process.platform === "win32")(
     } finally {
       await plain.close();
     }
+  },
+);
+
+// Aktualizovat (root decision 0212 points 3 and 7): one `lazurio update` as a
+// job of the installed Launchpad, behind the same admission, Lazurio itself
+// last through the pill's own action; a second click joins the run.
+test.skipIf(process.platform === "win32")(
+  "POST and GET /api/update/everything: one run at a time that a second click joins, Lazurio last through the pill",
+  async () => {
+    world = await createWorld();
+    await world.release("1.1.0");
+    const folder = join(world.root, "Lazurio");
+    await initializeFolder(folder, {
+      os: executionOs(process.platform),
+      access: "local",
+      purpose: "human",
+      locale: "en",
+      detail: "concise",
+      coordination: "direct",
+    });
+    const starts: string[] = [];
+    let release: () => void = () => {};
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const activator: Activator = {
+      async start(version) {
+        starts.push(version);
+        // The run stays under way until the test lets it go on.
+        await released;
+      },
+      async observe() {
+        return { inFlight: false, failure: null };
+      },
+    };
+    const pill = createUpdatePill({
+      environment: world.environment("1.0.0"),
+      activator,
+      poller: { startupDelayMs: 3_600_000, intervalMs: 3_600_000, jitterMs: 0 },
+    });
+    // No builds and no tools of the account: nothing but this Folder.
+    const moduleHost: ModuleHost = {
+      platform: process.platform,
+      home: world.root,
+      path: "/usr/bin:/bin",
+      runtimeDirectory: undefined,
+      platformExecutable: process.execPath,
+      runnerKind: async () => "session",
+      createRunner: () => createSessionRunner(process.execPath),
+      readJournal: async () => ({ kind: "unavailable" }),
+    };
+    const app = await startLaunchpad(
+      folder,
+      undefined,
+      undefined,
+      { base: world.base, version: "1.0.0", pill },
+      {},
+      {
+        path: world.root,
+        home: world.root,
+        platform: process.platform,
+        run: async () => "timeout",
+      },
+      {},
+      undefined,
+      moduleHost,
+    );
+    const url = new URL(app.url);
+    const auth = { Authorization: `Bearer ${url.hash.slice(1)}` };
+    const route = new URL("/api/update/everything", url);
+    const post = (override: Record<string, string> = {}) =>
+      fetch(route, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: url.origin,
+          ...auth,
+          ...override,
+        },
+        body: "{}",
+      });
+    const latest = async () =>
+      (await (await fetch(route, { headers: auth })).json()) as {
+        kind: string;
+        job: { id: string; state: string; lines: unknown[] } | null;
+      };
+    try {
+      expect(await latest()).toEqual({ kind: "update-everything", job: null });
+      // The admission of every route: the token, and the same origin for a
+      // write.
+      expect((await fetch(route)).status).toBe(403);
+      expect((await post({ Origin: "https://x.example" })).status).toBe(403);
+      expect(
+        (
+          await fetch(route, {
+            method: "POST",
+            headers: {
+              ...auth,
+              "Content-Type": "application/json",
+              Origin: url.origin,
+            },
+            body: '{"extra":1}',
+          })
+        ).status,
+      ).toBe(400);
+      const started = await post();
+      expect(started.status).toBe(202);
+      const first = (await started.json()) as { job: string; joined: boolean };
+      expect(first.joined).toBe(false);
+      // Lazurio's check verified 1.1.0 and the pill's action started it.
+      for (let attempt = 0; attempt < 500 && starts.length === 0; attempt++)
+        await Bun.sleep(10);
+      expect(starts).toEqual(["1.1.0"]);
+      // A second click joins the run under way.
+      const joined = await post();
+      expect([joined.status, await joined.json()]).toEqual([
+        202,
+        { kind: "update-everything", job: first.job, joined: true },
+      ]);
+      expect((await latest()).job).toMatchObject({
+        id: first.job,
+        state: "running",
+        lines: [{ part: "product", step: "checking" }],
+      });
+      release();
+      let job = (await latest()).job;
+      for (
+        let attempt = 0;
+        attempt < 500 && job?.state !== "succeeded";
+        attempt++
+      ) {
+        await Bun.sleep(10);
+        job = (await latest()).job;
+      }
+      // This Folder holds no Organization: content had nothing to do.
+      expect(job).toEqual({
+        id: first.job,
+        state: "succeeded",
+        lines: [{ part: "product", result: "started", to: "1.1.0" }],
+      });
+    } finally {
+      release();
+      await app.close();
+    }
+    // A Launchpad that is not an installed one runs no update.
+    const plain = await startLaunchpad(folder);
+    const plainUrl = new URL(plain.url);
+    try {
+      const response = await fetch(
+        new URL("/api/update/everything", plainUrl),
+        {
+          headers: { Authorization: `Bearer ${plainUrl.hash.slice(1)}` },
+        },
+      );
+      expect([response.status, await response.json()]).toEqual([
+        503,
+        { error: "update-unavailable" },
+      ]);
+    } finally {
+      await plain.close();
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "the pill's part of one update: current when nothing newer is verified, a failure by its code, and nothing started then",
+  async () => {
+    world = await createWorld();
+    const starts: string[] = [];
+    const activator: Activator = {
+      async start(version) {
+        starts.push(version);
+      },
+      async observe() {
+        return { inFlight: false, failure: null };
+      },
+    };
+    const pill = createUpdatePill({
+      environment: world.environment("1.0.0"),
+      activator,
+      poller: { startupDelayMs: 3_600_000, intervalMs: 3_600_000, jitterMs: 0 },
+    });
+    // No release yet: the check fails and says why.
+    const failed = await pill.updateNow();
+    expect(failed).toMatchObject({ part: "product", result: "failed" });
+    expect(typeof (failed as { code?: unknown }).code).toBe("string");
+    await world.release("1.0.0");
+    expect(await pill.updateNow()).toEqual({
+      part: "product",
+      result: "current",
+      version: "1.0.0",
+    });
+    expect(starts).toEqual([]);
   },
 );

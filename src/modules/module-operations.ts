@@ -401,6 +401,35 @@ export type ModuleAnswer = Readonly<{
   sync?: Readonly<{ result: "blocked"; reason: string }>;
 }>;
 
+/** One built app's answer when `lazurio update` builds what changed (root
+ * decision 0212 point 3, `refreshBuilt`). */
+export type BuiltRefresh = Readonly<{
+  /** The names the module routes take: the Organization's slug, the
+   * module's id and the app's package. */
+  organization: string;
+  module: string;
+  app: string;
+  /** `built`: its checkout moved past its build and was built now, and a
+   * running build swapped onto it; `current`: its checkout's build is there
+   * already; `failed`: it could not be built now (`reason`), or the last
+   * build of this same checkout failed, which only an explicit build tries
+   * again. What runs stays as it was. */
+  result: "built" | "current" | "failed";
+  /** The commit the build is (or would be) of. */
+  commit?: string;
+  /** `failed`: the build's own reason (`build-script-failed`, …). */
+  reason?: string;
+}>;
+
+/** A build `refreshBuilt` has begun, for a surface that shows progress. */
+export type BuiltProgress = Readonly<{
+  organization: string;
+  module: string;
+  app: string;
+  step: "building";
+  commit: string;
+}>;
+
 export type ModuleLogs = Readonly<{
   kind: "module-logs";
   organization: string;
@@ -2127,6 +2156,111 @@ export function createModuleOperations(input: {
       return served?.mode === "built"
         ? Object.freeze({ mode: "built", commit: served.commit })
         : Object.freeze({ mode: "dev", commit: null });
+    },
+    /** Build what changed, now (root decision 0212 point 3, the builds of
+     * `lazurio update`): every built app with a build state (someone opened
+     * it once) whose checkout moved past its build is built in the
+     * foreground, one after the other, as the sweep's refresh builds it in
+     * the background, and a running build is swapped onto it. A checkout whose last build
+     * failed is not built again here, and an app nobody opened is not built
+     * for the first time: its first Open builds it. The answer per app;
+     * nothing where this host keeps no builds, and nothing for the CLI
+     * beside a session's apps: their Launchpad owns their dependency trees
+     * until it ends (the lifecycle's retained lock), so it builds what moved
+     * itself, within seconds of the pull or at its next start. */
+    async refreshBuilt(
+      onProgress?: (progress: BuiltProgress) => void,
+    ): Promise<readonly BuiltRefresh[]> {
+      if (builder === undefined || host.builds === undefined) return [];
+      if (owner === "cli" && (await host.runnerKind()) === "session") return [];
+      const answers: BuiltRefresh[] = [];
+      const states = await listBuildStates(host.builds.cacheRoot).catch(
+        () => [],
+      );
+      for (const { state } of states) {
+        if (closing) break;
+        const where = {
+          organization: state.organization,
+          module: state.module,
+          app: state.app,
+        };
+        const answer = (
+          result: BuiltRefresh["result"],
+          extra: Readonly<{ commit?: string; reason?: string }> = {},
+        ) => answers.push(Object.freeze({ ...where, result, ...extra }));
+        try {
+          const prepared = await prepare(
+            "build",
+            `${state.organization}/${state.module}`,
+            { app: state.app },
+          );
+          // No longer in this Environment's catalog, or not runnable here:
+          // nothing to build.
+          if ("kind" in prepared) continue;
+          const plan = await builtPlan(prepared.target);
+          if (plan === null) continue;
+          const read = await buildContext(prepared.target);
+          if ("refused" in read) {
+            answer("failed", { reason: read.refused });
+            continue;
+          }
+          const store = storeOf(prepared.target, plan);
+          const recorded = await store.state();
+          if (
+            recorded?.current?.key === read.key &&
+            (await store.output(read.key)) !== null
+          ) {
+            answer("current", { commit: recorded.current.commit });
+            continue;
+          }
+          if (recorded?.failure?.key === read.key) {
+            answer("failed", {
+              commit: recorded.failure.commit,
+              reason: recorded.failure.reason,
+            });
+            continue;
+          }
+          if ((await toolchainMissing("build", prepared.target)) !== null) {
+            answer("failed", {
+              commit: read.head.commit,
+              reason: "toolchain-missing",
+            });
+            continue;
+          }
+          try {
+            onProgress?.(
+              Object.freeze({
+                ...where,
+                step: "building" as const,
+                commit: read.head.commit,
+              }),
+            );
+          } catch {}
+          const outcome = await builder.enqueue(
+            jobOf(prepared, plan),
+            "foreground",
+          );
+          if (outcome.kind !== "built") {
+            answer("failed", {
+              commit: read.head.commit,
+              reason:
+                outcome.kind === "failed"
+                  ? outcome.reason
+                  : outcome.kind === "busy"
+                    ? "build-busy"
+                    : "closing",
+            });
+            continue;
+          }
+          await swap(prepared, plan, outcome);
+          answer(outcome.already ? "current" : "built", {
+            commit: outcome.record.commit,
+          });
+        } catch {
+          answer("failed", { reason: "operation-failed" });
+        }
+      }
+      return Object.freeze(answers);
     },
     /** Keep the built apps people opened built after a pull (decision F58
      * point 7): the Launchpad watches the Git directories their builds read

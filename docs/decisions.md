@@ -460,7 +460,8 @@ upstream decision 0137 and requires the amendment listed above. The contract is 
 **Accepted direction (2026-09-19); installation implemented 2026-10-04 (addendum
 below); synchronization of existing repositories implemented 2026-10-24 (amendment
 below), automatic in the Launchpad (at its start, then hourly) and
-explicit as `lazurio organization sync`.** "Update Lazurio" changes product
+explicit as `lazurio organization sync`; one `lazurio update` composes both cores since
+the second amendment of 2026-10-24 (root decision 0212 point 3).** "Update Lazurio" changes product
 bytes; its contract is the product update document (`docs/update.md`, separate PR).
 "Synchronize content" changes Organization repositories; its contract is
 [content synchronization](content-sync.md). They have separate commands, buttons,
@@ -891,6 +892,80 @@ installation or a data mount's clone at a start in that moment answers `content-
 and is tried again; an Organization root whose `.gitignore` does not ignore its module
 directories is always dirty and never synchronized, which the doctor names; a public
 Environment's fetch still reads the checkout's own `url.*.insteadOf` (HTTPS only).
+
+### Second amendment of 2026-10-24: one `lazurio update` composes content, builds and Lazurio itself
+
+**Decided by Matěj (Organization Admin) on 2026-10-24 (root decision 0212 points 3, 4, 5
+and 7, HumanAndMachines/Lazurio#625; plan DEV-6656); implemented here for v0.1.12.**
+"Update Lazurio and Synchronize content are separate operations" stays true of their
+cores; it is no longer true of the commands. Root decision 0212 point 3: one `lazurio
+update`, with the same meaning on a computer and on an Environment, brings everything
+the user owns up to date, and agents run it before every task. Contract:
+[product update, One `lazurio update`](update.md#one-lazurio-update-content-builds-tools-and-lazurio-itself)
+and [content synchronization, When it runs](content-sync.md#when-it-runs).
+
+1. **One composition, four parts.** `updateEverything` (`src/update/everything.ts`) runs
+   the content (`syncContent`, every Organization the Environment holds), the builds
+   (`refreshBuilt`: every built app with a build state whose checkout moved past its
+   build, built in the foreground and swapped in, decision F58), the tools the modules
+   declare (a seam for DEV-6682, nothing yet) and Lazurio itself (`performUpdate`), and
+   answers an item per repository, built app and the product. Plain `lazurio update` runs
+   it; `--version` and `--check` stay Lazurio's only, and so does the pill.
+2. **Each core keeps its lock, outcome and failure isolation.** A part that fails or
+   cannot run is one item and never stops the next: content is synchronized when the
+   release cannot be verified, Lazurio is updated when GitHub refuses a repository. The
+   content part waits up to 2 minutes for another content operation before it answers
+   `content-busy`. The exit status stays the product's: a blocked checkout or a failed
+   build is a finding in its item.
+3. **Content and builds first, Lazurio last.** They change nothing that runs until a build
+   swaps, which refuses no connection; Lazurio's activation restarts the Launchpad. Last,
+   it never interrupts them, and the Launchpad's job has finished them before the restart.
+   0212 point 3 lists Lazurio first; this order is the Platform's choice for that reason,
+   to be confirmed in review.
+4. **Builds of what someone opened.** An app nobody opened gets no first build from an
+   update (its first Open builds it), and a commit whose build failed is not built again
+   (an explicit `lazurio module build` is). Beside a session's apps (a computer's
+   Launchpad on macOS), whose dependency trees their Launchpad owns until it ends, the
+   CLI builds nothing: the Launchpad's watcher builds and swaps what the content brought.
+5. **The Launchpad runs the same composition as a job** for Aktualizovat
+   (`POST`/`GET /api/update/everything`, behind the admission of every route; a click
+   while one runs joins it), with Lazurio last through the pill's own action, whose unit
+   outlives the restart it causes. Not on a public Environment, whose visitors do not own
+   it.
+6. **The Open of one module (point 4).** After the Launchpad answered a Start or Open, or
+   the gateway's `ensure` of a navigation, that module's checkout is synchronized in the
+   background (`createOpenSync`): at most once per module in 5 minutes, never for a
+   checkout or root the last round left blocked, never before the answer. The build
+   watcher builds and swaps. The background never updates Lazurio itself (point 4), and
+   the pipeline keeps owning the minimum version (point 5).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep two commands, `lazurio update` and `lazurio organization sync`, and have agents run both | The decision asks for one command with one meaning; two commands are two things to remember before every task; rejected |
+| One transaction over product and content | One lock would let a stuck fetch block a product update and the reverse; their failure isolation is the reason F9 kept them apart; rejected |
+| Lazurio first, then content and builds (the decision's listing) | The activation restarts the Launchpad, which would end the Launchpad's job before its content and builds, and the CLI's builds would race the restarted Launchpad's first sweep; the order only matters for a release that builds differently, which its own first sweep then does; rejected for content first |
+| The CLI re-executes the new version for content and builds after an activation | A second process and protocol for a rare case the next hourly round covers; rejected |
+| Build every built app of the Organization, opened or not | A first build installs a module's dependencies and can take minutes; agents run the update before every task; the Open builds what someone uses; rejected |
+| Rebuild a commit whose build failed at every update | Agents would pay for the same failure before every task; an explicit build does it; rejected |
+| Change the JSON to a new top-level shape | Every reader of `lazurio update --json` (the Launchpad's activators, scripts, agents) reads the product's answer; `items` beside it keeps them; rejected |
+| The Aktualizovat button starts the CLI in a transient unit and reads its progress from a file | Survives the restart, but adds a progress file and protocol; the Launchpad already runs both cores in its process, and the product's own unit already outlives the restart; rejected |
+| Synchronize at every Open, without a debounce | The gateway asks `ensure` at every navigation; a burst would be a fetch per request; rejected for once per 5 minutes per module |
+
+Tests: `tests/update-everything.test.ts` (the order and each line's steps; a failing
+product keeping the content's answers and the reverse; the wait for a busy content lock;
+the job that a second start joins; the CLI's words; the Open: exactly that module,
+debounced per module, never blocking, never for a blocked checkout or root; the module
+an answer names), `tests/module-built.test.ts` (on real git and real builds: `lazurio
+update --json` with no newer Lazurio and a module behind fast-forwards it, lists every
+item with Lazurio last, and the Launchpad swaps in the new build; the Launchpad's own run
+builds and swaps at once, does not build a failed commit again and gives an app nobody
+opened no first build; a failing Lazurio still answers the content) and
+`tests/launchpad-update.test.ts` (the routes behind the admission, a joined second
+click, Lazurio last through the pill; the pill's part when nothing is newer or the check
+fails). Risks: the Launchpad's job goes with the restart Lazurio's activation causes, so
+its lines after it are those the page last read; on a computer's session Launchpad the
+CLI reports no build items; a build of a big app holds an update for its minutes, which is
+the price of a build that is ready when someone opens it.
 
 ## F10 — Workspace presets and typed owner requests
 
