@@ -16983,7 +16983,7 @@ settings screen opens with one sentence, and Integrace's line under its title.
      fill it in, and it goes straight into the vault.") with its "Otevřít Chat", which
      point 5 of the addendum of 2026-10-18 kept. `VaultPageView` has no `guide`;
      `#vault-page-guide`, the panel's `chat` option and the words `vaultPageGuide` and
-     `vaultPageGuideChat` are gone.
+     `vaultPageGuideChat` are gone. The sentence itself moves into Trezor's "?" (point 5).
 3. **What stays under a title is a state, never an explanation:** Začínáme's count
    ("Hotovo 1 ze 3 kroků.", "Prostředí je připravené.") and "Tady není co nastavovat."
    where nothing is to be set up; Trezor's line where this Environment has no vault, and
@@ -16999,20 +16999,50 @@ settings screen opens with one sentence, and Integrace's line under its title.
    out of the flow as `.sr-only` does, so its live status line is still heard, and the
    page's first group starts where it starts on Obecné. This also closes the gap the
    addendum (2) above left on SSH ze zařízení and a Personal Environment's Trezor.
+5. **Trezor's "?" says how a value gets into the vault** (decided by Matěj the same day,
+   after point 2 had left the question open). The sentence, unchanged, is one more step of
+   the Launchpad's `vault-agents`: its first sentence is the step ("Potřebuje agent heslo
+   nebo klíč?", "Does an agent need a password or a key?", nine words, the guide's limit),
+   the rest its quieter line without the final full stop, which no line of the guide
+   carries; the ring is on the switch's Chat (`tab-chat`), where the person tells the
+   agent. It shows exactly where the vault takes an agent's request
+   (`vaultTakesRequests`, the line's own condition: connected, its session unlocked, no
+   setup running, never a 0197 pilot), for which `VaultGuideFacts` now carries the running
+   setup: in a Work Environment whose person is not a member of its vault (no account or
+   master password yet, removed, a vault that takes no Lazurio sign-in yet, the membership
+   not known yet), in a Team or Automated Environment, and so in a public one, whose vault
+   is a Team one. Anyone the Environment admits fills a request in, without an account in
+   the vault (F54). Where the vault takes none (no vault, a personal Bitwarden not
+   connected, a setup running, locked, not answering, a 0197 pilot) the step is not there,
+   so the "?" never describes what is not there.
 
-**Honest limits.** Trezor's line said how a secret reaches the vault: ask the agent in
-Chat, and it asks for the value on Trezor (F54). No "?" of Trezor says it: `vault-agents`
-names the vault, the agents' use and who sees its passwords, and the video and the
-principle `vault` are the approved ones. Where that is the way in (a Team or Automated
-Environment, whose people are not added to the vault) the explanation belongs to
-Trezor's "?", with words still to be decided; this addendum writes none. An agent that
+**Honest limits.** Two variants whose vault takes requests do not say it, because their
+"?" plays approved content the Launchpad does not compose. A Work Environment's member
+hears the approved video `vault-overview` in place (the addenda of 2026-10-18 and (4)):
+a video takes no step, and its box opens with the page, so a line in it would put the
+sentence back on the page. A Personal Environment, its own Bitwarden connected too, hears
+the shell's principle `vault`, whose words are the shell's: a host cannot add a step to a
+principle, and its own explanation keeps at most four steps. Both already say how the
+person puts a password into the vault themselves, from their own Bitwarden. Saying the
+request there as well is a decision of its own: a step of the principle that a host turns
+on where its vault takes requests (an addition to the shell's interface v1), and for a
+member a line in the video's box or the step guide in place of the video. An agent that
 needs a secret still asks for it on Trezor, where the page lists the agents' requests.
 
-Verified by `tests/launchpad-guide.test.ts` (both sentences, the element and the three
-words gone from the page and the catalog in both languages and every kind; the states
-that stay), `tests/public-environment.test.ts` (Začínáme of a public Environment without
-a sentence), `tests/vault-page-view.test.ts` and `tests/public-vault.test.ts`, and in
-headless Chrome against the previews before and after (root decision 0178).
+Verified by `tests/launchpad-guide.test.ts` (both sentences gone from the page, the
+demo's from the catalog too and Trezor's words only in the "?"'s step, the element and the
+three words gone, the states that stay; the approved sentence rebuilt from the step and
+its quieter line in both languages; `vaultTakesRequests` per state; the step exactly in
+`vault-agents` with a vault that takes a request, last and at Chat, in every kind,
+language and fact, and not in the member's video or a Personal Environment's principle),
+`tests/public-environment.test.ts` (Začínáme of a public Environment without a sentence),
+`tests/vault-page-view.test.ts` and `tests/public-vault.test.ts` (a public Environment's
+vault not set up yet without the step, a connected one's words with it), and in headless
+Chrome against the previews before and after (root decision 0178): Trezor's "?" in a
+hosted Work Environment in Czech and English and in a Team Environment plays four steps,
+the last the request with the ring on Chat; with no vault the video opens, waiting for a
+personal Bitwarden the principle plays without the step, and a member and a connected
+personal Bitwarden play the approved video and principle.
 
 ## F57 — Sleeping tabs: a tab nobody uses closes its window and keeps its place, under its id
 
