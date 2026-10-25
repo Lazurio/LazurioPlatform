@@ -28,7 +28,8 @@ their separation from product update. See
 
 *Amended on 2026-10-24 ([F9's second amendment](decisions.md#second-amendment-of-2026-10-24-one-lazurio-update-composes-content-builds-and-lazurio-itself), root decision 0212 point 3).*
 One `lazurio update` (and Nová karta's Aktualizovat, which runs the same composition)
-runs both: the content first, then the builds of what changed, then Lazurio itself
+runs both: the content first, then the Bun the moved modules pin, the builds of what
+changed, then Lazurio itself
 ([product update, One `lazurio update`](update.md#one-lazurio-update-content-tools-builds-and-lazurio-itself)).
 The two cores stay separate: each keeps its own lock and outcome, neither core starts the
 other, and a failure of one never blocks or implies the other; the command reports each

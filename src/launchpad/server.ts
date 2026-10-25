@@ -817,8 +817,10 @@ export async function startLaunchpad(
   };
   // One `lazurio update` from Nová karta's Aktualizovat (root decision 0212
   // points 3 and 7): the CLI's composition, run here as a job: the content,
-  // the builds of what changed (swapped in by this Launchpad), and Lazurio
-  // itself last through the pill, whose unit outlives the restart it causes.
+  // the Bun the moved modules pin, with this Launchpad's own resolver
+  // (decision F62), the builds of what changed (swapped in by this
+  // Launchpad), and Lazurio itself last through the pill, whose unit
+  // outlives the restart it causes.
   // Only on an installed Launchpad, and never on a public Environment, whose
   // visitors do not own it.
   const updates =
@@ -832,6 +834,10 @@ export async function startLaunchpad(
                   syncCheckouts === undefined
                     ? contentNotRun("not-installed")
                     : syncCheckouts({ onProgress }),
+                tools: {
+                  pins: (moved) => modules.runtimePins(moved),
+                  resolve: modules.resolveBun,
+                },
                 builds: (onProgress) => modules.refreshBuilt(onProgress),
                 product: async () =>
                   pill === undefined

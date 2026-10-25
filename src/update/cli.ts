@@ -133,14 +133,15 @@ update [--folder <absolute Folder>] [--json]
   Brings everything up to date, in this order (root decision 0212 point 3):
   the content (the clean primary checkouts of the Organizations this
   Environment holds on their published branch, as lazurio organization sync
-  does), the builds (every built app someone opened whose checkout moved past
-  its build is built and swapped in), then Lazurio itself as below. Each part
-  keeps its own lock and outcome, and one that fails or cannot run never stops
-  the next. The content and the builds need the Folder (--folder, the
-  supervised unit's, or in a Remote Environment the declared operator's);
-  without one only Lazurio is updated. --json adds items, one per repository,
-  built app and the product, to the product's own answer; the exit status is
-  the product's.
+  does), the tools (the Bun each app of a module that moved pins, fetched
+  into the runtime cache unless it is there already), the builds (every built
+  app someone opened whose checkout moved past its build is built and swapped
+  in), then Lazurio itself as below. Each part keeps its own lock and outcome,
+  and one that fails or cannot run never stops the next. The content, tools
+  and builds need the Folder (--folder, the supervised unit's, or in a Remote
+  Environment the declared operator's); without one only Lazurio is updated.
+  --json adds items, one per repository, pinned Bun, built app and the
+  product, to the product's own answer; the exit status is the product's.
 update --version <vX.Y.Z[-rc.N]> [--folder <absolute Folder>] [--json]
   Lazurio itself only, exactly that tag.
   Checks the latest release (or exactly the named tag), verifies its Sigstore
@@ -837,17 +838,19 @@ function productItem(result: UpdateResult): ProductItem {
   });
 }
 
-/** The content and builds of `lazurio update` for this Folder (root
+/** The content, tools and builds of `lazurio update` for this Folder (root
  * decision 0212 point 3): the content core with this install base's content
- * lock, and the module core as its CLI owner, which swaps an app the service
- * manager runs and leaves a session's app to its Launchpad's sweep. Nothing
- * without a Folder or without the context's module host: then `lazurio
- * update` is Lazurio's alone and answers exactly as before. */
-function contentAndBuilds(
+ * lock, and the module core as its CLI owner: it reads the Bun the moved
+ * modules pin and makes it available with its own resolver (decision F62),
+ * swaps an app the service manager runs and leaves a session's app to its
+ * Launchpad's sweep, which then finds that Bun in the cache. Nothing without
+ * a Folder or without the context's module host: then `lazurio update` is
+ * Lazurio's alone and answers exactly as before. */
+function folderParts(
   context: CliContext,
   base: string,
   folder: string | undefined,
-): Pick<UpdateParts, "content" | "builds"> | null {
+): Pick<UpdateParts, "content" | "tools" | "builds"> | null {
   if (context.modules === undefined || folder === undefined) return null;
   const { host, personalspace } = context.modules();
   const content = host.dataMounts;
@@ -866,6 +869,10 @@ function contentAndBuilds(
             { ...content, lockDirectory: contentLockDirectory(base) },
             { onProgress },
           ),
+    tools: {
+      pins: (moved) => operations.runtimePins(moved),
+      resolve: operations.resolveBun,
+    },
     builds: (onProgress) => operations.refreshBuilt(onProgress),
   };
 }
@@ -964,7 +971,7 @@ export async function runUpdateCommand(
     // to date, Lazurio last (root decision 0212 point 3).
     const parts =
       exact === undefined
-        ? contentAndBuilds(context, base, environment.folder)
+        ? folderParts(context, base, environment.folder)
         : null;
     let answered: UpdateResult | undefined;
     const items: readonly UpdateItem[] =

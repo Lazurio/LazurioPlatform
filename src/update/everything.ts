@@ -1,5 +1,11 @@
 import { randomBytes } from "node:crypto";
 import type { SyncEntry, SyncProgress, SyncRun } from "../content/sync";
+import {
+  type ModuleBunResolver,
+  prewarmModuleRuntimes,
+  type RuntimePrewarm,
+  type RuntimeReason,
+} from "../modules/bun-runtime";
 import type { BuiltProgress, BuiltRefresh } from "../modules/module-operations";
 
 // One `lazurio update` (root decision 0212 point 3, decision F9's second
@@ -9,8 +15,10 @@ import type { BuiltProgress, BuiltRefresh } from "../modules/module-operations";
 //
 //   1. content: the clean primary checkouts of the Organizations this
 //      Environment holds on their published branch (`syncContent`);
-//   2. tools: what the modules declare (DEV-6682; a seam, nothing yet),
-//      before any build, so a build never runs without its module's Bun;
+//   2. tools: the Bun each app of the module checkouts the content just
+//      fast-forwarded pins (decision F62), made available with the resolver
+//      a start uses (`prewarmModuleRuntimes`), before any build, so a build
+//      never waits for its module's Bun (DEV-6682);
 //   3. builds: every built app someone opened whose checkout moved past its
 //      build, built and swapped in (`refreshBuilt`, decision F58);
 //   4. product: Lazurio itself to the newest public release, last, because
@@ -18,10 +26,10 @@ import type { BuiltProgress, BuiltRefresh } from "../modules/module-operations";
 //
 // A part that fails, or cannot run, is one item of the answer and never
 // stops the next: content never waits for the product, nor the product for
-// content. The answer is a list of items, one per repository, built app and
-// product, and while it runs each item's step. The CLI prints it, and the
-// Launchpad runs the same composition as a job (`createUpdateJobs`) for the
-// Aktualizovat button of Nová karta.
+// content. The answer is a list of items, one per repository, pinned Bun,
+// built app and product, and while it runs each item's step. The CLI prints
+// it, and the Launchpad runs the same composition as a job
+// (`createUpdateJobs`) for the Aktualizovat button of Nová karta.
 
 /** Why the content part did not run. */
 export const contentNotRunReasons = [
@@ -62,10 +70,42 @@ export type ProductItem =
       reason: typeof productNotInstalled;
     }>;
 
+/** A module checkout the content part fast-forwarded in this run, as the
+ * synchronization names it: the Organization's GitHub login, its root
+ * relative to the Folder and the module's path relative to the root. */
+export type MovedModule = Readonly<{
+  organization: string;
+  root: string;
+  path: string;
+}>;
+
+/** The registry did not answer (decision F62): the first such refusal ends
+ * the pre-warm of the run. */
+export const runtimeUnavailable = "runtime-unavailable" satisfies RuntimeReason;
+/** A download that did not verify, or a program that reports another
+ * version (decision F62): tampered or broken, so a warning. */
+export const runtimeIntegrityFailed =
+  "runtime-integrity-failed" satisfies RuntimeReason;
+
+/** The tools part's answer for one Bun an app pins (decision F62), by its
+ * pin (`bun@x.y.z`). `cached`: there already (the user's Bun is that
+ * version, or the runtime cache holds it), nothing fetched; `fetched`: now
+ * in the runtime cache; `refused`: it could not be had, with the reason a
+ * start would give (a `runtime-*` reason, or `operation-failed`), and
+ * `warning` for a download that did not verify; `not-fetched`: not tried,
+ * because the registry did not answer for an earlier pin of this run. */
+export type ToolsItem = Readonly<{ part: "tools"; packageManager: string }> &
+  (
+    | Readonly<{ result: "cached" | "fetched" }>
+    | Readonly<{ result: "refused"; reason: string; warning?: true }>
+    | Readonly<{ result: "not-fetched"; reason: typeof runtimeUnavailable }>
+  );
+
 /** One item of the answer. */
 export type UpdateItem =
   | (Readonly<{ part: "content" }> & SyncEntry)
   | Readonly<{ part: "content"; result: "not-run"; reason: ContentNotRun }>
+  | ToolsItem
   | (Readonly<{ part: "build" }> & BuiltRefresh)
   | ProductItem
   | Readonly<{
@@ -74,11 +114,13 @@ export type UpdateItem =
       reason: typeof partFailed;
     }>;
 
-/** An item while it is under way. */
+/** An item while it is under way. A pin's `fetching` lasts while its Bun is
+ * made available: a fetch, or only the moment it takes to find it there. */
 export type UpdateStep =
   | (Readonly<{ part: "content" }> &
       Omit<SyncProgress, "entry" | "step"> &
       Readonly<{ step: "checking" | "fetching" | "fast-forwarding" }>)
+  | Readonly<{ part: "tools"; packageManager: string; step: "fetching" }>
   | (Readonly<{ part: "build" }> & BuiltProgress)
   | Readonly<{ part: "product"; step: "checking" }>;
 
@@ -90,12 +132,18 @@ export type UpdateParts = Readonly<{
   content: (
     onProgress: (progress: SyncProgress) => void,
   ) => Promise<SyncRun | Readonly<{ kind: "not-run"; reason: ContentNotRun }>>;
+  /** The Bun the apps of the module checkouts this run fast-forwarded pin
+   * (decision F62): their pins as the checkouts now declare them
+   * (`runtimePins` of the module core), and the resolver a start uses
+   * (the module core's `resolveBun`). Absent: no tools part. */
+  tools?: Readonly<{
+    pins: (moved: readonly MovedModule[]) => Promise<readonly string[]>;
+    resolve: ModuleBunResolver;
+  }>;
   /** Build what changed (`refreshBuilt`). */
   builds: (
     onProgress: (progress: BuiltProgress) => void,
   ) => Promise<readonly BuiltRefresh[]>;
-  /** The tools the modules declare (DEV-6682): none yet. */
-  tools?: () => Promise<readonly UpdateItem[]>;
   /** Lazurio itself, last. */
   product: () => Promise<ProductItem>;
 }>;
@@ -115,8 +163,29 @@ const keyOf = (line: UpdateLine): string => {
     return "app" in line
       ? `build\0${line.organization}\0${line.module}\0${line.app}`
       : "build";
+  if (line.part === "tools")
+    return "packageManager" in line ? `tools\0${line.packageManager}` : "tools";
   return line.part;
 };
+
+/** One pin's pre-warm as an item. */
+function toolsItem(result: RuntimePrewarm): ToolsItem {
+  if (result.kind !== "refused")
+    return Object.freeze({
+      part: "tools" as const,
+      packageManager: result.packageManager,
+      result: result.kind,
+    });
+  return Object.freeze({
+    part: "tools" as const,
+    packageManager: result.packageManager,
+    result: "refused" as const,
+    reason: result.reason,
+    ...(result.reason === runtimeIntegrityFailed
+      ? { warning: true as const }
+      : {}),
+  });
+}
 
 /** Runs the parts in order; `onChange` hears every line as it stands after
  * each change. The answer: every item, in the order the parts gave them. */
@@ -141,6 +210,7 @@ export async function updateEverything(
   const sleep = options.sleep ?? ((ms: number) => Bun.sleep(ms));
 
   // 1. Content, waiting a while for another content operation.
+  const moved: MovedModule[] = [];
   try {
     const onProgress = (progress: SyncProgress) => {
       if (progress.step === "done") {
@@ -165,18 +235,53 @@ export async function updateEverything(
           : null;
     if (why !== null) set({ part: "content", result: "not-run", reason: why });
     else if (run.kind === "content-sync")
-      for (const entry of run.entries) set({ part: "content", ...entry });
+      for (const entry of run.entries) {
+        set({ part: "content", ...entry });
+        if (entry.kind === "module" && entry.result === "fast-forwarded")
+          moved.push(
+            Object.freeze({
+              organization: entry.organization,
+              root: entry.root,
+              path: entry.path,
+            }),
+          );
+      }
   } catch {
     failed("content");
   }
 
-  // 2. The tools the modules declare (DEV-6682), before any build, so that
-  // a build never runs before the Bun its module pins is there.
-  try {
-    for (const item of (await parts.tools?.()) ?? []) set(item);
-  } catch {
-    failed("tools");
-  }
+  // 2. Tools (DEV-6682): the Bun each app of the checkouts the content just
+  // moved pins (decision F62), before any build, so that a build never waits
+  // for it. A pin can change only with a commit, and this run's commits are
+  // those the content brought; nothing moved, nothing to read. One pin at a
+  // time, each a line as soon as it is known. The first time the registry
+  // does not answer ends it: the pins after that one are `not-fetched`, never
+  // tried. A pin that cannot be had is an item, never a failed update.
+  if (parts.tools !== undefined && moved.length > 0)
+    try {
+      let unanswered = false;
+      for (const packageManager of new Set(await parts.tools.pins(moved))) {
+        if (unanswered) {
+          set({
+            part: "tools",
+            packageManager,
+            result: "not-fetched",
+            reason: runtimeUnavailable,
+          });
+          continue;
+        }
+        set({ part: "tools", packageManager, step: "fetching" });
+        for (const result of await prewarmModuleRuntimes(parts.tools.resolve, [
+          packageManager,
+        ])) {
+          set(toolsItem(result));
+          unanswered =
+            result.kind === "refused" && result.reason === runtimeUnavailable;
+        }
+      }
+    } catch {
+      failed("tools");
+    }
 
   // 3. Builds of what changed, the content's new commits among them.
   try {
@@ -279,10 +384,17 @@ const short = (commit: string | undefined) => commit?.slice(0, 12) ?? "";
 const where = (entry: SyncEntry) =>
   entry.path === "." ? entry.root : `${entry.root}/${entry.path}`;
 
-/** What `lazurio update` prints of content and builds, before the product's
- * own lines: a repository that moved or is left as it is, and a summary;
- * a built app that was built or could not be. Nothing where the part had
- * nothing to do here (an Environment that keeps no Organization). */
+/** A pin in words: `bun@1.4.3` is Bun 1.4.3. */
+const bunOf = (packageManager: string) =>
+  packageManager.startsWith("bun@")
+    ? `Bun ${packageManager.slice("bun@".length)}`
+    : packageManager;
+
+/** What `lazurio update` prints of content, tools and builds, before the
+ * product's own lines: a repository that moved or is left as it is, and a
+ * summary; a pinned Bun fetched or not; a built app that was built or could
+ * not be. Nothing where the part had nothing to do here (an Environment that
+ * keeps no Organization, a Bun that was there already). */
 export function everythingText(items: readonly UpdateItem[]): string[] {
   const lines: string[] = [];
   const entries: SyncEntry[] = [];
@@ -322,6 +434,28 @@ export function everythingText(items: readonly UpdateItem[]): string[] {
     lines.push(
       `Content: ${entries.length} repositories checked, ${moved} fast-forwarded, ${left} left as they are.`,
     );
+  }
+  for (const item of items) {
+    if (item.part !== "tools") continue;
+    if (!("packageManager" in item)) {
+      lines.push("Tools failed (operation-failed).");
+      continue;
+    }
+    const bun = bunOf(item.packageManager);
+    if (item.result === "fetched")
+      lines.push(`Fetched ${bun} for the apps that pin it.`);
+    else if (item.result === "not-fetched")
+      lines.push(
+        `${bun} was not tried: the registry did not answer this run (${item.reason}).`,
+      );
+    else if (item.result === "refused")
+      lines.push(
+        item.warning
+          ? `Warning: ${bun} did not verify and was discarded (${item.reason}).`
+          : item.reason === runtimeUnavailable
+            ? `${bun} was not fetched: the registry did not answer (${item.reason}).`
+            : `${bun} was not fetched (${item.reason}).`,
+      );
   }
   for (const item of items) {
     if (item.part !== "build") continue;

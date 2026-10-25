@@ -857,20 +857,50 @@ Aktualizovat button runs it by hand. One composition (`updateEverything` in
    When another content operation holds the Folder's lock (the hourly round, an
    installation) it asks again every 2 seconds for up to 2 minutes, then answers
    `content-busy`.
-2. **Tools** the modules declare (root decision 0171): a seam for DEV-6682, nothing yet. They
-   come before any build, so a build never runs before the Bun its module pins is there.
+2. **Tools**: the Bun each app pins (`packageManager: bun@x.y.z`, decision F62, root
+   decision 0171 addendum of 2026-10-24; plan DEV-6682), before any build, so a build
+   never waits for it. The pins are those of every app the module checkouts the content
+   part fast-forwarded in this run declare, read from the commits it brought, each pin
+   once (`runtimePins` in the module core). Each is made available with the resolver a
+   start uses (`prewarmModuleRuntimes` with the module core's `resolveBun`): the user's
+   Bun when it is that version, the runtime cache, or a verified fetch into it. One pin
+   at a time:
+   - a pin there already, the user's own Bun included, is `cached`, and nothing is
+     fetched; a fetched one is `fetched`;
+   - **offline**: the first `runtime-unavailable` (the registry did not answer) ends the
+     pre-warm for the run. That pin is `refused` with that reason, and every pin after it
+     is `not-fetched` with the same reason, never tried;
+   - every other refusal is `refused` with the reason a start would give
+     (`runtime-version-unknown`, `runtime-disk-full`, `runtime-unsupported-platform`,
+     `operation-failed`), and the pre-warm goes on. `runtime-integrity-failed`, a
+     download that did not verify or a program that reports another version, is also
+     `warning: true`: it was discarded, never used;
+   - the pre-warm never fails the update: its items are findings, and the exit status
+     stays the product's.
+
+   When nothing moved, nothing is read. Apps whose checkout this run did not move are not
+   pre-warmed, even those with a build state whose pin is not cached: a pin changes only
+   with a commit, and this run's commits are those the content brought; the build of any
+   other app resolves its own pin first through the same resolver (F62 point 6), and an
+   app whose build is current needs no Bun of its own until it starts its own server.
+   Pre-warming every opened app's pin would fetch about 70 MB per version nothing in this
+   run asked for.
 3. **Builds.** Every built app with a build state (someone opened it once) whose checkout
    moved past its build is built in the foreground and swapped in where it runs (decision
    F58's refresh, `refreshBuilt` in the module core). A commit whose last build failed is
    not built again here (an explicit `lazurio module build` does that), and an app nobody
-   opened gets no first build: its first Open builds it. On a computer whose Launchpad runs
-   its apps in its own session (macOS), that Launchpad owns their dependency trees until it
-   ends, so the CLI leaves their builds to it: its build watcher builds and swaps what the
-   content brought within seconds, or at its next start.
+   opened gets no first build: its first Open builds it. On a computer whose Launchpad
+   runs its apps in its own session
+   (macOS), that Launchpad owns their dependency trees until it ends, so the CLI leaves
+   their builds to it: its build watcher builds and swaps what the content brought within
+   seconds, or at its next start, and finds the Bun the CLI's tools part fetched in the
+   runtime cache they share (a build that starts while that fetch is under way waits for
+   it under the version's exclusion, F62 point 3).
 4. **Lazurio itself**, as the rest of this document describes, last.
 
-**Why this order.** Content and builds change nothing that runs until a build swaps, and a
-swap refuses no connection (F58); the product's activation restarts the Launchpad. Run
+**Why this order.** Content, tools and builds change nothing that runs until a build swaps
+(a fetched Bun is a new directory of the runtime cache), and a swap refuses no connection
+(F58); the product's activation restarts the Launchpad. Run
 last, a restart never interrupts the other parts, and in the Launchpad the job has done
 everything else before it goes down with the restart. A new Lazurio that would build
 differently does so at its own first sweep. The decision lists the parts with Lazurio
@@ -882,13 +912,14 @@ is updated when GitHub refuses a repository.
 
 **The answer.** With `--json`, the product's own answer as before (`updated`,
 `up-to-date` or `error`, with every key this document names) gains `items`, one per
-repository, built app and the product, in the order the parts gave them:
+repository, pinned Bun, built app and the product, in the order the parts gave them:
 
 ```json
 {"kind":"up-to-date","running":"0.1.12","latest":"0.1.12","folderRefresh":null,
  "items":[
   {"part":"content","organization":"Alpha","root":"organizations/alpha","path":".","kind":"root","branch":"main","result":"current","at":"…"},
   {"part":"content","organization":"Alpha","root":"organizations/alpha","path":"workspace/site","kind":"module","branch":"main","result":"fast-forwarded","from":"…","to":"…","at":"…"},
+  {"part":"tools","packageManager":"bun@1.4.3","result":"fetched"},
   {"part":"build","organization":"alpha","module":"site","app":"app/package.json","result":"built","commit":"…"},
   {"part":"product","result":"current","version":"0.1.12"}]}
 ```
@@ -896,15 +927,19 @@ repository, built app and the product, in the order the parts gave them:
 A content item is a repository's answer of the synchronization (`fast-forwarded`,
 `current`, `blocked` with its reason, `absent`, `denied`, `unavailable`, `failed`), or the
 part as a whole: `{"part":"content","result":"not-run","reason"}` with `folder-unreadable`,
-`not-for-this-environment`, `content-busy` or `not-installed`. A
+`not-for-this-environment`, `content-busy` or `not-installed`. A tools item is a pinned
+Bun by its pin (`packageManager`): `cached`, `fetched`, `refused` with its reason (and
+`warning: true` for `runtime-integrity-failed`) or `not-fetched` with
+`runtime-unavailable`. A
 build item is `built`, `current` or `failed` with the build's own reason; what runs stays
 as it was. The product item is `current`, `updated` (`from`, `to`), `started` (the
 Launchpad's run, below), `failed` with its code, or `not-run`. A part that threw is
 `{"part","result":"failed","reason":"operation-failed"}`. Without `--json` the lines of a
-repository that moved or is left as it is, a summary of the content, a line per app built
-or not built, then the product's own lines as before. The exit status is the product's,
-as before: a blocked checkout or a failed build is a finding in its item, never a failed
-command. Content and builds need the Folder (`--folder`, the supervised unit's, or in a
+repository that moved or is left as it is, a summary of the content, a line per pinned
+Bun fetched or not (a warning first for one that did not verify; nothing for one that was
+there already), a line per app built or not built, then the product's own lines as before. The exit status is the product's,
+as before: a blocked checkout, a pinned Bun that could not be had or a failed build is a
+finding in its item, never a failed command. Content, tools and builds need the Folder (`--folder`, the supervised unit's, or in a
 Remote Environment the declared operator's); without one only Lazurio is updated and its
 answer is exactly as before, without `items`. `lazurio update --version <tag>` and `--check` name Lazurio only,
 as does the Launchpad's pill.
@@ -916,9 +951,11 @@ local token, or the gateway's session and the same origin for a write), and answ
 with `joined: true`, so a second click joins it. `GET /api/update/everything` answers the
 newest run, `{kind, job: {id, state: "running" | "succeeded", lines} | null}`, where each
 line is an item's step while under way (`checking`, `fetching` and `fast-forwarding` with
-the commit it moves to, `building` with its commit, Lazurio's `checking`) and then its
-answer. Its content part is the Launchpad's own synchronization, its builds are swapped
-in by the Launchpad at once, and Lazurio is updated through the pill's own action, which
+the commit it moves to, a pin's `fetching` while its Bun is made available, `building`
+with its commit, Lazurio's `checking`) and then its answer. Its content part is the
+Launchpad's own synchronization, its tools part pre-warms with the Launchpad's own
+resolver, whose fetches its builds share, its builds are swapped in by the Launchpad at
+once, and Lazurio is updated through the pill's own action, which
 starts `lazurio update --version` in the unit that outlives the restart it causes
 (`result: "started"`). The job lives in the Launchpad's memory and ends with it; what the
 run did stays in its owners' records (the content's record, the builds' states, the
