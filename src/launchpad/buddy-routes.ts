@@ -26,10 +26,12 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 //   POST /api/buddy/sign-in/cancel  {session} → cancelled | none
 //   POST /api/buddy/sign-out        {} → signed-out | failed
 //
-// A start, a cancel and a sign-out that needed a running sign-in to end and
-// did not get Hermes's word that it did change nothing: 409 `blocked`
-// `sign-in-running`; without Buddy's gateway 503 `buddy-unavailable` with its
-// reason. Each POST takes exactly its fields, as JSON of at most 16 KiB (413),
+// A start, a cancel and a sign-out that need a held sign-in to end change
+// nothing while it may still complete: 409 `blocked` with `sign-in-finishing`
+// (Hermes no longer holds it, and its worker's last round may still save; try
+// again in a few minutes) or `sign-in-running` (Hermes did not confirm the
+// cancel); without Buddy's gateway 503 `buddy-unavailable` with its reason.
+// Each POST takes exactly its fields, as JSON of at most 16 KiB (413),
 // only as `application/json` (415); another method is 405 and any query 400.
 // The code and the page go only to the holder of the session's handle. The
 // core journals each operation, its outcome and its reason, never a code, a

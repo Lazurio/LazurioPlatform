@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { createHermesGateway } from "../src/buddy/hermes-gateway";
 import {
   type BuddySignInJournalEntry,
-  buddySignInExpiryGraceMs,
+  buddySignInFinishingMs,
   buddySignInPollMs,
   createBuddySignIn,
 } from "../src/buddy/sign-in";
@@ -33,12 +33,12 @@ async function within(
     fake: FakeHermesGateway,
     signIn: ReturnType<typeof createBuddySignIn>,
     journal: BuddySignInJournalEntry[],
-    clock: { now: number },
+    clock: Clock,
   ) => Promise<void>,
 ) {
   const fake = await fakeHermesGateway(options);
   const journal: BuddySignInJournalEntry[] = [];
-  const clock = { now: Date.parse("2026-10-25T08:00:00Z") };
+  const clock: Clock = { now: Date.parse("2026-10-25T08:00:00Z"), mono: 1_000 };
   try {
     await body(
       fake,
@@ -49,6 +49,7 @@ async function within(
           controlMs: 1_000,
         }),
         now: () => clock.now,
+        monotonic: () => clock.mono,
         journal: (entry) => journal.push(entry),
       }),
       journal,
@@ -58,6 +59,16 @@ async function within(
     await fake.close();
   }
 }
+
+type Clock = { now: number; mono: number };
+/** Time passes on both clocks. */
+const advance = (clock: Clock, ms: number) => {
+  clock.now += ms;
+  clock.mono += ms;
+};
+/** When the worker of a start answered as recorded (900 s, 5 s) can no
+ * longer save, after the answer arrived. */
+const finishingMs = buddySignInFinishingMs(900, 5);
 
 const hermesIds = (fake: FakeHermesGateway) => [
   ...[...Array(10).keys()].map(
@@ -273,10 +284,13 @@ posix(
       await ending("cancelled", null, "lost");
       await ending("something-new", null, "failed");
 
-      // Hermes no longer knows it: its 404.
+      // Hermes no longer holds it (its 404), in the same instance: lost
+      // only once its worker's last round has passed.
       const forgotten = await signIn.start();
       if (forgotten.kind !== "pending") throw new Error("not pending");
-      fake.sessions.clear();
+      fake.collect([...fake.sessions.keys()].at(-1) as string);
+      expect(await signIn.poll(forgotten.session)).toEqual(forgotten);
+      advance(clock, finishingMs);
       expect(await signIn.poll(forgotten.session)).toEqual({
         kind: "failed",
         reason: "lost",
@@ -314,13 +328,16 @@ posix(
       const late = await signIn.start();
       if (late.kind !== "pending") throw new Error("not pending");
       const lateOnHermes = [...fake.sessions.keys()].at(-1) as string;
-      clock.now += 900_000;
+      advance(clock, 900_000 + 10_000);
       const deletes = () =>
         fake.requests.filter((request) => request.method === "DELETE").length;
       const before = deletes();
       expect(await signIn.poll(late.session)).toEqual(late);
       expect(deletes()).toBe(before);
-      clock.now += buddySignInExpiryGraceMs;
+      advance(clock, finishingMs - 910_001);
+      expect(await signIn.poll(late.session)).toEqual(late);
+      expect(deletes()).toBe(before);
+      advance(clock, 1);
       expect(await signIn.poll(late.session)).toEqual({
         kind: "failed",
         reason: "expired",
@@ -690,7 +707,7 @@ posix(
     within({}, async (fake, signIn, _journal, clock) => {
       const late = await signIn.start();
       if (late.kind !== "pending") throw new Error("not pending");
-      clock.now += 900_000 + buddySignInExpiryGraceMs;
+      advance(clock, finishingMs);
       fake.state.http = sessionDeletes(() =>
         Response.json({ detail: "Internal Server Error" }, { status: 500 }),
       );
@@ -706,6 +723,223 @@ posix(
         reason: "expired",
       });
       expect(fake.sessions.size).toBe(0);
+    }),
+);
+
+// Pablo's second review of #635: at v0.22.4-lazurio.1 Hermes's 15-minute
+// clean-up removes a session without marking it cancelled, and its worker,
+// which keeps the record, may still save in its last round. "Session not
+// found" and a poll's 404 end a sign-in only from another gateway instance or
+// once that round has certainly passed.
+const finishingAnswer = {
+  kind: "blocked",
+  reason: "sign-in-finishing",
+} as const;
+
+posix(
+  "a session the clean-up removed in the same instance may still save: replacement, cancel and sign-out wait for its worker's last round, a poll keeps waiting",
+  () =>
+    within({ signedIn: true }, async (fake, signIn, journal, clock) => {
+      const started = await signIn.start();
+      if (started.kind !== "pending") throw new Error("not pending");
+      const id = "Fixture_Session_000001";
+      // Fifteen minutes on, another start's clean-up removes it while its
+      // worker is in its last round.
+      advance(clock, 900_000 + 10_000);
+      fake.collect(id);
+      expect(await signIn.poll(started.session)).toEqual(started);
+      expect(await signIn.start()).toEqual(finishingAnswer);
+      expect(await signIn.cancel(started.session)).toEqual(finishingAnswer);
+      expect(await signIn.signOut()).toEqual(finishingAnswer);
+      // Nothing started, nothing was signed out.
+      expect(
+        fake.requests.filter((request) => request.path.endsWith("/start")),
+      ).toHaveLength(1);
+      expect(
+        fake.requests.filter(
+          (request) =>
+            request.method === "DELETE" &&
+            request.path === "/api/providers/oauth/openai-codex",
+        ),
+      ).toHaveLength(0);
+      // Its worker saves meanwhile: a real sign-in nobody was told otherwise
+      // about.
+      fake.approve(id);
+      expect(fake.state.signedIn).toBe(true);
+      // Up to the last moment of its last round it still waits ...
+      advance(clock, finishingMs - 910_001);
+      expect(await signIn.cancel(started.session)).toEqual(finishingAnswer);
+      expect(await signIn.poll(started.session)).toEqual(started);
+      // ... and from then on Hermes's "not found" is an end.
+      advance(clock, 1);
+      expect(await signIn.poll(started.session)).toEqual({
+        kind: "failed",
+        reason: "lost",
+      });
+      expect(await signIn.signOut()).toEqual({ kind: "signed-out" });
+      expect(fake.state.signedIn).toBe(false);
+      expect(journal).toEqual([
+        { operation: "start", outcome: "pending" },
+        { operation: "start", outcome: "blocked", reason: "sign-in-finishing" },
+        {
+          operation: "cancel",
+          outcome: "blocked",
+          reason: "sign-in-finishing",
+        },
+        {
+          operation: "sign-out",
+          outcome: "blocked",
+          reason: "sign-in-finishing",
+        },
+        {
+          operation: "cancel",
+          outcome: "blocked",
+          reason: "sign-in-finishing",
+        },
+        { operation: "poll", outcome: "failed", reason: "lost" },
+        { operation: "sign-out", outcome: "signed-out" },
+      ]);
+    }),
+);
+
+posix(
+  "after the last round the clean-up's 'not found' lets a replacement, a cancel and a sign-out go ahead",
+  () =>
+    within({ signedIn: true }, async (fake, signIn, _journal, clock) => {
+      for (const operation of ["start", "cancel", "sign-out"] as const) {
+        const started = await signIn.start();
+        if (started.kind !== "pending") throw new Error("not pending");
+        fake.collect([...fake.sessions.keys()].at(-1) as string);
+        advance(clock, finishingMs);
+        const answer =
+          operation === "start"
+            ? await signIn.start()
+            : operation === "cancel"
+              ? await signIn.cancel(started.session)
+              : await signIn.signOut();
+        expect(answer.kind).toBe(
+          operation === "start"
+            ? "pending"
+            : operation === "cancel"
+              ? "cancelled"
+              : "signed-out",
+        );
+        // A replacement holds the next sign-in: end it for the next round.
+        if (answer.kind === "pending") await signIn.cancel(answer.session);
+      }
+      expect(fake.state.signedIn).toBe(false);
+    }),
+);
+
+posix(
+  "from another gateway instance, Hermes's 'not found' and its poll's 404 end a sign-in at once: its worker's process is gone",
+  () =>
+    within({ signedIn: true }, async (fake, signIn, journal) => {
+      // A poll.
+      const polled = await signIn.start();
+      if (polled.kind !== "pending") throw new Error("not pending");
+      fake.restart();
+      expect(await signIn.poll(polled.session)).toEqual({
+        kind: "failed",
+        reason: "lost",
+      });
+      // A replacement.
+      const replaced = await signIn.start();
+      if (replaced.kind !== "pending") throw new Error("not pending");
+      fake.restart();
+      const replacement = await signIn.start();
+      expect(replacement.kind).toBe("pending");
+      // A cancel.
+      if (replacement.kind !== "pending") throw new Error("not pending");
+      fake.restart();
+      expect(await signIn.cancel(replacement.session)).toEqual({
+        kind: "cancelled",
+      });
+      // A sign-out.
+      const signedOut = await signIn.start();
+      if (signedOut.kind !== "pending") throw new Error("not pending");
+      fake.restart();
+      expect(await signIn.signOut()).toEqual({ kind: "signed-out" });
+      expect(journal.map((entry) => entry.outcome)).toEqual([
+        "pending",
+        "failed",
+        "pending",
+        "cancelled",
+        "pending",
+        "cancelled",
+        "pending",
+        "cancelled",
+        "signed-out",
+      ]);
+    }),
+);
+
+posix(
+  "the bound counts the interval Hermes answered, and the monotonic clock only",
+  () =>
+    within({}, async (fake, signIn, _journal, clock) => {
+      // Hermes's worker at v0.22.4-lazurio.1: the code's 900 s, one more
+      // interval (5 s recorded), one poll request (4 x 15 s), the token
+      // exchange (3 x 60 s, 1 s and 2 s apart), the save's lock (15 s) and
+      // 60 s of margin.
+      expect(finishingMs).toBe(
+        (900 + 5) * 1000 + 60_000 + 183_000 + 15_000 + 60_000,
+      );
+      expect(finishingMs).toBe(1_223_000);
+      // An interval of 200 s keeps the worker's last round 195 s longer.
+      fake.state.http = (request) =>
+        request.path.endsWith("/start")
+          ? Response.json({
+              ...recorded.http.start.body,
+              session_id: "Fixture_Session_slow01",
+              poll_interval: 200,
+            })
+          : undefined;
+      fake.sessions.set("Fixture_Session_slow01", {
+        status: "pending",
+        error_message: null,
+      });
+      const slow = await signIn.start();
+      if (slow.kind !== "pending") throw new Error("not pending");
+      fake.state.http = undefined;
+      fake.collect("Fixture_Session_slow01");
+      advance(clock, finishingMs);
+      expect(await signIn.cancel(slow.session)).toEqual(finishingAnswer);
+      advance(clock, buddySignInFinishingMs(900, 200) - finishingMs);
+      expect(await signIn.cancel(slow.session)).toEqual({ kind: "cancelled" });
+      // Without an interval of a known shape, a long one is assumed.
+      fake.state.http = (request) =>
+        request.path.endsWith("/start")
+          ? Response.json({
+              ...recorded.http.start.body,
+              session_id: "Fixture_Session_none01",
+              poll_interval: "5",
+            })
+          : undefined;
+      fake.sessions.set("Fixture_Session_none01", {
+        status: "pending",
+        error_message: null,
+      });
+      const unknown = await signIn.start();
+      if (unknown.kind !== "pending") throw new Error("not pending");
+      fake.state.http = undefined;
+      fake.collect("Fixture_Session_none01");
+      advance(clock, buddySignInFinishingMs(900, 599));
+      expect(await signIn.cancel(unknown.session)).toEqual(finishingAnswer);
+      advance(clock, 1_000);
+      expect(await signIn.cancel(unknown.session)).toEqual({
+        kind: "cancelled",
+      });
+      // The wall clock jumping forward an hour proves nothing.
+      const started = await signIn.start();
+      if (started.kind !== "pending") throw new Error("not pending");
+      fake.collect([...fake.sessions.keys()].at(-1) as string);
+      clock.now += 3_600_000;
+      expect(await signIn.cancel(started.session)).toEqual(finishingAnswer);
+      clock.mono += finishingMs;
+      expect(await signIn.cancel(started.session)).toEqual({
+        kind: "cancelled",
+      });
     }),
 );
 

@@ -91,7 +91,12 @@ export type GatewayEndpoint = Readonly<{
 
 /** One answer of Hermes's dashboard API: its status and its JSON body
  * (undefined for anything else). */
-export type GatewayAnswer = Readonly<{ status: number; body: unknown }>;
+type HttpAnswer = Readonly<{ status: number; body: unknown }>;
+
+/** An answer, and the gateway instance that gave it (its `identify`'s
+ * `instance_id`, which every ticket is bound to): a new instance is a new
+ * gateway process, and nothing of the one before runs in it. */
+export type GatewayAnswer = HttpAnswer & Readonly<{ instanceId: string }>;
 
 export type GatewayMethod = "GET" | "POST" | "DELETE";
 
@@ -399,11 +404,11 @@ function httpExchange(
   path: string,
   ticket: string,
   timeoutMs: number,
-): Promise<GatewayResult<GatewayAnswer>> {
+): Promise<GatewayResult<HttpAnswer>> {
   const url = new URL(origin);
   return new Promise((resolve) => {
     let settled = false;
-    const finish = (result: GatewayResult<GatewayAnswer>) => {
+    const finish = (result: GatewayResult<HttpAnswer>) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -516,7 +521,11 @@ export function createHermesGateway(
           body.error === "gateway_not_ready"
         )
           return failed(body.state === "draining" ? "draining" : "not-ready");
-        return answer;
+        return succeeded({
+          status,
+          body,
+          instanceId: endpoint.value.instanceId,
+        });
       }
     },
   });

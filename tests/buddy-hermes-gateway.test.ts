@@ -232,9 +232,21 @@ posix(
       );
       expect(failed).toEqual({
         ok: true,
-        value: { status: 500, body: recorded.derived.startFailed.body },
+        value: {
+          status: 500,
+          body: recorded.derived.startFailed.body,
+          instanceId: recorded.control.identify.result.instance_id,
+        },
       });
       expect(fake.requests).toHaveLength(1);
+      // Each answer names the instance that gave it; a restart is another.
+      fake.state.http = undefined;
+      fake.restart();
+      const after = await client(fake).request("GET", "/api/providers/oauth");
+      expect(after.ok && after.value.instanceId).toBe(fake.state.instance);
+      expect(fake.state.instance).not.toBe(
+        recorded.control.identify.result.instance_id,
+      );
 
       // The listener stopped taking requests after identify.
       fake.state.http = () =>

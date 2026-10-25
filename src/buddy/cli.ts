@@ -19,6 +19,7 @@ import { type BuddyChat, buddyChat } from "./chat";
 import { createHermesGateway, type HermesGateway } from "./hermes-gateway";
 import {
   type BuddySignInAnswer,
+  type BuddySignOutAnswer,
   buddySignInPollMs,
   createBuddySignIn,
 } from "./sign-in";
@@ -70,9 +71,12 @@ buddy sign-out [--folder <absolute Folder>] [--json]
   then each change on its own line until it ends: signed-in, or failed with
   expired, refused (OpenAI refused a sign-in by code), lost (Buddy's gateway
   restarted) or failed. Ctrl-C cancels it on Hermes ({kind: "cancelled"}
-  once Hermes confirmed it; {kind: "blocked", reason: "sign-in-running"}
-  when it did not, and the sign-in may still complete). Buddy keeps working
-  on his sign-in until a new one replaces it. sign-out: Hermes forgets
+  once it can no longer complete). While it still may, nothing is cancelled:
+  {kind: "blocked", reason: "sign-in-finishing"} when Hermes no longer holds
+  it but its last round may still sign Buddy in (try again in a few
+  minutes), or "sign-in-running" when Hermes did not confirm the cancel; a
+  line on stderr says so in words. Buddy keeps working on his sign-in until
+  a new one replaces it. sign-out: Hermes forgets
   Buddy's sign-in ({kind: "signed-out"}); Buddy stops answering until he is
   signed in again. Without Buddy's gateway {kind: "unavailable", reason};
   without Buddy here {kind: "blocked", reason: "buddy-absent"}. JSON on
@@ -222,9 +226,28 @@ export async function runBuddyCommand(
     return {
       code: answer.kind === "signed-out" ? exitOk : exitFailure,
       stdout: JSON.stringify(answer),
+      ...blockedWords(answer),
     };
   }
-  return { code: await holdSignIn(signIn, context), stdout: "" };
+  const answer = await holdSignIn(signIn, context);
+  return {
+    code: answer.kind === "signed-in" ? exitOk : exitFailure,
+    stdout: "",
+    ...blockedWords(answer),
+  };
+}
+
+/** A blocked answer in words, on stderr. */
+function blockedWords(
+  answer: BuddySignInAnswer | BuddySignOutAnswer,
+): Readonly<{ stderr?: string }> {
+  if (answer.kind !== "blocked") return {};
+  return {
+    stderr:
+      answer.reason === "sign-in-finishing"
+        ? "Buddy's previous sign-in may still finish. Try again in a few minutes."
+        : "Buddy's sign-in could not be cancelled and may still finish. Try again.",
+  };
 }
 
 /** `sign-in start`: the terminal holds the sign-in for as long as it runs,
@@ -232,7 +255,7 @@ export async function runBuddyCommand(
 async function holdSignIn(
   signIn: ReturnType<typeof createBuddySignIn>,
   context: BuddyContext,
-): Promise<number> {
+): Promise<BuddySignInAnswer> {
   const write = context.write ?? ((line: string) => console.log(line));
   const pollMs = context.pollMs ?? buddySignInPollMs;
   const aborted = new Promise<"aborted">((resolve) => {
@@ -262,5 +285,5 @@ async function holdSignIn(
     if (next !== shown) write(next);
     shown = next;
   }
-  return state.kind === "signed-in" ? exitOk : exitFailure;
+  return state;
 }

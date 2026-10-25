@@ -373,6 +373,33 @@ posix(
 );
 
 posix(
+  "a sign-in Hermes's clean-up removed while its worker may still save answers 409 sign-in-finishing, and its poll keeps waiting",
+  async () => {
+    const app = await hosted("buddy", { signedIn: true });
+    try {
+      const started = await app.post(buddyRoutePaths.start);
+      const handle = started.body.session as string;
+      app.fake.collect("Fixture_Session_000001");
+      const finishing = {
+        status: 409,
+        body: { kind: "blocked", reason: "sign-in-finishing" },
+      };
+      expect(await app.post(buddyRoutePaths.poll, { session: handle })).toEqual(
+        started,
+      );
+      expect(await app.post(buddyRoutePaths.start)).toEqual(finishing);
+      expect(
+        await app.post(buddyRoutePaths.cancel, { session: handle }),
+      ).toEqual(finishing);
+      expect(await app.post(buddyRoutePaths.signOut)).toEqual(finishing);
+      expect(app.fake.state.signedIn).toBe(true);
+    } finally {
+      await app.close();
+    }
+  },
+);
+
+posix(
   "admission: every POST, the poll included, only same-origin from the Launchpad's own origin; Buddy's frame and other sites are refused before Hermes is asked",
   async () => {
     const app = await hosted();

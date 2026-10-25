@@ -185,12 +185,51 @@ posix(
           },
         },
       );
-      expect(answer).toEqual({ code: 1, stdout: "" });
+      expect(answer).toEqual({
+        code: 1,
+        stdout: "",
+        stderr:
+          "Buddy's sign-in could not be cancelled and may still finish. Try again.",
+      });
       expect(JSON.parse(lines.at(-1) as string)).toEqual({
         kind: "blocked",
         reason: "sign-in-running",
       });
       expect(fake.sessions.size).toBe(1);
+    }),
+);
+
+posix(
+  "Ctrl-C on a sign-in the clean-up removed while its worker may still save says so in words",
+  () =>
+    within(async (fake, run, folders) => {
+      const interrupt = new AbortController();
+      const lines: string[] = [];
+      const answer = await run(
+        ["sign-in", "start", "--folder", folders.buddy],
+        {
+          pollMs: 20,
+          signal: interrupt.signal,
+          write: (line) => {
+            lines.push(line);
+            if (lines.length === 1) {
+              // Another start's clean-up removes it, in the same instance.
+              fake.collect("Fixture_Session_000001");
+              setTimeout(() => interrupt.abort(), 50);
+            }
+          },
+        },
+      );
+      expect(answer).toEqual({
+        code: 1,
+        stdout: "",
+        stderr:
+          "Buddy's previous sign-in may still finish. Try again in a few minutes.",
+      });
+      expect(JSON.parse(lines.at(-1) as string)).toEqual({
+        kind: "blocked",
+        reason: "sign-in-finishing",
+      });
     }),
 );
 

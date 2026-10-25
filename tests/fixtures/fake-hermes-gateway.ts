@@ -82,6 +82,11 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
     string,
     { status: string; error_message: string | null }
   >();
+  // Sessions the clean-up removed while their worker still runs.
+  const collected = new Map<
+    string,
+    { status: string; error_message: string | null }
+  >();
   let started = 0;
   const state = {
     signedIn: options.signedIn === true,
@@ -279,16 +284,30 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
     minted,
     sessions,
     state,
-    /** OpenAI approved the sign-in: Hermes's worker saved it. */
+    /** OpenAI approved the sign-in: Hermes's worker saved it, also for a
+     * session its clean-up removed meanwhile (`collect`), whose worker keeps
+     * running. */
     approve(id: string) {
-      const session = sessions.get(id);
+      const session = sessions.get(id) ?? collected.get(id);
       if (session === undefined) throw new Error(`No session ${id}`);
       session.status = "approved";
       state.signedIn = true;
     },
-    /** A restart: every session in its memory is gone, a new instance. */
+    /** Hermes's 15-minute clean-up at v0.22.4-lazurio.1
+     * (`_gc_oauth_sessions`): the session leaves the map, so its poll answers
+     * 404 and its cancel "session not found", but it is not marked
+     * cancelled, and its worker may still save. */
+    collect(id: string) {
+      const session = sessions.get(id);
+      if (session === undefined) throw new Error(`No session ${id}`);
+      sessions.delete(id);
+      collected.set(id, session);
+    },
+    /** A restart: every session in its memory is gone with its worker, a new
+     * instance. */
     restart() {
       sessions.clear();
+      collected.clear();
       minted.clear();
       state.instance = randomBytes(16).toString("hex");
     },
