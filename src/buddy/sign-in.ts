@@ -22,20 +22,42 @@ import type {
 //   cancel  DELETE /api/providers/oauth/sessions/<session>
 //   sign out DELETE /api/providers/oauth/openai-codex
 //
-// One sign-in at a time, in this process's memory; a new start cancels the
-// one before it on Hermes first, as src/tools/login.ts does. The holder knows
-// it by an opaque handle of its own (32 hex characters, the curated logins'
-// shape), and Hermes's session id stays here. The one-time code and OpenAI's
-// page go only to the holder, and only in their exact shapes: OpenAI's page
-// for a sign-in by code (`codexDevicePage`) and a whole code
-// (`codexDeviceCode`), the same checks as the agents' "Přihlásit kódem".
-// Hermes's own words (`error_message`, `detail`) never leave this module:
-// the answer and the journal get a closed reason. The journal names the
-// operation, the outcome and the reason, never a code, a handle, a ticket or
-// a session.
+// One sign-in at a time, in this process's memory. A sign-in stays this
+// process's until Hermes says it ended, because until then Hermes's worker may
+// still save a sign-in the person approves: its poll answers an ending
+// (approved, expired, denied, error) or does not know the session (404); or a
+// cancel is confirmed (`{ok: true}` for exactly that session) or Hermes holds
+// no session by that id (`{ok: false, message: "session not found"}`: one
+// cancelled before, one a restart dropped, one its own 15-minute clean-up
+// removed). Hermes marks a session cancelled under the lock its worker takes
+// to save, so after a confirmed cancel it saves nothing. Anything else (a lost
+// or refused answer, a timeout, an answer of no known shape) proves nothing:
+// the sign-in stays held and addressable, and whatever needed it ended
+// refuses (`blocked`, `sign-in-running`; `unavailable` when the gateway did not
+// answer): a new start, a cancel, a sign-out. Pablo's review of #635.
+//
+// The holder knows the sign-in by an opaque handle of its own (32 hex
+// characters, the curated logins' shape), and Hermes's session id stays here.
+// The one-time code and OpenAI's page go only to the holder, and only in their
+// exact shapes: OpenAI's page for a sign-in by code (`codexDevicePage`) and a
+// whole code (`codexDeviceCode`), the same checks as the agents' "Přihlásit
+// kódem". Hermes's own words (`error_message`, `detail`) never leave this
+// module: the answer and the journal get a closed reason. The journal names
+// the operation, the outcome and the reason, never a code, a handle, a ticket
+// or a session.
 
 /** How often the holder asks again: Začínáme's AI step asks every 2 s too. */
 export const buddySignInPollMs = 2_000;
+
+/** How long past its code's lifetime Hermes may still say a sign-in waits
+ * before it is cancelled: its worker's last round may begin just before the
+ * end (`_codex_poll_authorization`), sleep its interval, poll OpenAI and
+ * exchange the tokens (`_codex_post`, three tries of 15 s). */
+export const buddySignInExpiryGraceMs = 90_000;
+
+/** Hermes's own lifetime of a code (`_CODEX_EXPIRES_IN`), for a sign-in
+ * whose start named none of a known shape. */
+const hermesCodeLifetimeMs = 15 * 60_000;
 
 export type BuddySignInFailure =
   /** The code expired before the person used it. */
@@ -59,6 +81,19 @@ export type BuddySignInPending = Readonly<{
   pollMs: number;
 }>;
 
+/** A sign-in Hermes did not confirm ended, so nothing changed: it may still
+ * complete. */
+export type BuddySignInRunning = Readonly<{
+  kind: "blocked";
+  reason: "sign-in-running";
+}>;
+
+/** Buddy's gateway did not answer: nothing changed. */
+export type BuddyGatewayUnavailable = Readonly<{
+  kind: "unavailable";
+  reason: GatewayFailure;
+}>;
+
 export type BuddySignInAnswer =
   | BuddySignInPending
   | Readonly<{ kind: "signed-in" }>
@@ -66,13 +101,14 @@ export type BuddySignInAnswer =
   /** No sign-in by this handle (any more). */
   | Readonly<{ kind: "none" }>
   | Readonly<{ kind: "cancelled" }>
-  /** Buddy's gateway does not answer: nothing started. */
-  | Readonly<{ kind: "unavailable"; reason: GatewayFailure }>;
+  | BuddySignInRunning
+  | BuddyGatewayUnavailable;
 
 export type BuddySignOutAnswer =
   | Readonly<{ kind: "signed-out" }>
   | Readonly<{ kind: "failed"; reason: "failed" }>
-  | Readonly<{ kind: "unavailable"; reason: GatewayFailure }>;
+  | BuddySignInRunning
+  | BuddyGatewayUnavailable;
 
 /** One line of the owner's journal: the operation, the outcome and the
  * reason, nothing else. */
@@ -88,7 +124,9 @@ type Session = {
   handle: string;
   /** Hermes's session id: never answered, logged or written. */
   hermes: string;
-  code: string;
+  /** Null for a start of no known shape, shown to nobody and held only until
+   * Hermes confirms it ended. */
+  code: string | null;
   url: string;
   expiresAt: number;
 };
@@ -110,6 +148,17 @@ const refusedByOpenAi = (text: unknown) =>
   text.startsWith("OpenAI rejected the device-code login request");
 
 const codexPath = "/api/providers/oauth/openai-codex";
+
+/** What Hermes said of a cancel. */
+type Ending =
+  | Readonly<{ kind: "ended" }>
+  | BuddySignInRunning
+  | BuddyGatewayUnavailable;
+
+const running: BuddySignInRunning = Object.freeze({
+  kind: "blocked",
+  reason: "sign-in-running",
+});
 
 export function createBuddySignIn(
   options: Readonly<{
@@ -137,11 +186,11 @@ export function createBuddySignIn(
     } catch {}
   };
 
-  const pending = (session: Session): BuddySignInPending =>
+  const pending = (session: Session, code: string): BuddySignInPending =>
     Object.freeze({
       kind: "pending",
       session: session.handle,
-      code: session.code,
+      code,
       url: session.url,
       expiresAt: new Date(session.expiresAt).toISOString(),
       pollMs: buddySignInPollMs,
@@ -158,18 +207,48 @@ export function createBuddySignIn(
     });
     return answer;
   };
-  /** Cancels Hermes's session; whatever it answers, it is no longer ours. */
-  const cancelOnHermes = async (hermes: string) => {
-    await gateway
-      .request("DELETE", `/api/providers/oauth/sessions/${hermes}`)
-      .catch(() => undefined);
+  /** Refused because the held sign-in did not end: journaled, nothing
+   * changed. */
+  const refused = <T extends BuddySignInRunning | BuddyGatewayUnavailable>(
+    operation: BuddySignInJournalEntry["operation"],
+    answer: T,
+  ): T => {
+    journal({ operation, outcome: answer.kind, reason: answer.reason });
+    return answer;
   };
+
+  /** Asks Hermes to cancel its session: `ended` only when it confirms the
+   * cancel of exactly that session or holds none by that id. */
+  async function endOnHermes(hermes: string): Promise<Ending> {
+    let answer: GatewayResult<GatewayAnswer>;
+    try {
+      answer = await gateway.request(
+        "DELETE",
+        `/api/providers/oauth/sessions/${hermes}`,
+      );
+    } catch {
+      return running;
+    }
+    if (!answer.ok)
+      return Object.freeze({ kind: "unavailable", reason: answer.reason });
+    const { status, body } = answer.value;
+    if (
+      status === 200 &&
+      isObject(body) &&
+      ((body.ok === true && body.session_id === hermes) ||
+        (body.ok === false && body.message === "session not found"))
+    )
+      return Object.freeze({ kind: "ended" });
+    return running;
+  }
 
   async function start(): Promise<BuddySignInAnswer> {
     const before = current;
     if (before !== undefined) {
+      // The one before ends first, or nothing starts.
+      const ending = await endOnHermes(before.hermes);
+      if (ending.kind !== "ended") return refused("start", ending);
       current = undefined;
-      await cancelOnHermes(before.hermes);
       journal({
         operation: "cancel",
         outcome: "cancelled",
@@ -177,98 +256,112 @@ export function createBuddySignIn(
       });
     }
     const answer = await gateway.request("POST", `${codexPath}/start`);
-    if (!answer.ok) {
-      journal({
-        operation: "start",
-        outcome: "unavailable",
-        reason: answer.reason,
-      });
-      return Object.freeze({ kind: "unavailable", reason: answer.reason });
-    }
-    const refused = (reason: BuddySignInFailure) => {
+    if (!answer.ok)
+      return refused(
+        "start",
+        Object.freeze({ kind: "unavailable" as const, reason: answer.reason }),
+      );
+    const failed = (reason: BuddySignInFailure) => {
       journal({ operation: "start", outcome: "failed", reason });
       return Object.freeze({ kind: "failed" as const, reason });
     };
     const { status, body } = answer.value;
     if (status !== 200 || !isObject(body))
-      return refused(
+      return failed(
         isObject(body) && refusedByOpenAi(body.detail) ? "refused" : "failed",
       );
     const hermes = body.session_id;
+    // A session that cannot be named in a path cannot be addressed at all;
+    // its code is shown to nobody.
     if (typeof hermes !== "string" || !hermesSessionPattern.test(hermes))
-      return refused("failed");
+      return failed("failed");
     const expiresIn = body.expires_in;
+    const lifetimeKnown =
+      typeof expiresIn === "number" &&
+      Number.isSafeInteger(expiresIn) &&
+      expiresIn > 0 &&
+      expiresIn <= 3600;
+    const session: Session = {
+      handle: randomBytes(16).toString("hex"),
+      hermes,
+      code: null,
+      url: codexDevicePage,
+      expiresAt:
+        now() + (lifetimeKnown ? expiresIn * 1000 : hermesCodeLifetimeMs),
+    };
     if (
       body.verification_url !== codexDevicePage ||
       typeof body.user_code !== "string" ||
       !codexDeviceCode.test(body.user_code) ||
-      typeof expiresIn !== "number" ||
-      !Number.isSafeInteger(expiresIn) ||
-      expiresIn <= 0 ||
-      expiresIn > 3600
+      !lifetimeKnown
     ) {
-      // Never shown, so never left waiting on Hermes either.
-      await cancelOnHermes(hermes);
-      return refused("failed");
+      // Shown to nobody, and never left waiting on Hermes either: held
+      // without a holder until Hermes confirms it ended.
+      if ((await endOnHermes(hermes)).kind !== "ended") current = session;
+      return failed("failed");
     }
-    current = {
-      handle: randomBytes(16).toString("hex"),
-      hermes,
-      code: body.user_code,
-      url: codexDevicePage,
-      expiresAt: now() + expiresIn * 1000,
-    };
+    session.code = body.user_code;
+    current = session;
     journal({ operation: "start", outcome: "pending" });
-    return pending(current);
+    return pending(session, body.user_code);
   }
 
-  /** What one answer of Hermes's poll means for the running session. */
+  /** Ends the held sign-in as `answer` once Hermes confirmed its cancel;
+   * otherwise it stays held and still waits for the holder. */
+  async function endConfirmed(
+    session: Session,
+    code: string,
+    answer: BuddySignInAnswer,
+  ): Promise<BuddySignInAnswer> {
+    return (await endOnHermes(session.hermes)).kind === "ended"
+      ? ended("poll", answer)
+      : pending(session, code);
+  }
+
+  /** What one answer of Hermes's poll means for the held sign-in. */
   async function follow(
     session: Session,
+    code: string,
     answer: GatewayResult<GatewayAnswer>,
   ): Promise<BuddySignInAnswer> {
-    if (!answer.ok)
-      // A slow answer is asked again; a gateway that is gone or going took
-      // the session with it (it lives in the gateway's memory).
-      return answer.reason === "timeout"
-        ? pending(session)
-        : ended("poll", { kind: "failed", reason: "lost" });
+    // A gateway that does not answer proves nothing: asked again. After a
+    // restart Hermes no longer knows the session, and says so (404).
+    if (!answer.ok) return pending(session, code);
     const { status, body } = answer.value;
     if (status === 404)
       return ended("poll", { kind: "failed", reason: "lost" });
-    if (
-      status !== 200 ||
-      !isObject(body) ||
-      body.session_id !== session.hermes
-    ) {
-      await cancelOnHermes(session.hermes);
-      return ended("poll", { kind: "failed", reason: "failed" });
-    }
-    switch (body.status) {
-      case "pending":
-        return pending(session);
-      case "approved":
-        return ended("poll", { kind: "signed-in" });
-      case "expired":
-        return ended("poll", { kind: "failed", reason: "expired" });
-      case "denied":
-        return ended("poll", { kind: "failed", reason: "refused" });
-      case "error":
-        return ended("poll", {
-          kind: "failed",
-          reason: refusedByOpenAi(body.error_message) ? "refused" : "failed",
-        });
-      case "cancelled":
-        return ended("poll", { kind: "failed", reason: "lost" });
-      default:
-        await cancelOnHermes(session.hermes);
-        return ended("poll", { kind: "failed", reason: "failed" });
-    }
+    if (status === 200 && isObject(body) && body.session_id === session.hermes)
+      switch (body.status) {
+        case "pending":
+          // Hermes ends its own sign-in at its code's end; one it still
+          // calls waiting well past that is cancelled.
+          return now() < session.expiresAt + buddySignInExpiryGraceMs
+            ? pending(session, code)
+            : endConfirmed(session, code, {
+                kind: "failed",
+                reason: "expired",
+              });
+        case "approved":
+          return ended("poll", { kind: "signed-in" });
+        case "expired":
+          return ended("poll", { kind: "failed", reason: "expired" });
+        case "denied":
+          return ended("poll", { kind: "failed", reason: "refused" });
+        case "error":
+          return ended("poll", {
+            kind: "failed",
+            reason: refusedByOpenAi(body.error_message) ? "refused" : "failed",
+          });
+        case "cancelled":
+          return ended("poll", { kind: "failed", reason: "lost" });
+      }
+    // An answer of no known shape: ended only once Hermes confirmed a cancel.
+    return endConfirmed(session, code, { kind: "failed", reason: "failed" });
   }
 
   return Object.freeze({
-    /** Přihlásit Buddyho, Nový kód, Přihlásit znovu: a new sign-in, the one
-     * before it cancelled on Hermes first. */
+    /** Přihlásit Buddyho, Nový kód, Přihlásit znovu: a new sign-in, once the
+     * one before it ended on Hermes. */
     start: () => serial(start),
 
     /** The sign-in of this handle as Hermes has it now; an outcome is
@@ -276,40 +369,41 @@ export function createBuddySignIn(
     poll: (handle: string) =>
       serial(async (): Promise<BuddySignInAnswer> => {
         const session = current;
-        if (session === undefined || session.handle !== handle)
+        const code = session?.code;
+        if (session === undefined || session.handle !== handle || !code)
           return Object.freeze({ kind: "none" });
-        if (now() >= session.expiresAt) {
-          await cancelOnHermes(session.hermes);
-          return ended("poll", { kind: "failed", reason: "expired" });
-        }
         return follow(
           session,
+          code,
           await gateway.request("GET", `${codexPath}/poll/${session.hermes}`),
         );
       }),
 
-    /** Zrušit: Hermes marks its session cancelled before it could save a
-     * sign-in. */
+    /** Zrušit: Hermes marks its session cancelled under the lock its worker
+     * saves under; `cancelled` only once it confirmed that. */
     cancel: (handle: string) =>
       serial(async (): Promise<BuddySignInAnswer> => {
         const session = current;
-        if (session === undefined || session.handle !== handle)
+        if (session === undefined || session.handle !== handle || !session.code)
           return Object.freeze({ kind: "none" });
+        const ending = await endOnHermes(session.hermes);
+        if (ending.kind !== "ended") return refused("cancel", ending);
         current = undefined;
-        await cancelOnHermes(session.hermes);
         journal({ operation: "cancel", outcome: "cancelled" });
         return Object.freeze({ kind: "cancelled" });
       }),
 
     /** Odhlásit: Hermes removes Buddy's ChatGPT sign-in (its singleton and
-     * its pool entries); a running sign-in is cancelled first, so it cannot
-     * sign him in again. An empty store (Hermes's 409) is signed out too. */
+     * its pool entries), only after a held sign-in ended on Hermes, so none
+     * can sign him in again; an empty store (Hermes's 409) is signed out
+     * too. */
     signOut: () =>
       serial(async (): Promise<BuddySignOutAnswer> => {
         const session = current;
         if (session !== undefined) {
+          const ending = await endOnHermes(session.hermes);
+          if (ending.kind !== "ended") return refused("sign-out", ending);
           current = undefined;
-          await cancelOnHermes(session.hermes);
           journal({ operation: "cancel", outcome: "cancelled" });
         }
         const answer = await gateway.request("DELETE", codexPath);

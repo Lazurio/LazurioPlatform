@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { createHermesGateway } from "../src/buddy/hermes-gateway";
 import {
   type BuddySignInJournalEntry,
+  buddySignInExpiryGraceMs,
   buddySignInPollMs,
   createBuddySignIn,
 } from "../src/buddy/sign-in";
@@ -42,7 +43,11 @@ async function within(
     await body(
       fake,
       createBuddySignIn({
-        gateway: createHermesGateway({ home: fake.userHome, httpMs: 2_000 }),
+        gateway: createHermesGateway({
+          home: fake.userHome,
+          httpMs: 1_000,
+          controlMs: 1_000,
+        }),
         now: () => clock.now,
         journal: (entry) => journal.push(entry),
       }),
@@ -286,29 +291,40 @@ posix(
         reason: "lost",
       });
 
-      // The gateway gone: the session went with it.
+      // A gateway that is stopping proves nothing: the sign-in stays held
+      // (its worker may still save it), and once the gateway is back, Hermes
+      // no longer knows it.
       const gone = await signIn.start();
       if (gone.kind !== "pending") throw new Error("not pending");
       fake.state.identify = (answer) => {
         (answer.result as Record<string, unknown>).state = "draining";
         return answer;
       };
+      expect(await signIn.poll(gone.session)).toEqual(gone);
+      fake.restart();
+      fake.state.identify = undefined;
       expect(await signIn.poll(gone.session)).toEqual({
         kind: "failed",
         reason: "lost",
       });
-      fake.state.identify = undefined;
 
-      // The code's own lifetime ends it here too.
+      // Hermes ends a sign-in itself at its code's end, and its last round
+      // may run on past it: still waiting then. One it still calls waiting
+      // past that round is cancelled, and expired once Hermes confirmed it.
       const late = await signIn.start();
       if (late.kind !== "pending") throw new Error("not pending");
       const lateOnHermes = [...fake.sessions.keys()].at(-1) as string;
       clock.now += 900_000;
+      const deletes = () =>
+        fake.requests.filter((request) => request.method === "DELETE").length;
+      const before = deletes();
+      expect(await signIn.poll(late.session)).toEqual(late);
+      expect(deletes()).toBe(before);
+      clock.now += buddySignInExpiryGraceMs;
       expect(await signIn.poll(late.session)).toEqual({
         kind: "failed",
         reason: "expired",
       });
-      // Cancelled on Hermes too, which would otherwise wait out its own.
       expect(fake.sessions.has(lateOnHermes)).toBe(false);
 
       expect(journal.filter((entry) => entry.operation === "poll")).toEqual([
@@ -351,6 +367,25 @@ posix(
         fake.state.http = undefined;
         expect(fake.sessions.has(hermes)).toBe(false);
       }
+      // The same answer while Hermes does not confirm the cancel: nothing
+      // proves the sign-in ended, so it stays held and still waits.
+      const started = await signIn.start();
+      if (started.kind !== "pending") throw new Error("not pending");
+      fake.state.http = (request) =>
+        request.method === "GET"
+          ? Response.json(["not", "an", "object"])
+          : Response.json({ detail: "Internal Server Error" }, { status: 500 });
+      expect(await signIn.poll(started.session)).toEqual(started);
+      expect(fake.sessions.size).toBe(1);
+      fake.state.http = (request) =>
+        request.method === "GET"
+          ? Response.json(["not", "an", "object"])
+          : undefined;
+      expect(await signIn.poll(started.session)).toEqual({
+        kind: "failed",
+        reason: "failed",
+      });
+      expect(fake.sessions.size).toBe(0);
     }),
 );
 
@@ -459,6 +494,260 @@ posix(
         { operation: "sign-out", outcome: "unavailable", reason: "no-socket" },
       ]);
       clean(JSON.stringify(journal), fake);
+    }),
+);
+
+// Pablo's review of #635: a sign-in ends only on Hermes's word. Hermes's
+// cancel answers `{ok: true, session_id}` for a session it held and
+// `{ok: false, message: "session not found"}` for one it does not (both
+// recorded); anything else leaves its worker free to save a sign-in later.
+const blocked = { kind: "blocked", reason: "sign-in-running" } as const;
+const sessionDeletes =
+  (
+    reply: () => Response | Promise<Response>,
+  ): NonNullable<FakeHermesGateway["state"]["http"]> =>
+  (request) =>
+    request.method === "DELETE" &&
+    request.path.startsWith("/api/providers/oauth/sessions/")
+      ? reply()
+      : undefined;
+
+posix(
+  "a replacement start whose cancel Hermes does not confirm starts nothing, and the sign-in before stays held and addressable",
+  () =>
+    within({}, async (fake, signIn, journal) => {
+      const first = await signIn.start();
+      if (first.kind !== "pending") throw new Error("not pending");
+      const firstOnHermes = "Fixture_Session_000001";
+      for (const [reply, expected] of [
+        [
+          () =>
+            Response.json({ detail: "Internal Server Error" }, { status: 500 }),
+          blocked,
+        ],
+        // A confirmation of another session, another `ok: false`, a 404 that
+        // is not Hermes's answer for an unknown session, no JSON.
+        [
+          () =>
+            Response.json({ ok: true, session_id: "Fixture_Session_other1" }),
+          blocked,
+        ],
+        [() => Response.json({ ok: true }), blocked],
+        [
+          () => Response.json({ ok: false, message: "profile mismatch" }),
+          blocked,
+        ],
+        [
+          () => Response.json({ detail: "Not Found" }, { status: 404 }),
+          blocked,
+        ],
+        [() => new Response("not json"), blocked],
+        // The gateway refuses the ticket twice.
+        [
+          () => Response.json(recorded.http.unauthorized.body, { status: 401 }),
+          { kind: "unavailable", reason: "refused" },
+        ],
+        // Reached, and no answer in time.
+        [
+          () => new Promise<Response>(() => undefined),
+          { kind: "unavailable", reason: "timeout" },
+        ],
+      ] as const) {
+        fake.state.http = sessionDeletes(reply);
+        expect(await signIn.start()).toEqual(expected);
+        // No second session on Hermes, and the first still the holder's.
+        expect([...fake.sessions.keys()]).toEqual([firstOnHermes]);
+        fake.state.http = undefined;
+        expect(await signIn.poll(first.session)).toEqual(first);
+      }
+      expect(
+        fake.requests.filter((request) => request.path.endsWith("/start")),
+      ).toHaveLength(1);
+      // Confirmed: the replacement goes ahead.
+      const second = await signIn.start();
+      if (second.kind !== "pending") throw new Error("not pending");
+      expect([...fake.sessions.keys()]).toEqual(["Fixture_Session_000002"]);
+      expect(await signIn.poll(first.session)).toEqual({ kind: "none" });
+      // One Hermes no longer holds (a restart dropped it) is ended too.
+      fake.restart();
+      const third = await signIn.start();
+      expect(third.kind).toBe("pending");
+      expect(journal.filter((entry) => entry.operation === "start")).toEqual([
+        { operation: "start", outcome: "pending" },
+        ...Array(6).fill({
+          operation: "start",
+          outcome: "blocked",
+          reason: "sign-in-running",
+        }),
+        { operation: "start", outcome: "unavailable", reason: "refused" },
+        { operation: "start", outcome: "unavailable", reason: "timeout" },
+        { operation: "start", outcome: "pending" },
+        { operation: "start", outcome: "pending" },
+      ]);
+      clean(JSON.stringify(journal), fake);
+    }),
+);
+
+posix(
+  "an explicit cancel Hermes does not confirm is refused with a closed reason, and the sign-in stays held",
+  () =>
+    within({}, async (fake, signIn, journal) => {
+      const started = await signIn.start();
+      if (started.kind !== "pending") throw new Error("not pending");
+      fake.state.http = sessionDeletes(() =>
+        Response.json({ detail: "Internal Server Error" }, { status: 500 }),
+      );
+      expect(await signIn.cancel(started.session)).toEqual(blocked);
+      fake.state.http = sessionDeletes(
+        () => new Promise<Response>(() => undefined),
+      );
+      expect(await signIn.cancel(started.session)).toEqual({
+        kind: "unavailable",
+        reason: "timeout",
+      });
+      fake.state.http = undefined;
+      expect(fake.sessions.size).toBe(1);
+      expect(await signIn.poll(started.session)).toEqual(started);
+      expect(await signIn.cancel(started.session)).toEqual({
+        kind: "cancelled",
+      });
+      expect(fake.sessions.size).toBe(0);
+      // A session Hermes no longer holds counts as cancelled.
+      const again = await signIn.start();
+      if (again.kind !== "pending") throw new Error("not pending");
+      fake.restart();
+      expect(await signIn.cancel(again.session)).toEqual({ kind: "cancelled" });
+      expect(journal.filter((entry) => entry.operation === "cancel")).toEqual([
+        { operation: "cancel", outcome: "blocked", reason: "sign-in-running" },
+        { operation: "cancel", outcome: "unavailable", reason: "timeout" },
+        { operation: "cancel", outcome: "cancelled" },
+        { operation: "cancel", outcome: "cancelled" },
+      ]);
+    }),
+);
+
+posix(
+  "sign-out never says signed out while a sign-in Hermes did not confirm cancelled may still complete",
+  () =>
+    within({ signedIn: true }, async (fake, signIn, journal) => {
+      const started = await signIn.start();
+      if (started.kind !== "pending") throw new Error("not pending");
+      const signOuts = () =>
+        fake.requests.filter(
+          (request) =>
+            request.method === "DELETE" &&
+            request.path === "/api/providers/oauth/openai-codex",
+        ).length;
+      fake.state.http = sessionDeletes(() =>
+        Response.json({ detail: "Internal Server Error" }, { status: 500 }),
+      );
+      expect(await signIn.signOut()).toEqual(blocked);
+      // Nothing was signed out, and the sign-in is still the holder's.
+      expect(signOuts()).toBe(0);
+      expect(fake.state.signedIn).toBe(true);
+      expect(await signIn.poll(started.session)).toEqual(started);
+      // The person enters the code meanwhile: that sign-in is real, and nobody
+      // was told Buddy was signed out.
+      fake.approve("Fixture_Session_000001");
+      expect(await signIn.poll(started.session)).toEqual({ kind: "signed-in" });
+      fake.state.http = undefined;
+      expect(await signIn.signOut()).toEqual({ kind: "signed-out" });
+      expect(fake.state.signedIn).toBe(false);
+
+      // A sign-in held while the gateway stops: nothing is signed out.
+      const held = await signIn.start();
+      if (held.kind !== "pending") throw new Error("not pending");
+      fake.state.identify = (answer) => {
+        (answer.result as Record<string, unknown>).state = "draining";
+        return answer;
+      };
+      expect(await signIn.signOut()).toEqual({
+        kind: "unavailable",
+        reason: "draining",
+      });
+      fake.state.identify = undefined;
+      // Cancelled first, signed out after.
+      expect(await signIn.signOut()).toEqual({ kind: "signed-out" });
+      expect(fake.sessions.size).toBe(1); // the approved one, kept by Hermes
+      expect(journal.filter((e) => e.operation !== "start")).toEqual([
+        {
+          operation: "sign-out",
+          outcome: "blocked",
+          reason: "sign-in-running",
+        },
+        { operation: "poll", outcome: "signed-in" },
+        { operation: "sign-out", outcome: "signed-out" },
+        { operation: "sign-out", outcome: "unavailable", reason: "draining" },
+        { operation: "cancel", outcome: "cancelled" },
+        { operation: "sign-out", outcome: "signed-out" },
+      ]);
+    }),
+);
+
+posix(
+  "past its code's end a sign-in ends as expired only once Hermes confirmed the cancel",
+  () =>
+    within({}, async (fake, signIn, _journal, clock) => {
+      const late = await signIn.start();
+      if (late.kind !== "pending") throw new Error("not pending");
+      clock.now += 900_000 + buddySignInExpiryGraceMs;
+      fake.state.http = sessionDeletes(() =>
+        Response.json({ detail: "Internal Server Error" }, { status: 500 }),
+      );
+      expect(await signIn.poll(late.session)).toEqual(late);
+      expect(fake.sessions.size).toBe(1);
+      // Nor does it end while the gateway does not answer.
+      fake.state.http = undefined;
+      fake.state.identify = () => "hang";
+      expect(await signIn.poll(late.session)).toEqual(late);
+      fake.state.identify = undefined;
+      expect(await signIn.poll(late.session)).toEqual({
+        kind: "failed",
+        reason: "expired",
+      });
+      expect(fake.sessions.size).toBe(0);
+    }),
+);
+
+posix(
+  "a start of no known shape whose cancel is not confirmed stays held without a holder: nothing else starts or signs out until it ends",
+  () =>
+    within({ signedIn: true }, async (fake, signIn) => {
+      fake.state.http = (request) =>
+        request.path.endsWith("/start")
+          ? Response.json({
+              ...recorded.http.start.body,
+              session_id: "Fixture_Session_bad001",
+              user_code: "not a code",
+            })
+          : request.method === "DELETE" &&
+              request.path.startsWith("/api/providers/oauth/sessions/")
+            ? Response.json(
+                { detail: "Internal Server Error" },
+                { status: 500 },
+              )
+            : undefined;
+      fake.sessions.set("Fixture_Session_bad001", {
+        status: "pending",
+        error_message: null,
+      });
+      expect(await signIn.start()).toEqual({
+        kind: "failed",
+        reason: "failed",
+      });
+      expect(await signIn.start()).toEqual(blocked);
+      expect(await signIn.signOut()).toEqual(blocked);
+      expect(fake.state.signedIn).toBe(true);
+      // Its code went to nobody: no handle names it.
+      for (const handle of ["0".repeat(32), "f".repeat(32)]) {
+        expect(await signIn.poll(handle)).toEqual({ kind: "none" });
+        expect(await signIn.cancel(handle)).toEqual({ kind: "none" });
+      }
+      fake.state.http = undefined;
+      const next = await signIn.start();
+      expect(next.kind).toBe("pending");
+      expect(fake.sessions.has("Fixture_Session_bad001")).toBe(false);
+      clean(JSON.stringify(next), fake, ["code"]);
     }),
 );
 

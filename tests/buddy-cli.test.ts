@@ -165,6 +165,36 @@ posix("Ctrl-C cancels the sign-in on Hermes", () =>
 );
 
 posix(
+  "Ctrl-C while Hermes does not confirm the cancel says so: the sign-in may still complete",
+  () =>
+    within(async (fake, run, folders) => {
+      const interrupt = new AbortController();
+      const lines: string[] = [];
+      fake.state.http = (request) =>
+        request.method === "DELETE"
+          ? Response.json({ detail: "Internal Server Error" }, { status: 500 })
+          : undefined;
+      const answer = await run(
+        ["sign-in", "start", "--folder", folders.buddy],
+        {
+          pollMs: 20,
+          signal: interrupt.signal,
+          write: (line) => {
+            lines.push(line);
+            if (lines.length === 1) setTimeout(() => interrupt.abort(), 50);
+          },
+        },
+      );
+      expect(answer).toEqual({ code: 1, stdout: "" });
+      expect(JSON.parse(lines.at(-1) as string)).toEqual({
+        kind: "blocked",
+        reason: "sign-in-running",
+      });
+      expect(fake.sessions.size).toBe(1);
+    }),
+);
+
+posix(
   "lazurio buddy sign-out, and both without Buddy's gateway or without Buddy here",
   () =>
     within(async (fake, run, folders) => {

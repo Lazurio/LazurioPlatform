@@ -69,15 +69,16 @@ buddy sign-out [--folder <absolute Folder>] [--json]
   expiresAt, pollMs} with OpenAI's page and the one-time code for the person,
   then each change on its own line until it ends: signed-in, or failed with
   expired, refused (OpenAI refused a sign-in by code), lost (Buddy's gateway
-  restarted) or failed. Ctrl-C cancels it on Hermes ({kind: "cancelled"}).
-  Buddy keeps working on his sign-in until a new one replaces it. sign-out:
-  Hermes forgets Buddy's sign-in ({kind: "signed-out"}); Buddy stops
-  answering until he is signed in again. Without Buddy's gateway
-  {kind: "unavailable", reason}; without Buddy here {kind: "blocked",
-  reason: "buddy-absent"}. JSON on stdout. The Folder is found as for
-  lazurio doctor.
+  restarted) or failed. Ctrl-C cancels it on Hermes ({kind: "cancelled"}
+  once Hermes confirmed it; {kind: "blocked", reason: "sign-in-running"}
+  when it did not, and the sign-in may still complete). Buddy keeps working
+  on his sign-in until a new one replaces it. sign-out: Hermes forgets
+  Buddy's sign-in ({kind: "signed-out"}); Buddy stops answering until he is
+  signed in again. Without Buddy's gateway {kind: "unavailable", reason};
+  without Buddy here {kind: "blocked", reason: "buddy-absent"}. JSON on
+  stdout. The Folder is found as for lazurio doctor.
   Exit status: 0 works, signed in or signed out; 10 waits or no Buddy here;
-  1 unknown, failed, cancelled or unavailable; 2 usage.`;
+  1 unknown, failed, cancelled, blocked or unavailable; 2 usage.`;
 
 export type BuddyContext = CliContext &
   Readonly<{

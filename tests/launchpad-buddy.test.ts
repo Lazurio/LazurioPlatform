@@ -302,6 +302,77 @@ posix(
 );
 
 posix(
+  "a start, a cancel and a sign-out that need a running sign-in to end answer 409 blocked until Hermes confirms it, and change nothing",
+  async () => {
+    const lines = journal();
+    const app = await hosted("buddy", { signedIn: true });
+    try {
+      const started = await app.post(buddyRoutePaths.start);
+      const handle = started.body.session as string;
+      app.fake.state.http = (request) =>
+        request.method === "DELETE" &&
+        request.path.startsWith("/api/providers/oauth/sessions/")
+          ? Response.json({ detail: "Internal Server Error" }, { status: 500 })
+          : undefined;
+      const blocked = {
+        status: 409,
+        body: { kind: "blocked", reason: "sign-in-running" },
+      };
+      expect(await app.post(buddyRoutePaths.start)).toEqual(blocked);
+      expect(
+        await app.post(buddyRoutePaths.cancel, { session: handle }),
+      ).toEqual(blocked);
+      expect(await app.post(buddyRoutePaths.signOut)).toEqual(blocked);
+      expect(app.fake.state.signedIn).toBe(true);
+      expect(app.fake.sessions.size).toBe(1);
+      expect(await app.post(buddyRoutePaths.poll, { session: handle })).toEqual(
+        started,
+      );
+      app.fake.state.http = undefined;
+      expect(
+        await app.post(buddyRoutePaths.cancel, { session: handle }),
+      ).toEqual({
+        status: 200,
+        body: { kind: "cancelled" },
+      });
+      expect(lines.buddy()).toEqual([
+        { scope: "buddy-sign-in", operation: "start", outcome: "pending" },
+        {
+          scope: "buddy-sign-in",
+          operation: "start",
+          outcome: "blocked",
+          reason: "sign-in-running",
+        },
+        {
+          scope: "buddy-sign-in",
+          operation: "cancel",
+          outcome: "blocked",
+          reason: "sign-in-running",
+        },
+        {
+          scope: "buddy-sign-in",
+          operation: "sign-out",
+          outcome: "blocked",
+          reason: "sign-in-running",
+        },
+        { scope: "buddy-sign-in", operation: "cancel", outcome: "cancelled" },
+      ]);
+      const everything = lines.lines.join("\n");
+      for (const secret of [
+        recorded.http.start.body.user_code,
+        handle,
+        ...app.fake.spent,
+        ...hermesIds(app.fake),
+      ])
+        expect(everything).not.toContain(secret);
+    } finally {
+      lines.restore();
+      await app.close();
+    }
+  },
+);
+
+posix(
   "admission: every POST, the poll included, only same-origin from the Launchpad's own origin; Buddy's frame and other sites are refused before Hermes is asked",
   async () => {
     const app = await hosted();

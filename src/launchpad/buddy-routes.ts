@@ -20,18 +20,19 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 //   GET  /api/buddy                 {kind: "buddy", state, reason?,
 //                                   signIn: {state}, locale}
 //   POST /api/buddy/sign-in/start   {} → pending {session, code, url,
-//                                   expiresAt, pollMs} | failed {reason};
-//                                   503 buddy-unavailable
+//                                   expiresAt, pollMs} | failed {reason}
 //   POST /api/buddy/sign-in/poll    {session} → pending | signed-in |
 //                                   failed {reason} | none
 //   POST /api/buddy/sign-in/cancel  {session} → cancelled | none
-//   POST /api/buddy/sign-out        {} → signed-out | failed;
-//                                   503 buddy-unavailable
+//   POST /api/buddy/sign-out        {} → signed-out | failed
 //
-// Each POST takes exactly its fields, as JSON of at most 16 KiB (413), only
-// as `application/json` (415); another method is 405 and any query 400. The
-// code and the page go only to the holder of the session's handle. The core
-// journals each operation, its outcome and its reason, never a code, a
+// A start, a cancel and a sign-out that needed a running sign-in to end and
+// did not get Hermes's word that it did change nothing: 409 `blocked`
+// `sign-in-running`; without Buddy's gateway 503 `buddy-unavailable` with its
+// reason. Each POST takes exactly its fields, as JSON of at most 16 KiB (413),
+// only as `application/json` (415); another method is 405 and any query 400.
+// The code and the page go only to the holder of the session's handle. The
+// core journals each operation, its outcome and its reason, never a code, a
 // handle, a ticket or Hermes's session.
 
 export const buddyRoutePaths = Object.freeze({
@@ -112,21 +113,17 @@ export function createBuddyRoutes(
         return response({ error: "invalid-request" }, 400);
       }
       const signIn = input.signIn;
-      if (url.pathname === buddyRoutePaths.start) {
-        const answer = await signIn.start();
-        return answer.kind === "unavailable"
+      const answered = (answer: Readonly<{ kind: string; reason?: string }>) =>
+        answer.kind === "unavailable"
           ? response({ error: "buddy-unavailable", reason: answer.reason }, 503)
-          : response(answer);
-      }
-      if (url.pathname === buddyRoutePaths.signOut) {
-        const answer = await signIn.signOut();
-        return answer.kind === "unavailable"
-          ? response({ error: "buddy-unavailable", reason: answer.reason }, 503)
-          : response(answer);
-      }
+          : response(answer, answer.kind === "blocked" ? 409 : 200);
+      if (url.pathname === buddyRoutePaths.start)
+        return answered(await signIn.start());
+      if (url.pathname === buddyRoutePaths.signOut)
+        return answered(await signIn.signOut());
       if (!isBuddySignInHandle(value.session))
         return response({ error: "invalid-session" }, 400);
-      return response(
+      return answered(
         url.pathname === buddyRoutePaths.poll
           ? await signIn.poll(value.session)
           : await signIn.cancel(value.session),
