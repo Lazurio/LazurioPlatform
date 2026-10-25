@@ -2,14 +2,12 @@ import type { Store } from "./account";
 import {
   acceptBuddyFrameMessage,
   type BuddyContext,
-  type BuddyContextApp,
   type BuddyContextFacts,
   type BuddyFrameWindow,
   type BuddyGuideStep,
   type BuddyLayout,
   buddyAvatarSource,
   buddyContext,
-  buddyContextApps,
   buddyContextLimits,
   buddyFrameAttributes,
   buddyFrameSource,
@@ -74,9 +72,6 @@ export type BuddyBubbleModel = Readonly<{
   /** The frame, from the first open on; null before. */
   frame: BuddyFrameModel | null;
   layout: BuddyLayout;
-  /** The app the page is, as its column head says (`active`), where the
-   * launcher stands by; null without a column head. */
-  app: BuddyContextApp | null;
 }>;
 
 export type BuddyBubbleSeams = Readonly<{
@@ -108,11 +103,6 @@ export type BuddyBubbleSeams = Readonly<{
 /** Buddy's name on the launcher and the frame: a name, the same in every
  * language. */
 const buddyName = "Buddy";
-
-const appOf = (active: string | null | undefined): BuddyContextApp | null =>
-  (buddyContextApps as readonly unknown[]).includes(active)
-    ? (active as BuddyContextApp)
-    : null;
 
 export function createBuddyBubble(seams: BuddyBubbleSeams) {
   let origin: string | null = null;
@@ -153,7 +143,6 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
       }),
       frame,
       layout,
-      app: appOf(seams.facts()?.active),
     });
   }
   const draw = () => seams.draw(model());

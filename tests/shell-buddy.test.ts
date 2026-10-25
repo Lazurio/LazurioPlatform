@@ -15,6 +15,10 @@ import {
   buddyLayoutKey,
   createBuddyBubble,
 } from "../src/shell/buddy-bubble";
+import {
+  buddyClearanceProperty,
+  launcherClearance,
+} from "../src/shell/buddy-element";
 import * as protocol from "../src/shell/buddy-protocol";
 import {
   type BuddyContext,
@@ -26,6 +30,13 @@ import {
   createBuddyContextSender,
   parseBuddyContext,
 } from "../src/shell/buddy-protocol";
+import {
+  buddyBubbleCss,
+  buddyLauncherClearance,
+  buddyLauncherFigure,
+  buddyLauncherOffset,
+  buddyLauncherSize,
+} from "../src/shell/buddy-styles";
 import {
   isBuddysOwnPage,
   isShellBuddyOrigin,
@@ -783,7 +794,6 @@ test("with Buddy's origin: the launcher with his picture, no frame before the fi
     },
     frame: null,
     layout: "closed",
-    app: "chat",
   });
   bubble.toggle();
   expect(last()?.frame).toEqual({
@@ -1106,4 +1116,49 @@ test("<lazurio-buddy> makes its shadow root only through the guide's layer or th
     );
   expect(view).toContain("made.src = model.frame.src;");
   expect(view).not.toContain("credentialless");
+});
+
+test("the launcher stands in the same corner in every app with Buddy's figure at 40 x 44 px, and the page keeps that corner free while it is drawn (F60's addendum of 2026-10-25)", () => {
+  // The prototype's place and figure: 22 px from the right and bottom edges
+  // in the Launchpad, Chat and Automate alike, the figure inside the 58 px
+  // disc with its pixels kept sharp rather than filling it.
+  expect(buddyLauncherSize).toBe(58);
+  expect(buddyLauncherOffset).toEqual({ right: 22, bottom: 22 });
+  expect(buddyLauncherFigure).toEqual({ width: 40, height: 44 });
+  expect(buddyBubbleCss).not.toContain("data-app");
+  expect(buddyBubbleCss).toContain(
+    ".bubble { --buddy-right: var(--lazurio-buddy-right, 22px); --buddy-bottom: var(--lazurio-buddy-bottom, 22px);",
+  );
+  expect(buddyBubbleCss).toContain(
+    ".launcher img { display: block; width: 40px; height: 44px; object-fit: contain; image-rendering: pixelated; pointer-events: none; }",
+  );
+  // The corner's width: the disc, its distance from the edge, as a host may
+  // move it, and the device's safe area.
+  expect(buddyClearanceProperty).toBe("--lazurio-buddy-clearance");
+  expect(buddyLauncherClearance).toBe(
+    "calc(58px + var(--lazurio-buddy-right, 22px) + env(safe-area-inset-right, 0px))",
+  );
+  // Written when the launcher appears and removed when it goes, never in
+  // between: the bubble watches the document's style for the colour scheme.
+  const writes: string[] = [];
+  const keep = launcherClearance({
+    setProperty: (name: string, value: string | null) => {
+      writes.push(`set ${name} ${value}`);
+    },
+    removeProperty: (name: string) => {
+      writes.push(`remove ${name}`);
+      return "";
+    },
+  });
+  keep(false);
+  keep(true);
+  keep(true);
+  keep(false);
+  keep(false);
+  keep(true);
+  expect(writes).toEqual([
+    `set --lazurio-buddy-clearance ${buddyLauncherClearance}`,
+    "remove --lazurio-buddy-clearance",
+    `set --lazurio-buddy-clearance ${buddyLauncherClearance}`,
+  ]);
 });
