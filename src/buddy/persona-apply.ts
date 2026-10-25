@@ -13,7 +13,11 @@ import {
   gatewayUnitState,
   owePromptRefresh,
   type PromptRefresh,
+  promptInputsChanged,
+  promptRefreshMarked,
   promptRefreshOwed,
+  readPromptInputs,
+  recordPromptInputs,
   refreshPrompts,
   reloadUnits,
   restartGateway,
@@ -47,9 +51,12 @@ import { buddyT3Quiet, buddyT3Unit } from "./t3-runtime";
 // once it has no run going (F61's rule). Each file is replaced atomically on
 // its own; there is no transaction across SOUL.md, the drop-in and the T3
 // settings, so whatever did not happen stays visible and the next apply does
-// it. The installer and Machines run it where they rendered these files
-// themselves; the Launchpad calls the same core from Začínáme and
-// Nastavení → Buddy.
+// it. A change of his Lazurio layer in the Folder reaches his conversations
+// the same way: the stored prompts are refreshed when the layer is not the
+// one the last complete refresh was built from (F64's addendum of
+// 2026-10-25). The installer and Machines run it where they rendered these
+// files themselves; the Launchpad calls the same core from Začínáme and
+// Nastavení → Buddy, and on its own where Buddy is (`persona-save.ts`).
 
 /** A derived file: read, it is `in-place` or `outdated`; applied, it is
  * `in-place`, `written`, or had only its mode set (`mode`). */
@@ -124,7 +131,12 @@ export type BuddyPersonaReason =
    * clears, or nothing could be cleared: the refresh stays owed. */
   | "prompts-incomplete"
   | "gateway-restart-failed"
-  | "chat-restart-failed";
+  | "chat-restart-failed"
+  /** A file of Buddy's Lazurio layer in the Folder is no regular file or
+   * cannot be read, so his prompts lack it: it counts by a token of its own,
+   * a refresh owed when it became so is done, and the next change of it owes
+   * another (F64's addendum of 2026-10-25). */
+  | "layer-unreadable";
 
 export const invalidReason = (
   field: PersonaField,
@@ -383,7 +395,9 @@ const chatOf = (answer: BuddyChat): PersonaChat =>
     ...(answer.reason === undefined ? {} : { reason: answer.reason }),
   });
 
-/** What is in place, without writing, restarting or clearing anything. */
+/** What is in place, without writing, restarting or clearing anything. A
+ * Lazurio layer the last complete refresh was not built from counts as an
+ * owed refresh, and only the next apply records it. */
 async function reported(
   context: Context,
   files: readonly DerivedFile[],
@@ -397,7 +411,10 @@ async function reported(
     files.map(state),
   );
   const unit = await gatewayUnitState(service);
-  const owed = await promptRefreshOwed(context.home);
+  const inputs = await readPromptInputs(context.folder);
+  const owed =
+    (await promptRefreshMarked(context.home)) ||
+    (await promptInputsChanged(context.home, inputs));
   const running = unit.state === "running";
   const restart: GatewayRestart =
     unit.state === "unknown"
@@ -420,6 +437,7 @@ async function reported(
   return Object.freeze({
     kind: "buddy-persona",
     state: inPlace ? "in-place" : "outdated",
+    ...(inputs.unreadable ? { reason: "layer-unreadable" as const } : {}),
     persona,
     locale,
     files: Object.freeze({ soul, actingSender }),
@@ -431,6 +449,7 @@ async function reported(
 
 /** The derived files in place, then their way to the running conversations.
  * SOUL.md about to change makes a refresh of the stored prompts owed first,
+ * and so does a Lazurio layer the last complete refresh was not built from,
  * so a failure anywhere after leaves it for the next apply. systemd rereads
  * the units, and where it refuses nothing restarts on the old ones. A refresh
  * that is owed runs when SOUL.md was written now (busy or not: it only clears
@@ -438,8 +457,10 @@ async function reported(
  * moment. The gateway restarts once, only while Hermes's `active-work` says
  * Buddy is idle, when it runs from before the files or after a complete
  * refresh that was owed; the owed refresh is settled only after a complete
- * refresh and that restart. Buddy's T3 settings follow, his T3 Code stopped
- * and started around them only when it has no run going. */
+ * refresh and that restart, and then the layer as this apply found it when
+ * it began is recorded as what the prompts were built from. Buddy's T3
+ * settings follow, his T3 Code stopped and started around them only when it
+ * has no run going. */
 async function applied(
   context: Context,
   files: readonly DerivedFile[],
@@ -447,13 +468,19 @@ async function applied(
   persona: PersonaView,
   locale: PersonaLocale,
 ): Promise<BuddyPersona> {
-  const { environment, home, hermesHome } = context;
+  const { environment, home, hermesHome, folder } = context;
   const { tools } = environment;
+  // Read first: every turn after the refresh builds its prompt from the layer
+  // as it is then, this one or a newer one. Only this one is recorded, so a
+  // layer that changes while this apply runs stays owed.
+  const inputs = await readPromptInputs(folder);
   const written: Record<DerivedFile["name"], DerivedState> = {
     soul: "in-place",
     actingSender: "in-place",
   };
   try {
+    if (await promptInputsChanged(home, inputs))
+      await owePromptRefresh(home, environment.now);
     for (const file of files) {
       if (file.name === "soul" && (await derivedFileState(file)) === "outdated")
         await owePromptRefresh(home, environment.now);
@@ -473,7 +500,7 @@ async function applied(
     unit.needsReload &&
     !(await reloadUnits(service));
   const running = unit.state === "running";
-  const owed = await promptRefreshOwed(home);
+  const owed = await promptRefreshMarked(home);
 
   // Buddy is idle when his gateway says nothing runs, or when it does not run
   // at all; without an answer he counts as busy.
@@ -516,8 +543,15 @@ async function applied(
         : (await restartGateway(service))
           ? "done"
           : "failed";
-  if (owed && refreshed && (!running || restart === "done"))
+  // An owed refresh that waits for the idle moment waits with its restart,
+  // as the read says (a changed layer alone writes no file to restart for).
+  else if (running && owed && moment !== "idle") restart = "pending";
+  if (owed && refreshed && (!running || restart === "done")) {
+    // The record first: a crash between the two leaves the marker, and the
+    // next apply refreshes once more, never less.
+    await recordPromptInputs(home, inputs);
     await settlePromptRefresh(home);
+  }
 
   const chatAnswer = await buddyChat(tools, {
     folder: context.folder,
@@ -539,8 +573,12 @@ async function applied(
         ? "gateway-restart-failed"
         : chat.state === "failed"
           ? "chat-restart-failed"
-          : undefined;
-  const stillOwed = await promptRefreshOwed(home);
+          : inputs.unreadable
+            ? "layer-unreadable"
+            : undefined;
+  // A layer that changed while this apply ran is owed still: the answer
+  // waits, and the Launchpad applies again.
+  const stillOwed = await promptRefreshOwed(home, folder);
   const waiting =
     restart === "pending" || chat.state === "waiting" || stillOwed;
   return Object.freeze({

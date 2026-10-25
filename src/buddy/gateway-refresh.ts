@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { constants } from "node:fs";
 import {
   lstat,
   mkdir,
@@ -11,6 +12,7 @@ import {
 } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { basename, dirname, isAbsolute, join } from "node:path";
+import { buddyLayerPaths } from "../folder/outputs";
 import type { ToolRunner } from "../tools/status";
 
 // How a change of what Buddy's gateway reads reaches his running
@@ -42,6 +44,14 @@ import type { ToolRunner } from "../tools/status";
 // they are stale, so a refresh that is owed is recorded: a marker written
 // before SOUL.md changes and removed only after a complete refresh and the
 // restart that follows it.
+//
+// Buddy's prompts are built from his Lazurio layer in the Folder too
+// (`buddyLayerPaths`: `.agents/buddy/.hermes.md`, which Hermes loads from his
+// working directory, and his Lazurio skills), which a Platform release
+// changes through any of the Folder's entry points, none of which knows his
+// home. So a complete refresh also records what that layer was when the
+// refresh began, and a layer whose bytes are no longer those owes the next
+// refresh, whoever changed it (F64's addendum of 2026-10-25).
 
 /** Hermes's own user unit of Buddy's gateway (`hermes gateway install`). */
 export const gatewayUnit = "hermes-gateway.service";
@@ -529,48 +539,200 @@ export async function refreshPrompts(
 
 // ---- A refresh that is owed -------------------------------------------------
 
-/** The record that Buddy's stored prompts are owed a refresh: written before
- * SOUL.md changes, removed only after a complete refresh and the restart that
- * follows it (or with no gateway running), so a failure, a cap or anyone's
- * restart in between leaves it for the next apply. In Buddy's state directory,
- * beside the installer's records; the Platform's own file. */
-export const promptRefreshOwedPath = (home: string): string =>
-  join(home, ".local", "state", "lazurio", "buddy", "prompt-refresh-owed.json");
+/** Buddy's state directory, beside the installer's records. */
+const stateDirectory = (home: string): string =>
+  join(home, ".local", "state", "lazurio", "buddy");
 
-/** Whether a refresh is owed: anything at the marker's place counts. */
-export async function promptRefreshOwed(home: string): Promise<boolean> {
+/** The record that Buddy's stored prompts are owed a refresh: written before
+ * SOUL.md changes, or before a refresh his changed Lazurio layer owes,
+ * removed only after a complete refresh and the restart that follows it (or
+ * with no gateway running), so a failure, a cap or anyone's restart in
+ * between leaves it for the next apply. In Buddy's state directory, beside
+ * the installer's records; the Platform's own file. */
+export const promptRefreshOwedPath = (home: string): string =>
+  join(stateDirectory(home), "prompt-refresh-owed.json");
+
+/** A file of the Platform's own in Buddy's state directory: 0600 in a 0700
+ * directory, written whole and renamed into place. */
+async function writeStateFile(
+  path: string,
+  document: Readonly<Record<string, string>>,
+): Promise<void> {
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${randomUUID()}.lazurio`;
+  const file = await open(temporary, "wx", 0o600);
+  let renamed = false;
+  try {
+    try {
+      await file.chmod(0o600);
+      await file.writeFile(`${JSON.stringify(document)}\n`);
+      await file.sync();
+    } finally {
+      await file.close();
+    }
+    await rename(temporary, path);
+    renamed = true;
+  } finally {
+    if (!renamed) await rm(temporary, { force: true });
+  }
+}
+
+/** Whether the owed refresh is recorded: anything at the marker's place
+ * counts. */
+export async function promptRefreshMarked(home: string): Promise<boolean> {
   return (
     (await lstat(promptRefreshOwedPath(home)).catch(() => undefined)) !==
     undefined
   );
 }
 
-/** Records that a refresh is owed, unless it already is: a 0600 file in a 0700
- * directory, written whole and renamed into place. */
+/** Records that a refresh is owed, unless it already is. */
 export async function owePromptRefresh(
   home: string,
   now: () => Date = () => new Date(),
 ): Promise<void> {
-  if (await promptRefreshOwed(home)) return;
-  const path = promptRefreshOwedPath(home);
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const temporary = `${path}.${process.pid}.${Date.now()}.lazurio`;
-  const file = await open(temporary, "wx", 0o600);
-  try {
-    await file.chmod(0o600);
-    await file.writeFile(
-      `${JSON.stringify({
-        schema_version: "lazurio.buddy-prompt-refresh.v1",
-        owed_since: `${now().toISOString().slice(0, 19)}Z`,
-      })}\n`,
-    );
-    await file.sync();
-  } finally {
-    await file.close();
-  }
-  await rename(temporary, path);
+  if (await promptRefreshMarked(home)) return;
+  await writeStateFile(promptRefreshOwedPath(home), {
+    schema_version: "lazurio.buddy-prompt-refresh.v1",
+    owed_since: `${now().toISOString().slice(0, 19)}Z`,
+  });
 }
 
 /** The owed refresh is done. */
 export const settlePromptRefresh = (home: string): Promise<void> =>
   rm(promptRefreshOwedPath(home), { force: true });
+
+// ---- What the stored prompts were built from --------------------------------
+
+/** Buddy's Lazurio layer as his prompts would be built from it now.
+ * `layerDigest`: a sha256 over each file of `buddyLayerPaths`, in order, of
+ * its path, then its bytes, or a token of its own where it is absent or
+ * unreadable. `unreadable`: some file is no regular file (a link, which is
+ * never followed, included), is larger than `layerFileBytes`, or could not be
+ * read. */
+export type PromptInputs = Readonly<{
+  layerDigest: string;
+  unreadable: boolean;
+}>;
+
+/** A rendered file of the layer is a few kilobytes; a larger one counts as
+ * unreadable. */
+const layerFileBytes = 1024 * 1024;
+
+/** One file of the layer: its bytes, `absent`, or `unreadable`. */
+async function layerFile(
+  path: string,
+): Promise<Buffer | "absent" | "unreadable"> {
+  try {
+    const handle = await open(
+      path,
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
+    try {
+      const info = await handle.stat();
+      if (!info.isFile() || info.size > layerFileBytes) return "unreadable";
+      const bytes = await handle.readFile();
+      return bytes.byteLength > layerFileBytes ? "unreadable" : bytes;
+    } finally {
+      await handle.close();
+    }
+  } catch (error) {
+    return (error as NodeJS.ErrnoException | undefined)?.code === "ENOENT"
+      ? "absent"
+      : "unreadable";
+  }
+}
+
+/** Buddy's Lazurio layer in `folder`, read only: never a reason to fail. The
+ * paths are the Folder's own, so a Folder that moves keeps its digest. */
+export async function readPromptInputs(folder: string): Promise<PromptInputs> {
+  const hash = createHash("sha256");
+  let unreadable = false;
+  for (const path of buddyLayerPaths) {
+    const file = await layerFile(join(folder, path));
+    hash.update(`${path}\0`);
+    if (typeof file === "string") {
+      hash.update(`${file}\0`);
+      if (file === "unreadable") unreadable = true;
+    } else {
+      hash.update(`file ${file.byteLength}\0`);
+      hash.update(file);
+    }
+  }
+  return Object.freeze({ layerDigest: hash.digest("hex"), unreadable });
+}
+
+/** What Buddy's stored prompts were last completely refreshed from: the
+ * digest of his Lazurio layer as it was when that refresh began. Written only
+ * after a complete refresh and the restart that follows it, with the owed
+ * marker's removal, never by a reading. Beside the marker; the Platform's own
+ * file. */
+export const promptInputsPath = (home: string): string =>
+  join(stateDirectory(home), "prompt-inputs.json");
+
+const promptInputsSchema = "lazurio.buddy-prompt-inputs.v1";
+const promptInputsBytes = 4096;
+
+/** The layer digest the last complete refresh recorded; undefined where none
+ * is: no record, or one that is no regular file of at most 4 KiB holding this
+ * schema and a digest. A digest that is not a layer's never equals one. */
+export async function recordedPromptInputs(
+  home: string,
+): Promise<string | undefined> {
+  try {
+    const handle = await open(
+      promptInputsPath(home),
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
+    let text: string;
+    try {
+      const info = await handle.stat();
+      if (!info.isFile() || info.size > promptInputsBytes) return undefined;
+      text = await handle.readFile("utf8");
+    } finally {
+      await handle.close();
+    }
+    const record: unknown = JSON.parse(text);
+    return isObject(record) &&
+      record.schema_version === promptInputsSchema &&
+      typeof record.layer_digest === "string"
+      ? record.layer_digest
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Whether `inputs` are not what the last complete refresh was built from;
+ * no record counts, so the first apply after this record exists refreshes
+ * once. */
+export async function promptInputsChanged(
+  home: string,
+  inputs: PromptInputs,
+): Promise<boolean> {
+  return inputs.layerDigest !== (await recordedPromptInputs(home));
+}
+
+/** Records `inputs` as what the stored prompts were built from, after a
+ * complete refresh that began with them. */
+export const recordPromptInputs = (
+  home: string,
+  inputs: PromptInputs,
+): Promise<void> =>
+  writeStateFile(promptInputsPath(home), {
+    schema_version: promptInputsSchema,
+    layer_digest: inputs.layerDigest,
+  });
+
+/** Whether a refresh of Buddy's stored prompts is owed: its marker is there,
+ * or his Lazurio layer in `folder` is not the one the last complete refresh
+ * was built from (none recorded counts). Reads only, so the read without
+ * `--apply` and the Launchpad's readings count a changed layer as owed and
+ * write nothing; an apply turns it into the marker before it refreshes. */
+export async function promptRefreshOwed(
+  home: string,
+  folder: string,
+): Promise<boolean> {
+  if (await promptRefreshMarked(home)) return true;
+  return promptInputsChanged(home, await readPromptInputs(folder));
+}

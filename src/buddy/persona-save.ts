@@ -26,10 +26,11 @@ import {
 // before it restarts his gateway, so what it could not finish yet the
 // Launchpad finishes: it applies again while Buddy is busy, and whenever a
 // reading finds a refresh of his stored prompts still owed (the record F64's
-// apply keeps until a complete refresh and the restart after it), so a
-// Launchpad that restarted takes it up again. Nothing of this is stored
-// beside F64's own record. The journal names the operation, its outcome and
-// its reason, never a name, a value or a revision.
+// apply keeps until a complete refresh and the restart after it, or his
+// Lazurio layer in the Folder no longer the one his last complete refresh was
+// built from), so a Launchpad that restarted takes it up again. Nothing of
+// this is stored beside F64's own records. The journal names the operation,
+// its outcome and its reason, never a name, a value or a revision.
 
 /** The persona as the page shows it: `revision` names the file a change
  * must still find (null-free: a page that has none sends null); `pending`
@@ -162,11 +163,13 @@ export function appliedOf(answer: BuddyPersona | "running"): PersonaApplied {
 }
 
 /** The Launchpad's persona: `apply` is F64's (`buddyPersona` with `apply`),
- * `home` the account's own. */
+ * `home` the account's own and `folder` the Folder it serves. */
 export function createPersonaSave(
   input: Readonly<{
     /** The account's home; none known reads no persona and writes none. */
     home: string | undefined;
+    /** The Folder whose Lazurio layer Buddy's prompts are built from. */
+    folder: string;
     apply: () => Promise<BuddyPersona>;
     journal?: ((entry: PersonaJournalEntry) => void) | undefined;
     /** Tests only: the clock of `confirmed_at` and of the retries. */
@@ -182,6 +185,7 @@ export function createPersonaSave(
   const journal = (entry: PersonaJournalEntry) => input.journal?.(entry);
   const home = input.home ?? "";
   const homeKnown = home !== "" && isAbsolute(home);
+  const owedNow = () => promptRefreshOwed(home, input.folder);
 
   // One apply at a time in this process (F64's own lock orders it against
   // the command): a save joins the one that runs, which reads the persona
@@ -275,14 +279,12 @@ export function createPersonaSave(
   const pending = () => running !== null || retry !== undefined;
 
   return Object.freeze({
-    /** The persona as it is now. A refresh still owed starts an apply,
-     * unless one runs, waits or was asked a moment ago. */
+    /** The persona as it is now. A refresh still owed, a changed layer's
+     * included, starts an apply, unless one runs, waits or was asked a moment
+     * ago. */
     async read(): Promise<BuddyPersonaShown | null> {
       if (!homeKnown) return null;
-      const [read, owed] = await Promise.all([
-        readPersona(home),
-        promptRefreshOwed(home),
-      ]);
+      const [read, owed] = await Promise.all([readPersona(home), owedNow()]);
       if (owed && !closed && !pending() && now().getTime() >= notBefore)
         void run();
       return personaShown(read, owed || pending());
@@ -323,7 +325,7 @@ export function createPersonaSave(
             reason: "persona-changed",
             current: personaShown(
               write.current,
-              pending() || (await promptRefreshOwed(home)),
+              pending() || (await owedNow()),
             ),
           }),
           "persona-changed",
@@ -339,7 +341,7 @@ export function createPersonaSave(
         outcome: write.kind,
         applied: applied.state,
       });
-      const owed = await promptRefreshOwed(home);
+      const owed = await owedNow();
       return Object.freeze({
         kind: "persona",
         outcome: write.kind,

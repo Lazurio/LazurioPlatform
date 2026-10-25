@@ -23,8 +23,13 @@ import {
   gatewayUnitState,
   liveConversations,
   microsecondsOf,
+  promptInputsPath,
+  promptRefreshMarked,
   promptRefreshOwed,
   promptRefreshOwedPath,
+  readPromptInputs,
+  recordedPromptInputs,
+  recordPromptInputs,
   refreshPrompts,
   restartPending,
 } from "../src/buddy/gateway-refresh";
@@ -56,7 +61,11 @@ import {
   type BuddyPersonaEnvironment,
   buddyPersona,
 } from "../src/buddy/persona-apply";
-import { initializeMachineFolder } from "../src/machine/cli";
+import { buddyLayerPaths, buddyRulesPath } from "../src/folder/outputs";
+import {
+  initializeMachineFolder,
+  refreshMachineFolder,
+} from "../src/machine/cli";
 import { acquireFileLock } from "../src/platform/flock";
 import type { ToolsEnvironment } from "../src/tools/overview";
 import type { ToolRunner } from "../src/tools/status";
@@ -772,6 +781,9 @@ async function osobniProstredi(locale: PersonaLocale = "cs") {
     locale,
   });
   expect(initialized.code).toBe(0);
+  // His prompts were last refreshed from the Lazurio layer the Folder holds
+  // (F64's addendum of 2026-10-25), as an installed Buddy's.
+  await recordPromptInputs(home, await readPromptInputs(folder));
   const hermesHome = join(home, ".hermes");
   await mkdir(hermesHome, { mode: 0o700 });
   await mkdir(dirname(personaPath(home)), { recursive: true, mode: 0o700 });
@@ -1040,7 +1052,7 @@ async function osobniProstredi(locale: PersonaLocale = "cs") {
         .prepare("update sessions set system_prompt_hash = ? where id = ?")
         .run(hash, id),
     );
-  const owed = () => promptRefreshOwed(home);
+  const owed = () => promptRefreshOwed(home, folder);
   return {
     home,
     folder,
@@ -1646,6 +1658,359 @@ posix(
       expect(env.calls(restarts)).toBe(1);
       expect(await env.owed()).toBe(false);
     }),
+);
+
+// ---- His Lazurio layer (F64's addendum of 2026-10-25, #648) ----------------
+
+/** Both live conversations that hold a stored prompt took a turn, so each
+ * holds one again. */
+const turns = (env: Prostredi) => {
+  env.turn("20261025_080000_abc123", "h-telegram-turn");
+  env.turn("2b7c1e0a-1111-4222-8333-444455556666", "h-acp-turn");
+};
+const bothRepaired = [
+  "2b7c1e0a-1111-4222-8333-444455556666",
+  "20261025_080000_abc123",
+];
+
+posix(
+  "a Folder refresh that rewrites Buddy's rules owes a refresh of his stored prompts: the read reports it and writes nothing, an apply while he is busy records it and waits, the idle one clears the prompts, restarts once and records the layer, and the next apply does nothing; a Folder refresh that changes nothing owes none",
+  () =>
+    within(async (env) => {
+      const rules = join(env.folder, buddyRulesPath);
+      expect(await apply(env)).toMatchObject({ state: "applied" });
+      turns(env);
+      // The same release's Folder refresh renders the same rules.
+      expect(
+        await refreshMachineFolder(env.folder, bindings.personal),
+      ).toMatchObject({ code: 0 });
+      expect(await env.owed()).toBe(false);
+      // His prompts were built from the previous release's rules, and the
+      // update's Folder refresh writes this release's.
+      await writeFile(rules, "Buddy's rules of the previous release\n");
+      await recordPromptInputs(env.home, await readPromptInputs(env.folder));
+      expect(
+        await refreshMachineFolder(env.folder, bindings.personal),
+      ).toMatchObject({ code: 0 });
+      expect(await readFile(rules, "utf8")).not.toContain("previous release");
+      const recorded = await readFile(promptInputsPath(env.home), "utf8");
+      env.world.calls.length = 0;
+      expect(await read(env)).toMatchObject({
+        state: "outdated",
+        files: { soul: "in-place", actingSender: "in-place" },
+        prompts: { state: "owed" },
+        restart: "pending",
+      });
+      expect("reason" in (await read(env))).toBe(false);
+      // The read wrote nothing: no marker, the record as it was.
+      expect(await promptRefreshMarked(env.home)).toBe(false);
+      expect(await readFile(promptInputsPath(env.home), "utf8")).toBe(recorded);
+      expect(env.repairs()).toEqual([]);
+      expect(env.calls(restarts)).toBe(0);
+      // Busy: the apply records the owed refresh, clears nothing and waits.
+      env.world.work = "busy";
+      expect(await apply(env)).toMatchObject({
+        state: "waiting",
+        files: { soul: "in-place", actingSender: "in-place" },
+        prompts: { state: "owed" },
+        restart: "pending",
+      });
+      expect(await promptRefreshMarked(env.home)).toBe(true);
+      expect(await readFile(promptInputsPath(env.home), "utf8")).toBe(recorded);
+      expect(env.repairs()).toEqual([]);
+      expect(env.calls(restarts)).toBe(0);
+      // Idle: the stored prompts cleared, one restart, the layer recorded.
+      env.world.work = "idle";
+      env.world.calls.length = 0;
+      expect(await apply(env)).toMatchObject({
+        state: "applied",
+        prompts: { state: "refreshed", refreshed: 2, live: 2 },
+        restart: "done",
+      });
+      expect(env.repairs()).toEqual(bothRepaired);
+      expect(env.calls(restarts)).toBe(1);
+      expect(await recordedPromptInputs(env.home)).toBe(
+        (await readPromptInputs(env.folder)).layerDigest,
+      );
+      expect(await env.owed()).toBe(false);
+      // Nothing more: the next apply clears nothing and restarts nothing.
+      env.world.calls.length = 0;
+      expect(await apply(env)).toMatchObject({
+        state: "applied",
+        restart: "none",
+      });
+      expect(env.repairs()).toEqual([]);
+      expect(env.calls(restarts)).toBe(0);
+      expect(await read(env)).toMatchObject({ state: "in-place" });
+    }),
+);
+
+posix(
+  "no record of what his prompts were built from, as on a Buddy before this release, owes the refresh once: one apply clears, restarts and records, and then nothing is owed for good; a record that is none counts as none",
+  () =>
+    within(async (env) => {
+      expect(await apply(env)).toMatchObject({ state: "applied" });
+      turns(env);
+      const path = promptInputsPath(env.home);
+      await rm(path);
+      expect(await env.owed()).toBe(true);
+      expect(await read(env)).toMatchObject({
+        state: "outdated",
+        prompts: { state: "owed" },
+        restart: "pending",
+      });
+      await expect(lstat(path)).rejects.toThrow();
+      env.world.calls.length = 0;
+      expect(await apply(env)).toMatchObject({
+        state: "applied",
+        prompts: { state: "refreshed", refreshed: 2, live: 2 },
+        restart: "done",
+      });
+      expect(env.calls(restarts)).toBe(1);
+      // The record: 0600 in 0700, this schema and the layer's digest only.
+      const digest = (await readPromptInputs(env.folder)).layerDigest;
+      expect((await stat(path)).mode & 0o777).toBe(0o600);
+      expect((await stat(dirname(path))).mode & 0o777).toBe(0o700);
+      expect(JSON.parse(await readFile(path, "utf8"))).toEqual({
+        schema_version: "lazurio.buddy-prompt-inputs.v1",
+        layer_digest: digest,
+      });
+      expect(
+        (await readdir(dirname(path))).filter((name) =>
+          name.endsWith(".lazurio"),
+        ),
+      ).toEqual([]);
+      // Settled for good.
+      for (let round = 0; round < 2; round += 1) {
+        turns(env);
+        env.world.calls.length = 0;
+        expect(await apply(env)).toMatchObject({
+          state: "applied",
+          restart: "none",
+        });
+        expect(env.repairs()).toEqual([]);
+        expect(env.calls(restarts)).toBe(0);
+      }
+      expect(await read(env)).toMatchObject({ state: "in-place" });
+      // Another schema, a digest that is none, or a record through a link
+      // records nothing: owed again.
+      const good = await readFile(path, "utf8");
+      const elsewhere = join(env.home, "prompt-inputs-elsewhere.json");
+      await writeFile(elsewhere, good);
+      for (const put of [
+        () =>
+          writeFile(
+            path,
+            JSON.stringify({
+              schema_version: "lazurio.buddy-prompt-inputs.v2",
+              layer_digest: digest,
+            }),
+          ),
+        () =>
+          writeFile(
+            path,
+            JSON.stringify({
+              schema_version: "lazurio.buddy-prompt-inputs.v1",
+              layer_digest: digest.toUpperCase(),
+            }),
+          ),
+        () => writeFile(path, "{"),
+        async () => {
+          await rm(path);
+          await symlink(elsewhere, path);
+        },
+      ]) {
+        await put();
+        expect(await env.owed()).toBe(true);
+        await rm(path);
+        await writeFile(path, good, { mode: 0o600 });
+        expect(await env.owed()).toBe(false);
+      }
+    }),
+);
+
+posix(
+  "the record is the layer as the apply found it when it began: rules rewritten while it runs stay owed, the apply answers waiting, and the next one clears again and records the new layer",
+  () =>
+    within(async (env) => {
+      expect(await apply(env)).toMatchObject({ state: "applied" });
+      const rules = join(env.folder, buddyRulesPath);
+      await writeFile(rules, "Buddy's rules of the next release\n");
+      const began = (await readPromptInputs(env.folder)).layerDigest;
+      // Rewritten again while the apply runs: after it read the layer and
+      // wrote its files, when it asks systemd about the gateway.
+      env.world.during = async () => {
+        env.world.during = undefined;
+        await writeFile(rules, "Buddy's rules of the release after it\n");
+      };
+      turns(env);
+      env.world.calls.length = 0;
+      expect(await apply(env)).toMatchObject({
+        state: "waiting",
+        prompts: { state: "refreshed", refreshed: 2, live: 2 },
+        restart: "done",
+      });
+      expect(env.calls(restarts)).toBe(1);
+      expect(await recordedPromptInputs(env.home)).toBe(began);
+      expect(await promptRefreshMarked(env.home)).toBe(false);
+      expect(await env.owed()).toBe(true);
+      expect(await read(env)).toMatchObject({
+        state: "outdated",
+        prompts: { state: "owed" },
+      });
+      turns(env);
+      env.world.calls.length = 0;
+      expect(await apply(env)).toMatchObject({
+        state: "applied",
+        prompts: { state: "refreshed", refreshed: 2, live: 2 },
+        restart: "done",
+      });
+      expect(env.repairs()).toEqual(bothRepaired);
+      expect(env.calls(restarts)).toBe(1);
+      expect(await recordedPromptInputs(env.home)).toBe(
+        (await readPromptInputs(env.folder)).layerDigest,
+      );
+      expect(await env.owed()).toBe(false);
+    }),
+);
+
+posix(
+  "a file of the layer that is no regular file of its own (a link, never followed) is unreadable: it owes the refresh when it becomes so and is named layer-unreadable; the refresh records it, so it is not refreshed again; a regular file again owes the next refresh",
+  () =>
+    within(async (env) => {
+      expect(await apply(env)).toMatchObject({ state: "applied" });
+      const rules = join(env.folder, buddyRulesPath);
+      const bytes = await readFile(rules);
+      // The same bytes, through a link.
+      const elsewhere = join(env.home, "rules-elsewhere.md");
+      await writeFile(elsewhere, bytes);
+      await rm(rules);
+      await symlink(elsewhere, rules);
+      expect(await read(env)).toMatchObject({
+        state: "outdated",
+        reason: "layer-unreadable",
+        prompts: { state: "owed" },
+      });
+      turns(env);
+      env.world.calls.length = 0;
+      expect(await apply(env)).toMatchObject({
+        state: "failed",
+        reason: "layer-unreadable",
+        prompts: { state: "refreshed", refreshed: 2, live: 2 },
+        restart: "done",
+      });
+      expect(env.calls(restarts)).toBe(1);
+      expect(await env.owed()).toBe(false);
+      // While it stays so, nothing is refreshed again, and it is named.
+      turns(env);
+      env.world.calls.length = 0;
+      expect(await apply(env)).toMatchObject({
+        state: "failed",
+        reason: "layer-unreadable",
+        restart: "none",
+      });
+      expect(env.repairs()).toEqual([]);
+      expect(env.calls(restarts)).toBe(0);
+      expect(await read(env)).toMatchObject({
+        state: "in-place",
+        reason: "layer-unreadable",
+      });
+      // A regular file again, as the Folder's refresh writes it once the
+      // link is gone: the next refresh is owed.
+      await rm(rules);
+      await writeFile(rules, bytes, { mode: 0o600 });
+      expect(await env.owed()).toBe(true);
+      env.world.calls.length = 0;
+      expect(await apply(env)).toMatchObject({
+        state: "applied",
+        prompts: { state: "refreshed", refreshed: 2, live: 2 },
+        restart: "done",
+      });
+      expect(env.calls(restarts)).toBe(1);
+      expect(await env.owed()).toBe(false);
+    }),
+);
+
+posix(
+  "the layer's digest: each file of buddyLayerPaths by its path, then its bytes, in order, a token of its own for absent and for unreadable, the same wherever the Folder is",
+  async () => {
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "prompt-inputs-")),
+    );
+    try {
+      const layer = (folder: string, texts: readonly (string | null)[]) =>
+        Promise.all(
+          buddyLayerPaths.map(async (path, index) => {
+            const file = join(folder, path);
+            await rm(file, { recursive: true, force: true });
+            const text = texts[index] ?? null;
+            if (text === null) return;
+            await mkdir(dirname(file), { recursive: true, mode: 0o700 });
+            await writeFile(file, text, { mode: 0o600 });
+          }),
+        );
+      const digestOf = async (folder: string) => readPromptInputs(folder);
+      const but = (
+        all: readonly (string | null)[],
+        changes: Readonly<Record<number, string | null>>,
+      ): (string | null)[] =>
+        all.map((text, index) =>
+          index in changes ? (changes[index] ?? null) : text,
+        );
+      const texts = buddyLayerPaths.map((path) => `Text of ${path}\n`);
+      const one = join(root, "one", "Lazurio");
+      const other = join(root, "elsewhere", "Lazurio");
+      await layer(one, texts);
+      await layer(other, texts);
+      const base = await digestOf(one);
+      expect(base.unreadable).toBe(false);
+      expect(base.layerDigest).toMatch(/^[0-9a-f]{64}$/);
+      // The same layer in another place: the same digest.
+      expect(await digestOf(other)).toEqual(base);
+      const seen = new Set([base.layerDigest]);
+      const differs = async (folder: string, unreadable: boolean) => {
+        const now = await digestOf(folder);
+        expect(seen.has(now.layerDigest)).toBe(false);
+        expect(now.unreadable).toBe(unreadable);
+        seen.add(now.layerDigest);
+      };
+      // One byte of a skill changed, its length the same; and one more byte.
+      await layer(one, but(texts, { 3: (texts[3] ?? "").replace("\n", "!") }));
+      await differs(one, false);
+      await layer(one, but(texts, { 3: `${texts[3]}.` }));
+      await differs(one, false);
+      // Two files' bytes swapped: which file holds them counts.
+      await layer(one, but(texts, { 1: texts[2] ?? "", 2: texts[1] ?? "" }));
+      await differs(one, false);
+      // An empty file, and none at all.
+      await layer(one, but(texts, { 0: "" }));
+      await differs(one, false);
+      await layer(one, but(texts, { 0: null }));
+      await differs(one, false);
+      // A link to the same bytes is unreadable, and reads the same twice.
+      await layer(one, texts);
+      const rules = join(one, buddyRulesPath);
+      await rm(rules);
+      await writeFile(join(root, "rules.md"), texts[0] ?? "");
+      await symlink(join(root, "rules.md"), rules);
+      await differs(one, true);
+      expect((await digestOf(one)).layerDigest).toBe(
+        (await digestOf(one)).layerDigest,
+      );
+      await rm(rules);
+      await mkdir(rules);
+      const directory = await digestOf(one);
+      // A link and a directory both read as unreadable: the same token.
+      expect(directory.unreadable).toBe(true);
+      expect(seen.has(directory.layerDigest)).toBe(true);
+      // No Folder at all: every file absent.
+      const none = await digestOf(join(root, "none"));
+      expect(none.unreadable).toBe(false);
+      expect(seen.has(none.layerDigest)).toBe(false);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
 );
 
 posix(

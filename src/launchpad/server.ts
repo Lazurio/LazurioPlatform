@@ -1190,6 +1190,7 @@ export async function startLaunchpad(
   // journal never names a name, a value or a revision.
   const buddyPersona = createPersonaSave({
     home: toolsEnvironment.home,
+    folder,
     apply: () =>
       applyBuddyPersona(
         { tools: toolsEnvironment, env: process.env },

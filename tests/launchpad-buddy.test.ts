@@ -3,7 +3,11 @@ import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { promptRefreshOwed } from "../src/buddy/gateway-refresh";
+import {
+  promptRefreshMarked,
+  readPromptInputs,
+  recordPromptInputs,
+} from "../src/buddy/gateway-refresh";
 import { personaPath, soulPath, writePersona } from "../src/buddy/persona";
 import {
   initializeFolder,
@@ -69,6 +73,9 @@ async function hosted(
       locale: "cs",
     }),
   });
+  // Buddy's prompts were last refreshed from the Folder's Lazurio layer
+  // (F64's addendum of 2026-10-25), as an installed Buddy's.
+  await recordPromptInputs(fake.userHome, await readPromptInputs(folder));
   const fetcher: AuthFetcher = async (_url, init) =>
     new Headers(init.headers).get("cookie") ===
     "__Secure-lazurio-workspace=valid"
@@ -712,7 +719,7 @@ posix(
       expect(await readFile(soulPath(app.fake.userHome), "utf8")).toContain(
         "Mattyčus",
       );
-      expect(await promptRefreshOwed(app.fake.userHome)).toBe(true);
+      expect(await promptRefreshMarked(app.fake.userHome)).toBe(true);
       expect((await app.get(buddyRoutePaths.read)).body.persona).toEqual(shown);
       const personaLines = lines.lines
         .filter((line) => line.includes('"buddy-persona"'))
