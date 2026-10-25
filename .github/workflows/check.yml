@@ -22,9 +22,11 @@ permissions:
   contents: read
 
 # A newer push to a pull request cancels its running checks; a push to main
-# is never cancelled.
+# is never cancelled. The event is part of the group: a manual run of the
+# same commit queues in a group of its own, so it can never replace a push
+# run still pending in the push's group.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
