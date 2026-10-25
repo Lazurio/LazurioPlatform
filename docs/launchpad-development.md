@@ -1294,7 +1294,21 @@ refused or plain directory is not checked out. `url` is the GitHub page
 `repository`) when that names a github.com repository, otherwise null; nothing is
 fetched. `infra` and `mission-control/db` are not listed: neither is a module nor a
 production repository. An Organization that could not be read, and the Personalspace
-group, have `repositories: []`.
+group, have `repositories: []`. On Služby serveru the owning Organization's
+`repositories` also carry the services of the Environment's handover that name a
+repository ([F32's addendum of 2026-10-24](decisions.md#f32--teams-are-not-a-presentation-axis-of-the-launchpad-an-environment-is-one-workspace),
+root decision 0209 point 6): a declared one with the GitHub page of a service's
+repository gets `services` (`{id, kind, page}`, the page on this Environment's
+loopback or null), and a repository only services name follows the declared ones with
+`path: null`. The owning Organization is the one `selectOwnerOrganization` names, as
+for Organization settings and Composio. Where the Folder holds none, the catalog
+carries `serverServices` instead: a group in the shape of an Organization named as the
+handover names its owner, with an empty directory and no state, Teams, modules or
+GitHub binding, its repositories the service repositories. It is kept apart from
+`organizations` like the Personalspace group, shown and selected by `catalogGroups`,
+and absent from `organizationsOnly`. The Launchpad and `lazurio organization list`
+read the services from the root-custodied handover; every other reader of the catalog
+lists none.
 
 **Teams.** The canonical form is `module_slots[].teams`. The catalog resolves membership
 exactly as the resident's read model does (`organizationSlotTeams` in the legacy root's
@@ -1430,7 +1444,10 @@ the first run's line shows. An Organization never has it.
 **Routes.** `/` is the first Organization's Apps home; `/o/<org>` one Organization's
 Apps home, its sections Workspace and Productionspace (F36, F32's final addendum);
 `/o/<org>/<module>` one module (Organization, apps with the default marked,
-path, whether it can run; no resolution state since F36's addendum of 2026-10-16). No route shows Teams (F32). `<org>` is selected by the CLI's rule
+path, whether it can run; no resolution state since F36's addendum of 2026-10-16);
+`/o/<org>/productionspace/<repository>` a service repository's page on Služby serveru,
+and `/service/<id>` the link that opens a service's page in the Environment browser
+and leaves the address for `/` (F32's addendum of 2026-10-24). No route shows Teams (F32). `<org>` is selected by the CLI's rule
 above and each segment is URL-encoded. A candidate's own route uses the name that
 selects exactly it: its slug, otherwise its directory name (an Organization that
 could not be read, or one of two candidates of a slug whose directory is not a slug);

@@ -107,12 +107,15 @@ export function createShell(
       if (link.dataset.section === section)
         link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
-    // A module sits under its Organization in the breadcrumb.
-    crumbOrganization.hidden = route.view !== "module";
-    if (route.view === "module")
+    // A module, and a service repository's page, sit under their
+    // Organization in the breadcrumb.
+    const underOrganization =
+      route.view === "module" || route.view === "repository";
+    crumbOrganization.hidden = !underOrganization;
+    if (route.view === "module" || route.view === "repository")
       crumbOrganizationLink.href = organizationPath(route.organization);
     // The breadcrumb is a navigation landmark only where it has a parent.
-    if (route.view === "settings" || route.view === "module")
+    if (route.view === "settings" || underOrganization)
       crumbs.removeAttribute("role");
     else crumbs.setAttribute("role", "none");
     relabel();
@@ -128,7 +131,7 @@ export function createShell(
       routeFrame(route) === "settings"
         ? copy.settingsBreadcrumb
         : copy.catalogBreadcrumb;
-    if (route.view === "module")
+    if (route.view === "module" || route.view === "repository")
       crumbOrganizationLink.textContent =
         options.displayName?.(route.organization) ?? route.organization;
   }

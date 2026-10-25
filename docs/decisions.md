@@ -5642,6 +5642,121 @@ the order: the flag first, then the switch with "Upravit karty" after it.
 | On a narrow page, the switch on a line below the flag | Puts the switch between the flag and its rule; not chosen |
 | The switch at the head's right end, 6 px above the rule, the flag flush (selected) | One look of a switch across the product; the flag stays the section's mark on its rule |
 
+**Addendum 2026-10-24, plan DEV-6674 S2.2 phase 1 (root decision 0209 point 6 with
+its addenda of 2026-10-19 (a), (b) and (g); the wireframe
+HumanAndMachine-ai/prototypes-lazurio #71 and #72, approved by Matěj (Organization
+Admin) on 2026-10-19): Služby serveru list their services in Productionspace, and a
+service's page opens in their own Environment browser.** Root decision 0209 point 6
+makes each service of a server's services Environment a productionspace repository:
+read-only, with extended functions, the first being the link that opens the
+service's page on that Environment's loopback in its Environment browser, never on an
+address of its own. Machines lists the services in that Environment's handover
+(`services`: id, kind, optional `repository` and loopback `page_port`; Machines
+`docs/server-services.md` §2.1).
+
+1. **Listed where they run.** On Služby serveru (the handover's assignment
+   `services`), Productionspace lists every service of the Environment's own handover
+   that names a repository, in the Organization that owns this Machine by the one rule
+   Organization settings and Composio read it by (`selectOwnerOrganization`: bound to
+   the handover's login, or unbound and carrying it as its slug). One entry per
+   repository: a declared productionspace slot whose GitHub page is the service's
+   repository, whatever the letter case, carries its services; a repository only
+   services name follows the declared ones, in the handover's order, with no path and
+   not checked out. A service without a repository (the public entry, DNS-01) is not
+   listed. A repository of another owner, such as the public `Lazurio/CLIProxyAPI`, is
+   read-only like every production repository. The catalog of every other Environment
+   is unchanged.
+2. **Also where the Organization is not installed.** The handover is the authority for
+   what runs on this Environment, independent of an Organization checkout. Matěj found
+   the reference Organization's services-01 with no Organization in its Folder: its
+   Apps said only that there are no apps. Where the Folder holds no Organization that
+   owns this Machine, the services form a group of their own (`serverServices`), in
+   the shape of an Organization named as the handover names its owner
+   (`organization_key`, else its login, as the shell document names an owner it does
+   not hold), so Apps shows the Organization's name with this Environment's name under
+   it and a Productionspace with the services. The group has no root here: an empty
+   directory, no state, Teams, modules or GitHub binding. It is kept apart from
+   `organizations`, as the Personalspace group is, so no feature that acts on an
+   installed Organization reaches it: module start, preparation and creation read
+   their own catalog without services, the Owner question, a Steward's maintain and
+   the prompts read the installed Organizations only (`organizationsOnly`), and
+   Organization settings and Composio find no owner. The page shows and selects it
+   (`catalogGroups`), offers no Workspace and no "+ Nový modul" in it, and refuses
+   one that looks installed. Where two or more installed Organizations answer the
+   owner rule, the services are listed nowhere: which one owns this Machine is never
+   guessed.
+3. **The catalog states it once.** A repository of the catalog gains `services`
+   (each `{id, kind, page}`, in the handover's order), and its `path` is null for a
+   repository only services name; the catalog gains `serverServices` where point 2
+   says. The services are read from the root-custodied handover
+   (`handoverServerServices`), never recorded in the Folder;
+   `lazurio organization list --json` and `POST /api/catalog` read them and so answer
+   the same (the human table lists only installed Organizations), and every other
+   reader of the catalog lists none. A page is `http://127.0.0.1:<page_port><path>`.
+4. **The page's path.** The handover carries only the port. Machines renders a page
+   for one kind, `ai-pool`: CLIProxyAPI's Management Center at `/management.html`
+   (`workloads/workspace-vm/service-unit.ts`). The Platform keeps that path per kind
+   (`servicePagePaths`, held by a test to that render), and a kind without a path has
+   no link, whatever port it names: a link to the wrong page is worse than none. This
+   is chosen over waiting for Machines to hand the path over, because the deployed
+   handover drives the link now and the schema is Machines', which the Platform vendors
+   unchanged. The follow-up is a `page_path` the Platform reads first and Machines
+   writes after, as with every new member (HumanAndMachine-ai/Machines#902); the
+   table then goes.
+5. **The link.** A tile whose repository has one service page says "Otevřít stránku
+   služby" in the link's blue and opens that page; with several, it leads to the
+   repository's page; with none, it says that the repository has no app. The page
+   opens in the Environment browser through Nová karta's open for the Launchpad's
+   strip (`POST /api/new-tab/open`, F47 point 8), so the Launchpad holds the tab and
+   its right panel shows it. A second click is that tab again: the hub answers an open
+   of a page its strip already shows with that tab (F57 point 7), and the Management
+   Center's own routes are fragments of one page. Nothing injects, fills in or stores
+   the management key: the page opens signed out, and the key is entered from the
+   Environment's vault (0209 addendum (a)).
+6. **`/service/<id>`.** The Launchpad serves its page under `/service/<id>`, which
+   opens the page of this Environment's service `<id>` once the catalog and the entry
+   are read. It is no route of its own: the page shows the Apps home under `/` in its
+   place, replacing the address, so neither Back nor a reload opens the page again.
+   Another Environment's Launchpad can link here (phase 2).
+7. **"Informace o repozitáři".** A service repository has a page of its own,
+   `/o/<org>/productionspace/<repository>`, the wireframe's `RepositoryPage`:
+   "O repozitáři" (read-only, its folder where the Organization declares it, its
+   GitHub page) and a card "Služba" per service (its name, what it is, where it runs:
+   this Environment's name, and the address of its page). The head opens the one page;
+   with several, each card opens its own. No app lifecycle, branches or log. A
+   production repository without a service keeps no page of its own: its menu still
+   leads to its GitHub page, as the final addendum says.
+8. **Who sees it.** Only the Organization's Owners and Admins enter Služby serveru
+   (0209 point 3, its gateway's admission). In every other Environment a declared
+   repository that is also a service's stays a read-only row without the link.
+9. **Words.** The wireframe's, in both languages ("Otevřít stránku služby", "Jen ke
+   čtení", "Služba", "Běží v", "Stránka služby"); what a service is in a person's
+   words ("AI pool Organizace", "Brána AI"); no tooltip with mechanics. The folder
+   icon of a repository's tile is as large as a module's stone (#72).
+
+**Not in this addendum, each its own step:** the link from the other Environments of
+the same server, which needs Machines to name the server's services Environment in
+every guest's handover (0209 addendum (b), Machines §2.1); the Dashboard; importing
+the management key into the Environment's vault (Machines §1.4, F53), which is also
+the real answer to the Management Center's own "remember" of the key in the shared
+browser profile (until then the process holds it: nobody ticks it there); the
+Organization install on a services Environment. Addendum (c) gives Služby serveru's
+brokered identity read access to the Organization root precisely so that the standard
+install can run there; that it had not run on the reference Organization's services-01
+is a separate finding, and point 2 changes no install behaviour.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A separate list of services in the catalog, merged on the page | The CLI's JSON and the page would merge the same twice; rejected, as the addendum of 2026-10-03 rejected a rule derived twice |
+| The services recorded in the Folder's Machine binding | A second copy of the handover, kept by the binding's refresh; rejected: the root-custodied handover is read where it is needed |
+| A route of the Launchpad's own that opens a service's page | A second way into the Environment browser beside Nová karta's open; rejected |
+| The page's path in the vendored schema now | The schema is Machines'; a receiver-first follow-up instead |
+| A page of its own for every production repository | Beyond 0209 point 6 and the final addendum; not chosen |
+| Show the services only where the Organization is installed | Hides what runs on this Environment whenever its Organization install has not run, as on the reference Organization's services-01; rejected: the handover is the authority for what runs here |
+| The services group among `organizations`, with the owner's slug as its directory | Every reader of Organizations (module start and creation, settings, Composio, the Owner question, the Doctor) would take it for an installed one with a root that does not exist; rejected for a group kept apart, as the Personalspace group is |
+| The owner by its login, slug or `organization_key`, as the shell document finds it for the rail | A third rule for the same fact; replaced by `selectOwnerOrganization`, the one rule Organization settings and Composio already read |
+| The services in the owning Organization's Productionspace, or in a group of their own where it is not installed, their page opened through Nová karta's open (selected) | One core for the CLI and the page; no new interface; one tab per service by the hub's own rule; nothing that acts on an installed Organization sees the group |
+
 ## F33 — The workspace of an Environment is composed by the Dashboard from live GitHub rights (proposal, partly decided)
 
 **Proposal of 2026-10-02 (plan DEV-6638); partly decided by Matěj the same evening, not

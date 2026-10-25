@@ -84,7 +84,15 @@
 // Team Environment, a persona's Automated Environment or the server's
 // Služby serveru instead (its handover's assignment `team`, `automation` or
 // `services`, root decision 0209), to see how a page names each kind
-// (decision F28's addendum of 2026-10-18). With `vault-member` anywhere
+// (decision F28's addendum of 2026-10-18); Služby serveru's Productionspace
+// then also lists the services of a handover shaped like the reference
+// Organization's services-01, and "Otevřít stránku služby" opens the AI
+// pool's page through a fake hub on the entry's port 4848 (decision F32's
+// addendum of 2026-10-24; `servicesWorld` below); with `fresh` as well
+// (`hosted cs <port> owner fresh services`), the Folder holds no
+// Organization, as on a services Environment whose Organization install has
+// not run, and Apps lists the services in a group of their own, named as
+// the handover names its owner. With `vault-member` anywhere
 // after the mode, the fictional person jana already has her Lazurio account
 // with a master password in the hosted work Environment's vault, so Apps →
 // Trezor adds and confirms her and finds her a member: the vault's video
@@ -125,6 +133,8 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { TabFacts } from "../src/browser/contract/platform";
+import { addressKey } from "../src/browser/people/sleep";
 import {
   initializeFolder,
   initializeHandoverFolder,
@@ -139,7 +149,10 @@ import {
   microsoft365SpecId,
 } from "../src/integrations/microsoft365";
 import { microsoft365Description } from "../src/integrations/microsoft365-executor";
+import type { NewTabHost } from "../src/launchpad/new-tab-routes";
 import { startLaunchpad } from "../src/launchpad/server";
+import { parseMachineContext } from "../src/machine/context";
+import { serverServicesOf } from "../src/organizations/catalog";
 import { toolsEnvironmentOf } from "../src/tools/overview";
 import { runTool } from "../src/tools/status";
 import { readConnection } from "../src/vault/connection";
@@ -176,6 +189,7 @@ import {
   organizationWithEntry,
   personalWithEntry,
 } from "../tests/fixtures/machine-bindings";
+import servicesContext from "../tests/fixtures/machine-context-services.json";
 
 const mode =
   process.argv[2] === "hosted" || process.argv[2] === "personal"
@@ -905,6 +919,114 @@ if ((composioOff || microsoft365) && mode === "hosted" && !fresh) {
     if ((await git.exited) !== 0) throw new Error(`git ${args[0]} failed`);
   }
 }
+// Služby serveru's services (root decision 0209 point 6, decision F32's
+// addendum of 2026-10-24), with `services`: a handover shaped like the
+// reference Organization's services-01, read as the catalog reads one
+// (CLIProxyAPI with the AI pool `members`, whose page is its Management
+// Center on 127.0.0.1:18402, and the AI gateway `try` without a page; the
+// public entry and DNS-01 without a repository). The view's hub is a fake on
+// the entry's loopback port (4848) that keeps one tab per page and strip, as
+// the hub does (decision F57 point 7), and lists its tabs on `/preview/tabs`
+// for the browser automation that stands in for the view's origin; Nová
+// karta's holder file is in a temporary runtime directory.
+const services = assignment === "services" ? await servicesWorld() : null;
+async function servicesWorld() {
+  const served = serverServicesOf(
+    parseMachineContext(
+      Buffer.from(
+        JSON.stringify({
+          ...servicesContext,
+          services: [
+            { id: "entry", kind: "public-entry" },
+            { id: "dns01", kind: "dns01" },
+            {
+              id: "try",
+              kind: "ai-gateway",
+              repository: "Lazurio/CLIProxyAPI",
+            },
+            {
+              id: "members",
+              kind: "ai-pool",
+              repository: "Lazurio/CLIProxyAPI",
+              page_port: 18402,
+            },
+          ],
+        }),
+      ),
+    ),
+  );
+  const tabs: TabFacts[] = [];
+  Bun.serve({
+    hostname: "127.0.0.1",
+    port: 4848,
+    async fetch(request) {
+      const url = new URL(request.url);
+      if (url.pathname === "/preview/tabs") return Response.json(tabs);
+      if (url.pathname !== "/.lazurio/tabs")
+        return Response.json({ error: "not-found" }, { status: 404 });
+      if (request.method === "GET")
+        return Response.json({
+          tabs: url.searchParams.has("heap")
+            ? tabs.map((tab) => ({ ...tab, heap: null }))
+            : tabs,
+        });
+      const asked = (await request.json()) as {
+        url: string;
+        strip: string | null;
+      };
+      const known = tabs.find(
+        (tab) =>
+          tab.opener.kind === "new-tab" &&
+          tab.opener.strip === asked.strip &&
+          addressKey(tab.url) === addressKey(asked.url),
+      );
+      if (known !== undefined)
+        return Response.json({
+          id: known.id,
+          view: `${browserOrigin}/t/${known.id}`,
+          reused: true,
+        });
+      const id = (0xa00 + tabs.length)
+        .toString(16)
+        .toUpperCase()
+        .padStart(32, "0");
+      const now = new Date().toISOString();
+      tabs.push({
+        id,
+        url: asked.url,
+        title: "CLIProxyAPI Management Center",
+        favicon: null,
+        openedAt: now,
+        usedAt: now,
+        opener: { kind: "new-tab", strip: asked.strip },
+        agents: [],
+        holders: [],
+        viewers: 0,
+        closing: null,
+        grace: null,
+      });
+      return Response.json(
+        { id, view: `${browserOrigin}/t/${id}` },
+        { status: 201 },
+      );
+    },
+  });
+  const runtime = await realpath(
+    await mkdtemp(join(tmpdir(), "launchpad-preview-runtime-")),
+  );
+  const started = Date.now();
+  const newTabHost: NewTabHost = {
+    runtimeDirectory: runtime,
+    run: null,
+    readFile: (path) => readFile(path, "utf8"),
+    bootClock: async () => ({
+      boot: "6f2c1d0e-1a2b-4c3d-8e4f-5a6b7c8d9e0f",
+      at: 1 + (Date.now() - started) / 1000,
+    }),
+    log: () => undefined,
+  };
+  return { served, newTabHost };
+}
 const app = await startLaunchpad(
   folder,
   undefined,
@@ -913,6 +1035,15 @@ const app = await startLaunchpad(
   mode === "local"
     ? {}
     : {
+        // Služby serveru's services, and the owner's own slug the shell
+        // document names it by, both from the same handover as on a services
+        // Environment (`handoverServerServices`, `handoverOwnerKey`).
+        ...(services === null
+          ? {}
+          : {
+              serverServices: async () => services.served,
+              ownerKey: async () => services.served?.owner.key ?? null,
+            }),
         // A hosted preview's gateway names a fictional person with a Lazurio
         // username, as Lazurio Auth's answer does, so Apps → Trezor
         // offers her own address (F53's addendum of 2026-10-16).
@@ -1053,6 +1184,10 @@ const app = await startLaunchpad(
         ? null
         : async () => ({ view: `${browserOrigin}/t/${"1".repeat(32)}` }),
   },
+  undefined,
+  // Služby serveru's Nová karta: its holder file and the fake hub above;
+  // otherwise this process's (the parameter's default).
+  services?.newTabHost,
 );
 let proxy: string | null = null;
 if (mode !== "local") {

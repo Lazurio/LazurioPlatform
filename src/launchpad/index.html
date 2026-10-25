@@ -421,6 +421,11 @@ button.tile { height: auto; justify-content: flex-start; white-space: normal; bo
 .tile-star { display: inline-grid; flex: none; margin-left: 8px; color: var(--fg); }
 .tile-star .icon { width: 13px; height: 13px; }
 .tile-desc { overflow: hidden; color: var(--muted-fg); font-size: 14px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
+/* A repository's folder as large as a module's stone in the same 44 px box
+   (prototypes-lazurio #72); a service repository's one extended function in
+   the link's blue (root decision 0209 point 6, prototypes-lazurio #71). */
+.tile[data-kind="repository"] .tile-mark .icon { width: 34px; height: 34px; }
+.tile-service { color: var(--link); font-size: 14px; font-weight: var(--lz-weight-akce); line-height: 1.5; }
 /* The personal space's starts (root decision 0185's addendum of 2026-10-13;
    the wireframe's .lp-starts, prototypes-lazurio c0fa0e92): after the
    modules under a quiet title, never a third section pill; a tile per start,
@@ -455,6 +460,9 @@ button.tile { height: auto; justify-content: flex-start; white-space: normal; bo
 .back:hover { color: var(--fg); }
 .module-head { display: flex; align-items: center; gap: 16px; }
 .module-stone { display: block; flex: none; width: 64px; height: 64px; }
+/* A service repository's page: its folder where a module has its stone. */
+.module-mark { display: grid; flex: none; width: 64px; height: 64px; place-items: center; color: var(--lz-ink); }
+.module-mark .icon { width: 44px; height: 44px; }
 .module-head-text { display: grid; gap: 2px; min-width: 0; }
 .module-meta { color: var(--muted-fg); font-size: 14px; }
 .module-open { margin-left: auto; height: 30px; padding: 0 12px; }

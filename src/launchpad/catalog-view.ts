@@ -16,8 +16,18 @@ import {
   catalogOrganizationKey,
   selectCatalogOrganization,
 } from "../organizations/catalog-selection";
+import {
+  type CatalogService,
+  isCatalogService,
+  type ServiceKind,
+} from "../organizations/server-services";
 import type { MessageKey } from "./messages";
-import { modulePath, organizationPath, type PageRoute } from "./routes";
+import {
+  modulePath,
+  organizationPath,
+  type PageRoute,
+  repositoryPath,
+} from "./routes";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
@@ -218,6 +228,64 @@ export function moduleRoute(
   return key === null ? null : modulePath(key, module.module);
 }
 
+/** The page of one service repository of a candidate (root decision 0209
+ * point 6), or null as above, and for a repository without a service: a
+ * production repository has no page of its own (F32's final addendum). */
+export function repositoryRoute(
+  catalog: Catalog,
+  organization: CatalogOrganization,
+  repository: CatalogRepository,
+): string | null {
+  const key = catalogOrganizationKey(catalog, organization);
+  return key === null || repository.services === undefined
+    ? null
+    : repositoryPath(key, repository.slug);
+}
+
+/** The services of a repository that have a page, in their order. */
+export const servicePages = (
+  repository: CatalogRepository,
+): readonly (CatalogService & { page: string })[] =>
+  (repository.services ?? []).flatMap((service) =>
+    service.page === null ? [] : [{ ...service, page: service.page }],
+  );
+
+/** The page of the service `id` of this Environment (root decision 0209
+ * point 6): its loopback address, or null where no repository of the
+ * catalog lists exactly one service of that id, or it has no page. */
+export function servicePageOf(catalog: Catalog, id: string): string | null {
+  const found = catalogGroups(catalog).flatMap((organization) =>
+    organization.repositories.flatMap((repository) =>
+      (repository.services ?? []).filter((service) => service.id === id),
+    ),
+  );
+  const [service] = found;
+  return found.length === 1 && service !== undefined ? service.page : null;
+}
+
+const serviceKindKeys: Readonly<Record<ServiceKind, MessageKey>> = {
+  "ai-pool": "serviceKindAiPool",
+  "ai-gateway": "serviceKindAiGateway",
+  http: "serviceKindHttp",
+  diagnostics: "serviceKindDiagnostics",
+  "public-entry": "serviceKindPublicEntry",
+  dns01: "serviceKindDns01",
+};
+
+/** What a service is, in a person's words: "AI pool Organizace". */
+export const serviceKindText = (service: CatalogService, copy: Copy): string =>
+  copy[serviceKindKeys[service.kind]];
+
+/** A service repository's one line: what its services are, each kind once,
+ * in their order ("Brána AI · AI pool Organizace"). */
+export const servicesText = (
+  services: readonly CatalogService[],
+  copy: Copy,
+): string =>
+  [...new Set(services.map((service) => serviceKindText(service, copy)))].join(
+    " · ",
+  );
+
 /** What a catalog route shows; `ambiguous` when more than one candidate
  * declares the slug (their isolation, never one of them), `missing` when the
  * Folder does not have it. */
@@ -231,6 +299,12 @@ export function catalogSelection(
       kind: "module";
       organization: CatalogOrganization;
       module: CatalogModule;
+    }>
+  /** A service repository's page (root decision 0209 point 6). */
+  | Readonly<{
+      kind: "repository";
+      organization: CatalogOrganization;
+      repository: CatalogRepository;
     }>
   | Readonly<{
       kind: "ambiguous";
@@ -251,6 +325,18 @@ export function catalogSelection(
   const { organization } = selection;
   if (route.view === "organization")
     return { kind: "organization", organization };
+  if (route.view === "repository") {
+    // Only a repository with a service has a page, and only one entry of
+    // that slug may be it.
+    const found = organization.repositories.filter(
+      (entry) =>
+        entry.slug === route.repository && entry.services !== undefined,
+    );
+    const [repository] = found;
+    return repository === undefined || found.length !== 1
+      ? { kind: "missing" }
+      : { kind: "repository", organization, repository };
+  }
   const module = organization.modules.find(
     (entry) => entry.module === route.module,
   );
@@ -274,7 +360,10 @@ export type CatalogModuleEntry = Readonly<{
 }>;
 
 /** One production repository as the page lists it: no status dot, no
- * action, no page (F32 addendum of 2026-10-03). */
+ * action, no page (F32 addendum of 2026-10-03); in Služby serveru one with
+ * the services of this Environment, whose page it opens and which has a
+ * page of its own (root decision 0209 point 6, F32's addendum of
+ * 2026-10-24). */
 export type CatalogRepositoryEntry = Readonly<{
   repository: CatalogRepository;
   /** "Checked out" or "Not checked out", in words. */
@@ -475,6 +564,45 @@ export function moduleFacts(
   ];
 }
 
+/** What a service repository's page says of it, "O repozitáři" (the
+ * wireframe's `RepositoryPage`, prototypes-lazurio #71): read-only, and its
+ * folder in the Organization where the Organization declares it; its GitHub
+ * page is the page's link beside these. */
+export function repositoryFacts(
+  repository: CatalogRepository,
+  copy: Copy,
+): readonly CatalogFact[] {
+  return [
+    [copy.appsRepositoryAccess, copy.appsRepositoryReadOnly],
+    ...(repository.path === null
+      ? []
+      : ([[copy.appsRepositoryFolder, repository.path]] as CatalogFact[])),
+  ];
+}
+
+/** What a service's card says of it, "Služba": its name and what it is,
+ * where it runs (`environment`, this Environment's name as the shell names
+ * it, "Služby serveru"; null before the shell document is read) and the
+ * address of its page where it has one, without the scheme. */
+export function serviceFacts(
+  service: CatalogService,
+  environment: string | null,
+  copy: Copy,
+): readonly CatalogFact[] {
+  return [
+    [copy.appsServiceName, service.id],
+    [copy.appsServiceKind, serviceKindText(service, copy)],
+    ...(environment === null
+      ? []
+      : ([[copy.appsServiceRunsIn, environment]] as CatalogFact[])),
+    ...(service.page === null
+      ? []
+      : ([
+          [copy.appsServicePage, service.page.replace(/^http:\/\//, "")],
+        ] as CatalogFact[])),
+  ];
+}
+
 // The exact shape of the server's answer, before anything is drawn from it.
 const text = (value: unknown): value is string => typeof value === "string";
 const texts = (value: unknown): value is string[] =>
@@ -532,10 +660,17 @@ function isRepository(value: unknown): value is CatalogRepository {
   const entry = value as Record<string, unknown>;
   return (
     text(entry.slug) &&
-    text(entry.path) &&
+    orNull(entry.path) &&
     typeof entry.checkedOut === "boolean" &&
     (entry.url === null ||
-      (text(entry.url) && entry.url.startsWith("https://github.com/")))
+      (text(entry.url) && entry.url.startsWith("https://github.com/"))) &&
+    // Služby serveru's services (root decision 0209 point 6): at most the
+    // schema's 32, each with a loopback page or none.
+    (entry.services === undefined ||
+      (Array.isArray(entry.services) &&
+        entry.services.length > 0 &&
+        entry.services.length <= 32 &&
+        entry.services.every(isCatalogService)))
   );
 }
 function isOrganization(value: unknown): value is CatalogOrganization {
@@ -588,6 +723,23 @@ function isWorkspaceTab(value: unknown): boolean {
   );
 }
 
+/** Služby serveru's services group as the core writes it: in the shape of an
+ * Organization with a slug, an empty directory, no GitHub binding (so nobody
+ * is offered to found a module in it) and no modules, every repository a
+ * service repository. */
+function isServicesGroup(value: unknown): value is CatalogOrganization {
+  if (!isOrganization(value)) return false;
+  return (
+    value.directory === "" &&
+    value.organization !== null &&
+    value.organization.length > 0 &&
+    value.forgeLogin === undefined &&
+    value.modules.length === 0 &&
+    value.repositories.length > 0 &&
+    value.repositories.every((entry) => entry.services !== undefined)
+  );
+}
+
 /** The catalog, when the answer is one; null otherwise. */
 export function parseCatalog(input: unknown): Catalog | null {
   if (!input || typeof input !== "object") return null;
@@ -595,7 +747,12 @@ export function parseCatalog(input: unknown): Catalog | null {
   return value.kind === "catalog" &&
     Array.isArray(value.organizations) &&
     value.organizations.every(isOrganization) &&
-    (value.personalspace === undefined || isOrganization(value.personalspace))
+    (value.personalspace === undefined ||
+      isOrganization(value.personalspace)) &&
+    // Služby serveru's services group (root decision 0209 point 6): no
+    // directory, no modules, only service repositories.
+    (value.serverServices === undefined ||
+      isServicesGroup(value.serverServices))
     ? (value as Catalog)
     : null;
 }
