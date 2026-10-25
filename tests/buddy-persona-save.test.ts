@@ -27,6 +27,7 @@ import {
   type PersonaTimers,
   personaFailedRetryMs,
   personaRetryMs,
+  personaWatchMs,
 } from "../src/buddy/persona-save";
 import { buddyRulesPath } from "../src/folder/outputs";
 
@@ -560,6 +561,60 @@ posix(
       late.close();
       await late.start();
       expect(closed.calls()).toBe(0);
+    });
+  },
+);
+
+/** Waits until `ready`, at most a second. */
+async function until(ready: () => boolean) {
+  for (let round = 0; round < 200 && !ready(); round += 1) await tick();
+  expect(ready()).toBe(true);
+}
+
+posix(
+  "after its start the Launchpad reads every two minutes on its own: his new rules, written by a Folder refresh after the Launchpad restarted, and a marker the command left, are each taken up by the next reading; nothing owed starts nothing; close stops it",
+  async () => {
+    await within(async (home, folder) => {
+      const fake = applies("applied");
+      const hand = handTimers();
+      const save = createPersonaSave({
+        home,
+        folder,
+        apply: fake.apply,
+        now: hand.now,
+        timers: hand.timers,
+      });
+      await save.start();
+      expect(fake.calls()).toBe(0);
+      expect(hand.set()).toEqual([personaWatchMs]);
+      // Nothing owed: a reading, and no apply.
+      await hand.pass(personaWatchMs);
+      for (let round = 0; round < 10; round += 1) await tick();
+      expect(fake.calls()).toBe(0);
+      expect(hand.set()).toEqual([personaWatchMs]);
+      // Machines' apply refreshes the Folder after the Platform's own update
+      // restarted the Launchpad: his new rules arrive after its start.
+      await writeFile(rulesOf(folder), "Buddy's rules of the next release\n");
+      await hand.pass(personaWatchMs);
+      await until(() => fake.calls() === 1);
+      // Applied and recorded: the next reading finds nothing owed.
+      await recordPromptInputs(home, await readPromptInputs(folder));
+      await hand.pass(personaWatchMs);
+      for (let round = 0; round < 10; round += 1) await tick();
+      expect(fake.calls()).toBe(1);
+      // A `lazurio buddy persona --apply` that waited for him left its
+      // marker.
+      await owePromptRefresh(home);
+      await hand.pass(personaWatchMs);
+      await until(() => fake.calls() === 2);
+      // A second start sets no second watch; close stops the one there is.
+      await settlePromptRefresh(home);
+      await save.start();
+      expect(hand.set()).toEqual([personaWatchMs]);
+      save.close();
+      expect(hand.set()).toEqual([]);
+      await hand.pass(personaWatchMs);
+      expect(fake.calls()).toBe(2);
     });
   },
 );

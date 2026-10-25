@@ -2828,18 +2828,20 @@ export async function startLaunchpad(
       () => undefined,
     );
   if (installed !== undefined && !publicEnvironment) toolsReading.warm();
+  // The Launchpad's holds, reconciled with the hub's list from now on.
+  await holder?.start();
   // Buddy's stored prompts (decision F64, addendum of 2026-10-25): where the
-  // entry names him, his persona is read once now, in the background, so a
-  // refresh owed since this Launchpad last ran (a change of his Lazurio layer
-  // included) is applied once he is idle, without anyone opening a page. A
-  // Platform update restarts the Launchpad. Never a reason for the start to
-  // wait or fail.
+  // entry names him, his persona is read now, in the background, and again
+  // every two minutes until the Launchpad stops (`personaWatchMs`), so a
+  // refresh owed since this Launchpad last ran, or by a change no page saw
+  // (a change of his Lazurio layer included), is applied once he is idle,
+  // without anyone opening a page. A Platform update restarts the Launchpad;
+  // the Folder refresh that writes his new layer may come after it. Never a
+  // reason for the start to wait or fail.
   const buddyAtStart =
     entry?.buddyOrigin === undefined
       ? Promise.resolve()
       : buddyPersona.start().catch(() => undefined);
-  // The Launchpad's holds, reconciled with the hub's list from now on.
-  await holder?.start();
   // Executor (decision F44, addendum of 2026-10-11, #298): where install and
   // update only report it, this Launchpad sets it up in the background once
   // it listens, through the one setup of Settings → Tools. Never awaited and

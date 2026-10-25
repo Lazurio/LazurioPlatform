@@ -110,6 +110,13 @@ export const personaRetryMs = 15_000;
  * again, at most `personaRetryMaxMs`. */
 export const personaFailedRetryMs = 30_000;
 export const personaRetryMaxMs = 15 * 60_000;
+/** After its start, the Launchpad reads Buddy's persona again this often on
+ * its own, as often as it asks an Organization's settings (F64's addendum of
+ * 2026-10-25). A change no page saw then reaches him without one: Machines'
+ * apply raises the Platform, which restarts the Launchpad, and only then
+ * refreshes the Folder, which writes his new Lazurio layer; and a
+ * `lazurio buddy persona --apply` that waited for him leaves its marker. */
+export const personaWatchMs = 2 * 60_000;
 
 /** The persona of a reading, as the page shows it; null where there is none
  * the installer would take (absent, unreadable or refused): the page then
@@ -199,6 +206,8 @@ export function createPersonaSave(
   let failedDelay = personaFailedRetryMs;
   let journaled: string | null = null;
   let closed = false;
+  // The next reading of the Launchpad's own, after `start`.
+  let watch: unknown;
 
   const schedule = (delay: number) => {
     if (retry !== undefined) timers.cancel(retry);
@@ -289,15 +298,29 @@ export function createPersonaSave(
     return personaShown(persona, owed || pending());
   }
 
+  /** The Launchpad's next reading of its own, `personaWatchMs` from now; an
+   * apply it starts is the one any reading starts. */
+  function watchAgain() {
+    watch = timers.after(() => {
+      watch = undefined;
+      if (closed) return;
+      watchAgain();
+      void read().catch(() => null);
+    }, personaWatchMs);
+  }
+
   return Object.freeze({
     read,
 
     /** The Launchpad starts where Buddy is (F64's addendum of 2026-10-25):
      * one reading now, so a refresh owed since it last ran is applied once
      * he is idle, without anyone opening a page; a Platform update restarts
-     * it. Resolves when the reading, and the apply it started, ended. */
+     * it. Then one every `personaWatchMs` until `close`. Resolves when the
+     * first reading, and the apply it started, ended. */
     async start(): Promise<void> {
+      if (!homeKnown) return;
       await read();
+      if (!closed && watch === undefined) watchAgain();
       await running;
     },
 
@@ -365,11 +388,13 @@ export function createPersonaSave(
       });
     },
 
-    /** The Launchpad stops: no retry after it. */
+    /** The Launchpad stops: no retry and no reading of its own after it. */
     close() {
       closed = true;
       if (retry !== undefined) timers.cancel(retry);
       retry = undefined;
+      if (watch !== undefined) timers.cancel(watch);
+      watch = undefined;
     },
   });
 }
