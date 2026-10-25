@@ -18616,10 +18616,10 @@ nested `bun` and `bunx` all ran as 1.4.3; the second resolution came from the ca
 ## F63 — Buddy's sign-in and status: the Launchpad is a local client of Buddy's Hermes gateway
 
 **Proposed on 2026-10-25 under plan DEV-6676 (Matěj's mandate for Buddy on the web of
-2026-10-21; root decisions 0207 and 0210 with their addenda), from the shaping of Buddy's
-onboarding for the Buddy lead (`drafts/DEV-6676-buddy-onboarding/SHAPING.md` of the Lazurio
-root, §3.1 to §3.5 and §3.10). Variant A below is the agent's recommendation, implemented in
-this revision for Matěj's decision at review.** Buddy signs in to ChatGPT with his own account,
+2026-10-21; root decisions 0207 and 0210 with their addenda), from the Buddy lead's shaping of
+Buddy's onboarding. Variant A below is decided by the Buddy lead as the implementing
+architecture under that mandate and implemented in this revision; Matěj, the Organization
+Admin, may overrule it.** Buddy signs in to ChatGPT with his own account,
 apart from the agents (root decision 0210). Until now only the interim installer could do it:
 it started a transient `hermes dashboard` on `127.0.0.1:9119` for up to four hours, printed
 instructions and stopped there, and the gateway that runs Buddy was installed only after the
