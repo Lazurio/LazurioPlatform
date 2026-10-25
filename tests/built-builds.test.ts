@@ -6,6 +6,7 @@ import {
   readFile,
   realpath,
   rm,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -35,6 +36,8 @@ afterEach(async () => {
 });
 
 const commit = (n: number) => n.toString(16).padStart(40, "0");
+// A directory link: a symlink, or on Windows a junction (no privilege needed).
+const directoryLink = process.platform === "win32" ? "junction" : "dir";
 
 type Checkout = { commit: string; dirty: boolean };
 
@@ -497,6 +500,95 @@ test("a build runs the App's own Bun with its directory first on PATH (decision 
       ),
     );
   }
+});
+
+test("a build never removes or installs an output whose way leaves the app's package through a link (#643)", async () => {
+  // build_output generated/dist; the script writes its page there, and when
+  // told first links `generated` to a directory outside the checkout.
+  const checkout = { commit: commit(1), dirty: false };
+  const runs: string[] = [];
+  let linkTo: string | null = null;
+  const run = async (input: BuildProcessInput) => {
+    runs.push(checkout.commit);
+    await writeFile(input.log, `built ${checkout.commit}\n`);
+    if (linkTo !== null)
+      await symlink(linkTo, join(input.cwd, "generated"), directoryLink);
+    await mkdir(join(input.cwd, "generated/dist"), { recursive: true });
+    await writeFile(
+      join(input.cwd, "generated/dist/index.html"),
+      `<p>${checkout.commit}</p>`,
+    );
+    return { kind: "exited" as const, code: 0 };
+  };
+  const builds = createBuilds({
+    lockFile: join(root, "state/lazurio/builds.lock"),
+    runner: async () => "session",
+    servable: async (output) => Bun.file(join(output, "index.html")).exists(),
+    runBuild: run,
+  });
+  const web = app("web", checkout);
+  const job = (): BuildJob => {
+    const base = web.job();
+    return {
+      ...base,
+      read: async () => {
+        const context = await base.read();
+        return "refused" in context
+          ? context
+          : { ...context, output: "generated/dist" };
+      },
+    };
+  };
+  const first = built(await builds.enqueue(job(), "foreground"));
+  expect(await readFile(join(first.output, "index.html"), "utf8")).toBe(
+    `<p>${commit(1)}</p>`,
+  );
+
+  // Before the build: `generated` links outside, whose dist holds someone
+  // else's file. Nothing is removed and the script never runs.
+  await rm(join(web.cwd, "generated"), { recursive: true, force: true });
+  const outside = join(root, "outside");
+  await mkdir(join(outside, "dist"), { recursive: true });
+  await writeFile(join(outside, "dist/sentinel.txt"), "not Lazurio's");
+  await symlink(outside, join(web.cwd, "generated"), directoryLink);
+  checkout.commit = commit(2);
+  expect(await builds.enqueue(job(), "background")).toEqual({
+    kind: "failed",
+    reason: "build-output-unservable",
+    key: commit(2),
+  });
+  expect(await readFile(join(outside, "dist/sentinel.txt"), "utf8")).toBe(
+    "not Lazurio's",
+  );
+  expect(runs).toEqual([commit(1)]);
+  expect(await readFile(web.store.logFile(commit(2)), "utf8")).toContain(
+    "generated is a link",
+  );
+  // The previous build keeps serving.
+  expect((await web.store.state())?.current?.key).toBe(commit(1));
+  expect(await web.store.output(commit(1))).not.toBeNull();
+
+  // After the build: the script links `generated` itself and writes a
+  // servable page there; nothing of it is installed under the key.
+  await rm(join(web.cwd, "generated"), { force: true });
+  const elsewhere = join(root, "elsewhere");
+  await mkdir(elsewhere, { recursive: true });
+  linkTo = elsewhere;
+  checkout.commit = commit(3);
+  expect(await builds.enqueue(job(), "background")).toEqual({
+    kind: "failed",
+    reason: "build-output-unservable",
+    key: commit(3),
+  });
+  expect(runs).toEqual([commit(1), commit(3)]);
+  expect(await web.store.output(commit(3))).toBeNull();
+  expect(await readFile(join(elsewhere, "dist/index.html"), "utf8")).toBe(
+    `<p>${commit(3)}</p>`,
+  );
+  expect(await readFile(web.store.logFile(commit(3)), "utf8")).toContain(
+    "generated is a link",
+  );
+  expect((await web.store.state())?.current?.key).toBe(commit(1));
 });
 
 test("another process's build holds the lock: busy after the wait, nothing recorded", async () => {
