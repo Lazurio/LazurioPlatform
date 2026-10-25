@@ -460,7 +460,8 @@ upstream decision 0137 and requires the amendment listed above. The contract is 
 **Accepted direction (2026-09-19); installation implemented 2026-10-04 (addendum
 below); synchronization of existing repositories implemented 2026-10-24 (amendment
 below), automatic in the Launchpad (at its start, then hourly) and
-explicit as `lazurio organization sync`.** "Update Lazurio" changes product
+explicit as `lazurio organization sync`; one `lazurio update` composes both cores since
+the second amendment of 2026-10-24 (root decision 0212 point 3).** "Update Lazurio" changes product
 bytes; its contract is the product update document (`docs/update.md`, separate PR).
 "Synchronize content" changes Organization repositories; its contract is
 [content synchronization](content-sync.md). They have separate commands, buttons,
@@ -891,6 +892,152 @@ installation or a data mount's clone at a start in that moment answers `content-
 and is tried again; an Organization root whose `.gitignore` does not ignore its module
 directories is always dirty and never synchronized, which the doctor names; a public
 Environment's fetch still reads the checkout's own `url.*.insteadOf` (HTTPS only).
+
+### Second amendment of 2026-10-24: one `lazurio update` composes content, builds and Lazurio itself
+
+**Decided by Matěj (Organization Admin) on 2026-10-24 (root decision 0212 points 3, 4, 5
+and 7, HumanAndMachines/Lazurio#625; plan DEV-6656); implemented here for v0.1.12.**
+"Update Lazurio and Synchronize content are separate operations" stays true of their
+cores; it is no longer true of the commands. Root decision 0212 point 3: one `lazurio
+update`, with the same meaning on a computer and on an Environment, brings everything
+the user owns up to date, and agents run it before every task. Contract:
+[product update, One `lazurio update`](update.md#one-lazurio-update-content-tools-builds-and-lazurio-itself)
+and [content synchronization, When it runs](content-sync.md#when-it-runs).
+
+1. **One composition, four parts.** `updateEverything` (`src/update/everything.ts`) runs
+   the content (`syncContent`, every Organization the Environment holds), the tools (the
+   Bun the apps of the module checkouts the content moved pin, point 7), the builds
+   (`refreshBuilt`: every built app with a build state whose checkout moved past its
+   build, built in the foreground and swapped in, decision F58) and Lazurio itself
+   (`performUpdate`), and answers an item per repository, pinned Bun, built app and the
+   product. Plain `lazurio update` runs it; `--version` and `--check` stay Lazurio's only,
+   and so does the pill.
+2. **Each core keeps its lock, outcome and failure isolation.** A part that fails or
+   cannot run is one item and never stops the next: content is synchronized when the
+   release cannot be verified, Lazurio is updated when GitHub refuses a repository. The
+   content part waits up to 2 minutes for another content operation before it answers
+   `content-busy`. The exit status stays the product's: a blocked checkout or a failed
+   build is a finding in its item.
+3. **Content and builds first, Lazurio last.** They change nothing that runs until a build
+   swaps, which refuses no connection; Lazurio's activation restarts the Launchpad. Last,
+   it never interrupts them, and the Launchpad's job has finished them before the restart.
+   0212 point 3 lists Lazurio first; this order is the Platform's choice for that reason,
+   to be confirmed in review.
+4. **Builds of what someone opened.** An app nobody opened gets no first build from an
+   update (its first Open builds it), and a commit whose build failed is not built again
+   (an explicit `lazurio module build` is), unless its pinned Bun could not be fetched,
+   which may pass by itself (decision F62 point 7, as the builder does). Beside a
+   session's apps (a computer's Launchpad on macOS), whose dependency trees their
+   Launchpad owns until it ends, the CLI builds nothing: the Launchpad's watcher builds
+   and swaps what the content brought.
+5. **The Launchpad runs the same composition as a job** for Aktualizovat
+   (`POST`/`GET /api/update/everything`, behind the admission of every route; a click
+   while one runs joins it), with Lazurio last through the pill's own action, whose unit
+   outlives the restart it causes. Not on a public Environment, whose visitors do not own
+   it.
+6. **The Open of one module (point 4).** After the Launchpad answered a Start or Open, or
+   the gateway's `ensure` of a navigation, that module's checkout is synchronized in the
+   background (`createOpenSync`): at most once per module in 5 minutes, never for a
+   checkout or root the last round left blocked, never before the answer. The build
+   watcher builds and swaps. The background never updates Lazurio itself (point 4), and
+   the pipeline keeps owning the minimum version (point 5).
+7. **The tools part: the Bun the moved modules pin (DEV-6682, decision F62 point 9).**
+   Agreed with the DEV-6682 thread, which approved this part and decided its two open
+   points (one answer about the network per run, and a cache lookup after the stop) on
+   2026-10-25. After the content, before any build:
+   - **The pins.** Those of every app the module checkouts the content fast-forwarded in
+     this run declare, as the commits it brought declare them (`runtimePins` of the
+     module core: the catalog, then `readPinnedBun` of each app's package), each once,
+     in order. A root, a data mount or a module that did not move adds none; when
+     nothing moved nothing is read.
+   - **The pre-warm.** `prewarmModuleRuntimes` with the module core's own resolver
+     (`resolveBun`, `createModuleBunResolver({ home, userBun, path, tmpdir })`), the one
+     its builds use, so they share its fetches under way and its cache. It is called
+     once per pin, so each pin's answer is a line as soon as it is known (a `fetching`
+     step, then the item).
+   - **Offline.** The first `runtime-unavailable` ends the fetches for the run: that pin
+     is `refused` with it. Each pin after it is only looked up without the network (the
+     resolver's `fetch: false`): `cached` when the user's Bun or the cache has it,
+     otherwise `not-fetched` with `runtime-unavailable`, never tried.
+   - **One run, one answer about the network.** That `runtime-unavailable`, and no other
+     reason, is held in memory for the rest of that `lazurio update` run only and handed
+     to its builds (`refreshBuilt`'s `registryUnavailable`). A build of that run whose pin
+     is neither the user's Bun nor in the cache refuses at once with `runtime-unavailable`,
+     after a local lookup only, and builds nothing; the next run builds it (point 4). A pin
+     that is there builds as always. A person's start, Open or build and the Launchpad's
+     sweep are never told: they still ask the registry themselves.
+   - **Other refusals** are `refused` items with their reason, and the pre-warm goes on;
+     `runtime-integrity-failed` (a download that did not verify, or a program that
+     reports another version) is `warning: true`.
+   - **The user's Bun.** A pin of exactly the user's Bun needs nothing: `cached`,
+     nothing fetched, as `prewarmModuleRuntimes` answers it.
+   - **Never a failed update.** Its items are findings; the exit status stays the
+     product's, and pins that cannot be read are one `failed` item of the part, after the
+     pins that were read are pre-warmed. Only a package that was read and pins nothing
+     adds nothing; a package.json missing, unreadable or pinning something other than an
+     exact Bun, and a moved module the catalog does not declare, count as unreadable
+     (the review of #622), so an update never looks clean while it skipped one.
+   - **Only what moved.** Apps with a build state whose checkout did not move are not
+     pre-warmed, even when their pin is not cached: a pin changes only with a commit,
+     and the builds' own preparation resolves each app's pin through the same resolver
+     before its build script runs (F62 point 6), so no build ever runs without its Bun.
+     An app whose build is current needs no Bun of its own until it starts its own
+     server.
+   - **On a computer's session Launchpad** the CLI builds nothing (point 4), but its
+     tools part fetches into the cache the Launchpad's watcher then reads; a build that
+     starts during the fetch waits for it under the version's exclusion (F62 point 3).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep two commands, `lazurio update` and `lazurio organization sync`, and have agents run both | The decision asks for one command with one meaning; two commands are two things to remember before every task; rejected |
+| One transaction over product and content | One lock would let a stuck fetch block a product update and the reverse; their failure isolation is the reason F9 kept them apart; rejected |
+| Lazurio first, then content and builds (the decision's listing) | The activation restarts the Launchpad, which would end the Launchpad's job before its content and builds, and the CLI's builds would race the restarted Launchpad's first sweep; the order only matters for a release that builds differently, which its own first sweep then does; rejected for content first |
+| The CLI re-executes the new version for content and builds after an activation | A second process and protocol for a rare case the next hourly round covers; rejected |
+| Build every built app of the Organization, opened or not | A first build installs a module's dependencies and can take minutes; agents run the update before every task; the Open builds what someone uses; rejected |
+| Rebuild a commit whose build failed at every update | Agents would pay for the same failure before every task; an explicit build does it; rejected |
+| Change the JSON to a new top-level shape | Every reader of `lazurio update --json` (the Launchpad's activators, scripts, agents) reads the product's answer; `items` beside it keeps them; rejected |
+| The Aktualizovat button starts the CLI in a transient unit and reads its progress from a file | Survives the restart, but adds a progress file and protocol; the Launchpad already runs both cores in its process, and the product's own unit already outlives the restart; rejected |
+| Synchronize at every Open, without a debounce | The gateway asks `ensure` at every navigation; a burst would be a fetch per request; rejected for once per 5 minutes per module |
+| Pre-warm the pin of every app with a build state, or of every app, at each update | Agents run the update before every task; about 70 MB per version nothing in the run needs, and the builds resolve their own pins anyway; rejected for the apps of what moved |
+| One `prewarmModuleRuntimes` call with every pin | Its answer comes when all pins are done, so a page would show the first pin under way while the last fetches, and stopping after the first `runtime-unavailable` would need a wrapper around the resolver; rejected for one call per pin |
+| Keep fetching the other pins when one is `runtime-unavailable` | Offline, every pin waits for the registry in turn, up to the 5-minute bound each; rejected with the DEV-6682 thread for the first one ending the pre-warm |
+| Let the run's builds ask the registry themselves after the pre-warm found it silent | Where the network drops packets, each build waits up to the fetch bound for an answer the run already has; rejected with the DEV-6682 thread for one answer per run |
+| Keep the offline answer across runs (a file, or the Launchpad's memory) | A network that is back would still be refused until something forgot the answer; rejected for memory of one run |
+| Report every pin after the stop `not-fetched` without looking | A pin the user's Bun or the cache already has would read as missing; rejected with the DEV-6682 thread for a lookup without the network |
+| A failed pre-warm fails the update | A Bun that cannot be had is a finding of the apps that pin it, which their start or build names as well; agents run the update before every task; rejected |
+
+Tests: `tests/update-everything.test.ts` (the order and each line's steps; a failing
+product keeping the content's answers and the reverse; the wait for a busy content lock;
+the tools part with the resolver a start uses and a fake installer: a pin not cached
+fetched before the build, only for the checkouts that moved, then from the cache; offline
+stopping at the first `runtime-unavailable`, the rest looked up without the network
+(`cached` or `not-fetched`); the builds of that run told so, by `runtime-unavailable`
+alone and never in the next run; each other refusal an item and integrity a warning; the
+user's own Bun not fetched; an update that never fails because of tools, pins that cannot
+be read making one failed item after the others are pre-warmed; the job that a second
+start joins; the CLI's words; the Open: exactly that module,
+debounced per module, never blocking, never for a blocked checkout or root; the module
+an answer names), `tests/module-built.test.ts` (on real git and real builds: `lazurio
+update --json` with no newer Lazurio and a module behind fast-forwards it, lists every
+item with Lazurio last, and the Launchpad swaps in the new build; the Launchpad's own run
+builds and swaps at once, does not build a failed commit again and gives an app nobody
+opened no first build; a failing Lazurio still answers the content; the tools part fetching
+the Bun a moved module's new commit pins before its build, which runs with it; offline,
+the run's build refusing at once with no second attempt at the registry, a person's build
+still asking it, a later run building it, and a pin in the cache building under the
+offline answer; `runtimePins` reading each pin once, a package without one adding nothing,
+and a pin that cannot be read or a moved module not declared counted),
+`tests/bun-runtime.test.ts` (the lookup without the network: the user's
+Bun or the cache, otherwise `runtime-unavailable` at once, never the installer, no wait
+for a fetch under way) and
+`tests/launchpad-update.test.ts` (the routes behind the admission, a joined second
+click, Lazurio last through the pill; the pill's part when nothing is newer or the check
+fails). Risks: the Launchpad's job goes with the restart Lazurio's activation causes, so
+its lines after it are those the page last read; on a computer's session Launchpad the
+CLI reports no build items; a build of a big app holds an update for its minutes, which is
+the price of a build that is ready when someone opens it. Offline, the first pin still waits
+for the registry up to the fetch bound where the network drops packets instead of refusing
+them; everything after it in the run answers from what is on the disk.
 
 ## F10 — Workspace presets and typed owner requests
 
@@ -18826,9 +18973,12 @@ which broke the same App for their colleagues.
    per pin, `cached`, `fetched` or `refused` with the reason a start would give, never a
    throw; the caller reads each App's pin (`readPinnedBun`). Root decision 0212
    (HumanAndMachines/Lazurio#625, in review) has `lazurio update` run it after content
-   synchronization and before the preparation and builds of what moved. It is not wired
-   here: the composition of `lazurio update` is on plan DEV-6656's branch, with a no-op
-   tools step as its seam, and whichever change merges second plugs it in.
+   synchronization and before the preparation and builds of what moved: its tools part
+   does so since v0.1.12 ([F9's second amendment](#second-amendment-of-2026-10-24-one-lazurio-update-composes-content-builds-and-lazurio-itself),
+   point 7). Once its pre-warm meets `runtime-unavailable`, the rest of that one run
+   resolves with `fetch: false`, a lookup of the user's Bun and the cache that refuses
+   `runtime-unavailable` at once, for its remaining pins and its builds, while a person's
+   start, Open or build outside the run still fetches.
 10. **`lazurio tools update bun` needs no guard.** The user's Bun no longer decides
     whether a pinned App starts: it runs one only when it is exactly the pinned version,
     and otherwise only installs (`bun add` with flags every Bun 1.x has). What still

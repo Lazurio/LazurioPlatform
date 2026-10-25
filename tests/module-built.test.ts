@@ -1,9 +1,16 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { processContentGit } from "../src/content/git";
 import type { ContentGitHub } from "../src/content/github";
 import { syncContent } from "../src/content/sync";
@@ -13,6 +20,11 @@ import { messages } from "../src/launchpad/messages";
 import { moduleStatusView } from "../src/launchpad/module-view";
 import type { ApplicationRunner } from "../src/modules/application-runner";
 import { gitCheckoutReader } from "../src/modules/built/checkout";
+import {
+  type BunInstaller,
+  createModuleBunResolver,
+  type ModuleBunResolver,
+} from "../src/modules/bun-runtime";
 import type { DataMountHost } from "../src/modules/data-mounts";
 import { observeConnected } from "../src/modules/listener-ownership";
 import {
@@ -25,9 +37,17 @@ import {
 import { createSessionRunner } from "../src/modules/session-runner";
 import { type Catalog, readFolderCatalog } from "../src/organizations/catalog";
 import { runTool } from "../src/tools/status";
+import { type CliContext, runUpdateCommand } from "../src/update/cli";
+import { updateEverything } from "../src/update/everything";
 import { writeOrganization } from "./fixtures/catalog-folder";
 import { compilePlatform, runnableModule } from "./fixtures/module-host";
 import { mkdirOwnedFixture as mkdir } from "./fixtures/owned-files";
+import {
+  closeSharedSigstore,
+  commitOf,
+  createWorld as createUpdateWorld,
+  target,
+} from "./fixtures/update-world";
 
 // A static app through the module lifecycle (decision F58, root decision
 // 0195 point 19), with real processes: a synthetic module whose build script
@@ -47,6 +67,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   if (root) await rm(root, { recursive: true, force: true });
+  await closeSharedSigstore();
 });
 
 // The build script: a page naming the checkout's `page.txt`, a content-named
@@ -152,6 +173,9 @@ async function staticModule(
     /** This host's gh, git and content locks (data mounts, and the record
      * of the synchronization). */
     dataMounts?: DataMountHost;
+    /** The resolver of the Bun each app pins (decision F62): the module
+     * operations' test seam. */
+    resolveBun?: ModuleBunResolver;
   }> = {},
 ) {
   const parent = join(root, name);
@@ -216,6 +240,9 @@ async function staticModule(
     ...(options.dataMounts === undefined
       ? {}
       : { dataMounts: options.dataMounts }),
+    ...(options.resolveBun === undefined
+      ? {}
+      : { resolveBun: options.resolveBun }),
     builds: {
       cacheRoot: join(parent, "cache"),
       lockFile: join(parent, "state/lazurio/builds.lock"),
@@ -789,6 +816,512 @@ posixTest(
     }
   },
   60_000,
+);
+
+/** `staticModule` whose Organization root and site are primary checkouts of
+ * their published repositories (bare repositories reached as github.com
+ * through git's own `insteadOf`), with the content host that reaches them;
+ * `publish` puts a new page on site's published main from elsewhere, and
+ * with `pin` the Bun its app pins (`packageManager`). */
+async function publishedSite(
+  name: string,
+  home: string,
+  resolveBun?: ModuleBunResolver,
+) {
+  const remotes = join(root, `${name}-remotes`);
+  await mkdir(join(remotes, "alpha"), { recursive: true });
+  const gitEnv = {
+    GIT_CONFIG_COUNT: "2",
+    GIT_CONFIG_KEY_0: `url.${remotes}/.insteadOf`,
+    GIT_CONFIG_VALUE_0: "git@github.com:",
+    GIT_CONFIG_KEY_1: "protocol.file.allow",
+    GIT_CONFIG_VALUE_1: "always",
+  };
+  const content: DataMountHost = {
+    github: {
+      remote: async (repository: string) => ({
+        url: `git@github.com:${repository}.git`,
+      }),
+    } as unknown as ContentGitHub,
+    git: processContentGit({
+      path: Bun.env.PATH,
+      home,
+      platform: process.platform,
+      run: runTool,
+      env: gitEnv,
+    }),
+    lockDirectory: join(root, `${name}-base`, "content"),
+  };
+  const fixture = await staticModule(name, home, {
+    published: true,
+    dataMounts: content,
+    ...(resolveBun === undefined ? {} : { resolveBun }),
+  });
+  const git = (cwd: string, ...args: string[]) =>
+    execFileSync(
+      "git",
+      [
+        "-C",
+        cwd,
+        "-c",
+        "user.name=fixture",
+        "-c",
+        "user.email=fixture@example.invalid",
+        "-c",
+        "commit.gpgsign=false",
+        ...args,
+      ],
+      { encoding: "utf8", env: { ...process.env, ...gitEnv } },
+    ).trim();
+  const organization = join(fixture.folder, "organizations", "alpha");
+  await writeFile(join(organization, ".gitignore"), "workspace/\n");
+  git(organization, "init", "-q", "-b", "main");
+  git(organization, "add", "-A");
+  git(organization, "commit", "-qm", "Root");
+  for (const [directory, repository] of [
+    [organization, "alpha"],
+    [fixture.site, "site"],
+  ] as const) {
+    git(remotes, "clone", "-q", "--bare", directory, `alpha/${repository}.git`);
+    git(
+      directory,
+      "remote",
+      "add",
+      "origin",
+      `git@github.com:alpha/${repository}.git`,
+    );
+    git(directory, "fetch", "-q", "origin");
+  }
+  const scratch = join(root, name, "scratch");
+  git(root, "clone", "-q", "git@github.com:alpha/site.git", scratch);
+  return {
+    ...fixture,
+    content,
+    publish: async (page: string, pin?: string) => {
+      await writeFile(join(scratch, "app/page.txt"), `${page}\n`);
+      if (pin !== undefined) {
+        const file = join(scratch, "app/package.json");
+        const pkg = JSON.parse(await readFile(file, "utf8"));
+        pkg.packageManager = pin;
+        await writeFile(file, JSON.stringify(pkg));
+      }
+      git(scratch, "commit", "-qam", page);
+      git(scratch, "push", "-q", "origin", "main");
+      return git(scratch, "rev-parse", "HEAD");
+    },
+  };
+}
+
+posixTest(
+  "lazurio update with no newer Lazurio and a module behind: its checkout fast-forwards, --json lists every item with Lazurio last, and the new commit is built and swapped in (root decision 0212 point 3)",
+  async () => {
+    const home = join(root, "home-update");
+    await mkdir(home);
+    const fixture = await publishedSite("update", home);
+    const { operations, folder } = fixture;
+    // No newer Lazurio: the latest release is the running version.
+    const product = await createUpdateWorld();
+    await product.release("1.0.0");
+    const context: CliContext = {
+      identity: { version: "1.0.0", commit: commitOf("1.0.0"), target },
+      platform: process.platform,
+      env: { HOME: product.root, XDG_DATA_HOME: product.root },
+      executable: join(product.root, "downloaded-lazurio"),
+      environment: product.environment("1.0.0"),
+      modules: () => ({ host: fixture.host }),
+    };
+    const update = (...args: string[]) =>
+      runUpdateCommand(
+        ["--base", product.base, "--folder", folder, ...args],
+        context,
+      );
+    try {
+      // site runs as its build, a session's app of this Launchpad.
+      const started = answer(await operations.start("alpha/site"));
+      expect(started.build?.mode).toBe("built");
+      await until(fixture.page, (page) => page.text === "<p>one</p>");
+      const keeper = operations.keepBuilt({ quietMs: 100, sweepMs: 60_000 });
+      await keeper?.sweep();
+      await keeper?.settled();
+      const published = await fixture.publish("two");
+      const ran = await update("--json");
+      expect(ran.code).toBe(0);
+      const result = JSON.parse(ran.stdout ?? "");
+      expect(result).toMatchObject({ kind: "up-to-date", running: "1.0.0" });
+      // One item per repository, pinned Bun and the product, in the order
+      // the parts ran, Lazurio last. site pins the user's own Bun, which is
+      // there already. A session's apps are built by their Launchpad, which
+      // owns their dependency trees: no build item from the CLI.
+      expect(
+        result.items.map((item: Record<string, string>) =>
+          [item.part, item.path ?? item.packageManager ?? "", item.result].join(
+            " ",
+          ),
+        ),
+      ).toEqual([
+        "content . current",
+        "content workspace/site fast-forwarded",
+        `tools bun@${Bun.version} cached`,
+        "product  current",
+      ]);
+      expect(result.items[1]).toMatchObject({
+        organization: "alpha",
+        branch: "main",
+        to: published,
+      });
+      expect(fixture.head()).toBe(published);
+      // The Launchpad's watch of site's checkout builds the new commit and
+      // swaps it in.
+      const swapped = answer(
+        await until(
+          () => operations.status("alpha/site"),
+          (status) =>
+            status.kind === "module" &&
+            status.build?.served?.commit === published,
+        ),
+      );
+      expect(swapped.build?.served?.commit).toBe(published);
+      expect((await fixture.page()).text).toBe("<p>two</p>");
+      // In words: the content's summary, then Lazurio's own line.
+      expect((await update()).stdout).toBe(
+        [
+          "Content: 2 repositories checked, 0 fast-forwarded, 0 left as they are.",
+          "Lazurio 1.0.0 is up to date.",
+        ].join("\n"),
+      );
+      // A product that fails still answers what the content did.
+      await product.close();
+      const offline = await update("--json");
+      expect(offline.code).toBe(1);
+      const failed = JSON.parse(offline.stdout ?? "");
+      expect(failed.kind).toBe("error");
+      expect(
+        failed.items.map((item: Record<string, string>) => item.result),
+      ).toEqual(["current", "current", "failed"]);
+      const words = await update();
+      expect(words.stdout).toContain("Content: 2 repositories checked");
+      expect(words.stderr).toStartWith("Update failed: ");
+    } finally {
+      await operations.stop("alpha/site");
+      await operations.close();
+      await product.close().catch(() => undefined);
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "the Launchpad's own run builds what changed and swaps it at once; a commit whose build failed is not built again, and an app nobody opened is not built for the first time",
+  async () => {
+    const home = join(root, "home-refresh");
+    await mkdir(home);
+    const fixture = await publishedSite("refresh", home);
+    const { operations, folder, content } = fixture;
+    const run = () =>
+      updateEverything({
+        content: (onProgress) => syncContent(folder, content, { onProgress }),
+        builds: (onProgress) => operations.refreshBuilt(onProgress),
+        product: async () => ({
+          part: "product",
+          result: "current",
+          version: "1.0.0",
+        }),
+      });
+    try {
+      answer(await operations.start("alpha/site"));
+      await until(fixture.page, (page) => page.text === "<p>one</p>");
+      const two = await fixture.publish("two");
+      const items = await run();
+      expect(items.filter((item) => item.part === "build")).toEqual([
+        {
+          part: "build",
+          organization: "alpha",
+          module: "site",
+          app: "app/package.json",
+          result: "built",
+          commit: two,
+        },
+      ]);
+      // Swapped by this run itself, no sweep.
+      expect((await fixture.page()).text).toBe("<p>two</p>");
+      // A commit whose build fails: the previous build keeps serving, and
+      // the next run does not build it again.
+      const broken = await fixture.publish("fail");
+      const failed = (await run()).find((item) => item.part === "build");
+      expect(failed).toMatchObject({
+        result: "failed",
+        reason: "build-script-failed",
+        commit: broken,
+      });
+      expect((await fixture.page()).text).toBe("<p>two</p>");
+      const failure = async () =>
+        answer(await operations.status("alpha/site")).build?.failure;
+      const recorded = await failure();
+      expect(recorded?.commit).toBe(broken);
+      expect((await run()).find((item) => item.part === "build")).toMatchObject(
+        { result: "failed", reason: "build-script-failed" },
+      );
+      // The same failure, not a new attempt.
+      expect(await failure()).toEqual(recorded);
+      // next was never opened: it has no build state, and gets none here.
+      expect(
+        (await run()).some(
+          (item) =>
+            item.part === "build" && "module" in item && item.module === "next",
+        ),
+      ).toBe(false);
+    } finally {
+      await operations.stop("alpha/site");
+      await operations.close();
+    }
+  },
+  120_000,
+);
+
+posixTest(
+  "runtimePins reads the Bun each app of the moved modules pins, each once: a package that pins none adds nothing, and a pin that cannot be read, or a module whose declaration is not there, is counted, never silently left out",
+  async () => {
+    const home = join(root, "home-pins");
+    await mkdir(home);
+    const fixture = await staticModule("pins", home);
+    const { operations, folder } = fixture;
+    const workspace = join(folder, "organizations", "alpha", "workspace");
+    const repin = async (module: string, pin: string | undefined) => {
+      const file = join(workspace, module, "app", "package.json");
+      const pkg = JSON.parse(await readFile(file, "utf8"));
+      if (pin === undefined) delete pkg.packageManager;
+      else pkg.packageManager = pin;
+      await writeFile(file, JSON.stringify(pkg));
+    };
+    const at = (path: string) => ({
+      organization: "Alpha",
+      root: "organizations/alpha",
+      path,
+    });
+    try {
+      // site pins the user's own Bun; next pins none.
+      await repin("next", undefined);
+      expect(
+        await operations.runtimePins([
+          at("workspace/site"),
+          at("workspace/next"),
+        ]),
+      ).toEqual({ pins: [`bun@${Bun.version}`], unreadable: 0 });
+      // plain pins something that is not an exact Bun, and a moved path the
+      // catalog does not declare cannot give its pins either.
+      await repin("plain", "npm@10.0.0");
+      expect(
+        await operations.runtimePins([
+          at("workspace/site"),
+          at("workspace/plain"),
+          at("workspace/next"),
+          at("workspace/gone"),
+        ]),
+      ).toEqual({ pins: [`bun@${Bun.version}`], unreadable: 2 });
+      // An app whose package.json is gone is counted too.
+      await rm(join(workspace, "next", "app", "package.json"));
+      expect(await operations.runtimePins([at("workspace/next")])).toEqual({
+        pins: [],
+        unreadable: 1,
+      });
+    } finally {
+      await operations.close();
+    }
+  },
+);
+
+/** Bun's npm distribution as a fake for the resolver (decision F62): for
+ * each version a program named bun that logs every call, reports the version
+ * and runs the real Bun otherwise; a version in `offline` is refused as a
+ * registry that does not answer. No network. */
+function bunDistribution(directory: string) {
+  const offline = new Set<string>();
+  const asked: string[] = [];
+  const install: BunInstaller = async (input) => {
+    asked.push(input.version);
+    if (offline.has(input.version))
+      return { kind: "refused", reason: "runtime-unavailable" };
+    const program = join(
+      input.directory,
+      "node_modules",
+      input.packageName,
+      "bin",
+      "bun",
+    );
+    await mkdir(dirname(program), { recursive: true });
+    await writeFile(
+      program,
+      [
+        "#!/bin/sh",
+        `printf '%s\\n' "$*" >> '${join(directory, `bun-${input.version}.log`)}'`,
+        `if [ "$1" = "--version" ]; then echo '${input.version}'; exit 0; fi`,
+        `exec '${process.execPath}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await chmod(program, 0o755);
+    return { kind: "installed" };
+  };
+  return {
+    install,
+    offline,
+    asked,
+    /** What that version's program ran, its version probes left out. */
+    calls: async (version: string) =>
+      (
+        await readFile(join(directory, `bun-${version}.log`), "utf8").catch(
+          () => "",
+        )
+      )
+        .split("\n")
+        .filter((line) => line !== "" && line !== "--version"),
+  };
+}
+
+posixTest(
+  "the tools part fetches the Bun a fast-forwarded module's new commit pins before its build, which runs with it; offline, the run's build refuses at once without asking the registry again, a person's build still asks it, a later run builds it, and a cached pin builds under the offline answer (decision F62, root decision 0212 point 3)",
+  async () => {
+    const home = join(root, "home-tools");
+    await mkdir(home);
+    const distribution = bunDistribution(join(root, "tools-distribution"));
+    await mkdir(join(root, "tools-distribution"));
+    const resolveBun = createModuleBunResolver({
+      home,
+      userBun: process.execPath,
+      path: "/usr/bin:/bin",
+      install: distribution.install,
+      system: async () => ({
+        platform: "linux",
+        arch: "arm64",
+        libc: "glibc",
+        avx2: null,
+      }),
+      freeBytes: async () => 10 * 1024 ** 3,
+      fetches: new Map(),
+    });
+    const fixture = await publishedSite("tools", home, resolveBun);
+    const { operations, folder, content } = fixture;
+    // What the installer had been asked for when each build began.
+    const atBuild: string[][] = [];
+    const run = () =>
+      updateEverything(
+        {
+          content: (onProgress) => syncContent(folder, content, { onProgress }),
+          tools: {
+            pins: (moved) => operations.runtimePins(moved),
+            resolve: operations.resolveBun,
+          },
+          builds: (onProgress, network) =>
+            operations.refreshBuilt((progress) => {
+              atBuild.push([...distribution.asked]);
+              onProgress(progress);
+            }, network),
+          product: async () => ({
+            part: "product",
+            result: "current",
+            version: "1.0.0",
+          }),
+        },
+        () => {},
+      );
+    const parts = (items: Awaited<ReturnType<typeof run>>) =>
+      items.map((item) =>
+        [
+          item.part,
+          "path" in item
+            ? item.path
+            : "packageManager" in item
+              ? item.packageManager
+              : "module" in item
+                ? item.module
+                : "",
+          item.result,
+          "reason" in item ? (item.reason ?? "") : "",
+        ]
+          .filter((word) => word !== "")
+          .join(" "),
+      );
+    try {
+      answer(await operations.start("alpha/site"));
+      await until(fixture.page, (page) => page.text === "<p>one</p>");
+      // A new commit that pins a Bun the cache does not hold.
+      const two = await fixture.publish("two", "bun@1.4.99");
+      const first = await run();
+      expect(parts(first)).toEqual([
+        "content . current",
+        "content workspace/site fast-forwarded",
+        "tools bun@1.4.99 fetched",
+        "build site built",
+        "product current",
+      ]);
+      // Fetched once, by the tools part, before the build began.
+      expect(distribution.asked).toEqual(["1.4.99"]);
+      expect(atBuild).toEqual([["1.4.99"]]);
+      // The build ran with exactly that Bun, and its page is served.
+      expect(await distribution.calls("1.4.99")).toContain(
+        "--no-env-file run build",
+      );
+      expect(first.find((item) => item.part === "build")).toMatchObject({
+        result: "built",
+        commit: two,
+      });
+      expect((await fixture.page()).text).toBe("<p>two</p>");
+      // Offline: a commit that pins another Bun. The pre-warm stops at the
+      // registry that does not answer, and the run's build, told so, refuses
+      // at once: no second attempt at the registry in this run. What runs
+      // stays as it was.
+      distribution.offline.add("1.4.98");
+      await fixture.publish("three", "bun@1.4.98");
+      atBuild.length = 0;
+      const offline = await run();
+      expect(parts(offline)).toEqual([
+        "content . current",
+        "content workspace/site fast-forwarded",
+        "tools bun@1.4.98 refused runtime-unavailable",
+        "build site failed runtime-unavailable",
+        "product current",
+      ]);
+      expect(distribution.asked).toEqual(["1.4.99", "1.4.98"]);
+      expect(atBuild).toEqual([]);
+      expect((await fixture.page()).text).toBe("<p>two</p>");
+      // A person's build outside the update run still asks the registry
+      // itself, and its failure is recorded.
+      expect(await operations.build("alpha/site")).toMatchObject({
+        kind: "blocked",
+        reason: "runtime-unavailable",
+      });
+      expect(distribution.asked).toEqual(["1.4.99", "1.4.98", "1.4.98"]);
+      // Online again: nothing new to fast-forward, so no pins; the build
+      // whose runtime could not be had is built again (decision F62 point
+      // 7) and fetches its Bun itself.
+      distribution.offline.delete("1.4.98");
+      const later = await run();
+      expect(parts(later)).toEqual([
+        "content . current",
+        "content workspace/site current",
+        "build site built",
+        "product current",
+      ]);
+      expect(await distribution.calls("1.4.98")).toContain(
+        "--no-env-file run build",
+      );
+      expect((await fixture.page()).text).toBe("<p>three</p>");
+      // Under the offline answer a pin the cache holds builds as always: a
+      // local lookup, no fetch.
+      const asked = [...distribution.asked];
+      await fixture.publish("four", "bun@1.4.99");
+      await syncContent(folder, content);
+      expect(
+        await operations.refreshBuilt(undefined, { registryUnavailable: true }),
+      ).toMatchObject([{ module: "site", result: "built" }]);
+      expect(distribution.asked).toEqual(asked);
+      expect((await fixture.page()).text).toBe("<p>four</p>");
+    } finally {
+      await operations.stop("alpha/site");
+      await operations.close();
+    }
+  },
+  120_000,
 );
 
 posixTest(

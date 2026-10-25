@@ -4,7 +4,8 @@ Status: **accepted direction of Matěj (2026-09-19). Installation of absent cont
 is implemented (2026-10-04, [F9 addendum](decisions.md#addendum-of-2026-10-04-content-installation-the-personalspace-and-the-presets),
 root decision 0188). Synchronization of existing repositories is implemented
 (2026-10-24, [F9 amendment](decisions.md#amendment-of-2026-10-24-the-launchpad-keeps-primary-checkouts-on-their-published-branch),
-root decision 0212 points 2 and 4):** the installed Launchpad
+root decision 0212 points 2 and 4; its callers extended by the [second amendment
+of that day](decisions.md#second-amendment-of-2026-10-24-one-lazurio-update-composes-content-builds-and-lazurio-itself), points 3, 4 and 7):** the installed Launchpad
 fast-forwards the clean primary checkouts of the Organizations an Environment holds at
 its start and then every hour (root decision 0212 point 4), within the build sweep it already
 runs, and `lazurio organization sync` runs the same core explicitly ([Synchronization](#synchronization--implemented-2026-10-24)).
@@ -15,20 +16,27 @@ synchronization never does. This document is the contract for both operations an
 their separation from product update. See
 [decision F9](decisions.md#f9--update-lazurio-and-synchronize-content-are-separate-operations).
 
-## Two operations, never one
+## Two operations, two cores, one `lazurio update`
 
 | | Update Lazurio | Synchronize content |
 | --- | --- | --- |
 | Subject | Installed product bytes | Organization repositories declared by an Organization |
-| Contract | Product update contract (`docs/update.md`, separate PR) | This document |
-| Entry | Its own command and button | Its own command and button |
-| Lock | Product activation exclusion | Per-Organization content exclusion |
+| Contract | [Product update](update.md) | This document |
+| Entry | `lazurio update --version`, the pill; and the last part of `lazurio update` and Aktualizovat | `lazurio organization sync`, the Launchpad's hourly round and the Open of one module; and the first part of `lazurio update` and Aktualizovat |
+| Lock | Product activation exclusion | Per-Folder content exclusion |
 | Outcome | Selected version, or preserved previous version with a reason | Per-repository result list |
 
-Neither starts the other, and a failure of one never blocks or implies the other.
-Product update must never clone a repository, create a stash, switch a branch,
-regenerate preferences, upgrade tools or run a data migration. Content synchronization
-must never select, download or activate a product version.
+*Amended on 2026-10-24 ([F9's second amendment](decisions.md#second-amendment-of-2026-10-24-one-lazurio-update-composes-content-builds-and-lazurio-itself), root decision 0212 point 3).*
+One `lazurio update` (and Nová karta's Aktualizovat, which runs the same composition)
+runs both: the content first, then the Bun the moved modules pin, the builds of what
+changed, then Lazurio itself
+([product update, One `lazurio update`](update.md#one-lazurio-update-content-tools-builds-and-lazurio-itself)).
+The two cores stay separate: each keeps its own lock and outcome, neither core starts the
+other, and a failure of one never blocks or implies the other; the command reports each
+part's items. Product update must never clone a repository, create a stash, switch a
+branch, regenerate preferences, upgrade tools or run a data migration. Content
+synchronization must never select, download or activate a product version, and the
+Launchpad's own synchronization in the background never updates Lazurio.
 
 ## When it runs
 
@@ -37,12 +45,25 @@ Synchronization of existing repositories runs in the installed Launchpad at its 
 and then every hour (root decision 0212 point 4; one parameter, `contentSyncEveryMs`), inside the
 build sweep it already runs every 5 minutes (decision F58 point 7), which then builds
 whatever a synchronization brought. It also runs whenever a user or an authorized Task
-Agent invokes `lazurio organization sync`, and later surfaces (the product update, an
-"Aktualizovat" button, the Open of one module) are to call the same core, which takes
-one repository and reports progress per repository. Nothing else synchronizes: no
-first render, status request, health check, login, product update or installation
-fetches anything, and the sweep never materializes an absent repository, which stays the
-explicit installation. Read-only inspection (the doctor, a module's page) reports the
+Agent invokes `lazurio organization sync`, and, since [F9's second amendment](decisions.md#second-amendment-of-2026-10-24-one-lazurio-update-composes-content-builds-and-lazurio-itself)
+(root decision 0212 points 3, 4 and 7), at three more callers of the same core:
+
+- **`lazurio update`**, which agents run before every task: every Organization the
+  Environment holds, as its first part, before the builds and Lazurio itself.
+- **Aktualizovat** in Nová karta: the same composition as a job of the Launchpad, with
+  progress per repository.
+- **The Open of one module.** After the Launchpad answered a person's Start or Open, or the
+  gateway's `ensure` of a navigation, that module alone (`repository`: its root first,
+  then it and its data mounts) in the background, never before the answer: the current
+  build opens at once, and the build watcher builds and swaps what the synchronization
+  brought. At most once per module in 5 minutes (`openSyncEveryMs`), never for a module
+  whose checkout or Organization root the last round left blocked (the hourly round tries
+  those again), and nowhere the Environment keeps no content (`createOpenSync` in
+  `src/content/open-sync.ts`).
+
+Nothing else synchronizes: no first render, status request, health check, login,
+`lazurio update --version` or installation fetches anything, and no caller materializes
+an absent repository, which stays the explicit installation. Read-only inspection (the doctor, a module's page) reports the
 last recorded answer; it fetches nothing.
 
 ## Hierarchy
@@ -250,12 +271,13 @@ The Launchpad runs it only when installed (`launchpad --base`), with that base's
 content lock, at its first sweep and then at the first sweep an hour
 after the last run started; a development run without a base never synchronizes.
 
-**For later surfaces.** `syncContent` takes one repository within its Organization
-(`repository`, a path relative to the root: its root is still synchronized first, then
-that module and its data mounts, and only those entries of the record are replaced) and
-an `onProgress` listener that hears `checking`, `fetching`, `fast-forwarding` and `done`
-with the answer for each repository as it happens. The product update, an
-"Aktualizovat" button and an Open of one module are to use them; none is built here.
+**One repository, and progress.** `syncContent` takes one repository within its
+Organization (`repository`, a path relative to the root: its root is still synchronized
+first, then that module and its data mounts, and only those entries of the record are
+replaced) and an `onProgress` listener that hears `checking`, `fetching` and
+`fast-forwarding` (each with `to`, the commit the remote names) and `done` with the
+answer for each repository as it happens. The Open of one module uses the first;
+`lazurio update` and Aktualizovat the second ([When it runs](#when-it-runs)).
 
 ## Installation — implemented 2026-10-04
 

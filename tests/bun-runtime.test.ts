@@ -24,6 +24,7 @@ import {
   bunTargets,
   createModuleBunResolver,
   type ModuleBun,
+  moduleBunLocks,
   moduleBunRoot,
   prewarmModuleRuntimes,
   runtimeFreeBytesMin,
@@ -627,6 +628,64 @@ posixTest(
     ).toEqual({ reason: "runtime-integrity-failed", path: file });
     expect(fake.calls).toHaveLength(calls + 1);
     expect(await readdir(moduleBunRoot(home))).toEqual([]);
+  },
+);
+
+posixTest(
+  "a lookup without the network (fetch: false, decision F62 point 9): the user's Bun or the cache, otherwise runtime-unavailable at once, never the installer, no wait for a fetch under way and nothing written",
+  async () => {
+    const { home, owner, file } = await place("lookup");
+    const fake = fakeInstaller();
+    const resolve = createModuleBunResolver({
+      home,
+      userBun: process.execPath,
+      path: "/usr/bin:/bin",
+      install: fake.install,
+      system: async () => linuxArm,
+      freeBytes: plenty,
+      fetches: new Map(),
+    });
+    expect(
+      await resolve({
+        packageManager: `bun@${Bun.version}`,
+        owner,
+        fetch: false,
+      }),
+    ).toEqual({ executable: process.execPath, binDir: null, source: "user" });
+    expect(
+      await resolve({ packageManager: null, owner, fetch: false }),
+    ).toMatchObject({ source: "user" });
+    // Not there: refused at once, named by the package that pins it.
+    expect(
+      await refusalOf(
+        resolve({ packageManager: "bun@1.4.99", owner, fetch: false }),
+      ),
+    ).toEqual({ reason: "runtime-unavailable", path: file });
+    expect(fake.calls).toHaveLength(0);
+    expect(existsSync(moduleBunRoot(home))).toBe(false);
+    // Another process fetching that version holds its exclusion: the lookup
+    // does not wait for it.
+    await mkdir(moduleBunLocks(home), { recursive: true });
+    const held = await acquireFileLock(join(moduleBunLocks(home), "1.4.98"), {
+      timeoutMs: 1_000,
+    });
+    try {
+      expect(
+        await refusalOf(
+          resolve({ packageManager: "bun@1.4.98", owner, fetch: false }),
+        ),
+      ).toEqual({ reason: "runtime-unavailable", path: file });
+    } finally {
+      await held.release();
+    }
+    // Once in the cache, the lookup finds it there, still without a fetch.
+    const executable = cachedExecutable(home, "1.4.99", "linux-aarch64");
+    await resolve({ packageManager: "bun@1.4.99", owner });
+    expect(fake.calls).toHaveLength(1);
+    expect(
+      await resolve({ packageManager: "bun@1.4.99", owner, fetch: false }),
+    ).toEqual({ executable, binDir: dirname(executable), source: "cache" });
+    expect(fake.calls).toHaveLength(1);
   },
 );
 

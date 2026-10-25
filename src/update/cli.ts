@@ -11,6 +11,9 @@ import {
   computerUseFinding,
   convergeComputerUse,
 } from "../computer/computer";
+import { processPersonalspaceHolder } from "../content/holder";
+import { contentLockDirectory } from "../content/host";
+import { syncContent } from "../content/sync";
 import {
   type ExecutorReport,
   executorFinding,
@@ -26,6 +29,12 @@ import {
 } from "../folder/refresh-needed";
 import { LaunchpadStartRefused } from "../launchpad/start-check";
 import { hostedOperatorFolder } from "../machine/operator";
+import {
+  createModuleOperations,
+  type ModuleHost,
+  processModuleHost,
+} from "../modules/module-operations";
+import type { PersonalspaceHolderRead } from "../organizations/personalspace";
 import { runTool } from "../tools/status";
 import {
   type AttestationVerifier,
@@ -42,7 +51,16 @@ import {
   exitUsage,
   storageFailure,
   type UpdateError,
+  updateError,
 } from "./errors";
+import {
+  contentNotRun,
+  everythingText,
+  type ProductItem,
+  type UpdateItem,
+  type UpdateParts,
+  updateEverything,
+} from "./everything";
 import {
   embeddedFixture,
   embeddedIdentity,
@@ -68,6 +86,7 @@ import {
   performUpdate,
   readStatus,
   type UpdateEnvironment,
+  type UpdateResult,
 } from "./update";
 
 /** `lazurio update …`, `lazurio install` and `lazurio --version`: the terminal
@@ -110,7 +129,21 @@ install prompt [--locale cs|en] [--json]
   what the agent may do and what only on the user's explicit instruction,
   and how success is proven. Reads only; --json says "standard": true when
   nothing deviates.
-update [--version <vX.Y.Z[-rc.N]>] [--folder <absolute Folder>] [--json]
+update [--folder <absolute Folder>] [--json]
+  Brings everything up to date, in this order (root decision 0212 point 3):
+  the content (the clean primary checkouts of the Organizations this
+  Environment holds on their published branch, as lazurio organization sync
+  does), the tools (the Bun each app of a module that moved pins, fetched
+  into the runtime cache unless it is there already), the builds (every built
+  app someone opened whose checkout moved past its build is built and swapped
+  in), then Lazurio itself as below. Each part keeps its own lock and outcome,
+  and one that fails or cannot run never stops the next. The content, tools
+  and builds need the Folder (--folder, the supervised unit's, or in a Remote
+  Environment the declared operator's); without one only Lazurio is updated.
+  --json adds items, one per repository, pinned Bun, built app and the
+  product, to the product's own answer; the exit status is the product's.
+update --version <vX.Y.Z[-rc.N]> [--folder <absolute Folder>] [--json]
+  Lazurio itself only, exactly that tag.
   Checks the latest release (or exactly the named tag), verifies its Sigstore
   attestation, downloads, runs the new executable's self-check and, on a
   supervised installation, its Launchpad start read-only on a private socket.
@@ -162,6 +195,15 @@ export type CliContext = Readonly<{
    * base (decision F44, addendum of 2026-10-11); absent: they never do. This
    * process's in production. */
   executor?: (() => ExecutorHost) | undefined;
+  /** Where `lazurio update` synchronizes content and builds (root decision
+   * 0212 point 3): this process's module host and whose Personalspace this
+   * is. Absent: it does neither (tests of the product alone). */
+  modules?:
+    | (() => Readonly<{
+        host: ModuleHost;
+        personalspace?: PersonalspaceHolderRead | undefined;
+      }>)
+    | undefined;
 }>;
 
 export const processContext = (): CliContext =>
@@ -178,6 +220,10 @@ export const processContext = (): CliContext =>
         platform: process.platform,
         run: runTool,
       }),
+    modules: () => ({
+      host: processModuleHost(process.env, process.platform, process.execPath),
+      personalspace: processPersonalspaceHolder(process.env, process.platform),
+    }),
   });
 
 const usage = (message: string): CommandOutput =>
@@ -405,9 +451,11 @@ function render(result: Result, json: boolean, human: string): CommandOutput {
   if (json) return Object.freeze({ code, stdout: JSON.stringify(result) });
   if (!error) return Object.freeze({ code, stdout: human });
   // The one context value a person needs: which state a person must look at.
+  // What the other parts of `lazurio update` did stays on stdout.
   const path = error.context.path;
   return Object.freeze({
     code,
+    ...(human === "" ? {} : { stdout: human }),
     stderr: `Update failed: ${error.code}${path === undefined ? "" : ` (${path})`}`,
   });
 }
@@ -768,6 +816,68 @@ export async function runInstallCommand(
   }
 }
 
+/** The product's answer as one item of `lazurio update`. */
+function productItem(result: UpdateResult): ProductItem {
+  if (result.kind === "updated")
+    return Object.freeze({
+      part: "product",
+      result: "updated",
+      from: result.from,
+      to: result.to,
+    });
+  if (result.kind === "up-to-date")
+    return Object.freeze({
+      part: "product",
+      result: "current",
+      version: result.running,
+    });
+  return Object.freeze({
+    part: "product",
+    result: "failed",
+    code: result.code,
+  });
+}
+
+/** The content, tools and builds of `lazurio update` for this Folder (root
+ * decision 0212 point 3): the content core with this install base's content
+ * lock, and the module core as its CLI owner: it reads the Bun the moved
+ * modules pin and makes it available with its own resolver (decision F62),
+ * swaps an app the service manager runs and leaves a session's app to its
+ * Launchpad's sweep, which then finds that Bun in the cache. Nothing without
+ * a Folder or without the context's module host: then `lazurio update` is
+ * Lazurio's alone and answers exactly as before. */
+function folderParts(
+  context: CliContext,
+  base: string,
+  folder: string | undefined,
+): Pick<UpdateParts, "content" | "tools" | "builds"> | null {
+  if (context.modules === undefined || folder === undefined) return null;
+  const { host, personalspace } = context.modules();
+  const content = host.dataMounts;
+  const operations = createModuleOperations({
+    folder,
+    owner: "cli",
+    host,
+    ...(personalspace === undefined ? {} : { personalspace }),
+  });
+  return {
+    content: async (onProgress) =>
+      content === undefined
+        ? contentNotRun("not-installed")
+        : syncContent(
+            folder,
+            { ...content, lockDirectory: contentLockDirectory(base) },
+            { onProgress },
+          ),
+    tools: {
+      pins: (moved) => operations.runtimePins(moved),
+      resolve: operations.resolveBun,
+    },
+    builds: (onProgress, network) =>
+      operations.refreshBuilt(onProgress, network),
+  };
+}
+
 export async function runUpdateCommand(
   args: readonly string[],
   context: CliContext = processContext(),
@@ -858,37 +968,71 @@ export async function runUpdateCommand(
             : "",
       );
     }
-    const result = await performUpdate(environment, exact);
+    // `--version` names Lazurio only; plain `update` brings everything up
+    // to date, Lazurio last (root decision 0212 point 3).
+    const parts =
+      exact === undefined
+        ? folderParts(context, base, environment.folder)
+        : null;
+    let answered: UpdateResult | undefined;
+    const items: readonly UpdateItem[] =
+      parts === null
+        ? []
+        : await updateEverything({
+            ...parts,
+            product: async () => {
+              answered = await performUpdate(environment);
+              return productItem(answered);
+            },
+          });
+    const result: UpdateResult =
+      parts === null
+        ? await performUpdate(environment, exact)
+        : (answered ??
+          Object.freeze({
+            kind: "error" as const,
+            ...updateError("internal"),
+          }));
+    const before = everythingText(items);
+    const withItems = { ...result, items };
+    const answer: Result = parts === null ? result : withItems;
     return render(
-      result,
+      answer,
       json,
-      result.kind === "updated"
-        ? [
-            `Updated from ${result.from} to ${result.to}.${
-              result.restartRequired
-                ? " A running Launchpad finishes the update when it restarts."
-                : ""
-            }`,
-            ...refresh(result.folderRefresh),
-            ...codexFinding(result.codexAppServer),
-            ...browserFinding(result.environmentBrowser),
-            ...computerUseFinding(result.computerUse),
-            ...executorFinding(result.executor),
-          ].join("\n")
-        : result.kind === "up-to-date"
-          ? [
-              `Lazurio ${result.running} is up to date.`,
-              ...refresh(result.folderRefresh),
-              ...codexFinding(result.codexAppServer),
-              ...browserFinding(result.environmentBrowser),
-              ...computerUseFinding(result.computerUse),
-              ...executorFinding(result.executor),
-            ].join("\n")
-          : "",
+      [...before, productText(result)].filter((line) => line !== "").join("\n"),
     );
   } catch (error) {
     return usage(error instanceof UsageError ? error.message : synopsis);
   }
+}
+
+/** The product's own lines after `lazurio update`. */
+function productText(result: UpdateResult): string {
+  const refresh = (value: FolderRefresh | null) =>
+    value === null ? [] : [folderRefreshText(value)];
+  return result.kind === "updated"
+    ? [
+        `Updated from ${result.from} to ${result.to}.${
+          result.restartRequired
+            ? " A running Launchpad finishes the update when it restarts."
+            : ""
+        }`,
+        ...refresh(result.folderRefresh),
+        ...codexFinding(result.codexAppServer),
+        ...browserFinding(result.environmentBrowser),
+        ...computerUseFinding(result.computerUse),
+        ...executorFinding(result.executor),
+      ].join("\n")
+    : result.kind === "up-to-date"
+      ? [
+          `Lazurio ${result.running} is up to date.`,
+          ...refresh(result.folderRefresh),
+          ...codexFinding(result.codexAppServer),
+          ...browserFinding(result.environmentBrowser),
+          ...computerUseFinding(result.computerUse),
+          ...executorFinding(result.executor),
+        ].join("\n")
+      : "";
 }
 
 /** The one-line notice after other commands; reads `last-check.json` only. */

@@ -74,6 +74,7 @@ import {
   createModuleBunResolver,
   isRuntimeReason,
   type ModuleBunResolver,
+  runtimeMayPass,
 } from "./bun-runtime";
 import {
   type DataMountHost,
@@ -84,7 +85,7 @@ import { readPinnedBun } from "./install-authority";
 import { createApplicationLifecycle } from "./lifecycle";
 import { observeConnected } from "./listener-ownership";
 import { localApplicationAdapters } from "./local-application-adapters";
-import { preparationRefusal } from "./preparation-refusal";
+import { PreparationRefused, preparationRefusal } from "./preparation-refusal";
 import { readModuleApplication } from "./read-application";
 import {
   type RuntimeSecretFinding,
@@ -411,6 +412,35 @@ export type ModuleAnswer = Readonly<{
    * left it as it is, for this reason (`syncBlockedReasons`). Absent
    * otherwise. */
   sync?: Readonly<{ result: "blocked"; reason: string }>;
+}>;
+
+/** One built app's answer when `lazurio update` builds what changed (root
+ * decision 0212 point 3, `refreshBuilt`). */
+export type BuiltRefresh = Readonly<{
+  /** The names the module routes take: the Organization's slug, the
+   * module's id and the app's package. */
+  organization: string;
+  module: string;
+  app: string;
+  /** `built`: its checkout moved past its build and was built now, and a
+   * running build swapped onto it; `current`: its checkout's build is there
+   * already; `failed`: it could not be built now (`reason`), or the last
+   * build of this same checkout failed, which only an explicit build tries
+   * again. What runs stays as it was. */
+  result: "built" | "current" | "failed";
+  /** The commit the build is (or would be) of. */
+  commit?: string;
+  /** `failed`: the build's own reason (`build-script-failed`, …). */
+  reason?: string;
+}>;
+
+/** A build `refreshBuilt` has begun, for a surface that shows progress. */
+export type BuiltProgress = Readonly<{
+  organization: string;
+  module: string;
+  app: string;
+  step: "building";
+  commit: string;
 }>;
 
 export type ModuleLogs = Readonly<{
@@ -1803,6 +1833,26 @@ export function createModuleOperations(input: {
       : null;
   }
 
+  // Whether the Bun a target's app pins could come only from the network:
+  // neither the user's Bun nor in the runtime cache, by a local lookup
+  // (decision F62 point 9). A pin that cannot be read is its build's to name.
+  async function pinOnlyFromNetwork(target: Target): Promise<boolean> {
+    const owner = dirname(join(target.moduleDirectory, target.app));
+    try {
+      await resolveBun({
+        packageManager: await readPinnedBun(owner),
+        owner,
+        fetch: false,
+      });
+      return false;
+    } catch (error) {
+      return (
+        error instanceof PreparationRefused &&
+        error.reason === "runtime-unavailable"
+      );
+    }
+  }
+
   // The toolchain from the standard path, checked before any effect.
   async function toolchainMissing(
     operation: "start" | "prepare" | "build",
@@ -2168,6 +2218,195 @@ export function createModuleOperations(input: {
       return served?.mode === "built"
         ? Object.freeze({ mode: "built", commit: served.commit })
         : Object.freeze({ mode: "dev", commit: null });
+    },
+    /** The resolver of the Bun each App pins (decision F62), the one every
+     * lifecycle and build of this host shares with its fetches under way:
+     * what the tools part of `lazurio update` makes those versions available
+     * with before any build. */
+    resolveBun,
+    /** The Bun the apps of these module checkouts pin (decision F62), for the
+     * tools part of `lazurio update` (root decision 0212 point 3): the
+     * checkouts the content part just fast-forwarded, as the synchronization
+     * names them (the Organization's GitHub login, its root and the module's
+     * path). Read from the catalog and the packages as the checkouts are now,
+     * so as the commits the content brought declare them: every app the
+     * module declares, in order, each pin once. Only a package that was read
+     * and pins none adds nothing. A pin that cannot be read (a package.json
+     * missing, unreadable or pinning something other than an exact Bun) and
+     * a moved module the catalog does not declare are counted as
+     * `unreadable`, so the update reports them instead of looking clean.
+     * Nothing is resolved or fetched here. */
+    async runtimePins(
+      moved: readonly Readonly<{
+        organization: string;
+        root: string;
+        path: string;
+      }>[],
+    ): Promise<Readonly<{ pins: readonly string[]; unreadable: number }>> {
+      if (moved.length === 0)
+        return Object.freeze({ pins: Object.freeze([]), unreadable: 0 });
+      const catalog = await readCatalog(folder, false);
+      const pins = new Set<string>();
+      let unreadable = 0;
+      for (const checkout of moved) {
+        const group = catalog.organizations.find(
+          (entry) =>
+            entry.forgeLogin?.toLowerCase() ===
+              checkout.organization.toLowerCase() &&
+            `organizations/${entry.directory}` === checkout.root,
+        );
+        const module = group?.modules.find(
+          (entry) => entry.path === checkout.path,
+        );
+        if (module === undefined) {
+          unreadable += 1;
+          continue;
+        }
+        for (const app of module.apps) {
+          const owner = dirname(
+            join(folder, checkout.root, module.path, app.package),
+          );
+          try {
+            const pin = await readPinnedBun(owner);
+            if (pin !== null) pins.add(pin);
+          } catch {
+            unreadable += 1;
+          }
+        }
+      }
+      return Object.freeze({ pins: Object.freeze([...pins]), unreadable });
+    },
+    /** Build what changed, now (root decision 0212 point 3, the builds of
+     * `lazurio update`): every built app with a build state (someone opened
+     * it once) whose checkout moved past its build is built in the
+     * foreground, one after the other, as the sweep's refresh builds it in
+     * the background, and a running build is swapped onto it. A checkout
+     * whose last build failed is not built again here, unless what failed
+     * may pass by itself (the App's pinned Bun could not be fetched,
+     * decision F62 point 7), and an app nobody opened is not built
+     * for the first time: its first Open builds it. The answer per app;
+     * nothing where this host keeps no builds, and nothing for the CLI
+     * beside a session's apps: their Launchpad owns their dependency trees
+     * until it ends (the lifecycle's retained lock), so it builds what moved
+     * itself, within seconds of the pull or at its next start.
+     *
+     * One run, one answer about the network (decision F62 point 9): told
+     * that this same `lazurio update` run's pre-warm found the registry not
+     * answering, an app whose pinned Bun is neither the user's nor in the
+     * runtime cache is not built now. It answers `failed` with
+     * `runtime-unavailable` at once, after a local lookup only, and the next
+     * run builds it. A pin there builds as always. Builds outside the run (a
+     * person's start, Open or build, the sweep) are never told and ask the
+     * registry themselves. */
+    async refreshBuilt(
+      onProgress?: (progress: BuiltProgress) => void,
+      network?: Readonly<{ registryUnavailable: boolean }>,
+    ): Promise<readonly BuiltRefresh[]> {
+      if (builder === undefined || host.builds === undefined) return [];
+      if (owner === "cli" && (await host.runnerKind()) === "session") return [];
+      const answers: BuiltRefresh[] = [];
+      const states = await listBuildStates(host.builds.cacheRoot).catch(
+        () => [],
+      );
+      for (const { state } of states) {
+        if (closing) break;
+        const where = {
+          organization: state.organization,
+          module: state.module,
+          app: state.app,
+        };
+        const answer = (
+          result: BuiltRefresh["result"],
+          extra: Readonly<{ commit?: string; reason?: string }> = {},
+        ) => answers.push(Object.freeze({ ...where, result, ...extra }));
+        try {
+          const prepared = await prepare(
+            "build",
+            `${state.organization}/${state.module}`,
+            { app: state.app },
+          );
+          // No longer in this Environment's catalog, or not runnable here:
+          // nothing to build.
+          if ("kind" in prepared) continue;
+          const plan = await builtPlan(prepared.target);
+          if (plan === null) continue;
+          const read = await buildContext(prepared.target);
+          if ("refused" in read) {
+            answer("failed", { reason: read.refused });
+            continue;
+          }
+          const store = storeOf(prepared.target, plan);
+          const recorded = await store.state();
+          if (
+            recorded?.current?.key === read.key &&
+            (await store.output(read.key)) !== null
+          ) {
+            answer("current", { commit: recorded.current.commit });
+            continue;
+          }
+          // A failed checkout waits for an explicit build, unless what failed
+          // may pass by itself (decision F62 point 7), as for the builder.
+          if (
+            recorded?.failure?.key === read.key &&
+            !runtimeMayPass(recorded.failure.reason)
+          ) {
+            answer("failed", {
+              commit: recorded.failure.commit,
+              reason: recorded.failure.reason,
+            });
+            continue;
+          }
+          if ((await toolchainMissing("build", prepared.target)) !== null) {
+            answer("failed", {
+              commit: read.head.commit,
+              reason: "toolchain-missing",
+            });
+            continue;
+          }
+          if (
+            network?.registryUnavailable === true &&
+            (await pinOnlyFromNetwork(prepared.target))
+          ) {
+            answer("failed", {
+              commit: read.head.commit,
+              reason: "runtime-unavailable",
+            });
+            continue;
+          }
+          try {
+            onProgress?.(
+              Object.freeze({
+                ...where,
+                step: "building" as const,
+                commit: read.head.commit,
+              }),
+            );
+          } catch {}
+          const outcome = await builder.enqueue(
+            jobOf(prepared, plan),
+            "foreground",
+          );
+          if (outcome.kind !== "built") {
+            answer("failed", {
+              commit: read.head.commit,
+              reason:
+                outcome.kind === "failed"
+                  ? outcome.reason
+                  : outcome.kind === "busy"
+                    ? "build-busy"
+                    : "closing",
+            });
+            continue;
+          }
+          await swap(prepared, plan, outcome);
+          answer(outcome.already ? "current" : "built", {
+            commit: outcome.record.commit,
+          });
+        } catch {
+          answer("failed", { reason: "operation-failed" });
+        }
+      }
+      return Object.freeze(answers);
     },
     /** Keep the built apps people opened built after a pull (decision F58
      * point 7): the Launchpad watches the Git directories their builds read
