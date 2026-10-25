@@ -37,6 +37,8 @@ import { bindings } from "./fixtures/machine-bindings";
 const inputs = {
   home: "/home/ada",
   hermes: "/home/ada/.local/bin/hermes",
+  // Buddy's name from his persona (decision F64); here he is called Buddy.
+  displayName: "Buddy",
   user: { nominative: "Ada", accusative: "Adu" },
 };
 
@@ -248,8 +250,17 @@ posix(
       const expected = buddyChatSettings({
         home: env.home,
         hermes: env.hermes,
+        displayName: persona.buddy_name,
         user: persona.user,
       });
+      // T3 Code shows Buddy by the name his persona gives him (F64).
+      expect(
+        (
+          expected.providerInstances.buddy as unknown as {
+            displayName: string;
+          }
+        ).displayName,
+      ).toBe("Rex");
       expect(await buddyChat(env.tools, { folder: env.folder })).toEqual({
         kind: "buddy-chat",
         state: "outdated",
@@ -313,8 +324,9 @@ posix(
         kind: "buddy-chat",
         state: "managed",
       });
-      // The user turns Codex back on and renames Buddy: --apply restores only
-      // that, and T3 Code's member stays.
+      // The user turns Codex back on and renames Buddy in T3 Code: --apply
+      // restores only that (his name is his persona's, Rex), and T3 Code's
+      // member stays.
       await writeFile(
         env.settings,
         JSON.stringify({
@@ -322,7 +334,7 @@ posix(
           providerInstances: {
             ...rewritten.providerInstances,
             codex: { driver: "codex", enabled: true },
-            buddy: { ...rewritten.providerInstances.buddy, displayName: "Rex" },
+            buddy: { ...rewritten.providerInstances.buddy, displayName: "Max" },
           },
         }),
       );
@@ -465,6 +477,7 @@ posix(
         ...buddyChatSettings({
           home: env.home,
           hermes: env.hermes,
+          displayName: persona.buddy_name,
           user: persona.user,
         }),
       });
@@ -671,12 +684,31 @@ posix(
       for (const user of [
         undefined,
         { nominative: "Ada" },
-        { nominative: " Ada", accusative: "Adu" },
-        { nominative: "Ada", accusative: "Adu\u200b" },
-        { nominative: "A".repeat(65), accusative: "Adu" },
-        { nominative: "Ada\nB", accusative: "Adu" },
+        { nominative: " Ada", accusative: "Adu", dative: "Ad\u011b" },
+        { nominative: "Ada", accusative: "Adu\u200b", dative: "Ad\u011b" },
+        { nominative: "A".repeat(65), accusative: "Adu", dative: "Ad\u011b" },
+        // 33 characters, 66 UTF-16 units: a persona name, but no T3 name.
+        {
+          nominative: "\ud83e\udd96".repeat(33),
+          accusative: "Adu",
+          dative: "Ad\u011b",
+        },
+        { nominative: "Ada\nB", accusative: "Adu", dative: "Ad\u011b" },
       ]) {
         await writeFile(env.personaFile, JSON.stringify({ ...persona, user }));
+        expect(
+          await buddyChat(env.tools, { folder: env.folder, apply: true }),
+        ).toEqual(unusable);
+      }
+      // A persona the installer refuses gives T3 Code no name either, even
+      // where the user's names would pass (decision F64): one check.
+      for (const refused of [
+        { ...persona, buddy_name: "Re$x" },
+        { ...persona, address: "oni" },
+        { ...persona, user: { ...persona.user, dative: 'Ad"\u011b' } },
+        { ...persona, tone: "a\nb" },
+      ]) {
+        await writeFile(env.personaFile, JSON.stringify(refused));
         expect(
           await buddyChat(env.tools, { folder: env.folder, apply: true }),
         ).toEqual(unusable);

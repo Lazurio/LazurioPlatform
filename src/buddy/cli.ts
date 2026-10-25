@@ -16,7 +16,9 @@ import {
   exitUsage,
 } from "../update/errors";
 import { type BuddyChat, buddyChat } from "./chat";
+import type { ActiveWork } from "./gateway-refresh";
 import { createHermesGateway, type HermesGateway } from "./hermes-gateway";
+import { type BuddyPersona, buddyPersona } from "./persona-apply";
 import {
   type BuddySignInAnswer,
   type BuddySignOutAnswer,
@@ -29,12 +31,15 @@ import { buddyStatus, readBuddyFacts } from "./status";
  * Buddy's T3 Code, as they run `lazurio chat defaults --apply` for Chat.
  * `lazurio buddy status`, `sign-in start` and `sign-out` (decision F63): the
  * Launchpad's Buddy routes on the same core, for an operator on the
- * Environment. */
+ * Environment. `lazurio buddy persona` (decision F64): Buddy's persona and
+ * what the Platform derives from it, which the installer and Machines run
+ * where they rendered it themselves. */
 export const buddyHelp = `buddy chat [--apply] [--folder <absolute Folder>] [--json]
   Buddy's chat in Lazurio (decision F61): the T3 Code of his own in
   ~/.t3-buddy on the user's Osobní Prostředí, whose one provider is Buddy,
   the Hermes Agent over ACP. Reads, without writing, whether its settings hold
-  Lazurio's members: the provider instance buddy runs \`hermes acp\` with
+  Lazurio's members: the provider instance buddy, named as Buddy is named in
+  his persona, runs \`hermes acp\` with
   HERMES_HOME=~/.hermes, LAZURIO_BUDDY_CHANNEL=t3 and T3 Code's acting
   sender (T3CODE_ACTING_SENDER=buddy, T3CODE_ACTING_FOR and
   T3CODE_ACTING_FOR_ACCUSATIVE, the user's name from Buddy's persona), so
@@ -46,8 +51,8 @@ export const buddyHelp = `buddy chat [--apply] [--folder <absolute Folder>] [--j
   while Buddy's T3 Code runs it is refused (t3-running): stop its unit, apply,
   start it. Unavailable, and nothing written, without Hermes's ACP server
   (hermes acp --check), without Buddy's layer in the Folder's .agents/buddy,
-  with the layer inside a Git work tree, or without a name in
-  ~/.config/lazurio/buddy/persona.json that T3 Code takes
+  with the layer inside a Git work tree, or without a persona in
+  ~/.config/lazurio/buddy/persona.json that passes its checks
   (buddy-persona-unreadable); on any other Environment it does
   nothing (not-personal). The instance's unit, port, route and project are
   Machines'; the composer's steer and queue are T3 Code's own. JSON on
@@ -83,11 +88,39 @@ buddy sign-out [--folder <absolute Folder>] [--json]
   without Buddy here {kind: "blocked", reason: "buddy-absent"}. JSON on
   stdout. The Folder is found as for lazurio doctor.
   Exit status: 0 works, signed in or signed out; 10 waits or no Buddy here;
-  1 unknown, failed, cancelled, blocked or unavailable; 2 usage.`;
+  1 unknown, failed, cancelled, blocked or unavailable; 2 usage.
+buddy persona [--apply] [--confirm] [--folder <absolute Folder>] [--json]
+  Buddy's persona (decision F64): his name, how he addresses the user, the
+  user's name in three cases and an optional tone, in
+  ~/.config/lazurio/buddy/persona.json (lazurio.buddy-persona.v1), the one
+  source the Platform derives from. Reads, without writing, the persona and
+  whether what derives from it is in place: ~/.hermes/SOUL.md in the Folder's
+  locale (0600), the acting sender of Buddy's gateway in
+  hermes-gateway.service.d/lazurio-acting-sender.conf (0644), both byte for
+  byte as buddy-install.sh renders them, whether his gateway still runs from
+  before them (restart pending), whether a refresh of his stored prompts is
+  owed, and his T3 settings as lazurio buddy chat reads them. --apply, one at
+  a time, replaces each file that differs on its own, has systemd reread the
+  units, and brings the change to his running conversations: hermes sessions
+  repair-prompts clears the stored prompt of every live conversation that
+  holds one, checked in Hermes's store, and once Hermes's active-work answers
+  that Buddy is idle, hermes-gateway.service restarts once, never on units
+  systemd failed to reread; his T3 settings are applied, his T3 Code's unit
+  stopped and started around them only when T3 Code has no run going. What
+  waits answers waiting, what failed answers failed with its reason, and both
+  stay visible until the next --apply or the Launchpad finishes them.
+  --confirm records that the person confirmed the names (confirmed_at, kept
+  once set). A persona that fails the installer's checks is refused with the
+  member (invalid-<member>) and nothing is written. On any other
+  Environment it does nothing (not-personal). JSON on stdout:
+  {kind: "buddy-persona", state, reason?, persona?, locale?, files?,
+  prompts?, restart?, chat?}. The Folder is found as for lazurio doctor.
+  Exit status: 0 in place or applied, 10 outdated, waiting or not personal,
+  1 unavailable or failed, 2 usage.`;
 
 export type BuddyContext = CliContext &
   Readonly<{
-    /** Tests only: the runner of `hermes acp --check`. */
+    /** Tests only: the runner of `hermes` and `systemctl`. */
     toolRun?: ToolRunner | undefined;
     /** Tests only: Buddy's gateway; this account's own otherwise. */
     gateway?: HermesGateway | undefined;
@@ -97,10 +130,14 @@ export type BuddyContext = CliContext &
     signal?: AbortSignal | undefined;
     /** Tests only: the wait between two questions of a running sign-in. */
     pollMs?: number | undefined;
+    /** Tests only: Hermes's `active-work` verb. */
+    activeWork?: ((hermesHome: string) => Promise<ActiveWork>) | undefined;
+    /** Tests only: the clock of `confirmed_at`. */
+    now?: (() => Date) | undefined;
   }>;
 
 const usageText =
-  "Usage: buddy chat [--apply] | buddy status | buddy sign-in start | buddy sign-out, each with [--folder <absolute Folder>] [--json]";
+  "Usage: buddy chat [--apply] | buddy status | buddy sign-in start | buddy sign-out | buddy persona [--apply] [--confirm], each with [--folder <absolute Folder>] [--json]";
 const usage = Object.freeze({ code: exitUsage, stderr: usageText });
 
 const exitOf = (answer: BuddyChat): number =>
@@ -110,11 +147,19 @@ const exitOf = (answer: BuddyChat): number =>
       ? exitFailure
       : exitUpdateAvailable;
 
+const personaExitOf = (answer: BuddyPersona): number =>
+  answer.state === "in-place" || answer.state === "applied"
+    ? exitOk
+    : answer.state === "unavailable" || answer.state === "failed"
+      ? exitFailure
+      : exitUpdateAvailable;
+
 const commands: Readonly<Record<string, readonly string[]>> = {
   chat: ["apply", "json", "folder"],
   status: ["json", "folder"],
   "sign-in start": ["json", "folder"],
   "sign-out": ["json", "folder"],
+  persona: ["apply", "confirm", "json", "folder"],
 };
 
 const absent = Object.freeze({
@@ -138,7 +183,7 @@ export async function runBuddyCommand(
   context: BuddyContext,
 ): Promise<CommandOutput> {
   let command: string;
-  let values: { apply?: boolean; folder?: string };
+  let values: { apply?: boolean; confirm?: boolean; folder?: string };
   try {
     const parsed = parseArgs({
       args: [...args],
@@ -147,6 +192,7 @@ export async function runBuddyCommand(
       strict: true,
       options: {
         apply: { type: "boolean" },
+        confirm: { type: "boolean" },
         json: { type: "boolean" },
         folder: { type: "string" },
       },
@@ -169,25 +215,49 @@ export async function runBuddyCommand(
   } catch {
     return usage;
   }
-  if (command === "chat") {
+  if (command === "chat" || command === "persona") {
     try {
       const folder = values.folder ?? (await operatorFolder(context));
+      const tools = toolsEnvironmentOf(
+        context.env,
+        context.platform,
+        context.toolRun,
+      );
+      if (command === "persona") {
+        const answer: BuddyPersona =
+          folder === undefined
+            ? {
+                kind: "buddy-persona",
+                state: "skipped",
+                reason: "not-personal",
+              }
+            : await buddyPersona(
+                {
+                  tools,
+                  env: context.env,
+                  activeWork: context.activeWork,
+                  now: context.now,
+                },
+                {
+                  folder,
+                  apply: values.apply === true,
+                  confirm: values.confirm === true,
+                },
+              );
+        return { code: personaExitOf(answer), stdout: JSON.stringify(answer) };
+      }
       const answer: BuddyChat =
         folder === undefined
           ? { kind: "buddy-chat", state: "skipped", reason: "not-personal" }
-          : await buddyChat(
-              toolsEnvironmentOf(
-                context.env,
-                context.platform,
-                context.toolRun,
-              ),
-              { folder, apply: values.apply === true },
-            );
+          : await buddyChat(tools, { folder, apply: values.apply === true });
       return { code: exitOf(answer), stdout: JSON.stringify(answer) };
     } catch {
       return {
         code: exitFailure,
-        stderr: "Could not inspect Buddy's chat in this Environment.",
+        stderr:
+          command === "persona"
+            ? "Could not inspect Buddy's persona in this Environment."
+            : "Could not inspect Buddy's chat in this Environment.",
       };
     }
   }

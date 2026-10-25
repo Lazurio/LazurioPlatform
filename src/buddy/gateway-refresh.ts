@@ -1,0 +1,576 @@
+import { Database } from "bun:sqlite";
+import { createHash } from "node:crypto";
+import {
+  lstat,
+  mkdir,
+  open,
+  readFile,
+  realpath,
+  rename,
+  rm,
+} from "node:fs/promises";
+import { createConnection } from "node:net";
+import { basename, dirname, isAbsolute, join } from "node:path";
+import type { ToolRunner } from "../tools/status";
+
+// How a change of what Buddy's gateway reads reaches his running
+// conversations (decision F64). Hermes does not notice a changed SOUL.md by
+// itself: a conversation keeps its stored system prompt while its model,
+// provider, session and working directory stay (Lazurio/hermes-agent
+// v0.22.4-lazurio.1, agent/conversation_loop.py
+// `_stored_prompt_matches_runtime`), and the gateway keeps an agent per
+// conversation whose signature covers neither SOUL.md nor its own
+// environment (gateway/run_agent_cache.py). So a change takes two steps,
+// the installer's (`buddy-install.sh`, step 13):
+//
+// 1. `hermes sessions repair-prompts <id> --apply --json` for every live
+//    conversation that holds a stored prompt clears it, so its next turn
+//    builds it anew; the store, not the command's exit, says it worked;
+// 2. one restart of `hermes-gateway.service` drops the agents it keeps and
+//    gives it its drop-in's environment, only while Hermes's own
+//    `active-work` verb (gateway/run_active_work_verb.py, the answer its
+//    `gateway stop` and `restart` ask before they interrupt anything) names
+//    nothing running, and never on units systemd failed to reread. systemd
+//    stops the gateway with SIGTERM, which drains what is in flight within
+//    the unit's TimeoutStopSec, which Hermes sets to cover its drain.
+//
+// A restart that waits is not recorded: the gateway's main process started
+// before the newest derived file was written (`ExecMainStartTimestamp` against
+// the file's time), or systemd still holds older units (`NeedDaemonReload`).
+// Stored prompts have no time of their own, and a restart by anyone (systemd
+// after a crash, the installer, a reboot) erases the only derived evidence that
+// they are stale, so a refresh that is owed is recorded: a marker written
+// before SOUL.md changes and removed only after a complete refresh and the
+// restart that follows it.
+
+/** Hermes's own user unit of Buddy's gateway (`hermes gateway install`). */
+export const gatewayUnit = "hermes-gateway.service";
+
+/** What `systemctl --user` runs with: the runner and the variables a
+ * user-session service manager client needs (`serviceEnvironment`). */
+export type ServiceRun = Readonly<{
+  run: ToolRunner;
+  env: Readonly<Record<string, string>>;
+}>;
+
+const serviceTimeoutMs = 60_000;
+/** A restart waits for the stop's drain and the start: an idle gateway takes
+ * seconds, a drain at most the unit's TimeoutStopSec. */
+const restartTimeoutMs = 300_000;
+
+/** `systemctl --user <args>`; false when it did not run, timed out or the
+ * manager refused. */
+export async function systemctl(
+  service: ServiceRun,
+  timeoutMs: number,
+  ...args: string[]
+): Promise<boolean> {
+  const result = await service
+    .run(["systemctl", "--user", ...args], timeoutMs, service.env, {
+      maxBytes: 64 * 1024,
+    })
+    .catch(() => "timeout" as const);
+  return result !== "timeout" && result.exitCode === 0;
+}
+
+// ---- The gateway's unit -----------------------------------------------------
+
+/** The gateway's unit as systemd holds it. `startedAt`: when its main process
+ * started, in microseconds since the epoch. */
+export type GatewayUnit =
+  | Readonly<{ state: "running"; startedAt: bigint; needsReload: boolean }>
+  | Readonly<{ state: "stopped"; needsReload: boolean }>
+  | Readonly<{ state: "absent" }>
+  /** No user manager to ask, or an answer that is none. */
+  | Readonly<{ state: "unknown" }>;
+
+/** `Sun 2026-10-25 00:42:20.238927 UTC`, systemd's `--timestamp=us+utc`
+ * (systemd 255, Ubuntu 24.04); the weekday is not read. */
+const usUtc =
+  /^\S+ (\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})\.(\d{6}) UTC$/;
+
+/** A `us+utc` timestamp in microseconds since the epoch; undefined for an
+ * empty one (no main process) or any other shape. */
+export function microsecondsOf(value: string | undefined): bigint | undefined {
+  const match = usUtc.exec(value ?? "");
+  if (!match) return undefined;
+  const [, year, month, day, hour, minute, second, micros] = match.map(Number);
+  const milliseconds = Date.UTC(
+    year as number,
+    (month as number) - 1,
+    day as number,
+    hour as number,
+    minute as number,
+    second as number,
+  );
+  return Number.isNaN(milliseconds)
+    ? undefined
+    : BigInt(milliseconds) * 1000n + BigInt(micros as number);
+}
+
+/** The gateway's unit: `systemctl --user show` of its load and active state,
+ * its main process's start (to the microsecond, in UTC) and whether its files
+ * changed since systemd last read them. */
+export async function gatewayUnitState(
+  service: ServiceRun,
+): Promise<GatewayUnit> {
+  const result = await service
+    .run(
+      [
+        "systemctl",
+        "--user",
+        "show",
+        gatewayUnit,
+        "--timestamp=us+utc",
+        "--property=LoadState,ActiveState,ExecMainStartTimestamp,NeedDaemonReload",
+      ],
+      serviceTimeoutMs,
+      service.env,
+      { maxBytes: 64 * 1024 },
+    )
+    .catch(() => "timeout" as const);
+  if (result === "timeout" || result.exitCode !== 0)
+    return Object.freeze({ state: "unknown" });
+  const properties = new Map<string, string>();
+  for (const line of result.stdout.split("\n")) {
+    const at = line.indexOf("=");
+    if (at > 0) properties.set(line.slice(0, at), line.slice(at + 1).trim());
+  }
+  const load = properties.get("LoadState");
+  if (load === "not-found") return Object.freeze({ state: "absent" });
+  if (load === undefined) return Object.freeze({ state: "unknown" });
+  const needsReload = properties.get("NeedDaemonReload") === "yes";
+  const active = properties.get("ActiveState");
+  const startedAt = microsecondsOf(properties.get("ExecMainStartTimestamp"));
+  if (
+    (active === "active" ||
+      active === "reloading" ||
+      active === "activating") &&
+    startedAt !== undefined
+  )
+    return Object.freeze({ state: "running", startedAt, needsReload });
+  return Object.freeze({ state: "stopped", needsReload });
+}
+
+/** When a file was last written, in microseconds since the epoch; undefined
+ * where there is none. */
+async function writtenAt(path: string): Promise<bigint | undefined> {
+  try {
+    return (await lstat(path, { bigint: true })).mtimeNs / 1000n;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Whether the running gateway does not run what the files hold: systemd has
+ * not reread its units since they changed (`NeedDaemonReload`, which a failed
+ * reload leaves so, whoever starts the gateway meanwhile), or its main process
+ * started before the newest of `paths` was written. A restart is then pending.
+ * A stopped gateway reads them when it starts. */
+export async function restartPending(
+  unit: GatewayUnit,
+  paths: readonly string[],
+): Promise<boolean> {
+  if (unit.state !== "running") return false;
+  if (unit.needsReload) return true;
+  for (const path of paths) {
+    const at = await writtenAt(path);
+    if (at !== undefined && at > unit.startedAt) return true;
+  }
+  return false;
+}
+
+/** systemd rereads the gateway's unit and drop-ins, so its next start, ours or
+ * its own `Restart=`, has the drop-in's environment. */
+export const reloadUnits = (service: ServiceRun) =>
+  systemctl(service, serviceTimeoutMs, "daemon-reload");
+
+/** The one restart: systemd stops the gateway (SIGTERM, drained within the
+ * unit's TimeoutStopSec) and starts it again. */
+export const restartGateway = (service: ServiceRun) =>
+  systemctl(service, restartTimeoutMs, "restart", gatewayUnit);
+
+// ---- Hermes's `active-work` verb -------------------------------------------
+
+/** What Hermes's gateway answers it is running: nothing (`idle`), something
+ * a restart would interrupt (`busy`), or no answer (`unknown`), which counts
+ * as busy: nothing restarts blind. */
+export type ActiveWork = "idle" | "busy" | "unknown";
+
+const controlAnswerBytes = 512 * 1024;
+const controlTimeoutMs = 5_000;
+
+/** The control socket of the gateway serving `hermesHome`, found as Hermes's
+ * own client finds it (gateway/control_socket.py
+ * `resolve_client_socket_path`) and checked as Hermes Desktop checks it: the
+ * socket `gateway.sock`, owned by this account and never a link, or, where the
+ * home's path is too long for one, the socket the pointer `gateway.sock.path`
+ * names, but only `…/hermes-gw-<the home's sha256, 16 hex>/control.sock` in a
+ * directory private to this account. */
+export async function controlSocketPath(
+  hermesHome: string,
+): Promise<string | undefined> {
+  const uid = process.getuid?.();
+  if (uid === undefined) return undefined;
+  try {
+    const direct = join(hermesHome, "gateway.sock");
+    const info = await lstat(direct).catch(() => undefined);
+    if (info !== undefined)
+      return info.isSocket() && info.uid === uid ? direct : undefined;
+    const pointer = join(hermesHome, "gateway.sock.path");
+    const named = await lstat(pointer);
+    if (!named.isFile() || named.uid !== uid || named.size > 4096)
+      return undefined;
+    const text = await readFile(pointer, "utf8");
+    // Hermes reads the pointer as `utf-8-sig`: a byte order mark first is not
+    // part of the path.
+    const target = (
+      text.charCodeAt(0) === 0xfeff ? text.slice(1) : text
+    ).trim();
+    const home = await realpath(hermesHome);
+    const leaf = `hermes-gw-${createHash("sha256").update(home).digest("hex").slice(0, 16)}`;
+    if (
+      !isAbsolute(target) ||
+      basename(target) !== "control.sock" ||
+      basename(dirname(target)) !== leaf
+    )
+      return undefined;
+    const parent = await lstat(dirname(target));
+    if (
+      !parent.isDirectory() ||
+      parent.uid !== uid ||
+      (parent.mode & 0o077) !== 0
+    )
+      return undefined;
+    const socket = await lstat(target);
+    return socket.isSocket() && socket.uid === uid ? target : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** One request on the control socket: one JSON line in, one out, then the
+ * gateway closes it. Undefined for no answer within the deadline, a larger
+ * one or one that is no JSON. */
+function controlRequest(path: string, request: Json): Promise<unknown> {
+  return new Promise((resolve) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let settled = false;
+    const socket = createConnection({ path });
+    const finish = (value: unknown) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      socket.destroy();
+      resolve(value);
+    };
+    const parse = () => {
+      const all = Buffer.concat(chunks);
+      const end = all.indexOf(10);
+      try {
+        finish(
+          JSON.parse(
+            all.subarray(0, end < 0 ? all.length : end).toString("utf8"),
+          ),
+        );
+      } catch {
+        finish(undefined);
+      }
+    };
+    const timer = setTimeout(() => finish(undefined), controlTimeoutMs);
+    socket.on("connect", () => socket.write(`${JSON.stringify(request)}\n`));
+    socket.on("data", (chunk: Buffer) => {
+      size += chunk.byteLength;
+      if (size > controlAnswerBytes) return finish(undefined);
+      chunks.push(chunk);
+      if (chunk.includes(10)) parse();
+    });
+    socket.on("end", parse);
+    socket.on("error", () => finish(undefined));
+  });
+}
+
+type Json = Record<string, unknown>;
+const isObject = (value: unknown): value is Json =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+/** Asks the gateway serving `hermesHome` its `active-work` verb. Idle only
+ * when it answers, as Hermes's own `gateway restart` counts it
+ * (hermes_cli/gateway_lifecycle_guards.py), no unit of work and no active
+ * agent. Nothing of the answer is kept: its units name conversations. */
+export async function askActiveWork(hermesHome: string): Promise<ActiveWork> {
+  const path = await controlSocketPath(hermesHome);
+  if (path === undefined) return "unknown";
+  const answer = await controlRequest(path, {
+    protocol: 1,
+    verb: "active-work",
+    id: 1,
+  });
+  if (!isObject(answer) || answer.ok !== true || answer.id !== 1)
+    return "unknown";
+  const result = answer.result;
+  if (!isObject(result) || !Array.isArray(result.active_work)) return "unknown";
+  const agents = result.active_agents ?? 0;
+  if (typeof agents !== "number" || !Number.isFinite(agents)) return "unknown";
+  return Math.max(result.active_work.length, agents) === 0 ? "idle" : "busy";
+}
+
+// ---- Stored prompts ---------------------------------------------------------
+
+/** Session ids as Hermes mints them (hermes_state_ids.py): never an option on
+ * a command line. A conversation with any other id is not cleared, and the
+ * refresh stays incomplete. */
+const sessionIdShape = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+
+/** At most this many conversations are cleared in one refresh; more leave it
+ * incomplete, and the next one goes on with what still holds a prompt. */
+export const promptRefreshCap = 500;
+
+/** A live conversation and the stored prompt it holds: Hermes keeps it by
+ * content hash (`sessions.system_prompt_hash`, v0.22.4-lazurio.1), an older
+ * row inline (`system_prompt`). Only the hash, or that an inline prompt is
+ * there, is read: never a prompt. `unknown` where the store has neither
+ * column. */
+type Held = Readonly<{ id: unknown; prompt: string | null }>;
+
+type Columns = Readonly<{
+  hash: boolean;
+  inline: boolean;
+  /** Every column of `sessions`. */
+  names: ReadonlySet<unknown>;
+}>;
+
+/** What a row holds, as one comparable value. */
+const heldOf = (columns: Columns, row: Record<string, unknown>) =>
+  columns.hash && typeof row.hash === "string"
+    ? `hash:${row.hash}`
+    : columns.inline && row.inline === 1
+      ? "inline"
+      : columns.hash || columns.inline
+        ? null
+        : "unknown";
+
+/** Runs `body` on Hermes's session store, read-only; undefined where it has
+ * no `sessions.ended_at` or cannot be read, and `absent` without a store
+ * (Buddy has had no conversation). */
+async function withStore<T>(
+  hermesHome: string,
+  body: (store: Database, columns: Columns) => T,
+): Promise<T | "absent" | undefined> {
+  const path = join(hermesHome, "state.db");
+  if ((await lstat(path).catch(() => undefined)) === undefined) return "absent";
+  let store: Database | undefined;
+  try {
+    store = new Database(path, { readonly: true });
+    store.exec("PRAGMA busy_timeout = 5000");
+    const names = new Set(
+      store
+        .query("pragma table_info(sessions)")
+        .all()
+        .map((row) => (row as { name: unknown }).name),
+    );
+    if (!names.has("ended_at")) return undefined;
+    return body(store, {
+      hash: names.has("system_prompt_hash"),
+      inline: names.has("system_prompt"),
+      names,
+    });
+  } catch {
+    return undefined;
+  } finally {
+    store?.close();
+  }
+}
+
+const selected = (columns: Columns) =>
+  `id, ${columns.hash ? "system_prompt_hash" : "null"} as hash, ${columns.inline ? "system_prompt is not null" : "0"} as inline`;
+
+/** Buddy's live conversations that hold a stored prompt: not ended, no tool's
+ * or child's session (the installer's `live_sessions`), newest first, at most
+ * `cap` and whether there were more. Every live conversation where the store
+ * cannot say whether it holds one. */
+export async function liveConversations(
+  hermesHome: string,
+  cap: number = promptRefreshCap,
+): Promise<
+  Readonly<{ held: readonly Held[]; capped: boolean }> | "absent" | undefined
+> {
+  return withStore(hermesHome, (store, columns) => {
+    const { names } = columns;
+    const where = ["ended_at is null"];
+    if (names.has("source")) where.push("coalesce(source, '') != 'tool'");
+    if (names.has("parent_session_id")) where.push("parent_session_id is null");
+    const holds = [
+      ...(columns.hash ? ["system_prompt_hash is not null"] : []),
+      ...(columns.inline ? ["system_prompt is not null"] : []),
+    ];
+    if (holds.length > 0) where.push(`(${holds.join(" or ")})`);
+    const order =
+      ["started_at", "created_at"].find((column) => names.has(column)) ??
+      "rowid";
+    const rows = store
+      .query(
+        `select ${selected(columns)} from sessions where ${where.join(" and ")} order by ${order} desc limit ${cap + 1}`,
+      )
+      .all() as Record<string, unknown>[];
+    return Object.freeze({
+      held: rows
+        .slice(0, cap)
+        .map((row) =>
+          Object.freeze({ id: row.id, prompt: heldOf(columns, row) }),
+        ),
+      capped: rows.length > cap,
+    });
+  });
+}
+
+/** What each of `ids` holds now; an id no longer in the store is `gone`. */
+async function heldNow(
+  hermesHome: string,
+  ids: readonly string[],
+): Promise<ReadonlyMap<string, string | null> | undefined> {
+  const now = await withStore(hermesHome, (store, columns) => {
+    const held = new Map<string, string | null>();
+    for (let at = 0; at < ids.length; at += 400) {
+      const chunk = ids.slice(at, at + 400);
+      const rows = store
+        .query(
+          `select ${selected(columns)} from sessions where id in (${chunk.map(() => "?").join(", ")})`,
+        )
+        .all(...chunk) as Record<string, unknown>[];
+      for (const row of rows)
+        if (typeof row.id === "string") held.set(row.id, heldOf(columns, row));
+    }
+    return held;
+  });
+  return now === "absent" ? new Map() : now;
+}
+
+/** What clearing the stored prompts did. `refreshed`: every live
+ * conversation that held a stored prompt holds it no more. `incomplete`: some
+ * still hold the prompt they held (a command that failed or did nothing, an
+ * id never passed to a command), or there were more than the cap. `skipped`:
+ * nothing could be cleared. Only the last two leave a refresh owed. */
+export type PromptRefresh =
+  | Readonly<{ state: "refreshed"; refreshed: number; live: number }>
+  | Readonly<{
+      state: "incomplete";
+      refreshed: number;
+      live: number;
+      failed: number;
+      capped: boolean;
+    }>
+  | Readonly<{
+      state: "skipped";
+      reason: "hermes-missing" | "store-unreadable";
+    }>;
+
+/** Clears the stored prompt of every live conversation that holds one, with
+ * Hermes's own command, as the installer does; each conversation's next turn
+ * builds it from the files as they are now. A conversation counts as
+ * refreshed only when the store no longer holds the prompt it held before:
+ * cleared, rebuilt by a turn since, or gone. A store that cannot say which
+ * prompt a conversation holds is judged by the commands' exits alone. */
+export async function refreshPrompts(
+  input: Readonly<{
+    home: string;
+    hermes: string | undefined;
+    path: string | undefined;
+    run: ToolRunner;
+    /** Tests only: at most this many conversations in one refresh. */
+    cap?: number;
+  }>,
+): Promise<PromptRefresh> {
+  if (input.hermes === undefined)
+    return Object.freeze({ state: "skipped", reason: "hermes-missing" });
+  const hermesHome = join(input.home, ".hermes");
+  const live = await liveConversations(hermesHome, input.cap);
+  if (live === undefined)
+    return Object.freeze({ state: "skipped", reason: "store-unreadable" });
+  if (live === "absent")
+    return Object.freeze({ state: "refreshed", refreshed: 0, live: 0 });
+  const exits = new Map<string, boolean>();
+  for (const { id } of live.held) {
+    if (typeof id !== "string" || !sessionIdShape.test(id)) continue;
+    const result = await input
+      .run(
+        [input.hermes, "sessions", "repair-prompts", id, "--apply", "--json"],
+        60_000,
+        {
+          HOME: input.home,
+          HERMES_HOME: hermesHome,
+          ...(input.path ? { PATH: input.path } : {}),
+        },
+        { maxBytes: 64 * 1024 },
+      )
+      .catch(() => "timeout" as const);
+    exits.set(id, result !== "timeout" && result.exitCode === 0);
+  }
+  const now = await heldNow(hermesHome, [...exits.keys()]);
+  const stale = live.held.filter(({ id, prompt }) => {
+    if (typeof id !== "string" || !exits.has(id)) return true;
+    if (prompt === "unknown") return exits.get(id) !== true;
+    if (now === undefined) return true;
+    const after = now.has(id) ? now.get(id) : null;
+    return after !== null && after === prompt;
+  }).length;
+  const refreshed = live.held.length - stale;
+  return stale === 0 && !live.capped
+    ? Object.freeze({ state: "refreshed", refreshed, live: live.held.length })
+    : Object.freeze({
+        state: "incomplete",
+        refreshed,
+        live: live.held.length,
+        failed: stale,
+        capped: live.capped,
+      });
+}
+
+// ---- A refresh that is owed -------------------------------------------------
+
+/** The record that Buddy's stored prompts are owed a refresh: written before
+ * SOUL.md changes, removed only after a complete refresh and the restart that
+ * follows it (or with no gateway running), so a failure, a cap or anyone's
+ * restart in between leaves it for the next apply. In Buddy's state directory,
+ * beside the installer's records; the Platform's own file. */
+export const promptRefreshOwedPath = (home: string): string =>
+  join(home, ".local", "state", "lazurio", "buddy", "prompt-refresh-owed.json");
+
+/** Whether a refresh is owed: anything at the marker's place counts. */
+export async function promptRefreshOwed(home: string): Promise<boolean> {
+  return (
+    (await lstat(promptRefreshOwedPath(home)).catch(() => undefined)) !==
+    undefined
+  );
+}
+
+/** Records that a refresh is owed, unless it already is: a 0600 file in a 0700
+ * directory, written whole and renamed into place. */
+export async function owePromptRefresh(
+  home: string,
+  now: () => Date = () => new Date(),
+): Promise<void> {
+  if (await promptRefreshOwed(home)) return;
+  const path = promptRefreshOwedPath(home);
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${process.pid}.${Date.now()}.lazurio`;
+  const file = await open(temporary, "wx", 0o600);
+  try {
+    await file.chmod(0o600);
+    await file.writeFile(
+      `${JSON.stringify({
+        schema_version: "lazurio.buddy-prompt-refresh.v1",
+        owed_since: `${now().toISOString().slice(0, 19)}Z`,
+      })}\n`,
+    );
+    await file.sync();
+  } finally {
+    await file.close();
+  }
+  await rename(temporary, path);
+}
+
+/** The owed refresh is done. */
+export const settlePromptRefresh = (home: string): Promise<void> =>
+  rm(promptRefreshOwedPath(home), { force: true });

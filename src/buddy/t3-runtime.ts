@@ -1,6 +1,7 @@
 import { constants } from "node:fs";
 import { access, open, realpath, stat } from "node:fs/promises";
 import { isAbsolute, join, sep } from "node:path";
+import type { ToolRunner } from "../tools/status";
 
 // Buddy's own `t3` (Machines `docs/workspace-application-entry.md`, "Buddy's
 // T3 on a personal Environment"; F61's addendum of 2026-10-22): whatever runs
@@ -128,5 +129,75 @@ export async function buddyT3Runtime(
     return runtime;
   } catch {
     return undefined;
+  }
+}
+
+/** The states of a T3 Code run that are not finished (contracts
+ * `OrchestrationV2RunStatus`, the same at Lazurio/t3code v0.1.1-lazurio.2 and
+ * v0.1.2-lazurio.1): a thread in one of them still has a run going, a
+ * question or a permission request waiting included. */
+export const unfinishedRunStatuses = [
+  "preparing",
+  "queued",
+  "starting",
+  "running",
+  "waiting",
+] as const;
+
+/** Whether Buddy's T3 Code has a run going: `quiet` when none, `busy` when
+ * one, `unknown` when it cannot say, which counts as busy. */
+export type BuddyT3Quiet = "quiet" | "busy" | "unknown";
+
+/** Asks Buddy's T3 Code whether any of its threads, his subagents' included,
+ * has a run that is not finished: his own `t3` (`buddyT3Runtime`, never the
+ * one on PATH) runs `thread list --base-dir ~/.t3-buddy --status <each
+ * unfinished state> --subagents --limit 1 --json`, and T3 Code counts every
+ * thread that matches (`total`, OrchestratorMcpService `listThreads`). Quiet
+ * only when it answers zero. Without its runtime, when T3 Code does not
+ * answer (exit 3: not running), refuses, or answers anything else, unknown. */
+export async function buddyT3Quiet(
+  input: Readonly<{
+    home: string;
+    path: string | undefined;
+    run: ToolRunner;
+  }>,
+): Promise<BuddyT3Quiet> {
+  const runtime = await buddyT3Runtime(input.home);
+  if (runtime === undefined) return "unknown";
+  const result = await input
+    .run(
+      [
+        runtime,
+        "thread",
+        "list",
+        "--base-dir",
+        join(input.home, buddyT3Home),
+        ...unfinishedRunStatuses.flatMap((status) => ["--status", status]),
+        "--subagents",
+        "--limit",
+        "1",
+        "--json",
+      ],
+      30_000,
+      { HOME: input.home, ...(input.path ? { PATH: input.path } : {}) },
+      { maxBytes: 256 * 1024 },
+    )
+    .catch(() => "timeout" as const);
+  if (result === "timeout" || result.exitCode !== 0) return "unknown";
+  try {
+    const answer: unknown = JSON.parse(result.stdout);
+    if (
+      answer === null ||
+      typeof answer !== "object" ||
+      Array.isArray(answer) ||
+      !Array.isArray((answer as { threads?: unknown }).threads)
+    )
+      return "unknown";
+    const total = (answer as { total?: unknown }).total;
+    if (typeof total !== "number" || !Number.isSafeInteger(total) || total < 0)
+      return "unknown";
+    return total === 0 ? "quiet" : "busy";
+  } catch {
+    return "unknown";
   }
 }
