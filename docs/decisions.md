@@ -19380,7 +19380,8 @@ environment, and `NeedDaemonReload=yes` after a drop-in is written.
 
 **Proposed for plan DEV-6676 in the Buddy lead's shaping of 2026-10-25 (its §3.2, §3.4 to
 §3.6, §3.9, §3.10 and PR 3) and the wireframe of HumanAndMachine-ai/prototypes-lazurio #90
-(`b24c4d0b`); implemented in this revision on F63 (#635) and F64 (#636). Question Q4, whether
+(`b24c4d0b`); implemented in this revision on F63 (#635) and F64 (#636), revised after Pablo's review of
+#637 at `059d6f5b`. Question Q4, whether
 the agents' AI waits for Buddy, is set as the shaping recommends and stays Matěj's, the
 Organization Admin's, to decide, as does this record.** Root decision 0210's night addendum
 point 10 starts the onboarding of an Osobní Prostředí with Buddy: his own ChatGPT sign-in,
@@ -19455,6 +19456,19 @@ state, F64 the persona's one deriver; nothing a person sees showed either.
 9. **The journal.** `buddy-persona` lines name the operation (`save`, `apply`), the outcome
    and the reason, never a name, a value or a revision; an apply's line only when its
    outcome changes, so a busy hour is one line.
+10. **An answer never takes back what the page knows** (`buddy-client.ts`; Pablo's review
+    of #637). A reading of `GET /api/buddy` can be under way while the page learns
+    something newer from its own operations: the persona its save wrote, the persona a 409
+    says is there now, a sign-in that finished, one the Launchpad holds no more, a sign-out
+    Hermes confirmed. Each of these moves one epoch. A reading begun before the epoch moved
+    may have been served before that change, so its answer is dropped and the reading
+    asked again, at most three times; whoever waits for that reading (a sign-out does)
+    waits for the fresh answer. A save's answer is installed only when no later save's
+    answer was, since two answers can arrive out of order. A counter is the simplest sound
+    order here: the persona's revisions have none (each is a sha256 of the file), the
+    sign-in has no revision at all, and the server keeps no order of the page's requests.
+    The server's side has nothing alike: it reads the files on every request and keeps no
+    state from a reading, and its re-applies run one at a time.
 
 **Not decided here.** Profiles (the shaping's PR 4), Telegram (PR 5; the step's Telegram
 part comes with its state, which only Hermes holds), the account's e-mail beside Připojeno
@@ -19471,6 +19485,9 @@ part comes with its state, which only Hermes holds), the account's e-mail beside
 | The Telegram part now, as "Nepřipojeno" | The installer may have connected his bot, and the page cannot read Hermes's state before PR 5; rejected for the part arriving with its state |
 | Ask the person for the grammatical cases (Q3) | Grammar talk in a beginner dialog; rejected for the guess, shown in two sentences, with Opravit |
 | One dialog per step instead of three screens | Splits the introduction from the sign-in it follows; rejected for the wireframe's dialog, which the sign-in alone also serves from Settings |
+| Tell a newer reading by its revision | Revisions have no order, and the sign-in has none; rejected for the page's own epoch |
+| Abort the reading under way when the page learns something | An answer already served would still arrive in some browsers, and the page's requests take no signal; dropping it on arrival does the same, and asking again brings what is true now |
+| Install every answer as it arrives, as before | An older reading took back a saved name, its confirmation and its revision, and the next save got an avoidable 409 (Pablo's review); rejected |
 
 **Verified by** `tests/buddy-persona-save.test.ts` (a read shows the names, the confirmation
 and the file's revision; a write over the revision read, the first confirmation kept; 409
@@ -19490,7 +19507,10 @@ cases; the step, the dialog's screens and Nastavení → Buddy from every state 
 and vy at once; English with one form; the draft and its body; a countdown that never
 redraws), `tests/buddy-client.test.ts` (the sign-in from start to signed in; a new code or a
 cancel Hermes refuses keeps the code shown; outdated, no gateway, no answer; a persona saved,
-refused, changed meanwhile, in English with one form) and `tests/buddy-voice.test.ts` (vy in
+refused, changed meanwhile, in English with one form; a reading under way that answers after
+a save, after a 409's current persona, after a sign-out or after a finished sign-in, each
+dropped and asked again; an older save's answer after a newer one's; a reading overtaken
+every time, which stops after three tries) and `tests/buddy-voice.test.ts` (vy in
 Lazurio's lines, ty or vy only in Buddy's own pairs, no developer word, no "pomocník"). In a
 browser, the worktree's Launchpad in hosted mode with F63's fake gateway and Buddy's entry,
 in Czech and English, light and dark, at 1440 and 390 px: the whole path from Přihlásit
