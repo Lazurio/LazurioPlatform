@@ -18693,44 +18693,39 @@ life to a four-hour unit. D is rejected: a parallel reading of Hermes's private 
 3. **The sign-in** (`src/buddy/sign-in.ts`): `POST /api/providers/oauth/openai-codex/start`,
    `GET …/openai-codex/poll/<session>`, `DELETE /api/providers/oauth/sessions/<session>` and
    `DELETE /api/providers/oauth/openai-codex`.
+   - **Only where Hermes keeps its cancellation contract** (Lazurio/hermes-agent#17): its
+     15-minute sweep and its cancel mark a sign-in session cancelled under the lock its worker
+     takes for its last check before it saves, so a session gone from Hermes's map can no
+     longer save one. The gateway advertises the contract in its `identify` answer
+     (`capabilities` lists `lazurio-oauth-cancel-contract-v1`; the member and the value are set
+     in one constant, `oauthCancelContract`, and follow the fork's change). Without it a start
+     starts nothing and answers `blocked` with `hermes-outdated` ("Buddy needs an update before
+     he can be signed in here"): no Hermes session exists that could be saved late. The ticket
+     binds the start to the instance that advertised the contract, so that instance serves it.
+     Buddy's state and a sign-out without a held sign-in need no contract: removing a stored
+     sign-in does not depend on it.
    - One at a time, in the process's memory, one operation after another. A sign-in stays the
      process's until it is certain that Hermes's worker can no longer save one, because until
      then it may still save a sign-in the person approves (Pablo's reviews of #635):
      - its poll answers an ending (`approved`, `expired`, `denied`, `error`), which the worker
        sets as it stops;
      - its cancel answers `{ok: true}` for exactly that session: Hermes marks the session
-       cancelled under the lock its worker saves under, so nothing is saved after it;
+       cancelled under that lock, so nothing is saved after it (true at `v0.22.4-lazurio.1`
+       already);
      - Hermes holds no session by that id (its poll's 404, its cancel's `{ok: false, message:
-       "session not found"}`; both recorded), and either another gateway instance answers (each
-       answer carries the `instance_id` of the `identify` its ticket was bound to, and the
-       sign-in keeps the one that started it; Hermes runs one runtime per process,
-       `hermes_cli/gateway.py:4630`, and leaves it with `os._exit`, `gateway/run.py:5198`, so a
-       new instance is a new process and the worker died with the old one) or the worker's
-       last chance to save has certainly passed. Not
-       before: at `v0.22.4-lazurio.1` Hermes's 15-minute clean-up (`_gc_oauth_sessions`,
-       `hermes_cli/web_routers/oauth.py:796-800`) removes a session without marking it
-       cancelled, while its worker keeps the same record (:303-345) and checks only that mark
-       (`_codex_cancelled`, :177-181), and its poll deadline starts after the user code
-       (:245, :316), so a last poll or token exchange may still be in flight.
-     - The bound, measured on the Launchpad's monotonic clock from the start's answer (the
-       worker sets its user code, and starts its deadline, before `_start_codex_device_code`
-       answers, :518-543): the answer's `expires_in` (`_CODEX_EXPIRES_IN`, 900 s, :48, :316,
-       the deadline of `_codex_poll_authorization`, :245), one more `poll_interval` asleep in
-       the last round (:250-253; 5 s recorded), one poll request (60 s: httpx 15 s for each of
-       acquiring a connection, connecting, writing and reading, `_codex_client`, :184-192), the
-       token exchange (`_codex_post`: three tries, 1 s and 2 s apart, 183 s, :195-213, :332),
-       the save's wait for the auth store's lock (15 s, `AUTH_LOCK_TIMEOUT_SECONDS`,
-       `auth_constants.py:52`, through `_provider_state_transaction`, `auth.py:847-861`) and
-       60 s of margin: 1223 s, 20 min 23 s, for the recorded answer. A start whose lifetime or
-       interval had no known shape counts 3600 s and 600 s.
+       "session not found"}`; both recorded) and the gateway instance that says so keeps the
+       contract, whether it is the one that started the sign-in or another one after a restart
+       (each answer carries the `instance_id` and the contract of the `identify` its ticket was
+       bound to). Not otherwise: at `v0.22.4-lazurio.1` the sweep (`_gc_oauth_sessions`,
+       `hermes_cli/web_routers/oauth.py:796-800`) removes a session without the mark, while its
+       worker keeps the same record (:303-345) and checks only that mark (`_codex_cancelled`,
+       :177-181). No time after the start bounds that worker's save there (the alternatives
+       below).
      Anything else, a lost or refused answer, a timeout, an HTTP error or an answer of no known
      shape, proves nothing: the sign-in stays held and addressable, and what needed it ended
-     changes nothing: `blocked` with `sign-in-finishing` while a session Hermes no longer holds
-     may still save one (the page will say „Buddyho předchozí přihlášení ještě doběhne, zkuste to
-     za chvíli znovu“), `sign-in-running` for any other answer, or `unavailable` with the
-     gateway's reason when the gateway did not answer. The fork marks a collected session
-     cancelled in a change of its own (Lazurio/hermes-agent#17, approved for the release with
-     #11, #13 and #14); this rule does not depend on it.
+     changes nothing: `blocked` with `sign-in-running`, or with `hermes-outdated` when a gateway
+     without the contract no longer holds it, or `unavailable` with the gateway's reason when
+     the gateway did not answer.
    - A new start first ends the one before it on Hermes, so two tabs end as the later one, on
      Hermes too; while Hermes does not confirm that, nothing starts and the one before stays
      the holder's.
@@ -18744,13 +18739,12 @@ life to a four-hour unit. D is rejected: a parallel reading of Hermes's private 
      known shape cannot be addressed at all; its code, too, is shown to nobody.
    - Hermes's words (`error_message`, `detail`) never leave: `failed` carries one of `expired`,
      `refused` (Hermes's words for OpenAI refusing a sign-in by code, which for some accounts
-     must first be allowed in ChatGPT's settings), `lost` (Hermes no longer knows the session:
-     its 404 from another instance, after Buddy's gateway restarted, or after the bound) or
-     `failed`. A poll the gateway does not answer (a timeout, a gateway starting or stopping),
-     and a 404 within the bound from the instance that started it, keep the sign-in. An answer
-     of no known shape ends it only after a cancel that counts as above. Hermes ends a sign-in
-     itself at its code's end; one it still calls waiting past the bound is cancelled, and ends
-     as `expired` once that cancel counts.
+     must first be allowed in ChatGPT's settings), `lost` (Hermes no longer holds the session
+     and keeps the contract) or `failed`. A poll the gateway does not answer (a timeout, a
+     gateway starting or stopping), and a 404 from a gateway without the contract, keep the
+     sign-in. An answer of no known shape ends it only after a cancel that counts as above.
+     Hermes ends a sign-in itself, at its code's end after its worker's last round; until then
+     the sign-in waits, whatever the clock says, and nothing is cancelled for it.
    - An explicit cancel answers `cancelled` only once its cancel counts as above; otherwise
      `blocked` (or `unavailable`), and the sign-in stays held.
    - Sign-out first ends a held sign-in on Hermes and signs out only after that, so none can
@@ -18778,10 +18772,11 @@ life to a four-hour unit. D is rejected: a parallel reading of Hermes's private 
    - `POST /api/buddy/sign-in/start` `{}` → `pending {session, code, url, expiresAt, pollMs}` or
      `failed {reason}`; `POST …/poll` and `…/cancel` `{session}` → `pending`, `signed-in`,
      `failed {reason}`, `cancelled` or `none`; `POST /api/buddy/sign-out` `{}` → `signed-out` or
-     `failed`. A start, a cancel or a sign-out that needs a held sign-in to end, while it may
-     still complete, answers `409 {kind: "blocked", reason: "sign-in-finishing"}` or
-     `"sign-in-running"` and changes nothing; without Buddy's gateway they answer `503 {error:
-     "buddy-unavailable", reason}`.
+     `failed`. A start where Buddy's Hermes does not advertise the contract answers `409
+     {kind: "blocked", reason: "hermes-outdated"}` and starts nothing. A start, a cancel or a
+     sign-out that needs a held sign-in to end, while it may still complete, answers `409
+     {kind: "blocked", reason: "sign-in-running"}` (or `"hermes-outdated"`) and changes
+     nothing; without Buddy's gateway they answer `503 {error: "buddy-unavailable", reason}`.
    - Each POST takes exactly its fields as `application/json` of at most 16 KiB (415, 413,
      400, `invalid-session` for a handle of another shape); another method is 405, a query 400.
      Every POST, the poll included, falls under the hosted same-origin rule of the admission
@@ -18796,9 +18791,10 @@ life to a four-hour unit. D is rejected: a parallel reading of Hermes's private 
    `buddy-absent` otherwise). `status` answers what `GET /api/buddy` answers. `sign-in start`
    holds the sign-in for as long as it runs, as `lazurio tools login` does: the pending answer
    on its first line, then each change on its own line until it ends; Ctrl-C cancels it on
-   Hermes, and says `blocked` with `sign-in-finishing` or `sign-in-running` while the sign-in
-   may still complete, with a line on stderr that says so in words ("Buddy's previous sign-in
-   may still finish. Try again in a few minutes."). It replaces the installer's `signin-start.sh` and
+   Hermes, and says `blocked` `sign-in-running` while the sign-in may still complete. Where
+   Buddy's Hermes does not keep the contract it starts nothing: `blocked` `hermes-outdated`.
+   A line on stderr says each refusal in words ("Buddy needs an update before he can be signed
+   in here."). It replaces the installer's `signin-start.sh` and
    `signin-wait.sh` for operators.
    There are no separate `poll` and `cancel` commands: a later process could address Hermes's
    session only through its id or the code written down somewhere, which this record keeps out
@@ -18816,6 +18812,10 @@ rules stand in for it, as in Desktop; the gateway asks for ours before it mints 
 **Not decided here.** Buddy's persona and everything derived from it (PR 2, F64); the page in
 Začínáme and Nastavení → Buddy (the shaping's PR 3); profiles (PR 4); Telegram (PR 5); the
 account's e-mail on the card (the shaping's gap H-d). Outside the Platform:
+- Lazurio/hermes-agent#17: the cancellation contract (the sweep marks a session cancelled under
+  the lock its worker checks before it saves) and its advertisement in `identify`, in the fork
+  release with #11, #13 and #14. Until a Hermes with it is pinned, Buddy's sign-in does not start
+  (`hermes-outdated`);
 - Lazurio/hermes-agent#16: a machine-readable "sign in again" state for `openai-codex`, for
   "Vyžaduje pozornost";
 - Lazurio/hermes-agent#15: when the sign-in is lost, Hermes's own chat text tells the person to
@@ -18836,10 +18836,11 @@ account's e-mail on the card (the shaping's gap H-d). Outside the Platform:
 | "Needs attention" after 30 s without the gateway | needs a stored first failure, and says less than the gateway's own state; rejected for `unknown` with `not-running` until Lazurio/hermes-agent#16 |
 | Cancel a running sign-in when the Launchpad stops | the person may be finishing it on their phone, and Hermes's worker would still save it; not done |
 | Forget a sign-in whatever its cancel answered (this revision's first head) | an uncancelled worker can still save a sign-in after a replacement, a cancel or a sign-out that said otherwise (Pablo's first review of #635); rejected for Hermes's confirmed cancel |
-| Hermes's "session not found" and its poll's 404 as proof of an end (the second head) | its 15-minute clean-up removes a session without marking it cancelled, and the worker may still save (Pablo's second review of #635); rejected for another instance, or the worker's bound |
-| Wait for the fork's fix, or read a capability it advertises | the rule would hang on a Hermes version and couple the Platform to a fork release; rejected for a rule that holds at any version (the fix stays the fork's, and makes collected sessions harmless there) |
-| End a sign-in at its code's end on this process's clock | the person's approval in the worker's last round would be lost, and an unanswered cancel would again be taken as an end; rejected for Hermes's own ending, and a cancel that counts after the bound |
-| The bound on the wall clock | a clock set forward would end a sign-in whose worker still runs; rejected for the monotonic clock |
+| Hermes's "session not found" and its poll's 404 as proof of an end (the second head) | its 15-minute sweep removes a session without marking it cancelled, and the worker may still save (Pablo's second review of #635); rejected for the cancellation contract |
+| A time bound: "not found" ends a sign-in once the worker's last round has certainly passed (the third head: 1223 s after the start's answer on the monotonic clock) | not an upper bound at `v0.22.4-lazurio.1`: the worker waits, without a timeout, for the process-wide profile lock before its save (`_profile_scope`, `hermes_cli/web_server_profiles.py:239, 262-273`, entered at `oauth.py:339`), the save's own writes (`auth_codex.py:174-214`) are not bounded by `AUTH_LOCK_TIMEOUT_SECONDS`, and httpx's 15 s holds per I/O phase, not per request; Pablo reproduced a save after the bound (his third review of #635); rejected for Hermes's cancellation contract |
+| Another gateway instance as proof that the old worker is gone (the third head's fast path) | Hermes releases its runtime lock before its final `os._exit` (`gateway/run.py:5219-5241`), so a new instance can be ready while the old process and its daemon worker still exist; rejected as proof on its own: another instance's "not found" counts only under the contract, with the residual window below |
+| Wait for the fork's fix, or read a capability it advertises | first rejected for a rule that held at any Hermes version (the time bound); adopted after Pablo's third review showed that no such bound holds at the tag: a sign-in starts only where the gateway advertises the contract |
+| End a sign-in at its code's end on this process's clock | the person's approval in the worker's last round would be lost, and an unanswered cancel would again be taken as an end; rejected for Hermes's own ending |
 
 **Verified by** a stand-in for Buddy's gateway (`tests/fixtures/fake-hermes-gateway.ts`) whose
 every answer was recorded from the real gateway of `v0.22.4-lazurio.1`: `python -m gateway.run`
@@ -18872,23 +18873,29 @@ timeout): a replacement start that starts nothing and keeps the one before addre
 explicit cancel refused, a sign-out that signs nothing out while the sign-in it could not
 cancel is approved meanwhile, an expiry and an answer of no known shape kept until a cancel is
 confirmed, a start of no known shape held without a holder, and a restart's "session not found"
-ending them; a session the clean-up removed (the stand-in's `collect`: out of the map, not
-cancelled, its worker still able to save) in the same instance: a replacement, a cancel and a
-sign-out answering `sign-in-finishing` up to the last millisecond of the bound while its worker
-saves meanwhile, a poll keeping it, and from the bound on "session not found" and the poll's 404
-ending it; another instance ending it at once for a poll, a replacement, a cancel and a sign-out;
-the bound pinned at 1223 s for the recorded answer, longer for an interval of 200 s, 600 s
-assumed for an interval of no known shape, and a wall clock set forward an hour proving nothing.
+ending them; the cancellation contract: without it no sign-in starts, so no worker exists to
+save one late, while Buddy's state and a sign-out without a held sign-in still work; with it a
+session the sweep removed (the stand-in's `collect`, which marks it under the contract as #17
+does and does not at the recorded tag) ends at once by "session not found" or the poll's 404, for
+a poll, a replacement, a cancel and a sign-out, and its worker trying to save afterwards saves
+nothing; a gateway restarted without the contract keeping a sign-in held (`hermes-outdated`)
+until one with it answers; another instance with the contract ending a sign-in as `lost`; and a
+sign-in still pending hours past its code's end waiting for Hermes, with nothing cancelled for
+it.
 `tests/launchpad-buddy.test.ts`: the routes on a hosted
 personal Environment against the stand-in: the answers, the same-origin rule refusing each POST
 without it or from Buddy's own origin before Hermes is asked, the poll a POST, 405, 413, 415,
 400, 404 `buddy-absent` on a personal Environment without Buddy, an Organization's and a
 workstation, 503 without the gateway, 409 `blocked` for a start, a cancel and a sign-out while
-Hermes does not confirm a cancel or no longer holds a session whose worker may still save, and
-the journal and answers free of every secret.
+Hermes does not confirm a cancel, 409 `hermes-outdated` for a start where the gateway does not
+advertise the contract (status and sign-out still answered), and the journal and answers free of
+every secret.
 `tests/buddy-cli.test.ts`: the CLI's JSON and exits, the held sign-in to its end, Ctrl-C
-cancelling it on Hermes or saying in words why it could not (unconfirmed, or finishing), and
-usage. **Mutation checks:** each of these, taken out or loosened,
+cancelling it on Hermes or saying in words that it could not, the start refused in words where
+Buddy's Hermes does not keep the contract (status and sign-out still working), and usage.
+The client's own tests read the contract from `identify` (the member holding the value or
+listing it, another value not counting) and never send a call that requires it to a gateway
+without it. **Mutation checks:** each of these, taken out or loosened,
 fails a test: the loopback origin rule, the path modes, the home's group-write refusal, the
 owner check, the link refusal, the pointer's hash, the pointer's owner and mode, the served
 profile, `session-authority-v1`, the ready state, the ticket's instance and profile, a ticket
@@ -18899,12 +18906,12 @@ one at a time, the poll's session match, the code's lifetime; Hermes's word for 
 sign-in (any cancel answer taken as an end, the first reviewed fault), its confirmation of
 exactly that session, its "session not found" and no other `ok: false`, the replacement, the
 cancel and the sign-out each refused without it, a gateway failure in a poll keeping the
-sign-in, a start of no known shape held, the expiry cancel only after the last round, the
-expiry and an answer of no known shape each ended only with it, and `blocked` as 409; "session
-not found" counted only from another instance or after the bound (the second reviewed fault),
-the instance compared, the bound used, the poll's 404 under the same rule, the bound's last
-round, its interval, the monotonic clock, the starting instance recorded, and a long interval
-assumed when none is known; the route's presence rule, the poll as a
+sign-in, a start of no known shape held, an answer of no known shape ended only with it, and
+`blocked` as 409; the cancellation contract: the start gated on it, the contract read from
+`identify` and not assumed, the client's refusal to send a call that requires it, "session not
+found" and the poll's 404 counted only under it (the second and third reviewed faults), only
+its own value counting, `hermes-outdated` answered as 409 and not as a missing gateway, and the
+CLI's words for it; the route's presence rule, the poll as a
 POST only, the content type, the handle's shape, the same-origin rule for Buddy's POSTs; the
 truth table's unreadable card and its not-running reason; the CLI's Ctrl-C.
 **Honest limits:** no Osobní Prostředí ran: the first acceptance is on Bob's Osobní Prostředí of
@@ -18915,15 +18922,14 @@ and is to be confirmed there. A refused refresh is not visible (Lazurio/hermes-a
 CLI and the Launchpad each hold their own sign-in, so two may run at once on Hermes; the
 approval that comes first signs Buddy in. A held sign-in whose gateway never answers again stays
 held: nothing else starts or signs out until Hermes answers, and the CLI, when Ctrl-C finds that
-the sign-in may still complete, ends without its handle. A cancel whose answer was lost and a
-session the clean-up removed both read as "session not found", so after a lost answer a new
-start waits for the bound, at most 20 minutes. The bound assumes what the Hermes code says and
-the Machine keeps: the Launchpad and Hermes on one Machine, their monotonic clocks advancing
-alike (`performance.now()` and Python's `time.monotonic()`), which a Machine suspended under
-one of them, or a clock of another kind, would break; httpx's 15 s per phase holding, which a
-server that trickled its answer could stretch; the save's profile lock, which the bound does not
-time, held only briefly by other saves; and the worker's thread lagging the start's answer by
-less than the margin. A new instance is taken as the end of the old process: the service manager
-starts the next gateway once the old one exited, but Hermes releases its runtime lock just before
-its final `os._exit`, so a contender already waiting for that lock could answer in those last
-moments.
+the sign-in may still complete, ends without its handle. Until a fork release with #17 is pinned,
+Buddy's sign-in starts nowhere (`hermes-outdated`); the installer's own sign-in, or an update of
+Hermes, comes first. The rule takes the gateway's advertisement for the contract: the control
+socket that advertises it is this account's own, owner-only, as for every ticket. A sign-in held
+while Hermes is replaced by one without the contract stays held until one with it answers.
+**The residual window at a restart:** Hermes releases its runtime lock before its final
+`os._exit` (`gateway/run.py:5219-5241`: the PID file and the lock, then the exit mark and a log
+drain bounded at 1 s, then the exit), so a new instance can become ready while the old process and
+its daemon OAuth worker still exist. A "not found" from that new instance ends the sign-in as
+`lost`, and in that moment the old worker could still save it. Buddy's state is always read live
+from Hermes's own card, so such a save shows him signed in at the next reading.
