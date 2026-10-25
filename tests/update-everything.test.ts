@@ -70,6 +70,8 @@ const current = {
   result: "current",
   version: "0.1.12",
 } as const;
+/** Pins that were all read. */
+const readable = (pins: readonly string[]) => ({ pins, unreadable: 0 });
 /** A resolver for a part that must not resolve anything. */
 const unasked: ModuleBunResolver = async () => {
   throw new Error("Not asked");
@@ -113,7 +115,7 @@ test("the parts run in order, content, tools and builds before Lazurio itself, a
       tools: {
         pins: async () => {
           order.push("tools");
-          return [];
+          return readable([]);
         },
         resolve: unasked,
       },
@@ -337,7 +339,7 @@ const runWith = (
       organizations: ["Alpha"],
       entries: [moved],
     }),
-    tools: { pins: async () => pins, resolve },
+    tools: { pins: async () => readable(pins), resolve },
     builds: async (_progress, run) => {
       heard.push(run.registryUnavailable);
       return [];
@@ -373,7 +375,7 @@ posixTest(
           pins: async (moving) => {
             checkouts.push(moving);
             order.push("tools");
-            return ["bun@1.4.99", "bun@1.4.99"];
+            return readable(["bun@1.4.99", "bun@1.4.99"]);
           },
           resolve,
         },
@@ -440,7 +442,7 @@ posixTest(
       tools: {
         pins: async () => {
           read = true;
-          return ["bun@1.4.98"];
+          return readable(["bun@1.4.98"]);
         },
         resolve: unasked,
       },
@@ -519,7 +521,7 @@ posixTest(
         organizations: ["Alpha"],
         entries: [entry("workspace/site")],
       }),
-      tools: { pins: async () => ["bun@1.4.95"], resolve },
+      tools: { pins: async () => readable(["bun@1.4.95"]), resolve },
       builds: async (_progress, run) => {
         heard.push(run.registryUnavailable);
         return [];
@@ -622,7 +624,7 @@ test("the update never fails because of tools: pins that cannot be read and a re
   // refuses: each its item, never a throw.
   const items = await updateEverything(
     parts({
-      pins: async () => ["bun@1.4.98", "bun@1.4.99"],
+      pins: async () => readable(["bun@1.4.98", "bun@1.4.99"]),
       resolve: async ({ packageManager, owner }) => {
         if (packageManager === "bun@1.4.98") throw new Error("broken");
         throw new PreparationRefused(
@@ -650,6 +652,24 @@ test("the update never fails because of tools: pins that cannot be read and a re
   expect(items.at(-2)).toEqual({ part: "build", ...built() });
   expect(items.at(-1)).toEqual(current);
   expect(builds).toEqual(["ran", "ran"]);
+  // A moved app whose pin cannot be read: the pins that were read are
+  // pre-warmed, then the part is one failed item, never silently clean.
+  const unreadable = await updateEverything(
+    parts({
+      pins: async () => ({ pins: ["bun@1.4.97"], unreadable: 1 }),
+      resolve: async () => ({
+        executable: process.execPath,
+        binDir: null,
+        source: "fetched",
+      }),
+    }),
+  );
+  expect(toolsOf(unreadable)).toEqual([
+    { part: "tools", packageManager: "bun@1.4.97", result: "fetched" },
+    { part: "tools", result: "failed", reason: "operation-failed" },
+  ]);
+  expect(unreadable.at(-1)).toEqual(current);
+  expect(builds).toEqual(["ran", "ran", "ran"]);
 });
 
 test("the Launchpad's job: one run at a time, a second start joins it, the newest stays readable after it ended", async () => {
@@ -780,7 +800,7 @@ test("the CLI's words: what moved, what is left and a summary, what was built or
     "Bun 1.4.97 was not fetched (runtime-version-unknown).",
     "Bun 1.4.98 was not fetched: the registry did not answer (runtime-unavailable).",
     "Bun 1.4.95 was not tried: the registry did not answer this run (runtime-unavailable).",
-    "Tools failed (operation-failed).",
+    "The Bun the moved modules pin could not all be read (operation-failed); a start or build of their apps names why.",
   ]);
 });
 

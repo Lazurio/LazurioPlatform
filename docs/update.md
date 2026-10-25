@@ -879,7 +879,10 @@ Aktualizovat button runs it by hand. One composition (`updateEverything` in
      download that did not verify or a program that reports another version, is also
      `warning: true`: it was discarded, never used;
    - the pre-warm never fails the update: its items are findings, and the exit status
-     stays the product's.
+     stays the product's. A pin that cannot be read (a moved app's package.json missing,
+     unreadable or pinning something other than an exact Bun, or a moved module the
+     catalog does not declare) makes the part one `failed` item, after the pins that were
+     read are pre-warmed; only a package that pins nothing adds nothing.
 
    When nothing moved, nothing is read. Apps whose checkout this run did not move are not
    pre-warmed, even those with a build state whose pin is not cached: a pin changes only

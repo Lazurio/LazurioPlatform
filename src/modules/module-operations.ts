@@ -2230,19 +2230,24 @@ export function createModuleOperations(input: {
      * names them (the Organization's GitHub login, its root and the module's
      * path). Read from the catalog and the packages as the checkouts are now,
      * so as the commits the content brought declare them: every app the
-     * module declares, in order, each pin once. A package that pins none
-     * needs nothing; one whose pin cannot be read is left to its start or
-     * build, which names it. Nothing is resolved or fetched here. */
+     * module declares, in order, each pin once. Only a package that was read
+     * and pins none adds nothing. A pin that cannot be read (a package.json
+     * missing, unreadable or pinning something other than an exact Bun) and
+     * a moved module the catalog does not declare are counted as
+     * `unreadable`, so the update reports them instead of looking clean.
+     * Nothing is resolved or fetched here. */
     async runtimePins(
       moved: readonly Readonly<{
         organization: string;
         root: string;
         path: string;
       }>[],
-    ): Promise<readonly string[]> {
-      if (moved.length === 0) return Object.freeze([]);
+    ): Promise<Readonly<{ pins: readonly string[]; unreadable: number }>> {
+      if (moved.length === 0)
+        return Object.freeze({ pins: Object.freeze([]), unreadable: 0 });
       const catalog = await readCatalog(folder, false);
       const pins = new Set<string>();
+      let unreadable = 0;
       for (const checkout of moved) {
         const group = catalog.organizations.find(
           (entry) =>
@@ -2253,17 +2258,23 @@ export function createModuleOperations(input: {
         const module = group?.modules.find(
           (entry) => entry.path === checkout.path,
         );
-        if (module === undefined) continue;
+        if (module === undefined) {
+          unreadable += 1;
+          continue;
+        }
         for (const app of module.apps) {
-          if (app.kind !== "runtime-declared") continue;
           const owner = dirname(
             join(folder, checkout.root, module.path, app.package),
           );
-          const pin = await readPinnedBun(owner).catch(() => null);
-          if (pin !== null) pins.add(pin);
+          try {
+            const pin = await readPinnedBun(owner);
+            if (pin !== null) pins.add(pin);
+          } catch {
+            unreadable += 1;
+          }
         }
       }
-      return Object.freeze([...pins]);
+      return Object.freeze({ pins: Object.freeze([...pins]), unreadable });
     },
     /** Build what changed, now (root decision 0212 point 3, the builds of
      * `lazurio update`): every built app with a build state (someone opened

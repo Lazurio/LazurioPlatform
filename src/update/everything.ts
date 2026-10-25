@@ -140,11 +140,14 @@ export type UpdateParts = Readonly<{
     onProgress: (progress: SyncProgress) => void,
   ) => Promise<SyncRun | Readonly<{ kind: "not-run"; reason: ContentNotRun }>>;
   /** The Bun the apps of the module checkouts this run fast-forwarded pin
-   * (decision F62): their pins as the checkouts now declare them
-   * (`runtimePins` of the module core), and the resolver a start uses
-   * (the module core's `resolveBun`). Absent: no tools part. */
+   * (decision F62): their pins as the checkouts now declare them, with how
+   * many could not be read (`runtimePins` of the module core), and the
+   * resolver a start uses (the module core's `resolveBun`). Absent: no tools
+   * part. */
   tools?: Readonly<{
-    pins: (moved: readonly MovedModule[]) => Promise<readonly string[]>;
+    pins: (
+      moved: readonly MovedModule[],
+    ) => Promise<Readonly<{ pins: readonly string[]; unreadable: number }>>;
     resolve: ModuleBunResolver;
   }>;
   /** Build what changed (`refreshBuilt`), told what the run's pre-warm
@@ -268,14 +271,16 @@ export async function updateEverything(
   // up without the network, `cached` when the user's Bun or the cache has
   // it, otherwise `not-fetched`. That one answer about the network holds for
   // the builds of this run, and for nothing after it. A pin that cannot be
-  // had is an item, never a failed update.
+  // had is an item, never a failed update. Pins that could not be read are
+  // one failed item of the part, after the others are pre-warmed.
   let registryUnavailable = false;
   const tools = parts.tools;
   if (tools !== undefined && moved.length > 0)
     try {
       const local: ModuleBunResolver = (input) =>
         tools.resolve({ ...input, fetch: false });
-      for (const packageManager of new Set(await tools.pins(moved))) {
+      const { pins, unreadable } = await tools.pins(moved);
+      for (const packageManager of new Set(pins)) {
         if (!registryUnavailable)
           set({ part: "tools", packageManager, step: "fetching" });
         for (const result of await prewarmModuleRuntimes(
@@ -297,6 +302,7 @@ export async function updateEverything(
           if (unanswered) registryUnavailable = true;
         }
       }
+      if (unreadable > 0) failed("tools");
     } catch {
       failed("tools");
     }
@@ -458,7 +464,9 @@ export function everythingText(items: readonly UpdateItem[]): string[] {
   for (const item of items) {
     if (item.part !== "tools") continue;
     if (!("packageManager" in item)) {
-      lines.push("Tools failed (operation-failed).");
+      lines.push(
+        "The Bun the moved modules pin could not all be read (operation-failed); a start or build of their apps names why.",
+      );
       continue;
     }
     const bun = bunOf(item.packageManager);

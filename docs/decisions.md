@@ -972,7 +972,11 @@ and [content synchronization, When it runs](content-sync.md#when-it-runs).
    - **The user's Bun.** A pin of exactly the user's Bun needs nothing: `cached`,
      nothing fetched, as `prewarmModuleRuntimes` answers it.
    - **Never a failed update.** Its items are findings; the exit status stays the
-     product's, and pins that cannot be read are one `failed` item of the part.
+     product's, and pins that cannot be read are one `failed` item of the part, after the
+     pins that were read are pre-warmed. Only a package that was read and pins nothing
+     adds nothing; a package.json missing, unreadable or pinning something other than an
+     exact Bun, and a moved module the catalog does not declare, count as unreadable
+     (the review of #622), so an update never looks clean while it skipped one.
    - **Only what moved.** Apps with a build state whose checkout did not move are not
      pre-warmed, even when their pin is not cached: a pin changes only with a commit,
      and the builds' own preparation resolves each app's pin through the same resolver
@@ -1009,8 +1013,9 @@ fetched before the build, only for the checkouts that moved, then from the cache
 stopping at the first `runtime-unavailable`, the rest looked up without the network
 (`cached` or `not-fetched`); the builds of that run told so, by `runtime-unavailable`
 alone and never in the next run; each other refusal an item and integrity a warning; the
-user's own Bun not fetched; an update that never fails because of tools; the job that a
-second start joins; the CLI's words; the Open: exactly that module,
+user's own Bun not fetched; an update that never fails because of tools, pins that cannot
+be read making one failed item after the others are pre-warmed; the job that a second
+start joins; the CLI's words; the Open: exactly that module,
 debounced per module, never blocking, never for a blocked checkout or root; the module
 an answer names), `tests/module-built.test.ts` (on real git and real builds: `lazurio
 update --json` with no newer Lazurio and a module behind fast-forwards it, lists every
@@ -1020,7 +1025,9 @@ opened no first build; a failing Lazurio still answers the content; the tools pa
 the Bun a moved module's new commit pins before its build, which runs with it; offline,
 the run's build refusing at once with no second attempt at the registry, a person's build
 still asking it, a later run building it, and a pin in the cache building under the
-offline answer), `tests/bun-runtime.test.ts` (the lookup without the network: the user's
+offline answer; `runtimePins` reading each pin once, a package without one adding nothing,
+and a pin that cannot be read or a moved module not declared counted),
+`tests/bun-runtime.test.ts` (the lookup without the network: the user's
 Bun or the cache, otherwise `runtime-unavailable` at once, never the installer, no wait
 for a fetch under way) and
 `tests/launchpad-update.test.ts` (the routes behind the admission, a joined second

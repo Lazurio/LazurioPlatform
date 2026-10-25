@@ -1078,6 +1078,58 @@ posixTest(
   120_000,
 );
 
+posixTest(
+  "runtimePins reads the Bun each app of the moved modules pins, each once: a package that pins none adds nothing, and a pin that cannot be read, or a module whose declaration is not there, is counted, never silently left out",
+  async () => {
+    const home = join(root, "home-pins");
+    await mkdir(home);
+    const fixture = await staticModule("pins", home);
+    const { operations, folder } = fixture;
+    const workspace = join(folder, "organizations", "alpha", "workspace");
+    const repin = async (module: string, pin: string | undefined) => {
+      const file = join(workspace, module, "app", "package.json");
+      const pkg = JSON.parse(await readFile(file, "utf8"));
+      if (pin === undefined) delete pkg.packageManager;
+      else pkg.packageManager = pin;
+      await writeFile(file, JSON.stringify(pkg));
+    };
+    const at = (path: string) => ({
+      organization: "Alpha",
+      root: "organizations/alpha",
+      path,
+    });
+    try {
+      // site pins the user's own Bun; next pins none.
+      await repin("next", undefined);
+      expect(
+        await operations.runtimePins([
+          at("workspace/site"),
+          at("workspace/next"),
+        ]),
+      ).toEqual({ pins: [`bun@${Bun.version}`], unreadable: 0 });
+      // plain pins something that is not an exact Bun, and a moved path the
+      // catalog does not declare cannot give its pins either.
+      await repin("plain", "npm@10.0.0");
+      expect(
+        await operations.runtimePins([
+          at("workspace/site"),
+          at("workspace/plain"),
+          at("workspace/next"),
+          at("workspace/gone"),
+        ]),
+      ).toEqual({ pins: [`bun@${Bun.version}`], unreadable: 2 });
+      // An app whose package.json is gone is counted too.
+      await rm(join(workspace, "next", "app", "package.json"));
+      expect(await operations.runtimePins([at("workspace/next")])).toEqual({
+        pins: [],
+        unreadable: 1,
+      });
+    } finally {
+      await operations.close();
+    }
+  },
+);
+
 /** Bun's npm distribution as a fake for the resolver (decision F62): for
  * each version a program named bun that logs every call, reports the version
  * and runs the real Bun otherwise; a version in `offline` is refused as a
