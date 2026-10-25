@@ -17016,18 +17016,20 @@ settings screen opens with one sentence, and Integrace's line under its title.
    connected, a setup running, locked, not answering, a 0197 pilot) the step is not there,
    so the "?" never describes what is not there.
 
-**Honest limits.** Two variants whose vault takes requests do not say it, because their
-"?" plays approved content the Launchpad does not compose. A Work Environment's member
-hears the approved video `vault-overview` in place (the addenda of 2026-10-18 and (4)):
-a video takes no step, and its box opens with the page, so a line in it would put the
-sentence back on the page. A Personal Environment, its own Bitwarden connected too, hears
-the shell's principle `vault`, whose words are the shell's: a host cannot add a step to a
+**Accepted exception (Matěj, asked on 2026-10-24).** Two variants whose vault takes
+requests do not show the step, and Matěj accepted this explicitly: their "?" plays
+approved content the Launchpad does not compose. A Work Environment's member hears the
+approved video `vault-overview` in place (the addenda of 2026-10-18 and (4)): a video
+takes no step, and its box opens with the page, so a line in it would put the sentence
+back on the page. A Personal Environment, its own Bitwarden connected too, hears the
+shell's principle `vault`, whose words are the shell's: a host cannot add a step to a
 principle, and its own explanation keeps at most four steps. Both already say how the
-person puts a password into the vault themselves, from their own Bitwarden. Saying the
-request there as well is a decision of its own: a step of the principle that a host turns
-on where its vault takes requests (an addition to the shell's interface v1), and for a
-member a line in the video's box or the step guide in place of the video. An agent that
-needs a secret still asks for it on Trezor, where the page lists the agents' requests.
+person puts a password into the vault themselves, from their own Bitwarden, and an agent
+that needs a secret still asks for it on Trezor, where the page lists the agents'
+requests. Adding the step there (a step of the principle that a host turns on where its
+vault takes requests, an addition to the shell's interface v1; for a member a line in the
+video's box or the step guide in place of the video) would be a decision of its own and is
+not planned.
 
 Verified by `tests/launchpad-guide.test.ts` (both sentences gone from the page, the
 demo's from the catalog too and Trezor's words only in the "?"'s step, the element and the
