@@ -19755,7 +19755,8 @@ environment, and `NeedDaemonReload=yes` after a drop-in is written.
 
 **Follows Lazurio/LazurioPlatform#648 and #565 point 4 (plan DEV-6676). Variant B of the
 shaping in #565; the readings every two minutes (point 3) are proposed by the agent, who found
-that the reading at start alone does not see a layer written after it. Implemented in this
+that the reading at start alone does not see a layer written after it; the refresh of ended
+sessions (point 5) follows a finding on a Ring 0 Buddy of the same day. Implemented in this
 revision; Matěj, the Organization Admin, decides it.** Buddy's stored prompts are built from
 SOUL.md and from his Lazurio layer in the Folder (`buddyLayerPaths`: `.agents/buddy/.hermes.md`
 and his Lazurio skills, F14's addendum of 2026-10-21). F64 refreshed them only when SOUL.md
@@ -19805,7 +19806,30 @@ owed marker (`prompt-refresh-owed.json`) has to be written by hand and
    failure. The refresh records the token, so a layer that stays unreadable does not restart
    Buddy again and again, and its repair owes the next refresh. Not personal, or no Hermes
    home: `skipped` or `unavailable`, as before, and nothing is written.
-5. **Nothing else changes.** Nothing in `src/folder` and no Folder template: the layer's writer
+5. **Ended conversations that Hermes resumes are refreshed too.** F64 cleared the prompts of
+   live sessions only (`ended_at` empty), as the installer's `live_sessions` does. Hermes ends
+   the web chat's ACP session whenever its last viewer leaves (`end_reason` `acp_disconnect`,
+   `gateway/session_acp_lifecycle.py`), and T3 Code's next message reopens it with the prompt it
+   stored (`gateway/session_local_recovery.py` `reopen_local_session`). So after a complete
+   refresh the chat kept the old prompt, and on Ring 0 it had to be cleared by hand. The refresh
+   now takes every conversation that holds a stored prompt and can still take a turn, as
+   Lazurio/hermes-agent v0.22.4-lazurio.3 resumes them:
+   - a live row, or an ended one with messages (an editor lists and loads no empty session,
+     `acp_adapter/catalog.py`) whose end does not say that its conversation went on in another
+     row or stopped: `compression`, `new_session` and the resets (`session_reset`,
+     `session_switch`, `idle`, `daily`, `suspended`, `resume_pending_expired`;
+     `hermes_state_common.py` `_BOUNDARY_END_REASONS`). Any other end, `acp_disconnect` or a
+     runtime that closed, was reaped or was evicted, leaves a row the next turn reopens;
+   - never a subagent's run (`_delegate_from` in `model_config`) or a tool's session. With
+     `model_config`, a compression's or a reset's continuation counts: Hermes resumes a
+     conversation's latest row, and a long conversation goes on in it. A store without these
+     columns keeps the live, root-only selection;
+   - the cap of 500 counts them, and so do `refreshed` and `live` (`live`: the conversations that
+     can still take a turn). `hermes sessions repair-prompts <id>` clears an ended session as it
+     clears a live one. Clearing an ended session's prompt is harmless: the turn that resumes it
+     builds the prompt anew, and the restart that follows the refresh drops the agents the gateway
+     kept.
+6. **Nothing else changes.** Nothing in `src/folder` and no Folder template: the layer's writer
    still knows nothing of Buddy's home. The marker, its schema and its rules stay, a change of
    the persona owes its refresh as before, and so does the hand-over to the installer and
    Machines (point 7).
@@ -19817,6 +19841,9 @@ owed marker (`prompt-refresh-owed.json`) has to be written by hand and
 | The digest of the layer at the end of the apply | A layer that changes between the refresh and the end would be recorded although his prompts were built from the older one; rejected for the beginning |
 | The Launchpad reads only at its start | Machines' apply writes the new layer after the restart, and so does a `machine folder-refresh` after the user's own update; the new rules would wait for a page; rejected for a reading every two minutes |
 | `machine folder-refresh` restarts the Launchpad when the layer changed, as it does when the entry changed | One more restart of the person's page per release for what a small reading does, and a change written another way would still wait; rejected |
+| Every ended session that holds a prompt | Old Telegram days and finished CLI chats never take a turn again, and each costs a `repair-prompts` process; rejected for Hermes's own end reasons |
+| ACP sessions only (`source = 'acp'`) | Misses a compression's or a reset's continuation of the web chat and the other local surfaces Hermes reopens; rejected for the end reason and the subagent marker |
+| Hermes's receipts of local sessions (`state_meta`) | Name exactly the latest row of each local conversation, but they are Hermes's private records with a format of their own; rejected for the `sessions` columns |
 | A watch on the layer's files (inotify) | A second mechanism with failure modes of its own (a directory not there yet, renames over watched files, platform differences) for a check of a few small reads; rejected |
 
 **Verified by** `tests/buddy-persona.test.ts`: a Folder refresh (`refreshMachineFolder`) that
@@ -19832,30 +19859,39 @@ digest recorded, the answer `waiting`, and the next apply refreshing again. A li
 not refreshed again, and a regular file again owes the next refresh. The digest goes by path and
 bytes: one byte changed at the same length, a byte more, two files' bytes swapped, an empty file
 and none, a link and a directory as one token, and the same layer elsewhere with the same
-digest. `tests/buddy-persona-save.test.ts`: a reading takes up a changed layer and a missing
+digest. An apply clears the prompt of an ended `acp_disconnect` session with messages and counts
+it in `refreshed`, and leaves an ended session without a prompt untouched. The selection takes a
+live row, the web chat after a disconnect, a compression's and a reset's continuation and a
+closed CLI chat, and never a row ended by a compression, a daily reset or `/new`, an empty one,
+a subagent's run or a tool's session; a `model_config` that is no JSON names no subagent, and
+the cap counts them all. `tests/buddy-persona-save.test.ts`: a reading takes up a changed layer and a missing
 record and writes nothing; the start reads once, waits for the apply it began, and starts
 nothing when nothing is owed or the controller is closed; the readings every two minutes take up
 new rules written after the start and a marker, start nothing otherwise, and stop at close.
 `tests/launchpad-buddy.test.ts`: a real Launchpad start on an entry that names Buddy runs F64's
 apply without any request when his rules changed, and none when nothing is owed or the entry
-does not name him. Mutation checks: each of 23 guards removed or loosened fails a test (the
+does not name him. Mutation checks: each of 30 guards removed or loosened fails a test (the
 marker from a changed layer, the beginning's digest, the read's count, no record counting, a
 link followed, `layer-unreadable` in the read and in the apply, the answer after a change during
 the apply, the record's schema and its link, the restart pending while the refresh waits, the
 controller's comparison, the bytes in the digest, the two tokens kept apart, the record only
 after the restart; the watch armed at start, its next reading, its stop, a second watch, the start
 waiting for its apply, the Launchpad's start, its condition on Buddy and `settled()` waiting for
-it). One more guard, a sha256 shape for the recorded digest, survived its mutation and was
-removed: a value that is no layer's digest never equals one.
+it; ended sessions counted, the superseded end reasons and compression among them, the
+messages, the subagent marker, the guard against a `model_config` that is no JSON, and the
+continuations). One more guard, a sha256 shape for the recorded digest, survived its mutation
+and was removed: a value that is no layer's digest never equals one.
 
 **Honest limits.**
 - No real Hermes gateway, Buddy or Osobní Prostředí ran, as for F64. The acceptance is on a
   Ring 0 Buddy after a Platform update that changes `.hermes.md`: with no page opened,
-  `hermes sessions` shows his conversation's stored prompt cleared and then rebuilt by his next
-  turn, which follows the new rule; `prompt-inputs.json` holds the new layer's digest; the
-  Launchpad's journal has a `buddy-persona` `apply` line.
+  `hermes sessions` shows the stored prompt of his web chat's session cleared, ended after a
+  disconnect or not, and then rebuilt by his next turn, which follows the new rule;
+  `prompt-inputs.json` holds the new layer's digest; the Launchpad's journal has a
+  `buddy-persona` `apply` line.
 - The first update with this change refreshes every Buddy once, since none has a record yet:
-  one more prefix-cache miss per live conversation and one restart at an idle moment.
+  one more prefix-cache miss per conversation that can still take a turn, and one restart at an
+  idle moment.
 - A conversation that begins while the layer is briefly different builds its prompt from it.
   When the layer returns to the recorded bytes before an apply, nothing is owed and that prompt
   stays.
@@ -19863,6 +19899,10 @@ removed: a value that is no layer's digest never equals one.
   but a link it would follow counts as unreadable here.
 - The readings every two minutes cost the persona and a handful of small files on every
   Osobní Prostředí with Buddy; nothing else runs unless something is owed.
+- The end reasons are Hermes's at v0.22.4-lazurio.3. A reason Hermes adds later counts as
+  resumable, and so would a renamed boundary: at worst one needless clear per such session.
+- Children are told apart by Hermes's `_delegate_from` marker. A subagent's run from before
+  Hermes wrote it, ended in a way that counts, is cleared once, which is harmless.
 
 ## F65 — Buddy in Začínáme and Nastavení → Buddy: his step first, his persona changed in place, the agents' AI not locked behind him
 
