@@ -25,9 +25,11 @@ import type { ToolRunner } from "../tools/status";
 // environment (gateway/run_agent_cache.py). So a change takes two steps,
 // the installer's (`buddy-install.sh`, step 13):
 //
-// 1. `hermes sessions repair-prompts <id> --apply --json` for every live
-//    conversation that holds a stored prompt clears it, so its next turn
-//    builds it anew; the store, not the command's exit, says it worked;
+// 1. `hermes sessions repair-prompts <id> --apply --json` for every
+//    conversation that holds a stored prompt and can still take a turn
+//    (live, or ended in a way Hermes resumes: `resumableConversations`)
+//    clears it, so its next turn builds it anew; the store, not the
+//    command's exit, says it worked;
 // 2. one restart of `hermes-gateway.service` drops the agents it keeps and
 //    gives it its drop-in's environment, only while Hermes's own
 //    `active-work` verb (gateway/run_active_work_verb.py, the answer its
@@ -337,12 +339,31 @@ const sessionIdShape = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
  * incomplete, and the next one goes on with what still holds a prompt. */
 export const promptRefreshCap = 500;
 
-/** A live conversation and the stored prompt it holds: Hermes keeps it by
- * content hash (`sessions.system_prompt_hash`, v0.22.4-lazurio.1), an older
- * row inline (`system_prompt`). Only the hash, or that an inline prompt is
- * there, is read: never a prompt. `unknown` where the store has neither
- * column. */
+/** A conversation and the stored prompt it holds: Hermes keeps it by content
+ * hash (`sessions.system_prompt_hash`, v0.22.4-lazurio.1), an older row
+ * inline (`system_prompt`). Only the hash, or that an inline prompt is there,
+ * is read: never a prompt. `unknown` where the store has neither column. */
 type Held = Readonly<{ id: unknown; prompt: string | null }>;
+
+/** End reasons after which Hermes never takes a turn in a row again
+ * (Lazurio/hermes-agent v0.22.4-lazurio.3, `hermes_state_common.py`): a
+ * compression split goes on in its continuation, and a deliberate boundary
+ * (`_BOUNDARY_END_REASONS`: the resets and `/new`) in a new session. Any other
+ * end leaves a row that its conversation's next turn reopens with the prompt
+ * it stored: the last viewer leaving an ACP session (`acp_disconnect`,
+ * `gateway/session_acp_lifecycle.py`), a runtime that closed, was reaped or
+ * was evicted (`gateway/session_local_recovery.py` `reopen_local_session`
+ * reopens a local conversation's latest row whatever its reason). */
+const supersededEndReasons = [
+  "compression",
+  "new_session",
+  "session_reset",
+  "session_switch",
+  "idle",
+  "daily",
+  "suspended",
+  "resume_pending_expired",
+] as const;
 
 type Columns = Readonly<{
   hash: boolean;
@@ -396,11 +417,23 @@ async function withStore<T>(
 const selected = (columns: Columns) =>
   `id, ${columns.hash ? "system_prompt_hash" : "null"} as hash, ${columns.inline ? "system_prompt is not null" : "0"} as inline`;
 
-/** Buddy's live conversations that hold a stored prompt: not ended, no tool's
- * or child's session (the installer's `live_sessions`), newest first, at most
- * `cap` and whether there were more. Every live conversation where the store
- * cannot say whether it holds one. */
-export async function liveConversations(
+/** Buddy's conversations that hold a stored prompt and can still take a turn,
+ * newest first, at most `cap` and whether there were more:
+ * - live ones, not ended, as the installer's `live_sessions` selects them;
+ * - ended ones Hermes resumes. The web chat's ACP session ends whenever its
+ *   last viewer leaves (`acp_disconnect`), and T3 Code's next message reopens
+ *   it with the prompt it stored. So an ended row counts unless its end says
+ *   its conversation went on in another row or stopped
+ *   (`supersededEndReasons`), and only with messages: an editor lists and
+ *   loads no empty session (`acp_adapter/catalog.py`). Only where the store
+ *   says which rows hold a prompt and why they ended;
+ * - never a tool's session or a subagent's run, which Hermes marks
+ *   `_delegate_from` (`model_config`). A compression's or a reset's
+ *   continuation counts: that is the row a long conversation goes on in.
+ *   Without `model_config` every child row is left out, as the installer
+ *   leaves them.
+ * Every live conversation where the store cannot say whether it holds one. */
+export async function resumableConversations(
   hermesHome: string,
   cap: number = promptRefreshCap,
 ): Promise<
@@ -408,14 +441,33 @@ export async function liveConversations(
 > {
   return withStore(hermesHome, (store, columns) => {
     const { names } = columns;
-    const where = ["ended_at is null"];
-    if (names.has("source")) where.push("coalesce(source, '') != 'tool'");
-    if (names.has("parent_session_id")) where.push("parent_session_id is null");
     const holds = [
       ...(columns.hash ? ["system_prompt_hash is not null"] : []),
       ...(columns.inline ? ["system_prompt is not null"] : []),
     ];
+    const where: string[] = [];
     if (holds.length > 0) where.push(`(${holds.join(" or ")})`);
+    if (names.has("source")) where.push("coalesce(source, '') != 'tool'");
+    if (names.has("model_config"))
+      where.push(
+        "(case when json_valid(model_config) then json_extract(model_config, '$._delegate_from') end) is null",
+      );
+    else if (names.has("parent_session_id"))
+      where.push("parent_session_id is null");
+    const resumed =
+      holds.length > 0 && names.has("end_reason")
+        ? [
+            `coalesce(end_reason, '') not in (${supersededEndReasons.map((reason) => `'${reason}'`).join(", ")})`,
+            ...(names.has("message_count")
+              ? ["coalesce(message_count, 0) > 0"]
+              : []),
+          ]
+        : undefined;
+    where.push(
+      resumed === undefined
+        ? "ended_at is null"
+        : `(ended_at is null or (${resumed.join(" and ")}))`,
+    );
     const order =
       ["started_at", "created_at"].find((column) => names.has(column)) ??
       "rowid";
@@ -457,11 +509,14 @@ async function heldNow(
   return now === "absent" ? new Map() : now;
 }
 
-/** What clearing the stored prompts did. `refreshed`: every live
- * conversation that held a stored prompt holds it no more. `incomplete`: some
- * still hold the prompt they held (a command that failed or did nothing, an
- * id never passed to a command), or there were more than the cap. `skipped`:
- * nothing could be cleared. Only the last two leave a refresh owed. */
+/** What clearing the stored prompts did. `refreshed`: every conversation
+ * that held a stored prompt and can still take a turn holds it no more.
+ * `incomplete`: some still hold the prompt they held (a command that failed
+ * or did nothing, an id never passed to a command), or there were more than
+ * the cap. `skipped`: nothing could be cleared. Only the last two leave a
+ * refresh owed. `live` counts those conversations, the ended ones Hermes
+ * resumes included (`resumableConversations`), and `refreshed` those of them
+ * that hold their prompt no more. */
 export type PromptRefresh =
   | Readonly<{ state: "refreshed"; refreshed: number; live: number }>
   | Readonly<{
@@ -476,9 +531,12 @@ export type PromptRefresh =
       reason: "hermes-missing" | "store-unreadable";
     }>;
 
-/** Clears the stored prompt of every live conversation that holds one, with
- * Hermes's own command, as the installer does; each conversation's next turn
- * builds it from the files as they are now. A conversation counts as
+/** Clears the stored prompt of every conversation that holds one and can
+ * still take a turn, with Hermes's own command, as the installer does; each
+ * conversation's next turn builds it from the files as they are now, an ended
+ * one's when it is resumed. Its id needs no live row: the command resolves
+ * any session and clears what it stores (`hermes_cli/sessions_cmd.py`
+ * `_cmd_repair_prompts`, v0.22.4-lazurio.3). A conversation counts as
  * refreshed only when the store no longer holds the prompt it held before:
  * cleared, rebuilt by a turn since, or gone. A store that cannot say which
  * prompt a conversation holds is judged by the commands' exits alone. */
@@ -495,7 +553,7 @@ export async function refreshPrompts(
   if (input.hermes === undefined)
     return Object.freeze({ state: "skipped", reason: "hermes-missing" });
   const hermesHome = join(input.home, ".hermes");
-  const live = await liveConversations(hermesHome, input.cap);
+  const live = await resumableConversations(hermesHome, input.cap);
   if (live === undefined)
     return Object.freeze({ state: "skipped", reason: "store-unreadable" });
   if (live === "absent")

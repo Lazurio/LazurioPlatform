@@ -106,8 +106,10 @@ buddy persona [--apply] [--confirm] [--folder <absolute Folder>] [--json]
   and his T3 settings as lazurio buddy chat reads them. --apply, one at
   a time, replaces each file that differs on its own, has systemd reread the
   units, and brings the change to his running conversations: hermes sessions
-  repair-prompts clears the stored prompt of every live conversation that
-  holds one, checked in Hermes's store, and once Hermes's active-work answers
+  repair-prompts clears the stored prompt of every conversation that holds
+  one and can still take a turn (live, or ended in a way Hermes resumes, as
+  the web chat's ACP session is after each disconnect), checked in Hermes's
+  store, and once Hermes's active-work answers
   that Buddy is idle, hermes-gateway.service restarts once, never on units
   systemd failed to reread; his T3 settings are applied, his T3 Code's unit
   stopped and started around them only when T3 Code has no run going; after

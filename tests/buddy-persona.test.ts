@@ -21,7 +21,6 @@ import {
   type ActiveWork,
   askActiveWork,
   gatewayUnitState,
-  liveConversations,
   microsecondsOf,
   promptInputsPath,
   promptRefreshMarked,
@@ -32,6 +31,7 @@ import {
   recordPromptInputs,
   refreshPrompts,
   restartPending,
+  resumableConversations,
 } from "../src/buddy/gateway-refresh";
 import {
   actingSenderMode,
@@ -2747,7 +2747,7 @@ posix(
   async () => {
     const directory = await realpath(await mkdtemp(join(tmpdir(), "live-")));
     try {
-      expect(await liveConversations(directory)).toBe("absent");
+      expect(await resumableConversations(directory)).toBe("absent");
       sessionStore(directory, [
         ["a", "telegram", null, 1, null, "ha"],
         ["b", "acp", null, 3, null, "hb"],
@@ -2766,7 +2766,7 @@ posix(
         .run();
       writable.close();
       const before = await readFile(join(directory, "state.db"));
-      expect(await liveConversations(directory)).toEqual({
+      expect(await resumableConversations(directory)).toEqual({
         held: [
           { id: "b", prompt: "hash:hb" },
           { id: "e", prompt: "hash:he" },
@@ -2775,7 +2775,7 @@ posix(
         ],
         capped: false,
       });
-      expect(await liveConversations(directory, 2)).toEqual({
+      expect(await resumableConversations(directory, 2)).toEqual({
         held: [
           { id: "b", prompt: "hash:hb" },
           { id: "e", prompt: "hash:he" },
@@ -2789,6 +2789,198 @@ posix(
       await rm(directory, { recursive: true, force: true });
     }
   },
+);
+
+/** A row of Hermes's session store with what says how a session ended and
+ * whose it is (v0.22.4-lazurio.3): `end_reason`, `message_count` and
+ * `model_config`, whose `_delegate_from` marks a subagent's run. */
+type EndedRow = readonly [
+  id: string,
+  source: string | null,
+  parent: string | null,
+  startedAt: number,
+  endedAt: number | null,
+  endReason: string | null,
+  messages: number,
+  modelConfig: string | null,
+  promptHash: string | null,
+];
+
+function endedStore(hermesHome: string, rows: readonly EndedRow[]) {
+  const store = new Database(join(hermesHome, "state.db"));
+  store.exec(
+    "create table sessions (id text primary key, source text, parent_session_id text, started_at real, ended_at real, end_reason text, message_count integer, model_config text, system_prompt text, system_prompt_hash text)",
+  );
+  const insert = store.prepare(
+    "insert into sessions values (?, ?, ?, ?, ?, ?, ?, ?, null, ?)",
+  );
+  for (const row of rows) insert.run(...row);
+  store.close();
+}
+
+posix(
+  "conversations that can still take a turn: the live ones and the ended ones Hermes resumes (the web chat's ACP session after a disconnect, a compression's or a reset's continuation, a closed CLI), with messages; never one ended by a compression or a boundary, an empty one, a subagent's run or a tool's session",
+  async () => {
+    const directory = await realpath(await mkdtemp(join(tmpdir(), "ended-")));
+    try {
+      endedStore(directory, [
+        ["live", "acp", null, 14, null, null, 4, null, "h-live"],
+        // The web chat after its viewer left: T3 Code's next message
+        // reopens it with this prompt.
+        ["web", "acp", null, 13, 20, "acp_disconnect", 12, null, "h-web"],
+        // The empty ACP sessions that come every 15 minutes hold none.
+        ["empty", "acp", null, 12, 12.5, "acp_disconnect", 0, null, null],
+        ["quiet", "acp", null, 11, 11.5, "acp_disconnect", 3, null, null],
+        ["zero", "acp", null, 10, 10.5, "acp_disconnect", 0, null, "h-zero"],
+        // A compression split goes on in its continuation.
+        ["split", "acp", null, 9, 15, "compression", 40, null, "h-split"],
+        ["tip", "acp", "split", 15, 21, "acp_disconnect", 5, "{}", "h-tip"],
+        // A daily reset goes on in a new session that keeps the lineage.
+        ["day", "telegram", null, 8, 16, "daily", 7, null, "h-day"],
+        [
+          "next",
+          "telegram",
+          "day",
+          16,
+          null,
+          null,
+          2,
+          '{"_reset_from":"day"}',
+          "h-next",
+        ],
+        ["closed", "cli", null, 7, 17, "cli_close", 3, null, "h-closed"],
+        ["new", "cli", null, 6, 18, "new_session", 4, null, "h-new"],
+        [
+          "sub",
+          "acp",
+          "live",
+          5,
+          19,
+          "agent_close",
+          2,
+          '{"_delegate_from":"live"}',
+          "h-sub",
+        ],
+        ["tool", "tool", null, 4, null, null, 1, null, "h-tool"],
+        // A model_config that is no JSON names no subagent.
+        ["broken", "acp", null, 3, null, null, 1, "{", "h-broken"],
+      ]);
+      const before = await readFile(join(directory, "state.db"));
+      expect(await resumableConversations(directory)).toEqual({
+        held: [
+          { id: "next", prompt: "hash:h-next" },
+          { id: "tip", prompt: "hash:h-tip" },
+          { id: "live", prompt: "hash:h-live" },
+          { id: "web", prompt: "hash:h-web" },
+          { id: "closed", prompt: "hash:h-closed" },
+          { id: "broken", prompt: "hash:h-broken" },
+        ],
+        capped: false,
+      });
+      // The cap counts them all.
+      expect(await resumableConversations(directory, 3)).toEqual({
+        held: [
+          { id: "next", prompt: "hash:h-next" },
+          { id: "tip", prompt: "hash:h-tip" },
+          { id: "live", prompt: "hash:h-live" },
+        ],
+        capped: true,
+      });
+      expect((await readFile(join(directory, "state.db"))).equals(before)).toBe(
+        true,
+      );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
+
+posix(
+  "an apply clears the stored prompt of the web chat's ended ACP session too, counted in refreshed, and leaves an ended session without a prompt untouched",
+  () =>
+    within(async (env) => {
+      await rm(join(env.hermesHome, "state.db"));
+      endedStore(env.hermesHome, [
+        [
+          "20261025_080000_abc123",
+          "telegram",
+          null,
+          1,
+          null,
+          null,
+          6,
+          null,
+          "h-telegram",
+        ],
+        [
+          "2b7c1e0a-1111-4222-8333-444455556666",
+          "acp",
+          null,
+          2,
+          3,
+          "acp_disconnect",
+          12,
+          null,
+          "h-web",
+        ],
+        [
+          "20261025_081500_empty1",
+          "acp",
+          null,
+          4,
+          4.5,
+          "acp_disconnect",
+          0,
+          null,
+          null,
+        ],
+      ]);
+      expect(await apply(env)).toMatchObject({
+        state: "applied",
+        prompts: { state: "refreshed", refreshed: 2, live: 2 },
+        restart: "done",
+      });
+      expect(env.repairs()).toEqual([
+        "2b7c1e0a-1111-4222-8333-444455556666",
+        "20261025_080000_abc123",
+      ]);
+      const store = new Database(join(env.hermesHome, "state.db"), {
+        readonly: true,
+      });
+      try {
+        expect(
+          store
+            .query(
+              "select id, ended_at as ended, end_reason as reason, system_prompt_hash as hash from sessions order by id",
+            )
+            .all(),
+        ).toEqual([
+          {
+            id: "20261025_080000_abc123",
+            ended: null,
+            reason: null,
+            hash: null,
+          },
+          {
+            id: "20261025_081500_empty1",
+            ended: 4.5,
+            reason: "acp_disconnect",
+            hash: null,
+          },
+          // Cleared and still ended: T3 Code's next message reopens it and
+          // its turn builds the prompt anew.
+          {
+            id: "2b7c1e0a-1111-4222-8333-444455556666",
+            ended: 3,
+            reason: "acp_disconnect",
+            hash: null,
+          },
+        ]);
+      } finally {
+        store.close();
+      }
+      expect(await env.owed()).toBe(false);
+    }),
 );
 
 posix(
