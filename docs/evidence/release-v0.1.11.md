@@ -8,7 +8,7 @@ on every Environment of the pilot Organization, LazurioExampleOrganization, and 
 personal VM. The final tag `v0.1.11` carries exactly its tree.
 
 The record is [`qualification/canary/v0.1.11-rc.6.json`](../../qualification/canary/v0.1.11-rc.6.json),
-added by the pull request that adds this file. Machines are opaque ids, as in the record. Which
+added by [#638](https://github.com/Lazurio/LazurioPlatform/pull/638). Machines are opaque ids, as in the record. Which
 Machine is which is kept only in the pilot Organization's own private records.
 
 ## Why the final tag is not on `main`
@@ -69,11 +69,11 @@ Environment (root decision 0204 point 7). The scope is not narrowed.
   - At 21:18:15–21:18:22Z each work VM answered `lazurio recover --json` `healthy` and
     `lazurio update status --json` active `0.1.11-rc.6`.
   - At 21:21:25Z the personal VM answered the same.
-- **End:** `(pending the personal VM)` (pending).
+- **End:** `2026-10-25T05:22:09Z` (8 h 6 min 31 s), the end of the last Machine's readback.
   - At 05:20:49–05:21:05Z each work VM answered `recover` `healthy` and active `0.1.11-rc.6`, its
     Launchpad unit active and running with `NRestarts` 0.
-  - At (pending) the personal VM answered `recover` `(pending)` and active
-    `(pending)`.
+  - At 05:22:08–05:22:09Z the personal VM answered `recover` `healthy`, its Launchpad unit
+    `NRestarts` 0, and active `0.1.11-rc.6`.
 - **No Recovery mode.** Recovery mode is chosen only when the Launchpad starts. On every work VM
   the Launchpad unit had `NRestarts` 0 at the end, and `recover` was healthy at the start and at
   the end.
@@ -102,4 +102,4 @@ Environment (root decision 0204 point 7). The scope is not narrowed.
 | `06d5c433c545e38d` | work | 0.1.11-rc.6 | healthy / healthy | 0 |
 | `d94d6e912281c8e6` | work | 0.1.11-rc.6 | healthy / healthy | 0 |
 | `e0d566c46a1a84de` | work | 0.1.11-rc.6 | healthy / healthy | 0 |
-| `8d49b01f67710c7a` | personal | (pending) | healthy / (pending) | (pending) |
+| `8d49b01f67710c7a` | personal | 0.1.11-rc.6 | healthy / healthy | 0 |
