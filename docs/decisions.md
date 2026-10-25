@@ -18794,7 +18794,12 @@ both sign-outs, the 401 without a ticket, with a spent one and with any `Origin`
 `profile` query (`tests/fixtures/hermes-gateway-v0.22.4-lazurio.1.json`, every live value
 replaced by a synthetic one; the poll's other endings and the start's refusals are derived from
 Hermes's code and marked so). The pointer fallback was observed too:
-`/tmp/hermes-gw-<sha256(home)[:16]>/control.sock`. `tests/buddy-hermes-gateway.test.ts`: a
+`/tmp/hermes-gw-<sha256(home)[:16]>/control.sock`. The client and the sign-in core of this
+revision also ran on macOS against that real gateway itself, its socket through the pointer (a home
+longer than a socket path): the state `waits`, then `works` with a sign-in Hermes's own writer
+saved; a start through `node:http` whose real code passed `codexDeviceCode` and whose page was
+OpenAI's; its poll, the cancel and the poll after it (`none`); and both sign-outs.
+`tests/buddy-hermes-gateway.test.ts`: a
 ticket per call spent once and never twice, the exact request lines and headers, no `Origin`,
 no `profile`, no proxy (in a process of its own, with `HTTP_PROXY` set), a refused ticket
 replaced once, a failed write never sent again, every foreign API origin refused before a
