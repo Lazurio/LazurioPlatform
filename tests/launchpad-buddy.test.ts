@@ -1,6 +1,14 @@
 import { expect, spyOn, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
@@ -13,6 +21,7 @@ import {
   initializeFolder,
   initializeHandoverFolder,
 } from "../src/folder/initialize-folder";
+import { buddyRulesPath } from "../src/folder/outputs";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
 import { buddyRoutePaths } from "../src/launchpad/buddy-routes";
@@ -44,6 +53,9 @@ type Json = Record<string, unknown>;
 async function hosted(
   kind: "buddy" | "personal" | "organization" = "buddy",
   options: Parameters<typeof fakeHermesGateway>[0] = {},
+  /** What happens to the account's home and the Folder before the
+   * Launchpad starts, after Buddy's last refresh was recorded. */
+  before?: (home: string, folder: string) => Promise<void>,
 ) {
   const fake = await fakeHermesGateway(options);
   const parent = await realpath(
@@ -76,6 +88,7 @@ async function hosted(
   // Buddy's prompts were last refreshed from the Folder's Lazurio layer
   // (F64's addendum of 2026-10-25), as an installed Buddy's.
   await recordPromptInputs(fake.userHome, await readPromptInputs(folder));
+  await before?.(fake.userHome, folder);
   const fetcher: AuthFetcher = async (_url, init) =>
     new Headers(init.headers).get("cookie") ===
     "__Secure-lazurio-workspace=valid"
@@ -127,6 +140,8 @@ async function hosted(
           body: JSON.stringify(body),
         }),
       ),
+    /** The reads the Launchpad began on its own at its start ended. */
+    settled: () => app.settled(),
     async close() {
       await app.close();
       await fake.close();
@@ -829,6 +844,75 @@ posix(
       await read.body?.cancel();
     } finally {
       await app.close();
+    }
+  },
+);
+
+// ---- His stored prompts after a release (F64's addendum of 2026-10-25) ----
+
+/** The journal lines of Buddy's persona this process wrote. */
+const personaLinesOf = (lines: readonly string[]) =>
+  lines
+    .filter((line) => line.includes('"buddy-persona"'))
+    .map((line) => JSON.parse(line) as Json);
+
+posix(
+  "the Launchpad reads Buddy's persona once at its start: a refresh his changed Lazurio layer owes starts F64's apply without any request; nothing owed, or no Buddy in the entry, starts none",
+  async () => {
+    const lines = journal();
+    // A Platform update wrote his new rules while no Launchpad ran.
+    const rulesChanged = async (home: string, folder: string) => {
+      await withPersona(home);
+      await writeFile(
+        join(folder, buddyRulesPath),
+        "Buddy's rules of the previous release\n",
+      );
+    };
+    try {
+      const app = await hosted("buddy", {}, rulesChanged);
+      try {
+        await app.settled();
+        // One apply, F64's: SOUL.md derived, and the refresh it could not
+        // finish here (Hermes is not installed) owed and retried.
+        expect(personaLinesOf(lines.lines)).toEqual([
+          {
+            scope: "buddy-persona",
+            operation: "apply",
+            outcome: "failed",
+            reason: "prompts-incomplete",
+          },
+        ]);
+        expect(await readFile(soulPath(app.fake.userHome), "utf8")).toContain(
+          "Rex",
+        );
+        expect(await promptRefreshMarked(app.fake.userHome)).toBe(true);
+      } finally {
+        await app.close();
+      }
+      lines.lines.length = 0;
+      // Nothing owed: the start applies nothing.
+      const quiet = await hosted("buddy", {}, async (home) => {
+        await withPersona(home);
+      });
+      try {
+        await quiet.settled();
+        expect(personaLinesOf(lines.lines)).toEqual([]);
+        await expect(lstat(soulPath(quiet.fake.userHome))).rejects.toThrow();
+      } finally {
+        await quiet.close();
+      }
+      // No Buddy in the entry: nothing of his is read, whatever changed.
+      const personal = await hosted("personal", {}, rulesChanged);
+      try {
+        await personal.settled();
+        expect(personaLinesOf(lines.lines)).toEqual([]);
+        await expect(lstat(soulPath(personal.fake.userHome))).rejects.toThrow();
+        expect(await promptRefreshMarked(personal.fake.userHome)).toBe(false);
+      } finally {
+        await personal.close();
+      }
+    } finally {
+      lines.restore();
     }
   },
 );

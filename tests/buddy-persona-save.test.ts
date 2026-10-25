@@ -513,6 +513,58 @@ posix(
 );
 
 posix(
+  "the Launchpad's start reads once: a refresh owed since it last ran, a changed layer's included, starts one apply, and the start resolves when that apply ended; nothing owed starts none; a closed controller starts none",
+  async () => {
+    await within(async (home, folder) => {
+      // Nothing owed: the start reads and applies nothing.
+      const quiet = applies("applied");
+      const idle = createPersonaSave({ home, folder, apply: quiet.apply });
+      await idle.start();
+      expect(quiet.calls()).toBe(0);
+      idle.close();
+
+      // A Platform update wrote his new rules while no Launchpad ran.
+      await writeFile(rulesOf(folder), "Buddy's rules of the next release\n");
+      let finish: (answer: BuddyPersona) => void = () => undefined;
+      let calls = 0;
+      const journal: PersonaJournalEntry[] = [];
+      const save = createPersonaSave({
+        home,
+        folder,
+        apply: () => {
+          calls += 1;
+          return new Promise<BuddyPersona>((resolve) => {
+            finish = resolve;
+          });
+        },
+        journal: (entry) => journal.push(entry),
+      });
+      let started = false;
+      const start = save.start().then(() => {
+        started = true;
+      });
+      await tick();
+      expect(calls).toBe(1);
+      // The start waits for the apply it began.
+      expect(started).toBe(false);
+      finish({ kind: "buddy-persona", state: "applied", restart: "done" });
+      await start;
+      expect(started).toBe(true);
+      expect(calls).toBe(1);
+      expect(journal).toEqual([{ operation: "apply", outcome: "applied" }]);
+      save.close();
+
+      // A controller the Launchpad already closed starts nothing.
+      const closed = applies("applied");
+      const late = createPersonaSave({ home, folder, apply: closed.apply });
+      late.close();
+      await late.start();
+      expect(closed.calls()).toBe(0);
+    });
+  },
+);
+
+posix(
   "a failed apply is asked again later and later; an apply that throws counts as failed; after close nothing runs",
   async () => {
     await within(async (home, folder) => {

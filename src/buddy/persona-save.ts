@@ -278,16 +278,27 @@ export function createPersonaSave(
 
   const pending = () => running !== null || retry !== undefined;
 
+  /** The persona as it is now. A refresh still owed, a changed layer's
+   * included, starts an apply, unless one runs, waits or was asked a moment
+   * ago. */
+  async function read(): Promise<BuddyPersonaShown | null> {
+    if (!homeKnown) return null;
+    const [persona, owed] = await Promise.all([readPersona(home), owedNow()]);
+    if (owed && !closed && !pending() && now().getTime() >= notBefore)
+      void run();
+    return personaShown(persona, owed || pending());
+  }
+
   return Object.freeze({
-    /** The persona as it is now. A refresh still owed, a changed layer's
-     * included, starts an apply, unless one runs, waits or was asked a moment
-     * ago. */
-    async read(): Promise<BuddyPersonaShown | null> {
-      if (!homeKnown) return null;
-      const [read, owed] = await Promise.all([readPersona(home), owedNow()]);
-      if (owed && !closed && !pending() && now().getTime() >= notBefore)
-        void run();
-      return personaShown(read, owed || pending());
+    read,
+
+    /** The Launchpad starts where Buddy is (F64's addendum of 2026-10-25):
+     * one reading now, so a refresh owed since it last ran is applied once
+     * he is idle, without anyone opening a page; a Platform update restarts
+     * it. Resolves when the reading, and the apply it started, ended. */
+    async start(): Promise<void> {
+      await read();
+      await running;
     },
 
     /** A change from the page, only while the file is the one at
