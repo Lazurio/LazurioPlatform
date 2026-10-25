@@ -173,6 +173,18 @@ export function createComposioOrganizationReader(
  * `loading` until the first answer. */
 export type AiFact = AiState | "loading";
 
+/** Buddy's basic (decision F65; root decision 0210's night addendum point
+ * 10), only where the Environment has him: his own ChatGPT sign-in as
+ * Hermes's card says it, and whether the person confirmed his names in
+ * "Seznamte se s Buddym". `loading` until `GET /api/buddy` answered. */
+export type BuddyFact =
+  | "loading"
+  | Readonly<{
+      signIn: "connected" | "none" | "unknown";
+      /** Null where his reading failed: not known either way. */
+      confirmed: boolean | null;
+    }>;
+
 /** What the first run reads: the preset, and the three basics; `audience`
  * where the recorded entry says the Environment is public (absent
  * elsewhere, as on every Environment before root decision 0204). */
@@ -182,6 +194,9 @@ export type TourFacts = Readonly<{
   ai: AiFact;
   github: GithubFact;
   content: ContentFact;
+  /** Buddy's basic where the Environment has Buddy (an Osobní Prostředí
+   * whose entry names his origin); absent everywhere else. */
+  buddy?: BuddyFact | undefined;
 }>;
 
 /** A public Environment's demo onboarding (root decision 0204's line on
@@ -211,13 +226,65 @@ function personOnboarding(
 
 /** The basics of 0201 point 1, in their order (point 3). */
 export const basics = Object.freeze(["ai", "github", "content"] as const);
-export type Basic = (typeof basics)[number];
+/** With Buddy his step comes first (root decision 0210's night addendum
+ * point 10): "Seznamte se s Buddym", then the agents' AI. */
+export const buddyBasics = Object.freeze([
+  "buddy",
+  "ai",
+  "github",
+  "content",
+] as const);
+export type Basic = (typeof buddyBasics)[number];
+
+/** The basics of this Environment, in their order: four with Buddy, three
+ * elsewhere. */
+export function basicsOf(facts: Pick<TourFacts, "buddy">): readonly Basic[] {
+  return facts.buddy === undefined ? basics : buddyBasics;
+}
+
+/** What waits for Buddy's step (the shaping's question Q4, Matěj's to
+ * decide; recommended and so set: nothing). His step comes first, so the
+ * tour, the line in Apps and the shell's prompt lead to it first, but the
+ * agents' AI is offered beside it (`offered`): his sign-in can fail on the
+ * account's side (OpenAI may require the sign-in by code to be allowed
+ * first), and a hard gate would lock the person out of their agents,
+ * GitHub and the Personal Workspace, which Začínáme already avoids for an
+ * AI that cannot be read. `after-buddy` would hold the AI step until his
+ * step is done, as GitHub waits for the AI. The one place that decides it,
+ * with the order in `buddyBasics` and `nextBasic`. */
+export const buddyGate: Readonly<{ ai: "offered" | "after-buddy" }> =
+  Object.freeze({ ai: "offered" });
+
+/** Whether the AI step waits for Buddy's now, by the gate. */
+export function aiHeldByBuddy(
+  facts: Pick<TourFacts, "buddy">,
+  gate: Readonly<{ ai: "offered" | "after-buddy" }> = buddyGate,
+): boolean {
+  return (
+    gate.ai === "after-buddy" &&
+    facts.buddy !== undefined &&
+    buddyState(facts.buddy) !== "done"
+  );
+}
+
+/** Buddy's basic: done only when he is signed in and the person confirmed
+ * his names; missing when either is known not to be; not known while it
+ * is read, or while his sign-in cannot be read with the names confirmed. */
+function buddyState(fact: BuddyFact): "done" | "missing" | "unknown" {
+  if (fact === "loading") return "unknown";
+  if (fact.signIn === "connected" && fact.confirmed === true) return "done";
+  if (fact.signIn === "none" || fact.confirmed === false) return "missing";
+  return "unknown";
+}
 
 /** One basic: done (provided ahead counts), missing, or not known. */
 export function basicState(
   facts: TourFacts,
   basic: Basic,
 ): "done" | "missing" | "unknown" {
+  // Without Buddy here his basic is none to do.
+  if (basic === "buddy")
+    return facts.buddy === undefined ? "done" : buddyState(facts.buddy);
   if (basic === "ai")
     return facts.ai === "organization" || facts.ai === "connected"
       ? "done"
@@ -238,18 +305,26 @@ export function basicState(
       : "unknown";
 }
 
-/** How many basics are done, for "Dokončit nastavení (1 ze 3)". */
+/** How many basics are done, for "Dokončit nastavení (1 ze 3)", with Buddy
+ * "(1 ze 4)". */
 export function basicsDone(facts: TourFacts): number {
-  return basics.filter((basic) => basicState(facts, basic) === "done").length;
+  return basicsOf(facts).filter((basic) => basicState(facts, basic) === "done")
+    .length;
 }
 
-/** The first basic still missing, in the order AI → GitHub → content; null
- * when all are there (or the Environment has no first run); undefined while
- * one that decides it is not known yet. The AI before its first answer, an
- * unknown GitHub and an unread content wait; an AI that could not be read
- * (`unknown`) is never claimed missing, so it does not hold the rest. */
+/** The first basic still missing, in the order Buddy (where he is) → AI →
+ * GitHub → content; null when all are there (or the Environment has no
+ * first run); undefined while one that decides it is not known yet. Buddy
+ * and the AI before their first answer, an unknown GitHub and an unread
+ * content wait; an AI that could not be read (`unknown`) is never claimed
+ * missing, so it does not hold the rest, and neither does a Buddy whose
+ * sign-in cannot be read once his names are confirmed. */
 export function nextBasic(facts: TourFacts): Basic | null | undefined {
   if (!personOnboarding(facts)) return null;
+  if (facts.buddy !== undefined) {
+    if (facts.buddy === "loading") return undefined;
+    if (buddyState(facts.buddy) === "missing") return "buddy";
+  }
   if (facts.ai === "loading") return undefined;
   if (facts.ai === "missing") return "ai";
   const github = basicState(facts, "github");
@@ -264,6 +339,7 @@ export function nextBasic(facts: TourFacts): Basic | null | undefined {
 export type TourStep =
   | "gear"
   | "settings-start"
+  | "buddy"
   | "ai"
   | "github"
   | "prepare"
@@ -372,6 +448,7 @@ export function tourAdvance(
 export type TourTarget =
   | "gear"
   | "settings-start"
+  | "start-buddy"
   | "start-ai"
   | "start-github"
   | "prepare"
@@ -400,7 +477,10 @@ export type TourStop = Readonly<{
  * is not connected. */
 export function tourStop(
   step: TourStep,
-  facts: Pick<TourFacts, "preset" | "audience" | "ai" | "github" | "content">,
+  facts: Pick<
+    TourFacts,
+    "preset" | "audience" | "ai" | "github" | "content" | "buddy"
+  >,
   apps: Readonly<{ chat: boolean; automate: boolean }>,
   copy: Copy,
 ): TourStop {
@@ -426,6 +506,7 @@ export function tourStop(
       const next = nextBasic(facts);
       // The title alone, as Začínáme's AI step (Matěj 2026-10-16: "méně je
       // více").
+      if (next === "buddy") return stop("gear", copy.tourGearBuddyTitle, null);
       if (next === "ai") return stop("gear", copy.tourGearAiTitle, null);
       if (next === "github")
         return stop("gear", copy.tourGearGithubTitle, copy.tourGearGithubText);
@@ -441,6 +522,8 @@ export function tourStop(
     }
     case "settings-start":
       return stop("settings-start", copy.tourStartTitle, copy.tourStartText);
+    case "buddy":
+      return stop("start-buddy", copy.tourBuddyTitle, copy.tourBuddyText);
     case "ai":
       return stop("start-ai", copy.tourAiTitle, copy.tourAiText);
     case "github":
@@ -675,6 +758,13 @@ export function appsSetupLine(
 ): SetupLine | null {
   const next = nextBasic(facts);
   if (next === null || next === undefined) return null;
+  if (next === "buddy")
+    return {
+      tone: "info",
+      icon: "sparks",
+      text: copy.setupBuddy,
+      actions: [{ action: "open-start", label: copy.setupBuddyAction }],
+    };
   if (next === "ai")
     return {
       tone: "info",
@@ -769,11 +859,22 @@ export function shellSetup(
     github: GithubFact;
     list: ContentList | null;
     job: ContentJob | null;
+    /** Buddy's basic where the Environment has him (decision F65). */
+    buddy?: BuddyFact | undefined;
   }>,
 ): ShellSetup | undefined {
   if (!personOnboarding(input) || input.github === "unknown") return undefined;
   const fact = contentFact(input.list, input.job);
+  const buddy =
+    input.buddy === undefined
+      ? undefined
+      : { done: "ready", missing: "missing", unknown: "unknown" }[
+          buddyState(input.buddy)
+        ];
   const base = {
+    ...(buddy === undefined
+      ? {}
+      : { buddy: buddy as "ready" | "missing" | "unknown" }),
     ...(input.ai === "organization" || input.ai === "connected"
       ? { ai: "ready" as const }
       : input.ai === "missing"

@@ -19490,3 +19490,163 @@ environment, and `NeedDaemonReload=yes` after a drop-in is written.
 - Delegace's own texts keep the old names after a rename until the installer's next run or
   #616 (point 6). The English names of the user are the person's to give in all three
   cases until the dialog asks for one form (the shaping's §3.6).
+
+## F65 — Buddy in Začínáme and Nastavení → Buddy: his step first, his persona changed in place, the agents' AI not locked behind him
+
+**Proposed for plan DEV-6676 in the Buddy lead's shaping of 2026-10-25 (its §3.2, §3.4 to
+§3.6, §3.9, §3.10 and PR 3) and the wireframe of HumanAndMachine-ai/prototypes-lazurio #90
+(`b24c4d0b`); implemented in this revision on F63 (#635) and F64 (#636), revised after Pablo's review of
+#637 at `059d6f5b`. Question Q4, whether
+the agents' AI waits for Buddy, is set as the shaping recommends and stays Matěj's, the
+Organization Admin's, to decide, as does this record.** Root decision 0210's night addendum
+point 10 starts the onboarding of an Osobní Prostředí with Buddy: his own ChatGPT sign-in,
+apart from the agents', then his introduction. F63 gave the Launchpad his sign-in and his
+state, F64 the persona's one deriver; nothing a person sees showed either.
+
+1. **Where.** Only on an Osobní Prostředí whose recorded entry names Buddy's origin (the
+   shell document's `buddy`, the routes' `buddyOrigin`, F60): the Začínáme step, its
+   dialog, Nastavení → Buddy and `POST /api/buddy/persona`. Elsewhere the step and the
+   section draw nothing and every Buddy route answers 404 `buddy-absent`.
+2. **His step is a basic, first.** `first-run.ts` gets a fourth basic, `buddy`, before the
+   AI (`buddyBasics`; elsewhere the basics stay three). It is done only when Hermes's card
+   says he is signed in and the person confirmed his names (`confirmed_at`, F64); missing
+   when either is known not to be; not known while it is read, when his reading failed, or
+   when his sign-in cannot be read once his names are confirmed, as an AI that could not be
+   read is never claimed missing. Začínáme says "Hotovo X ze 4 kroků.", its navigation
+   "X/4" and the shell's prompt "Dokončit nastavení (X ze 4)" through `setup.buddy`, which
+   is additive in `lazurio.shell.v1`: absent is no Buddy, and `unknown` counts in the total
+   but is neither done nor missing.
+3. **The order and the gate (Q4).** The tour, the line in Apps and the shell's prompt lead
+   to Buddy first. The agents' AI is offered beside his step, not held behind it
+   (`buddyGate`, `offered`): his sign-in can fail on the account's side, since OpenAI may
+   refuse a sign-in by code for an account that has not allowed it, and a hard gate would
+   lock the person out of the agents, GitHub and the Personal Workspace. `after-buddy`
+   would hold the AI step until his step is done; the content never waits for him. The
+   order and the gate are in one place, `first-run.ts`.
+4. **The dialog "Seznamte se s Buddym"** (`buddy-dialog.ts`), the wireframe's three
+   screens. (1) His sign-in through F63's routes: OpenAI's page, the code with Kopírovat,
+   the time it still holds from `expiresAt`, Čekám na přihlášení…, Nový kód, then
+   Připojeno. (2) His introduction in his own words, which change at once with Tykej mi:
+   his name, ty or vy, the person's name with two sentences that show the forms guessed
+   from it (the wireframe's `czechNames`) and Opravit; Pokračovat saves them with the
+   person's confirmation. English asks for one form and stores it in all three cases.
+   (3) Telegram with only Teď ne until Telegram itself comes (the shaping's PR 5). F63's
+   closed reasons get one plain line each: `hermes-outdated` asks for an update and offers
+   no code; `refused` says ChatGPT did not accept a sign-in by code, with a "?" for the
+   account's setting; `expired` and `lost` offer Nový kód; `sign-in-running` keeps the code
+   on screen, since a new code or a cancel that Hermes did not confirm changed nothing; no
+   gateway is "Buddy teď neběží.".
+5. **Nastavení → Buddy** (`buddy-panel.ts`), the last section of Settings, shown only with
+   Buddy. Stav: his name and Pracuje, Čeká na přihlášení or Buddy teď neběží; his sign-in
+   with ⋯ → Přihlásit znovu and Odhlásit (behind a confirm) once he is signed in, Přihlásit
+   before, Zrušit and Pokračovat while a code waits. Jméno a oslovení: his name, Vyká vám /
+   Tyká vám, the person's name with Opravit, and Uložit. No model, no reason code, and no
+   sentence under its title (F56's addendum (6)): without Buddy it says only that there is
+   nothing to set up, and with him its head takes no room.
+6. **The persona's route.** `POST /api/buddy/persona {buddyName, address, user:
+   {nominative, accusative, dative}, revision, confirm?}` behind F63's admission (404
+   without Buddy, the hosted same-origin rule for a POST, 413, 415, 405, no query). The
+   members are checked as the installer checks them before the file is compared, so a
+   refusal names the member whatever the file (400 `invalid-buddy-name`,
+   `invalid-address`, `invalid-user-nominative` and its cases, `invalid-user` for the
+   user's shape, `invalid-revision`, `invalid-confirm`); F64's writer writes only over
+   `revision` (null: there was none), else 409 `persona-changed` with the persona as it is
+   now; 409 `persona-busy` and `persona-unsafe` write nothing. Then F64's apply, the one of
+   `lazurio buddy persona --apply`, runs and is answered within 20 s as `applied: {state,
+   reason?, restart?, prompts?}`, `waiting` when it takes longer. `GET /api/buddy` names
+   the persona: `buddyName`, `address`, `user`, `confirmed`, `revision` and `pending`; null
+   where there is none the installer would take. `lazurio buddy status` keeps F63's shape.
+7. **What waits for Buddy, the Launchpad finishes** (`src/buddy/persona-save.ts`). F64's
+   apply restarts his gateway only once he is idle. The Launchpad applies again every 15 s
+   while it answers `waiting`, after a failure 30 s later and doubling up to 15 minutes, one
+   apply at a time in this process (F64's own lock orders it against the command); a
+   reading that finds F64's owed refresh of stored prompts starts one, at most once per
+   15 s, so a Launchpad that restarted takes it up. Nothing is stored beside F64's own
+   record. `pending` is that record, or an apply under way or scheduled; the page says it in
+   one line, "Projeví se, až Buddy dokončí, co právě dělá.", and reads again every 10 s
+   while it is shown.
+8. **Words.** Lazurio's own lines say vy (root decision 0199). Buddy's own lines in the
+   dialog are pairs by his address (`buddy…Ty`, `buddy…Vy`; the same text in English). No
+   line names Hermes, a gateway, a token, a model, a command or a reason code, and nobody is
+   a "pomocník". The "?" of Začínáme has four stops with Buddy (the steps, his step, the
+   agents' own AI, GitHub); Nastavení → Buddy has two.
+9. **The journal.** `buddy-persona` lines name the operation (`save`, `apply`), the outcome
+   and the reason, never a name, a value or a revision; an apply's line only when its
+   outcome changes, so a busy hour is one line.
+10. **An answer never takes back what the page knows** (`buddy-client.ts`; Pablo's review
+    of #637). A reading of `GET /api/buddy` can be under way while the page learns
+    something newer from its own operations: the persona its save wrote, the persona a 409
+    says is there now, a sign-in that finished, one the Launchpad holds no more, a sign-out
+    Hermes confirmed. Each of these moves one epoch. A reading begun before the epoch moved
+    may have been served before that change, so its answer is dropped and the reading
+    asked again, at most three times; whoever waits for that reading (a sign-out does)
+    waits for the fresh answer. A save's answer is installed only when no later save's
+    answer was, since two answers can arrive out of order. A counter is the simplest sound
+    order here: the persona's revisions have none (each is a sha256 of the file), the
+    sign-in has no revision at all, and the server keeps no order of the page's requests.
+    The server's side has nothing alike: it reads the files on every request and keeps no
+    state from a reading, and its re-applies run one at a time.
+
+**Not decided here.** Profiles (the shaping's PR 4), Telegram (PR 5; the step's Telegram
+part comes with its state, which only Hermes holds), the account's e-mail beside Připojeno
+(H-d), "Vyžaduje pozornost" for a refused refresh (H-a), and Buddy's T3 surface (T-a to T-c).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The AI waits for Buddy, as the wireframe draws it | A sign-in OpenAI refuses for the account would lock the person out of the agents, GitHub and the Personal Workspace; set aside as Q4 recommends, one switch (`buddyGate`) |
+| Keep the step's state in the browser, as the wireframe does | Začínáme reads live facts only (0201): another browser would disagree; rejected for Hermes's card and `confirmed_at` |
+| Save on every keystroke, as the wireframe does | Each change is an apply, which may restart his gateway; rejected for Uložit in Settings and Pokračovat in the dialog |
+| Answer the route only after the apply | An apply that waits for the drain and T3 Code's stop takes minutes; rejected for 20 s, then `waiting` and the Launchpad finishing it |
+| A pending flag in a file of the Launchpad | A second record beside F64's, which a crash could leave stale; rejected for F64's owed record and retries in memory |
+| `pending` from F64's full read (`lazurio buddy persona`) | It runs `hermes acp --check` on every reading of the page; rejected for F64's owed record |
+| The Telegram part now, as "Nepřipojeno" | The installer may have connected his bot, and the page cannot read Hermes's state before PR 5; rejected for the part arriving with its state |
+| Ask the person for the grammatical cases (Q3) | Grammar talk in a beginner dialog; rejected for the guess, shown in two sentences, with Opravit |
+| One dialog per step instead of three screens | Splits the introduction from the sign-in it follows; rejected for the wireframe's dialog, which the sign-in alone also serves from Settings |
+| Tell a newer reading by its revision | Revisions have no order, and the sign-in has none; rejected for the page's own epoch |
+| Abort the reading under way when the page learns something | An answer already served would still arrive in some browsers, and the page's requests take no signal; dropping it on arrival does the same, and asking again brings what is true now |
+| Install every answer as it arrives, as before | An older reading took back a saved name, its confirmation and its revision, and the next save got an avoidable 409 (Pablo's review); rejected |
+
+**Verified by** `tests/buddy-persona-save.test.ts` (a read shows the names, the confirmation
+and the file's revision; a write over the revision read, the first confirmation kept; 409
+with the persona as it is now and nothing written; each refused member named, nothing
+written; `waiting` retried every 15 s until applied; an apply longer than a moment answers
+`waiting` and a second save joins it; an owed refresh after a restart taken up once, not
+again a moment later; failures retried later and later, a throw counted as failed, nothing
+after close; the journal without a name, a value or a revision),
+`tests/launchpad-buddy.test.ts` (the route over HTTP: written, confirmed, applied by F64's
+real apply in a fixture without Hermes, which owes the refresh and stays pending; 409, 400
+for each member and shape, exact fields, 405; admission and 404 as for F63's routes; the
+journal without names), `tests/first-run-buddy.test.ts` (four basics with Buddy, three
+elsewhere; done only signed in and confirmed; the order, the waits and the gate; the tour's
+stops within a dozen words; the line in Apps; the shell's prompt "(X ze 4)" and its
+additive member; the "?" stops), `tests/buddy-view.test.ts` (the prototype's `czechNames`
+cases; the step, the dialog's screens and Nastavení → Buddy from every state and reason; ty
+and vy at once; English with one form; the draft and its body; a countdown that never
+redraws), `tests/buddy-client.test.ts` (the sign-in from start to signed in; a new code or a
+cancel Hermes refuses keeps the code shown; outdated, no gateway, no answer; a persona saved,
+refused, changed meanwhile, in English with one form; a reading under way that answers after
+a save, after a 409's current persona, after a sign-out or after a finished sign-in, each
+dropped and asked again; an older save's answer after a newer one's; a reading overtaken
+every time, which stops after three tries) and `tests/buddy-voice.test.ts` (vy in
+Lazurio's lines, ty or vy only in Buddy's own pairs, no developer word, no "pomocník"). In a
+browser, the worktree's Launchpad in hosted mode with F63's fake gateway and Buddy's entry,
+in Czech and English, light and dark, at 1440 and 390 px: the whole path from Přihlásit
+Buddyho through Připojeno, Tykej mi, Opravit and Teď ne to a done step, then Nastavení →
+Buddy with its menu, Odhlásit's confirm and a rename; no error of the page in the console.
+
+**Honest limits.**
+- No real Osobní Prostředí ran it: the browser check used a local harness (the hosted
+  Launchpad, F63's fake gateway, a proxy for the gateway's Host, cookie and same-origin);
+  the acceptance as Bob on Ring 0 comes next (0204, 0178).
+- A persona file the installer would refuse reads as none: the page offers an empty
+  introduction, and its save answers `persona-changed` since that file's revision is not
+  shown; `lazurio buddy persona` names the member to fix.
+- A failed apply also shows "Projeví se…" while the Launchpad retries it; the journal says
+  why.
+- The retries live in the Launchpad's memory: after a restart only an owed refresh of
+  stored prompts is taken up again; T3 settings that waited for Buddy's T3 Code are applied
+  by the next save or `lazurio buddy persona --apply`.
+- The Launchpad's page is light only (the design system has no dark mode yet), so a dark
+  device shows it as a light one.
+- His face is his picture from his origin, the launcher's; where it does not load, his
+  initial.

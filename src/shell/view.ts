@@ -886,11 +886,11 @@ function startHref(apps: string): string {
 /** The prompt the column head shows in Apps, Chat and Automate while one of
  * the current Environment's basics is missing (root decision 0201 points 1
  * and 2; the wireframe's `SetupPrompt`, prototypes-lazurio 1eefc3d): "Dokončit
- * nastavení (1 ze 3)", leading to Začínáme. Its AI, GitHub and content count
- * as done when they are ready (nothing to prepare counts as not done only
- * while it is not known); it shows only once one is known to be missing.
- * Settings have Začínáme in their own navigation, and a page that is no
- * Environment's has none. */
+ * nastavení (1 ze 3)", leading to Začínáme; with Buddy's step (decision F65)
+ * "(1 ze 4)". Its basics count as done when they are ready (nothing to
+ * prepare counts as not done only while it is not known); it shows only once
+ * one is known to be missing. Settings have Začínáme in their own
+ * navigation, and a page that is no Environment's has none. */
 export function columnSetupPrompt(
   shell: Shell,
   copy: ShellCopy,
@@ -901,13 +901,15 @@ export function columnSetupPrompt(
   const environment = currentEnvironment(shell);
   if (environment === null) return null;
   const missing =
+    setup.buddy === "missing" ||
     setup.ai === "missing" ||
     setup.github === "missing" ||
     setup.content === "missing" ||
     setup.content === "failed";
   if (!missing) return null;
-  const total = 3;
+  const total = setup.buddy === undefined ? 3 : 4;
   const done = [
+    setup.buddy === "ready",
     setup.ai === "ready",
     setup.github === "connected",
     setup.content === "ready",

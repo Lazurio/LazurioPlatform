@@ -233,15 +233,40 @@ export const vaultAgentsGuide = (
 
 /** Settings → Začínáme where it has the basics (`firstRun`'s person
  * presets, not a public Environment): the steps that prepare the
- * Environment, the AI first, GitHub, the optional ones. */
-export const startGuide = (copy: Copy): PageGuideInput => ({
-  id: "settings-start",
-  title: copy.startTitle,
+ * Environment, the AI first, GitHub, the optional ones. With Buddy
+ * (decision F65) his step first and the agents' own AI after it, in at
+ * most four stops: the steps, Buddy, the AI, GitHub. */
+export const startGuide = (copy: Copy, buddy = false): PageGuideInput =>
+  buddy
+    ? {
+        id: "settings-start-buddy",
+        title: copy.startTitle,
+        steps: [
+          { text: copy.guideStartSteps, at: "start-steps" },
+          { text: copy.guideStartBuddy, at: "start-buddy" },
+          { text: copy.guideStartAiAgents, at: "start-ai" },
+          { text: copy.guideStartGithub, at: "start-github" },
+        ],
+      }
+    : {
+        id: "settings-start",
+        title: copy.startTitle,
+        steps: [
+          { text: copy.guideStartSteps, at: "start-steps" },
+          { text: copy.guideStartAi, at: "start-ai" },
+          { text: copy.guideStartGithub, at: "start-github" },
+          { text: copy.guideStartOptional, at: "start-optional" },
+        ],
+      };
+
+/** Nastavení → Buddy (decision F65): whether he works with his own
+ * sign-in, and his name and how he addresses the person. */
+export const buddyGuide = (copy: Copy): PageGuideInput => ({
+  id: "settings-buddy",
+  title: copy.buddyTitle,
   steps: [
-    { text: copy.guideStartSteps, at: "start-steps" },
-    { text: copy.guideStartAi, at: "start-ai" },
-    { text: copy.guideStartGithub, at: "start-github" },
-    { text: copy.guideStartOptional, at: "start-optional" },
+    { text: copy.guideBuddyState, at: "buddy-state" },
+    { text: copy.guideBuddyPersona, at: "buddy-persona" },
   ],
 });
 
@@ -432,7 +457,7 @@ export function pageHelpStates(
 /** The marks a step may name that a panel draws once its data is read, not
  * the page as served: Integrace's first connected app and first Connect
  * (integrations-panel.ts), and Vlastní's list and its way to add one;
- * Začínáme's AI and GitHub steps (start-panel.ts); the first sign-in and
+ * Začínáme's Buddy, AI and GitHub steps (start-panel.ts); the first sign-in and
  * the first "Používají agenti" of Nástroje (tools-panel.ts); Obnova's result and its
  * checks (recovery-panel.ts). A mark that is not there points at nothing:
  * the card stands in the middle. */
@@ -441,6 +466,7 @@ export const drawnMarks = Object.freeze([
   "integration-connect",
   "mcp-list",
   "mcp-add",
+  "start-buddy",
   "start-ai",
   "start-github",
   "tool-connect",
@@ -467,6 +493,9 @@ export type PageGuideFacts = Readonly<{
   /** What Settings → Nástroje can point at, as its panel last drew it
    * (`toolGuideTargets`); null until the tools are read: its "?" waits. */
   tools: ToolGuideTargets | null;
+  /** Whether the Environment has Buddy (decision F65): Začínáme explains
+   * his step, and Nastavení → Buddy is his. Absent: no Buddy. */
+  buddy?: boolean | undefined;
 }>;
 
 const none: PageGuide = Object.freeze({ help: null, video: null, guides: [] });
@@ -518,10 +547,11 @@ export function pageGuide(
     case "settings": {
       const team = facts.kind === "team";
       switch (route.section) {
-        case "start":
-          return facts.start === "basics"
-            ? plays("settings-start", [startGuide(copy)])
-            : none;
+        case "start": {
+          if (facts.start !== "basics") return none;
+          const guide = startGuide(copy, facts.buddy === true);
+          return plays(guide.id, [guide]);
+        }
         case "general":
           return plays("settings-general", [generalGuide(copy)]);
         case "communication": {
@@ -543,6 +573,10 @@ export function pageGuide(
         }
         case "recovery":
           return plays("settings-recovery", [recoveryGuide(copy)]);
+        case "buddy":
+          return facts.buddy === true
+            ? plays("settings-buddy", [buddyGuide(copy)])
+            : none;
       }
       return none;
     }

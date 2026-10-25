@@ -1,4 +1,6 @@
 import type { AiProvider } from "../tools/ai";
+import { buddyPartNode, drawnKey } from "./buddy-dialog";
+import type { BuddyStepView, MeetScreen } from "./buddy-view";
 import { deviceCodeBlock } from "./device-code-block";
 import type { ComposioFact } from "./first-run";
 import type { MessageKey } from "./messages";
@@ -28,8 +30,11 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // page in the block of gh's code (device-code-block.ts), "Otevřít
 // přihlášení", "Zrušit", "Zkusit znovu", "Přihlásit jiný účet" and
 // the field for the code of Claude's code page; the sign-in itself is
-// ai-sign-in.ts. A public Environment (decision F55) shows instead only
-// "Vyzkoušejte" (Apps, a module, Chat) and the tour.
+// ai-sign-in.ts. Where the Environment has Buddy his step comes first
+// (decision F65): its two quiet parts with their states and one action,
+// which opens "Seznamte se s Buddym" (buddy-dialog.ts). A public
+// Environment (decision F55) shows instead only "Vyzkoušejte" (Apps, a
+// module, Chat) and the tour.
 
 export type StartVaultRow = Readonly<{
   line: string;
@@ -65,6 +70,13 @@ export function createStartPanel(
     sendAiCode: (code: string) => void;
     restartTour: () => void;
     navigate: (path: string) => void;
+    /** Buddy's step: a new code (the dialog opens on it), "Zrušit", and the
+     * dialog at one of its screens. */
+    buddy: Readonly<{
+      signIn: () => void;
+      cancel: () => void;
+      open: (screen: MeetScreen) => void;
+    }>;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -129,10 +141,15 @@ export function createStartPanel(
     const node = element("li", "start-step");
     node.dataset.mark = step.mark;
     node.dataset.step = step.basic;
-    if (step.basic === "ai") node.dataset.tour = "start-ai";
+    if (step.basic === "ai" || step.basic === "buddy")
+      node.dataset.tour = `start-${step.basic}`;
     // What the guide of the page's "?" points at (decision F56's addendum of
-    // 2026-10-18): the AI step and GitHub's.
-    if (step.basic === "ai" || step.basic === "github")
+    // 2026-10-18): Buddy's step, the AI step and GitHub's.
+    if (
+      step.basic === "ai" ||
+      step.basic === "github" ||
+      step.basic === "buddy"
+    )
       node.dataset.guide = `start-${step.basic}`;
     const mark = element("span", "start-mark");
     mark.setAttribute("aria-hidden", "true");
@@ -342,6 +359,46 @@ export function createStartPanel(
     }
   }
 
+  /** Buddy's step: its one action, and its parts as the step's body. */
+  function buddyParts(
+    view: BuddyStepView,
+    copy: Copy,
+  ): Readonly<{ actions: HTMLElement[]; body: HTMLElement[] }> {
+    const actions: HTMLElement[] = [];
+    const handlers = options.buddy;
+    switch (view.action) {
+      case "sign-in":
+        actions.push(button(copy.buddySignIn, handlers.signIn, true));
+        break;
+      case "resume":
+        actions.push(
+          button(copy.buddyCancel, handlers.cancel),
+          button(copy.buddyContinue, () => handlers.open("sign-in"), true),
+        );
+        break;
+      case "new-code":
+        actions.push(button(copy.buddyNewCode, handlers.signIn, true));
+        break;
+      case "introduce":
+        actions.push(
+          button(copy.buddyContinue, () => handlers.open("introduce"), true),
+        );
+        break;
+      case "edit": {
+        const link = element("a", "button", copy.buddyEdit);
+        link.href = "/settings/buddy";
+        link.dataset.route = "";
+        actions.push(link);
+        break;
+      }
+      case "none":
+        break;
+    }
+    const parts = element("ul", "buddy-parts");
+    parts.append(...view.parts.map((part) => buddyPartNode(part, copy)));
+    return { actions, body: [parts] };
+  }
+
   function optionalNode(row: OptionalRow): HTMLElement {
     const node = element("div", "row");
     node.dataset.optional = row.id;
@@ -490,7 +547,8 @@ export function createStartPanel(
       copy,
     );
     const toured = options.toured();
-    const now = JSON.stringify([view, vault, rows, toured]);
+    // A code's countdown ticks in place (buddy-dialog.ts), never by a draw.
+    const now = drawnKey([view, vault, rows, toured]);
     if (now === drawn && !focusAi) return;
     drawn = now;
     intro.textContent = view.intro;
@@ -502,6 +560,11 @@ export function createStartPanel(
     const nodes = view.steps.map((step, index) => {
       const actions: HTMLElement[] = [];
       let body: HTMLElement[] = [];
+      if (step.basic === "buddy" && view.buddy !== null) {
+        const parts = buddyParts(view.buddy, copy);
+        actions.push(...parts.actions);
+        body = parts.body;
+      }
       if (step.basic === "ai") {
         const parts = aiParts(view.ai, copy);
         actions.push(...parts.actions);

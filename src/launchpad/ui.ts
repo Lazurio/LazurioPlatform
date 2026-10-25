@@ -1,4 +1,5 @@
 import { pageAccountJson, pageReentry, sessionRefused } from "../shell/account";
+import { buddyAvatarSource } from "../shell/buddy-protocol";
 import {
   currentEnvironment,
   parseShell,
@@ -22,6 +23,10 @@ import { personalHolderOf, pluralKey } from "./apps-view";
 import { bootElementId, parseBoot } from "./boot";
 import { createBrowserPanel } from "./browser-panel";
 import { browserPanelOrigin } from "./browser-panel-view";
+import { createBuddyClient } from "./buddy-client";
+import { createBuddyDialog, tickCountdowns } from "./buddy-dialog";
+import { createBuddyPanel } from "./buddy-panel";
+import { type BuddyStepFacts, buddyFact } from "./buddy-view";
 import { createCatalogPanel, type NewModuleOutcome } from "./catalog-panel";
 import type { PublicEntry } from "./chat";
 import {
@@ -248,6 +253,7 @@ function drawGuide(route: PageRoute) {
             ? "basics"
             : "none",
       tools: toolTargets,
+      buddy: buddyHere(),
     },
     copy,
   );
@@ -343,6 +349,9 @@ async function readShell() {
     // The kind the explanations are chosen by may be known only now.
     if (framed) drawGuide(shell.route());
     drawMachine();
+    // Buddy is known from the shell document: read him once.
+    readBuddy();
+    if (framed) drawBuddy();
     firstRun();
     showWhenDrawn();
   }
@@ -463,6 +472,32 @@ const aiFact = (): AiFact =>
 // The start of the content by itself (0201 point 3, `autoStartStep`): what
 // this view last knew of the AI and GitHub, and whether it saw one arrive.
 let autoStart: AutoStart = idleAutoStart;
+// Buddy (decision F65): only on an Osobní Prostředí whose entry names his
+// origin, as the shell document says (`buddy`) and his routes confirm (404
+// `buddy-absent` elsewhere). His reading, his sign-in and his persona live
+// in one client; Začínáme's step, its dialog and Nastavení → Buddy draw from
+// it. Nothing about him is kept in this browser.
+const buddyClient = createBuddyClient({
+  transport: {
+    get: (path) => get(path),
+    post: (path, body) => post(path, body),
+  },
+  changed: () => drawBuddy(),
+});
+let buddyAsked = false;
+const buddyHere = (): boolean =>
+  shellDocument?.buddy !== undefined && !buddyClient.absent();
+const buddyFacts = (): BuddyStepFacts => ({
+  reading: buddyClient.reading(),
+  signIn: buddyClient.signIn(),
+  now: Date.now(),
+});
+/** Reads Buddy once the page knows he is here, and again when asked. */
+function readBuddy(again = false) {
+  if (!buddyHere() || (buddyAsked && !again)) return;
+  buddyAsked = true;
+  void buddyClient.read();
+}
 function firstRunFacts(): TourFacts | null {
   if (profileState === null) return null;
   return {
@@ -472,6 +507,7 @@ function firstRunFacts(): TourFacts | null {
     ai: aiFact(),
     github: githubFact(toolsOverview, profileState.revision),
     content: content.fact(),
+    ...(buddyHere() ? { buddy: buddyFact(buddyClient.reading()) } : {}),
   };
 }
 // Whether this Environment's GitHub identity can prepare the Organization
@@ -718,6 +754,7 @@ const startPanel = createStartPanel({
           // (#516): the step says it runs, and opens it again.
           githubFlow: tools.running("gh") ?? undefined,
           list: content.list(),
+          buddyStep: buddyFacts(),
         };
   },
   // A public Environment's Začínáme (decision F55): Apps, a module and Chat,
@@ -755,7 +792,61 @@ const startPanel = createStartPanel({
   sendAiCode: (code) => void aiSignIn.sendCode(code),
   restartTour: () => tour.restart(),
   navigate: (path) => shell.navigate(path),
+  // "Seznamte se s Buddym" (decision F65): a new code opens the dialog on
+  // it; "Pokračovat" opens it where the step stands.
+  buddy: {
+    signIn: () => {
+      void buddyClient.start();
+      buddyDialog.open("sign-in");
+    },
+    cancel: () => void buddyClient.cancel(),
+    open: (screen) => buddyDialog.open(screen),
+  },
 });
+// The dialog "Seznamte se s Buddym" and Nastavení → Buddy (decision F65).
+const buddyAvatar = () => buddyAvatarSource(shellDocument?.buddy?.origin);
+const buddyDialog = createBuddyDialog({
+  copy: () => copy,
+  locale: () => locale,
+  facts: buddyFacts,
+  avatar: buddyAvatar,
+  signIn: () => void buddyClient.start(),
+  save: (draft, confirm) => buddyClient.savePersona(draft, confirm, locale),
+  closed: () => firstRun(),
+});
+const buddyPanel = createBuddyPanel({
+  copy: () => copy,
+  locale: () => locale,
+  here: buddyHere,
+  facts: buddyFacts,
+  avatar: buddyAvatar,
+  signIn: () => {
+    void buddyClient.start();
+    buddyDialog.open("sign-in", "sign-in");
+  },
+  cancel: () => void buddyClient.cancel(),
+  resume: () => buddyDialog.open("sign-in", "sign-in"),
+  signOut: () => buddyClient.signOut(),
+  save: (draft) => buddyClient.savePersona(draft, false, locale),
+});
+const buddyNav = document.querySelector<HTMLElement>("#buddy-nav");
+// The codes' countdowns, filled in place each second while one waits.
+let buddyTicker: ReturnType<typeof setInterval> | undefined;
+/** Draws what shows Buddy: Začínáme (and with it the count, the line, the
+ * shell's prompt and the tour), the dialog and Nastavení → Buddy. */
+function drawBuddy() {
+  if (buddyNav !== null) buddyNav.hidden = !buddyHere();
+  buddyPanel.render();
+  buddyDialog.render();
+  firstRun();
+  const waiting = buddyClient.signIn().kind === "pending";
+  if (waiting && buddyTicker === undefined)
+    buddyTicker = setInterval(() => tickCountdowns(document, Date.now()), 1000);
+  if (!waiting && buddyTicker !== undefined) {
+    clearInterval(buddyTicker);
+    buddyTicker = undefined;
+  }
+}
 /** Reads what only Začínáme shows: the vault's state and the devices with
  * SSH, where the Environment has them (not this computer). */
 async function readStartExtras() {
@@ -901,6 +992,7 @@ function provideOwnSetup(facts: TourFacts | null) {
     github: facts.github,
     list: content.list(),
     job: content.job(),
+    ...(facts.buddy === undefined ? {} : { buddy: facts.buddy }),
   });
   const { setup: _, ...rest } = shellDocument;
   const next = setup === undefined ? rest : { ...rest, setup };
@@ -1239,6 +1331,9 @@ const shell = createShell({
         if (read) void readAi();
         void readStartExtras();
       }
+      // Začínáme and Nastavení → Buddy read him each time they are shown.
+      if (route.section === "start" || route.section === "buddy")
+        readBuddy(true);
     }
     firstRun();
   },
@@ -1360,6 +1455,8 @@ function relabel() {
   integrations.relabel();
   column.relabel();
   browser.relabel();
+  buddyPanel.render();
+  buddyDialog.render();
 }
 async function post(path: string, body: unknown) {
   const response = await fetch(path, {
@@ -1588,6 +1685,7 @@ document.querySelector("#start-refresh")?.addEventListener("click", () => {
   void tools.refresh({ signIn: true });
   void content.refresh({ restore: false });
   void readStartExtras();
+  readBuddy(true);
 });
 controls.form.addEventListener("change", () => {
   pending = null;
@@ -1850,6 +1948,9 @@ if (boot === null) {
   browser.render();
   openAskedService();
 }
+// Buddy, where the carried shell document names him.
+readBuddy();
+drawBuddy();
 // The themes for Settings → Obecné; nothing to read on a public Environment.
 void theme.load();
 load().catch(() => {

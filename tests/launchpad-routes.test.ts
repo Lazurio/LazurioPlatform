@@ -73,6 +73,8 @@ test("a path names the view and the settings section; the canonical path is one"
     "/settings/tools",
     "/settings/ssh",
     "/settings/recovery",
+    // Nastavení → Buddy (decision F65), drawn only with Buddy.
+    "/settings/buddy",
     // Trezor's old addresses, answered for good (F54 as amended).
     "/settings/vault",
     "/settings/vault/requests/:id",
@@ -225,7 +227,8 @@ test("the heading and document title follow the route in both languages", () => 
   expect(
     routeTitle({ view: "settings", section: "ssh" }, messages("cs")).heading,
   ).toBe("SSH ze zařízení");
-  // Settings keep their order without Trezor: SSH follows the tools.
+  // Settings keep their order without Trezor: SSH follows the tools, and
+  // Nastavení → Buddy comes last (decision F65), shown only with Buddy.
   expect(settingsSections).toEqual([
     "start",
     "general",
@@ -234,7 +237,18 @@ test("the heading and document title follow the route in both languages", () => 
     "tools",
     "ssh",
     "recovery",
+    "buddy",
   ]);
+  expect(pageRoute("/settings/buddy")).toEqual({
+    view: "settings",
+    section: "buddy",
+  });
+  expect(
+    routeTitle({ view: "settings", section: "buddy" }, messages("cs")),
+  ).toEqual({
+    heading: "Buddy",
+    document: "Buddy · Nastavení — Lazurio",
+  });
 });
 
 test("the catalog routes: an Organization and a module, deep-linkable, one canonical path", () => {

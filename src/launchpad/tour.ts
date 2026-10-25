@@ -127,6 +127,7 @@ export function createTour(
         return query(`[data-tour="${name}"]`, head);
       case "settings-start":
         return query('#settings-nav a[data-section="start"]');
+      case "start-buddy":
       case "start-ai":
       case "start-github":
       case "prepare":

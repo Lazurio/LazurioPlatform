@@ -13,8 +13,10 @@ import type { MessageKey } from "./messages";
 /** The sections of Settings, in the order of the settings navigation.
  * `start` is Nastavení → Začínáme, the Environment's onboarding from live
  * facts (root decision 0201 point 1), first where the Environment has it.
- * Trezor is no section: it is a page of the Apps column (F53's addendum of
- * 2026-10-18), whose old addresses here still lead to it. */
+ * `buddy` is Nastavení → Buddy (decision F65), only on an Osobní Prostředí
+ * with Buddy, last as the wireframe has it. Trezor is no section: it is a
+ * page of the Apps column (F53's addendum of 2026-10-18), whose old
+ * addresses here still lead to it. */
 export const settingsSections = [
   "start",
   "general",
@@ -23,6 +25,7 @@ export const settingsSections = [
   "tools",
   "ssh",
   "recovery",
+  "buddy",
 ] as const;
 export type SettingsSection = (typeof settingsSections)[number];
 
@@ -340,6 +343,7 @@ export const sectionLabels: Readonly<Record<SettingsSection, MessageKey>> = {
   tools: "toolsTitle",
   ssh: "sshTitle",
   recovery: "recoveryTitle",
+  buddy: "buddyTitle",
 };
 
 /** What the page says it is: the heading of the view (the current crumb) and
