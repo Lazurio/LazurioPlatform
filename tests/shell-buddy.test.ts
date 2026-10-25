@@ -1118,7 +1118,7 @@ test("<lazurio-buddy> makes its shadow root only through the guide's layer or th
   expect(view).not.toContain("credentialless");
 });
 
-test("the launcher stands in the same corner in every app with Buddy's figure at 40 x 44 px, and the page keeps that corner free while it is drawn (F60's addendum of 2026-10-25)", () => {
+test("the launcher stands in the same corner in every app with Buddy's figure at 40 x 44 px, the page keeps that corner free while it is drawn, and full screen covers the window (F60's addendum of 2026-10-25)", () => {
   // The prototype's place and figure: 22 px from the right and bottom edges
   // in the Launchpad, Chat and Automate alike, the figure inside the 58 px
   // disc with its pixels kept sharp rather than filling it.
@@ -1132,6 +1132,13 @@ test("the launcher stands in the same corner in every app with Buddy's figure at
   expect(buddyBubbleCss).toContain(
     ".launcher img { display: block; width: 40px; height: 44px; object-fit: contain; image-rendering: pixelated; pointer-events: none; }",
   );
+  // Full screen covers the whole window; the frame keeps its own reading
+  // width, and nothing is left around it to dim or click.
+  expect(buddyBubbleCss).toContain(
+    ".window:modal { inset: 0; width: 100%; height: 100%; margin: 0; border: 0; border-radius: 0; box-shadow: none; }",
+  );
+  expect(buddyBubbleCss).not.toContain("::backdrop");
+  expect(buddyBubbleCss).not.toContain("760px");
   // The corner's width: the disc, its distance from the edge, as a host may
   // move it, and the device's safe area.
   expect(buddyClearanceProperty).toBe("--lazurio-buddy-clearance");

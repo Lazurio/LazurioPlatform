@@ -32,7 +32,7 @@ import { createGuideReceiver } from "./guide-protocol";
 //   the origin stays, so closing and opening again keeps the conversation as
 //   it was; another origin is another frame.
 // - The window shows as the panel above the launcher (about 400 × 600) or
-//   full screen (a modal over the page, 760 px of reading width), in the size
+//   full screen (a modal that covers the whole window), in the size
 //   the person last chose in this tab (`buddyLayoutKey`, `sessionStorage`).
 //   The launcher opens and closes it; Escape on the host's page returns from
 //   full screen to the panel and closes the panel.

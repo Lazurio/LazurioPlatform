@@ -5,9 +5,10 @@ import { baseCss, hostTokens } from "./base-styles";
 // it the neutral guide's mark: the Lazurio symbol on a white disc), and his
 // window, one `<dialog>` holding the frame: the panel above the launcher
 // (about 400 × 600, never past the window's edges) or full screen, a modal
-// over the page 760 px wide with the page dimmed behind it. Light, as the
-// design system's floating layers are: the one floating shadow and a
-// hairline; the window's own colours are the frame's.
+// that covers the whole window (F60's addendum of 2026-10-25), in which the
+// frame keeps its own reading width. Light, as the design system's floating
+// layers are: the one floating shadow and a hairline; the window's own
+// colours are the frame's.
 //
 // Layers: the launcher and the panel at z-index 45, above an app's own
 // content and below the overlays a host keeps at its body (T3 Code's sheets
@@ -47,8 +48,6 @@ export const buddyPanelSize = Object.freeze({
   height: 600,
   gap: 12,
 });
-/** Full screen: its reading width. */
-export const buddyReadingWidth = 760;
 /** The layer of the launcher and the panel. */
 export const buddyLayer = 45;
 
@@ -66,10 +65,8 @@ const bubbleCss = `
 .launcher img { display: block; width: ${buddyLauncherFigure.width}px; height: ${buddyLauncherFigure.height}px; object-fit: contain; image-rendering: pixelated; pointer-events: none; }
 .launcher[data-fallback] img { width: 34px; height: 34px; object-fit: contain; }
 .window { position: fixed; inset: auto var(--buddy-x) calc(var(--buddy-y) + ${above}px) auto; z-index: ${buddyLayer}; box-sizing: border-box; width: min(${buddyPanelSize.width}px, calc(100vw - 2 * var(--buddy-x))); height: min(${buddyPanelSize.height}px, calc(100dvh - var(--buddy-y) - ${above + 16}px)); max-width: none; max-height: none; margin: 0; padding: 0; overflow: hidden; border: 1px solid var(--shell-line); border-radius: var(--lz-radius-md); background: var(--shell-raised); color: var(--shell-ink); box-shadow: var(--lz-shadow-float); }
-.window:modal { inset: 0; width: min(${buddyReadingWidth}px, calc(100vw - 32px)); height: calc(100dvh - 32px); margin: auto; }
-.window::backdrop { background: rgb(0 0 0 / 0.32); }
+.window:modal { inset: 0; width: 100%; height: 100%; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
 .window iframe { display: block; width: 100%; height: 100%; border: 0; background: transparent; }
-@media (max-width: 639px) { .window:modal { width: calc(100vw - 16px); height: calc(100dvh - 16px); } }
 @media (prefers-reduced-motion: reduce) { .launcher { transition: none; } .launcher:hover { transform: none; } }
 `;
 

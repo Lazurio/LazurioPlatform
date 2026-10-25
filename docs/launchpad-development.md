@@ -1102,7 +1102,7 @@ the origin nothing changes: the neutral guide stays as F56 draws it.
   `https://launchpad.example.lazurio.io` through the JSON line's `proxy` and stands in
   for Buddy's origin with a page that sends `ready` and the size requests and shows the
   context it hears. Check at 1440 and 390 px: the launcher and its fallback mark, the
-  panel, full screen and Escape, a click on the dimmed page, the context after a move to
+  panel, full screen over the whole window and Escape, the context after a move to
   another page, and an explanation asked by the frame (the window steps aside, returns
   at the end). A work Environment's page gets the bubble from the account (route
   `/.lazurio/account/environments` to a document with `buddy`). Tests:

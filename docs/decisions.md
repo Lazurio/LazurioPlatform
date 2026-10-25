@@ -18659,6 +18659,15 @@ the 58 px disc.
   guide's mark without his picture stays 34 px.
 - **The bubble's model loses `app`.** It only chose the place. The frame's context keeps its own
   `app` (point 2).
+- **Full screen covers the whole window.** Matěj, the same day: "this view over the full screen
+  should really be over the full screen, not such a strangely formatted window". The modal now
+  fills the window: no margin, border, rounded corners or shadow, and no page left to dim. Inside
+  it the frame keeps its own reading width; Buddy's surface lays out its days and conversation.
+  This departs from the prototype's full screen (24 px of padding and a dimmed page around a
+  760 px column) at Matěj's word. Point 3's "760 px of reading width, the page behind inert and
+  dimmed" keeps only "inert", and its "a click on the dimmed page returns to the panel" goes:
+  Escape and the frame's own control return to the panel. `buddyReadingWidth` and the narrow
+  screen's rule go with it.
 
 **Rollout order.** The forks make room before a Platform with this addendum reaches an
 Environment: T3 Code's Chat composer (Lazurio/t3code) and MausBot's composer (Lazurio/OpenMausBot)
@@ -18685,7 +18694,8 @@ wherever their composers reach the window's edge, which point 4 measured for T3 
   - the launcher stood 22 px from the right and bottom edges;
   - Buddy's figure was 40 × 44 px and loaded;
   - the document's clearance was `calc(58px + 22px + 0px)`;
-  - on the Chat page the send button stayed clear of the launcher.
+  - on the Chat page the send button stayed clear of the launcher;
+  - full screen, asked for by a stand-in frame on Buddy's origin, covered the whole window.
 
 ## F61 — Buddy's chat in Lazurio is T3 Code with Hermes over ACP: the Platform's side
 

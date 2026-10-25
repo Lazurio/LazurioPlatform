@@ -12,11 +12,11 @@ import { buddyBubbleCss, buddyLauncherClearance } from "./buddy-styles";
 // the page as the panel (`show`), as a modal over it in full screen
 // (`showModal`, so the page behind is inert and Escape asks to return), and
 // closed with the frame kept alive inside (a frame moved to another parent
-// would load again). A click on the dimmed page around the full screen
-// returns to the panel. The guide's layer stands after the bubble in the
-// same shadow root (guide-layer.ts). While the launcher is drawn the page
-// keeps its corner free: `--lazurio-buddy-clearance` on the document says
-// how wide it is (decision F60's addendum of 2026-10-25).
+// would load again). Full screen covers the whole window, so the way back
+// is Escape or the frame's own control. The guide's layer stands after the
+// bubble in the same shadow root (guide-layer.ts). While the launcher is
+// drawn the page keeps its corner free: `--lazurio-buddy-clearance` on the
+// document says how wide it is (decision F60's addendum of 2026-10-25).
 
 /** The property on the document that says how wide the launcher's corner
  * is, for a page whose controls reach it. */
@@ -108,11 +108,6 @@ export function createBuddyBubbleView(
     dialog.addEventListener("cancel", (event) => {
       event.preventDefault();
       setTimeout(() => options.escape(), 0);
-    });
-    // A click on the dimmed page around full screen: the frame fills the
-    // dialog, so a click on the dialog itself is on its backdrop.
-    dialog.addEventListener("click", (event) => {
-      if (event.target === dialog && dialog.matches(":modal")) options.escape();
     });
     bubble.append(dialog, launcher);
     // Before the guide's layer, which plays over the bubble.
