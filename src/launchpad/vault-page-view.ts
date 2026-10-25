@@ -287,7 +287,8 @@ type RowState = Readonly<{
 
 /** What the page shows. The rule ("Kdo má přístup do Prostředí, má i jeho
  * hesla") and how a vault works in an Organization are its "?"'s (decision
- * F56's addendum of 2026-10-18, guides.ts), not the page's. */
+ * F56's addendum of 2026-10-18, guides.ts), not the page's; no sentence
+ * stands under its title (F56's addendum (6) of 2026-10-24). */
 export type VaultPageView = Readonly<{
   /** One short line instead of the vault: this computer, or why this
    * Environment has no vault. */
@@ -298,11 +299,6 @@ export type VaultPageView = Readonly<{
   /** One line under the row (a Team or Automated Environment, a sign-in
    * without the person's Lazurio username). */
   hint: string | null;
-  /** How the vault is used from here (DEV-6631 task 947): tell the agent
-   * in Chat what it needs, and it asks for the value on this page. Shown
-   * only with a ready own vault (connected, unlocked, no setup running),
-   * never for a 0197 pilot, which takes no requests. */
-  guide: boolean;
   /** The section that connects a personal Environment's own Bitwarden,
    * while its person has not connected it (root decision 0203 point 7):
    * `vault` is the name its vault gets, which its picture shows. */
@@ -403,7 +399,6 @@ export function vaultPageView(
     row: null,
     actions: [],
     hint: null,
-    guide: false,
     connect: null,
     invite: false,
     disconnect: false,
@@ -449,36 +444,26 @@ export function vaultPageView(
     (status.state === "connected" ? status.organization : null) ??
     copy.vaultPageTitle;
   const row = { title: named, ...rowLine(status, setup, copy) };
-  // How the vault is used, shown only with a ready own vault: connected,
-  // its session unlocked and no setup running. A 0197 pilot takes no
-  // requests, and a vault still being set up or locked cannot save one yet.
-  const guide =
-    status.state === "connected" &&
-    status.origin !== "pilot-0197" &&
-    status.locked !== true &&
-    setup === null;
   if (model.environment === "team" || model.environment === "automated")
-    return view({ guide, row, hint: copy.vaultPageAgentsOnly });
+    return view({ row, hint: copy.vaultPageAgentsOnly });
   const links = vaultPageLinks(
     status.state === "unreachable" ? model.status : status,
     person?.address ?? null,
   );
   if (status.region !== undefined)
     return personalBitwardenView(status, setup, person, links, copy, {
-      guide,
       row,
       view,
     });
-  if (setup !== null || links.open === null) return view({ guide, row });
+  if (setup !== null || links.open === null) return view({ row });
   const open: VaultPageAction = {
     control: "open",
     label: copy.vaultPageOpen,
     href: links.open,
     primary: true,
   };
-  if (status.origin === "pilot-0197")
-    return view({ guide, row, actions: [open] });
-  if (person === null) return view({ guide, row });
+  if (status.origin === "pilot-0197") return view({ row, actions: [open] });
+  if (person === null) return view({ row });
   // Nobody is added here yet (a Team or Automated Environment, or a network
   // whose vault does not require the Lazurio sign-in of people yet): only
   // the agents use the vault. A person whose sign-in carried no Lazurio
@@ -489,7 +474,6 @@ export function vaultPageView(
       person.reason === "not-managed" ||
       person.reason === "sign-in-not-required";
     return view({
-      guide,
       row,
       actions: agentsOnly ? [] : [open],
       hint: agentsOnly
@@ -501,7 +485,6 @@ export function vaultPageView(
   }
   if (person.state === "no-account" || person.state === "awaiting-password")
     return view({
-      guide,
       row,
       actions:
         person.signIn && links.account !== null
@@ -515,9 +498,8 @@ export function vaultPageView(
             ]
           : [],
     });
-  if (person.state === "revoked") return view({ guide, row, actions: [open] });
+  if (person.state === "revoked") return view({ row, actions: [open] });
   return view({
-    guide,
     row,
     actions:
       links.add === null
@@ -554,12 +536,11 @@ function personalBitwardenView(
   links: VaultPageLinks,
   copy: Copy,
   shown: Readonly<{
-    guide: boolean;
     row: NonNullable<VaultPageView["row"]>;
     view: (fields: Partial<VaultPageView>) => VaultPageView;
   }>,
 ): VaultPageView {
-  const { guide, row, view } = shown;
+  const { row, view } = shown;
   const disconnect = setup === null;
   // What the person does about a vault that stopped: disconnect and connect
   // again (a fresh agents' account where the old one owns another Free
@@ -575,20 +556,19 @@ function personalBitwardenView(
             : null
         : null;
   if (setup !== null || problem !== null || links.open === null)
-    return view({ guide, row, hint: problem, disconnect });
+    return view({ row, hint: problem, disconnect });
   const open: VaultPageAction = {
     control: "open",
     label: copy.vaultPageOpen,
     href: links.open,
     primary: true,
   };
-  if (person === null) return view({ guide, row, disconnect });
+  if (person === null) return view({ row, disconnect });
   if (person.kind === "unknown")
-    return view({ guide, row, actions: [open], disconnect });
+    return view({ row, actions: [open], disconnect });
   switch (person.state) {
     case "not-invited":
       return view({
-        guide,
         row,
         hint: copy.vaultPageConnected,
         invite: true,
@@ -596,28 +576,24 @@ function personalBitwardenView(
       });
     case "invitation-pending":
       return view({
-        guide,
         row,
         hint: copy.vaultPageInvitationPending,
         disconnect,
       });
     case "accepted":
       return view({
-        guide,
         row,
         hint: copy.vaultPageInvitationAccepted,
         disconnect,
       });
     case "revoked":
       return view({
-        guide,
         row,
         hint: copy.vaultPageMemberRevoked,
         disconnect,
       });
     case "member":
       return view({
-        guide,
         row,
         actions:
           links.add === null
@@ -636,7 +612,7 @@ function personalBitwardenView(
     // A Lazurio Vaultwarden's states: never a personal Bitwarden's.
     case "no-account":
     case "awaiting-password":
-      return view({ guide, row, actions: [open], disconnect });
+      return view({ row, actions: [open], disconnect });
   }
 }
 

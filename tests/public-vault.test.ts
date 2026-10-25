@@ -24,7 +24,11 @@ import { refreshFolder } from "../src/folder/update-profile";
 import { bootElementId, parseBoot } from "../src/launchpad/boot";
 import { vaultInAppsOf } from "../src/launchpad/boot-document";
 import { isNoEntry } from "../src/launchpad/chat-view";
-import { pageGuide, vaultAgentsGuide } from "../src/launchpad/guides";
+import {
+  pageGuide,
+  vaultAgentsGuide,
+  vaultTakesRequests,
+} from "../src/launchpad/guides";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
 import { messages } from "../src/launchpad/messages";
 import {
@@ -232,9 +236,15 @@ function visitorTexts(
     view.row?.line ?? "",
     view.hint ?? "",
     ...view.actions.map((action) => action.label),
-    // Shown under the row once the vault is connected.
-    ...(view.guide ? [copy.vaultPageGuide, copy.vaultPageGuideChat] : []),
-    ...vaultAgentsGuide(copy).steps.map((step) => step.text),
+    // The "?", with how a value gets into a vault that takes a request.
+    ...vaultAgentsGuide(
+      copy,
+      vaultTakesRequests({
+        status: model.status,
+        environment: model.environment,
+        setup: model.setup,
+      }),
+    ).steps.flatMap((step) => [step.text, step.sub ?? ""]),
   ].filter((text) => text !== "");
 }
 
@@ -266,7 +276,6 @@ test("a public Environment's vault, connected, shows the agents' rule and nothin
     // No "Vytvořit účet v trezoru", no "Přidat položku": nobody is added.
     expect(view.actions).toEqual([]);
     expect(view.hint).toBe(copy.vaultPageAgentsOnly);
-    expect(view.guide).toBe(true);
     // No steps for the visitor's own Bitwarden in Codex Desktop.
     expect(bitwardenTarget(model, person)).toBeNull();
     for (const text of visitorTexts(model, person, locale)) {
@@ -282,19 +291,37 @@ test("a public Environment's vault, connected, shows the agents' rule and nothin
 
 test("`vault-agents` says what #499 asks of a shared Environment, in both languages", () => {
   expect(
-    vaultAgentsGuide(messages("cs", "team")).steps.map((step) => step.text),
+    vaultAgentsGuide(messages("cs", "team"), false).steps.map(
+      (step) => step.text,
+    ),
   ).toEqual([
     "Toto Týmové Prostředí má vlastní trezor",
     "Agenti z něj berou hesla bez ptaní",
     "Hesla vidí každý v tomto Týmovém Prostředí",
   ]);
   expect(
-    vaultAgentsGuide(messages("en", "team")).steps.map((step) => step.text),
+    vaultAgentsGuide(messages("en", "team"), false).steps.map(
+      (step) => step.text,
+    ),
   ).toEqual([
     "This Team Environment has its own vault",
     "Agents take passwords from it without asking",
     "Everyone in this Team Environment sees its passwords",
   ]);
+  // A vault that takes an agent's request adds how a value gets into it,
+  // which a visitor fills in without an account in the vault (F54).
+  for (const locale of ["cs", "en"] as const) {
+    const copy = messages(locale, "team");
+    const steps = vaultAgentsGuide(copy, true).steps;
+    expect(steps.slice(0, 3)).toEqual([...vaultAgentsGuide(copy, false).steps]);
+    expect(steps.slice(3)).toEqual([
+      {
+        text: copy.guideVaultRequest,
+        sub: copy.guideVaultRequestSub,
+        at: "tab-chat",
+      },
+    ]);
+  }
 });
 
 // --- try-01, read by the production composition ---------------------------
@@ -558,7 +585,11 @@ for (const entry of tryCases)
               locale,
               composio: null,
               vault: {
-                vault: { status: model.status, environment: model.environment },
+                vault: {
+                  status: model.status,
+                  environment: model.environment,
+                  setup: model.setup,
+                },
                 person,
               },
               start: "demo",
@@ -566,10 +597,11 @@ for (const entry of tryCases)
             },
             copy,
           );
+          // A vault not set up yet takes no request: no step on it.
           expect(guide).toEqual({
             help: "vault-agents",
             video: null,
-            guides: [vaultAgentsGuide(copy)],
+            guides: [vaultAgentsGuide(copy, false)],
           });
           // Nothing on the page or in its "?" claims a nightly wipe or
           // speaks of a visitor's own vault.
