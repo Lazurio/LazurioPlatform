@@ -210,6 +210,8 @@ test("Settings no longer list Trezor, and nothing on the page leads to its old a
     "tools",
     "ssh",
     "recovery",
+    // Nastavení → Buddy, drawn only with Buddy (decision F65).
+    "buddy",
   ]);
   for (const link of links)
     expect(link.attributes.get("href") ?? "").not.toContain("vault");
