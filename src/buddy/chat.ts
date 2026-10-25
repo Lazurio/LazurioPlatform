@@ -7,6 +7,7 @@ import { buddyRulesPath } from "../folder/outputs";
 import { readFolderState } from "../folder/read-state";
 import type { ToolsEnvironment } from "../tools/overview";
 import { resolveOnPath } from "../tools/status";
+import { buddyDisplayName, readPersona } from "./persona";
 import { buddyT3Home } from "./t3-runtime";
 
 // Buddy's chat in Lazurio (decision F61; root decision 0210 point 8 and the
@@ -19,20 +20,21 @@ import { buddyT3Home } from "./t3-runtime";
 // in them:
 //
 // - the provider instance `buddy`: T3's ACP driver with a local command,
-//   `hermes acp`, with `HERMES_HOME` (Buddy's one Hermes home, shared with
-//   his Telegram gateway), `LAZURIO_BUDDY_CHANNEL=t3`, the channel Delegace
-//   records for a delegation from this chat, and T3 Code's acting-sender
-//   claim (Lazurio/t3code#106): `T3CODE_ACTING_SENDER=buddy` with the user's
-//   name from Buddy's persona, as it stands alone and after „za“, so what
-//   Buddy's `t3` writes or decides in the user's threads shows „Buddy za
-//   <jméno>“. The claim lives only in Buddy's own provider: never in a T3
-//   Code service's environment or in the user's Chat (`~/.t3`), whose agents
-//   would all inherit it. These variables reach the `hermes acp` process,
-//   which only views a session of Hermes's gateway: the gateway runs
-//   Buddy's turns and tools with its own environment. The channel reaches
-//   them because the Lazurio fork of Hermes hands each turn the channel its
-//   viewer declared (F61's addendum of 2026-10-24); the claim there comes
-//   from the gateway's own environment;
+//   `hermes acp`, named as Buddy is named in his persona (decision F64), with
+//   `HERMES_HOME` (Buddy's one Hermes home, shared with his Telegram
+//   gateway), `LAZURIO_BUDDY_CHANNEL=t3`, the channel Delegace records for a
+//   delegation from this chat, and T3 Code's acting-sender claim
+//   (Lazurio/t3code#106): `T3CODE_ACTING_SENDER=buddy` with the user's name
+//   from Buddy's persona, as it stands alone and after „za“, so what Buddy's
+//   `t3` writes or decides in the user's threads shows „Buddy za <jméno>“.
+//   The claim lives only in Buddy's own provider: never in a T3 Code
+//   service's environment or in the user's Chat (`~/.t3`), whose agents would
+//   all inherit it. These variables reach the `hermes acp` process, which
+//   only views a session of Hermes's gateway: the gateway runs Buddy's turns
+//   and tools with its own environment. The channel reaches them because the
+//   Lazurio fork of Hermes hands each turn the channel its viewer declared
+//   (F61's addendum of 2026-10-24); the claim there comes from the gateway's
+//   own environment;
 // - Codex and Claude off: the only built-in instances T3 Code turns on by
 //   itself, so Buddy is this instance's only provider;
 // - no turn continues by itself after an update (one conversation: a
@@ -64,6 +66,8 @@ export type BuddyChatInputs = Readonly<{
   home: string;
   /** Hermes's command, absolute. */
   hermes: string;
+  /** Buddy's name as T3 Code shows it (`buddyDisplayName`). */
+  displayName: string;
   /** The user's name from Buddy's persona, as it stands alone and after
    * Czech „za“. */
   user: Readonly<{ nominative: string; accusative: string }>;
@@ -78,7 +82,7 @@ export function buddyChatSettings(inputs: BuddyChatInputs) {
     providerInstances: {
       [buddyInstanceId]: {
         driver: "acpRegistry",
-        displayName: "Buddy",
+        displayName: inputs.displayName,
         enabled: true,
         environment: [
           {
@@ -281,9 +285,14 @@ export async function buddyChat(
     return answer("unavailable", "buddy-layer-missing");
   if (await insideGitWorkTree(join(options.folder, dirname(buddyRulesPath))))
     return answer("unavailable", "buddy-layer-in-git");
-  const user = await personaUser(home);
-  if (user === undefined)
+  // The whole persona as the installer checks it (decision F64): a persona it
+  // would refuse gives T3 Code no name either.
+  const persona = await readPersona(home);
+  if (persona.state !== "valid")
     return answer("unavailable", "buddy-persona-unreadable");
+  const { nominative, accusative } = persona.persona.user;
+  const user = { nominative, accusative };
+  const displayName = buddyDisplayName(persona.persona);
   const hermes =
     (await resolveOnPath("hermes", tools.path, tools.platform)) ??
     (await resolveOnPath(
@@ -305,7 +314,7 @@ export async function buddyChat(
   if (check === "timeout" || check.exitCode !== 0)
     return answer("unavailable", "hermes-acp-unavailable");
 
-  const inputs = { home, hermes, user };
+  const inputs = { home, hermes, displayName, user };
   const directories = [
     join(home, buddyT3Home),
     join(home, buddyT3Home, "userdata"),
@@ -344,46 +353,6 @@ export async function buddyChat(
     return answer("unavailable", "t3-settings-busy");
   } finally {
     owner.close();
-  }
-}
-
-/** A name T3 Code takes for an acting sender (Lazurio/t3code#106,
- * `apps/server/src/lazurio/actingSender.ts`): 1 to 64 characters on one line,
- * nothing to trim, no control, formatting, private-use or separator
- * characters. A name it refused would fail every `t3` command Buddy runs. */
-const isActingName = (value: unknown): value is string =>
-  typeof value === "string" &&
-  value.length >= 1 &&
-  value.length <= 64 &&
-  value === value.trim() &&
-  !/[\p{Cc}\p{Cf}\p{Co}\p{Cs}\p{Zl}\p{Zp}]/u.test(value);
-
-/** The user's name from Buddy's persona, `~/.config/lazurio/buddy/
- * persona.json` (`lazurio.buddy-persona.v1`, written by Buddy's install):
- * its `user.nominative` and `user.accusative`, each a name T3 Code takes;
- * undefined for anything else. */
-async function personaUser(
-  home: string,
-): Promise<BuddyChatInputs["user"] | undefined> {
-  try {
-    const persona: unknown = JSON.parse(
-      await readFile(
-        join(home, ".config", "lazurio", "buddy", "persona.json"),
-        "utf8",
-      ),
-    );
-    if (
-      !isObject(persona) ||
-      persona.schema_version !== "lazurio.buddy-persona.v1" ||
-      !isObject(persona.user)
-    )
-      return undefined;
-    const { nominative, accusative } = persona.user;
-    return isActingName(nominative) && isActingName(accusative)
-      ? { nominative, accusative }
-      : undefined;
-  } catch {
-    return undefined;
   }
 }
 

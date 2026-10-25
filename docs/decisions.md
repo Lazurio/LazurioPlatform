@@ -19084,3 +19084,294 @@ gateway signing in to `openai-codex`: a secondary profile that a multi-profile g
 serving while it keeps running (`release_profile_home`), and the Nous poller's adjustment of its
 configuration after a save that happened before the "not found". Buddy's state is read live from
 Hermes's own card in any case, so a save shows at the next reading.
+
+## F64 — Buddy's persona: one source (`persona.json`) and one deriver (the Platform)
+
+**Proposed for plan DEV-6676 in the Buddy lead's shaping of 2026-10-25 (its §1.4, §2 and
+§3.6; question Q5, decided by the Buddy lead as the architecture that root decision 0210 implies,
+since the person sets the persona in Nastavení → Buddy; Matěj, the Organization Admin, may overrule it); implemented in this revision,
+revised after Pablo's reviews of #636 at cea70f4d and 28d9ce5c.** Root decision 0210 gives Buddy a persona
+the person sets in Nastavení → Buddy, from which his SOUL.md is composed (addendum of
+2026-10-20 evening, point 1), and lets the person choose ty or vy there (addendum of
+2026-10-20). The persona lives in one file, `~/.config/lazurio/buddy/persona.json`
+(`lazurio.buddy-persona.v1`). Until now only the interim installer (`buddy-install.sh`, the
+successor of which is HumanAndMachine-ai/Machines#701) wrote it, once, and derived
+everything from it; the Platform only read the user's name for Buddy's T3 settings (F61). A
+name changed after the install reached nothing.
+
+1. **One source, one deriver.** `persona.json` stays the persona's one source. The Platform
+   is the one deriver of what comes from it (`src/buddy/persona.ts`):
+   - `~/.hermes/SOUL.md`, the persona only, in the Folder's locale (`preferences.json`
+     `profile.locale`), mode 0600;
+   - the acting sender of Buddy's gateway, the drop-in
+     `~/.config/systemd/user/hermes-gateway.service.d/lazurio-acting-sender.conf`
+     (`T3CODE_ACTING_SENDER=buddy`, `T3CODE_ACTING_FOR`, `T3CODE_ACTING_FOR_ACCUSATIVE`),
+     mode 0644. The unit itself stays Hermes's (`hermes gateway install`);
+   - the members of Buddy's T3 settings that come from it (F61): the acting sender, as
+     before, and now his name. The provider instance's `displayName` follows `buddy_name`
+     (trimmed as T3 Code trims it, Buddy for a name of spaces alone), so his window shows
+     his name. This amends F61 point 1, where the name was always Buddy.
+
+   The persona's writer is the Platform too, through one function the Launchpad's routes
+   will call (`writePersona`, Začínáme and Nastavení → Buddy in a later change), and the
+   confirmation (`confirmPersona`). Every writer of the Platform holds one lock from its read
+   of the persona to its replace: a kernel `flock` on `.persona.lock` in the persona's 0700
+   directory (`acquireFileLock`, F62), which the kernel releases when its holder ends, however
+   it ends, so a writer that dies never blocks the next one, where a lock file taken with an
+   exclusive create would stay behind it. Under it a writer reads the file, compares its
+   revision (the file's sha256) with the one it was given, and replaces the file atomically
+   (0600); otherwise nothing is written and the answer is `persona-changed` with the persona
+   as it is now, which the Launchpad answers as 409. The conflict comes before any judgement
+   of the values. Of two writers of one revision, exactly one writes. A writer that waits
+   more than 10 seconds answers `busy`; where no lock can be taken, nothing is written.
+   Members the Platform does not know stay, an invalid persona's too. A new member,
+   `confirmed_at`, records when the person confirmed the names in Začínáme; the first
+   confirmation is kept, every current reader ignores it (the installer's `persona_check` and
+   `persona-install` keep unknown members), and a value the Platform cannot read counts as
+   not confirmed, never as an invalid persona. Until the Launchpad writes the first persona,
+   the installer's `persona-build` still does, from its options; it takes no lock, so the
+   file is compared once more right before each replace.
+2. **Byte for byte as the installer.** The validation and every renderer are a port of
+   installer 2026-10-25.1 (`persona_check`, `NAME_RE`, `acting_name_ok`,
+   `no_lone_surrogate`, `soul_text`, `acting_dropin_text`, `sd_env`, `persona-build`), so the
+   installer's next run finds the bytes it would have written (it compares the drop-in with
+   `cmp` and rewrites, and restarts, on any difference, the mode included) and the hand-over
+   needs no migration:
+   - cs and en, ty and vy, a tone or Lazurio's line for the address, a Buddy named Buddy
+     (never "Buddy, Buddy");
+   - Python's `strip()` and `casefold()`, not JavaScript's `trim`: they differ in U+001C to
+     U+001F, U+0085 and U+FEFF; for the comparison with "buddy" `toLowerCase` is the same,
+     since no character but the ASCII letters folds to b, u, d or y;
+   - the check's order, so a refusal names the same member: a lone surrogate (only a
+     `\ud800` escape makes one) is refused in every member, right after that member's
+     NAME_RE, as 2026-10-25.1 does;
+   - systemd quoting with `%` doubled; `"` and `\` cannot reach the drop-in, since no
+     persona name holds them, and are checked on the quoting alone;
+   - the drop-in keeps the installer's note that the installer wrote it: both change their
+     words in the one step of the hand-over (point 7).
+
+   Installer 2026-10-24.2 rendered every one of these bytes the same; 2026-10-25.1 adds only
+   the refusal of lone surrogates. One knowing difference remains: Python's `json` reads
+   `NaN`, which is no JSON, so such a file is unreadable to the Platform. **Provenance.** The
+   installer lives outside this repository: an interim draft its maintainer owns until
+   Machines take the install over (#701). The provenance is its recorded sha256 (2026-10-25.1:
+   `f2413529…7d3c3e`) and the committed goldens, with the committed generator that checks that
+   sha256 and runs the installer's own helper into real files; whoever holds the installer
+   can produce them again, and nobody needs it to run the tests.
+3. **Each file on its own.** Each derived file is replaced atomically by itself: a new file
+   with its exact mode whatever the umask, renamed over the old one; a file whose bytes are
+   right and only its mode is not gets its mode, so its time stays and nothing follows from
+   it; a link is replaced by the file, never written through. There is no transaction across
+   SOUL.md, the drop-in and Buddy's T3 settings. What did not happen stays visible and the
+   next `--apply` does it: a file that differs reads `outdated`, a refresh SOUL.md calls for
+   is recorded as owed before SOUL.md changes (point 4), and the T3 settings read `outdated`
+   until they are applied.
+4. **How a change reaches running conversations** (`src/buddy/gateway-refresh.ts`).
+   Hermes does not notice a changed SOUL.md: a conversation keeps its stored system prompt
+   while its model, provider, session and working directory stay
+   (`agent/conversation_loop.py`), and the gateway keeps an agent per conversation whose
+   signature covers neither SOUL.md nor its own environment (`gateway/run_agent_cache.py`;
+   Lazurio/hermes-agent v0.22.4-lazurio.1). So `lazurio buddy persona --apply`, one at a time,
+   answering only for the persona that is still current (the apply's turn, below):
+   1. writes what differs (point 3), SOUL.md's owed refresh recorded first;
+   2. has systemd reread the units when they changed (`NeedDaemonReload`). Where systemd
+      refuses, nothing restarts on the units it holds: the answer is `failed`
+      (`units-reload-failed`), and the restart stays pending, since `NeedDaemonReload` stays
+      `yes` whoever starts the gateway meanwhile. A gateway that ran while systemd held older
+      units is restarted after a reload that succeeds, because pending is judged on the unit
+      as it stood before the reload;
+   3. clears the stored prompt of every live conversation that holds one
+      (`hermes sessions repair-prompts <id> --apply --json`; ids from `state.db` read-only, as
+      the installer reads them: not ended, no tool's or child's session; never content, never
+      an id that would read as an option). The store decides, not the command's exit: Hermes
+      keeps a stored prompt by its hash (`sessions.system_prompt_hash`), and a conversation
+      counts as refreshed only when the store no longer holds the hash it held before:
+      cleared, rebuilt by a turn since, or gone. A command that failed or answered cleared and
+      did nothing, an id never passed to a command, or more than 500 such conversations at
+      once leave the refresh `incomplete`, and the apply `failed` (`prompts-incomplete`);
+      where the store has no such column, the commands' exits decide. Without `hermes` or a
+      readable store it is `skipped`, and also owed;
+   4. restarts `hermes-gateway.service` once, only while Hermes's own `active-work` verb,
+      asked over the gateway's control socket, names no unit of work and no active agent
+      (the answer Hermes's `gateway restart` asks before it interrupts anything), never on
+      units systemd failed to reread, and only where the gateway runs from before the files
+      or a refresh that was owed has just completed. systemd stops it with SIGTERM, which
+      Hermes drains within the unit's `TimeoutStopSec`; the restart is the installer's own
+      (`systemctl --user restart`). No answer counts as busy: nothing restarts blind;
+   5. applies Buddy's T3 settings (F61); while his T3 Code runs it owns its home
+      (`t3-running`), so its unit `lazurio-t3-buddy.service` is stopped, the settings applied
+      and it started again only when T3 Code itself has no run going: his own `t3` (the
+      runtime his unit names, F61 addendum point 3) runs `thread list --base-dir
+      ~/.t3-buddy --status preparing --status queued --status starting --status running
+      --status waiting --subagents --limit 1 --json`, and T3 Code counts every thread whose run
+      is in one of those unfinished states, his subagents' included (`total`; the same at
+      Lazurio/t3code v0.1.1-lazurio.2 and v0.1.2-lazurio.1). Zero, and the unit is
+      restarted; anything else, an answer that is none or T3 Code not answering, and the
+      change waits (`waiting`). The gateway's `active-work` says nothing about T3 Code's own
+      runs and does not decide this. A T3 Code running outside that unit keeps its home, and
+      the change waits for it.
+
+   **The apply's turn.** One apply runs at a time: it takes a kernel `flock` in Buddy's state
+   directory (`.persona-apply.lock`) before it reads the persona, so an apply that waited for
+   its turn applies the persona that is current when it gets it, never one it read while it
+   waited, which it could have written over newer files and answered `applied` for. Before it
+   answers, it reads the persona's revision again under the writers' lock (`.persona.lock`,
+   point 1), and gives up its turn before that lock. The order is always the turn first, then
+   the writers' lock, and writers never take the turn, so the two cannot deadlock. A write that
+   completes while an apply runs is either seen at that check, and the apply goes again with
+   it, or it completes only after the turn is free, so the apply its writer runs next takes the
+   turn and reads it. A second apply that finds the turn taken can therefore leave the work to
+   the first (`waiting`, `apply-running`). After three rounds in which the persona changed each
+   time, the apply answers `waiting` (`persona-changed`), never `applied`, and the next apply
+   takes it on. The answer describes the last round.
+
+   **What waits, and how it is known.** A restart that waits for files is derived, not
+   recorded: the gateway's `ExecMainStartTimestamp` (systemd's `--timestamp=us+utc`, to the
+   microsecond) is older than the newest derived file, or `NeedDaemonReload` is `yes`. A
+   refresh of stored prompts cannot be derived: they have no time of their own, their
+   staleness could only be read from their content, and a restart by anyone (systemd after a
+   crash, the installer, a reboot) erases the only derived evidence. So a refresh that is owed
+   is recorded, in the Platform's own file in Buddy's state directory,
+   `~/.local/state/lazurio/buddy/prompt-refresh-owed.json` (0600 in 0700, beside the
+   installer's records and never in them): written before SOUL.md changes, and removed only
+   after a complete refresh and the restart that follows it, or a complete refresh with no
+   gateway running. While it is there, a refresh runs when SOUL.md was written now (busy or
+   not: it only clears what the next turn rebuilds), with no gateway running, or at the idle
+   moment, and a complete one is followed by the restart. The read without `--apply` shows it
+   (`prompts: owed`); the next `--apply`, and the Launchpad's reading of Buddy, finish it.
+5. **What each member reaches.** `buddy_name`: SOUL.md and Buddy's name in T3 Code.
+   `address`, `user.dative` and `tone`: SOUL.md. `user.nominative` and `user.accusative`:
+   SOUL.md, the drop-in and the acting sender of T3 Code. `confirmed_at`: nothing.
+6. **Delegace's persona drop-in is not derived here.** `delegace.service.d/persona.conf`
+   stays the installer's until Delegace reads the persona itself
+   (Lazurio/LazurioPlatform#616), and then it goes. Its names reach only the service's own
+   texts; `delegace zadej` runs in Buddy's process, which never had them (#616). After a
+   rename through the Platform the service's texts keep the old names until the
+   installer's next run. #616's proposed order (the `DELEGACE_*` variables first, then the
+   persona) would keep them there for good while the drop-in exists, so the drop-in goes
+   with #616, or #616 reads the persona first.
+7. **The hand-over (I-b).** Once a Platform with this command is pinned, the installer stops
+   rendering SOUL.md and the acting drop-in and calls `lazurio buddy persona --apply`
+   where it rendered them, as it calls `lazurio buddy chat --apply`; it reads the answer's
+   `restart` and leaves out its own restart when it is `done`. Machines (#701) do the same
+   after their install. Its verification of the drop-in moves with it.
+8. **The command.** `lazurio buddy persona [--apply] [--confirm] [--folder <absolute
+   Folder>] [--json]`: without flags it reads and reports (`in-place` or `outdated`, the
+   persona with its revision, each file, a pending restart, an owed refresh, Buddy's T3
+   settings); `--apply` as above (`applied`; `waiting` for Buddy, his T3 Code, another apply
+   or a persona that kept changing (`persona-changed`); or `failed` with its reason, `files-unwritable`, `units-reload-failed`,
+   `prompts-incomplete`, `gateway-restart-failed` or `chat-restart-failed`, retried by the
+   next apply); `--confirm` records `confirmed_at`. Only on the user's own Osobní Prostředí
+   (`not-personal` elsewhere), never without Buddy's Hermes home, and never for a persona the
+   installer would refuse (`invalid-<member>`). Exit 0 in place or applied, 10 outdated,
+   waiting or not personal, 1 unavailable or failed, 2 usage. No route of the Launchpad yet:
+   `POST /api/buddy/persona` comes with its UI.
+
+**Not decided here.** The Launchpad's routes and UI (Začínáme, Nastavení → Buddy), the
+profile (`profile.json`, its own change), Telegram, a Hermes change that applies a
+changed SOUL.md without a restart (the shaping's H-c), and the installer's and Machines'
+side of the hand-over (I-b, #701).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The installer, later Machines, stays the deriver | A rename would need an installer or Machines run; the persona is the person's to change in Nastavení → Buddy, at once; rejected |
+| SOUL.md through Hermes's `PUT /api/profiles/default/soul` | Keeps an existing file's mode but creates a missing one 0644 (`hermes_cli/web_routers/profiles.py`), clears no stored prompt, drops no cached agent, writes no drop-in, and needs the gateway running; rejected |
+| A renderer of the Platform's own, with its own words | The installer's next run would rewrite the files and restart Buddy's gateway on every run until the hand-over; rejected for a byte-for-byte port |
+| Fold #616 in here | Delegace's code is in review on another change (#630), and the drop-in it retires should not get a second writer first; follows #616 |
+| Compare the revision and rename, with no lock | Two writers can both find the same revision and both write, the later silently over the earlier (Pablo's review of #636); rejected for one lock across the read, the comparison and the replace |
+| A lock file taken with an exclusive create | A writer that dies leaves it, and every later write waits on it for good; rejected for a kernel `flock`, which its holder's end releases |
+| A transaction across SOUL.md, the drop-in and the T3 settings | Three owners (Hermes, systemd, T3 Code) and no common journal; rejected for per-file atomic replaces whose remainder stays visible and is retried |
+| Restart after a reload that failed | systemd starts the gateway on the units it holds, and the new process's time would hide that the drop-in never arrived (Pablo's review); rejected: no restart, `NeedDaemonReload` keeps it pending |
+| Count the commands' exits | A command can fail on a conversation that is gone, or answer cleared and leave the prompt; and the installer's 200 conversations at most can leave some out; rejected for the store's own hash, and an incomplete refresh retried |
+| A pending flag for the restart in a file of the Platform | A second record beside the installer's `pending.gateway_restart`, which a crash or a restart of the Launchpad could lose or leave stale; rejected for the files' times and `NeedDaemonReload` |
+| Derive an owed refresh of stored prompts | They have no time of their own, staleness could only be read from their content, and anyone's restart erases the files' evidence; rejected for the Platform's own record |
+| The installer's `managed.json` `pending.prompt_refresh` | The installer's file and its record; a second writer of it would take its ownership; rejected for a file of the Platform's own beside it |
+| Read the persona, then wait for the apply's turn | An apply that waited answers `applied` for a persona already replaced, and can write its files over newer ones, while the writer's own apply gave up as `apply-running` (Pablo's review of 28d9ce5c); rejected for reading under the turn and checking the revision under the writers' lock before answering |
+| Hold the writers' lock across the whole apply | An apply takes minutes (the drain, the restart, T3 Code's stop and start), and every change in Nastavení → Buddy would answer `busy` meanwhile; rejected for the writers' lock at the final check only |
+| Retry an apply until the persona stops changing | A person who keeps changing it would keep Buddy's gateway restarting; rejected for three rounds, then `waiting` (`persona-changed`) |
+| Stop Buddy's T3 Code once the gateway's `active-work` is idle | That answer covers the gateway's work, not T3 Code's own runs, which a stop would cut (Pablo's review); rejected for T3 Code's own count of unfinished runs |
+| `ActiveEnterTimestamp` or seconds (`--timestamp=unix`) | The main process's start is when it read its environment; a second's precision would hide a write right after a start; rejected for `ExecMainStartTimestamp` to the microsecond |
+| `hermes gateway restart`, or `systemctl --user reload` (SIGUSR1, Hermes's in-band restart) | The first needs `hermes` and answers a busy gateway and a failure with the same exit; the second returns before the replacement runs. Buddy is idle by then, so there is nothing for the in-band restart's handoff to carry; the installer's `systemctl --user restart` kept |
+| Restart whatever Buddy does, as the installer does | Interrupts his running turn and his delegations; rejected for Hermes's `active-work` |
+| Ask the gateway's control socket through the Launchpad's client of it (F63) | Not on main yet; a small client of the one verb here, which joins that client when both are |
+| Live conversations from a Hermes command | None at v0.22.4-lazurio.1 lists them (`sessions list` has no state or JSON); `state.db` read-only, ids and prompt hashes only, until the fork has one (the shaping's H-c) |
+
+**Verified by** `tests/buddy-persona.test.ts` with goldens produced by the installer itself
+(`tests/fixtures/buddy-persona/goldens.json` and its generator): 28 SOUL.md renders (cs and
+en, ty and vy, a tone or none, Buddy named Buddy in every case and space, NEL and U+FEFF, `"`,
+`\`, `%` and the rest in a tone, astral and Czech names, the longest names and tone), 19
+drop-ins, 8 quotings and 4 persona files, byte for byte, identical from 2026-10-24.2 and
+2026-10-25.1; three files the installer's own container tests compare with `cmp` are among
+them. 84 validation cases, each accepted, refused for the same member, or, where the installer
+crashed, refused, lone surrogates in every member and the order of the checks included, with
+the one difference above asserted. Also: writes atomic and exact in mode under umask 077; two
+writers of one revision in one process, and a writer in another process holding the lock, with
+exactly one writing; a confirmation racing a write with nothing lost; the revision's conflict
+before the values and between the read and the replace; unknown members and the first
+confirmation kept; links never written through; the member-to-effect table of point 5; busy,
+still busy, no answer, then idle: one restart after the prompts, in that order, none before and
+none after; a reload that fails, then the gateway started again by systemd, then the reload and
+the restart; a stopped gateway on units not reread; repairs that fail, that answer cleared and
+did nothing, a conversation gone, an id never passed, more than the cap, and a store that cannot
+say which prompt a conversation holds; an owed refresh outliving another's restart; a drop-in
+that cannot be written after SOUL.md was; a second apply under way; an apply that waits for its
+turn while a new name is written (the overlap Pablo reproduced on 28d9ce5c) applying the new name
+once; a name written while an apply applies, applied in another round; a persona that changes in
+every round, answered `waiting` (`persona-changed`) after three; a second apply answering
+`apply-running` while the first applies the name written meanwhile; a stopped and an absent
+gateway; `hermes` missing; a store without `ended_at`; no user manager; a refused restart
+staying pending; F61's ownership of Buddy's T3 home (a real exclusive SQLite transaction) with
+a run going while the gateway is idle, T3 Code not answering or answering nothing, then stopped,
+applied and started with no run going, a T3 Code outside its unit, a unit that does not stop;
+Hermes's `active-work` on a real Unix socket with the verb's recorded v0.22.4-lazurio.1
+answers, the socket's and the pointer's checks; the command's JSON, exits and usage.
+`tests/buddy-chat.test.ts` covers Buddy's name in T3 Code and the persona refused as a whole.
+Mutation checks: each of 70 guards removed or loosened fails a test: the first revision's 48
+still in the code (the name's length, characters, controls and DEL, and a lone surrogate in it;
+the acting name's trim, categories, length and the accusative's check; the tone's line, length
+and null; the schema; the address's case; Python's strip in the comparison and the strip itself; `%` and the
+order of the quoting; the byte order mark; the persona through a link; the revision before the
+values and before the replace; the directory's mode and link; the exact file mode; the derived
+mode, the mode-only fix and the derived file through a link; the active agents, the answer's id
+and `ok`; the socket's kind, the pointer's directory, name and privacy; the pending comparison;
+the session id on the command line; tools' and children's sessions; the restart while busy and
+on no answer; the reload; the T3 unit outside its unit; systemctl's environment; the prompts
+while busy; Buddy's name in T3 Code; the persona checked whole for T3 Code; `--confirm` for
+`chat`), a lone surrogate in the tone, and the review's 18: the lock of a write, of a
+confirmation and of an apply; a restart on units not reread, and the reload's state
+forgotten; the store not consulted, exits alone deciding, the cap claiming completeness, an
+unpassed id counted as cleared, the store-less fallback trusting failures, no record before
+SOUL.md changes, the record settled before its restart or after an incomplete refresh, no
+restart after the owed refresh; T3 Code stopped while it runs or when it cannot say, its
+subagents left out, and its `waiting` counted as finished; and the second review's 3: the
+persona read before the apply's turn, no check of its revision before the answer, and `applied`
+claimed after the rounds. Of the first revision's other two,
+the T3 restart at the gateway's idle moment gave way to T3 Code's own count, and the order of the
+prompts and the restart is now the restart's need for the refresh's result. `systemctl show` with
+`--timestamp=us+utc` was checked on systemd 255.4 (Ubuntu 24.04, as Machines' guests run):
+`ExecMainStartTimestamp` to the microsecond in UTC with an English weekday under an empty
+environment, and `NeedDaemonReload=yes` after a drop-in is written.
+
+**Honest limits.**
+- No real Hermes gateway, T3 Code, Buddy or Osobní Prostředí ran: `hermes`, `t3`,
+  `systemctl` and the gateway are fakes with recorded shapes. The first acceptance is Ring 0
+  (root decision 0204), with the Launchpad's UI.
+- The control socket's checks of the owner's uid were read, not tested: a test cannot make
+  a file another account's. The gateway's SIGTERM drain was read, not run.
+- The installer's own write of the persona takes no lock; the comparison right before the
+  replace narrows that window and does not close it.
+- T3 Code's count and the stop of its unit are two steps: a run that starts between them is
+  stopped with the unit.
+- That an apply gives up its turn before the writers' lock is argued, not tested: the window
+  it closes is between two releases, which no test can stop in.
+- A persona that changes in every round leaves its last change to the next apply; whoever
+  wrote it runs one, or the Launchpad's next reading does.
+- A refresh at the idle moment clears again what a turn rebuilt since SOUL.md changed: one
+  more prefix-cache miss for such a conversation.
+- The `active-work` question uses its own small client of the gateway's control socket;
+  the Launchpad's client of it (F63) is the place for one client, once both are on main.
+- The comparison of a file's time with the gateway's start trusts one clock; a write in the
+  same millisecond as a start may count as seen (the kernel's file times are coarse).
+- Delegace's own texts keep the old names after a rename until the installer's next run or
+  #616 (point 6). The English names of the user are the person's to give in all three
+  cases until the dialog asks for one form (the shaping's §3.6).
