@@ -8,6 +8,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
+import { oauthCancelContract } from "../../src/buddy/hermes-gateway";
 import recorded from "./hermes-gateway-v0.22.4-lazurio.1.json";
 
 // A stand-in for Buddy's Hermes gateway (Lazurio/hermes-agent
@@ -20,6 +21,14 @@ import recorded from "./hermes-gateway-v0.22.4-lazurio.1.json";
 // recorded from the real gateway (hermes-gateway-v0.22.4-lazurio.1.json),
 // with the fake's own home, origin and fresh tickets; a test may replace any
 // of them. Everything that arrives is recorded as it arrived.
+//
+// Its sign-in sessions behave as Hermes's do: a cancel marks a session
+// cancelled and removes it, and a worker saves only an unmarked one. Its
+// 15-minute sweep (`collect`) removes a session without the mark, as the
+// recorded tag does, unless the gateway keeps Lazurio/hermes-agent#17's
+// cancellation contract (`contract`, on by default): then it marks it first,
+// and its `identify` advertises the contract (derived from the recorded
+// answer, which has none).
 
 type Json = Record<string, unknown>;
 
@@ -38,7 +47,17 @@ export type FakeGatewayOptions = Readonly<{
   /** Buddy's home as a link to his real one (a symlinked `~/.hermes`). */
   linkedHome?: boolean;
   signedIn?: boolean;
+  /** Whether it keeps and advertises the cancellation contract (default:
+   * yes; the recorded v0.22.4-lazurio.1 does not). */
+  contract?: boolean;
 }>;
+
+type SignInSession = {
+  status: string;
+  error_message: string | null;
+  /** Marked by a cancel, or by the sweep under the contract. */
+  cancelled?: boolean;
+};
 
 /** What the fake answers on its control socket: a JSON value, a raw line
  * (`raw`), nothing at all (`hang`) or a closed connection (`close`). */
@@ -78,15 +97,10 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
   const requests: GatewayRequest[] = [];
   const minted = new Set<string>();
   const spent: string[] = [];
-  const sessions = new Map<
-    string,
-    { status: string; error_message: string | null }
-  >();
-  // Sessions the clean-up removed while their worker still runs.
-  const collected = new Map<
-    string,
-    { status: string; error_message: string | null }
-  >();
+  // The sessions Hermes holds (its `_oauth_sessions`), and every session
+  // whose worker may still run, held or not.
+  const sessions = new Map<string, SignInSession>();
+  const workers = new Map<string, SignInSession>();
   let started = 0;
   const state = {
     signedIn: options.signedIn === true,
@@ -105,6 +119,8 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
       | undefined,
     /** The instance this gateway runs as; a restart changes it. */
     instance: recorded.control.identify.result.instance_id,
+    /** Whether it keeps and advertises the cancellation contract. */
+    contract: options.contract !== false,
   };
 
   let apiOrigin = "";
@@ -153,7 +169,12 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
       if (request.method === "POST" && url.pathname === `${codex}/start`) {
         started += 1;
         const id = `Fixture_Session_${String(started).padStart(6, "0")}`;
-        sessions.set(id, { status: "pending", error_message: null });
+        const session: SignInSession = {
+          status: "pending",
+          error_message: null,
+        };
+        sessions.set(id, session);
+        workers.set(id, session);
         return json({
           status: 200,
           body: { ...recorded.http.start.body, session_id: id },
@@ -169,7 +190,8 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
               body: {
                 ...recorded.http.pollPending.body,
                 session_id: poll[1],
-                ...session,
+                status: session.status,
+                error_message: session.error_message,
               },
             });
       }
@@ -178,7 +200,11 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
       );
       if (request.method === "DELETE" && cancel !== null) {
         const id = cancel[1] as string;
-        if (!sessions.delete(id)) return json(recorded.http.cancelUnknown);
+        // cancel_oauth_session: marked, then removed, under one lock.
+        const session = sessions.get(id);
+        if (session === undefined) return json(recorded.http.cancelUnknown);
+        session.cancelled = true;
+        sessions.delete(id);
         return json({
           status: 200,
           body: { ...recorded.http.cancel.body, session_id: id },
@@ -197,7 +223,13 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
   const reply = (request: Json | null): ControlReply => {
     if (request?.verb === "identify") {
       const answer = fill(recorded.control.identify, home, apiOrigin) as Json;
-      (answer.result as Json).instance_id = state.instance;
+      const result = answer.result as Json;
+      result.instance_id = state.instance;
+      if (state.contract) {
+        const { member, value } = oauthCancelContract;
+        const listed = result[member];
+        result[member] = Array.isArray(listed) ? [...listed, value] : value;
+      }
       return state.identify === undefined ? answer : state.identify(answer);
     }
     if (request?.verb === "session-ticket") {
@@ -284,30 +316,33 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
     minted,
     sessions,
     state,
-    /** OpenAI approved the sign-in: Hermes's worker saved it, also for a
-     * session its clean-up removed meanwhile (`collect`), whose worker keeps
-     * running. */
-    approve(id: string) {
-      const session = sessions.get(id) ?? collected.get(id);
+    /** OpenAI approved the sign-in and its worker tries to save it, also
+     * after the sweep removed it (`collect`): it checks the mark first, under
+     * the lock its cancel takes, and saves only an unmarked session. Whether
+     * it saved. */
+    approve(id: string): boolean {
+      const session = sessions.get(id) ?? workers.get(id);
       if (session === undefined) throw new Error(`No session ${id}`);
+      if (session.cancelled === true) return false;
       session.status = "approved";
       state.signedIn = true;
+      return true;
     },
-    /** Hermes's 15-minute clean-up at v0.22.4-lazurio.1
-     * (`_gc_oauth_sessions`): the session leaves the map, so its poll answers
-     * 404 and its cancel "session not found", but it is not marked
-     * cancelled, and its worker may still save. */
+    /** Hermes's 15-minute sweep (`_gc_oauth_sessions`): the session leaves the
+     * map, so its poll answers 404 and its cancel "session not found". Under
+     * the contract it is marked cancelled first; at v0.22.4-lazurio.1 it is
+     * not, and its worker may still save. */
     collect(id: string) {
       const session = sessions.get(id);
       if (session === undefined) throw new Error(`No session ${id}`);
+      if (state.contract) session.cancelled = true;
       sessions.delete(id);
-      collected.set(id, session);
     },
     /** A restart: every session in its memory is gone with its worker, a new
      * instance. */
     restart() {
       sessions.clear();
-      collected.clear();
+      workers.clear();
       minted.clear();
       state.instance = randomBytes(16).toString("hex");
     },

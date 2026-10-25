@@ -373,27 +373,43 @@ posix(
 );
 
 posix(
-  "a sign-in Hermes's clean-up removed while its worker may still save answers 409 sign-in-finishing, and its poll keeps waiting",
+  "where Buddy's Hermes does not keep the cancellation contract, the start answers 409 hermes-outdated and starts nothing; status and sign-out still work",
   async () => {
-    const app = await hosted("buddy", { signedIn: true });
+    const lines = journal();
+    const app = await hosted("buddy", { contract: false, signedIn: true });
     try {
-      const started = await app.post(buddyRoutePaths.start);
-      const handle = started.body.session as string;
-      app.fake.collect("Fixture_Session_000001");
-      const finishing = {
+      expect(await app.post(buddyRoutePaths.start)).toEqual({
         status: 409,
-        body: { kind: "blocked", reason: "sign-in-finishing" },
-      };
-      expect(await app.post(buddyRoutePaths.poll, { session: handle })).toEqual(
-        started,
-      );
-      expect(await app.post(buddyRoutePaths.start)).toEqual(finishing);
+        body: { kind: "blocked", reason: "hermes-outdated" },
+      });
       expect(
-        await app.post(buddyRoutePaths.cancel, { session: handle }),
-      ).toEqual(finishing);
-      expect(await app.post(buddyRoutePaths.signOut)).toEqual(finishing);
-      expect(app.fake.state.signedIn).toBe(true);
+        app.fake.requests.filter((request) => request.path.endsWith("/start")),
+      ).toHaveLength(0);
+      expect((await app.get(buddyRoutePaths.read)).body).toEqual({
+        kind: "buddy",
+        state: "works",
+        signIn: { state: "connected" },
+        locale: "cs",
+      });
+      expect(await app.post(buddyRoutePaths.signOut)).toEqual({
+        status: 200,
+        body: { kind: "signed-out" },
+      });
+      expect(lines.buddy()).toEqual([
+        {
+          scope: "buddy-sign-in",
+          operation: "start",
+          outcome: "blocked",
+          reason: "hermes-outdated",
+        },
+        {
+          scope: "buddy-sign-in",
+          operation: "sign-out",
+          outcome: "signed-out",
+        },
+      ]);
     } finally {
+      lines.restore();
       await app.close();
     }
   },

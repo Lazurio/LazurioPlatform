@@ -70,13 +70,14 @@ buddy sign-out [--folder <absolute Folder>] [--json]
   expiresAt, pollMs} with OpenAI's page and the one-time code for the person,
   then each change on its own line until it ends: signed-in, or failed with
   expired, refused (OpenAI refused a sign-in by code), lost (Buddy's gateway
-  restarted) or failed. Ctrl-C cancels it on Hermes ({kind: "cancelled"}
-  once it can no longer complete). While it still may, nothing is cancelled:
-  {kind: "blocked", reason: "sign-in-finishing"} when Hermes no longer holds
-  it but its last round may still sign Buddy in (try again in a few
-  minutes), or "sign-in-running" when Hermes did not confirm the cancel; a
-  line on stderr says so in words. Buddy keeps working on his sign-in until
-  a new one replaces it. sign-out: Hermes forgets
+  restarted) or failed. It starts only where Buddy's Hermes advertises its
+  OAuth cancellation contract (Lazurio/hermes-agent#17); otherwise
+  {kind: "blocked", reason: "hermes-outdated"}: Buddy needs an update before
+  he can be signed in here. Ctrl-C cancels it on Hermes ({kind: "cancelled"}
+  once it can no longer complete); when Hermes did not confirm the cancel,
+  {kind: "blocked", reason: "sign-in-running"}, and the sign-in may still
+  complete. A line on stderr says each refusal in words. Buddy keeps working
+  on his sign-in until a new one replaces it. sign-out: Hermes forgets
   Buddy's sign-in ({kind: "signed-out"}); Buddy stops answering until he is
   signed in again. Without Buddy's gateway {kind: "unavailable", reason};
   without Buddy here {kind: "blocked", reason: "buddy-absent"}. JSON on
@@ -244,8 +245,8 @@ function blockedWords(
   if (answer.kind !== "blocked") return {};
   return {
     stderr:
-      answer.reason === "sign-in-finishing"
-        ? "Buddy's previous sign-in may still finish. Try again in a few minutes."
+      answer.reason === "hermes-outdated"
+        ? "Buddy needs an update before he can be signed in here."
         : "Buddy's sign-in could not be cancelled and may still finish. Try again.",
   };
 }

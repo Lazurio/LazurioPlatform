@@ -46,8 +46,9 @@ async function within(
     ) => ReturnType<typeof runBuddyCommand>,
     folders: { buddy: string; without: string },
   ) => Promise<void>,
+  options: Parameters<typeof fakeHermesGateway>[0] = {},
 ) {
-  const fake = await fakeHermesGateway();
+  const fake = await fakeHermesGateway(options);
   const parent = await realpath(await mkdtemp(join(tmpdir(), "buddy-cli-")));
   try {
     const folders = {
@@ -200,37 +201,36 @@ posix(
 );
 
 posix(
-  "Ctrl-C on a sign-in the clean-up removed while its worker may still save says so in words",
+  "where Buddy's Hermes does not keep the cancellation contract, sign-in start says in words that he needs an update; status and sign-out still work",
   () =>
-    within(async (fake, run, folders) => {
-      const interrupt = new AbortController();
-      const lines: string[] = [];
-      const answer = await run(
-        ["sign-in", "start", "--folder", folders.buddy],
-        {
-          pollMs: 20,
-          signal: interrupt.signal,
-          write: (line) => {
-            lines.push(line);
-            if (lines.length === 1) {
-              // Another start's clean-up removes it, in the same instance.
-              fake.collect("Fixture_Session_000001");
-              setTimeout(() => interrupt.abort(), 50);
-            }
-          },
-        },
-      );
-      expect(answer).toEqual({
-        code: 1,
-        stdout: "",
-        stderr:
-          "Buddy's previous sign-in may still finish. Try again in a few minutes.",
-      });
-      expect(JSON.parse(lines.at(-1) as string)).toEqual({
-        kind: "blocked",
-        reason: "sign-in-finishing",
-      });
-    }),
+    within(
+      async (fake, run, folders) => {
+        const lines: string[] = [];
+        expect(
+          await run(["sign-in", "start", "--folder", folders.buddy], {
+            write: (line) => lines.push(line),
+          }),
+        ).toEqual({
+          code: 1,
+          stdout: "",
+          stderr: "Buddy needs an update before he can be signed in here.",
+        });
+        expect(lines.map((line) => JSON.parse(line))).toEqual([
+          { kind: "blocked", reason: "hermes-outdated" },
+        ]);
+        expect(
+          fake.requests.filter((request) => request.path.endsWith("/start")),
+        ).toHaveLength(0);
+        expect(
+          (await run(["status", "--folder", folders.buddy, "--json"])).code,
+        ).toBe(0);
+        expect(await run(["sign-out", "--folder", folders.buddy])).toEqual({
+          code: 0,
+          stdout: '{"kind":"signed-out"}',
+        });
+      },
+      { contract: false, signedIn: true },
+    ),
 );
 
 posix(

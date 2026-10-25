@@ -74,7 +74,10 @@ export type GatewayFailure =
   | "refused"
   | "timeout"
   /** An answer of no known shape, a foreign API origin among them. */
-  | "invalid-answer";
+  | "invalid-answer"
+  /** The gateway does not advertise Hermes's OAuth cancellation contract a
+   * call requires (`oauthCancelContract`): nothing was sent. */
+  | "outdated";
 
 export type GatewayResult<T> =
   | Readonly<{ ok: true; value: T }>
@@ -87,26 +90,54 @@ export type GatewayEndpoint = Readonly<{
   socket: string;
   instanceId: string;
   apiOrigin: string;
+  /** Whether it advertises Hermes's OAuth cancellation contract. */
+  contract: boolean;
 }>;
+
+/** Hermes's OAuth cancellation contract (Lazurio/hermes-agent#17): its
+ * 15-minute sweep and its cancel mark a sign-in session cancelled under the
+ * lock its worker saves under, and the worker checks that mark under the same
+ * lock before it saves; so once a session is gone from Hermes's map ("session
+ * not found", the poll's 404), nothing saves it. At v0.22.4-lazurio.1 the sweep
+ * removes a session without the mark. The gateway advertises the contract in
+ * its `identify` answer: the member named here holds the value, or lists it.
+ * PENDING: the member and the value are the fork's to name; this is the one
+ * place they are set. */
+export const oauthCancelContract = Object.freeze({
+  member: "capabilities",
+  value: "lazurio-oauth-cancel-contract-v1",
+});
+
+/** Whether an `identify` result advertises the contract. */
+const advertisesContract = (result: Readonly<Record<string, unknown>>) => {
+  const advertised = result[oauthCancelContract.member];
+  return Array.isArray(advertised)
+    ? advertised.includes(oauthCancelContract.value)
+    : advertised === oauthCancelContract.value;
+};
 
 /** One answer of Hermes's dashboard API: its status and its JSON body
  * (undefined for anything else). */
 type HttpAnswer = Readonly<{ status: number; body: unknown }>;
 
-/** An answer, and the gateway instance that gave it (its `identify`'s
- * `instance_id`, which every ticket is bound to): a new instance is a new
- * gateway process, and nothing of the one before runs in it. */
-export type GatewayAnswer = HttpAnswer & Readonly<{ instanceId: string }>;
+/** An answer, the gateway instance that gave it (its `identify`'s
+ * `instance_id`, which every ticket is bound to), and whether that instance
+ * advertises Hermes's OAuth cancellation contract. */
+export type GatewayAnswer = HttpAnswer &
+  Readonly<{ instanceId: string; contract: boolean }>;
 
 export type GatewayMethod = "GET" | "POST" | "DELETE";
 
 export type HermesGateway = Readonly<{
   identify(): Promise<GatewayResult<GatewayEndpoint>>;
   /** One call of Hermes's dashboard API with a ticket of its own; `path`
-   * is an `/api/` path without a query. A body is never sent. */
+   * is an `/api/` path without a query. A body is never sent. With
+   * `requireContract`, a gateway that does not advertise Hermes's OAuth
+   * cancellation contract is not asked (`outdated`). */
   request(
     method: GatewayMethod,
     path: string,
+    options?: Readonly<{ requireContract?: boolean }>,
   ): Promise<GatewayResult<GatewayAnswer>>;
 }>;
 
@@ -355,6 +386,7 @@ export function gatewayEndpoint(
     socket,
     instanceId: instance,
     apiOrigin: origin as string,
+    contract: advertisesContract(result),
   });
 }
 
@@ -489,12 +521,20 @@ export function createHermesGateway(
 
   return Object.freeze({
     identify,
-    async request(method: GatewayMethod, path: string) {
+    async request(
+      method: GatewayMethod,
+      path: string,
+      options: Readonly<{ requireContract?: boolean }> = {},
+    ) {
       if (!apiPath.test(path) || path.includes(".."))
         throw new Error("Only an /api/ path without a query is asked");
       for (let attempt = 0; ; attempt += 1) {
         const endpoint = await identify();
         if (!endpoint.ok) return endpoint;
+        // The ticket binds the call to this instance, so the instance that
+        // advertised the contract is the one that serves the call.
+        if (options.requireContract === true && !endpoint.value.contract)
+          return failed("outdated");
         const ticket = await mintTicket(endpoint.value, controlMs);
         if (!ticket.ok) {
           if (ticket.reason === "refused" && attempt === 0) continue;
@@ -525,6 +565,7 @@ export function createHermesGateway(
           status,
           body,
           instanceId: endpoint.value.instanceId,
+          contract: endpoint.value.contract,
         });
       }
     },

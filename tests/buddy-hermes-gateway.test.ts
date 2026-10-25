@@ -4,6 +4,7 @@ import { join } from "node:path";
 import {
   createHermesGateway,
   type GatewayResult,
+  oauthCancelContract,
 } from "../src/buddy/hermes-gateway";
 import {
   type FakeHermesGateway,
@@ -55,12 +56,77 @@ posix(
           socket: join(fake.home, "gateway.sock"),
           instanceId: recorded.control.identify.result.instance_id,
           apiOrigin: fake.apiOrigin,
+          contract: true,
         },
       });
       expect(fake.control.map((request) => request.line)).toEqual([
         '{"protocol":1,"verb":"identify","id":1}',
       ]);
     }),
+);
+
+posix(
+  "the cancellation contract: read from identify, and a call that requires it never reaches a gateway without it",
+  async () => {
+    // The recorded tag advertises none.
+    await within({ contract: false }, async (fake) => {
+      const identified = await client(fake).identify();
+      expect(identified.ok && identified.value.contract).toBe(false);
+      expect(
+        await client(fake).request(
+          "POST",
+          "/api/providers/oauth/openai-codex/start",
+          { requireContract: true },
+        ),
+      ).toEqual(failure("outdated"));
+      // Asked who it is, then nothing: no ticket, no call.
+      expect(verbs(fake)).toEqual(["identify", "identify"]);
+      expect(fake.requests).toHaveLength(0);
+      // A call that does not require it goes ahead, and says so.
+      const read = await client(fake).request("GET", "/api/providers/oauth");
+      expect(read.ok && read.value.contract).toBe(false);
+    });
+    await within({}, async (fake) => {
+      const answer = await client(fake).request(
+        "POST",
+        "/api/providers/oauth/openai-codex/start",
+        { requireContract: true },
+      );
+      expect(answer.ok && answer.value.contract).toBe(true);
+      // The member may hold the value or list it; only that value counts.
+      // (`capabilities` must also keep `session-authority-v1`.)
+      const { member, value } = oauthCancelContract;
+      const cases: readonly (readonly [unknown, boolean])[] =
+        member === "capabilities"
+          ? [
+              [[value], true],
+              [[`${value}-draft`], false],
+              [[], false],
+            ]
+          : [
+              [value, true],
+              [[value], true],
+              [`${value}-draft`, false],
+              [undefined, false],
+              [1, false],
+            ];
+      for (const [advertised, expected] of cases) {
+        fake.state.identify = (identify) => {
+          const result = identify.result as Record<string, unknown>;
+          if (member === "capabilities")
+            result.capabilities = [
+              "session-authority-v1",
+              ...(advertised as readonly string[]),
+            ];
+          else if (advertised === undefined) delete result[member];
+          else result[member] = advertised;
+          return identify;
+        };
+        const identified = await client(fake).identify();
+        expect(identified.ok && identified.value.contract).toBe(expected);
+      }
+    });
+  },
 );
 
 posix(
@@ -236,6 +302,7 @@ posix(
           status: 500,
           body: recorded.derived.startFailed.body,
           instanceId: recorded.control.identify.result.instance_id,
+          contract: true,
         },
       });
       expect(fake.requests).toHaveLength(1);

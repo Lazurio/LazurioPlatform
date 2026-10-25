@@ -22,28 +22,27 @@ import type {
 //   cancel  DELETE /api/providers/oauth/sessions/<session>
 //   sign out DELETE /api/providers/oauth/openai-codex
 //
-// One sign-in at a time, in this process's memory. A sign-in stays this
-// process's until it is certain that Hermes's worker can no longer save one,
-// because until then it may still save a sign-in the person approves:
+// A sign-in starts only on a gateway that advertises Hermes's OAuth
+// cancellation contract (Lazurio/hermes-agent#17, `oauthCancelContract`):
+// otherwise nothing starts (`blocked`, `hermes-outdated`). One sign-in at a
+// time, in this process's memory, held until it is certain that Hermes's
+// worker can no longer save one (Pablo's reviews of #635):
 // - its poll answers an ending (approved, expired, denied, error), which its
 //   worker sets as it stops;
 // - its cancel answers `{ok: true}` for exactly that session: Hermes marks it
-//   cancelled under the lock its worker takes to save, so it saves nothing
-//   after (Pablo's first review of #635);
+//   cancelled under the lock its worker checks before it saves, so nothing is
+//   saved after;
 // - Hermes holds no session by that id (its poll's 404, its cancel's
-//   `{ok: false, message: "session not found"}`) and either another gateway
-//   instance answers, so the process that ran the worker is gone, or the
-//   worker's last chance to save has passed (`buddySignInFinishingMs`). Not before: at
-//   v0.22.4-lazurio.1 Hermes's 15-minute clean-up (`_gc_oauth_sessions`)
-//   removes a session without marking it cancelled, while its worker, which
-//   keeps the same record and checks only that mark, may still be in its last
-//   round (Pablo's second review of #635; the fork marks it in a release of
-//   its own).
+//   `{ok: false, message: "session not found"}`), and the gateway instance
+//   that says so advertises the contract: its sweep, like its cancel, marks a
+//   session before it removes it. At v0.22.4-lazurio.1 the sweep removes a
+//   session without the mark, so there "not found" proves nothing.
 // Anything else proves nothing: the sign-in stays held and addressable, and
 // whatever needed it ended changes nothing: a new start, a cancel, a sign-out
-// answer `blocked` (`sign-in-finishing` while a session Hermes no longer holds
-// may still save, `sign-in-running` for any other answer) or `unavailable`
-// when the gateway did not answer.
+// answer `blocked` (`hermes-outdated` when a gateway without the contract no
+// longer holds it, `sign-in-running` for any other answer) or `unavailable`
+// when the gateway did not answer. A sign-out without a held sign-in needs no
+// contract: removing a stored sign-in does not depend on it.
 //
 // The holder knows the sign-in by an opaque handle of its own (32 hex
 // characters, the curated logins' shape), and Hermes's session id stays here.
@@ -58,42 +57,9 @@ import type {
 /** How often the holder asks again: Začínáme's AI step asks every 2 s too. */
 export const buddySignInPollMs = 2_000;
 
-// Hermes's Codex worker at v0.22.4-lazurio.1, hermes_cli/web_routers/oauth.py
-// (`_codex_full_login_worker`, :303-355). Its poll deadline starts after the
-// user code is set, before the start's answer leaves (`_start_codex_device_code`
-// waits for that code, :518-543): `expires_in` from then (:245, :316). Its last
-// round may begin just before the deadline: one more `poll_interval` asleep
-// (:250-253), one poll request, then the token exchange (:332) and the save
-// (:339-345).
-/** One request of its client: httpx.Timeout(15.0) for each of acquiring a
- * connection, connecting, writing and reading (`_codex_client`, :184-192). */
-const hermesRequestMs = 4 * 15_000;
-/** The token exchange: `_codex_post`, three tries, 1 s and 2 s apart
- * (:195-213, :278-300). */
-const hermesExchangeMs = 3 * hermesRequestMs + 1_000 + 2_000;
-/** The save's wait for the auth store's lock: `_save_codex_tokens` through
- * `_provider_state_transaction` (auth.py:847-861), AUTH_LOCK_TIMEOUT_SECONDS
- * (auth_constants.py:52). */
-const hermesSaveMs = 15_000;
-/** The worker's lag behind the start's answer, and slack. */
-const finishingMarginMs = 60_000;
-/** For a start whose lifetime or interval had no known shape: the longest
- * lifetime this module takes, and a long interval. */
-const fallbackLifetimeSeconds = 3600;
-const fallbackIntervalSeconds = 600;
-
-/** How long after Hermes's start answer arrived its worker may still save a
- * sign-in: the code's lifetime and the last round. 1223 s (20 min 23 s) for
- * the recorded 900 s and 5 s. */
-export const buddySignInFinishingMs = (
-  expiresInSeconds: number,
-  pollIntervalSeconds: number,
-) =>
-  (expiresInSeconds + pollIntervalSeconds) * 1000 +
-  hermesRequestMs +
-  hermesExchangeMs +
-  hermesSaveMs +
-  finishingMarginMs;
+/** Hermes's own lifetime of a code (`_CODEX_EXPIRES_IN`), for a start whose
+ * lifetime had no known shape. */
+const hermesCodeLifetimeMs = 15 * 60_000;
 
 export type BuddySignInFailure =
   /** The code expired before the person used it. */
@@ -117,13 +83,13 @@ export type BuddySignInPending = Readonly<{
   pollMs: number;
 }>;
 
-/** A sign-in that may still complete, so nothing changed:
- * `sign-in-finishing` while a session Hermes no longer holds may still save
- * one (try again after a while), `sign-in-running` when Hermes did not
- * confirm a cancel. */
-export type BuddySignInRunning = Readonly<{
+/** Nothing changed: `hermes-outdated`, Buddy's Hermes does not advertise the
+ * cancellation contract (a sign-in does not start there, and one it no
+ * longer holds may still complete); `sign-in-running`, Hermes did not confirm
+ * the cancel of a sign-in that may still complete. */
+export type BuddySignInBlocked = Readonly<{
   kind: "blocked";
-  reason: "sign-in-running" | "sign-in-finishing";
+  reason: "sign-in-running" | "hermes-outdated";
 }>;
 
 /** Buddy's gateway did not answer: nothing changed. */
@@ -139,13 +105,13 @@ export type BuddySignInAnswer =
   /** No sign-in by this handle (any more). */
   | Readonly<{ kind: "none" }>
   | Readonly<{ kind: "cancelled" }>
-  | BuddySignInRunning
+  | BuddySignInBlocked
   | BuddyGatewayUnavailable;
 
 export type BuddySignOutAnswer =
   | Readonly<{ kind: "signed-out" }>
   | Readonly<{ kind: "failed"; reason: "failed" }>
-  | BuddySignInRunning
+  | BuddySignInBlocked
   | BuddyGatewayUnavailable;
 
 /** One line of the owner's journal: the operation, the outcome and the
@@ -162,16 +128,12 @@ type Session = {
   handle: string;
   /** Hermes's session id: never answered, logged or written. */
   hermes: string;
-  /** The gateway instance that started it. */
-  instance: string;
   /** Null for a start of no known shape, shown to nobody and held only until
    * its worker can no longer save. */
   code: string | null;
   url: string;
   /** Wall time the code stops working, for the holder. */
   expiresAt: number;
-  /** On the monotonic clock: when its worker can certainly no longer save. */
-  finishedBy: number;
 };
 
 // `secrets.token_urlsafe(16)` (22 characters), with room either way.
@@ -195,17 +157,17 @@ const codexPath = "/api/providers/oauth/openai-codex";
 /** What Hermes said of a cancel. */
 type Ending =
   | Readonly<{ kind: "ended" }>
-  | BuddySignInRunning
+  | BuddySignInBlocked
   | BuddyGatewayUnavailable;
 
 const ended: Ending = Object.freeze({ kind: "ended" });
-const running: BuddySignInRunning = Object.freeze({
+const running: BuddySignInBlocked = Object.freeze({
   kind: "blocked",
   reason: "sign-in-running",
 });
-const finishing: BuddySignInRunning = Object.freeze({
+const outdated: BuddySignInBlocked = Object.freeze({
   kind: "blocked",
-  reason: "sign-in-finishing",
+  reason: "hermes-outdated",
 });
 
 export function createBuddySignIn(
@@ -213,13 +175,10 @@ export function createBuddySignIn(
     gateway: HermesGateway;
     /** Tests only: the wall clock, for the code's end the holder sees. */
     now?: () => number;
-    /** Tests only: the monotonic clock every bound is measured on. */
-    monotonic?: () => number;
     journal?: (entry: BuddySignInJournalEntry) => void;
   }>,
 ) {
   const now = options.now ?? Date.now;
-  const monotonic = options.monotonic ?? (() => performance.now());
   const gateway = options.gateway;
   let current: Session | undefined;
   // One operation at a time, so that two starts (two tabs) end as the later
@@ -258,24 +217,18 @@ export function createBuddySignIn(
     });
     return answer;
   };
-  /** Refused because the held sign-in may still complete: journaled,
-   * nothing changed. */
-  const refused = <T extends BuddySignInRunning | BuddyGatewayUnavailable>(
+  /** Refused, nothing changed: journaled. */
+  const refused = <T extends BuddySignInBlocked | BuddyGatewayUnavailable>(
     operation: BuddySignInJournalEntry["operation"],
     answer: T,
   ): T => {
     journal({ operation, outcome: answer.kind, reason: answer.reason });
     return answer;
   };
-  /** Whether a session Hermes no longer holds can no longer be saved: another
-   * gateway instance answers (the worker's process is gone), or its worker's
-   * last chance to save has passed. */
-  const goneForGood = (session: Session, instance: string) =>
-    instance !== session.instance || monotonic() >= session.finishedBy;
 
   /** Asks Hermes to cancel the session: `ended` only when it confirms the
-   * cancel of exactly that session, or holds none by that id and its worker
-   * can no longer save. */
+   * cancel of exactly that session, or holds none by that id and keeps the
+   * cancellation contract. */
   async function endOnHermes(session: Session): Promise<Ending> {
     let answer: GatewayResult<GatewayAnswer>;
     try {
@@ -288,11 +241,11 @@ export function createBuddySignIn(
     }
     if (!answer.ok)
       return Object.freeze({ kind: "unavailable", reason: answer.reason });
-    const { status, body, instanceId } = answer.value;
+    const { status, body, contract } = answer.value;
     if (status === 200 && isObject(body)) {
       if (body.ok === true && body.session_id === session.hermes) return ended;
       if (body.ok === false && body.message === "session not found")
-        return goneForGood(session, instanceId) ? ended : finishing;
+        return contract ? ended : outdated;
     }
     return running;
   }
@@ -310,18 +263,25 @@ export function createBuddySignIn(
         reason: "replaced",
       });
     }
-    const answer = await gateway.request("POST", `${codexPath}/start`);
-    const answeredAt = monotonic();
+    // Only where a session that leaves Hermes's map can no longer save.
+    const answer = await gateway.request("POST", `${codexPath}/start`, {
+      requireContract: true,
+    });
     if (!answer.ok)
       return refused(
         "start",
-        Object.freeze({ kind: "unavailable" as const, reason: answer.reason }),
+        answer.reason === "outdated"
+          ? outdated
+          : Object.freeze({
+              kind: "unavailable" as const,
+              reason: answer.reason,
+            }),
       );
     const failed = (reason: BuddySignInFailure) => {
       journal({ operation: "start", outcome: "failed", reason });
       return Object.freeze({ kind: "failed" as const, reason });
     };
-    const { status, body, instanceId } = answer.value;
+    const { status, body } = answer.value;
     if (status !== 200 || !isObject(body))
       return failed(
         isObject(body) && refusedByOpenAi(body.detail) ? "refused" : "failed",
@@ -337,25 +297,13 @@ export function createBuddySignIn(
       Number.isSafeInteger(expiresIn) &&
       expiresIn > 0 &&
       expiresIn <= 3600;
-    const interval = body.poll_interval;
-    const lifetime = lifetimeKnown ? expiresIn : fallbackLifetimeSeconds;
     const session: Session = {
       handle: randomBytes(16).toString("hex"),
       hermes,
-      instance: instanceId,
       code: null,
       url: codexDevicePage,
-      expiresAt: now() + lifetime * 1000,
-      finishedBy:
-        answeredAt +
-        buddySignInFinishingMs(
-          lifetime,
-          typeof interval === "number" &&
-            Number.isSafeInteger(interval) &&
-            interval > 0
-            ? interval
-            : fallbackIntervalSeconds,
-        ),
+      expiresAt:
+        now() + (lifetimeKnown ? expiresIn * 1000 : hermesCodeLifetimeMs),
     };
     if (
       body.verification_url !== codexDevicePage ||
@@ -392,26 +340,20 @@ export function createBuddySignIn(
     code: string,
     answer: GatewayResult<GatewayAnswer>,
   ): Promise<BuddySignInAnswer> {
-    // A gateway that does not answer proves nothing: asked again. After a
-    // restart Hermes no longer knows the session, and says so (404).
+    // A gateway that does not answer proves nothing: asked again.
     if (!answer.ok) return pending(session, code);
-    const { status, body, instanceId } = answer.value;
-    // Hermes no longer holds it: ended only where its worker cannot save.
+    const { status, body, contract } = answer.value;
+    // Hermes no longer holds it: ended where that means nothing saves it.
     if (status === 404)
-      return goneForGood(session, instanceId)
+      return contract
         ? end("poll", { kind: "failed", reason: "lost" })
         : pending(session, code);
     if (status === 200 && isObject(body) && body.session_id === session.hermes)
       switch (body.status) {
+        // Hermes ends a sign-in itself, at its code's end after its worker's
+        // last round; until then it waits.
         case "pending":
-          // Its worker stops at the code's end, after its last round; one
-          // Hermes still calls waiting past that is cancelled.
-          return monotonic() < session.finishedBy
-            ? pending(session, code)
-            : endConfirmed(session, code, {
-                kind: "failed",
-                reason: "expired",
-              });
+          return pending(session, code);
         case "approved":
           return end("poll", { kind: "signed-in" });
         case "expired":
@@ -450,9 +392,8 @@ export function createBuddySignIn(
         );
       }),
 
-    /** Zrušit: Hermes marks its session cancelled under the lock its worker
-     * saves under; `cancelled` only once that, or the worker's end, is
-     * certain. */
+    /** Zrušit: `cancelled` only once Hermes confirmed it, or no longer holds
+     * the session under the contract. */
     cancel: (handle: string) =>
       serial(async (): Promise<BuddySignInAnswer> => {
         const session = current;
