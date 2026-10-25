@@ -74,6 +74,7 @@ import {
   createModuleBunResolver,
   isRuntimeReason,
   type ModuleBunResolver,
+  runtimeMayPass,
 } from "./bun-runtime";
 import {
   type DataMountHost,
@@ -2248,8 +2249,10 @@ export function createModuleOperations(input: {
      * `lazurio update`): every built app with a build state (someone opened
      * it once) whose checkout moved past its build is built in the
      * foreground, one after the other, as the sweep's refresh builds it in
-     * the background, and a running build is swapped onto it. A checkout whose last build
-     * failed is not built again here, and an app nobody opened is not built
+     * the background, and a running build is swapped onto it. A checkout
+     * whose last build failed is not built again here, unless what failed
+     * may pass by itself (the App's pinned Bun could not be fetched,
+     * decision F62 point 7), and an app nobody opened is not built
      * for the first time: its first Open builds it. The answer per app;
      * nothing where this host keeps no builds, and nothing for the CLI
      * beside a session's apps: their Launchpad owns their dependency trees
@@ -2300,7 +2303,12 @@ export function createModuleOperations(input: {
             answer("current", { commit: recorded.current.commit });
             continue;
           }
-          if (recorded?.failure?.key === read.key) {
+          // A failed checkout waits for an explicit build, unless what failed
+          // may pass by itself (decision F62 point 7), as for the builder.
+          if (
+            recorded?.failure?.key === read.key &&
+            !runtimeMayPass(recorded.failure.reason)
+          ) {
             answer("failed", {
               commit: recorded.failure.commit,
               reason: recorded.failure.reason,

@@ -888,9 +888,10 @@ Aktualizovat button runs it by hand. One composition (`updateEverything` in
 3. **Builds.** Every built app with a build state (someone opened it once) whose checkout
    moved past its build is built in the foreground and swapped in where it runs (decision
    F58's refresh, `refreshBuilt` in the module core). A commit whose last build failed is
-   not built again here (an explicit `lazurio module build` does that), and an app nobody
-   opened gets no first build: its first Open builds it. On a computer whose Launchpad
-   runs its apps in its own session
+   not built again here (an explicit `lazurio module build` does that), unless what failed
+   may pass by itself: its pinned Bun could not be fetched (`runtime-unavailable`,
+   `runtime-disk-full`, F62 point 7). An app nobody opened gets no first build: its first
+   Open builds it. On a computer whose Launchpad runs its apps in its own session
    (macOS), that Launchpad owns their dependency trees until it ends, so the CLI leaves
    their builds to it: its build watcher builds and swaps what the content brought within
    seconds, or at its next start, and finds the Bun the CLI's tools part fetched in the

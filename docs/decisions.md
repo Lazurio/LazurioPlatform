@@ -925,9 +925,11 @@ and [content synchronization, When it runs](content-sync.md#when-it-runs).
    to be confirmed in review.
 4. **Builds of what someone opened.** An app nobody opened gets no first build from an
    update (its first Open builds it), and a commit whose build failed is not built again
-   (an explicit `lazurio module build` is). Beside a session's apps (a computer's
-   Launchpad on macOS), whose dependency trees their Launchpad owns until it ends, the
-   CLI builds nothing: the Launchpad's watcher builds and swaps what the content brought.
+   (an explicit `lazurio module build` is), unless its pinned Bun could not be fetched,
+   which may pass by itself (decision F62 point 7, as the builder does). Beside a
+   session's apps (a computer's Launchpad on macOS), whose dependency trees their
+   Launchpad owns until it ends, the CLI builds nothing: the Launchpad's watcher builds
+   and swaps what the content brought.
 5. **The Launchpad runs the same composition as a job** for Aktualizovat
    (`POST`/`GET /api/update/everything`, behind the admission of every route; a click
    while one runs joins it), with Lazurio last through the pill's own action, whose unit
