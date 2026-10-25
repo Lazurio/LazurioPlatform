@@ -17623,7 +17623,12 @@ build` / `vite build` writes. Measured on the reference Environment: an Astro mo
    gitignored, which the framework's own build empties too) is removed, and afterwards
    it must be there as a directory created after the build started
    (`build-output-missing` otherwise); so a script that succeeds without writing it, or
-   writes only part of it, never presents an earlier build as this key's. Its output
+   writes only part of it, never presents an earlier build as this key's. The way to
+   the output stays inside the package: when an existing directory on it is a link (a
+   symlink, or a junction on Windows) or resolves outside the package, nothing is
+   removed, built or copied, the build fails as `build-output-unservable` and its log
+   names the link; the same check runs again after the script, before the output is
+   examined or copied (#643). Its output
    must then answer the
    declared health path through the static server's own resolution (`--check`), the
    checkouts are read again (a pull meanwhile builds the new commit instead, at most

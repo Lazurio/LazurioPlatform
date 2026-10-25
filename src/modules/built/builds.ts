@@ -1,4 +1,4 @@
-import { lstat, mkdir, rm } from "node:fs/promises";
+import { appendFile, lstat, mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { acquireFileLock, FileLockError } from "../../platform/flock";
 import { type ModuleBun, runtimeMayPass, withModuleBun } from "../bun-runtime";
@@ -10,6 +10,7 @@ import {
   runBuildProcess,
 } from "./build-process";
 import type { CheckoutHead } from "./checkout";
+import { outputOutsidePackage, outsidePackageLog } from "./output-boundary";
 import type { StaticFallback } from "./static-server";
 import {
   type BuildInput,
@@ -251,7 +252,11 @@ export function createBuilds(input: {
           });
           return Object.freeze({ kind: "failed" as const, reason, key });
         };
-        if (output !== null && context.script !== null) {
+        if (
+          output !== null &&
+          context.script !== null &&
+          context.output !== null
+        ) {
           const prepared = await job.prepare();
           if (closing) {
             await record(store, state, { building: null });
@@ -272,6 +277,22 @@ export function createBuilds(input: {
             return Object.freeze({ kind: "closing" as const });
           }
           await store.prepareLogs();
+          // The output and the way to it stay inside the app's package, or
+          // the build removes, builds and installs nothing (#643): through a
+          // linked directory on the way, the removal below would delete files
+          // outside the checkout.
+          const before = await outputOutsidePackage(
+            context.cwd,
+            context.output,
+          );
+          if (before !== null) {
+            await writeFile(
+              store.logFile(key),
+              outsidePackageLog(context.output, before),
+              { mode: 0o600 },
+            );
+            return failed("build-output-unservable");
+          }
           // Fail closed on a stale output: the app's output directory (in
           // its package, gitignored, which the framework's own build empties
           // too) is removed first, so whatever is there afterwards was
@@ -298,6 +319,16 @@ export function createBuilds(input: {
           if (ran.kind === "timed-out") return failed("build-timed-out");
           if (ran.kind !== "exited" || ran.code !== 0)
             return failed("build-script-failed");
+          // The script may have linked a directory on the way out of the
+          // package: then nothing of its output is examined or installed.
+          const after = await outputOutsidePackage(context.cwd, context.output);
+          if (after !== null) {
+            await appendFile(
+              store.logFile(key),
+              outsidePackageLog(context.output, after),
+            );
+            return failed("build-output-unservable");
+          }
           // Written by this run: there, a real directory, created after it
           // started (a second of slack for coarse file system clocks).
           const entry = await lstat(output).catch(() => null);
