@@ -19,6 +19,8 @@ import {
 } from "../browser/view";
 import { type CdpCall, cdpSeams, ensureThreadWindow } from "../browser/window";
 import { createHermesGateway } from "../buddy/hermes-gateway";
+import { buddyPersona as applyBuddyPersona } from "../buddy/persona-apply";
+import { createPersonaSave } from "../buddy/persona-save";
 import { createBuddySignIn } from "../buddy/sign-in";
 import { readBuddyFacts } from "../buddy/status";
 import { createPersonalspaceHolder } from "../content/holder";
@@ -1103,6 +1105,20 @@ export async function startLaunchpad(
   // operation, the outcome and the reason, never a code, a handle, a ticket
   // or Hermes's session.
   const buddyGateway = createHermesGateway({ home: toolsEnvironment.home });
+  // His persona (decision F65): read and changed from Začínáme and
+  // Nastavení → Buddy over F64's core, the change applied as `lazurio buddy
+  // persona --apply` applies it, and finished here once he is idle. Its
+  // journal never names a name, a value or a revision.
+  const buddyPersona = createPersonaSave({
+    home: toolsEnvironment.home,
+    apply: () =>
+      applyBuddyPersona(
+        { tools: toolsEnvironment, env: process.env },
+        { folder, apply: true },
+      ),
+    journal: (line) =>
+      console.log(JSON.stringify({ scope: "buddy-persona", ...line })),
+  });
   const buddy = createBuddyRoutes({
     present: () => entry?.buddyOrigin !== undefined,
     signIn: createBuddySignIn({
@@ -1111,6 +1127,7 @@ export async function startLaunchpad(
         console.log(JSON.stringify({ scope: "buddy-sign-in", ...line })),
     }),
     facts: () => readBuddyFacts(buddyGateway),
+    persona: buddyPersona,
     locale: async () =>
       (await withFolderReadLock(state, () => readFolderState(state)))
         .preferences.profile.locale,
@@ -2763,6 +2780,7 @@ export async function startLaunchpad(
       closing = true;
       clearInterval(audienceTimer);
       catalog.close();
+      buddyPersona.close();
       if (!closePending)
         closePending = (async () => {
           // Close admission immediately, before waiting for HTTP requests to drain.

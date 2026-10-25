@@ -1,7 +1,10 @@
 import { expect, spyOn, test } from "bun:test";
-import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { promptRefreshOwed } from "../src/buddy/gateway-refresh";
+import { personaPath, soulPath, writePersona } from "../src/buddy/persona";
 import {
   initializeFolder,
   initializeHandoverFolder,
@@ -160,6 +163,8 @@ posix(
           state: "waits",
           signIn: { state: "none" },
           locale: "cs",
+          // No persona here (F65): the page offers an empty introduction.
+          persona: null,
         },
       });
       app.fake.state.signedIn = true;
@@ -168,6 +173,7 @@ posix(
         state: "works",
         signIn: { state: "connected" },
         locale: "cs",
+        persona: null,
       });
       // Nothing of Hermes's card beyond whether he is signed in.
       const read = JSON.stringify((await app.get(buddyRoutePaths.read)).body);
@@ -180,6 +186,7 @@ posix(
         reason: "not-running",
         signIn: { state: "unknown" },
         locale: "cs",
+        persona: null,
       });
     } finally {
       await app.close();
@@ -390,6 +397,7 @@ posix(
         state: "works",
         signIn: { state: "connected" },
         locale: "cs",
+        persona: null,
       });
       expect(await app.post(buddyRoutePaths.signOut)).toEqual({
         status: 200,
@@ -428,6 +436,12 @@ posix(
         [buddyRoutePaths.poll]: { session: handle },
         [buddyRoutePaths.cancel]: { session: handle },
         [buddyRoutePaths.signOut]: {},
+        [buddyRoutePaths.persona]: {
+          buddyName: "Rex",
+          address: "ty",
+          user: { nominative: "Ada", accusative: "Adu", dative: "Adě" },
+          revision: null,
+        },
       };
       const { origin: _origin, ...withoutOrigin } = app.sameOrigin;
       const { "sec-fetch-site": _site, ...withoutSite } = app.sameOrigin;
@@ -557,6 +571,7 @@ posix(
           buddyRoutePaths.poll,
           buddyRoutePaths.cancel,
           buddyRoutePaths.signOut,
+          buddyRoutePaths.persona,
         ])
           expect(await app.post(path, { session: "a".repeat(32) })).toEqual({
             status: 404,
@@ -625,6 +640,188 @@ posix(
       await app.close();
       await fake.close();
       await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+// ---- His persona (decision F65) --------------------------------------------
+
+/** Ada's persona, as the installer leaves it. */
+const persona = {
+  buddyName: "Rex",
+  address: "ty",
+  user: { nominative: "Ada", accusative: "Adu", dative: "Adě" },
+} as const;
+
+const fileRevision = async (path: string) =>
+  createHash("sha256")
+    .update(await readFile(path))
+    .digest("hex");
+
+async function withPersona(home: string) {
+  await mkdir(dirname(personaPath(home)), { recursive: true, mode: 0o700 });
+  expect((await writePersona(home, persona, null)).kind).toBe("written");
+  return fileRevision(personaPath(home));
+}
+
+posix(
+  "POST /api/buddy/persona: the change written over the revision the page read and confirmed, then applied; GET /api/buddy shows it; the journal names no name, value or revision",
+  async () => {
+    const lines = journal();
+    const app = await hosted();
+    try {
+      const revision = await withPersona(app.fake.userHome);
+      expect((await app.get(buddyRoutePaths.read)).body.persona).toEqual({
+        ...persona,
+        confirmed: false,
+        revision,
+        pending: false,
+      });
+      const saved = await app.post(buddyRoutePaths.persona, {
+        buddyName: "Mattyčus",
+        address: "vy",
+        user: { nominative: "Ada", accusative: "Adu", dative: "Adě" },
+        confirm: true,
+        revision,
+      });
+      const written = await fileRevision(personaPath(app.fake.userHome));
+      const shown = {
+        buddyName: "Mattyčus",
+        address: "vy",
+        user: { nominative: "Ada", accusative: "Adu", dative: "Adě" },
+        confirmed: true,
+        revision: written,
+        // Hermes is not installed here, so his stored prompts could not be
+        // cleared yet: the change stays on its way and is retried.
+        pending: true,
+      };
+      expect(saved).toEqual({
+        status: 200,
+        body: {
+          kind: "persona",
+          outcome: "written",
+          persona: shown,
+          applied: {
+            state: "failed",
+            reason: "prompts-incomplete",
+            restart: "unavailable",
+          },
+        },
+      });
+      // F64's apply derived his SOUL.md from it, and owes the refresh.
+      expect(await readFile(soulPath(app.fake.userHome), "utf8")).toContain(
+        "Mattyčus",
+      );
+      expect(await promptRefreshOwed(app.fake.userHome)).toBe(true);
+      expect((await app.get(buddyRoutePaths.read)).body.persona).toEqual(shown);
+      const personaLines = lines.lines
+        .filter((line) => line.includes('"buddy-persona"'))
+        .map((line) => JSON.parse(line) as Json);
+      expect(personaLines).toEqual([
+        {
+          scope: "buddy-persona",
+          operation: "apply",
+          outcome: "failed",
+          reason: "prompts-incomplete",
+        },
+        {
+          scope: "buddy-persona",
+          operation: "save",
+          outcome: "written",
+          applied: "failed",
+        },
+      ]);
+      const everything = lines.lines.join("\n");
+      for (const secret of [
+        "Mattyčus",
+        "Rex",
+        "Ada",
+        "Adu",
+        "Adě",
+        revision,
+        written,
+      ])
+        expect(everything).not.toContain(secret);
+    } finally {
+      lines.restore();
+      await app.close();
+    }
+  },
+);
+
+posix(
+  "a change over another revision is 409 persona-changed with the persona as it is now; a member the installer refuses is 400 invalid-<member>; exact fields; nothing written",
+  async () => {
+    const app = await hosted();
+    try {
+      const revision = await withPersona(app.fake.userHome);
+      const before = await readFile(personaPath(app.fake.userHome), "utf8");
+      const change = (overrides: Record<string, unknown>) => ({
+        ...persona,
+        user: { ...persona.user },
+        revision,
+        ...overrides,
+      });
+      expect(
+        await app.post(
+          buddyRoutePaths.persona,
+          change({ buddyName: "Bob", revision: "0".repeat(64) }),
+        ),
+      ).toEqual({
+        status: 409,
+        body: {
+          kind: "blocked",
+          reason: "persona-changed",
+          current: { ...persona, confirmed: false, revision, pending: false },
+        },
+      });
+      // A page that read no persona where there is one.
+      expect(
+        (await app.post(buddyRoutePaths.persona, change({ revision: null })))
+          .status,
+      ).toBe(409);
+      const refusals: [Record<string, unknown>, string][] = [
+        [{ buddyName: "" }, "invalid-buddy-name"],
+        [{ buddyName: "Rex<script>" }, "invalid-buddy-name"],
+        [{ buddyName: 7 }, "invalid-buddy-name"],
+        [{ address: "oni" }, "invalid-address"],
+        [{ address: null }, "invalid-address"],
+        [
+          { user: { ...persona.user, nominative: "" } },
+          "invalid-user-nominative",
+        ],
+        [
+          { user: { ...persona.user, accusative: "A{d}u" } },
+          "invalid-user-accusative",
+        ],
+        [{ user: { ...persona.user, dative: 3 } }, "invalid-user-dative"],
+        [{ user: "Ada" }, "invalid-user"],
+        [{ user: { nominative: "Ada" } }, "invalid-user"],
+        [{ revision: "abc" }, "invalid-revision"],
+        [{ revision: "A".repeat(64) }, "invalid-revision"],
+        [{ confirm: "yes" }, "invalid-confirm"],
+      ];
+      for (const [overrides, error] of refusals)
+        expect({
+          overrides,
+          answer: await app.post(buddyRoutePaths.persona, change(overrides)),
+        }).toEqual({ overrides, answer: { status: 400, body: { error } } });
+      // Exactly its fields: none missing, none more.
+      const { revision: _revision, ...withoutRevision } = change({});
+      for (const body of [withoutRevision, change({ tone: "Mluv krátce." })])
+        expect(await app.post(buddyRoutePaths.persona, body)).toEqual({
+          status: 400,
+          body: { error: "invalid-request" },
+        });
+      expect(await readFile(personaPath(app.fake.userHome), "utf8")).toBe(
+        before,
+      );
+      // A read only: GET on the change is 405.
+      const read = await app.send(buddyRoutePaths.persona, {});
+      expect(read.status).toBe(405);
+      await read.body?.cancel();
+    } finally {
+      await app.close();
     }
   },
 );
