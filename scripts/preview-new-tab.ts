@@ -473,7 +473,7 @@ const updates = createUpdateJobs({
           };
         },
         tools: {
-          pins: async () => ["bun@1.4.3"],
+          pins: async () => ({ pins: ["bun@1.4.3"], unreadable: 0 }),
           resolve: async () => {
             await Bun.sleep(2_000);
             return {
