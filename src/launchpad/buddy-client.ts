@@ -19,6 +19,16 @@ import {
 // all again. While a change of the persona is still on its way to him the
 // reading is asked again every ten seconds, while the page is shown, so the
 // line that says so goes once it is in place.
+//
+// An answer never takes back what the page already knows (Pablo's review of
+// #637). What the page learns from its own operations, a persona its save
+// wrote, the persona a 409 says is there now, a sign-in that finished, one
+// the Launchpad holds no more, a sign-out Hermes confirmed, moves one epoch;
+// a reading begun before that may have been served before it, so its answer
+// is dropped and the reading asked again, at most three times. A save's
+// answer is installed only when no later save's answer was. A counter, not
+// the revision: revisions have no order (each is a sha256), and the sign-in
+// has none at all.
 
 export type BuddyTransport = Readonly<{
   get: (path: string) => Promise<Readonly<{ ok: boolean; value: unknown }>>;
@@ -40,6 +50,8 @@ const pageTimers: BuddyTimers = {
 
 /** How often a pending change of the persona is read again. */
 export const buddyPendingReadMs = 10_000;
+/** How many times a reading overtaken by newer knowledge is asked in all. */
+export const buddyReadAttempts = 3;
 /** A code past its time by this much is no longer asked about. */
 const lateMs = 60_000;
 
@@ -75,6 +87,15 @@ export function createBuddyClient(
   let rereadTimer: unknown;
   let expiryTimer: unknown;
   let reading$: Promise<void> | null = null;
+  // What the page learned since a reading began (see the head of the file).
+  let epoch = 0;
+  // The saves started, and the latest whose answer was installed.
+  let saves = 0;
+  let installedSave = 0;
+  /** The page learned something no reading begun before may take back. */
+  const learned = () => {
+    epoch += 1;
+  };
 
   const set = (next: BuddySignInState) => {
     signIn = next;
@@ -101,32 +122,45 @@ export function createBuddyClient(
   }
 
   async function readOnce(): Promise<void> {
-    let answer: Readonly<{ ok: boolean; value: unknown }> | undefined;
-    try {
-      answer = await options.transport.get(buddyRoutePaths.read);
-    } catch {
-      answer = undefined;
-    }
-    if (
-      answer !== undefined &&
-      !answer.ok &&
-      isRecord(answer.value) &&
-      answer.value.error === "buddy-absent"
-    ) {
-      absent = true;
-      reading = null;
+    for (let attempt = 1; attempt <= buddyReadAttempts; attempt += 1) {
+      const begun = epoch;
+      let answer: Readonly<{ ok: boolean; value: unknown }> | undefined;
+      try {
+        answer = await options.transport.get(buddyRoutePaths.read);
+      } catch {
+        answer = undefined;
+      }
+      // Overtaken: the page learned something after this reading began, and
+      // its answer may predate it. Asked again.
+      if (begun !== epoch) continue;
+      if (
+        answer !== undefined &&
+        !answer.ok &&
+        isRecord(answer.value) &&
+        answer.value.error === "buddy-absent"
+      ) {
+        absent = true;
+        reading = null;
+        options.changed();
+        return;
+      }
+      const parsed =
+        answer?.ok === true ? parseBuddyReading(answer.value) : null;
+      // A failed read keeps what was read before; a first one claims nothing.
+      if (parsed !== null) {
+        reading = parsed;
+        absent = false;
+      } else if (reading === null) reading = unknownBuddyReading;
+      // Once the reading says he is signed in, "Připojeno" is its.
+      if (signIn.kind === "signed-in" && reading.signIn === "connected")
+        set(idleBuddySignIn);
+      follow();
       options.changed();
       return;
     }
-    const parsed = answer?.ok === true ? parseBuddyReading(answer.value) : null;
-    // A failed read keeps what was read before; a first one claims nothing.
-    if (parsed !== null) {
-      reading = parsed;
-      absent = false;
-    } else if (reading === null) reading = unknownBuddyReading;
-    // Once the reading says he is signed in, "Připojeno" is its.
-    if (signIn.kind === "signed-in" && reading.signIn !== "unknown")
-      set(idleBuddySignIn);
+    // Overtaken every time: what the page knows stays, and claims nothing
+    // where it knows nothing yet.
+    if (reading === null) reading = unknownBuddyReading;
     follow();
     options.changed();
   }
@@ -159,6 +193,7 @@ export function createBuddyClient(
     if (mine !== turn || signIn.kind !== "pending") return;
     if (step?.kind === "signed-in") {
       set({ kind: "signed-in" });
+      learned();
       options.changed();
       void read();
       return;
@@ -172,6 +207,7 @@ export function createBuddyClient(
       // The Launchpad holds it no more (it restarted): the reading says
       // whether the person finished it meanwhile.
       set(idleBuddySignIn);
+      learned();
       options.changed();
       void read();
       return;
@@ -253,7 +289,11 @@ export function createBuddyClient(
       timers.cancel(pollTimer);
       const value = await ask(buddyRoutePaths.signOut, {});
       const done = isRecord(value) && value.kind === "signed-out";
-      if (mine === turn && done) set(idleBuddySignIn);
+      if (done) {
+        // A reading begun before the sign-out still says he is signed in.
+        learned();
+        if (mine === turn) set(idleBuddySignIn);
+      }
       await read();
       return done;
     },
@@ -265,6 +305,17 @@ export function createBuddyClient(
       locale: "cs" | "en",
     ): Promise<PersonaSaveResult> {
       const revision = reading?.persona?.revision ?? null;
+      const mine = ++saves;
+      /** The persona an answer says is there, unless a later save's answer
+       * was installed already. */
+      const install = (persona: BuddyReading["persona"]) => {
+        if (mine < installedSave) return;
+        installedSave = mine;
+        learned();
+        reading = { ...(reading ?? unknownBuddyReading), persona };
+        follow();
+        options.changed();
+      };
       let answer: Readonly<{ ok: boolean; value: unknown }>;
       try {
         answer = await options.transport.post(
@@ -279,9 +330,7 @@ export function createBuddyClient(
       if (answer.ok && value.kind === "persona") {
         const persona = parsePersona(value.persona);
         if (persona === null) return { kind: "failed" };
-        reading = { ...(reading ?? unknownBuddyReading), persona };
-        follow();
-        options.changed();
+        install(persona);
         return { kind: "saved", pending: persona.pending };
       }
       if (typeof value.error === "string") {
@@ -293,11 +342,7 @@ export function createBuddyClient(
       }
       if (value.kind === "blocked" && value.reason === "persona-changed") {
         // What is there now, for the page to show and to change again.
-        reading = {
-          ...(reading ?? unknownBuddyReading),
-          persona: parsePersona(value.current),
-        };
-        options.changed();
+        install(parsePersona(value.current));
         return { kind: "changed" };
       }
       return { kind: "failed" };

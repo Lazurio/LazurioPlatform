@@ -4,6 +4,7 @@ import {
   type BuddyTimers,
   type BuddyTransport,
   buddyPendingReadMs,
+  buddyReadAttempts,
   createBuddyClient,
 } from "../src/launchpad/buddy-client";
 import { buddyRoutePaths } from "../src/launchpad/buddy-paths";
@@ -400,5 +401,287 @@ test("a change of the persona: the revision read and the confirmation sent; save
   expect(fake.sent.at(-1)?.body).toMatchObject({
     user: { nominative: "Bob", accusative: "Bob", dative: "Bob" },
     revision: "e".repeat(64),
+  });
+});
+
+// ---- An answer never takes back what the page knows (Pablo's review) -----
+
+const tick = () => new Promise((resolve) => setTimeout(resolve, 1));
+const revA = "a".repeat(64);
+const revB = "b".repeat(64);
+const revC = "f".repeat(64);
+const readingOf = (
+  revision: string,
+  overrides: Record<string, unknown> = {},
+) => ({
+  ok: true,
+  value: answer({ persona: persona({ revision }), ...overrides }),
+});
+const savedAs = (revision: string, buddyName = "Rex") => ({
+  ok: true,
+  value: {
+    kind: "persona",
+    outcome: "written",
+    persona: persona({ buddyName, revision, confirmed: true }),
+    applied: { state: "applied" },
+  },
+});
+
+/** Routes whose GETs answer only when the test releases them, in order;
+ * POSTs answer what the test lined up, or wait for it (`hold`). */
+function heldRoutes() {
+  const gets: ((reply: Reply) => void)[] = [];
+  const posts = new Map<string, Reply[]>();
+  const held: ((reply: Reply) => void)[] = [];
+  const sent: { path: string; body: unknown }[] = [];
+  let holding = false;
+  const transport: BuddyTransport = {
+    get: () =>
+      new Promise((resolve) => {
+        gets.push(resolve);
+      }),
+    post: (path, body) => {
+      sent.push({ path, body });
+      if (holding)
+        return new Promise((resolve) => {
+          held.push(resolve);
+        });
+      const reply = posts.get(path)?.shift();
+      if (reply === undefined) throw new Error(`no reply for ${path}`);
+      return Promise.resolve(reply);
+    },
+  };
+  return {
+    transport,
+    sent,
+    asked: () => gets.length,
+    reply(path: string, ...replies: Reply[]) {
+      posts.set(path, [...replies]);
+    },
+    hold(on: boolean) {
+      holding = on;
+    },
+    /** The GET asked `index`-th answers now. */
+    async release(index: number, reply: Reply) {
+      const resolve = gets[index];
+      if (resolve === undefined) throw new Error(`no GET ${index}`);
+      resolve(reply);
+      await tick();
+    },
+    async answerHeld(index: number, reply: Reply) {
+      held[index]?.(reply);
+      await tick();
+    },
+  };
+}
+
+function heldClient() {
+  const routes = heldRoutes();
+  const clock = timers();
+  const buddy = createBuddyClient({
+    transport: routes.transport,
+    changed: () => undefined,
+    timers: clock.hand,
+    now: () => at,
+    visible: () => true,
+  });
+  return { buddy, routes };
+}
+
+test("a reading begun before a save answered is dropped and asked again: the saved persona stays, and the next save names its revision", async () => {
+  const { buddy, routes } = heldClient();
+  const first = buddy.read();
+  await routes.release(0, readingOf(revA));
+  await first;
+  // A reading under way (the pending re-read, a move to the page)...
+  const overtaken = buddy.read();
+  // ...while the person saves; the server answers revision B.
+  routes.reply(buddyRoutePaths.persona, savedAs(revB));
+  const draft = {
+    ...draftOf(buddy.reading()?.persona ?? null),
+    buddyName: "Rex",
+  };
+  expect(await buddy.savePersona(draft, true, "cs")).toEqual({
+    kind: "saved",
+    pending: false,
+  });
+  expect(buddy.reading()?.persona?.revision).toBe(revB);
+  // The earlier reading answers with A, served before the write.
+  await routes.release(1, readingOf(revA));
+  expect(buddy.reading()?.persona?.revision).toBe(revB);
+  expect(buddy.reading()?.persona?.buddyName).toBe("Rex");
+  // It was asked again, and that answer is the server's of now.
+  expect(routes.asked()).toBe(3);
+  await routes.release(
+    2,
+    readingOf(revB, {
+      persona: persona({ revision: revB, buddyName: "Rex", confirmed: true }),
+    }),
+  );
+  await overtaken;
+  expect(buddy.reading()?.persona).toMatchObject({
+    revision: revB,
+    buddyName: "Rex",
+    confirmed: true,
+  });
+  // The next save names B, not A: no avoidable 409.
+  routes.reply(buddyRoutePaths.persona, savedAs(revC, "Max"));
+  await buddy.savePersona({ ...draft, buddyName: "Max" }, false, "cs");
+  expect(routes.sent.at(-1)?.body).toMatchObject({ revision: revB });
+});
+
+test("a reading begun before a 409 installed the persona there now is dropped too", async () => {
+  const { buddy, routes } = heldClient();
+  const first = buddy.read();
+  await routes.release(0, readingOf(revA));
+  await first;
+  const overtaken = buddy.read();
+  routes.reply(buddyRoutePaths.persona, {
+    ok: false,
+    value: {
+      kind: "blocked",
+      reason: "persona-changed",
+      current: persona({ buddyName: "Max", revision: revC }),
+    },
+  });
+  const draft = draftOf(buddy.reading()?.persona ?? null);
+  expect(await buddy.savePersona(draft, false, "cs")).toEqual({
+    kind: "changed",
+  });
+  expect(buddy.reading()?.persona?.revision).toBe(revC);
+  await routes.release(1, readingOf(revA));
+  expect(buddy.reading()?.persona).toMatchObject({
+    revision: revC,
+    buddyName: "Max",
+  });
+  await routes.release(
+    2,
+    readingOf(revC, { persona: persona({ buddyName: "Max", revision: revC }) }),
+  );
+  await overtaken;
+  expect(buddy.reading()?.persona?.revision).toBe(revC);
+  routes.reply(buddyRoutePaths.persona, savedAs(revB));
+  await buddy.savePersona(draft, false, "cs");
+  expect(routes.sent.at(-1)?.body).toMatchObject({ revision: revC });
+});
+
+test("a reading begun before a sign-out Hermes confirmed does not bring the sign-in back; the sign-out waits for the fresh one", async () => {
+  const { buddy, routes } = heldClient();
+  const signedIn = readingOf(revA, {
+    state: "works",
+    signIn: { state: "connected" },
+  });
+  const first = buddy.read();
+  await routes.release(0, signedIn);
+  await first;
+  expect(buddy.reading()?.signIn).toBe("connected");
+  const overtaken = buddy.read();
+  routes.reply(buddyRoutePaths.signOut, {
+    ok: true,
+    value: { kind: "signed-out" },
+  });
+  let out: boolean | undefined;
+  const signingOut = buddy.signOut().then((done) => {
+    out = done;
+  });
+  await tick();
+  // The earlier reading answers: still signed in, as before the sign-out.
+  await routes.release(1, signedIn);
+  expect(buddy.reading()?.signIn).toBe("connected");
+  expect(out).toBeUndefined();
+  await routes.release(2, readingOf(revA));
+  await Promise.all([overtaken, signingOut]);
+  expect(out).toBe(true);
+  expect(buddy.reading()?.signIn).toBe("none");
+});
+
+test("a reading begun before a sign-in finished does not take back Připojeno", async () => {
+  const { buddy, routes } = heldClient();
+  const first = buddy.read();
+  await routes.release(0, readingOf(revA));
+  await first;
+  routes.reply(buddyRoutePaths.start, { ok: true, value: pending() });
+  routes.reply(buddyRoutePaths.poll, {
+    ok: true,
+    value: { kind: "signed-in" },
+  });
+  const clock = timers();
+  const own = createBuddyClient({
+    transport: routes.transport,
+    changed: () => undefined,
+    timers: clock.hand,
+    now: () => at,
+    visible: () => true,
+  });
+  // A client of its own, so the poll's timer is in the test's hand.
+  const ownFirst = own.read();
+  await routes.release(1, readingOf(revA));
+  await ownFirst;
+  await own.start();
+  const overtaken = own.read();
+  await clock.run(2000);
+  expect(own.signIn()).toEqual({ kind: "signed-in" });
+  // The reading begun before it answers: not signed in.
+  await routes.release(2, readingOf(revA));
+  expect(own.signIn()).toEqual({ kind: "signed-in" });
+  expect(own.reading()?.signIn).toBe("none");
+  await routes.release(
+    3,
+    readingOf(revA, { state: "works", signIn: { state: "connected" } }),
+  );
+  await overtaken;
+  expect(own.reading()?.signIn).toBe("connected");
+  expect(own.signIn()).toEqual({ kind: "idle" });
+  // The first client was never asked to sign in.
+  expect(buddy.signIn()).toEqual({ kind: "idle" });
+});
+
+test("an older save's answer that arrives after a newer one's is not installed", async () => {
+  const { buddy, routes } = heldClient();
+  const first = buddy.read();
+  await routes.release(0, readingOf(revA));
+  await first;
+  routes.hold(true);
+  const draft = draftOf(buddy.reading()?.persona ?? null);
+  const older = buddy.savePersona({ ...draft, buddyName: "Rex" }, false, "cs");
+  const newer = buddy.savePersona({ ...draft, buddyName: "Max" }, false, "cs");
+  await tick();
+  await routes.answerHeld(1, savedAs(revC, "Max"));
+  await routes.answerHeld(0, savedAs(revB, "Rex"));
+  await Promise.all([older, newer]);
+  expect(buddy.reading()?.persona).toMatchObject({
+    revision: revC,
+    buddyName: "Max",
+  });
+});
+
+test("a reading overtaken every time stops after its tries and keeps what the page knows", async () => {
+  const { buddy, routes } = heldClient();
+  const first = buddy.read();
+  await routes.release(0, readingOf(revA));
+  await first;
+  const overtaken = buddy.read();
+  const names = ["Rex", "Max", "Ben"];
+  const revisions = ["1", "2", "3"].map((digit) => digit.repeat(64));
+  for (let attempt = 0; attempt < buddyReadAttempts; attempt += 1) {
+    routes.reply(
+      buddyRoutePaths.persona,
+      savedAs(revisions[attempt] ?? revA, names[attempt]),
+    );
+    await buddy.savePersona(
+      {
+        ...draftOf(buddy.reading()?.persona ?? null),
+        buddyName: names[attempt] ?? "",
+      },
+      false,
+      "cs",
+    );
+    await routes.release(attempt + 1, readingOf(revA));
+  }
+  await overtaken;
+  expect(routes.asked()).toBe(1 + buddyReadAttempts);
+  expect(buddy.reading()?.persona).toMatchObject({
+    revision: revisions[2],
+    buddyName: "Ben",
   });
 });
