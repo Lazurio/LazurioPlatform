@@ -19425,7 +19425,9 @@ state, F64 the persona's one deriver; nothing a person sees showed either.
    Buddy. Stav: his name and Pracuje, Čeká na přihlášení or Buddy teď neběží; his sign-in
    with ⋯ → Přihlásit znovu and Odhlásit (behind a confirm) once he is signed in, Přihlásit
    before, Zrušit and Pokračovat while a code waits. Jméno a oslovení: his name, Vyká vám /
-   Tyká vám, the person's name with Opravit, and Uložit. No model, no reason code.
+   Tyká vám, the person's name with Opravit, and Uložit. No model, no reason code, and no
+   sentence under its title (F56's addendum (6)): without Buddy it says only that there is
+   nothing to set up, and with him its head takes no room.
 6. **The persona's route.** `POST /api/buddy/persona {buddyName, address, user:
    {nominative, accusative, dative}, revision, confirm?}` behind F63's admission (404
    without Buddy, the hosted same-origin rule for a POST, 413, 415, 405, no query). The
