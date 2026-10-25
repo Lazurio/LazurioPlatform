@@ -965,3 +965,29 @@ posix(
     }
   },
 );
+
+// A notice that brings nothing new (Lazurio/LazurioPlatform#612 point 3): on
+// Ring 0 on 2026-10-25 Buddy told Bob a bot's result himself and then again
+// when Delegace's notice came. Hermes delivers nothing for the marker on
+// Telegram and, from Lazurio/hermes-agent 0.22.4-lazurio.2, in his chat in
+// Lazurio; the rule sits among the notices' rules, before how he talks to
+// the user, and only in his own rules.
+test(".hermes.md says Buddy answers exactly NO_REPLY to a notice that brings nothing new, in both locales, and only there", () => {
+  const rule = {
+    cs: "- Když ti upozornění neřekne nic, co by uživatel ještě nevěděl (výsledek jsi mu už řekl, nebo je delegace v `delegace seznam` vyřízená), odpovíš přesně `NO_REPLY` a nic jiného. Uživatel pak v chatu ani v Telegramu nic nedostane.",
+    en: "- When a notice tells you nothing the user does not know yet (you have already told them the result, or `delegace seznam` shows the delegation done), you answer exactly `NO_REPLY` and nothing else. The user then gets nothing, in the chat or in Telegram.",
+  };
+  for (const locale of locales) {
+    const layer = scriptLayer(locale);
+    const rules = layer[buddyRulesPath];
+    expect(rules).toContain(rule[locale]);
+    expect(rules.split("`NO_REPLY`").length - 1).toBe(1);
+    const talk =
+      locale === "cs"
+        ? "\n## Jak mluvíš s uživatelem\n"
+        : "\n## How you talk to the user\n";
+    expect(rules.indexOf(rule[locale])).toBeLessThan(rules.indexOf(talk));
+    for (const [path, text] of Object.entries(layer))
+      if (path !== buddyRulesPath) expect(text).not.toContain("NO_REPLY");
+  }
+});
