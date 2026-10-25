@@ -19,14 +19,15 @@ the record. Which Machine is which is kept only in the pilot Organization's own 
 
 The final ships the candidate that passed the canary, nothing more.
 
-Two pull requests reached `main` after the candidate was cut, during the merge freeze between the
-candidate and the final:
+Pull requests reached `main` after the candidate was cut, during the merge freeze between the
+candidate and the final. By the time this record was approved they were:
 - #619 (`fda0a82f`): the request that the person does something goes through the question tool;
   template revision base-instructions-74.
 - #623 (`9781aeda`): Buddy's wording; base-instructions-75.
+- #633 (`f94594e1`): Launchpad texts.
 
-Both are reviewed and approved Folder and Buddy texts, but they were not in the canary. They go
-into v0.1.12.
+All were reviewed and approved, but none was in the canary. They and anything merged after them
+go into v0.1.12.
 
 `release.yml` requires two things of a final tag:
 - **Provenance:** the canary record's pull request is merged into the default branch, and its
@@ -45,7 +46,7 @@ this record and this file, so the same source holds.
 
 The release cycle allows a final at "a commit that differs from [the candidate] only under
 `qualification/` and `docs/evidence/`" (release cycle, point 3), and nothing requires that commit
-to be on `main`. `main` keeps #619 and #623 for v0.1.12.
+to be on `main`. `main` keeps them for v0.1.12.
 
 ## Qualification
 
