@@ -22,10 +22,19 @@ import { buddyBubbleCss, buddyLauncherClearance } from "./buddy-styles";
  * is, for a page whose controls reach it. */
 export const buddyClearanceProperty = "--lazurio-buddy-clearance";
 
+/** Whether the launcher is on the page: drawn, and its element not hidden
+ * by the host (the standard `hidden`, interface v1), which the element's
+ * styles honour with `display: none`. */
+export const launcherOnPage = (
+  model: BuddyBubbleModel | null,
+  host: Readonly<{ hidden: boolean | string }>,
+): boolean => model !== null && !host.hidden;
+
 /** Keeps `--lazurio-buddy-clearance` on the document while the launcher is
- * drawn, as the rail keeps `--lazurio-rail-width`: written when the launcher
- * appears and removed when it goes, never in between, since the bubble
- * watches the document's style for the colour scheme. */
+ * on the page, as the rail keeps `--lazurio-rail-width`: written when the
+ * launcher appears and removed when it goes (its bubble gone, or its element
+ * hidden), never in between, since the bubble watches the document's style
+ * for the colour scheme. */
 export function launcherClearance(
   style: Pick<CSSStyleDeclaration, "setProperty" | "removeProperty">,
 ): (drawn: boolean) => void {
@@ -135,7 +144,7 @@ export function createBuddyBubbleView(
 
   return Object.freeze({
     draw(model: BuddyBubbleModel | null): void {
-      clearance(model !== null);
+      clearance(launcherOnPage(model, host));
       if (model === null) {
         parts?.bubble.remove();
         parts = null;

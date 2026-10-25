@@ -18647,7 +18647,9 @@ the 58 px disc.
   value, `calc(58px + var(--lazurio-buddy-right, 22px) + env(safe-area-inset-right, 0px))`, is
   the width the launcher takes from the window's right edge.
   - The view writes it when the launcher appears and removes it when the launcher goes, never in
-    between: the bubble watches the document's style for the colour scheme.
+    between: the bubble watches the document's style for the colour scheme. The launcher goes
+    when the bubble goes or when the host hides `<lazurio-buddy>` with the standard `hidden`,
+    which the element now observes; removing `hidden` brings the clearance back.
   - A page whose own controls reach that corner keeps them out of it, for example a composer as
     wide as its column with `padding-right: var(--lazurio-buddy-clearance, 0px)`. A page without
     such controls, or without Buddy, keeps its full width.
@@ -18684,7 +18686,8 @@ wherever their composers reach the window's edge, which point 4 measured for T3 
 
 **Verified by:**
 - `tests/shell-buddy.test.ts`: one place, the figure's size, and the clearance written once when
-  the launcher appears and removed once when it goes.
+  the launcher appears and removed once when it goes, including the host's `hidden` (hidden, then
+  shown again).
 - `tests/shell-interface.test.ts`: interface v1 with the new property.
 - `tests/shell-new-tab.test.ts`: not a colour role.
 - Headless Chrome against the personal preview with Buddy, whose origin served T3 Code's
@@ -18695,7 +18698,9 @@ wherever their composers reach the window's edge, which point 4 measured for T3 
   - Buddy's figure was 40 × 44 px and loaded;
   - the document's clearance was `calc(58px + 22px + 0px)`;
   - on the Chat page the send button stayed clear of the launcher;
-  - full screen, asked for by a stand-in frame on Buddy's origin, covered the whole window.
+  - full screen, asked for by a stand-in frame on Buddy's origin, covered the whole window;
+  - `hidden` on `<lazurio-buddy>` removed the clearance and hid the launcher, and removing it
+    restored both; with the frame open, `<html>`'s style saw no write in two seconds.
 
 ## F61 — Buddy's chat in Lazurio is T3 Code with Hermes over ACP: the Platform's side
 

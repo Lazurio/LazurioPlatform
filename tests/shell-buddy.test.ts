@@ -18,6 +18,7 @@ import {
 import {
   buddyClearanceProperty,
   launcherClearance,
+  launcherOnPage,
 } from "../src/shell/buddy-element";
 import * as protocol from "../src/shell/buddy-protocol";
 import {
@@ -1168,4 +1169,42 @@ test("the launcher stands in the same corner in every app with Buddy's figure at
     "remove --lazurio-buddy-clearance",
     `set --lazurio-buddy-clearance ${buddyLauncherClearance}`,
   ]);
+});
+
+test("the launcher's corner follows the host's `hidden` too: hidden, the clearance goes; shown again, it comes back, written once each way (F60's addendum of 2026-10-25)", async () => {
+  const model = {
+    origin: "https://buddy.ada.lazurio.io",
+    launcher: { avatar: "", label: "Buddy", expanded: false },
+    frame: null,
+    layout: "closed",
+  } as BuddyBubbleModel;
+  expect(launcherOnPage(model, { hidden: false })).toBe(true);
+  expect(launcherOnPage(model, { hidden: true })).toBe(false);
+  expect(launcherOnPage(model, { hidden: "until-found" })).toBe(false);
+  expect(launcherOnPage(null, { hidden: false })).toBe(false);
+  // Shown, hidden by the host, shown again, each step drawn twice as the
+  // bubble redraws on every change: one write per transition.
+  const writes: string[] = [];
+  const keep = launcherClearance({
+    setProperty: (name: string) => {
+      writes.push(`set ${name}`);
+    },
+    removeProperty: (name: string) => {
+      writes.push(`remove ${name}`);
+      return "";
+    },
+  });
+  for (const hidden of [false, false, true, true, false, false])
+    keep(launcherOnPage(model, { hidden }));
+  expect(writes).toEqual([
+    "set --lazurio-buddy-clearance",
+    "remove --lazurio-buddy-clearance",
+    "set --lazurio-buddy-clearance",
+  ]);
+  // The element redraws on a change of `hidden`, and the view asks
+  // `launcherOnPage` with its host on every draw.
+  const elements = await readFile("src/shell/elements.ts", "utf8");
+  const view = await readFile("src/shell/buddy-element.ts", "utf8");
+  expect(elements).toContain('static observedAttributes = ["lang", "hidden"];');
+  expect(view).toContain("clearance(launcherOnPage(model, host));");
 });
