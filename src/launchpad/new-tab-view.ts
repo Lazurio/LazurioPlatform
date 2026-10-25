@@ -142,6 +142,43 @@ const en = {
   closeNewTab: "Close the new tab",
   tabWorking: "{title} · an agent is working here",
   tabLoading: "Loading…",
+  update: "Update",
+  updating: "Updating…",
+  updateProgress: "Update",
+  updateStartFailed: "The update could not be started.",
+  updateChecking: "Checking",
+  updateFetching: "Newer version {commit} found, fetching",
+  updateFetched: "Newer version {commit} fetched",
+  updateBuilding: "Building version {commit}",
+  updateDone: "Done, version {commit}",
+  updateCurrent: "Up to date",
+  updateBlockedChanges:
+    "Its main version has unfinished changes, so it does not update by itself",
+  updateBlockedBranch:
+    "Its main version is on another branch, so it does not update by itself",
+  updateDenied: "GitHub did not let this Environment reach it",
+  updateUnreachable: "GitHub is not answering; try again in a moment",
+  updateFailed: "It could not be updated",
+  updateBuildFailed:
+    "The new version could not be built; the previous one keeps running",
+  updateBusy:
+    "This Environment is already being updated elsewhere; try again in a moment.",
+  updateModulesFailed: "The modules could not be updated.",
+  updateLazurioCurrent: "Up to date, version {version}",
+  updateLazurioStarted: "Installing version {version}; Lazurio then restarts",
+  updateLazurioUpdated: "Updated to version {version}",
+  updateLazurioBusy: "Lazurio is already being updated",
+  updateLazurioFailed: "Lazurio could not be updated",
+  updateBunFetching: "Fetching version {version}",
+  updateBunFetched: "Version {version} fetched",
+  updateBunOffline:
+    "Version {version} could not be fetched now; try again in a moment",
+  updateBunTampered:
+    "The downloaded version {version} failed its check, so it is not used",
+  updateBunDiskFull: "There is no room on the disk for version {version}",
+  updateBunFailed: "Version {version} could not be prepared",
+  updateBunUnknown:
+    "For some apps, the version they need could not be determined",
 };
 type Words = { readonly [K in keyof typeof en]: string };
 const cs: Words = {
@@ -251,6 +288,43 @@ const cs: Words = {
   closeNewTab: "Zavřít Novou kartu",
   tabWorking: "{title} · pracuje tu agent",
   tabLoading: "Načítá se…",
+  update: "Aktualizovat",
+  updating: "Aktualizuji…",
+  updateProgress: "Aktualizace",
+  updateStartFailed: "Aktualizaci se nepodařilo spustit.",
+  updateChecking: "Kontroluje se",
+  updateFetching: "Nalezena novější verze {commit}, stahuje se",
+  updateFetched: "Stažena novější verze {commit}",
+  updateBuilding: "Sestavuje se verze {commit}",
+  updateDone: "Hotovo, verze {commit}",
+  updateCurrent: "Aktuální",
+  updateBlockedChanges:
+    "Hlavní verze má rozpracované změny, a tak se sama neaktualizuje",
+  updateBlockedBranch:
+    "Hlavní verze je na jiné větvi, a tak se sama neaktualizuje",
+  updateDenied: "GitHub k němu toto Prostředí nepustil",
+  updateUnreachable: "GitHub teď neodpovídá; zkuste to za chvíli znovu",
+  updateFailed: "Nepodařilo se aktualizovat",
+  updateBuildFailed: "Novou verzi se nepodařilo sestavit; dál běží předchozí",
+  updateBusy:
+    "Toto Prostředí se už aktualizuje jinde; zkuste to za chvíli znovu.",
+  updateModulesFailed: "Moduly se nepodařilo aktualizovat.",
+  updateLazurioCurrent: "Aktuální, verze {version}",
+  updateLazurioStarted:
+    "Instaluje se verze {version}; Lazurio se pak restartuje",
+  updateLazurioUpdated: "Aktualizováno na verzi {version}",
+  updateLazurioBusy: "Lazurio se už aktualizuje",
+  updateLazurioFailed: "Lazurio se nepodařilo aktualizovat",
+  updateBunFetching: "Stahuje se verze {version}",
+  updateBunFetched: "Stažena verze {version}",
+  updateBunOffline:
+    "Verzi {version} se teď nepodařilo stáhnout; zkuste to za chvíli znovu",
+  updateBunTampered:
+    "Stažená verze {version} neprošla kontrolou, a tak se nepoužije",
+  updateBunDiskFull: "Na disku není místo pro verzi {version}",
+  updateBunFailed: "Verzi {version} se nepodařilo připravit",
+  updateBunUnknown:
+    "U některých aplikací se nepodařilo zjistit, jakou verzi potřebují",
 };
 
 export type NewTabCopy = Words;
@@ -1118,3 +1192,464 @@ export function toolForKey(
   const wanted = key.key.toLowerCase();
   return tools.find((tool) => tool.key?.toLowerCase() === wanted)?.id ?? null;
 }
+
+// ---- Aktualizovat (root decision 0212 point 7) ------------------------------
+
+// The run of `lazurio update` the button starts or joins (`POST` and `GET
+// /api/update/everything`, src/update/everything.ts), read field by field,
+// and its lines folded into one row per module, named as Spuštěné Moduly
+// names them, one per Bun a moved module pins while it is fetched and once it
+// is (decision F62), and one for Lazurio itself, each with its state in plain
+// words: checking, a newer version found (its short commit) and fetched,
+// building, done, up to date, or a finding. Never a code or a path.
+
+/** One line of the run as the page reads it. */
+export type UpdateJobLine =
+  | Readonly<{
+      part: "content";
+      /** Absent for the content part as a whole. */
+      root?: string;
+      path?: string;
+      step?: "checking" | "fetching" | "fast-forwarding";
+      result?: string;
+      reason?: string;
+      to?: string;
+    }>
+  | Readonly<{
+      part: "tools";
+      /** The pin, `bun@x.y.z`; absent for the part as a whole, which is read
+       * only when it failed (pins that could not be read). */
+      packageManager?: string;
+      step?: "fetching";
+      result?: string;
+      reason?: string;
+      /** A download that did not verify. */
+      warning?: true;
+    }>
+  | Readonly<{
+      part: "build";
+      organization?: string;
+      module?: string;
+      step?: "building";
+      result?: string;
+      commit?: string;
+    }>
+  | Readonly<{
+      part: "product";
+      step?: "checking";
+      result?: string;
+      version?: string;
+      to?: string;
+      code?: string;
+    }>;
+
+export type UpdateJob = Readonly<{
+  id: string;
+  running: boolean;
+  lines: readonly UpdateJobLine[];
+}>;
+
+const word = (value: unknown, max = 200) => text(value, max) ?? undefined;
+const lineSteps = new Set([
+  "checking",
+  "fetching",
+  "fast-forwarding",
+  "building",
+]);
+
+function parseUpdateLine(value: unknown): UpdateJobLine | null {
+  if (!isRecord(value)) return null;
+  const step =
+    typeof value.step === "string" && lineSteps.has(value.step)
+      ? value.step
+      : undefined;
+  const result = word(value.result, 40);
+  if (step === undefined && result === undefined) return null;
+  const own = (fields: Record<string, string | undefined>) =>
+    Object.fromEntries(
+      Object.entries(fields).filter(([, field]) => field !== undefined),
+    );
+  if (value.part === "content")
+    return Object.freeze(
+      own({
+        part: "content",
+        root: word(value.root),
+        path: word(value.path),
+        step: step === "building" ? undefined : step,
+        result,
+        reason: word(value.reason, 60),
+        to: word(value.to, 64),
+      }),
+    ) as UpdateJobLine;
+  if (value.part === "tools") {
+    const packageManager = word(value.packageManager, 60);
+    if (packageManager === undefined)
+      return result === "failed"
+        ? (Object.freeze({ part: "tools", result }) as UpdateJobLine)
+        : null;
+    return Object.freeze({
+      ...own({
+        part: "tools",
+        packageManager,
+        step: step === "fetching" ? step : undefined,
+        result,
+        reason: word(value.reason, 60),
+      }),
+      ...(value.warning === true ? { warning: true } : {}),
+    }) as UpdateJobLine;
+  }
+  if (value.part === "build")
+    return Object.freeze(
+      own({
+        part: "build",
+        organization: word(value.organization),
+        module: word(value.module),
+        step: step === "building" ? step : undefined,
+        result,
+        commit: word(value.commit, 64),
+      }),
+    ) as UpdateJobLine;
+  if (value.part === "product")
+    return Object.freeze(
+      own({
+        part: "product",
+        step: step === "checking" ? step : undefined,
+        result,
+        version: word(value.version, 64),
+        to: word(value.to, 64),
+        code: word(value.code, 60),
+      }),
+    ) as UpdateJobLine;
+  return null;
+}
+
+/** The answer of `GET /api/update/everything` (or of a `POST`'s run read
+ * back): the newest run, `null` before the first; `undefined` when it has
+ * another shape. */
+export function parseUpdateJob(value: unknown): UpdateJob | null | undefined {
+  if (!isRecord(value) || value.kind !== "update-everything") return undefined;
+  if (value.job === null) return null;
+  const job = value.job;
+  if (
+    !isRecord(job) ||
+    typeof job.id !== "string" ||
+    (job.state !== "running" && job.state !== "succeeded") ||
+    !Array.isArray(job.lines)
+  )
+    return undefined;
+  return Object.freeze({
+    id: job.id,
+    running: job.state === "running",
+    lines: Object.freeze(
+      job.lines.flatMap((line) => {
+        const read = parseUpdateLine(line);
+        return read === null ? [] : [read];
+      }),
+    ),
+  });
+}
+
+export type UpdateRow = Readonly<{
+  key: string;
+  name: string;
+  stone: string | null;
+  state:
+    | "checking"
+    | "fetching"
+    | "fetched"
+    | "building"
+    | "done"
+    | "current"
+    | "finding";
+  text: string;
+}>;
+
+export type UpdateView = Readonly<{
+  rows: readonly UpdateRow[];
+  /** A sentence for the run as a whole (another update holds the content,
+   * or the modules' part failed); null otherwise. */
+  note: string | null;
+}>;
+
+const shortCommit = (commit: string | undefined) => commit?.slice(0, 7) ?? "";
+
+/** A finding of the content in words. */
+function contentFinding(
+  line: Extract<UpdateJobLine, { part: "content" }>,
+  copy: NewTabCopy,
+): string {
+  if (line.result === "blocked")
+    return line.reason === "wrong-branch" || line.reason === "detached"
+      ? copy.updateBlockedBranch
+      : line.reason === "unexpected-checkout"
+        ? copy.updateFailed
+        : copy.updateBlockedChanges;
+  if (line.result === "denied") return copy.updateDenied;
+  if (line.result === "unavailable") return copy.updateUnreachable;
+  return copy.updateFailed;
+}
+
+/** A Bun that could not be had (decision F62) in words. */
+function bunFinding(
+  line: Extract<UpdateJobLine, { part: "tools" }>,
+  copy: NewTabCopy,
+): string {
+  if (line.reason === "runtime-unavailable") return copy.updateBunOffline;
+  if (line.warning === true) return copy.updateBunTampered;
+  if (line.reason === "runtime-disk-full") return copy.updateBunDiskFull;
+  return copy.updateBunFailed;
+}
+
+/** The run's rows: one per module in the order its lines came, the
+ * Organization's root only when it is a finding, then each Bun a moved
+ * module pins that was fetched or could not be, and one finding when the
+ * pins could not all be read, Lazurio last. */
+export function updateView(
+  job: UpdateJob,
+  catalog: Catalog | null,
+  copy: NewTabCopy,
+): UpdateView {
+  const groups = catalog === null ? [] : catalogGroups(catalog);
+  type Where = { key: string; name: string; stone: string | null };
+  const lookOf = (
+    group: (typeof groups)[number] | undefined,
+    id: string,
+  ): Where => {
+    const found = group?.modules.find((item) => item.module === id);
+    const org =
+      group === undefined || catalog === null
+        ? null
+        : catalogOrganizationKey(catalog, group);
+    return {
+      key: `${org ?? group?.directory ?? ""}\0${id}`,
+      name: found === undefined ? id : moduleName(found),
+      stone: found === undefined ? null : moduleStone(found).src,
+    };
+  };
+  // A repository's module: the one at its path, or above it (a data mount).
+  const contentWhere = (root: string, path: string): Where | "root" | null => {
+    const directory = root.split("/").at(-1) ?? "";
+    const group = groups.find((item) => item.directory === directory);
+    if (path === ".") return "root";
+    const module = group?.modules.find(
+      (item) => path === item.path || path.startsWith(`${item.path}/`),
+    );
+    if (module !== undefined) return lookOf(group, module.module);
+    return group === undefined
+      ? null
+      : lookOf(group, path.split("/").at(-1) ?? path);
+  };
+  type Module = Where & {
+    content: Extract<UpdateJobLine, { part: "content" }>[];
+    builds: Extract<UpdateJobLine, { part: "build" }>[];
+  };
+  const modules = new Map<string, Module>();
+  const of = (where: Where) => {
+    let module = modules.get(where.key);
+    if (module === undefined) {
+      module = { ...where, content: [], builds: [] };
+      modules.set(where.key, module);
+    }
+    return module;
+  };
+  const roots: UpdateRow[] = [];
+  const bun: Extract<UpdateJobLine, { part: "tools" }>[] = [];
+  let note: string | null = null;
+  let product: Extract<UpdateJobLine, { part: "product" }> | null = null;
+  for (const line of job.lines) {
+    if (line.part === "product") product = line;
+    else if (line.part === "tools") bun.push(line);
+    else if (line.part === "content") {
+      if (line.root === undefined || line.path === undefined) {
+        if (line.result === "not-run" && line.reason === "content-busy")
+          note = copy.updateBusy;
+        else if (
+          line.result === "failed" ||
+          line.reason === "folder-unreadable"
+        )
+          note = copy.updateModulesFailed;
+        continue;
+      }
+      const where = contentWhere(line.root, line.path);
+      if (where === null) continue;
+      if (where === "root") {
+        const finding =
+          line.step === undefined &&
+          !["current", "fast-forwarded", "absent"].includes(line.result ?? "");
+        const directory = line.root.split("/").at(-1) ?? "";
+        const group = groups.find((item) => item.directory === directory);
+        if (finding)
+          roots.push({
+            key: `root\0${line.root}`,
+            name: group?.displayName ?? group?.organization ?? directory,
+            stone: null,
+            state: "finding",
+            text: contentFinding(line, copy),
+          });
+        continue;
+      }
+      of(where).content.push(line);
+    } else if (line.organization === undefined || line.module === undefined) {
+      note = copy.updateModulesFailed;
+    } else {
+      const group = groups.find(
+        (item) => item.organization === line.organization,
+      );
+      of(lookOf(group, line.module)).builds.push(line);
+    }
+  }
+  const buildsDone = !job.running || product !== null;
+  const rows: UpdateRow[] = [...roots];
+  for (const module of modules.values()) {
+    const row = (state: UpdateRow["state"], words: string) =>
+      rows.push({
+        key: module.key,
+        name: module.name,
+        stone: module.stone,
+        state,
+        text: words,
+      });
+    const building = module.builds.find((line) => line.step === "building");
+    const fetching = module.content.find(
+      (line) => line.step === "fetching" || line.step === "fast-forwarding",
+    );
+    const finding =
+      module.content.find(
+        (line) =>
+          line.step === undefined &&
+          ["blocked", "denied", "unavailable", "failed"].includes(
+            line.result ?? "",
+          ),
+      ) ?? null;
+    const buildFailed = module.builds.find((line) => line.result === "failed");
+    const moved = module.content.find(
+      (line) => line.result === "fast-forwarded",
+    );
+    const built = module.builds.find((line) => line.result === "built");
+    if (building !== undefined)
+      row(
+        "building",
+        fill(copy.updateBuilding, { commit: shortCommit(building.commit) }),
+      );
+    else if (fetching !== undefined)
+      row(
+        "fetching",
+        fill(copy.updateFetching, { commit: shortCommit(fetching.to) }),
+      );
+    else if (module.content.some((line) => line.step === "checking"))
+      row("checking", copy.updateChecking);
+    else if (finding !== null) row("finding", contentFinding(finding, copy));
+    else if (buildFailed !== undefined) row("finding", copy.updateBuildFailed);
+    else if (moved !== undefined && built === undefined && !buildsDone)
+      row(
+        "fetched",
+        fill(copy.updateFetched, { commit: shortCommit(moved.to) }),
+      );
+    else if (moved !== undefined || built !== undefined)
+      row(
+        "done",
+        fill(copy.updateDone, {
+          commit: shortCommit(built?.commit ?? moved?.to),
+        }),
+      );
+    else if (
+      module.content.every((line) => line.result === "absent") &&
+      module.builds.length === 0
+    )
+      continue;
+    else row("current", copy.updateCurrent);
+  }
+  // A Bun that was there already (the user's own, or the runtime cache's)
+  // needed nothing and says nothing. The part as a whole failed when the
+  // pins of the moved modules could not all be read: one finding after the
+  // pins' rows, naming no pin it does not have.
+  let unknown = false;
+  for (const line of bun) {
+    if (line.packageManager === undefined) {
+      unknown = true;
+      continue;
+    }
+    if (line.step === undefined && line.result === "cached") continue;
+    const version = line.packageManager.startsWith("bun@")
+      ? line.packageManager.slice("bun@".length)
+      : line.packageManager;
+    const [state, words]: [UpdateRow["state"], string] =
+      line.step === "fetching"
+        ? ["fetching", copy.updateBunFetching]
+        : line.result === "fetched"
+          ? ["done", copy.updateBunFetched]
+          : ["finding", bunFinding(line, copy)];
+    rows.push({
+      key: `tools\0${line.packageManager}`,
+      name: "Bun",
+      stone: null,
+      state,
+      text: fill(words, { version }),
+    });
+  }
+  if (unknown)
+    rows.push({
+      key: "tools\0",
+      name: "Bun",
+      stone: null,
+      state: "finding",
+      text: copy.updateBunUnknown,
+    });
+  if (product !== null && product.result !== "not-run") {
+    const version = product.to ?? product.version ?? "";
+    const [state, words]: [UpdateRow["state"], string] =
+      product.step === "checking"
+        ? ["checking", copy.updateChecking]
+        : product.result === "current"
+          ? ["current", fill(copy.updateLazurioCurrent, { version })]
+          : product.result === "started"
+            ? ["building", fill(copy.updateLazurioStarted, { version })]
+            : product.result === "updated"
+              ? ["done", fill(copy.updateLazurioUpdated, { version })]
+              : product.code === "busy"
+                ? ["finding", copy.updateLazurioBusy]
+                : ["finding", copy.updateLazurioFailed];
+    rows.push({
+      key: "lazurio",
+      name: "Lazurio",
+      stone: null,
+      state,
+      text: words,
+    });
+  }
+  return Object.freeze({ rows: Object.freeze(rows), note });
+}
+
+/** After the Launchpad restarted for the Lazurio this run started, it knows
+ * the run no more: the run's last lines, with Lazurio updated when the
+ * Launchpad now runs that version, as `GET /api/update/status` says. */
+export function afterRestart(
+  job: UpdateJob,
+  running: string | null,
+): UpdateJob {
+  const lines = job.lines.map((line) =>
+    line.part === "product" &&
+    line.result === "started" &&
+    running !== null &&
+    line.to === running
+      ? Object.freeze({
+          part: "product" as const,
+          result: "updated",
+          to: running,
+        })
+      : line,
+  );
+  return Object.freeze({
+    id: job.id,
+    running: false,
+    lines: Object.freeze(lines),
+  });
+}
+
+/** Whether the run started Lazurio's update, whose restart ends the run. */
+export const startedLazurio = (job: UpdateJob): string | null => {
+  for (const line of job.lines)
+    if (line.part === "product" && line.result === "started")
+      return line.to ?? null;
+  return null;
+};

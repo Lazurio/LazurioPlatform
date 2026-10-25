@@ -119,6 +119,15 @@ button { cursor: pointer; }
 .nto-action { height: 24px; padding: 0 8px; border: 1px solid var(--nt-line); border-radius: var(--lz-radius-sm); background: var(--nt-raised); color: var(--nt-ink); font-size: 12px; font-weight: var(--lz-weight-akce); }
 .nto-action:hover:not(:disabled) { border-color: var(--nt-line-strong); background: var(--nt-hover); }
 .nto-action:disabled { color: var(--nt-faint); cursor: default; opacity: 0.6; }
+/* Aktualizovat (root decision 0212 point 7): the button in Spuštěné Moduly's
+   title, and a run's rows below, each with its state in plain words. */
+.nto-group-title .nto-action { margin-left: auto; }
+.nto-update-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; }
+.nto-update-row + .nto-update-row { border-top: 1px solid var(--nt-line-faint); }
+.nto-update-row > :first-child { margin-top: 2px; }
+.nto-update-state { color: var(--nt-muted); font-size: 12px; }
+.nto-update-state.is-working { color: var(--lz-blue-500); }
+.nto-update-state.is-finding { color: var(--lz-warning); }
 .nto-empty { margin: 0; padding: 12px 14px; border: 1px dashed var(--nt-line); border-radius: var(--lz-radius-md); color: var(--nt-muted); font-size: 13px; }
 
 /* A tab's icon: its favicon or a globe, with a dot while an agent works. */

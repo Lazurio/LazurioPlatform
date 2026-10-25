@@ -12,7 +12,7 @@
 // runtime directory, which starts with the Launchpad holding two tabs. A
 // close ends a tab after 8 s, Vrátit within them brings it back; × in the
 // panel's strip releases the Launchpad's hold; Zastavit stops a fake Module,
-// an address opens a fake tab. The
+// an address opens a fake tab, Aktualizovat runs a scripted update. The
 // view's origin is a synthetic https one that does not resolve, so a
 // standalone choice navigates to an address that does not load, and a tab's
 // frame in the Launchpad's panel shows the browser's own error page; inside
@@ -51,6 +51,7 @@ import {
   targetIdOf,
   viewPath,
 } from "../src/browser/contract/pure";
+import type { SyncEntry } from "../src/content/sync";
 import type { LaunchpadBoot } from "../src/launchpad/boot";
 import { withBoot } from "../src/launchpad/boot-document";
 import type { PublicEntry } from "../src/launchpad/chat";
@@ -65,6 +66,7 @@ import { pageRoutes } from "../src/launchpad/page";
 import type { ServiceManagerProcess } from "../src/modules/service-manager-process";
 import { readFolderCatalog } from "../src/organizations/catalog";
 import { parseShell, type Shell } from "../src/shell/contract";
+import { createUpdateJobs, updateEverything } from "../src/update/everything";
 import { embeddedIdentity } from "../src/update/identity";
 import { writeOrganization } from "../tests/fixtures/catalog-folder";
 
@@ -406,6 +408,107 @@ const routes = createNewTabRoutes({
   modules: async () => running,
   headers,
 });
+// Aktualizovat (root decision 0212 point 7) over a scripted run of the real
+// composition: Deals gets a newer commit, fetched and built, which pins a Bun
+// that is fetched before its build (decision F62), and the pin of one more
+// moved app cannot be read; the Knowledgebase is up to date; Ceník's main
+// version has unfinished work; Lazurio is up to date. Each step takes a
+// moment, so the rows move.
+const step = () => Bun.sleep(900);
+const where = (path: string) =>
+  ({
+    organization: "Example",
+    root: "organizations/example_GEN3",
+    path,
+    kind: path === "." ? "root" : "module",
+    branch: "main",
+  }) as const;
+const answered = (
+  path: string,
+  extra: Partial<Pick<SyncEntry, "result" | "reason" | "from" | "to">> = {},
+): SyncEntry => ({
+  ...where(path),
+  result: "current",
+  at: new Date().toISOString(),
+  ...extra,
+});
+const updates = createUpdateJobs({
+  run: (onChange) =>
+    updateEverything(
+      {
+        content: async (progress) => {
+          const entries: SyncEntry[] = [];
+          for (const [path, entry] of [
+            [".", answered(".")],
+            [
+              "workspace/deals",
+              answered("workspace/deals", {
+                result: "fast-forwarded",
+                from: "1".repeat(40),
+                to: "9f3c2e1".padEnd(40, "0"),
+              }),
+            ],
+            ["workspace/knowledgebase", answered("workspace/knowledgebase")],
+            [
+              "workspace/pricebook",
+              answered("workspace/pricebook", {
+                result: "blocked",
+                reason: "dirty",
+              }),
+            ],
+          ] as const) {
+            progress({ ...where(path), step: "checking" });
+            await step();
+            if (entry.to !== undefined) {
+              progress({ ...where(path), step: "fetching", to: entry.to });
+              await step();
+            }
+            progress({ ...where(path), step: "done", entry });
+            entries.push(entry);
+          }
+          return {
+            kind: "content-sync" as const,
+            at: new Date().toISOString(),
+            organizations: ["Example"],
+            entries,
+          };
+        },
+        tools: {
+          pins: async () => ({ pins: ["bun@1.4.3"], unreadable: 1 }),
+          resolve: async () => {
+            await Bun.sleep(2_000);
+            return {
+              executable: process.execPath,
+              binDir: null,
+              source: "fetched" as const,
+            };
+          },
+        },
+        builds: async (progress) => {
+          const deals = {
+            organization: "example",
+            module: "deals",
+            app: "app/v1/package.json",
+          };
+          progress({
+            ...deals,
+            step: "building",
+            commit: "9f3c2e1".padEnd(40, "0"),
+          });
+          await Bun.sleep(2_500);
+          return [
+            { ...deals, result: "built", commit: "9f3c2e1".padEnd(40, "0") },
+          ];
+        },
+        product: async () => {
+          await step();
+          return { part: "product", result: "current", version: "0.1.12" };
+        },
+      },
+      onChange,
+    ),
+});
+
 // The same routes where the Environment has no browser.
 const withoutBrowser = createNewTabRoutes({
   browser: undefined,
@@ -557,6 +660,10 @@ const server = Bun.serve({
         url,
         () => undefined,
       );
+    if (url.pathname === "/api/update/everything")
+      return request.method === "POST"
+        ? json({ kind: "update-everything", ...updates.start() }, 202)
+        : json({ kind: "update-everything", job: updates.latest() });
     // The Launchpad page's own first read: the profile of a hosted
     // Environment; everything else it asks is not served here.
     if (url.pathname === "/api/profile" && request.method === "POST")

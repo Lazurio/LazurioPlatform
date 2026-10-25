@@ -7,6 +7,7 @@ import {
 import type { PublicEntry } from "../src/launchpad/chat";
 import {
   actionFailure,
+  afterRestart,
   ago,
   catalogModuleLook,
   closeOutcome,
@@ -27,16 +28,20 @@ import {
   overviewFailure,
   pageStrip,
   parseOverview,
+  parseUpdateJob,
   replacesUndo,
   settleOverrides,
   sortTabs,
+  startedLazurio,
   suggestions,
   type TabOverride,
   tabRows,
   tabStatus,
   toastModel,
   toolForKey,
+  type UpdateJob,
   undoDeadline,
+  updateView,
   viewOriginOf,
   visibleTabs,
   withOverride,
@@ -47,6 +52,7 @@ import type {
   CatalogModule,
   CatalogOrganization,
 } from "../src/organizations/catalog";
+import { createUpdateJobs, updateEverything } from "../src/update/everything";
 
 // Nová karta without a DOM (decision F47 points 1-3 and 6-9, the approved
 // wireframe prototypes-lazurio #27: NewTab.tsx and browser.ts): what the page
@@ -1172,5 +1178,474 @@ describe("where things are, the tools' letters and what failed", () => {
         expect(value.trim()).not.toBe("");
     expect(newTabCopy("de")).toBe(en);
     expect(fill("{a} and {b}", { a: "one" })).toBe("one and {b}");
+  });
+});
+
+// Aktualizovat (root decision 0212 point 7): the run of `lazurio update` as
+// `GET /api/update/everything` answers it, one row per module named from the
+// boot catalog, and Lazurio itself, each state in plain words.
+describe("Aktualizovat: the run's rows per module", () => {
+  const sha = (letter: string) => letter.repeat(40);
+  const where = (path: string) => ({
+    part: "content",
+    organization: "Example",
+    root: "organizations/example_GEN3",
+    path,
+    kind: path === "." ? "root" : "module",
+    branch: "main",
+  });
+  const job = (lines: unknown[], state = "running") =>
+    parseUpdateJob({
+      kind: "update-everything",
+      job: { id: "a1", state, lines },
+    }) as UpdateJob;
+  const rows = (read: UpdateJob, copy = cs) =>
+    updateView(read, catalog, copy).rows.map((row) => [
+      row.name,
+      row.state,
+      row.text,
+    ]);
+
+  test("the answer read field by field: none yet, another shape, and lines it does not know left out", () => {
+    expect(parseUpdateJob({ kind: "update-everything", job: null })).toBeNull();
+    expect(parseUpdateJob({ kind: "other", job: null })).toBeUndefined();
+    expect(
+      parseUpdateJob({
+        kind: "update-everything",
+        job: { id: 1, state: "running", lines: [] },
+      }),
+    ).toBeUndefined();
+    const read = job([
+      { ...where("workspace/deals"), step: "checking", secret: "x" },
+      { part: "tools", result: "not-run" },
+      { part: "content", path: "workspace/deals" },
+      "line",
+    ]);
+    expect(read).toEqual({
+      id: "a1",
+      running: true,
+      lines: [
+        {
+          part: "content",
+          root: "organizations/example_GEN3",
+          path: "workspace/deals",
+          step: "checking",
+        },
+      ],
+    });
+  });
+
+  test("a module goes from checking through a newer version found and fetched to building and done, named as Apps names it; Lazurio last", () => {
+    const deals = where("workspace/deals");
+    expect(rows(job([{ ...deals, step: "checking" }]))).toEqual([
+      ["Deals", "checking", "Kontroluje se"],
+    ]);
+    expect(
+      rows(job([{ ...deals, step: "fetching", to: sha("b") }]), en),
+    ).toEqual([["Deals", "fetching", "Newer version bbbbbbb found, fetching"]]);
+    const moved = {
+      ...deals,
+      result: "fast-forwarded",
+      from: sha("a"),
+      to: sha("b"),
+    };
+    expect(rows(job([moved]))).toEqual([
+      ["Deals", "fetched", "Stažena novější verze bbbbbbb"],
+    ]);
+    const building = {
+      part: "build",
+      organization: "example",
+      module: "deals",
+      app: "app/v1/package.json",
+      step: "building",
+      commit: sha("b"),
+    };
+    expect(rows(job([moved, building]))).toEqual([
+      ["Deals", "building", "Sestavuje se verze bbbbbbb"],
+    ]);
+    const built = { ...building, step: undefined, result: "built" };
+    expect(
+      rows(
+        job(
+          [
+            moved,
+            built,
+            { part: "product", result: "current", version: "0.1.12" },
+          ],
+          "succeeded",
+        ),
+      ),
+    ).toEqual([
+      ["Deals", "done", "Hotovo, verze bbbbbbb"],
+      ["Lazurio", "current", "Aktuální, verze 0.1.12"],
+    ]);
+    // A module without a built app is done once the builds' part ended.
+    expect(rows(job([moved, { part: "product", step: "checking" }]))).toEqual([
+      ["Deals", "done", "Hotovo, verze bbbbbbb"],
+      ["Lazurio", "checking", "Kontroluje se"],
+    ]);
+  });
+
+  test("up to date, a data mount folded into its module, a module not in the catalog by its id, an absent one left out", () => {
+    expect(
+      rows(
+        job(
+          [
+            { ...where("."), result: "current" },
+            { ...where("workspace/knowledgebase"), result: "current" },
+            {
+              ...where("workspace/knowledgebase/db"),
+              kind: "data",
+              result: "fast-forwarded",
+              to: sha("c"),
+            },
+            { ...where("workspace/orders"), result: "current" },
+            { ...where("workspace/gone"), result: "absent" },
+          ],
+          "succeeded",
+        ),
+      ),
+    ).toEqual([
+      ["knowledgebase", "done", "Hotovo, verze ccccccc"],
+      ["orders", "current", "Aktuální"],
+    ]);
+  });
+
+  test("findings in plain words, never a code: unfinished work, another branch, GitHub refusing or silent, a failed build; a blocked root by its Organization", () => {
+    const finding = (line: Record<string, unknown>, copy = cs) =>
+      updateView(job([line], "succeeded"), catalog, copy).rows[0]?.text;
+    const deals = where("workspace/deals");
+    expect(finding({ ...deals, result: "blocked", reason: "dirty" })).toBe(
+      "Hlavní verze má rozpracované změny, a tak se sama neaktualizuje",
+    );
+    expect(
+      finding({ ...deals, result: "blocked", reason: "wrong-branch" }, en),
+    ).toBe(
+      "Its main version is on another branch, so it does not update by itself",
+    );
+    expect(
+      finding({ ...deals, result: "denied", reason: "repository-denied" }),
+    ).toBe("GitHub k němu toto Prostředí nepustil");
+    expect(
+      finding({
+        ...deals,
+        result: "unavailable",
+        reason: "remote-unavailable",
+      }),
+    ).toBe("GitHub teď neodpovídá; zkuste to za chvíli znovu");
+    expect(
+      finding({
+        part: "build",
+        organization: "example",
+        module: "deals",
+        app: "app/v1/package.json",
+        result: "failed",
+        reason: "build-script-failed",
+      }),
+    ).toBe("Novou verzi se nepodařilo sestavit; dál běží předchozí");
+    expect(
+      rows(
+        job(
+          [{ ...where("."), result: "blocked", reason: "ahead" }],
+          "succeeded",
+        ),
+      ),
+    ).toEqual([
+      [
+        "Example Company",
+        "finding",
+        "Hlavní verze má rozpracované změny, a tak se sama neaktualizuje",
+      ],
+    ]);
+    // Another update holding the content: one sentence for the run.
+    expect(
+      updateView(
+        job(
+          [{ part: "content", result: "not-run", reason: "content-busy" }],
+          "succeeded",
+        ),
+        catalog,
+        en,
+      ),
+    ).toEqual({
+      rows: [],
+      note: "This Environment is already being updated elsewhere; try again in a moment.",
+    });
+    // Nothing to do here at all: no rows and no note.
+    expect(
+      updateView(
+        job(
+          [
+            {
+              part: "content",
+              result: "not-run",
+              reason: "not-for-this-environment",
+            },
+          ],
+          "succeeded",
+        ),
+        catalog,
+        cs,
+      ),
+    ).toEqual({ rows: [], note: null });
+    for (const [copy, words] of [
+      [
+        cs,
+        [cs.updateBlockedChanges, cs.updateBuildFailed, cs.updateLazurioFailed],
+      ],
+      [
+        en,
+        [en.updateBlockedChanges, en.updateBuildFailed, en.updateLazurioFailed],
+      ],
+    ] as const)
+      for (const sentence of words) {
+        expect(sentence).not.toMatch(/[a-z]+-[a-z]+-?[a-z]*|\//);
+        expect(copy.update).not.toBe("");
+      }
+  });
+
+  test("Lazurio: started, then updated once the restarted Launchpad runs that version; busy and failed in words", () => {
+    const lazurio = (line: Record<string, unknown>, copy = cs) =>
+      updateView(job([line], "succeeded"), catalog, copy).rows.at(-1)?.text;
+    expect(lazurio({ part: "product", result: "started", to: "0.1.13" })).toBe(
+      "Instaluje se verze 0.1.13; Lazurio se pak restartuje",
+    );
+    expect(
+      lazurio({ part: "product", result: "failed", code: "busy" }, en),
+    ).toBe("Lazurio is already being updated");
+    expect(
+      lazurio({
+        part: "product",
+        result: "failed",
+        code: "network-unavailable",
+      }),
+    ).toBe("Lazurio se nepodařilo aktualizovat");
+    expect(
+      updateView(
+        job([{ part: "product", result: "not-run", reason: "not-installed" }]),
+        catalog,
+        cs,
+      ).rows,
+    ).toEqual([]);
+    const started = job([
+      { ...where("workspace/deals"), result: "current" },
+      { part: "product", result: "started", to: "0.1.13" },
+    ]);
+    expect(startedLazurio(started)).toBe("0.1.13");
+    expect(startedLazurio(job([]))).toBeNull();
+    // The Launchpad came back on another version: the run's rows stay, and
+    // Lazurio is not said to be updated.
+    expect(rows(afterRestart(started, "0.1.12")).at(-1)).toEqual([
+      "Lazurio",
+      "building",
+      "Instaluje se verze 0.1.13; Lazurio se pak restartuje",
+    ]);
+    const after = afterRestart(started, "0.1.13");
+    expect(after.running).toBe(false);
+    expect(rows(after)).toEqual([
+      ["Deals", "current", "Aktuální"],
+      ["Lazurio", "done", "Aktualizováno na verzi 0.1.13"],
+    ]);
+  });
+
+  test("joining a run under way: the rows of the run another click started, as read", () => {
+    const joined = job([
+      { ...where("workspace/deals"), step: "fetching", to: sha("d") },
+      { ...where("workspace/knowledgebase"), result: "current" },
+    ]);
+    expect(joined.running).toBe(true);
+    expect(rows(joined, en)).toEqual([
+      ["Deals", "fetching", "Newer version ddddddd found, fetching"],
+      ["knowledgebase", "current", "Up to date"],
+    ]);
+  });
+
+  test("the Bun a moved module pins: a row while it is fetched and once it is, after the modules and before Lazurio; one that was there already says nothing", () => {
+    const deals = {
+      ...where("workspace/deals"),
+      result: "fast-forwarded",
+      from: sha("a"),
+      to: sha("b"),
+    };
+    const pin = (line: Record<string, unknown>) => ({
+      part: "tools",
+      packageManager: "bun@1.4.3",
+      ...line,
+    });
+    expect(rows(job([deals, pin({ step: "fetching" })]))).toEqual([
+      ["Deals", "fetched", "Stažena novější verze bbbbbbb"],
+      ["Bun", "fetching", "Stahuje se verze 1.4.3"],
+    ]);
+    expect(
+      rows(
+        job(
+          [
+            deals,
+            pin({ result: "fetched" }),
+            {
+              part: "tools",
+              packageManager: "bun@1.4.2",
+              result: "cached",
+            },
+            { part: "product", result: "current", version: "0.1.12" },
+          ],
+          "succeeded",
+        ),
+        en,
+      ),
+    ).toEqual([
+      ["Deals", "done", "Done, version bbbbbbb"],
+      ["Bun", "done", "Version 1.4.3 fetched"],
+      ["Lazurio", "current", "Up to date, version 0.1.12"],
+    ]);
+    // The tools part as a whole failed (pins that could not be read): one
+    // finding of its own after the pins' rows, never a pin it does not have.
+    expect(
+      rows(
+        job(
+          [
+            deals,
+            pin({ result: "fetched" }),
+            { part: "tools", result: "failed", reason: "operation-failed" },
+          ],
+          "succeeded",
+        ),
+      ),
+    ).toEqual([
+      ["Deals", "done", "Hotovo, verze bbbbbbb"],
+      ["Bun", "done", "Stažena verze 1.4.3"],
+      [
+        "Bun",
+        "finding",
+        "U některých aplikací se nepodařilo zjistit, jakou verzi potřebují",
+      ],
+    ]);
+  });
+
+  test("the real job answer of a run whose moved module's pin cannot be read shows a finding, never a clean update", async () => {
+    // The composition of `lazurio update` as the Launchpad runs it: Deals
+    // moved, its app's pin could not be read and nobody opened it, so no
+    // build line warns either.
+    const jobs = createUpdateJobs({
+      run: (onChange) =>
+        updateEverything(
+          {
+            content: async () => ({
+              kind: "content-sync",
+              at: "2026-10-25T12:00:00.000Z",
+              organizations: ["Example"],
+              entries: [
+                {
+                  organization: "Example",
+                  root: "organizations/example_GEN3",
+                  path: "workspace/deals",
+                  kind: "module",
+                  branch: "main",
+                  result: "fast-forwarded",
+                  from: sha("a"),
+                  to: sha("b"),
+                  at: "2026-10-25T12:00:00.000Z",
+                },
+              ],
+            }),
+            tools: {
+              pins: async () => ({ pins: [], unreadable: 1 }),
+              resolve: async () => {
+                throw new Error("Not asked");
+              },
+            },
+            builds: async () => [],
+            product: async () => ({
+              part: "product",
+              result: "current",
+              version: "0.1.12",
+            }),
+          },
+          onChange,
+        ),
+    });
+    jobs.start();
+    await jobs.settled();
+    // As `GET /api/update/everything` sends it.
+    const answer = JSON.parse(
+      JSON.stringify({ kind: "update-everything", job: jobs.latest() }),
+    );
+    const read = parseUpdateJob(answer);
+    if (read === null || read === undefined) throw new Error("No job read");
+    expect(rows(read)).toEqual([
+      ["Deals", "done", "Hotovo, verze bbbbbbb"],
+      [
+        "Bun",
+        "finding",
+        "U některých aplikací se nepodařilo zjistit, jakou verzi potřebují",
+      ],
+      ["Lazurio", "current", "Aktuální, verze 0.1.12"],
+    ]);
+    expect(rows(read, en)[1]).toEqual([
+      "Bun",
+      "finding",
+      "For some apps, the version they need could not be determined",
+    ]);
+  });
+
+  test("a Bun that could not be had in plain words, never a code: offline and not tried, a download that did not verify, a full disk, anything else", () => {
+    const bun = (line: Record<string, unknown>, copy = cs) =>
+      updateView(
+        job(
+          [{ part: "tools", packageManager: "bun@1.4.3", ...line }],
+          "succeeded",
+        ),
+        catalog,
+        copy,
+      ).rows.map((row) => [row.name, row.state, row.text]);
+    const offline = [
+      "Bun",
+      "finding",
+      "Verzi 1.4.3 se teď nepodařilo stáhnout; zkuste to za chvíli znovu",
+    ];
+    expect(bun({ result: "refused", reason: "runtime-unavailable" })).toEqual([
+      offline,
+    ]);
+    expect(
+      bun({ result: "not-fetched", reason: "runtime-unavailable" }),
+    ).toEqual([offline]);
+    expect(
+      bun({
+        result: "refused",
+        reason: "runtime-integrity-failed",
+        warning: true,
+      }),
+    ).toEqual([
+      [
+        "Bun",
+        "finding",
+        "Stažená verze 1.4.3 neprošla kontrolou, a tak se nepoužije",
+      ],
+    ]);
+    expect(bun({ result: "refused", reason: "runtime-disk-full" }, en)).toEqual(
+      [["Bun", "finding", "There is no room on the disk for version 1.4.3"]],
+    );
+    for (const reason of [
+      "runtime-version-unknown",
+      "runtime-unsupported-platform",
+      "operation-failed",
+    ])
+      expect(bun({ result: "refused", reason })).toEqual([
+        ["Bun", "finding", "Verzi 1.4.3 se nepodařilo připravit"],
+      ]);
+    for (const copy of [cs, en])
+      for (const sentence of [
+        copy.updateBunFetching,
+        copy.updateBunFetched,
+        copy.updateBunOffline,
+        copy.updateBunTampered,
+        copy.updateBunDiskFull,
+        copy.updateBunFailed,
+      ]) {
+        expect(sentence).toContain("{version}");
+        expect(sentence).not.toMatch(/[a-z]+-[a-z]+|\//);
+      }
+    for (const copy of [cs, en])
+      expect(copy.updateBunUnknown).not.toMatch(/[a-z]+-[a-z]+|\/|\{/);
   });
 });
