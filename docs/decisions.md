@@ -18729,8 +18729,8 @@ life to a four-hour unit. D is rejected: a parallel reading of Hermes's private 
      may still save one (the page will say „Buddyho předchozí přihlášení ještě doběhne, zkuste to
      za chvíli znovu“), `sign-in-running` for any other answer, or `unavailable` with the
      gateway's reason when the gateway did not answer. The fork marks a collected session
-     cancelled in a change of its own (Lazurio/hermes-agent, the release with #11, #13 and
-     #14); this rule does not depend on it.
+     cancelled in a change of its own (Lazurio/hermes-agent#17, approved for the release with
+     #11, #13 and #14); this rule does not depend on it.
    - A new start first ends the one before it on Hermes, so two tabs end as the later one, on
      Hermes too; while Hermes does not confirm that, nothing starts and the one before stays
      the holder's.
