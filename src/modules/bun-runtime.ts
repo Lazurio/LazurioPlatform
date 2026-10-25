@@ -65,9 +65,16 @@ export type ModuleBun = Readonly<{
 
 /** The Bun for the package in `owner` that pins `packageManager` (or none).
  * Throws `PreparationRefused` with a `runtime-*` reason, named by that
- * package.json. */
+ * package.json. With `fetch: false` a lookup without the network: the user's
+ * Bun or the runtime cache as it is, otherwise `runtime-unavailable` at once
+ * (one `lazurio update` run after its pre-warm found the registry not
+ * answering, decision F62 point 9). */
 export type ModuleBunResolver = (
-  input: Readonly<{ packageManager: string | null; owner: string }>,
+  input: Readonly<{
+    packageManager: string | null;
+    owner: string;
+    fetch?: boolean;
+  }>,
 ) => Promise<ModuleBun>;
 
 export type RuntimeReason = Extract<PreparationReason, `runtime-${string}`>;
@@ -611,7 +618,7 @@ export function createModuleBunResolver(options: {
     }
   }
 
-  return async ({ packageManager, owner }) => {
+  return async ({ packageManager, owner, fetch: mayFetch = true }) => {
     if (packageManager === null) return user;
     const match = /^bun@(\d+\.\d+\.\d+)$/.exec(packageManager);
     if (match === null) throw new Error("Exact Bun version required");
@@ -626,6 +633,14 @@ export function createModuleBunResolver(options: {
       );
     const targets = bunTargets(await system(), version);
     if (targets === null) throw refusal("runtime-unsupported-platform");
+    // Without the network: the cache as it is, read without the version's
+    // exclusion (a fetch under way elsewhere is not waited for); a version
+    // absent or broken there is refused as a registry that did not answer.
+    if (!mayFetch) {
+      const there = await cached(join(root, version), version, targets);
+      if (there.kind === "ready") return there.bun;
+      throw refusal("runtime-unavailable");
+    }
     const key = join(root, version);
     let pending = fetches.get(key);
     if (pending === undefined) {

@@ -18,7 +18,8 @@ import type { BuiltProgress, BuiltRefresh } from "../modules/module-operations";
 //   2. tools: the Bun each app of the module checkouts the content just
 //      fast-forwarded pins (decision F62), made available with the resolver
 //      a start uses (`prewarmModuleRuntimes`), before any build, so a build
-//      never waits for its module's Bun (DEV-6682);
+//      never waits for its module's Bun (DEV-6682); its one answer about the
+//      network holds for the builds of the same run;
 //   3. builds: every built app someone opened whose checkout moved past its
 //      build, built and swapped in (`refreshBuilt`, decision F58);
 //   4. product: Lazurio itself to the newest public release, last, because
@@ -92,8 +93,9 @@ export const runtimeIntegrityFailed =
  * version, or the runtime cache holds it), nothing fetched; `fetched`: now
  * in the runtime cache; `refused`: it could not be had, with the reason a
  * start would give (a `runtime-*` reason, or `operation-failed`), and
- * `warning` for a download that did not verify; `not-fetched`: not tried,
- * because the registry did not answer for an earlier pin of this run. */
+ * `warning` for a download that did not verify; `not-fetched`: neither the
+ * user's Bun nor the cache has it, and it was not fetched because the
+ * registry did not answer for an earlier pin of this run. */
 export type ToolsItem = Readonly<{ part: "tools"; packageManager: string }> &
   (
     | Readonly<{ result: "cached" | "fetched" }>
@@ -113,6 +115,11 @@ export type UpdateItem =
       result: "failed";
       reason: typeof partFailed;
     }>;
+
+/** What the builds of one run know about the network: its pre-warm found
+ * the registry not answering (`runtime-unavailable`, and nothing else).
+ * Memory of that run only, never kept for the next. */
+export type UpdateNetwork = Readonly<{ registryUnavailable: boolean }>;
 
 /** An item while it is under way. A pin's `fetching` lasts while its Bun is
  * made available: a fetch, or only the moment it takes to find it there. */
@@ -140,9 +147,11 @@ export type UpdateParts = Readonly<{
     pins: (moved: readonly MovedModule[]) => Promise<readonly string[]>;
     resolve: ModuleBunResolver;
   }>;
-  /** Build what changed (`refreshBuilt`). */
+  /** Build what changed (`refreshBuilt`), told what the run's pre-warm
+   * found about the network. */
   builds: (
     onProgress: (progress: BuiltProgress) => void,
+    network: UpdateNetwork,
   ) => Promise<readonly BuiltRefresh[]>;
   /** Lazurio itself, last. */
   product: () => Promise<ProductItem>;
@@ -255,38 +264,49 @@ export async function updateEverything(
   // for it. A pin can change only with a commit, and this run's commits are
   // those the content brought; nothing moved, nothing to read. One pin at a
   // time, each a line as soon as it is known. The first time the registry
-  // does not answer ends it: the pins after that one are `not-fetched`, never
-  // tried. A pin that cannot be had is an item, never a failed update.
-  if (parts.tools !== undefined && moved.length > 0)
+  // does not answer ends the fetches: each pin after that one is only looked
+  // up without the network, `cached` when the user's Bun or the cache has
+  // it, otherwise `not-fetched`. That one answer about the network holds for
+  // the builds of this run, and for nothing after it. A pin that cannot be
+  // had is an item, never a failed update.
+  let registryUnavailable = false;
+  const tools = parts.tools;
+  if (tools !== undefined && moved.length > 0)
     try {
-      let unanswered = false;
-      for (const packageManager of new Set(await parts.tools.pins(moved))) {
-        if (unanswered) {
-          set({
-            part: "tools",
-            packageManager,
-            result: "not-fetched",
-            reason: runtimeUnavailable,
-          });
-          continue;
-        }
-        set({ part: "tools", packageManager, step: "fetching" });
-        for (const result of await prewarmModuleRuntimes(parts.tools.resolve, [
-          packageManager,
-        ])) {
-          set(toolsItem(result));
-          unanswered =
+      const local: ModuleBunResolver = (input) =>
+        tools.resolve({ ...input, fetch: false });
+      for (const packageManager of new Set(await tools.pins(moved))) {
+        if (!registryUnavailable)
+          set({ part: "tools", packageManager, step: "fetching" });
+        for (const result of await prewarmModuleRuntimes(
+          registryUnavailable ? local : tools.resolve,
+          [packageManager],
+        )) {
+          const unanswered =
             result.kind === "refused" && result.reason === runtimeUnavailable;
+          set(
+            registryUnavailable && unanswered
+              ? {
+                  part: "tools",
+                  packageManager,
+                  result: "not-fetched",
+                  reason: runtimeUnavailable,
+                }
+              : toolsItem(result),
+          );
+          if (unanswered) registryUnavailable = true;
         }
       }
     } catch {
       failed("tools");
     }
 
-  // 3. Builds of what changed, the content's new commits among them.
+  // 3. Builds of what changed, the content's new commits among them, told
+  // what the pre-warm found about the network.
   try {
-    const built = await parts.builds((progress) =>
-      set({ part: "build", ...progress }),
+    const built = await parts.builds(
+      (progress) => set({ part: "build", ...progress }),
+      Object.freeze({ registryUnavailable }),
     );
     for (const answer of built) set({ part: "build", ...answer });
   } catch {

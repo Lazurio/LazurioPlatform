@@ -838,7 +838,8 @@ export async function startLaunchpad(
                   pins: (moved) => modules.runtimePins(moved),
                   resolve: modules.resolveBun,
                 },
-                builds: (onProgress) => modules.refreshBuilt(onProgress),
+                builds: (onProgress, network) =>
+                  modules.refreshBuilt(onProgress, network),
                 product: async () =>
                   pill === undefined
                     ? {

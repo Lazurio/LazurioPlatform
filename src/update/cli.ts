@@ -873,7 +873,8 @@ function folderParts(
       pins: (moved) => operations.runtimePins(moved),
       resolve: operations.resolveBun,
     },
-    builds: (onProgress) => operations.refreshBuilt(onProgress),
+    builds: (onProgress, network) =>
+      operations.refreshBuilt(onProgress, network),
   };
 }
 

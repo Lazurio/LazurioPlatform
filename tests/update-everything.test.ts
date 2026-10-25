@@ -323,26 +323,27 @@ async function runtimes(
 const toolsOf = (items: readonly UpdateItem[]) =>
   items.filter((item) => item.part === "tools");
 
-/** One run whose content fast-forwarded site, with these pins. */
+/** One run whose content fast-forwarded site, with these pins; `heard`
+ * collects what its builds were told about the registry. */
 const runWith = (
   pins: readonly string[],
   resolve: ModuleBunResolver,
-  onChange?: (lines: readonly UpdateLine[]) => void,
+  heard: boolean[] = [],
 ) =>
-  updateEverything(
-    {
-      content: async () => ({
-        kind: "content-sync",
-        at,
-        organizations: ["Alpha"],
-        entries: [moved],
-      }),
-      tools: { pins: async () => pins, resolve },
-      builds: async () => [],
-      product: async () => current,
+  updateEverything({
+    content: async () => ({
+      kind: "content-sync",
+      at,
+      organizations: ["Alpha"],
+      entries: [moved],
+    }),
+    tools: { pins: async () => pins, resolve },
+    builds: async (_progress, run) => {
+      heard.push(run.registryUnavailable);
+      return [];
     },
-    onChange,
-  );
+    product: async () => current,
+  });
 
 posixTest(
   "tools come after content and before any build: the Bun a moved module's apps pin and the cache does not hold is fetched before the build that needs it",
@@ -452,24 +453,30 @@ posixTest(
 );
 
 posixTest(
-  "offline: the first runtime-unavailable ends the pre-warm for the run, and the pins after it are not fetched, with no further attempt",
+  "offline: the first runtime-unavailable ends the pre-warm for the run; after it each pin is only looked up without the network, cached when the user's Bun or the cache has it, otherwise not fetched",
   async () => {
-    const { resolve, asked } = await runtimes("offline", (version) =>
-      version === "1.4.98" ? "runtime-unavailable" : undefined,
+    let offline = false;
+    const { resolve, asked } = await runtimes("offline", () =>
+      offline ? "runtime-unavailable" : undefined,
     );
+    // An earlier run fetched 1.4.96.
+    await runWith(["bun@1.4.96"], resolve);
+    expect(asked).toEqual(["1.4.96"]);
+    offline = true;
     const items = await runWith(
-      ["bun@1.4.97", "bun@1.4.98", "bun@1.4.99", `bun@${Bun.version}`],
+      ["bun@1.4.98", "bun@1.4.96", "bun@1.4.99", `bun@${Bun.version}`],
       resolve,
     );
-    expect(asked).toEqual(["1.4.97", "1.4.98"]);
+    // One attempt at the registry in this run, none after it.
+    expect(asked).toEqual(["1.4.96", "1.4.98"]);
     expect(toolsOf(items)).toEqual([
-      { part: "tools", packageManager: "bun@1.4.97", result: "fetched" },
       {
         part: "tools",
         packageManager: "bun@1.4.98",
         result: "refused",
         reason: "runtime-unavailable",
       },
+      { part: "tools", packageManager: "bun@1.4.96", result: "cached" },
       {
         part: "tools",
         packageManager: "bun@1.4.99",
@@ -479,12 +486,47 @@ posixTest(
       {
         part: "tools",
         packageManager: `bun@${Bun.version}`,
-        result: "not-fetched",
-        reason: "runtime-unavailable",
+        result: "cached",
       },
     ]);
     // The rest of the run goes on.
     expect(items.at(-1)).toEqual(current);
+  },
+);
+
+posixTest(
+  "one run, one answer about the network: after runtime-unavailable the builds of that run are told the registry does not answer; no other refusal tells them, and the next run asks again",
+  async () => {
+    let refuse: RuntimeReason | undefined = "runtime-unavailable";
+    const { resolve } = await runtimes("one-answer", () => refuse);
+    const heard: boolean[] = [];
+    await runWith(["bun@1.4.98"], resolve, heard);
+    expect(heard).toEqual([true]);
+    // Held for that run only: the next one asks the registry again.
+    refuse = undefined;
+    await runWith(["bun@1.4.98"], resolve, heard);
+    expect(heard).toEqual([true, false]);
+    // Only runtime-unavailable: a full disk is not an answer about the
+    // network.
+    refuse = "runtime-disk-full";
+    await runWith(["bun@1.4.97"], resolve, heard);
+    expect(heard).toEqual([true, false, false]);
+    // Nothing moved, no pre-warm: no answer, the builds ask themselves.
+    await updateEverything({
+      content: async () => ({
+        kind: "content-sync",
+        at,
+        organizations: ["Alpha"],
+        entries: [entry("workspace/site")],
+      }),
+      tools: { pins: async () => ["bun@1.4.95"], resolve },
+      builds: async (_progress, run) => {
+        heard.push(run.registryUnavailable);
+        return [];
+      },
+      product: async () => current,
+    });
+    expect(heard).toEqual([true, false, false, false]);
   },
 );
 

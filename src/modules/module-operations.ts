@@ -85,7 +85,7 @@ import { readPinnedBun } from "./install-authority";
 import { createApplicationLifecycle } from "./lifecycle";
 import { observeConnected } from "./listener-ownership";
 import { localApplicationAdapters } from "./local-application-adapters";
-import { preparationRefusal } from "./preparation-refusal";
+import { PreparationRefused, preparationRefusal } from "./preparation-refusal";
 import { readModuleApplication } from "./read-application";
 import {
   type RuntimeSecretFinding,
@@ -1833,6 +1833,26 @@ export function createModuleOperations(input: {
       : null;
   }
 
+  // Whether the Bun a target's app pins could come only from the network:
+  // neither the user's Bun nor in the runtime cache, by a local lookup
+  // (decision F62 point 9). A pin that cannot be read is its build's to name.
+  async function pinOnlyFromNetwork(target: Target): Promise<boolean> {
+    const owner = dirname(join(target.moduleDirectory, target.app));
+    try {
+      await resolveBun({
+        packageManager: await readPinnedBun(owner),
+        owner,
+        fetch: false,
+      });
+      return false;
+    } catch (error) {
+      return (
+        error instanceof PreparationRefused &&
+        error.reason === "runtime-unavailable"
+      );
+    }
+  }
+
   // The toolchain from the standard path, checked before any effect.
   async function toolchainMissing(
     operation: "start" | "prepare" | "build",
@@ -2257,9 +2277,19 @@ export function createModuleOperations(input: {
      * nothing where this host keeps no builds, and nothing for the CLI
      * beside a session's apps: their Launchpad owns their dependency trees
      * until it ends (the lifecycle's retained lock), so it builds what moved
-     * itself, within seconds of the pull or at its next start. */
+     * itself, within seconds of the pull or at its next start.
+     *
+     * One run, one answer about the network (decision F62 point 9): told
+     * that this same `lazurio update` run's pre-warm found the registry not
+     * answering, an app whose pinned Bun is neither the user's nor in the
+     * runtime cache is not built now. It answers `failed` with
+     * `runtime-unavailable` at once, after a local lookup only, and the next
+     * run builds it. A pin there builds as always. Builds outside the run (a
+     * person's start, Open or build, the sweep) are never told and ask the
+     * registry themselves. */
     async refreshBuilt(
       onProgress?: (progress: BuiltProgress) => void,
+      network?: Readonly<{ registryUnavailable: boolean }>,
     ): Promise<readonly BuiltRefresh[]> {
       if (builder === undefined || host.builds === undefined) return [];
       if (owner === "cli" && (await host.runnerKind()) === "session") return [];
@@ -2319,6 +2349,16 @@ export function createModuleOperations(input: {
             answer("failed", {
               commit: read.head.commit,
               reason: "toolchain-missing",
+            });
+            continue;
+          }
+          if (
+            network?.registryUnavailable === true &&
+            (await pinOnlyFromNetwork(prepared.target))
+          ) {
+            answer("failed", {
+              commit: read.head.commit,
+              reason: "runtime-unavailable",
             });
             continue;
           }

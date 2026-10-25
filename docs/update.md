@@ -868,8 +868,11 @@ Aktualizovat button runs it by hand. One composition (`updateEverything` in
    - a pin there already, the user's own Bun included, is `cached`, and nothing is
      fetched; a fetched one is `fetched`;
    - **offline**: the first `runtime-unavailable` (the registry did not answer) ends the
-     pre-warm for the run. That pin is `refused` with that reason, and every pin after it
-     is `not-fetched` with the same reason, never tried;
+     fetches for the run. That pin is `refused` with that reason. Every pin after it is
+     only looked up without the network: `cached` when the user's Bun or the cache has it,
+     otherwise `not-fetched` with the same reason, never tried. That one answer about the
+     network, and no other refusal, holds for the builds of the same run (below), in
+     memory and never for the next run;
    - every other refusal is `refused` with the reason a start would give
      (`runtime-version-unknown`, `runtime-disk-full`, `runtime-unsupported-platform`,
      `operation-failed`), and the pre-warm goes on. `runtime-integrity-failed`, a
@@ -891,7 +894,11 @@ Aktualizovat button runs it by hand. One composition (`updateEverything` in
    not built again here (an explicit `lazurio module build` does that), unless what failed
    may pass by itself: its pinned Bun could not be fetched (`runtime-unavailable`,
    `runtime-disk-full`, F62 point 7). An app nobody opened gets no first build: its first
-   Open builds it. On a computer whose Launchpad runs its apps in its own session
+   Open builds it. After the tools part found the registry not answering, a build whose
+   pinned Bun is neither the user's nor in the cache refuses at once with
+   `runtime-unavailable` (a local lookup, no second attempt at the registry) and the next
+   run builds it; a person's start, Open or build outside the run still asks the
+   registry. On a computer whose Launchpad runs its apps in its own session
    (macOS), that Launchpad owns their dependency trees until it ends, so the CLI leaves
    their builds to it: its build watcher builds and swaps what the content brought within
    seconds, or at its next start, and finds the Bun the CLI's tools part fetched in the

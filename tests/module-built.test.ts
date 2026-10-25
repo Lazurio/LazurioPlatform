@@ -1127,7 +1127,7 @@ function bunDistribution(directory: string) {
 }
 
 posixTest(
-  "the tools part fetches the Bun a fast-forwarded module's new commit pins before its build, which runs with it; offline, the build fails for its runtime and a later run builds it (decision F62, root decision 0212 point 3)",
+  "the tools part fetches the Bun a fast-forwarded module's new commit pins before its build, which runs with it; offline, the run's build refuses at once without asking the registry again, a person's build still asks it, a later run builds it, and a cached pin builds under the offline answer (decision F62, root decision 0212 point 3)",
   async () => {
     const home = join(root, "home-tools");
     await mkdir(home);
@@ -1159,11 +1159,11 @@ posixTest(
             pins: (moved) => operations.runtimePins(moved),
             resolve: operations.resolveBun,
           },
-          builds: (onProgress) =>
+          builds: (onProgress, network) =>
             operations.refreshBuilt((progress) => {
               atBuild.push([...distribution.asked]);
               onProgress(progress);
-            }),
+            }, network),
           product: async () => ({
             part: "product",
             result: "current",
@@ -1215,10 +1215,12 @@ posixTest(
       });
       expect((await fixture.page()).text).toBe("<p>two</p>");
       // Offline: a commit that pins another Bun. The pre-warm stops at the
-      // registry that does not answer; the build, which resolves its own
-      // pin, fails for it and what runs stays as it was.
+      // registry that does not answer, and the run's build, told so, refuses
+      // at once: no second attempt at the registry in this run. What runs
+      // stays as it was.
       distribution.offline.add("1.4.98");
       await fixture.publish("three", "bun@1.4.98");
+      atBuild.length = 0;
       const offline = await run();
       expect(parts(offline)).toEqual([
         "content . current",
@@ -1227,7 +1229,16 @@ posixTest(
         "build site failed runtime-unavailable",
         "product current",
       ]);
+      expect(distribution.asked).toEqual(["1.4.99", "1.4.98"]);
+      expect(atBuild).toEqual([]);
       expect((await fixture.page()).text).toBe("<p>two</p>");
+      // A person's build outside the update run still asks the registry
+      // itself, and its failure is recorded.
+      expect(await operations.build("alpha/site")).toMatchObject({
+        kind: "blocked",
+        reason: "runtime-unavailable",
+      });
+      expect(distribution.asked).toEqual(["1.4.99", "1.4.98", "1.4.98"]);
       // Online again: nothing new to fast-forward, so no pins; the build
       // whose runtime could not be had is built again (decision F62 point
       // 7) and fetches its Bun itself.
@@ -1243,6 +1254,16 @@ posixTest(
         "--no-env-file run build",
       );
       expect((await fixture.page()).text).toBe("<p>three</p>");
+      // Under the offline answer a pin the cache holds builds as always: a
+      // local lookup, no fetch.
+      const asked = [...distribution.asked];
+      await fixture.publish("four", "bun@1.4.99");
+      await syncContent(folder, content);
+      expect(
+        await operations.refreshBuilt(undefined, { registryUnavailable: true }),
+      ).toMatchObject([{ module: "site", result: "built" }]);
+      expect(distribution.asked).toEqual(asked);
+      expect((await fixture.page()).text).toBe("<p>four</p>");
     } finally {
       await operations.stop("alpha/site");
       await operations.close();
