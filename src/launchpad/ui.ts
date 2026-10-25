@@ -1098,6 +1098,7 @@ const vaultPage = createVaultPagePanel({
   get: (path) => get(path),
   post: (path, body) => post(path, body),
   copy: () => copy,
+  chat: () => chatHref(entry),
   shown: () => (framed ? shell.route().view === "vault" : false),
   // What it read chooses what Trezor's "?" plays (#499).
   drawn: () => {

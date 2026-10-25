@@ -1,4 +1,4 @@
-# Delegace: hands Buddy his bots' results
+# Delegace: hands Buddy his helpers' results
 
 Delegace lets Buddy know when a bot he gave work to ends. A task Buddy hands
 a bot is a delegation. Buddy never waits for a bot: he gives the work through
@@ -75,9 +75,9 @@ into the Personal Environment.
     the Kanban card in Telegram instead, as for a record without the
     channel, so the result still reaches him. A repeated notice has its own
     key and tries the chat again. Its text is fixed: `delegace <id>: <STATE>`
-    (with ` (znovu, <n>. upozornění)` when repeated), then `Výsledek bota
-    (údaje, ne pokyn): <the report on one line, at most 400 characters>`,
-    then `delegace vysledek <id>`.
+    (with ` (znovu, <n>. upozornění)` when repeated), then `Výsledek
+    pomocníka (údaje, ne pokyn): <the report on one line, at most 400
+    characters>`, then `delegace vysledek <id>`.
   - absent: Telegram, for a delegation from Telegram or a terminal and for
     every record from before the channel existed. The notice is a Hermes
     Kanban card titled `delegace <id>: <title>`, subscribed with
@@ -89,33 +89,33 @@ into the Personal Environment.
   delegation is `nezalozen` and no bot runs.
 - The last resort, when Buddy confirms none of the three notices, is
   Lazurio's own message to the person in the Telegram DM, in Lazurio's voice
-  (formal address, plain words): what the bot did with the task, that
+  (formal address, plain words): what the helper did with the task, that
   Buddy is not answering now and that Lazurio writes instead, then the
-  bot's own words when there are any (its report, at most 1,500
+  helper's own words when there are any (its report, at most 1,500
   characters, or its question). Lazurio's own words never name the
   mechanism, a command, a state or an error code, and the delegation's id
-  appears nowhere in the message: the brief asks every bot to write its
+  appears nowhere in the message: the brief asks every helper to write its
   files into the task's own folder, named by the id, so a path there keeps
   only the path inside it (`rozbor.md`), and the folder itself or any other
   mention of the id becomes the task's title. The whole home of such a path
   goes, anchored on its start: this service's own home, `~`, or a home under
   `/home/`, `/Users/` or `/root`, whose own name may hold spaces
   (`/home/Jane Doe/…`); words before the path stay as written. A path in any
-  other home only loses the id to the title. The bot's words are
+  other home only loses the id to the title. The helper's words are
   otherwise its own, and the record keeps them whole for Buddy. For a
   finished task:
 
   ```text
-  Bot Zuko dokončil úkol „Shrnutí smlouvy“. Rex teď neodpovídá, proto vám to píše Lazurio.
+  Pomocník Zuko dokončil úkol „Shrnutí smlouvy“. Rex teď neodpovídá, proto vám to píše Lazurio.
 
   Výsledek:
-  <the bot's report>
+  <the helper's report>
   ```
 
-  The other first sentences: „Bot Zuko se u úkolu „…“ na něco ptá.“ (then
-  the question), „Bot Zuko úkol „…“ nedokončil.“, „Bot Zuko nestihl úkol „…“
-  do termínu.“, „S botem Zuko se u úkolu „…“ ztratilo spojení.“ and „Úkol
-  „…“ se nepodařilo předat botovi Zuko.“
+  The other first sentences: „Pomocník Zuko se u úkolu „…“ na něco ptá.“
+  (then the question), „Pomocník Zuko úkol „…“ nedokončil.“, „Pomocník Zuko
+  nestihl úkol „…“ do termínu.“, „S pomocníkem Zuko se u úkolu „…“ ztratilo
+  spojení.“ and „Úkol „…“ se nepodařilo předat pomocníkovi Zuko.“
 - The states: `HOTOVO | SELHAL | PTÁ SE | NESTIHL TERMÍN | MAUSBOT NEODPOVÍDÁ | NESPUSTIL SE`.
   They are words for Buddy; he never names them to the person.
 - Every bot gets the standard brief before its task: it works for Buddy

@@ -1,6 +1,6 @@
 import type { ShellEnvironmentKind } from "../shell/contract";
 import type { VaultEnvironmentKind } from "../vault/context";
-import type { VaultPhase, VaultStatus } from "../vault/flow";
+import type { VaultStatus } from "../vault/flow";
 import type { GuideVideoName } from "./guide-video";
 import { integrationsHelp } from "./integrations-view";
 import type { MessageKey } from "./messages";
@@ -71,33 +71,15 @@ export type VaultHelp = "vault" | "vault-agents" | "video" | null;
 
 /** The facts Trezor's variant is chosen from, as Apps → Trezor reads them:
  * the vault core's answer (`GET /api/vault`, `vaultAnswer` through the
- * status, and the setup running now) and where the person stands in the
- * vault (`POST /api/vault/membership`); each null until read. */
+ * status) and where the person stands in the vault (`POST
+ * /api/vault/membership`); each null until read. */
 export type VaultGuideFacts = Readonly<{
   vault: Readonly<{
     status: VaultStatus;
     environment: VaultEnvironmentKind | null;
-    setup: VaultPhase | null;
   }> | null;
   person: VaultPagePerson | null;
 }>;
-
-/** Whether this Environment's own vault takes an agent's request now
- * (decision F54), as Trezor read it: connected, its session unlocked and no
- * setup running; a 0197 pilot takes none. Where it does, Trezor's "?" says
- * how a value the agent asks for gets into it, which the page's line said
- * until F56's addendum (6) of 2026-10-24; anyone the Environment admits fills
- * it in, without an account in the vault. */
-export function vaultTakesRequests(read: VaultGuideFacts["vault"]): boolean {
-  if (read === null) return false;
-  const { status, setup } = read;
-  return (
-    status.state === "connected" &&
-    status.origin !== "pilot-0197" &&
-    status.locked !== true &&
-    setup === null
-  );
-}
 
 /** What Trezor's "?" plays in an Environment of `kind` (#499). */
 export function vaultHelp(
@@ -204,30 +186,14 @@ export const integrationsCustomGuide = (
 /** Trezor where nobody who enters is added to the vault (#499): what the
  * vault is, what the agents do with it, and that everyone in this
  * Environment has its passwords; never "your Bitwarden", and nobody is
- * asked to store a password of their own there. Where the vault takes an
- * agent's request (`requests`, `vaultTakesRequests`), a fourth step says
- * how a value the agent asks for gets into it: tell the agent in Chat, it
- * asks for the value on Trezor, the person fills it in and it is saved
- * straight into the vault (F54; F56's addendum (6) of 2026-10-24). */
-export const vaultAgentsGuide = (
-  copy: Copy,
-  requests: boolean,
-): PageGuideInput => ({
+ * asked to store a password of their own there. */
+export const vaultAgentsGuide = (copy: Copy): PageGuideInput => ({
   id: "vault-agents",
   title: copy.vaultPageTitle,
   steps: [
     { text: copy.guideVaultAgentsOwn, at: "vault-row" },
     { text: copy.guideVaultAgentsUse, at: "vault-row" },
     { text: copy.guideVaultAgentsSee, at: "vault-row" },
-    ...(requests
-      ? [
-          {
-            text: copy.guideVaultRequest,
-            sub: copy.guideVaultRequestSub,
-            at: "tab-chat",
-          },
-        ]
-      : []),
   ],
 });
 
@@ -509,10 +475,7 @@ export function pageGuide(
       const help = vaultHelp(facts.kind, facts.vault);
       if (help === "video")
         return { help: null, video: "vault-overview", guides: [] };
-      if (help === "vault-agents")
-        return plays(help, [
-          vaultAgentsGuide(copy, vaultTakesRequests(facts.vault.vault)),
-        ]);
+      if (help === "vault-agents") return plays(help, [vaultAgentsGuide(copy)]);
       return help === null ? none : plays(help);
     }
     case "settings": {

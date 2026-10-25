@@ -425,6 +425,7 @@ test("this computer says so in one line; a 0197 pilot opens its collection; a Te
     row: null,
     actions: [],
     hint: null,
+    guide: false,
     connect: null,
     invite: false,
     disconnect: false,
@@ -484,7 +485,42 @@ test("this computer says so in one line; a 0197 pilot opens its collection; a Te
   expect(Object.hasOwn(en, "vaultPageRule")).toBe(false);
 });
 
-test("a connected vault whose setup still signs in says it is being created and offers no way in yet", () => {
+test("a ready own vault says how it is used: tell the agent in Chat, the value is asked for here; a pilot, a vault not ready and a page not read yet do not", () => {
+  // Every reader of a connected own vault sees the way to use it, also before
+  // they are added (DEV-6631 task 947: the page did not say what to do).
+  for (const person of [
+    member,
+    { kind: "unknown", reason: "sign-in-not-required" } as const,
+    null,
+  ]) {
+    const view = vaultPageView(model(connected(0)), person, cs);
+    expect(view.guide).toBe(true);
+  }
+  expect(
+    vaultPageView(model(connected(), { environment: "team" }), null, cs).guide,
+  ).toBe(true);
+  expect(cs.vaultPageGuide).toContain("Chatu");
+  expect(en.vaultPageGuideChat).toBe("Open Chat");
+  // A 0197 pilot takes no requests; a vault being created or not answering
+  // cannot save one yet; nothing is shown before the page is read.
+  const pilot = { ...connected(), origin: "pilot-0197", name: null } as const;
+  expect(vaultPageView(model(pilot), member, cs).guide).toBe(false);
+  expect(
+    vaultPageView(
+      model({ kind: "vault-status", state: "creating", ...facts }),
+      null,
+      cs,
+    ).guide,
+  ).toBe(false);
+  expect(
+    vaultPageView(model(connected()), member, cs, {
+      kind: "vault-status",
+      state: "unreachable",
+      ...facts,
+    } as VaultStatus).guide,
+  ).toBe(false);
+  // Connected but not ready yet: the setup still signing in (the row says
+  // the vault is being created), or the session locked until a refresh.
   for (const phase of ["install", "account", "vault", "sign-in"] as const) {
     const creating = vaultPageView(
       model(connected(), { setup: phase }),
@@ -492,8 +528,27 @@ test("a connected vault whose setup still signs in says it is being created and 
       cs,
     );
     expect(creating.row?.line).toBe(cs.vaultPageCreating);
-    expect(creating.actions).toEqual([]);
+    expect(creating.guide).toBe(false);
   }
+  expect(
+    vaultPageView(
+      model({ ...connected(null), organization: null, locked: true }),
+      member,
+      cs,
+    ).guide,
+  ).toBe(false);
+  expect(vaultPageView(null, null, cs).guide).toBe(false);
+  expect(
+    vaultPageView(
+      model({
+        kind: "vault-status",
+        state: "unsupported",
+        reason: "workstation",
+      }),
+      null,
+      cs,
+    ).guide,
+  ).toBe(false);
 });
 
 // A personal Environment's own Bitwarden (root decision 0203 point 7; F53's
@@ -548,6 +603,7 @@ test("a personal Environment waiting for its person shows the section with the v
     row: { title: "Osobní example", line: "3 položky", tone: "ok" },
     actions: [],
     hint: "Váš Bitwarden je připojený.",
+    guide: true,
     connect: null,
     invite: true,
     disconnect: true,
@@ -589,6 +645,7 @@ test("a personal Environment waiting for its person shows the section with the v
   ]);
   expect(joined).toMatchObject({
     disconnect: true,
+    guide: true,
     invite: false,
     hint: null,
     row: { title: "Osobní example", line: "3 položky" },
@@ -1598,6 +1655,7 @@ test("an Environment without a vault says why: none on purpose in a public Organ
     row: null,
     actions: [],
     hint: null,
+    guide: false,
     connect: null,
     invite: false,
     disconnect: false,

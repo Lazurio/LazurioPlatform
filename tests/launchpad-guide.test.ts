@@ -9,7 +9,6 @@ import {
   pageHelpStates,
   type VaultGuideFacts,
   vaultHelp,
-  vaultTakesRequests,
 } from "../src/launchpad/guides";
 import { integrationsHelp } from "../src/launchpad/integrations-view";
 import { messages } from "../src/launchpad/messages";
@@ -40,7 +39,7 @@ import {
   shellMarks,
 } from "../src/shell/guide-content";
 import type { ToolOverview } from "../src/tools/overview";
-import type { VaultPhase, VaultStatus } from "../src/vault/flow";
+import type { VaultStatus } from "../src/vault/flow";
 import { guideTextFindings } from "./fixtures/guide-text";
 
 // The Launchpad as the host of the shell's guide (decision F56 and its
@@ -182,40 +181,13 @@ const read = (
       : never
     : never,
   person: VaultPagePerson | null = null,
-  setup: VaultPhase | null = null,
-): VaultGuideFacts => ({ vault: { status, environment, setup }, person });
+): VaultGuideFacts => ({ vault: { status, environment }, person });
 const known = (
   state: Extract<VaultPagePerson, { kind: "known" }>["state"],
 ): VaultPagePerson => ({ kind: "known", state, signIn: true });
 const unknownPerson = (
   reason: Extract<VaultPagePerson, { kind: "unknown" }>["reason"],
 ): VaultPagePerson => ({ kind: "unknown", reason });
-
-/** A vault that does not take an agent's request yet, or never: its session
- * locked, a setup still running, its creation not confirmed, no answer, a
- * 0197 pilot. */
-const lockedVault: VaultStatus = {
-  ...connected,
-  organization: null,
-  items: null,
-  locked: true,
-};
-const creatingVault: VaultStatus = {
-  kind: "vault-status",
-  state: "creating",
-  ...lazurioVaultwarden,
-};
-const unreachableVault: VaultStatus = {
-  kind: "vault-status",
-  state: "unreachable",
-  ...lazurioVaultwarden,
-  reason: "timeout",
-};
-const pilotVault: VaultStatus = {
-  ...connected,
-  name: null,
-  origin: "pilot-0197",
-};
 
 /** Every combination of the vault's facts the page meets. */
 const vaultFacts: readonly VaultGuideFacts[] = [
@@ -227,11 +199,6 @@ const vaultFacts: readonly VaultGuideFacts[] = [
   read(connected, "work"),
   read(connected, "team", unknownPerson("not-managed")),
   read(connected, "automated", unknownPerson("not-managed")),
-  read(connected, "team", unknownPerson("not-managed"), "sign-in"),
-  read(lockedVault, "work", known("no-account")),
-  read(creatingVault, "team", unknownPerson("not-managed")),
-  read(unreachableVault, "work", unknownPerson("not-managed")),
-  read(pilotVault, "work", unknownPerson("no-vault")),
   read(ownBitwarden, "personal", known("not-invited")),
   read({ kind: "vault-status", state: "needs-connection" }, "personal"),
   read(unsupported("connection-unreadable"), "personal"),
@@ -796,13 +763,13 @@ test("Trezor's '?' is chosen from the kind, the vault core's answer and the pers
     });
   // Where nobody who enters is added, the words promise no Bitwarden of
   // one's own and ask nobody to store a password; they say that everyone in
-  // this Environment has its passwords. A vault that takes an agent's
-  // request adds how a value the agent asks for gets into it (the test
-  // below), which no account in the vault is needed for.
+  // this Environment has its passwords.
+  const team = { vault: { vault: null, person: null } } as const;
   for (const locale of locales) {
     const guide = pageGuide(
       { view: "vault" },
       {
+        ...team,
         kind: "team",
         locale,
         composio: null,
@@ -816,8 +783,7 @@ test("Trezor's '?' is chosen from the kind, the vault core's answer and the pers
     const words = (parseGuides(guide.guides)?.[0]?.steps ?? []).map(
       (step) => step.text,
     );
-    const rule = words.slice(0, 3);
-    expect(rule).toEqual(
+    expect(words).toEqual(
       locale === "cs"
         ? [
             "Toto Týmové Prostředí má vlastní trezor",
@@ -830,9 +796,8 @@ test("Trezor's '?' is chosen from the kind, the vault core's answer and the pers
             "Everyone in this Team Environment sees its passwords",
           ],
     );
-    for (const text of rule)
+    for (const text of words)
       expect(text).not.toMatch(/Bitwarden|svého|your|sdíl|share|ulož|store/i);
-    expect(words.slice(3)).toEqual([messages(locale).guideVaultRequest]);
   }
   // A video where its words are true, and the guide nowhere else.
   const video = pageGuide(
@@ -975,288 +940,6 @@ test("the sentences the '?' replaced are gone from the page and its words", () =
       });
   expect(messages("cs").filesEmptyRoot).toBe("Zatím žádné soubory.");
   expect(messages("en").filesEmptyRoot).toBe("No files yet.");
-});
-
-// No page has a sentence under its title (Matěj 2026-10-24, the design
-// system's "Vysvětlení na vyžádání", design-system-lazurio#110,
-// Lazurio/LazurioPlatform#631; F56's addendum (6) of 2026-10-24). Settings
-// and Integrace lost theirs with the "?"; the last two went with it:
-// Začínáme of a public Environment, whose group "Vyzkoušejte" says what to
-// try, and Trezor's line on how a value gets into the vault, with its
-// "Otevřít Chat", which Matěj moved into Trezor's "?" the same day (the test
-// below). What stays under a title is a state: Začínáme's count, an empty
-// state, an error, a page that is not available here.
-test("no page has a sentence under its title: Začínáme of a public Environment's is gone, and Trezor's is its '?''s now", () => {
-  const catalog = locales.flatMap((locale) =>
-    kinds.flatMap((kind) => Object.entries(messages(locale, kind))),
-  );
-  /** The words that hold `sentence`, in any language and kind. */
-  const keysWith = (sentence: string) =>
-    [
-      ...new Set(
-        catalog.flatMap(([key, text]) =>
-          text.includes(sentence) ? [key] : [],
-        ),
-      ),
-    ].sort();
-  for (const sentence of [
-    "Vyzkoušejte si Lazurio v tomto ukázkovém Prostředí.",
-    "Try Lazurio in this demo Environment.",
-  ])
-    expect({
-      sentence,
-      page: page.includes(sentence),
-      keys: keysWith(sentence),
-    }).toEqual({ sentence, page: false, keys: [] });
-  for (const [sentence, key] of [
-    ["Potřebuje agent heslo nebo klíč?", "guideVaultRequest"],
-    ["Řekněte mu to v Chatu.", "guideVaultRequestSub"],
-    ["Does an agent need a password or a key?", "guideVaultRequest"],
-    ["Tell it in Chat.", "guideVaultRequestSub"],
-  ] as const)
-    expect({
-      sentence,
-      page: page.includes(sentence),
-      keys: keysWith(sentence),
-    }).toEqual({ sentence, page: false, keys: [key] });
-  expect(
-    elements.some((n) => n.attributes.get("id") === "vault-page-guide"),
-  ).toBe(false);
-  for (const key of ["startDemoIntro", "vaultPageGuide", "vaultPageGuideChat"])
-    for (const locale of locales)
-      expect({ key, here: Object.hasOwn(messages(locale), key) }).toEqual({
-        key,
-        here: false,
-      });
-  // The states that stay under a title.
-  expect(messages("cs").startIntro).toBe("Hotovo {done} ze {total} kroků.");
-  expect(messages("en").startNotHere).toBe("There is nothing to set up here.");
-});
-
-// Trezor's line moved into its "?" (Matěj's decision of 2026-10-24; F56's
-// addendum (6)): one more step of `vault-agents`, the sentence Matěj
-// approved, exactly where the vault takes an agent's request
-// (`vaultTakesRequests`: the line's own condition) and nowhere else, so the
-// "?" never describes what is not there. A member's approved video and a
-// Personal Environment's principle `vault` carry no step of the Launchpad.
-test("Trezor's '?' says how a value the agent asks for gets into the vault, exactly where the vault takes a request", () => {
-  // The approved sentence, unchanged: its first sentence is the step, the
-  // rest the quieter line without the final full stop.
-  expect(
-    `${messages("cs").guideVaultRequest} ${messages("cs").guideVaultRequestSub}.`,
-  ).toBe(
-    "Potřebuje agent heslo nebo klíč? Řekněte mu to v Chatu. O hodnotu si řekne tady, vy ji vyplníte a uloží se rovnou do trezoru.",
-  );
-  expect(
-    `${messages("en").guideVaultRequest} ${messages("en").guideVaultRequestSub}.`,
-  ).toBe(
-    "Does an agent need a password or a key? Tell it in Chat. It asks for the value here, you fill it in, and it goes straight into the vault.",
-  );
-  // Where the vault takes a request: connected, unlocked, no setup running,
-  // never a 0197 pilot, whose collection takes none.
-  const takes: readonly (readonly [
-    string,
-    VaultGuideFacts["vault"],
-    boolean,
-  ])[] = [
-    ["not read yet", null, false],
-    ["connected", read(connected, "work").vault, true],
-    ["a Team's, connected", read(connected, "team").vault, true],
-    [
-      "a personal Bitwarden, connected",
-      read(ownBitwarden, "personal").vault,
-      true,
-    ],
-    ...(["install", "account", "vault", "sign-in"] as const).map(
-      (phase) =>
-        [
-          `connected, its setup at ${phase}`,
-          read(connected, "work", null, phase).vault,
-          false,
-        ] as const,
-    ),
-    ["locked", read(lockedVault, "work").vault, false],
-    ["its creation not confirmed", read(creatingVault, "team").vault, false],
-    ["not answering", read(unreachableVault, "work").vault, false],
-    ["a 0197 pilot", read(pilotVault, "work").vault, false],
-    [
-      "a personal Bitwarden not connected",
-      read({ kind: "vault-status", state: "needs-connection" }, "personal")
-        .vault,
-      false,
-    ],
-    ["no vault yet", read(unsupported("no-vault"), null).vault, false],
-    ["this computer", read(unsupported("workstation"), null).vault, false],
-  ];
-  for (const [name, vault, expected] of takes)
-    expect({ name, takes: vaultTakesRequests(vault) }).toEqual({
-      name,
-      takes: expected,
-    });
-
-  // The step in every kind, language and fact: exactly in `vault-agents`
-  // with a vault that takes a request, last, at the switch's Chat.
-  const trezor = { view: "vault" } as const;
-  const shown = (
-    kind: ShellEnvironmentKind | null,
-    locale: "cs" | "en",
-    vault: VaultGuideFacts,
-  ) => {
-    const copy = messages(locale, kind);
-    const guide = pageGuide(
-      trezor,
-      { kind, locale, composio: null, vault, start: "basics", tools: null },
-      copy,
-    );
-    const handed = parseGuides(guide.guides) ?? [];
-    const steps =
-      guide.help === null
-        ? []
-        : (played(guide.help, handed, locale, kind)?.steps ?? []);
-    return {
-      guide,
-      steps,
-      request: steps.filter((step) => step.text === copy.guideVaultRequest),
-      copy,
-    };
-  };
-  for (const kind of kinds)
-    for (const locale of locales)
-      for (const vault of vaultFacts) {
-        const { guide, steps, request, copy } = shown(kind, locale, vault);
-        const expected =
-          guide.help === "vault-agents" && vaultTakesRequests(vault.vault);
-        expect({
-          kind,
-          locale,
-          vault: JSON.stringify(vault),
-          help: guide.help,
-          request: request.length,
-        }).toEqual({
-          kind,
-          locale,
-          vault: JSON.stringify(vault),
-          help: guide.help,
-          request: expected ? 1 : 0,
-        });
-        if (expected)
-          expect(steps.at(-1)).toEqual({
-            text: copy.guideVaultRequest,
-            sub: copy.guideVaultRequestSub,
-            at: "tab-chat",
-          });
-      }
-
-  // Where it shows and where not, by name.
-  const named: readonly (readonly [
-    string,
-    ShellEnvironmentKind,
-    VaultGuideFacts,
-    ReturnType<typeof vaultHelp> | "video",
-    boolean,
-  ])[] = [
-    [
-      "a Work Environment, no account yet",
-      "work",
-      read(connected, "work", known("no-account")),
-      "vault-agents",
-      true,
-    ],
-    [
-      "a Work Environment, its vault takes no Lazurio sign-in yet",
-      "work",
-      read(connected, "work", unknownPerson("sign-in-not-required")),
-      "vault-agents",
-      true,
-    ],
-    [
-      "a Work Environment, the person not asked yet",
-      "work",
-      read(connected, "work"),
-      "vault-agents",
-      true,
-    ],
-    [
-      "a Team Environment, as a public one's vault is",
-      "team",
-      read(connected, "team", unknownPerson("not-managed")),
-      "vault-agents",
-      true,
-    ],
-    [
-      "an Automated Environment",
-      "automated",
-      read(connected, "automated", unknownPerson("not-managed")),
-      "vault-agents",
-      true,
-    ],
-    [
-      "a Team Environment while its setup signs in",
-      "team",
-      read(connected, "team", unknownPerson("not-managed"), "sign-in"),
-      "vault-agents",
-      false,
-    ],
-    [
-      "a locked vault",
-      "work",
-      read(lockedVault, "work", known("no-account")),
-      "vault-agents",
-      false,
-    ],
-    [
-      "a vault being created",
-      "team",
-      read(creatingVault, "team", unknownPerson("not-managed")),
-      "vault-agents",
-      false,
-    ],
-    [
-      "a 0197 pilot",
-      "work",
-      read(pilotVault, "work", unknownPerson("no-vault")),
-      "vault-agents",
-      false,
-    ],
-    [
-      "a Work Environment's member: the approved video",
-      "work",
-      read(connected, "work", known("member")),
-      "video",
-      false,
-    ],
-    [
-      "a Personal Environment's connected Bitwarden: the principle",
-      "personal",
-      read(ownBitwarden, "personal", known("member")),
-      "vault",
-      false,
-    ],
-    [
-      "a Personal Environment waiting for its Bitwarden: the principle",
-      "personal",
-      read({ kind: "vault-status", state: "needs-connection" }, "personal"),
-      "vault",
-      false,
-    ],
-    [
-      "no vault yet: the video",
-      "work",
-      read(unsupported("no-vault"), null),
-      "video",
-      false,
-    ],
-  ];
-  for (const [name, kind, vault, help, step] of named)
-    for (const locale of locales) {
-      const { guide, request } = shown(kind, locale, vault);
-      expect({
-        name,
-        locale,
-        help: guide.video === null ? guide.help : "video",
-        step: request.length === 1,
-      }).toEqual({ name, locale, help, step });
-    }
 });
 
 test('the "?" of Trezor waits until the vault\'s state is read, in a Personal Environment too, and then shows what it plays', () => {

@@ -898,14 +898,6 @@ const en = {
   guideVaultAgentsOwn: "{This} has its own vault",
   guideVaultAgentsUse: "Agents take passwords from it without asking",
   guideVaultAgentsSee: "Everyone {in this} sees its passwords",
-  // Where the vault takes an agent's request (decision F54): how a value the
-  // agent asks for gets into it. Trezor's line until F56's addendum (6) of
-  // 2026-10-24, moved into its "?" by Matěj's decision of that day: its first
-  // sentence is the step, the rest the quieter line, without the final full
-  // stop.
-  guideVaultRequest: "Does an agent need a password or a key?",
-  guideVaultRequestSub:
-    "Tell it in Chat. It asks for the value here, you fill it in, and it goes straight into the vault",
   // The guide of every Settings section (decision F56's addendum of
   // 2026-10-18, guides.ts): their explanations, which took the sections'
   // explaining sentences. The same rules.
@@ -1045,6 +1037,7 @@ const en = {
   startIntro: "{done} of {total} steps done.",
   startReady: "The Environment is ready.",
   startNotHere: "There is nothing to set up here.",
+  startDemoIntro: "Try Lazurio in this demo Environment.",
   startDemoGroup: "Try it",
   demoAppsText: "The apps of this Organization's modules.",
   startDemoModuleTitle: "A module",
@@ -1336,6 +1329,9 @@ const en = {
   vaultDisconnectNote: "The vault and its passwords stay in Bitwarden.",
   vaultDisconnected: "Your vault and its passwords stay in your Bitwarden.",
   vaultPageAgentsOnly: "Only {this}'s agents use its vault.",
+  vaultPageGuide:
+    "Does an agent need a password or a key? Tell it in Chat. It asks for the value here, you fill it in, and it goes straight into the vault.",
+  vaultPageGuideChat: "Open Chat",
   vaultPageCreating: "Creating the vault…",
   vaultPageUnreachable: "Not responding",
   vaultPageItemsOne: "{count} item",
@@ -2662,9 +2658,6 @@ const cs: Record<MessageKey, string> = {
   guideVaultAgentsOwn: "{Toto} má vlastní trezor",
   guideVaultAgentsUse: "Agenti z něj berou hesla bez ptaní",
   guideVaultAgentsSee: "Hesla vidí každý {v tomto}",
-  guideVaultRequest: "Potřebuje agent heslo nebo klíč?",
-  guideVaultRequestSub:
-    "Řekněte mu to v Chatu. O hodnotu si řekne tady, vy ji vyplníte a uloží se rovnou do trezoru",
   guideStartSteps: "Kroky, které připraví {toto} k práci",
   guideStartAi: "Nejdřív připojte svůj účet AI",
   guideStartGithub: "Po GitHubu se moduly stáhnou samy",
@@ -2798,6 +2791,7 @@ const cs: Record<MessageKey, string> = {
   startIntro: "Hotovo {done} ze {total} kroků.",
   startReady: "Prostředí je připravené.",
   startNotHere: "Tady není co nastavovat.",
+  startDemoIntro: "Vyzkoušejte si Lazurio v tomto ukázkovém Prostředí.",
   startDemoGroup: "Vyzkoušejte",
   demoAppsText: "Aplikace modulů této Organizace.",
   startDemoModuleTitle: "Modul",
@@ -3060,6 +3054,9 @@ const cs: Record<MessageKey, string> = {
   vaultDisconnectNote: "Trezor i hesla v Bitwardenu zůstanou.",
   vaultDisconnected: "Trezor i hesla zůstaly ve vašem Bitwardenu.",
   vaultPageAgentsOnly: "Trezor {tohoto} používají jen jeho agenti.",
+  vaultPageGuide:
+    "Potřebuje agent heslo nebo klíč? Řekněte mu to v Chatu. O hodnotu si řekne tady, vy ji vyplníte a uloží se rovnou do trezoru.",
+  vaultPageGuideChat: "Otevřít Chat",
   vaultPageCreating: "Zakládání trezoru…",
   vaultPageUnreachable: "Neodpovídá",
   vaultPageItemsOne: "{count} položka",

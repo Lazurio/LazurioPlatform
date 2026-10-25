@@ -1254,11 +1254,6 @@ test("agents ask people through the harness's question tool, and the handoff's c
       for (const part of cs
         ? [
             "zeptej se nástrojem svého harnessu na otázky (Claude Code `AskUserQuestion`, Codex `request_user_input`, Hermes `clarify`), ne jen textem ve zprávě",
-            // Root decision 0211, addendum of 2026-10-24: a request that the
-            // user does something is a question too.
-            "Stejně polož i žádost, aby uživatel něco udělal (zadal ověřovací kód, přihlásil se, něco potvrdil nebo zkontroloval)",
-            "s odkazem, kódem a do kdy platí",
-            "Otázka v T3 Code i v Codex Desktopu vyskočí jako upozornění, text ve zprávě ne.",
             "Nabídni 2–4 volby, doporučenou první s označením „(Doporučeno)“, a kontext napiš do zprávy nad otázku.",
             "Nejdřív udělej všechno, co na odpovědi nezávisí",
             "Volba Publikace, kterou uživatel v nástroji udělá, je jeho výslovný pokyn k Publikaci v aktuálním threadu, stejně jako „Publikuj“.",
@@ -1267,9 +1262,6 @@ test("agents ask people through the harness's question tool, and the handoff's c
           ]
         : [
             "ask through your harness's question tool (Claude Code `AskUserQuestion`, Codex `request_user_input`, Hermes `clarify`), not only in the text of a message",
-            "Ask the same way when you need the user to do something (enter a verification code, sign in, confirm or check something)",
-            "with the link, the code and until when it is valid",
-            "A question pops up as a notification in T3 Code and in Codex Desktop; text in a message does not.",
             "Offer 2–4 options, the recommended one first marked “(Recommended)”, and write the context in the message above the question.",
             "First do everything that does not depend on the answer",
             "A choice of Publication the user makes in the tool is their explicit instruction to Publish in the current thread, just like “Publish”.",

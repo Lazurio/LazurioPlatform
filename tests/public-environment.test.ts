@@ -375,9 +375,8 @@ test("Začínáme of a public Environment: Apps, a module and Chat, which says A
   const chat = "https://t3code.workspace.example.lazurio.io";
   const module = { name: "deals", href: "/o/example/deals" };
   const ai = "missing";
-  // No sentence under the title, only the group "Vyzkoušejte" (F56's
-  // addendum (6) of 2026-10-24).
   expect(demoStartView({ chat, module, ai }, cs)).toEqual({
+    intro: "Vyzkoušejte si Lazurio v tomto ukázkovém Prostředí.",
     rows: [
       {
         id: "apps",
@@ -403,6 +402,7 @@ test("Začínáme of a public Environment: Apps, a module and Chat, which says A
     ],
   });
   const english = demoStartView({ chat, module: null, ai }, en);
+  expect(english.intro).toBe("Try Lazurio in this demo Environment.");
   expect(english.rows.map((row) => [row.id, row.title, row.text])).toEqual([
     ["apps", "Apps", "The apps of this Organization's modules."],
     ["module", "A module", "Open any module in Apps."],
