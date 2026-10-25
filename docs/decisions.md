@@ -18693,12 +18693,18 @@ life to a four-hour unit. D is rejected: a parallel reading of Hermes's private 
 3. **The sign-in** (`src/buddy/sign-in.ts`): `POST /api/providers/oauth/openai-codex/start`,
    `GET …/openai-codex/poll/<session>`, `DELETE /api/providers/oauth/sessions/<session>` and
    `DELETE /api/providers/oauth/openai-codex`.
-   - **Only where Hermes keeps its cancellation contract** (Lazurio/hermes-agent#17): its
-     15-minute sweep and its cancel mark a sign-in session cancelled under the lock its worker
-     takes for its last check before it saves, so a session gone from Hermes's map can no
-     longer save one. The gateway advertises the contract in its `identify` answer
-     (`capabilities` lists `lazurio-oauth-cancel-contract-v1`; the member and the value are set
-     in one constant, `oauthCancelContract`, and follow the fork's change). Without it a start
+   - **Only where Hermes keeps its cancellation contract** (Lazurio/hermes-agent#17, at
+     `d1cf093e`, `gateway/lazurio_oauth_contract.py`): whatever removes a running sign-in from
+     Hermes's map (its cancel, its 15-minute sweep, a start that failed) marks it cancelled under
+     `_oauth_sessions_lock`, the lock its worker holds for its last check and its save; and every
+     way a gateway exits goes through `release_gateway_runtime_lock`, which first marks every
+     pending sign-in cancelled under that lock and only then releases the runtime lock. A save
+     still holding that lock after 1 s has passed its check, and the runtime lock then stays
+     until the process exits; the guarantee does not depend on the 1 s. So a session that
+     answers "not found", from its own gateway or from a successor, can no longer save one. A
+     ready gateway lists `lazurio-oauth-cancel-contract-v1` in its `identify`'s `capabilities`,
+     after upstream's three (absent while starting; a draining gateway clears its capabilities),
+     and the constant `oauthCancelContract` names it. Without it a start
      starts nothing and answers `blocked` with `hermes-outdated` ("Buddy needs an update before
      he can be signed in here"): no Hermes session exists that could be saved late. The ticket
      binds the start to the instance that advertised the contract, so that instance serves it.
@@ -18812,10 +18818,10 @@ rules stand in for it, as in Desktop; the gateway asks for ours before it mints 
 **Not decided here.** Buddy's persona and everything derived from it (PR 2, F64); the page in
 Začínáme and Nastavení → Buddy (the shaping's PR 3); profiles (PR 4); Telegram (PR 5); the
 account's e-mail on the card (the shaping's gap H-d). Outside the Platform:
-- Lazurio/hermes-agent#17: the cancellation contract (the sweep marks a session cancelled under
-  the lock its worker checks before it saves) and its advertisement in `identify`, in the fork
-  release with #11, #13 and #14. Until a Hermes with it is pinned, Buddy's sign-in does not start
-  (`hermes-outdated`);
+- Lazurio/hermes-agent#17 (at `d1cf093e`): the cancellation contract (the sweep and a stopping
+  gateway's release mark a session cancelled under the lock its worker checks before it saves)
+  and its advertisement in `identify`, in the fork release with #11, #13 and #14. Until a Hermes
+  with it is pinned, Buddy's sign-in does not start (`hermes-outdated`);
 - Lazurio/hermes-agent#16: a machine-readable "sign in again" state for `openai-codex`, for
   "Vyžaduje pozornost";
 - Lazurio/hermes-agent#15: when the sign-in is lost, Hermes's own chat text tells the person to
@@ -18838,7 +18844,7 @@ account's e-mail on the card (the shaping's gap H-d). Outside the Platform:
 | Forget a sign-in whatever its cancel answered (this revision's first head) | an uncancelled worker can still save a sign-in after a replacement, a cancel or a sign-out that said otherwise (Pablo's first review of #635); rejected for Hermes's confirmed cancel |
 | Hermes's "session not found" and its poll's 404 as proof of an end (the second head) | its 15-minute sweep removes a session without marking it cancelled, and the worker may still save (Pablo's second review of #635); rejected for the cancellation contract |
 | A time bound: "not found" ends a sign-in once the worker's last round has certainly passed (the third head: 1223 s after the start's answer on the monotonic clock) | not an upper bound at `v0.22.4-lazurio.1`: the worker waits, without a timeout, for the process-wide profile lock before its save (`_profile_scope`, `hermes_cli/web_server_profiles.py:239, 262-273`, entered at `oauth.py:339`), the save's own writes (`auth_codex.py:174-214`) are not bounded by `AUTH_LOCK_TIMEOUT_SECONDS`, and httpx's 15 s holds per I/O phase, not per request; Pablo reproduced a save after the bound (his third review of #635); rejected for Hermes's cancellation contract |
-| Another gateway instance as proof that the old worker is gone (the third head's fast path) | Hermes releases its runtime lock before its final `os._exit` (`gateway/run.py:5219-5241`), so a new instance can be ready while the old process and its daemon worker still exist; rejected as proof on its own: another instance's "not found" counts only under the contract, with the residual window below |
+| Another gateway instance as proof that the old worker is gone (the third head's fast path) | at `v0.22.4-lazurio.1` Hermes releases its runtime lock before its final `os._exit` (`gateway/run.py:5219-5241`), so a new instance can be ready while the old process and its daemon worker still exist; rejected as proof on its own: another instance's "not found" counts only under the contract, whose release marks the old process's pending sign-ins cancelled before the runtime lock goes (#17) |
 | Wait for the fork's fix, or read a capability it advertises | first rejected for a rule that held at any Hermes version (the time bound); adopted after Pablo's third review showed that no such bound holds at the tag: a sign-in starts only where the gateway advertises the contract |
 | End a sign-in at its code's end on this process's clock | the person's approval in the worker's last round would be lost, and an unanswered cancel would again be taken as an end; rejected for Hermes's own ending |
 
@@ -18927,9 +18933,14 @@ Buddy's sign-in starts nowhere (`hermes-outdated`); the installer's own sign-in,
 Hermes, comes first. The rule takes the gateway's advertisement for the contract: the control
 socket that advertises it is this account's own, owner-only, as for every ticket. A sign-in held
 while Hermes is replaced by one without the contract stays held until one with it answers.
-**The residual window at a restart:** Hermes releases its runtime lock before its final
-`os._exit` (`gateway/run.py:5219-5241`: the PID file and the lock, then the exit mark and a log
-drain bounded at 1 s, then the exit), so a new instance can become ready while the old process and
-its daemon OAuth worker still exist. A "not found" from that new instance ends the sign-in as
-`lost`, and in that moment the old worker could still save it. Buddy's state is always read live
-from Hermes's own card, so such a save shows him signed in at the next reading.
+**The window at a restart is closed by #17:** at `v0.22.4-lazurio.1` Hermes releases its runtime
+lock before its final `os._exit` (`gateway/run.py:5219-5241`), so a successor can be ready while
+the old process and its daemon OAuth worker still exist; under the contract that release first
+marks every pending sign-in cancelled under `_oauth_sessions_lock`, so a successor's "not found"
+is as safe as the gateway's own (#17's tests hold a worker at its last poll, at its token exchange
+and at `_profile_scope` across the release: nothing is saved, and a successor reserves the profile
+right after). #17 does not cover two cases, neither of which applies to Buddy's single-profile
+gateway signing in to `openai-codex`: a secondary profile that a multi-profile gateway stops
+serving while it keeps running (`release_profile_home`), and the Nous poller's adjustment of its
+configuration after a save that happened before the "not found". Buddy's state is read live from
+Hermes's own card in any case, so a save shows at the next reading.

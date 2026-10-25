@@ -94,15 +94,15 @@ export type GatewayEndpoint = Readonly<{
   contract: boolean;
 }>;
 
-/** Hermes's OAuth cancellation contract (Lazurio/hermes-agent#17): its
- * 15-minute sweep and its cancel mark a sign-in session cancelled under the
- * lock its worker saves under, and the worker checks that mark under the same
- * lock before it saves; so once a session is gone from Hermes's map ("session
- * not found", the poll's 404), nothing saves it. At v0.22.4-lazurio.1 the sweep
- * removes a session without the mark. The gateway advertises the contract in
- * its `identify` answer: the member named here holds the value, or lists it.
- * PENDING: the member and the value are the fork's to name; this is the one
- * place they are set. */
+/** Hermes's OAuth cancellation contract (Lazurio/hermes-agent#17, at
+ * d1cf093e, `gateway/lazurio_oauth_contract.py`): whatever removes a running
+ * sign-in from Hermes's map (its cancel, its 15-minute sweep, a failed start)
+ * and the release of a stopping gateway's runtime lock first mark it cancelled
+ * under the lock its worker takes to check that mark and save; so once a
+ * session answers "session not found" or the poll's 404, here or from a
+ * successor, nothing saves it. At v0.22.4-lazurio.1 the sweep removes a
+ * session without the mark. A ready gateway lists the value in its
+ * `identify`'s `capabilities`; the check also takes the member holding it. */
 export const oauthCancelContract = Object.freeze({
   member: "capabilities",
   value: "lazurio-oauth-cancel-contract-v1",
