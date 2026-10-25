@@ -169,6 +169,14 @@ const en = {
   updateLazurioUpdated: "Updated to version {version}",
   updateLazurioBusy: "Lazurio is already being updated",
   updateLazurioFailed: "Lazurio could not be updated",
+  updateBunFetching: "Fetching version {version}",
+  updateBunFetched: "Version {version} fetched",
+  updateBunOffline:
+    "Version {version} could not be fetched now; try again in a moment",
+  updateBunTampered:
+    "The downloaded version {version} failed its check, so it is not used",
+  updateBunDiskFull: "There is no room on the disk for version {version}",
+  updateBunFailed: "Version {version} could not be prepared",
 };
 type Words = { readonly [K in keyof typeof en]: string };
 const cs: Words = {
@@ -305,6 +313,14 @@ const cs: Words = {
   updateLazurioUpdated: "Aktualizováno na verzi {version}",
   updateLazurioBusy: "Lazurio se už aktualizuje",
   updateLazurioFailed: "Lazurio se nepodařilo aktualizovat",
+  updateBunFetching: "Stahuje se verze {version}",
+  updateBunFetched: "Stažena verze {version}",
+  updateBunOffline:
+    "Verzi {version} se teď nepodařilo stáhnout; zkuste to za chvíli znovu",
+  updateBunTampered:
+    "Stažená verze {version} neprošla kontrolou, a tak se nepoužije",
+  updateBunDiskFull: "Na disku není místo pro verzi {version}",
+  updateBunFailed: "Verzi {version} se nepodařilo připravit",
 };
 
 export type NewTabCopy = Words;
@@ -1178,9 +1194,10 @@ export function toolForKey(
 // The run of `lazurio update` the button starts or joins (`POST` and `GET
 // /api/update/everything`, src/update/everything.ts), read field by field,
 // and its lines folded into one row per module, named as Spuštěné Moduly
-// names them, and one for Lazurio itself, each with its state in plain words:
-// checking, a newer version found (its short commit) and fetched, building,
-// done, up to date, or a finding. Never a code or a path.
+// names them, one per Bun a moved module pins while it is fetched and once it
+// is (decision F62), and one for Lazurio itself, each with its state in plain
+// words: checking, a newer version found (its short commit) and fetched,
+// building, done, up to date, or a finding. Never a code or a path.
 
 /** One line of the run as the page reads it. */
 export type UpdateJobLine =
@@ -1193,6 +1210,16 @@ export type UpdateJobLine =
       result?: string;
       reason?: string;
       to?: string;
+    }>
+  | Readonly<{
+      part: "tools";
+      /** The pin, `bun@x.y.z`; a line of the part as a whole is left out. */
+      packageManager: string;
+      step?: "fetching";
+      result?: string;
+      reason?: string;
+      /** A download that did not verify. */
+      warning?: true;
     }>
   | Readonly<{
       part: "build";
@@ -1249,6 +1276,20 @@ function parseUpdateLine(value: unknown): UpdateJobLine | null {
         to: word(value.to, 64),
       }),
     ) as UpdateJobLine;
+  if (value.part === "tools") {
+    const packageManager = word(value.packageManager, 60);
+    if (packageManager === undefined) return null;
+    return Object.freeze({
+      ...own({
+        part: "tools",
+        packageManager,
+        step: step === "fetching" ? step : undefined,
+        result,
+        reason: word(value.reason, 60),
+      }),
+      ...(value.warning === true ? { warning: true } : {}),
+    }) as UpdateJobLine;
+  }
   if (value.part === "build")
     return Object.freeze(
       own({
@@ -1340,8 +1381,20 @@ function contentFinding(
   return copy.updateFailed;
 }
 
+/** A Bun that could not be had (decision F62) in words. */
+function bunFinding(
+  line: Extract<UpdateJobLine, { part: "tools" }>,
+  copy: NewTabCopy,
+): string {
+  if (line.reason === "runtime-unavailable") return copy.updateBunOffline;
+  if (line.warning === true) return copy.updateBunTampered;
+  if (line.reason === "runtime-disk-full") return copy.updateBunDiskFull;
+  return copy.updateBunFailed;
+}
+
 /** The run's rows: one per module in the order its lines came, the
- * Organization's root only when it is a finding, Lazurio last. */
+ * Organization's root only when it is a finding, then each Bun a moved
+ * module pins that was fetched or could not be, Lazurio last. */
 export function updateView(
   job: UpdateJob,
   catalog: Catalog | null,
@@ -1391,10 +1444,12 @@ export function updateView(
     return module;
   };
   const roots: UpdateRow[] = [];
+  const bun: Extract<UpdateJobLine, { part: "tools" }>[] = [];
   let note: string | null = null;
   let product: Extract<UpdateJobLine, { part: "product" }> | null = null;
   for (const line of job.lines) {
     if (line.part === "product") product = line;
+    else if (line.part === "tools") bun.push(line);
     else if (line.part === "content") {
       if (line.root === undefined || line.path === undefined) {
         if (line.result === "not-run" && line.reason === "content-busy")
@@ -1494,6 +1549,27 @@ export function updateView(
     )
       continue;
     else row("current", copy.updateCurrent);
+  }
+  // A Bun that was there already (the user's own, or the runtime cache's)
+  // needed nothing and says nothing.
+  for (const line of bun) {
+    if (line.step === undefined && line.result === "cached") continue;
+    const version = line.packageManager.startsWith("bun@")
+      ? line.packageManager.slice("bun@".length)
+      : line.packageManager;
+    const [state, words]: [UpdateRow["state"], string] =
+      line.step === "fetching"
+        ? ["fetching", copy.updateBunFetching]
+        : line.result === "fetched"
+          ? ["done", copy.updateBunFetched]
+          : ["finding", bunFinding(line, copy)];
+    rows.push({
+      key: `tools\0${line.packageManager}`,
+      name: "Bun",
+      stone: null,
+      state,
+      text: fill(words, { version }),
+    });
   }
   if (product !== null && product.result !== "not-run") {
     const version = product.to ?? product.version ?? "";

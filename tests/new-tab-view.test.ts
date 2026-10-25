@@ -1458,4 +1458,111 @@ describe("Aktualizovat: the run's rows per module", () => {
       ["knowledgebase", "current", "Up to date"],
     ]);
   });
+
+  test("the Bun a moved module pins: a row while it is fetched and once it is, after the modules and before Lazurio; one that was there already says nothing", () => {
+    const deals = {
+      ...where("workspace/deals"),
+      result: "fast-forwarded",
+      from: sha("a"),
+      to: sha("b"),
+    };
+    const pin = (line: Record<string, unknown>) => ({
+      part: "tools",
+      packageManager: "bun@1.4.3",
+      ...line,
+    });
+    expect(rows(job([deals, pin({ step: "fetching" })]))).toEqual([
+      ["Deals", "fetched", "Stažena novější verze bbbbbbb"],
+      ["Bun", "fetching", "Stahuje se verze 1.4.3"],
+    ]);
+    expect(
+      rows(
+        job(
+          [
+            deals,
+            pin({ result: "fetched" }),
+            {
+              part: "tools",
+              packageManager: "bun@1.4.2",
+              result: "cached",
+            },
+            { part: "product", result: "current", version: "0.1.12" },
+          ],
+          "succeeded",
+        ),
+        en,
+      ),
+    ).toEqual([
+      ["Deals", "done", "Done, version bbbbbbb"],
+      ["Bun", "done", "Version 1.4.3 fetched"],
+      ["Lazurio", "current", "Up to date, version 0.1.12"],
+    ]);
+    // The tools part as a whole, which never fails the update: no row.
+    expect(
+      updateView(
+        job([{ part: "tools", result: "failed", reason: "operation-failed" }]),
+        catalog,
+        cs,
+      ),
+    ).toEqual({ rows: [], note: null });
+  });
+
+  test("a Bun that could not be had in plain words, never a code: offline and not tried, a download that did not verify, a full disk, anything else", () => {
+    const bun = (line: Record<string, unknown>, copy = cs) =>
+      updateView(
+        job(
+          [{ part: "tools", packageManager: "bun@1.4.3", ...line }],
+          "succeeded",
+        ),
+        catalog,
+        copy,
+      ).rows.map((row) => [row.name, row.state, row.text]);
+    const offline = [
+      "Bun",
+      "finding",
+      "Verzi 1.4.3 se teď nepodařilo stáhnout; zkuste to za chvíli znovu",
+    ];
+    expect(bun({ result: "refused", reason: "runtime-unavailable" })).toEqual([
+      offline,
+    ]);
+    expect(
+      bun({ result: "not-fetched", reason: "runtime-unavailable" }),
+    ).toEqual([offline]);
+    expect(
+      bun({
+        result: "refused",
+        reason: "runtime-integrity-failed",
+        warning: true,
+      }),
+    ).toEqual([
+      [
+        "Bun",
+        "finding",
+        "Stažená verze 1.4.3 neprošla kontrolou, a tak se nepoužije",
+      ],
+    ]);
+    expect(bun({ result: "refused", reason: "runtime-disk-full" }, en)).toEqual(
+      [["Bun", "finding", "There is no room on the disk for version 1.4.3"]],
+    );
+    for (const reason of [
+      "runtime-version-unknown",
+      "runtime-unsupported-platform",
+      "operation-failed",
+    ])
+      expect(bun({ result: "refused", reason })).toEqual([
+        ["Bun", "finding", "Verzi 1.4.3 se nepodařilo připravit"],
+      ]);
+    for (const copy of [cs, en])
+      for (const sentence of [
+        copy.updateBunFetching,
+        copy.updateBunFetched,
+        copy.updateBunOffline,
+        copy.updateBunTampered,
+        copy.updateBunDiskFull,
+        copy.updateBunFailed,
+      ]) {
+        expect(sentence).toContain("{version}");
+        expect(sentence).not.toMatch(/[a-z]+-[a-z]+|\//);
+      }
+  });
 });

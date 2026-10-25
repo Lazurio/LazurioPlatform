@@ -13021,8 +13021,8 @@ browser.
 2. **What it runs.** `POST /api/update/everything` starts the composition of one `lazurio
    update` as a job of the Launchpad ([F9's second amendment of
    2026-10-24](#second-amendment-of-2026-10-24-one-lazurio-update-composes-content-builds-and-lazurio-itself)):
-   the content, the builds of what changed, and Lazurio itself last through the pill's own
-   action. A click while a run is under way joins it. A page that opens while a run is under
+   the content, the Bun the moved modules pin, the builds of what changed, and Lazurio
+   itself last through the pill's own action. A click while a run is under way joins it. A page that opens while a run is under
    way shows that run (`GET /api/update/everything`). While a run is under way the button
    says "Aktualizuji…" and does nothing more.
 3. **Progress per module.** Below Spuštěné Moduly the run's rows appear under "Aktualizace",
@@ -13039,7 +13039,14 @@ browser.
    - or a finding in plain words: unfinished work or another branch in the main version,
      GitHub refusing or silent, a build that failed while the previous one keeps running.
 
-   An Organization root shows only when it is a finding, under the Organization's name; an
+   A Bun a moved module pins (decision F62, the tools part of F9's second amendment) is a
+   row of its own named "Bun", after the modules and before Lazurio: "Stahuje se verze
+   1.4.3" while it is made available, "Stažena verze 1.4.3" once it is fetched, or a finding
+   in plain words: it could not be fetched now (offline, or not tried after that), the
+   download failed its check and is not used, the disk has no room, or it could not be
+   prepared. A Bun that was there already (the user's own, or the cache's) needed nothing
+   and has no row; the tools part as a whole, which never fails the update, has none
+   either. An Organization root shows only when it is a finding, under the Organization's name; an
    absent repository shows nothing. Another update holding the content is one sentence for
    the run. No code, path or reason id is ever shown.
 4. **Across Lazurio's restart.** When the run started Lazurio's update, the Launchpad
@@ -13071,10 +13078,13 @@ Tests: `tests/new-tab-view.test.ts` (the answer read field by field; a module th
 checking, a newer version found and fetched, building and done, named from the catalog;
 up to date, a data mount folded into its module, an unknown module by its id, an absent one
 left out; the findings in Czech and English; Lazurio started, then updated once the
-restarted Launchpad runs that version; joining a run under way) and, for the routes,
+restarted Launchpad runs that version; joining a run under way; a pinned Bun fetching and
+fetched between the modules and Lazurio, one there already without a row, and each Bun
+that could not be had in words without a code) and, for the routes,
 `tests/launchpad-update.test.ts` (F9's second amendment). The page itself is checked in a
 browser (root decision 0178): the button in Spuštěné Moduly, the rows, a second click
-joining.
+joining, and in the preview (`scripts/preview-new-tab.ts`) the Bun row fetching while
+Deals waits, then fetched before Deals builds.
 
 ## F48 — One shared GitHub App sign-in in a Work Environment (pilot)
 

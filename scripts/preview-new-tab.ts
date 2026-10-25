@@ -409,9 +409,10 @@ const routes = createNewTabRoutes({
   headers,
 });
 // Aktualizovat (root decision 0212 point 7) over a scripted run of the real
-// composition: Deals gets a newer commit, fetched and built; the
-// Knowledgebase is up to date; Ceník's main version has unfinished work;
-// Lazurio is up to date. Each step takes a moment, so the rows move.
+// composition: Deals gets a newer commit, fetched and built, which pins a Bun
+// that is fetched before its build (decision F62); the Knowledgebase is up to
+// date; Ceník's main version has unfinished work; Lazurio is up to date. Each
+// step takes a moment, so the rows move.
 const step = () => Bun.sleep(900);
 const where = (path: string) =>
   ({
@@ -470,6 +471,17 @@ const updates = createUpdateJobs({
             organizations: ["Example"],
             entries,
           };
+        },
+        tools: {
+          pins: async () => ["bun@1.4.3"],
+          resolve: async () => {
+            await Bun.sleep(2_000);
+            return {
+              executable: process.execPath,
+              binDir: null,
+              source: "fetched" as const,
+            };
+          },
         },
         builds: async (progress) => {
           const deals = {
