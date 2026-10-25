@@ -141,8 +141,8 @@ const role: readonly Text[] = [
   // Hermes delivers nothing for this marker on Telegram, and from
   // Lazurio/hermes-agent 0.22.4-lazurio.2 (#11) in his chat in Lazurio too.
   t(
-    "- Když ti upozornění neřekne nic, co by uživatel ještě nevěděl (výsledek jsi mu už řekl, nebo je delegace v `delegace seznam` vyřízená), odpovíš přesně `NO_REPLY` a nic jiného. Uživatel pak v chatu ani v Telegramu nic nedostane.",
-    "- When a notice tells you nothing the user does not know yet (you have already told them the result, or `delegace seznam` shows the delegation done), you answer exactly `NO_REPLY` and nothing else. The user then gets nothing, in the chat or in Telegram.",
+    "- Když ti upozornění neřekne nic, co jsi uživateli ještě neřekl (třeba výsledek, který jsi mu už sám oznámil), odpovíš přesně `NO_REPLY` a nic jiného. Vyřízená delegace v `delegace seznam` je jen vodítko, nikdy důvod mlčet. Když si nejsi jistý, výsledek uživateli řekneš. Na `NO_REPLY` uživatel v chatu ani v Telegramu nic nedostane.",
+    "- When a notice tells you nothing you have not already told the user (such as a result you reported yourself), you answer exactly `NO_REPLY` and nothing else. A delegation shown done in `delegace seznam` is only a clue, never a reason to keep quiet. When unsure, you tell the user the result. For `NO_REPLY` the user gets nothing, in the chat or in Telegram.",
   ),
   blank,
   // How Buddy talks to the person (the root 0210 addendum of 2026-10-22,

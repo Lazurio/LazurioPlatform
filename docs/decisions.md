@@ -2255,15 +2255,17 @@ in English. Not proven: that Buddy follows the rules (generated text is not proo
 point 3, plan DEV-6676). On Ring 0 on 2026-10-25, Bob asked Buddy in his chat in Lazurio to have a bot
 write one word and report back. The result came back into the chat (Lazurio/hermes-agent#14), but Buddy
 said it twice: once himself and again when Delegace's notice came. Among the notices' rules Buddy's
-`.hermes.md` now says: when a notice tells him nothing the user does not know yet (he has already told
-them the result, or `delegace seznam` shows the delegation done), he answers exactly `NO_REPLY` and
-nothing else. Hermes delivers nothing for that marker on Telegram, and in his chat in Lazurio from
+`.hermes.md` now says: when a notice tells him nothing he has not already told the user (such as a
+result he reported himself), he answers exactly `NO_REPLY` and nothing else. A delegation shown done in
+`delegace seznam` is only a clue, never a reason to keep quiet, because a delegation can be done before
+its result reached the user (Pablo's review of #645); when unsure, Buddy tells the user the result.
+Hermes delivers nothing for that marker on Telegram, and in his chat in Lazurio from
 Lazurio/hermes-agent 0.22.4-lazurio.2 (#11), so the person gets nothing. The rule was held back until
 that release, because without it the chat would have shown the marker.
 
 Template revision `base-instructions-76`. `tests/folder-buddy.test.ts` checks in both locales that the
-rule is in `.hermes.md` before how Buddy talks to the user, that the marker appears there once, and that
-no other file of the layer names it. The English wording avoids Hermes's `deception_hide` pattern. Not
+rule is in `.hermes.md` before how Buddy talks to the user, that a done delegation alone is never
+written as a sufficient reason for silence, and that no other file of the layer names the marker. The English wording avoids Hermes's `deception_hide` pattern. Not
 proven: that Buddy keeps quiet on such a notice (generated text is not proof of behavior); that is the
 next Ring 0 check.
 
