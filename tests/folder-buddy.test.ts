@@ -965,3 +965,43 @@ posix(
     }
   },
 );
+
+// A notice that brings nothing new (Lazurio/LazurioPlatform#612 point 3): on
+// Ring 0 on 2026-10-25 Buddy told Bob a bot's result himself and then again
+// when Delegace's notice came. Hermes delivers nothing for the marker on
+// Telegram and, from Lazurio/hermes-agent 0.22.4-lazurio.2, in his chat in
+// Lazurio. Silence needs that the notice adds nothing Buddy has not already
+// told the user: a delegation done in `delegace seznam` is only a clue, so the
+// one report of a result that is done but not yet told is never suppressed
+// (Pablo's review of #645). The rule sits among the notices' rules, before how
+// he talks to the user, and only in his own rules.
+test(".hermes.md says Buddy answers exactly NO_REPLY only to a notice that adds nothing he has not already told the user, never on a done delegation alone, in both locales, and only there", () => {
+  const rule = {
+    cs: "- Když ti upozornění neřekne nic, co jsi uživateli ještě neřekl (třeba výsledek, který jsi mu už sám oznámil), odpovíš přesně `NO_REPLY` a nic jiného. Vyřízená delegace v `delegace seznam` je jen vodítko, nikdy důvod mlčet. Když si nejsi jistý, výsledek uživateli řekneš. Na `NO_REPLY` uživatel v chatu ani v Telegramu nic nedostane.",
+    en: "- When a notice tells you nothing you have not already told the user (such as a result you reported yourself), you answer exactly `NO_REPLY` and nothing else. A delegation shown done in `delegace seznam` is only a clue, never a reason to keep quiet. When unsure, you tell the user the result. For `NO_REPLY` the user gets nothing, in the chat or in Telegram.",
+  };
+  // A done delegation alone must never be a sufficient reason for silence.
+  const doneAlone = {
+    cs: /(nebo|či)[^.]*delegace[^.]*vyřízen[^.]*\)?,? odpovíš přesně `NO_REPLY`/u,
+    en: /(or|either)[^.]*delegation[^.]*done[^.]*\)?,? you answer exactly `NO_REPLY`/u,
+  };
+  for (const locale of locales) {
+    const layer = scriptLayer(locale);
+    const rules = layer[buddyRulesPath];
+    expect(rules).toContain(rule[locale]);
+    expect(rules).not.toMatch(doneAlone[locale]);
+    expect(rule[locale]).toContain(
+      locale === "cs"
+        ? "Vyřízená delegace v `delegace seznam` je jen vodítko, nikdy důvod mlčet. Když si nejsi jistý, výsledek uživateli řekneš."
+        : "A delegation shown done in `delegace seznam` is only a clue, never a reason to keep quiet. When unsure, you tell the user the result.",
+    );
+    expect(rules.split("`NO_REPLY`").length - 1).toBe(2);
+    const talk =
+      locale === "cs"
+        ? "\n## Jak mluvíš s uživatelem\n"
+        : "\n## How you talk to the user\n";
+    expect(rules.indexOf(rule[locale])).toBeLessThan(rules.indexOf(talk));
+    for (const [path, text] of Object.entries(layer))
+      if (path !== buddyRulesPath) expect(text).not.toContain("NO_REPLY");
+  }
+});

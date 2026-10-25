@@ -2251,6 +2251,24 @@ Delegace writes says "pomocník". Every rendered file of the layer passes
 `v0.22.4-lazurio.1` and main at ff0b336e). `.hermes.md` is 16.8k characters in Czech and 18.3k
 in English. Not proven: that Buddy follows the rules (generated text is not proof of behavior).
 
+**Addendum of 2026-10-25: a notice that brings nothing new gets `NO_REPLY`** (Lazurio/LazurioPlatform#612
+point 3, plan DEV-6676). On Ring 0 on 2026-10-25, Bob asked Buddy in his chat in Lazurio to have a bot
+write one word and report back. The result came back into the chat (Lazurio/hermes-agent#14), but Buddy
+said it twice: once himself and again when Delegace's notice came. Among the notices' rules Buddy's
+`.hermes.md` now says: when a notice tells him nothing he has not already told the user (such as a
+result he reported himself), he answers exactly `NO_REPLY` and nothing else. A delegation shown done in
+`delegace seznam` is only a clue, never a reason to keep quiet, because a delegation can be done before
+its result reached the user (Pablo's review of #645); when unsure, Buddy tells the user the result.
+Hermes delivers nothing for that marker on Telegram, and in his chat in Lazurio from
+Lazurio/hermes-agent 0.22.4-lazurio.2 (#11), so the person gets nothing. The rule was held back until
+that release, because without it the chat would have shown the marker.
+
+Template revision `base-instructions-76`. `tests/folder-buddy.test.ts` checks in both locales that the
+rule is in `.hermes.md` before how Buddy talks to the user, that a done delegation alone is never
+written as a sufficient reason for silence, and that no other file of the layer names the marker. The English wording avoids Hermes's `deception_hide` pattern. Not
+proven: that Buddy keeps quiet on such a notice (generated text is not proof of behavior); that is the
+next Ring 0 check.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
