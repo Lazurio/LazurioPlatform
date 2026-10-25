@@ -13045,9 +13045,12 @@ browser.
    in plain words: it could not be fetched now (offline, or not tried after that), the
    download failed its check and is not used, the disk has no room, or it could not be
    prepared. A Bun that was there already (the user's own, or the cache's) needed nothing
-   and has no row; the tools part as a whole, which never fails the update, has none
-   either. An Organization root shows only when it is a finding, under the Organization's name; an
-   absent repository shows nothing. Another update holding the content is one sentence for
+   and has no row. When the pins of the moved modules could not all be read (the tools
+   part's one `failed` item), one more "Bun" row says so, after the pins' rows: "U některých
+   aplikací se nepodařilo zjistit, jakou verzi potřebují", naming no pin or path, so a run
+   whose moved app nobody opened never looks clean (the review of #624). An Organization
+   root shows only when it is a finding, under the Organization's name; an absent
+   repository shows nothing. Another update holding the content is one sentence for
    the run. No code, path or reason id is ever shown.
 4. **Across Lazurio's restart.** When the run started Lazurio's update, the Launchpad
    restarts and the run goes with it. The page keeps the run's last rows and waits up to
@@ -13080,11 +13083,14 @@ up to date, a data mount folded into its module, an unknown module by its id, an
 left out; the findings in Czech and English; Lazurio started, then updated once the
 restarted Launchpad runs that version; joining a run under way; a pinned Bun fetching and
 fetched between the modules and Lazurio, one there already without a row, and each Bun
-that could not be had in words without a code) and, for the routes,
+that could not be had in words without a code; the real job answer of a run whose moved
+module's pin cannot be read, through `parseUpdateJob` and `updateView`, showing that
+finding) and, for the routes,
 `tests/launchpad-update.test.ts` (F9's second amendment). The page itself is checked in a
 browser (root decision 0178): the button in Spuštěné Moduly, the rows, a second click
 joining, and in the preview (`scripts/preview-new-tab.ts`) the Bun row fetching while
-Deals waits, then fetched before Deals builds.
+Deals waits, then fetched before Deals builds, and the finding for a pin that could not be
+read.
 
 ## F48 — One shared GitHub App sign-in in a Work Environment (pilot)
 

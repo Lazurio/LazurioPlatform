@@ -410,9 +410,10 @@ const routes = createNewTabRoutes({
 });
 // Aktualizovat (root decision 0212 point 7) over a scripted run of the real
 // composition: Deals gets a newer commit, fetched and built, which pins a Bun
-// that is fetched before its build (decision F62); the Knowledgebase is up to
-// date; Ceník's main version has unfinished work; Lazurio is up to date. Each
-// step takes a moment, so the rows move.
+// that is fetched before its build (decision F62), and the pin of one more
+// moved app cannot be read; the Knowledgebase is up to date; Ceník's main
+// version has unfinished work; Lazurio is up to date. Each step takes a
+// moment, so the rows move.
 const step = () => Bun.sleep(900);
 const where = (path: string) =>
   ({
@@ -473,7 +474,7 @@ const updates = createUpdateJobs({
           };
         },
         tools: {
-          pins: async () => ({ pins: ["bun@1.4.3"], unreadable: 0 }),
+          pins: async () => ({ pins: ["bun@1.4.3"], unreadable: 1 }),
           resolve: async () => {
             await Bun.sleep(2_000);
             return {

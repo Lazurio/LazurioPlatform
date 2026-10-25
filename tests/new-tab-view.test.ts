@@ -52,6 +52,7 @@ import type {
   CatalogModule,
   CatalogOrganization,
 } from "../src/organizations/catalog";
+import { createUpdateJobs, updateEverything } from "../src/update/everything";
 
 // Nová karta without a DOM (decision F47 points 1-3 and 6-9, the approved
 // wireframe prototypes-lazurio #27: NewTab.tsx and browser.ts): what the page
@@ -1497,14 +1498,94 @@ describe("Aktualizovat: the run's rows per module", () => {
       ["Bun", "done", "Version 1.4.3 fetched"],
       ["Lazurio", "current", "Up to date, version 0.1.12"],
     ]);
-    // The tools part as a whole, which never fails the update: no row.
+    // The tools part as a whole failed (pins that could not be read): one
+    // finding of its own after the pins' rows, never a pin it does not have.
     expect(
-      updateView(
-        job([{ part: "tools", result: "failed", reason: "operation-failed" }]),
-        catalog,
-        cs,
+      rows(
+        job(
+          [
+            deals,
+            pin({ result: "fetched" }),
+            { part: "tools", result: "failed", reason: "operation-failed" },
+          ],
+          "succeeded",
+        ),
       ),
-    ).toEqual({ rows: [], note: null });
+    ).toEqual([
+      ["Deals", "done", "Hotovo, verze bbbbbbb"],
+      ["Bun", "done", "Stažena verze 1.4.3"],
+      [
+        "Bun",
+        "finding",
+        "U některých aplikací se nepodařilo zjistit, jakou verzi potřebují",
+      ],
+    ]);
+  });
+
+  test("the real job answer of a run whose moved module's pin cannot be read shows a finding, never a clean update", async () => {
+    // The composition of `lazurio update` as the Launchpad runs it: Deals
+    // moved, its app's pin could not be read and nobody opened it, so no
+    // build line warns either.
+    const jobs = createUpdateJobs({
+      run: (onChange) =>
+        updateEverything(
+          {
+            content: async () => ({
+              kind: "content-sync",
+              at: "2026-10-25T12:00:00.000Z",
+              organizations: ["Example"],
+              entries: [
+                {
+                  organization: "Example",
+                  root: "organizations/example_GEN3",
+                  path: "workspace/deals",
+                  kind: "module",
+                  branch: "main",
+                  result: "fast-forwarded",
+                  from: sha("a"),
+                  to: sha("b"),
+                  at: "2026-10-25T12:00:00.000Z",
+                },
+              ],
+            }),
+            tools: {
+              pins: async () => ({ pins: [], unreadable: 1 }),
+              resolve: async () => {
+                throw new Error("Not asked");
+              },
+            },
+            builds: async () => [],
+            product: async () => ({
+              part: "product",
+              result: "current",
+              version: "0.1.12",
+            }),
+          },
+          onChange,
+        ),
+    });
+    jobs.start();
+    await jobs.settled();
+    // As `GET /api/update/everything` sends it.
+    const answer = JSON.parse(
+      JSON.stringify({ kind: "update-everything", job: jobs.latest() }),
+    );
+    const read = parseUpdateJob(answer);
+    if (read === null || read === undefined) throw new Error("No job read");
+    expect(rows(read)).toEqual([
+      ["Deals", "done", "Hotovo, verze bbbbbbb"],
+      [
+        "Bun",
+        "finding",
+        "U některých aplikací se nepodařilo zjistit, jakou verzi potřebují",
+      ],
+      ["Lazurio", "current", "Aktuální, verze 0.1.12"],
+    ]);
+    expect(rows(read, en)[1]).toEqual([
+      "Bun",
+      "finding",
+      "For some apps, the version they need could not be determined",
+    ]);
   });
 
   test("a Bun that could not be had in plain words, never a code: offline and not tried, a download that did not verify, a full disk, anything else", () => {
@@ -1564,5 +1645,7 @@ describe("Aktualizovat: the run's rows per module", () => {
         expect(sentence).toContain("{version}");
         expect(sentence).not.toMatch(/[a-z]+-[a-z]+|\//);
       }
+    for (const copy of [cs, en])
+      expect(copy.updateBunUnknown).not.toMatch(/[a-z]+-[a-z]+|\/|\{/);
   });
 });

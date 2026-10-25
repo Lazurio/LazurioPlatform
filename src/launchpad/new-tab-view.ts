@@ -177,6 +177,8 @@ const en = {
     "The downloaded version {version} failed its check, so it is not used",
   updateBunDiskFull: "There is no room on the disk for version {version}",
   updateBunFailed: "Version {version} could not be prepared",
+  updateBunUnknown:
+    "For some apps, the version they need could not be determined",
 };
 type Words = { readonly [K in keyof typeof en]: string };
 const cs: Words = {
@@ -321,6 +323,8 @@ const cs: Words = {
     "Stažená verze {version} neprošla kontrolou, a tak se nepoužije",
   updateBunDiskFull: "Na disku není místo pro verzi {version}",
   updateBunFailed: "Verzi {version} se nepodařilo připravit",
+  updateBunUnknown:
+    "U některých aplikací se nepodařilo zjistit, jakou verzi potřebují",
 };
 
 export type NewTabCopy = Words;
@@ -1213,8 +1217,9 @@ export type UpdateJobLine =
     }>
   | Readonly<{
       part: "tools";
-      /** The pin, `bun@x.y.z`; a line of the part as a whole is left out. */
-      packageManager: string;
+      /** The pin, `bun@x.y.z`; absent for the part as a whole, which is read
+       * only when it failed (pins that could not be read). */
+      packageManager?: string;
       step?: "fetching";
       result?: string;
       reason?: string;
@@ -1278,7 +1283,10 @@ function parseUpdateLine(value: unknown): UpdateJobLine | null {
     ) as UpdateJobLine;
   if (value.part === "tools") {
     const packageManager = word(value.packageManager, 60);
-    if (packageManager === undefined) return null;
+    if (packageManager === undefined)
+      return result === "failed"
+        ? (Object.freeze({ part: "tools", result }) as UpdateJobLine)
+        : null;
     return Object.freeze({
       ...own({
         part: "tools",
@@ -1394,7 +1402,8 @@ function bunFinding(
 
 /** The run's rows: one per module in the order its lines came, the
  * Organization's root only when it is a finding, then each Bun a moved
- * module pins that was fetched or could not be, Lazurio last. */
+ * module pins that was fetched or could not be, and one finding when the
+ * pins could not all be read, Lazurio last. */
 export function updateView(
   job: UpdateJob,
   catalog: Catalog | null,
@@ -1551,8 +1560,15 @@ export function updateView(
     else row("current", copy.updateCurrent);
   }
   // A Bun that was there already (the user's own, or the runtime cache's)
-  // needed nothing and says nothing.
+  // needed nothing and says nothing. The part as a whole failed when the
+  // pins of the moved modules could not all be read: one finding after the
+  // pins' rows, naming no pin it does not have.
+  let unknown = false;
   for (const line of bun) {
+    if (line.packageManager === undefined) {
+      unknown = true;
+      continue;
+    }
     if (line.step === undefined && line.result === "cached") continue;
     const version = line.packageManager.startsWith("bun@")
       ? line.packageManager.slice("bun@".length)
@@ -1571,6 +1587,14 @@ export function updateView(
       text: fill(words, { version }),
     });
   }
+  if (unknown)
+    rows.push({
+      key: "tools\0",
+      name: "Bun",
+      stone: null,
+      state: "finding",
+      text: copy.updateBunUnknown,
+    });
   if (product !== null && product.result !== "not-run") {
     const version = product.to ?? product.version ?? "";
     const [state, words]: [UpdateRow["state"], string] =
