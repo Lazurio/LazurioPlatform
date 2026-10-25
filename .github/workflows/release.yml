@@ -73,7 +73,11 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
       - run: bun install --frozen-lockfile
-      - run: bun run check
+      - run: bun run check:static
+      # `bun run check` with its tests as in check.yml: one worker per vCPU
+      # (four), the slowest files first, 20 s for a test without its own
+      # timeout. The serial run came within 90 s of the 20 minutes (#639).
+      - run: bun test --parallel=4 --timings=tests/timings.json --timeout=20000
 
   qualified:
     name: A final tag was qualified and passed the canary
