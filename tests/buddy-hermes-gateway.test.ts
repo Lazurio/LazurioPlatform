@@ -1,0 +1,616 @@
+import { expect, test } from "bun:test";
+import { chmod, mkdir, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import {
+  createHermesGateway,
+  type GatewayResult,
+} from "../src/buddy/hermes-gateway";
+import {
+  type FakeHermesGateway,
+  fakeHermesGateway,
+  recorded,
+} from "./fixtures/fake-hermes-gateway";
+
+// Decision F63: the Launchpad as a local client of Buddy's Hermes gateway,
+// against a stand-in that answers with the shapes recorded from
+// Lazurio/hermes-agent v0.22.4-lazurio.1 (tests/fixtures). The control socket
+// and its pointer only as Desktop and Hermes's own discovery accept them, one
+// ticket per call spent once, exactly the headers Hermes's native grant takes
+// (no Origin, no profile query), never through a proxy, and every failure a
+// closed reason.
+
+const posix = test.skipIf(process.platform === "win32");
+
+async function within(
+  options: Parameters<typeof fakeHermesGateway>[0],
+  body: (fake: FakeHermesGateway) => Promise<void>,
+) {
+  const fake = await fakeHermesGateway(options);
+  try {
+    await body(fake);
+  } finally {
+    await fake.close();
+  }
+}
+
+const client = (fake: FakeHermesGateway, extra: object = {}) =>
+  createHermesGateway({ home: fake.userHome, ...extra });
+
+const verbs = (fake: FakeHermesGateway) =>
+  fake.control.map((request) => request.value?.verb);
+
+const failure = (reason: string): GatewayResult<never> => ({
+  ok: false,
+  reason: reason as never,
+});
+
+posix(
+  "identify: the recorded answer of a ready gateway serving exactly this home, its socket in the home",
+  () =>
+    within({}, async (fake) => {
+      expect(await client(fake).identify()).toEqual({
+        ok: true,
+        value: {
+          home: fake.home,
+          socket: join(fake.home, "gateway.sock"),
+          instanceId: recorded.control.identify.result.instance_id,
+          apiOrigin: fake.apiOrigin,
+        },
+      });
+      expect(fake.control.map((request) => request.line)).toEqual([
+        '{"protocol":1,"verb":"identify","id":1}',
+      ]);
+    }),
+);
+
+posix(
+  "a ticket of its own for every call, each spent once, with exactly Hermes's native grant: no Origin, no profile, no proxy",
+  () =>
+    within({ signedIn: true }, async (fake) => {
+      const gateway = client(fake);
+      for (const [method, path] of [
+        ["GET", "/api/providers/oauth"],
+        ["POST", "/api/providers/oauth/openai-codex/start"],
+        ["DELETE", "/api/providers/oauth/openai-codex"],
+      ] as const) {
+        const answer = await gateway.request(method, path);
+        expect(answer.ok).toBe(true);
+      }
+      expect(verbs(fake)).toEqual([
+        "identify",
+        "session-ticket",
+        "identify",
+        "session-ticket",
+        "identify",
+        "session-ticket",
+      ]);
+      for (const request of fake.control.filter(
+        (entry) => entry.value?.verb === "session-ticket",
+      ))
+        expect(request.value).toEqual({
+          protocol: 1,
+          id: 1,
+          verb: "session-ticket",
+          params: {
+            profile_id: fake.home,
+            instance_id: recorded.control.identify.result.instance_id,
+            purpose: "native-http",
+          },
+        });
+      // Three tickets, three redemptions, none twice, none left over.
+      expect(fake.spent).toHaveLength(3);
+      expect(new Set(fake.spent).size).toBe(3);
+      expect(fake.minted.size).toBe(0);
+      expect(fake.requests.map((request) => request.method)).toEqual([
+        "GET",
+        "POST",
+        "DELETE",
+      ]);
+      for (const [index, request] of fake.requests.entries()) {
+        expect(request.query).toBe("");
+        expect(request.peer).toBe("127.0.0.1");
+        expect(request.headers["x-hermes-gateway-ticket"]).toBe(
+          fake.spent[index] as string,
+        );
+        expect(request.headers.host).toBe(new URL(fake.apiOrigin).host);
+        for (const name of [
+          "origin",
+          "referer",
+          "cookie",
+          "authorization",
+          "x-hermes-session-token",
+          "sec-fetch-site",
+        ])
+          expect(request.headers[name]).toBeUndefined();
+      }
+    }),
+);
+
+posix(
+  "HTTP_PROXY never sees a ticket: the call goes to the loopback listener itself",
+  () =>
+    within({}, async (fake) => {
+      const proxied: string[] = [];
+      const proxy = Bun.serve({
+        hostname: "127.0.0.1",
+        port: 0,
+        fetch(request) {
+          proxied.push(request.headers.get("x-hermes-gateway-ticket") ?? "");
+          return Response.json({ providers: [] });
+        },
+      });
+      try {
+        // In a process of its own: Bun's fetch keeps the first proxy it saw
+        // for the rest of the process, which would reach every later test.
+        const module = join(import.meta.dir, "../src/buddy/hermes-gateway.ts");
+        const child = Bun.spawn(
+          [
+            process.execPath,
+            "-e",
+            `const { createHermesGateway } = await import(${JSON.stringify(module)});
+             const answer = await createHermesGateway({ home: process.argv.at(-1) })
+               .request("GET", "/api/providers/oauth");
+             console.log(JSON.stringify(answer.ok ? answer.value.status : answer));`,
+            fake.userHome,
+          ],
+          {
+            env: {
+              ...process.env,
+              HTTP_PROXY: `http://127.0.0.1:${proxy.port}`,
+              http_proxy: `http://127.0.0.1:${proxy.port}`,
+              NO_PROXY: "",
+              no_proxy: "",
+            },
+            stdout: "pipe",
+            stderr: "pipe",
+          },
+        );
+        expect(await new Response(child.stdout).text()).toBe("200\n");
+        expect(await child.exited).toBe(0);
+        expect(proxied).toEqual([]);
+        expect(fake.requests).toHaveLength(1);
+        expect(fake.spent).toHaveLength(1);
+      } finally {
+        proxy.stop(true);
+      }
+    }),
+);
+
+posix(
+  "a refused ticket is replaced once, then the answer is refused; nothing else is asked again, a write least of all",
+  () =>
+    within({}, async (fake) => {
+      // The socket refuses the ticket (a gateway that restarted between
+      // identify and the ticket): one more round, then `refused`.
+      fake.state.ticket = () => recorded.control.ticketStaleInstance;
+      expect(await client(fake).request("GET", "/api/providers/oauth")).toEqual(
+        failure("refused"),
+      );
+      expect(verbs(fake)).toEqual([
+        "identify",
+        "session-ticket",
+        "identify",
+        "session-ticket",
+      ]);
+      expect(fake.requests).toHaveLength(0);
+      fake.state.ticket = undefined;
+      fake.control.length = 0;
+
+      // The API refuses one ticket (401, nothing ran): a new ticket, once.
+      let refusals = 1;
+      fake.state.http = () =>
+        refusals-- > 0
+          ? Response.json(recorded.http.unauthorized.body, { status: 401 })
+          : undefined;
+      const answer = await client(fake).request(
+        "POST",
+        "/api/providers/oauth/openai-codex/start",
+      );
+      expect(answer.ok && answer.value.status).toBe(200);
+      expect(fake.requests.map((request) => request.method)).toEqual([
+        "POST",
+        "POST",
+      ]);
+      expect(fake.spent).toHaveLength(2);
+
+      // Refused again: `refused` after exactly two calls.
+      fake.requests.length = 0;
+      fake.state.http = () =>
+        Response.json(recorded.http.unauthorized.body, { status: 401 });
+      expect(await client(fake).request("GET", "/api/providers/oauth")).toEqual(
+        failure("refused"),
+      );
+      expect(fake.requests).toHaveLength(2);
+
+      // Any other answer of a write is the answer: never sent twice.
+      fake.requests.length = 0;
+      fake.state.http = () =>
+        Response.json(recorded.derived.startFailed.body, { status: 500 });
+      const failed = await client(fake).request(
+        "POST",
+        "/api/providers/oauth/openai-codex/start",
+      );
+      expect(failed).toEqual({
+        ok: true,
+        value: { status: 500, body: recorded.derived.startFailed.body },
+      });
+      expect(fake.requests).toHaveLength(1);
+
+      // The listener stopped taking requests after identify.
+      fake.state.http = () =>
+        Response.json(recorded.derived.notReady.body, { status: 503 });
+      expect(await client(fake).request("GET", "/api/providers/oauth")).toEqual(
+        failure("draining"),
+      );
+      fake.state.http = () =>
+        Response.json(
+          { error: "gateway_not_ready", state: "starting" },
+          { status: 503 },
+        );
+      expect(await client(fake).request("GET", "/api/providers/oauth")).toEqual(
+        failure("not-ready"),
+      );
+    }),
+);
+
+posix(
+  "a ticket answer is taken only for this instance and this home, of a ticket's shape",
+  () =>
+    within({}, async (fake) => {
+      const grant = (change: Record<string, unknown>) => () => ({
+        ...recorded.control.ticket,
+        result: {
+          ...recorded.control.ticket.result,
+          profile_id: fake.home,
+          instance_id: recorded.control.identify.result.instance_id,
+          ...change,
+        },
+      });
+      for (const replace of [
+        grant({ instance_id: "another-instance" }),
+        grant({ profile_id: `${fake.home}/profiles/other` }),
+        grant({ ticket: "short" }),
+        grant({ ticket: "x".repeat(300) }),
+        grant({ ticket: "has space in it 000000000000" }),
+        () => ({ ...recorded.control.ticket, id: 2 }),
+        () => ({ ...recorded.control.ticket, protocol: 2 }),
+        () => ({ raw: "[]" }),
+      ]) {
+        fake.state.ticket = replace as never;
+        expect(
+          await client(fake).request("GET", "/api/providers/oauth"),
+        ).toEqual(failure("invalid-answer"));
+      }
+      expect(fake.requests).toHaveLength(0);
+    }),
+);
+
+posix(
+  "an API origin other than exactly http://127.0.0.1:<port> or http://[::1]:<port> is refused before any ticket is minted",
+  () =>
+    within({}, async (fake) => {
+      for (const origin of [
+        "http://10.0.0.5:8080",
+        "http://localhost:4123",
+        "https://127.0.0.1:4123",
+        "http://127.0.0.1:4123/",
+        "http://127.0.0.1:4123/api",
+        "http://127.0.0.1",
+        "http://127.0.0.1:0",
+        "http://127.0.0.1:65536",
+        "http://user@127.0.0.1:4123",
+        "http://127.0.0.2:4123",
+        "http://[::2]:4123",
+        "http://0.0.0.0:4123",
+        "http://launchpad.example.lazurio.io:443",
+      ]) {
+        fake.state.identify = (answer) => {
+          (answer.result as Record<string, unknown>).api_origin = origin;
+          return answer;
+        };
+        expect(
+          await client(fake).request("GET", "/api/providers/oauth"),
+        ).toEqual(failure("invalid-answer"));
+      }
+      expect(verbs(fake).every((verb) => verb === "identify")).toBe(true);
+      expect(fake.requests).toHaveLength(0);
+      fake.state.identify = (answer) => {
+        (answer.result as Record<string, unknown>).api_origin =
+          "http://[::1]:4123";
+        return answer;
+      };
+      const ipv6 = await client(fake).identify();
+      expect(ipv6.ok && ipv6.value.apiOrigin).toBe("http://[::1]:4123");
+    }),
+);
+
+posix(
+  "identify: starting, draining, another home, another protocol, no session authority, a broken answer",
+  () =>
+    within({}, async (fake) => {
+      const gateway = client(fake, { controlMs: 300 });
+      const answerWith =
+        (change: (result: Record<string, unknown>) => void) =>
+        (answer: Record<string, unknown>) => {
+          change(answer.result as Record<string, unknown>);
+          return answer;
+        };
+      const recordedAnswer = (answer: object) => () =>
+        JSON.parse(
+          JSON.stringify(answer)
+            .replaceAll("{{home}}", fake.home)
+            .replaceAll("{{apiOrigin}}", fake.apiOrigin),
+        );
+      const cases: [
+        (answer: Record<string, unknown>) => unknown,
+        GatewayResult<never>,
+      ][] = [
+        [
+          recordedAnswer(recorded.control.identifyStarting),
+          failure("not-ready"),
+        ],
+        [
+          recordedAnswer(recorded.control.identifyDraining),
+          failure("draining"),
+        ],
+      ];
+      cases.push(
+        [
+          answerWith((result) => {
+            result.state = "failed";
+          }),
+          failure("not-ready"),
+        ],
+        [
+          answerWith((result) => {
+            result.served_profiles = [
+              { profile_id: `${fake.home}-other`, home: `${fake.home}-other` },
+            ];
+          }),
+          failure("invalid-answer"),
+        ],
+        [
+          answerWith((result) => {
+            result.served_profiles = [
+              { profile_id: fake.home, home: fake.home },
+              { profile_id: fake.home, home: fake.home },
+            ];
+          }),
+          failure("invalid-answer"),
+        ],
+        [
+          answerWith((result) => {
+            result.runtime_protocol = 2;
+          }),
+          failure("invalid-answer"),
+        ],
+        [
+          answerWith((result) => {
+            result.capabilities = ["durable-admission-v1"];
+          }),
+          failure("invalid-answer"),
+        ],
+        [
+          answerWith((result) => {
+            result.authority_epoch = 0;
+          }),
+          failure("invalid-answer"),
+        ],
+        [
+          answerWith((result) => {
+            result.instance_id = "";
+          }),
+          failure("invalid-answer"),
+        ],
+        [(answer) => ({ ...answer, id: 2 }), failure("invalid-answer")],
+        [
+          () => ({ ok: false, error: "unknown verb: 'identify'", protocol: 1 }),
+          failure("invalid-answer"),
+        ],
+        [() => ({ raw: "not json" }), failure("invalid-answer")],
+        [() => "close", failure("invalid-answer")],
+        [() => "hang", failure("timeout")],
+      );
+      for (const [replace, expected] of cases) {
+        fake.state.identify = replace as never;
+        expect(await gateway.identify()).toEqual(expected);
+        expect(await gateway.request("GET", "/api/providers/oauth")).toEqual(
+          expected,
+        );
+      }
+      expect(fake.requests).toHaveLength(0);
+      expect(verbs(fake).every((verb) => verb === "identify")).toBe(true);
+    }),
+);
+
+posix(
+  "the paths: a link, another account's, open to others or missing are refused before anything is sent",
+  async () => {
+    // The socket as a link to the real one.
+    await within({}, async (fake) => {
+      const real = join(fake.home, "real.sock");
+      await rename(fake.socket, real);
+      await symlink(real, fake.socket);
+      expect(await client(fake).identify()).toEqual(failure("unsafe-path"));
+      expect(fake.control).toHaveLength(0);
+    });
+    // Another account's home and socket.
+    await within({}, async (fake) => {
+      expect(
+        await client(fake, { uid: (process.getuid?.() ?? 0) + 1 }).identify(),
+      ).toEqual(failure("unsafe-path"));
+      expect(fake.control).toHaveLength(0);
+    });
+    // The socket open to the group or to others.
+    await within({}, async (fake) => {
+      for (const mode of [0o660, 0o606, 0o640, 0o604]) {
+        await chmod(fake.socket, mode);
+        expect(await client(fake).identify()).toEqual(failure("unsafe-path"));
+      }
+      await chmod(fake.socket, 0o600);
+      expect((await client(fake).identify()).ok).toBe(true);
+      expect(fake.control).toHaveLength(1);
+    });
+    // The home: nobody else may write to it; reading and searching are the
+    // operator's choice (HERMES_HOME_MODE 0750/0701), as in Desktop.
+    await within({}, async (fake) => {
+      for (const mode of [0o770, 0o702, 0o777, 0o730])
+        await (async () => {
+          await chmod(fake.home, mode);
+          expect(await client(fake).identify()).toEqual(failure("unsafe-path"));
+        })();
+      expect(fake.control).toHaveLength(0);
+      for (const mode of [0o700, 0o750, 0o755, 0o701]) {
+        await chmod(fake.home, mode);
+        expect((await client(fake).identify()).ok).toBe(true);
+      }
+    });
+    // No home, a file for a home, no socket, a gateway that stopped.
+    await within({}, async (fake) => {
+      expect(
+        await createHermesGateway({
+          home: join(fake.root, "nobody"),
+        }).identify(),
+      ).toEqual(failure("no-socket"));
+      expect(
+        await createHermesGateway({ home: "relative" }).identify(),
+      ).toEqual(failure("no-socket"));
+      expect(await createHermesGateway({ home: undefined }).identify()).toEqual(
+        failure("no-socket"),
+      );
+      const fileHome = join(fake.root, "file-home");
+      await mkdir(fileHome, { mode: 0o700 });
+      await writeFile(join(fileHome, ".hermes"), "", { mode: 0o600 });
+      expect(await createHermesGateway({ home: fileHome }).identify()).toEqual(
+        failure("unsafe-path"),
+      );
+      await fake.stop();
+      expect(await client(fake).identify()).toEqual(failure("no-socket"));
+      expect(await client(fake).request("GET", "/api/providers/oauth")).toEqual(
+        failure("no-socket"),
+      );
+    });
+    // A socket file nobody listens on (a gateway that died).
+    await within({}, async (fake) => {
+      await fake.stop();
+      const { createServer } = await import("node:net");
+      const stale = createServer();
+      await new Promise<void>((resolve) => stale.listen(fake.socket, resolve));
+      await new Promise<void>((resolve) => stale.close(() => resolve()));
+      // `close` unlinks the path on some systems; leave a plain stale socket.
+      await chmod(fake.socket, 0o600).catch(() => undefined);
+      const answer = await client(fake).identify();
+      expect(answer).toEqual(failure("no-socket"));
+    });
+  },
+);
+
+posix(
+  "a symlinked ~/.hermes is followed to the real home the gateway reserves, and tickets name that home",
+  () =>
+    within({ linkedHome: true }, async (fake) => {
+      const answer = await client(fake).request("GET", "/api/providers/oauth");
+      expect(answer.ok).toBe(true);
+      const ticket = fake.control.find(
+        (request) => request.value?.verb === "session-ticket",
+      );
+      const params = ticket?.value?.params as
+        | Record<string, unknown>
+        | undefined;
+      expect(params?.profile_id).toBe(fake.home);
+    }),
+);
+
+posix(
+  "the pointer: only to hermes-gw-<sha256(home)[:16]>/control.sock, private and never a link",
+  async () => {
+    await within({ pointer: true }, async (fake) => {
+      const pointer = join(fake.home, "gateway.sock.path");
+      const identified = await client(fake).identify();
+      expect(identified.ok && identified.value.socket).toBe(fake.socket);
+      expect(
+        (await client(fake).request("GET", "/api/providers/oauth")).ok,
+      ).toBe(true);
+      const write = async (text: string) => {
+        await rm(pointer, { force: true });
+        await writeFile(pointer, text, { mode: 0o600 });
+        await chmod(pointer, 0o600);
+      };
+      for (const text of [
+        "relative/hermes-gw-0000000000000000/control.sock",
+        "/tmp/hermes-gw-0000000000000000/control.sock",
+        fake.socket.replace("control.sock", "other.sock"),
+        join(fake.home, "gateway.sock"),
+        `${fake.socket}\nextra`,
+        "x".repeat(4097),
+      ]) {
+        await write(text);
+        expect(await client(fake).identify()).toEqual(failure("unsafe-path"));
+      }
+      // The same pointer with a trailing newline, as Python strips it.
+      await write(`${fake.socket}\n`);
+      expect((await client(fake).identify()).ok).toBe(true);
+      // The pointer open to others, or a link to a good pointer.
+      await chmod(pointer, 0o644);
+      expect(await client(fake).identify()).toEqual(failure("unsafe-path"));
+      await chmod(pointer, 0o600);
+      const good = join(fake.home, "good.path");
+      await rename(pointer, good);
+      await symlink(good, pointer);
+      expect(await client(fake).identify()).toEqual(failure("unsafe-path"));
+      await rm(pointer);
+      await rename(good, pointer);
+      // Its directory open to others.
+      await chmod(fake.pointerDirectory, 0o755);
+      expect(await client(fake).identify()).toEqual(failure("unsafe-path"));
+      await chmod(fake.pointerDirectory, 0o700);
+      // Its socket a link to the real one.
+      const real = join(fake.pointerDirectory, "real.sock");
+      await rename(fake.socket, real);
+      await symlink(real, fake.socket);
+      expect(await client(fake).identify()).toEqual(failure("unsafe-path"));
+      await rm(fake.socket);
+      await rename(real, fake.socket);
+      expect((await client(fake).identify()).ok).toBe(true);
+      // A pointer to a socket that is gone.
+      await rm(fake.socket);
+      expect(await client(fake).identify()).toEqual(failure("no-socket"));
+    });
+  },
+);
+
+posix(
+  "deadlines and bounds: an API that does not answer, an answer too large, a control answer too large",
+  () =>
+    within({}, async (fake) => {
+      const gateway = client(fake, { httpMs: 300, controlMs: 300 });
+      fake.state.http = () => new Promise<Response>(() => undefined);
+      expect(await gateway.request("GET", "/api/providers/oauth")).toEqual(
+        failure("timeout"),
+      );
+      fake.state.http = () =>
+        new Response(JSON.stringify({ providers: "x".repeat(300 * 1024) }), {
+          headers: { "content-type": "application/json" },
+        });
+      expect(await gateway.request("GET", "/api/providers/oauth")).toEqual(
+        failure("invalid-answer"),
+      );
+      fake.state.http = undefined;
+      fake.state.identify = () => ({ raw: "x".repeat(600 * 1024) });
+      expect(await gateway.identify()).toEqual(failure("invalid-answer"));
+    }),
+);
+
+posix("only an /api/ path without a query is ever asked", () =>
+  within({}, async (fake) => {
+    for (const path of [
+      "/api/providers/oauth?profile=other",
+      "/api/../x",
+      "/health",
+      "api/providers",
+      "http://127.0.0.1:1/api/x",
+    ])
+      await expect(client(fake).request("GET", path)).rejects.toThrow();
+    expect(fake.control).toHaveLength(0);
+  }),
+);
