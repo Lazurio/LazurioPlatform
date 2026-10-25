@@ -150,7 +150,7 @@ The stage begins at **`2026-10-24T21:15:38Z`**, when the last Machine ran the ca
 | `06d5c433c545e38d` | work | 0.1.11-rc.6 | healthy / healthy | 0 / 0 (one deliberate restart) | 0.1.11-rc.6 |
 | `d94d6e912281c8e6` | work | 0.1.11-rc.6 | healthy / healthy | 0 / 0 | 0.1.11-rc.6 |
 | `e0d566c46a1a84de` | work | 0.1.11-rc.6 | healthy / healthy | 0 / 0 | 0.1.11-rc.6 |
-| `8d49b01f67710c7a` | personal | 0.1.11-rc.6 (05:22:09Z) | healthy / healthy | – / 0 | – |
+| `8d49b01f67710c7a` | personal | 0.1.11-rc.6 (05:22:09Z) | healthy / healthy | 0 / 0 (journal, below) | 0.1.11-rc.6, through `recover` (below) |
 
 **How "start" is established.**
 - **Work VMs:** `NRestarts` at the start is shown by the unit itself. Each work VM's unit was active
@@ -158,5 +158,33 @@ The stage begins at **`2026-10-24T21:15:38Z`**, when the last Machine ran the ca
   uninterrupted run was 0 at its start.
 - **The deliberate restart on `06d5c433c545e38d`** resets that run, and its earlier run had the same
   reading at 05:37:32Z, just before it.
-- **The personal VM:** its `NRestarts` and health version at the start were not read; its start
-  reading is `recover` `healthy` only, which includes the Launchpad's health check.
+- **The personal VM's health version** was not read directly. In this release `recover` answers
+  `healthy` only when the Launchpad's `/health` answers the version that `update status` reports as
+  active (`judgeHealth` in `src/recover/observe.ts`, a `launchpad-version-mismatch` otherwise). So at
+  the start (21:21:25Z) and at the end (05:22:08Z), `recover` `healthy` with active `0.1.11-rc.6`
+  means `/health` answered `0.1.11-rc.6`.
+- **The personal VM's `NRestarts` at the start** was not read at the start. Its uninterrupted run
+  over its window is established by its Launchpad unit's journal for that window (below), read
+  afterwards.
+- **Module starts on the personal VM:** not applicable. A Personal Environment holds its owner's
+  Personalspace and no Organization modules (the content scope of `hosted-personal`), so it has no
+  module of the pilot Organization to start.
+
+### The personal VM's Launchpad over its window
+
+The Environment's user read the user journal on the personal VM, read only, at
+2026-10-25T10:28:53Z. The VM's clock is UTC, and the bounds were given in UTC. The journal reaches
+back to 2026-09-28, so it covers the whole window.
+
+- **`lazurio-launchpad.service`, from 2026-10-24 20:20:00Z to 2026-10-25 05:23:00Z** (`Started`,
+  `Stopping`, `Stopped`, `Scheduled restart`, `Main process exited`, `Failed`). The only events are:
+  - a stop and a start at 20:31:35Z, during the candidate's apply (20:22:30Z–20:35:43Z), before the
+    stage;
+  - **nothing inside 21:15:38Z–05:22:09Z.**
+
+  So the unit ran without interruption over the personal VM's whole window, and `NRestarts` was 0
+  at its start, as it was at its end.
+- **Module app units (`lazurio-app-*`), 21:15:00Z–05:23:00Z:** none started or stopped. This matches
+  the not-applicable module scope above.
+- **After the window:** the unit was active since 05:43:08Z with `NRestarts` 0, from the planned
+  lane change (#695 in its Owner's Organization, 05:35Z–05:47Z), which is not part of the stage.
