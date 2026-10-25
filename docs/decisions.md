@@ -19751,6 +19751,119 @@ environment, and `NeedDaemonReload=yes` after a drop-in is written.
   #616 (point 6). The English names of the user are the person's to give in all three
   cases until the dialog asks for one form (the shaping's §3.6).
 
+### F64 addendum of 2026-10-25: a change of Buddy's Lazurio layer reaches his running conversations
+
+**Follows Lazurio/LazurioPlatform#648 and #565 point 4 (plan DEV-6676). Variant B of the
+shaping in #565; the readings every two minutes (point 3) are proposed by the agent, who found
+that the reading at start alone does not see a layer written after it. Implemented in this
+revision; Matěj, the Organization Admin, decides it.** Buddy's stored prompts are built from
+SOUL.md and from his Lazurio layer in the Folder (`buddyLayerPaths`: `.agents/buddy/.hermes.md`
+and his Lazurio skills, F14's addendum of 2026-10-21). F64 refreshed them only when SOUL.md
+changed. A Platform release that changes the layer, as v0.1.12-rc.2's base-instructions-76
+does (#645), rewrites those files through whichever of the Folder's entry points runs, and
+nothing cleared his stored prompts afterwards. His chat is one endless conversation (F61), so it
+kept the old rules. **v0.1.12 ships with this as a known limitation:** after its update, the
+owed marker (`prompt-refresh-owed.json`) has to be written by hand and
+`lazurio buddy persona --apply` run. This addendum removes that step.
+
+1. **What the prompts were built from is recorded.** After a complete refresh and the restart
+   that follows it, where F64 removes the owed marker, the apply also records the digest of the
+   layer as it found it when it began. The record is
+   `~/.local/state/lazurio/buddy/prompt-inputs.json` (`schema_version`
+   `lazurio.buddy-prompt-inputs.v1`, `layer_digest`), beside the marker: 0600 in 0700, written
+   whole and renamed into place, before the marker goes. The digest is a sha256 over each file
+   of `buddyLayerPaths`, in order: its path in the Folder, then its length and bytes, or a token
+   of its own for a file that is absent and another for one that is unreadable (no regular file,
+   a link included, which is never followed; larger than 1 MiB; a read that fails). It is the
+   layer at the beginning, not at the end: every turn after the refresh builds its prompt from
+   the layer as it is then, so a layer that changes during an apply is not recorded and stays
+   owed.
+2. **A refresh is owed when the marker is there, or when the layer's bytes are not the recorded
+   ones.** No record counts too, so the first apply after this release refreshes once. The read
+   without `--apply` and the Launchpad's readings count it and write nothing (`prompts: owed`,
+   and `restart: pending` while the gateway runs). An apply turns it into the marker before
+   anything else, and F64's flow does the rest: the prompts cleared at the idle moment, one
+   restart, the record, the marker removed. An apply whose owed refresh waits for the idle moment
+   now answers `restart: pending`, as the read does; it answered `none` when no file of its own
+   had changed. An apply during which the layer changed answers `waiting`, and the next one
+   refreshes again.
+3. **The Launchpad applies it on its own.** Where the recorded entry names Buddy, the
+   Launchpad's persona controller (F65 point 7) reads once when the Launchpad starts and again
+   every two minutes until it stops, as often as it asks an Organization's settings. Each
+   reading is the one a page makes and starts the apply under the same rules: at most one at a
+   time, not again within 15 seconds, retried while Buddy is busy, backed off after a failure.
+   The start alone would not do. Machines' apply raises the Platform, which restarts the
+   Launchpad, and only afterwards runs `lazurio machine folder-refresh`, which writes the new
+   layer and restarts nothing ([machine handover](machine-handover.md)); the user's own
+   `lazurio update` never writes the Folder (F14). The same readings take up a marker that a
+   `lazurio buddy persona --apply` left when it had to wait for Buddy. Without such an entry
+   nothing is read, and the start never waits for a reading.
+4. **What fails stays visible.** Buddy busy: `waiting`, restart `pending`. A refresh capped or
+   incomplete: `failed` (`prompts-incomplete`), and still owed. A file of the layer unreadable:
+   it counts by its token, so a layer that becomes unreadable owes a refresh, and every answer
+   names `layer-unreadable`, an apply's as `failed`, which the Launchpad retries like any
+   failure. The refresh records the token, so a layer that stays unreadable does not restart
+   Buddy again and again, and its repair owes the next refresh. Not personal, or no Hermes
+   home: `skipped` or `unavailable`, as before, and nothing is written.
+5. **Nothing else changes.** Nothing in `src/folder` and no Folder template: the layer's writer
+   still knows nothing of Buddy's home. The marker, its schema and its rules stay, a change of
+   the persona owes its refresh as before, and so does the hand-over to the installer and
+   Machines (point 7).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Variant A of the shaping: the Folder's writer owes the refresh (`writeBuddyLayerLocked` writes the marker before its first changed file) | Needs Buddy's home in `src/folder`, which takes no environment, through six entry points (the CLI's update, the Launchpad's update and tools, the machine handover and refresh, Organization settings, the Tools CLI, the vault host); a caller that forgets is a silent miss, and tests would reach the developer's own home. Rejected for the comparison, which every writer meets |
+| An unreadable layer always owed and never recorded | A layer that stays unreadable would clear Buddy's prompts and restart his gateway on every retry; rejected for a token of its own that a refresh records |
+| The digest of the layer at the end of the apply | A layer that changes between the refresh and the end would be recorded although his prompts were built from the older one; rejected for the beginning |
+| The Launchpad reads only at its start | Machines' apply writes the new layer after the restart, and so does a `machine folder-refresh` after the user's own update; the new rules would wait for a page; rejected for a reading every two minutes |
+| `machine folder-refresh` restarts the Launchpad when the layer changed, as it does when the entry changed | One more restart of the person's page per release for what a small reading does, and a change written another way would still wait; rejected |
+| A watch on the layer's files (inotify) | A second mechanism with failure modes of its own (a directory not there yet, renames over watched files, platform differences) for a check of a few small reads; rejected |
+
+**Verified by** `tests/buddy-persona.test.ts`: a Folder refresh (`refreshMachineFolder`) that
+rewrites `.hermes.md` owes the refresh, and one that changes nothing owes none (#648's test);
+the read reports `prompts: owed` and `restart: pending` and writes neither record; an apply
+while Buddy is busy writes the marker and waits; the idle apply clears both live conversations'
+prompts, restarts once and records the layer, and the next one clears and restarts nothing. No
+record owes the refresh once and then never again, with the record's mode, directory and two
+members asserted; a record of another schema, a digest that is not the layer's, a broken one and
+one through a link count as none. Rules rewritten while the apply runs leave the beginning's
+digest recorded, the answer `waiting`, and the next apply refreshing again. A link at
+`.hermes.md` owes the refresh once, is named `layer-unreadable` by the read and the apply, is
+not refreshed again, and a regular file again owes the next refresh. The digest goes by path and
+bytes: one byte changed at the same length, a byte more, two files' bytes swapped, an empty file
+and none, a link and a directory as one token, and the same layer elsewhere with the same
+digest. `tests/buddy-persona-save.test.ts`: a reading takes up a changed layer and a missing
+record and writes nothing; the start reads once, waits for the apply it began, and starts
+nothing when nothing is owed or the controller is closed; the readings every two minutes take up
+new rules written after the start and a marker, start nothing otherwise, and stop at close.
+`tests/launchpad-buddy.test.ts`: a real Launchpad start on an entry that names Buddy runs F64's
+apply without any request when his rules changed, and none when nothing is owed or the entry
+does not name him. Mutation checks: each of 23 guards removed or loosened fails a test (the
+marker from a changed layer, the beginning's digest, the read's count, no record counting, a
+link followed, `layer-unreadable` in the read and in the apply, the answer after a change during
+the apply, the record's schema and its link, the restart pending while the refresh waits, the
+controller's comparison, the bytes in the digest, the two tokens kept apart, the record only
+after the restart; the watch armed at start, its next reading, its stop, a second watch, the start
+waiting for its apply, the Launchpad's start, its condition on Buddy and `settled()` waiting for
+it). One more guard, a sha256 shape for the recorded digest, survived its mutation and was
+removed: a value that is no layer's digest never equals one.
+
+**Honest limits.**
+- No real Hermes gateway, Buddy or Osobní Prostředí ran, as for F64. The acceptance is on a
+  Ring 0 Buddy after a Platform update that changes `.hermes.md`: with no page opened,
+  `hermes sessions` shows his conversation's stored prompt cleared and then rebuilt by his next
+  turn, which follows the new rule; `prompt-inputs.json` holds the new layer's digest; the
+  Launchpad's journal has a `buddy-persona` `apply` line.
+- The first update with this change refreshes every Buddy once, since none has a record yet:
+  one more prefix-cache miss per live conversation and one restart at an idle moment.
+- A conversation that begins while the layer is briefly different builds its prompt from it.
+  When the layer returns to the recorded bytes before an apply, nothing is owed and that prompt
+  stays.
+- Hermes reads the layer as the same account, so a file unreadable here is unreadable to it,
+  but a link it would follow counts as unreadable here.
+- The readings every two minutes cost the persona and a handful of small files on every
+  Osobní Prostředí with Buddy; nothing else runs unless something is owed.
+
 ## F65 — Buddy in Začínáme and Nastavení → Buddy: his step first, his persona changed in place, the agents' AI not locked behind him
 
 **Proposed for plan DEV-6676 in the Buddy lead's shaping of 2026-10-25 (its §3.2, §3.4 to

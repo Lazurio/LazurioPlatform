@@ -220,8 +220,11 @@ it is: the records keep their format, so every open delegation goes on under
 the new service, and `delegace seznam --otevrene` lists them. A notice
 delivered before the move names the old command; Buddy uses `delegace` with
 the same id. A conversation of Buddy's that was open before the move keeps
-its stored prompt with the old layer until it is cleared (`hermes sessions
-repair-prompts <session id> --apply --json`, #565 point 4).
+its stored prompt with the old layer until it is cleared. A Platform with
+F64's addendum of 2026-10-25 clears it by itself once the Folder's layer has
+changed and Buddy is idle, and `lazurio buddy persona --apply` does it at
+once; on an older Platform, `hermes sessions repair-prompts <session id>
+--apply --json` clears one conversation (#565 point 4).
 
 ## Known limits of version 1
 
