@@ -131,7 +131,10 @@ jobs:
     name: check (macos-14)
     if: github.event_name != 'pull_request'
     runs-on: macos-14
-    timeout-minutes: 20
+    # The serial `bun run check` took 1166-1221 s in October 2026, so 20
+    # minutes cut most runs off (#639). The parallel form of the Linux jobs
+    # is not used here yet: on macOS it fails tests that pass serially (#641).
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -140,9 +143,4 @@ jobs:
         with:
           bun-version: 1.4.2
       - run: bun install --frozen-lockfile
-      - run: bun run check:static
-      # `bun run check` minus its serial `bun test`, which outgrew the 20
-      # minutes (#639). The tests run as on Linux: one worker per vCPU of the
-      # runner (three on macos-14), the slowest files first, and a test
-      # without its own timeout gets 20 s before it counts as hung.
-      - run: bun test --parallel=3 --timings=tests/timings.json --timeout=20000
+      - run: bun run check
