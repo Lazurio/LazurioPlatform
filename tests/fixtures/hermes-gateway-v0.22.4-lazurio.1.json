@@ -1,0 +1,583 @@
+{
+  "provenance": "Recorded on 2026-10-25 from Lazurio/hermes-agent v0.22.4-lazurio.1 (ff0b336e) running `python -m gateway.run` with a private HERMES_HOME, as its tests/gateway/test_native_http_auth.py does; the start asked OpenAI's public device-code endpoint and was cancelled at once. Every live value (home, origin, instance, pid, ticket, session, code, times) is replaced by a synthetic one of the same shape; {{home}} and {{apiOrigin}} are the fake gateway's own. Entries under `derived` are not recorded: they are the recorded poll answer with the status and the message Hermes's worker sets (hermes_cli/web_routers/oauth.py _codex_full_login_worker), and the start refusals FastAPI renders from its HTTPException (oauth.py start_oauth_login, _start_codex_device_code, _codex_device_code_start_error).",
+  "control": {
+    "identify": {
+      "ok": true,
+      "protocol": 1,
+      "result": {
+        "protocol": 1,
+        "kind": "hermes-gateway",
+        "pid": 4242,
+        "start_time": 1000,
+        "hermes_home": "{{home}}",
+        "profile": "default",
+        "supervisor": "none",
+        "launch_supervisor": "manual",
+        "code_sha": null,
+        "code_version": "unknown",
+        "instance_id": "0123456789abcdef0123456789abcdef",
+        "runtime_protocol": 1,
+        "authority_epoch": 1,
+        "state": "ready",
+        "api_origin": "{{apiOrigin}}",
+        "served_profiles": [
+          {
+            "profile_id": "{{home}}",
+            "home": "{{home}}"
+          }
+        ],
+        "parked_profiles": {},
+        "capabilities": [
+          "session-authority-v1",
+          "durable-admission-v1",
+          "event-replay-v1"
+        ]
+      },
+      "id": 1
+    },
+    "identifyStarting": {
+      "ok": true,
+      "protocol": 1,
+      "result": {
+        "protocol": 1,
+        "kind": "hermes-gateway",
+        "pid": 4242,
+        "start_time": 1000,
+        "hermes_home": "{{home}}",
+        "profile": "default",
+        "supervisor": "none",
+        "launch_supervisor": "manual",
+        "code_sha": null,
+        "code_version": "unknown",
+        "instance_id": "0123456789abcdef0123456789abcdef",
+        "runtime_protocol": 1,
+        "authority_epoch": 1,
+        "state": "starting",
+        "api_origin": "{{apiOrigin}}",
+        "served_profiles": [
+          {
+            "profile_id": "{{home}}",
+            "home": "{{home}}"
+          }
+        ],
+        "parked_profiles": {},
+        "capabilities": []
+      },
+      "id": 1
+    },
+    "identifyDraining": {
+      "ok": true,
+      "protocol": 1,
+      "result": {
+        "protocol": 1,
+        "kind": "hermes-gateway",
+        "pid": 4242,
+        "start_time": 1000,
+        "hermes_home": "{{home}}",
+        "profile": "default",
+        "supervisor": "none",
+        "launch_supervisor": "manual",
+        "code_sha": null,
+        "code_version": "unknown",
+        "instance_id": "0123456789abcdef0123456789abcdef",
+        "runtime_protocol": 1,
+        "authority_epoch": 1,
+        "state": "draining",
+        "api_origin": "{{apiOrigin}}",
+        "served_profiles": [
+          {
+            "profile_id": "{{home}}",
+            "home": "{{home}}"
+          }
+        ],
+        "parked_profiles": {},
+        "capabilities": []
+      },
+      "id": 1
+    },
+    "ticket": {
+      "ok": true,
+      "protocol": 1,
+      "result": {
+        "ticket": "Fixture-Ticket_000000000000000000000000000",
+        "expires_in_seconds": 30,
+        "instance_id": "0123456789abcdef0123456789abcdef",
+        "profile_id": "{{home}}",
+        "runtime_protocol": 1
+      },
+      "id": 1
+    },
+    "ticketStaleInstance": {
+      "ok": false,
+      "error": "PermissionError: stale runtime instance",
+      "protocol": 1,
+      "id": 1
+    },
+    "ticketOtherProfile": {
+      "ok": false,
+      "error": "PermissionError: bootstrap binding rejected",
+      "protocol": 1,
+      "id": 1
+    },
+    "ticketInvalidEnvelope": {
+      "ok": false,
+      "error": "PermissionError: invalid bootstrap envelope",
+      "protocol": 1,
+      "id": 1
+    }
+  },
+  "pointer": {
+    "socket": "/tmp/hermes-gw-{{hash}}/control.sock"
+  },
+  "http": {
+    "providersSignedOut": {
+      "status": 200,
+      "body": {
+        "providers": [
+          {
+            "id": "nous",
+            "name": "Nous Portal",
+            "flow": "device_code",
+            "cli_command": "hermes auth add nous",
+            "docs_url": "https://portal.nousresearch.com",
+            "disconnect_hint": null,
+            "disconnect_command": null,
+            "disconnectable": true,
+            "status": {
+              "logged_in": false,
+              "source": "nous_portal",
+              "source_label": "Nous Portal",
+              "token_preview": "",
+              "expires_at": null,
+              "has_refresh_token": false,
+              "free_tier": false,
+              "account_tier": null
+            }
+          },
+          {
+            "id": "openai-codex",
+            "name": "ChatGPT or Codex Subscription",
+            "flow": "device_code",
+            "cli_command": "hermes auth add openai-codex",
+            "docs_url": "https://platform.openai.com/docs",
+            "disconnect_hint": null,
+            "disconnect_command": null,
+            "disconnectable": true,
+            "status": {
+              "logged_in": false,
+              "source": "openai_codex",
+              "source_label": "OpenAI Codex",
+              "token_preview": "",
+              "expires_at": null,
+              "has_refresh_token": false,
+              "last_refresh": null
+            }
+          },
+          {
+            "id": "qwen-oauth",
+            "name": "Qwen (via Qwen CLI)",
+            "flow": "external",
+            "cli_command": "hermes auth add qwen-oauth",
+            "docs_url": "https://github.com/QwenLM/qwen-code",
+            "disconnect_hint": "Managed by that provider's CLI; remove it there.",
+            "disconnect_command": null,
+            "disconnectable": false,
+            "status": {
+              "logged_in": false,
+              "source": "qwen_cli",
+              "source_label": "{{home}}-user/.qwen/oauth_creds.json",
+              "token_preview": "",
+              "expires_at": null,
+              "has_refresh_token": false
+            }
+          },
+          {
+            "id": "minimax-oauth",
+            "name": "MiniMax (OAuth)",
+            "flow": "device_code",
+            "cli_command": "hermes auth add minimax-oauth",
+            "docs_url": "https://www.minimax.io",
+            "disconnect_hint": null,
+            "disconnect_command": null,
+            "disconnectable": true,
+            "status": {
+              "logged_in": false,
+              "source": "minimax_oauth",
+              "source_label": "MiniMax (global)",
+              "token_preview": null,
+              "expires_at": null,
+              "has_refresh_token": true
+            }
+          },
+          {
+            "id": "xai-oauth",
+            "name": "xAI Grok OAuth (SuperGrok / Premium+)",
+            "flow": "device_code",
+            "cli_command": "hermes auth add xai-oauth",
+            "docs_url": "https://hermes-agent.nousresearch.com/docs/guides/xai-grok-oauth",
+            "disconnect_hint": null,
+            "disconnect_command": null,
+            "disconnectable": true,
+            "status": {
+              "logged_in": false,
+              "source": "xai_oauth",
+              "source_label": "{{home}}/auth.json",
+              "token_preview": "",
+              "expires_at": null,
+              "has_refresh_token": true,
+              "last_refresh": null
+            }
+          },
+          {
+            "id": "copilot-acp",
+            "name": "GitHub Copilot (ACP)",
+            "flow": "external",
+            "cli_command": "copilot login",
+            "docs_url": "https://docs.github.com/en/copilot",
+            "disconnect_hint": "Managed by that provider's CLI; remove it there.",
+            "disconnect_command": null,
+            "disconnectable": false,
+            "status": {
+              "logged_in": false,
+              "source": "copilot_cli",
+              "source_label": "GitHub Copilot CLI not found on PATH",
+              "token_preview": null,
+              "expires_at": null,
+              "has_refresh_token": false,
+              "configured": false
+            }
+          },
+          {
+            "id": "anthropic",
+            "name": "Anthropic Account",
+            "flow": "external",
+            "cli_command": "hermes auth add anthropic",
+            "docs_url": "https://docs.claude.com/en/api/getting-started",
+            "disconnect_hint": null,
+            "disconnect_command": null,
+            "disconnectable": true,
+            "status": {
+              "logged_in": false,
+              "source": null
+            }
+          },
+          {
+            "id": "claude-code",
+            "name": "Anthropic OAuth: Required Extra Usage Credits to Use Subscription",
+            "flow": "external",
+            "cli_command": "claude setup-token",
+            "docs_url": "https://docs.claude.com/en/docs/claude-code",
+            "disconnect_hint": "Managed outside Hermes \u2014 run the disconnect command to remove it.",
+            "disconnect_command": "security delete-generic-password -s \"Claude Code-credentials\" 2>/dev/null; rm -f ~/.claude/.credentials.json",
+            "disconnectable": false,
+            "status": {
+              "logged_in": false,
+              "source": null
+            }
+          }
+        ]
+      }
+    },
+    "providersSignedIn": {
+      "status": 200,
+      "body": {
+        "providers": [
+          {
+            "id": "nous",
+            "name": "Nous Portal",
+            "flow": "device_code",
+            "cli_command": "hermes auth add nous",
+            "docs_url": "https://portal.nousresearch.com",
+            "disconnect_hint": null,
+            "disconnect_command": null,
+            "disconnectable": true,
+            "status": {
+              "logged_in": false,
+              "source": "nous_portal",
+              "source_label": "Nous Portal",
+              "token_preview": "",
+              "expires_at": null,
+              "has_refresh_token": false,
+              "free_tier": false,
+              "account_tier": null
+            }
+          },
+          {
+            "id": "openai-codex",
+            "name": "ChatGPT or Codex Subscription",
+            "flow": "device_code",
+            "cli_command": "hermes auth add openai-codex",
+            "docs_url": "https://platform.openai.com/docs",
+            "disconnect_hint": null,
+            "disconnect_command": null,
+            "disconnectable": true,
+            "status": {
+              "logged_in": true,
+              "source": "pool:device_code",
+              "source_label": "chatgpt",
+              "token_preview": "sig",
+              "expires_at": null,
+              "has_refresh_token": false,
+              "last_refresh": "2026-10-25T00:00:00.000000Z"
+            }
+          },
+          {
+            "id": "qwen-oauth",
+            "name": "Qwen (via Qwen CLI)",
+            "flow": "external",
+            "cli_command": "hermes auth add qwen-oauth",
+            "docs_url": "https://github.com/QwenLM/qwen-code",
+            "disconnect_hint": "Managed by that provider's CLI; remove it there.",
+            "disconnect_command": null,
+            "disconnectable": false,
+            "status": {
+              "logged_in": false,
+              "source": "qwen_cli",
+              "source_label": "{{home}}-user/.qwen/oauth_creds.json",
+              "token_preview": "",
+              "expires_at": null,
+              "has_refresh_token": false
+            }
+          },
+          {
+            "id": "minimax-oauth",
+            "name": "MiniMax (OAuth)",
+            "flow": "device_code",
+            "cli_command": "hermes auth add minimax-oauth",
+            "docs_url": "https://www.minimax.io",
+            "disconnect_hint": null,
+            "disconnect_command": null,
+            "disconnectable": true,
+            "status": {
+              "logged_in": false,
+              "source": "minimax_oauth",
+              "source_label": "MiniMax (global)",
+              "token_preview": null,
+              "expires_at": null,
+              "has_refresh_token": true
+            }
+          },
+          {
+            "id": "xai-oauth",
+            "name": "xAI Grok OAuth (SuperGrok / Premium+)",
+            "flow": "device_code",
+            "cli_command": "hermes auth add xai-oauth",
+            "docs_url": "https://hermes-agent.nousresearch.com/docs/guides/xai-grok-oauth",
+            "disconnect_hint": null,
+            "disconnect_command": null,
+            "disconnectable": true,
+            "status": {
+              "logged_in": false,
+              "source": "xai_oauth",
+              "source_label": "{{home}}/auth.json",
+              "token_preview": "",
+              "expires_at": null,
+              "has_refresh_token": true,
+              "last_refresh": null
+            }
+          },
+          {
+            "id": "copilot-acp",
+            "name": "GitHub Copilot (ACP)",
+            "flow": "external",
+            "cli_command": "copilot login",
+            "docs_url": "https://docs.github.com/en/copilot",
+            "disconnect_hint": "Managed by that provider's CLI; remove it there.",
+            "disconnect_command": null,
+            "disconnectable": false,
+            "status": {
+              "logged_in": false,
+              "source": "copilot_cli",
+              "source_label": "GitHub Copilot CLI not found on PATH",
+              "token_preview": null,
+              "expires_at": null,
+              "has_refresh_token": false,
+              "configured": false
+            }
+          },
+          {
+            "id": "anthropic",
+            "name": "Anthropic Account",
+            "flow": "external",
+            "cli_command": "hermes auth add anthropic",
+            "docs_url": "https://docs.claude.com/en/api/getting-started",
+            "disconnect_hint": null,
+            "disconnect_command": null,
+            "disconnectable": true,
+            "status": {
+              "logged_in": false,
+              "source": null
+            }
+          },
+          {
+            "id": "claude-code",
+            "name": "Anthropic OAuth: Required Extra Usage Credits to Use Subscription",
+            "flow": "external",
+            "cli_command": "claude setup-token",
+            "docs_url": "https://docs.claude.com/en/docs/claude-code",
+            "disconnect_hint": "Managed outside Hermes \u2014 run the disconnect command to remove it.",
+            "disconnect_command": "security delete-generic-password -s \"Claude Code-credentials\" 2>/dev/null; rm -f ~/.claude/.credentials.json",
+            "disconnectable": false,
+            "status": {
+              "logged_in": false,
+              "source": null
+            }
+          }
+        ]
+      }
+    },
+    "unauthorized": {
+      "status": 401,
+      "body": {
+        "detail": "Unauthorized"
+      }
+    },
+    "profileScopeMismatch": {
+      "status": 403,
+      "body": {
+        "detail": "profile_scope_mismatch"
+      }
+    },
+    "start": {
+      "status": 200,
+      "body": {
+        "session_id": "Fixture_Session_0000AA",
+        "flow": "device_code",
+        "user_code": "ABCD-12EF3",
+        "verification_url": "https://auth.openai.com/codex/device",
+        "expires_in": 900,
+        "poll_interval": 5
+      }
+    },
+    "pollPending": {
+      "status": 200,
+      "body": {
+        "session_id": "Fixture_Session_0000AA",
+        "status": "pending",
+        "error_message": null,
+        "expires_at": 1800000000.5,
+        "reason": null,
+        "account_email": null,
+        "model": null,
+        "retryable": null,
+        "retry_after": null
+      }
+    },
+    "pollUnknown": {
+      "status": 404,
+      "body": {
+        "detail": "Session not found or expired"
+      }
+    },
+    "cancel": {
+      "status": 200,
+      "body": {
+        "ok": true,
+        "session_id": "Fixture_Session_0000AA"
+      }
+    },
+    "cancelUnknown": {
+      "status": 200,
+      "body": {
+        "ok": false,
+        "message": "session not found"
+      }
+    },
+    "signOut": {
+      "status": 200,
+      "body": {
+        "ok": true,
+        "provider": "openai-codex"
+      }
+    },
+    "signOutEmpty": {
+      "status": 409,
+      "body": {
+        "detail": "No stored credentials were removed for ChatGPT or Codex Subscription."
+      }
+    }
+  },
+  "derived": {
+    "pollApproved": {
+      "status": 200,
+      "body": {
+        "session_id": "Fixture_Session_0000AA",
+        "status": "approved",
+        "error_message": null,
+        "expires_at": 1800000000.5,
+        "reason": null,
+        "account_email": null,
+        "model": null,
+        "retryable": null,
+        "retry_after": null
+      }
+    },
+    "pollExpired": {
+      "status": 200,
+      "body": {
+        "session_id": "Fixture_Session_0000AA",
+        "status": "expired",
+        "error_message": "Device code expired before approval",
+        "expires_at": 1800000000.5,
+        "reason": null,
+        "account_email": null,
+        "model": null,
+        "retryable": null,
+        "retry_after": null
+      }
+    },
+    "pollError": {
+      "status": 200,
+      "body": {
+        "session_id": "Fixture_Session_0000AA",
+        "status": "error",
+        "error_message": "deviceauth/token poll returned 500",
+        "expires_at": 1800000000.5,
+        "reason": null,
+        "account_email": null,
+        "model": null,
+        "retryable": null,
+        "retry_after": null
+      }
+    },
+    "pollRefused": {
+      "status": 200,
+      "body": {
+        "session_id": "Fixture_Session_0000AA",
+        "status": "error",
+        "error_message": "OpenAI rejected the device-code login request. Your OpenAI account may need device-code authorization enabled before Hermes can start this dashboard login. Enable device-code authorization in OpenAI, then return here and click Login again. (HTTP 403: device code authorization is not enabled for this account)",
+        "expires_at": 1800000000.5,
+        "reason": null,
+        "account_email": null,
+        "model": null,
+        "retryable": null,
+        "retry_after": null
+      }
+    },
+    "startRefused": {
+      "status": 500,
+      "body": {
+        "detail": "OpenAI rejected the device-code login request. Your OpenAI account may need device-code authorization enabled before Hermes can start this dashboard login. Enable device-code authorization in OpenAI, then return here and click Login again. (HTTP 403: device code authorization is not enabled for this account)"
+      }
+    },
+    "startTimedOut": {
+      "status": 504,
+      "body": {
+        "detail": "device-auth timed out before returning a user code"
+      }
+    },
+    "startFailed": {
+      "status": 500,
+      "body": {
+        "detail": "token exchange returned 502"
+      }
+    },
+    "notReady": {
+      "status": 503,
+      "body": {
+        "error": "gateway_not_ready",
+        "state": "draining"
+      }
+    }
+  }
+}

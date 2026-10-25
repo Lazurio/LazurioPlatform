@@ -18,6 +18,9 @@ import {
   resolveBrowserView,
 } from "../browser/view";
 import { type CdpCall, cdpSeams, ensureThreadWindow } from "../browser/window";
+import { createHermesGateway } from "../buddy/hermes-gateway";
+import { createBuddySignIn } from "../buddy/sign-in";
+import { readBuddyFacts } from "../buddy/status";
 import { createPersonalspaceHolder } from "../content/holder";
 import {
   type ContentHost,
@@ -119,6 +122,7 @@ import type { VaultHost } from "../vault/flow";
 import { enableVaultForAgents, processVaultHost } from "../vault/host";
 import type { LaunchpadBoot } from "./boot";
 import { launchpadBoot, vaultInAppsOf, withBoot } from "./boot-document";
+import { createBuddyRoutes } from "./buddy-routes";
 import { createCatalogReading, organizationsOnly } from "./catalog-reading";
 import {
   asksForBuddy,
@@ -1091,6 +1095,27 @@ export async function startLaunchpad(
     fixed: () => publicEnvironment,
     journal: (line) => console.log(JSON.stringify(line)),
   });
+  // Buddy's state and his ChatGPT sign-in (decision F63): only where the
+  // recorded entry names his origin (a personal VM, F60), through his own
+  // Hermes gateway, this account's `~/.hermes`. One sign-in at a time, in this
+  // process's memory; a restart loses only its handle, as Hermes's worker
+  // still saves the sign-in the person finishes. Its journal names the
+  // operation, the outcome and the reason, never a code, a handle, a ticket
+  // or Hermes's session.
+  const buddyGateway = createHermesGateway({ home: toolsEnvironment.home });
+  const buddy = createBuddyRoutes({
+    present: () => entry?.buddyOrigin !== undefined,
+    signIn: createBuddySignIn({
+      gateway: buddyGateway,
+      journal: (line) =>
+        console.log(JSON.stringify({ scope: "buddy-sign-in", ...line })),
+    }),
+    facts: () => readBuddyFacts(buddyGateway),
+    locale: async () =>
+      (await withFolderReadLock(state, () => readFolderState(state)))
+        .preferences.profile.locale,
+    headers,
+  });
   const newTab = createNewTabRoutes({
     browser,
     holder,
@@ -1887,6 +1912,19 @@ export async function startLaunchpad(
         if (closing) return response({ error: "closing" }, 503);
         try {
           return await themes.handle(request, url);
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
+      // Buddy (decision F63): 404 `buddy-absent` without his recorded origin;
+      // every POST, the poll included, came through the same-origin rule of
+      // the admission above.
+      if (buddy.handles(url.pathname)) {
+        if (closing) return response({ error: "closing" }, 503);
+        try {
+          return await buddy.handle(request, url, (seconds) =>
+            server.timeout(request, seconds),
+          );
         } catch {
           return response({ error: "operation-failed" }, 500);
         }

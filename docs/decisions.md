@@ -18752,3 +18752,335 @@ package). Template revision `base-instructions-73` (the generated manual's modul
 and "Where the tools live"). The opt-in case (`LAZURIO_TEST_NETWORK=1`) fetched Bun 1.4.3
 from npm on macOS ARM64 with a user's Bun 1.4.2 in 18.4 s, and the fetched program, a
 nested `bun` and `bunx` all ran as 1.4.3; the second resolution came from the cache.
+
+## F63 — Buddy's sign-in and status: the Launchpad is a local client of Buddy's Hermes gateway
+
+**Proposed on 2026-10-25 under plan DEV-6676 (Matěj's mandate for Buddy on the web of
+2026-10-21; root decisions 0207 and 0210 with their addenda), from the Buddy lead's shaping of
+Buddy's onboarding. Variant A below is decided by the Buddy lead as the implementing
+architecture under that mandate and implemented in this revision; Matěj, the Organization
+Admin, may overrule it.** Buddy signs in to ChatGPT with his own account,
+apart from the agents (root decision 0210). Until now only the interim installer could do it:
+it started a transient `hermes dashboard` on `127.0.0.1:9119` for up to four hours, printed
+instructions and stopped there, and the gateway that runs Buddy was installed only after the
+sign-in. Začínáme and Nastavení → Buddy need the sign-in and Buddy's state from the Launchpad,
+and an operator needs it without that dashboard. This record is the Platform's side: the
+client, the sign-in, the state, the routes and the CLI. The page that uses them is a later
+change (the shaping's PR 3); Buddy's persona is the shaping's PR 2 (F64).
+
+**How the Launchpad reaches Hermes** (Lazurio/hermes-agent at `v0.22.4-lazurio.1`):
+
+| | **A. Buddy's gateway with a ticket** (adopted) | B. A transient `hermes dashboard` or `serve` on :9119 (the installer's way) | C. A `lazurio buddy …` CLI | D. Files only |
+| --- | --- | --- | --- | --- |
+| Process | the `hermes-gateway.service` that already runs Buddy (Telegram and ACP) | a second Hermes process per sign-in, at most 4 h | a subprocess per call | none |
+| Authentication | a one-time ticket per call from the owner-only control socket, which checks the peer's account; no `Origin`; loopback | a session token any local account can read from `GET /` (the headless `serve` too) | inherits A or B | — |
+| The sign-in's session | lives in the long-running gateway; the code survives a Launchpad restart | dies with the transient unit; a port clash on 9119 | as A or B | — |
+| The routes of Hermes's own LOGIN | yes, the same code (`hermes_cli/web_routers/oauth.py`) | yes | yes | no: cannot sign in |
+| Needs | the gateway running before the sign-in (installer change I-a) | `systemd-run`, the unit's lifecycle in the Launchpad | a CLI contract to keep | reading Hermes's private files, tokens included |
+| Precedent | Hermes Desktop (`apps/desktop/electron/local-gateway.ts`) | the installer's `signin/*.sh` | `lazurio tools login` (F19) | — |
+
+A, with one core that the Launchpad uses in its process and `lazurio buddy` uses in its own:
+C on top of A, as `lazurio tools login` shares its core with the server (F19). B is rejected:
+its token reaches every local account, it adds a process and a port, and it ties the code's
+life to a four-hour unit. D is rejected: a parallel reading of Hermes's private store.
+
+1. **One truth, one writer.** Buddy's sign-in is Hermes's auth store
+   (`~/.hermes/auth.json`, `providers.openai-codex`). Only Hermes's own OAuth worker writes it
+   (`_save_codex_tokens`, after OpenAI approved the code). The Platform starts, follows, cancels
+   and signs out through the routes Hermes's own LOGIN uses, and reads the state through
+   Hermes's own status card. It never reads or writes the store and keeps no copy of the
+   state. Never `hermes auth add`: it writes a `manual:device_code` pool entry that dies when
+   two processes refresh it at once (NousResearch/hermes-agent#139727), and Buddy's gateway and
+   his chat both do.
+2. **The local client** (`src/buddy/hermes-gateway.ts`), a port of Desktop's
+   `mintLocalGatewayTicket`, `nativeGatewayHttpHeaders` and `privateNode`, and of Hermes's own
+   discovery (`gateway/control_socket.py`, `hermes_cli/gateway_runtime_discovery.py`,
+   `hermes_cli/gateway_runtime.py`, `hermes_cli/dashboard_auth/native_http.py`):
+   - **The socket.** Buddy's home is `~/.hermes`, the home `lazurio buddy chat` gives his T3
+     Code (F61), taken as its real directory, as the gateway reserves it
+     (`Path(home).resolve()`): that is the profile every ticket names. The control socket is
+     `<home>/gateway.sock`, or the socket a pointer `<home>/gateway.sock.path` names, only as
+     `…/hermes-gw-<sha256(home)[:16]>/control.sock` (the gateway's fallback for a home too long
+     for a socket path). The socket, the pointer and its directory must be of their kind,
+     never a link, of this account, with no access for anyone else; the pointer is read
+     through a descriptor that refuses a link and a FIFO, at most 4 KiB. The home must be a
+     directory of this account that no one else may write to; reading and searching are the
+     operator's choice (`HERMES_HOME_MODE` 0750 or 0701), as Desktop allows. A group-writable
+     home, which only Hermes's Python can prove private, is refused, as Desktop refuses it
+     without its Python bridge.
+   - **`identify`** (`{"protocol":1,"verb":"identify","id":1}`, one line in, one out): ready,
+     runtime protocol 1, `session-authority-v1`, a positive authority epoch and an instance, and
+     exactly one served profile that is this home. The API origin must be exactly
+     `http://127.0.0.1:<port>` or `http://[::1]:<port>`; anything else is refused before a
+     ticket is minted.
+   - **A ticket per request:** `session-ticket` with `{profile_id, instance_id, purpose:
+     "native-http"}`, taken only as Desktop takes it: ok, protocol 1, the same id, instance and
+     profile, a ticket's shape. Hermes spends it on its first use and forgets it after 30 s.
+   - **HTTP** with `node:http` and no agent of its own, as the relay's client (F45): Bun's
+     `fetch` takes `HTTP_PROXY` even for a loopback address and keeps it for the rest of the
+     process (both observed with Bun 1.4.2), which would hand the ticket to a proxy; Hermes's
+     own test client turns proxies off for the same call (`trust_env=False`). Exactly the
+     ticket, `Host` and `Accept` go out: no `Origin` (Hermes refuses any, an empty one
+     included), no cookie, never a `profile` query, so the ticket's own home applies. Nothing
+     follows a redirect.
+   - **Bounds and results.** 5 s on the socket and 15 s over HTTP; answers of at most 512 KiB
+     (`identify`), 64 KiB (a ticket) and 256 KiB (the API). A result is the answer or one closed
+     reason: `no-socket`, `unsafe-path`, `not-ready`, `draining`, `refused`, `timeout`,
+     `invalid-answer`. A refused ticket (the socket's `ok: false`, or the API's 401, which Hermes
+     answers before any route runs) is replaced once with a new one; nothing else is asked
+     again, a write least of all. Hermes's `503 gateway_not_ready` is `draining` or
+     `not-ready`.
+3. **The sign-in** (`src/buddy/sign-in.ts`): `POST /api/providers/oauth/openai-codex/start`,
+   `GET …/openai-codex/poll/<session>`, `DELETE /api/providers/oauth/sessions/<session>` and
+   `DELETE /api/providers/oauth/openai-codex`.
+   - **Only where Hermes keeps its cancellation contract** (Lazurio/hermes-agent#17, at
+     `d1cf093e`, `gateway/lazurio_oauth_contract.py`): whatever removes a running sign-in from
+     Hermes's map (its cancel, its 15-minute sweep, a start that failed) marks it cancelled under
+     `_oauth_sessions_lock`, the lock its worker holds for its last check and its save; and every
+     way a gateway exits goes through `release_gateway_runtime_lock`, which first marks every
+     pending sign-in cancelled under that lock and only then releases the runtime lock. A save
+     still holding that lock after 1 s has passed its check, and the runtime lock then stays
+     until the process exits; the guarantee does not depend on the 1 s. So a session that
+     answers "not found", from its own gateway or from a successor, can no longer save one. A
+     ready gateway lists `lazurio-oauth-cancel-contract-v1` in its `identify`'s `capabilities`,
+     after upstream's three (absent while starting; a draining gateway clears its capabilities),
+     and the constant `oauthCancelContract` names it. Without it a start
+     starts nothing and answers `blocked` with `hermes-outdated` ("Buddy needs an update before
+     he can be signed in here"): no Hermes session exists that could be saved late. The ticket
+     binds the start to the instance that advertised the contract, so that instance serves it.
+     Buddy's state and a sign-out without a held sign-in need no contract: removing a stored
+     sign-in does not depend on it.
+   - One at a time, in the process's memory, one operation after another. A sign-in stays the
+     process's until it is certain that Hermes's worker can no longer save one, because until
+     then it may still save a sign-in the person approves (Pablo's reviews of #635):
+     - its poll answers an ending (`approved`, `expired`, `denied`, `error`), which the worker
+       sets as it stops;
+     - its cancel answers `{ok: true}` for exactly that session: Hermes marks the session
+       cancelled under that lock, so nothing is saved after it (true at `v0.22.4-lazurio.1`
+       already);
+     - Hermes holds no session by that id (its poll's 404, its cancel's `{ok: false, message:
+       "session not found"}`; both recorded) and the gateway instance that says so keeps the
+       contract, whether it is the one that started the sign-in or another one after a restart
+       (each answer carries the `instance_id` and the contract of the `identify` its ticket was
+       bound to). Not otherwise: at `v0.22.4-lazurio.1` the sweep (`_gc_oauth_sessions`,
+       `hermes_cli/web_routers/oauth.py:796-800`) removes a session without the mark, while its
+       worker keeps the same record (:303-345) and checks only that mark (`_codex_cancelled`,
+       :177-181). No time after the start bounds that worker's save there (the alternatives
+       below).
+     Anything else, a lost or refused answer, a timeout, an HTTP error or an answer of no known
+     shape, proves nothing: the sign-in stays held and addressable, and what needed it ended
+     changes nothing: `blocked` with `sign-in-running`, or with `hermes-outdated` when a gateway
+     without the contract no longer holds it, or `unavailable` with the gateway's reason when
+     the gateway did not answer.
+   - A new start first ends the one before it on Hermes, so two tabs end as the later one, on
+     Hermes too; while Hermes does not confirm that, nothing starts and the one before stays
+     the holder's.
+   - The holder knows a sign-in by an opaque handle of its own (32 hex characters, the curated
+     logins' shape); Hermes's session id stays in the process. The code and the page go only to
+     the holder, and only in their exact shapes, the checks of the agents' "Přihlásit kódem"
+     (F19's addendum of 2026-10-21): OpenAI's page `https://auth.openai.com/codex/device` and a
+     whole code (`codexDeviceCode`). A start whose code, page or lifetime is anything else is
+     cancelled on Hermes and shown to nobody; until Hermes confirms that cancel, it stays held
+     without a holder, and nothing else starts or signs out. A start whose session id is of no
+     known shape cannot be addressed at all; its code, too, is shown to nobody.
+   - Hermes's words (`error_message`, `detail`) never leave: `failed` carries one of `expired`,
+     `refused` (Hermes's words for OpenAI refusing a sign-in by code, which for some accounts
+     must first be allowed in ChatGPT's settings), `lost` (Hermes no longer holds the session
+     and keeps the contract) or `failed`. A poll the gateway does not answer (a timeout, a
+     gateway starting or stopping), and a 404 from a gateway without the contract, keep the
+     sign-in. An answer of no known shape ends it only after a cancel that counts as above.
+     Hermes ends a sign-in itself, at its code's end after its worker's last round; until then
+     the sign-in waits, whatever the clock says, and nothing is cancelled for it.
+   - An explicit cancel answers `cancelled` only once its cancel counts as above; otherwise
+     `blocked` (or `unavailable`), and the sign-in stays held.
+   - Sign-out first ends a held sign-in on Hermes and signs out only after that, so none can
+     sign Buddy in again; while it may still complete, nothing is signed out (`blocked`).
+     Hermes's 409 (nothing was stored) counts as signed out. Buddy keeps working on his old
+     sign-in while a new one runs, until the new approval replaces it.
+   - A Launchpad restart loses only the handle: Hermes's worker still saves the sign-in the
+     person finishes, and the next reading shows it. Nothing cancels a sign-in when the
+     Launchpad stops.
+4. **The state** (`src/buddy/status.ts`) is a pure function of what each reading finds, with
+   nothing stored: whether the gateway runs (`identify`) and Hermes's own card for
+   `openai-codex` (`GET /api/providers/oauth`, `status.logged_in`). `works`: ready and signed
+   in; `waits`: ready and not signed in; `unknown` with the reason `not-running` when no gateway
+   answers or it is starting or stopping; `unknown` alone when a reading failed. `signIn.state`
+   is `connected`, `none` or `unknown`. Nothing else of the card (its token preview, source,
+   last refresh) is passed on. There is no "needs attention" state: Hermes's card cannot yet
+   tell a sign-in whose refresh OpenAI refused from a working one or from none
+   (Lazurio/hermes-agent#16), and a refused refresh on the singleton path persists nothing, so
+   until then it reads as whatever the card says.
+5. **The routes** (`src/launchpad/buddy-routes.ts`), only where the recorded entry names
+   Buddy's origin (`buddyOrigin`, a personal VM, F60); elsewhere, a workstation included, each
+   answers `404 {error: "buddy-absent"}` and Hermes is never asked:
+   - `GET /api/buddy` → `{kind: "buddy", state, reason?, signIn: {state}, locale}`, the locale
+     the Folder's;
+   - `POST /api/buddy/sign-in/start` `{}` → `pending {session, code, url, expiresAt, pollMs}` or
+     `failed {reason}`; `POST …/poll` and `…/cancel` `{session}` → `pending`, `signed-in`,
+     `failed {reason}`, `cancelled` or `none`; `POST /api/buddy/sign-out` `{}` → `signed-out` or
+     `failed`. A start where Buddy's Hermes does not advertise the contract answers `409
+     {kind: "blocked", reason: "hermes-outdated"}` and starts nothing. A start, a cancel or a
+     sign-out that needs a held sign-in to end, while it may still complete, answers `409
+     {kind: "blocked", reason: "sign-in-running"}` (or `"hermes-outdated"`) and changes
+     nothing; without Buddy's gateway they answer `503 {error: "buddy-unavailable", reason}`.
+   - Each POST takes exactly its fields as `application/json` of at most 16 KiB (415, 413,
+     400, `invalid-session` for a handle of another shape); another method is 405, a query 400.
+     Every POST, the poll included, falls under the hosted same-origin rule of the admission
+     (`Sec-Fetch-Site: same-origin` and the Launchpad's own `Origin`, F11 and
+     `docs/hosted-entry.md`), since the poll
+     changes what the process holds: Buddy's own origin is another origin, so his frame cannot
+     call them.
+   - The journal (`scope: "buddy-sign-in"`) names the operation, the outcome and the reason,
+     never a code, a handle, a ticket or Hermes's session.
+6. **The CLI** (`lazurio buddy status | sign-in start | sign-out`, JSON on stdout), on the
+   same core, only where the Folder's binding records Buddy's origin (`blocked`
+   `buddy-absent` otherwise). `status` answers what `GET /api/buddy` answers. `sign-in start`
+   holds the sign-in for as long as it runs, as `lazurio tools login` does: the pending answer
+   on its first line, then each change on its own line until it ends; Ctrl-C cancels it on
+   Hermes, and says `blocked` `sign-in-running` while the sign-in may still complete. Where
+   Buddy's Hermes does not keep the contract it starts nothing: `blocked` `hermes-outdated`.
+   A line on stderr says each refusal in words ("Buddy needs an update before he can be signed
+   in here."). It replaces the installer's `signin-start.sh` and
+   `signin-wait.sh` for operators.
+   There are no separate `poll` and `cancel` commands: a later process could address Hermes's
+   session only through its id or the code written down somewhere, which this record keeps out
+   of every file, log and answer.
+
+**Security.** Only a request the Launchpad admits reaches these routes: hosted, the gateway's
+owner-only session for the personal lane, revalidated, and the same-origin rule for every POST;
+locally there is no Buddy. Agents of the Environment run as the same account and can reach
+Hermes's socket themselves (root decision 0172): the Launchpad adds no capability, and the
+Environment is the boundary. The ticket, the code, Hermes's session id and Hermes's own words
+never enter a log, the journal, a file, the Folder or an error; the code goes only to the
+holder of its handle. Node cannot ask for the listener's credentials (SO_PEERCRED), so the path
+rules stand in for it, as in Desktop; the gateway asks for ours before it mints a ticket.
+
+**Not decided here.** Buddy's persona and everything derived from it (PR 2, F64); the page in
+Začínáme and Nastavení → Buddy (the shaping's PR 3); profiles (PR 4); Telegram (PR 5); the
+account's e-mail on the card (the shaping's gap H-d). Outside the Platform:
+- Lazurio/hermes-agent#17 (at `d1cf093e`): the cancellation contract (the sweep and a stopping
+  gateway's release mark a session cancelled under the lock its worker checks before it saves)
+  and its advertisement in `identify`, in the fork release with #11, #13 and #14. Until a Hermes
+  with it is pinned, Buddy's sign-in does not start (`hermes-outdated`);
+- Lazurio/hermes-agent#16: a machine-readable "sign in again" state for `openai-codex`, for
+  "Vyžaduje pozornost";
+- Lazurio/hermes-agent#15: when the sign-in is lost, Hermes's own chat text tells the person to
+  run `hermes auth add …`; Lazurio needs its own words with a link to Nastavení → Buddy, before
+  people other than the pilots;
+- the installer's change I-a (then HumanAndMachine-ai/Machines#701): Buddy's gateway runs before
+  his sign-in. Until it does, a fresh Buddy has no gateway, so these routes answer
+  `not-running` and `buddy-unavailable` until the installer's own sign-in has run.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| B, a transient dashboard per sign-in | its token reaches every local account, a second process and port, the code's life tied to the unit; rejected |
+| D, reading Hermes's files | a second reading of Hermes's private store, and no way to sign in; rejected |
+| `fetch` to the gateway's API | takes `HTTP_PROXY` for a loopback address and keeps it; rejected for `node:http` without an agent |
+| Desktop's home rule tightened to "no group or other access" | would refuse a home the operator opened for reading (`HERMES_HOME_MODE`), which grants nothing against the 0600 socket; rejected for Desktop's rule |
+| Hermes's session id as the holder's handle | the page would hold Hermes's own handle; rejected for an opaque handle of the Launchpad's |
+| A file of the CLI's running sign-in, for separate `poll` and `cancel` commands | writes Hermes's session id or the code to disk; rejected for a held sign-in, as `lazurio tools login` does |
+| "Needs attention" after 30 s without the gateway | needs a stored first failure, and says less than the gateway's own state; rejected for `unknown` with `not-running` until Lazurio/hermes-agent#16 |
+| Cancel a running sign-in when the Launchpad stops | the person may be finishing it on their phone, and Hermes's worker would still save it; not done |
+| Forget a sign-in whatever its cancel answered (this revision's first head) | an uncancelled worker can still save a sign-in after a replacement, a cancel or a sign-out that said otherwise (Pablo's first review of #635); rejected for Hermes's confirmed cancel |
+| Hermes's "session not found" and its poll's 404 as proof of an end (the second head) | its 15-minute sweep removes a session without marking it cancelled, and the worker may still save (Pablo's second review of #635); rejected for the cancellation contract |
+| A time bound: "not found" ends a sign-in once the worker's last round has certainly passed (the third head: 1223 s after the start's answer on the monotonic clock) | not an upper bound at `v0.22.4-lazurio.1`: the worker waits, without a timeout, for the process-wide profile lock before its save (`_profile_scope`, `hermes_cli/web_server_profiles.py:239, 262-273`, entered at `oauth.py:339`), the save's own writes (`auth_codex.py:174-214`) are not bounded by `AUTH_LOCK_TIMEOUT_SECONDS`, and httpx's 15 s holds per I/O phase, not per request; Pablo reproduced a save after the bound (his third review of #635); rejected for Hermes's cancellation contract |
+| Another gateway instance as proof that the old worker is gone (the third head's fast path) | at `v0.22.4-lazurio.1` Hermes releases its runtime lock before its final `os._exit` (`gateway/run.py:5219-5241`), so a new instance can be ready while the old process and its daemon worker still exist; rejected as proof on its own: another instance's "not found" counts only under the contract, whose release marks the old process's pending sign-ins cancelled before the runtime lock goes (#17) |
+| Wait for the fork's fix, or read a capability it advertises | first rejected for a rule that held at any Hermes version (the time bound); adopted after Pablo's third review showed that no such bound holds at the tag: a sign-in starts only where the gateway advertises the contract |
+| End a sign-in at its code's end on this process's clock | the person's approval in the worker's last round would be lost, and an unanswered cancel would again be taken as an end; rejected for Hermes's own ending |
+
+**Verified by** a stand-in for Buddy's gateway (`tests/fixtures/fake-hermes-gateway.ts`) whose
+every answer was recorded from the real gateway of `v0.22.4-lazurio.1`: `python -m gateway.run`
+with a private home, as Hermes's own `tests/gateway/test_native_http_auth.py` runs it, with
+`identify` ready, starting and stopping, tickets and their refusals, the providers' cards signed
+out and signed in (written by Hermes's own `_save_codex_tokens`), a start that asked OpenAI's
+device-code endpoint and was cancelled at once, its poll, the cancel and the poll after it,
+both sign-outs, the 401 without a ticket, with a spent one and with any `Origin`, and the 403 of a
+`profile` query (`tests/fixtures/hermes-gateway-v0.22.4-lazurio.1.json`, every live value
+replaced by a synthetic one; the poll's other endings and the start's refusals are derived from
+Hermes's code and marked so). The pointer fallback was observed too:
+`/tmp/hermes-gw-<sha256(home)[:16]>/control.sock`. The client and the sign-in core of this
+revision also ran on macOS against that real gateway itself, its socket through the pointer (a home
+longer than a socket path): the state `waits`, then `works` with a sign-in Hermes's own writer
+saved; a start through `node:http` whose real code passed `codexDeviceCode` and whose page was
+OpenAI's; its poll, the cancel and the poll after it (`none`); and both sign-outs.
+`tests/buddy-hermes-gateway.test.ts`: a
+ticket per call spent once and never twice, the exact request lines and headers, no `Origin`,
+no `profile`, no proxy (in a process of its own, with `HTTP_PROXY` set), a refused ticket
+replaced once, a failed write never sent again, every foreign API origin refused before a
+ticket, each `identify` and ticket answer of another shape, a link, another account's path, an
+open mode and a missing node for the home, the socket, the pointer and its directory, a
+symlinked home followed, deadlines and size bounds. `tests/buddy-sign-in.test.ts`: the code and
+the page only in their exact shapes, Hermes's refusals as reasons, every poll ending, a restart
+mid-sign-in kept and then `lost`, a slow poll kept, one sign-in at a time with two at once,
+cancel, sign-out, the journal and the answers without a ticket, Hermes's session, Hermes's words
+or the code, the status truth table, and every cancel Hermes did not confirm (an HTTP 500, a
+confirmation of another session, another `ok: false`, a 404, no JSON, a refused ticket, a
+timeout): a replacement start that starts nothing and keeps the one before addressable, an
+explicit cancel refused, a sign-out that signs nothing out while the sign-in it could not
+cancel is approved meanwhile, an expiry and an answer of no known shape kept until a cancel is
+confirmed, a start of no known shape held without a holder, and a restart's "session not found"
+ending them; the cancellation contract: without it no sign-in starts, so no worker exists to
+save one late, while Buddy's state and a sign-out without a held sign-in still work; with it a
+session the sweep removed (the stand-in's `collect`, which marks it under the contract as #17
+does and does not at the recorded tag) ends at once by "session not found" or the poll's 404, for
+a poll, a replacement, a cancel and a sign-out, and its worker trying to save afterwards saves
+nothing; a gateway restarted without the contract keeping a sign-in held (`hermes-outdated`)
+until one with it answers; another instance with the contract ending a sign-in as `lost`; and a
+sign-in still pending hours past its code's end waiting for Hermes, with nothing cancelled for
+it.
+`tests/launchpad-buddy.test.ts`: the routes on a hosted
+personal Environment against the stand-in: the answers, the same-origin rule refusing each POST
+without it or from Buddy's own origin before Hermes is asked, the poll a POST, 405, 413, 415,
+400, 404 `buddy-absent` on a personal Environment without Buddy, an Organization's and a
+workstation, 503 without the gateway, 409 `blocked` for a start, a cancel and a sign-out while
+Hermes does not confirm a cancel, 409 `hermes-outdated` for a start where the gateway does not
+advertise the contract (status and sign-out still answered), and the journal and answers free of
+every secret.
+`tests/buddy-cli.test.ts`: the CLI's JSON and exits, the held sign-in to its end, Ctrl-C
+cancelling it on Hermes or saying in words that it could not, the start refused in words where
+Buddy's Hermes does not keep the contract (status and sign-out still working), and usage.
+The client's own tests read the contract from `identify` (the member holding the value or
+listing it, another value not counting) and never send a call that requires it to a gateway
+without it. **Mutation checks:** each of these, taken out or loosened,
+fails a test: the loopback origin rule, the path modes, the home's group-write refusal, the
+owner check, the link refusal, the pointer's hash, the pointer's owner and mode, the served
+profile, `session-authority-v1`, the ready state, the ticket's instance and profile, a ticket
+per call, no `Origin`, `node:http` instead of `fetch`, no second send of a write, the `/api/`
+path rule; the code's and the page's shapes, the closed reasons in place of Hermes's words, the
+journal without the code, the end of the sign-in before, the opaque handle, the operations
+one at a time, the poll's session match, the code's lifetime; Hermes's word for an ended
+sign-in (any cancel answer taken as an end, the first reviewed fault), its confirmation of
+exactly that session, its "session not found" and no other `ok: false`, the replacement, the
+cancel and the sign-out each refused without it, a gateway failure in a poll keeping the
+sign-in, a start of no known shape held, an answer of no known shape ended only with it, and
+`blocked` as 409; the cancellation contract: the start gated on it, the contract read from
+`identify` and not assumed, the client's refusal to send a call that requires it, "session not
+found" and the poll's 404 counted only under it (the second and third reviewed faults), only
+its own value counting, `hermes-outdated` answered as 409 and not as a missing gateway, and the
+CLI's words for it; the route's presence rule, the poll as a
+POST only, the content type, the handle's shape, the same-origin rule for Buddy's POSTs; the
+truth table's unreadable card and its not-running reason; the CLI's Ctrl-C.
+**Honest limits:** no Osobní Prostředí ran: the first acceptance is on Bob's Osobní Prostředí of
+the reference Organization (root decision 0204), once the installer's change I-a runs his
+gateway before the sign-in. That the Launchpad and Buddy's gateway run as one account, which the
+ticket requires, follows from Machines' and the installer's units (user units of the operator)
+and is to be confirmed there. A refused refresh is not visible (Lazurio/hermes-agent#16). The
+CLI and the Launchpad each hold their own sign-in, so two may run at once on Hermes; the
+approval that comes first signs Buddy in. A held sign-in whose gateway never answers again stays
+held: nothing else starts or signs out until Hermes answers, and the CLI, when Ctrl-C finds that
+the sign-in may still complete, ends without its handle. Until a fork release with #17 is pinned,
+Buddy's sign-in starts nowhere (`hermes-outdated`); the installer's own sign-in, or an update of
+Hermes, comes first. The rule takes the gateway's advertisement for the contract: the control
+socket that advertises it is this account's own, owner-only, as for every ticket. A sign-in held
+while Hermes is replaced by one without the contract stays held until one with it answers.
+**The window at a restart is closed by #17:** at `v0.22.4-lazurio.1` Hermes releases its runtime
+lock before its final `os._exit` (`gateway/run.py:5219-5241`), so a successor can be ready while
+the old process and its daemon OAuth worker still exist; under the contract that release first
+marks every pending sign-in cancelled under `_oauth_sessions_lock`, so a successor's "not found"
+is as safe as the gateway's own (#17's tests hold a worker at its last poll, at its token exchange
+and at `_profile_scope` across the release: nothing is saved, and a successor reserves the profile
+right after). #17 does not cover two cases, neither of which applies to Buddy's single-profile
+gateway signing in to `openai-codex`: a secondary profile that a multi-profile gateway stops
+serving while it keeps running (`release_profile_home`), and the Nous poller's adjustment of its
+configuration after a save that happened before the "not found". Buddy's state is read live from
+Hermes's own card in any case, so a save shows at the next reading.

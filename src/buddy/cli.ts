@@ -1,5 +1,7 @@
-import { isAbsolute } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { parseArgs } from "node:util";
+import { readFolderState } from "../folder/read-state";
+import { type BuddyLocale, buddyAnswer } from "../launchpad/buddy-routes";
 import { toolsEnvironmentOf } from "../tools/overview";
 import type { ToolRunner } from "../tools/status";
 import {
@@ -14,9 +16,20 @@ import {
   exitUsage,
 } from "../update/errors";
 import { type BuddyChat, buddyChat } from "./chat";
+import { createHermesGateway, type HermesGateway } from "./hermes-gateway";
+import {
+  type BuddySignInAnswer,
+  type BuddySignOutAnswer,
+  buddySignInPollMs,
+  createBuddySignIn,
+} from "./sign-in";
+import { buddyStatus, readBuddyFacts } from "./status";
 
 /** `lazurio buddy chat` (decision F61): what Machines run after they install
- * Buddy's T3 Code, as they run `lazurio chat defaults --apply` for Chat. */
+ * Buddy's T3 Code, as they run `lazurio chat defaults --apply` for Chat.
+ * `lazurio buddy status`, `sign-in start` and `sign-out` (decision F63): the
+ * Launchpad's Buddy routes on the same core, for an operator on the
+ * Environment. */
 export const buddyHelp = `buddy chat [--apply] [--folder <absolute Folder>] [--json]
   Buddy's chat in Lazurio (decision F61): the T3 Code of his own in
   ~/.t3-buddy on the user's Osobní Prostředí, whose one provider is Buddy,
@@ -40,18 +53,55 @@ export const buddyHelp = `buddy chat [--apply] [--folder <absolute Folder>] [--j
   Machines'; the composer's steer and queue are T3 Code's own. JSON on
   stdout: {kind: "buddy-chat", state, reason?}. The Folder is found as for
   lazurio doctor.
-  Exit status: 0 managed, 10 outdated or not personal, 1 unavailable, 2 usage.`;
+  Exit status: 0 managed, 10 outdated or not personal, 1 unavailable, 2 usage.
+buddy status [--folder <absolute Folder>] [--json]
+buddy sign-in start [--folder <absolute Folder>] [--json]
+buddy sign-out [--folder <absolute Folder>] [--json]
+  Buddy's state and his own ChatGPT sign-in (decision F63), on the user's
+  Osobní Prostředí whose Machine binding records Buddy's origin, through his
+  running Hermes gateway (hermes-gateway.service, its control socket in
+  ~/.hermes and its loopback API), exactly as the Launchpad's Začínáme and
+  Nastavení → Buddy do. Hermes's own sign-in worker saves the sign-in into
+  Buddy's auth store; never hermes auth add, and nothing here reads or writes
+  that store. status: {kind: "buddy", state: works|waits|unknown,
+  reason?: not-running, signIn: {state: connected|none|unknown}, locale}.
+  sign-in start: starts a sign-in by code and holds it, as lazurio tools
+  login does: the first line is {kind: "pending", session, code, url,
+  expiresAt, pollMs} with OpenAI's page and the one-time code for the person,
+  then each change on its own line until it ends: signed-in, or failed with
+  expired, refused (OpenAI refused a sign-in by code), lost (Buddy's gateway
+  restarted) or failed. It starts only where Buddy's Hermes advertises its
+  OAuth cancellation contract (Lazurio/hermes-agent#17); otherwise
+  {kind: "blocked", reason: "hermes-outdated"}: Buddy needs an update before
+  he can be signed in here. Ctrl-C cancels it on Hermes ({kind: "cancelled"}
+  once it can no longer complete); when Hermes did not confirm the cancel,
+  {kind: "blocked", reason: "sign-in-running"}, and the sign-in may still
+  complete. A line on stderr says each refusal in words. Buddy keeps working
+  on his sign-in until a new one replaces it. sign-out: Hermes forgets
+  Buddy's sign-in ({kind: "signed-out"}); Buddy stops answering until he is
+  signed in again. Without Buddy's gateway {kind: "unavailable", reason};
+  without Buddy here {kind: "blocked", reason: "buddy-absent"}. JSON on
+  stdout. The Folder is found as for lazurio doctor.
+  Exit status: 0 works, signed in or signed out; 10 waits or no Buddy here;
+  1 unknown, failed, cancelled, blocked or unavailable; 2 usage.`;
 
 export type BuddyContext = CliContext &
   Readonly<{
     /** Tests only: the runner of `hermes acp --check`. */
     toolRun?: ToolRunner | undefined;
+    /** Tests only: Buddy's gateway; this account's own otherwise. */
+    gateway?: HermesGateway | undefined;
+    /** Where a running sign-in writes each state as it changes: stdout. */
+    write?: ((line: string) => void) | undefined;
+    /** Ctrl-C: cancels a running sign-in. */
+    signal?: AbortSignal | undefined;
+    /** Tests only: the wait between two questions of a running sign-in. */
+    pollMs?: number | undefined;
   }>;
 
-const usage = Object.freeze({
-  code: exitUsage,
-  stderr: "Usage: buddy chat [--apply] [--folder <absolute Folder>] [--json]",
-});
+const usageText =
+  "Usage: buddy chat [--apply] | buddy status | buddy sign-in start | buddy sign-out, each with [--folder <absolute Folder>] [--json]";
+const usage = Object.freeze({ code: exitUsage, stderr: usageText });
 
 const exitOf = (answer: BuddyChat): number =>
   answer.state === "managed"
@@ -60,15 +110,38 @@ const exitOf = (answer: BuddyChat): number =>
       ? exitFailure
       : exitUpdateAvailable;
 
+const commands: Readonly<Record<string, readonly string[]>> = {
+  chat: ["apply", "json", "folder"],
+  status: ["json", "folder"],
+  "sign-in start": ["json", "folder"],
+  "sign-out": ["json", "folder"],
+};
+
+const absent = Object.freeze({
+  code: exitUpdateAvailable,
+  stdout: JSON.stringify({ kind: "blocked", reason: "buddy-absent" }),
+});
+
+/** Buddy here: the binding records his origin; with the Folder's locale. */
+async function buddyHere(
+  folder: string | undefined,
+): Promise<Readonly<{ locale: BuddyLocale }> | undefined> {
+  if (folder === undefined) return undefined;
+  const { preferences } = await readFolderState(join(folder, ".lazurio"));
+  return preferences.machine?.entry?.buddyOrigin === undefined
+    ? undefined
+    : { locale: preferences.profile.locale };
+}
+
 export async function runBuddyCommand(
   args: readonly string[],
   context: BuddyContext,
 ): Promise<CommandOutput> {
-  if (args[0] !== "chat") return usage;
+  let command: string;
   let values: { apply?: boolean; folder?: string };
   try {
     const parsed = parseArgs({
-      args: args.slice(1),
+      args: [...args],
       tokens: true,
       allowPositionals: true,
       strict: true,
@@ -78,11 +151,16 @@ export async function runBuddyCommand(
         folder: { type: "string" },
       },
     });
+    command = parsed.positionals.join(" ");
     const names = parsed.tokens.flatMap((token) =>
       token.kind === "option" ? [token.name] : [],
     );
+    const allowed = Object.hasOwn(commands, command)
+      ? commands[command]
+      : undefined;
     if (
-      parsed.positionals.length > 0 ||
+      allowed === undefined ||
+      names.some((name) => !allowed.includes(name)) ||
       new Set(names).size !== names.length ||
       (parsed.values.folder !== undefined && !isAbsolute(parsed.values.folder))
     )
@@ -91,20 +169,122 @@ export async function runBuddyCommand(
   } catch {
     return usage;
   }
+  if (command === "chat") {
+    try {
+      const folder = values.folder ?? (await operatorFolder(context));
+      const answer: BuddyChat =
+        folder === undefined
+          ? { kind: "buddy-chat", state: "skipped", reason: "not-personal" }
+          : await buddyChat(
+              toolsEnvironmentOf(
+                context.env,
+                context.platform,
+                context.toolRun,
+              ),
+              { folder, apply: values.apply === true },
+            );
+      return { code: exitOf(answer), stdout: JSON.stringify(answer) };
+    } catch {
+      return {
+        code: exitFailure,
+        stderr: "Could not inspect Buddy's chat in this Environment.",
+      };
+    }
+  }
+  let here: Awaited<ReturnType<typeof buddyHere>>;
   try {
-    const folder = values.folder ?? (await operatorFolder(context));
-    const answer: BuddyChat =
-      folder === undefined
-        ? { kind: "buddy-chat", state: "skipped", reason: "not-personal" }
-        : await buddyChat(
-            toolsEnvironmentOf(context.env, context.platform, context.toolRun),
-            { folder, apply: values.apply === true },
-          );
-    return { code: exitOf(answer), stdout: JSON.stringify(answer) };
+    here = await buddyHere(values.folder ?? (await operatorFolder(context)));
   } catch {
     return {
       code: exitFailure,
-      stderr: "Could not inspect Buddy's chat in this Environment.",
+      stderr: "Could not read this Environment's Folder.",
     };
   }
+  if (here === undefined) return absent;
+  const gateway =
+    context.gateway ??
+    createHermesGateway({
+      home: toolsEnvironmentOf(context.env, context.platform).home,
+    });
+  if (command === "status") {
+    const answer = buddyAnswer(
+      buddyStatus(await readBuddyFacts(gateway)),
+      here.locale,
+    );
+    return {
+      code:
+        answer.state === "works"
+          ? exitOk
+          : answer.state === "waits"
+            ? exitUpdateAvailable
+            : exitFailure,
+      stdout: JSON.stringify(answer),
+    };
+  }
+  const signIn = createBuddySignIn({ gateway });
+  if (command === "sign-out") {
+    const answer = await signIn.signOut();
+    return {
+      code: answer.kind === "signed-out" ? exitOk : exitFailure,
+      stdout: JSON.stringify(answer),
+      ...blockedWords(answer),
+    };
+  }
+  const answer = await holdSignIn(signIn, context);
+  return {
+    code: answer.kind === "signed-in" ? exitOk : exitFailure,
+    stdout: "",
+    ...blockedWords(answer),
+  };
+}
+
+/** A blocked answer in words, on stderr. */
+function blockedWords(
+  answer: BuddySignInAnswer | BuddySignOutAnswer,
+): Readonly<{ stderr?: string }> {
+  if (answer.kind !== "blocked") return {};
+  return {
+    stderr:
+      answer.reason === "hermes-outdated"
+        ? "Buddy needs an update before he can be signed in here."
+        : "Buddy's sign-in could not be cancelled and may still finish. Try again.",
+  };
+}
+
+/** `sign-in start`: the terminal holds the sign-in for as long as it runs,
+ * as `lazurio tools login` does, and writes each state as it changes. */
+async function holdSignIn(
+  signIn: ReturnType<typeof createBuddySignIn>,
+  context: BuddyContext,
+): Promise<BuddySignInAnswer> {
+  const write = context.write ?? ((line: string) => console.log(line));
+  const pollMs = context.pollMs ?? buddySignInPollMs;
+  const aborted = new Promise<"aborted">((resolve) => {
+    if (context.signal?.aborted) resolve("aborted");
+    context.signal?.addEventListener("abort", () => resolve("aborted"), {
+      once: true,
+    });
+  });
+  let state: BuddySignInAnswer = await signIn.start();
+  write(JSON.stringify(state));
+  let shown = JSON.stringify(state);
+  while (state.kind === "pending") {
+    const session = state.session;
+    let wait: ReturnType<typeof setTimeout> | undefined;
+    const outcome = await Promise.race([
+      aborted,
+      new Promise<"poll">((resolve) => {
+        wait = setTimeout(() => resolve("poll"), pollMs);
+      }),
+    ]);
+    clearTimeout(wait);
+    state =
+      outcome === "aborted"
+        ? await signIn.cancel(session)
+        : await signIn.poll(session);
+    const next = JSON.stringify(state);
+    if (next !== shown) write(next);
+    shown = next;
+  }
+  return state;
 }
