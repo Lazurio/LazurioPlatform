@@ -50,8 +50,14 @@ into the Personal Environment.
   as the optional `"kanal"` (still `verze: 1`):
   - `"t3"`: Buddy's chat in Lazurio, T3 Code with Hermes over ACP (decision
     F61). Its provider instance runs `hermes acp` with
-    `LAZURIO_BUDDY_CHANNEL=t3`, and `zadej` inherits it from Buddy's terminal
-    tool. The notice is one message in Buddy's one thread, found with
+    `LAZURIO_BUDDY_CHANNEL=t3`, and `zadej` reads it in every turn of that
+    chat. Hermes's gateway runs the chat's turns and their tools, and
+    `hermes acp` only views them, so the variable reaches `zadej` only
+    because the Lazurio fork of Hermes hands each turn the channel its viewer
+    declared (the overlay after `v0.22.4-lazurio.1`); until Buddy's Hermes
+    carries it, a delegation from the chat reports on Telegram. A Hermes
+    session's source never names the chat: every ACP viewer's session has the
+    source `acp`. The notice is one message in Buddy's one thread, found with
     `t3 lazurio buddy thread --json` and sent with
     `t3 thread send <thread> --mode queue --idempotency-key <key>
     --message-file -`, both against Buddy's T3 Code (`--base-dir

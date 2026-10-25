@@ -18529,6 +18529,53 @@ prove for the shell route (HumanAndMachine-ai/Machines#825). The Buddy layer sti
 comes in the conversation the work was given from; after a final refusal it comes in
 Telegram.
 
+### F61 addendum of 2026-10-24: the chat's channel travels with the turn through Hermes's gateway
+
+**Follows Lazurio/LazurioPlatform#627 under Matěj's mandate for Buddy on the web (plan
+DEV-6676); proposed by the agent.** On Ring 0 a task Buddy gave a bot from his chat in Lazurio
+reported back on Telegram, and in the chat Buddy never came back. Point 2 of F61 assumed that
+`hermes acp`, started with `LAZURIO_BUDDY_CHANNEL=t3`, runs Buddy's tools, so `delegace zadej`
+inherits the variable. With Hermes v0.22.4 it does not. `hermes acp` only views a session of
+Hermes's gateway: `acp_adapter/server.py` returns `GatewayACPAgent` whenever no session manager
+is injected, which the entry point never does. The gateway runs the turn and every tool in it with
+its own environment, so the record had no `kanal` and the notice went through the Kanban card to
+Telegram.
+
+1. **The channel travels with the turn.** The provider instance keeps declaring
+   `LAZURIO_BUDDY_CHANNEL=t3` (`lazurio buddy chat`), and Delegace keeps reading exactly that
+   variable. What changes is the way it gets there. The Lazurio fork of Hermes (the overlay after
+   `v0.22.4-lazurio.1`) has the ACP viewer hand the gateway the channel it declares, and the
+   gateway binds it for the turn like its other per-session variables. Every command of a turn
+   from Buddy's chat sees it. A turn of Telegram, or of another ACP viewer without the variable,
+   does not, and the shared shell snapshot never keeps it. Until Buddy's Hermes carries it, a
+   delegation from the chat reports on Telegram as on 2026-10-24.
+2. **No inference from a Hermes session.** A session's source does not name the chat: every ACP
+   viewer's session has the source `acp` (`acp_adapter/gateway_server.py`, `session.create`). So
+   Delegace never infers the chat from `HERMES_SESSION_*`. A command with such a session and
+   without the variable reports on Telegram.
+3. **Nothing else changes.** The record (`verze: 1` with the optional `kanal`), an unknown value
+   of the variable failing `zadej` before anything exists, the notice in Buddy's thread and its
+   refusals, the Kanban card for Telegram and the last resort stay as they were. The acting claim
+   on the provider instance also reaches only `hermes acp`. In the gateway it still comes from the
+   gateway's own environment, which this addendum leaves as it is.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The session's source `acp` as the chat | Every ACP viewer's session has it, so another editor on the same Hermes would report into Buddy's chat (Pablo's review of #630); rejected for the channel its viewer declares |
+| T3 Code's binding of Buddy's thread to a Hermes session, compared with `HERMES_SESSION_KEY` | Needs T3 Code to expose the provider session and a mapping between ACP and gateway session ids; rejected for the turn's own channel |
+| The variable on Hermes's gateway service | It would name the chat for Telegram's turns too; rejected for the per-turn binding |
+| A new channel name for the gateway path | Two names for one thing; rejected for the provider instance's own variable |
+
+**Verified by** `src/buddy/delegace/test_delegace.py`. Every test of the chat's channel runs
+`zadej` with a gateway turn's session and the channel its viewer declared. A Telegram turn's
+session records no channel and wakes the Kanban card. A session of the source `acp` (another
+viewer), `tui`, `desktop` or `kanban` without the variable records none. The variable alone still
+records the chat, and an unknown value of it starts nothing without a session, in the chat's
+session and in Telegram's. The fork's own tests prove the per-turn binding through its real
+viewer and gateway (Lazurio/hermes-agent). **Honest limits:** no real gateway ran in Delegace's
+tests. The Ring 0 acceptance waits for the fork release on an Osobní Prostředí: a task given in
+the chat answered in the chat, and one given on Telegram answered on Telegram.
+
 ## F62 — The Bun an App pins is its runtime: the user's Bun when it is that version, else the runtime cache, else a verified fetch
 
 **Decided on 2026-10-24 (root decision 0171, addendum of 2026-10-24,

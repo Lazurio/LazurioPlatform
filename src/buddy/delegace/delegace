@@ -312,10 +312,16 @@ def telegram_target() -> tuple[str, str]:
 # The notice goes back to the conversation the delegation came from (root
 # decision 0210 point 7). Buddy's chat in Lazurio is T3 Code with Hermes as an
 # ACP agent (LazurioPlatform decision F61): its provider instance runs
-# `hermes acp` with LAZURIO_BUDDY_CHANNEL=t3, and every tool Buddy runs there,
-# `delegace zadej` included, inherits it. Without it (Telegram, a terminal) the
-# record has no `kanal` and the notice goes through Hermes's Kanban to his
-# Telegram conversation, as for every record from before the channel existed.
+# `hermes acp` with LAZURIO_BUDDY_CHANNEL=t3, and every tool Buddy runs in a
+# turn of that chat, `delegace zadej` included, sees it. Since Hermes v0.22.4
+# `hermes acp` only views a session of Hermes's gateway, which runs the turn
+# and its tools, so the variable reaches them only when Hermes hands each turn
+# the channel its viewer declared (Lazurio/hermes-agent, the overlay after
+# v0.22.4-lazurio.1; Platform#627). A Hermes session's source never names the
+# chat here: every ACP viewer's session has the source `acp`. Without the
+# variable (Telegram, a terminal, another viewer) the record has no `kanal`
+# and the notice goes through Hermes's Kanban to his Telegram conversation, as
+# for every record from before the channel existed.
 
 CHANNEL_ENV = "LAZURIO_BUDDY_CHANNEL"
 KANAL_T3 = "t3"
