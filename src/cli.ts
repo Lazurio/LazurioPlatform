@@ -318,9 +318,24 @@ async function runOtherCommand(args: string[]): Promise<number> {
   // The link alone on stdout; the notice follows on stderr.
   if (args[0] === "chat")
     return emit(await runChatCommand(args.slice(1), processContext()));
-  // Buddy's chat (decision F61): its JSON on stdout.
-  if (args[0] === "buddy")
-    return emit(await runBuddyCommand(args.slice(1), processContext()));
+  // Buddy's chat (decision F61), his state and his sign-in (decision F63):
+  // JSON on stdout; a running sign-in writes each state as it changes, and
+  // Ctrl-C cancels it.
+  if (args[0] === "buddy") {
+    const interrupt = new AbortController();
+    const onInterrupt = () => interrupt.abort();
+    if (args[1] === "sign-in") process.once("SIGINT", onInterrupt);
+    try {
+      return emit(
+        await runBuddyCommand(args.slice(1), {
+          ...processContext(),
+          signal: interrupt.signal,
+        }),
+      );
+    } finally {
+      process.removeListener("SIGINT", onInterrupt);
+    }
+  }
   // The Environment's theme (root decision 0208): its JSON on stdout.
   if (args[0] === "theme")
     return emit(await runThemeCommand(args.slice(1), processContext()));

@@ -719,7 +719,8 @@ posix(
           ["chat", "--folder", "Lazurio"],
           ["chat", "--apply", "--apply"],
           ["chat", "--force"],
-          ["status"],
+          ["state"],
+          ["status", "--apply"],
         ])
           expect((await runBuddyCommand(args, context(env.tools))).code).toBe(
             2,
