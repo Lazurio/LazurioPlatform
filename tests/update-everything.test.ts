@@ -1,7 +1,24 @@
-import { expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, test } from "bun:test";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { createOpenSync, openedModule } from "../src/content/open-sync";
 import type { SyncEntry, SyncRequest } from "../src/content/sync";
+import {
+  type BunInstaller,
+  createModuleBunResolver,
+  type ModuleBunResolver,
+  type RuntimeReason,
+} from "../src/modules/bun-runtime";
 import type { BuiltRefresh } from "../src/modules/module-operations";
+import { PreparationRefused } from "../src/modules/preparation-refusal";
 import type {
   Catalog,
   CatalogOrganization,
@@ -18,8 +35,10 @@ import {
 // One `lazurio update` (root decision 0212 points 3 and 4, decision F9's
 // second amendment of 2026-10-24) without processes: the order of its parts,
 // that a failing part never stops another, the content's wait for another
-// content operation, the Launchpad's job that a second click joins, the words
-// of the CLI, and the Open of one module. The parts' own cores run for real in
+// content operation, the tools part's pre-warm of the Bun the moved modules
+// pin (with the resolver a start uses and Bun's installer as a fake), the
+// Launchpad's job that a second click joins, the words of the CLI, and the
+// Open of one module. The parts' own cores run for real in
 // tests/module-built.test.ts.
 
 const at = "2026-10-24T12:00:00.000Z";
@@ -51,6 +70,10 @@ const current = {
   result: "current",
   version: "0.1.12",
 } as const;
+/** A resolver for a part that must not resolve anything. */
+const unasked: ModuleBunResolver = async () => {
+  throw new Error("Not asked");
+};
 
 test("the parts run in order, content, tools and builds before Lazurio itself, and each line is heard under way and then with its answer", async () => {
   const order: string[] = [];
@@ -87,9 +110,12 @@ test("the parts run in order, content, tools and builds before Lazurio itself, a
         });
         return [built()];
       },
-      tools: async () => {
-        order.push("tools");
-        return [];
+      tools: {
+        pins: async () => {
+          order.push("tools");
+          return [];
+        },
+        resolve: unasked,
       },
       product: async () => {
         order.push("product");
@@ -234,6 +260,356 @@ test("content waits for another content operation a while, then says it was busy
   ]);
 });
 
+// ---- The tools part: the Bun the moved modules pin (decision F62) -----------
+
+// The resolver a start uses (`createModuleBunResolver`), with #626's seams: a
+// fixed system, plenty of space, its own map of fetches under way, and Bun's
+// installer as a fake that lays out, for each version, a program reporting
+// it, or refuses as told. The user's Bun is the one running these tests. No
+// network.
+const supported = ["darwin", "linux"].includes(process.platform);
+const posixTest = test.skipIf(!supported);
+let scratch = "";
+beforeAll(async () => {
+  if (supported)
+    scratch = await realpath(await mkdtemp(join(tmpdir(), "update-tools-")));
+});
+afterAll(async () => {
+  if (scratch) await rm(scratch, { recursive: true, force: true });
+});
+
+async function runtimes(
+  name: string,
+  refuse: (version: string) => RuntimeReason | undefined = () => undefined,
+) {
+  const home = join(scratch, name);
+  await mkdir(home, { recursive: true, mode: 0o700 });
+  /** Every version Bun's installer was asked for, in order. */
+  const asked: string[] = [];
+  const install: BunInstaller = async (input) => {
+    asked.push(input.version);
+    const refused = refuse(input.version);
+    if (refused !== undefined) return { kind: "refused", reason: refused };
+    const program = join(
+      input.directory,
+      "node_modules",
+      input.packageName,
+      "bin",
+      "bun",
+    );
+    await mkdir(dirname(program), { recursive: true });
+    await writeFile(program, `#!/bin/sh\necho '${input.version}'\n`);
+    await chmod(program, 0o755);
+    return { kind: "installed" };
+  };
+  const resolve = createModuleBunResolver({
+    home,
+    userBun: process.execPath,
+    path: "/usr/bin:/bin",
+    install,
+    system: async () => ({
+      platform: "linux",
+      arch: "arm64",
+      libc: "glibc",
+      avx2: null,
+    }),
+    freeBytes: async () => 10 * 1024 ** 3,
+    fetches: new Map(),
+  });
+  return { resolve, asked };
+}
+
+/** The tools part's items of an answer. */
+const toolsOf = (items: readonly UpdateItem[]) =>
+  items.filter((item) => item.part === "tools");
+
+/** One run whose content fast-forwarded site, with these pins. */
+const runWith = (
+  pins: readonly string[],
+  resolve: ModuleBunResolver,
+  onChange?: (lines: readonly UpdateLine[]) => void,
+) =>
+  updateEverything(
+    {
+      content: async () => ({
+        kind: "content-sync",
+        at,
+        organizations: ["Alpha"],
+        entries: [moved],
+      }),
+      tools: { pins: async () => pins, resolve },
+      builds: async () => [],
+      product: async () => current,
+    },
+    onChange,
+  );
+
+posixTest(
+  "tools come after content and before any build: the Bun a moved module's apps pin and the cache does not hold is fetched before the build that needs it",
+  async () => {
+    const { resolve, asked } = await runtimes("before-build");
+    const order: string[] = [];
+    const checkouts: unknown[] = [];
+    const seen: UpdateLine[][] = [];
+    const items = await updateEverything(
+      {
+        content: async () => ({
+          kind: "content-sync",
+          at,
+          organizations: ["Alpha"],
+          entries: [
+            entry(".", { result: "fast-forwarded", to: "c".repeat(40) }),
+            moved,
+            entry("workspace/site/db", {
+              kind: "data",
+              result: "fast-forwarded",
+              to: "d".repeat(40),
+            }),
+            entry("workspace/docs"),
+          ],
+        }),
+        tools: {
+          pins: async (moving) => {
+            checkouts.push(moving);
+            order.push("tools");
+            return ["bun@1.4.99", "bun@1.4.99"];
+          },
+          resolve,
+        },
+        builds: async () => {
+          // What the installer was asked for by the time the build starts.
+          order.push(`builds after [${asked.join(", ")}]`);
+          return [built()];
+        },
+        product: async () => current,
+      },
+      (lines) => seen.push([...lines]),
+    );
+    // Only the module checkouts this run fast-forwarded: not the root, a
+    // data mount or a module that was current.
+    expect(checkouts).toEqual([
+      [
+        {
+          organization: "Alpha",
+          root: "organizations/alpha",
+          path: "workspace/site",
+        },
+      ],
+    ]);
+    expect(order).toEqual(["tools", "builds after [1.4.99]"]);
+    expect(asked).toEqual(["1.4.99"]);
+    expect(items.map((item) => item.part)).toEqual([
+      "content",
+      "content",
+      "content",
+      "content",
+      "tools",
+      "build",
+      "product",
+    ]);
+    expect(toolsOf(items)).toEqual([
+      { part: "tools", packageManager: "bun@1.4.99", result: "fetched" },
+    ]);
+    // The pin's line: under way, then its answer.
+    expect([
+      ...new Set(
+        seen.flatMap((lines) =>
+          lines.flatMap((line) =>
+            line.part === "tools" && "packageManager" in line
+              ? ["step" in line ? line.step : line.result]
+              : [],
+          ),
+        ),
+      ),
+    ]).toEqual(["fetching", "fetched"]);
+    // The next run finds it in the cache and fetches nothing.
+    expect(toolsOf(await runWith(["bun@1.4.99"], resolve))).toEqual([
+      { part: "tools", packageManager: "bun@1.4.99", result: "cached" },
+    ]);
+    expect(asked).toEqual(["1.4.99"]);
+    // Nothing moved: no pins are read and nothing is resolved.
+    let read = false;
+    const still = await updateEverything({
+      content: async () => ({
+        kind: "content-sync",
+        at,
+        organizations: ["Alpha"],
+        entries: [entry("."), entry("workspace/site")],
+      }),
+      tools: {
+        pins: async () => {
+          read = true;
+          return ["bun@1.4.98"];
+        },
+        resolve: unasked,
+      },
+      builds: async () => [],
+      product: async () => current,
+    });
+    expect(read).toBe(false);
+    expect(toolsOf(still)).toEqual([]);
+  },
+);
+
+posixTest(
+  "offline: the first runtime-unavailable ends the pre-warm for the run, and the pins after it are not fetched, with no further attempt",
+  async () => {
+    const { resolve, asked } = await runtimes("offline", (version) =>
+      version === "1.4.98" ? "runtime-unavailable" : undefined,
+    );
+    const items = await runWith(
+      ["bun@1.4.97", "bun@1.4.98", "bun@1.4.99", `bun@${Bun.version}`],
+      resolve,
+    );
+    expect(asked).toEqual(["1.4.97", "1.4.98"]);
+    expect(toolsOf(items)).toEqual([
+      { part: "tools", packageManager: "bun@1.4.97", result: "fetched" },
+      {
+        part: "tools",
+        packageManager: "bun@1.4.98",
+        result: "refused",
+        reason: "runtime-unavailable",
+      },
+      {
+        part: "tools",
+        packageManager: "bun@1.4.99",
+        result: "not-fetched",
+        reason: "runtime-unavailable",
+      },
+      {
+        part: "tools",
+        packageManager: `bun@${Bun.version}`,
+        result: "not-fetched",
+        reason: "runtime-unavailable",
+      },
+    ]);
+    // The rest of the run goes on.
+    expect(items.at(-1)).toEqual(current);
+  },
+);
+
+posixTest(
+  "every other refusal is an item with its reason and the pre-warm goes on; a download that did not verify is a warning",
+  async () => {
+    const { resolve, asked } = await runtimes("refusals", (version) =>
+      version === "1.4.96"
+        ? "runtime-integrity-failed"
+        : version === "1.4.97"
+          ? "runtime-version-unknown"
+          : version === "1.4.98"
+            ? "runtime-disk-full"
+            : undefined,
+    );
+    const items = await runWith(
+      ["bun@1.4.96", "bun@1.4.97", "bun@1.4.98", "bun@1.4.99"],
+      resolve,
+    );
+    expect(asked).toEqual(["1.4.96", "1.4.97", "1.4.98", "1.4.99"]);
+    expect(toolsOf(items)).toEqual([
+      {
+        part: "tools",
+        packageManager: "bun@1.4.96",
+        result: "refused",
+        reason: "runtime-integrity-failed",
+        warning: true,
+      },
+      {
+        part: "tools",
+        packageManager: "bun@1.4.97",
+        result: "refused",
+        reason: "runtime-version-unknown",
+      },
+      {
+        part: "tools",
+        packageManager: "bun@1.4.98",
+        result: "refused",
+        reason: "runtime-disk-full",
+      },
+      { part: "tools", packageManager: "bun@1.4.99", result: "fetched" },
+    ]);
+  },
+);
+
+posixTest(
+  "the user's own Bun is not fetched: a pin of exactly that version is there already",
+  async () => {
+    const { resolve, asked } = await runtimes("user-bun");
+    expect(toolsOf(await runWith([`bun@${Bun.version}`], resolve))).toEqual([
+      {
+        part: "tools",
+        packageManager: `bun@${Bun.version}`,
+        result: "cached",
+      },
+    ]);
+    expect(asked).toEqual([]);
+  },
+);
+
+test("the update never fails because of tools: pins that cannot be read and a resolver that throws are items, and builds and Lazurio run either way", async () => {
+  const builds: string[] = [];
+  const parts = (tools: NonNullable<UpdateParts["tools"]>): UpdateParts => ({
+    content: async () => ({
+      kind: "content-sync",
+      at,
+      organizations: ["Alpha"],
+      entries: [moved],
+    }),
+    tools,
+    builds: async () => {
+      builds.push("ran");
+      return [built()];
+    },
+    product: async () => current,
+  });
+  expect(
+    await updateEverything(
+      parts({
+        pins: async () => {
+          throw new Error("catalog");
+        },
+        resolve: unasked,
+      }),
+    ),
+  ).toEqual([
+    { part: "content", ...moved },
+    { part: "tools", result: "failed", reason: "operation-failed" },
+    { part: "build", ...built() },
+    current,
+  ]);
+  // A resolver that throws something other than a refusal, and one that
+  // refuses: each its item, never a throw.
+  const items = await updateEverything(
+    parts({
+      pins: async () => ["bun@1.4.98", "bun@1.4.99"],
+      resolve: async ({ packageManager, owner }) => {
+        if (packageManager === "bun@1.4.98") throw new Error("broken");
+        throw new PreparationRefused(
+          "runtime-unsupported-platform",
+          join(owner, "package.json"),
+          "Pinned Bun runtime unavailable",
+        );
+      },
+    }),
+  );
+  expect(toolsOf(items)).toEqual([
+    {
+      part: "tools",
+      packageManager: "bun@1.4.98",
+      result: "refused",
+      reason: "operation-failed",
+    },
+    {
+      part: "tools",
+      packageManager: "bun@1.4.99",
+      result: "refused",
+      reason: "runtime-unsupported-platform",
+    },
+  ]);
+  expect(items.at(-2)).toEqual({ part: "build", ...built() });
+  expect(items.at(-1)).toEqual(current);
+  expect(builds).toEqual(["ran", "ran"]);
+});
+
 test("the Launchpad's job: one run at a time, a second start joins it, the newest stays readable after it ended", async () => {
   let finish: () => void = () => {};
   let report: (lines: readonly UpdateLine[]) => void = () => {};
@@ -321,6 +697,48 @@ test("the CLI's words: what moved, what is left and a summary, what was built or
     ]),
   ).toEqual([
     "Content was not synchronized: another content operation kept the Folder busy (content-busy). Run lazurio update again.",
+  ]);
+  // The tools part: what was fetched or not, the warning first in its line,
+  // nothing for a Bun that was there already.
+  expect(
+    everythingText([
+      { part: "content", ...moved },
+      { part: "tools", packageManager: "bun@1.4.99", result: "fetched" },
+      { part: "tools", packageManager: `bun@${Bun.version}`, result: "cached" },
+      {
+        part: "tools",
+        packageManager: "bun@1.4.96",
+        result: "refused",
+        reason: "runtime-integrity-failed",
+        warning: true,
+      },
+      {
+        part: "tools",
+        packageManager: "bun@1.4.97",
+        result: "refused",
+        reason: "runtime-version-unknown",
+      },
+      {
+        part: "tools",
+        packageManager: "bun@1.4.98",
+        result: "refused",
+        reason: "runtime-unavailable",
+      },
+      {
+        part: "tools",
+        packageManager: "bun@1.4.95",
+        result: "not-fetched",
+        reason: "runtime-unavailable",
+      },
+      { part: "tools", result: "failed", reason: "operation-failed" },
+    ]).slice(2),
+  ).toEqual([
+    "Fetched Bun 1.4.99 for the apps that pin it.",
+    "Warning: Bun 1.4.96 did not verify and was discarded (runtime-integrity-failed).",
+    "Bun 1.4.97 was not fetched (runtime-version-unknown).",
+    "Bun 1.4.98 was not fetched: the registry did not answer (runtime-unavailable).",
+    "Bun 1.4.95 was not tried: the registry did not answer this run (runtime-unavailable).",
+    "Tools failed (operation-failed).",
   ]);
 });
 

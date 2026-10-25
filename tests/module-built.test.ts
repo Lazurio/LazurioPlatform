@@ -1,9 +1,16 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { processContentGit } from "../src/content/git";
 import type { ContentGitHub } from "../src/content/github";
 import { syncContent } from "../src/content/sync";
@@ -13,6 +20,11 @@ import { messages } from "../src/launchpad/messages";
 import { moduleStatusView } from "../src/launchpad/module-view";
 import type { ApplicationRunner } from "../src/modules/application-runner";
 import { gitCheckoutReader } from "../src/modules/built/checkout";
+import {
+  type BunInstaller,
+  createModuleBunResolver,
+  type ModuleBunResolver,
+} from "../src/modules/bun-runtime";
 import type { DataMountHost } from "../src/modules/data-mounts";
 import { observeConnected } from "../src/modules/listener-ownership";
 import {
@@ -161,6 +173,9 @@ async function staticModule(
     /** This host's gh, git and content locks (data mounts, and the record
      * of the synchronization). */
     dataMounts?: DataMountHost;
+    /** The resolver of the Bun each app pins (decision F62): the module
+     * operations' test seam. */
+    resolveBun?: ModuleBunResolver;
   }> = {},
 ) {
   const parent = join(root, name);
@@ -225,6 +240,9 @@ async function staticModule(
     ...(options.dataMounts === undefined
       ? {}
       : { dataMounts: options.dataMounts }),
+    ...(options.resolveBun === undefined
+      ? {}
+      : { resolveBun: options.resolveBun }),
     builds: {
       cacheRoot: join(parent, "cache"),
       lockFile: join(parent, "state/lazurio/builds.lock"),
@@ -803,8 +821,13 @@ posixTest(
 /** `staticModule` whose Organization root and site are primary checkouts of
  * their published repositories (bare repositories reached as github.com
  * through git's own `insteadOf`), with the content host that reaches them;
- * `publish` puts a new page on site's published main from elsewhere. */
-async function publishedSite(name: string, home: string) {
+ * `publish` puts a new page on site's published main from elsewhere, and
+ * with `pin` the Bun its app pins (`packageManager`). */
+async function publishedSite(
+  name: string,
+  home: string,
+  resolveBun?: ModuleBunResolver,
+) {
   const remotes = join(root, `${name}-remotes`);
   await mkdir(join(remotes, "alpha"), { recursive: true });
   const gitEnv = {
@@ -832,6 +855,7 @@ async function publishedSite(name: string, home: string) {
   const fixture = await staticModule(name, home, {
     published: true,
     dataMounts: content,
+    ...(resolveBun === undefined ? {} : { resolveBun }),
   });
   const git = (cwd: string, ...args: string[]) =>
     execFileSync(
@@ -873,8 +897,14 @@ async function publishedSite(name: string, home: string) {
   return {
     ...fixture,
     content,
-    publish: async (page: string) => {
+    publish: async (page: string, pin?: string) => {
       await writeFile(join(scratch, "app/page.txt"), `${page}\n`);
+      if (pin !== undefined) {
+        const file = join(scratch, "app/package.json");
+        const pkg = JSON.parse(await readFile(file, "utf8"));
+        pkg.packageManager = pin;
+        await writeFile(file, JSON.stringify(pkg));
+      }
       git(scratch, "commit", "-qam", page);
       git(scratch, "push", "-q", "origin", "main");
       return git(scratch, "rev-parse", "HEAD");
@@ -918,16 +948,20 @@ posixTest(
       expect(ran.code).toBe(0);
       const result = JSON.parse(ran.stdout ?? "");
       expect(result).toMatchObject({ kind: "up-to-date", running: "1.0.0" });
-      // One item per repository and the product, in the order the parts
-      // ran, Lazurio last. A session's apps are built by their Launchpad,
-      // which owns their dependency trees: no build item from the CLI.
+      // One item per repository, pinned Bun and the product, in the order
+      // the parts ran, Lazurio last. site pins the user's own Bun, which is
+      // there already. A session's apps are built by their Launchpad, which
+      // owns their dependency trees: no build item from the CLI.
       expect(
         result.items.map((item: Record<string, string>) =>
-          [item.part, item.path ?? "", item.result].join(" "),
+          [item.part, item.path ?? item.packageManager ?? "", item.result].join(
+            " ",
+          ),
         ),
       ).toEqual([
         "content . current",
         "content workspace/site fast-forwarded",
+        `tools bun@${Bun.version} cached`,
         "product  current",
       ]);
       expect(result.items[1]).toMatchObject({
@@ -1036,6 +1070,179 @@ posixTest(
             item.part === "build" && "module" in item && item.module === "next",
         ),
       ).toBe(false);
+    } finally {
+      await operations.stop("alpha/site");
+      await operations.close();
+    }
+  },
+  120_000,
+);
+
+/** Bun's npm distribution as a fake for the resolver (decision F62): for
+ * each version a program named bun that logs every call, reports the version
+ * and runs the real Bun otherwise; a version in `offline` is refused as a
+ * registry that does not answer. No network. */
+function bunDistribution(directory: string) {
+  const offline = new Set<string>();
+  const asked: string[] = [];
+  const install: BunInstaller = async (input) => {
+    asked.push(input.version);
+    if (offline.has(input.version))
+      return { kind: "refused", reason: "runtime-unavailable" };
+    const program = join(
+      input.directory,
+      "node_modules",
+      input.packageName,
+      "bin",
+      "bun",
+    );
+    await mkdir(dirname(program), { recursive: true });
+    await writeFile(
+      program,
+      [
+        "#!/bin/sh",
+        `printf '%s\\n' "$*" >> '${join(directory, `bun-${input.version}.log`)}'`,
+        `if [ "$1" = "--version" ]; then echo '${input.version}'; exit 0; fi`,
+        `exec '${process.execPath}' "$@"`,
+        "",
+      ].join("\n"),
+    );
+    await chmod(program, 0o755);
+    return { kind: "installed" };
+  };
+  return {
+    install,
+    offline,
+    asked,
+    /** What that version's program ran, its version probes left out. */
+    calls: async (version: string) =>
+      (
+        await readFile(join(directory, `bun-${version}.log`), "utf8").catch(
+          () => "",
+        )
+      )
+        .split("\n")
+        .filter((line) => line !== "" && line !== "--version"),
+  };
+}
+
+posixTest(
+  "the tools part fetches the Bun a fast-forwarded module's new commit pins before its build, which runs with it; offline, the build fails for its runtime and a later run builds it (decision F62, root decision 0212 point 3)",
+  async () => {
+    const home = join(root, "home-tools");
+    await mkdir(home);
+    const distribution = bunDistribution(join(root, "tools-distribution"));
+    await mkdir(join(root, "tools-distribution"));
+    const resolveBun = createModuleBunResolver({
+      home,
+      userBun: process.execPath,
+      path: "/usr/bin:/bin",
+      install: distribution.install,
+      system: async () => ({
+        platform: "linux",
+        arch: "arm64",
+        libc: "glibc",
+        avx2: null,
+      }),
+      freeBytes: async () => 10 * 1024 ** 3,
+      fetches: new Map(),
+    });
+    const fixture = await publishedSite("tools", home, resolveBun);
+    const { operations, folder, content } = fixture;
+    // What the installer had been asked for when each build began.
+    const atBuild: string[][] = [];
+    const run = () =>
+      updateEverything(
+        {
+          content: (onProgress) => syncContent(folder, content, { onProgress }),
+          tools: {
+            pins: (moved) => operations.runtimePins(moved),
+            resolve: operations.resolveBun,
+          },
+          builds: (onProgress) =>
+            operations.refreshBuilt((progress) => {
+              atBuild.push([...distribution.asked]);
+              onProgress(progress);
+            }),
+          product: async () => ({
+            part: "product",
+            result: "current",
+            version: "1.0.0",
+          }),
+        },
+        () => {},
+      );
+    const parts = (items: Awaited<ReturnType<typeof run>>) =>
+      items.map((item) =>
+        [
+          item.part,
+          "path" in item
+            ? item.path
+            : "packageManager" in item
+              ? item.packageManager
+              : "module" in item
+                ? item.module
+                : "",
+          item.result,
+          "reason" in item ? (item.reason ?? "") : "",
+        ]
+          .filter((word) => word !== "")
+          .join(" "),
+      );
+    try {
+      answer(await operations.start("alpha/site"));
+      await until(fixture.page, (page) => page.text === "<p>one</p>");
+      // A new commit that pins a Bun the cache does not hold.
+      const two = await fixture.publish("two", "bun@1.4.99");
+      const first = await run();
+      expect(parts(first)).toEqual([
+        "content . current",
+        "content workspace/site fast-forwarded",
+        "tools bun@1.4.99 fetched",
+        "build site built",
+        "product current",
+      ]);
+      // Fetched once, by the tools part, before the build began.
+      expect(distribution.asked).toEqual(["1.4.99"]);
+      expect(atBuild).toEqual([["1.4.99"]]);
+      // The build ran with exactly that Bun, and its page is served.
+      expect(await distribution.calls("1.4.99")).toContain(
+        "--no-env-file run build",
+      );
+      expect(first.find((item) => item.part === "build")).toMatchObject({
+        result: "built",
+        commit: two,
+      });
+      expect((await fixture.page()).text).toBe("<p>two</p>");
+      // Offline: a commit that pins another Bun. The pre-warm stops at the
+      // registry that does not answer; the build, which resolves its own
+      // pin, fails for it and what runs stays as it was.
+      distribution.offline.add("1.4.98");
+      await fixture.publish("three", "bun@1.4.98");
+      const offline = await run();
+      expect(parts(offline)).toEqual([
+        "content . current",
+        "content workspace/site fast-forwarded",
+        "tools bun@1.4.98 refused runtime-unavailable",
+        "build site failed runtime-unavailable",
+        "product current",
+      ]);
+      expect((await fixture.page()).text).toBe("<p>two</p>");
+      // Online again: nothing new to fast-forward, so no pins; the build
+      // whose runtime could not be had is built again (decision F62 point
+      // 7) and fetches its Bun itself.
+      distribution.offline.delete("1.4.98");
+      const later = await run();
+      expect(parts(later)).toEqual([
+        "content . current",
+        "content workspace/site current",
+        "build site built",
+        "product current",
+      ]);
+      expect(await distribution.calls("1.4.98")).toContain(
+        "--no-env-file run build",
+      );
+      expect((await fixture.page()).text).toBe("<p>three</p>");
     } finally {
       await operations.stop("alpha/site");
       await operations.close();
