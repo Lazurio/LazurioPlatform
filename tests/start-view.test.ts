@@ -88,6 +88,8 @@ test("a new work Environment: AI now, GitHub after it, the content after GitHub"
     // ChatGPT or Claude, nothing said before them; beneath them ChatGPT by
     // code with the setting it needs (root decision 0201 point 10).
     ai: { kind: "choose", cancel: false, byCode: { hint: byCodeHint } },
+    // No Buddy on a work Environment (decision F65).
+    buddy: null,
   });
 });
 

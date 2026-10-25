@@ -22,7 +22,7 @@ import { createHermesGateway } from "../buddy/hermes-gateway";
 import { buddyPersona as applyBuddyPersona } from "../buddy/persona-apply";
 import { createPersonaSave } from "../buddy/persona-save";
 import { createBuddySignIn } from "../buddy/sign-in";
-import { readBuddyFacts } from "../buddy/status";
+import { buddyStatus, readBuddyFacts } from "../buddy/status";
 import { createPersonalspaceHolder } from "../content/holder";
 import {
   type ContentHost,
@@ -1171,12 +1171,28 @@ export async function startLaunchpad(
     );
     const preset = current.preferences.preset.name;
     if (!signsInAsPerson(preset) || publicEnvironment) return undefined;
-    const [reading, signIn, read] = await Promise.all([
+    const [reading, signIn, read, buddyFact] = await Promise.all([
       ai.state(),
       github.state(),
       readContent(contentState),
+      // Buddy's step where the entry names him (decision F65): his sign-in
+      // as Hermes's card says it and whether his names were confirmed.
+      entry?.buddyOrigin === undefined
+        ? undefined
+        : Promise.all([readBuddyFacts(buddyGateway), buddyPersona.read()]).then(
+            ([facts, persona]) => ({
+              signIn: buddyStatus(facts).signIn.state,
+              confirmed: persona?.confirmed === true,
+            }),
+          ),
     ]);
-    return shellSetup({ preset, ai: reading.state, github: signIn, ...read });
+    return shellSetup({
+      preset,
+      ai: reading.state,
+      github: signIn,
+      ...read,
+      ...(buddyFact === undefined ? {} : { buddy: buddyFact }),
+    });
   });
   // The boot document of the page (F36's addendum of 2026-10-08, boot.ts):
   // what this Launchpad knows from the Folder alone, under one short read of

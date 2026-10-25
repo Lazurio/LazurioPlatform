@@ -11,6 +11,7 @@ import {
 } from "../buddy/status";
 import type { FolderProfile } from "../folder/profile";
 import { stateFields } from "../folder/state-fields";
+import { buddyRoutePaths } from "./buddy-paths";
 import { BodyTooLarge, readJsonBody } from "./json-body";
 
 // Buddy in the Launchpad (decision F63): his state, and his ChatGPT sign-in
@@ -63,14 +64,7 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 // handle, a ticket or Hermes's session, and never a name or a revision of the
 // persona.
 
-export const buddyRoutePaths = Object.freeze({
-  read: "/api/buddy",
-  start: "/api/buddy/sign-in/start",
-  poll: "/api/buddy/sign-in/poll",
-  cancel: "/api/buddy/sign-in/cancel",
-  signOut: "/api/buddy/sign-out",
-  persona: "/api/buddy/persona",
-});
+export { buddyRoutePaths };
 
 export type BuddyLocale = FolderProfile["locale"];
 

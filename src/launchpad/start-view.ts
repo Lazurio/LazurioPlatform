@@ -8,13 +8,19 @@ import {
 } from "../tools/ai";
 import { type AiSignIn, type AiSignInPlace, idleAiSignIn } from "./ai-sign-in";
 import { moduleName } from "./apps-view";
+import {
+  type BuddyStepFacts,
+  type BuddyStepView,
+  buddyStep,
+} from "./buddy-view";
 import { moduleRoute } from "./catalog-view";
 import type { ContentList } from "./content-client";
 import {
+  aiHeldByBuddy,
   type Basic,
   basicState,
-  basics,
   basicsDone,
+  basicsOf,
   type ComposioFact,
   contentBlockedBy,
   demoAi,
@@ -34,7 +40,9 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // Environment's own state, never from what a browser remembers, so it reads
 // the same in any browser and opens again any time: 1. Připojit AI, 2.
 // GitHub, 3. the Organization's download or the personal space, which starts
-// by itself once GitHub is there. Then the vault, the optional steps and the
+// by itself once GitHub is there. Where the Environment has Buddy, his step
+// "Seznamte se s Buddym" comes first (decision F65, buddy-view.ts), and the
+// AI step is offered beside it (`buddyGate`). Then the vault, the optional steps and the
 // tour of the app. The AI step signs ChatGPT and Claude in through their CLIs
 // (F19's addendum of 2026-10-15, ai-sign-in.ts). Each row is its title, its
 // action and its state, with at most one short line where the title alone
@@ -108,6 +116,8 @@ export type StartView = Readonly<{
   steps: readonly StartStep[];
   github: GithubAction;
   ai: AiAction;
+  /** Buddy's step, its parts and its one action; null without Buddy. */
+  buddy: BuddyStepView | null;
 }>;
 
 export type StartFacts = TourFacts &
@@ -129,6 +139,9 @@ export type StartFacts = TourFacts &
     githubFlow?: "waiting" | "finishing" | undefined;
     /** What the content routes listed, for the step's title. */
     list: ContentList | null;
+    /** Buddy's reading and the sign-in this page holds, where the
+     * Environment has Buddy (`buddy` of the tour's facts). */
+    buddyStep?: BuddyStepFacts;
   }>;
 
 /** "ChatGPT, a@b.c": one signed-in account. */
@@ -186,6 +199,12 @@ function aiServicesWarning(signIn: AiSignIn, copy: Copy): string | undefined {
 
 function aiStep(facts: StartFacts, copy: Copy): [StartStep, AiAction] {
   const base = { basic: "ai" as const, title: copy.startAiTitle };
+  // Held until Buddy's step is done only where the gate says so (Q4).
+  if (aiHeldByBuddy(facts) && facts.ai !== "organization")
+    return [
+      { ...base, mark: "later", status: copy.startAiAfterBuddy },
+      { kind: "none" },
+    ];
   const signIn = facts.aiSignIn ?? idleAiSignIn;
   const place = facts.aiPlace ?? "own";
   const ready = facts.ai === "organization" || facts.ai === "connected";
@@ -407,9 +426,38 @@ export function startView(facts: StartFacts, copy: Copy): StartView | null {
   if (!signsInAsPerson(facts.preset) || demoOnboarding(facts)) return null;
   const [github, action] = githubStep(facts, copy);
   const [ai, aiAction] = aiStep(facts, copy);
-  const steps = [ai, github, contentStep(facts, copy)];
+  const buddy =
+    facts.buddy === undefined
+      ? null
+      : buddyStep(
+          facts.buddyStep ?? {
+            reading: null,
+            signIn: { kind: "idle" },
+            now: 0,
+          },
+          copy,
+        );
+  const steps: StartStep[] = [
+    ...(buddy === null
+      ? []
+      : [
+          {
+            basic: "buddy" as const,
+            mark: buddy.done
+              ? ("done" as const)
+              : buddy.failed
+                ? ("failed" as const)
+                : ("now" as const),
+            title: copy.buddyStepTitle,
+            status: null,
+          },
+        ]),
+    ai,
+    github,
+    contentStep(facts, copy),
+  ];
   const done = basicsDone(facts);
-  const total = basics.length;
+  const total = basicsOf(facts).length;
   return {
     intro:
       done === total
@@ -420,17 +468,17 @@ export function startView(facts: StartFacts, copy: Copy): StartView | null {
     steps,
     github: action,
     ai: aiAction,
+    buddy,
   };
 }
 
-/** The count beside Začínáme in the Settings navigation ("1/3") while a
- * basic is missing; null otherwise. */
+/** The count beside Začínáme in the Settings navigation ("1/3", with Buddy
+ * "1/4") while a basic is missing; null otherwise. */
 export function startCount(facts: TourFacts): string | null {
   if (!signsInAsPerson(facts.preset) || demoOnboarding(facts)) return null;
-  const missing = basics.some(
-    (basic) => basicState(facts, basic) === "missing",
-  );
-  return missing ? `${basicsDone(facts)}/${basics.length}` : null;
+  const all = basicsOf(facts);
+  const missing = all.some((basic) => basicState(facts, basic) === "missing");
+  return missing ? `${basicsDone(facts)}/${all.length}` : null;
 }
 
 /** One optional row: its title, one sentence, its state in a word, and

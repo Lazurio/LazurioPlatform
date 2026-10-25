@@ -274,6 +274,10 @@ function* everyFacts(): Generator<PageGuideFacts> {
       for (const start of ["basics", "demo", "none", null] as const)
         yield { ...base, start };
       for (const tools of toolFacts) yield { ...base, tools };
+      // An Osobní Prostředí with Buddy (decision F65): Začínáme explains his
+      // step, and Nastavení → Buddy has its own guide.
+      for (const start of ["basics", null] as const)
+        yield { ...base, start, buddy: true };
     }
 }
 
@@ -367,13 +371,15 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
       }
       if (guide.help === null) {
         // Only Trezor waits, while its vault's state is not read;
-        // Nástroje, while its tools are not read; and Začínáme, where it has
+        // Nástroje, while its tools are not read; Začínáme, where it has
         // no basics to explain (a public demo, a Team or Automated
-        // Environment) or the profile is not read.
+        // Environment) or the profile is not read; and Nastavení → Buddy,
+        // where the Environment has no Buddy (decision F65).
         const waiting: Readonly<Record<string, boolean>> = {
           Trezor: facts.vault.vault === null,
           "Nastavení tools": facts.tools === null,
           "Nastavení start": facts.start !== "basics",
+          "Nastavení buddy": facts.buddy !== true,
         };
         expect({ name, waits: waiting[name] ?? false }).toEqual({
           name,
@@ -437,6 +443,8 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
     "settings-tools",
     "settings-ssh",
     "settings-recovery",
+    // Nastavení → Buddy only with Buddy (decision F65).
+    null,
   ]);
   expect(
     settingsSections.map((name) => help(section(name), { kind: "team" })),
@@ -448,7 +456,14 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
     "settings-tools-team",
     "settings-ssh-team",
     "settings-recovery",
+    null,
   ]);
+  expect(help(section("buddy"), { kind: "personal", buddy: true })).toBe(
+    "settings-buddy",
+  );
+  expect(help(section("start"), { kind: "personal", buddy: true })).toBe(
+    "settings-start-buddy",
+  );
   // Začínáme only where it has the basics.
   for (const start of ["demo", "none", null] as const)
     expect(help(section("start"), { start })).toBeNull();
@@ -554,6 +569,7 @@ test("the Launchpad's explanations keep the guide's rules in both languages and 
     "integrations-composio",
     "integrations-composio-team",
     "integrations-custom",
+    "settings-buddy",
     "settings-communication",
     "settings-communication-team",
     "settings-general",
@@ -562,6 +578,7 @@ test("the Launchpad's explanations keep the guide's rules in both languages and 
     "settings-ssh",
     "settings-ssh-team",
     "settings-start",
+    "settings-start-buddy",
     "settings-tools",
     "settings-tools-team",
     "vault-agents",

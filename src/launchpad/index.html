@@ -156,6 +156,7 @@ html:not([data-section="machine"]) #view-settings > [data-section="machine"],
 html:not([data-section="tools"]) #view-settings > [data-section="tools"],
 html:not([data-section="ssh"]) #view-settings > [data-section="ssh"],
 html:not([data-section="recovery"]) #view-settings > [data-section="recovery"],
+html:not([data-section="buddy"]) #view-settings > [data-section="buddy"],
 html:not([data-frame="files"]) [data-section-action="files"],
 html:not([data-frame="vault"]) [data-section-action="vault"],
 html:not([data-section="start"]) [data-section-action="start"],
@@ -1314,6 +1315,97 @@ button:not(.primary) .provider-openai { color: #000000; }
 #start-content .content-row { padding: 0; }
 .start-vault-state[data-tone="ok"] { color: var(--success-fg); }
 .start-vault-state[data-tone="warn"] { color: var(--warning-fg); }
+/* Buddy in Začínáme and Nastavení → Buddy (decision F65; the wireframe's
+   buddy-meet.css, prototypes-lazurio #90): his step's quiet parts, each a
+   mark, a name and a state; the dialog "Seznamte se s Buddym" with Buddy's
+   own words as bubbles beside his face; the segmented choice of ty or vy;
+   his state as a dot and a word. */
+.start-step[data-step="buddy"]:focus { outline: none; }
+.buddy-parts { display: grid; margin: 0; padding: 0; list-style: none; border: 1px solid var(--lz-gray-100); border-radius: var(--radius-control); }
+.buddy-parts > * + * { border-top: 1px solid var(--lz-gray-100); }
+.buddy-parts-plain { border: 0; }
+.buddy-part { display: grid; grid-template-columns: 16px minmax(9rem, auto) 1fr; align-items: center; gap: 4px 10px; padding: 9px 12px; font-size: 13.5px; }
+.buddy-parts-plain .buddy-part { padding: 0; }
+.buddy-part-mark { display: grid; width: 16px; height: 16px; place-items: center; border: 1px solid var(--lz-line); border-radius: 50%; color: var(--muted-fg); }
+.buddy-part-mark .icon { width: 10px; height: 10px; }
+.buddy-part[data-mark="done"] .buddy-part-mark { border-color: transparent; background: var(--success-bg); color: var(--success-fg); }
+.buddy-part[data-mark="warn"] .buddy-part-mark { border-color: transparent; background: var(--warning-bg); color: var(--warning-fg); }
+.buddy-part-title { font-weight: var(--lz-weight-akce); }
+.buddy-part-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--muted-fg); }
+.buddy-part[data-mark="warn"] .buddy-part-status { color: var(--warning-fg); }
+.buddy-part > .buddy-help { grid-column: 2 / -1; }
+@container (max-width: 520px) { .buddy-part { grid-template-columns: 16px 1fr; } .buddy-part-status { grid-column: 2; } }
+button.buddy-help-toggle { width: 20px; height: 20px; padding: 0; border-radius: 50%; color: var(--muted-fg); font-size: 12px; }
+.buddy-help { max-width: 34rem; margin: 2px 0 0; color: var(--muted-fg); font-size: 13px; line-height: 1.45; }
+dialog.buddy-meet { width: min(36rem, calc(100vw - 2rem)); }
+.buddy-meet-body { display: grid; gap: 14px; }
+.buddy-meet-body > p { margin: 0; }
+.buddy-say { font-size: 15px; }
+.buddy-own { color: var(--muted-fg); font-size: 13px; }
+.buddy-act { display: flex; flex-wrap: wrap; gap: 8px; }
+.buddy-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--muted-fg); font-size: 13.5px; }
+.buddy-status .icon { width: 16px; height: 16px; }
+.buddy-ok { color: var(--success-fg); font-weight: var(--lz-weight-akce); }
+.buddy-warn { color: var(--warning-fg); }
+.buddy-steps { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.buddy-steps li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.buddy-steps-n { display: grid; width: 22px; height: 22px; flex: none; place-items: center; border: 1px solid var(--lz-line); border-radius: 50%; color: var(--muted-fg); font-size: 12px; font-weight: var(--lz-weight-akce); }
+.buddy-steps-text { flex: 1 1 12rem; }
+.buddy-steps .button .icon { width: 13px; height: 13px; }
+.buddy-code { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.buddy-code .tools-code { margin: 0; padding: 2px 10px; border: 1px solid var(--lz-line); border-radius: var(--radius-control); font-size: 1.25rem; letter-spacing: 0.08em; }
+.buddy-holds { color: var(--muted-fg); font-size: 13px; }
+.buddy-again { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding-top: 12px; border-top: 1px solid var(--lz-gray-100); }
+.buddy-again .buddy-own { flex: 1 1 14rem; }
+.buddy-meet-art { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border-radius: var(--radius-card); background: var(--muted); }
+.buddy-face { display: grid; width: 48px; height: 48px; flex: none; place-items: center; overflow: hidden; border-radius: 50%; background: var(--lz-surface); box-shadow: 0 0 0 1px var(--lz-line); color: var(--fg); font-size: 18px; font-weight: var(--lz-weight-title); }
+.buddy-face img { width: 100%; height: 100%; object-fit: cover; }
+.buddy-face-small { width: 32px; height: 32px; font-size: 14px; }
+.buddy-says { display: grid; justify-items: start; gap: 6px; min-width: 0; }
+.buddy-bubble { margin: 0; padding: 8px 12px; border: 1px solid var(--lz-line); border-radius: 14px 14px 14px 4px; background: var(--lz-surface); font-size: 14px; line-height: 1.45; }
+.buddy-questions { display: grid; gap: 12px; }
+.buddy-question { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 6px 16px; }
+.buddy-ask { font-size: 14px; font-weight: var(--lz-weight-akce); }
+.buddy-ask-quiet { color: var(--muted-fg); font-weight: 400; }
+input.buddy-input { width: 100%; min-width: 0; }
+input.buddy-input-word { width: 8.5rem; margin: 0 2px; padding: 2px 6px; height: 26px; }
+.buddy-forms { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.buddy-trace { display: inline-flex; align-items: center; padding: 3px 8px; border: 1px solid var(--lz-line); border-radius: var(--radius-control); font-size: 13px; white-space: nowrap; }
+button.buddy-fix { font-size: 13px; }
+.buddy-segmented { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--lz-radius-md); background: var(--hover); justify-self: start; }
+.buddy-segmented button { height: 28px; border: 0; background: transparent; box-shadow: none; color: var(--muted-fg); }
+.buddy-segmented button[aria-pressed="true"] { background: var(--primary); color: var(--primary-fg); }
+.buddy-line { min-height: 1.2em; margin: 0; color: var(--muted-fg); font-size: 13px; }
+.buddy-line:empty { display: none; }
+.buddy-meet-foot { justify-content: space-between; }
+.buddy-dots { display: inline-flex; gap: 6px; }
+.buddy-dots[hidden] { display: none; }
+.buddy-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--lz-line); }
+.buddy-dots i[data-state="on"] { background: var(--fg); }
+.buddy-dots i[data-state="done"] { background: var(--muted-fg); }
+.buddy-meet-nav { display: inline-flex; gap: 8px; margin-left: auto; }
+#buddy-state.card { overflow: visible; }
+.row-main.buddy-who-main { display: flex; flex-direction: row; align-items: center; gap: 12px; }
+.buddy-who-main .row-title { flex: 1; }
+.buddy-state { display: inline-flex; align-items: center; gap: 8px; color: var(--muted-fg); font-size: 13.5px; }
+.buddy-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); }
+.buddy-state[data-tone="ok"] { color: var(--fg); }
+.buddy-state[data-tone="ok"] .buddy-dot { background: var(--success); }
+.buddy-state[data-tone="warn"] .buddy-dot { background: var(--lz-warning); }
+.buddy-menu { position: relative; top: auto; right: auto; }
+.buddy-menu .tile-menu-list { top: 34px; min-width: 200px; }
+.tile-menu-item.danger { color: var(--destructive); }
+.buddy-row-main { align-items: start; }
+.buddy-row-main > .row-title { padding-top: 5px; }
+.buddy-row-main > input.buddy-input { width: min(16rem, 100%); justify-self: end; }
+.buddy-row-main > .buddy-segmented { justify-self: end; }
+.buddy-you { display: grid; justify-items: end; gap: 8px; width: min(24rem, 100%); justify-self: end; }
+.buddy-you > input.buddy-input { width: min(16rem, 100%); }
+.buddy-you .buddy-forms { justify-content: flex-end; }
+.buddy-save-row > button { justify-self: end; }
+.buddy-save-row .buddy-line:empty { display: block; }
+@container (max-width: 32rem) { .buddy-row-main > input.buddy-input, .buddy-you, .buddy-you > input.buddy-input { width: 100%; } .buddy-you { justify-items: stretch; } .buddy-you .buddy-forms { justify-content: flex-start; } }
+@media (max-width: 560px) { .buddy-question { grid-template-columns: 1fr; } .buddy-part { grid-template-columns: 16px 1fr; } .buddy-part-status { grid-column: 2; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } .spinner, .browser-panel, .browser-panel.is-leaving { animation: none; } }
 </style>
 <noscript><style>body { visibility: visible !important; animation: none !important; }</style></noscript>
@@ -1437,6 +1529,7 @@ button:not(.primary) .provider-openai { color: #000000; }
 <li><a class="menu-item" href="/settings/tools" data-section="tools" data-route><svg class="icon" aria-hidden="true"><use href="#i-tools"/></svg><span class="menu-name" data-message="toolsTitle">Tools</span></a></li>
 <li><a class="menu-item" href="/settings/ssh" data-section="ssh" data-route><svg class="icon" aria-hidden="true"><use href="#i-terminal"/></svg><span class="menu-name" data-message="sshTitle">SSH from your devices</span></a></li>
 <li><a class="menu-item" href="/settings/recovery" data-section="recovery" data-route><svg class="icon" aria-hidden="true"><use href="#i-recovery"/></svg><span class="menu-name" data-message="recoveryTitle">Recovery</span></a></li>
+<li id="buddy-nav" hidden><a class="menu-item" href="/settings/buddy" data-section="buddy" data-route><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span class="menu-name" data-message="buddyTitle">Buddy</span></a></li>
 </ul>
 </nav>
 </div>
@@ -1795,6 +1888,21 @@ button:not(.primary) .provider-openai { color: #000000; }
 <p id="recovery-status" class="row-status" role="status" aria-live="polite"></p>
 <div id="recovery-body" class="stack"></div>
 </section>
+<!-- Nastavení → Buddy (decision F65; the wireframe's BuddySettings.tsx,
+     prototypes-lazurio #90): his state and his own ChatGPT sign-in, his name
+     and how he addresses the person; drawn by buddy-panel.ts, only on an
+     Osobní Prostředí with Buddy. -->
+<section id="section-buddy" data-section="buddy" aria-labelledby="page-heading">
+<p class="intro" id="buddy-not-here" data-message="startNotHere">There is nothing to set up here.</p>
+<section class="group" data-buddy data-guide="buddy-state" aria-labelledby="buddy-state-heading" hidden>
+<div class="group-head"><h2 id="buddy-state-heading" data-message="buddyStateGroup">Status</h2></div>
+<div class="card" id="buddy-state"></div>
+</section>
+<section class="group" data-buddy data-guide="buddy-persona" aria-labelledby="buddy-persona-heading" hidden>
+<div class="group-head"><h2 id="buddy-persona-heading" data-message="buddyPersonaGroup">Name</h2></div>
+<form class="card" id="buddy-persona" novalidate></form>
+</section>
+</section>
 </main>
 </div>
 <!-- The right panel (decision F38's addendum of 2026-10-05, decision F47
@@ -1840,6 +1948,19 @@ button:not(.primary) .provider-openai { color: #000000; }
 <p id="tools-login-status" role="status" aria-live="polite"></p>
 <div id="tools-login-body"></div>
 <div class="dialog-foot" id="tools-login-foot" hidden><button type="button" id="tools-login-cancel" data-message="toolsLoginCancel">Cancel</button></div>
+</dialog>
+<!-- "Seznamte se s Buddym" (decision F65): his sign-in, his introduction
+     and Telegram, three screens drawn by buddy-dialog.ts. -->
+<dialog id="buddy-meet" class="buddy-meet" aria-labelledby="buddy-meet-title">
+<div class="dialog-head"><h2 id="buddy-meet-title" tabindex="-1"></h2><button type="button" class="dialog-x" id="buddy-meet-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="sr-only" data-message="toolsClose">Close</span></button></div>
+<div id="buddy-meet-body" class="buddy-meet-body"></div>
+<div class="dialog-foot buddy-meet-foot"><span class="buddy-dots" id="buddy-meet-dots" role="img"></span><span class="buddy-meet-nav" id="buddy-meet-nav"></span></div>
+</dialog>
+<dialog id="buddy-confirm" aria-labelledby="buddy-confirm-title">
+<h2 id="buddy-confirm-title" tabindex="-1"></h2>
+<p id="buddy-confirm-text"></p>
+<p id="buddy-confirm-status" role="status" aria-live="polite"></p>
+<div class="dialog-foot"><button type="button" class="destructive" id="buddy-confirm-ok"></button><button type="button" id="buddy-confirm-cancel"></button></div>
 </dialog>
 <dialog id="integrations-confirm" aria-labelledby="integrations-confirm-title">
 <h2 id="integrations-confirm-title" tabindex="-1"></h2>

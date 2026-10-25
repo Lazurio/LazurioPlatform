@@ -120,6 +120,10 @@ export type ShellSetupItem = Readonly<
  * GitHub as its person has it; the document leaves it out elsewhere and
  * whenever the Launchpad cannot tell GitHub's state. */
 export type ShellSetup = Readonly<{
+  /** Buddy's step where the Environment has him (decision F65, additive in
+   * v1): `ready` when he is signed in and the person confirmed his names,
+   * `unknown` while that cannot be read. Absent: no Buddy here. */
+  buddy?: "ready" | "missing" | "unknown";
   /** Absent: not known. `ready`: an agent can work here (the person's
    * sign-in or the Organization's AI); additive in v1 (root decision 0201). */
   ai?: "ready" | "missing";
@@ -513,8 +517,14 @@ export function parseShellSetup(
 ): ShellSetup | undefined | false {
   if (value === undefined || value === null) return undefined;
   if (!isRecord(value)) return false;
-  const { ai, github, content, item } = value;
+  const { buddy, ai, github, content, item } = value;
   if (
+    !(
+      buddy === undefined ||
+      buddy === "ready" ||
+      buddy === "missing" ||
+      buddy === "unknown"
+    ) ||
     !(ai === undefined || ai === "ready" || ai === "missing") ||
     (github !== "connected" && github !== "missing") ||
     !(
@@ -549,6 +559,7 @@ export function parseShellSetup(
     else return false;
   }
   return Object.freeze({
+    ...(buddy === undefined ? {} : { buddy }),
     ...(ai === undefined ? {} : { ai }),
     github,
     ...(content === undefined ? {} : { content }),
