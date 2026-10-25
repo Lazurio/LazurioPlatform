@@ -1,6 +1,12 @@
 import type { GuideActions, GuideLayer, GuideView } from "./guide";
 import type { shellMarks } from "./guide-content";
-import { guidePlacement, guideWidth, type TourBox } from "./guide-placement";
+import {
+  guideBuddyPlacement,
+  guideBuddySize,
+  guidePlacement,
+  guideWidth,
+  type TourBox,
+} from "./guide-placement";
 import { drawStage, type Stage, type StageElement } from "./guide-stage";
 import { guideLayerCss } from "./guide-styles";
 import { icon } from "./icons";
@@ -11,8 +17,19 @@ import { icon } from "./icons";
 // empty element. A ring around the element a step names, a card placed by
 // the rule the Launchpad's tour uses (guide-placement.ts), and the neutral
 // guide's mark, the Lazurio symbol on a white disc, travelling from the
-// bubble's corner at the bottom right (Buddy's launcher where the page shows
-// it) to the card. A step names a mark: the host page's `data-guide`, else one of
+// bubble's corner at the bottom right to the card.
+//
+// Where the page shows Buddy's bubble, Buddy presents it himself (decision
+// F56's addendum (7) of 2026-10-25, as in the prototype): his picture, which
+// his origin serves, 48 × 56 without a disc, leaps out of his launcher, which
+// waits empty until he is back (`bubble.away`), and hops to every step. He
+// stands 30 px beside the element with his hand pointing at it, and the card
+// stands beside him as his speech bubble, its tail toward him
+// (`guideBuddyPlacement`); on the sheet below 768 px he stands on its top
+// edge. Where his picture does not load, the neutral guide's mark stands in
+// his place. The words, the steps and the card's size stay the same.
+//
+// A step names a mark: the host page's `data-guide`, else one of
 // the shell's own elements (`shellMarks`); every visible element with it is
 // ringed together, and without one the card stands in the middle. While it
 // shows it follows the page every quarter of a second (the element moves,
@@ -136,23 +153,47 @@ function make<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-/** `bubble`: the centre of Buddy's launcher where the page shows his bubble
- * (decision F60), else null. */
+/** Buddy's launcher where the page shows his bubble (decision F60), as the
+ * guide's figure needs it. */
+export type GuideBubble = Readonly<{
+  /** The launcher's centre, where the figure leaves from and returns to;
+   * null without it. */
+  home: () => Readonly<{ x: number; y: number }> | null;
+  /** The figure left the launcher (true) or is back in it (false): the
+   * launcher waits empty meanwhile. */
+  away: (out: boolean) => void;
+}>;
+
+const noBubble: GuideBubble = Object.freeze({
+  home: () => null,
+  away: () => undefined,
+});
+
 export function createGuideLayer(
   host: HTMLElement,
   logo: string,
-  bubble: () => Readonly<{ x: number; y: number }> | null = () => null,
+  bubble: GuideBubble = noBubble,
 ): GuideLayer {
   const logoUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(logo)}`;
-  /** The mark's home: where Buddy's bubble stands, the bottom right corner,
-   * or his launcher where the page shows it. */
-  const home = () => {
-    const at = bubble();
-    if (at !== null) return { x: at.x - markSize / 2, y: at.y - markSize / 2 };
-    const { width, height } = area();
-    return { x: width - 24 - markSize, y: height - 24 - markSize };
-  };
   let parts: ReturnType<typeof build> | null = null;
+  // The picture the figure shows (null: the neutral mark), set again only
+  // when it changes, so a picture that did not load is not asked for at
+  // every step.
+  let pictured: string | null = null;
+  /** Whether Buddy presents (`view.buddy`, kept on the layer through its
+   * way back). */
+  const presenting = () => parts?.layer.dataset.buddy !== undefined;
+  /** The figure's home: Buddy's launcher where the page shows it, else the
+   * bottom right corner. */
+  const home = () => {
+    const { width, height } = presenting()
+      ? guideBuddySize
+      : { width: markSize, height: markSize };
+    const at = bubble.home();
+    if (at !== null) return { x: at.x - width / 2, y: at.y - height / 2 };
+    const space = area();
+    return { x: space.width - 24 - width, y: space.height - 24 - height };
+  };
   // The scene on the card's stage, and its beat waiting for the card to
   // stand (motion only).
   let staged: Stage | null = null;
@@ -166,6 +207,7 @@ export function createGuideLayer(
   let since = "";
   let timer: ReturnType<typeof setInterval> | undefined;
   let leaving: ReturnType<typeof setTimeout> | undefined;
+  let hopping: ReturnType<typeof setTimeout> | undefined;
   let still = false;
 
   function build() {
@@ -178,12 +220,26 @@ export function createGuideLayer(
     const layer = make("div", "layer");
     layer.hidden = true;
     const ring = make("div", "ring");
+    // The figure: the neutral guide's mark, or Buddy with his hand
+    // (`point`), shown only while he stands beside an element.
     const mark = make("span", "mark");
     mark.setAttribute("aria-hidden", "true");
     const image = make("img", "");
     image.alt = "";
+    image.decoding = "async";
+    image.draggable = false;
     image.src = logoUrl;
-    mark.append(image);
+    // Buddy's picture that does not load (no session at his origin in this
+    // browser, a network that does not reach it): the neutral mark stands in
+    // his place, as on his launcher.
+    image.addEventListener("error", () => {
+      if (image.src === logoUrl) return;
+      mark.dataset.fallback = "";
+      image.src = logoUrl;
+    });
+    const point = make("span", "point");
+    point.append(icon("arrow-left", 18));
+    mark.append(image, point);
     const card = make("section", "card");
     card.setAttribute("role", "dialog");
     card.setAttribute("aria-modal", "false");
@@ -227,6 +283,7 @@ export function createGuideLayer(
       layer,
       ring,
       mark,
+      image,
       card,
       title,
       line,
@@ -277,11 +334,11 @@ export function createGuideLayer(
       parts.stage.style.setProperty("--k", String(width / 320));
     }
     const box = anchor();
-    const at = guidePlacement({
-      anchor: box,
-      height: card.offsetHeight,
-      viewport,
-    });
+    const input = { anchor: box, height: card.offsetHeight, viewport };
+    // Buddy beside the element and his card beside him; the neutral mark at
+    // the corner of a card placed as the tour's bubble.
+    const buddy = presenting() ? guideBuddyPlacement(input) : null;
+    const at = buddy ?? guidePlacement(input);
     ring.hidden = box === null;
     if (box !== null)
       Object.assign(ring.style, {
@@ -297,16 +354,42 @@ export function createGuideLayer(
     if (at.arrow === null) card.style.removeProperty("--guide-arrow");
     else card.style.setProperty("--guide-arrow", `${at.arrow}px`);
     Object.assign(card.style, { left: `${at.left}px`, top: `${at.top}px` });
-    const x = Math.max(
-      4,
-      Math.min(at.left - 18, viewport.width - markSize - 4),
-    );
-    const y = Math.max(
-      4,
-      Math.min(at.top - 18, viewport.height - markSize - 4),
-    );
+    // His hand points at the element from the side he stands on.
+    if (buddy?.points == null) delete mark.dataset.side;
+    else mark.dataset.side = buddy.points;
+    const x =
+      buddy?.buddy.left ??
+      Math.max(4, Math.min(at.left - 18, viewport.width - markSize - 4));
+    const y =
+      buddy?.buddy.top ??
+      Math.max(4, Math.min(at.top - 18, viewport.height - markSize - 4));
     if (!mark.dataset.leaving)
       mark.style.transform = `translate(${x}px, ${y}px)`;
+  }
+
+  /** Who presents (`view.buddy`): Buddy with his picture, or the neutral
+   * guide's mark. */
+  function cast(): void {
+    if (parts === null || view === null) return;
+    const { layer, mark, image } = parts;
+    const picture = view.buddy?.picture ?? null;
+    if (picture === null) delete layer.dataset.buddy;
+    else layer.dataset.buddy = "";
+    if (picture === pictured) return;
+    pictured = picture;
+    delete mark.dataset.fallback;
+    image.src = picture ?? logoUrl;
+  }
+
+  /** The figure hops as it travels, from the start again. */
+  function hop(): void {
+    if (parts === null) return;
+    const { mark } = parts;
+    clearTimeout(hopping);
+    delete mark.dataset.travel;
+    void mark.offsetWidth;
+    mark.dataset.travel = "";
+    hopping = setTimeout(() => delete mark.dataset.travel, travelMs);
   }
 
   function fill(): boolean {
@@ -317,7 +400,11 @@ export function createGuideLayer(
     const key = `${explanation.id}:${stop}:${explanation.steps.length}`;
     const moved = key !== drawnKey;
     drawnKey = key;
-    card.setAttribute("aria-label", `${words.guideName}: ${explanation.title}`);
+    // Named after who presents: Buddy, or the neutral guide.
+    card.setAttribute(
+      "aria-label",
+      `${view.buddy?.name ?? words.guideName}: ${explanation.title}`,
+    );
     title.textContent = explanation.title;
     if (moved) {
       // Every step's words in one place, so the card keeps its size; only
@@ -447,26 +534,31 @@ export function createGuideLayer(
       if (still) layer.dataset.still = "";
       else delete layer.dataset.still;
     }
+    cast();
     const moved = fill();
+    const fresh = layer.hidden;
     if (first) {
       since = location.href;
       scrolledFor = null;
       document.addEventListener("keydown", onKey);
       window.addEventListener("resize", onResize);
       timer = setInterval(tick, 250);
+      // Out of the bubble: its launcher waits empty until the figure is back.
+      bubble.away(true);
       // From the bubble's corner to the card, unless motion is reduced.
-      if (layer.hidden && !still) {
+      if (fresh && !still) {
         const start = home();
         mark.style.transition = "none";
         mark.style.transform = `translate(${start.x}px, ${start.y}px)`;
         layer.hidden = false;
         void mark.offsetWidth;
         mark.style.removeProperty("transition");
-        mark.dataset.travel = "";
-        setTimeout(() => delete mark.dataset.travel, travelMs);
       }
       layer.hidden = false;
     }
+    // The figure hops as it travels: out of the bubble, and Buddy to every
+    // step, as in the prototype.
+    if (!still && ((first && fresh) || (moved && presenting()))) hop();
     place();
     if (first || moved) parts.primary.focus({ preventScroll: true });
   }
@@ -488,6 +580,7 @@ export function createGuideLayer(
     const invoker = previous?.invoker ?? null;
     card.hidden = true;
     ring.hidden = true;
+    delete mark.dataset.side;
     if (
       invoker?.isConnected &&
       (active === null || active === document.body || active === host)
@@ -495,15 +588,18 @@ export function createGuideLayer(
       invoker.focus({ preventScroll: true });
     if (still) {
       layer.hidden = true;
+      bubble.away(false);
       return;
     }
-    // Back to the bubble's corner, then gone.
+    // Back to the bubble's corner, then gone; Buddy hops home.
     const end = home();
     mark.dataset.leaving = "";
     mark.style.transform = `translate(${end.x}px, ${end.y}px)`;
+    if (presenting()) hop();
     leaving = setTimeout(() => {
       layer.hidden = true;
       delete mark.dataset.leaving;
+      bubble.away(false);
     }, travelMs);
   }
 

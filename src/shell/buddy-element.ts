@@ -14,7 +14,9 @@ import { buddyBubbleCss, buddyLauncherClearance } from "./buddy-styles";
 // closed with the frame kept alive inside (a frame moved to another parent
 // would load again). Full screen covers the whole window, so the way back
 // is Escape or the frame's own control. The guide's layer stands after the
-// bubble in the same shadow root (guide-layer.ts). While the launcher is
+// bubble in the same shadow root (guide-layer.ts); while Buddy is out of the
+// launcher presenting an explanation, the launcher waits empty (`data-away`,
+// decision F56's addendum (7) of 2026-10-25). While the launcher is
 // drawn the page keeps its corner free: `--lazurio-buddy-clearance` on the
 // document says how wide it is (decision F60's addendum of 2026-10-25).
 
@@ -56,8 +58,8 @@ export type BuddyBubbleView = Readonly<{
   frameWindow(): Window | null;
   /** Moves the focus to the launcher or into the frame. */
   focus(target: "launcher" | "frame"): void;
-  /** The launcher's centre on the screen, where the guide's mark starts and
-   * ends; null without it. */
+  /** The launcher's centre on the screen, where the guide's figure starts
+   * and ends; null without it. */
   home(): Readonly<{ x: number; y: number }> | null;
 }>;
 
@@ -161,6 +163,8 @@ export function createBuddyBubbleView(
       }
       launcher.setAttribute("aria-label", model.launcher.label);
       launcher.setAttribute("aria-expanded", String(model.launcher.expanded));
+      if (model.launcher.away) launcher.dataset.away = "";
+      else delete launcher.dataset.away;
       dialog.setAttribute("aria-label", model.launcher.label);
       if (model.frame === null) {
         frame?.remove();

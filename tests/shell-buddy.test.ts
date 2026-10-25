@@ -792,6 +792,7 @@ test("with Buddy's origin: the launcher with his picture, no frame before the fi
       avatar: `${buddy}/assets/avatar.webp`,
       label: "Buddy",
       expanded: false,
+      away: false,
     },
     frame: null,
     layout: "closed",
@@ -1041,6 +1042,43 @@ test("another origin is another frame; without one the bubble is gone", () => {
   expect(last()).toBeNull();
 });
 
+test("while Buddy is out presenting the guide his launcher waits empty, and shows him again once he is back (F56's addendum (7) of 2026-10-25)", () => {
+  const { bubble, page, last, log } = fakeBubble();
+  bubble.update();
+  expect(last()?.launcher.away).toBe(false);
+  bubble.guideOut(true);
+  expect(last()?.launcher).toEqual({
+    avatar: `${buddy}/assets/avatar.webp`,
+    label: "Buddy",
+    expanded: false,
+    away: true,
+  });
+  // Said once; the window, the frame and the focus are as they were.
+  const drawn = log.drawn.length;
+  bubble.guideOut(true);
+  expect(log.drawn.length).toBe(drawn);
+  expect(last()?.layout).toBe("closed");
+  expect(last()?.frame).toBeNull();
+  expect(log.focus).toEqual([]);
+  // The launcher still opens his window while he is out.
+  bubble.toggle();
+  expect(last()?.launcher).toEqual(
+    expect.objectContaining({ expanded: true, away: true }),
+  );
+  bubble.toggle();
+  // He is out though the origin changes under him; back, he is there again.
+  page.origin = "https://buddy.bob.lazurio.io";
+  bubble.update();
+  expect(last()?.launcher.away).toBe(true);
+  bubble.guideOut(false);
+  expect(last()?.launcher.away).toBe(false);
+  // Without an origin nothing is drawn, out or not.
+  page.origin = null;
+  bubble.update();
+  bubble.guideOut(true);
+  expect(last()).toBeNull();
+});
+
 // ---- The guide with Buddy's bubble ----------------------------------------
 
 test("with Buddy's bubble a fork's page knows the principles, listens to no '?' and invites nobody to get a Buddy", () => {
@@ -1069,7 +1107,8 @@ test("with Buddy's bubble a fork's page knows the principles, listens to no '?' 
       say() {},
     }),
     announce: () => undefined,
-    buddy: () => shows,
+    buddy: () =>
+      shows ? { picture: `${buddy}/assets/avatar.webp`, name: "Buddy" } : null,
   });
   guide.attach({ getAttribute: () => null });
   expect(guide.known()).toEqual([]);
@@ -1094,6 +1133,71 @@ test("with Buddy's bubble a fork's page knows the principles, listens to no '?' 
   expect(guide.known()).toEqual([]);
   expect(counts).toEqual({ listening: 0, following: 0 });
   expect(guide.attention.playing()).toBeNull();
+});
+
+test("where his bubble shows Buddy presents every explanation himself, with his picture from his origin; without it the neutral guide says the same words and steps (F56's addendum (7) of 2026-10-25)", () => {
+  /** Every view a page draws while a principle and a host's explanation
+   * play step by step, with Buddy's bubble or without it. */
+  const play = (shows: boolean) => {
+    const drawn: GuideView[] = [];
+    let actions: GuideActions | null = null;
+    const guide = createGuide({
+      shell: () => shellOf("work"),
+      copy: shellMessages,
+      follow: () => () => undefined,
+      listenHelp: () => () => undefined,
+      layer: () => ({
+        draw(view, given) {
+          actions = given;
+          if (view !== null) drawn.push(view);
+        },
+        say() {},
+      }),
+      announce: () => undefined,
+      buddy: () =>
+        shows
+          ? { picture: `${buddy}/assets/avatar.webp`, name: "Buddy" }
+          : null,
+    });
+    guide.attach({ getAttribute: () => "cs" });
+    guide.provide([
+      {
+        id: "files-team",
+        title: "Soubory",
+        steps: [
+          { text: "Sdílí {toto}", at: "files-list" },
+          { text: "Agenti sem ukládají výsledky" },
+        ],
+      },
+    ]);
+    for (const id of ["environment", "files-team"]) {
+      expect(guide.play(id, null)).toBe(true);
+      for (let stop = 1; stop < 5; stop += 1)
+        (actions as GuideActions | null)?.step(stop);
+      (actions as GuideActions | null)?.done();
+    }
+    return drawn;
+  };
+  const withBuddy = play(true);
+  const without = play(false);
+  expect(withBuddy.length).toBeGreaterThan(4);
+  expect(withBuddy.map((view) => view.buddy)).toEqual(
+    withBuddy.map(() => ({
+      picture: `${buddy}/assets/avatar.webp`,
+      name: "Buddy",
+    })),
+  );
+  expect(without.map((view) => view.buddy)).toEqual(without.map(() => null));
+  // Only who presents differs: the explanation, its steps, the step shown,
+  // the scene and the words are the same.
+  const said = (views: readonly GuideView[]) =>
+    views.map(({ explanation, stop, scene, words }) => ({
+      explanation,
+      stop,
+      scene,
+      words,
+    }));
+  expect(said(withBuddy)).toEqual(said(without));
 });
 
 // ---- The element ------------------------------------------------------------

@@ -21,9 +21,13 @@ import {
   shellMarks,
 } from "../src/shell/guide-content";
 import {
+  type GuideBuddyPlacement,
+  guideBuddyPlacement,
+  guideBuddySize,
   guidePlacement,
   guideSheetBelow,
   guideWidth,
+  type TourBox,
   tourPlacement,
 } from "../src/shell/guide-placement";
 import { isExplanationId } from "../src/shell/guide-protocol";
@@ -401,6 +405,8 @@ test("a page that takes part: the '?' plays a principle in the element's languag
   expect(first.view.stop).toBe(0);
   expect(first.view.words.guideNext).toBe("Next");
   expect(first.view.invite).toBeNull();
+  // Without Buddy's bubble the neutral guide of Lazurio presents.
+  expect(first.view.buddy).toBeNull();
   first.actions.step(9);
   const end = last();
   if (!end?.view) throw new Error("A step is drawn");
@@ -573,6 +579,216 @@ test("the guide's card: beside the element as the tour's bubble, in the middle w
   expect(
     guidePlacement({ anchor: null, height: 2000, viewport: narrow }).top,
   ).toBe(12);
+});
+
+test("where Buddy presents he stands 30 px beside the element, on its right, else its left, else below or above it, his card 10 px past him with its tail at his head, as in the prototype (F56's addendum (7) of 2026-10-25)", () => {
+  expect(guideBuddySize).toEqual({ width: 56, height: 64 });
+  const wide = { width: 1440, height: 900 };
+  // Right of it where he and the card have room: the card 24 px higher than
+  // him, its tail 36 px down its left edge (the prototype's).
+  expect(
+    guideBuddyPlacement({
+      anchor: { left: 300, top: 120, right: 420, bottom: 150 },
+      height: 140,
+      viewport: wide,
+    }),
+  ).toEqual({
+    buddy: { left: 450, top: 103 },
+    points: "right",
+    side: "right",
+    left: 516,
+    top: 79,
+    width: 300,
+    arrow: 41,
+    sheet: false,
+  });
+  // An element at the window's right edge: on its left, the card past him.
+  expect(
+    guideBuddyPlacement({
+      anchor: { left: 1300, top: 20, right: 1400, bottom: 52 },
+      height: 160,
+      viewport: wide,
+    }),
+  ).toEqual({
+    buddy: { left: 1214, top: 12 },
+    points: "left",
+    side: "left",
+    left: 904,
+    top: 12,
+    width: 300,
+    arrow: 20,
+    sheet: false,
+  });
+  // As wide as the content: below it, the card beside him where it has room.
+  expect(
+    guideBuddyPlacement({
+      anchor: { left: 360, top: 100, right: 1400, bottom: 400 },
+      height: 200,
+      viewport: wide,
+    }),
+  ).toEqual({
+    buddy: { left: 852, top: 430 },
+    points: "below",
+    side: "right",
+    left: 918,
+    top: 430,
+    width: 300,
+    arrow: 20,
+    sheet: false,
+  });
+  // No room below: above it, the card's foot level with his.
+  expect(
+    guideBuddyPlacement({
+      anchor: { left: 360, top: 600, right: 1400, bottom: 880 },
+      height: 200,
+      viewport: wide,
+    }),
+  ).toEqual({
+    buddy: { left: 852, top: 506 },
+    points: "above",
+    side: "right",
+    left: 918,
+    top: 370,
+    width: 300,
+    arrow: 153,
+    sheet: false,
+  });
+  // No room on his right: the card on his left, its tail on its right edge.
+  expect(
+    guideBuddyPlacement({
+      anchor: { left: 300, top: 600, right: 790, bottom: 880 },
+      height: 200,
+      viewport: { width: 800, height: 900 },
+    }),
+  ).toEqual({
+    buddy: { left: 517, top: 506 },
+    points: "above",
+    side: "left",
+    left: 207,
+    top: 370,
+    width: 300,
+    arrow: 153,
+    sheet: false,
+  });
+  // Without the element: the card in the middle, he on its left, pointing at
+  // nothing.
+  expect(
+    guideBuddyPlacement({ anchor: null, height: 140, viewport: wide }),
+  ).toEqual({
+    buddy: { left: 504, top: 388 },
+    points: null,
+    side: "right",
+    left: 570,
+    top: 380,
+    width: 300,
+    arrow: 25,
+    sheet: false,
+  });
+  // Below 768 px the card is the sheet, the same as the neutral guide's,
+  // and he stands on its top edge at its left, pointing at nothing.
+  const phone = { width: 390, height: 844 };
+  for (const anchor of [
+    { left: 20, top: 100, right: 120, bottom: 132 },
+    null,
+  ]) {
+    const sheet = guidePlacement({ anchor, height: 160, viewport: phone });
+    expect(
+      guideBuddyPlacement({ anchor, height: 160, viewport: phone }),
+    ).toEqual({ ...sheet, buddy: { left: 24, top: 614 }, points: null });
+  }
+  // A sheet as tall as the window: he stays inside it.
+  expect(
+    guideBuddyPlacement({ anchor: null, height: 2000, viewport: phone }).buddy,
+  ).toEqual({ left: 24, top: 12 });
+});
+
+test("one rule for Buddy everywhere: he and his card whole in the window, apart, his card's tail at him, and beside a small element he stands 30 px from it on the side he points from", () => {
+  const { width: wide, height: high } = guideBuddySize;
+  const overlap = (
+    a: Readonly<{ left: number; top: number; right: number; bottom: number }>,
+    b: Readonly<{ left: number; top: number; right: number; bottom: number }>,
+  ) =>
+    a.left < b.right &&
+    b.left < a.right &&
+    a.top < b.bottom &&
+    b.top < a.bottom;
+  const boxes = (at: GuideBuddyPlacement, height: number) => ({
+    buddy: {
+      left: at.buddy.left,
+      top: at.buddy.top,
+      right: at.buddy.left + wide,
+      bottom: at.buddy.top + high,
+    },
+    card: {
+      left: at.left,
+      top: at.top,
+      right: at.left + at.width,
+      bottom: at.top + height,
+    },
+  });
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1024, height: 768 },
+    { width: 800, height: 600 },
+  ])
+    for (const height of [120, 220])
+      for (let x = 0; x <= viewport.width - 120; x += 40)
+        for (let y = 0; y <= viewport.height - 32; y += 40) {
+          const anchor: TourBox = {
+            left: x,
+            top: y,
+            right: x + 120,
+            bottom: y + 32,
+          };
+          const at = guideBuddyPlacement({ anchor, height, viewport });
+          const { buddy, card } = boxes(at, height);
+          const where = { viewport, height, anchor };
+          // Whole inside the window's margins.
+          expect({
+            where,
+            inside:
+              buddy.left >= 12 &&
+              buddy.top >= 12 &&
+              buddy.right <= viewport.width - 12 &&
+              buddy.bottom <= viewport.height - 12 &&
+              card.left >= 12 &&
+              card.top >= 12 &&
+              card.right <= viewport.width - 12 &&
+              card.bottom <= viewport.height - 12,
+          }).toEqual({ where, inside: true });
+          // Neither covers the other nor the element.
+          expect({
+            where,
+            apart:
+              !overlap(buddy, card) &&
+              !overlap(buddy, anchor) &&
+              !overlap(card, anchor),
+          }).toEqual({ where, apart: true });
+          // 30 px from the element on the side he points from, the card
+          // 10 px past him with its tail on the edge toward him.
+          const gap = {
+            right: buddy.left - anchor.right,
+            left: anchor.left - buddy.right,
+            below: buddy.top - anchor.bottom,
+            above: anchor.top - buddy.bottom,
+          };
+          expect({ where, gap: at.points && gap[at.points] }).toEqual({
+            where,
+            gap: 30,
+          });
+          expect({
+            where,
+            card:
+              at.side === "right"
+                ? card.left - buddy.right
+                : buddy.left - card.right,
+          }).toEqual({ where, card: 10 });
+          expect({
+            where,
+            tail:
+              at.arrow !== null && at.arrow >= 20 && at.arrow <= height - 20,
+          }).toEqual({ where, tail: true });
+        }
 });
 
 test("the rules catch what they forbid", () => {

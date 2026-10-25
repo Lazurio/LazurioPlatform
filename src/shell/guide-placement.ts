@@ -14,7 +14,10 @@
 // the same. Without the element on screen the tour's bubble stands in the
 // bottom right corner, without an arrow; the guide's card stands in the
 // middle instead, and below 768 px it is a sheet at the window's foot
-// (`guidePlacement`). Pure: the callers measure the page and draw.
+// (`guidePlacement`). Where Buddy presents the guide himself (decision F56's
+// addendum (7) of 2026-10-25) he stands beside the element and his card
+// beside him, by the prototype's rule (`guideBuddyPlacement`). Pure: the
+// callers measure the page and draw.
 
 /** A box in the window's coordinates, as `getBoundingClientRect` gives. */
 export type TourBox = Readonly<{
@@ -216,3 +219,151 @@ export const guideWidth = (viewportWidth: number): number =>
   viewportWidth < guideSheetBelow
     ? Math.max(0, viewportWidth - 2 * margin)
     : tourWidth(viewportWidth);
+
+/** Buddy as he stands in the interface when he presents the guide (decision
+ * F56's addendum (7) of 2026-10-25; the prototype's `BUDDY_SIZE`): a box of
+ * 56 × 64 px, his picture 48 × 56 inside it. */
+export const guideBuddySize = Object.freeze({ width: 56, height: 64 });
+
+/** From the ringed element to Buddy (the prototype's `GAP`). */
+const buddyGap = 30;
+/** From Buddy to his card. */
+const buddyToCard = 10;
+/** How much higher than Buddy his card starts beside an element. */
+const cardAboveBuddy = 24;
+/** Without an element, how much lower than his card's top he stands. */
+const buddyBelowCard = 8;
+/** The card's tail points at his head, this far below his box's top: the
+ * prototype's tail, 36 px down a card that starts 24 px above him, and its
+ * half. */
+const buddyHead = 17;
+/** On the sheet he stands on its top edge, this far in from its left. */
+const onSheet = 12;
+/** His feet, this far above his box's bottom: his picture, 48 × 52, stands
+ * in the middle of the box. */
+const buddyFeet = 6;
+
+export type GuideBuddyPlacement = GuidePlacement &
+  Readonly<{
+    /** Where Buddy stands: his box's top left in the window. */
+    buddy: Readonly<{ left: number; top: number }>;
+    /** The side of the ringed element he stands on, facing it, his hand
+     * pointing at it; null where no element stands beside him (the middle,
+     * the sheet). */
+    points: TourSide | null;
+  }>;
+
+/** Where Buddy and his card stand when he presents the guide (decision F56's
+ * addendum (7) of 2026-10-25), by the prototype's rule (prototypes-lazurio
+ * `app/v1/src/guide.ts`, `placeGuide`): 30 px beside the element, on its
+ * right where he and the card have room, else on its left, else below it,
+ * else above it; the card 10 px past him on the side with room, 24 px higher
+ * beside an element on its right or left. Without an element the card stands
+ * in the middle and he on its left; below `guideSheetBelow` the card is the
+ * sheet and he stands on its top edge. Here the card's `side` is the side of
+ * Buddy it stands on and its `arrow` the middle of its tail, which points at
+ * his head: the card is his speech bubble. Both stay whole inside the
+ * window's margins. */
+export function guideBuddyPlacement(
+  input: Readonly<{
+    anchor: TourBox | null;
+    /** The card's height at the width this returns for the same window. */
+    height: number;
+    viewport: Readonly<{ width: number; height: number }>;
+  }>,
+): GuideBuddyPlacement {
+  const { anchor, height, viewport } = input;
+  const { width: wide, height: high } = guideBuddySize;
+  const clampX = (x: number, size: number) =>
+    clamp(x, margin, viewport.width - margin - size);
+  const clampY = (y: number, size: number) =>
+    clamp(y, margin, viewport.height - margin - size);
+  if (viewport.width < guideSheetBelow) {
+    const sheet = guidePlacement(input);
+    return {
+      ...sheet,
+      buddy: {
+        left: Math.round(sheet.left + onSheet),
+        top: Math.round(Math.max(margin, sheet.top - high + buddyFeet)),
+      },
+      points: null,
+    };
+  }
+  const width = tourWidth(viewport.width);
+  const beside = (
+    card: Readonly<{ left: number; top: number; side: "right" | "left" }>,
+    buddy: Readonly<{ left: number; top: number }>,
+    points: TourSide | null,
+  ): GuideBuddyPlacement => ({
+    side: card.side,
+    left: Math.round(card.left),
+    top: Math.round(card.top),
+    width,
+    arrow: Math.round(
+      clamp(buddy.top + buddyHead - card.top, arrowInset, height - arrowInset),
+    ),
+    sheet: false,
+    buddy: { left: Math.round(buddy.left), top: Math.round(buddy.top) },
+    points,
+  });
+  if (anchor === null) {
+    const left = clampX((viewport.width - width) / 2, width);
+    const top = clampY((viewport.height - height) / 2, height);
+    return beside(
+      { left, top, side: "right" },
+      {
+        left: clampX(left - buddyToCard - wide, wide),
+        top: clampY(top + buddyBelowCard, high),
+      },
+      null,
+    );
+  }
+  const middle = (anchor.top + anchor.bottom) / 2 - high / 2;
+  if (
+    anchor.right + buddyGap + wide + buddyToCard + width <=
+    viewport.width - margin
+  ) {
+    const buddy = { left: anchor.right + buddyGap, top: clampY(middle, high) };
+    return beside(
+      {
+        left: buddy.left + wide + buddyToCard,
+        top: clampY(buddy.top - cardAboveBuddy, height),
+        side: "right",
+      },
+      buddy,
+      "right",
+    );
+  }
+  if (anchor.left - buddyGap - wide - buddyToCard - width >= margin) {
+    const buddy = {
+      left: anchor.left - buddyGap - wide,
+      top: clampY(middle, high),
+    };
+    return beside(
+      {
+        left: buddy.left - buddyToCard - width,
+        top: clampY(buddy.top - cardAboveBuddy, height),
+        side: "left",
+      },
+      buddy,
+      "left",
+    );
+  }
+  const below =
+    anchor.bottom + buddyGap + Math.max(high, height) <=
+    viewport.height - margin;
+  const left = clampX((anchor.left + anchor.right) / 2 - wide / 2, wide);
+  const top = below ? anchor.bottom + buddyGap : anchor.top - buddyGap - high;
+  const right = left + wide + buddyToCard + width <= viewport.width - margin;
+  return beside(
+    {
+      left: right
+        ? left + wide + buddyToCard
+        : clampX(left - buddyToCard - width, width),
+      top: clampY(below ? top : top + high - height, height),
+      side: right ? "right" : "left",
+    },
+    { left, top: clampY(top, high) },
+    below ? "below" : "above",
+  );
+}

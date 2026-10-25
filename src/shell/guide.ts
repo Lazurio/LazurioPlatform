@@ -29,7 +29,9 @@ import type { ShellCopy } from "./messages";
 // by id through guide-protocol.ts (buddy-bubble.ts wires the receiver): the
 // principles are known on every such page, a fork's too, and the page's own
 // explanations where it hands them over; the "?" is listened to only where
-// the page hands them over.
+// the page hands them over. There Buddy presents every explanation himself
+// (decision F56's addendum (7) of 2026-10-25, `GuideView.buddy`): the same
+// words and steps, only who says them changes.
 //
 // Never two tours at once (`attention`): while the page's onboarding tour
 // (the Launchpad's Začínáme) wants the person's attention, a "?" plays
@@ -69,7 +71,15 @@ export type GuideView = Readonly<{
   /** The principle's scene at this step, or null: Trezor and a host's
    * explanation have none. Decorative; the step's text says it. */
   scene: GuideScene | null;
+  /** Who presents the step (decision F56's addendum (7) of 2026-10-25):
+   * Buddy where the page shows his bubble, with his picture, which his origin
+   * serves; null: the neutral guide of Lazurio, its mark and its name. */
+  buddy: GuideBuddy | null;
 }>;
+
+/** Buddy as the guide draws him: his picture and his name, as his launcher
+ * shows them. */
+export type GuideBuddy = Readonly<{ picture: string; name: string }>;
 
 /** What the layer's controls do. */
 export type GuideActions = Readonly<{
@@ -114,10 +124,11 @@ export type GuideSeams = Readonly<{
   layer: (element: GuideElement) => GuideLayer;
   /** Announces `lazurio-guide` on the element. */
   announce: (element: GuideElement, event: GuideEvent) => void;
-  /** Whether the page shows Buddy's bubble (decision F60): his frame may
-   * then ask for the principles though the page hands over nothing, and an
-   * explanation about Buddy invites nobody to get one. */
-  buddy?: () => boolean;
+  /** Buddy where the page shows his bubble (decision F60), null without it:
+   * his frame may then ask for the principles though the page hands over
+   * nothing, an explanation about Buddy invites nobody to get one, and he
+   * presents the guide himself (F56's addendum (7)). */
+  buddy?: () => GuideBuddy | null;
 }>;
 
 export function createGuide(seams: GuideSeams) {
@@ -139,7 +150,8 @@ export function createGuide(seams: GuideSeams) {
   let unfollow: (() => void) | null = null;
 
   const drawer = (): GuideElement | null => elements.at(-1) ?? null;
-  const withBuddy = () => seams.buddy?.() === true;
+  const buddy = (): GuideBuddy | null => seams.buddy?.() ?? null;
+  const withBuddy = () => buddy() !== null;
   const active = () => (hosted !== null || withBuddy()) && drawer() !== null;
 
   function locale(element: GuideElement): KindLocale {
@@ -197,6 +209,7 @@ export function createGuide(seams: GuideSeams) {
     }
     const last = playing.stop === found.steps.length - 1;
     const language = locale(playing.element);
+    const here = buddy();
     seams.layer(playing.element).draw(
       {
         explanation: found,
@@ -205,12 +218,13 @@ export function createGuide(seams: GuideSeams) {
         // Buddy at the end of an explanation about him, where the account
         // lives; a person whose Buddy is here is not.
         invite:
-          found.aboutBuddy && last && !withBuddy()
+          found.aboutBuddy && last && here === null
             ? (seams.shell()?.dashboard ?? null)
             : null,
         words: seams.copy(language),
         invoker: playing.invoker,
         scene: guideScene(found.id, playing.stop, language, kind()),
+        buddy: here,
       },
       actions,
     );

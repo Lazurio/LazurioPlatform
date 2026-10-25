@@ -929,8 +929,9 @@ thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
 A "?" right after a page's heading makes Buddy, or without him the neutral guide of
 Lazurio, explain the page in place
 ([F56](decisions.md#f56--průvodce-buddy-nebo-průvodce-lazuria-vysvětlí-stránku-na-místě-kreslí-shell-hostitele-rám-buddyho-smí-jen-požádat-id),
-root decision 0180's addendum of 2026-10-18): a ring around the real element, the
-guide's mark and a card beside it, and the layer lets every click through.
+root decision 0180's addendum of 2026-10-18): a ring around the real element, Buddy
+himself where the page shows his bubble, else the neutral guide's mark, and a card
+beside it, and the layer lets every click through.
 
 - **In the shell.** `src/shell/guide.ts` decides what plays and when, over seams, so its
   rules are tested without a DOM; `guide-layer.ts` draws in `<lazurio-buddy>`'s own
@@ -941,6 +942,17 @@ guide's mark and a card beside it, and the layer lets every click through.
   `guide-vectors/v1/`. `elements.ts` defines `<lazurio-buddy>` and exports
   `provideGuides` (interface v1), and for the Launchpad alone `guideAttention`, the
   arbiter with its tour.
+- **Who presents** ([F56's addendum (7) of 2026-10-25](decisions.md#f56-addendum-7-of-2026-10-25-buddy-presents-the-guide-himself-where-his-bubble-shows-as-in-the-prototype)).
+  Where the page shows Buddy's bubble the engine names him in the step it draws
+  (`GuideView.buddy`, his picture from his origin and his name), and `guide-layer.ts`
+  draws him as the prototype does: his picture 48 × 56 without a disc, leaping from his
+  launcher and hopping to every step, his hand toward the element (`data-side` on the
+  figure), and the card as his speech bubble, named after him, with its tail at him,
+  placed by `guideBuddyPlacement` (30 px beside the element, the card 10 px past him;
+  on the sheet below 768 px he stands on its top edge). His launcher waits empty while
+  he is out (the bubble's `launcher.away`, drawn as `data-away`), and where his picture
+  does not load the neutral mark stands in his place. Without his bubble the neutral
+  mark stands at the card's corner and the card where the tour's bubble would.
 - **The principles in motion** ([F56's addendum (3) of 2026-10-19](decisions.md#f56-addendum-3-of-2026-10-19-the-six-principles-in-motion)).
   `environment`, `buddy`, `reach`, `files` and `integrations` play a scene in the card,
   one beat a step; Trezor keeps its video and has none, and so does a host's own
@@ -1104,9 +1116,13 @@ the origin nothing changes: the neutral guide stays as F56 draws it.
   context it hears. Check at 1440 and 390 px: the launcher and its fallback mark, the
   panel, full screen over the whole window and Escape, the context after a move to
   another page, and an explanation asked by the frame (the window steps aside, returns
-  at the end). A work Environment's page gets the bubble from the account (route
-  `/.lazurio/account/environments` to a document with `buddy`). Tests:
-  `tests/shell-buddy.test.ts`, `tests/shell-guide-protocol.test.ts`.
+  at the end). Serve `/assets/avatar.webp` of Buddy's origin (T3 Code's picture) to see
+  him present a "?"'s explanation: beside the element with his hand, the card his
+  speech bubble, the launcher empty until he is back after Escape; with the picture
+  refused, the neutral mark in his place. A work Environment's page gets the bubble
+  from the account (route `/.lazurio/account/environments` to a document with
+  `buddy`). Tests: `tests/shell-buddy.test.ts`, `tests/shell-guide-protocol.test.ts`,
+  `tests/shell-guide.test.ts`.
 
 ### The offline guide (decision F41)
 
