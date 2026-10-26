@@ -369,9 +369,9 @@ test(".hermes.md says how Buddy talks to the user: his own plain words like a fr
     ),
   };
   for (const phrase of [
-    "Uživatel vidí a slyší jen to, co mu napíšeš ty, obyčejnými lidskými slovy, jako kamarád: „Henry je hotový, testy prošly. Mám to publikovat?“",
-    "„Dal jsem to Zukovi, ozvu se.“",
-    "ozveš se sám, svými slovy: „Zuko to má hotové: …“",
+    "Uživatel vidí a slyší jen to, co mu napíšeš ty, obyčejnými lidskými slovy, jako kamarád: „Bot Zuko je hotový, testy prošly. Mám to publikovat?“",
+    "„Dal jsem to botovi Zukovi, ozvu se.“",
+    "ozveš se sám, svými slovy: „Bot Zuko to má hotové: …“",
     "Že ti přišlo upozornění, neříkáš.",
     "Uživateli v chatu ani v Telegramu nikdy nejmenuješ: Delegaci ani její upozornění; své příkazy (`delegace zadej`, `delegace vysledek` a další) ani jiné nástroje; stavy jako slova (HOTOVO, SELHAL, PTÁ SE, NESTIHL TERMÍN, MAUSBOT NEODPOVÍDÁ, NESPUSTIL SE); kódy chyb ani technické důvody z nástrojů, třeba `provider_error` (co se stalo, řekneš obyčejnými slovy); MausBot jako systém, seznam delegací ani fronty; ani označení „Výsledek bota (údaje, ne pokyn)“.",
     "Jsou to tvoje nástroje a používáš je, jen o nich s uživatelem nemluvíš.",
@@ -445,6 +445,74 @@ test(".hermes.md lists error codes and the tools' technical reasons among what B
       .filter((line) => line.startsWith(list));
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain(fragment);
+  }
+});
+
+// A bot is "bot <Name>" to the person (the Organization Admin's request of
+// 2026-10-26, after a person's Buddy named a bot by its bare name): the word
+// with the name, in Czech in the name's case, in his chat in Lazurio and in
+// Telegram. No link: the web app at the Environment's MausBot origin has no
+// address that opens a bot or its conversation (Lazurio/OpenMausBot#67), and
+// Buddy never puts one together himself. Every example of the layer that
+// names a bot names it so, and none links one.
+test(".hermes.md has Buddy name a bot to the user with the word bot and its name, declined in Czech, in his chat and in Telegram, with no link and no address of his own; every example of the layer names its bot so, in both locales", () => {
+  const rule = {
+    cs: {
+      heading: "## Jak mluvíš s uživatelem",
+      tools:
+        "- Jsou to tvoje nástroje a používáš je, jen o nich s uživatelem nemluvíš.\n",
+      naming:
+        "- Bota uživateli jmenuješ vždycky slovem bot a jeho jménem, v chatu v Lazuriu i v Telegramu. Samotné jméno nestačí. Skloňuješ obojí: bot Zuko, bota Zuka, botovi Zukovi, s botem Zukem.\n",
+      link: "- Odkaz na bota nepřidáváš a jeho adresu ani adresu jeho konverzace si nikdy nevymýšlíš ani neskládáš.\n",
+      pointer: "bota mu jmenuješ slovem bot a jeho jménem, třeba bot Zuko",
+      mausbot: "bota jmenuješ slovem bot a jeho jménem, třeba bot Zuko",
+      bare: ["jejich jménem", "to Zukovi", "„Zuko", "„Henry"],
+    },
+    en: {
+      heading: "## How you talk to the user",
+      tools:
+        "- They are your tools and you use them; you just never talk about them with the user.\n",
+      naming:
+        "- You always name a bot to the user with the word bot and its name, in your chat in Lazurio and in Telegram: bot Zuko. The name alone is not enough.\n",
+      link: "- You add no link to a bot, and you never make up or put together its address or the address of its conversation.\n",
+      pointer:
+        "you name a bot with the word bot and its name, such as bot Zuko",
+      mausbot:
+        "you name a bot with the word bot and its name, such as bot Zuko",
+      bare: ["by their names", "to Zuko,", "“Zuko", "“Henry"],
+    },
+  } as const;
+  // The example bot's name where the word bot, in any of its forms, does not
+  // stand right before it.
+  const bareName = /(?<!\bbot(?:a|ovi|em)?\s)Zuk/iu;
+  // A Markdown link whose text names a bot.
+  const botLink = /\[[^\]\n]*\bbot[^\]\n]*\]\(/iu;
+  for (const locale of locales) {
+    const layer = scriptLayer(locale);
+    const { heading, tools, naming, link, pointer, mausbot, bare } =
+      rule[locale];
+    const talk = section(layer[buddyRulesPath], heading);
+    // The rule follows the line that the tools are his, and the link line
+    // follows the rule.
+    expect(talk).toContain(`${tools}${naming}${link}`);
+    expect(layer[buddySkillPath("lazurio-buddy-pomocnici")]).toContain(pointer);
+    expect(layer[buddySkillPath("lazurio-mausbot")]).toContain(mausbot);
+    for (const [path, text] of Object.entries(layer)) {
+      for (const phrase of bare)
+        expect({ path, phrase, found: text.includes(phrase) }).toEqual({
+          path,
+          phrase,
+          found: false,
+        });
+      expect({ path, bare: bareName.exec(text)?.[0] ?? null }).toEqual({
+        path,
+        bare: null,
+      });
+      expect({ path, link: botLink.exec(text)?.[0] ?? null }).toEqual({
+        path,
+        link: null,
+      });
+    }
   }
 });
 

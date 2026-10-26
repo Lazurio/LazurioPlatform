@@ -2416,6 +2416,61 @@ written as a sufficient reason for silence, and that no other file of the layer 
 proven: that Buddy keeps quiet on such a notice (generated text is not proof of behavior); that is the
 next Ring 0 check.
 
+**Addendum of 2026-10-26: a bot is „bot <Name>“, without a link until MausBot has an address for it**
+(plan DEV-6676; root decision 0210 and its addendum of 2026-10-24, under which a MausBot bot is a bot).
+On 2026-10-26 a person's Buddy wrote to the person about a bot by its bare name. The Organization Admin
+asked the same day „aby Buddy nepsal jenom název bota jako 'Rocket', ale aby vždy psal 'Bot Rocket',
+ideálně s odkazem, na který když uživatel klikne, tak ho to odkáže do MausBota na toho bota, aby se mohl
+podívat, jak na tom bot pracuje“.
+
+- **The word.** `.hermes.md` says under "How you talk to the user" that Buddy always names a bot to the
+  user with the word bot and its name, in his chat in Lazurio and in Telegram. The name alone is not
+  enough, and in Czech both words take the case: bot Zuko, bota Zuka, botovi Zukovi, s botem Zukem. The
+  sentence "You call the bots by their names" goes.
+- **The examples.** Every example that names a bot carries the word: „Dal jsem to botovi Zukovi, ozvu
+  se.“ and „Bot Zuko to má hotové: …“. The tone example „Henry je hotový, testy prošly. …“ becomes „Bot
+  Zuko je hotový, …“. Beside the rule its subject reads as a bot named without the word, and Henry is
+  the name Lazurio gives a Work Environment with automations (root decision 0170). The skills
+  `lazurio-buddy-pomocnici` and `lazurio-mausbot` point to the rule with its form.
+- **No link yet.** Buddy adds no link to a bot, and he never makes up or puts together its address or
+  the address of its conversation. Both places he writes render a Markdown link:
+  - Hermes's Telegram adapter turns `[text](url)` into a MarkdownV2 link (Lazurio/hermes-agent
+    `v0.22.4-lazurio.3`, `plugins/platforms/telegram/adapter.py`, `format_message`, step 3);
+  - in his chat in Lazurio, T3 Code renders his messages through `ChatMarkdown`, which opens an external
+    link in a new tab or in the preview (Lazurio/t3code `v0.1.2-lazurio.4`,
+    `apps/web/src/components/ChatMarkdown.tsx`, `MarkdownAnchor`).
+
+  The address is what is missing. The web app at an Environment's MausBot origin has no address that
+  opens a bot or one of its conversations (Lazurio/OpenMausBot main at 50475658):
+  - `src/main.tsx` routes only `/pair`;
+  - the navigation to a conversation, `openChatLink`, is reached only from the desktop app's deep links
+    `openmausbot://thread/<id>?bot=<id>` and `openmausbot://bot/<id>`;
+  - a pairing through `/pair` lands on `/`.
+
+  A link to the bare origin would open MausBot on another bot. Lazurio/OpenMausBot#67 proposes the
+  address.
+- **The link, once MausBot has the address** (a direction for that change, not built here). Delegace
+  gives Buddy the link, because it knows the Environment and the conversation: `openmausbot run …
+  --wait none --json` prints the conversation's `threadId`. The origin is the Environment's own
+  declaration, `entry.mausbot.external_origin` of its handover, which `lazurio machine inspect` prints.
+  Delegace would read it locally, or over the same `ssh <environment>` path it uses for `openmausbot`;
+  MausBot itself has no public address on a hosted Environment. The output of `zadej`, the notices,
+  `vysledek` and `seznam` would carry the link, and the rule would change to a link only to the address
+  Delegace gave.
+
+Template revision `base-instructions-77`. The Folder re-renders, and the digest of Buddy's layer
+changes, so the F64 addendum of 2026-10-25 (#652) refreshes his stored prompts by itself.
+`tests/folder-buddy.test.ts` checks in both locales:
+- the rule, and the link line right after it, both right after the line that the tools are his;
+- the skills' pointers to the rule;
+- that the old sentence and the bare examples are gone;
+- that no file of the layer names the example bot without the word, and none links a bot.
+
+Every rendered file of the layer passes `tools/threat_patterns.py` at every scope (Lazurio/hermes-agent
+`v0.22.4-lazurio.3`). `.hermes.md` is 17.4k characters in Czech and 18.9k in English. Not proven: that
+Buddy follows the rule (generated text is not proof of behavior), and that he declines a name he has
+not seen before correctly.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
