@@ -17473,6 +17473,98 @@ the last the request with the ring on Chat; with no vault the video opens, waiti
 personal Bitwarden the principle plays without the step, and a member and a connected
 personal Bitwarden play the approved video and principle.
 
+### F56 addendum (7) of 2026-10-25: Buddy presents the guide himself where his bubble shows, as in the prototype
+
+**Decided by Matěj (2026-10-25)** after he played the guide on his Osobní Prostředí with Buddy:
+"ještě vyskočí lazurio kámen namísto buddyho, jako je to v prototypu" ("the Lazurio stone still
+jumps out instead of Buddy, as he does in the prototype"). Root decision 0210 point 1 keeps the
+neutral guide of Lazurio for a person without Buddy; where his bubble shows, Buddy is the guide.
+Point 6 drew the neutral mark everywhere ("Buddy's character comes with his bubble") because no
+Buddy origin existed yet, and F60 point 5 only made the mark start at his launcher. The prototype
+(`HumanAndMachine-ai/prototypes-lazurio` 8d13cac6: `docs/buddy-guide.md`, "Buddy vyskočí do
+rozhraní"; `app/v1/src/GuideOverlay.tsx`, `guide.css` and `guide.ts`) has him jump out of his
+bubble, stand beside the element, point at it and say the step beside him.
+
+- **Who presents.** Where the page shows Buddy's bubble (F60), Buddy presents every explanation,
+  a "?"'s and one his frame asks for alike. The engine names him in the step it draws
+  (`GuideView.buddy`: his picture, `/assets/avatar.webp` of his origin, and his name, as his
+  launcher shows them), from the same fact that lets his frame ask and invites nobody to get a
+  Buddy. Without his bubble the neutral guide presents exactly as point 6 draws it.
+- **His figure.** His picture at 48 × 56 px in a box of 56 × 64 (the prototype's `.gbuddy` and
+  `BUDDY_SIZE`), with no disc, a soft shadow under him and his pixels kept sharp; `object-fit:
+  contain` shows T3 Code's 192 × 208 picture at 48 × 52 without stretching it. He leaps out of
+  his launcher, hops to every step and back home, and breathes while he stands. His hand, a 22 px
+  blue disc with Iconoir's ArrowLeft, stands beside him toward the element and pokes at it. All
+  of it moves only where motion is not reduced; with less motion he appears where he stands and
+  every step is a still frame.
+- **Where he stands** (`guideBuddyPlacement`, the prototype's `placeGuide`). 30 px beside the
+  element: on its right where he and the card have room, else on its left, else below it, else
+  above it. The card stands 10 px past him and, beside an element on its right or left, 24 px
+  higher. Without an element the card stands in the middle and he on its left, without a hand.
+  Below 768 px the card stays the sheet of point 6 and he stands on its top edge at its left,
+  without a hand.
+- **The card is his speech bubble.** Its tail points at his head, not at the element, and its
+  title loses the indent the mark's disc needed. Its accessible name names who presents, as his
+  launcher names him: "Buddy: <title>" instead of "Průvodce Lazuriem: <title>" ("Lazurio
+  guide"). Its width (300 px, or the sheet), padding, shadow, contents and one size through an
+  explanation stay.
+- **His launcher waits empty while he is out**, from his leap until he is back, as the
+  prototype's `.buddyw__launcher.is-away`: paper with a grey ring, without his picture. The
+  bubble's model says it (`launcher.away`), the view draws `data-away`, and the guide's layer
+  says when he leaves and when he is back. The launcher still opens his window, and the
+  document's `--lazurio-buddy-clearance` (F60's addendum of 2026-10-25) stays, since its place
+  is still taken.
+- **Where his picture does not load** (no session at his origin in this browser, a network that
+  does not reach it), the neutral mark, its 40 px white disc with the Lazurio symbol, stands in
+  his place with his hand, as on his launcher. The picture is asked for again only when it
+  changes.
+
+**What stays.** The explanations and their words, steps, scenes, documentation links and the
+invitation; the ring and the page dimmed around it; the engine's rules (never two tours at once,
+who may ask, Escape and the focus); the guide without Buddy, with the neutral mark at the card's
+corner and the card placed as the tour's bubble; the layer's travel of 0.7 s (the prototype's is
+0.9 s). Interface v1 does not change: `GuideView` and the bubble's model are internal. Nothing
+in the Folder.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Only Buddy's picture in the mark's disc at the card's corner | The smallest change, but Buddy stays a badge on the card and neither points nor speaks, which is not the prototype Matěj asked for; rejected |
+| The prototype's figure and placement for the neutral guide too | Matěj asked about Buddy, and without Buddy the guide stays as F56 draws it (F60 point 1); not in this change |
+| The layer asks its element for Buddy's picture | A second answer to whether Buddy is here, beside the engine's for the frame and the invitation, and untested without a DOM; rejected for `GuideView.buddy` |
+| The prototype's card, 352 px wide beside a scene | Changes every explanation's lines and its stage, and the card's width would depend on who presents; rejected |
+| The bubble hides Buddy from the guide's `started` to `closed` | He walks home for 0.7 s after `closed`, so two Buddies would meet; rejected for the layer saying when he leaves and when he is back |
+
+**Verified by:**
+- `tests/shell-guide.test.ts`: the prototype's distances on each side of an element, in the
+  middle and on the sheet; one rule across three window sizes (he and his card whole in the
+  window and apart, off the element, 30 px from it on the side he points from, the card 10 px
+  past him, its tail at him); the neutral guide's step without Buddy.
+- `tests/shell-buddy.test.ts`: Buddy presents with his picture and name where his bubble shows,
+  with the same explanations, steps, scenes and words as without him; the launcher waits empty
+  while he is out, said once, across another origin, and shows him again once he is back.
+- Headless Chrome against the personal preview with `buddy`, whose origin served T3 Code's
+  `avatar.webp`, and without it, the Apps home's "?" (`environment`) at 1440 and 390 px:
+  - with Buddy at 1440 px: at the first step he stood 30 px right of the Environment picker, his
+    hand toward it and the card 10 px past him with its tail 41 px down, named "Buddy: …"; at
+    the second he stood left of the browser's toggle and the card on his left; the launcher was
+    empty while he was out, its clearance unchanged, and showed him again after Escape once he
+    was back;
+  - with Buddy at 390 px: he stood on the sheet's top edge, without a hand;
+  - with his picture refused: the neutral mark stood in his place with his hand, on the
+    launcher too;
+  - with `prefers-reduced-motion`: he appeared in place without motion, and the launcher showed
+    him again at once after Escape;
+  - without `buddy`: the neutral mark at the card's corner and the card as before, named
+    "Průvodce Lazuriem: …", and no launcher.
+
+**Honest limits.** Where the prototype says nothing, the choices are the agent's, for Matěj's
+review: Buddy on the sheet's top edge below 768 px, the neutral mark in his place where his
+picture does not load, the card's accessible name, and the card's width and the layer's travel
+kept. Checked in headless Chrome only; Safari and Firefox are not. The forks' pages (T3 Code,
+MausBot), where Buddy presents the principles his frame asks for, were not opened. This ships
+with the Platform release that carries F60's addendum of 2026-10-25, after the forks read
+`--lazurio-buddy-clearance`.
+
 ## F57 — Sleeping tabs: a tab nobody uses closes its window and keeps its place, under its id
 
 **Proposed by the agent on 2026-10-20 on Matěj's direction of the same day (root decision 0195

@@ -1,7 +1,7 @@
 import { browserStore, pageAccountJson, type Store } from "./account";
-import { type BuddyBubble, createBuddyBubble } from "./buddy-bubble";
+import { type BuddyBubble, buddyName, createBuddyBubble } from "./buddy-bubble";
 import { type BuddyBubbleView, createBuddyBubbleView } from "./buddy-element";
-import type { BuddyTheme } from "./buddy-protocol";
+import { type BuddyTheme, buddyAvatarSource } from "./buddy-protocol";
 import {
   currentEnvironment,
   isBuddysOwnPage,
@@ -14,6 +14,7 @@ import {
 import { installShellFonts } from "./fonts";
 import {
   createGuide,
+  type GuideBuddy,
   type GuideElement,
   type GuideEvent,
   type GuideLayer,
@@ -194,6 +195,9 @@ const onBuddysOwnPage = (): boolean => isBuddysOwnPage(location.origin);
 // guide-layer.ts in each `<lazurio-buddy>`'s own shadow root. Every step it
 // shows is the last step Buddy's context names (buddy-bubble.ts), and every
 // explanation's start and end reaches Buddy's frame where it asked for it.
+// Where the page shows Buddy's bubble he presents it, with his launcher's
+// picture, leaping from the launcher, which waits empty until he is back
+// (decision F56's addendum (7) of 2026-10-25).
 const guideLayers = new WeakMap<GuideElement, GuideLayer>();
 const guide = createGuide({
   shell: () => state.drawn(),
@@ -220,7 +224,10 @@ const guide = createGuide({
     let layer = guideLayers.get(element);
     if (layer === undefined) {
       const buddy = element as LazurioBuddy;
-      const drawn = createGuideLayer(buddy, logo, () => buddy.bubbleHome());
+      const drawn = createGuideLayer(buddy, logo, {
+        home: () => buddy.bubbleHome(),
+        away: (out) => buddy.guideOut(out),
+      });
       layer = Object.freeze({
         draw: (view, actions) => {
           if (view !== null) buddy.guideShown(view.explanation.id, view.stop);
@@ -243,7 +250,7 @@ const guide = createGuide({
     );
     buddy.guided(event);
   },
-  buddy: () => bubbleHost?.shows() === true,
+  buddy: () => bubbleHost?.guideBuddy() ?? null,
 });
 
 /** Hands over the explanations of the page the host shows now (decision
@@ -1297,9 +1304,23 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
   shows(): boolean {
     return this.bubble !== null && this.origin() !== null;
   }
-  /** The launcher's centre, where the guide's mark starts and ends. */
+  /** Buddy as the guide draws him while this element shows his bubble
+   * (decision F56's addendum (7)): his picture and his name, as his launcher
+   * shows them; null without it. */
+  guideBuddy(): GuideBuddy | null {
+    const picture = this.shows() ? buddyAvatarSource(this.origin()) : null;
+    return picture === null
+      ? null
+      : Object.freeze({ picture, name: buddyName });
+  }
+  /** The launcher's centre, where the guide's figure starts and ends. */
   bubbleHome(): Readonly<{ x: number; y: number }> | null {
     return this.shows() ? (this.view?.home() ?? null) : null;
+  }
+  /** The guide's figure left the launcher (true) or is back (false): the
+   * launcher waits empty meanwhile. */
+  guideOut(out: boolean): void {
+    this.bubble?.guideOut(out);
   }
   /** The guide shows a step: the last step Buddy's context names. */
   guideShown(explainer: string, stop: number): void {

@@ -47,6 +47,9 @@ import { createGuideReceiver } from "./guide-protocol";
 //   principles known on every page, and the answers `started`, `done`,
 //   `closed` and `busy` go back to it. While the explanation plays the window
 //   steps aside, and it returns when the explanation ends.
+// - Buddy presents every explanation himself (F56's addendum (7) of
+//   2026-10-25): while the guide's figure is out of the launcher, from its
+//   leap until it is back, the launcher waits empty, as in the prototype.
 
 /** The size of the window this tab remembers, in `sessionStorage`. */
 export const buddyLayoutKey = "lazurio.buddy.layout";
@@ -66,9 +69,15 @@ export type BuddyFrameModel = Readonly<{
 /** What the view draws. */
 export type BuddyBubbleModel = Readonly<{
   origin: string;
-  /** Buddy's picture, its name for assistive technology, and whether the
-   * window shows. */
-  launcher: Readonly<{ avatar: string; label: string; expanded: boolean }>;
+  /** Buddy's picture, its name for assistive technology, whether the
+   * window shows, and whether Buddy is out presenting the guide, the
+   * launcher waiting empty. */
+  launcher: Readonly<{
+    avatar: string;
+    label: string;
+    expanded: boolean;
+    away: boolean;
+  }>;
   /** The frame, from the first open on; null before. */
   frame: BuddyFrameModel | null;
   layout: BuddyLayout;
@@ -100,14 +109,17 @@ export type BuddyBubbleSeams = Readonly<{
   }>;
 }>;
 
-/** Buddy's name on the launcher and the frame: a name, the same in every
- * language. */
-const buddyName = "Buddy";
+/** Buddy's name on the launcher and the frame, and on the guide's card
+ * where he presents it: a name, the same in every language. */
+export const buddyName = "Buddy";
 
 export function createBuddyBubble(seams: BuddyBubbleSeams) {
   let origin: string | null = null;
   let frame: BuddyFrameModel | null = null;
   let layout: BuddyLayout = "closed";
+  // Whether the guide's figure is out of the launcher; it stays out across
+  // another origin, as the figure does.
+  let away = false;
   // The explanation the frame asked for while it plays, and the size its
   // window returns to.
   let asked: Readonly<{ explainer: string; restore: BuddyLayout }> | null =
@@ -140,6 +152,7 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
         avatar: buddyAvatarSource(origin) ?? "",
         label: buddyName,
         expanded: layout !== "closed",
+        away,
       }),
       frame,
       layout,
@@ -304,6 +317,14 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
       asked = null;
       if (layout === "closed" && was.restore !== "closed")
         show(was.restore, "frame");
+    },
+    /** The guide's figure, Buddy presenting an explanation, left the
+     * launcher (true) or is back in it (false): the launcher waits empty
+     * meanwhile. The window and the frame are as they were. */
+    guideOut(out: boolean): void {
+      if (out === away) return;
+      away = out;
+      draw();
     },
     /** What is drawn now. */
     model,

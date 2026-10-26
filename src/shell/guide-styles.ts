@@ -14,6 +14,19 @@ import { guideSceneCss } from "./guide-scene-styles";
 // stand in one place (`.lines`), only the step's own shown, so the card keeps
 // one size through an explanation; a principle's scene stands between them
 // and the buttons (guide-scene-styles.ts, decision F56's addendum (3)).
+//
+// Where Buddy presents (`data-buddy` on the layer, decision F56's addendum
+// (7) of 2026-10-25) the figure is the prototype's (prototypes-lazurio
+// `app/v1/src/guide.css`, `.gbuddy`): his picture 48 × 56 in a box of
+// 56 × 64, no disc, a soft shadow under him and his pixels kept sharp; his
+// hand, a 22 px blue disc with an arrow, beside him toward the element
+// (`data-side` on the figure: the side of the element he stands on); the
+// card his speech bubble, its tail toward him and its title without the
+// mark's indent. He leaps, hops to every step and breathes while he stands,
+// his hand pokes toward the element, all only where motion is not reduced
+// (as the scenes: inside `prefers-reduced-motion: no-preference` and outside
+// `data-still`). His picture that does not load leaves the neutral mark's
+// disc in his place (`data-fallback`).
 
 const guideCss = `
 :host { display: contents; }
@@ -47,6 +60,23 @@ const guideCss = `
 .docs:hover { color: var(--lz-ink); }
 .primary { min-height: 32px; padding: 0 14px; border: 0; border-radius: var(--lz-radius-sm); background: var(--lz-accent-button); color: var(--lz-on-accent); font-size: 13px; font-weight: var(--lz-weight-akce); cursor: pointer; }
 .primary:hover { background: var(--lz-accent-button-hover); }
+.point { display: none; }
+.layer[data-buddy] .mark { width: 56px; height: 64px; border-radius: 0; background: none; box-shadow: none; }
+.layer[data-buddy] .mark img { width: 48px; height: 56px; object-fit: contain; filter: drop-shadow(0 6px 8px rgb(0 0 0 / 0.18)); image-rendering: pixelated; }
+.layer[data-buddy] .mark[data-fallback] img { width: 40px; height: 40px; padding: 8px; border-radius: 50%; background: var(--lz-white); box-shadow: 0 0 0 1px var(--lz-line), var(--lz-shadow-float); filter: none; image-rendering: auto; }
+.layer[data-buddy] .mark[data-side] .point { position: absolute; top: 22px; left: -26px; display: grid; width: 22px; height: 22px; place-items: center; border-radius: 50%; background: var(--lz-blue-500); color: var(--lz-white); }
+.layer[data-buddy] .mark[data-side="left"] .point { right: -26px; left: auto; rotate: 180deg; }
+.layer[data-buddy] .mark[data-side="below"] .point { top: -24px; left: 17px; rotate: 90deg; }
+.layer[data-buddy] .mark[data-side="above"] .point { top: auto; bottom: -24px; left: 17px; rotate: -90deg; }
+.layer[data-buddy] .title { padding-left: 0; }
+@media (prefers-reduced-motion: no-preference) {
+  .layer:not([data-still])[data-buddy] .mark img { animation: guide-breathe 2.6s ease-in-out 1s infinite; }
+  .layer:not([data-still])[data-buddy] .mark[data-travel] img { animation: guide-leap 0.7s ease-in-out both; }
+  .layer:not([data-still])[data-buddy] .point { animation: guide-poke 1.1s ease-in-out 0.9s infinite; }
+}
+@keyframes guide-leap { 0% { transform: translateY(0) scale(1, 1); } 12% { transform: translateY(4px) scale(1.08, 0.9); } 45% { transform: translateY(-46px) scale(0.96, 1.05); } 85% { transform: translateY(0) scale(1.06, 0.94); } 100% { transform: translateY(0) scale(1, 1); } }
+@keyframes guide-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes guide-poke { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-5px); } }
 @keyframes guide-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes guide-rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes guide-hop { 0% { transform: translateY(0); } 45% { transform: translateY(-22px); } 85% { transform: translateY(0) scale(1.06, 0.94); } 100% { transform: none; } }

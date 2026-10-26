@@ -29,7 +29,10 @@ import { baseCss, hostTokens } from "./base-styles";
 // A host still moves the launcher with `--lazurio-buddy-right` and
 // `--lazurio-buddy-bottom` (interface v1), and the panel stays above it.
 // Buddy's figure stands in the disc at 40 x 44 px with its pixels kept
-// sharp, as in the prototype, rather than filling it.
+// sharp, as in the prototype, rather than filling it. While he is out
+// presenting the guide (decision F56's addendum (7) of 2026-10-25) the disc
+// waits empty, paper with a grey ring, as the prototype's
+// `.buddyw__launcher.is-away`.
 
 /** The launcher's size. */
 export const buddyLauncherSize = 58;
@@ -64,6 +67,8 @@ const bubbleCss = `
 .launcher:focus-visible { outline: 2px solid var(--shell-focus); outline-offset: 3px; }
 .launcher img { display: block; width: ${buddyLauncherFigure.width}px; height: ${buddyLauncherFigure.height}px; object-fit: contain; image-rendering: pixelated; pointer-events: none; }
 .launcher[data-fallback] img { width: 34px; height: 34px; object-fit: contain; }
+.launcher[data-away] { background: var(--lz-paper); box-shadow: inset 0 0 0 1.5px var(--lz-gray-300); }
+.launcher[data-away] img { opacity: 0; }
 .window { position: fixed; inset: auto var(--buddy-x) calc(var(--buddy-y) + ${above}px) auto; z-index: ${buddyLayer}; box-sizing: border-box; width: min(${buddyPanelSize.width}px, calc(100vw - 2 * var(--buddy-x))); height: min(${buddyPanelSize.height}px, calc(100dvh - var(--buddy-y) - ${above + 16}px)); max-width: none; max-height: none; margin: 0; padding: 0; overflow: hidden; border: 1px solid var(--shell-line); border-radius: var(--lz-radius-md); background: var(--shell-raised); color: var(--shell-ink); box-shadow: var(--lz-shadow-float); }
 .window:modal { inset: 0; width: 100%; height: 100%; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
 .window iframe { display: block; width: 100%; height: 100%; border: 0; background: transparent; }
