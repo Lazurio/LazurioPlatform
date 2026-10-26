@@ -11502,8 +11502,10 @@ printing when each organization was created.
    and agents read the default organization as `{name, state, default: true}`, named as
    Composio names it and never rewritten as an Organization's name would be.
 3. **Nothing guessed.** Where an organization has no date (Composio's own CLI, or
-   Lazurio's before `0.4.3-lazurio.3`) or two are equally old, the verdict is `chosen`:
-   the person's current organization and the dialog's choice, as before this addendum.
+   Lazurio's before `0.4.3-lazurio.3`), where two are equally old, or where the list is
+   a full page of 50 (`orgs list` prints one page, the newest first, so the oldest may
+   be left out; Pablo's review of Lazurio/composio#4), the verdict is `chosen`: the
+   person's current organization and the dialog's choice, as before this addendum.
    Where the default organization exists but cannot be made current, nothing of
    Composio counts, as in point 4.
 4. **Unchanged:** an Organization's Environment and a Team Environment (the rule of the
@@ -11518,7 +11520,8 @@ printing when each organization was created.
 
 Verified by tests: the dates kept as `createdAt` where they are dates and left out
 otherwise (`tests/tools-login.test.ts`); the oldest organization as the default, and
-`chosen` without a date for each, between two equally old and without any; the rule
+`chosen` without a date for each, between two equally old, without any and on a full
+page of 50; the rule
 `default` on a personal Environment and `chosen` on a computer; on a personal
 Environment the sign-in dialog and the Integrace reading making the default
 organization current after a sign-in that landed in another one, the dialog with

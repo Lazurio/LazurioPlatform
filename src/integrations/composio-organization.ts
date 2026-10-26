@@ -79,16 +79,24 @@ export type DefaultVerdict = Extract<
   { kind: "chosen" | "matches" | "elsewhere" }
 >;
 
+/** How many organizations `orgs list` prints at most: one page of
+ * Composio's list (its API allows 50), the newest first; the CLI does not
+ * page further. */
+export const composioOrganizationsPage = 50;
+
 /** The account's default organization: the one Composio made when the
  * account signed up, which is its oldest (`created_at`). Composio's list
  * marks none as the default and lists the newest first, so only the dates
  * tell (an account read on 2026-10-26: its default organization made at the
  * sign-up, each Organization's one weeks later). Null where an organization
  * has no date (a CLI build that does not print it), where two are equally
- * old, or where there is none: which one it is, is not guessed. */
+ * old, where there is none, or where the list is a full page, which may
+ * leave out the oldest ones (Pablo's review of Lazurio/composio#4): which
+ * one it is, is not guessed. */
 export function defaultComposioOrganization(
   organizations: readonly ComposioOrganization[],
 ): ComposioOrganization | null {
+  if (organizations.length >= composioOrganizationsPage) return null;
   let oldest: ComposioOrganization | null = null;
   let oldestAt = Number.POSITIVE_INFINITY;
   let tie = false;

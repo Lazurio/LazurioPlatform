@@ -289,6 +289,26 @@ test("the account's default organization is its oldest, and never a guess", () =
     kind: "chosen",
     current: null,
   });
+  // A full page of `orgs list` (the newest 50) may leave out the oldest
+  // ones, the default among them (Pablo's review of Lazurio/composio#4):
+  // not told; one fewer is the whole list.
+  const page = (count: number) =>
+    dated(
+      "org_name_1",
+      ...Array.from(
+        { length: count },
+        (_, index) =>
+          [
+            `org_name_${index + 1}`,
+            new Date(Date.UTC(2026, 9, 20) - index * 86_400_000).toISOString(),
+          ] as const,
+      ),
+    );
+  expect(composioOrganizationVerdict(own, page(50))).toEqual({
+    kind: "chosen",
+    current: "org_name_1",
+  });
+  expect(defaultComposioOrganization(page(49))?.name).toBe("org_name_49");
 });
 
 test("the rule: an Organization's Environment by its Organization's name, unverified where it cannot be read, a personal Environment by the account's default, a computer chosen", async () => {

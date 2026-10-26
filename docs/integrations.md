@@ -496,7 +496,8 @@ in: a Team's account is an ordinary Composio account.
   Composio marks none as the default and lists the newest first, so the rule takes
   the oldest by the `created_at` Lazurio's build prints from `0.4.3-lazurio.3` on
   (`defaultComposioOrganization`). Where the CLI does not date every organization,
-  or two are equally old, it is not guessed: the user's choice stands, as on a
+  two are equally old, or `orgs list` printed a full page of 50 (the newest first,
+  which may leave out the oldest), it is not guessed: the user's choice stands, as on a
   computer, where the sign-in dialog offers it among several. A name matches by its letters and digits alone
   (`organizationKey`, note of 2026-10-17, evening): its case, diacritics,
   spaces, punctuation and underscores do not count, so every name Composio
