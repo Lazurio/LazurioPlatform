@@ -26,13 +26,13 @@ today; the rest of this document stays future direction.
   screen of the app, the stone, the name and one line, as a tile in Apps.
 - **Detail.** `/marketplace/<offer>` shows the stone, the name and its one line with
   "Přidat do Organizace"; the app's real screens, one large and the others as
-  thumbnails that show it instead; what it does (Knihovna, Promítání a PDF, Tvorba s
-  agentem, each a title and a sentence); and Informace: author Lazurio, version,
-  license, where the data stays, what it requires and a link to the source (the
-  release once recorded). Following the voice of Lazurio, the page explains nothing
-  in a sentence under its title, shows no badge and lists nothing the app lacks
-  (Anna, 2026-10-26). No price, pilot label, mention of the Environment or computer,
-  install count, rating or other offer is shown; the price remains zero.
+  thumbnails that show it instead; and what it does in three short items (Knihovna,
+  Promítání a PDF, Tvorba s agentem). Nothing technical is shown: no version,
+  license, source, data or requirements block, no badge and no list of what the app
+  lacks (Anna, 2026-10-26; the page was simplified with the Impeccable `distill`
+  pass). The record still holds version, license and source for the brief and the
+  agent. No price, pilot label, mention of the Environment or computer, install
+  count, rating or other offer is shown; the price remains zero.
 - **Screens.** `src/launchpad/images/marketplace-presentations-{gallery,slide}.webp`
   are browser screenshots at twice the pixel density of the template's release
   branch running on loopback with its synthetic four-slide example ("Ukázková
@@ -42,7 +42,7 @@ today; the rest of this document stays future direction.
 - **Přidat do Organizace.** A dialog names the target Organization, chosen only among
   this Folder's Organizations bound to a GitHub login (the address is never the
   target's authority), and how the module starts (an empty library or the synthetic
-  example), and says in one sentence what follows: the agent prepares a private
+  example presentation), and says in one sentence what follows: the agent prepares a private
   module for that Organization with the person in Chat and shows the plan to approve
   before anything there changes. The plan itself (exact release, private repository,
   Teams chosen from the Organization's real list, the template's code run, a request

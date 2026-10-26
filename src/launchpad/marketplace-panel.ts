@@ -11,8 +11,6 @@ import {
   type MarketplaceOffer,
   marketplaceOffers,
   offerById,
-  releaseUrl,
-  sourceUrl,
 } from "./marketplace";
 import type { MessageKey } from "./messages";
 import type { PageRoute } from "./routes";
@@ -22,7 +20,7 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // The Marketplace page (plan DEV-6593, marketplace.ts): `/marketplace` is
 // Šablony aplikací with the card of each offer, `/marketplace/<offer>` its
 // detail: the stone and name its module will have in Apps, real screens of
-// the app, what it does and its information. "Přidat do Organizace" opens a
+// the app and what it does, nothing technical. "Přidat do Organizace" opens a
 // dialog: the Organization, chosen only from those this Folder's catalog
 // binds to GitHub (an address is never the target's authority), how the
 // module starts and one sentence on what follows. "Pokračovat v Chatu"
@@ -223,24 +221,17 @@ export function createMarketplacePanel(
 
     const shots = screens(offer);
 
-    const features = element("section", "market-features");
-    features.setAttribute("aria-labelledby", "market-features");
-    const featuresTitle = element("h2", undefined, copy.marketFeatures);
-    featuresTitle.id = "market-features";
-    const list = element("ul");
+    const features = element("ul", "market-features");
     for (const feature of offer.copy.features) {
       const item = element("li");
       item.append(
-        element("h3", undefined, copy[feature.title]),
+        element("h2", undefined, copy[feature.title]),
         element("p", undefined, copy[feature.text]),
       );
-      list.append(item);
+      features.append(item);
     }
-    features.append(featuresTitle, list);
 
-    const layout = element("div", "market-body");
-    layout.append(features, information(offer));
-    view.append(back(), head, shots, layout);
+    view.append(back(), head, shots, features);
     return view;
   }
 
@@ -277,35 +268,6 @@ export function createMarketplacePanel(
     }
     view.append(large, thumbs);
     return view;
-  }
-
-  function information(offer: MarketplaceOffer) {
-    const copy = options.copy();
-    const aside = element("aside", "market-info");
-    aside.setAttribute("aria-labelledby", "market-info");
-    const title = element("h2", undefined, copy.marketInfo);
-    title.id = "market-info";
-    const rows = element("dl");
-    const row = (label: string, value: Node | string) => {
-      const item = element("div");
-      const description = element("dd");
-      description.append(value);
-      item.append(element("dt", undefined, label), description);
-      rows.append(item);
-    };
-    row(copy.marketAuthor, copy.marketAuthorName);
-    row(copy.marketVersion, offer.release.version);
-    row(copy.marketLicense, offer.license);
-    row(copy.marketData, copy.marketDataText);
-    row(copy.marketRequirements, copy.marketRequirementsText);
-    const source = element("a");
-    source.href = adoptable(offer) ? releaseUrl(offer) : sourceUrl(offer);
-    source.target = "_blank";
-    source.rel = "noopener noreferrer";
-    source.append(copy.marketSourceLink, svg("external"));
-    row(copy.marketSource, source);
-    aside.append(title, rows);
-    return aside;
   }
 
   function open(offer: MarketplaceOffer) {
@@ -438,8 +400,6 @@ export function createMarketplacePanel(
           copy[value === "sample" ? "marketSeedSample" : "marketSeedEmpty"],
         ),
       );
-      if (value === "sample")
-        label.append(element("span", "module-meta", copy.marketSeedSampleNote));
       seeds.append(label);
     }
 
