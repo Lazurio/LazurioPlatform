@@ -18626,6 +18626,82 @@ Chromium against a page placed as T3 Code's places the shell: on `t3code.ada` th
 and the launcher; on `buddy.ada` a rail of 0 × 0, no padding, no bubble and only the shell
 document read.
 
+### F60 addendum of 2026-10-25: one place at the bottom right in every app, Buddy's figure as in the prototype, and the page keeps the corner free
+
+**Decided by Matěj (2026-10-25)** after he looked at Buddy's bubble on his Osobní Prostředí. In
+Chat the launcher stood higher than in the Launchpad, not in the bottom-right corner, and
+Buddy's picture filled the whole disc. He asked to keep to the prototype
+(`HumanAndMachine-ai/prototypes-lazurio`, `app/v1/src/styles.css`): "Bottom right, in the same
+place in every app and panel state" (Matěj, 2026-10-11), with Buddy's figure at 40 × 44 px in
+the 58 px disc.
+
+- **Where it stands.** Point 4's place by app goes. The launcher stands 22 px from the window's
+  right and bottom edges in the Launchpad, Chat and Automate alike, as in the prototype, and the
+  device's safe area adds to both. `--lazurio-buddy-right` and `--lazurio-buddy-bottom` still
+  move it, and the panel stays above it. Point 4's table rejected "One place at the bottom right
+  everywhere" because it covered the forks' send buttons. That alternative is now chosen, with
+  the page making room for the launcher, as the prototype's composer does
+  (`.t3x__composer-bar { padding-right: 64px; }`).
+- **The page makes room.** While the launcher is drawn, `<lazurio-buddy>` sets
+  `--lazurio-buddy-clearance` on the document, as the rail sets `--lazurio-rail-width`. Its
+  value, `calc(58px + var(--lazurio-buddy-right, 22px) + env(safe-area-inset-right, 0px))`, is
+  the width the launcher takes from the window's right edge.
+  - The view writes it when the launcher appears and removes it when the launcher goes, never in
+    between: the bubble watches the document's style for the colour scheme. The launcher goes
+    when the bubble goes or when the host hides `<lazurio-buddy>` with the standard `hidden`,
+    which the element now observes; removing `hidden` brings the clearance back.
+  - A page whose own controls reach that corner keeps them out of it, for example a composer as
+    wide as its column with `padding-right: var(--lazurio-buddy-clearance, 0px)`. A page without
+    such controls, or without Buddy, keeps its full width.
+  - Interface v1 grows by this one property (point 6 and `shellElementInterface`). Nová karta's
+    colour roles leave it out.
+- **Buddy's figure.** In the disc his picture stands at 40 × 44 px, `object-fit: contain`,
+  `image-rendering: pixelated`, instead of filling the disc (`object-fit: cover`). His picture
+  from T3 Code, `/assets/avatar.webp`, is 192 × 208 px, the prototype's sprite. The neutral
+  guide's mark without his picture stays 34 px.
+- **The bubble's model loses `app`.** It only chose the place. The frame's context keeps its own
+  `app` (point 2).
+- **Full screen covers the whole window.** Matěj, the same day: "this view over the full screen
+  should really be over the full screen, not such a strangely formatted window". The modal now
+  fills the window: no margin, border, rounded corners or shadow, and no page left to dim. Inside
+  it the frame keeps its own reading width; Buddy's surface lays out its days and conversation.
+  This departs from the prototype's full screen (24 px of padding and a dimmed page around a
+  760 px column) at Matěj's word. Point 3's "760 px of reading width, the page behind inert and
+  dimmed" keeps only "inert", and its "a click on the dimmed page returns to the panel" goes:
+  Escape and the frame's own control return to the panel. `buddyReadingWidth` and the narrow
+  screen's rule go with it.
+
+**Rollout order.** The forks make room before a Platform with this addendum reaches an
+Environment: T3 Code's Chat composer (Lazurio/t3code) and MausBot's composer (Lazurio/OpenMausBot)
+read `--lazurio-buddy-clearance`. A fork that reads it under an older Platform finds it unset and
+changes nothing. This Platform under older forks puts the launcher over their send buttons
+wherever their composers reach the window's edge, which point 4 measured for T3 Code below about
+1230 px.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep point 4's place above the composers | The launcher jumps between apps, which is what Matěj reported; rejected |
+| Each fork always reserves 64 px, as the prototype's composer does | The space is lost where no Buddy is drawn, and each fork repeats the launcher's size; rejected for one property the shell sets |
+| The shell lifts the launcher above a composer it detects | The shell would read the host's layout, which is the page's; rejected |
+
+**Verified by:**
+- `tests/shell-buddy.test.ts`: one place, the figure's size, and the clearance written once when
+  the launcher appears and removed once when it goes, including the host's `hidden` (hidden, then
+  shown again).
+- `tests/shell-interface.test.ts`: interface v1 with the new property.
+- `tests/shell-new-tab.test.ts`: not a colour role.
+- Headless Chrome against the personal preview with Buddy, whose origin served T3 Code's
+  `avatar.webp`, on two pages: the Launchpad's Apps, and a page placed as T3 Code's places the
+  shell, with `active="chat"` and a full-width composer that keeps
+  `padding-right: var(--lazurio-buddy-clearance, 0px)`. At 1440 and 390 px on both:
+  - the launcher stood 22 px from the right and bottom edges;
+  - Buddy's figure was 40 × 44 px and loaded;
+  - the document's clearance was `calc(58px + 22px + 0px)`;
+  - on the Chat page the send button stayed clear of the launcher;
+  - full screen, asked for by a stand-in frame on Buddy's origin, covered the whole window;
+  - `hidden` on `<lazurio-buddy>` removed the clearance and hid the launcher, and removing it
+    restored both; with the frame open, `<html>`'s style saw no write in two seconds.
+
 ## F61 — Buddy's chat in Lazurio is T3 Code with Hermes over ACP: the Platform's side
 
 **Decided by Matěj (Organization Admin) on 2026-10-22 (plan DEV-6676, root decision 0210

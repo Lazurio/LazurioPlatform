@@ -75,12 +75,14 @@ export function parseNewTabPageMessage(
 }
 
 /** The properties of the shell's interface v1 that are no colours: the
- * rail's width, the host's tone and where Buddy's launcher stands. */
+ * rail's width, the host's tone, where Buddy's launcher stands and how wide
+ * its corner is. */
 const notColours: ReadonlySet<string> = new Set([
   "--lazurio-rail-width",
   "--lazurio-host-tone",
   "--lazurio-buddy-right",
   "--lazurio-buddy-bottom",
+  "--lazurio-buddy-clearance",
 ]);
 
 /** The colour roles of the shell's interface v1 (F36's addendum of

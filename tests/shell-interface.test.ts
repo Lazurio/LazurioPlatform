@@ -42,7 +42,8 @@ const themeValues = Object.fromEntries(
 // the event `lazurio-guide` and the export `provideGuides`, and removed
 // nothing; decision F60 (2026-10-21) added Buddy's bubble in the same
 // element and the properties `--lazurio-buddy-right` and
-// `--lazurio-buddy-bottom`, and removed nothing.
+// `--lazurio-buddy-bottom`, and removed nothing; its addendum of 2026-10-25
+// added the property `--lazurio-buddy-clearance`, and removed nothing.
 
 test("the promised interface v1 is exactly this", () => {
   expect(JSON.parse(JSON.stringify(shellElementInterface))).toEqual({
@@ -116,6 +117,7 @@ test("the promised interface v1 is exactly this", () => {
       "--lazurio-host-tone",
       "--lazurio-buddy-right",
       "--lazurio-buddy-bottom",
+      "--lazurio-buddy-clearance",
       "--lazurio-surface",
       "--lazurio-ink",
       "--lazurio-ink-muted",
@@ -138,6 +140,7 @@ test("the elements keep every promised name", async () => {
   // is the one that names an Environment (F39's addendum of 2026-10-12).
   const newTab = await readFile("src/shell/new-tab-element.ts", "utf8");
   const environment = await readFile("src/shell/identity-element.ts", "utf8");
+  const bubbleView = await readFile("src/shell/buddy-element.ts", "utf8");
   const observed = (className: string, text = source) => {
     const at = text.indexOf(`class ${className} `);
     expect(at).toBeGreaterThanOrEqual(0);
@@ -170,7 +173,8 @@ test("the elements keep every promised name", async () => {
     expect(`${source}${newTab}`).toContain(`new CustomEvent("${event}"`);
   // The rail width and the tone in the script, the colour roles in the
   // styles of both elements, where Buddy's launcher stands in the bubble's
-  // (decision F60).
+  // (decision F60), the launcher's corner in the bubble's view (its
+  // addendum of 2026-10-25).
   for (const property of shellElementInterface.properties)
     expect({
       property,
@@ -178,7 +182,8 @@ test("the elements keep every promised name", async () => {
         source.includes(`"${property}"`) ||
         (railCss.includes(`var(${property},`) &&
           columnHeadCss.includes(`var(${property},`)) ||
-        buddyBubbleCss.includes(`var(${property},`),
+        buddyBubbleCss.includes(`var(${property},`) ||
+        bubbleView.includes(`"${property}"`),
     }).toEqual({ property, read: true });
   // Every promised value of `active` marks something in the head: an app
   // its tab of the switch, `settings` the gear.

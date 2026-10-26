@@ -337,14 +337,16 @@ describe("the host's message", () => {
       }),
     ).toEqual({ "--lazurio-surface": "#151515" });
     // The roles are the interface's colour roles, without the rail's width,
-    // the host's tone and where Buddy's launcher stands (decision F60).
+    // the host's tone, where Buddy's launcher stands (decision F60) and how
+    // wide its corner is (F60's addendum of 2026-10-25).
     expect(newTabThemeRoles).toEqual(
       shellElementInterface.properties.filter(
         (role) =>
           role !== "--lazurio-rail-width" &&
           role !== "--lazurio-host-tone" &&
           role !== "--lazurio-buddy-right" &&
-          role !== "--lazurio-buddy-bottom",
+          role !== "--lazurio-buddy-bottom" &&
+          role !== "--lazurio-buddy-clearance",
       ),
     );
     expect(newTabThemeRoles).toHaveLength(12);

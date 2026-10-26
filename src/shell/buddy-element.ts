@@ -1,5 +1,5 @@
 import type { BuddyBubbleModel } from "./buddy-bubble";
-import { buddyBubbleCss } from "./buddy-styles";
+import { buddyBubbleCss, buddyLauncherClearance } from "./buddy-styles";
 
 // How Buddy's bubble is drawn (decision F60): in `<lazurio-buddy>`'s own
 // shadow root, made only when the page's document first names Buddy's origin
@@ -12,9 +12,41 @@ import { buddyBubbleCss } from "./buddy-styles";
 // the page as the panel (`show`), as a modal over it in full screen
 // (`showModal`, so the page behind is inert and Escape asks to return), and
 // closed with the frame kept alive inside (a frame moved to another parent
-// would load again). A click on the dimmed page around the full screen
-// returns to the panel. The guide's layer stands after the bubble in the
-// same shadow root (guide-layer.ts).
+// would load again). Full screen covers the whole window, so the way back
+// is Escape or the frame's own control. The guide's layer stands after the
+// bubble in the same shadow root (guide-layer.ts). While the launcher is
+// drawn the page keeps its corner free: `--lazurio-buddy-clearance` on the
+// document says how wide it is (decision F60's addendum of 2026-10-25).
+
+/** The property on the document that says how wide the launcher's corner
+ * is, for a page whose controls reach it. */
+export const buddyClearanceProperty = "--lazurio-buddy-clearance";
+
+/** Whether the launcher is on the page: drawn, and its element not hidden
+ * by the host (the standard `hidden`, interface v1), which the element's
+ * styles honour with `display: none`. */
+export const launcherOnPage = (
+  model: BuddyBubbleModel | null,
+  host: Readonly<{ hidden: boolean | string }>,
+): boolean => model !== null && !host.hidden;
+
+/** Keeps `--lazurio-buddy-clearance` on the document while the launcher is
+ * on the page, as the rail keeps `--lazurio-rail-width`: written when the
+ * launcher appears and removed when it goes (its bubble gone, or its element
+ * hidden), never in between, since the bubble watches the document's style
+ * for the colour scheme. */
+export function launcherClearance(
+  style: Pick<CSSStyleDeclaration, "setProperty" | "removeProperty">,
+): (drawn: boolean) => void {
+  let kept = false;
+  return (drawn) => {
+    if (drawn === kept) return;
+    kept = drawn;
+    if (drawn)
+      style.setProperty(buddyClearanceProperty, buddyLauncherClearance);
+    else style.removeProperty(buddyClearanceProperty);
+  };
+}
 
 export type BuddyBubbleView = Readonly<{
   /** Draws the model; null removes the bubble (the shadow root stays, as
@@ -46,6 +78,7 @@ export function createBuddyBubbleView(
   let parts: ReturnType<typeof build> | null = null;
   let frame: HTMLIFrameElement | null = null;
   let avatar: string | null = null;
+  const clearance = launcherClearance(host.ownerDocument.documentElement.style);
 
   function build() {
     const root = host.shadowRoot ?? host.attachShadow({ mode: "open" });
@@ -85,11 +118,6 @@ export function createBuddyBubbleView(
       event.preventDefault();
       setTimeout(() => options.escape(), 0);
     });
-    // A click on the dimmed page around full screen: the frame fills the
-    // dialog, so a click on the dialog itself is on its backdrop.
-    dialog.addEventListener("click", (event) => {
-      if (event.target === dialog && dialog.matches(":modal")) options.escape();
-    });
     bubble.append(dialog, launcher);
     // Before the guide's layer, which plays over the bubble.
     root.prepend(bubble);
@@ -116,6 +144,7 @@ export function createBuddyBubbleView(
 
   return Object.freeze({
     draw(model: BuddyBubbleModel | null): void {
+      clearance(launcherOnPage(model, host));
       if (model === null) {
         parts?.bubble.remove();
         parts = null;
@@ -124,10 +153,7 @@ export function createBuddyBubbleView(
         return;
       }
       parts ??= build();
-      const { bubble, dialog, launcher, picture } = parts;
-      // Where the launcher stands depends on the app (buddy-styles.ts).
-      if (model.app === null) delete bubble.dataset.app;
-      else bubble.dataset.app = model.app;
+      const { dialog, launcher, picture } = parts;
       if (avatar !== model.launcher.avatar) {
         avatar = model.launcher.avatar;
         delete launcher.dataset.fallback;

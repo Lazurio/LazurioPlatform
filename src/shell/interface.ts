@@ -47,7 +47,11 @@
 // launcher's distance from the window's right and bottom edges); the
 // standard `hidden` hides the whole element. What the bubble draws, where it
 // stands without them and its messages with Buddy's frame
-// (buddy-protocol.ts, versioned on its own) are not promised.
+// (buddy-protocol.ts, versioned on its own) are not promised. F60's
+// addendum of 2026-10-25 added `--lazurio-buddy-clearance`, which
+// `<lazurio-buddy>` sets on the document while its launcher is drawn, as the
+// rail sets `--lazurio-rail-width`: how wide the launcher's corner at the
+// window's right edge is, so a page keeps its own controls out of it.
 export const shellElementInterface = Object.freeze({
   version: 1,
   /** The script an app loads, on its own origin. */
@@ -180,7 +184,9 @@ export const shellElementInterface = Object.freeze({
   ]),
   /** Custom properties: the rail sets the first on the document; a host may
    * set the second to override the detected tone, and the next two to move
-   * Buddy's launcher (decision F60). The rest are the colour roles (F36,
+   * Buddy's launcher (decision F60); Buddy's bubble sets the fifth on the
+   * document while its launcher is drawn (F60's addendum of 2026-10-25). The
+   * rest are the colour roles (F36,
    * addendum of 2026-10-04, evening): a host fills them from its own theme on
    * its document (`:root`), each one optional; an unset role keeps the
    * design system's colour, and a set one wins over the tone. */
@@ -189,6 +195,7 @@ export const shellElementInterface = Object.freeze({
     "--lazurio-host-tone",
     "--lazurio-buddy-right",
     "--lazurio-buddy-bottom",
+    "--lazurio-buddy-clearance",
     "--lazurio-surface",
     "--lazurio-ink",
     "--lazurio-ink-muted",

@@ -1262,7 +1262,9 @@ function pageTheme(element: Element): BuddyTheme {
  * context follows (its messages, the path, the colour scheme) are listened
  * to only while the frame exists. */
 export class LazurioBuddy extends HTMLElement implements GuideElement {
-  static observedAttributes = ["lang"];
+  // `hidden` too: the launcher's corner on the document follows it
+  // (`launcherOnPage`, F60's addendum of 2026-10-25).
+  static observedAttributes = ["lang", "hidden"];
   private bubble: BuddyBubble | null = null;
   private view: BuddyBubbleView | null = null;
   private unfollow: (() => void) | null = null;

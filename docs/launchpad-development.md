@@ -577,7 +577,8 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   F56 with the guide: `<lazurio-buddy lang>`, the page's `marks` `data-guide` and
   `data-guide-help`, the event `lazurio-guide` and the export `provideGuides`, [the
   guide](#the-guide-decision-f56), and by decision F60 with the properties
-  `--lazurio-buddy-right` and `--lazurio-buddy-bottom`, [Buddy's
+  `--lazurio-buddy-right` and `--lazurio-buddy-bottom`, and its addendum of 2026-10-25
+  with `--lazurio-buddy-clearance`, [Buddy's
   bubble](#buddys-bubble-decision-f60)); `tests/shell-interface.test.ts` keeps every
   promised name, the token names a fork may rely on among them.
 - **A host page that is no Environment's** ([F36's addendum of
@@ -1082,20 +1083,26 @@ the origin nothing changes: the neutral guide stays as F56 draws it.
   the size kept in `sessionStorage`, the frame's size requests, the context, the guide's
   receiver), `buddy-element.ts` draws it in the element's shadow root (one `<dialog>`
   holds the frame: `show()` for the panel, `showModal()` for full screen), and
-  `buddy-styles.ts` places it: z-index 45, 20 px from the edges in the Launchpad, 16 px
-  from the right and 112 px from the bottom in Chat and Automate, above their
-  composers. `elements.ts` wires it: the bubble only in the last connected
+  `buddy-styles.ts` places it: z-index 45, 22 px from the window's right and bottom
+  edges in every app, Buddy's figure 40 × 44 px in the 58 px disc (F60's addendum of
+  2026-10-25, as the prototype). While the launcher is drawn the view sets
+  `--lazurio-buddy-clearance` on the document, the width of its corner at the right
+  edge. `elements.ts` wires it: the bubble only in the last connected
   `<lazurio-buddy>`, the page's message, path and colour-scheme listeners only while the
   frame exists.
 - **A host moves it** with `--lazurio-buddy-right` and `--lazurio-buddy-bottom` on its
   `:root` (lengths; the panel follows), or hides it with `hidden`.
+- **A page makes room for it** where its own controls reach the corner: T3 Code's and
+  MausBot's composers keep `padding-right: var(--lazurio-buddy-clearance, 0px)` (or
+  add it to their own), which is set only while the launcher is drawn, so a page
+  without Buddy keeps its full width.
 - **Check it in a browser** (root decision 0178): `bun scripts/preview-launchpad.ts
   personal cs <port> owner buddy` names Buddy's origin `https://buddy.example.lazurio.io`
   in the personal preview's entry; a browser automation routes
   `https://launchpad.example.lazurio.io` through the JSON line's `proxy` and stands in
   for Buddy's origin with a page that sends `ready` and the size requests and shows the
   context it hears. Check at 1440 and 390 px: the launcher and its fallback mark, the
-  panel, full screen and Escape, a click on the dimmed page, the context after a move to
+  panel, full screen over the whole window and Escape, the context after a move to
   another page, and an explanation asked by the frame (the window steps aside, returns
   at the end). A work Environment's page gets the bubble from the account (route
   `/.lazurio/account/environments` to a document with `buddy`). Tests:
