@@ -9,6 +9,7 @@ import {
 import {
   composioOrganizationRule,
   composioOrganizationVerdict,
+  defaultComposioOrganization,
 } from "../src/integrations/composio-organization";
 import {
   composioOrganizationName,
@@ -52,7 +53,10 @@ import { bindings } from "./fixtures/machine-bindings";
 // person creates "LazurioExampleOrganization"), made current by the
 // Launchpad; where the account has none, or more than one, nothing of
 // Composio counts and nothing connects through it. A personal Environment
-// and a computer work in the one the person chose.
+// works in the account's default organization, the one Composio made at the
+// sign-up and so the oldest, made current by the Launchpad likewise (root
+// decision 0162, addendum of 2026-10-13, point 2; addendum of 2026-10-26);
+// a computer in the one the person chose.
 
 const cleanups: (() => Promise<unknown>)[] = [];
 afterEach(async () => {
@@ -213,7 +217,81 @@ test("the verdict over the account's organizations", () => {
   });
 });
 
-test("the rule: an Organization's Environment by its Organization's name, unverified where it cannot be read, anything else chosen", async () => {
+// The account's default organization (addendum of 2026-10-26): Composio
+// marks none as the default and lists the newest first, so only the dates
+// tell it, the oldest; without a date for each, or between two equally old,
+// it is not guessed and the person's choice stands.
+test("the account's default organization is its oldest, and never a guess", () => {
+  const dated = (
+    current: string,
+    ...entries: (readonly [string, string | undefined])[]
+  ) =>
+    entries.map(([name, createdAt], index) => ({
+      id: `org_${index + 1}`,
+      name,
+      current: name === current,
+      ...(createdAt === undefined ? {} : { createdAt }),
+    }));
+  const own = { kind: "default" } as const;
+  // As Composio lists them: the newest first, the sign-up's last.
+  const listed = (current: string) =>
+    dated(
+      current,
+      ["globex", "2026-10-13T18:00:00.000Z"],
+      ["acme", "2026-10-11T11:00:00.000Z"],
+      ["jana_workspace", "2026-09-09T09:00:00.000Z"],
+    );
+  expect(defaultComposioOrganization(listed("acme"))?.name).toBe(
+    "jana_workspace",
+  );
+  expect(composioOrganizationVerdict(own, listed("acme"))).toEqual({
+    kind: "elsewhere",
+    organization: {
+      id: "org_3",
+      name: "jana_workspace",
+      current: false,
+      createdAt: "2026-09-09T09:00:00.000Z",
+    },
+    current: "acme",
+  });
+  expect(composioOrganizationVerdict(own, listed("jana_workspace"))).toEqual({
+    kind: "matches",
+    organization: {
+      id: "org_3",
+      name: "jana_workspace",
+      current: true,
+      createdAt: "2026-09-09T09:00:00.000Z",
+    },
+  });
+  // A build that does not date them: the person's current one stands.
+  expect(
+    composioOrganizationVerdict(
+      own,
+      dated(
+        "acme",
+        ["acme", "2026-10-11T11:00:00.000Z"],
+        ["jana_workspace", undefined],
+      ),
+    ),
+  ).toEqual({ kind: "chosen", current: "acme" });
+  // Two equally old: neither is taken for the default.
+  expect(
+    composioOrganizationVerdict(
+      own,
+      dated(
+        "acme",
+        ["acme", "2026-09-09T09:00:00.000Z"],
+        ["jana_workspace", "2026-09-09T09:00:00.000Z"],
+      ),
+    ),
+  ).toEqual({ kind: "chosen", current: "acme" });
+  expect(composioOrganizationVerdict(own, [])).toEqual({
+    kind: "chosen",
+    current: null,
+  });
+});
+
+test("the rule: an Organization's Environment by its Organization's name, unverified where it cannot be read, a personal Environment by the account's default, a computer chosen", async () => {
   const folder = join(await parent(), "Lazurio");
   await mkdir(folder, { recursive: true, mode: 0o700 });
   // No Organization of that slug in the Folder: unverified, never the
@@ -231,7 +309,7 @@ test("the rule: an Organization's Environment by its Organization's name, unveri
     { kind: "named", name: "Příklad s.r.o." },
   );
   expect(await composioOrganizationRule(folder, bindings.personal)).toEqual({
-    kind: "chosen",
+    kind: "default",
   });
   expect(await composioOrganizationRule(folder, null)).toEqual({
     kind: "chosen",
@@ -348,7 +426,11 @@ const gmail = {
 
 async function launchpad(
   composio: Partial<FakeComposioState>,
-  rule: { kind: "named"; name: string } | { kind: "unverified" } | null,
+  rule:
+    | { kind: "named"; name: string }
+    | { kind: "default" }
+    | { kind: "unverified" }
+    | null,
 ) {
   const directory = await parent();
   const world = await integrationsWorld(directory, {
@@ -847,7 +929,162 @@ test("the sign-in dialog says in one sentence when its organization is there twi
   }
 });
 
-test("a personal Environment's sign-in dialog leaves the choice to the person", async () => {
+// The sign-in lands in the organization open in Composio's dashboard, which
+// is often one of an Organization, since the person creates those there
+// (the Operator's report of 2026-10-26: a personal Environment showed the
+// apps of a work organization). A personal Environment therefore makes the
+// account's default organization current itself, as an Organization's
+// Environment does with the one of its name (addendum of 2026-10-26).
+test("a personal Environment works in the account's default organization: the sign-in dialog and the reading make it current, with nothing to choose", async () => {
+  const directory = await parent();
+  const world = await integrationsWorld(directory, {
+    composio: {
+      accounts: [gmail],
+      organization: "acme",
+      organizations: [
+        { id: "org_1", name: "acme", created_at: "2026-10-11T11:00:00.000Z" },
+        {
+          id: "org_2",
+          name: "jana_workspace",
+          created_at: "2026-09-09T09:00:00.000Z",
+        },
+      ],
+    },
+  });
+  cleanups.push(() => world.executor.stop());
+  const app = await worldLaunchpad(directory, world, {
+    tools: ["composio"],
+    handover: { preset: "hosted-personal", machine: bindings.personal },
+  });
+  cleanups.push(() => app.close());
+  const answer = await (
+    await app.post("/api/tools/composio/organizations", {})
+  ).json();
+  expect(answer).toMatchObject({
+    kind: "composio-organizations",
+    organization: { name: "jana_workspace", state: "matches", default: true },
+  });
+  expect((await readComposioState(world.home)).organization).toBe(
+    "jana_workspace",
+  );
+  expect(organizationRule(answer)).toEqual({
+    kind: "default",
+    name: "jana_workspace",
+    state: "matches",
+  });
+  // The dialog: connected in it, and nothing to choose, since the next
+  // reading would make it current again.
+  expect(composioDialogView(answer, "op@example.com", messages("en"))).toEqual({
+    kind: "connected",
+    account: "op@example.com",
+    organization: "jana_workspace",
+    choices: null,
+  });
+  // Another one made current behind the reading (an agent's `lazurio tools
+  // composio-org switch`): Integrace's reading brings the default back, and
+  // its accounts and links are the default one's.
+  expect(
+    await (
+      await app.post("/api/tools/composio/organization", { id: "org_1" })
+    ).json(),
+  ).toMatchObject({ kind: "composio-organization-selected", id: "org_1" });
+  const reading = (await (
+    await app.get("/api/integrations?refresh=1")
+  ).json()) as IntegrationsOverview;
+  expect(reading.composio.organization).toEqual({
+    name: "jana_workspace",
+    state: "matches",
+    default: true,
+  });
+  expect(reading.sources.composio).toBe("ok");
+  expect(reading.composio.apps).toBe(
+    "https://dashboard.composio.dev/jana_workspace/~/connect/apps",
+  );
+  expect(composioOrganizationLine(reading, messages("cs"))).toBeNull();
+  expect((await readComposioState(world.home)).organization).toBe(
+    "jana_workspace",
+  );
+  expect(switches(await composioCalls(world.home))).toEqual([
+    "org_2",
+    "org_1",
+    "org_2",
+  ]);
+});
+
+// The default organization that cannot be made current: nothing of
+// Composio counts, as where an Organization's one cannot (point 4), and the
+// person and the agents read its name as Composio names it.
+test("a personal Environment whose default organization cannot be made current: nothing of Composio counts, and its name is Composio's own", async () => {
+  const directory = await parent();
+  const world = await integrationsWorld(directory, {
+    composio: {
+      accounts: [gmail],
+      organization: "acme",
+      switchFails: true,
+      organizations: [
+        { id: "org_1", name: "acme", created_at: "2026-10-11T11:00:00.000Z" },
+        {
+          id: "org_2",
+          name: "jana_workspace",
+          created_at: "2026-09-09T09:00:00.000Z",
+        },
+      ],
+    },
+  });
+  cleanups.push(() => world.executor.stop());
+  const app = await worldLaunchpad(directory, world, {
+    tools: ["composio"],
+    handover: { preset: "hosted-personal", machine: bindings.personal },
+  });
+  cleanups.push(() => app.close());
+  const answer = await (
+    await app.post("/api/tools/composio/organizations", {})
+  ).json();
+  expect(answer).toMatchObject({
+    organization: { name: "jana_workspace", state: "elsewhere", default: true },
+  });
+  expect(composioDialogView(answer, "op@example.com", messages("en"))).toEqual({
+    kind: "problem",
+    message:
+      "Composio could not be switched to your organization “jana_workspace”.",
+  });
+  const reading = (await (
+    await app.get("/api/integrations?refresh=1")
+  ).json()) as IntegrationsOverview;
+  expect(reading.sources.composio).toBe("organization");
+  expect(reading.composio.organization).toEqual({
+    name: "jana_workspace",
+    state: "elsewhere",
+    default: true,
+  });
+  expect(reading.apps.find((item) => item.id === "gmail")?.accounts).toEqual(
+    [],
+  );
+  expect(composioOrganizationLine(reading, messages("en"))).toBe(
+    "Composio could not be switched to your organization “jana_workspace”, so nothing connects through it now. Click Check connections to try again.",
+  );
+  expect(integrationsText(reading)).toContain(
+    'switched to the organization "jana_workspace"',
+  );
+  const link = await app.post("/api/integrations/connect", {
+    app: "salesforce",
+  });
+  expect(link.status).toBe(409);
+  expect(await link.json()).toEqual({
+    kind: "blocked",
+    reason: "composio-organization",
+  });
+  expect(
+    (await composioCalls(world.home)).some(
+      (call) => call[0] === "link" && !call.includes("--list"),
+    ),
+  ).toBe(false);
+});
+
+// A Composio CLI that does not date the organizations (Composio's own, or
+// Lazurio's before 0.4.3-lazurio.3): which one is the default cannot be
+// told, so the person's choice stands and the dialog offers it, as before.
+test("a personal Environment whose CLI does not date the organizations leaves the choice to the person", async () => {
   const directory = await parent();
   const world = await integrationsWorld(directory, {
     composio: {
@@ -1105,6 +1342,54 @@ test("a link after the organization was switched away goes to this Environment's
   );
   expect(back).toBeLessThan(link);
   expect((await readComposioState(world.home)).organization).toBe("priklad");
+});
+
+// The same live check on a personal Environment (addendum of 2026-10-26):
+// a link after another organization was made current behind the reading
+// goes to the account's default one, made current first.
+test("a link on a personal Environment after the organization was switched away goes to the account's default one again", async () => {
+  const { world, app, read } = await launchpad(
+    {
+      organization: "acme",
+      organizations: [
+        { id: "org_1", name: "acme", created_at: "2026-10-11T11:00:00.000Z" },
+        {
+          id: "org_2",
+          name: "jana_workspace",
+          created_at: "2026-09-09T09:00:00.000Z",
+        },
+      ],
+    },
+    { kind: "default" },
+  );
+  expect((await read()).composio.organization).toEqual({
+    name: "jana_workspace",
+    state: "matches",
+    default: true,
+  });
+  expect(
+    await (
+      await app.post("/api/tools/composio/organization", { id: "org_1" })
+    ).json(),
+  ).toMatchObject({ kind: "composio-organization-selected", id: "org_1" });
+  const answer = await app.post("/api/integrations/connect", {
+    app: "salesforce",
+  });
+  expect(answer.status).toBe(200);
+  expect(await answer.json()).toMatchObject({ kind: "authorize" });
+  const calls = await composioCalls(world.home);
+  expect(switches(calls)).toEqual(["org_2", "org_1", "org_2"]);
+  const back = lastIndex(
+    calls,
+    (call) => call[0] === "orgs" && call[1] === "switch",
+  );
+  const link = calls.findIndex(
+    (call) => call[0] === "link" && call[1] === "salesforce",
+  );
+  expect(back).toBeLessThan(link);
+  expect((await readComposioState(world.home)).organization).toBe(
+    "jana_workspace",
+  );
 });
 
 test("a link or a removal when the organization is gone since the reading happens in the person's current one, as the Operator decided", async () => {

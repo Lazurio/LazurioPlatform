@@ -212,7 +212,9 @@ if (command === "whoami") {
 
 // `orgs list` prints its JSON array on stdout when stdout is not a terminal
 // (the CLI's `ui.output`, after its human lines on stderr); `orgs switch
-// --org-id` makes one current, which `whoami` then names.
+// --org-id` makes one current, which `whoami` then names. An organization's
+// `created_at` is printed where the state gives it, as Lazurio's build does
+// from 0.4.3-lazurio.3 on.
 if (command === "orgs" && sub === "list") {
   requireAuth();
   log("composio dev orgs list");
@@ -223,6 +225,9 @@ if (command === "orgs" && sub === "list") {
       (state.organizations ?? []).map((organization) => ({
         id: organization.id,
         name: organization.name,
+        ...(organization.created_at === undefined
+          ? {}
+          : { created_at: organization.created_at }),
         is_selected_global_org: organization.name === current,
       })),
     ),

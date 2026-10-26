@@ -460,7 +460,7 @@ step left to do):
 | --- | --- |
 | `ExampleCompany`, the Organization "Example Company" named as Composio accepts it | that Organization's Environments |
 | one organization for each other Organization, named as it is | that Organization's Environments |
-| the default organization (`<login>_workspace`, made at the sign-up) | the user's personal Environment |
+| the default organization (made at the sign-up, so the account's oldest) | the user's personal Environment |
 
 Nobody else is invited to these organizations and no key is shared: the user
 signs in to Composio with their own account, and Lazurio switches the CLI to the
@@ -490,10 +490,14 @@ in: a Team's account is an ordinary Composio account.
   the Organization's settings, which say whether Composio is allowed, never
   disagree on the owner. Missing or ambiguous is `unverified` (fixed on
   2026-10-13 after rc.65, whose exact comparison left every Environment of an
-  Organization with capitals in its slug `unverified`). Any other Environment, a personal one or a computer, works in
-  the organization the user chose; by advice (this page) a personal
-  Environment's is the default one, and the sign-in dialog offers the choice where
-  the account has several. A name matches by its letters and digits alone
+  Organization with capitals in its slug `unverified`). A personal Environment
+  (a Machine binding whose owner is a person) works in the account's default
+  organization, the one Composio made at the sign-up (F42, addendum of 2026-10-26):
+  Composio marks none as the default and lists the newest first, so the rule takes
+  the oldest by the `created_at` Lazurio's build prints from `0.4.3-lazurio.3` on
+  (`defaultComposioOrganization`). Where the CLI does not date every organization,
+  or two are equally old, it is not guessed: the user's choice stands, as on a
+  computer, where the sign-in dialog offers it among several. A name matches by its letters and digits alone
   (`organizationKey`, note of 2026-10-17, evening): its case, diacritics,
   spaces, punctuation and underscores do not count, so every name Composio
   allows for the Organization matches it ("Human and Machine",
@@ -512,7 +516,9 @@ in: a Team's account is an ordinary Composio account.
 - **The verdict** (`composioOrganizationVerdict`), over `orgs list`: `matches`
   where the one organization of that name is current; `elsewhere` where it
   exists and another is current; `missing` where the account has none;
-  `ambiguous` where it has more than one, and none is guessed.
+  `ambiguous` where it has more than one, and none is guessed. For a personal
+  Environment `matches` or `elsewhere` for the default organization, and
+  `chosen` where it cannot be told.
 - **Brought current** (`convergeComposioOrganization`): the reading (only where
   Composio is installed, signed in, on and allowed), and the sign-in dialog of
   Settings → Tools after a sign-in, make an `elsewhere` organization current
@@ -521,8 +527,10 @@ in: a Team's account is an ordinary Composio account.
   link and every removal asks it live first (`inOwnOrganization`), never the
   cached reading: it switches back where another organization was chosen, goes
   to the current one where the account has none of the name or several, and
-  refuses with `composio-organization` where the organization cannot be told. A
-  user's choice is never changed.
+  refuses with `composio-organization` where the organization cannot be told.
+  On a personal Environment it brings the default organization current the same
+  way, so the sign-in dialog shows no choice there. A user's choice is never
+  changed on a computer, nor where the default organization cannot be told.
 - **Missing or there more than once** (Matěj's decision of 2026-10-13):
   Composio works in the user's current organization, its accounts count and
   links and removals go there; Apps → Integrace says what to do with a link to
@@ -542,7 +550,9 @@ in: a Team's account is an ordinary Composio account.
   `organization`: none of its accounts is listed, and a link or a removal is
   refused (`409 composio-organization`) with nothing written. The reading's
   `composio.organization` is `{name, state}` on an Organization's Environment
-  (the name null where it is `unverified`), null elsewhere.
+  (the name null where it is `unverified`), `{name, state, default: true}` on a
+  personal Environment (the name as Composio gives it, `matches` or `elsewhere`),
+  null elsewhere.
 - **Creating one** is the user's, in Composio's dashboard: neither its CLI nor
   its documented API creates or renames an organization (the API lists them, the
   CLI lists and switches). The sign-in dialog and Apps → Integrace find it by

@@ -104,7 +104,9 @@ export function githubAccount(overview: ToolsReading): string | null {
  * `unfinished` where it is signed in, but the organizations' reading says it
  * does not work in the organization of this Environment's Organization's
  * name (missing, there twice, not made current, or the name unreadable;
- * decision F42, note of 2026-10-19). */
+ * decision F42, note of 2026-10-19), or on a person's own Environment that
+ * the account's default organization could not be made current (addendum of
+ * 2026-10-26). */
 export type ComposioFact = "missing" | "unfinished" | "connected" | "none";
 
 /** `organization` is the rule of the last answer of
@@ -119,7 +121,8 @@ export function composioFact(
   if (composio.signIn?.state !== "signed-in") return "missing";
   return organization === null ||
     organization.kind === "chosen" ||
-    (organization.kind === "named" && organization.state === "matches")
+    ((organization.kind === "named" || organization.kind === "default") &&
+      organization.state === "matches")
     ? "connected"
     : "unfinished";
 }
