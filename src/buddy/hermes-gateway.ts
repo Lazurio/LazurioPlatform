@@ -53,6 +53,12 @@ import { basename, dirname, isAbsolute, join } from "node:path";
 //   ticket (`401`: Hermes authenticates before any route runs) is replaced
 //   once with a new one; nothing else is ever tried again, a write least of
 //   all.
+// - A body goes out only with the writes named in `gatewayBodyCalls`
+//   (decision F66: Buddy's Telegram through Hermes's own writers): a JSON
+//   object of at most 16 KiB, as `application/json`, with its exact length.
+//   It may hold a secret (the bot's token), so it is serialized once, sent
+//   with the call and, after a 401, with the one replacement ticket, and
+//   never kept, logged or answered.
 //
 // The ticket, the gateway's answers and the paths never leave this module
 // except as the answer of a request to its caller.
@@ -126,18 +132,43 @@ type HttpAnswer = Readonly<{ status: number; body: unknown }>;
 export type GatewayAnswer = HttpAnswer &
   Readonly<{ instanceId: string; contract: boolean }>;
 
-export type GatewayMethod = "GET" | "POST" | "DELETE";
+export type GatewayMethod = "GET" | "POST" | "PUT" | "DELETE";
+
+/** The only calls that carry a JSON body (decision F66): Hermes's own
+ * writers of Buddy's Telegram, its messaging platform, its allowlist and
+ * home channel, its pairing approval and the quiet keys of its display.
+ * Any other call with a body is refused before anything is sent. */
+export const gatewayBodyCalls: ReadonlySet<string> = Object.freeze(
+  new Set([
+    "PUT /api/messaging/platforms/telegram",
+    "POST /api/pairing/approve",
+    "PUT /api/env",
+    "DELETE /api/env",
+    "PUT /api/config",
+  ]),
+);
+
+/** A body of at most this many bytes: Telegram's settings are a few
+ * hundred. */
+export const gatewayBodyBytesMax = 16 * 1024;
+
+export type GatewayRequestOptions = Readonly<{
+  requireContract?: boolean;
+  /** A JSON object, only for a call of `gatewayBodyCalls`. */
+  body?: Readonly<Record<string, unknown>>;
+}>;
 
 export type HermesGateway = Readonly<{
   identify(): Promise<GatewayResult<GatewayEndpoint>>;
   /** One call of Hermes's dashboard API with a ticket of its own; `path`
-   * is an `/api/` path without a query. A body is never sent. With
-   * `requireContract`, a gateway that does not advertise Hermes's OAuth
-   * cancellation contract is not asked (`outdated`). */
+   * is an `/api/` path without a query. A body only for the writes of
+   * `gatewayBodyCalls`, as JSON. With `requireContract`, a gateway that
+   * does not advertise Hermes's OAuth cancellation contract is not asked
+   * (`outdated`). */
   request(
     method: GatewayMethod,
     path: string,
-    options?: Readonly<{ requireContract?: boolean }>,
+    options?: GatewayRequestOptions,
   ): Promise<GatewayResult<GatewayAnswer>>;
 }>;
 
@@ -429,13 +460,15 @@ async function mintTicket(
 }
 
 /** One HTTP exchange with the gateway's listener: exactly these headers, no
- * proxy, no redirect, bounded in time and size. */
+ * proxy, no redirect, bounded in time and size; `body`, already serialized,
+ * as JSON with its exact length. */
 function httpExchange(
   origin: string,
   method: GatewayMethod,
   path: string,
   ticket: string,
   timeoutMs: number,
+  body: Buffer | undefined,
 ): Promise<GatewayResult<HttpAnswer>> {
   const url = new URL(origin);
   return new Promise((resolve) => {
@@ -458,7 +491,14 @@ function httpExchange(
           host: url.host,
           accept: "application/json",
           "x-hermes-gateway-ticket": ticket,
-          ...(method === "GET" ? {} : { "content-length": "0" }),
+          ...(body !== undefined
+            ? {
+                "content-type": "application/json",
+                "content-length": String(body.byteLength),
+              }
+            : method === "GET"
+              ? {}
+              : { "content-length": "0" }),
         },
       },
       (response) => {
@@ -489,8 +529,26 @@ function httpExchange(
     );
     const timer = setTimeout(() => finish(failed("timeout")), timeoutMs);
     outgoing.on("error", () => finish(failed("not-ready")));
-    outgoing.end();
+    if (body === undefined) outgoing.end();
+    else outgoing.end(body);
   });
+}
+
+/** The body of a named write, serialized once: a plain JSON object of at
+ * most `gatewayBodyBytesMax` bytes. Anything else is a caller's error. */
+function serializedBody(
+  method: GatewayMethod,
+  path: string,
+  body: Readonly<Record<string, unknown>> | undefined,
+): Buffer | undefined {
+  if (body === undefined) return undefined;
+  if (!gatewayBodyCalls.has(`${method} ${path}`))
+    throw new Error("Only a named write of Hermes carries a body");
+  if (!isObject(body)) throw new Error("A body is one JSON object");
+  const bytes = Buffer.from(JSON.stringify(body), "utf8");
+  if (bytes.byteLength > gatewayBodyBytesMax)
+    throw new Error("A body of at most 16 KiB is sent");
+  return bytes;
 }
 
 export function createHermesGateway(
@@ -524,10 +582,11 @@ export function createHermesGateway(
     async request(
       method: GatewayMethod,
       path: string,
-      options: Readonly<{ requireContract?: boolean }> = {},
+      options: GatewayRequestOptions = {},
     ) {
       if (!apiPath.test(path) || path.includes(".."))
         throw new Error("Only an /api/ path without a query is asked");
+      const body = serializedBody(method, path, options.body);
       for (let attempt = 0; ; attempt += 1) {
         const endpoint = await identify();
         if (!endpoint.ok) return endpoint;
@@ -546,10 +605,12 @@ export function createHermesGateway(
           path,
           ticket.value,
           httpMs,
+          body,
         );
         if (!answer.ok) return answer;
-        const { status, body } = answer.value;
-        // Hermes authenticates before any route runs: nothing ran.
+        const { status, body: answered } = answer.value;
+        // Hermes authenticates before any route runs: nothing ran, a write
+        // included, so its one replacement ticket carries the same body.
         if (status === 401) {
           if (attempt === 0) continue;
           return failed("refused");
@@ -557,13 +618,15 @@ export function createHermesGateway(
         // The listener stopped taking requests between `identify` and now.
         if (
           status === 503 &&
-          isObject(body) &&
-          body.error === "gateway_not_ready"
+          isObject(answered) &&
+          answered.error === "gateway_not_ready"
         )
-          return failed(body.state === "draining" ? "draining" : "not-ready");
+          return failed(
+            answered.state === "draining" ? "draining" : "not-ready",
+          );
         return succeeded({
           status,
-          body,
+          body: answered,
           instanceId: endpoint.value.instanceId,
           contract: endpoint.value.contract,
         });

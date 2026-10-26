@@ -4,6 +4,8 @@ import { join } from "node:path";
 import {
   createHermesGateway,
   type GatewayResult,
+  gatewayBodyBytesMax,
+  gatewayBodyCalls,
   oauthCancelContract,
 } from "../src/buddy/hermes-gateway";
 import {
@@ -692,4 +694,208 @@ posix("only an /api/ path without a query is ever asked", () =>
       await expect(client(fake).request("GET", path)).rejects.toThrow();
     expect(fake.control).toHaveLength(0);
   }),
+);
+
+// Decision F66: a body only for Hermes's own writers of Buddy's Telegram.
+
+/** A token of a bot's shape, made here so the repository holds none. */
+const syntheticToken = `${"7".repeat(10)}:AAH${"x".repeat(32)}`;
+
+posix(
+  "a named write carries its JSON body as application/json with its exact length; every other call carries none",
+  () =>
+    within({}, async (fake) => {
+      const gateway = client(fake);
+      const body = {
+        env: { TELEGRAM_BOT_TOKEN: syntheticToken },
+        enabled: true,
+      };
+      const answer = await gateway.request(
+        "PUT",
+        "/api/messaging/platforms/telegram",
+        { body },
+      );
+      expect(answer.ok && answer.value.status).toBe(200);
+      await gateway.request("GET", "/api/messaging/platforms");
+      await gateway.request("POST", "/api/providers/oauth/openai-codex/start");
+      const [put, get, post] = fake.requests;
+      expect(put?.method).toBe("PUT");
+      expect(put?.body).toBe(JSON.stringify(body));
+      expect(put?.headers["content-type"]).toBe("application/json");
+      expect(put?.headers["content-length"]).toBe(
+        String(Buffer.byteLength(JSON.stringify(body))),
+      );
+      // The same grant as every call: one ticket, no Origin, no proxy.
+      expect(put?.headers["x-hermes-gateway-ticket"]).toBe(
+        fake.spent[0] as string,
+      );
+      for (const name of ["origin", "referer", "cookie", "authorization"])
+        expect(put?.headers[name]).toBeUndefined();
+      expect(get?.body).toBe("");
+      expect(get?.headers["content-type"]).toBeUndefined();
+      expect(post?.body).toBe("");
+      expect(post?.headers["content-length"]).toBe("0");
+      // The answer is Hermes's; the token is not in it.
+      expect(JSON.stringify(answer)).not.toContain(syntheticToken);
+    }),
+);
+
+posix(
+  "a body only for the named writes, one JSON object of at most 16 KiB: anything else is refused before anything is sent",
+  () =>
+    within({}, async (fake) => {
+      const gateway = client(fake);
+      expect([...gatewayBodyCalls].sort()).toEqual([
+        "DELETE /api/env",
+        "POST /api/pairing/approve",
+        "PUT /api/config",
+        "PUT /api/env",
+        "PUT /api/messaging/platforms/telegram",
+      ]);
+      const refused: [
+        Parameters<typeof gateway.request>[0],
+        string,
+        unknown,
+      ][] = [
+        ["GET", "/api/messaging/platforms", { a: 1 }],
+        ["POST", "/api/providers/oauth/openai-codex/start", {}],
+        ["PUT", "/api/messaging/platforms/discord", { enabled: true }],
+        ["POST", "/api/pairing/revoke", { platform: "telegram" }],
+        ["PUT", "/api/messaging/platforms/telegram", ["not", "an", "object"]],
+        [
+          "PUT",
+          "/api/config",
+          { config: { big: "x".repeat(gatewayBodyBytesMax) } },
+        ],
+      ];
+      for (const [method, path, body] of refused)
+        await expect(
+          gateway.request(method, path, {
+            body: body as Record<string, unknown>,
+          }),
+        ).rejects.toThrow();
+      // Asked nothing: not who it is, no ticket, no call.
+      expect(fake.control).toHaveLength(0);
+      expect(fake.requests).toHaveLength(0);
+      // At the bound it goes.
+      const config = { config: { a: "" } };
+      const room =
+        gatewayBodyBytesMax - Buffer.byteLength(JSON.stringify(config));
+      const answer = await gateway.request("PUT", "/api/config", {
+        body: { config: { a: "x".repeat(room) } },
+      });
+      expect(answer.ok && answer.value.status).toBe(200);
+      expect(fake.requests[0]?.body).toHaveLength(gatewayBodyBytesMax);
+    }),
+);
+
+posix(
+  "a write refused at authentication is sent once more with the same body and a new ticket; any other answer of a write is never sent again",
+  () =>
+    within({}, async (fake) => {
+      const body = { env: { TELEGRAM_ALLOWED_USERS: "123456789" } };
+      let refusals = 1;
+      fake.state.http = () =>
+        refusals-- > 0
+          ? Response.json(recorded.http.unauthorized.body, { status: 401 })
+          : undefined;
+      const answer = await client(fake).request(
+        "PUT",
+        "/api/messaging/platforms/telegram",
+        { body },
+      );
+      expect(answer.ok && answer.value.status).toBe(200);
+      expect(fake.requests.map((request) => request.body)).toEqual([
+        JSON.stringify(body),
+        JSON.stringify(body),
+      ]);
+      expect(new Set(fake.spent).size).toBe(2);
+      expect(fake.state.telegram.allowed).toBe("123456789");
+
+      // Refused twice: `refused`, and not a third time.
+      fake.requests.length = 0;
+      fake.state.http = () =>
+        Response.json(recorded.http.unauthorized.body, { status: 401 });
+      expect(
+        await client(fake).request("PUT", "/api/env", {
+          body: { key: "TELEGRAM_HOME_CHANNEL", value: "123456789" },
+        }),
+      ).toEqual(failure("refused"));
+      expect(fake.requests).toHaveLength(2);
+
+      // A failed write is its answer: sent once.
+      fake.requests.length = 0;
+      fake.state.http = () =>
+        Response.json({ detail: "Internal server error" }, { status: 500 });
+      const failed = await client(fake).request(
+        "POST",
+        "/api/pairing/approve",
+        { body: { platform: "telegram", request_id: "0123456789abcdef" } },
+      );
+      expect(failed.ok && failed.value.status).toBe(500);
+      expect(fake.requests).toHaveLength(1);
+      // The gateway stops answering in the middle: not sent again either.
+      fake.requests.length = 0;
+      fake.state.http = () =>
+        new Promise<Response>(() => {
+          // never answers
+        });
+      expect(
+        await createHermesGateway({
+          home: fake.userHome,
+          httpMs: 200,
+        }).request("DELETE", "/api/env", {
+          body: { key: "TELEGRAM_HOME_CHANNEL" },
+        }),
+      ).toEqual(failure("timeout"));
+      expect(fake.requests).toHaveLength(1);
+    }),
+);
+
+posix(
+  "HTTP_PROXY never sees a body: a write goes to the loopback listener itself",
+  () =>
+    within({}, async (fake) => {
+      const proxied: string[] = [];
+      const proxy = Bun.serve({
+        hostname: "127.0.0.1",
+        port: 0,
+        async fetch(request) {
+          proxied.push(await request.text());
+          return Response.json({ ok: true });
+        },
+      });
+      try {
+        const module = join(import.meta.dir, "../src/buddy/hermes-gateway.ts");
+        const child = Bun.spawn(
+          [
+            process.execPath,
+            "-e",
+            `const { createHermesGateway } = await import(${JSON.stringify(module)});
+             const answer = await createHermesGateway({ home: process.argv.at(-1) })
+               .request("PUT", "/api/messaging/platforms/telegram", { body: { env: { TELEGRAM_BOT_TOKEN: process.argv.at(-2) }, enabled: true } });
+             console.log(JSON.stringify(answer.ok ? answer.value.status : answer));`,
+            syntheticToken,
+            fake.userHome,
+          ],
+          {
+            env: {
+              ...process.env,
+              HTTP_PROXY: `http://127.0.0.1:${proxy.port}`,
+              http_proxy: `http://127.0.0.1:${proxy.port}`,
+              NO_PROXY: "",
+              no_proxy: "",
+            },
+            stdout: "pipe",
+            stderr: "pipe",
+          },
+        );
+        expect(await new Response(child.stdout).text()).toBe("200\n");
+        expect(await child.exited).toBe(0);
+        expect(proxied).toEqual([]);
+        expect(fake.state.telegram.token).toBe(syntheticToken);
+      } finally {
+        proxy.stop(true);
+      }
+    }),
 );
