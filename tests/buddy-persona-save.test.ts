@@ -1,10 +1,21 @@
 import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
   owePromptRefresh,
+  promptInputsPath,
+  promptRefreshMarked,
+  readPromptInputs,
+  recordPromptInputs,
   settlePromptRefresh,
 } from "../src/buddy/gateway-refresh";
 import { personaPath, writePersona } from "../src/buddy/persona";
@@ -16,7 +27,9 @@ import {
   type PersonaTimers,
   personaFailedRetryMs,
   personaRetryMs,
+  personaWatchMs,
 } from "../src/buddy/persona-save";
+import { buddyRulesPath } from "../src/folder/outputs";
 
 // Decision F65: Buddy's persona as Začínáme and Nastavení → Buddy read and
 // change it, over F64's core. A change is written only over the file the
@@ -102,17 +115,29 @@ function applies(...answers: BuddyPersona["state"][]) {
   };
 }
 
+/** Where Buddy reads his rules: `.agents/buddy/.hermes.md` of the Folder. */
+const rulesOf = (folder: string) => join(folder, buddyRulesPath);
+
+/** A home with Buddy's persona and a Folder with his rules, which his last
+ * complete refresh was built from (F64's addendum of 2026-10-25), as an
+ * installed Buddy's. */
 async function within(
-  body: (home: string) => Promise<void>,
+  body: (home: string, folder: string) => Promise<void>,
   options: Readonly<{ persona?: boolean }> = {},
 ) {
   const home = await realpath(await mkdtemp(join(tmpdir(), "persona-save-")));
+  const folder = join(home, "Lazurio");
   try {
     if (options.persona !== false) {
       await mkdir(dirname(personaPath(home)), { recursive: true, mode: 0o700 });
       expect((await writePersona(home, values, null)).kind).toBe("written");
     }
-    await body(home);
+    await mkdir(dirname(rulesOf(folder)), { recursive: true, mode: 0o700 });
+    await writeFile(rulesOf(folder), "Buddy's rules of this release\n", {
+      mode: 0o600,
+    });
+    await recordPromptInputs(home, await readPromptInputs(folder));
+    await body(home, folder);
   } finally {
     await rm(home, { recursive: true, force: true });
   }
@@ -121,8 +146,8 @@ async function within(
 posix(
   "the persona as the page shows it: the names, whether confirmed, the revision of its file; none without one",
   async () => {
-    await within(async (home) => {
-      const save = createPersonaSave({ home, apply: applies().apply });
+    await within(async (home, folder) => {
+      const save = createPersonaSave({ home, folder, apply: applies().apply });
       expect(await save.read()).toEqual({
         buddyName: "Rex",
         address: "ty",
@@ -134,12 +159,17 @@ posix(
       save.close();
     });
     await within(
-      async (home) => {
-        const save = createPersonaSave({ home, apply: applies().apply });
+      async (home, folder) => {
+        const save = createPersonaSave({
+          home,
+          folder,
+          apply: applies().apply,
+        });
         expect(await save.read()).toBeNull();
         // No home known: nothing read, nothing written.
         const none = createPersonaSave({
           home: undefined,
+          folder,
           apply: applies().apply,
         });
         expect(await none.read()).toBeNull();
@@ -156,12 +186,13 @@ posix(
 posix(
   "a change is written over the file the page read, then applied; the confirmation stays once given; the journal names no name, value or revision",
   async () => {
-    await within(async (home) => {
+    await within(async (home, folder) => {
       const journal: PersonaJournalEntry[] = [];
       const fake = applies("applied");
       const hand = handTimers();
       const save = createPersonaSave({
         home,
+        folder,
         apply: fake.apply,
         journal: (entry) => journal.push(entry),
         now: hand.now,
@@ -228,11 +259,12 @@ posix(
 posix(
   "a change over another revision is persona-changed with the persona as it is now, and writes nothing",
   async () => {
-    await within(async (home) => {
+    await within(async (home, folder) => {
       const journal: PersonaJournalEntry[] = [];
       const fake = applies("applied");
       const save = createPersonaSave({
         home,
+        folder,
         apply: fake.apply,
         journal: (entry) => journal.push(entry),
       });
@@ -269,11 +301,12 @@ posix(
 posix(
   "each member the installer would refuse is named, whatever the file, and nothing is written",
   async () => {
-    await within(async (home) => {
+    await within(async (home, folder) => {
       const journal: PersonaJournalEntry[] = [];
       const fake = applies("applied");
       const save = createPersonaSave({
         home,
+        folder,
         apply: fake.apply,
         journal: (entry) => journal.push(entry),
       });
@@ -317,12 +350,13 @@ posix(
 posix(
   "while Buddy is busy the change waits: pending, and the Launchpad applies again until it is in place",
   async () => {
-    await within(async (home) => {
+    await within(async (home, folder) => {
       const journal: PersonaJournalEntry[] = [];
       const fake = applies("waiting", "waiting", "applied");
       const hand = handTimers();
       const save = createPersonaSave({
         home,
+        folder,
         apply: fake.apply,
         journal: (entry) => journal.push(entry),
         now: hand.now,
@@ -362,11 +396,12 @@ posix(
 posix(
   "an apply that takes longer than a moment answers waiting and finishes on its own; a save joins the apply under way",
   async () => {
-    await within(async (home) => {
+    await within(async (home, folder) => {
       let finish: (answer: BuddyPersona) => void = () => undefined;
       let calls = 0;
       const save = createPersonaSave({
         home,
+        folder,
         apply: () => {
           calls += 1;
           return new Promise<BuddyPersona>((resolve) => {
@@ -404,11 +439,12 @@ posix(
 posix(
   "a refresh still owed after a restart of the Launchpad is taken up by a reading, once, not again a moment later",
   async () => {
-    await within(async (home) => {
+    await within(async (home, folder) => {
       const fake = applies("unavailable");
       const hand = handTimers();
       const save = createPersonaSave({
         home,
+        folder,
         apply: fake.apply,
         now: hand.now,
         timers: hand.timers,
@@ -437,14 +473,162 @@ posix(
 );
 
 posix(
+  "a reading takes up the refresh Buddy's changed Lazurio layer owes as it takes up the marker (F64's addendum of 2026-10-25): it writes nothing itself and starts one apply; no record counts too",
+  async () => {
+    await within(async (home, folder) => {
+      const fake = applies("applied");
+      const hand = handTimers();
+      const save = createPersonaSave({
+        home,
+        folder,
+        apply: fake.apply,
+        now: hand.now,
+        timers: hand.timers,
+      });
+      expect((await save.read())?.pending).toBe(false);
+      await tick();
+      expect(fake.calls()).toBe(0);
+      // A Platform update's Folder refresh rewrites his rules.
+      const recorded = await readFile(promptInputsPath(home), "utf8");
+      await writeFile(rulesOf(folder), "Buddy's rules of the next release\n");
+      expect((await save.read())?.pending).toBe(true);
+      await tick();
+      expect(fake.calls()).toBe(1);
+      // F64's apply is the one writer: the reading left both records alone.
+      expect(await readFile(promptInputsPath(home), "utf8")).toBe(recorded);
+      expect(await promptRefreshMarked(home)).toBe(false);
+      // The apply refreshed and recorded the layer it began with.
+      await recordPromptInputs(home, await readPromptInputs(folder));
+      await hand.pass(personaRetryMs);
+      expect((await save.read())?.pending).toBe(false);
+      await tick();
+      expect(fake.calls()).toBe(1);
+      // No record, as on a Buddy before this release: owed as well.
+      await rm(promptInputsPath(home));
+      expect((await save.read())?.pending).toBe(true);
+      await tick();
+      expect(fake.calls()).toBe(2);
+      save.close();
+    });
+  },
+);
+
+posix(
+  "the Launchpad's start reads once: a refresh owed since it last ran, a changed layer's included, starts one apply, and the start resolves when that apply ended; nothing owed starts none; a closed controller starts none",
+  async () => {
+    await within(async (home, folder) => {
+      // Nothing owed: the start reads and applies nothing.
+      const quiet = applies("applied");
+      const idle = createPersonaSave({ home, folder, apply: quiet.apply });
+      await idle.start();
+      expect(quiet.calls()).toBe(0);
+      idle.close();
+
+      // A Platform update wrote his new rules while no Launchpad ran.
+      await writeFile(rulesOf(folder), "Buddy's rules of the next release\n");
+      let finish: (answer: BuddyPersona) => void = () => undefined;
+      let calls = 0;
+      const journal: PersonaJournalEntry[] = [];
+      const save = createPersonaSave({
+        home,
+        folder,
+        apply: () => {
+          calls += 1;
+          return new Promise<BuddyPersona>((resolve) => {
+            finish = resolve;
+          });
+        },
+        journal: (entry) => journal.push(entry),
+      });
+      let started = false;
+      const start = save.start().then(() => {
+        started = true;
+      });
+      await tick();
+      expect(calls).toBe(1);
+      // The start waits for the apply it began.
+      expect(started).toBe(false);
+      finish({ kind: "buddy-persona", state: "applied", restart: "done" });
+      await start;
+      expect(started).toBe(true);
+      expect(calls).toBe(1);
+      expect(journal).toEqual([{ operation: "apply", outcome: "applied" }]);
+      save.close();
+
+      // A controller the Launchpad already closed starts nothing.
+      const closed = applies("applied");
+      const late = createPersonaSave({ home, folder, apply: closed.apply });
+      late.close();
+      await late.start();
+      expect(closed.calls()).toBe(0);
+    });
+  },
+);
+
+/** Waits until `ready`, at most a second. */
+async function until(ready: () => boolean) {
+  for (let round = 0; round < 200 && !ready(); round += 1) await tick();
+  expect(ready()).toBe(true);
+}
+
+posix(
+  "after its start the Launchpad reads every two minutes on its own: his new rules, written by a Folder refresh after the Launchpad restarted, and a marker the command left, are each taken up by the next reading; nothing owed starts nothing; close stops it",
+  async () => {
+    await within(async (home, folder) => {
+      const fake = applies("applied");
+      const hand = handTimers();
+      const save = createPersonaSave({
+        home,
+        folder,
+        apply: fake.apply,
+        now: hand.now,
+        timers: hand.timers,
+      });
+      await save.start();
+      expect(fake.calls()).toBe(0);
+      expect(hand.set()).toEqual([personaWatchMs]);
+      // Nothing owed: a reading, and no apply.
+      await hand.pass(personaWatchMs);
+      for (let round = 0; round < 10; round += 1) await tick();
+      expect(fake.calls()).toBe(0);
+      expect(hand.set()).toEqual([personaWatchMs]);
+      // Machines' apply refreshes the Folder after the Platform's own update
+      // restarted the Launchpad: his new rules arrive after its start.
+      await writeFile(rulesOf(folder), "Buddy's rules of the next release\n");
+      await hand.pass(personaWatchMs);
+      await until(() => fake.calls() === 1);
+      // Applied and recorded: the next reading finds nothing owed.
+      await recordPromptInputs(home, await readPromptInputs(folder));
+      await hand.pass(personaWatchMs);
+      for (let round = 0; round < 10; round += 1) await tick();
+      expect(fake.calls()).toBe(1);
+      // A `lazurio buddy persona --apply` that waited for him left its
+      // marker.
+      await owePromptRefresh(home);
+      await hand.pass(personaWatchMs);
+      await until(() => fake.calls() === 2);
+      // A second start sets no second watch; close stops the one there is.
+      await settlePromptRefresh(home);
+      await save.start();
+      expect(hand.set()).toEqual([personaWatchMs]);
+      save.close();
+      expect(hand.set()).toEqual([]);
+      await hand.pass(personaWatchMs);
+      expect(fake.calls()).toBe(2);
+    });
+  },
+);
+
+posix(
   "a failed apply is asked again later and later; an apply that throws counts as failed; after close nothing runs",
   async () => {
-    await within(async (home) => {
+    await within(async (home, folder) => {
       const journal: PersonaJournalEntry[] = [];
       let calls = 0;
       const hand = handTimers();
       const save = createPersonaSave({
         home,
+        folder,
         apply: async () => {
           calls += 1;
           if (calls === 1) throw new Error("spawn failed");

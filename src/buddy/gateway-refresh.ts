@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { constants } from "node:fs";
 import {
   lstat,
   mkdir,
@@ -11,6 +12,7 @@ import {
 } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { basename, dirname, isAbsolute, join } from "node:path";
+import { buddyLayerPaths } from "../folder/outputs";
 import type { ToolRunner } from "../tools/status";
 
 // How a change of what Buddy's gateway reads reaches his running
@@ -23,9 +25,11 @@ import type { ToolRunner } from "../tools/status";
 // environment (gateway/run_agent_cache.py). So a change takes two steps,
 // the installer's (`buddy-install.sh`, step 13):
 //
-// 1. `hermes sessions repair-prompts <id> --apply --json` for every live
-//    conversation that holds a stored prompt clears it, so its next turn
-//    builds it anew; the store, not the command's exit, says it worked;
+// 1. `hermes sessions repair-prompts <id> --apply --json` for every
+//    conversation that holds a stored prompt and can still take a turn
+//    (live, or ended in a way Hermes resumes: `resumableConversations`)
+//    clears it, so its next turn builds it anew; the store, not the
+//    command's exit, says it worked;
 // 2. one restart of `hermes-gateway.service` drops the agents it keeps and
 //    gives it its drop-in's environment, only while Hermes's own
 //    `active-work` verb (gateway/run_active_work_verb.py, the answer its
@@ -42,6 +46,14 @@ import type { ToolRunner } from "../tools/status";
 // they are stale, so a refresh that is owed is recorded: a marker written
 // before SOUL.md changes and removed only after a complete refresh and the
 // restart that follows it.
+//
+// Buddy's prompts are built from his Lazurio layer in the Folder too
+// (`buddyLayerPaths`: `.agents/buddy/.hermes.md`, which Hermes loads from his
+// working directory, and his Lazurio skills), which a Platform release
+// changes through any of the Folder's entry points, none of which knows his
+// home. So a complete refresh also records what that layer was when the
+// refresh began, and a layer whose bytes are no longer those owes the next
+// refresh, whoever changed it (F64's addendum of 2026-10-25).
 
 /** Hermes's own user unit of Buddy's gateway (`hermes gateway install`). */
 export const gatewayUnit = "hermes-gateway.service";
@@ -327,12 +339,31 @@ const sessionIdShape = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
  * incomplete, and the next one goes on with what still holds a prompt. */
 export const promptRefreshCap = 500;
 
-/** A live conversation and the stored prompt it holds: Hermes keeps it by
- * content hash (`sessions.system_prompt_hash`, v0.22.4-lazurio.1), an older
- * row inline (`system_prompt`). Only the hash, or that an inline prompt is
- * there, is read: never a prompt. `unknown` where the store has neither
- * column. */
+/** A conversation and the stored prompt it holds: Hermes keeps it by content
+ * hash (`sessions.system_prompt_hash`, v0.22.4-lazurio.1), an older row
+ * inline (`system_prompt`). Only the hash, or that an inline prompt is there,
+ * is read: never a prompt. `unknown` where the store has neither column. */
 type Held = Readonly<{ id: unknown; prompt: string | null }>;
+
+/** End reasons after which Hermes never takes a turn in a row again
+ * (Lazurio/hermes-agent v0.22.4-lazurio.3, `hermes_state_common.py`): a
+ * compression split goes on in its continuation, and a deliberate boundary
+ * (`_BOUNDARY_END_REASONS`: the resets and `/new`) in a new session. Any other
+ * end leaves a row that its conversation's next turn reopens with the prompt
+ * it stored: the last viewer leaving an ACP session (`acp_disconnect`,
+ * `gateway/session_acp_lifecycle.py`), a runtime that closed, was reaped or
+ * was evicted (`gateway/session_local_recovery.py` `reopen_local_session`
+ * reopens a local conversation's latest row whatever its reason). */
+const supersededEndReasons = [
+  "compression",
+  "new_session",
+  "session_reset",
+  "session_switch",
+  "idle",
+  "daily",
+  "suspended",
+  "resume_pending_expired",
+] as const;
 
 type Columns = Readonly<{
   hash: boolean;
@@ -386,11 +417,23 @@ async function withStore<T>(
 const selected = (columns: Columns) =>
   `id, ${columns.hash ? "system_prompt_hash" : "null"} as hash, ${columns.inline ? "system_prompt is not null" : "0"} as inline`;
 
-/** Buddy's live conversations that hold a stored prompt: not ended, no tool's
- * or child's session (the installer's `live_sessions`), newest first, at most
- * `cap` and whether there were more. Every live conversation where the store
- * cannot say whether it holds one. */
-export async function liveConversations(
+/** Buddy's conversations that hold a stored prompt and can still take a turn,
+ * newest first, at most `cap` and whether there were more:
+ * - live ones, not ended, as the installer's `live_sessions` selects them;
+ * - ended ones Hermes resumes. The web chat's ACP session ends whenever its
+ *   last viewer leaves (`acp_disconnect`), and T3 Code's next message reopens
+ *   it with the prompt it stored. So an ended row counts unless its end says
+ *   its conversation went on in another row or stopped
+ *   (`supersededEndReasons`), and only with messages: an editor lists and
+ *   loads no empty session (`acp_adapter/catalog.py`). Only where the store
+ *   says which rows hold a prompt and why they ended;
+ * - never a tool's session or a subagent's run, which Hermes marks
+ *   `_delegate_from` (`model_config`). A compression's or a reset's
+ *   continuation counts: that is the row a long conversation goes on in.
+ *   Without `model_config` every child row is left out, as the installer
+ *   leaves them.
+ * Every live conversation where the store cannot say whether it holds one. */
+export async function resumableConversations(
   hermesHome: string,
   cap: number = promptRefreshCap,
 ): Promise<
@@ -398,14 +441,33 @@ export async function liveConversations(
 > {
   return withStore(hermesHome, (store, columns) => {
     const { names } = columns;
-    const where = ["ended_at is null"];
-    if (names.has("source")) where.push("coalesce(source, '') != 'tool'");
-    if (names.has("parent_session_id")) where.push("parent_session_id is null");
     const holds = [
       ...(columns.hash ? ["system_prompt_hash is not null"] : []),
       ...(columns.inline ? ["system_prompt is not null"] : []),
     ];
+    const where: string[] = [];
     if (holds.length > 0) where.push(`(${holds.join(" or ")})`);
+    if (names.has("source")) where.push("coalesce(source, '') != 'tool'");
+    if (names.has("model_config"))
+      where.push(
+        "(case when json_valid(model_config) then json_extract(model_config, '$._delegate_from') end) is null",
+      );
+    else if (names.has("parent_session_id"))
+      where.push("parent_session_id is null");
+    const resumed =
+      holds.length > 0 && names.has("end_reason")
+        ? [
+            `coalesce(end_reason, '') not in (${supersededEndReasons.map((reason) => `'${reason}'`).join(", ")})`,
+            ...(names.has("message_count")
+              ? ["coalesce(message_count, 0) > 0"]
+              : []),
+          ]
+        : undefined;
+    where.push(
+      resumed === undefined
+        ? "ended_at is null"
+        : `(ended_at is null or (${resumed.join(" and ")}))`,
+    );
     const order =
       ["started_at", "created_at"].find((column) => names.has(column)) ??
       "rowid";
@@ -447,11 +509,14 @@ async function heldNow(
   return now === "absent" ? new Map() : now;
 }
 
-/** What clearing the stored prompts did. `refreshed`: every live
- * conversation that held a stored prompt holds it no more. `incomplete`: some
- * still hold the prompt they held (a command that failed or did nothing, an
- * id never passed to a command), or there were more than the cap. `skipped`:
- * nothing could be cleared. Only the last two leave a refresh owed. */
+/** What clearing the stored prompts did. `refreshed`: every conversation
+ * that held a stored prompt and can still take a turn holds it no more.
+ * `incomplete`: some still hold the prompt they held (a command that failed
+ * or did nothing, an id never passed to a command), or there were more than
+ * the cap. `skipped`: nothing could be cleared. Only the last two leave a
+ * refresh owed. `live` counts those conversations, the ended ones Hermes
+ * resumes included (`resumableConversations`), and `refreshed` those of them
+ * that hold their prompt no more. */
 export type PromptRefresh =
   | Readonly<{ state: "refreshed"; refreshed: number; live: number }>
   | Readonly<{
@@ -466,9 +531,12 @@ export type PromptRefresh =
       reason: "hermes-missing" | "store-unreadable";
     }>;
 
-/** Clears the stored prompt of every live conversation that holds one, with
- * Hermes's own command, as the installer does; each conversation's next turn
- * builds it from the files as they are now. A conversation counts as
+/** Clears the stored prompt of every conversation that holds one and can
+ * still take a turn, with Hermes's own command, as the installer does; each
+ * conversation's next turn builds it from the files as they are now, an ended
+ * one's when it is resumed. Its id needs no live row: the command resolves
+ * any session and clears what it stores (`hermes_cli/sessions_cmd.py`
+ * `_cmd_repair_prompts`, v0.22.4-lazurio.3). A conversation counts as
  * refreshed only when the store no longer holds the prompt it held before:
  * cleared, rebuilt by a turn since, or gone. A store that cannot say which
  * prompt a conversation holds is judged by the commands' exits alone. */
@@ -485,7 +553,7 @@ export async function refreshPrompts(
   if (input.hermes === undefined)
     return Object.freeze({ state: "skipped", reason: "hermes-missing" });
   const hermesHome = join(input.home, ".hermes");
-  const live = await liveConversations(hermesHome, input.cap);
+  const live = await resumableConversations(hermesHome, input.cap);
   if (live === undefined)
     return Object.freeze({ state: "skipped", reason: "store-unreadable" });
   if (live === "absent")
@@ -529,48 +597,200 @@ export async function refreshPrompts(
 
 // ---- A refresh that is owed -------------------------------------------------
 
-/** The record that Buddy's stored prompts are owed a refresh: written before
- * SOUL.md changes, removed only after a complete refresh and the restart that
- * follows it (or with no gateway running), so a failure, a cap or anyone's
- * restart in between leaves it for the next apply. In Buddy's state directory,
- * beside the installer's records; the Platform's own file. */
-export const promptRefreshOwedPath = (home: string): string =>
-  join(home, ".local", "state", "lazurio", "buddy", "prompt-refresh-owed.json");
+/** Buddy's state directory, beside the installer's records. */
+const stateDirectory = (home: string): string =>
+  join(home, ".local", "state", "lazurio", "buddy");
 
-/** Whether a refresh is owed: anything at the marker's place counts. */
-export async function promptRefreshOwed(home: string): Promise<boolean> {
+/** The record that Buddy's stored prompts are owed a refresh: written before
+ * SOUL.md changes, or before a refresh his changed Lazurio layer owes,
+ * removed only after a complete refresh and the restart that follows it (or
+ * with no gateway running), so a failure, a cap or anyone's restart in
+ * between leaves it for the next apply. In Buddy's state directory, beside
+ * the installer's records; the Platform's own file. */
+export const promptRefreshOwedPath = (home: string): string =>
+  join(stateDirectory(home), "prompt-refresh-owed.json");
+
+/** A file of the Platform's own in Buddy's state directory: 0600 in a 0700
+ * directory, written whole and renamed into place. */
+async function writeStateFile(
+  path: string,
+  document: Readonly<Record<string, string>>,
+): Promise<void> {
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${randomUUID()}.lazurio`;
+  const file = await open(temporary, "wx", 0o600);
+  let renamed = false;
+  try {
+    try {
+      await file.chmod(0o600);
+      await file.writeFile(`${JSON.stringify(document)}\n`);
+      await file.sync();
+    } finally {
+      await file.close();
+    }
+    await rename(temporary, path);
+    renamed = true;
+  } finally {
+    if (!renamed) await rm(temporary, { force: true });
+  }
+}
+
+/** Whether the owed refresh is recorded: anything at the marker's place
+ * counts. */
+export async function promptRefreshMarked(home: string): Promise<boolean> {
   return (
     (await lstat(promptRefreshOwedPath(home)).catch(() => undefined)) !==
     undefined
   );
 }
 
-/** Records that a refresh is owed, unless it already is: a 0600 file in a 0700
- * directory, written whole and renamed into place. */
+/** Records that a refresh is owed, unless it already is. */
 export async function owePromptRefresh(
   home: string,
   now: () => Date = () => new Date(),
 ): Promise<void> {
-  if (await promptRefreshOwed(home)) return;
-  const path = promptRefreshOwedPath(home);
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const temporary = `${path}.${process.pid}.${Date.now()}.lazurio`;
-  const file = await open(temporary, "wx", 0o600);
-  try {
-    await file.chmod(0o600);
-    await file.writeFile(
-      `${JSON.stringify({
-        schema_version: "lazurio.buddy-prompt-refresh.v1",
-        owed_since: `${now().toISOString().slice(0, 19)}Z`,
-      })}\n`,
-    );
-    await file.sync();
-  } finally {
-    await file.close();
-  }
-  await rename(temporary, path);
+  if (await promptRefreshMarked(home)) return;
+  await writeStateFile(promptRefreshOwedPath(home), {
+    schema_version: "lazurio.buddy-prompt-refresh.v1",
+    owed_since: `${now().toISOString().slice(0, 19)}Z`,
+  });
 }
 
 /** The owed refresh is done. */
 export const settlePromptRefresh = (home: string): Promise<void> =>
   rm(promptRefreshOwedPath(home), { force: true });
+
+// ---- What the stored prompts were built from --------------------------------
+
+/** Buddy's Lazurio layer as his prompts would be built from it now.
+ * `layerDigest`: a sha256 over each file of `buddyLayerPaths`, in order, of
+ * its path, then its bytes, or a token of its own where it is absent or
+ * unreadable. `unreadable`: some file is no regular file (a link, which is
+ * never followed, included), is larger than `layerFileBytes`, or could not be
+ * read. */
+export type PromptInputs = Readonly<{
+  layerDigest: string;
+  unreadable: boolean;
+}>;
+
+/** A rendered file of the layer is a few kilobytes; a larger one counts as
+ * unreadable. */
+const layerFileBytes = 1024 * 1024;
+
+/** One file of the layer: its bytes, `absent`, or `unreadable`. */
+async function layerFile(
+  path: string,
+): Promise<Buffer | "absent" | "unreadable"> {
+  try {
+    const handle = await open(
+      path,
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
+    try {
+      const info = await handle.stat();
+      if (!info.isFile() || info.size > layerFileBytes) return "unreadable";
+      const bytes = await handle.readFile();
+      return bytes.byteLength > layerFileBytes ? "unreadable" : bytes;
+    } finally {
+      await handle.close();
+    }
+  } catch (error) {
+    return (error as NodeJS.ErrnoException | undefined)?.code === "ENOENT"
+      ? "absent"
+      : "unreadable";
+  }
+}
+
+/** Buddy's Lazurio layer in `folder`, read only: never a reason to fail. The
+ * paths are the Folder's own, so a Folder that moves keeps its digest. */
+export async function readPromptInputs(folder: string): Promise<PromptInputs> {
+  const hash = createHash("sha256");
+  let unreadable = false;
+  for (const path of buddyLayerPaths) {
+    const file = await layerFile(join(folder, path));
+    hash.update(`${path}\0`);
+    if (typeof file === "string") {
+      hash.update(`${file}\0`);
+      if (file === "unreadable") unreadable = true;
+    } else {
+      hash.update(`file ${file.byteLength}\0`);
+      hash.update(file);
+    }
+  }
+  return Object.freeze({ layerDigest: hash.digest("hex"), unreadable });
+}
+
+/** What Buddy's stored prompts were last completely refreshed from: the
+ * digest of his Lazurio layer as it was when that refresh began. Written only
+ * after a complete refresh and the restart that follows it, with the owed
+ * marker's removal, never by a reading. Beside the marker; the Platform's own
+ * file. */
+export const promptInputsPath = (home: string): string =>
+  join(stateDirectory(home), "prompt-inputs.json");
+
+const promptInputsSchema = "lazurio.buddy-prompt-inputs.v1";
+const promptInputsBytes = 4096;
+
+/** The layer digest the last complete refresh recorded; undefined where none
+ * is: no record, or one that is no regular file of at most 4 KiB holding this
+ * schema and a digest. A digest that is not a layer's never equals one. */
+export async function recordedPromptInputs(
+  home: string,
+): Promise<string | undefined> {
+  try {
+    const handle = await open(
+      promptInputsPath(home),
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
+    let text: string;
+    try {
+      const info = await handle.stat();
+      if (!info.isFile() || info.size > promptInputsBytes) return undefined;
+      text = await handle.readFile("utf8");
+    } finally {
+      await handle.close();
+    }
+    const record: unknown = JSON.parse(text);
+    return isObject(record) &&
+      record.schema_version === promptInputsSchema &&
+      typeof record.layer_digest === "string"
+      ? record.layer_digest
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Whether `inputs` are not what the last complete refresh was built from;
+ * no record counts, so the first apply after this record exists refreshes
+ * once. */
+export async function promptInputsChanged(
+  home: string,
+  inputs: PromptInputs,
+): Promise<boolean> {
+  return inputs.layerDigest !== (await recordedPromptInputs(home));
+}
+
+/** Records `inputs` as what the stored prompts were built from, after a
+ * complete refresh that began with them. */
+export const recordPromptInputs = (
+  home: string,
+  inputs: PromptInputs,
+): Promise<void> =>
+  writeStateFile(promptInputsPath(home), {
+    schema_version: promptInputsSchema,
+    layer_digest: inputs.layerDigest,
+  });
+
+/** Whether a refresh of Buddy's stored prompts is owed: its marker is there,
+ * or his Lazurio layer in `folder` is not the one the last complete refresh
+ * was built from (none recorded counts). Reads only, so the read without
+ * `--apply` and the Launchpad's readings count a changed layer as owed and
+ * write nothing; an apply turns it into the marker before it refreshes. */
+export async function promptRefreshOwed(
+  home: string,
+  folder: string,
+): Promise<boolean> {
+  if (await promptRefreshMarked(home)) return true;
+  return promptInputsChanged(home, await readPromptInputs(folder));
+}

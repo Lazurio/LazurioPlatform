@@ -26,10 +26,11 @@ import {
 // before it restarts his gateway, so what it could not finish yet the
 // Launchpad finishes: it applies again while Buddy is busy, and whenever a
 // reading finds a refresh of his stored prompts still owed (the record F64's
-// apply keeps until a complete refresh and the restart after it), so a
-// Launchpad that restarted takes it up again. Nothing of this is stored
-// beside F64's own record. The journal names the operation, its outcome and
-// its reason, never a name, a value or a revision.
+// apply keeps until a complete refresh and the restart after it, or his
+// Lazurio layer in the Folder no longer the one his last complete refresh was
+// built from), so a Launchpad that restarted takes it up again. Nothing of
+// this is stored beside F64's own records. The journal names the operation,
+// its outcome and its reason, never a name, a value or a revision.
 
 /** The persona as the page shows it: `revision` names the file a change
  * must still find (null-free: a page that has none sends null); `pending`
@@ -109,6 +110,13 @@ export const personaRetryMs = 15_000;
  * again, at most `personaRetryMaxMs`. */
 export const personaFailedRetryMs = 30_000;
 export const personaRetryMaxMs = 15 * 60_000;
+/** After its start, the Launchpad reads Buddy's persona again this often on
+ * its own, as often as it asks an Organization's settings (F64's addendum of
+ * 2026-10-25). A change no page saw then reaches him without one: Machines'
+ * apply raises the Platform, which restarts the Launchpad, and only then
+ * refreshes the Folder, which writes his new Lazurio layer; and a
+ * `lazurio buddy persona --apply` that waited for him leaves its marker. */
+export const personaWatchMs = 2 * 60_000;
 
 /** The persona of a reading, as the page shows it; null where there is none
  * the installer would take (absent, unreadable or refused): the page then
@@ -162,11 +170,13 @@ export function appliedOf(answer: BuddyPersona | "running"): PersonaApplied {
 }
 
 /** The Launchpad's persona: `apply` is F64's (`buddyPersona` with `apply`),
- * `home` the account's own. */
+ * `home` the account's own and `folder` the Folder it serves. */
 export function createPersonaSave(
   input: Readonly<{
     /** The account's home; none known reads no persona and writes none. */
     home: string | undefined;
+    /** The Folder whose Lazurio layer Buddy's prompts are built from. */
+    folder: string;
     apply: () => Promise<BuddyPersona>;
     journal?: ((entry: PersonaJournalEntry) => void) | undefined;
     /** Tests only: the clock of `confirmed_at` and of the retries. */
@@ -182,6 +192,7 @@ export function createPersonaSave(
   const journal = (entry: PersonaJournalEntry) => input.journal?.(entry);
   const home = input.home ?? "";
   const homeKnown = home !== "" && isAbsolute(home);
+  const owedNow = () => promptRefreshOwed(home, input.folder);
 
   // One apply at a time in this process (F64's own lock orders it against
   // the command): a save joins the one that runs, which reads the persona
@@ -195,6 +206,8 @@ export function createPersonaSave(
   let failedDelay = personaFailedRetryMs;
   let journaled: string | null = null;
   let closed = false;
+  // The next reading of the Launchpad's own, after `start`.
+  let watch: unknown;
 
   const schedule = (delay: number) => {
     if (retry !== undefined) timers.cancel(retry);
@@ -274,18 +287,41 @@ export function createPersonaSave(
 
   const pending = () => running !== null || retry !== undefined;
 
+  /** The persona as it is now. A refresh still owed, a changed layer's
+   * included, starts an apply, unless one runs, waits or was asked a moment
+   * ago. */
+  async function read(): Promise<BuddyPersonaShown | null> {
+    if (!homeKnown) return null;
+    const [persona, owed] = await Promise.all([readPersona(home), owedNow()]);
+    if (owed && !closed && !pending() && now().getTime() >= notBefore)
+      void run();
+    return personaShown(persona, owed || pending());
+  }
+
+  /** The Launchpad's next reading of its own, `personaWatchMs` from now; an
+   * apply it starts is the one any reading starts. */
+  function watchAgain() {
+    watch = timers.after(() => {
+      watch = undefined;
+      if (closed) return;
+      watchAgain();
+      void read().catch(() => null);
+    }, personaWatchMs);
+  }
+
   return Object.freeze({
-    /** The persona as it is now. A refresh still owed starts an apply,
-     * unless one runs, waits or was asked a moment ago. */
-    async read(): Promise<BuddyPersonaShown | null> {
-      if (!homeKnown) return null;
-      const [read, owed] = await Promise.all([
-        readPersona(home),
-        promptRefreshOwed(home),
-      ]);
-      if (owed && !closed && !pending() && now().getTime() >= notBefore)
-        void run();
-      return personaShown(read, owed || pending());
+    read,
+
+    /** The Launchpad starts where Buddy is (F64's addendum of 2026-10-25):
+     * one reading now, so a refresh owed since it last ran is applied once
+     * he is idle, without anyone opening a page; a Platform update restarts
+     * it. Then one every `personaWatchMs` until `close`. Resolves when the
+     * first reading, and the apply it started, ended. */
+    async start(): Promise<void> {
+      if (!homeKnown) return;
+      await read();
+      if (!closed && watch === undefined) watchAgain();
+      await running;
     },
 
     /** A change from the page, only while the file is the one at
@@ -323,7 +359,7 @@ export function createPersonaSave(
             reason: "persona-changed",
             current: personaShown(
               write.current,
-              pending() || (await promptRefreshOwed(home)),
+              pending() || (await owedNow()),
             ),
           }),
           "persona-changed",
@@ -339,7 +375,7 @@ export function createPersonaSave(
         outcome: write.kind,
         applied: applied.state,
       });
-      const owed = await promptRefreshOwed(home);
+      const owed = await owedNow();
       return Object.freeze({
         kind: "persona",
         outcome: write.kind,
@@ -352,11 +388,13 @@ export function createPersonaSave(
       });
     },
 
-    /** The Launchpad stops: no retry after it. */
+    /** The Launchpad stops: no retry and no reading of its own after it. */
     close() {
       closed = true;
       if (retry !== undefined) timers.cancel(retry);
       retry = undefined;
+      if (watch !== undefined) timers.cancel(watch);
+      watch = undefined;
     },
   });
 }

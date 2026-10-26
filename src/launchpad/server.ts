@@ -1190,6 +1190,7 @@ export async function startLaunchpad(
   // journal never names a name, a value or a revision.
   const buddyPersona = createPersonaSave({
     home: toolsEnvironment.home,
+    folder,
     apply: () =>
       applyBuddyPersona(
         { tools: toolsEnvironment, env: process.env },
@@ -2829,6 +2830,18 @@ export async function startLaunchpad(
   if (installed !== undefined && !publicEnvironment) toolsReading.warm();
   // The Launchpad's holds, reconciled with the hub's list from now on.
   await holder?.start();
+  // Buddy's stored prompts (decision F64, addendum of 2026-10-25): where the
+  // entry names him, his persona is read now, in the background, and again
+  // every two minutes until the Launchpad stops (`personaWatchMs`), so a
+  // refresh owed since this Launchpad last ran, or by a change no page saw
+  // (a change of his Lazurio layer included), is applied once he is idle,
+  // without anyone opening a page. A Platform update restarts the Launchpad;
+  // the Folder refresh that writes his new layer may come after it. Never a
+  // reason for the start to wait or fail.
+  const buddyAtStart =
+    entry?.buddyOrigin === undefined
+      ? Promise.resolve()
+      : buddyPersona.start().catch(() => undefined);
   // Executor (decision F44, addendum of 2026-10-11, #298): where install and
   // update only report it, this Launchpad sets it up in the background once
   // it listens, through the one setup of Settings → Tools. Never awaited and
@@ -2893,12 +2906,18 @@ export async function startLaunchpad(
     hosted: entry !== null,
     /** Resolves when the reads this Launchpad began on its own in the
      * background have ended: whose Personalspace this is, decided at its
-     * start, and the shell's setup, read again after a change. No answer
-     * waits for them (none waits for GitHub); what observes what the
+     * start, the shell's setup, read again after a change, and Buddy's
+     * persona read at its start, with the apply that reading started. No
+     * answer waits for them (none waits for GitHub); what observes what the
      * Launchpad asks GitHub or its Folder waits here first, so that it
      * observes the request it makes and not the start's own work. */
     async settled(): Promise<void> {
-      await Promise.all([personalspace.settled(), setup.settled(), warming]);
+      await Promise.all([
+        personalspace.settled(),
+        setup.settled(),
+        warming,
+        buddyAtStart,
+      ]);
     },
     close() {
       closing = true;
