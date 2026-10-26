@@ -10,13 +10,23 @@ does not authorize deployment, restart, access changes or resident removal.
 
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
-JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`
-from Machines **v0.12.191** (tag commit `811b3f7c706331be4db931dbfa5913538e6db99b`,
+JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`.
+Pending the merge of Machines pull request **#948** (a Draft; root decision 0192,
+addendum of 2026-10-26, plan DEV-6676), the vendored file is byte for byte its head
+`9e18cd26e7160da6b2ca586851aa5287dbfea4e8` (SHA-256
+`ca5cdb767888826fe028e589ea120628a6d830552256cc0d141c0681e038addc`), which adds only
+a peer's optional `environment`, `access` and `ssh.host_keys`
+([below](#assigned-peers-root-decision-0192-addendum-of-2026-10-26)) to the schema of
+v0.12.191 and changes nothing else. `schema-provenance.json` keeps naming v0.12.191
+as its source and says so in `pending`; the test "the vendored schema is pinned,
+nothing pending" fails until the re-pin to #948's merge, by design, so this cannot
+merge before it. Before it, the pin was
+Machines **v0.12.191** (tag commit `811b3f7c706331be4db931dbfa5913538e6db99b`,
 which carries the merge of pull request **#811**, `3cc8e002be8840838a74d6ebd52c747a375b1ba1`;
-SHA-256 `a23925e1da2da6e32acc1bcbfb4855dea02e6b2cf39f294cf7a2b2bfe1882bca`), which adds
+SHA-256 `a23925e1da2da6e32acc1bcbfb4855dea02e6b2cf39f294cf7a2b2bfe1882bca`), which added
 only the personal branch's optional `entry.buddy` ([below](#the-hosted-entry-decision-f16),
-root decision 0210) and forbids it on the Organization branch, and changes nothing
-else. Before it, the merge of Machines pull request **#664** into `main` (commit
+root decision 0210) and forbids it on the Organization branch, and changed nothing
+else. Before that, the merge of Machines pull request **#664** into `main` (commit
 `3c7d9fb00ca06ea7c30812e7e4e33c387b20be1d`, SHA-256
 `587179a16dc61ed605479d98920024ac9087baf59b894c811ede715246a8944a`), which added only
 the closed assignment branch `{kind: "services"}` and the optional Organization-branch
@@ -106,8 +116,11 @@ through [`folder-refresh`](#refresh-after-a-handover-rewrite):
   `null`; `ssh` as `{host, user, direction}` (MagicDNS name, OS account or `null`,
   and `outbound` | `inbound` | `both` for TCP 22 relative to this Machine) or `null`;
   and `https`, the peer's gateway hostnames reachable from here over TCP 443. Names
-  only: no node ids, machine keys, tailnet addresses or credentials. Platform renders
-  it and enforces nothing; Headscale does.
+  and public identity only: no node ids, machine keys, tailnet addresses, private keys
+  or credentials. Platform renders it and enforces nothing; Headscale does. Pending
+  the re-pin above, a peer whose edge a rule opens also carries `environment`,
+  `access` and `ssh.host_keys`, all three or none
+  ([assigned peers](#assigned-peers-root-decision-0192-addendum-of-2026-10-26)).
 
 One field is new in 0.12.93, optional on both branches, closed and without defaults:
 **`entry`**, how the Machine is entered through its workspace gateway
@@ -237,7 +250,7 @@ bumped. It prints one JSON object with `machineContextDigest`:
 | Result | Exit | Meaning |
 | --- | --- | --- |
 | `{"kind":"refreshed","revision":<n>}` | 0 | The rendered files changed; revision `n` records the new binding |
-| `{"kind":"unchanged"}` | 0 | The current handover renders the same bytes and declares the same entry (identical handover, or only `installed` rewritten); nothing is written, the recorded binding and revision stay. A changed entry is recorded (`refreshed`) even when no rendered text names the changed value, because the Launchpad acts on it |
+| `{"kind":"unchanged"}` | 0 | The current handover renders the same bytes and declares the same entry and relationships (identical handover, or only `installed` rewritten); nothing is written, the recorded binding and revision stay. A changed entry is recorded (`refreshed`) even when no rendered text names the changed value, because the Launchpad acts on it; so are changed relationships, because the binding's relationships follow the handover and an [assigned peer's](#assigned-peers-root-decision-0192-addendum-of-2026-10-26) Environment id, access and host keys are rendered nowhere |
 | `{"kind":"blocked","reason":"folder-not-initialized",…}` | 2 | No Folder state: run `folder-init` first; nothing is created |
 | `{"kind":"blocked","reason":"drift","path":…}` / `"unsafe-path"` | 2 | An owned file was edited, removed or replaced by a link; it is named and never overwritten, nothing is written |
 | `{"kind":"blocked","reason":"folder-binding-changed",…}` / `"folder-state-unrecognized"` | 2 | Another Machine's handover, or pending/unrecognized state |
@@ -432,6 +445,49 @@ Launchpad ([decision F10, amendment of 2026-10-19](decisions.md#f10--workspace-p
   GitHubu přes Lazurio for GitHub …"), and pages whose words follow the shell's kind
   use the work wording, which does not say the Environment is shared. Telling two
   servers' Služby serveru apart waits for the wireframe.
+
+## Assigned peers (root decision 0192, addendum of 2026-10-26)
+
+The addendum makes SSH from an Osobní Prostředí into every Pracovní Prostředí
+assigned to its Owner in the same tailnet always on. The Osobní Prostředí knows each
+target's host key from the records of the Organization that owns it, never from a
+first connection (point (d)), and Lazurio writes these Environments' names into it
+for agents, Buddy and Delegace (point (e)). Machines #948 (pending, see
+[above](#one-upstream-contract)) carries what that needs in the peers of the
+personal VM's `relationships`: three optional members that come only together.
+
+- **`environment`**: the peer's Environment id `<machine>.<organization>`, two slugs
+  joined by one dot, at most 96 characters.
+- **`access`**: `"assigned"`. A rule opens this edge, not a reviewed device grant: the
+  peer is a work VM of an Organization assigned to this personal Machine's owner.
+- **`ssh.host_keys`**: one to four distinct closed `{type: "ssh-ed25519", key}`,
+  `key` the base64 blob of the public key without type or comment
+  (`^AAAAC3NzaC1lZDI1NTE5AAAAI[A-Za-z0-9+/]{43}$`), from the Organization's records.
+
+With them the peer is `kind: "workspace-vm"`, `zone: "work"` with an Organization,
+and its `ssh` is an object with a named `user`, `direction: "outbound"` and
+`host_keys`; without them its `ssh` carries no `host_keys`. The schema does not tie
+them to the personal branch. The reader refuses anything else, and so does the
+binding's parser, which records them as `environment`, `access` and `ssh.hostKeys`
+in a fixed order (`name, kind, zone, organization, environment, access, ssh,
+https`; `host, user, direction, hostKeys`). Absent stays absent: a peer without them
+projects, records and reads back byte for byte as before.
+
+**The gate.** Machines writes the members only to a Machine whose pinned Platform is
+at least its gate, which stays unset until a Platform release with this reader
+exists. A Platform that vendors an earlier schema refuses a handover carrying them,
+as for `entry` and `vault`.
+
+**Read, not used.** This release records the members and carries them through
+`folder-refresh`, profile changes and `profile-resume`, and uses them for nothing:
+no generated file, no line of the Launchpad and nothing outside the Folder's state
+depends on them. They are context, not authority. A refresh records a change of
+them even though nothing it renders changes, so the recorded binding never stays
+behind the handover ([refresh](#refresh-after-a-handover-rewrite)), and recovery
+evidence withholds `environment` as a name of the peer. What they are for is the
+plan's later work (DEV-6676 P2–P4: the Osobní Prostředí's SSH aliases and pinned
+host keys, the names agents, Buddy and Delegace use, and the read-only list in
+Nastavení); nothing of it is decided here.
 
 ## The hosted entry (decision F16)
 
