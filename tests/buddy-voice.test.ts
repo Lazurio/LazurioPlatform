@@ -29,9 +29,17 @@ const added = keys.filter(
     ].includes(key),
 );
 
-/** The lines Buddy says himself, in pairs by his address. */
+/** The lines Buddy says himself, in pairs by his address: his first
+ * meeting's beats (decision F60's addendum of 2026-10-26) among them. */
 const buddyLines = [
-  "buddySaysIntro",
+  "buddyHello",
+  "buddyHelloNamed",
+  "buddyHere",
+  "buddyDoes",
+  "buddyDoesFind",
+  "buddyMemory",
+  "buddyWhere",
+  "buddyWhereTelegram",
   "buddyAskName",
   "buddyAskAddress",
   "buddyAskYou",
@@ -47,7 +55,17 @@ const said = new Set<string>(
  * or the person's words, in no address of Lazurio's. */
 const notLazurio = new Set<string>([
   ...said,
-  "buddySaysHello",
+  // His own words in the beats' drawings, in no address.
+  "buddyDoesTrip",
+  "buddyDoesMail",
+  "buddyDoesSum",
+  "buddyBots",
+  "buddyBotFlights",
+  "buddyBotContract",
+  "buddyMemoryInvoices",
+  "buddyMemoryShort",
+  "buddyMemoryMornings",
+  "buddyMemoryHoliday",
   "buddyAnswerVy",
   "buddyAnswerTy",
   "buddyTraceFor",
@@ -83,6 +101,8 @@ const tyWords = new Set([
   "zadej",
   "přihlas",
   "napiš",
+  "najdeš",
+  "hledáš",
 ]);
 const vyWords = new Set([
   "vy",
@@ -96,6 +116,8 @@ const vyWords = new Set([
   "chcete",
   "můžete",
   "máte",
+  "najdete",
+  "hledáte",
 ]);
 const has = (text: string, set: ReadonlySet<string>) =>
   words(text).some((word) => set.has(word));

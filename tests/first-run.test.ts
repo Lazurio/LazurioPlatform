@@ -665,6 +665,7 @@ test("the first address: the token and a start request apart, both leading to Za
   expect(startSection).toEqual({
     "sign-in-gh": "start",
     "install-content": "start",
+    "meet-buddy": "start",
   });
 });
 

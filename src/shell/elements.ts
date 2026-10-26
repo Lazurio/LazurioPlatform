@@ -1,5 +1,10 @@
 import { browserStore, pageAccountJson, type Store } from "./account";
-import { type BuddyBubble, buddyName, createBuddyBubble } from "./buddy-bubble";
+import {
+  type BuddyBubble,
+  buddyMeeting,
+  buddyName,
+  createBuddyBubble,
+} from "./buddy-bubble";
 import { type BuddyBubbleView, createBuddyBubbleView } from "./buddy-element";
 import { type BuddyTheme, buddyAvatarSource } from "./buddy-protocol";
 import {
@@ -1335,6 +1340,46 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
   contextChanged(): void {
     this.bubble?.changed();
   }
+  /** Opens Buddy's window as the launcher's click does, unless it shows
+   * already; whether it shows. The Launchpad's end of the meeting with
+   * Buddy (decision F60's addendum of 2026-10-26), not part of interface
+   * v1: his frame still never opens it. */
+  openWindow(): boolean {
+    return this.shows() ? (this.bubble?.open() ?? false) : false;
+  }
+  /** Lifts the launcher over the page's own dialog with a ring while that
+   * dialog shows where Buddy is (true), and lets it back (false). The
+   * Launchpad's, not part of interface v1. */
+  spotlight(on: boolean): void {
+    this.bubble?.spotlight(on);
+  }
+
+  /** The action of Buddy's window before the meeting, a link to Začínáme of
+   * his Launchpad: on this page's own origin the host may take it over
+   * (`lazurio-navigate`, as the rail's links), anywhere else it navigates
+   * the page. The window closes either way. */
+  private followMeeting(href: string, event: MouseEvent): void {
+    let target: URL | null = null;
+    try {
+      target = new URL(href);
+    } catch {}
+    if (target === null) {
+      event.preventDefault();
+      return;
+    }
+    if (plainClick(event) && target.origin === location.origin) {
+      const announced = this.dispatchEvent(
+        new CustomEvent("lazurio-navigate", {
+          detail: { href: `${target.pathname}${target.hash}` },
+          bubbles: true,
+          composed: true,
+          cancelable: true,
+        }),
+      );
+      if (!announced) event.preventDefault();
+    }
+    this.bubble?.escape();
+  }
 
   /** Follows the page's state: the bubble while the merged document names
    * Buddy's origin and this is the page's `<lazurio-buddy>`; otherwise none,
@@ -1357,6 +1402,10 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
           theme: pageTheme(this),
         };
       },
+      // Buddy's step before the meeting, where the page is his own Osobní
+      // Prostředí's (decision F60's addendum of 2026-10-26).
+      meeting: () =>
+        buddyMeeting(state.drawn(), this.origin(), this.getAttribute("lang")),
       frameWindow: () => this.view?.frameWindow() ?? null,
       session: sessionStore(),
       draw: (model) => {
@@ -1365,6 +1414,7 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
             logo,
             toggle: () => this.bubble?.toggle(),
             escape: () => this.bubble?.escape() ?? false,
+            follow: (href, event) => this.followMeeting(href, event),
           });
         this.view?.draw(model);
         if (model?.frame != null) this.listenPage();

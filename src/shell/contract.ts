@@ -124,6 +124,13 @@ export type ShellSetup = Readonly<{
    * v1): `ready` when he is signed in and the person confirmed his names,
    * `unknown` while that cannot be read. Absent: no Buddy here. */
   buddy?: "ready" | "missing" | "unknown";
+  /** What Buddy's step needs next before the person met him (decision F60's
+   * addendum of 2026-10-26, additive in v1), only with `buddy` `missing`
+   * while his names are not confirmed: `sign-in` until he is signed in, then
+   * `introduce`. Absent once the names are confirmed, a later sign-out
+   * included, whenever it is not known, and without Buddy. Never a name or a
+   * code. */
+  buddyNext?: "sign-in" | "introduce";
   /** Absent: not known. `ready`: an agent can work here (the person's
    * sign-in or the Organization's AI); additive in v1 (root decision 0201). */
   ai?: "ready" | "missing";
@@ -517,13 +524,19 @@ export function parseShellSetup(
 ): ShellSetup | undefined | false {
   if (value === undefined || value === null) return undefined;
   if (!isRecord(value)) return false;
-  const { buddy, ai, github, content, item } = value;
+  const { buddy, buddyNext, ai, github, content, item } = value;
   if (
     !(
       buddy === undefined ||
       buddy === "ready" ||
       buddy === "missing" ||
       buddy === "unknown"
+    ) ||
+    // Buddy's next part only beside his step that is missing.
+    !(
+      buddyNext === undefined ||
+      (buddy === "missing" &&
+        (buddyNext === "sign-in" || buddyNext === "introduce"))
     ) ||
     !(ai === undefined || ai === "ready" || ai === "missing") ||
     (github !== "connected" && github !== "missing") ||
@@ -560,6 +573,7 @@ export function parseShellSetup(
   }
   return Object.freeze({
     ...(buddy === undefined ? {} : { buddy }),
+    ...(buddyNext === undefined ? {} : { buddyNext }),
     ...(ai === undefined ? {} : { ai }),
     github,
     ...(content === undefined ? {} : { content }),

@@ -91,6 +91,19 @@ export type ShellCopy = Readonly<{
   guideInvite: string;
   guideName: string;
   guideDocs: string;
+  /** Buddy's bubble before the person met him (decision F60's addendum of
+   * 2026-10-26; prototypes-lazurio's `windowIntro`): the launcher's name
+   * with his "1", his hello and the one thing he needs, and its action, in
+   * his own words. Before anyone chose ty or vy he says vy, as Lazurio does
+   * (root decision 0199); his name is not known here, so he is "your
+   * Buddy". The window's close button. */
+  buddyNew: string;
+  buddyHello: string;
+  buddyNeedsSignIn: string;
+  buddyNeedsMeeting: string;
+  buddySignIn: string;
+  buddyMeet: string;
+  buddyClose: string;
 }>;
 
 /** One word per kind of `lazurio.shell.v1`. */
@@ -153,6 +166,14 @@ const en: ShellCopy = {
   guideInvite: "Get your Buddy",
   guideName: "Lazurio guide",
   guideDocs: "Documentation",
+  buddyNew: "Buddy, 1 new message",
+  buddyHello: "Hi, I'm your Buddy.",
+  buddyNeedsSignIn: "Sign me in to ChatGPT so I can answer you.",
+  buddyNeedsMeeting:
+    "Let's get to know each other, so I know what to call you.",
+  buddySignIn: "Sign Buddy in",
+  buddyMeet: "Meet Buddy",
+  buddyClose: "Close",
 };
 
 const cs: ShellCopy = {
@@ -202,10 +223,24 @@ const cs: ShellCopy = {
   guideInvite: "Založte si Buddyho",
   guideName: "Průvodce Lazuriem",
   guideDocs: "Dokumentace",
+  buddyNew: "Buddy, 1 nová zpráva",
+  buddyHello: "Ahoj, já jsem váš Buddy.",
+  buddyNeedsSignIn: "Abych vám mohl odpovídat, přihlaste mě k ChatGPT.",
+  buddyNeedsMeeting: "Pojďme se seznámit, ať vím, jak vám mám říkat.",
+  buddySignIn: "Přihlásit Buddyho",
+  buddyMeet: "Seznámit se",
+  buddyClose: "Zavřít",
 };
 
 export const shellMessages = (locale: KindLocale): ShellCopy =>
   locale === "cs" ? cs : en;
+
+/** Czech typesetting of Buddy's lines on screen (the prototype's
+ * `keepTogether`, prototypes-lazurio #92): a one-letter word (k, s, v, z, o,
+ * u, a, i) never ends a line, so "přihlaste mě k ChatGPT" keeps "k" with
+ * "ChatGPT". The texts themselves keep plain spaces. */
+export const keepTogether = (text: string): string =>
+  text.replace(/(?<=(?:^|\s)[ksvzouai]) /giu, "\u00a0");
 
 /** `{name}` style placeholders filled with plain text. */
 export const fillShell = (

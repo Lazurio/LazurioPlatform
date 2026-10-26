@@ -883,6 +883,17 @@ function startHref(apps: string): string {
     : "/settings/start";
 }
 
+/** The start request that opens Buddy's dialog in Začínáme where his step
+ * stands (decision F60's addendum of 2026-10-26); the Launchpad takes it
+ * from the fragment and ignores any other. */
+export const buddyMeetRequest = "lazurio-start=meet-buddy";
+
+/** Začínáme of the Launchpad named by `apps` (the current Environment's
+ * Apps address in the shell document, never composed from another origin)
+ * with Buddy's dialog to open. */
+export const buddyMeetHref = (apps: string): string =>
+  `${startHref(apps)}#${buddyMeetRequest}`;
+
 /** The prompt the column head shows in Apps, Chat and Automate while one of
  * the current Environment's basics is missing (root decision 0201 points 1
  * and 2; the wireframe's `SetupPrompt`, prototypes-lazurio 1eefc3d): "Dokončit
