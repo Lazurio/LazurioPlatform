@@ -17,6 +17,7 @@ import {
   recordPromptInputs,
 } from "../src/buddy/gateway-refresh";
 import { personaPath, soulPath, writePersona } from "../src/buddy/persona";
+import type { BotChecker } from "../src/buddy/telegram";
 import {
   initializeFolder,
   initializeHandoverFolder,
@@ -50,12 +51,20 @@ import { freePort } from "./fixtures/ports";
 const posix = test.skipIf(process.platform === "win32");
 type Json = Record<string, unknown>;
 
+/** A token of a bot's shape, made here so the repository holds none. */
+const syntheticToken = `${"7".repeat(10)}:AAH${"z".repeat(32)}`;
+
 async function hosted(
   kind: "buddy" | "personal" | "organization" = "buddy",
   options: Parameters<typeof fakeHermesGateway>[0] = {},
   /** What happens to the account's home and the Folder before the
    * Launchpad starts, after Buddy's last refresh was recorded. */
   before?: (home: string, folder: string) => Promise<void>,
+  /** Telegram's word on a token (F66): never the real Bot API here. */
+  telegramBot: BotChecker = async () => ({
+    kind: "bot",
+    username: "rex_buddy_bot",
+  }),
 ) {
   const fake = await fakeHermesGateway(options);
   const parent = await realpath(
@@ -100,7 +109,7 @@ async function hosted(
     undefined,
     undefined,
     undefined,
-    { fetcher },
+    { fetcher, telegramBot },
     { path: bin, home: fake.userHome, platform: process.platform, run },
   );
   const base = `http://127.0.0.1:${entry.listenPort}`;
@@ -187,6 +196,8 @@ posix(
           locale: "cs",
           // No persona here (F65): the page offers an empty introduction.
           persona: null,
+          // No bot connected (F66), as Hermes's card says.
+          telegram: { state: "none" },
         },
       });
       app.fake.state.signedIn = true;
@@ -196,6 +207,7 @@ posix(
         signIn: { state: "connected" },
         locale: "cs",
         persona: null,
+        telegram: { state: "none" },
       });
       // Nothing of Hermes's card beyond whether he is signed in.
       const read = JSON.stringify((await app.get(buddyRoutePaths.read)).body);
@@ -209,6 +221,8 @@ posix(
         signIn: { state: "unknown" },
         locale: "cs",
         persona: null,
+        // Hermes cannot be asked: no claim of Telegram either.
+        telegram: { state: "unknown" },
       });
     } finally {
       await app.close();
@@ -420,6 +434,7 @@ posix(
         signIn: { state: "connected" },
         locale: "cs",
         persona: null,
+        telegram: { state: "none" },
       });
       expect(await app.post(buddyRoutePaths.signOut)).toEqual({
         status: 200,
@@ -464,6 +479,9 @@ posix(
           user: { nominative: "Ada", accusative: "Adu", dative: "Adě" },
           revision: null,
         },
+        [buddyRoutePaths.telegramConnect]: { token: syntheticToken },
+        [buddyRoutePaths.telegramApprove]: { request: "a".repeat(32) },
+        [buddyRoutePaths.telegramDisconnect]: {},
       };
       const { origin: _origin, ...withoutOrigin } = app.sameOrigin;
       const { "sec-fetch-site": _site, ...withoutSite } = app.sameOrigin;
@@ -554,6 +572,13 @@ posix(
         [buddyRoutePaths.poll, {}],
         [buddyRoutePaths.cancel, { session: "a".repeat(32), extra: 1 }],
         [buddyRoutePaths.poll, []],
+        [buddyRoutePaths.telegramConnect, {}],
+        [
+          buddyRoutePaths.telegramConnect,
+          { token: syntheticToken, enabled: true },
+        ],
+        [buddyRoutePaths.telegramApprove, { request: "a".repeat(32), user: 1 }],
+        [buddyRoutePaths.telegramDisconnect, { token: syntheticToken }],
       ] as const)
         expect(
           await status(path, {
@@ -567,6 +592,20 @@ posix(
           status: 400,
           body: { error: "invalid-session" },
         });
+      // Telegram (F66): a token of no bot's shape or no string, a request
+      // of no handle's shape; Hermes is not asked.
+      for (const token of [7, null, "123:short", "x".repeat(300), ""])
+        expect(
+          await app.post(buddyRoutePaths.telegramConnect, { token }),
+        ).toEqual({ status: 400, body: { error: "invalid-token" } });
+      for (const request of ["A".repeat(32), "a".repeat(31), 7, "../x"])
+        expect(
+          await app.post(buddyRoutePaths.telegramApprove, { request }),
+        ).toEqual({ status: 400, body: { error: "invalid-request" } });
+      expect(await status(buddyRoutePaths.telegramConnect, {})).toEqual({
+        status: 405,
+        body: { error: "method-not-allowed" },
+      });
       expect(await status(`${buddyRoutePaths.read}?fresh=1`, {})).toEqual({
         status: 400,
         body: { error: "invalid-query" },
@@ -594,6 +633,9 @@ posix(
           buddyRoutePaths.cancel,
           buddyRoutePaths.signOut,
           buddyRoutePaths.persona,
+          buddyRoutePaths.telegramConnect,
+          buddyRoutePaths.telegramApprove,
+          buddyRoutePaths.telegramDisconnect,
         ])
           expect(await app.post(path, { session: "a".repeat(32) })).toEqual({
             status: 404,
@@ -913,6 +955,165 @@ posix(
       }
     } finally {
       lines.restore();
+    }
+  },
+);
+
+posix(
+  "Telegram over HTTP (F66): connect, the person's Start, approve and disconnect through Hermes's writers; the token in no answer and no journal line",
+  async () => {
+    const log = journal();
+    const checked: string[] = [];
+    const app = await hosted("buddy", {}, undefined, async (token) => {
+      checked.push(token);
+      return { kind: "bot", username: "rex_buddy_bot" };
+    });
+    try {
+      const connected = await app.post(buddyRoutePaths.telegramConnect, {
+        token: ` ${syntheticToken} `,
+      });
+      expect(checked).toEqual([syntheticToken]);
+      expect(connected.status).toBe(200);
+      // Hermes saved it and has not started it yet: on its way.
+      expect(connected.body).toMatchObject({
+        kind: "telegram",
+        state: "starting",
+        bot: "rex_buddy_bot",
+      });
+      expect(app.fake.state.telegram).toMatchObject({
+        token: syntheticToken,
+        enabled: true,
+      });
+      // His gateway started it; nobody wrote yet.
+      app.fake.state.telegram.runtime = "connected";
+      expect((await app.get(buddyRoutePaths.read)).body.telegram).toMatchObject(
+        {
+          state: "waiting",
+          bot: "rex_buddy_bot",
+          requests: [],
+        },
+      );
+      // The person presses Start.
+      app.fake.telegramMessage("4242424242", "jana_s");
+      const waiting = (await app.get(buddyRoutePaths.read)).body
+        .telegram as Json;
+      const requests = waiting.requests as Json[];
+      expect(requests).toHaveLength(1);
+      expect(requests[0]?.name).toBe("jana_s");
+      const approved = await app.post(buddyRoutePaths.telegramApprove, {
+        request: requests[0]?.request,
+      });
+      expect(approved).toEqual({
+        status: 200,
+        body: { kind: "telegram", state: "connected", bot: "rex_buddy_bot" },
+      });
+      expect(app.fake.state.telegram).toMatchObject({
+        allowed: "4242424242",
+        home: "4242424242",
+      });
+      // Gone meanwhile: 409, nothing written.
+      expect(
+        await app.post(buddyRoutePaths.telegramApprove, {
+          request: requests[0]?.request,
+        }),
+      ).toEqual({
+        status: 409,
+        body: { kind: "blocked", reason: "request-gone" },
+      });
+      const disconnected = await app.post(buddyRoutePaths.telegramDisconnect);
+      expect(disconnected).toEqual({
+        status: 200,
+        body: { kind: "telegram", state: "none" },
+      });
+      expect(app.fake.state.telegram).toMatchObject({
+        token: null,
+        enabled: false,
+        allowed: "",
+        home: null,
+      });
+      const lines = log.lines.filter((line) =>
+        line.includes('"buddy-telegram"'),
+      );
+      expect(lines.map((line) => JSON.parse(line))).toEqual([
+        // The restart it owes: this test's account has no user manager.
+        {
+          scope: "buddy-telegram",
+          operation: "restart",
+          outcome: "unavailable",
+        },
+        { scope: "buddy-telegram", operation: "connect", outcome: "telegram" },
+        { scope: "buddy-telegram", operation: "approve", outcome: "telegram" },
+        {
+          scope: "buddy-telegram",
+          operation: "approve",
+          outcome: "blocked",
+          reason: "request-gone",
+        },
+        {
+          scope: "buddy-telegram",
+          operation: "disconnect",
+          outcome: "telegram",
+        },
+      ]);
+      const everything = JSON.stringify([
+        log.lines,
+        connected,
+        waiting,
+        approved,
+        disconnected,
+      ]);
+      for (const secret of [syntheticToken, "4242424242"])
+        expect(everything).not.toContain(secret);
+    } finally {
+      log.restore();
+      await app.close();
+    }
+  },
+);
+
+posix(
+  "Telegram over HTTP: a token Telegram does not know, or Telegram not answering, saves nothing; without Buddy's gateway 503",
+  async () => {
+    let answer: Awaited<ReturnType<BotChecker>> = { kind: "refused" };
+    const app = await hosted("buddy", {}, undefined, async () => answer);
+    try {
+      expect(
+        await app.post(buddyRoutePaths.telegramConnect, {
+          token: syntheticToken,
+        }),
+      ).toEqual({
+        status: 200,
+        body: { kind: "failed", reason: "token-refused" },
+      });
+      answer = { kind: "unreachable" };
+      expect(
+        await app.post(buddyRoutePaths.telegramConnect, {
+          token: syntheticToken,
+        }),
+      ).toEqual({
+        status: 200,
+        body: { kind: "failed", reason: "telegram-unreachable" },
+      });
+      expect(app.fake.state.telegram.token).toBeNull();
+      expect(
+        app.fake.requests.filter((request) => request.method !== "GET"),
+      ).toEqual([]);
+      answer = { kind: "bot", username: "rex_buddy_bot" };
+      await app.fake.stop();
+      expect(
+        await app.post(buddyRoutePaths.telegramConnect, {
+          token: syntheticToken,
+        }),
+      ).toEqual({
+        status: 503,
+        body: { error: "buddy-unavailable", reason: "no-socket" },
+      });
+      expect(await app.post(buddyRoutePaths.telegramDisconnect)).toEqual({
+        status: 503,
+        body: { error: "buddy-unavailable", reason: "no-socket" },
+      });
+    } finally {
+      await app.close();
     }
   },
 );

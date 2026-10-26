@@ -598,7 +598,7 @@ export async function refreshPrompts(
 // ---- A refresh that is owed -------------------------------------------------
 
 /** Buddy's state directory, beside the installer's records. */
-const stateDirectory = (home: string): string =>
+export const stateDirectory = (home: string): string =>
   join(home, ".local", "state", "lazurio", "buddy");
 
 /** The record that Buddy's stored prompts are owed a refresh: written before
@@ -612,7 +612,7 @@ export const promptRefreshOwedPath = (home: string): string =>
 
 /** A file of the Platform's own in Buddy's state directory: 0600 in a 0700
  * directory, written whole and renamed into place. */
-async function writeStateFile(
+export async function writeStateFile(
   path: string,
   document: Readonly<Record<string, string>>,
 ): Promise<void> {

@@ -23,6 +23,8 @@ import { buddyPersona as applyBuddyPersona } from "../buddy/persona-apply";
 import { createPersonaSave } from "../buddy/persona-save";
 import { createBuddySignIn } from "../buddy/sign-in";
 import { buddyStatus, readBuddyFacts } from "../buddy/status";
+import { type BotChecker, createBuddyTelegram } from "../buddy/telegram";
+import { createTelegramRestart } from "../buddy/telegram-restart";
 import { createPersonalspaceHolder } from "../content/holder";
 import {
   type ContentHost,
@@ -131,6 +133,7 @@ import {
 } from "../update/everything";
 import { embeddedIdentity } from "../update/identity";
 import { runProcess } from "../update/self-check";
+import { serviceEnvironment } from "../update/service-control";
 import type { VaultHost } from "../vault/flow";
 import { enableVaultForAgents, processVaultHost } from "../vault/host";
 import type { LaunchpadBoot } from "./boot";
@@ -246,6 +249,10 @@ import { createVaultRoutes, isVaultJob, vaultRoutePaths } from "./vault-routes";
 /** Test seam for the hosted admission: the auth-endpoint fetcher and clock. */
 export type HostedOptions = Readonly<{
   fetcher?: AuthFetcher;
+  /** Telegram's word on a bot's token before Buddy's Hermes saves it
+   * (decision F66): by default its Bot API (`getMe`). Trusted composition,
+   * never HTTP input; tests and the preview supply their own. */
+  telegramBot?: BotChecker;
   now?: () => number;
   /** How long the gateway's `ensure` waits for a started app to report
    * healthy (default `ensureWaitMsDefault`). */
@@ -1199,6 +1206,29 @@ export async function startLaunchpad(
     journal: (line) =>
       console.log(JSON.stringify({ scope: "buddy-persona", ...line })),
   });
+  // His Telegram (decision F66): his own bot from BotFather, connected
+  // through Hermes's own writers and read live from Hermes; the restart that
+  // brings a change in is F64's, made once he is idle, at most once in two
+  // minutes, and taken up again when the Launchpad starts. Its journal never
+  // names the token, an account, a name or a request.
+  const buddyTelegramRestart = createTelegramRestart({
+    home: toolsEnvironment.home,
+    service: {
+      run: toolsEnvironment.run,
+      env: serviceEnvironment(process.env),
+    },
+    journal: (line) =>
+      console.log(JSON.stringify({ scope: "buddy-telegram", ...line })),
+  });
+  const buddyTelegram = createBuddyTelegram({
+    gateway: buddyGateway,
+    home: toolsEnvironment.home,
+    owed: () => buddyTelegramRestart.owed(),
+    changed: () => buddyTelegramRestart.changed(),
+    checkBot: hostedOptions.telegramBot,
+    journal: (line) =>
+      console.log(JSON.stringify({ scope: "buddy-telegram", ...line })),
+  });
   const buddy = createBuddyRoutes({
     present: () => entry?.buddyOrigin !== undefined,
     signIn: createBuddySignIn({
@@ -1208,6 +1238,7 @@ export async function startLaunchpad(
     }),
     facts: () => readBuddyFacts(buddyGateway),
     persona: buddyPersona,
+    telegram: buddyTelegram,
     locale: async () =>
       (await withFolderReadLock(state, () => readFolderState(state)))
         .preferences.profile.locale,
@@ -2841,7 +2872,11 @@ export async function startLaunchpad(
   const buddyAtStart =
     entry?.buddyOrigin === undefined
       ? Promise.resolve()
-      : buddyPersona.start().catch(() => undefined);
+      : Promise.all([
+          buddyPersona.start().catch(() => undefined),
+          // A restart his Telegram owed before this start (decision F66).
+          buddyTelegramRestart.start().catch(() => undefined),
+        ]).then(() => undefined);
   // Executor (decision F44, addendum of 2026-10-11, #298): where install and
   // update only report it, this Launchpad sets it up in the background once
   // it listens, through the one setup of Settings → Tools. Never awaited and
@@ -2924,6 +2959,7 @@ export async function startLaunchpad(
       clearInterval(audienceTimer);
       catalog.close();
       buddyPersona.close();
+      buddyTelegramRestart.close();
       if (!closePending)
         closePending = (async () => {
           // Close admission immediately, before waiting for HTTP requests to drain.
