@@ -736,7 +736,7 @@ echo "Installing Composio CLI $requested"
       expect(await composio()).toMatchObject({
         installed: true,
         version: "0.3.1",
-        pinned: "0.4.3-lazurio.2",
+        pinned: "0.4.3-lazurio.3",
       });
       expect(
         await opened.json("/api/tools/upgrade", { tool: "gh" }),
@@ -755,17 +755,17 @@ echo "Installing Composio CLI $requested"
           tool: "composio",
           installer: {
             url: composioBuild.installer,
-            version: "0.4.3-lazurio.2",
+            version: "0.4.3-lazurio.3",
           },
           before: { version: "0.3.1" },
-          after: { version: "0.4.3-lazurio.2" },
+          after: { version: "0.4.3-lazurio.3" },
           changed: true,
         },
       });
       expect(requests).toEqual([composioBuild.installer]);
       expect(await composio()).toMatchObject({
-        version: "0.4.3-lazurio.2",
-        pinned: "0.4.3-lazurio.2",
+        version: "0.4.3-lazurio.3",
+        pinned: "0.4.3-lazurio.3",
       });
       // An Environment still on the previous pin, Lazurio's 0.4.3-lazurio.1:
       // not the build Lazurio pins now, and the same update brings it there.
@@ -778,7 +778,7 @@ echo "Installing Composio CLI $requested"
       );
       expect(await composio({ fresh: true })).toMatchObject({
         version: "0.4.3-lazurio.1",
-        pinned: "0.4.3-lazurio.2",
+        pinned: "0.4.3-lazurio.3",
       });
       expect(
         await opened.json("/api/tools/upgrade", { tool: "composio" }),
@@ -787,11 +787,11 @@ echo "Installing Composio CLI $requested"
         body: {
           kind: "tool-updated",
           before: { version: "0.4.3-lazurio.1" },
-          after: { version: "0.4.3-lazurio.2" },
+          after: { version: "0.4.3-lazurio.3" },
           changed: true,
         },
       });
-      expect(await composio()).toMatchObject({ version: "0.4.3-lazurio.2" });
+      expect(await composio()).toMatchObject({ version: "0.4.3-lazurio.3" });
     } finally {
       await opened.close();
     }
@@ -840,7 +840,7 @@ printf '#!/bin/sh\\necho %s\\n' "\${requested#@composio/cli@}" > "$HOME/.local/b
         status: 200,
         body: { kind: "tool-updated", changed: true },
       });
-      expect(await composio()).toMatchObject({ version: "0.4.3-lazurio.2" });
+      expect(await composio()).toMatchObject({ version: "0.4.3-lazurio.3" });
     } finally {
       release();
       await opened.close();

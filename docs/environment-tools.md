@@ -335,7 +335,7 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
   immutable), downloaded into a private file first, then run with
   `COMPOSIO_INSTALL_PLUGINS=0 COMPOSIO_INSTALL_SHELL=none COMPOSIO_INSTALL_HELP=0
   COMPOSIO_GITHUB_OWNER=Lazurio COMPOSIO_GITHUB_REPO=composio
-  COMPOSIO_INSTALL_VERSION=@composio/cli@0.4.3-lazurio.2` and the target's
+  COMPOSIO_INSTALL_VERSION=@composio/cli@0.4.3-lazurio.3` and the target's
   `COMPOSIO_INSTALL_SHA256` (of the archive the installer downloads: on macOS an x64
   process that Rosetta 2 translates gets the arm64 one, as its `detect_target` chooses;
   bundle in `~/.composio`, link in `~/.local/bin`, no agent

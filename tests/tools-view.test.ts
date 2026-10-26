@@ -283,7 +283,7 @@ test("a tool that is not the build Lazurio pins says so, and offers Update only 
     path: "/home/o/.local/bin/composio",
     realPath: "/home/o/.composio/composio",
     standardPath: true,
-    pinned: "0.4.3-lazurio.2",
+    pinned: "0.4.3-lazurio.3",
   } as const;
   const stock = tool({ ...installed, version: "0.4.3" });
   for (const locale of ["en", "cs"] as const) {
@@ -292,7 +292,7 @@ test("a tool that is not the build Lazurio pins says so, and offers Update only 
       state: "attention",
       headline: copy.toolsInstalled.replace("{version}", "0.4.3"),
       path: "/home/o/.local/bin/composio → /home/o/.composio/composio",
-      notes: [copy.toolsNotPinned.replace("{pinned}", "0.4.3-lazurio.2")],
+      notes: [copy.toolsNotPinned.replace("{pinned}", "0.4.3-lazurio.3")],
       fix: false,
     });
     expect(updateAction(stock, copy)).toEqual({
@@ -304,7 +304,7 @@ test("a tool that is not the build Lazurio pins says so, and offers Update only 
     const previous = tool({ ...installed, version: "0.4.3-lazurio.1" });
     expect(toolStatusView(previous, copy, true)).toMatchObject({
       state: "attention",
-      notes: [copy.toolsNotPinned.replace("{pinned}", "0.4.3-lazurio.2")],
+      notes: [copy.toolsNotPinned.replace("{pinned}", "0.4.3-lazurio.3")],
     });
     expect(updateAction(previous, copy)?.label).toBe(copy.toolsUpdateAction);
     // Signed in or not: the update keeps the sign-in. A version that could
@@ -321,14 +321,14 @@ test("a tool that is not the build Lazurio pins says so, and offers Update only 
     // Environment does not offer, one the Organization does not allow, and
     // a tool an agent sets up: no "Update".
     for (const other of [
-      tool({ ...installed, version: "0.4.3-lazurio.2" }),
+      tool({ ...installed, version: "0.4.3-lazurio.3" }),
       tool({
         installed: true,
         version: "0.4.3",
         path: "/home/o/.local/bin/composio",
         standardPath: true,
       }),
-      tool({ pinned: "0.4.3-lazurio.2" }),
+      tool({ pinned: "0.4.3-lazurio.3" }),
       tool({ ...installed, version: "0.4.3", standardPath: false }),
       tool({ ...installed, version: "0.4.3", offered: false }),
       tool({
@@ -341,7 +341,7 @@ test("a tool that is not the build Lazurio pins says so, and offers Update only 
       expect(updateAction(other, copy)).toBeNull();
     expect(
       toolStatusView(
-        tool({ ...installed, version: "0.4.3-lazurio.2" }),
+        tool({ ...installed, version: "0.4.3-lazurio.3" }),
         copy,
         true,
       ),
@@ -352,7 +352,7 @@ test("a tool that is not the build Lazurio pins says so, and offers Update only 
         {
           kind: "tool-updated",
           tool: "composio",
-          after: { version: "0.4.3-lazurio.2" },
+          after: { version: "0.4.3-lazurio.3" },
           changed: true,
         },
         "composio",
@@ -363,7 +363,7 @@ test("a tool that is not the build Lazurio pins says so, and offers Update only 
       reload: false,
       message: copy.toolsUpdatedNow
         .replace("{name}", "composio")
-        .replace("{version}", "0.4.3-lazurio.2"),
+        .replace("{version}", "0.4.3-lazurio.3"),
     });
     expect(
       updateOutcome(
@@ -422,7 +422,7 @@ test("a tool that is not the build Lazurio pins says so, and offers Update only 
   ]).toEqual(["Update", "Aktualizovat"]);
   // The page takes the pin from the server's answer, only as text.
   const answer = { ...overview([stock]) };
-  expect(parseToolsOverview(answer)?.tools[0]?.pinned).toBe("0.4.3-lazurio.2");
+  expect(parseToolsOverview(answer)?.tools[0]?.pinned).toBe("0.4.3-lazurio.3");
   expect(
     parseToolsOverview({ ...answer, tools: [{ ...stock, pinned: 4 }] }),
   ).toBeNull();

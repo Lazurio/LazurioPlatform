@@ -11510,6 +11510,16 @@ printing when each organization was created.
    Composio counts, as in point 4.
 4. **Unchanged:** an Organization's Environment and a Team Environment (the rule of the
    Organization's name), and a computer, where the person chooses.
+5. **The pin moves to `0.4.3-lazurio.3`.** `composioBuild` names it, the installer at the
+   release's own commit `5bcde7de8dc78681e8d44262fcf134afab19e091` (the squash of
+   Lazurio/composio#4; its `install.sh` byte for byte the one of `0.4.3-lazurio.2`) and
+   the four archives' SHA-256 as the release's `checksums.txt` lists them and the
+   downloaded archives hash (read 2026-10-26). An Environment with `0.4.3-lazurio.2`
+   keeps the person's choice until the person updates Composio in Settings → Tools,
+   which then says that it is not the build Lazurio uses, as with every pin (note of
+   2026-10-19). The release ran its own installation check on Linux and macOS; its
+   macOS arm64 build, run in an isolated home with a copy of one real account's
+   sign-in, printed each organization's `created_at` and the default one as the oldest.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
