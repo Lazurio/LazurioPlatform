@@ -81,8 +81,9 @@ export type GatewayFailure =
   | "timeout"
   /** An answer of no known shape, a foreign API origin among them. */
   | "invalid-answer"
-  /** The gateway does not advertise Hermes's OAuth cancellation contract a
-   * call requires (`oauthCancelContract`): nothing was sent. */
+  /** The gateway does not advertise what a call requires, Hermes's OAuth
+   * cancellation contract (`oauthCancelContract`) or the call's
+   * `capability`: nothing was sent. */
   | "outdated";
 
 export type GatewayResult<T> =
@@ -98,6 +99,8 @@ export type GatewayEndpoint = Readonly<{
   apiOrigin: string;
   /** Whether it advertises Hermes's OAuth cancellation contract. */
   contract: boolean;
+  /** The capabilities its `identify` lists, Hermes's words. */
+  capabilities: readonly string[];
 }>;
 
 /** Hermes's OAuth cancellation contract (Lazurio/hermes-agent#17, at
@@ -154,6 +157,9 @@ export const gatewayBodyBytesMax = 16 * 1024;
 
 export type GatewayRequestOptions = Readonly<{
   requireContract?: boolean;
+  /** Only a gateway whose `identify` lists this capability is asked: a
+   * write an older Hermes would not honour never reaches it. */
+  capability?: string;
   /** A JSON object, only for a call of `gatewayBodyCalls`. */
   body?: Readonly<Record<string, unknown>>;
 }>;
@@ -164,7 +170,8 @@ export type HermesGateway = Readonly<{
    * is an `/api/` path without a query. A body only for the writes of
    * `gatewayBodyCalls`, as JSON. With `requireContract`, a gateway that
    * does not advertise Hermes's OAuth cancellation contract is not asked
-   * (`outdated`). */
+   * (`outdated`), and with `capability` one whose `identify` does not list
+   * it. */
   request(
     method: GatewayMethod,
     path: string,
@@ -418,6 +425,11 @@ export function gatewayEndpoint(
     instanceId: instance,
     apiOrigin: origin as string,
     contract: advertisesContract(result),
+    capabilities: Object.freeze(
+      result.capabilities.filter(
+        (capability): capability is string => typeof capability === "string",
+      ),
+    ),
   });
 }
 
@@ -593,6 +605,11 @@ export function createHermesGateway(
         // The ticket binds the call to this instance, so the instance that
         // advertised the contract is the one that serves the call.
         if (options.requireContract === true && !endpoint.value.contract)
+          return failed("outdated");
+        if (
+          options.capability !== undefined &&
+          !endpoint.value.capabilities.includes(options.capability)
+        )
           return failed("outdated");
         const ticket = await mintTicket(endpoint.value, controlMs);
         if (!ticket.ok) {

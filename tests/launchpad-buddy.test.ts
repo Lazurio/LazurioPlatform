@@ -964,10 +964,27 @@ posix(
   async () => {
     const log = journal();
     const checked: string[] = [];
-    const app = await hosted("buddy", {}, undefined, async (token) => {
-      checked.push(token);
-      return { kind: "bot", username: "rex_buddy_bot" };
-    });
+    // A Hermes that honours Buddy's own words (Lazurio/hermes-agent#19), his
+    // persona Rex with ty, the Folder in Czech.
+    const app = await hosted(
+      "buddy",
+      { pairingMessage: true },
+      async (home) => {
+        await withPersona(home);
+      },
+      async (token) => {
+        checked.push(token);
+        return { kind: "bot", username: "rex_buddy_bot" };
+      },
+    );
+    const telegramLines = () =>
+      log.lines
+        .filter((line) => line.includes('"buddy-telegram"'))
+        .map((line) => JSON.parse(line) as Json)
+        .filter((line) => line.operation !== "restart");
+    const words = () =>
+      (app.fake.state.telegram.config.gateway as Json | undefined)
+        ?.unauthorized_dm_pairing_message;
     try {
       const connected = await app.post(buddyRoutePaths.telegramConnect, {
         token: ` ${syntheticToken} `,
@@ -984,6 +1001,10 @@ posix(
         token: syntheticToken,
         enabled: true,
       });
+      // His words for the person's Start, in his name and address.
+      const rexWords =
+        "Ahoj, tady Rex. Potvrď prosím v Lazuriu, že jsi to ty, a pak mi napiš znovu.";
+      expect(words()).toBe(rexWords);
       // His gateway started it; nobody wrote yet.
       app.fake.state.telegram.runtime = "connected";
       expect((await app.get(buddyRoutePaths.read)).body.telegram).toMatchObject(
@@ -993,8 +1014,9 @@ posix(
           requests: [],
         },
       );
-      // The person presses Start.
+      // The person presses Start, and his bot answers in his words.
       app.fake.telegramMessage("4242424242", "jana_s");
+      expect(app.fake.state.telegram.replies).toEqual([rexWords]);
       const waiting = (await app.get(buddyRoutePaths.read)).body
         .telegram as Json;
       const requests = waiting.requests as Json[];
@@ -1020,6 +1042,24 @@ posix(
         status: 409,
         body: { kind: "blocked", reason: "request-gone" },
       });
+      // His persona changes: his words follow it.
+      const revision = await fileRevision(personaPath(app.fake.userHome));
+      expect(
+        (
+          await app.post(buddyRoutePaths.persona, {
+            buddyName: "Ferda",
+            address: "vy",
+            user: { nominative: "Ada", accusative: "Adu", dative: "Adě" },
+            confirm: true,
+            revision,
+          })
+        ).status,
+      ).toBe(200);
+      for (let wait = 0; wait < 200 && telegramLines().length < 5; wait += 1)
+        await Bun.sleep(10);
+      expect(words()).toBe(
+        "Dobrý den, tady Ferda. Potvrďte prosím v Lazuriu, že jste to vy, a pak mi napište znovu.",
+      );
       const disconnected = await app.post(buddyRoutePaths.telegramDisconnect);
       expect(disconnected).toEqual({
         status: 200,
@@ -1045,7 +1085,13 @@ posix(
       expect(parsed.filter((line) => line.operation === "restart")).toEqual([
         restart,
       ]);
-      expect(parsed.filter((line) => line.operation !== "restart")).toEqual([
+      const written = {
+        scope: "buddy-telegram",
+        operation: "pairing-text",
+        outcome: "written",
+      };
+      expect(telegramLines()).toEqual([
+        written,
         { scope: "buddy-telegram", operation: "connect", outcome: "telegram" },
         { scope: "buddy-telegram", operation: "approve", outcome: "telegram" },
         {
@@ -1054,12 +1100,16 @@ posix(
           outcome: "blocked",
           reason: "request-gone",
         },
+        written,
         {
           scope: "buddy-telegram",
           operation: "disconnect",
           outcome: "telegram",
         },
       ]);
+      // No line names his words or his name.
+      for (const name of ["Rex", "Ferda", "Lazuriu"])
+        expect(JSON.stringify(lines)).not.toContain(name);
       const everything = JSON.stringify([
         log.lines,
         connected,

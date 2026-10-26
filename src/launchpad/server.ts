@@ -19,6 +19,7 @@ import {
 } from "../browser/view";
 import { type CdpCall, cdpSeams, ensureThreadWindow } from "../browser/window";
 import { createHermesGateway } from "../buddy/hermes-gateway";
+import { readPersona } from "../buddy/persona";
 import { buddyPersona as applyBuddyPersona } from "../buddy/persona-apply";
 import { createPersonaSave } from "../buddy/persona-save";
 import { createBuddySignIn } from "../buddy/sign-in";
@@ -139,6 +140,7 @@ import { enableVaultForAgents, processVaultHost } from "../vault/host";
 import type { LaunchpadBoot } from "./boot";
 import { launchpadBoot, vaultInAppsOf, withBoot } from "./boot-document";
 import { createBuddyRoutes } from "./buddy-routes";
+import { telegramPairingLine } from "./buddy-view";
 import { createCatalogReading, organizationsOnly } from "./catalog-reading";
 import {
   asksForBuddy,
@@ -1191,21 +1193,6 @@ export async function startLaunchpad(
   // operation, the outcome and the reason, never a code, a handle, a ticket
   // or Hermes's session.
   const buddyGateway = createHermesGateway({ home: toolsEnvironment.home });
-  // His persona (decision F65): read and changed from Začínáme and
-  // Nastavení → Buddy over F64's core, the change applied as `lazurio buddy
-  // persona --apply` applies it, and finished here once he is idle. Its
-  // journal never names a name, a value or a revision.
-  const buddyPersona = createPersonaSave({
-    home: toolsEnvironment.home,
-    folder,
-    apply: () =>
-      applyBuddyPersona(
-        { tools: toolsEnvironment, env: process.env },
-        { folder, apply: true },
-      ),
-    journal: (line) =>
-      console.log(JSON.stringify({ scope: "buddy-persona", ...line })),
-  });
   // His Telegram (decision F66): his own bot from BotFather, connected
   // through Hermes's own writers and read live from Hermes; the restart that
   // brings a change in is F64's, made once he is idle, at most once in two
@@ -1227,8 +1214,45 @@ export async function startLaunchpad(
     restartedRecently: () => buddyTelegramRestart.restartedRecently(),
     changed: () => buddyTelegramRestart.changed(),
     checkBot: hostedOptions.telegramBot,
+    // His words to an account his bot does not know yet: his persona's name
+    // and address in the Folder's language, as his SOUL.md has them; Buddy
+    // and vy where no persona can be read.
+    pairingText: async () => {
+      const home = toolsEnvironment.home;
+      if (home === undefined) return undefined;
+      const [read, current] = await Promise.all([
+        readPersona(home),
+        withFolderReadLock(state, () => readFolderState(state)),
+      ]);
+      return telegramPairingLine(
+        read.state === "valid"
+          ? read.persona
+          : { buddyName: "", address: "vy" },
+        messages(current.preferences.profile.locale),
+      );
+    },
     journal: (line) =>
       console.log(JSON.stringify({ scope: "buddy-telegram", ...line })),
+  });
+  // His persona (decision F65): read and changed from Začínáme and
+  // Nastavení → Buddy over F64's core, the change applied as `lazurio buddy
+  // persona --apply` applies it, and finished here once he is idle. Its
+  // journal never names a name, a value or a revision.
+  const buddyPersona = createPersonaSave({
+    home: toolsEnvironment.home,
+    folder,
+    apply: async () => {
+      const answer = await applyBuddyPersona(
+        { tools: toolsEnvironment, env: process.env },
+        { folder, apply: true },
+      );
+      // His bot's words to an account it does not know follow the persona
+      // (F66), without holding the apply up.
+      void buddyTelegram.persona().catch(() => undefined);
+      return answer;
+    },
+    journal: (line) =>
+      console.log(JSON.stringify({ scope: "buddy-persona", ...line })),
   });
   const buddy = createBuddyRoutes({
     present: () => entry?.buddyOrigin !== undefined,

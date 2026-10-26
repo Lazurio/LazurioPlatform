@@ -485,7 +485,12 @@ await mkdir(join(home, "bin"), { recursive: true });
 // leaves it, for the person to confirm in "Seznamte se s Buddym".
 let buddyHermes: FakeHermesGateway | null = null;
 if (withBuddy) {
-  buddyHermes = await fakeHermesGateway({ signedIn: true });
+  // A Hermes that takes Buddy's own words for a pairing reply
+  // (Lazurio/hermes-agent#19).
+  buddyHermes = await fakeHermesGateway({
+    signedIn: true,
+    pairingMessage: true,
+  });
   await symlink(buddyHermes.home, join(home, ".hermes"));
   await writePersona(
     home,

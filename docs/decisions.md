@@ -20266,10 +20266,11 @@ enough for anyone's mother.
 
    | Operation | Hermes's writer |
    | --- | --- |
-   | Připojit | `PUT /api/messaging/platforms/telegram {env: {TELEGRAM_BOT_TOKEN}, enabled: true}` (`hermes_cli/web_routers/messaging.py:975-1035`), then `PUT /api/config` with the quiet keys (point 5; `config_env.py:117-158`) |
+   | Připojit | `PUT /api/messaging/platforms/telegram {env: {TELEGRAM_BOT_TOKEN}, enabled: true}` (`hermes_cli/web_routers/messaging.py:975-1035`), then `PUT /api/config` with the quiet keys (point 5; `config_env.py:117-158`), then, where Hermes advertises it, `PUT /api/config {config: {gateway: {unauthorized_dm_pairing_message}}}` with Buddy's words (point 12) |
    | "Ano, to jsem já" | `PUT /api/messaging/platforms/telegram {env: {TELEGRAM_ALLOWED_USERS}}`, `PUT /api/env {key: TELEGRAM_HOME_CHANNEL}` (`config_env.py:328-339`), then `POST /api/pairing/approve {platform, request_id}` (`ops.py:91-117`) where Hermes holds a request |
    | Odpojit | `PUT /api/messaging/platforms/telegram {enabled: false, clear_env: [TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USERS]}`, `DELETE /api/env {key: TELEGRAM_HOME_CHANNEL}` (`config_env.py:1067-1082`; 404 where there is none) |
    | the state | `GET /api/messaging/platforms` (`messaging.py:916-931`, its Telegram card) and, while it waits, `GET /api/pairing` (`ops.py:84-88`) |
+   | a change of his persona | `PUT /api/config` with his words again, while his bot is connected from here and the words changed (point 12) |
 
    `enabled` is written explicitly, so a token saved any other way (Hermes's own wizard, which
    leaves it implicit) ends the same. `PUT /api/messaging/platforms/telegram` refuses the home
@@ -20324,9 +20325,10 @@ enough for anyone's mother.
    notifications, no restart notices, and the messages that arrived while the gateway was down
    kept). The quiet keys are written at the connect, before the restart that reads them; the
    installer writes the same values on every run, with or without Telegram, so its next run
-   finds them in place. Two knowing differences: the approval sets the home channel even where
-   one is set (the installer keeps one already there), and a person's own value of one of
-   the six quiet keys is replaced at the connect (the installer keeps a user's value).
+   finds them in place. Two deliberate differences, which the Buddy lead kept on 2026-10-26
+   because Lazurio manages those keys for Buddy: the approval sets the home channel even where
+   one is set (the installer keeps one already there), and a person's own value of one of the
+   six quiet keys is replaced at the connect (the installer keeps a user's value).
 6. **One restart, Buddy idle, never in quick succession** (`src/buddy/telegram-restart.ts`).
    Hermes's writer restarts nothing; the platform shows `pending_restart` until the gateway
    starts again. A connect and a disconnect owe one restart, and it is F64's: the gateway's
@@ -20377,22 +20379,53 @@ enough for anyone's mother.
     `{kind: "telegram", state, reason?, bot?, botQr?, requests?, pending?}` or `failed
     {reason: token-refused | telegram-unreachable | failed}`. `GET /api/buddy` names
     `telegram` the same way. The journal (`scope: "buddy-telegram"`) names the operation
-    (`connect`, `approve`, `disconnect`, `restart`), the outcome and the reason: never the
-    token, a preview, an account, a name, a request or a handle. Hermes's own words
-    (`message`, `error_message`, `detail`) never leave the core.
+    (`connect`, `approve`, `disconnect`, `restart`, `pairing-text`), the outcome and the
+    reason: never the token, a preview, an account, a name, Buddy's words, a request or a
+    handle. Hermes's own words (`message`, `error_message`, `detail`) never leave the core.
 11. **Words.** Nastavení and Připojit Telegram speak in Lazurio's voice (root decision 0199);
     the last screen of "Seznamte se s Buddym" stays in Buddy's (F65). No line names Hermes, a
     gateway, pairing or a restart; "token" only as BotFather says it to the person. The "?" of
     Nastavení → Buddy gets a third stop, Kanály.
+12. **His words to an account his bot does not know yet.** At the tag, Hermes answers the
+    person's Start with its developer copy, in English whatever Buddy speaks: "If you run this
+    bot, open a terminal and run: `hermes pairing approve telegram <code>`"
+    (`locales/en.yaml:863`, `gateway/run_inbound_unauthorized.py:40-46`). Lazurio/hermes-agent#19
+    (Draft, overlay row "pairing: a configured text replaces the reply that gives an unknown
+    sender its code") lets `unauthorized_dm_pairing_message` in `config.yaml` replace that one
+    reply. Hermes reads the key when it replies, so a change needs no restart, and it records
+    the request exactly as before, so the page still lists it. A ready gateway advertises the
+    row as `lazurio-pairing-message-v1` in its `identify`.
+    - The words are Buddy's, in his name and address and the Folder's language, as his
+      SOUL.md (`buddyTelegramPair`): „Dobrý den, tady Rex. Potvrďte prosím v Lazuriu, že jste
+      to vy, a pak mi napište znovu.“ (vy), „Ahoj, tady Rex. Potvrď prosím v Lazuriu, že jsi
+      to ty, a pak mi napiš znovu.“ (ty), "Hi, this is Rex. Please confirm in Lazurio that
+      it's you, then write to me again." They carry no code, no command and no Hermes. Buddy
+      and vy stand in where no persona can be read.
+    - They ask the person to write again because Hermes says nothing when the page approves:
+      `POST /api/pairing/approve` only writes its pairing store and answers
+      (`hermes_cli/web_routers/ops.py:91-117`). The page then says "Hotovo. Napište Buddymu do
+      Telegramu."
+    - The connect writes them after the quiet keys, through Hermes's own config writer, in the
+      `gateway:` section. Hermes reads its sibling `unauthorized_dm_decline_message` there too,
+      after the top level (`gateway/config_loader.py:108-112`), and it exports every top-level
+      scalar of `config.yaml` into the gateway's environment (`gateway/run.py:2075-2077`). A persona applied from the Launchpad
+      (Začínáme, Nastavení → Buddy, or a refresh it owes) writes them again while the bot's
+      record says it was connected from here, and only when the words changed. That write never
+      holds the apply up and never restarts anything.
+    - **Feature detection.** F63's client takes a `capability` a call needs: a gateway whose
+      `identify` does not list it is not asked (`outdated`), as `requireContract` does for the
+      sign-in. An older Hermes (`v0.22.4-lazurio.3` lists none) therefore gets no write and
+      keeps its own reply, and the connect works the same. A refusal, a gateway that cannot be
+      asked, or words that cannot be read change nothing else either. The journal says which:
+      `pairing-text` `written`, `outdated`, `failed`, `unavailable` with the gateway's reason,
+      or `unknown`.
 
-**Not decided here.** Hermes's own reply to an unknown account's Start is developer copy at
-the tag ("If you run this bot, open a terminal and run: `hermes pairing approve telegram
-<code>`", `locales/en.yaml:863`, `gateway/run_inbound_unauthorized.py:40-46`; there is no
-Czech locale): Lazurio's words for it, or a quiet "pair" without a code, are a fork change.
-Hermes's card names no bot username (a fork change would let every Launchpad name it). A
-Start link with a one-time code (the wireframe's `t.me/<bot>?start=<code>`) needs Hermes to
-take one. The installer and Machines (#701) stop taking a token by agents once this is pinned
-(shaping I-d). Profiles (PR 4).
+**Not decided here.** Hermes's reply to a sender it rate-limits (three requests already
+pending) stays its own English. Hermes's card names no bot username; the name getMe gave,
+beside the digest of Hermes's preview, stays (the Buddy lead, 2026-10-26). A Start link with
+a one-time code (the wireframe's `t.me/<bot>?start=<code>`) would need Hermes to take one; not
+now, and "Je to váš účet …?" stays (the Buddy lead, 2026-10-26). The installer and Machines
+(#701) stop taking a token by agents once this is pinned (shaping I-d). Profiles (PR 4).
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -20412,6 +20445,12 @@ take one. The installer and Machines (#701) stop taking a token by agents once t
 | The bot's username in a Launchpad copy shown whatever Hermes holds | Would name a bot another token replaced; rejected for the name beside a digest of Hermes's live preview |
 | Revoke Hermes's pairing approvals at Odpojit | A reconnect of the same account would need a new Start; kept, and offered for one confirmation |
 | Keep the allowlist and the home channel at Odpojit | Another account could never pair (the allowlist silences pairing), and the installer's next run would stop for a missing token; rejected |
+| Hermes's reply to the Start as it is | Tells the person, in English, to run a command in a terminal; rejected for Buddy's words through the fork's key (point 12) |
+| `unauthorized_dm_behavior: decline` with its configurable message | Answers without recording a request, so the page would have nothing to approve; rejected |
+| Hermes's locale overlay (`$HERMES_HOME/locales/<lang>.yaml`, `agent/i18n_layers.py`) | Keyed by the gateway's language, not Buddy's; no dashboard writer, so the Platform would write Hermes's files; cached for the process; rejected |
+| Write the key whatever Hermes advertises | An older Hermes keeps a key nothing reads, and the journal could not say why the person still reads Hermes's reply; rejected for the capability |
+| The key at the top level of `config.yaml` | Hermes exports top-level scalars into the gateway's environment; rejected for the `gateway:` section |
+| Clear the words at Odpojit | They are read only for an unknown account's code, and only while Telegram runs; kept, so a reconnect writes them again anyway |
 
 **Verified by** `tests/buddy-hermes-gateway.test.ts`: a named write carries its JSON body as
 `application/json` with its exact length and the same grant (one ticket, no `Origin`, no
@@ -20432,16 +20471,24 @@ nothing); a request gone writing nothing; an earlier approval offered and comple
 second; the disconnect's writes; one operation at a time; getMe's answers (a bot, 401, 404, not
 a bot, 429, 500, no JSON, a redirect to a bot, a name of no shape, an answer too large, a
 timeout, nobody listening), the token only in the path. In every one, neither the token, an
-account, a request id nor Hermes's words appear in an answer or the journal.
-a gateway that cannot be asked while the restart runs and right after it reading as on its way
-(or off after a disconnect), and as unknown before anything was asked or after the two
-minutes. `tests/buddy-telegram-restart.test.ts`: one restart while idle and none owed after; busy and
+account, a request id nor Hermes's words appear in an answer or the journal. A gateway that
+cannot be asked while the restart runs, and right after it, reads as on its way (or off after
+a disconnect), and as unknown before anything was asked or after the two minutes. Buddy's
+words (point 12): written by the connect, in the `gateway:` section beside the quiet keys,
+where the stand-in advertises the capability, and the person's Start answered with them;
+never asked of a gateway that does not advertise it, whose own reply with its command stays;
+a refusal and words that cannot be read journaled, the connect the same; after a persona
+change written again only while connected from here and only when they changed; F63's client
+sending a call that names a capability only to a gateway that lists that exact text.
+`tests/buddy-telegram-restart.test.ts`: one restart while idle and none owed after; busy and
 no answer waiting, two changes needing one restart; two minutes after any start; a start by
 anyone settling it; a stopped gateway, no unit, no user manager; the Launchpad's start taking it
 up; F64's turn held; units reread first and a refused reread restarting nothing; refused
 restarts asked later and later. `tests/launchpad-buddy.test.ts`: the routes over HTTP (connect,
 the person's Start, approve, 409, disconnect, with the journal's exact lines and no secret in
-any of them), token-refused and telegram-unreachable saving nothing, 503 without the gateway,
+any of them, his words in Czech and ty for his persona at the connect, the person's Start
+answered with them, and his words again after a persona change from the page),
+token-refused and telegram-unreachable saving nothing, 503 without the gateway,
 and the admission, exact fields, 400s, 405 and 404 `buddy-absent` of F63 for the three new
 routes. `tests/buddy-view.test.ts`, `tests/buddy-client.test.ts`, `tests/buddy-voice.test.ts`
 and `tests/first-run-buddy.test.ts`: the row, the dialog's steps, the step's optional part, the
@@ -20470,7 +20517,11 @@ Nastavení → Buddy not connected, waiting and connected, and Odpojit; no error
 - The Launchpad asks Telegram's Bot API directly for `getMe`, with Bun's `fetch` and the
   process's proxy settings; an Environment that reaches Telegram only through
   `TELEGRAM_PROXY` cannot connect here.
-- Hermes's own reply to the person's Start is its developer copy (Not decided here).
+- Buddy's words reach the person only once a Hermes release with Lazurio/hermes-agent#19 is
+  pinned. Until then, and on any older Hermes, the person reads Hermes's English reply with
+  its command, and the page asks the same question. A persona changed outside the Launchpad
+  (`lazurio buddy persona --apply` alone) rewrites them only at the next connect or the next
+  apply in the Launchpad.
 - The bot's name is lost where the record is (another account, a moved home); "Připojeno"
   then stands alone.
 - A refused restart of the gateway leaves the change owed and retried; a gateway whose

@@ -22,6 +22,8 @@ import type {
 //               GET  /api/pairing                     who asked to talk
 //   connect     PUT  /api/messaging/platforms/telegram  {env: {TELEGRAM_BOT_TOKEN}, enabled: true}
 //               PUT  /api/config                      the installer's quiet keys
+//               PUT  /api/config                      Buddy's words to an unknown account
+//   persona     PUT  /api/config                      the same words, after a change
 //   approve     PUT  /api/messaging/platforms/telegram  {env: {TELEGRAM_ALLOWED_USERS}}
 //               PUT  /api/env                         {key: TELEGRAM_HOME_CHANNEL}
 //               POST /api/pairing/approve             {platform, request_id}
@@ -60,6 +62,18 @@ import type {
 //   messages that arrived while the gateway was down) are written at the
 //   connect, before the restart that reads them, through Hermes's own
 //   config writer. The installer writes the same values on every run.
+// - Buddy's words to an account his bot does not know yet. Upstream's reply
+//   to it (`gateway.pairing.code_reply`) tells the person, in English, to
+//   run `hermes pairing approve` in a terminal, while the page approves. A
+//   gateway that lists `lazurio-pairing-message-v1` (Lazurio/hermes-agent#19,
+//   `gateway/lazurio_pairing_message.py`) replies with the text of
+//   `gateway.unauthorized_dm_pairing_message` instead, read from its
+//   config.yaml when it replies. The connect writes his words there, in his
+//   address and the Folder's language, through Hermes's own config writer,
+//   and a change of his persona writes them again while his bot is connected
+//   from here. They ask the person to confirm in Lazurio and write again:
+//   Hermes says nothing once the page approves. An older Hermes is not asked
+//   and keeps its own reply, and connecting works the same.
 // - The restart that brings the token in, or takes it out, is
 //   telegram-restart.ts's. Everything else here takes effect at once.
 //
@@ -102,6 +116,15 @@ export const telegramQuietConfig = Object.freeze({
       extra: Object.freeze({ drop_pending_on_cold_boot: false }),
     }),
   }),
+});
+
+/** Hermes's configurable reply to an account it does not know
+ * (Lazurio/hermes-agent#19, `gateway/lazurio_pairing_message.py`): a ready
+ * gateway that lists `capability` replies with the text of `key` in the
+ * `gateway:` section of its config.yaml, read when it replies. */
+export const pairingMessage = Object.freeze({
+  capability: "lazurio-pairing-message-v1",
+  key: "unauthorized_dm_pairing_message",
 });
 
 // ---- Telegram's own word on a token ------------------------------------------
@@ -465,7 +488,7 @@ async function readBotRecord(
 // ---- The core -------------------------------------------------------------------
 
 export type TelegramJournalEntry = Readonly<{
-  operation: "connect" | "approve" | "disconnect";
+  operation: "connect" | "approve" | "disconnect" | "pairing-text";
   outcome: string;
   reason?: string;
 }>;
@@ -503,6 +526,9 @@ export function createBuddyTelegram(
     changed: () => Promise<unknown>;
     /** Tests only: Telegram's word on a token. */
     checkBot?: BotChecker | undefined;
+    /** Buddy's words to an account his bot does not know yet: his persona,
+     * in the Folder's language; undefined where they cannot be read. */
+    pairingText?: (() => Promise<string | undefined>) | undefined;
     journal?: ((entry: TelegramJournalEntry) => void) | undefined;
   }>,
 ) {
@@ -537,9 +563,13 @@ export function createBuddyTelegram(
     method: "GET" | "PUT" | "POST" | "DELETE",
     path: string,
     body?: Readonly<Record<string, unknown>>,
+    capability?: string,
   ): Promise<GatewayResult<GatewayAnswer>> =>
     gateway
-      .request(method, path, body === undefined ? {} : { body })
+      .request(method, path, {
+        ...(body === undefined ? {} : { body }),
+        ...(capability === undefined ? {} : { capability }),
+      })
       .catch(
         (): GatewayResult<GatewayAnswer> =>
           Object.freeze({ ok: false, reason: "invalid-answer" }),
@@ -618,6 +648,38 @@ export function createBuddyTelegram(
     return view;
   }
 
+  // The words Hermes last took from this process: a change of the persona
+  // writes them again only when they changed.
+  let pairingWritten: string | undefined;
+
+  /** Buddy's words to an account his bot does not know, through Hermes's
+   * config writer, and only to a gateway that honours them. Never a reason
+   * for anything else to fail: the journal says how it went. */
+  async function writePairingText(always: boolean): Promise<void> {
+    if (input.pairingText === undefined) return;
+    const text = await input.pairingText().catch(() => undefined);
+    const line = (outcome: string, reason?: string) =>
+      journal({
+        operation: "pairing-text",
+        outcome,
+        ...(reason === undefined ? {} : { reason }),
+      });
+    if (text === undefined) return line("unknown");
+    if (!always && text === pairingWritten) return;
+    const written = await ask(
+      "PUT",
+      "/api/config",
+      { config: { gateway: { [pairingMessage.key]: text } } },
+      pairingMessage.capability,
+    );
+    // An older Hermes: its own reply stays, and nothing was sent.
+    if (!written.ok && written.reason === "outdated") return line("outdated");
+    if (!written.ok) return line("unavailable", written.reason);
+    if (written.value.status !== 200) return line("failed");
+    pairingWritten = text;
+    line("written");
+  }
+
   const unavailable = (reason: GatewayFailure): TelegramAnswer =>
     Object.freeze({ kind: "unavailable", reason });
   const failed = (reason: TelegramConnectFailure): TelegramAnswer =>
@@ -660,6 +722,8 @@ export function createBuddyTelegram(
     });
     if (!quiet.ok || quiet.value.status !== 200)
       journal({ operation: "connect", outcome: "quiet", reason: "failed" });
+    // His words for the person's Start, where Hermes honours them.
+    await writePairingText(true);
     // The bot's username beside Hermes's preview of what it saved now.
     const after = await card();
     if (home !== undefined && after.ok && after.value?.preview)
@@ -760,5 +824,12 @@ export function createBuddyTelegram(
     approve: (handle: string) => serial(() => approve(handle)),
     /** Odpojit: the bot off, its token and its account gone. */
     disconnect: () => serial(disconnect),
+    /** His persona changed: his bot's words to an account it does not know
+     * follow it, while the bot is connected from here. */
+    persona: () =>
+      serial(async () => {
+        if (home !== undefined && (await readBotRecord(home)) !== null)
+          await writePairingText(false);
+      }),
   });
 }

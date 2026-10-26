@@ -4,6 +4,7 @@ import { createHermesGateway } from "../src/buddy/hermes-gateway";
 import {
   type BotCheck,
   createBuddyTelegram,
+  pairingMessage,
   type TelegramCard,
   type TelegramJournalEntry,
   telegramBotChecker,
@@ -48,8 +49,12 @@ async function within(
     kind: "bot",
     username: "rex_buddy_bot",
   }),
+  setup: Readonly<{
+    fake?: Parameters<typeof fakeHermesGateway>[0];
+    pairingText?: () => Promise<string | undefined>;
+  }> = {},
 ) {
-  const fake = await fakeHermesGateway();
+  const fake = await fakeHermesGateway(setup.fake);
   const journal: TelegramJournalEntry[] = [];
   const checked: string[] = [];
   let changes = 0;
@@ -66,6 +71,7 @@ async function within(
       checked.push(value);
       return check(value);
     },
+    pairingText: setup.pairingText,
     journal: (entry) => journal.push(entry),
   });
   try {
@@ -575,6 +581,178 @@ posix(
         "/api/env",
       ]);
     }),
+);
+
+// ---- Buddy's words to an account his bot does not know --------------------------
+
+/** His words as the Launchpad renders them (buddy-view.ts), in Czech. */
+const wordsVy =
+  "Dobrý den, tady Rex. Potvrďte prosím v Lazuriu, že jste to vy, a pak mi napište znovu.";
+const wordsTy =
+  "Ahoj, tady Rex. Potvrď prosím v Lazuriu, že jsi to ty, a pak mi napiš znovu.";
+const bodyOf = (text: string) => ({
+  config: { gateway: { unauthorized_dm_pairing_message: text } },
+});
+const writesOf = (fake: FakeHermesGateway) =>
+  fake.requests
+    .filter((request) => request.method !== "GET")
+    .map((request) => [request.method, request.path, JSON.parse(request.body)]);
+
+posix(
+  "his words: where Hermes lists the capability, the connect writes them through its config writer, and the person's Start gets them instead of a command",
+  () =>
+    within(
+      async ({ fake, core, owe, journal }) => {
+        const answer = await core.connect(token);
+        expect(writesOf(fake)).toEqual([
+          [
+            "PUT",
+            "/api/messaging/platforms/telegram",
+            { env: { TELEGRAM_BOT_TOKEN: token }, enabled: true },
+          ],
+          ["PUT", "/api/config", { config: telegramQuietConfig }],
+          ["PUT", "/api/config", bodyOf(wordsVy)],
+        ]);
+        expect(pairingMessage).toEqual({
+          capability: "lazurio-pairing-message-v1",
+          key: "unauthorized_dm_pairing_message",
+        });
+        // Beside the quiet keys, in the gateway's own section.
+        expect(fake.state.telegram.config).toMatchObject({
+          gateway: { unauthorized_dm_pairing_message: wordsVy },
+          compression: { codex_gpt55_autoraise_notice: false },
+        });
+        expect(answer).toMatchObject({ kind: "telegram", state: "starting" });
+        expect(journal).toEqual([
+          { operation: "pairing-text", outcome: "written" },
+          { operation: "connect", outcome: "telegram" },
+        ]);
+        // The journal names no word of his.
+        expect(JSON.stringify(journal)).not.toContain("Rex");
+        owe(false);
+        fake.state.telegram.runtime = "connected";
+        fake.telegramMessage(person, "jana_s");
+        expect(fake.state.telegram.replies).toEqual([wordsVy]);
+      },
+      undefined,
+      { fake: { pairingMessage: true }, pairingText: async () => wordsVy },
+    ),
+);
+
+posix(
+  "his words: an older Hermes is never asked and keeps its own reply, and one that refuses them, or words that cannot be read, change nothing else; the connect works the same",
+  async () => {
+    const connects = async (
+      fake: FakeHermesGateway,
+      core: Fixture["core"],
+      owe: Fixture["owe"],
+    ) => {
+      const answer = await core.connect(token);
+      expect(answer).toMatchObject({ kind: "telegram", state: "starting" });
+      expect(fake.state.telegram).toMatchObject({ token, enabled: true });
+      owe(false);
+      fake.state.telegram.runtime = "connected";
+      fake.telegramMessage(person, "jana_s");
+      // Hermes's own reply, with its code and its command.
+      expect(fake.state.telegram.replies).toHaveLength(1);
+      expect(fake.state.telegram.replies[0]).toContain(
+        "hermes pairing approve telegram",
+      );
+    };
+    // v0.22.4-lazurio.3: no capability, so no write at all.
+    await within(
+      async ({ fake, core, owe, journal }) => {
+        await connects(fake, core, owe);
+        expect(writesOf(fake).map(([, path]) => path)).toEqual([
+          "/api/messaging/platforms/telegram",
+          "/api/config",
+        ]);
+        expect(journal).toEqual([
+          { operation: "pairing-text", outcome: "outdated" },
+          { operation: "connect", outcome: "telegram" },
+        ]);
+      },
+      undefined,
+      { pairingText: async () => wordsVy },
+    );
+    // A Hermes that refuses the write.
+    await within(
+      async ({ fake, core, owe, journal }) => {
+        fake.state.http = (request) =>
+          request.method === "PUT" && request.body.includes(pairingMessage.key)
+            ? Response.json(
+                { detail: "Internal server error" },
+                { status: 500 },
+              )
+            : undefined;
+        await connects(fake, core, owe);
+        expect(journal).toEqual([
+          { operation: "pairing-text", outcome: "failed" },
+          { operation: "connect", outcome: "telegram" },
+        ]);
+      },
+      undefined,
+      { fake: { pairingMessage: true }, pairingText: async () => wordsVy },
+    );
+    // Words that cannot be read: nothing written.
+    await within(
+      async ({ fake, core, owe, journal }) => {
+        await connects(fake, core, owe);
+        expect(writesOf(fake)).toHaveLength(2);
+        expect(journal).toEqual([
+          { operation: "pairing-text", outcome: "unknown" },
+          { operation: "connect", outcome: "telegram" },
+        ]);
+      },
+      undefined,
+      {
+        fake: { pairingMessage: true },
+        pairingText: async () => {
+          throw new Error("no Folder");
+        },
+      },
+    );
+  },
+);
+
+posix(
+  "his words after a change of his persona: written again only while his bot is connected from here, and only when they changed",
+  () => {
+    let words = wordsVy;
+    return within(
+      async ({ fake, core, owe, journal }) => {
+        // Not connected from here: nothing.
+        await core.persona();
+        expect(fake.requests).toHaveLength(0);
+        await core.connect(token);
+        owe(false);
+        fake.requests.length = 0;
+        journal.length = 0;
+        // The same words: nothing.
+        await core.persona();
+        expect(fake.requests).toHaveLength(0);
+        words = wordsTy;
+        await core.persona();
+        expect(writesOf(fake)).toEqual([
+          ["PUT", "/api/config", bodyOf(wordsTy)],
+        ]);
+        expect(journal).toEqual([
+          { operation: "pairing-text", outcome: "written" },
+        ]);
+        fake.state.telegram.runtime = "connected";
+        fake.telegramMessage(person, "jana_s");
+        expect(fake.state.telegram.replies).toEqual([wordsTy]);
+        // Disconnected: his bot answers nobody, nothing is written.
+        await core.disconnect();
+        fake.requests.length = 0;
+        words = wordsVy;
+        await core.persona();
+        expect(writesOf(fake)).toEqual([]);
+      },
+      undefined,
+      { fake: { pairingMessage: true }, pairingText: async () => words },
+    );
+  },
 );
 
 // ---- Telegram's own word on a token -------------------------------------------

@@ -28,6 +28,7 @@ import {
   telegramApproveLine,
   telegramConnectLine,
   telegramFirstStep,
+  telegramPairingLine,
   telegramRow,
   telegramScreen,
   telegramStartScreen,
@@ -475,6 +476,17 @@ test("Buddy introduces himself in his own words: ty or vy at once, the person's 
       pending: false,
     }).connected,
   ).toBe("Připojeno: @rex_buddy_bot");
+  // What his bot answers an account it does not know yet: his name and
+  // address, no code, no command (F66 point 12).
+  expect(telegramPairingLine({ buddyName: " Rex ", address: "vy" }, cs)).toBe(
+    "Dobrý den, tady Rex. Potvrďte prosím v Lazuriu, že jste to vy, a pak mi napište znovu.",
+  );
+  expect(telegramPairingLine({ buddyName: "Rex", address: "ty" }, cs)).toBe(
+    "Ahoj, tady Rex. Potvrď prosím v Lazuriu, že jsi to ty, a pak mi napiš znovu.",
+  );
+  expect(telegramPairingLine({ buddyName: "  ", address: "ty" }, en)).toBe(
+    "Hi, this is Buddy. Please confirm in Lazurio that it's you, then write to me again.",
+  );
 });
 
 test("the draft of the names: guessed as the person types, corrected by hand with Opravit, sent with the revision read", () => {

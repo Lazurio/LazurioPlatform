@@ -38,6 +38,7 @@ const buddyLines = [
   "buddyForms",
   "buddyTelegramAsk",
   "buddyTelegramHere",
+  "buddyTelegramPair",
 ] as const;
 const said = new Set<string>(
   buddyLines.flatMap((line) => [`${line}Ty`, `${line}Vy`]),

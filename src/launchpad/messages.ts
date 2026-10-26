@@ -1251,6 +1251,12 @@ const en = {
     "You can always write to me here in Lazurio too, at the bottom right.",
   buddyTelegramHereTy:
     "You can always write to me here in Lazurio too, at the bottom right.",
+  // What his bot answers an account it does not know yet: the person
+  // confirms on the page, and Hermes says nothing after that.
+  buddyTelegramPairVy:
+    "Hi, this is {name}. Please confirm in Lazurio that it's you, then write to me again.",
+  buddyTelegramPairTy:
+    "Hi, this is {name}. Please confirm in Lazurio that it's you, then write to me again.",
   buddySaveInvalidName: "This name cannot be used. Try writing it differently.",
   buddySaveInvalidYou:
     "Your name cannot be used like this. Try writing it differently.",
@@ -3179,6 +3185,10 @@ const cs: Record<MessageKey, string> = {
   buddyTelegramAskTy: "Chceš mi psát i na Telegramu?",
   buddyTelegramHereVy: "Psát mi můžete vždycky i tady v Lazuriu, vpravo dole.",
   buddyTelegramHereTy: "Psát mi můžeš vždycky i tady v Lazuriu, vpravo dole.",
+  buddyTelegramPairVy:
+    "Dobrý den, tady {name}. Potvrďte prosím v Lazuriu, že jste to vy, a pak mi napište znovu.",
+  buddyTelegramPairTy:
+    "Ahoj, tady {name}. Potvrď prosím v Lazuriu, že jsi to ty, a pak mi napiš znovu.",
   buddySaveInvalidName: "Toto jméno nejde použít. Zkuste ho napsat jinak.",
   buddySaveInvalidYou:
     "Takhle vaše jméno nejde použít. Zkuste ho napsat jinak.",

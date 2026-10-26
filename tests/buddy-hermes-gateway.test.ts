@@ -59,6 +59,12 @@ posix(
           instanceId: recorded.control.identify.result.instance_id,
           apiOrigin: fake.apiOrigin,
           contract: true,
+          capabilities: [
+            "session-authority-v1",
+            "durable-admission-v1",
+            "event-replay-v1",
+            oauthCancelContract.value,
+          ],
         },
       });
       expect(fake.control.map((request) => request.line)).toEqual([
@@ -127,6 +133,59 @@ posix(
         const identified = await client(fake).identify();
         expect(identified.ok && identified.value.contract).toBe(expected);
       }
+    });
+  },
+);
+
+posix(
+  "a capability a call names: read from identify, and the call never reaches a gateway that does not list it",
+  async () => {
+    const capability = "lazurio-pairing-message-v1";
+    const write = {
+      body: { config: { gateway: { unauthorized_dm_pairing_message: "x" } } },
+      capability,
+    };
+    // v0.22.4-lazurio.3 lists none.
+    await within({}, async (fake) => {
+      const identified = await client(fake).identify();
+      expect(identified.ok && identified.value.capabilities).not.toContain(
+        capability,
+      );
+      expect(await client(fake).request("PUT", "/api/config", write)).toEqual(
+        failure("outdated"),
+      );
+      // Asked who it is, then nothing: no ticket, no call.
+      expect(verbs(fake)).toEqual(["identify", "identify"]);
+      expect(fake.requests).toHaveLength(0);
+    });
+    await within({ pairingMessage: true }, async (fake) => {
+      const answer = await client(fake).request("PUT", "/api/config", write);
+      expect(answer.ok && answer.value.status).toBe(200);
+      expect(fake.requests.map((request) => JSON.parse(request.body))).toEqual([
+        write.body,
+      ]);
+      // Only text counts, and only that exact name.
+      fake.state.identify = (identify) => {
+        const result = identify.result as Record<string, unknown>;
+        result.capabilities = [
+          "session-authority-v1",
+          1,
+          null,
+          { capability },
+          `${capability}-draft`,
+        ];
+        return identify;
+      };
+      const identified = await client(fake).identify();
+      expect(identified.ok && identified.value.capabilities).toEqual([
+        "session-authority-v1",
+        `${capability}-draft`,
+      ]);
+      fake.requests.length = 0;
+      expect(await client(fake).request("PUT", "/api/config", write)).toEqual(
+        failure("outdated"),
+      );
+      expect(fake.requests).toHaveLength(0);
     });
   },
 );

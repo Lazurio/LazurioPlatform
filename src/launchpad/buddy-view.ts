@@ -709,10 +709,23 @@ export function said(
     | "buddyAskYou"
     | "buddyForms"
     | "buddyTelegramAsk"
-    | "buddyTelegramHere",
+    | "buddyTelegramHere"
+    | "buddyTelegramPair",
   address: "ty" | "vy",
 ): string {
   return copy[`${line}${address === "ty" ? "Ty" : "Vy"}`];
+}
+
+/** What Buddy's bot answers an account it does not know yet (decision F66),
+ * in his name and address: the person confirms in Lazurio and writes again.
+ * Never a code or a command: the page approves. */
+export function telegramPairingLine(
+  persona: Readonly<{ buddyName: string; address: "ty" | "vy" }>,
+  copy: Copy,
+): string {
+  return fill(said(copy, "buddyTelegramPair", persona.address), {
+    name: persona.buddyName.trim() || defaultBuddyName,
+  });
 }
 
 /** Buddy introduces himself and asks (the second screen): every line his,

@@ -41,11 +41,21 @@ import recorded from "./hermes-gateway-v0.22.4-lazurio.1.json";
 // `POST /api/pairing/approve`: hermes_cli/web_routers/ops.py:84-117,
 // gateway/pairing.py:153-162, 431-441, 537-575). A message from an account
 // (`telegramMessage`) is paired as the gateway pairs it: a code while no
-// allowlist exists, nothing with one (gateway/authz_mixin.py:716-758). Its
-// running state is the test's (`state.telegram.runtime`), as a restart would
-// leave it. Every body that arrives is recorded as it arrived.
+// allowlist exists, nothing with one (gateway/authz_mixin.py:716-758), and
+// its reply recorded: upstream's (locales/en.yaml `gateway.pairing.code_reply`)
+// or, where the gateway keeps Lazurio/hermes-agent#19's configurable reply
+// (`pairingMessage`, off by default as at v0.22.4-lazurio.3), the text of
+// `unauthorized_dm_pairing_message` in its config, read when it replies
+// (gateway/lazurio_pairing_message.py at f068a0bd). Its running state is the
+// test's (`state.telegram.runtime`), as a restart would leave it. Every body
+// that arrives is recorded as it arrived.
 
 type Json = Record<string, unknown>;
+
+/** Lazurio/hermes-agent#19 at f068a0bd, `gateway/lazurio_pairing_message.py`:
+ * Hermes's own names, not the client's. */
+const pairingCapability = "lazurio-pairing-message-v1";
+const pairingKey = "unauthorized_dm_pairing_message";
 
 export type ControlRequest = Readonly<{ line: string; value: Json | null }>;
 export type GatewayRequest = Readonly<{
@@ -82,6 +92,8 @@ export type FakeTelegram = {
   approved: { user_id: string; user_name: string }[];
   /** What `PUT /api/config` merged into config.yaml. */
   config: Record<string, unknown>;
+  /** What the bot answered each account that got a pairing code. */
+  replies: string[];
 };
 
 export type FakeGatewayOptions = Readonly<{
@@ -93,6 +105,10 @@ export type FakeGatewayOptions = Readonly<{
   /** Whether it keeps and advertises the cancellation contract (default:
    * yes; the recorded v0.22.4-lazurio.1 does not). */
   contract?: boolean;
+  /** Whether it replies to an unknown account with the configured text and
+   * advertises it (Lazurio/hermes-agent#19; default: no, as
+   * v0.22.4-lazurio.3). */
+  pairingMessage?: boolean;
 }>;
 
 type SignInSession = {
@@ -164,6 +180,8 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
     instance: recorded.control.identify.result.instance_id,
     /** Whether it keeps and advertises the cancellation contract. */
     contract: options.contract !== false,
+    /** Whether it keeps and advertises the configurable pairing reply. */
+    pairingMessage: options.pairingMessage === true,
     /** Its Telegram: not set up. */
     telegram: {
       token: null,
@@ -175,6 +193,7 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
       pending: [],
       approved: [],
       config: {},
+      replies: [],
     } as FakeTelegram,
   };
 
@@ -528,6 +547,29 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
     return undefined;
   };
 
+  /** The reply to an unknown account, as Hermes sends it with its code. */
+  const pairingReply = (code: string): string => {
+    const config = state.telegram.config;
+    const section = config.gateway;
+    const configured = [
+      config[pairingKey],
+      section !== null && typeof section === "object"
+        ? (section as Json)[pairingKey]
+        : undefined,
+    ].find((value) => typeof value === "string" && value.trim() !== "");
+    if (state.pairingMessage && typeof configured === "string")
+      return configured
+        .trim()
+        .replaceAll("{code}", code)
+        .replaceAll("{validity}", "1 hour");
+    return (
+      "Hi! I don't recognize you yet, so I can't reply until the person running this bot approves you.\n\n" +
+      `Your pairing code: \`${code}\` (valid for 1 hour)\n\n` +
+      `If you run this bot, open a terminal and run: \`hermes pairing approve telegram ${code}\`. ` +
+      "Otherwise send that command to the bot owner. After approval, send your message again."
+    );
+  };
+
   const reply = (request: Json | null): ControlReply => {
     if (request?.verb === "identify") {
       const answer = fill(recorded.control.identify, home, apiOrigin) as Json;
@@ -538,6 +580,11 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
         const listed = result[member];
         result[member] = Array.isArray(listed) ? [...listed, value] : value;
       }
+      if (state.pairingMessage)
+        result.capabilities = [
+          ...(result.capabilities as unknown[]),
+          pairingCapability,
+        ];
       return state.identify === undefined ? answer : state.identify(answer);
     }
     if (request?.verb === "session-ticket") {
@@ -664,6 +711,11 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
         user_name: userName,
         created: Date.now(),
       });
+      // gateway/pairing.py's alphabet, and the reply it sends with the code.
+      const code = [...randomBytes(8)]
+        .map((byte) => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[byte % 32])
+        .join("");
+      t.replies.push(pairingReply(code));
       return id;
     },
     /** A restart: every session in its memory is gone with its worker, a new
