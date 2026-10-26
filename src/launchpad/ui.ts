@@ -75,6 +75,7 @@ import {
   type MachineView,
   presetChoice,
 } from "./machine-view";
+import { createMarketplacePanel } from "./marketplace-panel";
 import { type MessageKey, messages } from "./messages";
 import { moduleCopy } from "./module-view";
 import { createHelpVideo } from "./page-help";
@@ -383,6 +384,7 @@ const catalog = createCatalogPanel({
   navigate: (path) => shell.navigate(path),
   loaded: () => {
     shell.relabel();
+    if (framed) marketplace.render();
     drawMachine();
     // A public Environment's Začínáme names the module to try.
     startPanel.render();
@@ -1277,6 +1279,14 @@ const browser = createBrowserPanel({
   },
   changed: () => tour.update(),
 });
+// The Marketplace (plan DEV-6593): its catalog, an offer's detail and the
+// form whose brief goes to Chat as "+ Nový modul"'s does.
+const marketplace = createMarketplacePanel({
+  copy: () => copy,
+  route: () => shell.route(),
+  catalog: () => catalog.current(),
+  handOver: (prompt) => handOver(prompt),
+});
 // The frame: routes, the catalog and settings navigation, the breadcrumb and
 // the sheet of a narrow viewport. It shows its first route while it is
 // created; `framed` says it exists.
@@ -1300,6 +1310,7 @@ const shell = createShell({
       route.view === "settings" ? "settings" : "apps",
     );
     catalog.render(route);
+    marketplace.render(route);
     // Back on "Všechny moduly" the catalog is read again (the first read
     // starts below, once the frame exists).
     if (framed && (route.view === "home" || route.view === "organization"))
@@ -1449,6 +1460,7 @@ function relabel() {
   ssh.render();
   theme.render();
   vaultPage.render();
+  if (framed) marketplace.render();
   vaultVideo.render();
   vaultRequests.relabel();
   files.relabel();

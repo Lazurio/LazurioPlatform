@@ -566,8 +566,87 @@ const en = {
     "I want to build a new module in the Lazurio Workspace.\nIt will be in my personal space, as a private repository on my GitHub account {login}.\n\nUse the skill `new-module`. First ask me what the module is for and what it should solve for me, choose the technical details yourself, and before you start building, show me the plan to confirm.",
   appsGuide: "Guide",
   appsMarketplace: "Marketplace",
-  appsSoon: "coming soon",
-  appsMarketplaceSoon: "Coming soon",
+  // The Marketplace (plan DEV-6593, marketplace.ts): one section and, in
+  // its pilot, one offer. No price, install count or rating.
+  marketIntro:
+    "Templates of apps you can take into your Organization. Each becomes your own module in your own repository.",
+  marketAppTemplates: "App templates",
+  marketBadge: "From Lazurio · Verified",
+  marketBack: "Marketplace",
+  marketNotFound: "This offer is not in the Marketplace.",
+  marketScreensGallery: "The library with an example presentation",
+  marketScreensSlide: "A slide of the example presentation",
+  marketWhatIs: "What's inside",
+  marketWhatNot: "What this version does not do",
+  marketVersion: "Version {version}",
+  marketLicense: "License {license}",
+  marketTechnical: "Technical details",
+  marketRequirements: "Requirements",
+  marketRequirementsText:
+    "A Lazurio Organization, a GitHub account with rights to create a private repository in it, and an agent in Chat. The app runs on Bun {bun}.",
+  marketData: "Data",
+  marketCompatibility: "Compatibility",
+  marketCompatibilityText:
+    "A Lazurio module created with lazurio module create --stack {stack}.",
+  marketSource: "Source",
+  marketRelease: "Release",
+  marketReleasePending:
+    "{tag} is being prepared; its exact commit is not recorded yet.",
+  marketReleaseCommit: "{tag}, commit {commit}",
+  marketAdd: "Add to Organization",
+  marketAddTitle: "Add {title} to an Organization",
+  marketAddIntro:
+    "Your agent prepares the module with you as a pull request. Nothing changes in the Organization until a person with the rights confirms it.",
+  marketTarget: "Organization",
+  marketTargetNone:
+    "No Organization here can take a module: it needs one bound to GitHub.",
+  marketStart: "Start with",
+  marketSeedEmpty: "An empty library",
+  marketSeedSample: "The example presentation",
+  marketSeedSampleNote: "Synthetic, with no company data.",
+  marketPlan: "What will happen",
+  marketPlanRelease: "Release {tag} of {repository}, licensed {license}.",
+  marketPlanTarget: "A new module {title} in the Organization {name}.",
+  marketPlanRepository:
+    "A private repository for the module; the agent proposes the name {module} and checks it is free.",
+  marketPlanTeams:
+    "Teams: the agent chooses them with you from the Organization's real list; their access is confirmed by someone who may grant it.",
+  marketPlanCode:
+    "The agent runs the template's code to install and test it, then shows you the app.",
+  marketPlanRights:
+    "Where your rights do not reach, the agent prepares an exact request for the person who has them.",
+  marketTaken:
+    "The Organization already has a module named {module}: the agent agrees another name with you.",
+  marketTechnicalSlug: "Module slug",
+  marketTechnicalRepository: "Repository",
+  marketTechnicalRepositoryValue: "private, in the Organization on GitHub",
+  marketHandOver: "Hand over to the agent",
+  marketNotYet:
+    "Adding is possible once release {tag} is published with its exact commit.",
+  marketHandedOver:
+    "Handed over to the agent: Chat opens in a new tab with the brief in the composer, not sent. Nothing has changed in the Organization yet.",
+  marketCopied:
+    "The brief is in your clipboard: paste it into a new chat. Nothing has changed in the Organization yet.",
+  marketCopyFailed:
+    "The brief could not be handed over; open Chat and ask the agent to add {title} from the Marketplace.",
+  marketSeedEmptyBrief:
+    "an empty library (do not carry the example presentation over)",
+  marketSeedSampleBrief: "the example presentation from the release",
+  marketPresentationsSummary:
+    "A library of presentations you create with your agent.",
+  marketPresentationsDescription:
+    "Browse presentations by their first slide, see their sources, present them in the browser and print them to PDF. You create a new presentation with your agent: it agrees an outline with you, drafts from your Organization's sources and prepares it for your review.",
+  marketPresentationsLibrary: "A library with first-slide previews and sources",
+  marketPresentationsPlayback: "HTML slides with arrow-key navigation",
+  marketPresentationsPrint: "Printing to 16:9 PDF pages from the browser",
+  marketPresentationsAgent:
+    "A brief for creating a presentation with your agent",
+  marketPresentationsLimits:
+    "No visual slide editor, no PPTX, no automatic PDF generation or storage and no automatic updates. A later version comes as a pull request you review.",
+  marketPresentationsData:
+    "Presentations stay as files in your module's repository. The app needs no account, API key or paid service; your agent's and hosting costs are your own.",
+  marketAdoptPrompt:
+    "I want to add the app template {title} from the Lazurio Marketplace to my Organization {name} (GitHub {login}).\nRelease: {repository} {tag}, commit {commit}, license {license}. Start with {seed}.\n\nFollow docs/adoption.md of exactly that commit. First check my live rights in the Organization, whether the name {module} is free and the compatibility, and show me the plan to confirm. Create the module with `lazurio module create --stack {stack}` as a private repository, merge the pinned commit so it stays an ancestor and prepare everything as a pull request. Choose the Teams with me from the Organization's real list. Where my rights do not reach, prepare an exact request for whoever has them and work around nothing. Merge or activate nothing without my explicit instruction.",
   title: "Lazurio Launchpad",
   homeTitle: "Launchpad",
   catalogBreadcrumb: "Where you are in the Launchpad",
@@ -2478,8 +2557,83 @@ const cs: Record<MessageKey, string> = {
     "Chci postavit nový modul do Workspace Lazuria.\nBude v mém osobním prostoru, jako soukromý repozitář na mém GitHub účtu {login}.\n\nPoužij skill `new-module`. Nejdřív se mě vyptej, k čemu modul bude a co mi má vyřešit, technické věci zvol sám a než začneš stavět, ukaž mi plán k potvrzení.",
   appsGuide: "Guide",
   appsMarketplace: "Marketplace",
-  appsSoon: "již brzy",
-  appsMarketplaceSoon: "Již brzy",
+  marketIntro:
+    "Šablony aplikací, které si můžete převzít do své Organizace. Z každé bude váš vlastní modul ve vašem vlastním repozitáři.",
+  marketAppTemplates: "Šablony aplikací",
+  marketBadge: "Od Lazuria · Ověřeno",
+  marketBack: "Marketplace",
+  marketNotFound: "Tato nabídka v Marketplace není.",
+  marketScreensGallery: "Knihovna s ukázkovou prezentací",
+  marketScreensSlide: "Slide ukázkové prezentace",
+  marketWhatIs: "Co obsahuje",
+  marketWhatNot: "Co tato verze neumí",
+  marketVersion: "Verze {version}",
+  marketLicense: "Licence {license}",
+  marketTechnical: "Technické údaje",
+  marketRequirements: "Požadavky",
+  marketRequirementsText:
+    "Organizace v Lazuriu, GitHub účet s právem založit v ní soukromý repozitář a agent v Chatu. Aplikace běží na Bunu {bun}.",
+  marketData: "Data",
+  marketCompatibility: "Kompatibilita",
+  marketCompatibilityText:
+    "Modul Lazuria vytvořený příkazem lazurio module create --stack {stack}.",
+  marketSource: "Zdroj",
+  marketRelease: "Vydání",
+  marketReleasePending:
+    "{tag} se připravuje; jeho přesný commit zatím není zapsaný.",
+  marketReleaseCommit: "{tag}, commit {commit}",
+  marketAdd: "Přidat do Organizace",
+  marketAddTitle: "Přidat {title} do Organizace",
+  marketAddIntro:
+    "Váš agent s vámi připraví modul jako pull request. V Organizaci se nic nezmění, dokud to nepotvrdí člověk s potřebnými právy.",
+  marketTarget: "Organizace",
+  marketTargetNone:
+    "Tady není Organizace, která by mohla modul převzít: musí být propojená s GitHubem.",
+  marketStart: "Začít s",
+  marketSeedEmpty: "Prázdnou knihovnou",
+  marketSeedSample: "Ukázkovou prezentací",
+  marketSeedSampleNote: "Syntetická, bez firemních dat.",
+  marketPlan: "Co se stane",
+  marketPlanRelease: "Vydání {tag} z {repository}, licence {license}.",
+  marketPlanTarget: "Nový modul {title} v Organizaci {name}.",
+  marketPlanRepository:
+    "Soukromý repozitář modulu; agent navrhne název {module} a ověří, že je volný.",
+  marketPlanTeams:
+    "Teamy: agent je s vámi vybere ze skutečného seznamu Organizace; jejich přístup potvrdí ten, kdo ho smí udělit.",
+  marketPlanCode:
+    "Agent spustí kód šablony, aby ji nainstaloval a otestoval, a pak vám aplikaci ukáže.",
+  marketPlanRights:
+    "Kde vaše práva nestačí, agent připraví přesnou žádost pro toho, kdo je má.",
+  marketTaken:
+    "Organizace už modul {module} má: agent s vámi dohodne jiný název.",
+  marketTechnicalSlug: "Název modulu",
+  marketTechnicalRepository: "Repozitář",
+  marketTechnicalRepositoryValue: "soukromý, v Organizaci na GitHubu",
+  marketHandOver: "Předat agentovi",
+  marketNotYet: "Přidat půjde, až vyjde vydání {tag} s přesným commitem.",
+  marketHandedOver:
+    "Předáno agentovi: Chat se otevírá v nové záložce se zadáním v poli zprávy, neodeslaným. V Organizaci se zatím nic nezměnilo.",
+  marketCopied:
+    "Zadání je ve schránce: vložte ho v Chatu do nového vlákna. V Organizaci se zatím nic nezměnilo.",
+  marketCopyFailed:
+    "Zadání se nepodařilo předat; otevřete Chat a požádejte agenta, ať přidá {title} z Marketplace.",
+  marketSeedEmptyBrief: "prázdnou knihovnou (ukázkovou prezentaci nepřenášej)",
+  marketSeedSampleBrief: "ukázkovou prezentací z vydání",
+  marketPresentationsSummary:
+    "Knihovna prezentací, které tvoříte se svým agentem.",
+  marketPresentationsDescription:
+    "Prohlížejte prezentace podle prvního slidu, podívejte se na jejich podklady, promítejte je v prohlížeči a tiskněte do PDF. Novou prezentaci vytvoříte se svým agentem: dohodne s vámi osnovu, připraví ji z podkladů vaší Organizace a dá vám ji ke kontrole.",
+  marketPresentationsLibrary: "Knihovna s náhledy prvních slidů a podklady",
+  marketPresentationsPlayback: "HTML slidy s ovládáním šipkami",
+  marketPresentationsPrint: "Tisk do PDF ve formátu 16:9 z prohlížeče",
+  marketPresentationsAgent: "Zadání pro tvorbu prezentace s agentem",
+  marketPresentationsLimits:
+    "Nemá vizuální editor slidů, PPTX, automatické vytváření ani ukládání PDF ani automatické aktualizace. Novější verze přijde jako pull request, který si zkontrolujete.",
+  marketPresentationsData:
+    "Prezentace zůstávají jako soubory v repozitáři vašeho modulu. Aplikace nepotřebuje účet, API klíč ani placenou službu; náklady na agenta a hosting jsou vaše.",
+  // In Czech the person's own words to the agent, so tykání (0199).
+  marketAdoptPrompt:
+    "Chci přidat šablonu aplikace {title} z Marketplace Lazuria do své Organizace {name} (GitHub {login}).\nVydání: {repository} {tag}, commit {commit}, licence {license}. Začni s {seed}.\n\nPostupuj podle docs/adoption.md přesně z tohoto commitu. Nejdřív živě ověř moje práva v Organizaci, jestli je název {module} volný a kompatibilitu, a ukaž mi plán k potvrzení. Modul založ příkazem `lazurio module create --stack {stack}` jako soukromý repozitář, připnutý commit slouč tak, aby zůstal předkem, a všechno připrav jako pull request. Teamy se mnou vyber ze skutečného seznamu Organizace. Kde moje práva nestačí, připrav přesnou žádost pro toho, kdo je má, a nic neobcházej. Nic nemerguj ani neaktivuj bez mého výslovného pokynu.",
   title: "Lazurio",
   homeTitle: "Apps",
   catalogBreadcrumb: "Kde v Lazuriu jste",

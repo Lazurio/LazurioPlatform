@@ -1,11 +1,67 @@
 # One future marketplace: profiles and modules
 
-Status: requested product vision and future roadmap, outside the current bootstrap.
-There is no marketplace service, account system, billing, discovery backend or
-executable extension capability in this foundation. The Marketplace entry at the bottom
-of the Apps column in the [target shell](launchpad-development.md#target-shell) (second
-iteration, 2026-10-04) is a placeholder page that says "již brzy" (coming soon); it
-lists nothing and implements none of this document.
+Status: requested product vision and future roadmap, outside the current bootstrap,
+with one bounded exception: the curated free module pilot below. There is no
+marketplace service, account system, billing, discovery backend or executable
+extension capability in this foundation.
+
+## The curated pilot in the Launchpad (plan DEV-6593)
+
+The Marketplace entry at the bottom of the Apps column in the
+[target shell](launchpad-development.md#target-shell) opens a catalog built into the
+product (`src/launchpad/marketplace.ts`): one section, Šablony aplikací (app
+templates), and one offer, Presentations. Everything below is what the pilot does
+today; the rest of this document stays future direction.
+
+- **One record per offer.** The offer names its public source repository
+  (`TemplatesRozjedeme-ai/PresentationsTemplate`), publisher, SPDX license (MIT,
+  decided by the release owner on 2026-10-26), version `0.1.0` and tag `v0.1.0`, plus
+  two fields filled in only once the release is published: the full `commit` the tag
+  points to and the `artifactDigest` of its attested artifact. The catalog holds no
+  second copy of the source. A tag or a branch is not an immutable identity.
+- **Catalog and detail.** `/marketplace` shows the offer's card (a real screen of the
+  app, the badge "Od Lazuria · Ověřeno", one line); `/marketplace/<offer>` its detail:
+  two screens, the description including what v1 does not do (no visual editor, PPTX,
+  automatic PDF generation/storage or automatic updates), its contents, version and
+  license, and collapsed technical details (requirements, data, compatibility, source,
+  release). No price, pilot label, mention of the Environment or computer, install
+  count, rating or other offer is shown; the price remains zero.
+- **Screens.** `src/launchpad/images/marketplace-presentations-{gallery,slide}.webp`
+  are browser screenshots of the template's candidate `e1b9534` running on loopback
+  with its synthetic four-slide example ("Ukázková Organizace · žádná skutečná firemní
+  data"), scaled to 1200 px. They contain no customer content, logos or photos.
+  Replace them when a later release changes what the app looks like.
+- **Přidat do Organizace.** The form names the target Organization, chosen only among
+  this Folder's Organizations bound to a GitHub login (the address is never the
+  target's authority), how the module starts (an empty library or the synthetic
+  example), what will happen (exact release, new module, private repository, Teams
+  chosen with the agent from the Organization's real list and confirmed by someone who
+  may grant access, the template's code is run, a request where rights do not reach)
+  and, collapsed, the slug `presentations` and the private repository. Where the
+  Organization already has a module of that name it says the agent agrees another.
+  Teams are not listed on the page (decision F32).
+- **Hand-over, not installation.** "Předat agentovi" hands the brief to Chat exactly as
+  "+ Nový modul" does: by link where Chat takes a prepared prompt, else through the
+  clipboard. The prompt `marketplace-<offer>-<empty|sample>` is served by
+  `GET /.lazurio/prompts/<id>?org=<login>` to anyone admitted, for an Organization of
+  the Folder bound to that login, and only while the offer's commit is recorded; every
+  other case is the same 404. The brief names the exact release, the Organization and
+  the start, and tells the agent to follow the release's `docs/adoption.md`: check live
+  rights, name collision and compatibility, show the plan, `lazurio module create`,
+  merge the pinned commit so it stays an ancestor, prepare a PR, prepare a request
+  where rights do not reach, merge or activate nothing without the person's explicit
+  instruction. The page then says it was handed to the agent and that nothing changed
+  in the Organization yet. It never claims installation on a click.
+- **Not yet adoptable.** Until the release's commit is recorded, "Předat agentovi" is
+  disabled with the reason ("Přidat půjde, až vyjde vydání v0.1.0 s přesným
+  commitem") and the prompt route answers 404. Recording the commit (and the digest)
+  after the release is published is a reviewed change of this record.
+
+The pilot is complete only after the real consumer journey into another Organization
+and a verified update with local customizations (plan DEV-6593); this page is its
+entry, not that evidence.
+
+## Direction
 
 One shared marketplace for profiles and Organization modules is an accepted future
 product requirement. Discovery/presentation, authorship, versions and descriptions
