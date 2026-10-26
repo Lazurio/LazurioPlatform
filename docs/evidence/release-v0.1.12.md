@@ -5,7 +5,7 @@ and [the release cycle](../release-cycle.md#qualification-and-the-canary).
 
 The candidate `v0.1.12-rc.2` (source `8571aa71a17dcd184e6ec785167f3ba7c538da78`) ran for 8 hours on every
 Environment of the pilot Organization, LazurioExampleOrganization, and on one personal VM. The final tag
-`v0.1.12` carries exactly its tree.
+`v0.1.12` carries the same product source; it differs from the candidate only by this record and this file, under `qualification/` and `docs/evidence/`, as the release cycle allows.
 
 The record is [`qualification/canary/v0.1.12-rc.2.json`](../../qualification/canary/v0.1.12-rc.2.json).
 The pull request that adds this file adds it too. Machines are opaque ids, as in the record. Which Machine
@@ -50,15 +50,22 @@ pipeline (root decision 0205): the Plan in the pull request, the apply on its me
 
 ## The stage
 
-- **Start:** `2026-10-25T18:17:35Z`, when the last Machine (`d94d6e912281c8e6`) ran the candidate.
+- **Start:** `2026-10-25T18:44:36Z`, the first reading that observed every Machine healthy on the candidate.
+  The last Machine (`d94d6e912281c8e6`) got the candidate at 18:17:35Z. The stage counts from the first direct
+  reading, so its 8 hours are observed on every Machine, not inferred from the applies.
   - At 18:44:36–18:44:46Z every work VM answered `lazurio recover --json` `healthy` (the Launchpad's
     `/health` on 0.1.12-rc.2) and `lazurio update status --json` active `0.1.12-rc.2`. Each Launchpad unit had
     `NRestarts` 0.
-  - The personal VM answered the same at 18:02:53Z.
-- **End:** `2026-10-26T02:19:26Z`. 8 h 1 min 51 s after the start.
-  - At 02:19:00–02:19:10Z each work VM answered `recover` `healthy` and active `0.1.12-rc.2`; its Launchpad unit was active and running since the deliberate restart, with `NRestarts` 0. Its user journal over the whole stage shows only that restart (one `Stopping`, `Stopped`, `Started` at 18:45:08–17Z) and no other start, stop, scheduled restart or failure.
-  - At 02:19:26Z the personal VM answered `recover` `healthy` and active `0.1.12-rc.2`; its Launchpad unit ran uninterrupted since 17:52:36Z with `NRestarts` 0, and its journal over the stage shows no start, stop, restart or failure. It has no app units (a Personal Environment holds no Organization modules).
-  - Readings in between, at 21:50Z and 23:49Z, were the same on all six.
+  - The personal VM answered the same at 18:02:53Z, before the start.
+- **End:** `2026-10-26T02:45:25Z`, 8 h 0 min 49 s after the start.
+  - At 02:45:09–02:45:18Z each work VM answered `recover` `healthy` and active `0.1.12-rc.2`. Its Launchpad unit
+    was active and running since the deliberate restart, with `NRestarts` 0. Its user journal from 18:17:35Z on
+    shows only that restart (one `Stopping`, `Stopped`, `Started` at 18:45:08–17Z) and no other start, stop,
+    scheduled restart or failure.
+  - At 02:45:25Z the personal VM answered `recover` `healthy` and active `0.1.12-rc.2`. Its Launchpad unit had
+    run uninterrupted since 17:52:36Z with `NRestarts` 0, and its journal from 18:17:35Z on shows no start, stop,
+    restart or failure. It has no app units (a Personal Environment holds no Organization modules).
+  - Readings in between, at 21:50Z, 23:49Z and 02:19Z, were the same on all six.
 - **No Recovery mode.** Recovery mode is chosen only when the Launchpad starts. Every start inside the stage
   (the deliberate restarts below) came up `healthy`. Every unit had `NRestarts` 0 at the end.
 
@@ -68,19 +75,20 @@ pipeline (root decision 0205): the Plan in the pull request, the apply on its me
    then a deliberate Launchpad restart. At 18:45:46–54Z each Launchpad was active since its restart,
    `NRestarts` 0, `recover` `healthy` on 0.1.12-rc.2.
 2. **18:45:56–18:46:41Z, module starts** on the work VMs that hold the Organization's modules:
-   - the knowledgebase was served as a build (`e36834aa`);
-   - Mission Control ran from `main` as one production process through `start_script` (`64993609`), its first
-     real consumer (#579, Module Standard). On Bob's Work Environment Nová karta showed "Built version · main ·
-     6499360" at 11–46 MB, where the development server it replaced held about 76 MB.
+   - a static content module was served as a build of its commit;
+   - the Organization's planning app, which has its own server, ran from `main` as one production process
+     through `start_script`: the first real consumer of #579 and the Module Standard's `start_script`. On a
+     work VM Nová karta named it "Built version · main · <commit>" at 11–46 MB, where the development server
+     it replaced held about 76 MB.
    - One work VM holds no Organization content yet, and the services Environment holds no Organization, so
      there are no module starts on those two.
-3. **18:51:44–18:51:52Z, the one `lazurio update` (#622) through Nová karta's Update (#624),** as the Owner
-   test account on their Work Environment:
+3. **18:51:44–18:51:52Z, the one `lazurio update` (#622) through Nová karta's Update (#624),** as the Owner test
+   account on its Work Environment:
    - every module "Up to date", and Lazurio "Up to date, version 0.1.12-rc.2", with no downgrade to the older
      public release;
    - no Bun row, because the pinned Bun was already present;
    - no codes or paths on the page; nothing restarted.
-4. **Buddy on the personal VM** (#637, #645, #635/#636): the Owner test account's acceptance by the Buddy lead, 21:23–21:45Z, inside the stage:
+4. **Buddy on the personal VM** (#637, #645, #635/#636): the Owner test account's acceptance, 21:23–21:45Z, inside the stage:
    - Začínáme: "Meet Buddy" is the first required step, the ChatGPT sign-in shows connected, and the banner shows. PASS.
    - Seznamte se s Buddym: name, form of address and signature saved and confirmed; the Telegram step is optional. PASS.
    - Nastavení → Buddy: "Working", sign-in connected, persona field, no developer text. PASS.
