@@ -65,6 +65,9 @@ async function hosted(
     kind: "bot",
     username: "rex_buddy_bot",
   }),
+  /** The account's tools: by default every one fails, so systemd does not
+   * answer. */
+  run: ToolRunner = async () => ({ exitCode: 1, stdout: "", stderr: "" }),
 ) {
   const fake = await fakeHermesGateway(options);
   const parent = await realpath(
@@ -103,7 +106,6 @@ async function hosted(
     "__Secure-lazurio-workspace=valid"
       ? new Response("ok")
       : new Response("no", { status: 401 });
-  const run: ToolRunner = async () => ({ exitCode: 1, stdout: "", stderr: "" });
   const app = await startLaunchpad(
     folder,
     undefined,
@@ -959,6 +961,17 @@ posix(
   },
 );
 
+/** A user manager that answers, with no unit of Buddy's gateway, so a
+ * Telegram change owes no restart (F66); every other tool fails. */
+const noGatewayUnit: ToolRunner = async (command) =>
+  command[0] === "systemctl" && command[2] === "show"
+    ? {
+        exitCode: 0,
+        stdout: "LoadState=not-found\nActiveState=inactive\n",
+        stderr: "",
+      }
+    : { exitCode: 1, stdout: "", stderr: "" };
+
 posix(
   "Telegram over HTTP (F66): connect, the person's Start, approve and disconnect through Hermes's writers; the token in no answer and no journal line",
   async () => {
@@ -976,6 +989,7 @@ posix(
         checked.push(token);
         return { kind: "bot", username: "rex_buddy_bot" };
       },
+      noGatewayUnit,
     );
     const telegramLines = () =>
       log.lines

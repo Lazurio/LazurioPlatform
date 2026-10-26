@@ -492,6 +492,18 @@ if (withBuddy) {
     pairingMessage: true,
   });
   await symlink(buddyHermes.home, join(home, ".hermes"));
+  // A user manager with no unit of his gateway, ahead of the process's own
+  // PATH: a Telegram change then owes no restart, so the stand-in's
+  // `telegramStarted` decides the state. Every other systemctl call fails,
+  // as on a computer without systemd.
+  const systemd = join(parent, "systemd-bin");
+  await mkdir(systemd, { recursive: true });
+  await writeFile(
+    join(systemd, "systemctl"),
+    '#!/bin/sh\n[ "$2" = show ] && [ "$3" = hermes-gateway.service ] && { printf "LoadState=not-found\\nActiveState=inactive\\n"; exit 0; }\nexit 1\n',
+    { mode: 0o755 },
+  );
+  process.env.PATH = `${systemd}:${process.env.PATH ?? ""}`;
   await writePersona(
     home,
     {

@@ -1,6 +1,6 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { constants } from "node:fs";
-import { open, rm } from "node:fs/promises";
+import { lstat, open, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { qrMatrix, qrSvg } from "../tools/qr";
 import { stateDirectory, writeStateFile } from "./gateway-refresh";
@@ -24,11 +24,12 @@ import type {
 //               PUT  /api/config                      the installer's quiet keys
 //               PUT  /api/config                      Buddy's words to an unknown account
 //   persona     PUT  /api/config                      the same words, after a change
-//   approve     PUT  /api/messaging/platforms/telegram  {env: {TELEGRAM_ALLOWED_USERS}}
-//               PUT  /api/env                         {key: TELEGRAM_HOME_CHANNEL}
+//   approve     PUT  /api/env                         {key: TELEGRAM_HOME_CHANNEL}
 //               POST /api/pairing/approve             {platform, request_id}
+//               PUT  /api/messaging/platforms/telegram  {env: {TELEGRAM_ALLOWED_USERS}}
 //   disconnect  PUT  /api/messaging/platforms/telegram  {enabled: false, clear_env}
 //               DELETE /api/env                       {key: TELEGRAM_HOME_CHANNEL}
+//   read        DELETE /api/env                       a home channel a disconnect left
 //
 // - The token. Its shape is Hermes's own rule (`plugins/platforms/telegram/
 //   dashboard_card.py` `_BOT_TOKEN_RE`), bounded. Before anything is saved,
@@ -52,9 +53,14 @@ import type {
 //   for anyone else (`allowlist_suppresses_pairing`), and the home channel
 //   `TELEGRAM_HOME_CHANNEL` too (where Delegace's and Buddy's own messages
 //   go). Hermes's approval alone writes neither while no allowlist exists
-//   (`gateway/pairing.py` `_sync_allowlist_add`). Delegace reads the
-//   allowlist from `~/.hermes/.env` on each notice (`telegram_target`), so a
-//   Telegram connected later reaches it with no restart. An account already
+//   (`gateway/pairing.py` `_sync_allowlist_add`). The allowlist goes last,
+//   after the home channel and Hermes's approval: the state reads connected
+//   only once it is there, and until then the account stays offered (by
+//   Hermes's request, or by its approval the allowlist does not name yet),
+//   so a write that failed halfway is finished by pressing "Ano" again.
+//   Delegace reads the allowlist from `~/.hermes/.env` on each notice
+//   (`telegram_target`), so a Telegram connected later reaches it with no
+//   restart. An account already
 //   approved in Hermes's pairing store and not in the allowlist (a
 //   reconnect, or an approval from a terminal) is offered the same way.
 // - The installer's quiet keys (no tool progress, no long-running
@@ -75,7 +81,11 @@ import type {
 //   Hermes says nothing once the page approves. An older Hermes is not asked
 //   and keeps its own reply, and connecting works the same.
 // - The restart that brings the token in, or takes it out, is
-//   telegram-restart.ts's. Everything else here takes effect at once.
+//   telegram-restart.ts's. A disconnect owes it as soon as Hermes has the
+//   bot off, whatever the cleanup after it does; a home channel Hermes could
+//   not remove then is recorded (`telegram-home-channel-left.json`) and
+//   removed by a later reading, once Hermes holds no token of Telegram.
+//   Everything else here takes effect at once.
 //
 // Hermes's own words (`message`, `error_message`, `detail`) never leave this
 // module; its answers become a closed state. The journal names the
@@ -453,6 +463,14 @@ export const telegramBotPath = (home: string): string =>
   join(stateDirectory(home), "telegram-bot.json");
 
 const botSchema = "lazurio.buddy-telegram-bot.v1";
+
+/** A home channel a disconnect could not remove: the Platform's own record,
+ * 0600 in Buddy's state directory, so a later reading removes it, also after
+ * the Launchpad restarted. */
+export const telegramHomeChannelLeftPath = (home: string): string =>
+  join(stateDirectory(home), "telegram-home-channel-left.json");
+
+const homeChannelLeftSchema = "lazurio.buddy-telegram-home-channel-left.v1";
 const previewDigest = (preview: string) =>
   createHash("sha256").update(preview).digest("hex");
 
@@ -488,7 +506,12 @@ async function readBotRecord(
 // ---- The core -------------------------------------------------------------------
 
 export type TelegramJournalEntry = Readonly<{
-  operation: "connect" | "approve" | "disconnect" | "pairing-text";
+  operation:
+    | "connect"
+    | "approve"
+    | "disconnect"
+    | "pairing-text"
+    | "home-channel";
   outcome: string;
   reason?: string;
 }>;
@@ -680,6 +703,56 @@ export function createBuddyTelegram(
     line("written");
   }
 
+  /** Buddy's home channel removed through Hermes's writer (404: there is
+   * none); whether it is gone. One Hermes cannot remove now is recorded as
+   * left, and the record goes once it is gone. */
+  async function removeHomeChannel(): Promise<boolean> {
+    const removed = await ask("DELETE", "/api/env", {
+      key: "TELEGRAM_HOME_CHANNEL",
+    });
+    const gone =
+      removed.ok &&
+      (removed.value.status === 200 || removed.value.status === 404);
+    if (home !== undefined) {
+      const left = telegramHomeChannelLeftPath(home);
+      await (gone
+        ? rm(left, { force: true })
+        : writeStateFile(left, { schema_version: homeChannelLeftSchema })
+      ).catch(() => undefined);
+    }
+    if (!gone)
+      journal({
+        operation: "home-channel",
+        outcome: "left",
+        reason: removed.ok ? "failed" : removed.reason,
+      });
+    return gone;
+  }
+
+  // A home channel a disconnect left is removed by one reading at a time.
+  let tidying: Promise<void> | null = null;
+  /** Once Hermes holds no token of Telegram, nothing can use a home channel
+   * a disconnect left: it goes, and its record with it. */
+  function tidyHomeChannel(): Promise<void> {
+    if (home === undefined) return Promise.resolve();
+    tidying ??= (async () => {
+      try {
+        const left = await lstat(telegramHomeChannelLeftPath(home)).then(
+          () => true,
+          () => false,
+        );
+        if (!left) return;
+        const read = await card();
+        if (!read.ok || read.value === null || read.value.configured) return;
+        if (await removeHomeChannel())
+          journal({ operation: "home-channel", outcome: "removed" });
+      } finally {
+        tidying = null;
+      }
+    })();
+    return tidying;
+  }
+
   const unavailable = (reason: GatewayFailure): TelegramAnswer =>
     Object.freeze({ kind: "unavailable", reason });
   const failed = (reason: TelegramConnectFailure): TelegramAnswer =>
@@ -755,29 +828,40 @@ export function createBuddyTelegram(
     );
     if (candidate === undefined)
       return end(Object.freeze({ kind: "blocked", reason: "request-gone" }));
-    // The allowlist first: it is what lets the account in and keeps
-    // everyone else out, and what Delegace reads.
-    const allowed = await ask("PUT", platformPath, {
-      env: { TELEGRAM_ALLOWED_USERS: candidate.userId },
-    });
-    if (!allowed.ok) return end(unavailable(allowed.reason));
-    if (allowed.value.status !== 200) return end(failed("failed"));
-    // The home channel: a private chat's id is its account's
+    // The home channel first: a private chat's id is its account's
     // (`hermes_cli/setup_platforms.py`), written by Hermes in this gateway's
-    // own process, so its next turn sees it.
+    // own process, so its next turn sees it. It replaces any home channel a
+    // disconnect left.
     const channel = await ask("PUT", "/api/env", {
       key: "TELEGRAM_HOME_CHANNEL",
       value: candidate.userId,
     });
     if (!channel.ok) return end(unavailable(channel.reason));
     if (channel.value.status !== 200) return end(failed("failed"));
-    // Hermes's own approval takes the request off its list. One that
-    // expired meanwhile changes nothing: the allowlist lets the account in.
-    if (candidate.requestId !== undefined)
-      await ask("POST", "/api/pairing/approve", {
+    if (home !== undefined)
+      await rm(telegramHomeChannelLeftPath(home), { force: true }).catch(
+        () => undefined,
+      );
+    // Then Hermes's own approval, which takes the request off its list. One
+    // that expired meanwhile (404) leaves nothing to approve.
+    if (candidate.requestId !== undefined) {
+      const approval = await ask("POST", "/api/pairing/approve", {
         platform: "telegram",
         request_id: candidate.requestId,
       });
+      if (!approval.ok) return end(unavailable(approval.reason));
+      if (approval.value.status !== 200 && approval.value.status !== 404)
+        return end(failed("failed"));
+    }
+    // The allowlist last: it lets the account in, keeps everyone else out,
+    // is what Delegace reads, and is what the state reads as connected. A
+    // write that failed before it leaves the account offered, so "Ano"
+    // finishes it.
+    const allowed = await ask("PUT", platformPath, {
+      env: { TELEGRAM_ALLOWED_USERS: candidate.userId },
+    });
+    if (!allowed.ok) return end(unavailable(allowed.reason));
+    if (allowed.value.status !== 200) return end(failed("failed"));
     return end(await telegram());
   }
 
@@ -801,22 +885,25 @@ export function createBuddyTelegram(
     if (!off.ok) return end(unavailable(off.reason));
     if (off.value.status !== 200) return end(failed("failed"));
     intent = "disconnect";
-    // No home channel left behind (Hermes answers 404 where there is none).
-    const channel = await ask("DELETE", "/api/env", {
-      key: "TELEGRAM_HOME_CHANNEL",
-    });
-    if (!channel.ok) return end(unavailable(channel.reason));
-    if (channel.value.status !== 200 && channel.value.status !== 404)
-      return end(failed("failed"));
+    // Hermes has the bot off: the restart that takes it out of the running
+    // gateway is owed from now, whatever the cleanup after it does.
     if (home !== undefined)
       await rm(telegramBotPath(home), { force: true }).catch(() => undefined);
     await input.changed().catch(() => undefined);
+    // No home channel left behind; one Hermes cannot remove now is recorded
+    // and goes at a later reading.
+    await removeHomeChannel();
     return end(await telegram());
   }
 
   return Object.freeze({
-    /** Telegram as Hermes has it now. */
-    read: (): Promise<TelegramStatus> => status(),
+    /** Telegram as Hermes has it now. Where it is off, a home channel a
+     * disconnect left goes first. */
+    read: async (): Promise<TelegramStatus> => {
+      const view = await status();
+      if (view.state === "none") await tidyHomeChannel();
+      return view;
+    },
     /** Připojit: the token checked with Telegram, saved by Hermes, and the
      * restart asked for. */
     connect: (token: string) => serial(() => connect(token)),

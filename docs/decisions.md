@@ -20267,8 +20267,9 @@ enough for anyone's mother.
    | Operation | Hermes's writer |
    | --- | --- |
    | Připojit | `PUT /api/messaging/platforms/telegram {env: {TELEGRAM_BOT_TOKEN}, enabled: true}` (`hermes_cli/web_routers/messaging.py:975-1035`), then `PUT /api/config` with the quiet keys (point 5; `config_env.py:117-158`), then, where Hermes advertises it, `PUT /api/config {config: {gateway: {unauthorized_dm_pairing_message}}}` with Buddy's words (point 12) |
-   | "Ano, to jsem já" | `PUT /api/messaging/platforms/telegram {env: {TELEGRAM_ALLOWED_USERS}}`, `PUT /api/env {key: TELEGRAM_HOME_CHANNEL}` (`config_env.py:328-339`), then `POST /api/pairing/approve {platform, request_id}` (`ops.py:91-117`) where Hermes holds a request |
+   | "Ano, to jsem já" | `PUT /api/env {key: TELEGRAM_HOME_CHANNEL}` (`config_env.py:328-339`), then `POST /api/pairing/approve {platform, request_id}` (`ops.py:91-117`) where Hermes holds a request, then `PUT /api/messaging/platforms/telegram {env: {TELEGRAM_ALLOWED_USERS}}` last |
    | Odpojit | `PUT /api/messaging/platforms/telegram {enabled: false, clear_env: [TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USERS]}`, `DELETE /api/env {key: TELEGRAM_HOME_CHANNEL}` (`config_env.py:1067-1082`; 404 where there is none) |
+   | a reading while Telegram is off | `DELETE /api/env {key: TELEGRAM_HOME_CHANNEL}`, only where a disconnect left one (point 8) |
    | the state | `GET /api/messaging/platforms` (`messaging.py:916-931`, its Telegram card) and, while it waits, `GET /api/pairing` (`ops.py:84-88`) |
    | a change of his persona | `PUT /api/config` with his words again, while his bot is connected from here and the words changed (point 12) |
 
@@ -20310,12 +20311,18 @@ enough for anyone's mother.
    Hermes's approval alone is not the end the interim installer leaves: with no allowlist
    configured it writes neither `TELEGRAM_ALLOWED_USERS` nor the home channel
    (`gateway/pairing.py:135-162`), so others would keep getting codes and Delegace would find
-   no chat. So "Ano, to jsem já" writes the allowlist first (it lets the account in, keeps
-   everyone else out, as `allowlist_suppresses_pairing` makes Hermes ignore unknown senders
-   once it exists, and it is what Delegace reads), then the home channel, then Hermes's own
-   approval, which takes the request off its list (one that expired meanwhile changes
-   nothing). An account Hermes approved earlier and the allowlist does not name (a reconnect,
-   an approval from a terminal) is offered the same way, without a second approval. Two
+   no chat. So "Ano, to jsem já" writes the home channel, then Hermes's own approval, which
+   takes the request off its list (one that expired meanwhile, a 404, leaves nothing to
+   approve), and the allowlist last. The allowlist lets the account in, keeps everyone else
+   out (`allowlist_suppresses_pairing` makes Hermes ignore unknown senders once it exists), is
+   what Delegace reads, and is what the state reads as connected (point 7). So the page says
+   connected only once all three are written. A write that fails before it (Hermes's 500, a
+   gateway that stops) answers `failed` or `unavailable` and leaves the account offered, by
+   Hermes's request or by its approval the allowlist does not name yet, and "Ano" again
+   finishes it without a second approval. (Review of 2026-10-26: the allowlist used to go
+   first, so a failure after it read as connected, hid the account and left no home channel
+   and no approval.) An account Hermes approved earlier and the allowlist does not name (a
+   reconnect, an approval from a terminal) is offered the same way, without a second approval. Two
    accounts at once: both are listed, "Botovi napsalo víc lidí. Vyberte svůj účet."; once one
    is allowed, the other gets nothing more (its request expires in Hermes's hour).
 5. **The end state is the installer's** (`buddy-install.sh` 2026-10-26.1): the token, that
@@ -20342,8 +20349,13 @@ enough for anyone's mother.
    has run two minutes since its last start: Telegram answers a bot that reconnects again and
    again with its flood limit (on a person's Buddy, after a wizard restarted the gateway
    several times, polling came back only about three minutes later). It is asked again every
-   15 seconds while it waits, later and later after a failure, and once when the Launchpad
-   starts, where a change was ever recorded. A connect or a disconnect answers once its change
+   15 seconds while it waits, later and later after a failure (30 s, doubled each time, at most
+   15 minutes), and once when the Launchpad starts, where a change was ever recorded. systemd
+   that does not answer (`systemctl --user show` failing or timing out, F64's turn unusable)
+   keeps the restart owed and is asked again the same way, later and later; the idle rule and
+   the two minutes still hold once it answers (review of 2026-10-26: no answer used to drop
+   the restart until the next change). Only a gateway with no unit at all owes nothing, since
+   whoever starts it reads the files then. A connect or a disconnect answers once its change
    is recorded; the restart runs beside it, so no answer waits for a drain. The page says
    "Projeví se, až Buddy dokončí, co právě dělá." (connect) or "Odpojí se, až Buddy dokončí,
    co právě dělá." (disconnect) while it is owed, and while the gateway restarts and cannot
@@ -20361,8 +20373,14 @@ enough for anyone's mother.
    (`telegram-bot.json`, 0600, never the token) and shown only while Hermes still holds a
    token of that preview; otherwise "Připojeno" alone.
 8. **Odpojit** switches the platform off and clears its token and allowlist through Hermes's
-   writer, removes the home channel and the bot's record, and owes the restart that takes it
-   out; until then the row says so. Hermes's pairing store keeps its approvals, so a reconnect
+   writer. As soon as Hermes has the bot off, the bot's record goes and the restart that takes
+   it out of the running gateway is owed, whatever the cleanup after it does; until then the
+   row says so. Then it removes the home channel. One Hermes cannot remove then (a 500, a
+   gateway that stops) is recorded in the Platform's own `telegram-home-channel-left.json`
+   (0600 in Buddy's state directory), and a later reading removes it once Hermes holds no
+   token of Telegram, when nothing can use it, also after a Launchpad restart; an approval's
+   own home channel replaces it. (Review of 2026-10-26: such a failure used to answer before
+   the restart was owed, so the running gateway kept polling the old bot.) Hermes's pairing store keeps its approvals, so a reconnect
    of the same account needs one confirmation and no new Start. The installer's next run finds
    no Telegram and does not ask for a token.
 9. **Delegace** (#607, #627) needs nothing more: it reads `TELEGRAM_ALLOWED_USERS` from
@@ -20379,8 +20397,8 @@ enough for anyone's mother.
     `{kind: "telegram", state, reason?, bot?, botQr?, requests?, pending?}` or `failed
     {reason: token-refused | telegram-unreachable | failed}`. `GET /api/buddy` names
     `telegram` the same way. The journal (`scope: "buddy-telegram"`) names the operation
-    (`connect`, `approve`, `disconnect`, `restart`, `pairing-text`), the outcome and the
-    reason: never the token, a preview, an account, a name, Buddy's words, a request or a
+    (`connect`, `approve`, `disconnect`, `restart`, `pairing-text`, `home-channel`), the
+    outcome and the reason: never the token, a preview, an account, a name, Buddy's words, a request or a
     handle. Hermes's own words (`message`, `error_message`, `detail`) never leave the core.
 11. **Words.** Nastavení and Připojit Telegram speak in Lazurio's voice (root decision 0199);
     the last screen of "Seznamte se s Buddym" stays in Buddy's (F65). No line names Hermes, a
@@ -20451,6 +20469,10 @@ now, and "Je to váš účet …?" stays (the Buddy lead, 2026-10-26). The insta
 | Write the key whatever Hermes advertises | An older Hermes keeps a key nothing reads, and the journal could not say why the person still reads Hermes's reply; rejected for the capability |
 | The key at the top level of `config.yaml` | Hermes exports top-level scalars into the gateway's environment; rejected for the `gateway:` section |
 | Clear the words at Odpojit | They are read only for an unknown account's code, and only while Telegram runs; kept, so a reconnect writes them again anyway |
+| The allowlist first at "Ano, to jsem já" | A failure after it read as connected, hid the account, and left no home channel and no approval; rejected for the allowlist last |
+| Owe the disconnect's restart after its cleanup | A failed cleanup answered before the restart was owed, so the running gateway kept polling the old bot; rejected for the restart owed as soon as the bot is off |
+| Remove a left home channel whatever Hermes holds | It may be a new bot's by then; rejected for removing it only while Hermes holds no token of Telegram, and dropping the record when an approval replaces it |
+| Drop the restart when systemd does not answer | Lost until another change or a Launchpad restart; rejected for keeping it owed and asking later and later |
 
 **Verified by** `tests/buddy-hermes-gateway.test.ts`: a named write carries its JSON body as
 `application/json` with its exact length and the same grant (one ticket, no `Origin`, no
@@ -20479,12 +20501,21 @@ where the stand-in advertises the capability, and the person's Start answered wi
 never asked of a gateway that does not advertise it, whose own reply with its command stays;
 a refusal and words that cannot be read journaled, the connect the same; after a persona
 change written again only while connected from here and only when they changed; F63's client
-sending a call that names a capability only to a gateway that lists that exact text.
+sending a call that names a capability only to a gateway that lists that exact text. A write
+of "Ano, to jsem já" refused (500) at the home channel, at Hermes's approval or at the
+allowlist, or a gateway draining at the allowlist, claiming nothing and leaving the account
+offered, then "Ano" again finishing it without a second approval; a request expiring between
+the list and the approval (404) leaving the account allowed. A disconnect whose home channel
+Hermes refuses (500) or cannot be asked about (draining) owing the restart at once and
+recording the home channel as left; a reading removing it only once Hermes holds no token,
+and an approval's home channel dropping the record.
 `tests/buddy-telegram-restart.test.ts`: one restart while idle and none owed after; busy and
 no answer waiting, two changes needing one restart; two minutes after any start; a start by
-anyone settling it; a stopped gateway, no unit, no user manager; the Launchpad's start taking it
-up; F64's turn held; units reread first and a refused reread restarting nothing; refused
-restarts asked later and later. `tests/launchpad-buddy.test.ts`: the routes over HTTP (connect,
+anyone settling it; a stopped gateway and a gateway with no unit owing nothing; systemd not
+answering keeping the restart owed, asked again after 30 s, then twice as long each time and
+at most every 15 minutes, and once it answers still waiting for Buddy to be idle and for the
+two minutes; the Launchpad's start taking it up; F64's turn held; units reread first and a
+refused reread restarting nothing; refused restarts asked later and later. `tests/launchpad-buddy.test.ts`: the routes over HTTP (connect,
 the person's Start, approve, 409, disconnect, with the journal's exact lines and no secret in
 any of them, his words in Czech and ty for his persona at the connect, the person's Start
 answered with them, and his words again after a persona change from the page),

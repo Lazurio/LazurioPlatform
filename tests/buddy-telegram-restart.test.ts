@@ -257,7 +257,7 @@ posix(
 );
 
 posix(
-  "a start by anyone after the change settles it; a stopped gateway reads the files when it starts; no user manager restarts nothing",
+  "a start by anyone after the change settles it; a stopped gateway reads the files when it starts; a gateway with no unit owes nothing",
   () =>
     within(async ({ home, world, restart, restarts }) => {
       await markTelegramChanged(home);
@@ -270,10 +270,71 @@ posix(
       expect(await change(restart)).toEqual({ state: "none" });
       world.unit = "absent";
       expect(await change(restart)).toEqual({ state: "unavailable" });
-      world.unit = "running";
-      world.systemd = false;
-      expect(await change(restart)).toEqual({ state: "unavailable" });
       expect(restarts()).toBe(0);
+      expect(restart.owed()).toBe(false);
+    }),
+);
+
+posix(
+  "systemd not answering keeps the restart owed, asked again later and later and at most every 15 minutes; once it answers, the idle and spacing rules still hold",
+  () =>
+    within(async ({ world, restart, restarts, advance, journal }) => {
+      const shows = () =>
+        world.calls.filter((call) => call[2] === "show").length;
+      world.systemd = false;
+      expect(await change(restart)).toEqual({ state: "unanswered" });
+      expect(restart.owed()).toBe(true);
+      expect(shows()).toBe(1);
+      // 30 s, then twice as long each time.
+      await advance(29_000);
+      expect(shows()).toBe(1);
+      for (const [wait, count] of [
+        [1_000, 2],
+        [60_000, 3],
+        [120_000, 4],
+        [240_000, 5],
+        [480_000, 6],
+        // At most every 15 minutes.
+        [900_000, 7],
+        [899_000, 7],
+        [1_000, 8],
+      ] as const) {
+        await advance(wait);
+        expect({ wait, count: shows() }).toEqual({ wait, count });
+      }
+      expect(restart.owed()).toBe(true);
+      // It answers, but Buddy works: no restart until he is idle.
+      world.systemd = true;
+      world.work = "busy";
+      await advance(900_000);
+      expect(restarts()).toBe(0);
+      expect(restart.owed()).toBe(true);
+      world.work = "idle";
+      await advance(telegramRestartRetryMs);
+      expect(restarts()).toBe(1);
+      expect(restart.owed()).toBe(false);
+      expect(journal.map((entry) => entry.outcome)).toEqual([
+        "unanswered",
+        "pending",
+        "done",
+      ]);
+      // A gateway started a moment ago, then a change while systemd does not
+      // answer: once it does, the restart still waits for the spacing.
+      await advance(telegramRestartSpacingMs);
+      world.startedAt = Date.now() + world.offset - 10_000;
+      world.systemd = false;
+      await advance(1);
+      expect(await change(restart)).toEqual({ state: "unanswered" });
+      world.systemd = true;
+      await advance(30_000);
+      expect(restarts()).toBe(1);
+      expect(journal.at(-1)).toEqual({
+        operation: "restart",
+        outcome: "pending",
+        reason: "spacing",
+      });
+      await advance(telegramRestartSpacingMs);
+      expect(restarts()).toBe(2);
       expect(restart.owed()).toBe(false);
     }),
 );

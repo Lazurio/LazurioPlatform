@@ -41,6 +41,11 @@ import { applyLockPath } from "./persona-apply";
 // - Asked again every 15 seconds while it waits, later and later after a
 //   failure; and once when the Launchpad starts, so a restart owed before a
 //   Launchpad restart is still made.
+// - systemd that does not answer (`systemctl --user show` failing or timing
+//   out, the apply turn's lock unusable) keeps the restart owed: asked again
+//   later and later, at most every 15 minutes, and the idle and spacing rules
+//   hold when it answers. Only a gateway with no unit at all owes nothing:
+//   whoever starts it reads the files then.
 
 /** The Platform's own record of the last change of Buddy's Telegram: its
  * time is what a running gateway must have started after. */
@@ -73,10 +78,13 @@ export const telegramRestartRetryMaxMs = 15 * 60_000;
 
 /** One attempt: nothing owed (`none`), made now (`done`), waiting for Buddy
  * to be idle, for the spacing or for another apply (`pending`, with when to
- * ask again), refused by systemd (`failed`), or no user manager to ask
- * (`unavailable`). */
+ * ask again), refused by systemd (`failed`), systemd not answering
+ * (`unanswered`: still owed, asked again later), or nothing to restart
+ * (`unavailable`: no home, or no unit of the gateway). */
 export type TelegramRestartOutcome =
-  | Readonly<{ state: "none" | "done" | "failed" | "unavailable" }>
+  | Readonly<{
+      state: "none" | "done" | "failed" | "unanswered" | "unavailable";
+    }>
   | Readonly<{ state: "pending"; reason: "busy" | "spacing" | "turn" }>;
 
 export type TelegramRestartTimers = Readonly<{
@@ -154,11 +162,14 @@ export function createTelegramRestart(
     } catch (error) {
       return error instanceof FileLockError && error.reason === "busy"
         ? Object.freeze({ state: "pending", reason: "turn" })
-        : Object.freeze({ state: "unavailable" });
+        : Object.freeze({ state: "unanswered" });
     }
     try {
       const unit = await gatewayUnitState(input.service);
-      if (unit.state === "unknown" || unit.state === "absent")
+      // No answer is not "nothing to restart": the restart stays owed.
+      if (unit.state === "unknown")
+        return Object.freeze({ state: "unanswered" });
+      if (unit.state === "absent")
         return Object.freeze({ state: "unavailable" });
       // A gateway that does not run reads the files when it starts.
       if (unit.state !== "running") return Object.freeze({ state: "none" });
@@ -203,13 +214,13 @@ export function createTelegramRestart(
       if (!closed) schedule(telegramRestartRetryMs);
       return;
     }
-    if (outcome.state === "failed") {
+    if (outcome.state === "failed" || outcome.state === "unanswered") {
       const delay = failedDelay;
       failedDelay = Math.min(failedDelay * 2, telegramRestartRetryMaxMs);
       if (!closed) schedule(delay);
       return;
     }
-    // Done, nothing owed, or nothing to ask: a change after this one
+    // Done, nothing owed, or nothing to restart: a change after this one
     // records itself and asks again.
     if (outcome.state === "done") restartedAt = now();
     failedDelay = telegramRestartFailedMs;
