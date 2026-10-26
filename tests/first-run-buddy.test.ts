@@ -315,6 +315,7 @@ test("the guide of Začínáme with Buddy has four stops, his step among them; N
   expect(buddy.guides[0]?.steps.map((step) => step.at)).toEqual([
     "buddy-state",
     "buddy-persona",
+    "buddy-channels",
   ]);
   expect(
     pageGuide({ view: "settings", section: "buddy" }, facts, cs).help,

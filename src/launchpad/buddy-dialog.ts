@@ -35,7 +35,10 @@ type Copy = Readonly<Record<MessageKey, string>>;
 //      words: what to call him, ty or vy, what to call the person, and how
 //      he will write their name, with Opravit. Pokračovat saves it with the
 //      person's confirmation.
-//   3. Telegram: for now only "Teď ne" and that his chat in Lazurio stays.
+//   3. Telegram, optional (decision F66): "Připojit Telegram", which closes
+//      this dialog and opens "Připojit Telegram", or "Teď ne", and that his
+//      chat in Lazurio stays. The step is done before it: it never waits for
+//      Telegram. Once his bot is connected, it says so, and Hotovo.
 //
 // Nastavení → Buddy opens the first screen alone to sign him in again. Every
 // value is drawn with textContent; the code reaches the clipboard only by
@@ -193,6 +196,8 @@ export function createBuddyDialog(
     save: (draft: PersonaDraft, confirm: boolean) => Promise<PersonaSaveResult>;
     /** The dialog closed: the page draws again (its tour comes back). */
     closed: () => void;
+    /** "Připojit Telegram": this dialog closes and that one opens. */
+    telegram: () => void;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -495,11 +500,12 @@ export function createBuddyDialog(
     drawNav();
   }
 
-  // ---- 3. Telegram, later ----
+  // ---- 3. Telegram, optional ----
 
   function telegramBody(copy: Copy): HTMLElement[] {
-    const persona = options.facts().reading?.persona ?? null;
-    const words = telegramScreen(persona ?? draft, copy);
+    const reading = options.facts().reading;
+    const persona = reading?.persona ?? null;
+    const words = telegramScreen(persona ?? draft, copy, reading?.telegram);
     const art = element("div", "buddy-meet-art");
     const face = faceNode(
       options.avatar(),
@@ -511,7 +517,11 @@ export function createBuddyDialog(
       element("p", "buddy-bubble", words.here),
     );
     art.append(face, says);
-    return [art];
+    if (words.connected === null) return [art];
+    const status = element("p", "buddy-status buddy-ok");
+    status.setAttribute("role", "status");
+    status.append(icon("check"), words.connected);
+    return [art, status];
   }
 
   // ---- The frame ----
@@ -533,7 +543,23 @@ export function createBuddyDialog(
         saving || !introduceScreen(draft, options.locale(), copy).ready;
       if (saving) next.prepend(spinner());
       items.push(next);
-    } else items.push(button(copy.buddyLater, () => hide(), true));
+    } else if (
+      options.facts().reading?.telegram?.state === "connected" ||
+      options.facts().reading?.telegram?.state === "unknown"
+    )
+      items.push(button(copy.buddyDone, () => hide(), true));
+    else
+      items.push(
+        button(copy.buddyLater, () => hide()),
+        button(
+          copy.buddyTelegramConnect,
+          () => {
+            hide();
+            options.telegram();
+          },
+          true,
+        ),
+      );
     nav.replaceChildren(...items);
     // The steps of the guide, as Propojit Bitwarden shows them.
     dots.hidden = only;

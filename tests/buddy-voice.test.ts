@@ -215,3 +215,76 @@ test("the dialog's and the step's words are the wireframe's, adapted only where 
   expect(cs.buddyPending).toBe("Projeví se, až Buddy dokončí, co právě dělá.");
   expect(cs.buddyStateNotRunning).toBe("Buddy teď neběží");
 });
+
+// Telegram (decision F66): Lazurio's own lines, vy, plain; "token" only as
+// BotFather says it to the person, in the lines about what he sent.
+const telegramKeys = keys.filter((key) => key.startsWith("telegram"));
+/** The lines that speak of BotFather's token. */
+const botFatherToken = new Set<string>([
+  "telegramGuideToken",
+  "telegramStepToken",
+  "telegramTokenLabel",
+  "telegramTokenKept",
+  "telegramTokenShape",
+  "telegramTokenRefused",
+]);
+
+test("Telegram's lines say vy, name no mechanism, and say token only as BotFather does", () => {
+  expect(telegramKeys.length).toBeGreaterThan(40);
+  const developer =
+    /hermes|gateway|oauth|codex|\bapi\b|session|pairing|párov|allowlist|restart|systemd|json|\.env|config|webhook|polling|\bid\b|getme|--/i;
+  for (const copy of [cs, en])
+    for (const key of telegramKeys) {
+      const text = copy[key];
+      expect({ key, developer: developer.test(text) }).toEqual({
+        key,
+        developer: false,
+      });
+      expect({
+        key,
+        token: /token/i.test(text) && !botFatherToken.has(key),
+      }).toEqual({
+        key,
+        token: false,
+      });
+      expect(text).not.toMatch(/pomocn|helper/i);
+    }
+  for (const key of telegramKeys)
+    expect({ key, ty: has(cs[key], tyWords) }).toEqual({ key, ty: false });
+  // Where they ask the person to act, they say vy.
+  for (const key of [
+    "telegramStepBotFather",
+    "telegramStepToken",
+    "telegramStepStart",
+    "telegramGuideOpen",
+    "telegramTokenShape",
+    "telegramTokenRefused",
+    "telegramIsItYou",
+  ] as const)
+    expect({ key, text: cs[key] }).toEqual({
+      key,
+      text: expect.stringMatching(/te\b|te[,.]|vám|vás|váš|vaš/),
+    });
+  // The wireframe's words where it has them.
+  expect([
+    cs.telegramDialogTitle,
+    cs.telegramStepBotFather,
+    cs.telegramStepToken,
+    cs.telegramStepStart,
+    cs.telegramOpenBotFather,
+    cs.telegramBotCreated,
+    cs.telegramNone,
+    cs.buddyTelegramConnect,
+    cs.buddyChannelsGroup,
+  ]).toEqual([
+    "Připojit Telegram",
+    "Založte bota u @BotFather.",
+    "Vložte token, který vám BotFather poslal.",
+    "Otevřete svého bota a stiskněte Start.",
+    "Otevřít BotFather",
+    "Bot je založený",
+    "Nepřipojeno",
+    "Připojit Telegram",
+    "Kanály",
+  ]);
+});

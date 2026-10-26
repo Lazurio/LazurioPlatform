@@ -7,10 +7,10 @@ import { fill } from "./update-view";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
-// Buddy in the Launchpad's page (decision F65; the wireframe of
+// Buddy in the Launchpad's page (decisions F65 and F66; the wireframe of
 // prototypes-lazurio #90): what Začínáme's step "Seznamte se s Buddym", its
-// dialog and Nastavení → Buddy say, from `GET /api/buddy` and the sign-in
-// this page holds. Lazurio's own lines say vy (root decision 0199); the
+// dialog, "Připojit Telegram" and Nastavení → Buddy say, from
+// `GET /api/buddy` and the sign-in this page holds. Lazurio's own lines say vy (root decision 0199); the
 // lines Buddy says himself in the dialog (his introduction, his questions,
 // the Telegram screen) follow how he addresses the person, and change at
 // once with "Tykej mi". No line names a model, Hermes, a code name or a
@@ -20,12 +20,27 @@ type Copy = Readonly<Record<MessageKey, string>>;
 /** His default name, as the installer names a Buddy nobody named. */
 export const defaultBuddyName = "Buddy";
 
+/** His Telegram as `GET /api/buddy` says it (decision F66): Hermes's state
+ * of his own bot, its username where the Launchpad saw it, its address as a
+ * code to scan while the person still opens it, who asked to talk to it while
+ * it waits, and whether a change waits for Buddy to be idle. */
+export type TelegramReading = Readonly<{
+  state: "none" | "starting" | "waiting" | "connected" | "failed" | "unknown";
+  reason?: "refused" | "conflict" | "failed";
+  bot?: string;
+  botQr?: string;
+  requests: readonly Readonly<{ request: string; name: string }>[];
+  pending: boolean;
+}>;
+
 /** What `GET /api/buddy` answers, as the page reads it. */
 export type BuddyReading = Readonly<{
   state: "works" | "waits" | "unknown";
   reason?: "not-running";
   signIn: "connected" | "none" | "unknown";
   persona: BuddyPersonaShown | null;
+  /** Absent where the Launchpad does not say. */
+  telegram?: TelegramReading;
 }>;
 
 type Json = Record<string, unknown>;
@@ -61,6 +76,57 @@ export function parsePersona(value: unknown): BuddyPersonaShown | null {
   };
 }
 
+/** Telegram that could not be read: no claim either way. */
+export const unknownTelegram: TelegramReading = Object.freeze({
+  state: "unknown",
+  requests: Object.freeze([]),
+  pending: false,
+});
+
+const telegramStates = new Set([
+  "none",
+  "starting",
+  "waiting",
+  "connected",
+  "failed",
+  "unknown",
+]);
+const botShape = /^[A-Za-z][A-Za-z0-9_]{4,31}$/;
+const requestShape = /^[0-9a-f]{32}$/;
+
+/** Telegram of an answer; any other shape is no claim. A request is taken
+ * only with the page's handle of it and a name of at most 64 characters. */
+export function parseTelegram(value: unknown): TelegramReading {
+  if (!isRecord(value)) return unknownTelegram;
+  const { state, reason, bot, botQr, requests, pending } = value;
+  if (typeof state !== "string" || !telegramStates.has(state))
+    return unknownTelegram;
+  const asked = Array.isArray(requests)
+    ? requests.flatMap((entry) =>
+        isRecord(entry) &&
+        typeof entry.request === "string" &&
+        requestShape.test(entry.request) &&
+        typeof entry.name === "string" &&
+        [...entry.name].length <= 64
+          ? [Object.freeze({ request: entry.request, name: entry.name })]
+          : [],
+      )
+    : [];
+  return Object.freeze({
+    state: state as TelegramReading["state"],
+    ...(state === "failed"
+      ? {
+          reason:
+            reason === "refused" || reason === "conflict" ? reason : "failed",
+        }
+      : {}),
+    ...(typeof bot === "string" && botShape.test(bot) ? { bot } : {}),
+    ...(typeof botQr === "string" ? { botQr } : {}),
+    requests: Object.freeze(asked),
+    pending: pending === true,
+  });
+}
+
 /** `GET /api/buddy`'s answer, or null for any other shape. */
 export function parseBuddyReading(value: unknown): BuddyReading | null {
   if (!isRecord(value) || value.kind !== "buddy" || !isRecord(value.signIn))
@@ -80,6 +146,9 @@ export function parseBuddyReading(value: unknown): BuddyReading | null {
     ...(reason === undefined ? {} : { reason }),
     signIn,
     persona,
+    ...(value.telegram === undefined
+      ? {}
+      : { telegram: parseTelegram(value.telegram) }),
   };
 }
 
@@ -282,7 +351,7 @@ export type BuddyPartMark = "done" | "open" | "warn";
 
 /** One quiet part of the step, with its state. */
 export type BuddyPart = Readonly<{
-  id: "sign-in" | "persona";
+  id: "sign-in" | "persona" | "telegram";
   mark: BuddyPartMark;
   title: string;
   status: string;
@@ -388,9 +457,9 @@ function nextSignIn(
 }
 
 /** Začínáme's step "Seznamte se s Buddym" (the wireframe's `BuddyStep`):
- * the sign-in and the names as two quiet parts, one action at a time. The
- * Telegram part comes with Telegram itself (its state is Hermes's, which
- * this page does not read yet). */
+ * the sign-in, the names and Telegram as quiet parts, one action at a time.
+ * Telegram is optional (decision F66): its part shows its state once Hermes
+ * said it, and never decides whether the step is done. */
 export function buddyStep(facts: BuddyStepFacts, copy: Copy): BuddyStepView {
   const { reading, signIn } = facts;
   const persona = reading?.persona ?? null;
@@ -424,11 +493,33 @@ export function buddyStep(facts: BuddyStepFacts, copy: Copy): BuddyStepView {
       : connected
         ? "introduce"
         : next;
+  const telegram = reading?.telegram;
+  const channel =
+    telegram === undefined || telegram.state === "unknown"
+      ? []
+      : [telegramPart(telegram, copy)];
   return {
     done,
     failed: !done && sign.mark === "warn",
-    parts: [sign, names],
+    parts: [sign, names, ...channel],
     action,
+  };
+}
+
+/** Telegram as the step's optional part. */
+function telegramPart(telegram: TelegramReading, copy: Copy): BuddyPart {
+  const row = telegramRow(telegram, copy);
+  return {
+    id: "telegram",
+    mark:
+      telegram.state === "connected"
+        ? "done"
+        : telegram.state === "failed"
+          ? "warn"
+          : "open",
+    title: copy.buddyPartTelegram,
+    status: row.line,
+    ...(row.busy ? { busy: true } : {}),
   };
 }
 
@@ -672,15 +763,22 @@ export function introduceScreen(
   };
 }
 
-/** The third screen, in his address: Telegram later, his chat here. */
+/** The third screen, in his address: whether the person wants to write to
+ * him on Telegram too (Připojit Telegram, or Teď ne), his chat here; once his
+ * bot is connected, that it is. */
 export function telegramScreen(
   persona: Readonly<{ address: "ty" | "vy" }> | null,
   copy: Copy,
-): Readonly<{ ask: string; here: string }> {
+  telegram?: TelegramReading,
+): Readonly<{ ask: string; here: string; connected: string | null }> {
   const address = persona?.address ?? "vy";
   return {
     ask: said(copy, "buddyTelegramAsk", address),
     here: said(copy, "buddyTelegramHere", address),
+    connected:
+      telegram?.state === "connected"
+        ? telegramConnectedLine(telegram, copy)
+        : null,
   };
 }
 
@@ -755,3 +853,255 @@ export function buddySignInRow(
 /** His name as the page shows it. */
 export const buddyNameOf = (reading: BuddyReading | null): string =>
   reading?.persona?.buddyName ?? defaultBuddyName;
+
+// ---- Telegram (decision F66) ------------------------------------------------
+
+/** "Připojeno: @bot", or "Připojeno" where this Launchpad did not see the
+ * bot's name. */
+const telegramConnectedLine = (telegram: TelegramReading, copy: Copy) =>
+  telegram.bot === undefined
+    ? copy.telegramConnectedPlain
+    : fill(copy.telegramConnected, { bot: telegram.bot });
+
+/** The one action of the Telegram row: Připojit, Pokračovat (back to the
+ * dialog's last step while it starts or waits for the person's message),
+ * Odpojit once connected; none while nothing can be said. */
+export type TelegramRowAction = "connect" | "continue" | "disconnect" | "none";
+
+export type TelegramRowView = Readonly<{
+  tone: "ok" | "off" | "warn";
+  line: string;
+  /** Something runs: a spinner before the line. */
+  busy: boolean;
+  /** A quiet line under it: a change that waits for Buddy. */
+  quiet?: string;
+  action: TelegramRowAction;
+}>;
+
+/** Nastavení → Buddy → Kanály → Telegram, and the step's part: its state in
+ * Lazurio's words, never Hermes's, and its one action. */
+export function telegramRow(
+  telegram: TelegramReading | undefined,
+  copy: Copy,
+): TelegramRowView {
+  const value = telegram ?? unknownTelegram;
+  switch (value.state) {
+    case "none":
+      return value.pending
+        ? {
+            tone: "off",
+            line: copy.telegramNone,
+            busy: false,
+            quiet: copy.telegramDisconnecting,
+            action: "connect",
+          }
+        : {
+            tone: "off",
+            line: copy.telegramNone,
+            busy: false,
+            action: "connect",
+          };
+    case "starting":
+      return {
+        tone: "off",
+        line: copy.telegramStarting,
+        busy: true,
+        ...(value.pending ? { quiet: copy.buddyPending } : {}),
+        action: "continue",
+      };
+    case "waiting":
+      return {
+        tone: "off",
+        line: copy.telegramWaiting,
+        busy: false,
+        action: "continue",
+      };
+    case "connected":
+      return {
+        tone: "ok",
+        line: telegramConnectedLine(value, copy),
+        busy: false,
+        action: "disconnect",
+      };
+    case "failed":
+      return {
+        tone: "warn",
+        line:
+          value.reason === "refused"
+            ? copy.telegramRefusedBot
+            : value.reason === "conflict"
+              ? copy.telegramConflict
+              : copy.telegramFailed,
+        busy: false,
+        action: "connect",
+      };
+    case "unknown":
+      return {
+        tone: "off",
+        line: copy.telegramUnknown,
+        busy: false,
+        action: "none",
+      };
+  }
+}
+
+/** The three steps of "Připojit Telegram", as Propojit Bitwarden has them:
+ * the bot at BotFather, its token, and Start in the bot. */
+export type TelegramStep = "botfather" | "token" | "start";
+export const telegramSteps: readonly TelegramStep[] = [
+  "botfather",
+  "token",
+  "start",
+];
+
+/** Where the dialog opens: at Start while the bot starts or waits for the
+ * person's message, else at BotFather. */
+export const telegramFirstStep = (
+  telegram: TelegramReading | undefined,
+): TelegramStep =>
+  telegram?.state === "starting" || telegram?.state === "waiting"
+    ? "start"
+    : "botfather";
+
+/** Whether a pasted text has the shape of a BotFather token: the bot's
+ * numeric id, a colon and its secret. Telegram decides on the server. */
+export const looksLikeBotToken = (text: string): boolean =>
+  /^\d{1,20}:[A-Za-z0-9_-]{30,200}$/.test(text.trim());
+
+/** What a connect answered, as the page says it. */
+export type TelegramConnectResult =
+  | Readonly<{ kind: "saved" }>
+  /** Not a token of a bot's shape. */
+  | Readonly<{ kind: "invalid" }>
+  /** Telegram does not know the token. */
+  | Readonly<{ kind: "refused" }>
+  /** Telegram did not answer. */
+  | Readonly<{ kind: "unreachable" }>
+  /** Buddy does not run. */
+  | Readonly<{ kind: "unavailable" }>
+  | Readonly<{ kind: "failed" }>;
+
+/** The line under the token's field after a connect that did not happen. */
+export function telegramConnectLine(
+  result: TelegramConnectResult,
+  copy: Copy,
+): string | null {
+  switch (result.kind) {
+    case "saved":
+      return null;
+    case "invalid":
+      return copy.telegramTokenShape;
+    case "refused":
+      return copy.telegramTokenRefused;
+    case "unreachable":
+      return copy.telegramUnreachable;
+    case "unavailable":
+      return copy.buddyNotRunning;
+    case "failed":
+      return copy.telegramSaveFailed;
+  }
+}
+
+/** What an approval answered. */
+export type TelegramApproveResult =
+  | Readonly<{ kind: "approved" }>
+  /** The request is no longer there. */
+  | Readonly<{ kind: "gone" }>
+  | Readonly<{ kind: "unavailable" }>
+  | Readonly<{ kind: "failed" }>;
+
+/** The last step, from the reading: on its way, waiting for the person's
+ * Start (and who asked), connected, or what stopped it. */
+export type TelegramStartScreen =
+  | Readonly<{
+      kind: "starting";
+      quiet: string | null;
+      bot: string | null;
+      botQr: string | null;
+    }>
+  | Readonly<{
+      kind: "waiting";
+      bot: string | null;
+      botQr: string | null;
+      /** "Je to váš účet …?", one per account that asked; empty while
+       * nobody did. */
+      asks: readonly Readonly<{ request: string; line: string }>[];
+      /** More than one account asked. */
+      many: boolean;
+    }>
+  | Readonly<{ kind: "connected"; line: string }>
+  | Readonly<{
+      kind: "failed";
+      line: string;
+      /** Where the dialog goes again: a new token, or a new bot. */
+      again: TelegramStep;
+    }>
+  /** Disconnected meanwhile: back to the first step. */
+  | Readonly<{ kind: "none" }>
+  | Readonly<{ kind: "unknown"; line: string }>;
+
+export function telegramStartScreen(
+  telegram: TelegramReading | undefined,
+  copy: Copy,
+): TelegramStartScreen {
+  const value = telegram ?? unknownTelegram;
+  const bot = value.bot ?? null;
+  const botQr = value.botQr ?? null;
+  switch (value.state) {
+    case "starting":
+      return {
+        kind: "starting",
+        quiet: value.pending ? copy.buddyPending : null,
+        bot,
+        botQr,
+      };
+    case "waiting":
+      return {
+        kind: "waiting",
+        bot,
+        botQr,
+        asks: value.requests.map(({ request, name }) => ({
+          request,
+          line:
+            name === ""
+              ? copy.telegramIsItYouNoName
+              : fill(copy.telegramIsItYou, { name }),
+        })),
+        many: value.requests.length > 1,
+      };
+    case "connected":
+      return { kind: "connected", line: telegramConnectedLine(value, copy) };
+    case "failed":
+      return {
+        kind: "failed",
+        line:
+          value.reason === "refused"
+            ? copy.telegramRefusedBot
+            : value.reason === "conflict"
+              ? copy.telegramConflict
+              : copy.telegramFailed,
+        again: value.reason === "conflict" ? "botfather" : "token",
+      };
+    case "none":
+      return { kind: "none" };
+    case "unknown":
+      return { kind: "unknown", line: copy.telegramUnknown };
+  }
+}
+
+/** The line after an approval that did not happen. */
+export function telegramApproveLine(
+  result: TelegramApproveResult,
+  copy: Copy,
+): string | null {
+  switch (result.kind) {
+    case "approved":
+      return null;
+    case "gone":
+      return copy.telegramApproveGone;
+    case "unavailable":
+      return copy.buddyNotRunning;
+    case "failed":
+      return copy.telegramApproveFailed;
+  }
+}

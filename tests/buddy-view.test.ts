@@ -16,14 +16,23 @@ import {
   draftOf,
   draftReady,
   introduceScreen,
+  looksLikeBotToken,
   meetStart,
   parseBuddyReading,
+  parseTelegram,
   personaBody,
   saveLine,
   secondsLeft,
   signInScreen,
+  type TelegramReading,
+  telegramApproveLine,
+  telegramConnectLine,
+  telegramFirstStep,
+  telegramRow,
   telegramScreen,
+  telegramStartScreen,
   unknownBuddyReading,
+  unknownTelegram,
   withForm,
   withYourName,
 } from "../src/launchpad/buddy-view";
@@ -446,15 +455,26 @@ test("Buddy introduces himself in his own words: ty or vy at once, the person's 
     fixable: false,
     ready: true,
   });
-  // The third screen, in his address.
+  // The third screen, in his address; once his bot is connected, that it
+  // is (decision F66).
   expect(telegramScreen(persona({ address: "vy" }), cs)).toEqual({
     ask: "Chcete mi psát i na Telegramu?",
     here: "Psát mi můžete vždycky i tady v Lazuriu, vpravo dole.",
+    connected: null,
   });
   expect(telegramScreen(persona({ address: "ty" }), cs)).toEqual({
     ask: "Chceš mi psát i na Telegramu?",
     here: "Psát mi můžeš vždycky i tady v Lazuriu, vpravo dole.",
+    connected: null,
   });
+  expect(
+    telegramScreen(persona({ address: "ty" }), cs, {
+      state: "connected",
+      bot: "rex_buddy_bot",
+      requests: [],
+      pending: false,
+    }).connected,
+  ).toBe("Připojeno: @rex_buddy_bot");
 });
 
 test("the draft of the names: guessed as the person types, corrected by hand with Opravit, sent with the revision read", () => {
@@ -600,4 +620,220 @@ test("what is drawn again: a code's countdown ticks in place, any other change o
   expect(drawnKey(buddyStep(facts(reading()), cs))).not.toBe(
     drawnKey(buddyStep(facts(works(false)), cs)),
   );
+});
+
+// ---- Telegram (decision F66) ------------------------------------------------
+
+const telegram = (
+  overrides: Partial<TelegramReading> = {},
+): TelegramReading => ({
+  state: "none",
+  requests: [],
+  pending: false,
+  ...overrides,
+});
+
+test("Telegram of an answer: only its states, a bot's name, the page's handles; any other shape claims nothing", () => {
+  expect(
+    parseTelegram({
+      state: "waiting",
+      bot: "rex_buddy_bot",
+      botQr: "<svg/>",
+      requests: [
+        { request: "a".repeat(32), name: "jana_s" },
+        { request: "0123456789abcdef", name: "hermes id" },
+        { request: "b".repeat(32), name: "x".repeat(65) },
+      ],
+    }),
+  ).toEqual({
+    state: "waiting",
+    bot: "rex_buddy_bot",
+    botQr: "<svg/>",
+    requests: [{ request: "a".repeat(32), name: "jana_s" }],
+    pending: false,
+  });
+  expect(parseTelegram({ state: "failed", reason: "odd" })).toEqual({
+    state: "failed",
+    reason: "failed",
+    requests: [],
+    pending: false,
+  });
+  expect(parseTelegram({ state: "connected", bot: "@nope" })).toEqual({
+    state: "connected",
+    requests: [],
+    pending: false,
+  });
+  for (const value of [null, {}, { state: "linked" }, []])
+    expect(parseTelegram(value)).toEqual(unknownTelegram);
+  // A reading names it where the Launchpad says it.
+  expect(
+    parseBuddyReading({
+      kind: "buddy",
+      state: "works",
+      signIn: { state: "connected" },
+      persona: null,
+      telegram: { state: "none", pending: true },
+    })?.telegram,
+  ).toEqual({ state: "none", requests: [], pending: true });
+});
+
+test("Nastavení → Buddy → Kanály: one state in Lazurio's words and one action; Telegram's waits are never an error", () => {
+  expect(telegramRow(telegram(), cs)).toEqual({
+    tone: "off",
+    line: "Nepřipojeno",
+    busy: false,
+    action: "connect",
+  });
+  expect(telegramRow(telegram({ pending: true }), cs)).toEqual({
+    tone: "off",
+    line: "Nepřipojeno",
+    busy: false,
+    quiet: "Odpojí se, až Buddy dokončí, co právě dělá.",
+    action: "connect",
+  });
+  expect(
+    telegramRow(telegram({ state: "starting", pending: true }), cs),
+  ).toEqual({
+    tone: "off",
+    line: "Připojuje se…",
+    busy: true,
+    quiet: "Projeví se, až Buddy dokončí, co právě dělá.",
+    action: "continue",
+  });
+  expect(telegramRow(telegram({ state: "waiting" }), cs)).toMatchObject({
+    line: "Čeká na vaši zprávu",
+    action: "continue",
+  });
+  expect(
+    telegramRow(telegram({ state: "connected", bot: "rex_buddy_bot" }), cs),
+  ).toEqual({
+    tone: "ok",
+    line: "Připojeno: @rex_buddy_bot",
+    busy: false,
+    action: "disconnect",
+  });
+  expect(telegramRow(telegram({ state: "connected" }), cs).line).toBe(
+    "Připojeno",
+  );
+  for (const [reason, line] of [
+    ["refused", cs.telegramRefusedBot],
+    ["conflict", cs.telegramConflict],
+    ["failed", cs.telegramFailed],
+  ] as const)
+    expect(telegramRow(telegram({ state: "failed", reason }), cs)).toEqual({
+      tone: "warn",
+      line,
+      busy: false,
+      action: "connect",
+    });
+  expect(telegramRow(undefined, cs)).toEqual({
+    tone: "off",
+    line: "Nepodařilo se ověřit",
+    busy: false,
+    action: "none",
+  });
+});
+
+test("Připojit Telegram: where it opens, the token's shape, the last step from the reading, and one line per refusal", () => {
+  expect(telegramFirstStep(undefined)).toBe("botfather");
+  expect(telegramFirstStep(telegram({ state: "starting" }))).toBe("start");
+  expect(telegramFirstStep(telegram({ state: "waiting" }))).toBe("start");
+  expect(telegramFirstStep(telegram({ state: "failed" }))).toBe("botfather");
+  const token = `${"7".repeat(10)}:AAH${"x".repeat(32)}`;
+  expect(looksLikeBotToken(` ${token} `)).toBe(true);
+  for (const text of ["", "123", "abc:".concat("x".repeat(40)), `${token} x`])
+    expect(looksLikeBotToken(text)).toBe(false);
+  expect(
+    telegramStartScreen(
+      telegram({ state: "starting", bot: "rex_buddy_bot", botQr: "<svg/>" }),
+      cs,
+    ),
+  ).toEqual({
+    kind: "starting",
+    quiet: null,
+    bot: "rex_buddy_bot",
+    botQr: "<svg/>",
+  });
+  expect(
+    telegramStartScreen(
+      telegram({
+        state: "waiting",
+        requests: [
+          { request: "a".repeat(32), name: "jana_s" },
+          { request: "b".repeat(32), name: "" },
+        ],
+      }),
+      cs,
+    ),
+  ).toEqual({
+    kind: "waiting",
+    bot: null,
+    botQr: null,
+    asks: [
+      { request: "a".repeat(32), line: "Je to váš účet „jana_s“?" },
+      { request: "b".repeat(32), line: "Je to váš účet?" },
+    ],
+    many: true,
+  });
+  expect(
+    telegramStartScreen(
+      telegram({ state: "connected", bot: "rex_buddy_bot" }),
+      cs,
+    ),
+  ).toEqual({ kind: "connected", line: "Připojeno: @rex_buddy_bot" });
+  expect(
+    telegramStartScreen(telegram({ state: "failed", reason: "conflict" }), cs),
+  ).toEqual({ kind: "failed", line: cs.telegramConflict, again: "botfather" });
+  expect(
+    telegramStartScreen(telegram({ state: "failed", reason: "refused" }), cs),
+  ).toMatchObject({ again: "token" });
+  expect(telegramConnectLine({ kind: "saved" }, cs)).toBeNull();
+  expect(telegramConnectLine({ kind: "invalid" }, cs)).toBe(
+    cs.telegramTokenShape,
+  );
+  expect(telegramConnectLine({ kind: "refused" }, cs)).toBe(
+    cs.telegramTokenRefused,
+  );
+  expect(telegramConnectLine({ kind: "unreachable" }, cs)).toBe(
+    cs.telegramUnreachable,
+  );
+  expect(telegramConnectLine({ kind: "unavailable" }, cs)).toBe(
+    cs.buddyNotRunning,
+  );
+  expect(telegramApproveLine({ kind: "gone" }, cs)).toBe(
+    cs.telegramApproveGone,
+  );
+});
+
+test("the step's Telegram part: optional, its state once Hermes said it, never deciding whether the step is done", () => {
+  const facts = (value?: TelegramReading): BuddyStepFacts => ({
+    reading: reading({
+      signIn: "connected",
+      persona: persona({ confirmed: true }),
+      ...(value === undefined ? {} : { telegram: value }),
+    }),
+    signIn: { kind: "idle" },
+    now: at,
+  });
+  expect(buddyStep(facts(), cs).parts.map((part) => part.id)).toEqual([
+    "sign-in",
+    "persona",
+  ]);
+  expect(buddyStep(facts(unknownTelegram), cs).parts).toHaveLength(2);
+  const none = buddyStep(facts(telegram()), cs);
+  expect(none.done).toBe(true);
+  expect(none.parts[2]).toEqual({
+    id: "telegram",
+    mark: "open",
+    title: "Telegram (volitelné)",
+    status: "Nepřipojeno",
+  });
+  expect(
+    buddyStep(facts(telegram({ state: "connected", bot: "rex_buddy_bot" })), cs)
+      .parts[2],
+  ).toMatchObject({ mark: "done", status: "Připojeno: @rex_buddy_bot" });
+  const failed = buddyStep(facts(telegram({ state: "failed" })), cs);
+  expect(failed.parts[2]?.mark).toBe("warn");
+  expect(failed.failed).toBe(false);
+  expect(failed.done).toBe(true);
 });

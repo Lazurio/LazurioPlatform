@@ -259,14 +259,16 @@ export const startGuide = (copy: Copy, buddy = false): PageGuideInput =>
         ],
       };
 
-/** Nastavení → Buddy (decision F65): whether he works with his own
- * sign-in, and his name and how he addresses the person. */
+/** Nastavení → Buddy (decisions F65 and F66): whether he works with his
+ * own sign-in, his name and how he addresses the person, and where else to
+ * write to him. */
 export const buddyGuide = (copy: Copy): PageGuideInput => ({
   id: "settings-buddy",
   title: copy.buddyTitle,
   steps: [
     { text: copy.guideBuddyState, at: "buddy-state" },
     { text: copy.guideBuddyPersona, at: "buddy-persona" },
+    { text: copy.guideBuddyChannels, at: "buddy-channels" },
   ],
 });
 

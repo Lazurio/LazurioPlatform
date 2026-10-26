@@ -5,6 +5,7 @@ import {
   type BuddyTransport,
   buddyPendingReadMs,
   buddyReadAttempts,
+  buddyTelegramReadMs,
   createBuddyClient,
 } from "../src/launchpad/buddy-client";
 import { buddyRoutePaths } from "../src/launchpad/buddy-paths";
@@ -684,4 +685,116 @@ test("a reading overtaken every time stops after its tries and keeps what the pa
     revision: revisions[2],
     buddyName: "Ben",
   });
+});
+
+// ---- Telegram (decision F66) ------------------------------------------------
+
+const syntheticToken = `${"7".repeat(10)}:AAH${"k".repeat(32)}`;
+const handle = "f".repeat(32);
+
+test("Telegram: a connect sends the token once and keeps it nowhere; the answer becomes the reading, read again every 4 s while it starts or waits", async () => {
+  const { buddy, fake, clock } = client();
+  fake.reply(buddyRoutePaths.read, { ok: true, value: answer() });
+  await buddy.read();
+  fake.reply(buddyRoutePaths.telegramConnect, {
+    ok: true,
+    value: {
+      kind: "telegram",
+      state: "starting",
+      bot: "rex_buddy_bot",
+      pending: true,
+    },
+  });
+  expect(await buddy.connectTelegram(syntheticToken)).toEqual({
+    kind: "saved",
+  });
+  expect(fake.sent).toEqual([
+    { path: buddyRoutePaths.telegramConnect, body: { token: syntheticToken } },
+  ]);
+  expect(buddy.reading()?.telegram).toEqual({
+    state: "starting",
+    bot: "rex_buddy_bot",
+    requests: [],
+    pending: true,
+  });
+  // Nothing the client holds names the token.
+  expect(JSON.stringify(buddy.reading())).not.toContain(syntheticToken);
+  expect(clock.delays()).toContain(buddyTelegramReadMs);
+  // Started and waiting for the person: still read every 4 s.
+  fake.reply(buddyRoutePaths.read, {
+    ok: true,
+    value: answer({
+      telegram: {
+        state: "waiting",
+        bot: "rex_buddy_bot",
+        requests: [{ request: handle, name: "jana_s" }],
+      },
+    }),
+  });
+  await clock.run(buddyTelegramReadMs);
+  expect(buddy.reading()?.telegram?.requests).toEqual([
+    { request: handle, name: "jana_s" },
+  ]);
+  expect(clock.delays()).toContain(buddyTelegramReadMs);
+  fake.reply(buddyRoutePaths.telegramApprove, {
+    ok: true,
+    value: { kind: "telegram", state: "connected", bot: "rex_buddy_bot" },
+  });
+  expect(await buddy.approveTelegram(handle)).toEqual({ kind: "approved" });
+  expect(fake.sent.at(-1)).toEqual({
+    path: buddyRoutePaths.telegramApprove,
+    body: { request: handle },
+  });
+  // Connected: nothing more to follow.
+  expect(clock.delays()).not.toContain(buddyTelegramReadMs);
+  fake.reply(buddyRoutePaths.telegramDisconnect, {
+    ok: true,
+    value: { kind: "telegram", state: "none", pending: true },
+  });
+  expect(await buddy.disconnectTelegram()).toBe(true);
+  expect(buddy.reading()?.telegram).toMatchObject({
+    state: "none",
+    pending: true,
+  });
+});
+
+test("Telegram: every refusal is a closed result, and a request gone is read again", async () => {
+  const { buddy, fake } = client();
+  fake.reply(buddyRoutePaths.read, { ok: true, value: answer() });
+  await buddy.read();
+  const cases: readonly (readonly [Reply, string])[] = [
+    [{ ok: false, value: { error: "invalid-token" } }, "invalid"],
+    [
+      { ok: true, value: { kind: "failed", reason: "token-refused" } },
+      "refused",
+    ],
+    [
+      { ok: true, value: { kind: "failed", reason: "telegram-unreachable" } },
+      "unreachable",
+    ],
+    [{ ok: true, value: { kind: "failed", reason: "failed" } }, "failed"],
+    [
+      { ok: false, value: { error: "buddy-unavailable", reason: "no-socket" } },
+      "unavailable",
+    ],
+    [{ ok: false, value: "<html>" }, "failed"],
+  ];
+  for (const [reply, kind] of cases) {
+    fake.reply(buddyRoutePaths.telegramConnect, reply);
+    expect((await buddy.connectTelegram(syntheticToken)).kind as string).toBe(
+      kind,
+    );
+  }
+  fake.reply(buddyRoutePaths.telegramApprove, {
+    ok: false,
+    value: { kind: "blocked", reason: "request-gone" },
+  });
+  const reads = fake.sent.length;
+  expect(await buddy.approveTelegram(handle)).toEqual({ kind: "gone" });
+  expect(fake.sent.length).toBe(reads + 1);
+  fake.reply(buddyRoutePaths.telegramDisconnect, {
+    ok: false,
+    value: { error: "buddy-unavailable", reason: "no-socket" },
+  });
+  expect(await buddy.disconnectTelegram()).toBe(false);
 });

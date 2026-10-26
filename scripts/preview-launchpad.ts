@@ -121,13 +121,21 @@
 // (`https://buddy.example.lazurio.io`, decision F60), so its shell document
 // names Buddy and `<lazurio-buddy>` draws his bubble; nothing serves that
 // origin, which a browser automation stands in for (the JSON line's
-// `buddy`). Synthetic names only; stop it with Ctrl-C.
+// `buddy`). His Hermes gateway is then the tests' stand-in
+// (tests/fixtures/fake-hermes-gateway.ts), signed in, with a persona to
+// confirm, so Nastavení → Buddy and his step read live; Telegram's word on a
+// bot's token is a stand-in naming the bot `jana_buddy_bot`, and nothing
+// reaches Telegram. His gateway taking Telegram in is creating the file
+// `telegramStarted` of the JSON line, the person's Start in the bot creating
+// `telegramMessage`, and a Hermes that never had Telegram `telegramReset`
+// (decision F66). Synthetic names only; stop it with Ctrl-C.
 import {
   chmod,
   mkdir,
   mkdtemp,
   readFile,
   realpath,
+  rm,
   symlink,
   writeFile,
 } from "node:fs/promises";
@@ -135,6 +143,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TabFacts } from "../src/browser/contract/platform";
 import { addressKey } from "../src/browser/people/sleep";
+import { writePersona } from "../src/buddy/persona";
 import {
   initializeFolder,
   initializeHandoverFolder,
@@ -169,6 +178,10 @@ import {
 } from "../tests/fixtures/fake-bitwarden-cloud";
 import { executorWorld } from "../tests/fixtures/fake-executor";
 import { startFakeExecutor } from "../tests/fixtures/fake-executor-api";
+import {
+  type FakeHermesGateway,
+  fakeHermesGateway,
+} from "../tests/fixtures/fake-hermes-gateway";
 import {
   fakeLoginTools,
   githubHostKeys,
@@ -467,6 +480,51 @@ async function writeExample() {
 // and the Tools page reads no real tool or sign-in.
 const home = join(parent, "home");
 await mkdir(join(home, "bin"), { recursive: true });
+// Buddy's own Hermes gateway (decisions F63 to F66): the tests' stand-in,
+// signed in, behind the home's `~/.hermes`, and his persona as the installer
+// leaves it, for the person to confirm in "Seznamte se s Buddym".
+let buddyHermes: FakeHermesGateway | null = null;
+if (withBuddy) {
+  buddyHermes = await fakeHermesGateway({ signedIn: true });
+  await symlink(buddyHermes.home, join(home, ".hermes"));
+  await writePersona(
+    home,
+    {
+      buddyName: "Buddy",
+      address: "vy",
+      user: { nominative: "Jana", accusative: "Janu", dative: "Janě" },
+    },
+    null,
+  );
+  const hermes = buddyHermes;
+  const started = join(home, "telegramStarted");
+  const message = join(home, "telegramMessage");
+  const reset = join(home, "telegramReset");
+  setInterval(async () => {
+    if (await Bun.file(reset).exists()) {
+      await rm(reset, { force: true });
+      Object.assign(hermes.state.telegram, {
+        token: null,
+        enabled: null,
+        allowed: "",
+        home: null,
+        runtime: null,
+        errorCode: null,
+        pending: [],
+        approved: [],
+        config: {},
+      });
+    }
+    if (await Bun.file(started).exists()) {
+      await rm(started, { force: true });
+      hermes.state.telegram.runtime = "connected";
+    }
+    if (await Bun.file(message).exists()) {
+      await rm(message, { force: true });
+      hermes.telegramMessage("4242424242", "jana_novakova");
+    }
+  }, 300);
+}
 for (const tool of ghFake === null ? ["gh", "t3"] : ["t3"])
   await writeFile(join(home, "bin", tool), "#!/bin/sh\nexit 1\n", {
     mode: 0o755,
@@ -1044,6 +1102,9 @@ const app = await startLaunchpad(
               serverServices: async () => services.served,
               ownerKey: async () => services.served?.owner.key ?? null,
             }),
+        // Telegram's word on a bot's token (decision F66): a stand-in, so
+        // nothing reaches Telegram.
+        telegramBot: async () => ({ kind: "bot", username: "jana_buddy_bot" }),
         // A hosted preview's gateway names a fictional person with a Lazurio
         // username, as Lazurio Auth's answer does, so Apps → Trezor
         // offers her own address (F53's addendum of 2026-10-16).
@@ -1239,5 +1300,14 @@ console.log(
     ...(ghFake === null ? {} : { ghApprove: join(home, "approve") }),
     // The person's entering of ChatGPT's code on OpenAI's page: create it.
     ...(codexSignedOut ? { codexApprove: join(home, "codex.approve") } : {}),
+    // Buddy's gateway taking Telegram in, and the person's Start: create
+    // them.
+    ...(buddyHermes === null
+      ? {}
+      : {
+          telegramStarted: join(home, "telegramStarted"),
+          telegramMessage: join(home, "telegramMessage"),
+          telegramReset: join(home, "telegramReset"),
+        }),
   }),
 );
