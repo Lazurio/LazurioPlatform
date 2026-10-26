@@ -66,6 +66,11 @@ pipeline (root decision 0205): the Plan in the pull request, the apply on its me
     run uninterrupted since 17:52:36Z with `NRestarts` 0, and its journal from 18:17:35Z on shows no start, stop,
     restart or failure. It has no app units (a Personal Environment holds no Organization modules).
   - Readings in between, at 21:50Z, 23:49Z and 02:19Z, were the same on all six.
+- **Recovery issues: none** (searched at 2026-10-26T02:54:08Z, every issue state):
+  - `repo:Lazurio/LazurioPlatform is:issue label:recovery "0.1.12-rc.2"` and the `v0.1.12-rc.2` variant: 0.
+  - Issues naming `0.1.12-rc.2` at all: 1, #650. It is a cosmetic Buddy launcher title seen on the personal VM, not
+    a Recovery issue.
+  - Issues mentioning "recovery" created since the candidate was published: 0.
 - **No Recovery mode.** Recovery mode is chosen only when the Launchpad starts. Every start inside the stage
   (the deliberate restarts below) came up `healthy`. Every unit had `NRestarts` 0 at the end.
 
