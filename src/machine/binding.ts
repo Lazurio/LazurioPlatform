@@ -45,12 +45,20 @@ function assignment(input: OrganizationAssignment): MachineAssignment {
   }
 }
 
+// One member to one, in the binding parser's order. The members of an
+// assigned peer (root decision 0192, addendum of 2026-10-26) are copied
+// exactly when the handover carries them and stay absent when it does not,
+// so a peer without them records the bytes it always did.
 function peer(input: HandoverPeer): MachinePeer {
   return Object.freeze({
     name: input.name,
     kind: input.kind,
     zone: input.zone,
     organization: input.organization,
+    ...(input.environment === undefined
+      ? {}
+      : { environment: input.environment }),
+    ...(input.access === undefined ? {} : { access: input.access }),
     ssh:
       input.ssh === null
         ? null
@@ -58,6 +66,15 @@ function peer(input: HandoverPeer): MachinePeer {
             host: input.ssh.host,
             user: input.ssh.user,
             direction: input.ssh.direction,
+            ...(input.ssh.host_keys === undefined
+              ? {}
+              : {
+                  hostKeys: Object.freeze(
+                    input.ssh.host_keys.map(({ type, key }) =>
+                      Object.freeze({ type, key }),
+                    ),
+                  ),
+                }),
           }),
     https: Object.freeze([...input.https]),
   });

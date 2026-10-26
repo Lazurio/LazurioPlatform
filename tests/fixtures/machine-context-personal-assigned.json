@@ -1,0 +1,42 @@
+{
+  "schema_version": "lazurio.machine.v1",
+  "machine": { "id": "personal-lazurio-bob", "kind": "personal-vm", "name": "lazurio-bob", "vmid": 901 },
+  "owner": { "kind": "principal", "github_login": "lazurio-bob", "github_id": 100001 },
+  "operator": { "os_user": "lazurio-bob", "home": "/home/lazurio-bob", "lazurio_root": "/home/lazurio-bob/Lazurio" },
+  "host": { "kind": "provider-estate", "estate_id": "example-estate", "custody_repository": "Example/infra", "record_path": "machines/personal/lazurio-bob.json" },
+  "network": { "headscale_server_url": "https://network.example.invalid", "headscale_hostname": "lazurio-bob" },
+  "relationships": {
+    "zone": "personal",
+    "peers": [
+      {
+        "name": "lazurio-bob-laptop",
+        "kind": "client-device",
+        "zone": "personal",
+        "organization": null,
+        "ssh": { "host": "lazurio-bob-laptop.tailnet.lazurioexampleorganization.lazurio.io", "user": null, "direction": "both" },
+        "https": []
+      },
+      {
+        "name": "lazurioexampleorganization-lazurio-bob-vm",
+        "kind": "workspace-vm",
+        "zone": "work",
+        "organization": "lazurioexampleorganization",
+        "environment": "lazurio-bob.lazurioexampleorganization",
+        "access": "assigned",
+        "ssh": {
+          "host": "lazurioexampleorganization-lazurio-bob-vm.tailnet.lazurioexampleorganization.lazurio.io",
+          "user": "lazurio-bob",
+          "direction": "outbound",
+          "host_keys": [{ "type": "ssh-ed25519", "key": "AAAAC3NzaC1lZDI1NTE5AAAAIOosFYFA3vTPDE3z8629wlmF0Qecl1enPwpEjCjOsnfj" }]
+        },
+        "https": []
+      }
+    ]
+  },
+  "installed": {
+    "machines_release": { "repository": "Example/Machines", "version": "v1.0.0", "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    "deployment_head": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "recorded_at": "2026-01-01T00:00:00Z"
+  },
+  "account": null
+}
