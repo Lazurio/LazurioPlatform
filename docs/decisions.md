@@ -20231,3 +20231,246 @@ Buddy with its menu, Odhlásit's confirm and a rename; no error of the page in t
   device shows it as a light one.
 - His face is his picture from his origin, the launcher's; where it does not load, his
   initial.
+
+## F66 — Buddy's Telegram: his own bot from BotFather, connected in Nastavení → Buddy through Hermes's own writers
+
+**Proposed for plan DEV-6676 in the Buddy lead's shaping of 2026-10-25 (its §1.6, §2, §3.8,
+§3.9 and PR 5; questions Q1 and Q2 decided as recommended), built now on the Organization
+Admin's decision of 2026-10-26 to bring Telegram before the profiles; implemented in this
+revision on F63, F64 and F65. The Organization Admin decides it.** Root decision 0207 (addendum of 2026-10-18)
+gives every Buddy his own bot, which his person creates at @BotFather. Until now nothing in the
+Launchpad connected it: a person sent the token BotFather gave them to a maintainer, who relayed
+it into the interim installer (`buddy-install.sh --telegram-stdin`). The bar is a Buddy simple
+enough for anyone's mother.
+
+1. **Where.** Only on an Osobní Prostředí whose recorded entry names Buddy's origin, as F63 and
+   F65; elsewhere the routes answer 404 `buddy-absent`.
+   - Nastavení → Buddy gets a group **Kanály** with one row, Telegram: Nepřipojeno,
+     Připojuje se…, Čeká na vaši zprávu, or Připojeno: @bot, and one action: Připojit;
+     Pokračovat with Zrušit while it starts or waits; Odpojit behind a confirm.
+   - "Seznamte se s Buddym" ends with Připojit Telegram beside Teď ne (F65 point 4 had Teď ne
+     alone). It closes that dialog and opens **Připojit Telegram**; the step is done before
+     it and never waits for Telegram. Once his bot is connected, the screen says so.
+   - The step gets the optional part Telegram (volitelné) with the same state (F65 left it
+     for "the part arriving with its state"); it never decides whether the step is done.
+   - Připojit Telegram is the wireframe's dialog (prototypes-lazurio #90,
+     `BuddyTelegram.tsx`) in three steps: (1) Založte bota u @BotFather: open BotFather, send
+     /newbot, choose a name and a username that ends in "bot", copy the token he sends, with
+     Otevřít BotFather; (2) Vložte token, který vám BotFather poslal: one field; (3) Otevřete
+     svého bota a stiskněte Start: Otevřít @bot and its address as a code to scan, then
+     "Je to váš účet …?" for each account that wrote to the bot.
+2. **One truth, Hermes's writers.** Telegram's settings stay Hermes's, in Buddy's
+   `~/.hermes/.env` and `config.yaml`, written only through Hermes's own dashboard API over
+   F63's client (Lazurio/hermes-agent `v0.22.4-lazurio.3`); the Platform never writes either
+   file. Everything shown is read live from Hermes on each `GET /api/buddy`.
+
+   | Operation | Hermes's writer |
+   | --- | --- |
+   | Připojit | `PUT /api/messaging/platforms/telegram {env: {TELEGRAM_BOT_TOKEN}, enabled: true}` (`hermes_cli/web_routers/messaging.py:975-1035`), then `PUT /api/config` with the quiet keys (point 5; `config_env.py:117-158`) |
+   | "Ano, to jsem já" | `PUT /api/messaging/platforms/telegram {env: {TELEGRAM_ALLOWED_USERS}}`, `PUT /api/env {key: TELEGRAM_HOME_CHANNEL}` (`config_env.py:328-339`), then `POST /api/pairing/approve {platform, request_id}` (`ops.py:91-117`) where Hermes holds a request |
+   | Odpojit | `PUT /api/messaging/platforms/telegram {enabled: false, clear_env: [TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USERS]}`, `DELETE /api/env {key: TELEGRAM_HOME_CHANNEL}` (`config_env.py:1067-1082`; 404 where there is none) |
+   | the state | `GET /api/messaging/platforms` (`messaging.py:916-931`, its Telegram card) and, while it waits, `GET /api/pairing` (`ops.py:84-88`) |
+
+   `enabled` is written explicitly, so a token saved any other way (Hermes's own wizard, which
+   leaves it implicit) ends the same. `PUT /api/messaging/platforms/telegram` refuses the home
+   channel (a setup-hidden key, `hermes_cli/setup_hidden_env.py:19`), so it goes through
+   `PUT /api/env`, which saves it in the gateway's own process and publishes it to its
+   environment at once (`hermes_cli/config.py:2722, 2787`): the person's first message
+   finds it, where Hermes would otherwise answer "No home channel is set … /sethome"
+   (`gateway/run_turn_prepare.py:551-585`).
+3. **The token.** Its shape is Hermes's own rule (`plugins/platforms/telegram/
+   dashboard_card.py:9`), bounded (1 to 20 digits, a colon, 30 to 200 characters of
+   `[A-Za-z0-9_-]`), checked in the page and again in the core. Then **Telegram itself** says
+   whose token it is (`getMe`, no redirect followed, 10 s) before anything is saved: a token
+   Telegram does not know (401, 404, not a bot) is `token-refused`; no answer, a timeout, its
+   flood limit or any other answer is `telegram-unreachable`; neither saves anything. The
+   reason is Hermes's start: a gateway whose only platform is refused at its start exits
+   with 78 (`gateway/run_startup.py:1450-1453`), which the unit `hermes gateway install`
+   writes parks for good (`RestartPreventExitStatus=78`, `hermes_cli/gateway.py:3282`), and
+   with it Buddy's chat in Lazurio and these very routes, so the person could not even fix the
+   token. getMe also names the bot, which Hermes's card does not. The token is a string of one
+   request's body for one connect: never written by the Platform, logged, journaled, answered
+   or kept in the page (the field is `type=password`, `autocomplete=off`, emptied as it is
+   sent and when the dialog closes).
+   - **F63's client takes a body** for exactly these writes (`gatewayBodyCalls`: the
+     messaging platform, `/api/pairing/approve`, `PUT` and `DELETE /api/env`, `PUT
+     /api/config`), one JSON object of at most 16 KiB, as `application/json` with its exact
+     length; any other call with a body is refused before anything is sent. The rest of F63
+     stays: `node:http` without a proxy, loopback, no `Origin`, a ticket per call, and only a
+     401 (Hermes authenticates before any route runs, so nothing ran) sends the same body once
+     more with a new ticket; nothing else is ever sent twice. This amends F63 point 2 ("a body
+     is never sent").
+4. **The person's account.** A bot with a token and no allowlist answers an unknown account
+   with Hermes's pairing code and lets nothing through (`gateway/config.py:645`
+   `unauthorized_dm_behavior` "pair", `gateway/authz_mixin.py:716-758`). The page lists the
+   accounts that wrote to it, by Telegram's name (its username, else its full name, as Hermes
+   keeps it), newest first, with a handle of this process (an HMAC of Hermes's request id
+   under a key of the process): never Hermes's request id, never the account's numeric id.
+   Hermes's approval alone is not the end the interim installer leaves: with no allowlist
+   configured it writes neither `TELEGRAM_ALLOWED_USERS` nor the home channel
+   (`gateway/pairing.py:135-162`), so others would keep getting codes and Delegace would find
+   no chat. So "Ano, to jsem já" writes the allowlist first (it lets the account in, keeps
+   everyone else out, as `allowlist_suppresses_pairing` makes Hermes ignore unknown senders
+   once it exists, and it is what Delegace reads), then the home channel, then Hermes's own
+   approval, which takes the request off its list (one that expired meanwhile changes
+   nothing). An account Hermes approved earlier and the allowlist does not name (a reconnect,
+   an approval from a terminal) is offered the same way, without a second approval. Two
+   accounts at once: both are listed, "Botovi napsalo víc lidí. Vyberte svůj účet."; once one
+   is allowed, the other gets nothing more (its request expires in Hermes's hour).
+5. **The end state is the installer's** (`buddy-install.sh` 2026-10-26.1): the token, that
+   one account in `TELEGRAM_ALLOWED_USERS`, `TELEGRAM_HOME_CHANNEL` that account's private
+   chat (`:1301-1313`), `platforms.telegram.enabled: true` (`:1809`) and the quiet keys
+   (`:1370-1394`: no tool progress, no long-running heartbeat, no autoraise notice, no warning
+   notifications, no restart notices, and the messages that arrived while the gateway was down
+   kept). The quiet keys are written at the connect, before the restart that reads them; the
+   installer writes the same values on every run, with or without Telegram, so its next run
+   finds them in place. Two knowing differences: the approval sets the home channel even where
+   one is set (the installer keeps one already there), and a person's own value of one of
+   the six quiet keys is replaced at the connect (the installer keeps a user's value).
+6. **One restart, Buddy idle, never in quick succession** (`src/buddy/telegram-restart.ts`).
+   Hermes's writer restarts nothing; the platform shows `pending_restart` until the gateway
+   starts again. A connect and a disconnect owe one restart, and it is F64's: the gateway's
+   unit as systemd holds it, Hermes's `active-work` (no answer counts as busy), `systemctl
+   --user restart`, under F64's apply turn, units reread first and never restarted on when
+   systemd refuses. What is owed is derived as F64 derives it: the Platform's own record
+   `~/.local/state/lazurio/buddy/telegram-changed.json` (0600 in 0700) carries the change's
+   time, and a restart is owed while the gateway's main process started before it. Any start
+   after it settles it, whoever made it, so two Připojit, an Odpojit and a persona change
+   before one restart need that one restart. A restart this owes also waits until the gateway
+   has run two minutes since its last start: Telegram answers a bot that reconnects again and
+   again with its flood limit (on a person's Buddy, after a wizard restarted the gateway
+   several times, polling came back only about three minutes later). It is asked again every
+   15 seconds while it waits, later and later after a failure, and once when the Launchpad
+   starts, where a change was ever recorded. The page says "Projeví se, až Buddy dokončí, co
+   právě dělá." (connect) or "Odpojí se, až Buddy dokončí, co právě dělá." (disconnect).
+7. **The state** (`telegramStatusOf`, a pure function of Hermes's card): `none` without a
+   token or switched off; `starting` while a restart is owed, and while Telegram connects,
+   retries, was briefly disconnected or never reported: on its way, never an error, so a flood
+   limit or a timeout at first reads "Připojuje se…"; `waiting` once it runs and nobody is
+   allowed, with who asked; `connected` once the allowlist holds anyone; `failed` only for
+   Hermes's fatal states: `refused` (`telegram_auth_error`: Telegram no longer takes the
+   bot), `conflict` (`telegram_polling_conflict`: another program polls the same bot) or
+   `failed`; `unknown` when Hermes cannot be asked. The bot's username is the one getMe gave
+   at the connect, kept beside a sha256 of Hermes's own display-only preview of the token
+   (`telegram-bot.json`, 0600, never the token) and shown only while Hermes still holds a
+   token of that preview; otherwise "Připojeno" alone.
+8. **Odpojit** switches the platform off and clears its token and allowlist through Hermes's
+   writer, removes the home channel and the bot's record, and owes the restart that takes it
+   out; until then the row says so. Hermes's pairing store keeps its approvals, so a reconnect
+   of the same account needs one confirmation and no new Start. The installer's next run finds
+   no Telegram and does not ask for a token.
+9. **Delegace** (#607, #627) needs nothing more: it reads `TELEGRAM_ALLOWED_USERS` from
+   `~/.hermes/.env` on every notice (`telegram_target`), so a Telegram connected later reaches
+   its Kanban card and its last resort at the next round, with no restart of
+   `delegace.service`; the installer starts that service with or without Telegram. Which
+   conversation a notice goes to (#627) is the fork's overlay at `v0.22.4-lazurio.3`
+   (`gateway/lazurio_buddy_channel.py`). After Odpojit its Telegram notices wait again, as on
+   an Environment without Telegram (#607 stays open for the web's fallback).
+10. **Routes and journal.** `POST /api/buddy/telegram/connect {token}`, `…/approve {request}`
+    and `…/disconnect {}` behind F63's admission (the hosted same-origin rule for every POST,
+    exact fields, 16 KiB, 415, 405, no query): 400 `invalid-token` or `invalid-request`, 409
+    `blocked` `request-gone`, 503 `buddy-unavailable` with the gateway's reason, otherwise
+    `{kind: "telegram", state, reason?, bot?, botQr?, requests?, pending?}` or `failed
+    {reason: token-refused | telegram-unreachable | failed}`. `GET /api/buddy` names
+    `telegram` the same way. The journal (`scope: "buddy-telegram"`) names the operation
+    (`connect`, `approve`, `disconnect`, `restart`), the outcome and the reason: never the
+    token, a preview, an account, a name, a request or a handle. Hermes's own words
+    (`message`, `error_message`, `detail`) never leave the core.
+11. **Words.** Nastavení and Připojit Telegram speak in Lazurio's voice (root decision 0199);
+    the last screen of "Seznamte se s Buddym" stays in Buddy's (F65). No line names Hermes, a
+    gateway, pairing or a restart; "token" only as BotFather says it to the person. The "?" of
+    Nastavení → Buddy gets a third stop, Kanály.
+
+**Not decided here.** Hermes's own reply to an unknown account's Start is developer copy at
+the tag ("If you run this bot, open a terminal and run: `hermes pairing approve telegram
+<code>`", `locales/en.yaml:863`, `gateway/run_inbound_unauthorized.py:40-46`; there is no
+Czech locale): Lazurio's words for it, or a quiet "pair" without a code, are a fork change.
+Hermes's card names no bot username (a fork change would let every Launchpad name it). A
+Start link with a one-time code (the wireframe's `t.me/<bot>?start=<code>`) needs Hermes to
+take one. The installer and Machines (#701) stop taking a token by agents once this is pinned
+(shaping I-d). Profiles (PR 4).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Hermes's "Create with QR" (`/api/messaging/telegram/onboarding/*`) | Nous Research's service creates a managed child bot and hands its raw token to Hermes: a third party knows the token, and the bot is not purely the person's own (0207); rejected (Q2) |
+| A shared Lazurio bot with a pairing link | Excluded by root decision 0207's addendum of 2026-10-18 |
+| The token relayed by a maintainer into the installer (`--telegram-stdin`) | What this replaces; the option stays for recovery |
+| Save the token and let Hermes find out at its restart | A refused token as the only platform makes the gateway exit 78 and systemd parks it: Buddy's chat and these routes go with it; rejected for Telegram's `getMe` first |
+| Hermes's `POST /api/messaging/platforms/telegram/test` as the check | Reads the running gateway's card and answers `pending_restart` until a restart; it checks no token; not used |
+| Hermes's pairing approval alone | Writes no allowlist where none exists and no home channel: strangers keep getting codes, Delegace finds no chat, Hermes asks the person to `/sethome`; rejected for the allowlist, the home channel, then the approval |
+| `hermes config set TELEGRAM_HOME_CHANNEL` | Another process: the running gateway sees it only at its next `.env` reload, so the first message could get Hermes's "No home channel" notice; rejected for `PUT /api/env` in the gateway's own process |
+| The Platform writing `.env` or `config.yaml` | A second writer of Hermes's own files; rejected |
+| Restart at once, as Hermes's QR apply does | Interrupts Buddy's turn, and quick restarts meet Telegram's flood limit; rejected for idle and two minutes apart |
+| Owe a restart by the times of `.env` and `config.yaml` | Every writer of those files (Hermes itself, the installer) would restart Buddy; rejected for the Platform's own record of its own changes |
+| A restart owed only in the Launchpad's memory | Lost with a Launchpad restart (an update); rejected for the record, taken up at start |
+| The restart inside F64's persona apply and its controller | The names' "Projeví se…" line would show for a Telegram change; rejected for a controller of its own over F64's pieces and under F64's turn |
+| Hermes's request ids or the account's id in the page | Hermes's own handles in the browser (F63 rejected the same for the sign-in); rejected for per-process HMAC handles and names only |
+| The bot's username in a Launchpad copy shown whatever Hermes holds | Would name a bot another token replaced; rejected for the name beside a digest of Hermes's live preview |
+| Revoke Hermes's pairing approvals at Odpojit | A reconnect of the same account would need a new Start; kept, and offered for one confirmation |
+| Keep the allowlist and the home channel at Odpojit | Another account could never pair (the allowlist silences pairing), and the installer's next run would stop for a missing token; rejected |
+
+**Verified by** `tests/buddy-hermes-gateway.test.ts`: a named write carries its JSON body as
+`application/json` with its exact length and the same grant (one ticket, no `Origin`, no
+cookie); every other call none; a body for any other call, an array or more than 16 KiB is
+refused before anything is asked, and 16 KiB exactly goes; a 401 sends the same body once more
+with a new ticket, a second 401 is `refused`, a 500 and a timeout are never sent again;
+`HTTP_PROXY` never sees a body (a process of its own). `tests/buddy-telegram.test.ts`, against
+the stand-in for Buddy's gateway whose Telegram is derived from Hermes's code at
+`v0.22.4-lazurio.3` (95e80b77, `tests/fixtures/fake-hermes-gateway.ts`, not recorded): the state
+table, Telegram's waits read as on its way and a restart owed as `starting`; the card only as
+Telegram's; a connect that asks Telegram first and then sends exactly the token and `enabled`,
+the quiet keys, and asks one restart; a token of another shape, one Telegram does not know and
+Telegram not answering saving nothing; Hermes's refusal, failure and absence as closed reasons
+with its words nowhere; the bot's name only while Hermes holds a token of its preview; two
+accounts asking, handles of the page's own, the approval's writes in order and the installer's
+end state (that account allowed and its chat the home channel, a later stranger getting
+nothing); a request gone writing nothing; an earlier approval offered and completed without a
+second; the disconnect's writes; one operation at a time; getMe's answers (a bot, 401, 404, not
+a bot, 429, 500, no JSON, a redirect to a bot, a name of no shape, an answer too large, a
+timeout, nobody listening), the token only in the path. In every one, neither the token, an
+account, a request id nor Hermes's words appear in an answer or the journal.
+`tests/buddy-telegram-restart.test.ts`: one restart while idle and none owed after; busy and
+no answer waiting, two changes needing one restart; two minutes after any start; a start by
+anyone settling it; a stopped gateway, no unit, no user manager; the Launchpad's start taking it
+up; F64's turn held; units reread first and a refused reread restarting nothing; refused
+restarts asked later and later. `tests/launchpad-buddy.test.ts`: the routes over HTTP (connect,
+the person's Start, approve, 409, disconnect, with the journal's exact lines and no secret in
+any of them), token-refused and telegram-unreachable saving nothing, 503 without the gateway,
+and the admission, exact fields, 400s, 405 and 404 `buddy-absent` of F63 for the three new
+routes. `tests/buddy-view.test.ts`, `tests/buddy-client.test.ts`, `tests/buddy-voice.test.ts`
+and `tests/first-run-buddy.test.ts`: the row, the dialog's steps, the step's optional part, the
+client's operations and its reading every 4 s while Telegram starts or waits, the words (vy,
+no mechanism, "token" only as BotFather says it) and the third "?" stop. **Mutation checks:**
+each of 30 guards removed or loosened fails a test: the body only for named writes, its bound,
+its object, its content type, the same body after a 401, no second send of a failed write;
+Telegram's word first, the token's shape first, `enabled` explicit, the quiet keys, the journal
+without the token, the opaque handle, the allowlist and the home channel at the approval, the
+allowlist cleared at a disconnect, a restart owed read as `starting`, Telegram's waits never an
+error, the bot's name tied to the preview, getMe's refusal and its refused redirect; the
+two-minute spacing, no answer as busy, F64's turn, the reread before the restart, the derived
+owing, the record's time; the page's handles only, the waiting line, the 4 s reading and the
+route's handle check. In a browser, the worktree's personal preview with the stand-in
+(`scripts/preview-launchpad.ts personal cs <port> owner buddy`, which now serves Buddy's
+gateway stand-in and a stand-in for Telegram's answer) in headless Chrome at 1440 and 390 px,
+light and on a dark device: the last screen of "Seznamte se s Buddym", the three steps, a wrong
+paste refused in the page, Připojuje se…, waiting for Start, one account asking, approved,
+Nastavení → Buddy not connected, waiting and connected, and Odpojit; no error of the page.
+
+**Honest limits.**
+- No real Hermes gateway, Telegram or Osobní Prostředí ran: Hermes's Telegram answers are
+  derived from its code, not recorded. The acceptance is Ring 0 (root decision 0204) after a
+  release: a real bot, the person's Start, the approval, a message both ways, Delegace's
+  notice on Telegram, and Odpojit.
+- The Launchpad asks Telegram's Bot API directly for `getMe`, with Bun's `fetch` and the
+  process's proxy settings; an Environment that reaches Telegram only through
+  `TELEGRAM_PROXY` cannot connect here.
+- Hermes's own reply to the person's Start is its developer copy (Not decided here).
+- The bot's name is lost where the record is (another account, a moved home); "Připojeno"
+  then stands alone.
+- A refused restart of the gateway leaves the change owed and retried; a gateway whose
+  Telegram is refused later (a token revoked at BotFather) is "Telegram tohoto bota už
+  nepřijímá" until the person connects it again.
+- Two tabs are one Launchpad: its operations run one at a time, and its restart under F64's
+  turn. No CLI changes Telegram.
+- The page is light only (the design system has no dark UI yet): a dark device shows it light,
+  with a theme's own colours where the Environment chose one.

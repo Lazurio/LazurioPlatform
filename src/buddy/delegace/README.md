@@ -160,7 +160,7 @@ file yet.
 | `DELEGACE_USER_ACCUSATIVE` | the bot brief, „Buddy za <accusative>“ | `uživatele` |
 | `DELEGACE_USER_DATIVE` | the record's notes, „píšu <dative>“ | `uživateli` |
 | `DELEGACE_BUDDY_NAME` | the message to the person, „<name> teď neodpovídá …“ | `Buddy` |
-| `DELEGACE_TELEGRAM_CHAT_ID`, `DELEGACE_TELEGRAM_USER_ID` | where Hermes delivers the notice and the message | `TELEGRAM_ALLOWED_USERS` in `~/.hermes/.env` |
+| `DELEGACE_TELEGRAM_CHAT_ID`, `DELEGACE_TELEGRAM_USER_ID` | where Hermes delivers the notice and the message | `TELEGRAM_ALLOWED_USERS` in `~/.hermes/.env`, read on every notice: a Telegram the person connects later in Nastavení → Buddy (decision F66) is found at the next round, with no restart |
 | `DELEGACE_T3_HOME` | the home of Buddy's T3 Code, for the chat's notice; his runtime must be in its `runtime/versions` | `~/.t3-buddy` |
 
 ```ini
