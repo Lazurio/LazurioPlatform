@@ -712,3 +712,56 @@ posix(
     }
   },
 );
+
+posix(
+  "before anything was asked of it, Hermes that cannot be asked claims nothing",
+  () =>
+    within(async ({ fake, core }) => {
+      // Nothing asked yet: no claim.
+      await fake.stop();
+      expect(await core.read()).toEqual({ state: "unknown" });
+    }),
+);
+
+posix(
+  "after a connect or a disconnect, a gateway restarting reads as Připojuje se… or as off, with its pending line only while owed",
+  async () => {
+    const fake = await fakeHermesGateway();
+    let owed = false;
+    let recently = false;
+    const core = createBuddyTelegram({
+      gateway: createHermesGateway({ home: fake.userHome }),
+      home: fake.userHome,
+      owed: () => owed,
+      restartedRecently: () => recently,
+      changed: async () => {
+        owed = true;
+      },
+      checkBot: async () => ({ kind: "bot", username: "rex_buddy_bot" }),
+    });
+    try {
+      await core.connect(token);
+      fake.state.http = () =>
+        Response.json(
+          { error: "gateway_not_ready", state: "draining" },
+          { status: 503 },
+        );
+      expect(await core.read()).toEqual({ state: "starting", pending: true });
+      owed = false;
+      recently = true;
+      expect(await core.read()).toEqual({ state: "starting" });
+      recently = false;
+      expect(await core.read()).toEqual({ state: "unknown" });
+      fake.state.http = undefined;
+      await core.disconnect();
+      fake.state.http = () =>
+        Response.json(
+          { error: "gateway_not_ready", state: "starting" },
+          { status: 503 },
+        );
+      expect(await core.read()).toEqual({ state: "none", pending: true });
+    } finally {
+      await fake.close();
+    }
+  },
+);

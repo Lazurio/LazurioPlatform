@@ -1224,6 +1224,7 @@ export async function startLaunchpad(
     gateway: buddyGateway,
     home: toolsEnvironment.home,
     owed: () => buddyTelegramRestart.owed(),
+    restartedRecently: () => buddyTelegramRestart.restartedRecently(),
     changed: () => buddyTelegramRestart.changed(),
     checkBot: hostedOptions.telegramBot,
     journal: (line) =>

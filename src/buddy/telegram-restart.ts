@@ -123,6 +123,9 @@ export function createTelegramRestart(
   let closed = false;
   let retry: unknown;
   let running: Promise<TelegramRestartOutcome> | null = null;
+  // The attempt the last change asked for, and when this made a restart.
+  let asked: Promise<TelegramRestartOutcome | null> = Promise.resolve(null);
+  let restartedAt: number | null = null;
   let failedDelay = telegramRestartFailedMs;
   let journaled: string | null = null;
 
@@ -208,6 +211,7 @@ export function createTelegramRestart(
     }
     // Done, nothing owed, or nothing to ask: a change after this one
     // records itself and asks again.
+    if (outcome.state === "done") restartedAt = now();
     failedDelay = telegramRestartFailedMs;
     owed = false;
   }
@@ -233,10 +237,17 @@ export function createTelegramRestart(
     /** Whether a restart this owes still waits: the page says so. */
     owed: (): boolean => owed,
 
-    /** Buddy's Telegram changed through Hermes now: recorded first, then
-     * the restart asked for, or joined while one is under way or waits.
-     * Resolves after the record and the first attempt. */
-    async changed(): Promise<TelegramRestartOutcome | "unrecorded"> {
+    /** Whether this restarted the gateway within the spacing: while it
+     * starts again, Hermes cannot be asked, and the change is still on its
+     * way rather than unknown. */
+    restartedRecently: (): boolean =>
+      restartedAt !== null && now() - restartedAt < spacingMs,
+
+    /** Buddy's Telegram changed through Hermes now: recorded, then the
+     * restart asked for in the background, or joined while one is under
+     * way or waits. Resolves once the change is recorded; `settled` follows
+     * the attempt. */
+    async changed(): Promise<"recorded" | "unrecorded"> {
       if (home === undefined) return "unrecorded";
       try {
         await markTelegramChanged(home, () => new Date(now()));
@@ -244,12 +255,20 @@ export function createTelegramRestart(
         return "unrecorded";
       }
       owed = true;
-      if (closed) return Object.freeze({ state: "pending", reason: "turn" });
+      if (closed) return "recorded";
       // An attempt under way may have read the gateway's start before this
       // record: one more attempt follows it.
-      if (running !== null) await running;
-      return run();
+      const before = running;
+      asked = (async () => {
+        if (before !== null) await before;
+        return run();
+      })().catch(() => null);
+      return "recorded";
     },
+
+    /** The attempt the last change asked for has ended (tests, and the
+     * Launchpad's own settling); null where none was asked. */
+    settled: (): Promise<TelegramRestartOutcome | null> => asked,
 
     /** The Launchpad starts: a restart owed by a change before it is made
      * once Buddy is idle, without anyone opening a page. Where no change

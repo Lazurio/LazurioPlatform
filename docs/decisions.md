@@ -20341,8 +20341,12 @@ enough for anyone's mother.
    again with its flood limit (on a person's Buddy, after a wizard restarted the gateway
    several times, polling came back only about three minutes later). It is asked again every
    15 seconds while it waits, later and later after a failure, and once when the Launchpad
-   starts, where a change was ever recorded. The page says "Projeví se, až Buddy dokončí, co
-   právě dělá." (connect) or "Odpojí se, až Buddy dokončí, co právě dělá." (disconnect).
+   starts, where a change was ever recorded. A connect or a disconnect answers once its change
+   is recorded; the restart runs beside it, so no answer waits for a drain. The page says
+   "Projeví se, až Buddy dokončí, co právě dělá." (connect) or "Odpojí se, až Buddy dokončí,
+   co právě dělá." (disconnect) while it is owed, and while the gateway restarts and cannot
+   be asked, within two minutes of this restart, it stays "Připojuje se…" (or off after a
+   disconnect) rather than "Nepodařilo se ověřit".
 7. **The state** (`telegramStatusOf`, a pure function of Hermes's card): `none` without a
    token or switched off; `starting` while a restart is owed, and while Telegram connects,
    retries, was briefly disconnected or never reported: on its way, never an error, so a flood
@@ -20429,7 +20433,9 @@ second; the disconnect's writes; one operation at a time; getMe's answers (a bot
 a bot, 429, 500, no JSON, a redirect to a bot, a name of no shape, an answer too large, a
 timeout, nobody listening), the token only in the path. In every one, neither the token, an
 account, a request id nor Hermes's words appear in an answer or the journal.
-`tests/buddy-telegram-restart.test.ts`: one restart while idle and none owed after; busy and
+a gateway that cannot be asked while the restart runs and right after it reading as on its way
+(or off after a disconnect), and as unknown before anything was asked or after the two
+minutes. `tests/buddy-telegram-restart.test.ts`: one restart while idle and none owed after; busy and
 no answer waiting, two changes needing one restart; two minutes after any start; a start by
 anyone settling it; a stopped gateway, no unit, no user manager; the Launchpad's start taking it
 up; F64's turn held; units reread first and a refused reread restarting nothing; refused

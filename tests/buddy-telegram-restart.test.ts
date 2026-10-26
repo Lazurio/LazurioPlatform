@@ -160,11 +160,17 @@ async function within(
   }
 }
 
+/** A change recorded, then the attempt it asked for. */
+async function change(restart: ReturnType<typeof createTelegramRestart>) {
+  expect(await restart.changed()).toBe("recorded");
+  return restart.settled();
+}
+
 posix(
   "a change while Buddy is idle restarts his gateway once, after recording it; nothing is owed after",
   () =>
     within(async ({ home, world, restart, restarts, journal }) => {
-      expect(await restart.changed()).toEqual({ state: "done" });
+      expect(await change(restart)).toEqual({ state: "done" });
       expect(restarts()).toBe(1);
       expect(restart.owed()).toBe(false);
       // The record is the Platform's own, 0600 in Buddy's 0700 directory.
@@ -193,7 +199,7 @@ posix(
   () =>
     within(async ({ world, restart, restarts, advance }) => {
       world.work = "busy";
-      expect(await restart.changed()).toEqual({
+      expect(await change(restart)).toEqual({
         state: "pending",
         reason: "busy",
       });
@@ -201,7 +207,7 @@ posix(
       await advance(telegramRestartRetryMs);
       expect(restarts()).toBe(0);
       // A second Připojit, or an Odpojit, while it waits: the same restart.
-      expect(await restart.changed()).toEqual({
+      expect(await change(restart)).toEqual({
         state: "pending",
         reason: "busy",
       });
@@ -222,18 +228,18 @@ posix(
   "never twice within two minutes: a change soon after any start waits for the spacing, then restarts once",
   () =>
     within(async ({ world, restart, restarts, advance }) => {
-      expect(await restart.changed()).toEqual({ state: "done" });
+      expect(await change(restart)).toEqual({ state: "done" });
       expect(restarts()).toBe(1);
       // Connected, then Odpojit at once: the gateway started a moment ago.
       await advance(5_000);
-      expect(await restart.changed()).toEqual({
+      expect(await change(restart)).toEqual({
         state: "pending",
         reason: "spacing",
       });
       await advance(telegramRestartRetryMs);
       expect(restarts()).toBe(1);
       // And Připojit again before the spacing ended: still one restart.
-      expect(await restart.changed()).toEqual({
+      expect(await change(restart)).toEqual({
         state: "pending",
         reason: "spacing",
       });
@@ -243,7 +249,7 @@ posix(
       // A start by anyone counts: systemd after a crash a moment ago.
       world.startedAt = Date.now() + world.offset;
       await advance(1_000);
-      expect(await restart.changed()).toEqual({
+      expect(await change(restart)).toEqual({
         state: "pending",
         reason: "spacing",
       });
@@ -261,12 +267,12 @@ posix(
       expect(restarts()).toBe(0);
       expect(restart.owed()).toBe(false);
       world.unit = "stopped";
-      expect(await restart.changed()).toEqual({ state: "none" });
+      expect(await change(restart)).toEqual({ state: "none" });
       world.unit = "absent";
-      expect(await restart.changed()).toEqual({ state: "unavailable" });
+      expect(await change(restart)).toEqual({ state: "unavailable" });
       world.unit = "running";
       world.systemd = false;
-      expect(await restart.changed()).toEqual({ state: "unavailable" });
+      expect(await change(restart)).toEqual({ state: "unavailable" });
       expect(restarts()).toBe(0);
       expect(restart.owed()).toBe(false);
     }),
@@ -289,7 +295,7 @@ posix(
       await mkdir(dirname(lockPath), { recursive: true, mode: 0o700 });
       const apply = await acquireFileLock(lockPath, { timeoutMs: 1_000 });
       try {
-        expect(await restart.changed()).toEqual({
+        expect(await change(restart)).toEqual({
           state: "pending",
           reason: "turn",
         });
@@ -311,7 +317,7 @@ posix(
       await advance(telegramRestartSpacingMs);
       world.needsReload = true;
       world.reload = false;
-      expect(await restart.changed()).toEqual({ state: "failed" });
+      expect(await change(restart)).toEqual({ state: "failed" });
       expect(restarts()).toBe(1);
       expect(restart.owed()).toBe(true);
     }),
@@ -322,7 +328,7 @@ posix(
   () =>
     within(async ({ world, restart, restarts, advance, journal }) => {
       world.restartWorks = false;
-      expect(await restart.changed()).toEqual({ state: "failed" });
+      expect(await change(restart)).toEqual({ state: "failed" });
       await advance(30_000);
       await advance(60_000);
       const attempts = world.calls.filter((call) => call[2] === "restart");

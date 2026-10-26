@@ -1034,13 +1034,18 @@ posix(
       const lines = log.lines.filter((line) =>
         line.includes('"buddy-telegram"'),
       );
-      expect(lines.map((line) => JSON.parse(line))).toEqual([
-        // The restart it owes: this test's account has no user manager.
-        {
-          scope: "buddy-telegram",
-          operation: "restart",
-          outcome: "unavailable",
-        },
+      // The restart it owes runs beside the operations (this test's account
+      // has no user manager): its line may come before or after them.
+      const restart = {
+        scope: "buddy-telegram",
+        operation: "restart",
+        outcome: "unavailable",
+      };
+      const parsed = lines.map((line) => JSON.parse(line) as Json);
+      expect(parsed.filter((line) => line.operation === "restart")).toEqual([
+        restart,
+      ]);
+      expect(parsed.filter((line) => line.operation !== "restart")).toEqual([
         { scope: "buddy-telegram", operation: "connect", outcome: "telegram" },
         { scope: "buddy-telegram", operation: "approve", outcome: "telegram" },
         {

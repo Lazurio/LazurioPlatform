@@ -496,6 +496,9 @@ export function createBuddyTelegram(
     home: string | undefined;
     /** Whether a restart the last change owes still waits. */
     owed: () => boolean;
+    /** Whether that restart was made a moment ago: the gateway may still be
+     * starting. */
+    restartedRecently?: (() => boolean) | undefined;
     /** The change is made in Hermes: its restart is asked for. */
     changed: () => Promise<unknown>;
     /** Tests only: Telegram's word on a token. */
@@ -519,6 +522,10 @@ export function createBuddyTelegram(
       input.journal?.(entry);
     } catch {}
   };
+  // What this process last asked of Hermes: while the restart it owes runs,
+  // and the gateway starts again after it, Hermes cannot be asked, and the
+  // change is on its way, not unknown.
+  let intent: "connect" | "disconnect" | null = null;
   let queue: Promise<unknown> = Promise.resolve();
   const serial = <T>(operation: () => Promise<T>): Promise<T> => {
     const run = queue.then(operation, operation);
@@ -567,8 +574,19 @@ export function createBuddyTelegram(
 
   async function status(): Promise<TelegramStatus> {
     const read = await card();
-    if (!read.ok || read.value === null)
+    if (!read.ok || read.value === null) {
+      const owed = input.owed();
+      if (
+        intent !== null &&
+        !(read.ok === false && read.reason === "unsafe-path") &&
+        (owed || input.restartedRecently?.() === true)
+      )
+        return Object.freeze({
+          state: intent === "disconnect" ? "none" : "starting",
+          ...(owed ? { pending: true as const } : {}),
+        });
       return Object.freeze({ state: "unknown" });
+    }
     const found = read.value;
     const owed = input.owed();
     const bot = await botOf(found);
@@ -634,6 +652,7 @@ export function createBuddyTelegram(
     if (!saved.ok) return end(unavailable(saved.reason));
     if (saved.value.status === 400) return end(failed("token-refused"));
     if (saved.value.status !== 200) return end(failed("failed"));
+    intent = "connect";
     // The quiet keys before the restart that reads them; a connect without
     // them still connects, and the journal says so.
     const quiet = await ask("PUT", "/api/config", {
@@ -717,6 +736,7 @@ export function createBuddyTelegram(
     });
     if (!off.ok) return end(unavailable(off.reason));
     if (off.value.status !== 200) return end(failed("failed"));
+    intent = "disconnect";
     // No home channel left behind (Hermes answers 404 where there is none).
     const channel = await ask("DELETE", "/api/env", {
       key: "TELEGRAM_HOME_CHANNEL",
