@@ -1,6 +1,6 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { constants } from "node:fs";
-import { lstat, open, rm } from "node:fs/promises";
+import { open, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { qrMatrix, qrSvg } from "../tools/qr";
 import { stateDirectory, writeStateFile } from "./gateway-refresh";
@@ -83,9 +83,11 @@ import type {
 // - The restart that brings the token in, or takes it out, is
 //   telegram-restart.ts's. A disconnect owes it as soon as Hermes has the
 //   bot off, whatever the cleanup after it does; a home channel Hermes could
-//   not remove then is recorded (`telegram-home-channel-left.json`) and
-//   removed by a later reading, once Hermes holds no token of Telegram.
-//   Everything else here takes effect at once.
+//   not remove then is recorded (`telegram-home-channel-left.json`, with a
+//   nonce) and removed after a later reading, under the same lock as every
+//   change, while the record is still that one, the bot is off and Hermes
+//   holds no token. A connect or an approval removes the record. Everything
+//   else here takes effect at once.
 //
 // Hermes's own words (`message`, `error_message`, `detail`) never leave this
 // module; its answers become a closed state. The journal names the
@@ -471,6 +473,34 @@ export const telegramHomeChannelLeftPath = (home: string): string =>
   join(stateDirectory(home), "telegram-home-channel-left.json");
 
 const homeChannelLeftSchema = "lazurio.buddy-telegram-home-channel-left.v1";
+
+/** The record of a home channel a disconnect left: its nonce, one per
+ * disconnect that left one, or null where there is none. */
+async function readHomeChannelLeft(home: string): Promise<string | null> {
+  try {
+    const handle = await open(
+      telegramHomeChannelLeftPath(home),
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
+    let text: string;
+    try {
+      const info = await handle.stat();
+      if (!info.isFile() || info.size > 4096) return null;
+      text = await handle.readFile("utf8");
+    } finally {
+      await handle.close();
+    }
+    const record: unknown = JSON.parse(text);
+    return isObject(record) &&
+      record.schema_version === homeChannelLeftSchema &&
+      typeof record.nonce === "string" &&
+      /^[0-9a-f]{32}$/.test(record.nonce)
+      ? record.nonce
+      : null;
+  } catch {
+    return null;
+  }
+}
 const previewDigest = (preview: string) =>
   createHash("sha256").update(preview).digest("hex");
 
@@ -703,9 +733,20 @@ export function createBuddyTelegram(
     line("written");
   }
 
+  /** A connect or an approval makes the record of a left home channel no
+   * longer this Telegram's: it goes, and no cleanup decided before acts on
+   * it. */
+  const forgetHomeChannelLeft = async () => {
+    if (home !== undefined)
+      await rm(telegramHomeChannelLeftPath(home), { force: true }).catch(
+        () => undefined,
+      );
+  };
+
   /** Buddy's home channel removed through Hermes's writer (404: there is
-   * none); whether it is gone. One Hermes cannot remove now is recorded as
-   * left, and the record goes once it is gone. */
+   * none); whether it is gone. Called only under the lock of every change.
+   * One Hermes cannot remove now is recorded as left, with a nonce of its
+   * own, and the record goes once it is gone. */
   async function removeHomeChannel(): Promise<boolean> {
     const removed = await ask("DELETE", "/api/env", {
       key: "TELEGRAM_HOME_CHANNEL",
@@ -713,13 +754,12 @@ export function createBuddyTelegram(
     const gone =
       removed.ok &&
       (removed.value.status === 200 || removed.value.status === 404);
-    if (home !== undefined) {
-      const left = telegramHomeChannelLeftPath(home);
-      await (gone
-        ? rm(left, { force: true })
-        : writeStateFile(left, { schema_version: homeChannelLeftSchema })
-      ).catch(() => undefined);
-    }
+    if (gone) await forgetHomeChannelLeft();
+    else if (home !== undefined)
+      await writeStateFile(telegramHomeChannelLeftPath(home), {
+        schema_version: homeChannelLeftSchema,
+        nonce: randomBytes(16).toString("hex"),
+      }).catch(() => undefined);
     if (!gone)
       journal({
         operation: "home-channel",
@@ -729,23 +769,38 @@ export function createBuddyTelegram(
     return gone;
   }
 
-  // A home channel a disconnect left is removed by one reading at a time.
+  // A home channel a disconnect left: one cleanup at a time, started by a
+  // reading and never awaited by it.
   let tidying: Promise<void> | null = null;
-  /** Once Hermes holds no token of Telegram, nothing can use a home channel
-   * a disconnect left: it goes, and its record with it. */
+  /** Nothing can use a home channel a disconnect left once the bot is off
+   * and Hermes holds no token of Telegram: it goes, and its record with it.
+   * The cleanup runs under the same lock as every change of Telegram, and
+   * under it checks again that the record is still the one this reading saw
+   * (a connect or an approval removes it), that the bot is off and that
+   * Hermes holds no token. So a DELETE never overtakes the home channel of a
+   * newer approval. Hermes's `DELETE /api/env` takes no expected value, so
+   * the lock is what orders them. */
   function tidyHomeChannel(): Promise<void> {
     if (home === undefined) return Promise.resolve();
     tidying ??= (async () => {
       try {
-        const left = await lstat(telegramHomeChannelLeftPath(home)).then(
-          () => true,
-          () => false,
-        );
-        if (!left) return;
-        const read = await card();
-        if (!read.ok || read.value === null || read.value.configured) return;
-        if (await removeHomeChannel())
-          journal({ operation: "home-channel", outcome: "removed" });
+        const seen = await readHomeChannelLeft(home);
+        if (seen === null) return;
+        await serial(async () => {
+          if ((await readHomeChannelLeft(home)) !== seen) return;
+          const read = await card();
+          if (
+            !read.ok ||
+            read.value === null ||
+            read.value.enabled ||
+            read.value.configured
+          )
+            return;
+          if (await removeHomeChannel())
+            journal({ operation: "home-channel", outcome: "removed" });
+        });
+      } catch {
+        // A reading never fails for its cleanup; the next one tries again.
       } finally {
         tidying = null;
       }
@@ -788,6 +843,8 @@ export function createBuddyTelegram(
     if (saved.value.status === 400) return end(failed("token-refused"));
     if (saved.value.status !== 200) return end(failed("failed"));
     intent = "connect";
+    // A home channel a disconnect left is the approval's to replace now.
+    await forgetHomeChannelLeft();
     // The quiet keys before the restart that reads them; a connect without
     // them still connects, and the journal says so.
     const quiet = await ask("PUT", "/api/config", {
@@ -838,10 +895,7 @@ export function createBuddyTelegram(
     });
     if (!channel.ok) return end(unavailable(channel.reason));
     if (channel.value.status !== 200) return end(failed("failed"));
-    if (home !== undefined)
-      await rm(telegramHomeChannelLeftPath(home), { force: true }).catch(
-        () => undefined,
-      );
+    await forgetHomeChannelLeft();
     // Then Hermes's own approval, which takes the request off its list. One
     // that expired meanwhile (404) leaves nothing to approve.
     if (candidate.requestId !== undefined) {
@@ -898,12 +952,14 @@ export function createBuddyTelegram(
 
   return Object.freeze({
     /** Telegram as Hermes has it now. Where it is off, a home channel a
-     * disconnect left goes first. */
+     * disconnect left is removed after, under the lock of every change. */
     read: async (): Promise<TelegramStatus> => {
       const view = await status();
-      if (view.state === "none") await tidyHomeChannel();
+      if (view.state === "none") void tidyHomeChannel();
       return view;
     },
+    /** The cleanup a reading started has ended (tests). */
+    tidied: (): Promise<void> => tidying ?? Promise.resolve(),
     /** Připojit: the token checked with Telegram, saved by Hermes, and the
      * restart asked for. */
     connect: (token: string) => serial(() => connect(token)),

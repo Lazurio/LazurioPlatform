@@ -46,7 +46,7 @@ type Fixture = Readonly<{
 
 async function within(
   body: (fixture: Fixture) => Promise<void>,
-  check: (token: string) => BotCheck = () => ({
+  check: (token: string) => BotCheck | Promise<BotCheck> = () => ({
     kind: "bot",
     username: "rex_buddy_bot",
   }),
@@ -626,7 +626,7 @@ posix(
 );
 
 posix(
-  "disconnect: a home channel Hermes cannot remove still owes the restart at once; it is recorded, and a later reading removes it once no token is left",
+  "disconnect: a home channel Hermes cannot remove still owes the restart at once; it is recorded, and a later reading removes it once the bot is off and no token is left",
   () =>
     within(async ({ fake, core, owe, changes, journal }) => {
       await core.connect(token);
@@ -657,8 +657,14 @@ posix(
       ]);
       const left = telegramHomeChannelLeftPath(fake.userHome);
       expect((await lstat(left)).mode & 0o777).toBe(0o600);
+      /** A reading, and the cleanup it started. */
+      const reading = async () => {
+        const view = await core.read();
+        await core.tidied();
+        return view;
+      };
       // Still refused, or the gateway gone: it stays recorded.
-      expect(await core.read()).toMatchObject({ state: "none" });
+      expect(await reading()).toMatchObject({ state: "none" });
       fake.state.http = (request) =>
         request.method === "DELETE"
           ? Response.json(
@@ -666,7 +672,7 @@ posix(
               { status: 503 },
             )
           : undefined;
-      expect(await core.read()).toMatchObject({ state: "none" });
+      expect(await reading()).toMatchObject({ state: "none" });
       expect(journal.at(-1)).toEqual({
         operation: "home-channel",
         outcome: "left",
@@ -674,16 +680,19 @@ posix(
       });
       expect(fake.state.telegram.home).toBe(person);
       await lstat(left);
-      // A token in Hermes again, switched off: the home channel may be the
-      // new bot's, so nothing is removed.
+      // A token in Hermes again, switched off, or the bot switched on again:
+      // the home channel may be a new bot's, so nothing is removed.
       fake.state.http = undefined;
       fake.state.telegram.token = otherToken;
       fake.requests.length = 0;
-      expect(await core.read()).toMatchObject({ state: "none" });
-      expect(writesOf(fake)).toEqual([]);
-      // No token left: the next reading removes it, and the record with it.
+      expect(await reading()).toMatchObject({ state: "none" });
       fake.state.telegram.token = null;
-      expect(await core.read()).toMatchObject({ state: "none" });
+      fake.state.telegram.enabled = true;
+      expect(await reading()).toMatchObject({ state: "none" });
+      expect(writesOf(fake)).toEqual([]);
+      // Off and no token left: the next reading removes it, and the record.
+      fake.state.telegram.enabled = false;
+      expect(await reading()).toMatchObject({ state: "none" });
       expect(writesOf(fake)).toEqual([
         ["DELETE", "/api/env", { key: "TELEGRAM_HOME_CHANNEL" }],
       ]);
@@ -695,39 +704,193 @@ posix(
       });
       // Nothing more after that.
       fake.requests.length = 0;
-      await core.read();
+      await reading();
       expect(writesOf(fake)).toEqual([]);
     }),
 );
 
+/** Until `done`, at most two seconds. */
+async function until(done: () => boolean) {
+  for (let wait = 0; wait < 400 && !done(); wait += 1) await Bun.sleep(5);
+  expect(done()).toBe(true);
+}
+
+/** Connected, then a disconnect whose home channel Hermes refused: the
+ * record of a left home channel. */
+async function leftBehind(fixture: Fixture) {
+  const { fake, core, owe } = fixture;
+  await core.connect(token);
+  owe(false);
+  Object.assign(fake.state.telegram, {
+    runtime: "connected",
+    allowed: person,
+    home: person,
+  });
+  fake.state.http = failing("DELETE", "/api/env");
+  await core.disconnect();
+  fake.state.http = undefined;
+  owe(false);
+  await lstat(telegramHomeChannelLeftPath(fake.userHome));
+}
+
+/** The person connects another bot's token and approves the stranger's
+ * account; its answer. */
+async function reconnectAndApprove(fixture: Fixture) {
+  const { fake, core, owe } = fixture;
+  await core.connect(otherToken);
+  owe(false);
+  fake.state.telegram.runtime = "connected";
+  fake.telegramMessage(stranger, "jana_s");
+  const read = await core.read();
+  return core.approve(
+    read.state === "waiting" ? (read.requests?.[0]?.request as string) : "",
+  );
+}
+
 posix(
-  "approve: the home channel it writes replaces one a disconnect left, and the record goes",
+  "a reading's cleanup is under the lock of every change: a DELETE Hermes holds while the person reconnects and approves never erases the new home channel",
   () =>
-    within(async ({ fake, core, owe }) => {
-      await core.connect(token);
-      owe(false);
-      fake.state.telegram.runtime = "connected";
-      fake.state.telegram.allowed = person;
-      fake.state.telegram.home = person;
-      fake.state.http = failing("DELETE", "/api/env");
-      await core.disconnect();
-      fake.state.http = undefined;
+    within(async (fixture) => {
+      const { fake, core } = fixture;
+      await leftBehind(fixture);
+      // Hermes holds the cleanup's DELETE.
+      let release = () => {};
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let deletes = 0;
+      fake.state.http = async (request) => {
+        if (request.method === "DELETE" && request.path === "/api/env") {
+          deletes += 1;
+          await held;
+        }
+        return undefined;
+      };
+      const reading = core.read();
+      await until(() => deletes === 1);
+      // Meanwhile the person connects again and approves another account.
+      const reconnected = reconnectAndApprove(fixture);
+      await Promise.race([reconnected, Bun.sleep(200)]);
+      release();
+      expect(await reading).toMatchObject({ state: "none" });
+      expect(await reconnected).toEqual({
+        kind: "telegram",
+        state: "connected",
+        bot: "rex_buddy_bot",
+      });
+      await core.tidied();
+      // The old home channel went first; the new account's stays.
+      expect(fake.state.telegram).toMatchObject({
+        allowed: stranger,
+        home: stranger,
+      });
+      expect(deletes).toBe(1);
+      await expect(
+        lstat(telegramHomeChannelLeftPath(fake.userHome)),
+      ).rejects.toThrow();
+    }),
+);
+
+posix(
+  "a cleanup a reading decided while a connect held the lock finds the record gone after it, and removes nothing",
+  () => {
+    let release = () => {};
+    let hold = false;
+    return within(
+      async (fixture) => {
+        const { fake, core } = fixture;
+        await leftBehind(fixture);
+        // Telegram's answer on the new token is held: the connect holds the
+        // lock, and Hermes has no token yet.
+        hold = true;
+        const connecting = core.connect(otherToken);
+        await until(() => hold === false);
+        fake.requests.length = 0;
+        expect(await core.read()).toMatchObject({ state: "none" });
+        release();
+        await connecting;
+        await core.tidied();
+        expect(
+          writesOf(fake).filter(([method]) => method === "DELETE"),
+        ).toEqual([]);
+        await expect(
+          lstat(telegramHomeChannelLeftPath(fake.userHome)),
+        ).rejects.toThrow();
+        // The approval then writes its own home channel.
+        fixture.owe(false);
+        fake.state.telegram.runtime = "connected";
+        fake.telegramMessage(stranger, "jana_s");
+        const read = await core.read();
+        await core.approve(
+          read.state === "waiting"
+            ? (read.requests?.[0]?.request as string)
+            : "",
+        );
+        expect(fake.state.telegram).toMatchObject({
+          allowed: stranger,
+          home: stranger,
+        });
+      },
+      async () => {
+        if (hold) {
+          hold = false;
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+        }
+        return { kind: "bot", username: "rex_buddy_bot" };
+      },
+    );
+  },
+);
+
+posix(
+  "approve: a connect makes the record of a left home channel no longer this Telegram's, and its approval's home channel replaces the old one",
+  () =>
+    within(async (fixture) => {
+      const { fake } = fixture;
+      await leftBehind(fixture);
       const left = telegramHomeChannelLeftPath(fake.userHome);
-      await lstat(left);
-      // Connected again before any reading removed it, and approved.
-      await core.connect(token);
-      owe(false);
-      fake.state.telegram.runtime = "connected";
-      fake.telegramMessage(stranger, "jana_s");
-      const read = await core.read();
-      await core.approve(
-        read.state === "waiting" ? (read.requests?.[0]?.request as string) : "",
-      );
+      expect(await reconnectAndApprove(fixture)).toMatchObject({
+        kind: "telegram",
+        state: "connected",
+      });
       expect(fake.state.telegram).toMatchObject({
         allowed: stranger,
         home: stranger,
       });
       await expect(lstat(left)).rejects.toThrow();
+    }),
+);
+
+posix(
+  "approve: its home channel drops a record a token saved elsewhere left in place, so no later cleanup acts on it",
+  () =>
+    within(async (fixture) => {
+      const { fake, core } = fixture;
+      await leftBehind(fixture);
+      // The installer saves a token: Hermes holds one, the record stays.
+      Object.assign(fake.state.telegram, {
+        token: otherToken,
+        enabled: true,
+        runtime: "connected",
+      });
+      fake.telegramMessage(stranger, "jana_s");
+      const read = await core.read();
+      await core.approve(
+        read.state === "waiting" ? (read.requests?.[0]?.request as string) : "",
+      );
+      await expect(
+        lstat(telegramHomeChannelLeftPath(fake.userHome)),
+      ).rejects.toThrow();
+      // Switched off and cleared elsewhere later: nothing of the old record
+      // decides anything; the new home channel stays.
+      Object.assign(fake.state.telegram, { token: null, enabled: false });
+      fake.requests.length = 0;
+      await core.read();
+      await core.tidied();
+      expect(writesOf(fake)).toEqual([]);
+      expect(fake.state.telegram.home).toBe(stranger);
     }),
 );
 

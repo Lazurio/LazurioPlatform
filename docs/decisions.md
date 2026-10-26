@@ -20377,12 +20377,21 @@ enough for anyone's mother.
    it out of the running gateway is owed, whatever the cleanup after it does; until then the
    row says so. Then it removes the home channel. One Hermes cannot remove then (a 500, a
    gateway that stops) is recorded in the Platform's own `telegram-home-channel-left.json`
-   (0600 in Buddy's state directory), and a later reading removes it once Hermes holds no
-   token of Telegram, when nothing can use it, also after a Launchpad restart; an approval's
-   own home channel replaces it. (Review of 2026-10-26: such a failure used to answer before
-   the restart was owed, so the running gateway kept polling the old bot.) Hermes's pairing store keeps its approvals, so a reconnect
-   of the same account needs one confirmation and no new Start. The installer's next run finds
-   no Telegram and does not ask for a token.
+   (0600 in Buddy's state directory) with a nonce of that disconnect's, and a later reading
+   removes it, also after a Launchpad restart. The cleanup never holds the reading up, and it
+   runs under the same lock as every change of Telegram (connect, approve, disconnect, the
+   persona's words). Under that lock it checks again that the record is still the one the
+   reading saw, that the bot is off and that Hermes holds no token of Telegram, when nothing
+   can use the home channel. A connect, once Hermes holds its token, and an approval, once it
+   wrote its own home channel, remove the record. So a DELETE can never overtake the home
+   channel of a newer approval. Hermes's `DELETE /api/env` takes no expected value
+   (`hermes_cli/web_models.py:26-28`), so the lock is what orders them. (Reviews of
+   2026-10-26: such a failure first answered before the restart was owed, so the running
+   gateway kept polling the old bot; then the cleanup ran beside a reconnect, and a DELETE that
+   Hermes held could erase the new account's home channel after its approval, while the state
+   read connected.) Hermes's pairing store keeps its approvals, so a reconnect of the same
+   account needs one confirmation and no new Start. The installer's next run finds no Telegram
+   and does not ask for a token.
 9. **Delegace** (#607, #627) needs nothing more: it reads `TELEGRAM_ALLOWED_USERS` from
    `~/.hermes/.env` on every notice (`telegram_target`), so a Telegram connected later reaches
    its Kanban card and its last resort at the next round, with no restart of
@@ -20471,7 +20480,9 @@ now, and "Je to váš účet …?" stays (the Buddy lead, 2026-10-26). The insta
 | Clear the words at Odpojit | They are read only for an unknown account's code, and only while Telegram runs; kept, so a reconnect writes them again anyway |
 | The allowlist first at "Ano, to jsem já" | A failure after it read as connected, hid the account, and left no home channel and no approval; rejected for the allowlist last |
 | Owe the disconnect's restart after its cleanup | A failed cleanup answered before the restart was owed, so the running gateway kept polling the old bot; rejected for the restart owed as soon as the bot is off |
-| Remove a left home channel whatever Hermes holds | It may be a new bot's by then; rejected for removing it only while Hermes holds no token of Telegram, and dropping the record when an approval replaces it |
+| Remove a left home channel whatever Hermes holds | It may be a new bot's by then; rejected for removing it only while the bot is off and Hermes holds no token of Telegram, and dropping the record at a connect or an approval |
+| The reading's cleanup beside the changes | A DELETE Hermes held could land after a reconnect's approval and erase its home channel; rejected for the one lock of every change and the checks under it |
+| A DELETE conditional on the channel it expects | Hermes's writer takes only the key; it would be a fork change, and the lock already orders them |
 | Drop the restart when systemd does not answer | Lost until another change or a Launchpad restart; rejected for keeping it owed and asking later and later |
 
 **Verified by** `tests/buddy-hermes-gateway.test.ts`: a named write carries its JSON body as
@@ -20507,8 +20518,12 @@ allowlist, or a gateway draining at the allowlist, claiming nothing and leaving 
 offered, then "Ano" again finishing it without a second approval; a request expiring between
 the list and the approval (404) leaving the account allowed. A disconnect whose home channel
 Hermes refuses (500) or cannot be asked about (draining) owing the restart at once and
-recording the home channel as left; a reading removing it only once Hermes holds no token,
-and an approval's home channel dropping the record.
+recording the home channel as left; a reading removing it only while the bot is off and
+Hermes holds no token, and a connect or an approval dropping the record. The reviewer's race:
+a cleanup DELETE that Hermes holds while the person reconnects and approves another account,
+released after, leaving the new account's home channel in place. A cleanup a reading decided
+while a connect held the lock finding the record gone after it and removing nothing. Both
+fail on the code before the lock.
 `tests/buddy-telegram-restart.test.ts`: one restart while idle and none owed after; busy and
 no answer waiting, two changes needing one restart; two minutes after any start; a start by
 anyone settling it; a stopped gateway and a gateway with no unit owing nothing; systemd not
@@ -20560,5 +20575,9 @@ Nastavení → Buddy not connected, waiting and connected, and Odpojit; no error
   nepřijímá" until the person connects it again.
 - Two tabs are one Launchpad: its operations run one at a time, and its restart under F64's
   turn. No CLI changes Telegram.
+- A cleanup's DELETE that Hermes never answers within the client's 15 seconds may still run
+  in Hermes later, after the lock moved on. Only a fork change (a DELETE that takes the value
+  it expects) would close that; a reading's cleanup of a left home channel is rare to begin
+  with.
 - The page is light only (the design system has no dark UI yet): a dark device shows it light,
   with a theme's own colours where the Environment chose one.
