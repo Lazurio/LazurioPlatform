@@ -2545,6 +2545,54 @@ Not proven:
 - the whole way on a hosted Environment, from a delegation to a click that opens the conversation
   through the gateway. That needs the MausBot release with the address.
 
+**Addendum of 2026-10-26: „Otevři mi chat s Buddym“ opens Buddy's chat beside the chat in ChatGPT
+Desktop** (Matěj's request of 2026-10-26, plan DEV-6676; root decision 0210, decisions F60 and F61).
+Matěj sent a screenshot of ChatGPT Desktop working in a person's Osobní Prostředí: asked „otevři mi
+chat s buddym“, the agent started searching, because nothing in the Folder said what or where
+Buddy's chat is. He asked for it to open Buddy's chat in ChatGPT Desktop's right panel, as „otevři
+Lazurio“ opens the Launchpad there (the F19 addendum of 2026-10-04 evening).
+
+What changes: one line, `buddyChatRouting` in `src/folder/render.ts`. It renders in `AGENTS.md`
+and in `manual/this-machine.md` ("How the user works with you"), in both right after the
+Launchpad's lines, and only where the recorded entry names Buddy's origin (`buddyOrigin`, F60
+point 1). Only the person's own Osobní Prostředí carries that origin, so only `hosted-personal`
+renders the line. It says:
+
+- Buddy's chat, his conversation with the user, is at that exact origin. The address comes from
+  the handover: the agent never composes another one and never gives `localhost` or `127.0.0.1`
+  (his T3 Code listens on a loopback port behind the gateway). Opened directly, the origin goes
+  straight to his conversation, as Lazurio/t3code#130 (step 4) saw on Ring 0 on 2026-10-25.
+- „Chat s Buddym“, „Buddy“ or Buddy's name from the user mean this chat. His name is
+  `persona.buddyName` in `lazurio buddy persona --json`, which reads without writing (F64).
+- When the user wants it and the agent runs in ChatGPT Desktop, the agent opens the exact address
+  in ChatGPT Desktop's built-in browser in the panel beside the chat. In another client it sends
+  the link, as for the Launchpad. The user signs in to it themselves: the gateway admits only the
+  owner, and without a session the origin serves only its own sign-in pages
+  (`lazurio.machine.v1`, `entry.buddy`).
+- Never in the Environment browser, not even with `preview_open`. Agents drive that browser and
+  share its sign-ins, and no Lazurio sign-in belongs there (F38, the browser line of `AGENTS.md`).
+- Root decision 0210 holds (its night addendum of 2026-10-20, point 4): agents in threads do not
+  communicate with Buddy. The agent opens the chat only for the user, and neither writes nor does
+  anything in it. When the user wants to tell Buddy something, the agent opens the chat and the
+  user writes to him there.
+
+Unchanged: the "Buddy" section of `AGENTS.md` (no channel from an agent to Buddy), the Launchpad's
+lines, the manual's chapter on the Environment browser (a plain link in ChatGPT Desktop already
+loads on the user's computer), Buddy's own layer in `.agents/buddy/`, every Folder whose entry
+names no Buddy origin, and every behavior of the product (only generated text changes).
+
+Template revision `base-instructions-79`, so every Folder re-renders on its next refresh or product
+upgrade. `tests/folder-manual.test.ts` checks, with Buddy's origin (with and without the
+Environment browser and the peers) in both locales: the line once in each of the two files, with
+the shared text and each of its sentences, right after the Launchpad's lines, the "Buddy" section's
+rule beside it, and the origin in no other file. Without his origin, on every preset with an
+entry, the Environment browser, both public Environments, try-01 and every journey, no file names
+his chat, his origin or `lazurio buddy persona`. `tests/folder-template-revision.test.ts` now also
+pins a personal Environment with Buddy's origin. Not proven: that agents in ChatGPT Desktop follow
+the line (generated text is not proof of behavior), and that ChatGPT Desktop's built-in browser
+shows Buddy's chat after the gateway's sign-in on a real Osobní Prostředí; that is the next Ring 0
+check.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered

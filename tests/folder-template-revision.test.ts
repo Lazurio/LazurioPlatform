@@ -6,7 +6,7 @@ import { presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
 import { instructionTemplateRevision } from "../src/folder/render";
 import { activatableTools } from "../src/tools/catalog";
-import { bindings } from "./fixtures/machine-bindings";
+import { bindings, personalWithEntry } from "./fixtures/machine-bindings";
 import { tryBinding } from "./fixtures/try-environments";
 
 // The template revision names the bytes of the generated Folder (decision
@@ -23,8 +23,8 @@ import { tryBinding } from "./fixtures/try-environments";
 // `bun test -u` does not touch it. The fixtures in `tests/fixtures` feed the
 // compositions too.
 const pinned = {
-  revision: "base-instructions-78",
-  digest: "781dd47dfd234e4d8244e5de1cdc536e27f567d1652e35ece0503aa3400d7386",
+  revision: "base-instructions-79",
+  digest: "5537aa98d5cffcab5e3485ba291b183b7a7aaf6d521d7bfb0a71e4e67712cad8",
 } as const;
 
 const optionalTools = activatableTools()
@@ -88,6 +88,14 @@ const environments = [
     os: "linux",
   },
   { preset: "hosted-personal", machine: bindings.personalBrowser, os: "linux" },
+  // With Buddy's origin (decision F60), which only the person's own Osobní
+  // Prostředí records: the line that opens his chat for the user renders only
+  // there (decision F14's addendum of 2026-10-26).
+  {
+    preset: "hosted-personal",
+    machine: personalWithEntry(20000, true, true, true),
+    os: "linux",
+  },
   // A public Environment (root decision 0204, F55's addendum of 2026-10-17):
   // no GitHub identity, on a Team Environment and on one of one operator.
   {
