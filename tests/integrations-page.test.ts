@@ -1143,7 +1143,7 @@ test("the line about Composio's update: only where the reading offers it, busy u
     composioUpdated({
       kind: "tool-updated",
       tool: "composio",
-      after: { version: "0.4.3-lazurio.2" },
+      after: { version: "0.4.3-lazurio.3" },
     }),
   ).toBe(true);
   for (const answer of [

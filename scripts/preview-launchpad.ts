@@ -34,7 +34,10 @@
 // organization of the example Organization's name ("Example Company", in
 // Composio "ExampleCompany"), which the first reading makes current; with
 // `composio-org-missing` anywhere after the mode it lacks it, and Apps →
-// Integrace says to create it (decision F42, addendum of 2026-10-13). With
+// Integrace says to create it (decision F42, addendum of 2026-10-13). Its
+// organizations are dated as Lazurio's build prints them, the account's
+// default one (`example_user_workspace`) the oldest, which a personal
+// preview's first reading makes current (addendum of 2026-10-26). With
 // `composio-signed-out` anywhere after the mode its Composio is signed out:
 // "Připojit" starts the CLI's own two-step sign-in, whose link opens
 // nothing real, and the person's approval in Composio is the sign-in's key
@@ -551,10 +554,30 @@ await writeFile(
     organization: "Příklad s.r.o.",
     // The person's own organization of the example Organization's name,
     // which the hosted preview's first reading makes current (decision F42,
-    // addendum of 2026-10-13); without it, the page says to create it.
+    // addendum of 2026-10-13); without it, the page says to create it. The
+    // account's default one, made at the sign-up and so the oldest, is what
+    // a personal preview's first reading makes current (addendum of
+    // 2026-10-26).
     organizations: [
-      { id: "org_1", name: "Příklad s.r.o." },
-      ...(composioOrgMissing ? [] : [{ id: "org_2", name: "ExampleCompany" }]),
+      {
+        id: "org_0",
+        name: "example_user_workspace",
+        created_at: "2026-09-01T08:00:00.000Z",
+      },
+      {
+        id: "org_1",
+        name: "Příklad s.r.o.",
+        created_at: "2026-09-20T08:00:00.000Z",
+      },
+      ...(composioOrgMissing
+        ? []
+        : [
+            {
+              id: "org_2",
+              name: "ExampleCompany",
+              created_at: "2026-10-01T08:00:00.000Z",
+            },
+          ]),
     ],
     accounts: [
       {

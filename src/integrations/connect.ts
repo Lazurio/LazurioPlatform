@@ -979,7 +979,10 @@ export function createConnectSessions(host: () => ConnectHost) {
    * is; in the person's current one where the account has none of that name
    * or more than one (the Operator's decision of 2026-10-13: a notice,
    * nothing breaks); never elsewhere while it exists, and never where the
-   * Organization's name cannot be read. Where the person chooses, always. */
+   * Organization's name cannot be read. On a person's own Environment in the
+   * account's default organization, made current likewise, and in the
+   * person's current one where the CLI does not date the organizations
+   * (addendum of 2026-10-26). Where the person chooses, always. */
   async function inOwnOrganization(
     composio: NonNullable<Awaited<ReturnType<ConnectHost["composio"]>>>,
   ): Promise<boolean> {
