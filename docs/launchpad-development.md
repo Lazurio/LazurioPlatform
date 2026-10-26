@@ -213,7 +213,7 @@ information page is reached only from its tile's menu.
   rows led to technical details and confused users) and no search.
 - **Marketplace.** The entry is in the Apps column of every Environment. It opens the
   curated pilot catalog, Šablony aplikací with the one offer Presentations, its
-  detail and the form "Přidat do Organizace", which hands a brief to the agent and
+  detail and the dialog "Přidat do Organizace", which hands a brief to the agent and
   installs nothing itself (`marketplace.ts`, `marketplace-panel.ts`; [the curated
   pilot](marketplace.md#the-curated-pilot-in-the-launchpad-plan-dev-6593)). The rest of
   the [marketplace](marketplace.md) remains future direction.

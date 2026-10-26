@@ -1,4 +1,5 @@
 import type { Catalog, CatalogOrganization } from "../organizations/catalog";
+import { stoneOf } from "../shell/stones";
 import type { NewModuleOutcome, NewModulePrompt } from "./catalog-panel";
 import { organizationName } from "./catalog-view";
 import {
@@ -20,14 +21,16 @@ type Copy = Readonly<Record<MessageKey, string>>;
 
 // The Marketplace page (plan DEV-6593, marketplace.ts): `/marketplace` is
 // Šablony aplikací with the card of each offer, `/marketplace/<offer>` its
-// detail, and on the detail "Přidat do Organizace" opens the form under it:
-// the Organization, chosen only from those this Folder's catalog binds to
-// GitHub (an address is never the target's authority), how the module
-// starts, what will happen and the technical details. "Předat agentovi"
-// hands the exact brief to Chat as "+ Nový modul" does (ui.ts `handOver`)
-// and says truthfully what happened; it creates nothing itself. While the
-// offer's release has no recorded commit the button is disabled and says
-// why. Every value is drawn with textContent.
+// detail: the stone and name its module will have in Apps, real screens of
+// the app, what it does and its information. "Přidat do Organizace" opens a
+// dialog: the Organization, chosen only from those this Folder's catalog
+// binds to GitHub (an address is never the target's authority), how the
+// module starts and one sentence on what follows. "Pokračovat v Chatu"
+// hands the exact brief to Chat as "+ Nový modul" does (ui.ts `handOver`),
+// where the agent shows the plan to approve before anything changes; it
+// creates nothing itself. While the offer's release has no recorded commit
+// the button is disabled and says why. Every value is drawn with
+// textContent.
 export function createMarketplacePanel(
   options: Readonly<{
     copy: () => Copy;
@@ -44,18 +47,24 @@ export function createMarketplacePanel(
   };
   const body = find<HTMLDivElement>("#market-body");
   const pictures = find<HTMLDivElement>("#market-pictures");
+  const dialog = find<HTMLDialogElement>("#market-dialog");
+  const dialogTitle = find<HTMLHeadingElement>("#market-dialog-title");
+  const dialogBody = find<HTMLDivElement>("#market-dialog-body");
+  const dialogStatus = find<HTMLParagraphElement>("#market-dialog-status");
+  const dialogClose = find<HTMLButtonElement>("#market-dialog-close");
+  const dialogCancel = find<HTMLButtonElement>("#market-dialog-cancel");
+  const dialogOk = find<HTMLButtonElement>("#market-dialog-ok");
 
-  // The form's state, kept while the page draws again (a catalog read, the
-  // language): open, the chosen Organization by its login, the seed and
-  // the last outcome.
-  let adding = false;
+  // The dialog's state, kept while it draws again (a catalog read, the
+  // language): the offer it adds, the chosen Organization by its login,
+  // the seed and the last outcome.
+  let adding: MarketplaceOffer | null = null;
   let target: string | null = null;
   let seed: AdoptionSeed = "empty";
   let said: string | null = null;
   let busy = false;
-  let shownOffer: string | null = null;
-  // Which of the offer's technical details are open, kept as well.
-  const opened = new Set<string>();
+  // The screen the detail shows large.
+  let shown: string | null = null;
 
   const element = <K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -90,15 +99,15 @@ export function createMarketplacePanel(
     image.className = "market-shot";
     return image;
   };
-  const disclosure = (name: string, label: string) => {
-    const details = element("details", "technical");
-    details.open = opened.has(name);
-    details.addEventListener("toggle", () => {
-      if (details.open) opened.add(name);
-      else opened.delete(name);
-    });
-    details.append(element("summary", undefined, label));
-    return details;
+  const stone = (offer: MarketplaceOffer, size: number) => {
+    const image = element("img", "market-stone");
+    image.src = stoneOf(offer.stone).src;
+    image.alt = "";
+    image.width = size;
+    image.height = size;
+    image.decoding = "async";
+    image.setAttribute("aria-hidden", "true");
+    return image;
   };
   const heading = (text: string) => {
     const node = element("h1", "apps-title", text);
@@ -123,16 +132,14 @@ export function createMarketplacePanel(
     );
 
   function render(route: PageRoute = options.route()) {
-    if (route.view !== "marketplace") return;
-    const offer = route.offer === undefined ? null : offerById(route.offer);
-    // Another offer, or back on the catalog: the form starts closed.
-    const showing = offer?.id ?? null;
-    if (showing !== shownOffer) {
-      shownOffer = showing;
-      adding = false;
-      said = null;
-      opened.clear();
+    if (route.view !== "marketplace") {
+      if (dialog.open) dialog.close();
+      return;
     }
+    const offer = route.offer === undefined ? null : offerById(route.offer);
+    // Another offer, or back on the catalog: the dialog closes.
+    if (adding !== null && adding.id !== offer?.id && dialog.open)
+      dialog.close();
     body.replaceChildren(
       route.offer === undefined
         ? catalogView()
@@ -140,20 +147,14 @@ export function createMarketplacePanel(
           ? missingView()
           : offerView(offer),
     );
+    if (adding !== null && dialog.open) drawDialog(adding);
   }
 
   function catalogView() {
     const copy = options.copy();
     const view = element("div", "market-view");
     const head = element("header", "market-head");
-    const mark = element("span", "market-icon");
-    mark.append(svg("shop"));
-    const text = element("div", "module-head-text");
-    text.append(
-      heading(copy.appsMarketplace),
-      element("p", "module-meta", copy.marketIntro),
-    );
-    head.append(mark, text);
+    head.append(heading(copy.appsMarketplace));
     const section = element("section", "group");
     section.setAttribute("aria-labelledby", "market-section-app-templates");
     const sectionHead = element("div", "group-head");
@@ -175,30 +176,29 @@ export function createMarketplacePanel(
     const shot = element("span", "market-card-shot");
     shot.append(picture(`${offer.id}-gallery`, ""));
     const text = element("span", "market-card-body");
-    text.append(
-      element("span", "market-card-name", offer.title),
-      badge(),
-      element("span", "market-card-desc", copy[offer.copy.summary]),
+    const words = element("span", "tile-body");
+    words.append(
+      element("span", "tile-name", offer.title),
+      element("span", "tile-desc", copy[offer.copy.summary]),
     );
+    text.append(stone(offer, 44), words);
     link.append(shot, text);
     return link;
   }
 
-  function badge() {
-    const node = element("span", "market-badge");
-    node.append(svg("check"), options.copy().marketBadge);
-    return node;
+  function back() {
+    const link = element("a", "back");
+    link.href = "/marketplace";
+    link.dataset.route = "";
+    link.append(svg("chevron-left"), options.copy().marketBack);
+    return link;
   }
 
   function missingView() {
     const copy = options.copy();
     const view = element("div", "market-view");
-    const back = element("a", "back");
-    back.href = "/marketplace";
-    back.dataset.route = "";
-    back.append(svg("chevron-left"), copy.marketBack);
     view.append(
-      back,
+      back(),
       heading(copy.appsMarketplace),
       element("p", "empty", copy.marketNotFound),
     );
@@ -208,141 +208,182 @@ export function createMarketplacePanel(
   function offerView(offer: MarketplaceOffer) {
     const copy = options.copy();
     const view = element("div", "market-view");
-    const back = element("a", "back");
-    back.href = "/marketplace";
-    back.dataset.route = "";
-    back.append(svg("chevron-left"), copy.marketBack);
 
     const head = element("header", "market-detail-head");
-    const text = element("div", "module-head-text");
-    text.append(
+    const title = element("div", "market-detail-title");
+    title.append(
       heading(offer.title),
-      badge(),
-      element(
-        "p",
-        "module-meta",
-        `${fill(copy.marketVersion, { version: offer.release.version })} · ${fill(
-          copy.marketLicense,
-          { license: offer.license },
-        )}`,
-      ),
+      element("p", "market-summary", copy[offer.copy.summary]),
     );
     const add = element("button", "primary market-add", copy.marketAdd);
     add.type = "button";
-    add.setAttribute("aria-expanded", String(adding));
-    add.setAttribute("aria-controls", "market-add");
-    add.addEventListener("click", () => {
-      adding = !adding;
-      said = null;
-      render();
-      if (adding)
-        document
-          .querySelector<HTMLElement>("#market-add h2")
-          ?.focus({ preventScroll: false });
-    });
-    head.append(text, add);
+    add.setAttribute("aria-haspopup", "dialog");
+    add.addEventListener("click", () => open(offer));
+    head.append(stone(offer, 64), title, add);
 
-    const shots = element("div", "market-shots");
-    for (const [name, alt] of [
-      ["gallery", copy.marketScreensGallery],
-      ["slide", copy.marketScreensSlide],
-    ] as const) {
-      const figure = element("figure", "market-figure");
-      figure.append(
-        picture(`${offer.id}-${name}`, alt),
-        element("figcaption", undefined, alt),
-      );
-      shots.append(figure);
-    }
+    const shots = screens(offer);
 
-    const about = element("section", "market-about");
-    about.append(element("p", "market-lead", copy[offer.copy.description]));
-    const contains = element("div", "market-list");
-    contains.append(element("h2", undefined, copy.marketWhatIs));
+    const features = element("section", "market-features");
+    features.setAttribute("aria-labelledby", "market-features");
+    const featuresTitle = element("h2", undefined, copy.marketFeatures);
+    featuresTitle.id = "market-features";
     const list = element("ul");
-    for (const key of offer.copy.contents)
-      list.append(element("li", undefined, copy[key]));
-    contains.append(list);
-    const limits = element("div", "market-list");
-    limits.append(element("h2", undefined, copy.marketWhatNot));
-    for (const key of offer.copy.limits)
-      limits.append(element("p", undefined, copy[key]));
-    about.append(contains, limits);
+    for (const feature of offer.copy.features) {
+      const item = element("li");
+      item.append(
+        element("h3", undefined, copy[feature.title]),
+        element("p", undefined, copy[feature.text]),
+      );
+      list.append(item);
+    }
+    features.append(featuresTitle, list);
 
-    view.append(back, head, shots, about, technical(offer));
-    if (adding) view.append(form(offer));
+    const layout = element("div", "market-body");
+    layout.append(features, information(offer));
+    view.append(back(), head, shots, layout);
     return view;
   }
 
-  function technical(offer: MarketplaceOffer) {
+  /** The app's real screens: one large, the others as thumbnails that
+   * show it instead. */
+  function screens(offer: MarketplaceOffer) {
     const copy = options.copy();
-    const details = disclosure("offer", copy.marketTechnical);
-    const rows = element("dl", "card market-facts");
-    const row = (label: string, value: Node | string) => {
-      const item = element("div", "row market-fact");
-      const term = element("dt", undefined, label);
-      const description = element("dd");
-      description.append(value);
-      item.append(term, description);
-      rows.append(item);
-    };
-    row(
-      copy.marketRequirements,
-      fill(copy.marketRequirementsText, { bun: offer.bun }),
-    );
-    row(copy.marketData, copy[offer.copy.data]);
-    row(
-      copy.marketCompatibility,
-      fill(copy.marketCompatibilityText, { stack: offer.stack }),
-    );
-    const source = element("a", undefined, offer.repository);
-    source.href = sourceUrl(offer);
-    source.target = "_blank";
-    source.rel = "noopener noreferrer";
-    row(copy.marketSource, source);
-    const release = offer.release;
-    if (release.commit === null)
-      row(
-        copy.marketRelease,
-        fill(copy.marketReleasePending, { tag: release.tag }),
-      );
-    else {
-      const link = element(
-        "a",
-        undefined,
-        fill(copy.marketReleaseCommit, {
-          tag: release.tag,
-          commit: release.commit.slice(0, 12),
-        }),
-      );
-      link.href = releaseUrl(offer);
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      row(copy.marketRelease, link);
+    const all = [
+      [`${offer.id}-gallery`, copy.marketScreensGallery],
+      [`${offer.id}-slide`, copy.marketScreensSlide],
+    ] as const;
+    if (!all.some(([name]) => name === shown)) shown = all[0][0];
+    const view = element("div", "market-shots");
+    const large = element("div", "market-shot-large");
+    const current = all.find(([name]) => name === shown) ?? all[0];
+    large.append(picture(current[0], current[1]));
+    const thumbs = element("div", "market-thumbs");
+    for (const [name, alt] of all) {
+      const button = element("button", "market-thumb");
+      button.type = "button";
+      button.setAttribute("aria-label", alt);
+      button.setAttribute("aria-pressed", String(name === shown));
+      button.append(picture(name, ""));
+      button.addEventListener("click", () => {
+        shown = name;
+        render();
+        document
+          .querySelector<HTMLButtonElement>(
+            `.market-thumb[aria-label="${CSS.escape(alt)}"]`,
+          )
+          ?.focus();
+      });
+      thumbs.append(button);
     }
-    details.append(rows);
-    return details;
+    view.append(large, thumbs);
+    return view;
   }
 
-  function form(offer: MarketplaceOffer) {
+  function information(offer: MarketplaceOffer) {
     const copy = options.copy();
-    const section = element("section", "card market-form");
-    section.id = "market-add";
-    const title = element(
-      "h2",
-      undefined,
-      fill(copy.marketAddTitle, { title: offer.title }),
-    );
-    title.tabIndex = -1;
-    section.append(title, element("p", "intro", copy.marketAddIntro));
+    const aside = element("aside", "market-info");
+    aside.setAttribute("aria-labelledby", "market-info");
+    const title = element("h2", undefined, copy.marketInfo);
+    title.id = "market-info";
+    const rows = element("dl");
+    const row = (label: string, value: Node | string) => {
+      const item = element("div");
+      const description = element("dd");
+      description.append(value);
+      item.append(element("dt", undefined, label), description);
+      rows.append(item);
+    };
+    row(copy.marketAuthor, copy.marketAuthorName);
+    row(copy.marketVersion, offer.release.version);
+    row(copy.marketLicense, offer.license);
+    row(copy.marketData, copy.marketDataText);
+    row(copy.marketRequirements, copy.marketRequirementsText);
+    const source = element("a");
+    source.href = adoptable(offer) ? releaseUrl(offer) : sourceUrl(offer);
+    source.target = "_blank";
+    source.rel = "noopener noreferrer";
+    source.append(copy.marketSourceLink, svg("external"));
+    row(copy.marketSource, source);
+    aside.append(title, rows);
+    return aside;
+  }
 
+  function open(offer: MarketplaceOffer) {
+    if (adding?.id !== offer.id) {
+      seed = "empty";
+      target = null;
+    }
+    adding = offer;
+    said = null;
+    drawDialog(offer);
+    if (!dialog.open) dialog.showModal();
+    dialogTitle.focus();
+  }
+
+  dialog.addEventListener("close", () => {
+    said = null;
+  });
+  for (const button of [dialogClose, dialogCancel])
+    button.addEventListener("click", () => dialog.close());
+  dialogOk.addEventListener("click", () => {
+    const offer = adding;
+    const chosen = chosenTarget();
+    if (offer === null || chosen === null || busy) return;
+    const text = adoptionPrompt(
+      offer,
+      seed,
+      { name: organizationName(chosen), login: chosen.forgeLogin },
+      options.copy(),
+    );
+    if (text === null) return;
+    busy = true;
+    drawDialog(offer);
+    void options
+      .handOver({
+        id: adoptionPromptId(offer, seed),
+        organization: chosen.forgeLogin,
+        text,
+      })
+      .then(
+        (outcome) => outcome,
+        (): NewModuleOutcome => "failed",
+      )
+      .then((outcome) => {
+        busy = false;
+        const now = options.copy();
+        said = fill(
+          {
+            "handed-over": now.marketHandedOver,
+            copied: now.marketCopied,
+            failed: now.marketCopyFailed,
+            "needs-ai": now.appsNewModuleNeedsAi,
+          }[outcome],
+          { title: offer.title },
+        );
+        if (dialog.open) drawDialog(offer);
+      });
+  });
+
+  /** The chosen Organization, the first one until a person picks. */
+  function chosenTarget() {
     const choices = targets();
     if (
       target === null ||
       !choices.some((entry) => entry.forgeLogin === target)
     )
       target = choices[0]?.forgeLogin ?? null;
-    const chosen = choices.find((entry) => entry.forgeLogin === target) ?? null;
+    return choices.find((entry) => entry.forgeLogin === target) ?? null;
+  }
+
+  function drawDialog(offer: MarketplaceOffer) {
+    const copy = options.copy();
+    dialogTitle.textContent = fill(copy.marketAddTitle, { title: offer.title });
+    dialogClose.setAttribute("aria-label", copy.marketClose);
+    dialogCancel.textContent = copy.marketCancel;
+    dialogOk.textContent = copy.marketHandOver;
+
+    const choices = targets();
+    const chosen = chosenTarget();
 
     const field = element("div", "market-field");
     if (options.catalog() === null)
@@ -363,7 +404,7 @@ export function createMarketplacePanel(
       select.addEventListener("change", () => {
         target = select.value;
         said = null;
-        render();
+        drawDialog(offer);
         document.querySelector<HTMLSelectElement>("#market-target")?.focus();
       });
       field.append(label, select);
@@ -382,15 +423,15 @@ export function createMarketplacePanel(
         if (!input.checked) return;
         seed = value;
         said = null;
-        render();
+        drawDialog(offer);
         document
           .querySelector<HTMLInputElement>(
             `input[name="market-seed"][value="${value}"]`,
           )
           ?.focus();
       });
-      const words = element("span");
-      words.append(
+      label.append(
+        input,
         element(
           "span",
           undefined,
@@ -398,109 +439,34 @@ export function createMarketplacePanel(
         ),
       );
       if (value === "sample")
-        words.append(element("span", "module-meta", copy.marketSeedSampleNote));
-      label.append(input, words);
+        label.append(element("span", "module-meta", copy.marketSeedSampleNote));
       seeds.append(label);
     }
 
-    const plan = element("div", "market-plan");
-    plan.append(element("h3", undefined, copy.marketPlan));
-    const steps = element("ul");
     const name = chosen === null ? "—" : organizationName(chosen);
-    for (const text of [
-      fill(copy.marketPlanRelease, {
-        tag: offer.release.tag,
-        repository: offer.repository,
-        license: offer.license,
-      }),
-      fill(copy.marketPlanTarget, { title: offer.title, name }),
-      fill(copy.marketPlanRepository, { module: offer.module }),
-      copy.marketPlanTeams,
-      copy.marketPlanCode,
-      copy.marketPlanRights,
-    ])
-      steps.append(element("li", undefined, text));
-    plan.append(steps);
+    const what = element(
+      "p",
+      "market-what",
+      fill(copy.marketWhat, { title: offer.title, name }),
+    );
+    const parts: HTMLElement[] = [field, seeds, what];
     if (chosen?.modules.some((module) => module.module === offer.module))
-      plan.append(
+      parts.push(
         element(
           "p",
           "callout",
-          fill(copy.marketTaken, { module: offer.module }),
+          fill(copy.marketTaken, { name, module: offer.module }),
         ),
       );
+    dialogBody.replaceChildren(...parts);
 
-    const details = disclosure("form", copy.marketTechnical);
-    const facts = element("dl", "card market-facts");
-    for (const [label, value] of [
-      [copy.marketTechnicalSlug, offer.module],
-      [copy.marketTechnicalRepository, copy.marketTechnicalRepositoryValue],
-    ] as const) {
-      const item = element("div", "row market-fact");
-      item.append(
-        element("dt", undefined, label),
-        element("dd", undefined, value),
-      );
-      facts.append(item);
-    }
-    details.append(facts);
-
-    const actions = element("div", "market-actions");
     const ready = adoptable(offer);
-    const button = element("button", "primary", copy.marketHandOver);
-    button.type = "button";
-    button.disabled = !ready || chosen === null || busy;
-    if (!ready) {
-      const why = element(
-        "p",
-        "module-meta",
-        fill(copy.marketNotYet, { tag: offer.release.tag }),
-      );
-      why.id = "market-not-yet";
-      button.setAttribute("aria-describedby", why.id);
-      actions.append(button, why);
-    } else actions.append(button);
-    button.addEventListener("click", () => {
-      if (chosen === null) return;
-      const text = adoptionPrompt(
-        offer,
-        seed,
-        { name: organizationName(chosen), login: chosen.forgeLogin },
-        copy,
-      );
-      if (text === null) return;
-      busy = true;
-      render();
-      void options
-        .handOver({
-          id: adoptionPromptId(offer, seed),
-          organization: chosen.forgeLogin,
-          text,
-        })
-        .then(
-          (outcome) => outcome,
-          (): NewModuleOutcome => "failed",
-        )
-        .then((outcome) => {
-          busy = false;
-          const now = options.copy();
-          said = fill(
-            {
-              "handed-over": now.marketHandedOver,
-              copied: now.marketCopied,
-              failed: now.marketCopyFailed,
-              "needs-ai": now.appsNewModuleNeedsAi,
-            }[outcome],
-            { title: offer.title },
-          );
-          render();
-        });
-    });
-    const status = element("p", "market-status", said ?? "");
-    status.setAttribute("role", "status");
-
-    section.append(field, seeds, plan, details, actions, status);
-    return section;
+    dialogOk.disabled = !ready || chosen === null || busy;
+    dialogStatus.textContent =
+      said ??
+      (ready
+        ? ""
+        : fill(copy.marketNotYet, { version: offer.release.version }));
   }
 
   return { render };

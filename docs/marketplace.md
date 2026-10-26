@@ -14,35 +14,44 @@ templates), and one offer, Presentations. Everything below is what the pilot doe
 today; the rest of this document stays future direction.
 
 - **One record per offer.** The offer names its public source repository
-  (`TemplatesRozjedeme-ai/PresentationsTemplate`), publisher, SPDX license (MIT,
-  decided by the release owner on 2026-10-26), version `0.1.0` and tag `v0.1.0`, plus
-  two fields filled in only once the release is published: the full `commit` the tag
-  points to and the `artifactDigest` of its attested artifact. The catalog holds no
-  second copy of the source. A tag or a branch is not an immutable identity.
-- **Catalog and detail.** `/marketplace` shows the offer's card (a real screen of the
-  app, the badge "Od Lazuria · Ověřeno", one line); `/marketplace/<offer>` its detail:
-  two screens, the description including what v1 does not do (no visual editor, PPTX,
-  automatic PDF generation/storage or automatic updates), its contents, version and
-  license, and collapsed technical details (requirements, data, compatibility, source,
-  release). No price, pilot label, mention of the Environment or computer, install
-  count, rating or other offer is shown; the price remains zero.
+  (`TemplatesRozjedeme-ai/Presentations`, a clean repository that receives only the
+  reviewed tree; the private working repository is never published), publisher,
+  SPDX license (MIT, decided by the release owner on 2026-10-26), version `0.1.0` and
+  tag `v0.1.0`, plus two fields filled in only once the release is published: the full
+  `commit` the tag points to and the `artifactDigest` of its attested artifact. The
+  catalog holds no second copy of the source. A tag or a branch is not an immutable
+  identity.
+- **It looks like the module it becomes.** An offer carries the stone its module
+  shows in Apps (`presentation`, `shell/stones.ts`). The catalog's card is a real
+  screen of the app, the stone, the name and one line, as a tile in Apps.
+- **Detail.** `/marketplace/<offer>` shows the stone, the name and its one line with
+  "Přidat do Organizace"; the app's real screens, one large and the others as
+  thumbnails that show it instead; what it does (Knihovna, Promítání a PDF, Tvorba s
+  agentem, each a title and a sentence); and Informace: author Lazurio, version,
+  license, where the data stays, what it requires and a link to the source (the
+  release once recorded). Following the voice of Lazurio, the page explains nothing
+  in a sentence under its title, shows no badge and lists nothing the app lacks
+  (Anna, 2026-10-26). No price, pilot label, mention of the Environment or computer,
+  install count, rating or other offer is shown; the price remains zero.
 - **Screens.** `src/launchpad/images/marketplace-presentations-{gallery,slide}.webp`
-  are browser screenshots of the template's candidate `e1b9534` running on loopback
-  with its synthetic four-slide example ("Ukázková Organizace · žádná skutečná firemní
-  data"), scaled to 1200 px. They contain no customer content, logos or photos.
-  Replace them when a later release changes what the app looks like.
-- **Přidat do Organizace.** The form names the target Organization, chosen only among
+  are browser screenshots at twice the pixel density of the template's release
+  branch running on loopback with its synthetic four-slide example ("Ukázková
+  Organizace · žádná skutečná firemní data"), scaled to 1600 px. They contain no
+  customer content, logos or photos. Replace them when a later release changes what
+  the app looks like.
+- **Přidat do Organizace.** A dialog names the target Organization, chosen only among
   this Folder's Organizations bound to a GitHub login (the address is never the
-  target's authority), how the module starts (an empty library or the synthetic
-  example), what will happen (exact release, new module, private repository, Teams
-  chosen with the agent from the Organization's real list and confirmed by someone who
-  may grant access, the template's code is run, a request where rights do not reach)
-  and, collapsed, the slug `presentations` and the private repository. Where the
-  Organization already has a module of that name it says the agent agrees another.
-  Teams are not listed on the page (decision F32).
-- **Hand-over, not installation.** "Předat agentovi" hands the brief to Chat exactly as
-  "+ Nový modul" does: by link where Chat takes a prepared prompt, else through the
-  clipboard. The prompt `marketplace-<offer>-<empty|sample>` is served by
+  target's authority), and how the module starts (an empty library or the synthetic
+  example), and says in one sentence what follows: the agent prepares a private
+  module for that Organization with the person in Chat and shows the plan to approve
+  before anything there changes. The plan itself (exact release, private repository,
+  Teams chosen from the Organization's real list, the template's code run, a request
+  where rights do not reach) is the agent's first step, as the brief requires. Where
+  the Organization already has a module of that name the dialog says the agent agrees
+  another. Teams are not listed on the page (decision F32).
+- **Hand-over, not installation.** "Pokračovat v Chatu" hands the brief to Chat
+  exactly as "+ Nový modul" does: by link where Chat takes a prepared prompt, else
+  through the clipboard. The prompt `marketplace-<offer>-<empty|sample>` is served by
   `GET /.lazurio/prompts/<id>?org=<login>` to anyone admitted, for an Organization of
   the Folder bound to that login, and only while the offer's commit is recorded; every
   other case is the same 404. The brief names the exact release, the Organization and
@@ -50,12 +59,12 @@ today; the rest of this document stays future direction.
   rights, name collision and compatibility, show the plan, `lazurio module create`,
   merge the pinned commit so it stays an ancestor, prepare a PR, prepare a request
   where rights do not reach, merge or activate nothing without the person's explicit
-  instruction. The page then says it was handed to the agent and that nothing changed
-  in the Organization yet. It never claims installation on a click.
-- **Not yet adoptable.** Until the release's commit is recorded, "Předat agentovi" is
-  disabled with the reason ("Přidat půjde, až vyjde vydání v0.1.0 s přesným
-  commitem") and the prompt route answers 404. Recording the commit (and the digest)
-  after the release is published is a reviewed change of this record.
+  instruction. The dialog then says Chat opened with the brief ready, unsent. It never
+  claims installation on a click.
+- **Not yet adoptable.** Until the release's commit is recorded, "Pokračovat v Chatu"
+  is disabled with the reason ("Půjde to po vydání verze 0.1.0") and the prompt route
+  answers 404. Recording the commit (and the digest) after the release is published
+  is a reviewed change of this record.
 
 The pilot is complete only after the real consumer journey into another Organization
 and a verified update with local customizations (plan DEV-6593); this page is its

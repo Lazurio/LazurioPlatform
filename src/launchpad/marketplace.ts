@@ -1,3 +1,4 @@
+import type { StoneKey } from "../shell/stones";
 import type { MessageKey } from "./messages";
 
 type Copy = Readonly<Record<MessageKey, string>>;
@@ -52,18 +53,19 @@ export type MarketplaceOffer = Readonly<{
   stack: string;
   /** The Bun the template pins (`packageManager`). */
   bun: string;
-  /** The words of its card and detail, by message key. */
+  /** The stone the adopted module shows in Apps (shell/stones.ts). */
+  stone: StoneKey;
+  /** The words of its card and detail, by message key: one line, and what
+   * the app does, each a short title with its sentence. */
   copy: Readonly<{
     summary: MessageKey;
-    description: MessageKey;
-    contents: readonly MessageKey[];
-    limits: readonly MessageKey[];
-    data: MessageKey;
+    features: readonly Readonly<{ title: MessageKey; text: MessageKey }>[];
   }>;
 }>;
 
 /** The catalog of the pilot: Presentations, the first template of the
- * TemplatesRozjedeme-ai Organization (MIT, decided 2026-10-26). Its release
+ * TemplatesRozjedeme-ai Organization (MIT, decided 2026-10-26), released
+ * from its clean public repository, never from the private working one. Its release
  * v0.1.0 is not published yet: the commit and digest stay null until it is,
  * and the offer cannot be adopted before. */
 export const marketplaceOffers: readonly MarketplaceOffer[] = [
@@ -72,7 +74,7 @@ export const marketplaceOffers: readonly MarketplaceOffer[] = [
     section: "app-templates",
     title: "Presentations",
     module: "presentations",
-    repository: "TemplatesRozjedeme-ai/PresentationsTemplate",
+    repository: "TemplatesRozjedeme-ai/Presentations",
     publisher: "TemplatesRozjedeme-ai",
     license: "MIT",
     release: {
@@ -83,17 +85,23 @@ export const marketplaceOffers: readonly MarketplaceOffer[] = [
     },
     stack: "vite-react",
     bun: "1.4.2",
+    stone: "presentation",
     copy: {
       summary: "marketPresentationsSummary",
-      description: "marketPresentationsDescription",
-      contents: [
-        "marketPresentationsLibrary",
-        "marketPresentationsPlayback",
-        "marketPresentationsPrint",
-        "marketPresentationsAgent",
+      features: [
+        {
+          title: "marketPresentationsLibrary",
+          text: "marketPresentationsLibraryText",
+        },
+        {
+          title: "marketPresentationsPlayback",
+          text: "marketPresentationsPlaybackText",
+        },
+        {
+          title: "marketPresentationsAgent",
+          text: "marketPresentationsAgentText",
+        },
       ],
-      limits: ["marketPresentationsLimits"],
-      data: "marketPresentationsData",
     },
   },
 ];

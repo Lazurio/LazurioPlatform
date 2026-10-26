@@ -58,13 +58,13 @@ test("the pilot's catalog: Presentations alone in Šablony aplikací, MIT, relea
     ["presentations", "app-templates"],
   ]);
   const offer = offerById("presentations") as MarketplaceOffer;
-  expect(offer.repository).toBe("TemplatesRozjedeme-ai/PresentationsTemplate");
+  expect(offer.repository).toBe("TemplatesRozjedeme-ai/Presentations");
   expect(offer.publisher).toBe("TemplatesRozjedeme-ai");
   expect(offer.license).toBe("MIT");
   expect(offer.release.version).toBe("0.1.0");
   expect(offer.release.tag).toBe("v0.1.0");
   expect(releaseUrl(offer)).toBe(
-    "https://github.com/TemplatesRozjedeme-ai/PresentationsTemplate/releases/tag/v0.1.0",
+    "https://github.com/TemplatesRozjedeme-ai/Presentations/releases/tag/v0.1.0",
   );
   expect(offerById("other")).toBeNull();
   expect(offerById("__proto__")).toBeNull();
@@ -104,9 +104,7 @@ test("the brief names the exact release, the Organization, the start and the bou
       ) as string;
       expect(text).toContain("Presentations");
       expect(text).toContain("Example Company (GitHub Example-Org)");
-      expect(text).toContain(
-        "TemplatesRozjedeme-ai/PresentationsTemplate v0.1.0",
-      );
+      expect(text).toContain("TemplatesRozjedeme-ai/Presentations v0.1.0");
       expect(text).toContain("0123456789abcdef0123456789abcdef01234567");
       expect(text).toContain("MIT");
       expect(text).toContain("docs/adoption.md");
@@ -178,7 +176,7 @@ test("the Marketplace's routes: its catalog and an offer's detail, one frame", (
   ).toBe("Marketplace");
 });
 
-test("the Marketplace's words say no price, no pilot, no Environment or computer, and no install on a click", () => {
+test("the Marketplace's words say no price, no pilot, no Environment or computer, no badge or list of what it lacks, and no install on a click", () => {
   const shown = (Object.keys(cs) as MessageKey[]).filter(
     (key) => key.startsWith("market") && !key.startsWith("marketAdoptPrompt"),
   );
@@ -187,13 +185,13 @@ test("the Marketplace's words say no price, no pilot, no Environment or computer
     expect([key, cs[key]]).not.toEqual([
       key,
       expect.stringMatching(
-        /pilot|cen[auy]\b|zdarma|Kč|Prostředí|Environment|počítač|nainstal(uje|ováno)/i,
+        /pilot|cen[auy]\b|zdarma|Kč|Prostředí|Environment|počítač|nainstal(uje|ováno)|ověřen|neumí/i,
       ),
     ]);
     expect([key, en[key]]).not.toEqual([
       key,
       expect.stringMatching(
-        /pilot|price|free of charge|Environment|computer|installed|one click/i,
+        /pilot|price|free of charge|Environment|computer|installed|one click|verified|does not/i,
       ),
     ]);
   }
