@@ -190,7 +190,7 @@ export function createPersonaSave(
      * Absent: none (the CLI). */
     firstMeeting?:
       | Readonly<{
-          meeting: Pick<FirstMeeting, "owe" | "deliver" | "owed">;
+          meeting: Pick<FirstMeeting, "owe" | "refresh" | "deliver" | "owed">;
           /** The Folder's language, the one SOUL.md speaks. */
           locale: () => Promise<"cs" | "en">;
         }>
@@ -230,6 +230,10 @@ export function createPersonaSave(
   // again, so an apply that failed, was refused or still runs never lets him
   // greet in the names and the address he had before.
   let applied = false;
+  // Every apply this Launchpad starts, counted: a greeting under way checks,
+  // right before it hands the turn to T3 Code, that no apply started since
+  // it was asked for (one that failed would leave the old persona in place).
+  let generation = 0;
 
   const schedule = (delay: number) => {
     if (retry !== undefined) timers.cancel(retry);
@@ -248,22 +252,25 @@ export function createPersonaSave(
   let greetDelay = firstMeetingRetryMs;
   const greet = () => {
     if (closed || input.firstMeeting === undefined || !applied) return;
-    void input.firstMeeting.meeting.deliver().then(
-      (outcome) => {
-        if (outcome !== "waiting") {
-          greetDelay = firstMeetingRetryMs;
-          return;
-        }
-        if (closed || greeting !== undefined) return;
-        const delay = greetDelay;
-        greetDelay = Math.min(greetDelay * 2, personaWatchMs);
-        greeting = timers.after(() => {
-          greeting = undefined;
-          greet();
-        }, delay);
-      },
-      () => undefined,
-    );
+    const asked = generation;
+    void input.firstMeeting.meeting
+      .deliver(() => applied && generation === asked)
+      .then(
+        (outcome) => {
+          if (outcome !== "waiting") {
+            greetDelay = firstMeetingRetryMs;
+            return;
+          }
+          if (closed || greeting !== undefined) return;
+          const delay = greetDelay;
+          greetDelay = Math.min(greetDelay * 2, personaWatchMs);
+          greeting = timers.after(() => {
+            greeting = undefined;
+            greet();
+          }, delay);
+        },
+        () => undefined,
+      );
   };
 
   function settle(answer: BuddyPersona) {
@@ -304,6 +311,7 @@ export function createPersonaSave(
       retry = undefined;
     }
     applied = false;
+    generation += 1;
     const current = input
       .apply()
       .catch(
@@ -444,6 +452,12 @@ export function createPersonaSave(
       )
         await input.firstMeeting.meeting
           .owe(write.persona, await input.firstMeeting.locale())
+          .catch(() => false);
+      // A later save before the turn went gives it the names and the
+      // address just saved.
+      else if (write.kind === "written" && input.firstMeeting !== undefined)
+        await input.firstMeeting.meeting
+          .refresh(write.persona, await input.firstMeeting.locale())
           .catch(() => false);
       const applied = appliedOf(await applyWithin(answerWithinMs));
       journal({

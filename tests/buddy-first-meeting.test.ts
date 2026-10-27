@@ -683,6 +683,73 @@ posix(
   },
 );
 
+/** The fake T3 Code whose first thread lookup waits until `release`. */
+function heldLookup(t3: ReturnType<typeof fakeT3>) {
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let held = true;
+  const run: ToolRunner = async (command, timeout, env, options) => {
+    if (command[1] === "lazurio" && held) {
+      held = false;
+      await gate;
+    }
+    return t3.run(command, timeout, env, options);
+  };
+  return { ...t3, run, release: () => release() };
+}
+
+posix(
+  "a delivery under way asks again right before it sends: a save meanwhile whose apply fails leaves the turn owed, with the names and the address just saved, until an apply answers applied",
+  async () => {
+    await home(async (user) => {
+      await mkdir(dirname(personaPath(user)), { recursive: true, mode: 0o700 });
+      await writePersona(user, values, null);
+      const t3 = heldLookup(fakeT3("sent"));
+      const { save, hand, fake } = await launchpad(
+        user,
+        ["applied", "failed", "applied"],
+        t3,
+      );
+      await save.save(
+        { ...values, confirm: true },
+        await sha256(personaPath(user)),
+      );
+      await settle();
+      // The first delivery waits on its thread lookup; the person switches
+      // to vy meanwhile, and that save's apply fails.
+      expect(t3.sends().length).toBe(0);
+      await save.save(
+        { ...values, address: "vy" },
+        await sha256(personaPath(user)),
+      );
+      await settle();
+      expect(fake.calls()).toBe(2);
+      t3.release();
+      await settle();
+      expect(t3.sends().length).toBe(0);
+      const owed = await readFirstMeeting(user);
+      expect(owed?.state).toBe("owed");
+      const read = await readPersona(user);
+      if (read.state !== "valid") throw new Error("a persona");
+      expect(owed?.text).toBe(firstMeetingText(read.persona, "cs"));
+      // The greeting's own retry 10 s later finds the gate closed.
+      await hand.pass(10_000);
+      expect(t3.sends().length).toBe(0);
+      // The failed apply's retry applies: the turn goes once, in vy.
+      await hand.pass(personaFailedRetryMs);
+      expect(fake.calls()).toBe(3);
+      await until(sentRecord(user));
+      expect(t3.sends().length).toBe(1);
+      expect(t3.sends()[0]?.stdin).toBe(firstMeetingText(read.persona, "cs"));
+      await hand.pass(120_000);
+      expect(t3.sends().length).toBe(1);
+      save.close();
+    });
+  },
+);
+
 posix(
   "an apply that fails or is refused sends no first meeting: the turn stays owed, every retry asks again, and it goes once an apply answers applied",
   async () => {

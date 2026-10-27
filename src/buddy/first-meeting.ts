@@ -263,7 +263,9 @@ export function createFirstMeeting(
     return { code: result.exitCode, data: isObject(data) ? data : null };
   }
 
-  async function attempt(): Promise<FirstMeetingDelivery> {
+  async function attempt(
+    current: (() => boolean) | undefined,
+  ): Promise<FirstMeetingDelivery> {
     const record = await readFirstMeeting(input.home);
     if (record === null || record.state !== "owed") return "none";
     const confirmed = Date.parse(record.confirmedAt);
@@ -286,6 +288,10 @@ export function createFirstMeeting(
       !threadId.test(thread)
     )
       return "waiting";
+    // The lookups above may take long (up to a minute each): an apply that
+    // started meanwhile, after another save, has not put the persona in
+    // place yet, so the turn stays owed for the next apply's greeting.
+    if (current !== undefined && !current()) return "waiting";
     const sent = await t3(
       runtime,
       [
@@ -351,9 +357,33 @@ export function createFirstMeeting(
       return (await readFirstMeeting(input.home))?.state === "owed";
     },
 
-    /** Sends what is owed, if anything; the one under way where one runs. */
-    deliver(): Promise<FirstMeetingDelivery> {
-      delivering ??= attempt()
+    /** A later save, before the turn went: an owed turn of the same
+     * confirmation takes the names and the address just saved, so the note
+     * never contradicts what Buddy was told. Any other record stays. */
+    async refresh(
+      persona: Pick<Persona, "address" | "user" | "confirmedAt">,
+      locale: PersonaLocale,
+    ): Promise<boolean> {
+      const record = await readFirstMeeting(input.home);
+      if (
+        record === null ||
+        record.state !== "owed" ||
+        record.confirmedAt !== persona.confirmedAt
+      )
+        return false;
+      const text = firstMeetingText(persona, locale);
+      if (text === record.text) return false;
+      await writeRecord(input.home, { ...record, text });
+      journal({ operation: "owe", outcome: "refreshed" });
+      return true;
+    },
+
+    /** Sends what is owed, if anything; the one under way where one runs.
+     * `current`, asked right before the turn is handed to T3 Code, says
+     * whether the persona is still the one applied when this delivery was
+     * asked for; when it is not, the turn stays owed. */
+    deliver(current?: () => boolean): Promise<FirstMeetingDelivery> {
+      delivering ??= attempt(current)
         .catch((): FirstMeetingDelivery => "waiting")
         .finally(() => {
           delivering = null;
