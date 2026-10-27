@@ -160,7 +160,11 @@ export async function readFirstMeeting(
   }
 }
 
-const writeRecord = (home: string, record: FirstMeetingRecord) =>
+/** The record, written atomically (0600 in 0700). */
+export const writeFirstMeeting = (
+  home: string,
+  record: FirstMeetingRecord,
+): Promise<void> =>
   writeBuddyStateFile(firstMeetingPath(home), {
     schema_version: firstMeetingSchema,
     confirmed_at: record.confirmedAt,
@@ -217,11 +221,45 @@ export function createFirstMeeting(
     run: ToolRunner;
     journal?: FirstMeetingJournal | undefined;
     now?: (() => Date) | undefined;
+    /** Tests only: the record's writer. */
+    write?: typeof writeFirstMeeting | undefined;
   }>,
 ) {
   const now = input.now ?? (() => new Date());
   const journal: FirstMeetingJournal = (entry) => input.journal?.(entry);
+  const write = input.write ?? writeFirstMeeting;
   let delivering: Promise<FirstMeetingDelivery> | null = null;
+
+  // Every change of the record in this process, one after another: a turn
+  // owed anew, a later save's refresh and a delivery's outcome each read the
+  // record and write it as one step, so none of them writes over a newer
+  // confirmation or over a turn that went meanwhile.
+  let changing: Promise<unknown> = Promise.resolve();
+  function exclusive<T>(step: () => Promise<T>): Promise<T> {
+    const run = changing.then(step, step);
+    changing = run.catch(() => undefined);
+    return run;
+  }
+
+  /** A delivery's outcome for the turn of `key`, only while that turn is
+   * still the owed one: a newer confirmation, or an outcome written
+   * meanwhile, stays as it is. */
+  const conclude = (
+    key: string,
+    state: Exclude<FirstMeetingState, "owed">,
+    reason?: string,
+  ): Promise<boolean> =>
+    exclusive(async () => {
+      const record = await readFirstMeeting(input.home);
+      if (record === null || record.key !== key || record.state !== "owed")
+        return false;
+      await write(input.home, {
+        ...record,
+        state,
+        ...(reason === undefined ? {} : { reason }),
+      });
+      return true;
+    });
 
   /** Exactly the environment of Delegace's own `t3`: the account's home,
    * PATH and XDG base directories, and the acting sender T3 Code hides from
@@ -273,7 +311,7 @@ export function createFirstMeeting(
       !Number.isFinite(confirmed) ||
       now().getTime() - confirmed > firstMeetingWithinMs
     ) {
-      await writeRecord(input.home, { ...record, state: "expired" });
+      if (!(await conclude(record.key, "expired"))) return "waiting";
       journal({ operation: "deliver", outcome: "expired" });
       return "expired";
     }
@@ -292,6 +330,11 @@ export function createFirstMeeting(
     // started meanwhile, after another save, has not put the persona in
     // place yet, so the turn stays owed for the next apply's greeting.
     if (current !== undefined && !current()) return "waiting";
+    // The text as the record holds it now (a later save may have refreshed
+    // it), only while this turn is still the owed one.
+    const latest = await readFirstMeeting(input.home);
+    if (latest === null || latest.key !== record.key || latest.state !== "owed")
+      return latest?.state === "owed" ? "waiting" : "none";
     const sent = await t3(
       runtime,
       [
@@ -303,13 +346,13 @@ export function createFirstMeeting(
         "--idempotency-key",
         record.key,
       ],
-      record.text,
+      latest.text,
     );
     if (sent === null) return "waiting";
     const error = sent.data?.error;
     if (sent.code === 0 && sent.data !== null && error === undefined) {
-      await writeRecord(input.home, { ...record, state: "sent" });
-      journal({ operation: "deliver", outcome: "sent" });
+      if (await conclude(record.key, "sent"))
+        journal({ operation: "deliver", outcome: "sent" });
       return "sent";
     }
     const refusal = isObject(error) ? error.code : undefined;
@@ -318,12 +361,8 @@ export function createFirstMeeting(
       typeof refusal === "string" &&
       t3FinalRefusals.includes(refusal)
     ) {
-      await writeRecord(input.home, {
-        ...record,
-        state: "refused",
-        reason: refusal,
-      });
-      journal({ operation: "deliver", outcome: "refused", reason: refusal });
+      if (await conclude(record.key, "refused", refusal))
+        journal({ operation: "deliver", outcome: "refused", reason: refusal });
       return "refused";
     }
     return "waiting";
@@ -340,16 +379,18 @@ export function createFirstMeeting(
     ): Promise<boolean> {
       const confirmedAt = persona.confirmedAt;
       if (confirmedAt === undefined) return false;
-      const before = await readFirstMeeting(input.home);
-      if (before?.confirmedAt === confirmedAt) return false;
-      await writeRecord(input.home, {
-        confirmedAt,
-        key: firstMeetingKey(confirmedAt),
-        text: firstMeetingText(persona, locale),
-        state: "owed",
+      return exclusive(async () => {
+        const before = await readFirstMeeting(input.home);
+        if (before?.confirmedAt === confirmedAt) return false;
+        await write(input.home, {
+          confirmedAt,
+          key: firstMeetingKey(confirmedAt),
+          text: firstMeetingText(persona, locale),
+          state: "owed",
+        });
+        journal({ operation: "owe", outcome: "owed" });
+        return true;
       });
-      journal({ operation: "owe", outcome: "owed" });
-      return true;
     },
 
     /** Whether a turn is owed now (its record says so). */
@@ -364,18 +405,20 @@ export function createFirstMeeting(
       persona: Pick<Persona, "address" | "user" | "confirmedAt">,
       locale: PersonaLocale,
     ): Promise<boolean> {
-      const record = await readFirstMeeting(input.home);
-      if (
-        record === null ||
-        record.state !== "owed" ||
-        record.confirmedAt !== persona.confirmedAt
-      )
-        return false;
-      const text = firstMeetingText(persona, locale);
-      if (text === record.text) return false;
-      await writeRecord(input.home, { ...record, text });
-      journal({ operation: "owe", outcome: "refreshed" });
-      return true;
+      return exclusive(async () => {
+        const record = await readFirstMeeting(input.home);
+        if (
+          record === null ||
+          record.state !== "owed" ||
+          record.confirmedAt !== persona.confirmedAt
+        )
+          return false;
+        const text = firstMeetingText(persona, locale);
+        if (text === record.text) return false;
+        await write(input.home, { ...record, text });
+        journal({ operation: "owe", outcome: "refreshed" });
+        return true;
+      });
     },
 
     /** Sends what is owed, if anything; the one under way where one runs.

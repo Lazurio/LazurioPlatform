@@ -18959,8 +18959,11 @@ adds to points 1 to 5 above.
      every retry of the turn asks again. A delivery under way asks once more right before it
      hands the turn to T3 Code: an apply that started since (another save) leaves the turn owed.
      A save after the confirmation, before the turn went, gives the owed turn the names and the
-     address just saved. A reading while it is owed sends it the same way; after a Launchpad
-     restart one apply comes first.
+     address just saved. The record changes one step at a time in the Launchpad (owed anew,
+     refreshed, sent, refused, expired), each step reading and writing it at once, and a
+     delivery's outcome lands only on the turn it sent, so nothing writes over a newer
+     confirmation or a turn that went. A reading while it is owed sends it the same way; after
+     a Launchpad restart one apply comes first.
    - **How.** The path and the mark of Delegace's notices: Buddy's own runtime runs
      `t3 lazurio buddy thread`, then `t3 thread send <thread> --mode queue --idempotency-key
      lazurio-first-meeting-<the confirmation's digits> --message-file -` against

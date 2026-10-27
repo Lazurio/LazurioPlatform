@@ -16,12 +16,14 @@ import { dirname, join } from "node:path";
 import {
   createFirstMeeting,
   type FirstMeetingDelivery,
+  type FirstMeetingRecord,
   firstMeetingKey,
   firstMeetingPath,
   firstMeetingText,
   firstMeetingWithinMs,
   readFirstMeeting,
   t3FinalRefusals,
+  writeFirstMeeting,
 } from "../src/buddy/first-meeting";
 import {
   readPromptInputs,
@@ -746,6 +748,128 @@ posix(
       await hand.pass(120_000);
       expect(t3.sends().length).toBe(1);
       save.close();
+    });
+  },
+);
+
+/** The fake T3 Code whose first `thread send` waits until `release`. */
+function heldSend(t3: ReturnType<typeof fakeT3>) {
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let started = 0;
+  const run: ToolRunner = async (command, timeout, env, options) => {
+    if (command[1] === "thread" && command[2] === "send") {
+      started += 1;
+      if (started === 1) await gate;
+    }
+    return t3.run(command, timeout, env, options);
+  };
+  return { ...t3, run, started: () => started, release: () => release() };
+}
+
+/** The record's writer, whose next write waits until `release`. */
+function heldWrites() {
+  let hold = false;
+  let waiting = false;
+  let release = () => {};
+  const write = async (user: string, record: FirstMeetingRecord) => {
+    if (hold) {
+      hold = false;
+      waiting = true;
+      await new Promise<void>((resolve) => {
+        release = () => {
+          waiting = false;
+          resolve();
+        };
+      });
+    }
+    return writeFirstMeeting(user, record);
+  };
+  return {
+    write,
+    holdNext: () => {
+      hold = true;
+    },
+    waiting: async () => waiting,
+    release: () => release(),
+  };
+}
+
+posix(
+  "the record changes one step at a time: a refresh held over a delivery's end leaves the turn sent, and one held over a newer confirmation leaves the newer turn owed",
+  async () => {
+    // A delivery ends while a later save's refresh writes: the turn went,
+    // and the record says so.
+    await home(async (user) => {
+      const t3 = heldSend(fakeT3("sent"));
+      const writes = heldWrites();
+      const meeting = createFirstMeeting({
+        home: user,
+        run: t3.run,
+        now: () => new Date(confirmed),
+        write: writes.write,
+      });
+      expect(await meeting.owe(persona("ty"), "cs")).toBe(true);
+      const delivery = meeting.deliver();
+      await until(async () => t3.started() === 1);
+      writes.holdNext();
+      const refreshing = meeting.refresh(persona("vy"), "cs");
+      await until(writes.waiting);
+      t3.release();
+      await settle();
+      writes.release();
+      expect(await delivery).toBe("sent");
+      expect(await refreshing).toBe(true);
+      expect((await readFirstMeeting(user))?.state).toBe("sent");
+      expect(await meeting.deliver()).toBe("none");
+    });
+    // A newer confirmation is owed while an older refresh writes: the newer
+    // turn stays.
+    await home(async (user) => {
+      const writes = heldWrites();
+      const meeting = createFirstMeeting({
+        home: user,
+        run: fakeT3("sent").run,
+        now: () => new Date(confirmed),
+        write: writes.write,
+      });
+      expect(await meeting.owe(persona("ty"), "cs")).toBe(true);
+      writes.holdNext();
+      const refreshing = meeting.refresh(persona("vy"), "cs");
+      await until(writes.waiting);
+      const later = new Date(confirmed + 60_000).toISOString();
+      const owing = meeting.owe({ ...persona("ty"), confirmedAt: later }, "cs");
+      await settle();
+      writes.release();
+      expect(await refreshing).toBe(true);
+      expect(await owing).toBe(true);
+      const record = await readFirstMeeting(user);
+      expect(record?.confirmedAt).toBe(later);
+      expect(record?.state).toBe("owed");
+    });
+    // A newer confirmation is owed while the older turn is being sent: the
+    // older turn's outcome does not land on the newer one.
+    await home(async (user) => {
+      const t3 = heldSend(fakeT3("sent"));
+      const meeting = createFirstMeeting({
+        home: user,
+        run: t3.run,
+        now: () => new Date(confirmed),
+      });
+      expect(await meeting.owe(persona("ty"), "cs")).toBe(true);
+      const delivery = meeting.deliver();
+      await until(async () => t3.started() === 1);
+      const later = new Date(confirmed + 60_000).toISOString();
+      expect(
+        await meeting.owe({ ...persona("ty"), confirmedAt: later }, "cs"),
+      ).toBe(true);
+      t3.release();
+      expect(await delivery).toBe("sent");
+      const record = await readFirstMeeting(user);
+      expect(record?.confirmedAt).toBe(later);
+      expect(record?.state).toBe("owed");
     });
   },
 );
