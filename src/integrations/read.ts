@@ -132,8 +132,7 @@ export function connectedTools(tools: readonly ToolOverview[]): AppTool[] {
 /** Composio as this Environment reads it: its accounts, whether its CLI
  * removes one without a prompt, the organization it works in, and the
  * organization of this Environment's Organization's name where it has one
- * (decision F42, addendum of 2026-10-13), or the account's default one on a
- * person's own Environment (addendum of 2026-10-26), made current first. */
+ * (decision F42, addendum of 2026-10-13), made current first. */
 async function readComposioSource(
   host: IntegrationsHost,
   tool: ToolOverview | undefined,
@@ -172,43 +171,14 @@ async function readComposioSource(
     (await composioOrganizationRule(host.folder, machine));
   // Nothing of Composio counts where its organization cannot be told: an
   // Organization's name that cannot be read (Pablo's review of #372), or an
-  // organization of that name, or the account's default one, that could not
-  // be made current.
-  const closed = (
-    state: "unverified" | "elsewhere",
-    name: string | null,
-    own = false,
-  ) => ({
+  // organization of that name that could not be made current.
+  const closed = (state: "unverified" | "elsewhere", name: string | null) => ({
     composio: { state: "organization" } as const,
     disconnect: false,
     organization,
-    target: Object.freeze({ name, state, ...(own ? { default: true } : {}) }),
+    target: Object.freeze({ name, state }),
   });
   if (rule.kind === "unverified") return closed("unverified", null);
-  // A person's own Environment: the account's default organization, made
-  // current where another one is (the sign-in lands in the one open in
-  // Composio's dashboard, often an Organization's). Where the CLI does not
-  // date the organizations, the person's current one, as before.
-  if (rule.kind === "default") {
-    const converged = await convergeComposioOrganization(
-      host.tools,
-      command,
-      rule,
-      host.journal,
-    );
-    if (converged === null) return only({ state: "unreadable" });
-    const { verdict } = converged;
-    if (verdict.kind === "elsewhere")
-      return closed("elsewhere", verdict.organization.name, true);
-    if (verdict.kind === "matches") {
-      target = Object.freeze({
-        name: verdict.organization.name,
-        state: "matches",
-        default: true,
-      });
-      organization = verdict.organization.name;
-    }
-  }
   if (rule.kind === "named") {
     const converged = await convergeComposioOrganization(
       host.tools,

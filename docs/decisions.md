@@ -2416,61 +2416,6 @@ written as a sufficient reason for silence, and that no other file of the layer 
 proven: that Buddy keeps quiet on such a notice (generated text is not proof of behavior); that is the
 next Ring 0 check.
 
-**Addendum of 2026-10-26: a bot is „bot <Name>“, without a link until MausBot has an address for it**
-(plan DEV-6676; root decision 0210 and its addendum of 2026-10-24, under which a MausBot bot is a bot).
-On 2026-10-26 a person's Buddy wrote to the person about a bot by its bare name. The Organization Admin
-asked the same day „aby Buddy nepsal jenom název bota jako 'Rocket', ale aby vždy psal 'Bot Rocket',
-ideálně s odkazem, na který když uživatel klikne, tak ho to odkáže do MausBota na toho bota, aby se mohl
-podívat, jak na tom bot pracuje“.
-
-- **The word.** `.hermes.md` says under "How you talk to the user" that Buddy always names a bot to the
-  user with the word bot and its name, in his chat in Lazurio and in Telegram. The name alone is not
-  enough, and in Czech both words take the case: bot Zuko, bota Zuka, botovi Zukovi, s botem Zukem. The
-  sentence "You call the bots by their names" goes.
-- **The examples.** Every example that names a bot carries the word: „Dal jsem to botovi Zukovi, ozvu
-  se.“ and „Bot Zuko to má hotové: …“. The tone example „Henry je hotový, testy prošly. …“ becomes „Bot
-  Zuko je hotový, …“. Beside the rule its subject reads as a bot named without the word, and Henry is
-  the name Lazurio gives a Work Environment with automations (root decision 0170). The skills
-  `lazurio-buddy-pomocnici` and `lazurio-mausbot` point to the rule with its form.
-- **No link yet.** Buddy adds no link to a bot, and he never makes up or puts together its address or
-  the address of its conversation. Both places he writes render a Markdown link:
-  - Hermes's Telegram adapter turns `[text](url)` into a MarkdownV2 link (Lazurio/hermes-agent
-    `v0.22.4-lazurio.3`, `plugins/platforms/telegram/adapter.py`, `format_message`, step 3);
-  - in his chat in Lazurio, T3 Code renders his messages through `ChatMarkdown`, which opens an external
-    link in a new tab or in the preview (Lazurio/t3code `v0.1.2-lazurio.4`,
-    `apps/web/src/components/ChatMarkdown.tsx`, `MarkdownAnchor`).
-
-  The address is what is missing. The web app at an Environment's MausBot origin has no address that
-  opens a bot or one of its conversations (Lazurio/OpenMausBot main at 50475658):
-  - `src/main.tsx` routes only `/pair`;
-  - the navigation to a conversation, `openChatLink`, is reached only from the desktop app's deep links
-    `openmausbot://thread/<id>?bot=<id>` and `openmausbot://bot/<id>`;
-  - a pairing through `/pair` lands on `/`.
-
-  A link to the bare origin would open MausBot on another bot. Lazurio/OpenMausBot#67 proposes the
-  address.
-- **The link, once MausBot has the address** (a direction for that change, not built here). Delegace
-  gives Buddy the link, because it knows the Environment and the conversation: `openmausbot run …
-  --wait none --json` prints the conversation's `threadId`. The origin is the Environment's own
-  declaration, `entry.mausbot.external_origin` of its handover, which `lazurio machine inspect` prints.
-  Delegace would read it locally, or over the same `ssh <environment>` path it uses for `openmausbot`;
-  MausBot itself has no public address on a hosted Environment. The output of `zadej`, the notices,
-  `vysledek` and `seznam` would carry the link, and the rule would change to a link only to the address
-  Delegace gave.
-
-Template revision `base-instructions-77`. The Folder re-renders, and the digest of Buddy's layer
-changes, so the F64 addendum of 2026-10-25 (#652) refreshes his stored prompts by itself.
-`tests/folder-buddy.test.ts` checks in both locales:
-- the rule, and the link line right after it, both right after the line that the tools are his;
-- the skills' pointers to the rule;
-- that the old sentence and the bare examples are gone;
-- that no file of the layer names the example bot without the word, and none links a bot.
-
-Every rendered file of the layer passes `tools/threat_patterns.py` at every scope (Lazurio/hermes-agent
-`v0.22.4-lazurio.3`). `.hermes.md` is 17.4k characters in Czech and 18.9k in English. Not proven: that
-Buddy follows the rule (generated text is not proof of behavior), and that he declines a name he has
-not seen before correctly.
-
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
@@ -10606,9 +10551,7 @@ reference is [integrations](integrations.md#the-composio-organization-of-an-envi
    missing from the Folder, its manifest unreadable), the rule is `unverified`:
    never taken for the person's choice and never guessed (Pablo's review of
    #372). Any other Environment, a personal one or a computer, works in the
-   organization the person chose *(amended 2026-10-26: a personal Environment works
-   in the account's default organization, see the addendum of that day)*.
-   *(Amended 2026-10-13, after rc.65:)* the owning
+   organization the person chose. *(Amended 2026-10-13, after rc.65:)* the owning
    Organization is the one Organization settings select (F45):
    `selectCatalogOrganization` with the binding's `owner.organization`, the manifest
    slug compared case-insensitively as GitHub compares slugs, else the directory
@@ -10658,7 +10601,6 @@ reference is [integrations](integrations.md#the-composio-organization-of-an-envi
    Environment's sign-in dialog advises the default organization, the one
    Composio made at the sign-up, and the person chooses it. Once the CLI prints
    when an organization was created, the oldest one can be chosen by the rule.
-   *(Done on 2026-10-26, see the addendum of that day.)*
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -11530,73 +11472,6 @@ main). In a headless browser on the preview with `composio-signed-out`, in Czech
 English: on main, after the sign-in Gmail's "Připojit" landed on Settings → Tools; now
 it stays on Integrace with its form, a card read before the sign-in connects after a
 live check, and a Composio switched off says so on its cards.
-
-**Addendum 2026-10-26, reported by the Operator: a personal Environment works in the
-account's default Composio organization.** On his personal Environment the Operator
-found the apps of a work organization where his personal ones belong. Composio's browser
-sign-in lands in the organization open in Composio's dashboard, and that is often an
-Organization's one, since the person creates those there (point 5 of addendum (2) of
-2026-10-13); the Launchpad then left a personal Environment's organization to the
-person, because the CLI did not say which organization is the default (point 7). Root
-decision 0162 says the personal Environment uses the account's default organization
-(its addendum of 2026-10-13, point 2), and point 7 named the missing step: the CLI
-printing when each organization was created.
-
-1. **The default organization is the oldest.** Composio marks none as the default and
-   lists the newest first; the one it made at the sign-up is the account's oldest.
-   Lazurio's build of the CLI prints each organization's `created_at` in `orgs list`
-   from `0.4.3-lazurio.3` on (Lazurio/composio#4), and `defaultComposioOrganization`
-   takes the oldest. An account read on 2026-10-26 confirms it: its default
-   organization was made at the sign-up and each Organization's one weeks later, and
-   the list showed the default one last.
-2. **Brought current like an Organization's one.** A Machine binding whose owner is a
-   person, the personal Environment, has the rule `default`. The Integrace reading, the
-   sign-in dialog of Settings → Tools and every link and removal make the default
-   organization current where another one is, journaled as in point 2 of addendum (2).
-   The dialog offers no choice there, since the next reading would undo it; Integrace
-   and agents read the default organization as `{name, state, default: true}`, named as
-   Composio names it and never rewritten as an Organization's name would be.
-3. **Nothing guessed.** Where an organization has no date (Composio's own CLI, or
-   Lazurio's before `0.4.3-lazurio.3`), where two are equally old, or where the list is
-   a full page of 50 (`orgs list` prints one page, the newest first, so the oldest may
-   be left out; Pablo's review of Lazurio/composio#4), the verdict is `chosen`: the
-   person's current organization and the dialog's choice, as before this addendum.
-   Where the default organization exists but cannot be made current, nothing of
-   Composio counts, as in point 4.
-4. **Unchanged:** an Organization's Environment and a Team Environment (the rule of the
-   Organization's name), and a computer, where the person chooses.
-5. **The pin moves to `0.4.3-lazurio.3`.** `composioBuild` names it, the installer at the
-   release's own commit `5bcde7de8dc78681e8d44262fcf134afab19e091` (the squash of
-   Lazurio/composio#4; its `install.sh` byte for byte the one of `0.4.3-lazurio.2`) and
-   the four archives' SHA-256 as the release's `checksums.txt` lists them and the
-   downloaded archives hash (read 2026-10-26). An Environment with `0.4.3-lazurio.2`
-   keeps the person's choice until the person updates Composio in Settings → Tools,
-   which then says that it is not the build Lazurio uses, as with every pin (note of
-   2026-10-19). The release ran its own installation check on Linux and macOS; its
-   macOS arm64 build, run in an isolated home with a copy of one real account's
-   sign-in, printed each organization's `created_at` and the default one as the oldest.
-
-| Alternative | Trade-off / disposition |
-| --- | --- |
-| The default organization by a name ending in `_workspace` | No CLI change; but a guess about Composio's naming; rejected as in addendum (2) |
-| The default organization as the last one `orgs list` prints | No CLI change; but Composio documents no order; rejected |
-| Remember the person's choice for the Environment | Survives a new sign-in; but the first sign-in still lands in the open organization, and root decision 0162 names the default one; rejected |
-| Read the dates from Composio's API in the Launchpad | No CLI release; but a second way to Composio with the person's key beside the one CLI (root decision 0162, addendum of 2026-10-08, point 4); rejected |
-
-Verified by tests: the dates kept as `createdAt` where they are dates and left out
-otherwise (`tests/tools-login.test.ts`); the oldest organization as the default, and
-`chosen` without a date for each, between two equally old, without any and on a full
-page of 50; the rule
-`default` on a personal Environment and `chosen` on a computer; on a personal
-Environment the sign-in dialog and the Integrace reading making the default
-organization current after a sign-in that landed in another one, the dialog with
-nothing to choose, an organization made current behind the reading switched back and
-a link going to the default organization, switched back first; a default organization
-that cannot be made current with no account listed, a link refused, and the page and
-`lazurio integrations list` naming it as Composio does; a CLI without dates leaving
-the choice to the person as before (`tests/integrations-composio-organization.test.ts`);
-Začínáme's Composio step done only where the default organization is current
-(`tests/first-run.test.ts`).
 
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 

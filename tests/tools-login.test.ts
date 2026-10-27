@@ -163,27 +163,6 @@ test("composio organizations are read only in their exact form", () => {
   ).toBeUndefined();
 });
 
-// Lazurio's build prints each organization's `created_at` (decision F42,
-// addendum of 2026-10-26): kept where it is a date, left out where it is
-// missing or not one, never a reason to refuse the list.
-test("composio organizations keep the date Lazurio's build prints, and only a date", () => {
-  expect(
-    parseComposioOrganizations(
-      '[{"id":"org_1","name":"First","created_at":"2026-10-11T11:00:00.000Z","is_selected_global_org":true},{"id":"org_2","name":"Second","created_at":"yesterday","is_selected_global_org":false},{"id":"org_3","name":"Third","created_at":7,"is_selected_global_org":false},{"id":"org_4","name":"Fourth","is_selected_global_org":false}]',
-    ),
-  ).toEqual([
-    {
-      id: "org_1",
-      name: "First",
-      current: true,
-      createdAt: "2026-10-11T11:00:00.000Z",
-    },
-    { id: "org_2", name: "Second", current: false },
-    { id: "org_3", name: "Third", current: false },
-    { id: "org_4", name: "Fourth", current: false },
-  ]);
-});
-
 test.skipIf(!keygen)(
   "gh: the device code and page as the challenge, no clipboard, signed in when the probe confirms",
   async () => {

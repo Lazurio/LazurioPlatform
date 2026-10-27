@@ -195,16 +195,12 @@ export type IntegrationsOverview = Readonly<{
      * of 2026-10-13): current; missing or there more than once, where
      * Composio works in the person's current organization with a notice;
      * there but not made current, or `unverified` where the Organization's
-     * name (null) cannot be read, where nothing of Composio counts. On a
-     * person's own Environment the account's default organization
-     * (`default`, addendum of 2026-10-26), named as Composio names it:
-     * current, or not made current. Null where the person chooses the
-     * organization (a computer, or a personal Environment whose
-     * organizations the CLI does not date) or it was not read. */
+     * name (null) cannot be read, where nothing of Composio counts. Null
+     * where the person chooses the organization (a personal Environment, a
+     * computer) or it was not read. */
     organization: Readonly<{
       name: string | null;
       state: "matches" | "missing" | "ambiguous" | "elsewhere" | "unverified";
-      default?: true;
     }> | null;
   }>;
   sources: Readonly<{

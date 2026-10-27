@@ -100,16 +100,12 @@ export function integrationsText(overview: IntegrationsOverview): string {
   );
   // Composio not in the organization of this Environment's Organization's
   // name (decision F42, addendum (2) of 2026-10-13): the person sees to it,
-  // under the name Composio accepts (note of 2026-10-17). The account's
-  // default organization (addendum of 2026-10-26) by the name Composio gives
-  // it.
+  // under the name Composio accepts (note of 2026-10-17).
   const target = overview.composio.organization;
   const composio =
     target?.name == null
       ? null
-      : target.default === true
-        ? target.name
-        : (composioOrganizationName(target.name) ?? target.name);
+      : (composioOrganizationName(target.name) ?? target.name);
   if (target !== null && target.state !== "matches")
     lines.push(
       target.state === "unverified" || target.name === null

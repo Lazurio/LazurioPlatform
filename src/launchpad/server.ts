@@ -2454,10 +2454,8 @@ export async function startLaunchpad(
             server.timeout(request, 60);
             // An Organization's Environment works in the Composio
             // organization of its Organization's name, made current here
-            // after the sign-in (decision F42, addendum of 2026-10-13); a
-            // person's own Environment in the account's default one, made
-            // current likewise (addendum of 2026-10-26); the person chooses
-            // on a computer.
+            // after the sign-in (decision F42, addendum of 2026-10-13); the
+            // person chooses elsewhere.
             const { preferences } = await withFolderReadLock(state, () =>
               readFolderState(state),
             );
@@ -2490,48 +2488,6 @@ export async function startLaunchpad(
               toolsEnvironment.path,
               toolsEnvironment.platform,
             );
-            const journal = (entry: Readonly<Record<string, string>>) => {
-              console.log(JSON.stringify(entry));
-              // Composio's sign-in now names another organization.
-              if (entry.outcome === "switched") toolsReading.forget();
-            };
-            const unreadable = {
-              kind: "composio-organizations-failed",
-              reason: "unreadable",
-            } as const;
-            // A person's own Environment: the account's default
-            // organization, which the sign-in may not have landed in.
-            if (rule.kind === "default") {
-              const converged =
-                command === undefined
-                  ? null
-                  : await convergeComposioOrganization(
-                      toolsEnvironment,
-                      command,
-                      rule,
-                      journal,
-                    );
-              if (converged === null) return response(unreadable);
-              const { verdict, organizations } = converged;
-              // The CLI does not date them: the person's choice, as before.
-              if (verdict.kind === "chosen")
-                return response({
-                  kind: "composio-organizations",
-                  organizations,
-                  organization: null,
-                  personal: true,
-                });
-              if (verdict.kind === "matches") integrations.forget();
-              return response({
-                kind: "composio-organizations",
-                organizations,
-                organization: {
-                  name: verdict.organization.name,
-                  state: verdict.kind,
-                  default: true,
-                },
-              });
-            }
             const converged =
               command === undefined
                 ? null
@@ -2539,9 +2495,17 @@ export async function startLaunchpad(
                     toolsEnvironment,
                     command,
                     rule,
-                    journal,
+                    (entry) => {
+                      console.log(JSON.stringify(entry));
+                      // Composio's sign-in now names another organization.
+                      if (entry.outcome === "switched") toolsReading.forget();
+                    },
                   );
-            if (converged === null) return response(unreadable);
+            if (converged === null)
+              return response({
+                kind: "composio-organizations-failed",
+                reason: "unreadable",
+              });
             // Found or made current: the Integrace reading the Launchpad
             // keeps for a minute may still say it is missing, so the next
             // one reads again (the end-to-end test of 2026-10-19).

@@ -185,9 +185,6 @@ export type ComposioOrganization = Readonly<{
   id: string;
   name: string;
   current: boolean;
-  /** When Composio created it (ISO 8601), where the CLI prints it: Lazurio's
-   * build from 0.4.3-lazurio.3 on (decision F42, addendum of 2026-10-26). */
-  createdAt?: string;
 }>;
 export type ComposioOrganizationsResult =
   | Readonly<{
@@ -1690,11 +1687,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
 export type LoginSessions = ReturnType<typeof createLoginSessions>;
 
 // `composio orgs list` prints one JSON array of `{ id, name,
-// is_selected_global_org }` on stdout when stdout is not a terminal; Lazurio's
-// build adds each one's `created_at` (decision F42, addendum of 2026-10-26).
-// A date that is missing or not a date is left out, never a reason to refuse
-// the list: then the account's default organization is not told, and the
-// person's choice stands.
+// is_selected_global_org }` on stdout when stdout is not a terminal.
 export function parseComposioOrganizations(
   stdout: string,
 ): readonly ComposioOrganization[] | undefined {
@@ -1717,7 +1710,6 @@ export function parseComposioOrganizations(
     const {
       id,
       name,
-      created_at: created,
       is_selected_global_org: selected,
     } = item as Record<string, unknown>;
     const label = signInLabel(name);
@@ -1728,18 +1720,7 @@ export function parseComposioOrganizations(
       organizations.some((entry) => entry.id === id)
     )
       return undefined;
-    const createdAt =
-      typeof created === "string" &&
-      created.length <= 64 &&
-      !Number.isNaN(Date.parse(created))
-        ? created
-        : undefined;
-    organizations.push({
-      id,
-      name: label,
-      current: selected === true,
-      ...(createdAt === undefined ? {} : { createdAt }),
-    });
+    organizations.push({ id, name: label, current: selected === true });
   }
   return organizations;
 }

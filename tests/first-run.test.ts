@@ -612,22 +612,6 @@ test("GitHub from the Tools reading of the profile shown", () => {
   for (const state of ["missing", "ambiguous", "elsewhere"] as const)
     expect(composioFact(signedIn, named(state))).toBe("unfinished");
   expect(composioFact(signedIn, { kind: "unverified" })).toBe("unfinished");
-  // A person's own Environment: done where the account's default
-  // organization is the current one (addendum of 2026-10-26).
-  expect(
-    composioFact(signedIn, {
-      kind: "default",
-      name: "jana_workspace",
-      state: "matches",
-    }),
-  ).toBe("connected");
-  expect(
-    composioFact(signedIn, {
-      kind: "default",
-      name: "jana_workspace",
-      state: "elsewhere",
-    }),
-  ).toBe("unfinished");
   // Signed out, the organization does not matter.
   expect(
     composioFact(

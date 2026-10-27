@@ -57,19 +57,11 @@ const organizationStates = new Set([
 ]);
 
 /** The Composio organization of the reading: null, or its name and state;
- * the name null only where the Organization's name cannot be read. The
- * account's default one (`default`) is only current or not made current. */
+ * the name null only where the Organization's name cannot be read. */
 function isTarget(value: unknown): boolean {
   if (value === null) return true;
   if (typeof value !== "object") return false;
   const target = value as Record<string, unknown>;
-  if (target.default !== undefined)
-    return (
-      target.default === true &&
-      typeof target.name === "string" &&
-      target.name !== "" &&
-      (target.state === "matches" || target.state === "elsewhere")
-    );
   if (target.state === "unverified") return target.name === null;
   return (
     typeof target.name === "string" &&
@@ -795,10 +787,7 @@ export function composioOrganizationChanged(
   const shown = overview?.composio.organization ?? null;
   if (shown === null || organizationChoices(answer) === null) return false;
   const rule = organizationRule(answer);
-  return (
-    (rule.kind !== "named" && rule.kind !== "default") ||
-    rule.state !== shown.state
-  );
+  return rule.kind !== "named" || rule.state !== shown.state;
 }
 
 /** One line per source that could not be read, so a missing source is
@@ -832,8 +821,7 @@ export function sourceLines(
  * the page waits for it by itself (`composioOrganizationWaits`), so the line
  * ends with the sign-in dialog's own waiting line. In a Team Environment
  * (`team`) the account is the Team's Composio account, not the person's
- * (notes of 2026-10-19). On a person's own Environment the account's default
- * organization is named as Composio names it (addendum of 2026-10-26). */
+ * (notes of 2026-10-19). */
 export function composioOrganizationLine(
   overview: IntegrationsOverview,
   copy: Copy,
@@ -842,11 +830,7 @@ export function composioOrganizationLine(
   const target = overview.composio.organization;
   if (target === null || target.state === "matches") return null;
   const composio =
-    target.name === null
-      ? null
-      : target.default === true
-        ? target.name
-        : composioOrganizationName(target.name);
+    target.name === null ? null : composioOrganizationName(target.name);
   if (
     target.state === "unverified" ||
     target.name === null ||
