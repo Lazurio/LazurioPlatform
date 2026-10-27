@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
 import type { IntegrationsCatalog } from "../src/integrations/catalog-schema";
@@ -33,12 +33,13 @@ import {
 import { messages } from "../src/launchpad/messages";
 import { readFolderCatalog } from "../src/organizations/catalog";
 import { toolsEnvironmentOf } from "../src/tools/overview";
-import { runTool } from "../src/tools/status";
+import { runTool, type ToolRunner } from "../src/tools/status";
 import { embeddedIdentity } from "../src/update/identity";
 import {
   integrationsWorld,
   readComposioState,
   worldLaunchpad,
+  writeComposioState,
 } from "./fixtures/integrations-world";
 import { bindings } from "./fixtures/machine-bindings";
 
@@ -425,8 +426,8 @@ const gmail = {
 
 /** An Organization's Environment whose Folder holds its root "Příklad",
  * with a Gmail account connected through Composio in the person's
- * organization of that name. */
-async function organizationWorld() {
+ * organization of that name, and gh signed in. Its tools run by `run`. */
+async function organizationWorld(run: ToolRunner = runTool) {
   const directory = await parent();
   const world = await integrationsWorld(directory, {
     composio: {
@@ -459,7 +460,7 @@ async function organizationWorld() {
       tools: toolsEnvironmentOf(
         { PATH: world.path, HOME: world.home },
         process.platform,
-        runTool,
+        run,
       ),
       executor: world.executorHost(),
       executorPresent: true,
@@ -603,4 +604,82 @@ test("lazurio integrations list --json: an unverified Composio says connected nu
   expect(text).toMatch(
     /Not verified now[^\n]*\n {2}\d+ apps: this Environment's Composio organization could not be verified \(composio-unverified\)/,
   );
+});
+
+// A sign-in probe that could not tell is no sign-out (the review of #679,
+// #687): the tools' reading kept only the signed-in tools and read Composio
+// as signed out whenever its probe did not answer, so the new model got a
+// settled state and said "not connected". Each probe below times out on its
+// own, as `runTool` answers a command that outlives its bound; everything
+// else runs the world's fakes.
+
+/** `runTool`, but "timeout" for `tool`'s commands that `matches`. */
+const timingOut =
+  (tool: string, matches: (args: readonly string[]) => boolean): ToolRunner =>
+  (command, timeoutMs, env, options) =>
+    basename(command[0] ?? "") === tool && matches(command.slice(1))
+      ? Promise.resolve("timeout")
+      : runTool(command, timeoutMs, env, options);
+
+const githubOf = (overview: IntegrationsOverview) =>
+  overview.apps.find((item) => item.id === "github");
+
+test("Composio's sign-in probe timed out: its apps are unknown, never not connected, and nothing is switched", async () => {
+  const { world, read } = await organizationWorld(
+    timingOut("composio", (args) => args[0] === "whoami"),
+  );
+  const overview = await read(undefined);
+  expect(overview.sources.composio).toBe("unreadable");
+  expect(gmailOf(overview)).toMatchObject({
+    connected: null,
+    unknown: "composio-unreadable",
+    accounts: [],
+  });
+  expect(
+    overview.apps.filter(
+      (item) => item.connected === false && item.path.path === "composio",
+    ),
+  ).toEqual([]);
+  // gh still connects GitHub on its own.
+  expect(githubOf(overview)).toMatchObject({ connected: true });
+  expect(githubOf(overview)?.unknown).toBeUndefined();
+  expect((await readComposioState(world.home)).organization).toBe("priklad");
+  expect(integrationsText(overview)).toContain(
+    "Composio's sign-in or connections could not be read (composio-unreadable)",
+  );
+});
+
+test("gh's sign-in probe timed out: GitHub is unknown while the other tools were read, and Composio's apps stay connected", async () => {
+  const { read } = await organizationWorld(
+    timingOut("gh", (args) => args[0] === "auth" && args[1] === "status"),
+  );
+  const overview = await read(undefined);
+  expect(overview.sources.tools).toBe("ok");
+  expect(githubOf(overview)).toMatchObject({
+    connected: null,
+    unknown: "tools-unreadable",
+  });
+  expect(gmailOf(overview)).toMatchObject({
+    connected: true,
+    accounts: [{ path: "composio", state: "connected" }],
+  });
+  expect(gmailOf(overview)?.unknown).toBeUndefined();
+});
+
+test("a probe that says signed out settles it: GitHub and Composio's apps are not connected, and nothing is unknown", async () => {
+  const { world, read } = await organizationWorld();
+  const before = await read(undefined);
+  expect(githubOf(before)?.connected).toBe(true);
+  expect(gmailOf(before)?.connected).toBe(true);
+  await rm(join(world.home, "gh.signed-in"));
+  await writeComposioState(world.home, {
+    ...(await readComposioState(world.home)),
+    signedIn: false,
+  });
+  const overview = await read(undefined);
+  expect(overview.sources.tools).toBe("ok");
+  expect(overview.sources.composio).toBe("signed-out");
+  expect(githubOf(overview)?.connected).toBe(false);
+  expect(gmailOf(overview)?.connected).toBe(false);
+  expect(overview.apps.filter((item) => item.connected === null)).toEqual([]);
 });

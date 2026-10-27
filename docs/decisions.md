@@ -11801,6 +11801,12 @@ reference is [integrations](integrations.md#the-reading-get-apiintegrations-and-
    allowed, since nothing connects through that source here and the card names the
    step. An app connected through its tool or a working account stays connected
    whatever another source says.
+   A sign-in probe that could not tell (it timed out, or its answer was not
+   understood) is a source not read, never a sign-out (review of #679, #687): an app
+   tool agents use with such a sign-in leaves its app `tools-unreadable` while the
+   other tools were read, and Composio with such a sign-in reads `sources.composio`
+   `unreadable`, its apps `composio-unreadable`. Only a probe that says signed out
+   settles it.
 2. **Only the reporting changes.** Nothing of an unverified Composio is used, as
    decided in the review of #372: its accounts are not listed, nothing is switched,
    a link and a removal are refused (`composio-organization`).
@@ -11847,8 +11853,9 @@ and its refusal of an unknown without a known reason, the Folder's rule in both
 languages, a catalog reading that throws once read again with the account connected,
 the owner's manifest half written until the wait read again, one that never settles
 unknown and nothing switched, an Organization not in the Folder unverified without a
-wait, and `lazurio integrations list --json` with the Organization's root gone
-(`tests/integrations-unknown.test.ts`); Executor down or not this account's leaving
+wait, `lazurio integrations list --json` with the Organization's root gone,
+Composio's or gh's sign-in probe timed out leaving only its own apps unknown, and
+a probe that says signed out settling them (`tests/integrations-unknown.test.ts`); Executor down or not this account's leaving
 Notion unknown (`tests/integrations-routes.test.ts`); sources not read leaving each
 app unknown by its own reason (`tests/integrations-model.test.ts`).
 

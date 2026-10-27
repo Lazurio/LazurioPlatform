@@ -75,10 +75,11 @@ function connectedLine(app: IntegrationApp): string {
  * app unknown (decision F42, addendum of 2026-10-27). */
 const unknownWhy: Readonly<Record<UnknownReason, string>> = {
   "tools-unavailable": "the tools could not be asked",
-  "tools-unreadable": "the tools could not be read",
+  "tools-unreadable":
+    "the tools, or the sign-in of its tool, could not be read",
   "executor-unavailable": "Executor did not answer",
   "executor-unreadable": "Executor's answer could not be read",
-  "composio-unreadable": "Composio's connections could not be read",
+  "composio-unreadable": "Composio's sign-in or connections could not be read",
   "composio-unverified":
     "this Environment's Composio organization could not be verified",
   "composio-elsewhere":

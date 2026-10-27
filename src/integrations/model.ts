@@ -106,9 +106,15 @@ export type ComposioReadingState =
         | "organization";
     }>;
 
-/** What the tools say: which tools for one app are connected here. */
+/** What the tools say: which tools for one app are connected here, and
+ * which of them agents use but their sign-in probe could not tell
+ * (`unknown`; none where absent). */
 export type ToolsReading =
-  | Readonly<{ state: "ok"; connected: readonly AppTool[] }>
+  | Readonly<{
+      state: "ok";
+      connected: readonly AppTool[];
+      unknown?: readonly AppTool[];
+    }>
   | Readonly<{ state: "unavailable" | "unreadable" }>;
 
 export type IntegrationAccount = Readonly<{
@@ -135,9 +141,11 @@ export type IntegrationAccount = Readonly<{
  * read, or Composio's organization not verified, so whether it is connected
  * cannot be said. Each names the source and its state: the tools' reading
  * (`tools-unavailable`, `tools-unreadable`: a tool made for the app may
- * connect it), Executor (`executor-unavailable`: it did not answer;
+ * connect it; `tools-unreadable` also where only that tool's sign-in could
+ * not be told), Executor (`executor-unavailable`: it did not answer;
  * `executor-unreadable`: its answer was not understood), Composio
- * (`composio-unreadable`: its accounts or organizations could not be read;
+ * (`composio-unreadable`: its sign-in, accounts or organizations could not
+ * be read;
  * `composio-unverified`: this Environment's Composio organization could not
  * be told; `composio-elsewhere`: it could not be made current). */
 export const unknownReasons = [
@@ -492,6 +500,12 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
   // nothing connects through that source here.
   const toolsUnknown: UnknownReason | null =
     input.tools.state === "ok" ? null : `tools-${input.tools.state}`;
+  // A tool whose sign-in its probe could not tell was not read either: what
+  // it connects is unknown too, while the other tools were read.
+  const toolsNotRead =
+    input.tools.state === "ok"
+      ? countedTools(input.tools.unknown ?? [], scope)
+      : [];
   const executorUnknown: UnknownReason | null =
     input.executor.state === "unavailable" ||
     input.executor.state === "unreadable"
@@ -523,12 +537,10 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
         tools,
         connected: [...ways, way],
       }).path === way;
-    if (
-      toolsUnknown !== null &&
-      app.tool !== undefined &&
-      countedTools([app.tool], scope).length > 0
-    )
-      return toolsUnknown;
+    if (app.tool !== undefined && countedTools([app.tool], scope).length > 0) {
+      if (toolsUnknown !== null) return toolsUnknown;
+      if (toolsNotRead.includes(app.tool)) return "tools-unreadable";
+    }
     if (executorUnknown !== null && takes("direct")) return executorUnknown;
     if (composioUnknown !== null && takes("composio")) return composioUnknown;
     return null;

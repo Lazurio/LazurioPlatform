@@ -838,14 +838,17 @@ app's `connected` is `true` through its tool or a working account on its path,
 where one was not, with the reason in `unknown`: the first such source in the
 agents' order whose tool, or whose account on a way the path rule would take,
 could connect the app. `tools-unreadable` (or `tools-unavailable`): a tool made
-for the app that counts here (gogcli only on a personal Environment);
-`executor-unavailable`, `executor-unreadable`: Executor did not answer or its
-answer was not understood; `composio-unreadable`: Composio's accounts or
-organizations could not be read; `composio-unverified`: this Environment's
+for the app that counts here (gogcli only on a personal Environment), where the
+tools or that tool's sign-in could not be read; `executor-unavailable`,
+`executor-unreadable`: Executor did not answer or its answer was not understood;
+`composio-unreadable`: Composio's sign-in, accounts or organizations could not
+be read; `composio-unverified`: this Environment's
 Composio organization could not be told; `composio-elsewhere`: it could not be
 made current. A state that settles it is never unknown: Executor `absent`,
 Composio not installed (`unavailable`), `signed-out`, `off` or `not-allowed`,
-since nothing connects through that source here. Nothing of an unverified
+since nothing connects through that source here. A sign-in probe that could not
+tell (it timed out, or its answer was not understood) settles nothing: it is a
+source not read, never a sign-out. Nothing of an unverified
 Composio is used or listed (its accounts stay out, a link and a removal are
 refused as before): only the reporting changes. The page draws such a card with
 "Nelze teď ověřit" ("Can't verify right now") in place of "Připojeno" and keeps
