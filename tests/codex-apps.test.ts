@@ -171,6 +171,42 @@ test("what already turns them off is left as it is, also when they are allowed",
   expect(codexAppsLiftedText(both)).toBe(both);
 });
 
+test("allowing again gives back every byte: a missing final newline and the person's own spacing", () => {
+  // A file without a final newline: Lazurio's tables end without one too,
+  // and taking them away leaves the person's last line as it was.
+  const bare = 'model = "x"';
+  const off = codexAppsOffText(bare) ?? "";
+  expect(off).toBe(`${bare}\n\n${appsBlock}\n${suggestionsBlock.slice(0, -1)}`);
+  expect(codexAppsOfText(off).state).toBe("off");
+  expect(codexAppsOffText(off)).toBe(off);
+  expect(codexAppsLiftedText(off)).toBe(bare);
+  // The person's lines with their own indent, spacing, comments and
+  // trailing spaces come back byte for byte, the last one without a final
+  // newline too.
+  for (const own of [
+    "[apps._default]\n  enabled  = true  # my note   \n[features]\n  tool_suggest = true  # own   \n",
+    "[apps._default]\n  enabled  = true  # my note   \n[features]\n  tool_suggest = true  # own   ",
+    "[apps._default]\r\n\tenabled = true\t\r\n",
+  ]) {
+    const replaced = codexAppsOffText(own) ?? "";
+    if (own.includes("# my note"))
+      expect(replaced).toContain("(was: enabled  = true  # my note   )");
+    expect(codexAppsOfText(replaced).state).toBe("off");
+    expect(codexAppsLiftedText(replaced)).toBe(own);
+  }
+  // A table header that ends the file without a newline gets Lazurio's
+  // line under it, which then ends the file the same way.
+  for (const own of [
+    "[apps._default]\ndestructive_enabled = false\n\n[features]",
+    "[features]\nmemories = true",
+  ]) {
+    const inserted = codexAppsOffText(own) ?? "";
+    expect(inserted.endsWith("\n")).toBe(false);
+    expect(codexAppsOfText(inserted).state).toBe("off");
+    expect(codexAppsLiftedText(inserted)).toBe(own);
+  }
+});
+
 test("a form Lazurio does not edit in place, or a file that does not parse, is refused", () => {
   for (const text of [
     "[apps]\n_default.enabled = true\n",
@@ -231,6 +267,25 @@ test.skipIf(process.platform === "win32")(
       expect((await convergeCodexApps(input, true)).kind).toBe("unchanged");
       // Nothing of Lazurio's temporary files is left beside it.
       expect((await readdir(home)).sort()).toEqual(["config.toml"]);
+    });
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "a file converged off and allowed again has exactly its bytes back",
+  async () => {
+    await withCodex(async (input, home) => {
+      await mkdir(home);
+      for (const own of [
+        'model = "x"',
+        "[apps._default]\n  enabled  = true  # my note   \n[features]\n  tool_suggest = true  # own   ",
+      ]) {
+        await writeFile(config(home), own);
+        expect((await convergeCodexApps(input, false)).kind).toBe("changed");
+        expect((await observeCodexApps(input)).state).toBe("off");
+        expect((await convergeCodexApps(input, true)).kind).toBe("changed");
+        expect(await readFile(config(home), "utf8")).toBe(own);
+      }
     });
   },
 );

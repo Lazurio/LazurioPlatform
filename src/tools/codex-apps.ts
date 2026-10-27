@@ -269,9 +269,16 @@ function switchOff(text: string, switch_: Switch): string | null {
     // Defined some other way (dotted keys, an inline table, only through a
     // table under it): not Lazurio's to rewrite.
     if (valueAt(parsed, switch_.table) !== undefined) return null;
-    let base = text;
-    if (base !== "" && !base.endsWith("\n")) base += "\n";
-    candidate = `${base}${base === "" ? "" : "\n"}${header} ${codexAppsMarker}\n${switch_.key} = false ${codexAppsMarker}\n`;
+    // The file keeps its final newline, or its lack of one: without it,
+    // Lazurio's table ends without one too, so taking the table away gives
+    // back every byte (`switchLifted`).
+    const block = `${header} ${codexAppsMarker}\n${switch_.key} = false ${codexAppsMarker}`;
+    candidate =
+      text === ""
+        ? `${block}\n`
+        : text.endsWith("\n")
+          ? `${text}\n${block}\n`
+          : `${text}\n\n${block}`;
   } else {
     const pattern = keyLine(switch_.key);
     const at = all
@@ -282,18 +289,24 @@ function switchOff(text: string, switch_: Switch): string | null {
       const index = table.header + 1 + at;
       const line = all[index] as Line;
       const indent = pattern.exec(line.text)?.[1] ?? "";
-      // The person's line stays readable beside Lazurio's, and comes back.
+      // The person's line stays readable beside Lazurio's and comes back
+      // byte for byte: everything after its indent, trailing spaces too, and
+      // its own end of line.
       next[index] = {
-        text: `${indent}${switch_.key} = false ${codexAppsMarker} (was: ${line.text.trim()})`,
-        eol: line.eol === "" ? "\n" : line.eol,
+        text: `${indent}${switch_.key} = false ${codexAppsMarker} (was: ${line.text.slice(indent.length)})`,
+        eol: line.eol,
       };
     } else {
+      // A header that ends the file without a newline gets one; Lazurio's
+      // line then ends the file without one, as the header did.
       const head = all[table.header] as Line;
-      const eol = head.eol === "" ? "\n" : head.eol;
-      next[table.header] = { text: head.text, eol };
+      next[table.header] = {
+        text: head.text,
+        eol: head.eol === "" ? "\n" : head.eol,
+      };
       next.splice(table.header + 1, 0, {
         text: `${switch_.key} = false ${codexAppsMarker}`,
-        eol,
+        eol: head.eol,
       });
     }
     candidate = joined(next);
@@ -362,6 +375,11 @@ function switchLifted(text: string, switch_: Switch): string | null {
       else break;
     }
   }
+  // A file without a final newline keeps that: what Lazurio's lines ended
+  // goes back to its line before them (`switchOff`).
+  const last = next.at(-1);
+  if (!text.endsWith("\n") && last !== undefined)
+    next[next.length - 1] = { text: last.text, eol: "" };
   const candidate = joined(next);
   return sameValue(parseToml(candidate), expected) ? candidate : null;
 }

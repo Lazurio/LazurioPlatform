@@ -11905,8 +11905,9 @@ said that ChatGPT's apps are not a way. Root decisions 0162 (one way per app) an
 3. **Exactly two keys, and only Lazurio's lines.** Each line Lazurio writes carries
    a marker (`# lazurio: chatgpt-apps`); where it replaces the person's own `true`
    it keeps it beside the marker (`(was: …)`) and writes it back where they are
-   allowed again; a table Lazurio created goes with its line. Every other byte of the
-   file stays: the new file is renamed over the old one with its mode, only where it
+   allowed again, byte for byte (its indent, spacing, comment and trailing spaces);
+   a table Lazurio created goes with its line, and a file without a final newline
+   keeps none (review of #680). Every other byte of the file stays: the new file is renamed over the old one with its mode, only where it
    did not change meanwhile, and only when the text checks as the same configuration
    but those keys. Already off by the person's own `false` or by `features.apps =
    false` is left as it is, also where they are allowed: that is the person's
@@ -11991,7 +11992,9 @@ recorded, carried by a tools change, removed again and refused on an Organizatio
 Environment; the Folder's lines in both languages for all four cases and the two
 working rules; the apply's item from Codex's outcome; doctor's outcomes
 (`tests/chatgpt-apps.test.ts`); the converge on a temporary CODEX_HOME, appending only
-its table to the person's configuration, idempotent, its mode kept, exactly reversed,
+its table to the person's configuration, idempotent, its mode kept, exactly reversed
+(also a file without a final newline, the person's lines with their own spacing and
+a header ending the file, in the text and in the file),
 the person's own line written back, an exception reported, a dotted form, a link and a
 missing Codex left alone (`tests/codex-apps.test.ts`); the Launchpad's reading, the
 person's switch and Codex following it, an Organization's refusal and the CLI's repair
