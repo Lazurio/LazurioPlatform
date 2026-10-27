@@ -246,7 +246,19 @@ bumped. It prints one JSON object with `machineContextDigest`:
 | `{"kind":"blocked","reason":"preset-not-allowed"}` | 2 | `--preset` is not the preset the current handover derives; nothing is written |
 | `{"kind":"blocked","reason":"template-upgrade-required"}` | 2 | The Folder was rendered by a newer (or unknown) template revision than this product renders; nothing is downgraded, see below |
 | Machine context codes | 2 | As for `folder-init` |
-| stderr `Folder operation failed…` | 1 | Operation failure; an interrupted refresh is completed with `lazurio profile-resume --folder ~/Lazurio --target-revision <n>` |
+| `{"kind":"blocked","reason":"folder-busy","retryable":true}` | 2 | Another Lazurio operation still holds the Folder's lock; nothing is written, and the same command may simply be run again |
+| `{"kind":"failed","reason":"internal"}`, stderr `Folder operation failed…` | 1 | Operation failure; an interrupted refresh is completed with `lazurio profile-resume --folder ~/Lazurio --target-revision <n>` |
+
+**One JSON in every outcome (issue #655).** `folder-init`, `folder-refresh` and
+`inspect` print exactly one JSON object on stdout whatever happens, because the
+Machines resident role reads exactly one; text for people goes to stderr. Right after
+an upgrade the role runs `folder-init` beside the Launchpad that `install` has just
+restarted, and the Launchpad's own short reads of the Folder hold its lock for
+moments. The adoption check of an already adopted Folder is a read, so it waits for
+such a holder, at most 30 seconds (`adoptionReadWaitMs`), and then reports
+`already-adopted` as before. A lock still held after that is `folder-busy`, named as
+retryable. Before this, the check refused at once, and the busy refusal left the
+command with exit 1, empty stdout and only the failure text on stderr.
 
 The running Launchpad reads its entry only when it starts. So a `refreshed` answer
 that recorded a different entry than the Folder held before also restarts the

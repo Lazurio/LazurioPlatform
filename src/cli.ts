@@ -413,7 +413,13 @@ async function runOtherCommand(args: string[]): Promise<number> {
           }),
         version: context.identity.version,
       });
+      // Exactly one JSON object on stdout in every outcome (issue #655); a
+      // failure's text for people follows on stderr.
       console.log(JSON.stringify(result));
+      if (result.kind === "failed")
+        console.error(
+          "Folder operation failed. State may require recovery; no automatic retry or cleanup was performed.",
+        );
       return code;
     } catch (error) {
       // A wrong invocation is a usage error with the help text, not a failed
