@@ -184,12 +184,13 @@ export function createPersonaSave(
     apply: () => Promise<BuddyPersona>;
     journal?: ((entry: PersonaJournalEntry) => void) | undefined;
     /** Buddy's first meeting (decision F60's addendum of 2026-10-26): owed
-     * by the person's first confirmation, delivered once his persona is
-     * applied or no longer waits for him, and on later readings while it is
-     * owed. Absent: none (the CLI). */
+     * by the person's first confirmation, delivered once an apply has put
+     * his persona in place (`applied`, never after one that failed, was
+     * refused or still waits), and on later readings while it is owed.
+     * Absent: none (the CLI). */
     firstMeeting?:
       | Readonly<{
-          meeting: Pick<FirstMeeting, "owe" | "deliver">;
+          meeting: Pick<FirstMeeting, "owe" | "deliver" | "owed">;
           /** The Folder's language, the one SOUL.md speaks. */
           locale: () => Promise<"cs" | "en">;
         }>
@@ -223,6 +224,12 @@ export function createPersonaSave(
   let closed = false;
   // The next reading of the Launchpad's own, after `start`.
   let watch: unknown;
+  // Whether the last apply this Launchpad ran answered `applied`: the persona
+  // as confirmed is in Buddy's SOUL, his acting sender and his stored
+  // prompts. His first meeting goes only then, and each of its retries asks
+  // again, so an apply that failed, was refused or still runs never lets him
+  // greet in the names and the address he had before.
+  let applied = false;
 
   const schedule = (delay: number) => {
     if (retry !== undefined) timers.cancel(retry);
@@ -232,15 +239,15 @@ export function createPersonaSave(
     }, delay);
   };
 
-  /** Buddy's first meeting, where one is owed: its turn goes once his
-   * persona no longer waits for him, so he greets in the names and the
+  /** Buddy's first meeting, where one is owed: its turn goes once an apply
+   * has put his persona in place, so he greets in the names and the
    * address just confirmed. While his T3 Code is not there yet (an apply
    * may just have restarted it) it is asked again soon, then less often, at
    * most as often as the Launchpad's own readings. Never a reason to fail. */
   let greeting: unknown;
   let greetDelay = firstMeetingRetryMs;
   const greet = () => {
-    if (closed || input.firstMeeting === undefined) return;
+    if (closed || input.firstMeeting === undefined || !applied) return;
     void input.firstMeeting.meeting.deliver().then(
       (outcome) => {
         if (outcome !== "waiting") {
@@ -272,7 +279,8 @@ export function createPersonaSave(
       });
     }
     if (closed) return;
-    if (answer.state !== "waiting") greet();
+    applied = answer.state === "applied" || answer.state === "in-place";
+    if (applied) greet();
     const at = now().getTime();
     if (answer.state === "waiting") {
       failedDelay = personaFailedRetryMs;
@@ -295,6 +303,7 @@ export function createPersonaSave(
       timers.cancel(retry);
       retry = undefined;
     }
+    applied = false;
     const current = input
       .apply()
       .catch(
@@ -339,8 +348,19 @@ export function createPersonaSave(
     if (owed && !closed && !pending() && now().getTime() >= notBefore)
       void run();
     // A first meeting still owed (Buddy's T3 Code was not there, or the
-    // Launchpad restarted) goes on any reading that finds nothing pending.
-    else if (!owed && !pending()) greet();
+    // Launchpad restarted) goes on any reading that finds nothing pending,
+    // once an apply of this Launchpad's has put the persona in place: after
+    // a restart, that apply comes first.
+    else if (!owed && !pending()) {
+      if (applied) greet();
+      else if (
+        input.firstMeeting !== undefined &&
+        !closed &&
+        now().getTime() >= notBefore &&
+        (await input.firstMeeting.meeting.owed().catch(() => false))
+      )
+        void run();
+    }
     return personaShown(persona, owed || pending());
   }
 

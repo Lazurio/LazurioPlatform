@@ -18954,8 +18954,10 @@ adds to points 1 to 5 above.
      (`firstConfirmation`). The Launchpad records the turn before the apply: the confirmation,
      the key, the exact text and the state, in `~/.local/state/lazurio/buddy/first-meeting.json`
      (`lazurio.buddy-first-meeting.v1`, 0600 in 0700, beside F64's records). It sends the turn
-     once his persona no longer waits for him, so he greets in the names and the address just
-     confirmed, and again on later readings while it is owed.
+     once an apply of the Launchpad's has answered `applied`, so he greets in the names and the
+     address just confirmed: never after an apply that failed, was refused or still waits, and
+     every retry of the turn asks again. A reading while it is owed sends it the same way; after
+     a Launchpad restart one apply comes first.
    - **How.** The path and the mark of Delegace's notices: Buddy's own runtime runs
      `t3 lazurio buddy thread`, then `t3 thread send <thread> --mode queue --idempotency-key
      lazurio-first-meeting-<the confirmation's digits> --message-file -` against

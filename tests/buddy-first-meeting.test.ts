@@ -33,6 +33,8 @@ import {
   createPersonaSave,
   type PersonaSaveAnswer,
   type PersonaTimers,
+  personaFailedRetryMs,
+  personaRetryMs,
 } from "../src/buddy/persona-save";
 import type { BuddySignIn } from "../src/buddy/sign-in";
 import { buddyT3Unit } from "../src/buddy/t3-runtime";
@@ -474,20 +476,37 @@ function handTimers() {
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 20));
 
+/** Waits, in real time, until `check` holds or `ms` passed: the turn's record
+ * is written after T3 Code answers, a moment after the fake counted the send,
+ * and a busy machine may take longer than one `settle`. */
+async function until(check: () => Promise<boolean>, ms = 3_000) {
+  const end = Date.now() + ms;
+  while (!(await check()) && Date.now() < end) await settle();
+}
+
+const sentRecord = (user: string) => async () =>
+  (await readFirstMeeting(user))?.state === "sent";
+
 const values = {
   buddyName: "Rex",
   address: "ty",
   user: { nominative: "Alena", accusative: "Alenu", dative: "Aleně" },
 } as const;
 
+type ApplyAnswer = "applied" | "waiting" | "failed" | "unavailable";
+
 /** F64's apply answering what the test lines up, the last one again. */
-function applies(...answers: ("applied" | "waiting")[]) {
+function applies(...answers: ApplyAnswer[]) {
   let calls = 0;
   return {
     calls: () => calls,
     apply: async (): Promise<BuddyPersona> => {
       const state = answers[Math.min(calls, answers.length - 1)] ?? "applied";
       calls += 1;
+      if (state === "failed")
+        return { kind: "buddy-persona", state, reason: "files-unwritable" };
+      if (state === "unavailable")
+        return { kind: "buddy-persona", state, reason: "persona-busy" };
       return state === "waiting"
         ? { kind: "buddy-persona", state, restart: "pending" }
         : {
@@ -502,7 +521,7 @@ function applies(...answers: ("applied" | "waiting")[]) {
 
 async function launchpad(
   user: string,
-  answers: ("applied" | "waiting")[],
+  answers: ApplyAnswer[],
   t3 = fakeT3("sent"),
 ) {
   const folder = join(user, "Lazurio");
@@ -605,6 +624,7 @@ posix(
       expect(t3.calls).toEqual([]);
       await hand.pass(15_000);
       expect(fake.calls()).toBe(3);
+      await until(sentRecord(user));
       expect(t3.sends().length).toBe(1);
       expect((await readFirstMeeting(user))?.state).toBe("sent");
       save.close();
@@ -632,6 +652,7 @@ posix(
       expect(t3.sends().length).toBe(2);
       // Then 20 s later.
       await hand.pass(20_000);
+      await until(sentRecord(user));
       expect(t3.sends().length).toBe(3);
       expect((await readFirstMeeting(user))?.state).toBe("sent");
       // Sent: nothing more is asked.
@@ -640,7 +661,7 @@ posix(
       save.close();
     });
     // The Launchpad restarted with the turn owed and T3 Code back: its first
-    // reading sends it.
+    // reading applies once, so the persona is in place, then sends it.
     await home(async (user) => {
       await mkdir(dirname(personaPath(user)), { recursive: true, mode: 0o700 });
       await writePersona(user, { ...values, confirm: true }, null);
@@ -652,10 +673,112 @@ posix(
       const read = await readPersona(user);
       if (read.state !== "valid") throw new Error("a persona");
       await owed.owe({ ...read.persona, confirmedAt: confirmedAt }, "cs");
-      const { save, t3 } = await launchpad(user, ["applied"]);
+      const { save, fake, t3 } = await launchpad(user, ["applied"]);
       await save.start();
+      await until(sentRecord(user));
+      expect(fake.calls()).toBe(1);
+      expect(t3.sends().length).toBe(1);
+      save.close();
+    });
+  },
+);
+
+posix(
+  "an apply that fails or is refused sends no first meeting: the turn stays owed, every retry asks again, and it goes once an apply answers applied",
+  async () => {
+    // Failed (files that could not be written): no greeting in the old
+    // names; the apply's own retry, 30 s later, applies and greets once.
+    await home(async (user) => {
+      await mkdir(dirname(personaPath(user)), { recursive: true, mode: 0o700 });
+      await writePersona(user, values, null);
+      const { save, hand, fake, t3 } = await launchpad(user, [
+        "failed",
+        "applied",
+      ]);
+      const answer = await save.save(
+        { ...values, confirm: true },
+        await sha256(personaPath(user)),
+      );
+      expect(answer).toMatchObject({
+        kind: "persona",
+        outcome: "written",
+        applied: { state: "failed" },
+      });
+      await settle();
+      expect(fake.calls()).toBe(1);
+      expect(t3.calls).toEqual([]);
+      expect((await readFirstMeeting(user))?.state).toBe("owed");
+      // A reading meanwhile sends nothing: the failed apply's retry is due.
+      await save.read();
+      await settle();
+      expect(t3.calls).toEqual([]);
+      await hand.pass(personaFailedRetryMs);
+      expect(fake.calls()).toBe(2);
+      await until(sentRecord(user));
+      expect(t3.sends().length).toBe(1);
+      // Sent: nothing more is asked.
+      await hand.pass(120_000);
+      expect(t3.sends().length).toBe(1);
+      save.close();
+    });
+    // Refused (another writer holds the persona): nothing either; a reading
+    // after the retry pause applies, then greets once.
+    await home(async (user) => {
+      await mkdir(dirname(personaPath(user)), { recursive: true, mode: 0o700 });
+      await writePersona(user, values, null);
+      const { save, hand, fake, t3 } = await launchpad(user, [
+        "unavailable",
+        "applied",
+      ]);
+      await save.save(
+        { ...values, confirm: true },
+        await sha256(personaPath(user)),
+      );
+      await save.read();
+      await settle();
+      expect(fake.calls()).toBe(1);
+      expect(t3.calls).toEqual([]);
+      expect((await readFirstMeeting(user))?.state).toBe("owed");
+      await hand.pass(personaRetryMs);
+      await save.read();
+      await until(sentRecord(user));
+      expect(fake.calls()).toBe(2);
+      expect(t3.sends().length).toBe(1);
+      save.close();
+    });
+    // A greeting that waits for his T3 Code asks the gate again: an apply
+    // that fails meanwhile holds it until an apply answers applied.
+    await home(async (user) => {
+      await mkdir(dirname(personaPath(user)), { recursive: true, mode: 0o700 });
+      await writePersona(user, values, null);
+      const { save, hand, fake, t3 } = await launchpad(
+        user,
+        ["applied", "failed", "applied"],
+        fakeT3("not-running", "sent"),
+      );
+      await save.save(
+        { ...values, confirm: true },
+        await sha256(personaPath(user)),
+      );
       await settle();
       expect(t3.sends().length).toBe(1);
+      expect((await readFirstMeeting(user))?.state).toBe("owed");
+      // A layer change starts another apply, which fails, before the
+      // greeting's retry 10 s later.
+      await save.save(
+        { ...values, buddyName: "Max" },
+        await sha256(personaPath(user)),
+      );
+      await settle();
+      expect(fake.calls()).toBe(2);
+      await hand.pass(10_000);
+      expect(t3.sends().length).toBe(1);
+      expect((await readFirstMeeting(user))?.state).toBe("owed");
+      // The failed apply's retry applies; the turn goes.
+      await hand.pass(personaFailedRetryMs);
+      expect(fake.calls()).toBe(3);
+      await until(sentRecord(user));
+      expect(t3.sends().length).toBe(2);
       save.close();
     });
   },

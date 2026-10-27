@@ -346,6 +346,11 @@ export function createFirstMeeting(
       return true;
     },
 
+    /** Whether a turn is owed now (its record says so). */
+    async owed(): Promise<boolean> {
+      return (await readFirstMeeting(input.home))?.state === "owed";
+    },
+
     /** Sends what is owed, if anything; the one under way where one runs. */
     deliver(): Promise<FirstMeetingDelivery> {
       delivering ??= attempt()
