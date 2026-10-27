@@ -11826,7 +11826,7 @@ reference is [integrations](integrations.md#the-reading-get-apiintegrations-and-
    for the whole synchronization, the network included, and the catalog itself says
    "organization-changed: read again". A Folder whose Organizations were all read
    is `unverified` at once.
-5. **The Folder (template revision `base-instructions-80`).** AGENTS.md and the
+5. **The Folder (template revision `base-instructions-83`).** AGENTS.md and the
    manual's Integrace say that `"connected": null` means the state could not be
    verified now: never tell the user the app is not connected, nor send them to
    connect it again or switch to another way because of it; read the list again in

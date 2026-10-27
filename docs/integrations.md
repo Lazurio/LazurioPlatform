@@ -979,7 +979,7 @@ hosted Environments names the Integrace page instead of Composio's procedure. Th
 texts it retires: `composio link` for agents, "send the link the command returns",
 "no cloud connector other than Composio", MCP servers set up per harness
 (`claude mcp add`, `~/.codex/config.toml`). Template revision `base-instructions-39`;
-the Microsoft 365 texts `base-instructions-53`. Since `base-instructions-80`
+the Microsoft 365 texts `base-instructions-53`. Since `base-instructions-83`
 (decision F42, addendum of 2026-10-27) AGENTS.md and the chapter Integrace say
 that `"connected": null` means the state could not be verified now, not that
 the app is not connected: never say so to the user and do not switch to another
