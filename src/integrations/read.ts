@@ -23,6 +23,7 @@ import {
   type ComposioOrganizationRule,
   composioOrganizationRule,
   convergeComposioOrganization,
+  type OwnerReading,
 } from "./composio-organization";
 import {
   type ComposioNames,
@@ -89,6 +90,9 @@ export type IntegrationsHost = Readonly<{
   /** Test and preview seam: the rule of this Environment's Composio
    * organization, instead of the one its Machine binding gives. */
   composioOrganization?: ComposioOrganizationRule;
+  /** Test seam: how that rule reads the Folder's Organizations and waits
+   * before it reads them again (`composioOrganizationRule`). */
+  organizationReading?: OwnerReading;
 }>;
 
 /** The scope of the rule: a personal Environment and the person's own
@@ -169,7 +173,11 @@ async function readComposioSource(
   let target: IntegrationsOverview["composio"]["organization"] = null;
   const rule =
     host.composioOrganization ??
-    (await composioOrganizationRule(host.folder, machine));
+    (await composioOrganizationRule(
+      host.folder,
+      machine,
+      host.organizationReading,
+    ));
   // Nothing of Composio counts where its organization cannot be told: an
   // Organization's name that cannot be read (Pablo's review of #372), or an
   // organization of that name, or the account's default one, that could not

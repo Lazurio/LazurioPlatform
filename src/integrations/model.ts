@@ -130,6 +130,27 @@ export type IntegrationAccount = Readonly<{
   manage: string | null;
 }>;
 
+/** Why an app's `connected` is not known (decision F42, addendum of
+ * 2026-10-27): a source that could connect it here on its own path was not
+ * read, or Composio's organization not verified, so whether it is connected
+ * cannot be said. Each names the source and its state: the tools' reading
+ * (`tools-unavailable`, `tools-unreadable`: a tool made for the app may
+ * connect it), Executor (`executor-unavailable`: it did not answer;
+ * `executor-unreadable`: its answer was not understood), Composio
+ * (`composio-unreadable`: its accounts or organizations could not be read;
+ * `composio-unverified`: this Environment's Composio organization could not
+ * be told; `composio-elsewhere`: it could not be made current). */
+export const unknownReasons = [
+  "tools-unavailable",
+  "tools-unreadable",
+  "executor-unavailable",
+  "executor-unreadable",
+  "composio-unreadable",
+  "composio-unverified",
+  "composio-elsewhere",
+] as const;
+export type UnknownReason = (typeof unknownReasons)[number];
+
 export type IntegrationApp = Readonly<{
   id: string;
   name: string;
@@ -138,8 +159,13 @@ export type IntegrationApp = Readonly<{
    * for one who is. */
   path: PathChoice;
   /** Connected: through its tool, or an active account on its path; an
-   * account whose sign-in expired or failed does not connect it. */
-  connected: boolean;
+   * account whose sign-in expired or failed does not connect it. False only
+   * where every source that could connect the app here was read; null where
+   * one was not, and `unknown` says which (decision F42, addendum of
+   * 2026-10-27): unknown is never "not connected". */
+  connected: boolean | null;
+  /** Why `connected` is null; absent otherwise. */
+  unknown?: UnknownReason;
   accounts: readonly IntegrationAccount[];
   /** Whether the app is in the catalog (otherwise only connected here,
    * named from its toolkit by `toolkitName`). */
@@ -458,19 +484,69 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
       });
       viaComposio.set(account.toolkit, accounts);
     }
+  // The sources that hold accounts or tools but were not read here, or (for
+  // Composio) whose organization was not verified, by the reason an app they
+  // could connect is unknown (decision F42, addendum of 2026-10-27). A state
+  // of this Environment that settles it (Executor absent, Composio not
+  // installed, signed out, off for agents or not allowed) is no unknown:
+  // nothing connects through that source here.
+  const toolsUnknown: UnknownReason | null =
+    input.tools.state === "ok" ? null : `tools-${input.tools.state}`;
+  const executorUnknown: UnknownReason | null =
+    input.executor.state === "unavailable" ||
+    input.executor.state === "unreadable"
+      ? `executor-${input.executor.state}`
+      : null;
+  const composioUnknown: UnknownReason | null = !policy.allowed
+    ? null
+    : input.composio.state === "unreadable"
+      ? "composio-unreadable"
+      : input.composio.state === "organization"
+        ? input.composioTarget?.state === "elsewhere"
+          ? "composio-elsewhere"
+          : "composio-unverified"
+        : null;
+  /** The first source, in the agents' order (tool, Executor, Composio),
+   * that was not read and could connect the app on its own path: a tool
+   * made for it that counts here, or an account on a way the path rule
+   * would take were it there (`choosePath` with that way connected). */
+  const unknownOf = (
+    app: PathApp,
+    ways: readonly Path[],
+  ): UnknownReason | null => {
+    const takes = (way: Path) =>
+      choosePath({
+        app,
+        rules,
+        signedIn: input.composioReady,
+        admin: false,
+        tools,
+        connected: [...ways, way],
+      }).path === way;
+    if (
+      toolsUnknown !== null &&
+      app.tool !== undefined &&
+      countedTools([app.tool], scope).length > 0
+    )
+      return toolsUnknown;
+    if (executorUnknown !== null && takes("direct")) return executorUnknown;
+    if (composioUnknown !== null && takes("composio")) return composioUnknown;
+    return null;
+  };
   const entry = (
     app: PathApp,
     name: string,
     accounts: IntegrationAccount[],
     inCatalog: boolean,
   ): IntegrationApp => {
+    const ways = [...new Set(accounts.map((account) => account.path))];
     const path = choosePath({
       app,
       rules,
       signedIn: input.composioReady,
       admin: false,
       tools,
-      connected: [...new Set(accounts.map((account) => account.path))],
+      connected: ways,
     });
     // An account on another way than the app's is spare, a direct or a
     // Composio one beside the app's own tool too: the tool connects the
@@ -481,17 +557,19 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
         spare: path.path !== null && account.path !== path.path,
       }),
     );
-    const connected =
+    const working =
       path.path === "tool" ||
       ((path.path === "direct" || path.path === "composio") &&
         marked.some(
           (account) => !account.spare && account.state === "connected",
         ));
+    const unknown = working ? null : unknownOf(app, ways);
     return Object.freeze({
       id: app.id,
       name,
       path,
-      connected,
+      connected: unknown === null ? working : null,
+      ...(unknown === null ? {} : { unknown }),
       accounts: Object.freeze(marked),
       catalog: inCatalog,
       link:

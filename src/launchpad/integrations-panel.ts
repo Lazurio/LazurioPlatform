@@ -55,6 +55,7 @@ import {
   monogram,
   type Note,
   type NoticeTone,
+  noneConnectedText,
   noteAfterReading,
   noticeIcon,
   parseIntegrations,
@@ -1030,7 +1031,16 @@ export function createIntegrationsPanel(
     if (forming === app.id && view.action.kind === "connect")
       article.append(connectForm(app, view.composio));
     const foot = element("div", "integration-foot");
-    if (view.connected) {
+    // Not verified now: said as such, never as not connected (decision F42,
+    // addendum of 2026-10-27); not the connected state the guide points at.
+    if (view.connected === null) {
+      const state = element("span", "integration-unknown");
+      state.append(
+        icon("i-info"),
+        element("span", "", copy.integrationsUnknown),
+      );
+      foot.append(state);
+    } else if (view.connected) {
       const state = element("span", "integration-state");
       state.append(
         icon("i-check"),
@@ -1170,7 +1180,7 @@ export function createIntegrationsPanel(
         "p",
         "empty",
         tab === "connected" && !searching
-          ? copy.integrationsNoneConnected
+          ? noneConnectedText(overview, copy)
           : copy.integrationsNoneFound,
       );
       if (tab === "connected" && !searching) {

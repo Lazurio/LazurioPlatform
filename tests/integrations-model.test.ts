@@ -456,7 +456,19 @@ test("a source that cannot be read stays explicit and hides nothing else", () =>
     "salesforce",
     "whatsapp",
   ]);
-  expect(overview.apps.every((item) => !item.connected)).toBe(true);
+  // Nothing is connected, and an app a source not read could connect is
+  // unknown, never "not connected" (decision F42, addendum of 2026-10-27):
+  // a tool made for it first, then Executor; Composio signed out settles
+  // Salesforce.
+  expect(
+    overview.apps.map((item) => [item.id, item.connected, item.unknown]),
+  ).toEqual([
+    ["notion", null, "executor-unavailable"],
+    ["gmail", null, "tools-unreadable"],
+    ["github", null, "tools-unreadable"],
+    ["salesforce", false, undefined],
+    ["whatsapp", null, "tools-unreadable"],
+  ]);
   // Signed out: the Composio path asks for its sign-in first.
   expect(overview.apps.find((item) => item.id === "salesforce")?.path).toEqual({
     path: "composio",

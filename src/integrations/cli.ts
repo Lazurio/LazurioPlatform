@@ -11,7 +11,11 @@ import {
   type ExecutorEndpoint,
   processExecutorEndpoint,
 } from "./executor-client";
-import type { IntegrationApp, IntegrationsOverview } from "./model";
+import type {
+  IntegrationApp,
+  IntegrationsOverview,
+  UnknownReason,
+} from "./model";
 import { readIntegrations } from "./read";
 
 /** `lazurio integrations`: the Integrace of this Environment for agents
@@ -20,7 +24,9 @@ export const integrationsHelp = `integrations list [--folder <absolute Folder>] 
   The Integrations of this Environment: every app of Lazurio's catalog with
   its one path (by its tool from Settings → Tools, directly through this
   Environment's Executor, or through Composio with the user's account),
-  whether it is connected, its accounts and the link to its card in Apps →
+  whether it is connected (null, with the reason in "unknown", where a
+  source that could connect it was not read or verified now: never "not
+  connected"), its accounts and the link to its card in Apps →
   Integrations; the apps connected here that the catalog does not know; the
   custom MCP servers in Executor; and the state of each source (tools,
   Executor, Composio), so a source that cannot be read is never taken for
@@ -65,24 +71,56 @@ function connectedLine(app: IntegrationApp): string {
   }`;
 }
 
+/** What a source not read or not verified is, by the reason it leaves an
+ * app unknown (decision F42, addendum of 2026-10-27). */
+const unknownWhy: Readonly<Record<UnknownReason, string>> = {
+  "tools-unavailable": "the tools could not be asked",
+  "tools-unreadable": "the tools could not be read",
+  "executor-unavailable": "Executor did not answer",
+  "executor-unreadable": "Executor's answer could not be read",
+  "composio-unreadable": "Composio's connections could not be read",
+  "composio-unverified":
+    "this Environment's Composio organization could not be verified",
+  "composio-elsewhere":
+    "Composio could not be switched to this Environment's organization",
+};
+
 /** The overview in a few plain lines; `--json` has everything. */
 export function integrationsText(overview: IntegrationsOverview): string {
-  const connected = overview.apps.filter((app) => app.connected);
+  const connected = overview.apps.filter((app) => app.connected === true);
   // Accounts on the app's way here, none of them working (signed out or
   // failing): the person signs in again on the app's card.
   const notWorking = overview.apps.filter(
-    (app) => !app.connected && app.accounts.some((account) => !account.spare),
+    (app) =>
+      app.connected === false && app.accounts.some((account) => !account.spare),
   );
+  // Apps whose source was not read or verified: never "not connected".
+  const unknown = new Map<UnknownReason, number>();
+  for (const app of overview.apps)
+    if (app.connected === null && app.unknown !== undefined)
+      unknown.set(app.unknown, (unknown.get(app.unknown) ?? 0) + 1);
   const lines = [
-    connected.length === 0
-      ? "Connected: none."
-      : ["Connected:", ...connected.map(connectedLine)].join("\n"),
+    connected.length > 0
+      ? ["Connected:", ...connected.map(connectedLine)].join("\n")
+      : unknown.size > 0
+        ? "Connected: none that could be verified now."
+        : "Connected: none.",
   ];
   if (notWorking.length > 0)
     lines.push(
       [
         "Not working (the user signs in again on the card):",
         ...notWorking.map(connectedLine),
+      ].join("\n"),
+    );
+  if (unknown.size > 0)
+    lines.push(
+      [
+        `Not verified now (--json: "connected": null and why in "unknown"); never tell the user these are not connected. Read again in a moment, or use the app through its path (never Composio while its organization is not verified) and report only a concrete failure:`,
+        ...[...unknown].map(
+          ([reason, count]) =>
+            `  ${count} ${count === 1 ? "app" : "apps"}: ${unknownWhy[reason]} (${reason})`,
+        ),
       ].join("\n"),
     );
   if (overview.custom.length > 0)
@@ -113,12 +151,12 @@ export function integrationsText(overview: IntegrationsOverview): string {
   if (target !== null && target.state !== "matches")
     lines.push(
       target.state === "unverified" || target.name === null
-        ? "Composio: the name of this Environment's Organization cannot be read, so its Composio organization cannot be checked; nothing of Composio counts and nothing connects through it now. Check this Environment's Folder (lazurio doctor)."
+        ? "Composio: the name of this Environment's Organization could not be read, so its Composio organization cannot be checked; nothing connects through Composio from here now, and its apps are not verified, which does not mean they are not connected. Read again in a moment (a running lazurio update may be rewriting the Organization); if it stays so, check this Environment's Folder (lazurio doctor)."
         : target.state === "missing"
           ? `Composio: the user's account has no organization named "${composio}" (this Environment's Organization "${target.name}", named as Composio accepts it), so Composio works in their current organization meanwhile. Send them to Apps → Integrations to create it.`
           : target.state === "ambiguous"
             ? `Composio: the user's account has more than one organization named "${composio}", so Composio works in their current organization meanwhile. Send them to Apps → Integrations to keep one.`
-            : `Composio: it could not be switched to the organization "${composio}"; nothing of Composio counts now, and "Check connections" in Apps → Integrations tries again.`,
+            : `Composio: it could not be switched to the organization "${composio}"; nothing connects through Composio from here now and its apps are not verified, and reading again (or "Check connections" in Apps → Integrations) tries again.`,
     );
   // Composio not the build Lazurio pins (decision F42, addendum (b) of
   // 2026-10-14): the person updates it; an agent only on their instruction.
