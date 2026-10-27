@@ -12,6 +12,7 @@ import {
   type PersonaDraft,
   type PersonaSaveResult,
   saveLine,
+  telegramRow,
   withForm,
   withYourName,
 } from "./buddy-view";
@@ -31,6 +32,10 @@ type Copy = Readonly<Record<MessageKey, string>>;
 //                      how he writes it and Opravit; Uložit saves it, and
 //                      while it waits for him to be idle one quiet line
 //                      says so.
+//   Kanály             Telegram (decision F66): Nepřipojeno, Připojuje se…,
+//                      Čeká na vaši zprávu or Připojeno: @bot, and one
+//                      action: Připojit, Pokračovat (with Zrušit) or Odpojit
+//                      (after a confirm).
 //
 // No model, no reason code. Every value is drawn with textContent; the form
 // is built again only for another persona, so a field keeps its caret.
@@ -72,6 +77,13 @@ export function createBuddyPanel(
     resume: () => void;
     signOut: () => Promise<boolean>;
     save: (draft: PersonaDraft) => Promise<PersonaSaveResult>;
+    /** His Telegram: "Připojit Telegram" from its start, back where it
+     * stands, or off. */
+    telegram: Readonly<{
+      open: () => void;
+      resume: () => void;
+      disconnect: () => Promise<boolean>;
+    }>;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -84,6 +96,7 @@ export function createBuddyPanel(
   ];
   const notHere = find<HTMLElement>("#buddy-not-here");
   const stateCard = find<HTMLElement>("#buddy-state");
+  const channelsCard = find<HTMLElement>("#buddy-channels");
   const form = find<HTMLFormElement>("#buddy-persona");
   const confirm = find<HTMLDialogElement>("#buddy-confirm");
   const confirmTitle = find<HTMLElement>("#buddy-confirm-title");
@@ -93,6 +106,11 @@ export function createBuddyPanel(
   const confirmCancel = find<HTMLButtonElement>("#buddy-confirm-cancel");
 
   let stateDrawn: string | null = null;
+  let channelsDrawn: string | null = null;
+  // What the confirm dialog's main button does now: sign out, or take his
+  // bot off Telegram; true once it did.
+  let confirmAction: (() => Promise<boolean>) | null = null;
+  let confirmFailed = "";
   // The persona the form was built for (with the page's language), and
   // what the person typed since.
   let formFor: string | null = null;
@@ -225,29 +243,117 @@ export function createBuddyPanel(
     stateCard.replaceChildren(who, signIn);
   }
 
-  function askSignOut() {
+  /** The confirm dialog for one action: its words and what it does. */
+  function askConfirm(
+    words: Readonly<{
+      title: string;
+      text: string;
+      ok: string;
+      failed: string;
+    }>,
+    action: () => Promise<boolean>,
+  ) {
     const copy = options.copy();
-    confirmTitle.textContent = copy.buddySignOutTitle;
-    confirmText.textContent = copy.buddySignOutText;
+    confirmTitle.textContent = words.title;
+    confirmText.textContent = words.text;
     confirmStatus.textContent = "";
-    confirmOk.textContent = copy.buddySignOut;
+    confirmOk.textContent = words.ok;
     confirmCancel.textContent = copy.buddyCancel;
     confirmOk.disabled = false;
+    confirmAction = action;
+    confirmFailed = words.failed;
     if (typeof confirm.showModal === "function") confirm.showModal();
     else confirm.setAttribute("open", "");
     confirmTitle.focus({ preventScroll: true });
   }
+  function askSignOut() {
+    const copy = options.copy();
+    askConfirm(
+      {
+        title: copy.buddySignOutTitle,
+        text: copy.buddySignOutText,
+        ok: copy.buddySignOut,
+        failed: copy.buddySignOutFailed,
+      },
+      options.signOut,
+    );
+  }
+  function askDisconnect() {
+    const copy = options.copy();
+    askConfirm(
+      {
+        title: copy.telegramDisconnectTitle,
+        text: copy.telegramDisconnectText,
+        ok: copy.telegramDisconnect,
+        failed: copy.telegramDisconnectFailed,
+      },
+      options.telegram.disconnect,
+    );
+  }
   confirmCancel.addEventListener("click", () => confirm.close());
   confirmOk.addEventListener("click", async () => {
+    const action = confirmAction;
+    if (action === null) return;
     confirmOk.disabled = true;
-    const done = await options.signOut();
+    const done = await action();
     if (done) {
       confirm.close();
       return;
     }
     confirmOk.disabled = false;
-    confirmStatus.textContent = options.copy().buddySignOutFailed;
+    confirmStatus.textContent = confirmFailed;
   });
+
+  // ---- Kanály ----
+
+  /** Telegram's row: its state and its one action. */
+  function drawChannels(copy: Copy) {
+    const telegram = options.facts().reading?.telegram;
+    const row = telegramRow(telegram, copy);
+    const key = drawnKey([row, copy.telegramTitle]);
+    if (key === channelsDrawn) return;
+    channelsDrawn = key;
+    const node = element("div", "row buddy-channel");
+    const main = element("div", "row-main");
+    const text = element("div", "buddy-channel-text");
+    const state = element("p", "buddy-state");
+    state.dataset.tone = row.tone;
+    if (row.busy) {
+      const turning = element("span", "spinner");
+      turning.setAttribute("aria-hidden", "true");
+      state.append(turning);
+    } else {
+      const dot = element("span", "buddy-dot");
+      dot.setAttribute("aria-hidden", "true");
+      state.append(dot);
+    }
+    state.append(row.line);
+    text.append(element("p", "row-title", copy.telegramTitle), state);
+    if (row.quiet !== undefined)
+      text.append(element("p", "buddy-line", row.quiet));
+    const controls = element("div", "row-control");
+    switch (row.action) {
+      case "connect":
+        controls.append(
+          button(copy.telegramConnect, options.telegram.open, "primary"),
+        );
+        break;
+      case "continue":
+        controls.append(
+          button(copy.buddyCancel, () => void options.telegram.disconnect()),
+          button(copy.telegramContinue, options.telegram.resume, "primary"),
+        );
+        break;
+      case "disconnect":
+        controls.append(button(copy.telegramDisconnect, askDisconnect));
+        break;
+      case "none":
+        break;
+    }
+    main.append(text, controls);
+    node.append(main);
+    channelsCard.replaceChildren(node);
+  }
 
   // ---- Jméno a oslovení ----
 
@@ -446,6 +552,7 @@ export function createBuddyPanel(
     if (!here) return;
     drawState(copy);
     drawPersona(copy);
+    drawChannels(copy);
   }
 
   document.addEventListener("click", (event) => {

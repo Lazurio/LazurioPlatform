@@ -46,9 +46,12 @@ type Copy = Readonly<Record<MessageKey, string>>;
 //      name, with Opravit, and ty or vy, which nobody chooses for the
 //      person. Pokračovat waits for that choice and saves it all with the
 //      person's confirmation.
-//   3. Telegram: for now only "Teď ne" and that his chat in Lazurio stays.
-//      "Teď ne" ends the meeting: the dialog closes and his window opens,
-//      where his first message comes.
+//   3. Telegram, optional (decision F66), and that his chat in Lazurio
+//      stays. "Teď ne" ends the meeting: the dialog closes and his window
+//      opens, where his first message comes. "Připojit Telegram" closes this
+//      dialog and opens "Připojit Telegram". The step is done before it: it
+//      never waits for Telegram. Once his bot is connected, it says so, and
+//      Hotovo ends the meeting as "Teď ne" does.
 //
 // Nastavení → Buddy opens the first screen alone to sign him in again. Every
 // value is drawn with textContent; the code reaches the clipboard only by
@@ -258,6 +261,9 @@ export function createBuddyDialog(
     finished: () => void;
     /** The dialog closed: the page draws again (its tour comes back). */
     closed: () => void;
+    /** "Připojit Telegram": this dialog closes and that one opens; its
+     * close ends the meeting. */
+    telegram: () => void;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -730,11 +736,16 @@ export function createBuddyDialog(
     drawNav();
   }
 
-  // ---- 3. Telegram, later ----
+  // ---- 3. Telegram, optional ----
 
   function telegramBody(copy: Copy): HTMLElement[] {
-    const persona = options.facts().reading?.persona ?? null;
-    const words = telegramScreen(persona?.confirmed ? persona : draft, copy);
+    const reading = options.facts().reading;
+    const persona = reading?.persona ?? null;
+    const words = telegramScreen(
+      persona?.confirmed ? persona : draft,
+      copy,
+      reading?.telegram,
+    );
     const art = element("div", "buddy-meet-art");
     const face = faceNode(
       options.avatar(),
@@ -746,7 +757,11 @@ export function createBuddyDialog(
       element("p", "buddy-bubble", words.here),
     );
     art.append(face, says);
-    return [art];
+    if (words.connected === null) return [art];
+    const status = element("p", "buddy-status buddy-ok");
+    status.setAttribute("role", "status");
+    status.append(icon("check"), words.connected);
+    return [art, status];
   }
 
   // ---- The frame ----
@@ -781,8 +796,26 @@ export function createBuddyDialog(
         items.push(next);
       }
     }
-    if (screen === "telegram")
-      items.push(button(copy.buddyLater, () => finish(), true));
+    // His Telegram: "Teď ne" ends the meeting, "Připojit Telegram" opens
+    // its dialog; once his bot is connected (or Hermes cannot be asked),
+    // Hotovo ends it.
+    if (screen === "telegram") {
+      const state = options.facts().reading?.telegram?.state;
+      if (state === "connected" || state === "unknown")
+        items.push(button(copy.buddyDone, () => finish(), true));
+      else
+        items.push(
+          button(copy.buddyLater, () => finish()),
+          button(
+            copy.buddyTelegramConnect,
+            () => {
+              hide();
+              options.telegram();
+            },
+            true,
+          ),
+        );
+    }
     nav.replaceChildren(...items);
     // The launcher rises over this dialog while it shows where he is.
     options.spotlight(dialog.open && way?.spotlight === true);

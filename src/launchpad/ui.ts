@@ -26,6 +26,7 @@ import { browserPanelOrigin } from "./browser-panel-view";
 import { createBuddyClient } from "./buddy-client";
 import { createBuddyDialog, tickCountdowns } from "./buddy-dialog";
 import { createBuddyPanel } from "./buddy-panel";
+import { createTelegramDialog } from "./buddy-telegram-dialog";
 import { type BuddyStepFacts, buddyFact, meetStart } from "./buddy-view";
 import { createCatalogPanel, type NewModuleOutcome } from "./catalog-panel";
 import type { PublicEntry } from "./chat";
@@ -806,6 +807,16 @@ const startPanel = createStartPanel({
 });
 // The dialog "Seznamte se s Buddym" and Nastavení → Buddy (decision F65).
 const buddyAvatar = () => buddyAvatarSource(shellDocument?.buddy?.origin);
+// "Připojit Telegram" (decision F66): his own bot from BotFather, from
+// Nastavení → Buddy → Kanály and the last screen of "Seznamte se s Buddym".
+const telegramDialog = createTelegramDialog({
+  copy: () => copy,
+  telegram: () => buddyClient.reading()?.telegram,
+  connect: (token, intent) => buddyClient.connectTelegram(token, intent),
+  approve: (request) => buddyClient.approveTelegram(request),
+  closed: () => drawBuddy(),
+  meetingOver: () => meetingFinished(),
+});
 const buddyDialog = createBuddyDialog({
   copy: () => copy,
   locale: () => locale,
@@ -831,12 +842,17 @@ const buddyDialog = createBuddyDialog({
   // the dialog while it shows where he is, and his window opens once the
   // meeting is over, as the person's own click would open it.
   spotlight: (on) => buddyElement()?.spotlight(on),
-  finished: () => {
-    firstRun();
-    buddyElement()?.openWindow();
-  },
+  finished: () => meetingFinished(),
   closed: () => firstRun(),
+  telegram: () => telegramDialog.open(undefined, "meeting"),
 });
+/** The meeting with Buddy is over ("Teď ne", Hotovo, or Telegram's dialog
+ * it opened, closed): the page draws again and his window opens, where his
+ * first message comes, as the person's own click would open it. */
+function meetingFinished() {
+  firstRun();
+  buddyElement()?.openWindow();
+}
 /** This page's `<lazurio-buddy>`, Buddy's bubble, once the shell defined it. */
 function buddyElement(): Readonly<{
   spotlight(on: boolean): void;
@@ -871,6 +887,11 @@ const buddyPanel = createBuddyPanel({
   resume: () => buddyDialog.open("sign-in", "sign-in"),
   signOut: () => buddyClient.signOut(),
   save: (draft) => buddyClient.savePersona(draft, false, locale),
+  telegram: {
+    open: () => telegramDialog.open("botfather", "channels"),
+    resume: () => telegramDialog.open("start", "channels"),
+    disconnect: () => buddyClient.disconnectTelegram(),
+  },
 });
 const buddyNav = document.querySelector<HTMLElement>("#buddy-nav");
 // The codes' countdowns, filled in place each second while one waits.
@@ -881,6 +902,7 @@ function drawBuddy() {
   if (buddyNav !== null) buddyNav.hidden = !buddyHere();
   buddyPanel.render();
   buddyDialog.render();
+  telegramDialog.render();
   firstRun();
   const waiting = buddyClient.signIn().kind === "pending";
   if (waiting && buddyTicker === undefined)

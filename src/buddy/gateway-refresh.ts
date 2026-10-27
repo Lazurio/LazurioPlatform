@@ -88,10 +88,11 @@ export async function systemctl(
 // ---- The gateway's unit -----------------------------------------------------
 
 /** The gateway's unit as systemd holds it. `startedAt`: when its main process
- * started, in microseconds since the epoch. */
+ * started, in microseconds since the epoch. `stopping`: systemd is stopping
+ * it, and its process may still run. */
 export type GatewayUnit =
   | Readonly<{ state: "running"; startedAt: bigint; needsReload: boolean }>
-  | Readonly<{ state: "stopped"; needsReload: boolean }>
+  | Readonly<{ state: "stopped"; needsReload: boolean; stopping?: true }>
   | Readonly<{ state: "absent" }>
   /** No user manager to ask, or an answer that is none. */
   | Readonly<{ state: "unknown" }>;
@@ -161,7 +162,11 @@ export async function gatewayUnitState(
     startedAt !== undefined
   )
     return Object.freeze({ state: "running", startedAt, needsReload });
-  return Object.freeze({ state: "stopped", needsReload });
+  return Object.freeze({
+    state: "stopped",
+    needsReload,
+    ...(active === "deactivating" ? { stopping: true as const } : {}),
+  });
 }
 
 /** When a file was last written, in microseconds since the epoch; undefined

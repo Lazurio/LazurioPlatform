@@ -1414,6 +1414,26 @@ button.buddy-fix { font-size: 13px; }
 .buddy-save-row .buddy-line:empty { display: block; }
 @container (max-width: 32rem) { .buddy-row-main > input.buddy-input, .buddy-you, .buddy-you > input.buddy-input { width: 100%; } .buddy-you { justify-items: stretch; } .buddy-you .buddy-forms { justify-content: flex-start; } }
 @media (max-width: 560px) { .buddy-question { grid-template-columns: 1fr; } .buddy-part { grid-template-columns: 16px 1fr; } .buddy-part-status { grid-column: 2; } }
+/* Buddy on Telegram (decision F66; the wireframe's BuddyTelegram.tsx,
+   prototypes-lazurio #90): Kanály's row, a state and one action; "Připojit
+   Telegram" in three steps with the dialog of "Seznamte se s Buddym"; the
+   token's one field; the bot's code to scan; "Je to váš účet …?". */
+.buddy-channel-text { display: grid; gap: 4px; min-width: 0; }
+.buddy-channel-text .buddy-state .spinner { width: 12px; height: 12px; }
+.buddy-channel-text .buddy-line { font-size: 12.5px; }
+.telegram-guide .buddy-steps-text { flex: 1 1 14rem; }
+.telegram-token { display: grid; gap: 6px; }
+.telegram-token-label { font-size: 13.5px; font-weight: var(--lz-weight-akce); }
+input.telegram-token-input { width: 100%; font-family: var(--font-mono); }
+input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg); }
+.telegram-token .buddy-line { color: var(--warning-fg); }
+.telegram-qr { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.telegram-qr-image { width: 132px; height: 132px; border: 1px solid var(--lz-line); border-radius: var(--radius-control); background: #fff; image-rendering: pixelated; }
+.telegram-qr .buddy-own { flex: 1 1 12rem; margin: 0; }
+.telegram-asks { display: grid; gap: 8px; }
+.telegram-asks > .buddy-own { margin: 0; }
+.telegram-ask { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 10px 12px; border: 1px solid var(--lz-line); border-radius: var(--radius-control); }
+.telegram-ask-line { margin: 0; font-size: 14px; font-weight: var(--lz-weight-akce); overflow-wrap: anywhere; }
 /* His first meeting (decision F60's addendum of 2026-10-26; the prototype's
    buddy-meet.css, prototypes-lazurio #92): five beats of the same height, so
    the dialog never jumps between them, each his figure and his speech
@@ -1964,10 +1984,11 @@ button.buddy-fix { font-size: 13px; }
 <p id="recovery-status" class="row-status" role="status" aria-live="polite"></p>
 <div id="recovery-body" class="stack"></div>
 </section>
-<!-- Nastavení → Buddy (decision F65; the wireframe's BuddySettings.tsx,
-     prototypes-lazurio #90): his state and his own ChatGPT sign-in, his name
-     and how he addresses the person; drawn by buddy-panel.ts, only on an
-     Osobní Prostředí with Buddy. -->
+<!-- Nastavení → Buddy (decisions F65 and F66; the wireframe's
+     BuddySettings.tsx, prototypes-lazurio #90): his state and his own
+     ChatGPT sign-in, his name and how he addresses the person, and his
+     channels (Telegram); drawn by buddy-panel.ts, only on an Osobní
+     Prostředí with Buddy. -->
 <section id="section-buddy" data-section="buddy" aria-labelledby="page-heading">
 <!-- Under the title only a state (F56's addendum (6)): that there is nothing
      to set up here, without Buddy; with him the head takes no room. -->
@@ -1981,6 +2002,10 @@ button.buddy-fix { font-size: 13px; }
 <section class="group" data-buddy data-guide="buddy-persona" aria-labelledby="buddy-persona-heading" hidden>
 <div class="group-head"><h2 id="buddy-persona-heading" data-message="buddyPersonaGroup">Name</h2></div>
 <form class="card" id="buddy-persona" novalidate></form>
+</section>
+<section class="group" data-buddy data-guide="buddy-channels" aria-labelledby="buddy-channels-heading" hidden>
+<div class="group-head"><h2 id="buddy-channels-heading" data-message="buddyChannelsGroup">Channels</h2></div>
+<div class="card" id="buddy-channels"></div>
 </section>
 </section>
 </main>
@@ -2039,6 +2064,13 @@ button.buddy-fix { font-size: 13px; }
 <div class="dialog-head"><h2 id="buddy-meet-title" tabindex="-1"></h2><button type="button" class="dialog-x" id="buddy-meet-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="sr-only" data-message="toolsClose">Close</span></button></div>
 <div id="buddy-meet-body" class="buddy-meet-body"></div>
 <div class="dialog-foot buddy-meet-foot"><span class="buddy-dots" id="buddy-meet-dots" role="img"></span><span class="buddy-meet-nav" id="buddy-meet-nav"></span></div>
+</dialog>
+<!-- "Připojit Telegram" (decision F66): his own bot in three steps, drawn by
+     buddy-telegram-dialog.ts. -->
+<dialog id="buddy-telegram" class="buddy-meet buddy-telegram" aria-labelledby="buddy-telegram-title">
+<div class="dialog-head"><h2 id="buddy-telegram-title" tabindex="-1"></h2><button type="button" class="dialog-x" id="buddy-telegram-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="sr-only" data-message="toolsClose">Close</span></button></div>
+<div id="buddy-telegram-body" class="buddy-meet-body"></div>
+<div class="dialog-foot buddy-meet-foot"><span class="buddy-dots" id="buddy-telegram-dots" role="img"></span><span class="buddy-meet-nav" id="buddy-telegram-nav"></span></div>
 </dialog>
 <dialog id="buddy-confirm" aria-labelledby="buddy-confirm-title">
 <h2 id="buddy-confirm-title" tabindex="-1"></h2>

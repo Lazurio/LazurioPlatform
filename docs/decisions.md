@@ -20645,3 +20645,570 @@ Buddy with its menu, Odhlásit's confirm and a rename; no error of the page in t
   device shows it as a light one.
 - His face is his picture from his origin, the launcher's; where it does not load, his
   initial.
+
+## F66 — Buddy's Telegram: his own bot from BotFather, connected in Nastavení → Buddy through Hermes's own writers
+
+**Proposed for plan DEV-6676 in the Buddy lead's shaping of 2026-10-25 (its §1.6, §2, §3.8,
+§3.9 and PR 5; questions Q1 and Q2 decided as recommended), built now on the Organization
+Admin's decision of 2026-10-26 to bring Telegram before the profiles; implemented in this
+revision on F63, F64 and F65. The Organization Admin decides it.** Root decision 0207 (addendum of 2026-10-18)
+gives every Buddy his own bot, which his person creates at @BotFather. Until now nothing in the
+Launchpad connected it: a person sent the token BotFather gave them to a maintainer, who relayed
+it into the interim installer (`buddy-install.sh --telegram-stdin`). The bar is a Buddy simple
+enough for anyone's mother.
+
+1. **Where.** Only on an Osobní Prostředí whose recorded entry names Buddy's origin, as F63 and
+   F65; elsewhere the routes answer 404 `buddy-absent`.
+   - Nastavení → Buddy gets a group **Kanály** with one row, Telegram: Nepřipojeno,
+     Připojuje se…, Čeká na vaši zprávu, or Připojeno: @bot, and one action: Připojit;
+     Pokračovat with Zrušit while it starts or waits; Odpojit behind a confirm.
+   - "Seznamte se s Buddym" ends with Připojit Telegram beside Teď ne (F65 point 4 had Teď ne
+     alone). It closes that dialog and opens **Připojit Telegram**; the step is done before
+     it and never waits for Telegram. Once his bot is connected, the screen says so.
+     Opened from there, Připojit Telegram is part of the meeting: however it closes
+     (Hotovo, Zavřít, Escape), the meeting ends as Teď ne ends it (F60's addendum of
+     2026-10-26), and Buddy's window opens with his first message, as in the approved
+     prototype (prototypes-lazurio #92). Opened from Kanály, closing it ends nothing.
+   - The step gets the optional part Telegram (volitelné) with the same state (F65 left it
+     for "the part arriving with its state"); it never decides whether the step is done.
+   - Připojit Telegram is the wireframe's dialog (prototypes-lazurio #90,
+     `BuddyTelegram.tsx`) in three steps: (1) Založte bota u @BotFather: open BotFather, send
+     /newbot, choose a name and a username that ends in "bot", copy the token he sends, with
+     Otevřít BotFather; (2) Vložte token, který vám BotFather poslal: one field; (3) Otevřete
+     svého bota a stiskněte Start: Otevřít @bot and its address as a code to scan, then
+     "Je to váš účet …?" for each account that wrote to the bot.
+2. **One truth, Hermes's writers.** Telegram's settings stay Hermes's, in Buddy's
+   `~/.hermes/.env` and `config.yaml`, written only through Hermes's own dashboard API over
+   F63's client (Lazurio/hermes-agent `v0.22.4-lazurio.3`); the Platform never writes either
+   file. Everything shown is read live from Hermes on each `GET /api/buddy`.
+
+   | Operation | Hermes's writer |
+   | --- | --- |
+   | Připojit | `PUT /api/messaging/platforms/telegram {env: {TELEGRAM_BOT_TOKEN}, enabled: true}` (`hermes_cli/web_routers/messaging.py:975-1035`), then `PUT /api/config` with the quiet keys (point 5; `config_env.py:117-158`), then, where Hermes advertises it, `PUT /api/config {config: {gateway: {unauthorized_dm_pairing_message}}}` with Buddy's words (point 12) |
+   | "Ano, to jsem já" | `PUT /api/env {key: TELEGRAM_HOME_CHANNEL}` (`config_env.py:328-339`), then `POST /api/pairing/approve {platform, request_id}` (`ops.py:91-117`) where Hermes holds a request, then `PUT /api/messaging/platforms/telegram {env: {TELEGRAM_ALLOWED_USERS}}` last |
+   | Odpojit | `PUT /api/messaging/platforms/telegram {enabled: false, clear_env: [TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USERS]}`, `DELETE /api/env {key: TELEGRAM_HOME_CHANNEL}` (`config_env.py:1067-1082`; 404 where there is none) |
+   | the state | `GET /api/messaging/platforms` (`messaging.py:916-931`, its Telegram card) and, while it waits, `GET /api/pairing` (`ops.py:84-88`) |
+   | a change of his persona | `PUT /api/config` with his words again, while his bot is connected from here and the words changed (point 12) |
+
+   `enabled` is written explicitly, so a token saved any other way (Hermes's own wizard, which
+   leaves it implicit) ends the same. `PUT /api/messaging/platforms/telegram` refuses the home
+   channel (a setup-hidden key, `hermes_cli/setup_hidden_env.py:19`), so it goes through
+   `PUT /api/env`, which saves it in the gateway's own process and publishes it to its
+   environment at once (`hermes_cli/config.py:2722, 2787`): the person's first message
+   finds it, where Hermes would otherwise answer "No home channel is set … /sethome"
+   (`gateway/run_turn_prepare.py:551-585`).
+3. **The token.** Its shape is Hermes's own rule (`plugins/platforms/telegram/
+   dashboard_card.py:9`), bounded (1 to 20 digits, a colon, 30 to 200 characters of
+   `[A-Za-z0-9_-]`), checked in the page and again in the core. Then **Telegram itself** says
+   whose token it is (`getMe`, no redirect followed, 10 s) before anything is saved: a token
+   Telegram does not know (401, 404, not a bot) is `token-refused`; no answer, a timeout, its
+   flood limit or any other answer is `telegram-unreachable`; neither saves anything. The
+   reason is Hermes's start: a gateway whose only platform is refused at its start exits
+   with 78 (`gateway/run_startup.py:1450-1453`), which the unit `hermes gateway install`
+   writes parks for good (`RestartPreventExitStatus=78`, `hermes_cli/gateway.py:3282`), and
+   with it Buddy's chat in Lazurio and these very routes, so the person could not even fix the
+   token. getMe also names the bot, which Hermes's card does not. The token is a string of one
+   request's body for one connect: never written by the Platform, logged, journaled, answered
+   or kept in the page (the field is `type=password`, `autocomplete=off`, emptied as it is
+   sent and when the dialog closes).
+   - **F63's client takes a body** for exactly these writes (`gatewayBodyCalls`: the
+     messaging platform, `/api/pairing/approve`, `PUT` and `DELETE /api/env`, `PUT
+     /api/config`), one JSON object of at most 16 KiB, as `application/json` with its exact
+     length; any other call with a body is refused before anything is sent. The rest of F63
+     stays: `node:http` without a proxy, loopback, no `Origin`, a ticket per call, and only a
+     401 (Hermes authenticates before any route runs, so nothing ran) sends the same body once
+     more with a new ticket; nothing else is ever sent twice. This amends F63 point 2 ("a body
+     is never sent"). A failure after the request was handed to Hermes (no answer within the
+     client's 15 seconds, a connection cut, an answer too large) is marked `uncertain`: it may
+     still run there. Nothing listening, a refused ticket and Hermes's own "not ready" answer
+     are clear, since nothing ran (point 13).
+4. **The person's account.** A bot with a token and no allowlist answers an unknown account
+   with Hermes's pairing code and lets nothing through (`gateway/config.py:645`
+   `unauthorized_dm_behavior` "pair", `gateway/authz_mixin.py:716-758`). The page lists the
+   accounts that wrote to it, by Telegram's name (its username, else its full name, as Hermes
+   keeps it), newest first, with a handle of this process (an HMAC of Hermes's request id
+   under a key of the process): never Hermes's request id, never the account's numeric id.
+   Hermes's approval alone is not the end the interim installer leaves: with no allowlist
+   configured it writes neither `TELEGRAM_ALLOWED_USERS` nor the home channel
+   (`gateway/pairing.py:135-162`), so others would keep getting codes and Delegace would find
+   no chat. So "Ano, to jsem já" writes the home channel, then Hermes's own approval, which
+   takes the request off its list (one that expired meanwhile, a 404, leaves nothing to
+   approve), and the allowlist last. The allowlist lets the account in, keeps everyone else
+   out (`allowlist_suppresses_pairing` makes Hermes ignore unknown senders once it exists), is
+   what Delegace reads, and is what the state reads as connected (point 7). So the page says
+   connected only once all three are written. A write that fails before it (Hermes's 500, a
+   gateway that stops) answers `failed` or `unavailable` and leaves the account offered, by
+   Hermes's request or by its approval the allowlist does not name yet, and "Ano" again
+   finishes it without a second approval. (Review of 2026-10-26: the allowlist used to go
+   first, so a failure after it read as connected, hid the account and left no home channel
+   and no approval.) An account Hermes approved earlier and the allowlist does not name (a
+   reconnect, an approval from a terminal) is offered the same way, without a second approval. Two
+   accounts at once: both are listed, "Botovi napsalo víc lidí. Vyberte svůj účet."; once one
+   is allowed, the other gets nothing more (its request expires in Hermes's hour).
+5. **The end state is the installer's** (`buddy-install.sh` 2026-10-26.1): the token, that
+   one account in `TELEGRAM_ALLOWED_USERS`, `TELEGRAM_HOME_CHANNEL` that account's private
+   chat (`:1301-1313`), `platforms.telegram.enabled: true` (`:1809`) and the quiet keys
+   (`:1370-1394`: no tool progress, no long-running heartbeat, no autoraise notice, no warning
+   notifications, no restart notices, and the messages that arrived while the gateway was down
+   kept). The quiet keys are written at the connect, before the restart that reads them; the
+   installer writes the same values on every run, with or without Telegram, so its next run
+   finds them in place. Two deliberate differences, which the Buddy lead kept on 2026-10-26
+   because Lazurio manages those keys for Buddy: the approval sets the home channel even where
+   one is set (the installer keeps one already there), and a person's own value of one of the
+   six quiet keys is replaced at the connect (the installer keeps a user's value).
+6. **One restart, Buddy idle, never in quick succession** (`src/buddy/telegram-restart.ts`).
+   Hermes's writer restarts nothing; the platform shows `pending_restart` until the gateway
+   starts again. A connect and a disconnect owe one restart, and it is F64's: the gateway's
+   unit as systemd holds it, Hermes's `active-work` (no answer counts as busy), `systemctl
+   --user restart`, under F64's apply turn, units reread first and never restarted on when
+   systemd refuses. What is owed is derived as F64 derives it: the Platform's own record
+   `~/.local/state/lazurio/buddy/telegram-changed.json` (0600 in 0700) carries the change's
+   time, and a restart is owed while the gateway's main process started before it. Any start
+   after it settles it, whoever made it, so two Připojit, an Odpojit and a persona change
+   before one restart need that one restart. A restart this owes also waits until the gateway
+   has run two minutes since its last start: Telegram answers a bot that reconnects again and
+   again with its flood limit (on a person's Buddy, after a wizard restarted the gateway
+   several times, polling came back only about three minutes later). It is asked again every
+   15 seconds while it waits, later and later after a failure (30 s, doubled each time, at most
+   15 minutes), and once when the Launchpad starts, where a change was ever recorded. systemd
+   that does not answer (`systemctl --user show` failing or timing out, F64's turn unusable)
+   keeps the restart owed and is asked again the same way, later and later; the idle rule and
+   the two minutes still hold once it answers (review of 2026-10-26: no answer used to drop
+   the restart until the next change). Only a gateway with no unit at all owes nothing, since
+   whoever starts it reads the files then. A connect or a disconnect answers once its change
+   is recorded; the restart runs beside it, so no answer waits for a drain. The page says
+   "Projeví se, až Buddy dokončí, co právě dělá." (connect) or "Odpojí se, až Buddy dokončí,
+   co právě dělá." (disconnect) while it is owed, and while the gateway restarts and cannot
+   be asked, within two minutes of this restart, it stays "Připojuje se…" (or off after a
+   disconnect) rather than "Nepodařilo se ověřit".
+7. **The state** (`telegramStatusOf`, a pure function of Hermes's card): `none` without a
+   token or switched off; `starting` while a restart is owed, and while Telegram connects,
+   retries, was briefly disconnected or never reported: on its way, never an error, so a flood
+   limit or a timeout at first reads "Připojuje se…"; `waiting` once it runs and nobody is
+   allowed, with who asked; `connected` once the allowlist holds anyone; `failed` only for
+   Hermes's fatal states: `refused` (`telegram_auth_error`: Telegram no longer takes the
+   bot), `conflict` (`telegram_polling_conflict`: another program polls the same bot) or
+   `failed`; `unknown` when Hermes cannot be asked. The bot's username is the one getMe gave
+   at the connect, kept beside a sha256 of Hermes's own display-only preview of the token
+   (`telegram-bot.json`, 0600, never the token) and shown only while Hermes still holds a
+   token of that preview; otherwise "Připojeno" alone.
+8. **Odpojit** switches the platform off and clears its token and allowlist through Hermes's
+   writer. As soon as Hermes has the bot off, the bot's record goes and the restart that takes
+   it out of the running gateway is owed, whatever the cleanup after it does; until then the
+   row says so. Then it asks Hermes once to remove the home channel, and nothing asks again.
+   - One Hermes does not remove then (a 500, a gateway that stops, no answer within the
+     client's 15 seconds) stays, and the journal says so (`home-channel` `left`). No reading,
+     connect or approval ever asks Hermes to remove it.
+   - A leftover is inert while Telegram is off. The disconnect answers only after Hermes's
+     writer took the token and the allowlist away and switched the platform off. At
+     `v0.22.4-lazurio.3`, Hermes starts only an enabled platform with a token
+     (`gateway/config.py:666-670`), and its cron delivery and its `send_message` tool refuse a
+     platform that is switched off when no running adapter serves it
+     (`cron/scheduler_delivery.py:1195-1200`, `tools/send_message_tool.py:324-328`). Delegace
+     never reads the home channel: it writes to the chat its drop-in names, else to the first
+     account of the allowlist, which the disconnect cleared
+     (`src/buddy/delegace/delegace:289-307`).
+   - The next approval writes its own home channel over a leftover (point 4).
+   - Why only once: Hermes's `DELETE /api/env` removes whatever is there
+     (`hermes_cli/web_routers/config_env.py:1067-1082`, its body only the key,
+     `hermes_cli/web_models.py:26-28`). A DELETE that timed out here may still run in Hermes
+     later, so a retry could remove a newer approval's home channel. The disconnect's one
+     DELETE cannot: Hermes serves these calls in the gateway's own process (F63), and an
+     approval goes through only once the restart the reconnect owes is done (the next
+     bullet). So the approval reaches a gateway that started after that DELETE was sent; a
+     request the old gateway held either ran before it stopped or never runs.
+   - **"Ano, to jsem já" only after the restart.** The page offers it only then (point 7: a
+     restart owed reads `starting`). A page from before the change, in another tab, still
+     shows it, so the core checks it too. While a restart is owed, by the last change or by a
+     write that ended without a clear answer (point 13), the approval writes nothing and
+     answers Telegram's state as it is, `starting`, which the page shows as „Připojuje se…“.
+     The journal says `approve` `pending` `restart-owed`. Once the restart is done, the same
+     "Ano" goes through. (The Buddy lead, 2026-10-27.)
+   - (Reviews of 2026-10-26 and 2026-10-27: such a failure first answered before the restart
+     was owed, so the running gateway kept polling the old bot. Then a reading retried the
+     DELETE, later under the lock of every change and with a record of its own, and a retry
+     that timed out could still run after a reconnect's approval and erase its home channel.)
+   - Hermes's pairing store keeps its approvals, so a reconnect of the same account needs one
+     confirmation and no new Start. The installer's next run finds no Telegram and does not
+     ask for a token.
+9. **Delegace** (#607, #627) needs nothing more: it reads `TELEGRAM_ALLOWED_USERS` from
+   `~/.hermes/.env` on every notice (`telegram_target`), so a Telegram connected later reaches
+   its Kanban card and its last resort at the next round, with no restart of
+   `delegace.service`; the installer starts that service with or without Telegram. Which
+   conversation a notice goes to (#627) is the fork's overlay at `v0.22.4-lazurio.3`
+   (`gateway/lazurio_buddy_channel.py`). After Odpojit its Telegram notices wait again, as on
+   an Environment without Telegram (#607 stays open for the web's fallback).
+10. **Routes and journal.** `POST /api/buddy/telegram/connect {token, intent?}`, `…/approve {request}`
+    and `…/disconnect {}` behind F63's admission (the hosted same-origin rule for every POST,
+    exact fields, 16 KiB, 415, 405, no query): 400 `invalid-token` or `invalid-request`, 409
+    `blocked` `request-gone` or `superseded`, 400 `invalid-intent`, 503 `buddy-unavailable`
+    with the gateway's reason, otherwise `{kind: "telegram", state, reason?, bot?, botQr?,
+    requests?, pending?, held?, retry?, intent?}` or `failed {reason: token-refused |
+    telegram-unreachable | failed}` (`held`, `retry` and `intent`: point 13; `intent` only in
+    the answer to the page whose connect waits, never in a reading). `GET /api/buddy` names
+    `telegram` the same way. The journal (`scope: "buddy-telegram"`) names the operation
+    (`connect`, `approve`, `disconnect`, `restart`, `pairing-text`, `home-channel`), the
+    outcome and the reason: never the token, a preview, an account, a name, Buddy's words, a request or a
+    handle. Hermes's own words (`message`, `error_message`, `detail`) never leave the core.
+11. **Words.** Nastavení and Připojit Telegram speak in Lazurio's voice (root decision 0199);
+    the last screen of "Seznamte se s Buddym" stays in Buddy's (F65). No line names Hermes, a
+    gateway, pairing or a restart; "token" only as BotFather says it to the person. The "?" of
+    Nastavení → Buddy gets a third stop, Kanály.
+12. **His words to an account his bot does not know yet.** At the tag, Hermes answers the
+    person's Start with its developer copy, in English whatever Buddy speaks: "If you run this
+    bot, open a terminal and run: `hermes pairing approve telegram <code>`"
+    (`locales/en.yaml:863`, `gateway/run_inbound_unauthorized.py:40-46`). Lazurio/hermes-agent#19
+    (merged as 5a91c801 and released in `v0.22.4-lazurio.4`, overlay row "pairing: a
+    configured text replaces the reply that gives an unknown sender its code") lets `unauthorized_dm_pairing_message` in `config.yaml` replace that one
+    reply. Hermes reads the key when it replies, so a change needs no restart, and it records
+    the request exactly as before, so the page still lists it. A ready gateway advertises the
+    row as `lazurio-pairing-message-v1` in its `identify`.
+    - The words are Buddy's, in his name and address and the Folder's language, as his
+      SOUL.md (`buddyTelegramPair`): „Dobrý den, tady Rex. Potvrďte prosím v Lazuriu, že jste
+      to vy, a pak mi napište znovu.“ (vy), „Ahoj, tady Rex. Potvrď prosím v Lazuriu, že jsi
+      to ty, a pak mi napiš znovu.“ (ty), "Hi, this is Rex. Please confirm in Lazurio that
+      it's you, then write to me again." They carry no code, no command and no Hermes. Buddy
+      and vy stand in where no persona can be read.
+    - They ask the person to write again because Hermes says nothing when the page approves:
+      `POST /api/pairing/approve` only writes its pairing store and answers
+      (`hermes_cli/web_routers/ops.py:91-117`). The page then says "Hotovo. Napište Buddymu do
+      Telegramu."
+    - The connect writes them after the quiet keys, through Hermes's own config writer, in the
+      `gateway:` section. Hermes reads its sibling `unauthorized_dm_decline_message` there too,
+      after the top level (`gateway/config_loader.py:108-112`), and it exports every top-level
+      scalar of `config.yaml` into the gateway's environment (`gateway/run.py:2075-2077`). A persona applied from the Launchpad
+      (Začínáme, Nastavení → Buddy, or a refresh it owes) writes them again while the bot's
+      record says it was connected from here, and only when the words changed. That write never
+      holds the apply up, and restarts nothing unless it ends without a clear answer (point
+      13).
+    - **Feature detection.** F63's client takes a `capability` a call needs: a gateway whose
+      `identify` does not list it is not asked (`outdated`), as `requireContract` does for the
+      sign-in. An older Hermes (`v0.22.4-lazurio.3` lists none) therefore gets no write and
+      keeps its own reply, and the connect works the same. A refusal, a gateway that cannot be
+      asked, or words that cannot be read change nothing else either. The journal says which:
+      `pairing-text` `written`, `outdated`, `failed`, `unavailable` with the gateway's reason,
+      or `unknown`.
+13. **A write without a clear answer holds every Telegram change until its restart.** Hermes
+    runs a write in a thread of the gateway (`scoped_to_thread`,
+    `hermes_cli/web_routers/config_env.py:328-349`), and the client giving up does not stop it. So a write that timed out may still run later, after a
+    newer one. For example, an approval's home channel for account A could land after account
+    B was approved on the same gateway, so the allowlist names B and the home channel A while
+    the state reads connected (the reviewer's finding of 2026-10-27).
+    - Every Telegram write the core makes is covered: the connect's token, quiet keys and
+      words, an approval's home channel, Hermes's approval and the allowlist, a persona's
+      words, and the disconnect's off write. When one ends `uncertain` (point 3), the core
+      records a restart as owed through F64's controller (point 6), as a change does, and the
+      controller holds a **barrier** until that restart. The journal says `restart-owed` with
+      the reason.
+    - The restart ends the gateway that may still run it: such a write either ran before that
+      gateway stopped or never runs.
+    - **One barrier for every change; the latest intent is kept** (the Buddy lead, 2026-10-27,
+      on the reviewer's Platform #674: a disconnect after a connect whose token write timed out
+      went to Hermes, the old token write landed after it, and the restart brought the bot
+      back). While the barrier holds, Připojit, "Ano, to jsem já", Odpojit and his words send
+      nothing to Hermes. Hermes reads `.env` and `config.yaml` only when the gateway starts, so
+      no change would reach the running bot before that restart anyway: the barrier costs the
+      person no time, it only orders the writes.
+      - Připojit answers `starting` with `held` („Připojuje se…“) and an id of that connect:
+        random, not derived from the token, given only to the page that asked and never in a
+        reading. Only that page keeps the token, in its memory, as before, with the id, and
+        it sends both once more when a reading says `retry`. The Launchpad says `retry` for
+        ten minutes after the barrier lifts; until its follow-up has run, the reading stays
+        `held`. In the change queue the core takes the token again only with the id of the
+        connect that is still the latest change, and only once: a retry taken is spent, even
+        if Telegram or Hermes then refuses it. A newer Připojit or Odpojit, whether it goes
+        through or not, or an approval that writes ends that connect, and so do the ten
+        minutes. A retry that comes while the connect still waits keeps it waiting with the
+        same id; any other is refused, 409 `superseded`, and its page forgets the token
+        quietly. (The reviewer's Platform #676: one `retry` for every page and a retry that
+        carried only the token let an older tab's retry undo a newer connect or disconnect.)
+        A reading without `retry` (a later Odpojit, the ten minutes gone) and closing the
+        dialog forget the token too. The Platform still never writes, logs or returns it.
+      - Each visit of the dialog has an identity. Closing it ends the visit and forgets its
+        token, and an answer that comes after (the first Připojit's or a retry's, or an
+        approval's) keeps no token, moves no step, shows no line and sends nothing (the
+        reviewer's Platform #677: a `held` answer after the close restored the token, and
+        the next visit sent it).
+      - Odpojit records its intent in `telegram-intent.json` (0600 in Buddy's 0700 state
+        directory; `{schema_version, intent: "disconnect", at}`, no secret) and answers `none`
+        with `pending` („Odpojí se, až Buddy dokončí, co právě dělá.“). Once the barrier lifts,
+        the controller's follow-up makes it once: the off write, the one home-channel DELETE
+        and the restart that owes. Then the file goes. Hermes not ready yet asks it again later
+        and later (15 seconds, doubled, at most 15 minutes). Hermes refusing it drops the
+        intent, and the page shows Telegram as Hermes has it, with Odpojit. The file outlives a
+        Launchpad restart, whose start asks the follow-up once.
+      - The latest intent wins. A later Připojit replaces a disconnect that waits (the file
+        goes, and a connect made ends it too); a later Odpojit replaces a connect that waits,
+        and the page is never asked for that token. "Ano, to jsem já" is no intent: it writes
+        nothing while the barrier holds or a disconnect waits, and answers the state.
+      - His words wait too, and the lift writes the current ones again where his bot is
+        connected from here; the next connect writes them anyway.
+    - **The lift.** The barrier lifts only once the gateway that took the write is gone: a
+      restart made, a gateway found started after the write's own record
+      (`telegram-uncertain.json`, written at the write's end, before anything else), or one
+      found stopped. It never lifts while systemd is still stopping the gateway (its process
+      may still run the write), and never by an attempt that began before a later change or
+      write in doubt: the attempt that one asks for decides. The record keeps the barrier and
+      its restart across a Launchpad restart.
+    - The disconnect's one DELETE needs nothing more: its restart is owed before it is sent
+      (point 8), and only an approval could conflict with it, which waits for that restart.
+    - A gateway without a systemd unit is the exception: no restart is owed there and the
+      barrier lifts at once, so there is no such guarantee (the limits below).
+    - **Future option, not now:** a conditional or ordered write in Hermes. A fork overlay
+      would give each write the gateway's per-process write sequence, and Hermes would refuse
+      one older than the last it took. A late write would then be harmless without a restart,
+      and the barrier could go. Not now: `v0.22.4-lazurio.4` has just shipped (the Buddy lead,
+      2026-10-27).
+    - Every pair of a write in doubt and a later change, before its restart:
+
+      | Write in doubt, then | What the barrier does | What the person sees |
+      | --- | --- | --- |
+      | Připojit, then Odpojit (#674) | Nothing goes to Hermes; the disconnect is kept on disk. The late token write may still land in the old gateway; after the restart the follow-up makes the disconnect over it | Nepřipojeno, „Odpojí se, až Buddy dokončí, co právě dělá.“, then Nepřipojeno |
+      | Odpojit, then Připojit | Nothing goes; the connect replaces the disconnect (its file goes). After the restart the page is asked (`retry`) and sends the token once | „Připojuje se…“, then Čeká na vaši zprávu |
+      | Připojit, then Připojit (another tab) | Nothing goes; the latest connect is the one the page sends after the restart | „Připojuje se…“ |
+      | Odpojit, then Odpojit | Nothing goes; one intent, made once | „Odpojí se…“ |
+      | "Ano", then "Ano" (the same or another account) | Nothing is written. After the restart the account is still offered, and "Ano" goes to the new gateway, which no late write of the old one reaches | „Připojuje se…“, then "Je to váš účet …?" |
+      | "Ano", then Odpojit | Nothing goes; the disconnect is made after the restart and clears the allowlist and the home channel a late approval write left | „Odpojí se…“, then Nepřipojeno |
+      | Odpojit, then "Ano" | Nothing is written, also after the restart while the disconnect waits | „Odpojí se…“, then Nepřipojeno |
+      | Připojit, then "Ano"; "Ano", then Připojit | Nothing goes; the connect is sent by the page after the restart, and its account asks again | „Připojuje se…“ |
+      | His words (a persona change), then any change | His words are a write like any other: the change waits as in the rows above | as above |
+      | Any write, then his words | Not sent; the lift writes the current words where his bot is connected from here | nothing on the page |
+      | Repeated: another write in doubt during the restart's attempt | That attempt lifts nothing; the one the second write asks for decides | the same line, longer |
+      | Repeated: the restart waits (Buddy busy, two minutes since the last start, systemd not answering or still stopping the gateway, a Launchpad restart) | The barrier waits with it, asked again as point 6 says; the write's record keeps both | the same line, longer |
+      | Repeated: the follow-up's disconnect, Hermes not ready after the restart | Asked again later and later; "Ano" waits; a refusal drops the intent | „Odpojí se…“, or Telegram as Hermes has it, with Odpojit |
+      | Two pages: Připojit in tab A (in doubt), then Připojit in tab B (#676) | B's connect is the latest and ends A's. After the restart only B's id goes on, once; A's retry, before or after B's, is refused | „Připojuje se…“ in both, then B's bot; A's tab forgets its token |
+      | Two pages, then Odpojit after the restart, or kept behind a new write in doubt (#676) | Odpojit ends the connect that could go on: both retries are refused, and the disconnect stands | „Odpojí se…“, then Nepřipojeno |
+      | Any, then the dialog closes before an answer comes (#677) | The visit is over: its answer keeps no token and sends nothing again | the next visit starts afresh |
+
+      `tests/buddy-telegram.test.ts` runs the four writes (Připojit, Odpojit, "Ano", his words)
+      against the four changes, sixteen pairs, with the late write released in the old gateway
+      before the restart.
+
+**Not decided here.** Hermes's reply to a sender it rate-limits (three requests already
+pending) stays its own English. Hermes's card names no bot username; the name getMe gave,
+beside the digest of Hermes's preview, stays (the Buddy lead, 2026-10-26). A Start link with
+a one-time code (the wireframe's `t.me/<bot>?start=<code>`) would need Hermes to take one; not
+now, and "Je to váš účet …?" stays (the Buddy lead, 2026-10-26). The installer and Machines
+(#701) stop taking a token by agents once this is pinned (shaping I-d). Profiles (PR 4).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Hermes's "Create with QR" (`/api/messaging/telegram/onboarding/*`) | Nous Research's service creates a managed child bot and hands its raw token to Hermes: a third party knows the token, and the bot is not purely the person's own (0207); rejected (Q2) |
+| A shared Lazurio bot with a pairing link | Excluded by root decision 0207's addendum of 2026-10-18 |
+| The token relayed by a maintainer into the installer (`--telegram-stdin`) | What this replaces; the option stays for recovery |
+| Save the token and let Hermes find out at its restart | A refused token as the only platform makes the gateway exit 78 and systemd parks it: Buddy's chat and these routes go with it; rejected for Telegram's `getMe` first |
+| Hermes's `POST /api/messaging/platforms/telegram/test` as the check | Reads the running gateway's card and answers `pending_restart` until a restart; it checks no token; not used |
+| Hermes's pairing approval alone | Writes no allowlist where none exists and no home channel: strangers keep getting codes, Delegace finds no chat, Hermes asks the person to `/sethome`; rejected for the allowlist, the home channel, then the approval |
+| `hermes config set TELEGRAM_HOME_CHANNEL` | Another process: the running gateway sees it only at its next `.env` reload, so the first message could get Hermes's "No home channel" notice; rejected for `PUT /api/env` in the gateway's own process |
+| The Platform writing `.env` or `config.yaml` | A second writer of Hermes's own files; rejected |
+| Restart at once, as Hermes's QR apply does | Interrupts Buddy's turn, and quick restarts meet Telegram's flood limit; rejected for idle and two minutes apart |
+| Owe a restart by the times of `.env` and `config.yaml` | Every writer of those files (Hermes itself, the installer) would restart Buddy; rejected for the Platform's own record of its own changes |
+| A restart owed only in the Launchpad's memory | Lost with a Launchpad restart (an update); rejected for the record, taken up at start |
+| The restart inside F64's persona apply and its controller | The names' "Projeví se…" line would show for a Telegram change; rejected for a controller of its own over F64's pieces and under F64's turn |
+| Hermes's request ids or the account's id in the page | Hermes's own handles in the browser (F63 rejected the same for the sign-in); rejected for per-process HMAC handles and names only |
+| The bot's username in a Launchpad copy shown whatever Hermes holds | Would name a bot another token replaced; rejected for the name beside a digest of Hermes's live preview |
+| Revoke Hermes's pairing approvals at Odpojit | A reconnect of the same account would need a new Start; kept, and offered for one confirmation |
+| Keep the allowlist and the home channel at Odpojit | Another account could never pair (the allowlist silences pairing), and the installer's next run would stop for a missing token; rejected |
+| Hermes's reply to the Start as it is | Tells the person, in English, to run a command in a terminal; rejected for Buddy's words through the fork's key (point 12) |
+| `unauthorized_dm_behavior: decline` with its configurable message | Answers without recording a request, so the page would have nothing to approve; rejected |
+| Hermes's locale overlay (`$HERMES_HOME/locales/<lang>.yaml`, `agent/i18n_layers.py`) | Keyed by the gateway's language, not Buddy's; no dashboard writer, so the Platform would write Hermes's files; cached for the process; rejected |
+| Write the key whatever Hermes advertises | An older Hermes keeps a key nothing reads, and the journal could not say why the person still reads Hermes's reply; rejected for the capability |
+| The key at the top level of `config.yaml` | Hermes exports top-level scalars into the gateway's environment; rejected for the `gateway:` section |
+| Clear the words at Odpojit | They are read only for an unknown account's code, and only while Telegram runs; kept, so a reconnect writes them again anyway |
+| The allowlist first at "Ano, to jsem já" | A failure after it read as connected, hid the account, and left no home channel and no approval; rejected for the allowlist last |
+| Owe the disconnect's restart after its cleanup | A failed cleanup answered before the restart was owed, so the running gateway kept polling the old bot; rejected for the restart owed as soon as the bot is off |
+| A reading that retries the DELETE of a home channel a disconnect left (a record of the Platform's, under the lock of every change, checked again before it) | A retry that times out on the client may still run in Hermes after a reconnect's approval and erase its home channel; no check before it and no longer timeout closes that. Rejected (the Buddy lead, 2026-10-27, on the reviewer's finding): the disconnect asks once, and the next approval writes over a leftover |
+| A DELETE conditional on the value it expects | Would close any late DELETE in Hermes itself, but its writer takes only the key (`hermes_cli/web_models.py:26-28`): a fork change, not taken now; the one DELETE cannot overtake an approval (point 8) |
+| Leave the home channel at Odpojit without asking | Inert while Telegram is off, but a reconnect's restart attaches it to the new bot until the approval (`plugins/platforms/telegram/gateway_env.py:18`); rejected for one DELETE in the disconnect's own flow, and a leftover only where Hermes did not remove it |
+| Drop the restart when systemd does not answer | Lost until another change or a Launchpad restart; rejected for keeping it owed and asking later and later |
+| A conditional or ordered write in Hermes (the value it expects, or a sequence number it checks) | Would make a late write harmless in Hermes itself, but its writers take neither: a fork overlay with a per-process write sequence for every writer. The future option, not taken now (`v0.22.4-lazurio.4` has just shipped); the barrier and its restart reach the same with what exists (point 13) |
+| The barrier only at "Ano, to jsem já" | A disconnect after a connect in doubt went to Hermes and the late token write undid it (#674), and a late off write could undo a new connect; rejected for one barrier for every change |
+| Refuse every change while a write is in doubt | Correct, but the person would have to come back and press again; rejected for keeping the latest intent |
+| The Platform keeps the waiting connect's token to send it after the restart | A token on the server beyond one connect; rejected for the page's memory and `retry` |
+| One `retry` for every page, the retry carrying only the token | Every waiting page resends, and the core cannot tell an older tab's retry from a new Připojit: it undid a newer connect or disconnect (#676); rejected for the id of the latest connect, taken once in the change queue |
+| An id derived from the token (its digest) | Names the bot, not the intent: two connects of the same token, or a token pasted again, could not be told apart, and a value from the secret would leave the core; rejected for a random id |
+| Keep the waiting connect across a Launchpad restart (its id on disk) | Its token lives only in the page, which reconnects to a new Launchpad process anyway; not now: after a Launchpad restart its retry is refused and the person connects again |
+| Make the disconnect that waits before the restart | Only Hermes's writers write its files, and the running gateway is the one that may still run the late write; rejected for the follow-up after the restart |
+| Lift the barrier when systemd reports the gateway not running | A gateway systemd is still stopping may finish the write; rejected for asking again until it has stopped |
+| A longer timeout | Hermes may hold a write longer than any timeout, and the page would wait that long; rejected |
+| Serializing only the HTTP exchange (the core's lock) | The lock is let go when the client gives up, while Hermes may still run the write; rejected for the restart an uncertain write owes |
+
+**Verified by** `tests/buddy-hermes-gateway.test.ts`: a named write carries its JSON body as
+`application/json` with its exact length and the same grant (one ticket, no `Origin`, no
+cookie); every other call none; a body for any other call, an array or more than 16 KiB is
+refused before anything is asked, and 16 KiB exactly goes; a 401 sends the same body once more
+with a new ticket, a second 401 is `refused`, a 500 and a timeout are never sent again;
+`HTTP_PROXY` never sees a body (a process of its own). `tests/buddy-telegram.test.ts`, against
+the stand-in for Buddy's gateway whose Telegram is derived from Hermes's code at
+`v0.22.4-lazurio.3` (95e80b77, `tests/fixtures/fake-hermes-gateway.ts`, not recorded): the state
+table, Telegram's waits read as on its way and a restart owed as `starting`; the card only as
+Telegram's; a connect that asks Telegram first and then sends exactly the token and `enabled`,
+the quiet keys, and asks one restart; a token of another shape, one Telegram does not know and
+Telegram not answering saving nothing; Hermes's refusal, failure and absence as closed reasons
+with its words nowhere; the bot's name only while Hermes holds a token of its preview; two
+accounts asking, handles of the page's own, the approval's writes in order and the installer's
+end state (that account allowed and its chat the home channel, a later stranger getting
+nothing); a request gone writing nothing; an earlier approval offered and completed without a
+second; the disconnect's writes; one operation at a time; getMe's answers (a bot, 401, 404, not
+a bot, 429, 500, no JSON, a redirect to a bot, a name of no shape, an answer too large, a
+timeout, nobody listening), the token only in the path. In every one, neither the token, an
+account, a request id nor Hermes's words appear in an answer or the journal. A gateway that
+cannot be asked while the restart runs, and right after it, reads as on its way (or off after
+a disconnect), and as unknown before anything was asked or after the two minutes. Buddy's
+words (point 12): written by the connect, in the `gateway:` section beside the quiet keys,
+where the stand-in advertises the capability, and the person's Start answered with them;
+never asked of a gateway that does not advertise it, whose own reply with its command stays;
+a refusal and words that cannot be read journaled, the connect the same; after a persona
+change written again only while connected from here and only when they changed; F63's client
+sending a call that names a capability only to a gateway that lists that exact text. A write
+of "Ano, to jsem já" refused (500) at the home channel, at Hermes's approval or at the
+allowlist, or a gateway draining at the allowlist, claiming nothing and leaving the account
+offered, then "Ano" again finishing it without a second approval; a request expiring between
+the list and the approval (404) leaving the account allowed. The reviewer's regression: a
+disconnect's home-channel DELETE that Hermes holds past the client's timeout, the restart
+already owed and the bot's record gone before Hermes answers it, the disconnect answering all
+the same with the home channel journaled as left, readings while Telegram is off asking
+nothing, then a reconnect, its restart and the approval of another account, then the held
+DELETE released with its gateway stopped: the new account's home channel stays and only one
+DELETE ever reached Hermes. A home channel Hermes refuses to remove (500) staying while no
+reading asks again, with or without a token saved elsewhere, and the next approval writing
+over it. Both fail on the code with a reading's retry. An approval from a page from before a
+second Připojit, while its restart is owed, writing nothing and answering `starting`, then
+going through after the restart; it fails without the check. The reviewer's second race: account
+A's home channel held by Hermes past the client's timeout owing a restart, account B's approval
+before it writing nothing and answering `starting`, then after the restart B approved, with the
+allowlist and the home channel both B, and A's held write never running. A connect whose token
+Hermes holds past the timeout owing a restart that "Ano" waits for. Both fail on the code before
+the rule. `tests/buddy-hermes-gateway.test.ts`: no answer in time, a connection cut after the
+request and an answer too large are `uncertain`; nothing listening, Hermes's own "not ready"
+and a refused ticket are not. The barrier (point 13), in `tests/buddy-telegram.test.ts`:
+the reviewer's #674 sequence (a connect's token write held past the client's timeout, Odpojit
+writing nothing and kept on disk at 0600, the held write released and landing in the old
+gateway, the restart, and the end state disconnected by the follow-up, its file gone); the
+inverse (a disconnect's off write in doubt, Připojit writing nothing and replacing it, the
+late off write landing, and after the restart the page asked once, the connect going, `retry`
+gone); his words held and the latest ones written after the restart; the sixteen pairs of
+the table; a lift between a connect's look at the barrier and its keeping the connect, still
+answered `held` and the page asked after it; a reading between the lift and the follow-up
+still `held`; a disconnect that waits while Hermes is not ready, "Ano" writing nothing, then
+made once when asked again; one Hermes refuses, dropped. `tests/buddy-telegram-restart.test.ts`:
+the barrier blocked, kept on disk at 0600, lifted by the restart and the follow-up asked once;
+a write in doubt during an attempt not lifted by it; the follow-up asked again after 15 s,
+then 30 s; a Launchpad that starts with only the write's record restarting and lifting it; one
+without a barrier asking the follow-up once; a gateway systemd is still stopping holding it
+until it has stopped; repeated writes in doubt, each lifted once, one by a restart F64's
+apply made.
+`tests/buddy-view.test.ts`, `tests/buddy-client.test.ts`, `tests/buddy-telegram-dialog.test.ts`:
+`held` and `retry` read only as true, a held answer its own result, and the dialog keeping the
+token in memory, sending it once on `retry`, keeping it while it waits again, and forgetting it
+without `retry`, on close and after a refusal. The id (#676 and #677): in
+`tests/buddy-telegram.test.ts`, two pages with two tokens (A's write in doubt and landing late,
+B the latest), the readings carrying no id, then A's retry refused before B's, B's going on
+once, and A's and B's again, in either order, refused, B's bot staying; the same two pages
+after a disconnect, both refused and nothing back; and with the disconnect kept behind a new
+write in doubt (his words), both refused and the disconnect made; a retry while its connect
+still waits keeping it with the same id; a fresh connect after the restart, an approval that
+writes and the ten minutes each ending it; a retry taken and then not answered by Telegram,
+an Odpojit Hermes refuses and a Připojit Telegram refuses each ending it too. In `tests/buddy-telegram-dialog.test.ts`, the
+reviewer's probe: two real dialogs as two tabs against the real core and the stand-in for
+Buddy's gateway, A's token write held past the client's 1 s, B's connect waiting behind it,
+A's old write landing, the restart, then B's reading first (B connects, or B disconnects) and
+A's older reading delivered late: A's retry refused, B's outcome staying, neither tab sending
+again. The dialog: the retry carrying the id its held answer gave; a superseded answer
+forgetting the token quietly; a close before the first answer and before a retry's answer
+each leaving exactly the calls already made and nothing after the dialog opens again; a
+visit opened again while an old answer is on its way sending anew; an approval answered after
+the close neither holding up "Ano" nor showing its line. `tests/buddy-client.test.ts`: the id
+sent with the token, a held answer with a valid id held and without one saved, `superseded`
+its own result. `tests/launchpad-buddy.test.ts`: `intent` taken only as 32 hex digits (400
+`invalid-intent`), an extra field 400, and an id no connect waits under refused 409
+`superseded` before Telegram or Hermes is asked.
+`tests/buddy-telegram-restart.test.ts`: one restart while idle and none owed after; busy and
+no answer waiting, two changes needing one restart; two minutes after any start; a start by
+anyone settling it; a stopped gateway and a gateway with no unit owing nothing; systemd not
+answering keeping the restart owed, asked again after 30 s, then twice as long each time and
+at most every 15 minutes, and once it answers still waiting for Buddy to be idle and for the
+two minutes; the Launchpad's start taking it up; F64's turn held; units reread first and a
+refused reread restarting nothing; refused restarts asked later and later. `tests/launchpad-buddy.test.ts`: the routes over HTTP (connect,
+the person's Start, approve, 409, disconnect, with the journal's exact lines and no secret in
+any of them, his words in Czech and ty for his persona at the connect, the person's Start
+answered with them, and his words again after a persona change from the page),
+token-refused and telegram-unreachable saving nothing, 503 without the gateway,
+and the admission, exact fields, 400s, 405 and 404 `buddy-absent` of F63 for the three new
+routes. `tests/buddy-view.test.ts`, `tests/buddy-client.test.ts`, `tests/buddy-voice.test.ts`
+and `tests/first-run-buddy.test.ts`: the row, the dialog's steps, the step's optional part, the
+client's operations and its reading every 4 s while Telegram starts or waits, the words (vy,
+no mechanism, "token" only as BotFather says it) and the third "?" stop. **Mutation checks:**
+each of 30 guards removed or loosened fails a test: the body only for named writes, its bound,
+its object, its content type, the same body after a 401, no second send of a failed write;
+Telegram's word first, the token's shape first, `enabled` explicit, the quiet keys, the journal
+without the token, the opaque handle, the allowlist and the home channel at the approval, the
+allowlist cleared at a disconnect, a restart owed read as `starting`, Telegram's waits never an
+error, the bot's name tied to the preview, getMe's refusal and its refused redirect; the
+two-minute spacing, no answer as busy, F64's turn, the reread before the restart, the derived
+owing, the record's time; the page's handles only, the waiting line, the 4 s reading and the
+route's handle check. For the barrier, each of 25 more guards removed or loosened fails a
+test: Odpojit and Připojit going to Hermes while it holds, the intent not kept or not made, a
+held connect leaving the disconnect, `retry` never said, a connect made not ending what
+waited, "Ano" while a disconnect waits, a refused disconnect kept, the follow-up outside the
+queue, a reading between the lift and the follow-up not `held`, the words sent, an attempt
+lifting a barrier raised during it, a stopping gateway lifting it (and read as stopped), the
+write's record owing nothing or ignored at start, the barrier not read back, no follow-up or
+no second ask, and the page's `held`, `retry` and close rules. For the id and the dialog's
+visits, each of 22 more: a retry taken whatever its id, its id not compared, not consumed, a
+disconnect, an approval that writes or a fresh connect not ending it, its time not checked, a
+held answer without its id, a retry while its connect still waits refused, a disconnect kept
+behind a new barrier leaving it; the route dropping the id or taking any shape; the client
+calling an answer without a valid id held, a superseded retry a failure, or sending no id;
+the dialog sending the retry without its id or keeping a superseded token; the first send's,
+a retry's or an approval's answer taken after its visit closed, and a close that does not
+end the visit or leaves its send blocking the next. In a browser, the worktree's personal
+preview with the stand-in
+(`scripts/preview-launchpad.ts personal cs <port> owner buddy`, which now serves Buddy's
+gateway stand-in and a stand-in for Telegram's answer) in headless Chrome at 1440 and 390 px,
+light and on a dark device: the last screen of "Seznamte se s Buddym", the three steps, a wrong
+paste refused in the page, Připojuje se…, waiting for Start, one account asking, approved,
+Nastavení → Buddy not connected, waiting and connected, and Odpojit; no error of the page.
+
+**Honest limits.**
+- No real Hermes gateway, Telegram or Osobní Prostředí ran: Hermes's Telegram answers are
+  derived from its code, not recorded. The acceptance is Ring 0 (root decision 0204) after a
+  release: a real bot, the person's Start, the approval, a message both ways, Delegace's
+  notice on Telegram, and Odpojit.
+- The Launchpad asks Telegram's Bot API directly for `getMe`, with Bun's `fetch` and the
+  process's proxy settings; an Environment that reaches Telegram only through
+  `TELEGRAM_PROXY` cannot connect here.
+- Buddy's words reach the person only once a Hermes release with Lazurio/hermes-agent#19
+  (`v0.22.4-lazurio.4` or later) is pinned. Until then, and on any older Hermes, the person reads Hermes's English reply with
+  its command, and the page asks the same question. A persona changed outside the Launchpad
+  (`lazurio buddy persona --apply` alone) rewrites them only at the next connect or the next
+  apply in the Launchpad.
+- The bot's name is lost where the record is (another account, a moved home); "Připojeno"
+  then stands alone.
+- A refused restart of the gateway leaves the change owed and retried; a gateway whose
+  Telegram is refused later (a token revoked at BotFather) is "Telegram tohoto bota už
+  nepřijímá" until the person connects it again.
+- Two tabs are one Launchpad: its operations run one at a time, and its restart under F64's
+  turn. No CLI changes Telegram.
+- A write that ended without a clear answer, the disconnect's one DELETE among them, may
+  still run in Hermes after the client gave up on it. It ends with the gateway that took it, at
+  the restart it owes (points 8 and 13), and no change goes on before that restart. Only a
+  gateway without a systemd unit, where no restart is ever owed, is outside this. Only writes
+  that take the sequence or the value they expect (the future option of point 13) would cover
+  that too.
+- While the barrier holds, every change waits as long as the restart does: Buddy idle and two
+  minutes after the gateway's last start. A connect that waits lives in the page's memory
+  only, and its id in the Launchpad's: closing the dialog, ten minutes after the lift, a
+  newer change, or a Launchpad restart forget it, and the person connects again. A Připojit
+  that Telegram or Hermes then refuses has still ended an older connect that waited. A disconnect that waits is made only after the
+  restart, so a late token write can bring the bot back for the time between that restart and
+  the next one the disconnect owes; the page says „Odpojí se…“ until then. Where Buddy's state
+  directory cannot be written, the barrier holds in the Launchpad's memory only, until it
+  restarts.
+- A home channel a disconnect could not remove stays. Until the restart the disconnect owes,
+  the old bot still runs, as after every disconnect, so a home-channel delivery of Hermes (a
+  cron job's) could still reach the person's own chat then. After a reconnect and its
+  restart, and until "Ano, to jsem já", Hermes's home-channel deliveries target the previous
+  account's chat, which Telegram refuses unless that account started the new bot.
+- The page is light only (the design system has no dark UI yet): a dark device shows it light,
+  with a theme's own colours where the Environment chose one.

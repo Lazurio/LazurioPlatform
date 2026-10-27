@@ -20,10 +20,13 @@ import {
 import { type CdpCall, cdpSeams, ensureThreadWindow } from "../browser/window";
 import { createFirstMeeting } from "../buddy/first-meeting";
 import { createHermesGateway } from "../buddy/hermes-gateway";
+import { readPersona } from "../buddy/persona";
 import { buddyPersona as applyBuddyPersona } from "../buddy/persona-apply";
 import { createPersonaSave } from "../buddy/persona-save";
 import { createBuddySignIn } from "../buddy/sign-in";
 import { buddyStatus, readBuddyFacts } from "../buddy/status";
+import { type BotChecker, createBuddyTelegram } from "../buddy/telegram";
+import { createTelegramRestart } from "../buddy/telegram-restart";
 import { createPersonalspaceHolder } from "../content/holder";
 import {
   type ContentHost,
@@ -132,11 +135,13 @@ import {
 } from "../update/everything";
 import { embeddedIdentity } from "../update/identity";
 import { runProcess } from "../update/self-check";
+import { serviceEnvironment } from "../update/service-control";
 import type { VaultHost } from "../vault/flow";
 import { enableVaultForAgents, processVaultHost } from "../vault/host";
 import type { LaunchpadBoot } from "./boot";
 import { launchpadBoot, vaultInAppsOf, withBoot } from "./boot-document";
 import { createBuddyRoutes } from "./buddy-routes";
+import { telegramPairingLine } from "./buddy-view";
 import { createCatalogReading, organizationsOnly } from "./catalog-reading";
 import {
   asksForBuddy,
@@ -247,6 +252,10 @@ import { createVaultRoutes, isVaultJob, vaultRoutePaths } from "./vault-routes";
 /** Test seam for the hosted admission: the auth-endpoint fetcher and clock. */
 export type HostedOptions = Readonly<{
   fetcher?: AuthFetcher;
+  /** Telegram's word on a bot's token before Buddy's Hermes saves it
+   * (decision F66): by default its Bot API (`getMe`). Trusted composition,
+   * never HTTP input; tests and the preview supply their own. */
+  telegramBot?: BotChecker;
   now?: () => number;
   /** How long the gateway's `ensure` waits for a started app to report
    * healthy (default `ensureWaitMsDefault`). */
@@ -1185,6 +1194,51 @@ export async function startLaunchpad(
   // operation, the outcome and the reason, never a code, a handle, a ticket
   // or Hermes's session.
   const buddyGateway = createHermesGateway({ home: toolsEnvironment.home });
+  // His Telegram (decision F66): his own bot from BotFather, connected
+  // through Hermes's own writers and read live from Hermes; the restart that
+  // brings a change in is F64's, made once he is idle, at most once in two
+  // minutes, and taken up again when the Launchpad starts. Its journal never
+  // names the token, an account, a name or a request.
+  const buddyTelegramRestart = createTelegramRestart({
+    home: toolsEnvironment.home,
+    service: {
+      run: toolsEnvironment.run,
+      env: serviceEnvironment(process.env),
+    },
+    journal: (line) =>
+      console.log(JSON.stringify({ scope: "buddy-telegram", ...line })),
+    // What waited for a write in doubt goes on once its restart is made.
+    cleared: (why) => buddyTelegram.cleared(why),
+  });
+  const buddyTelegram = createBuddyTelegram({
+    gateway: buddyGateway,
+    home: toolsEnvironment.home,
+    owed: () => buddyTelegramRestart.owed(),
+    restartedRecently: () => buddyTelegramRestart.restartedRecently(),
+    changed: () => buddyTelegramRestart.changed(),
+    uncertain: () => buddyTelegramRestart.uncertain(),
+    blocked: () => buddyTelegramRestart.blocked(),
+    checkBot: hostedOptions.telegramBot,
+    // His words to an account his bot does not know yet: his persona's name
+    // and address in the Folder's language, as his SOUL.md has them; Buddy
+    // and vy where no persona can be read.
+    pairingText: async () => {
+      const home = toolsEnvironment.home;
+      if (home === undefined) return undefined;
+      const [read, current] = await Promise.all([
+        readPersona(home),
+        withFolderReadLock(state, () => readFolderState(state)),
+      ]);
+      return telegramPairingLine(
+        read.state === "valid"
+          ? read.persona
+          : { buddyName: "", address: "vy" },
+        messages(current.preferences.profile.locale),
+      );
+    },
+    journal: (line) =>
+      console.log(JSON.stringify({ scope: "buddy-telegram", ...line })),
+  });
   // His persona (decision F65): read and changed from Začínáme and
   // Nastavení → Buddy over F64's core, the change applied as `lazurio buddy
   // persona --apply` applies it, and finished here once he is idle. Its
@@ -1195,11 +1249,16 @@ export async function startLaunchpad(
   const buddyPersona = createPersonaSave({
     home: toolsEnvironment.home,
     folder,
-    apply: () =>
-      applyBuddyPersona(
+    apply: async () => {
+      const answer = await applyBuddyPersona(
         { tools: toolsEnvironment, env: process.env },
         { folder, apply: true },
-      ),
+      );
+      // His bot's words to an account it does not know follow the persona
+      // (F66), without holding the apply up.
+      void buddyTelegram.persona().catch(() => undefined);
+      return answer;
+    },
     journal: (line) =>
       console.log(JSON.stringify({ scope: "buddy-persona", ...line })),
     // His first meeting (decision F60's addendum of 2026-10-26): one turn in
@@ -1233,6 +1292,7 @@ export async function startLaunchpad(
     }),
     facts: () => readBuddyFacts(buddyGateway),
     persona: buddyPersona,
+    telegram: buddyTelegram,
     locale: folderLocale,
     headers,
     // His bubble in Chat and Automate reads his step from the shell
@@ -2903,7 +2963,11 @@ export async function startLaunchpad(
   const buddyAtStart =
     entry?.buddyOrigin === undefined
       ? Promise.resolve()
-      : buddyPersona.start().catch(() => undefined);
+      : Promise.all([
+          buddyPersona.start().catch(() => undefined),
+          // A restart his Telegram owed before this start (decision F66).
+          buddyTelegramRestart.start().catch(() => undefined),
+        ]).then(() => undefined);
   // Executor (decision F44, addendum of 2026-10-11, #298): where install and
   // update only report it, this Launchpad sets it up in the background once
   // it listens, through the one setup of Settings → Tools. Never awaited and
@@ -2986,6 +3050,7 @@ export async function startLaunchpad(
       clearInterval(audienceTimer);
       catalog.close();
       buddyPersona.close();
+      buddyTelegramRestart.close();
       if (!closePending)
         closePending = (async () => {
           // Close admission immediately, before waiting for HTTP requests to drain.

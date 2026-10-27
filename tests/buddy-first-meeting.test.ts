@@ -1145,6 +1145,21 @@ test("his routes say when his step changed: a sign-in that finished, a sign-out,
           applied: { state: "applied" },
         }) as unknown as PersonaSaveAnswer,
     },
+    // His Telegram (decision F66) is not asked here.
+    telegram: {
+      read: async () => {
+        throw new Error("not read here");
+      },
+      connect: async () => {
+        throw new Error("not asked here");
+      },
+      approve: async () => {
+        throw new Error("not asked here");
+      },
+      disconnect: async () => {
+        throw new Error("not asked here");
+      },
+    },
     locale: async () => "cs",
     headers: {},
     changed: () => changes.push("changed"),

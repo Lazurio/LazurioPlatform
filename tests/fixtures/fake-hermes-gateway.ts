@@ -29,8 +29,33 @@ import recorded from "./hermes-gateway-v0.22.4-lazurio.1.json";
 // cancellation contract (`contract`, on by default): then it marks it first,
 // and its `identify` advertises the contract (derived from the recorded
 // answer, which has none).
+//
+// Its Telegram (decision F66) is derived from Hermes's code at
+// v0.22.4-lazurio.3 (95e80b77), not recorded: the platform's card of
+// `GET /api/messaging/platforms` (hermes_cli/web_routers/messaging.py:194-277,
+// 916-931), its writer `PUT /api/messaging/platforms/telegram` with the
+// card's own keys and the token's rule (:975-1035,
+// plugins/platforms/telegram/dashboard_card.py:9-24), `PUT` and `DELETE
+// /api/env` (hermes_cli/web_routers/config_env.py:328-339, 1067-1082), `PUT
+// /api/config`'s deep merge (:117-158), and DM pairing (`GET /api/pairing`,
+// `POST /api/pairing/approve`: hermes_cli/web_routers/ops.py:84-117,
+// gateway/pairing.py:153-162, 431-441, 537-575). A message from an account
+// (`telegramMessage`) is paired as the gateway pairs it: a code while no
+// allowlist exists, nothing with one (gateway/authz_mixin.py:716-758), and
+// its reply recorded: upstream's (locales/en.yaml `gateway.pairing.code_reply`)
+// or, where the gateway keeps Lazurio/hermes-agent#19's configurable reply
+// (`pairingMessage`, off by default as at v0.22.4-lazurio.3), the text of
+// `unauthorized_dm_pairing_message` in its config, read when it replies
+// (gateway/lazurio_pairing_message.py at f068a0bd). Its running state is the
+// test's (`state.telegram.runtime`), as a restart would leave it. Every body
+// that arrives is recorded as it arrived.
 
 type Json = Record<string, unknown>;
+
+/** Lazurio/hermes-agent#19 at f068a0bd, `gateway/lazurio_pairing_message.py`:
+ * Hermes's own names, not the client's. */
+const pairingCapability = "lazurio-pairing-message-v1";
+const pairingKey = "unauthorized_dm_pairing_message";
 
 export type ControlRequest = Readonly<{ line: string; value: Json | null }>;
 export type GatewayRequest = Readonly<{
@@ -39,7 +64,37 @@ export type GatewayRequest = Readonly<{
   query: string;
   headers: Readonly<Record<string, string>>;
   peer: string | null;
+  /** The body as it arrived; empty without one. */
+  body: string;
 }>;
+
+/** Buddy's Telegram as the fake's Hermes holds it. */
+export type FakeTelegram = {
+  /** `TELEGRAM_BOT_TOKEN` in `.env`. */
+  token: string | null;
+  /** `platforms.telegram.enabled`; null where config.yaml does not name it
+   * (Hermes then enables a platform with a token). */
+  enabled: boolean | null;
+  /** `TELEGRAM_ALLOWED_USERS`. */
+  allowed: string;
+  /** `TELEGRAM_HOME_CHANNEL`. */
+  home: string | null;
+  /** The running gateway's state of the platform; null: it never
+   * reported (`pending_restart` while enabled and configured). */
+  runtime: string | null;
+  errorCode: string | null;
+  pending: {
+    request_id: string;
+    user_id: string;
+    user_name: string;
+    created: number;
+  }[];
+  approved: { user_id: string; user_name: string }[];
+  /** What `PUT /api/config` merged into config.yaml. */
+  config: Record<string, unknown>;
+  /** What the bot answered each account that got a pairing code. */
+  replies: string[];
+};
 
 export type FakeGatewayOptions = Readonly<{
   /** The socket through a pointer, as for a home too long for a socket. */
@@ -50,6 +105,10 @@ export type FakeGatewayOptions = Readonly<{
   /** Whether it keeps and advertises the cancellation contract (default:
    * yes; the recorded v0.22.4-lazurio.1 does not). */
   contract?: boolean;
+  /** Whether it replies to an unknown account with the configured text and
+   * advertises it (Lazurio/hermes-agent#19; default: no, as
+   * v0.22.4-lazurio.3). */
+  pairingMessage?: boolean;
 }>;
 
 type SignInSession = {
@@ -121,6 +180,21 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
     instance: recorded.control.identify.result.instance_id,
     /** Whether it keeps and advertises the cancellation contract. */
     contract: options.contract !== false,
+    /** Whether it keeps and advertises the configurable pairing reply. */
+    pairingMessage: options.pairingMessage === true,
+    /** Its Telegram: not set up. */
+    telegram: {
+      token: null,
+      enabled: null,
+      allowed: "",
+      home: null,
+      runtime: null,
+      errorCode: null,
+      pending: [],
+      approved: [],
+      config: {},
+      replies: [],
+    } as FakeTelegram,
   };
 
   let apiOrigin = "";
@@ -135,6 +209,7 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
         query: url.search,
         headers: Object.freeze(Object.fromEntries(request.headers)),
         peer: server.requestIP(request)?.address ?? null,
+        body: await request.text(),
       });
       requests.push(recordedRequest);
       const json = (entry: { status: number; body: unknown }) =>
@@ -215,10 +290,285 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
         state.signedIn = false;
         return json(recorded.http.signOut);
       }
+      const telegramAnswer = telegramRoute(
+        request.method,
+        url.pathname,
+        recordedRequest.body,
+      );
+      if (telegramAnswer !== undefined) return telegramAnswer;
       return Response.json({ detail: "Not Found" }, { status: 404 });
     },
   });
   apiOrigin = `http://127.0.0.1:${server.port}`;
+
+  // ---- Telegram, derived from Hermes's code at v0.22.4-lazurio.3 ----
+
+  const telegram = () => state.telegram;
+  const enabledNow = () => {
+    const t = telegram();
+    // An explicit `enabled` wins; otherwise a token enables it
+    // (`_platform_enablement`, messaging.py:180-191).
+    return t.enabled ?? t.token !== null;
+  };
+  const card = () => {
+    const t = telegram();
+    const enabled = enabledNow();
+    const configured = t.token !== null;
+    let runtime = t.runtime;
+    if (!enabled) runtime = "disabled";
+    else if (!configured) runtime = "not_configured";
+    else if (runtime === null) runtime = "pending_restart";
+    const preview = (value: string | null) =>
+      value === null || value === ""
+        ? null
+        : `«redacted:${value.slice(0, 4)}...${value.slice(-4)}»`;
+    return {
+      id: "telegram",
+      name: "Telegram",
+      description: "Run Hermes from Telegram DMs, groups, and topics.",
+      docs_url: "https://core.telegram.org/bots/features#botfather",
+      enabled,
+      configured,
+      gateway_running: true,
+      state: runtime,
+      error_code: enabled && configured ? t.errorCode : null,
+      error_message:
+        enabled && configured && t.errorCode !== null
+          ? `Telegram bot token rejected: Unauthorized. Hermes words ${t.token}`
+          : null,
+      updated_at: null,
+      home_channel:
+        t.home === null
+          ? null
+          : { platform: "telegram", chat_id: t.home, name: "Home" },
+      env_vars: [
+        {
+          key: "TELEGRAM_BOT_TOKEN",
+          required: true,
+          is_set: t.token !== null,
+          redacted_value: preview(t.token),
+          value: null,
+          description: "Telegram bot token from @BotFather",
+          prompt: "Telegram bot token",
+          help: "",
+          url: null,
+          is_password: true,
+          is_list: false,
+          advanced: false,
+        },
+        {
+          key: "TELEGRAM_ALLOWED_USERS",
+          required: false,
+          is_set: t.allowed !== "",
+          redacted_value: preview(t.allowed === "" ? null : t.allowed),
+          value: t.allowed === "" ? null : t.allowed,
+          description:
+            "Comma-separated Telegram user IDs allowed to use the bot",
+          prompt: "Allowed Telegram users",
+          help: "",
+          url: null,
+          is_password: false,
+          is_list: true,
+          advanced: false,
+        },
+      ],
+      ingress_url: null,
+    };
+  };
+  const detail = (status: number, text: string) =>
+    Response.json({ detail: text }, { status });
+  const parse = (body: string): Record<string, unknown> | null => {
+    try {
+      const value = JSON.parse(body) as unknown;
+      return value !== null &&
+        typeof value === "object" &&
+        !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  };
+  const merge = (
+    into: Record<string, unknown>,
+    from: Record<string, unknown>,
+  ) => {
+    for (const [key, value] of Object.entries(from)) {
+      const current = into[key];
+      if (
+        value !== null &&
+        typeof value === "object" &&
+        !Array.isArray(value) &&
+        current !== null &&
+        typeof current === "object" &&
+        !Array.isArray(current)
+      )
+        merge(
+          current as Record<string, unknown>,
+          value as Record<string, unknown>,
+        );
+      else
+        into[key] =
+          value !== null && typeof value === "object"
+            ? structuredClone(value)
+            : value;
+    }
+  };
+  const telegramRoute = (
+    method: string,
+    path: string,
+    body: string,
+  ): Response | undefined => {
+    const t = telegram();
+    if (method === "GET" && path === "/api/messaging/platforms")
+      return Response.json({
+        env_path: `${home}/.env`,
+        gateway_start_command: "hermes gateway start",
+        platforms: [
+          { ...card(), id: "discord", name: "Discord", env_vars: [] },
+          card(),
+        ],
+      });
+    if (method === "PUT" && path === "/api/messaging/platforms/telegram") {
+      const update = parse(body);
+      if (update === null) return detail(422, "Unprocessable");
+      const env = (update.env ?? {}) as Record<string, string>;
+      const clear = (update.clear_env ?? []) as string[];
+      const allowedKeys = new Set([
+        "TELEGRAM_BOT_TOKEN",
+        "TELEGRAM_ALLOWED_USERS",
+      ]);
+      for (const key of [...clear, ...Object.keys(env)])
+        if (!allowedKeys.has(key))
+          return detail(400, `${key} is not configurable for Telegram`);
+      const token = env.TELEGRAM_BOT_TOKEN?.trim();
+      if (token && !/^\d+:[A-Za-z0-9_-]{30,}$/.test(token))
+        return detail(
+          400,
+          "Telegram bot token must be the complete token from @BotFather, such as 123456789:ABC…",
+        );
+      const users = env.TELEGRAM_ALLOWED_USERS?.trim();
+      if (
+        users &&
+        !users
+          .split(",")
+          .every((user) => user.trim() === "" || /^\d+$/.test(user.trim()))
+      )
+        return detail(
+          400,
+          "Telegram allowed users must be comma-separated numeric user IDs.",
+        );
+      for (const key of clear) {
+        if (key === "TELEGRAM_BOT_TOKEN") t.token = null;
+        if (key === "TELEGRAM_ALLOWED_USERS") t.allowed = "";
+      }
+      if (token) t.token = token;
+      if (users) t.allowed = users;
+      if (typeof update.enabled === "boolean") t.enabled = update.enabled;
+      return Response.json({
+        ok: true,
+        platform: "telegram",
+        hot_served: false,
+      });
+    }
+    if (method === "PUT" && path === "/api/config") {
+      const update = parse(body);
+      if (update === null || typeof update.config !== "object")
+        return detail(422, "Unprocessable");
+      merge(t.config, update.config as Record<string, unknown>);
+      return Response.json({ ok: true });
+    }
+    if (method === "PUT" && path === "/api/env") {
+      const update = parse(body);
+      if (update === null || typeof update.key !== "string")
+        return detail(422, "Unprocessable");
+      if (update.key === "TELEGRAM_HOME_CHANNEL") t.home = String(update.value);
+      return Response.json({
+        ok: true,
+        key: update.key,
+        config_updates: [],
+      });
+    }
+    if (method === "DELETE" && path === "/api/env") {
+      const update = parse(body);
+      if (update === null || typeof update.key !== "string")
+        return detail(422, "Unprocessable");
+      if (update.key === "TELEGRAM_HOME_CHANNEL" && t.home !== null) {
+        t.home = null;
+        return Response.json({ ok: true, found: true });
+      }
+      return detail(404, `${update.key} not found in .env`);
+    }
+    if (method === "GET" && path === "/api/pairing")
+      return Response.json({
+        pending: t.pending.map((entry) => ({
+          platform: "telegram",
+          request_id: entry.request_id,
+          user_id: entry.user_id,
+          user_name: entry.user_name,
+          age_minutes: Math.floor((Date.now() - entry.created) / 60_000),
+        })),
+        approved: t.approved.map((entry) => ({
+          platform: "telegram",
+          user_id: entry.user_id,
+          user_name: entry.user_name,
+          approved_at: 1,
+        })),
+      });
+    if (method === "POST" && path === "/api/pairing/approve") {
+      const update = parse(body);
+      if (update === null) return detail(422, "Unprocessable");
+      const platform = String(update.platform ?? "")
+        .toLowerCase()
+        .trim();
+      const target = String(update.request_id ?? update.code ?? "").trim();
+      if (!platform || !target)
+        return detail(400, "platform and request_id or code are required");
+      const found = t.pending.findIndex(
+        (entry) => entry.request_id === target.toLowerCase(),
+      );
+      if (platform !== "telegram" || found === -1)
+        return detail(
+          404,
+          `Pairing request or code not found or expired for platform '${platform}'.`,
+        );
+      const [entry] = t.pending.splice(found, 1);
+      if (entry === undefined) throw new Error("unreachable");
+      t.approved = t.approved.filter((user) => user.user_id !== entry.user_id);
+      t.approved.push({ user_id: entry.user_id, user_name: entry.user_name });
+      // Mirrored into the allowlist only where one is configured.
+      if (t.allowed !== "" && !t.allowed.split(",").includes(entry.user_id))
+        t.allowed = `${t.allowed},${entry.user_id}`;
+      return Response.json({
+        ok: true,
+        user: { user_id: entry.user_id, user_name: entry.user_name },
+      });
+    }
+    return undefined;
+  };
+
+  /** The reply to an unknown account, as Hermes sends it with its code. */
+  const pairingReply = (code: string): string => {
+    const config = state.telegram.config;
+    const section = config.gateway;
+    const configured = [
+      config[pairingKey],
+      section !== null && typeof section === "object"
+        ? (section as Json)[pairingKey]
+        : undefined,
+    ].find((value) => typeof value === "string" && value.trim() !== "");
+    if (state.pairingMessage && typeof configured === "string")
+      return configured
+        .trim()
+        .replaceAll("{code}", code)
+        .replaceAll("{validity}", "1 hour");
+    return (
+      "Hi! I don't recognize you yet, so I can't reply until the person running this bot approves you.\n\n" +
+      `Your pairing code: \`${code}\` (valid for 1 hour)\n\n` +
+      `If you run this bot, open a terminal and run: \`hermes pairing approve telegram ${code}\`. ` +
+      "Otherwise send that command to the bot owner. After approval, send your message again."
+    );
+  };
 
   const reply = (request: Json | null): ControlReply => {
     if (request?.verb === "identify") {
@@ -230,6 +580,11 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
         const listed = result[member];
         result[member] = Array.isArray(listed) ? [...listed, value] : value;
       }
+      if (state.pairingMessage)
+        result.capabilities = [
+          ...(result.capabilities as unknown[]),
+          pairingCapability,
+        ];
       return state.identify === undefined ? answer : state.identify(answer);
     }
     if (request?.verb === "session-ticket") {
@@ -337,6 +692,31 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
       if (session === undefined) throw new Error(`No session ${id}`);
       if (state.contract) session.cancelled = true;
       sessions.delete(id);
+    },
+    /** An account writes to the bot (/start): paired as the gateway pairs
+     * an unknown sender, a request while no allowlist exists and the bot
+     * runs, nothing for an allowed or approved one; at most 3 pending.
+     * Returns the request's id, or null for none. */
+    telegramMessage(userId: string, userName: string): string | null {
+      const t = state.telegram;
+      if (t.runtime !== "connected") return null;
+      if (t.allowed.split(",").includes(userId)) return null;
+      if (t.approved.some((user) => user.user_id === userId)) return null;
+      if (t.allowed !== "") return null;
+      if (t.pending.length >= 3) return null;
+      const id = randomBytes(8).toString("hex");
+      t.pending.push({
+        request_id: id,
+        user_id: userId,
+        user_name: userName,
+        created: Date.now(),
+      });
+      // gateway/pairing.py's alphabet, and the reply it sends with the code.
+      const code = [...randomBytes(8)]
+        .map((byte) => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[byte % 32])
+        .join("");
+      t.replies.push(pairingReply(code));
+      return id;
     },
     /** A restart: every session in its memory is gone with its worker, a new
      * instance. */
