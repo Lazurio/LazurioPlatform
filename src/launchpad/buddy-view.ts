@@ -109,6 +109,11 @@ const telegramStates = new Set([
 const botShape = /^[A-Za-z][A-Za-z0-9_]{4,31}$/;
 const requestShape = /^[0-9a-f]{32}$/;
 
+/** The id of a connect that waits, as the Launchpad gives it to the page
+ * that asked: 32 hex digits; anything else is none. */
+export const telegramIntentOf = (value: unknown): string | null =>
+  typeof value === "string" && requestShape.test(value) ? value : null;
+
 /** Telegram of an answer; any other shape is no claim. A request is taken
  * only with the page's handle of it and a name of at most 64 characters. */
 export function parseTelegram(value: unknown): TelegramReading {
@@ -1216,9 +1221,12 @@ export const looksLikeBotToken = (text: string): boolean =>
 export type TelegramConnectResult =
   | Readonly<{ kind: "saved" }>
   /** Nothing written yet: a write in doubt waits for Buddy's gateway to
-   * restart, and the page sends the token once more when the reading says
-   * `retry`. */
-  | Readonly<{ kind: "held" }>
+   * restart, and the page sends the token once more, with this id, when the
+   * reading says `retry`. */
+  | Readonly<{ kind: "held"; intent: string }>
+  /** Sent once more, and a newer change took its place (or its time is
+   * gone): nothing changed, and the page forgets the token. */
+  | Readonly<{ kind: "superseded" }>
   /** Not a token of a bot's shape. */
   | Readonly<{ kind: "invalid" }>
   /** Telegram does not know the token. */
@@ -1237,6 +1245,7 @@ export function telegramConnectLine(
   switch (result.kind) {
     case "saved":
     case "held":
+    case "superseded":
       return null;
     case "invalid":
       return copy.telegramTokenShape;

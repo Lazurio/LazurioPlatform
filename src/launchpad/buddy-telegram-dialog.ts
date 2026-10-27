@@ -39,9 +39,14 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // Buddy → Kanály, closing it ends nothing.
 //
 // While a write to Hermes is in doubt, a connect waits ("held"): only this
-// dialog keeps its token, in memory, and sends it once more when the reading
-// says `retry`; a reading without it (a later disconnect, or the time for it
-// gone) forgets it, and so does closing the dialog.
+// dialog keeps its token, in memory, with the id the Launchpad gave that
+// connect, and sends both once more when the reading says `retry`. The
+// Launchpad takes it only while that connect is still the latest change;
+// otherwise it answers `superseded`, and the token is forgotten. A reading
+// without `retry` (a later disconnect, or the time for it gone) forgets it,
+// and so does closing the dialog: each visit has its own identity, and an
+// answer that comes after its visit closed changes nothing (no token kept,
+// no step moved, nothing sent again).
 //
 // The token is never kept: the field is the only place the page holds it,
 // and it is emptied before the answer comes. Every value is drawn with
@@ -85,7 +90,7 @@ export function createTelegramDialog(
   options: Readonly<{
     copy: () => Copy;
     telegram: () => TelegramReading | undefined;
-    connect: (token: string) => Promise<TelegramConnectResult>;
+    connect: (token: string, intent?: string) => Promise<TelegramConnectResult>;
     approve: (request: string) => Promise<TelegramApproveResult>;
     /** The dialog closed: the page draws again. */
     closed: () => void;
@@ -115,8 +120,12 @@ export function createTelegramDialog(
   let entry: TelegramEntry = "channels";
   // The token's field of this visit, read and emptied as it is sent.
   let field: HTMLInputElement | null = null;
-  // The token of a connect that waits for a write in doubt, in memory only.
-  let waiting: string | null = null;
+  // This visit: closing ends it, and an answer of an ended visit changes
+  // nothing.
+  let visit = 0;
+  // The token of a connect that waits for a write in doubt, in memory only,
+  // with the id the Launchpad gave that connect.
+  let waiting: Readonly<{ token: string; intent: string }> | null = null;
 
   const button = (
     label: string,
@@ -230,10 +239,18 @@ export function createTelegramDialog(
     input.value = "";
     sending = true;
     drawNav();
+    const mine = visit;
     const result = await options.connect(token);
+    // Closed meanwhile: that visit and its token are gone.
+    if (mine !== visit) return;
     sending = false;
-    if (result.kind === "held") waiting = token;
-    if (result.kind === "saved" || result.kind === "held") {
+    if (result.kind === "held")
+      waiting = Object.freeze({ token, intent: result.intent });
+    if (
+      result.kind === "saved" ||
+      result.kind === "held" ||
+      result.kind === "superseded"
+    ) {
       move("start");
       return;
     }
@@ -347,7 +364,10 @@ export function createTelegramDialog(
     line = null;
     drawn = null;
     render();
+    const mine = visit;
     const result = await options.approve(request);
+    // Closed meanwhile: its answer is not this visit's to show.
+    if (mine !== visit) return;
     approving = null;
     line = telegramApproveLine(result, options.copy());
     drawn = null;
@@ -402,20 +422,29 @@ export function createTelegramDialog(
     );
   }
 
-  /** The connect that waited: sent once more when the reading invites it,
-   * forgotten when it no longer can. */
+  /** The connect that waited: sent once more, with its id, when the reading
+   * invites it, forgotten when it no longer can. */
   function resume() {
-    const token = waiting;
+    const kept = waiting;
     const reading = options.telegram();
-    if (token === null || sending || reading === undefined || reading.held)
+    if (kept === null || sending || reading === undefined || reading.held)
       return;
     waiting = null;
     if (reading.retry !== true) return;
     sending = true;
-    void options.connect(token).then((result) => {
+    const mine = visit;
+    void options.connect(kept.token, kept.intent).then((result) => {
+      // Closed meanwhile: that visit and its token are gone.
+      if (mine !== visit) return;
       sending = false;
-      if (result.kind === "held") waiting = token;
-      else if (result.kind !== "saved") {
+      if (result.kind === "held")
+        waiting = Object.freeze({ token: kept.token, intent: result.intent });
+      // A newer change took its place: forgotten, quietly.
+      else if (result.kind === "superseded") {
+        drawn = null;
+        render();
+        return;
+      } else if (result.kind !== "saved") {
         // Refused now: the person pastes it again, with the reason.
         move("token");
         line = telegramConnectLine(result, options.copy());
@@ -457,7 +486,10 @@ export function createTelegramDialog(
 
   close.addEventListener("click", () => hide());
   dialog.addEventListener("close", () => {
-    // Nothing of a token stays behind the dialog.
+    // Nothing of a token stays behind the dialog, and what this visit still
+    // waits for comes to nothing: the next visit sends anew.
+    visit += 1;
+    sending = false;
     if (field !== null) field.value = "";
     field = null;
     waiting = null;

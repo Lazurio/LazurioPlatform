@@ -20790,13 +20790,14 @@ enough for anyone's mother.
    conversation a notice goes to (#627) is the fork's overlay at `v0.22.4-lazurio.3`
    (`gateway/lazurio_buddy_channel.py`). After Odpojit its Telegram notices wait again, as on
    an Environment without Telegram (#607 stays open for the web's fallback).
-10. **Routes and journal.** `POST /api/buddy/telegram/connect {token}`, `…/approve {request}`
+10. **Routes and journal.** `POST /api/buddy/telegram/connect {token, intent?}`, `…/approve {request}`
     and `…/disconnect {}` behind F63's admission (the hosted same-origin rule for every POST,
     exact fields, 16 KiB, 415, 405, no query): 400 `invalid-token` or `invalid-request`, 409
-    `blocked` `request-gone`, 503 `buddy-unavailable` with the gateway's reason, otherwise
-    `{kind: "telegram", state, reason?, bot?, botQr?, requests?, pending?, held?, retry?}` or
-    `failed {reason: token-refused | telegram-unreachable | failed}` (`held` and `retry`:
-    point 13). `GET /api/buddy` names
+    `blocked` `request-gone` or `superseded`, 400 `invalid-intent`, 503 `buddy-unavailable`
+    with the gateway's reason, otherwise `{kind: "telegram", state, reason?, bot?, botQr?,
+    requests?, pending?, held?, retry?, intent?}` or `failed {reason: token-refused |
+    telegram-unreachable | failed}` (`held`, `retry` and `intent`: point 13; `intent` only in
+    the answer to the page whose connect waits, never in a reading). `GET /api/buddy` names
     `telegram` the same way. The journal (`scope: "buddy-telegram"`) names the operation
     (`connect`, `approve`, `disconnect`, `restart`, `pairing-text`, `home-channel`), the
     outcome and the reason: never the token, a preview, an account, a name, Buddy's words, a request or a
@@ -20860,12 +20861,26 @@ enough for anyone's mother.
       nothing to Hermes. Hermes reads `.env` and `config.yaml` only when the gateway starts, so
       no change would reach the running bot before that restart anyway: the barrier costs the
       person no time, it only orders the writes.
-      - Připojit answers `starting` with `held` („Připojuje se…“). Only the page keeps the
-        token, in its memory, as before, and it sends it once more when a reading says `retry`.
-        The Launchpad says `retry` for ten minutes after the barrier lifts, and only while that
-        connect is still the latest change; until its follow-up has run, the reading stays
-        `held`. A reading without `retry` (a later Odpojit, the ten minutes gone) and closing
-        the dialog forget the token. The Platform still never writes, logs or returns it.
+      - Připojit answers `starting` with `held` („Připojuje se…“) and an id of that connect:
+        random, not derived from the token, given only to the page that asked and never in a
+        reading. Only that page keeps the token, in its memory, as before, with the id, and
+        it sends both once more when a reading says `retry`. The Launchpad says `retry` for
+        ten minutes after the barrier lifts; until its follow-up has run, the reading stays
+        `held`. In the change queue the core takes the token again only with the id of the
+        connect that is still the latest change, and only once: a retry taken is spent, even
+        if Telegram or Hermes then refuses it. A newer Připojit or Odpojit, whether it goes
+        through or not, or an approval that writes ends that connect, and so do the ten
+        minutes. A retry that comes while the connect still waits keeps it waiting with the
+        same id; any other is refused, 409 `superseded`, and its page forgets the token
+        quietly. (The reviewer's Platform #676: one `retry` for every page and a retry that
+        carried only the token let an older tab's retry undo a newer connect or disconnect.)
+        A reading without `retry` (a later Odpojit, the ten minutes gone) and closing the
+        dialog forget the token too. The Platform still never writes, logs or returns it.
+      - Each visit of the dialog has an identity. Closing it ends the visit and forgets its
+        token, and an answer that comes after (the first Připojit's or a retry's, or an
+        approval's) keeps no token, moves no step, shows no line and sends nothing (the
+        reviewer's Platform #677: a `held` answer after the close restored the token, and
+        the next visit sent it).
       - Odpojit records its intent in `telegram-intent.json` (0600 in Buddy's 0700 state
         directory; `{schema_version, intent: "disconnect", at}`, no secret) and answers `none`
         with `pending` („Odpojí se, až Buddy dokončí, co právě dělá.“). Once the barrier lifts,
@@ -20913,6 +20928,9 @@ enough for anyone's mother.
       | Repeated: another write in doubt during the restart's attempt | That attempt lifts nothing; the one the second write asks for decides | the same line, longer |
       | Repeated: the restart waits (Buddy busy, two minutes since the last start, systemd not answering or still stopping the gateway, a Launchpad restart) | The barrier waits with it, asked again as point 6 says; the write's record keeps both | the same line, longer |
       | Repeated: the follow-up's disconnect, Hermes not ready after the restart | Asked again later and later; "Ano" waits; a refusal drops the intent | „Odpojí se…“, or Telegram as Hermes has it, with Odpojit |
+      | Two pages: Připojit in tab A (in doubt), then Připojit in tab B (#676) | B's connect is the latest and ends A's. After the restart only B's id goes on, once; A's retry, before or after B's, is refused | „Připojuje se…“ in both, then B's bot; A's tab forgets its token |
+      | Two pages, then Odpojit after the restart, or kept behind a new write in doubt (#676) | Odpojit ends the connect that could go on: both retries are refused, and the disconnect stands | „Odpojí se…“, then Nepřipojeno |
+      | Any, then the dialog closes before an answer comes (#677) | The visit is over: its answer keeps no token and sends nothing again | the next visit starts afresh |
 
       `tests/buddy-telegram.test.ts` runs the four writes (Připojit, Odpojit, "Ano", his words)
       against the four changes, sixteen pairs, with the late write released in the old gateway
@@ -20959,6 +20977,9 @@ now, and "Je to váš účet …?" stays (the Buddy lead, 2026-10-26). The insta
 | The barrier only at "Ano, to jsem já" | A disconnect after a connect in doubt went to Hermes and the late token write undid it (#674), and a late off write could undo a new connect; rejected for one barrier for every change |
 | Refuse every change while a write is in doubt | Correct, but the person would have to come back and press again; rejected for keeping the latest intent |
 | The Platform keeps the waiting connect's token to send it after the restart | A token on the server beyond one connect; rejected for the page's memory and `retry` |
+| One `retry` for every page, the retry carrying only the token | Every waiting page resends, and the core cannot tell an older tab's retry from a new Připojit: it undid a newer connect or disconnect (#676); rejected for the id of the latest connect, taken once in the change queue |
+| An id derived from the token (its digest) | Names the bot, not the intent: two connects of the same token, or a token pasted again, could not be told apart, and a value from the secret would leave the core; rejected for a random id |
+| Keep the waiting connect across a Launchpad restart (its id on disk) | Its token lives only in the page, which reconnects to a new Launchpad process anyway; not now: after a Launchpad restart its retry is refused and the person connects again |
 | Make the disconnect that waits before the restart | Only Hermes's writers write its files, and the running gateway is the one that may still run the late write; rejected for the follow-up after the restart |
 | Lift the barrier when systemd reports the gateway not running | A gateway systemd is still stopping may finish the write; rejected for asking again until it has stopped |
 | A longer timeout | Hermes may hold a write longer than any timeout, and the page would wait that long; rejected |
@@ -21032,7 +21053,28 @@ apply made.
 `tests/buddy-view.test.ts`, `tests/buddy-client.test.ts`, `tests/buddy-telegram-dialog.test.ts`:
 `held` and `retry` read only as true, a held answer its own result, and the dialog keeping the
 token in memory, sending it once on `retry`, keeping it while it waits again, and forgetting it
-without `retry`, on close and after a refusal.
+without `retry`, on close and after a refusal. The id (#676 and #677): in
+`tests/buddy-telegram.test.ts`, two pages with two tokens (A's write in doubt and landing late,
+B the latest), the readings carrying no id, then A's retry refused before B's, B's going on
+once, and A's and B's again, in either order, refused, B's bot staying; the same two pages
+after a disconnect, both refused and nothing back; and with the disconnect kept behind a new
+write in doubt (his words), both refused and the disconnect made; a retry while its connect
+still waits keeping it with the same id; a fresh connect after the restart, an approval that
+writes and the ten minutes each ending it; a retry taken and then not answered by Telegram,
+an Odpojit Hermes refuses and a Připojit Telegram refuses each ending it too. In `tests/buddy-telegram-dialog.test.ts`, the
+reviewer's probe: two real dialogs as two tabs against the real core and the stand-in for
+Buddy's gateway, A's token write held past the client's 1 s, B's connect waiting behind it,
+A's old write landing, the restart, then B's reading first (B connects, or B disconnects) and
+A's older reading delivered late: A's retry refused, B's outcome staying, neither tab sending
+again. The dialog: the retry carrying the id its held answer gave; a superseded answer
+forgetting the token quietly; a close before the first answer and before a retry's answer
+each leaving exactly the calls already made and nothing after the dialog opens again; a
+visit opened again while an old answer is on its way sending anew; an approval answered after
+the close neither holding up "Ano" nor showing its line. `tests/buddy-client.test.ts`: the id
+sent with the token, a held answer with a valid id held and without one saved, `superseded`
+its own result. `tests/launchpad-buddy.test.ts`: `intent` taken only as 32 hex digits (400
+`invalid-intent`), an extra field 400, and an id no connect waits under refused 409
+`superseded` before Telegram or Hermes is asked.
 `tests/buddy-telegram-restart.test.ts`: one restart while idle and none owed after; busy and
 no answer waiting, two changes needing one restart; two minutes after any start; a start by
 anyone settling it; a stopped gateway and a gateway with no unit owing nothing; systemd not
@@ -21064,7 +21106,16 @@ waited, "Ano" while a disconnect waits, a refused disconnect kept, the follow-up
 queue, a reading between the lift and the follow-up not `held`, the words sent, an attempt
 lifting a barrier raised during it, a stopping gateway lifting it (and read as stopped), the
 write's record owing nothing or ignored at start, the barrier not read back, no follow-up or
-no second ask, and the page's `held`, `retry` and close rules. In a browser, the worktree's personal preview with the stand-in
+no second ask, and the page's `held`, `retry` and close rules. For the id and the dialog's
+visits, each of 22 more: a retry taken whatever its id, its id not compared, not consumed, a
+disconnect, an approval that writes or a fresh connect not ending it, its time not checked, a
+held answer without its id, a retry while its connect still waits refused, a disconnect kept
+behind a new barrier leaving it; the route dropping the id or taking any shape; the client
+calling an answer without a valid id held, a superseded retry a failure, or sending no id;
+the dialog sending the retry without its id or keeping a superseded token; the first send's,
+a retry's or an approval's answer taken after its visit closed, and a close that does not
+end the visit or leaves its send blocking the next. In a browser, the worktree's personal
+preview with the stand-in
 (`scripts/preview-launchpad.ts personal cs <port> owner buddy`, which now serves Buddy's
 gateway stand-in and a stand-in for Telegram's answer) in headless Chrome at 1440 and 390 px,
 light and on a dark device: the last screen of "Seznamte se s Buddym", the three steps, a wrong
@@ -21099,8 +21150,9 @@ Nastavení → Buddy not connected, waiting and connected, and Odpojit; no error
   that too.
 - While the barrier holds, every change waits as long as the restart does: Buddy idle and two
   minutes after the gateway's last start. A connect that waits lives in the page's memory
-  only: closing the dialog, ten minutes after the lift, or a Launchpad restart before the lift
-  forget it, and the person connects again. A disconnect that waits is made only after the
+  only, and its id in the Launchpad's: closing the dialog, ten minutes after the lift, a
+  newer change, or a Launchpad restart forget it, and the person connects again. A Připojit
+  that Telegram or Hermes then refuses has still ended an older connect that waited. A disconnect that waits is made only after the
   restart, so a late token write can bring the bot back for the time between that restart and
   the next one the disconnect owes; the page says „Odpojí se…“ until then. Where Buddy's state
   directory cannot be written, the barrier holds in the Launchpad's memory only, until it

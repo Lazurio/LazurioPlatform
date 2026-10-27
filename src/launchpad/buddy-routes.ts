@@ -11,6 +11,7 @@ import {
 } from "../buddy/status";
 import {
   type BuddyTelegram,
+  isTelegramIntent,
   isTelegramRequestHandle,
   type TelegramAnswer,
   type TelegramStatus,
@@ -72,14 +73,19 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 //
 // Telegram (decision F66), behind the same admission and rules:
 //
-//   POST /api/buddy/telegram/connect     {token} → telegram {state, …} |
-//                                        400 invalid-token | failed {reason}
+//   POST /api/buddy/telegram/connect     {token, intent?} → telegram {state,
+//                                        …, intent?} | 400 invalid-token |
+//                                        400 invalid-intent | failed
+//                                        {reason} | 409 blocked superseded
 //   POST /api/buddy/telegram/approve     {request} → telegram {state, …} |
 //                                        409 blocked request-gone
 //   POST /api/buddy/telegram/disconnect  {} → telegram {state, …}
 //
 // and `GET /api/buddy` names `telegram: {state, reason?, bot?, botQr?,
-// requests?, pending?}`, read live from Hermes. The token is a string of
+// requests?, pending?, held?, retry?}`, read live from Hermes. `intent` is
+// the id of a connect that waits for a write in doubt (F66 point 13): only
+// the page that asked it gets it, and sends it with the token once more; a
+// newer change answers that 409 `superseded`. The token is a string of
 // the request's body for the one connect; it is never journaled, written
 // or answered, and Telegram's and Hermes's own words never leave the core.
 // Without Buddy's gateway these answer 503 `buddy-unavailable`.
@@ -102,6 +108,12 @@ export const buddyAnswer = (
 export type BuddyReading = BuddyAnswer &
   Readonly<{ persona: BuddyPersonaShown | null; telegram: TelegramStatus }>;
 
+/** The one field a POST may add to its own. */
+const optionalFields: Readonly<Record<string, string>> = {
+  [buddyRoutePaths.persona]: "confirm",
+  [buddyRoutePaths.telegramConnect]: "intent",
+};
+
 const postFields: Readonly<Record<string, readonly string[]>> = {
   [buddyRoutePaths.start]: [],
   [buddyRoutePaths.poll]: ["session"],
@@ -114,7 +126,8 @@ const postFields: Readonly<Record<string, readonly string[]>> = {
 };
 
 /** A Telegram answer and its status: 400 for a token of no bot's shape,
- * 409 for a request no longer there, 503 without Buddy's gateway. */
+ * 409 for a request no longer there or a connect a newer change replaced,
+ * 503 without Buddy's gateway. */
 function telegramResponse(answer: TelegramAnswer): Readonly<{
   status: number;
   body: unknown;
@@ -247,14 +260,16 @@ export function createBuddyRoutes(
       try {
         const body = await readJsonBody(request);
         const fields = postFields[url.pathname] ?? [];
-        // `confirm` is the persona's one optional field.
+        // `confirm` is the persona's one optional field, `intent` the
+        // connect's.
+        const optional = optionalFields[url.pathname];
         value = stateFields(
           body,
-          url.pathname === buddyRoutePaths.persona &&
+          optional !== undefined &&
             body !== null &&
             typeof body === "object" &&
-            Object.hasOwn(body, "confirm")
-            ? [...fields, "confirm"]
+            Object.hasOwn(body, optional)
+            ? [...fields, optional]
             : fields,
         );
       } catch (error) {
@@ -264,11 +279,13 @@ export function createBuddyRoutes(
       }
       if (url.pathname === buddyRoutePaths.telegramConnect) {
         // The token goes to the core as it came, for its one connect.
-        const { token } = value;
+        const { token, intent } = value;
         if (typeof token !== "string" || token.length > 256)
           return response({ error: "invalid-token" }, 400);
+        if (intent !== undefined && !isTelegramIntent(intent))
+          return response({ error: "invalid-intent" }, 400);
         const { status, body } = telegramResponse(
-          await input.telegram.connect(token.trim()),
+          await input.telegram.connect(token.trim(), intent),
         );
         return response(body, status);
       }

@@ -812,7 +812,7 @@ const buddyAvatar = () => buddyAvatarSource(shellDocument?.buddy?.origin);
 const telegramDialog = createTelegramDialog({
   copy: () => copy,
   telegram: () => buddyClient.reading()?.telegram,
-  connect: (token) => buddyClient.connectTelegram(token),
+  connect: (token, intent) => buddyClient.connectTelegram(token, intent),
   approve: (request) => buddyClient.approveTelegram(request),
   closed: () => drawBuddy(),
   meetingOver: () => meetingFinished(),

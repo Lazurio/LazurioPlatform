@@ -13,6 +13,7 @@ import {
   type TelegramApproveResult,
   type TelegramConnectResult,
   type TelegramReading,
+  telegramIntentOf,
   unknownBuddyReading,
 } from "./buddy-view";
 
@@ -377,13 +378,18 @@ export function createBuddyClient(
     },
 
     /** Připojit Telegram: the token as the person pasted it, sent once and
-     * kept nowhere here. */
-    async connectTelegram(token: string): Promise<TelegramConnectResult> {
+     * kept nowhere here. `intent`: the id of a connect that waited, when
+     * the dialog sends its token once more. */
+    async connectTelegram(
+      token: string,
+      intent?: string,
+    ): Promise<TelegramConnectResult> {
       let answer: Readonly<{ ok: boolean; value: unknown }>;
       try {
-        answer = await options.transport.post(buddyRoutePaths.telegramConnect, {
-          token,
-        });
+        answer = await options.transport.post(
+          buddyRoutePaths.telegramConnect,
+          intent === undefined ? { token } : { token, intent },
+        );
       } catch {
         return { kind: "failed" };
       }
@@ -391,7 +397,18 @@ export function createBuddyClient(
       if (!isRecord(value)) return { kind: "failed" };
       if (answer.ok && value.kind === "telegram") {
         installTelegram(parseTelegram(value));
-        return value.held === true ? { kind: "held" } : { kind: "saved" };
+        // Waiting, with the id of this connect: the dialog keeps the token
+        // for it. Waiting without one (a write after the token's own, in
+        // doubt): the token is saved, nothing to send again.
+        const held =
+          value.held === true ? telegramIntentOf(value.intent) : null;
+        return held === null
+          ? { kind: "saved" }
+          : { kind: "held", intent: held };
+      }
+      if (value.kind === "blocked" && value.reason === "superseded") {
+        void read();
+        return { kind: "superseded" };
       }
       if (value.error === "invalid-token") return { kind: "invalid" };
       if (value.error === "buddy-unavailable") return { kind: "unavailable" };

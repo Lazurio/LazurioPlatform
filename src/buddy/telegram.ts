@@ -98,11 +98,14 @@ import type { TelegramFollowUp } from "./telegram-restart";
 //   a newer one (F66 point 13). It owes a restart, and until the gateway
 //   that took it is gone no Telegram change goes to Hermes (`blocked`):
 //   Hermes reads these files only when the gateway starts, so nothing is
-//   lost by waiting. The latest change is kept: a connect answers `held`,
-//   and only the page keeps its token, sending it once when a reading says
-//   `retry`; a disconnect is kept in `telegram-intent.json` and made by the
-//   follow-up (`cleared`) after the restart. Either replaces the other; an
-//   approval and his words wait too.
+//   lost by waiting. The latest change is kept: a connect answers `held`
+//   with an id of its own (random, not the token's), and only the page that
+//   asked keeps its token, sending it once with that id when a reading says
+//   `retry`; the core takes it only while that connect is still the latest
+//   change, once. A disconnect is kept in `telegram-intent.json` and made by
+//   the follow-up (`cleared`) after the restart. Each replaces the other,
+//   and an approval that writes ends a connect that waits; his words wait
+//   too.
 //
 // Hermes's own words (`message`, `error_message`, `detail`) never leave this
 // module; its answers become a closed state. The journal names the
@@ -579,13 +582,24 @@ export type TelegramConnectFailure =
   | "failed";
 
 export type TelegramAnswer =
-  | (Readonly<{ kind: "telegram" }> & TelegramStatus)
+  | (Readonly<{
+      kind: "telegram";
+      /** A connect that waits: its id, for the page that asked it only
+       * (never in a reading), which sends it with the token once more. */
+      intent?: string;
+    }> &
+      TelegramStatus)
   | Readonly<{ kind: "invalid"; reason: "invalid-token" }>
   | Readonly<{ kind: "failed"; reason: TelegramConnectFailure }>
   /** The request is no longer there (it expired, or another approval took
-   * it): nothing changed. */
-  | Readonly<{ kind: "blocked"; reason: "request-gone" }>
+   * it), or a connect sent again that a newer change replaced, or whose
+   * time is gone: nothing changed. */
+  | Readonly<{ kind: "blocked"; reason: "request-gone" | "superseded" }>
   | Readonly<{ kind: "unavailable"; reason: GatewayFailure }>;
+
+/** The id of a connect that waits: 32 hex digits, random. */
+export const isTelegramIntent = (value: unknown): value is string =>
+  typeof value === "string" && /^[0-9a-f]{32}$/.test(value);
 
 export type BuddyTelegram = ReturnType<typeof createBuddyTelegram>;
 
@@ -637,12 +651,16 @@ export function createBuddyTelegram(
   // change is on its way, not unknown.
   let intent: "connect" | "disconnect" | null = null;
   const now = input.now ?? Date.now;
-  // The latest change asked while a write was in doubt; a disconnect is on
-  // disk too (`telegram-intent.json`), a connect only here and in the page
-  // that keeps its token.
-  let latest: "connect" | "disconnect" | null = null;
-  // Until when the page may send that connect's token once more.
-  let retryUntil = 0;
+  // The latest change asked while a write was in doubt: a connect, with the
+  // id its page was given (only that page keeps the token), or a
+  // disconnect, on disk too (`telegram-intent.json`).
+  let latest:
+    | Readonly<{ kind: "connect"; id: string }>
+    | Readonly<{ kind: "disconnect" }>
+    | null = null;
+  // That connect once its restart is made: its page may send the token once
+  // more, with its id, until then.
+  let resumable: Readonly<{ id: string; until: number }> | null = null;
   let queue: Promise<unknown> = Promise.resolve();
   const serial = <T>(operation: () => Promise<T>): Promise<T> => {
     const run = queue.then(operation, operation);
@@ -720,7 +738,10 @@ export function createBuddyTelegram(
     // card says until the restart. A connect that waited stays so until the
     // follow-up asks the page for its token, so no reading between the lift
     // and the follow-up tells the page to forget it.
-    if ((await input.blocked()) || (home !== undefined && latest === "connect"))
+    if (
+      (await input.blocked()) ||
+      (home !== undefined && latest?.kind === "connect")
+    )
       return Object.freeze(
         disconnecting
           ? { state: "none", pending: true, held: true }
@@ -729,7 +750,9 @@ export function createBuddyTelegram(
     // A disconnect that waited, being made now.
     if (disconnecting) return Object.freeze({ state: "none", pending: true });
     const view = await reading();
-    return retryUntil > now() ? Object.freeze({ ...view, retry: true }) : view;
+    return resumable !== null && resumable.until > now()
+      ? Object.freeze({ ...view, retry: true })
+      : view;
   }
 
   /** Telegram as Hermes's card has it. */
@@ -815,14 +838,20 @@ export function createBuddyTelegram(
   }
 
   /** The latest change, kept while a write is in doubt: nothing goes to
-   * Hermes. A connect is kept here (its token only in the page), a
-   * disconnect on disk too; either replaces the other. The answer is the
-   * state, which says `held` for a connect that waits until the follow-up,
-   * queued after this, asks the page for its token: so a lift after this
-   * connect looked at the barrier loses nothing. */
+   * Hermes. A connect is kept here with an id of its own (its token only in
+   * the page that asked), a disconnect on disk too; either replaces the
+   * other. The answer is the state, which says `held` for a connect that
+   * waits until the follow-up, queued after this, asks the page for its
+   * token: so a lift after this connect looked at the barrier loses
+   * nothing. */
   async function hold(kind: "connect" | "disconnect"): Promise<TelegramAnswer> {
-    latest = kind;
-    retryUntil = 0;
+    // Random, never derived from the token: it names the intent, not the bot.
+    const id = kind === "connect" ? randomBytes(16).toString("hex") : null;
+    latest =
+      id === null
+        ? Object.freeze({ kind: "disconnect" })
+        : Object.freeze({ kind: "connect", id });
+    resumable = null;
     if (home !== undefined)
       await (kind === "disconnect"
         ? writeBuddyStateFile(telegramIntentPath(home), {
@@ -833,7 +862,22 @@ export function createBuddyTelegram(
         : rm(telegramIntentPath(home), { force: true })
       ).catch(() => undefined);
     journal({ operation: kind, outcome: "held", reason: "restart-owed" });
-    return telegram();
+    return id === null ? telegram() : waits(id);
+  }
+
+  /** The state, with the id of the connect that waits where it says so: for
+   * the page that asked only. */
+  async function waits(id: string): Promise<TelegramAnswer> {
+    const answer = await telegram();
+    return answer.kind === "telegram" && answer.held === true
+      ? Object.freeze({ ...answer, intent: id })
+      : answer;
+  }
+
+  /** A newer change: a connect that waited can no longer go on. */
+  function supersede() {
+    if (latest?.kind === "connect") latest = null;
+    resumable = null;
   }
 
   /** A disconnect asked while a write was in doubt and not made yet. With
@@ -841,12 +885,13 @@ export function createBuddyTelegram(
    * exception). */
   const disconnectWaits = async (): Promise<boolean> =>
     home !== undefined &&
-    (latest === "disconnect" || (await readIntent(home)) === "disconnect");
+    (latest?.kind === "disconnect" ||
+      (await readIntent(home)) === "disconnect");
 
   /** The latest change is made: nothing waits any longer. */
   async function settleIntent(): Promise<void> {
     latest = null;
-    retryUntil = 0;
+    resumable = null;
     if (home !== undefined)
       await rm(telegramIntentPath(home), { force: true }).catch(
         () => undefined,
@@ -867,7 +912,10 @@ export function createBuddyTelegram(
   const telegram = async (): Promise<TelegramAnswer> =>
     Object.freeze({ kind: "telegram", ...(await status()) });
 
-  async function connect(token: string): Promise<TelegramAnswer> {
+  async function connect(
+    token: string,
+    resume: string | undefined,
+  ): Promise<TelegramAnswer> {
     const end = (answer: TelegramAnswer): TelegramAnswer => {
       journal({
         operation: "connect",
@@ -880,6 +928,22 @@ export function createBuddyTelegram(
     };
     if (!botTokenShape.test(token))
       return end(Object.freeze({ kind: "invalid", reason: "invalid-token" }));
+    if (resume === undefined) supersede();
+    else {
+      // Sent again by the page that kept the token of a connect that waited:
+      // only while that connect is still the latest change, and only once.
+      // While it still waits (its restart, or the follow-up, comes first),
+      // the page keeps waiting with the same id.
+      if (latest?.kind === "connect" && latest.id === resume)
+        return waits(resume);
+      if (
+        resumable === null ||
+        resumable.id !== resume ||
+        resumable.until <= now()
+      )
+        return end(Object.freeze({ kind: "blocked", reason: "superseded" }));
+      resumable = null;
+    }
     const bot = await checkBot(token);
     if (bot.kind === "refused") return end(failed("token-refused"));
     if (bot.kind === "unreachable") return end(failed("telegram-unreachable"));
@@ -960,6 +1024,8 @@ export function createBuddyTelegram(
     );
     if (candidate === undefined)
       return end(Object.freeze({ kind: "blocked", reason: "request-gone" }));
+    // A change now: a connect that waited for its page can no longer go on.
+    supersede();
     // The home channel first: a private chat's id is its account's
     // (`hermes_cli/setup_platforms.py`), written by Hermes in this gateway's
     // own process, so its next turn sees it. It replaces any home channel a
@@ -1011,6 +1077,8 @@ export function createBuddyTelegram(
 
   /** The disconnect's writes. */
   async function disconnectNow(): Promise<TelegramAnswer> {
+    // A change now: a connect that waited for its page can no longer go on.
+    supersede();
     const end = (answer: TelegramAnswer): TelegramAnswer => {
       journal({
         operation: "disconnect",
@@ -1065,8 +1133,10 @@ export function createBuddyTelegram(
     /** Telegram as Hermes has it now. A reading never writes. */
     read: (): Promise<TelegramStatus> => status(),
     /** Připojit: the token checked with Telegram, saved by Hermes, and the
-     * restart asked for. */
-    connect: (token: string) => serial(() => connect(token)),
+     * restart asked for. `resume`: the id of a connect that waited, sent
+     * again by the page that asked it. */
+    connect: (token: string, resume?: string) =>
+      serial(() => connect(token, resume)),
     /** "Ano, to jsem já": that account allowed, and Buddy's home channel. */
     approve: (handle: string) => serial(() => approve(handle)),
     /** Odpojit: the bot off, its token and its account gone. */
@@ -1099,9 +1169,12 @@ export function createBuddyTelegram(
           if (answer.kind === "failed") await settleIntent();
           return "done";
         }
-        if (latest === "connect") {
+        if (latest?.kind === "connect") {
+          resumable = Object.freeze({
+            id: latest.id,
+            until: now() + telegramRetryWindowMs,
+          });
           latest = null;
-          retryUntil = now() + telegramRetryWindowMs;
         }
         if (
           why === "lifted" &&

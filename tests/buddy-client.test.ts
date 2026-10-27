@@ -785,18 +785,60 @@ test("Telegram: every refusal is a closed result, and a request gone is read aga
       kind,
     );
   }
-  // Nothing written yet: a write in doubt waits for Buddy's restart.
+  // Nothing written yet: a write in doubt waits for Buddy's restart, and
+  // the answer names this connect for the page that asked it.
+  const intent = "0123456789abcdef".repeat(2);
   fake.reply(buddyRoutePaths.telegramConnect, {
     ok: true,
-    value: { kind: "telegram", state: "starting", pending: true, held: true },
+    value: {
+      kind: "telegram",
+      state: "starting",
+      pending: true,
+      held: true,
+      intent,
+    },
   });
   expect(await buddy.connectTelegram(syntheticToken)).toEqual({
     kind: "held",
+    intent,
   });
   expect(buddy.reading()?.telegram).toMatchObject({
     state: "starting",
     held: true,
   });
+  // The reading never keeps the id.
+  expect(JSON.stringify(buddy.reading())).not.toContain(intent);
+  // Waiting with no id, or one of no shape: its token is saved, nothing to
+  // send again.
+  for (const odd of [undefined, "x".repeat(32), 7]) {
+    fake.reply(buddyRoutePaths.telegramConnect, {
+      ok: true,
+      value: {
+        kind: "telegram",
+        state: "starting",
+        pending: true,
+        held: true,
+        ...(odd === undefined ? {} : { intent: odd }),
+      },
+    });
+    expect(await buddy.connectTelegram(syntheticToken)).toEqual({
+      kind: "saved",
+    });
+  }
+  // Sent once more with its id; a newer change took its place.
+  fake.reply(buddyRoutePaths.telegramConnect, {
+    ok: false,
+    value: { kind: "blocked", reason: "superseded" },
+  });
+  const before = fake.sent.length;
+  expect(await buddy.connectTelegram(syntheticToken, intent)).toEqual({
+    kind: "superseded",
+  });
+  expect(fake.sent[before]).toEqual({
+    path: buddyRoutePaths.telegramConnect,
+    body: { token: syntheticToken, intent },
+  });
+  expect(fake.sent.length).toBe(before + 1);
   fake.reply(buddyRoutePaths.telegramApprove, {
     ok: false,
     value: { kind: "blocked", reason: "request-gone" },

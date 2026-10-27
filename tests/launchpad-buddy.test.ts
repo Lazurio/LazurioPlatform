@@ -579,6 +579,10 @@ posix(
           buddyRoutePaths.telegramConnect,
           { token: syntheticToken, enabled: true },
         ],
+        [
+          buddyRoutePaths.telegramConnect,
+          { token: syntheticToken, intent: "a".repeat(32), enabled: true },
+        ],
         [buddyRoutePaths.telegramApprove, { request: "a".repeat(32), user: 1 }],
         [buddyRoutePaths.telegramDisconnect, { token: syntheticToken }],
       ] as const)
@@ -604,6 +608,14 @@ posix(
         expect(
           await app.post(buddyRoutePaths.telegramApprove, { request }),
         ).toEqual({ status: 400, body: { error: "invalid-request" } });
+      // The id of a connect that waits: 32 hex digits, or no id at all.
+      for (const intent of ["A".repeat(32), "a".repeat(31), 7, null, "../x"])
+        expect(
+          await app.post(buddyRoutePaths.telegramConnect, {
+            token: syntheticToken,
+            intent,
+          }),
+        ).toEqual({ status: 400, body: { error: "invalid-intent" } });
       expect(await status(buddyRoutePaths.telegramConnect, {})).toEqual({
         status: 405,
         body: { error: "method-not-allowed" },
@@ -1163,11 +1175,22 @@ posix(
         status: 200,
         body: { kind: "failed", reason: "telegram-unreachable" },
       });
+      // Sent again with an id no connect waits under: refused before
+      // Telegram or Hermes is asked.
+      answer = { kind: "bot", username: "rex_buddy_bot" };
+      expect(
+        await app.post(buddyRoutePaths.telegramConnect, {
+          token: syntheticToken,
+          intent: "a".repeat(32),
+        }),
+      ).toEqual({
+        status: 409,
+        body: { kind: "blocked", reason: "superseded" },
+      });
       expect(app.fake.state.telegram.token).toBeNull();
       expect(
         app.fake.requests.filter((request) => request.method !== "GET"),
       ).toEqual([]);
-      answer = { kind: "bot", username: "rex_buddy_bot" };
       await app.fake.stop();
       expect(
         await app.post(buddyRoutePaths.telegramConnect, {
