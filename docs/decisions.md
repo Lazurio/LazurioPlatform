@@ -20269,7 +20269,6 @@ enough for anyone's mother.
    | Připojit | `PUT /api/messaging/platforms/telegram {env: {TELEGRAM_BOT_TOKEN}, enabled: true}` (`hermes_cli/web_routers/messaging.py:975-1035`), then `PUT /api/config` with the quiet keys (point 5; `config_env.py:117-158`), then, where Hermes advertises it, `PUT /api/config {config: {gateway: {unauthorized_dm_pairing_message}}}` with Buddy's words (point 12) |
    | "Ano, to jsem já" | `PUT /api/env {key: TELEGRAM_HOME_CHANNEL}` (`config_env.py:328-339`), then `POST /api/pairing/approve {platform, request_id}` (`ops.py:91-117`) where Hermes holds a request, then `PUT /api/messaging/platforms/telegram {env: {TELEGRAM_ALLOWED_USERS}}` last |
    | Odpojit | `PUT /api/messaging/platforms/telegram {enabled: false, clear_env: [TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_USERS]}`, `DELETE /api/env {key: TELEGRAM_HOME_CHANNEL}` (`config_env.py:1067-1082`; 404 where there is none) |
-   | a reading while Telegram is off | `DELETE /api/env {key: TELEGRAM_HOME_CHANNEL}`, only where a disconnect left one (point 8) |
    | the state | `GET /api/messaging/platforms` (`messaging.py:916-931`, its Telegram card) and, while it waits, `GET /api/pairing` (`ops.py:84-88`) |
    | a change of his persona | `PUT /api/config` with his words again, while his bot is connected from here and the words changed (point 12) |
 
@@ -20375,23 +20374,36 @@ enough for anyone's mother.
 8. **Odpojit** switches the platform off and clears its token and allowlist through Hermes's
    writer. As soon as Hermes has the bot off, the bot's record goes and the restart that takes
    it out of the running gateway is owed, whatever the cleanup after it does; until then the
-   row says so. Then it removes the home channel. One Hermes cannot remove then (a 500, a
-   gateway that stops) is recorded in the Platform's own `telegram-home-channel-left.json`
-   (0600 in Buddy's state directory) with a nonce of that disconnect's, and a later reading
-   removes it, also after a Launchpad restart. The cleanup never holds the reading up, and it
-   runs under the same lock as every change of Telegram (connect, approve, disconnect, the
-   persona's words). Under that lock it checks again that the record is still the one the
-   reading saw, that the bot is off and that Hermes holds no token of Telegram, when nothing
-   can use the home channel. A connect, once Hermes holds its token, and an approval, once it
-   wrote its own home channel, remove the record. So a DELETE can never overtake the home
-   channel of a newer approval. Hermes's `DELETE /api/env` takes no expected value
-   (`hermes_cli/web_models.py:26-28`), so the lock is what orders them. (Reviews of
-   2026-10-26: such a failure first answered before the restart was owed, so the running
-   gateway kept polling the old bot; then the cleanup ran beside a reconnect, and a DELETE that
-   Hermes held could erase the new account's home channel after its approval, while the state
-   read connected.) Hermes's pairing store keeps its approvals, so a reconnect of the same
-   account needs one confirmation and no new Start. The installer's next run finds no Telegram
-   and does not ask for a token.
+   row says so. Then it asks Hermes once to remove the home channel, and nothing asks again.
+   - One Hermes does not remove then (a 500, a gateway that stops, no answer within the
+     client's 15 seconds) stays, and the journal says so (`home-channel` `left`). No reading,
+     connect or approval ever asks Hermes to remove it.
+   - A leftover is inert while Telegram is off. The disconnect answers only after Hermes's
+     writer took the token and the allowlist away and switched the platform off. At
+     `v0.22.4-lazurio.3`, Hermes starts only an enabled platform with a token
+     (`gateway/config.py:666-670`), and its cron delivery and its `send_message` tool refuse a
+     platform that is switched off when no running adapter serves it
+     (`cron/scheduler_delivery.py:1195-1200`, `tools/send_message_tool.py:324-328`). Delegace
+     never reads the home channel: it writes to the chat its drop-in names, else to the first
+     account of the allowlist, which the disconnect cleared
+     (`src/buddy/delegace/delegace:289-307`).
+   - The next approval writes its own home channel over a leftover (point 4).
+   - Why only once: Hermes's `DELETE /api/env` removes whatever is there
+     (`hermes_cli/web_routers/config_env.py:1067-1082`, its body only the key,
+     `hermes_cli/web_models.py:26-28`). A DELETE that timed out here may still run in Hermes
+     later, so a retry could remove a newer approval's home channel. The disconnect's one
+     DELETE cannot: Hermes serves these calls in the gateway's own process (F63), and the page
+     offers "Ano, to jsem já" only once the restart the reconnect owes is done (point 7: a
+     restart owed reads `starting`). So the approval reaches a gateway that started after that
+     DELETE was sent; a request the old gateway held either ran before it stopped or never
+     runs.
+   - (Reviews of 2026-10-26 and 2026-10-27: such a failure first answered before the restart
+     was owed, so the running gateway kept polling the old bot. Then a reading retried the
+     DELETE, later under the lock of every change and with a record of its own, and a retry
+     that timed out could still run after a reconnect's approval and erase its home channel.)
+   - Hermes's pairing store keeps its approvals, so a reconnect of the same account needs one
+     confirmation and no new Start. The installer's next run finds no Telegram and does not
+     ask for a token.
 9. **Delegace** (#607, #627) needs nothing more: it reads `TELEGRAM_ALLOWED_USERS` from
    `~/.hermes/.env` on every notice (`telegram_target`), so a Telegram connected later reaches
    its Kanban card and its last resort at the next round, with no restart of
@@ -20480,9 +20492,9 @@ now, and "Je to váš účet …?" stays (the Buddy lead, 2026-10-26). The insta
 | Clear the words at Odpojit | They are read only for an unknown account's code, and only while Telegram runs; kept, so a reconnect writes them again anyway |
 | The allowlist first at "Ano, to jsem já" | A failure after it read as connected, hid the account, and left no home channel and no approval; rejected for the allowlist last |
 | Owe the disconnect's restart after its cleanup | A failed cleanup answered before the restart was owed, so the running gateway kept polling the old bot; rejected for the restart owed as soon as the bot is off |
-| Remove a left home channel whatever Hermes holds | It may be a new bot's by then; rejected for removing it only while the bot is off and Hermes holds no token of Telegram, and dropping the record at a connect or an approval |
-| The reading's cleanup beside the changes | A DELETE Hermes held could land after a reconnect's approval and erase its home channel; rejected for the one lock of every change and the checks under it |
-| A DELETE conditional on the channel it expects | Hermes's writer takes only the key; it would be a fork change, and the lock already orders them |
+| A reading that retries the DELETE of a home channel a disconnect left (a record of the Platform's, under the lock of every change, checked again before it) | A retry that times out on the client may still run in Hermes after a reconnect's approval and erase its home channel; no check before it and no longer timeout closes that. Rejected (the Buddy lead, 2026-10-27, on the reviewer's finding): the disconnect asks once, and the next approval writes over a leftover |
+| A DELETE conditional on the value it expects | Would close any late DELETE in Hermes itself, but its writer takes only the key (`hermes_cli/web_models.py:26-28`): a fork change, not taken now; the one DELETE cannot overtake an approval (point 8) |
+| Leave the home channel at Odpojit without asking | Inert while Telegram is off, but a reconnect's restart attaches it to the new bot until the approval (`plugins/platforms/telegram/gateway_env.py:18`); rejected for one DELETE in the disconnect's own flow, and a leftover only where Hermes did not remove it |
 | Drop the restart when systemd does not answer | Lost until another change or a Launchpad restart; rejected for keeping it owed and asking later and later |
 
 **Verified by** `tests/buddy-hermes-gateway.test.ts`: a named write carries its JSON body as
@@ -20516,14 +20528,15 @@ sending a call that names a capability only to a gateway that lists that exact t
 of "Ano, to jsem já" refused (500) at the home channel, at Hermes's approval or at the
 allowlist, or a gateway draining at the allowlist, claiming nothing and leaving the account
 offered, then "Ano" again finishing it without a second approval; a request expiring between
-the list and the approval (404) leaving the account allowed. A disconnect whose home channel
-Hermes refuses (500) or cannot be asked about (draining) owing the restart at once and
-recording the home channel as left; a reading removing it only while the bot is off and
-Hermes holds no token, and a connect or an approval dropping the record. The reviewer's race:
-a cleanup DELETE that Hermes holds while the person reconnects and approves another account,
-released after, leaving the new account's home channel in place. A cleanup a reading decided
-while a connect held the lock finding the record gone after it and removing nothing. Both
-fail on the code before the lock.
+the list and the approval (404) leaving the account allowed. The reviewer's regression: a
+disconnect's home-channel DELETE that Hermes holds past the client's timeout, the restart
+already owed and the bot's record gone before Hermes answers it, the disconnect answering all
+the same with the home channel journaled as left, readings while Telegram is off asking
+nothing, then a reconnect, its restart and the approval of another account, then the held
+DELETE released with its gateway stopped: the new account's home channel stays and only one
+DELETE ever reached Hermes. A home channel Hermes refuses to remove (500) staying while no
+reading asks again, with or without a token saved elsewhere, and the next approval writing
+over it. Both fail on the code with a reading's retry.
 `tests/buddy-telegram-restart.test.ts`: one restart while idle and none owed after; busy and
 no answer waiting, two changes needing one restart; two minutes after any start; a start by
 anyone settling it; a stopped gateway and a gateway with no unit owing nothing; systemd not
@@ -20575,9 +20588,15 @@ Nastavení → Buddy not connected, waiting and connected, and Odpojit; no error
   nepřijímá" until the person connects it again.
 - Two tabs are one Launchpad: its operations run one at a time, and its restart under F64's
   turn. No CLI changes Telegram.
-- A cleanup's DELETE that Hermes never answers within the client's 15 seconds may still run
-  in Hermes later, after the lock moved on. Only a fork change (a DELETE that takes the value
-  it expects) would close that; a reading's cleanup of a left home channel is rare to begin
-  with.
+- The disconnect's one DELETE may still run in Hermes after the client gave up on it; it ends
+  with the gateway that took it, at the restart the disconnect owes. An approval sent with no
+  restart since the reconnect bypasses the page (it offers "Ano, to jsem já" only once the
+  restart is done) or runs on a gateway without a systemd unit; only a DELETE that takes the
+  value it expects (a fork change) would cover that too.
+- A home channel a disconnect could not remove stays. Until the restart the disconnect owes,
+  the old bot still runs, as after every disconnect, so a home-channel delivery of Hermes (a
+  cron job's) could still reach the person's own chat then. After a reconnect and its
+  restart, and until "Ano, to jsem já", Hermes's home-channel deliveries target the previous
+  account's chat, which Telegram refuses unless that account started the new bot.
 - The page is light only (the design system has no dark UI yet): a dark device shows it light,
   with a theme's own colours where the Environment chose one.
