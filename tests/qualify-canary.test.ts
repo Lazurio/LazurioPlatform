@@ -6,6 +6,8 @@ import {
   canaryFindings,
   type Provenance,
   provenanceFindings,
+  requiredHours,
+  shorterCanaries,
 } from "../scripts/qualify/check-canary";
 import { runChild } from "./fixtures/run-child";
 
@@ -55,6 +57,34 @@ test("a canary shorter than 8 hours, or not over yet, refuses", () => {
   expect(
     canaryFindings(record({ end: "yesterday evening" }), candidate, now),
   ).toEqual(["start and end must be UTC times (YYYY-MM-DDThh:mm:ssZ)"]);
+});
+
+test("a shorter canary exists only for the one candidate it names", () => {
+  const named = "v0.1.14-rc.2";
+  const short = (change: Record<string, unknown> = {}) =>
+    record({
+      candidate: named,
+      machines: [
+        machine("3f9a0c1d2e4b5a69", "work", { active: "0.1.14-rc.2" }),
+        machine("c41d9e0a7b3f5286", "personal", { active: "0.1.14-rc.2" }),
+      ],
+      ...change,
+    });
+  expect(requiredHours(named)).toBe(3);
+  expect(shorterCanaries[named]?.decision).toMatch(/\S/);
+  // Three hours pass for the named candidate, 2 h 59 min do not.
+  expect(
+    canaryFindings(short({ end: "2026-09-01T11:00:00Z" }), named, now),
+  ).toEqual([]);
+  expect(
+    canaryFindings(short({ end: "2026-09-01T10:59:00Z" }), named, now),
+  ).toEqual(["the canary lasted 2 h 59 min; 3 hours are required"]);
+  // Every other candidate, the next one of the same release included, keeps 8 hours.
+  expect(requiredHours("v0.1.14-rc.3")).toBe(8);
+  expect(requiredHours(candidate)).toBe(8);
+  expect(
+    canaryFindings(record({ end: "2026-09-01T11:00:00Z" }), candidate, now),
+  ).toEqual(["the canary lasted 3 h 0 min; 8 hours are required"]);
 });
 
 test("an impossible calendar time is not a time: no normalizing to another day", () => {
