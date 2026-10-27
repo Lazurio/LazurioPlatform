@@ -86,9 +86,10 @@ import type {
 //   whatever is there, and one that timed out here may still run in Hermes
 //   later, so a second one could remove a newer approval's home channel.
 //   That one DELETE cannot: Hermes serves these calls in the gateway's own
-//   process (F63), and the page offers the next approval only once the
-//   restart its connect owes is done, so the approval reaches a gateway that
-//   started after the DELETE was sent. A home channel Hermes did not remove
+//   process (F63), and an approval goes through only once the restart its
+//   connect owes is done (the page offers it only then, and `approve`
+//   answers „Připojuje se…“ before), so it reaches a gateway that started
+//   after the DELETE was sent. A home channel Hermes did not remove
 //   stays. While Telegram is off it is inert (no token, no allowlist, the
 //   platform off), and the next approval writes its own over it. Everything
 //   else here takes effect at once.
@@ -769,6 +770,19 @@ export function createBuddyTelegram(
       });
       return answer;
     };
+    // Only once the restart the last change owes is done, as the page
+    // offers it: the approval then reaches a gateway that started after that
+    // change, so a home-channel DELETE a disconnect sent to an earlier one
+    // can no longer run after it. A page from before (another tab) gets the
+    // state as it is, „Připojuje se…“, and nothing is written.
+    if (input.owed()) {
+      journal({
+        operation: "approve",
+        outcome: "pending",
+        reason: "restart-owed",
+      });
+      return telegram();
+    }
     const read = await card();
     if (!read.ok) return end(unavailable(read.reason));
     if (read.value === null) return end(failed("failed"));

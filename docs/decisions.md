@@ -20758,11 +20758,16 @@ enough for anyone's mother.
      (`hermes_cli/web_routers/config_env.py:1067-1082`, its body only the key,
      `hermes_cli/web_models.py:26-28`). A DELETE that timed out here may still run in Hermes
      later, so a retry could remove a newer approval's home channel. The disconnect's one
-     DELETE cannot: Hermes serves these calls in the gateway's own process (F63), and the page
-     offers "Ano, to jsem já" only once the restart the reconnect owes is done (point 7: a
-     restart owed reads `starting`). So the approval reaches a gateway that started after that
-     DELETE was sent; a request the old gateway held either ran before it stopped or never
-     runs.
+     DELETE cannot: Hermes serves these calls in the gateway's own process (F63), and an
+     approval goes through only once the restart the reconnect owes is done (the next
+     bullet). So the approval reaches a gateway that started after that DELETE was sent; a
+     request the old gateway held either ran before it stopped or never runs.
+   - **"Ano, to jsem já" only after the restart.** The page offers it only then (point 7: a
+     restart owed reads `starting`). A page from before the change, in another tab, still
+     shows it, so the core checks it too. While a restart the last change owes is not done,
+     the approval writes nothing and answers Telegram's state as it is, `starting`, which the
+     page shows as „Připojuje se…“. The journal says `approve` `pending` `restart-owed`. Once
+     the restart is done, the same "Ano" goes through. (The Buddy lead, 2026-10-27.)
    - (Reviews of 2026-10-26 and 2026-10-27: such a failure first answered before the restart
      was owed, so the running gateway kept polling the old bot. Then a reading retried the
      DELETE, later under the lock of every change and with a record of its own, and a retry
@@ -20902,7 +20907,9 @@ nothing, then a reconnect, its restart and the approval of another account, then
 DELETE released with its gateway stopped: the new account's home channel stays and only one
 DELETE ever reached Hermes. A home channel Hermes refuses to remove (500) staying while no
 reading asks again, with or without a token saved elsewhere, and the next approval writing
-over it. Both fail on the code with a reading's retry.
+over it. Both fail on the code with a reading's retry. An approval from a page from before a
+second Připojit, while its restart is owed, writing nothing and answering `starting`, then
+going through after the restart; it fails without the check.
 `tests/buddy-telegram-restart.test.ts`: one restart while idle and none owed after; busy and
 no answer waiting, two changes needing one restart; two minutes after any start; a start by
 anyone settling it; a stopped gateway and a gateway with no unit owing nothing; systemd not
@@ -20955,10 +20962,10 @@ Nastavení → Buddy not connected, waiting and connected, and Odpojit; no error
 - Two tabs are one Launchpad: its operations run one at a time, and its restart under F64's
   turn. No CLI changes Telegram.
 - The disconnect's one DELETE may still run in Hermes after the client gave up on it; it ends
-  with the gateway that took it, at the restart the disconnect owes. An approval sent with no
-  restart since the reconnect bypasses the page (it offers "Ano, to jsem já" only once the
-  restart is done) or runs on a gateway without a systemd unit; only a DELETE that takes the
-  value it expects (a fork change) would cover that too.
+  with the gateway that took it, at the restart the disconnect owes. An approval waits for the
+  restart its reconnect owes (point 8), so only a gateway without a systemd unit, where no
+  restart is ever owed, is outside this; only a DELETE that takes the value it expects (a fork
+  change) would cover that too.
 - A home channel a disconnect could not remove stays. Until the restart the disconnect owes,
   the old bot still runs, as after every disconnect, so a home-channel delivery of Hermes (a
   cron job's) could still reach the person's own chat then. After a reconnect and its

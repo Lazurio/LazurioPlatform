@@ -600,6 +600,61 @@ posix(
 );
 
 posix(
+  "approve: while the restart the last connect owes is not done, Ano writes nothing and answers the state as it is, Připojuje se…; after the restart it goes through",
+  () =>
+    within(async ({ fake, core, owe, journal }) => {
+      await core.connect(token);
+      owe(false);
+      fake.state.telegram.runtime = "connected";
+      const mine = fake.telegramMessage(person, "jana_s");
+      if (mine === null) throw new Error("Hermes recorded the request");
+      const read = await core.read();
+      const handle =
+        read.state === "waiting" ? (read.requests?.[0]?.request as string) : "";
+      expect(handle).toMatch(/^[0-9a-f]{32}$/);
+      // Připojit again (another tab): a restart is owed, and a page from
+      // before still offers Ano.
+      await core.connect(token);
+      fake.requests.length = 0;
+      expect(await core.approve(handle)).toMatchObject({
+        kind: "telegram",
+        state: "starting",
+        bot: "rex_buddy_bot",
+        pending: true,
+      });
+      expect(writesOf(fake)).toEqual([]);
+      expect(fake.state.telegram).toMatchObject({ allowed: "", home: null });
+      expect(
+        fake.state.telegram.pending.map((entry) => entry.request_id),
+      ).toEqual([mine]);
+      expect(journal.at(-1)).toEqual({
+        operation: "approve",
+        outcome: "pending",
+        reason: "restart-owed",
+      });
+      // The restart is done: a new gateway, and Ano goes through.
+      owe(false);
+      fake.restart();
+      expect(await core.approve(handle)).toEqual({
+        kind: "telegram",
+        state: "connected",
+        bot: "rex_buddy_bot",
+      });
+      expect(
+        writesOf(fake).map(([method, path]) => `${method} ${path}`),
+      ).toEqual([
+        "PUT /api/env",
+        "POST /api/pairing/approve",
+        "PUT /api/messaging/platforms/telegram",
+      ]);
+      expect(fake.state.telegram).toMatchObject({
+        allowed: person,
+        home: person,
+      });
+    }),
+);
+
+posix(
   "approve: a request that expires between the list and the approval leaves nothing to approve; the account is allowed",
   () =>
     within(async ({ fake, core, owe }) => {
