@@ -830,7 +830,48 @@ and the custom MCP
 servers (address without userinfo or query, which may carry a key; a command
 server's line is not shown). A source that cannot be read is said so and never
 taken for "nothing connected"; only a Folder that cannot be read fails the route
-(500). The tools' sign-in probes and Composio reach the network, so the Launchpad
+(500).
+
+**Unknown is not "not connected"** (decision F42, addendum of 2026-10-27). An
+app's `connected` is `true` through its tool or a working account on its path,
+`false` only where every source that could connect it here was read, and `null`
+where one was not, with the reason in `unknown`: the first such source in the
+agents' order whose tool, or whose account on a way the path rule would take,
+could connect the app. `tools-unreadable` (or `tools-unavailable`): a tool made
+for the app that counts here (gogcli only on a personal Environment), where the
+tools or that tool's sign-in could not be read; `executor-unavailable`,
+`executor-unreadable`: Executor did not answer or its answer was not understood;
+`composio-unreadable`: Composio's sign-in, accounts or organizations could not
+be read; `composio-unverified`: this Environment's
+Composio organization could not be told; `composio-elsewhere`: it could not be
+made current. A state that settles it is never unknown: Executor `absent`,
+Composio not installed (`unavailable`), `signed-out`, `off` or `not-allowed`,
+since nothing connects through that source here. A sign-in probe that could not
+tell (it timed out, or its answer was not understood) settles nothing: it is a
+source not read, never a sign-out. Nothing of an unverified
+Composio is used or listed (its accounts stay out, a link and a removal are
+refused as before): only the reporting changes. The page draws such a card with
+"Nelze teď ověřit" ("Can't verify right now") in place of "Připojeno" and keeps
+its action; Připojené does not count it, and where it lists nothing while some
+app is unknown it says "Připojené aplikace teď nelze ověřit." instead of
+"Zatím žádné připojené aplikace." `lazurio integrations list` without `--json`
+counts the unknown apps by reason under "Not verified now" and never says
+"Connected: none." while one is unknown.
+
+**The Composio organization during `lazurio update`.** The rule of an
+Organization's Environment reads the Folder's catalog for its Organization's
+name. `lazurio update` fast-forwards the Organization's root meanwhile (the
+Folder's rules start it in the background at the beginning of work), and a
+reading in the middle of the write finds the root's documents changing, missing
+or half written: the catalog isolates the root (`organization-changed`, or
+another reason) or its reader throws, the owner is not found and the rule was
+`unverified`. The catalog's readers take no lock (the content lock is held for
+the whole synchronization, network included, and only one content operation
+takes it), so the rule reads again: where the reading failed, or where the owner
+was not found while an Organization of the Folder could not be read, it waits
+`ownerRereadMs` (1 s) and reads again, at most `ownerRereads` (2) times. A
+Folder whose Organizations were all read, or where two readable ones answer the
+owner, is `unverified` at once. The tools' sign-in probes and Composio reach the network, so the Launchpad
 keeps its last reading for a minute and reads again on "Zkontrolovat připojení"
 (`?refresh=1`) and after every change: a connect or a removal, a change of the
 tools in Settings → Tools (`/api/tools/update`) and a sign-in of a tool that ends
@@ -938,4 +979,11 @@ hosted Environments names the Integrace page instead of Composio's procedure. Th
 texts it retires: `composio link` for agents, "send the link the command returns",
 "no cloud connector other than Composio", MCP servers set up per harness
 (`claude mcp add`, `~/.codex/config.toml`). Template revision `base-instructions-39`;
-the Microsoft 365 texts `base-instructions-53`.
+the Microsoft 365 texts `base-instructions-53`. Since `base-instructions-83`
+(decision F42, addendum of 2026-10-27) AGENTS.md and the chapter Integrace say
+that `"connected": null` means the state could not be verified now, not that
+the app is not connected: never say so to the user and do not switch to another
+way because of it; read the list again in a moment or try the operation through
+the app's path, but never Composio with an unverified organization
+(`composio-unverified`, `composio-elsewhere`) until a reading verifies it; report
+only a concrete failure with the tool and the account used.

@@ -844,6 +844,10 @@ a.files-name:hover { text-decoration: underline; }
 .integration-where { flex: 1 1 0; min-width: 0; color: var(--muted-fg); font-size: 13px; }
 .integration-state { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--success-fg); font-size: 13px; }
 .integration-state .icon { width: 14px; height: 14px; }
+/* Not verified now (decision F42, addendum of 2026-10-27): quiet, never the
+   connected state's colour. */
+.integration-unknown { display: inline-flex; align-items: center; gap: 6px; color: var(--muted-fg); font-size: 13px; }
+.integration-unknown .icon { width: 14px; height: 14px; }
 .integration-path { display: inline-flex; align-items: center; gap: 3px; color: var(--muted-fg); }
 .integration-path .icon { width: 12px; height: 12px; }
 .integration-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

@@ -11773,6 +11773,92 @@ the choice to the person as before (`tests/integrations-composio-organization.te
 Začínáme's Composio step done only where the default organization is current
 (`tests/first-run.test.ts`).
 
+**Addendum 2026-10-27, reported by the Operator: an app that could not be verified is
+unknown, never "not connected".** On two Remote Environments of a client
+Organization, `lazurio integrations list --json` answered `"connected": false,
+"accounts": []` for every Composio app while Composio's organization could not be
+verified (`sources.composio` `organization`, `composio.organization` `{name: null,
+state: "unverified"}`); seven minutes later the same Environment read Outlook
+connected, with one working and one expired account. Agents trusted the first
+reading, told the person that Outlook was not connected and took another way. Each of
+the three such readings in October came 6 to 11 seconds after the agent had started
+`lazurio update` in the background, as the Folder's rules ask at the beginning of
+work; about twenty other readings near an update were right. The update
+fast-forwards the Organization's root while the rule of the Composio organization
+reads it for the Organization's name (addendum (2) of 2026-10-13), and a reading in
+the middle of that write found no owner. Point 5 already said that a source that is
+down is never "nothing connected"; the app's own `connected` said it anyway. The
+reference is [integrations](integrations.md#the-reading-get-apiintegrations-and-lazurio-integrations-list).
+
+1. **Unknown is not false.** An app's `connected` is `false` only where every source
+   that could connect it here was read; where one was not, it is `null` and `unknown`
+   names the first such source in the agents' order (tool, Executor, Composio) whose
+   tool, or whose account on a way the path rule would take, could connect it:
+   `tools-unreadable` (`tools-unavailable`), `executor-unavailable`,
+   `executor-unreadable`, `composio-unreadable`, `composio-unverified`,
+   `composio-elsewhere`. A state of the Environment that settles it is not unknown:
+   Executor absent, Composio not installed, signed out, off for agents or not
+   allowed, since nothing connects through that source here and the card names the
+   step. An app connected through its tool or a working account stays connected
+   whatever another source says.
+   A sign-in probe that could not tell (it timed out, or its answer was not
+   understood) is a source not read, never a sign-out (review of #679, #687): an app
+   tool agents use with such a sign-in leaves its app `tools-unreadable` while the
+   other tools were read, and Composio with such a sign-in reads `sources.composio`
+   `unreadable`, its apps `composio-unreadable`. Only a probe that says signed out
+   settles it.
+2. **Only the reporting changes.** Nothing of an unverified Composio is used, as
+   decided in the review of #372: its accounts are not listed, nothing is switched,
+   a link and a removal are refused (`composio-organization`).
+3. **The page and the CLI say it.** A card of an unknown app says "Nelze teď
+   ověřit" ("Can't verify right now") instead of "Připojeno", in the quiet colour of
+   a note and not as the connected state the guide points at, and keeps its action;
+   Připojené does not count it and, empty while an app is unknown, says "Připojené
+   aplikace teď nelze ověřit." The page refuses a reading with `null` and no known
+   reason, or a reason beside `true` or `false`. `lazurio integrations list` counts
+   the unknown apps by reason under "Not verified now" and no longer says
+   "Connected: none." while one is unknown.
+4. **The reading during an update reads again.** The rule of an Organization's
+   Environment reads the catalog again where the reading failed, or where the owner
+   was not found while an Organization of the Folder could not be read: after 1 s,
+   at most twice. Only then is it `unverified`, and then the apps are unknown by
+   point 1. The catalog's readers take no lock, as before: the content lock is held
+   for the whole synchronization, the network included, and the catalog itself says
+   "organization-changed: read again". A Folder whose Organizations were all read
+   is `unverified` at once.
+5. **The Folder (template revision `base-instructions-83`).** AGENTS.md and the
+   manual's Integrace say that `"connected": null` means the state could not be
+   verified now: never tell the user the app is not connected, nor send them to
+   connect it again or switch to another way because of it; read the list again in
+   a moment, or try the operation through the app's path; report only a concrete
+   failure with the tool and the account used. Composio with an unverified
+   organization (`composio-unverified`, `composio-elsewhere`) is the exception: the
+   agent does not use it until a reading verifies it, since its current organization
+   may be another Organization's.
+6. **Unchanged:** the rule that starts `lazurio update` at the beginning of work, the
+   Organization's settings and the policy for apps in ChatGPT, which other changes
+   own.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep `false` and add only the source's state | No new field; but agents read `connected` and the bug is exactly that; rejected |
+| Read the catalog under the content lock | No reading during a write; but the lock is try-only and held for the whole synchronization, network included, so a reading would wait minutes or be refused; rejected |
+| Unknown also where Composio is not installed, signed out or off | One rule for every non-`ok` source; but those are states of this Environment the card turns into a step (install, sign in, switch on), not readings that failed; rejected |
+| Let agents use an unverified Composio | The operation may work at once; but the CLI may then act in another Organization's Composio organization, the boundary the review of #372 kept; rejected |
+
+Verified by tests: the reading of 10:31 and of 10:38 as the model reads them,
+unknown by each reason and in the agents' order, a connected app kept connected, a
+settled state never unknown, the CLI's text, the page's card, tab, empty Připojené
+and its refusal of an unknown without a known reason, the Folder's rule in both
+languages, a catalog reading that throws once read again with the account connected,
+the owner's manifest half written until the wait read again, one that never settles
+unknown and nothing switched, an Organization not in the Folder unverified without a
+wait, `lazurio integrations list --json` with the Organization's root gone,
+Composio's or gh's sign-in probe timed out leaving only its own apps unknown, and
+a probe that says signed out settling them (`tests/integrations-unknown.test.ts`); Executor down or not this account's leaving
+Notion unknown (`tests/integrations-routes.test.ts`); sources not read leaving each
+app unknown by its own reason (`tests/integrations-model.test.ts`).
+
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
 > **Superseded in part by [F53](#f53--every-environment-owns-its-vault-its-own-organization-in-the-networks-vaultwarden-created-by-its-technical-account)

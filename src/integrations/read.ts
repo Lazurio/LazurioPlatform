@@ -23,6 +23,7 @@ import {
   type ComposioOrganizationRule,
   composioOrganizationRule,
   convergeComposioOrganization,
+  type OwnerReading,
 } from "./composio-organization";
 import {
   type ComposioNames,
@@ -89,6 +90,9 @@ export type IntegrationsHost = Readonly<{
   /** Test and preview seam: the rule of this Environment's Composio
    * organization, instead of the one its Machine binding gives. */
   composioOrganization?: ComposioOrganizationRule;
+  /** Test seam: how that rule reads the Folder's Organizations and waits
+   * before it reads them again (`composioOrganizationRule`). */
+  organizationReading?: OwnerReading;
 }>;
 
 /** The scope of the rule: a personal Environment and the person's own
@@ -115,18 +119,35 @@ export function executorHere(
   return context === null ? executor.offered : context.kind === "supported";
 }
 
-/** A tool for one app counts as connected when agents use it (required or
- * enabled), it is installed and its sign-in probe says signed in. */
-export function connectedTools(tools: readonly ToolOverview[]): AppTool[] {
+/** The tools for one app that agents use (required or enabled), that are
+ * installed and whose sign-in probe says `state`. */
+function appToolsSignedIn(
+  tools: readonly ToolOverview[],
+  state: "signed-in" | "unknown",
+): AppTool[] {
   return tools.flatMap((tool) => {
     const name = appTools.find((item) => item === tool.name);
     return name !== undefined &&
       tool.enabled &&
       tool.installed &&
-      tool.signIn?.state === "signed-in"
+      tool.signIn?.state === state
       ? [name]
       : [];
   });
+}
+
+/** A tool for one app counts as connected when agents use it (required or
+ * enabled), it is installed and its sign-in probe says signed in. */
+export function connectedTools(tools: readonly ToolOverview[]): AppTool[] {
+  return appToolsSignedIn(tools, "signed-in");
+}
+
+/** A tool for one app that agents use and that is installed, but whose
+ * sign-in its probe could not tell (it timed out, or its answer was not
+ * understood): what it connects is unknown, never "not connected"
+ * (decision F42, addendum of 2026-10-27). */
+export function unknownTools(tools: readonly ToolOverview[]): AppTool[] {
+  return appToolsSignedIn(tools, "unknown");
 }
 
 /** Composio as this Environment reads it: its accounts, whether its CLI
@@ -157,19 +178,30 @@ async function readComposioSource(
     }) as const;
   if (tool === undefined || !tool.installed)
     return only({ state: "unavailable" });
-  if (tool.signIn?.state !== "signed-in") return only({ state: "signed-out" });
+  const signIn = tool.signIn?.state;
+  if (signIn !== "signed-in" && signIn !== "unknown")
+    return only({ state: "signed-out" });
   if (!allowed || tool.path === undefined)
     return only({ state: "unavailable" });
   // Signed in, but off for agents here: said as such, so that a card says
   // which switch it waits for instead of asking for a sign-in that is there
   // (decision F42, note of 2026-10-19).
   if (!tool.enabled) return only({ state: "off" });
+  // A sign-in its probe could not tell (`composio whoami` timed out, or its
+  // answer was not understood) is no sign-out: Composio was not read, so
+  // what it connects here is unknown, never "not connected" (decision F42,
+  // addendum of 2026-10-27).
+  if (signIn === "unknown") return only({ state: "unreadable" });
   const command = tool.path;
   let organization = signedIn;
   let target: IntegrationsOverview["composio"]["organization"] = null;
   const rule =
     host.composioOrganization ??
-    (await composioOrganizationRule(host.folder, machine));
+    (await composioOrganizationRule(
+      host.folder,
+      machine,
+      host.organizationReading,
+    ));
   // Nothing of Composio counts where its organization cannot be told: an
   // Organization's name that cannot be read (Pablo's review of #372), or an
   // organization of that name, or the account's default one, that could not
@@ -282,7 +314,11 @@ export async function readIntegrations(
   const tools: ToolsReading =
     overview === null
       ? { state: "unreadable" }
-      : { state: "ok", connected: connectedTools(overview.tools) };
+      : {
+          state: "ok",
+          connected: connectedTools(overview.tools),
+          unknown: unknownTools(overview.tools),
+        };
   const composioTool = overview?.tools.find((tool) => tool.name === "composio");
   // On for agents here: switched on, and allowed (decision F45).
   const composioReady =

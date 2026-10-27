@@ -291,10 +291,14 @@ test("Executor that is not this account's never gets the token, and the page sti
   const { value } = await overview(app);
   expect(value.sources.executor).toBe("unavailable");
   expect(value.sources.tools).toBe("ok");
-  // GitHub still goes through gh; Notion has no account, its path stays.
+  // GitHub still goes through gh; Notion lists no account and its path
+  // stays, but whether Executor holds one was not read: unknown, never "not
+  // connected" (decision F42, addendum of 2026-10-27).
   expect(value.apps.find((item) => item.id === "github")?.connected).toBe(true);
   expect(value.apps.find((item) => item.id === "notion")).toMatchObject({
-    connected: false,
+    path: { path: "direct" },
+    connected: null,
+    unknown: "executor-unavailable",
     accounts: [],
   });
   expect(world.executor.calls).toEqual([]);
@@ -309,12 +313,21 @@ test("an Executor that is down and one without a token file are explicit, never 
     executor: "unreadable",
     composio: "unavailable",
   });
+  // GitHub: gh signed out, no company app for its direct path, Composio
+  // not installed: nothing here connects it, which was all read.
   expect(value.apps.find((item) => item.id === "github")).toMatchObject({
     connected: false,
   });
-  // Down is not gone: Notion keeps its direct path.
-  expect(value.apps.find((item) => item.id === "notion")?.path).toEqual({
-    path: "direct",
+  expect(value.apps.find((item) => item.id === "github")?.unknown).toBe(
+    undefined,
+  );
+  // Down is not gone: Notion keeps its direct path, and whether Executor
+  // holds its account is unknown, not "not connected" (decision F42,
+  // addendum of 2026-10-27).
+  expect(value.apps.find((item) => item.id === "notion")).toMatchObject({
+    path: { path: "direct" },
+    connected: null,
+    unknown: "executor-unreadable",
   });
 });
 
