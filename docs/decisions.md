@@ -18993,6 +18993,173 @@ wherever their composers reach the window's edge, which point 4 measured for T3 
   - `hidden` on `<lazurio-buddy>` removed the clearance and hid the launcher, and removing it
     restored both; with the frame open, `<html>`'s style saw no write in two seconds.
 
+### F60 addendum of 2026-10-26: Buddy's first meeting, his bubble before it and his first message
+
+**Decided by the Organization Admin (2026-10-26)**, who approved the prototype of
+HumanAndMachine-ai/prototypes-lazurio #92 at `4772dfe0` ("Vypadá dobře, pokračuj") after two real
+handovers of Buddy: the introduction was one sentence and three questions, both people switched
+the preselected vy to ty, and Buddy's first message in the chat said little more than hello. In
+the Admin's words: "To bychom měli dopilovat, protože to bude nejvíce důležité, tak se Buddy
+představí uživatelům." The Buddy lead decided the prototype's open questions as below; the Admin
+may overrule them. This amends F65 points 4 and 8 and
+adds to points 1 to 5 above.
+
+1. **His bubble before the meeting is the shell's.** `lazurio.shell.v1`'s `setup` gains
+   `buddyNext` (additive in v1, ignored by older parsers): beside `buddy` `missing` while the
+   person has not confirmed his names, `sign-in` until he is signed in, then `introduce`. It is
+   absent once the names are confirmed (a later sign-out included: his own window says that, as
+   before), whenever it is not known, and without Buddy; it never carries a name or a code.
+   - Its sources are the reading `setup.buddy` already has: the server's setup cache
+     (`shellSetup`, `buddyNextOf`), and the Launchpad's page from its own reading, also while
+     GitHub's state is not known there (`withBuddySetup`, which keeps the server's members).
+   - The server reads `setup` anew after a sign-in that finished, a sign-out and names written
+     (`createBuddyRoutes`' `changed`). Chat and Automate follow at their next reading of the
+     document: on load, focus or visibility (F36's addendum of 2026-10-18).
+   - Only on a page of his own Osobní Prostředí (`buddyMeeting`: Buddy's origin is of the current
+     Environment's base host, which only a personal Environment's one-label id can be) the
+     launcher shows "1" ("Buddy, 1 nová zpráva" to assistive technology; none while his window
+     shows or while he is out presenting the guide). His window is then the panel with his
+     figure, his hello and the one thing he needs, and one action: "Přihlásit Buddyho" or
+     "Seznámit se". These are the shell's own words, in vy and "váš Buddy", since his name is not
+     in the document.
+   - No frame is made before the meeting: nothing of his chat loads, and the chat of a Buddy who
+     is signed in but not introduced stays hidden (the prototype's question 9). A frame made
+     before stays hidden, asks for no size and no explanation. A window open when the meeting
+     comes or goes closes; it never turns into the other by itself.
+   - On another Environment's page (one of the same tailnet, point 1) that Launchpad does not
+     know his step, so his bubble is as before.
+2. **The way into the dialog is a link.** The action is a real link to Začínáme of the Launchpad
+   that the document names for that Environment (its `apps.apps`, never composed from another
+   origin) with the fragment `#lazurio-start=meet-buddy`, a top-level navigation. On the
+   Launchpad's own page it is announced as `lazurio-navigate` and taken without a reload; the
+   Launchpad also takes the fragment changed in place. `readFragment` takes only the requests it
+   knows and ignores every other value. `startDecision` opens the dialog where his step stands
+   (`meetStart`: his sign-in, or his introduction) only where Buddy is and until his names are
+   confirmed, and waits for his reading. Nothing starts by itself: a code is asked for in the
+   dialog, never by a link.
+3. **The introduction is five beats, then his questions** (F65 point 4's second screen).
+   - Each beat is his figure, one or two of his speech bubbles and one drawing: who he is, what
+     he takes care of, his bots, his memory, where he is. Další and Zpět move between them, and
+     five bars say where they stand ("2 z 5").
+   - Then his questions, in the order people introduce themselves: his name, the person's name
+     with its forms and Opravit, then ty or vy.
+   - **Nothing is preselected.** `PersonaDraft.address` is null until the person chooses. In
+     Czech the installer's proposal chooses nothing (`draftOf` takes the address only from a
+     confirmed persona), and `draftReady` requires a choice, so Pokračovat waits. English asks no
+     ty or vy: it keeps the file's address, vy where there is none.
+   - Before the choice he says vy; "Tykej mi" changes every line of his at once.
+   - The four things he takes care of are true on an Osobní Prostředí of Product 1, without an
+     Organization or a tailnet. "Najdu, co hledáte" (his bots search the web), "Připravím
+     e-mail" (a draft in the chat, nothing sent) and "Shrnu dlouhý text" stay. "Připomenu
+     schůzku" became "Naplánuju cestu" (his bots look into connections; nothing booked or paid
+     without the person): a reminder needs a channel that reaches the person when it is due,
+     which his conversation in Lazurio alone does not give, and he reads no calendar
+     there.
+   - The beats name the Environment's apps as its switch does: his bots' Automate, and Chat,
+     Apps and Automate where the Environment has them.
+   - His lines keep a one-letter word with the next one (`keepTogether`, the prototype's).
+4. **Where he is: the real launcher over the dialog.** On the fifth beat the Launchpad lifts the
+   launcher of its own `<lazurio-buddy>` (`spotlight`, not interface v1). It is a manual popover
+   shown after the modal dialog, so the top layer puts it above the dialog's backdrop, in its
+   own corner, with a blue ring and a small hop. It stays inert, as the page behind a modal
+   dialog is, so the dialog keeps the focus and Escape. It goes back when the beat changes or
+   the dialog closes. Without motion the ring stands still and nothing hops.
+5. **He waves.** On the first beat his figure waves: three frames of the design system's
+   spritesheet (row 4, frames 1 to 3; the sheet's SHA-256 `7bbe0d629ea1e3e6…`).
+   - They are cut losslessly into one strip, `src/launchpad/images/buddy-wave.webp`
+     (576 × 208 px, 88,932 bytes, SHA-256 `61a0c602870fd514…`). Its alpha and every visible
+     pixel are the sheet's; nothing is redrawn or smoothed, as the design system's consumer
+     contract asks. The test pins the digest.
+   - CSS steps play it twice, scaled with `pixelated`, and the page loads it only when the beat
+     shows. Without motion he stands still.
+6. **The meeting's end opens his window.** "Teď ne" on the Telegram screen (unchanged otherwise)
+   closes the dialog and opens Buddy's window through `<lazurio-buddy>`'s `openWindow()`, as the
+   person's click would (not interface v1). The frame still never opens it (point 5). × only
+   closes the dialog.
+7. **His first message is his own.** After the person's first confirmation the Launchpad gives
+   Buddy one turn in his conversation in Lazurio, which the person never sees, and he greets
+   them.
+   - **When.** `writePersona` says when a write records the first confirmation
+     (`firstConfirmation`). The Launchpad records the turn before the apply: the confirmation,
+     the key, the exact text and the state, in `~/.local/state/lazurio/buddy/first-meeting.json`
+     (`lazurio.buddy-first-meeting.v1`, 0600 in 0700, beside F64's records). It sends the turn
+     once an apply of the Launchpad's has answered `applied`, so he greets in the names and the
+     address just confirmed: never after an apply that failed, was refused or still waits, and
+     every retry of the turn asks again. A delivery under way asks once more after its last
+     read, with nothing awaited before it hands the turn to T3 Code: an apply that started since
+     (another save) leaves the turn owed.
+     A save after the confirmation, before the turn went, gives the owed turn the names and the
+     address just saved. The record changes one step at a time in the Launchpad (owed anew,
+     refreshed, sent, refused, expired), each step reading and writing it at once, and a
+     delivery's outcome lands only on the turn it sent, so nothing writes over a newer
+     confirmation or a turn that went. A reading while it is owed sends it the same way; after
+     a Launchpad restart one apply comes first.
+   - **How.** The path and the mark of Delegace's notices: Buddy's own runtime runs
+     `t3 lazurio buddy thread`, then `t3 thread send <thread> --mode queue --idempotency-key
+     lazurio-first-meeting-<the confirmation's digits> --message-file -` against
+     `--base-dir ~/.t3-buddy`. That `t3` alone runs with `T3CODE_ACTING_SENDER=delegace`, the
+     acting sender that T3 Code shows to Buddy and never to the person (Lazurio/t3code
+     `apps/web/src/lazurio/actingSender.ts` `hidesMessage` and `MessagesTimeline.tsx`, at
+     `v0.1.2-lazurio.4`). `queue` puts it behind a turn of his, never into it.
+   - **What.** Lazurio's note to Buddy in the Folder's language: the prototype's three short
+     paragraphs in the person's address, with the vocative his to form. No emoji, no list of
+     what he can do, no tool or service and no signature; his limit by root decision 0089.
+   - **How often.** Once per confirmation. A failure that may pass leaves it owed, with the same
+     key and text: it is asked again 10 s later, doubling up to two minutes (his T3 Code may just
+     have been restarted by the apply), and on every reading that finds nothing pending. A
+     refusal that the same key never fixes ends it (`refused`), and a day after the confirmation
+     it expires.
+   - **Where not.** Never on Telegram, never from `lazurio buddy persona --confirm`. The journal
+     names the operation and the outcome, never a name, the text or the key.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Buddy's T3 surface draws the window before the meeting | Needs his step across origins and a release of the fork, and loads his frame before the meeting; rejected for the shell |
+| A new same-origin read, `/.lazurio/buddy.json` | A second reading of the facts behind `setup.buddy`, and one more request per page; rejected for one member of `setup` |
+| New values of `setup.buddy` | An older parser refuses a value it does not know, so not additive; rejected for a new member |
+| The screen in the link (`sign-in`, `introduce`) | The bubble's knowledge can be older than the Launchpad's; rejected for the Launchpad deciding |
+| The link starts a code | A navigation would start a POST; rejected: the dialog asks |
+| The Launchpad writes the greeting itself | Not Buddy's own message; rejected |
+| An acting-sender kind of Lazurio's own in T3 Code | Needs a T3 Code release; `delegace` is the kind T3 Code hides now; possible later |
+| The dialog non-modal with its own scrim | The focus trap and Escape rebuilt by hand; rejected for a popover over the modal |
+| The spritesheet whole, or a lossy cut | 1,959,990 bytes, or pixels the design system did not draw; rejected for the lossless strip |
+| The turn at once, before the persona is applied | He would greet with his old prompt, and the apply's restart could meet his turn; rejected for after the apply |
+
+**Verified by:**
+- `tests/shell-buddy.test.ts`: `buddyNext` taken only beside a missing step and in its two
+  values; the step counted only on his own Osobní Prostředí and only at an https Apps address;
+  the "1", his hello and the action, no frame, the panel whatever the tab remembers, Escape, the
+  window closing when the meeting comes or goes, a frame made before staying hidden, `open()` and
+  `spotlight()`, the styles of the badge, the lift and less motion.
+- `tests/first-run-buddy.test.ts`: `buddyNextOf`, `setup` with and without it, `withBuddySetup`,
+  the fragment's requests and every other value ignored, `startDecision` for `meet-buddy`.
+- `tests/buddy-view.test.ts`: the five beats in vy, in ty and in English, the cards and drawings,
+  the questions with nothing chosen and every line following "Tykej mi", the way on
+  (`introduceNav`), the draft.
+- `tests/buddy-voice.test.ts`: his new lines in pairs by his address, Lazurio's in vy, no
+  developer word.
+- `tests/buddy-first-meeting.test.ts`: the text and the key; the turn owed and recorded once per
+  confirmation, sent with exactly Delegace's commands and environment, the text only on stdin;
+  owed while T3 Code is not there, does not answer or answers garbled, then sent with the same
+  key and text; each final refusal recorded and nothing elsewhere; expiry; a link or another
+  schema owing nothing; in the Launchpad's persona, only the first confirmation owing it, nothing
+  sent while Buddy is busy, asked again 10 s and 20 s later while T3 Code is away, and a restart
+  taking it up; `firstConfirmation`; the routes' `changed`.
+- Mutation checks and the browser check: listed in the change's pull request.
+
+**Honest limits.**
+- No Osobní Prostředí ran it, and the hidden turn did not run end to end: `t3` was a fake with
+  the shapes Delegace's tests record. The acceptance is on Bob's Osobní Prostředí of the
+  reference Organization (root decision 0204), as listed in the pull request.
+- Chat and Automate learn of the meeting at their next reading of the shell document, not at
+  once.
+- Buddy's Lazurio layer says nothing of the note; the note says what it is. T3 Code records it
+  as Delegace's.
+- The prototype's first message promises "a já pohlídám, ať na nic nezapomenete". Without
+  Telegram he keeps it only when the person writes to him (the reason "Připomenu schůzku" went).
+- After "Teď ne" the Launchpad's own tour of Začínáme comes back beside his window, as after any
+  step.
+
 ## F61 — Buddy's chat in Lazurio is T3 Code with Hermes over ACP: the Platform's side
 
 **Decided by Matěj (Organization Admin) on 2026-10-22 (plan DEV-6676, root decision 0210

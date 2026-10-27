@@ -14,9 +14,16 @@ import {
   buddyMessage,
   createBuddyContextSender,
 } from "./buddy-protocol";
-import type { ShellEnvironmentKind } from "./contract";
+import {
+  currentEnvironment,
+  environmentIdOf,
+  type Shell,
+  type ShellEnvironmentKind,
+} from "./contract";
 import type { GuideEvent } from "./guide";
 import { createGuideReceiver } from "./guide-protocol";
+import { keepTogether, shellMessages } from "./messages";
+import { buddyMeetHref } from "./view";
 
 // Buddy's bubble on a page of Lazurio, as the host's shell runs it (decision
 // F60; root decision 0210 point 8, plan DEV-6676 P3): what `<lazurio-buddy>`
@@ -50,6 +57,16 @@ import { createGuideReceiver } from "./guide-protocol";
 // - Buddy presents every explanation himself (F56's addendum (7) of
 //   2026-10-25): while the guide's figure is out of the launcher, from its
 //   leap until it is back, the launcher waits empty, as in the prototype.
+// - Before the person met him (F60's addendum of 2026-10-26; the prototype
+//   of prototypes-lazurio #92): on a page of his own Osobní Prostředí whose
+//   Launchpad says his step needs his sign-in or the meeting
+//   (`setup.buddyNext`), the launcher shows "1" and his window holds his
+//   hello and the one thing he needs, with one action that opens his dialog
+//   in Začínáme there. No frame is made then, so nothing of his chat loads
+//   before the meeting, and no window of his answers before he can.
+// - The Launchpad, which hosts the meeting's dialog, opens his window at its
+//   end (`open`) and lifts the launcher over its dialog while the dialog
+//   shows where he is (`spotlight`). The frame still never opens it.
 
 /** The size of the window this tab remembers, in `sessionStorage`. */
 export const buddyLayoutKey = "lazurio.buddy.layout";
@@ -66,20 +83,76 @@ export type BuddyFrameModel = Readonly<{
   allow: string;
 }>;
 
+/** Buddy's step before the person met him, as the page knows it (F60's
+ * addendum of 2026-10-26): what it needs next, Začínáme of his Launchpad
+ * with his dialog to open, and the page's language. */
+export type BuddyMeeting = Readonly<{
+  step: "sign-in" | "introduce";
+  href: string;
+  lang: "cs" | "en";
+}>;
+
+/** Buddy's step before the meeting on a page of his own Osobní Prostředí:
+ * Buddy's origin is of the current Environment's base host (only a personal
+ * Environment's id has one label, as his origin's does), and its Launchpad
+ * says what his step needs next (`setup.buddyNext`, with `buddy` missing).
+ * Začínáme is on the Apps address the document names for that Environment,
+ * an https one, never one composed from another origin. Null anywhere else:
+ * on another Environment's page its Launchpad does not know him, so his
+ * bubble is as before. */
+export function buddyMeeting(
+  shell: Shell | null,
+  origin: string | null,
+  lang: string | null,
+): BuddyMeeting | null {
+  if (shell === null || origin === null) return null;
+  const step = shell.setup?.buddyNext;
+  if (step === undefined || shell.setup?.buddy !== "missing") return null;
+  const current = currentEnvironment(shell);
+  if (
+    current === null ||
+    environmentIdOf(origin) !== current.id ||
+    !current.apps.apps.startsWith("https:")
+  )
+    return null;
+  return Object.freeze({
+    step,
+    href: buddyMeetHref(current.apps.apps),
+    lang: lang === "cs" || lang === "en" ? lang : shell.locale,
+  });
+}
+
+/** His window before the meeting: his hello, the one thing he needs, its
+ * action leading to `href`, and the window's close button, in the page's
+ * language. */
+export type BuddyMeetingModel = Readonly<{
+  step: BuddyMeeting["step"];
+  hello: string;
+  line: string;
+  action: string;
+  href: string;
+  close: string;
+}>;
+
 /** What the view draws. */
 export type BuddyBubbleModel = Readonly<{
   origin: string;
   /** Buddy's picture, its name for assistive technology, whether the
-   * window shows, and whether Buddy is out presenting the guide, the
-   * launcher waiting empty. */
+   * window shows, whether Buddy is out presenting the guide, the launcher
+   * waiting empty, the "1" before the meeting (none while the window shows
+   * or he is out), and whether the Launchpad lifts it over its dialog. */
   launcher: Readonly<{
     avatar: string;
     label: string;
     expanded: boolean;
     away: boolean;
+    badge: string | null;
+    spot: boolean;
   }>;
   /** The frame, from the first open on; null before. */
   frame: BuddyFrameModel | null;
+  /** Before the meeting the window shows this instead of the frame. */
+  meeting: BuddyMeetingModel | null;
   layout: BuddyLayout;
 }>;
 
@@ -90,6 +163,8 @@ export type BuddyBubbleSeams = Readonly<{
   /** What the context is built from, but the guide's step; null on a page
    * without a person's document. */
   facts: () => Omit<BuddyContextFacts, "guide"> | null;
+  /** Buddy's step before the meeting (`buddyMeeting`); null otherwise. */
+  meeting: () => BuddyMeeting | null;
   /** The window of the frame the view made; null before. */
   frameWindow: () => BuddyFrameWindow | null;
   /** This tab's memory (`sessionStorage`), or null. */
@@ -120,6 +195,10 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
   // Whether the guide's figure is out of the launcher; it stays out across
   // another origin, as the figure does.
   let away = false;
+  // Buddy's step before the meeting, as the page last said it, and whether
+  // the Launchpad lifts the launcher over its dialog.
+  let meeting: BuddyMeeting | null = null;
+  let spot = false;
   // The explanation the frame asked for while it plays, and the size its
   // window returns to.
   let asked: Readonly<{ explainer: string; restore: BuddyLayout }> | null =
@@ -146,17 +225,63 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
 
   function model(): BuddyBubbleModel | null {
     if (origin === null) return null;
+    const copy = meeting === null ? null : shellMessages(meeting.lang);
+    const badge = copy !== null && layout === "closed" && !away ? "1" : null;
     return Object.freeze({
       origin,
       launcher: Object.freeze({
         avatar: buddyAvatarSource(origin) ?? "",
-        label: buddyName,
+        label: badge !== null && copy !== null ? copy.buddyNew : buddyName,
         expanded: layout !== "closed",
         away,
+        badge,
+        spot,
       }),
       frame,
+      meeting:
+        meeting === null || copy === null
+          ? null
+          : Object.freeze({
+              step: meeting.step,
+              hello: keepTogether(copy.buddyHello),
+              line: keepTogether(
+                meeting.step === "sign-in"
+                  ? copy.buddyNeedsSignIn
+                  : copy.buddyNeedsMeeting,
+              ),
+              action:
+                meeting.step === "sign-in" ? copy.buddySignIn : copy.buddyMeet,
+              href: meeting.href,
+              close: copy.buddyClose,
+            }),
       layout,
     });
+  }
+
+  /** The page's step before the meeting. A window open when the meeting
+   * comes or goes closes: the hello never turns into the frame by itself,
+   * nor the frame into the hello. */
+  function readMeeting(): void {
+    const was = meeting;
+    meeting = origin === null ? null : seams.meeting();
+    if ((was === null) !== (meeting === null) && layout !== "closed")
+      layout = "closed";
+  }
+
+  /** Opens the window: before the meeting his hello in the panel, without
+   * a frame; after it the frame, made the first time, in the remembered
+   * size. */
+  function openWindow(): void {
+    if (meeting !== null) {
+      show("panel", "frame");
+      return;
+    }
+    frame ??= Object.freeze({
+      src: buddyFrameSource(origin) ?? "",
+      title: buddyName,
+      ...buddyFrameAttributes,
+    });
+    show(remembered(), "frame");
   }
   const draw = () => seams.draw(model());
 
@@ -220,6 +345,7 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
     update(): void {
       const next = seams.origin();
       if (next !== origin) reset(next);
+      readMeeting();
       draw();
       sender?.changed();
     },
@@ -235,12 +361,22 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
         show("closed", "launcher");
         return;
       }
-      frame ??= Object.freeze({
-        src: buddyFrameSource(origin) ?? "",
-        title: buddyName,
-        ...buddyFrameAttributes,
-      });
-      show(remembered(), "frame");
+      openWindow();
+    },
+    /** The Launchpad's end of the meeting (F60's addendum of 2026-10-26):
+     * his window opens as the launcher's click opens it, unless it shows
+     * already; the frame still never opens it itself. Whether it shows. */
+    open(): boolean {
+      if (origin === null) return false;
+      if (layout === "closed") openWindow();
+      return true;
+    },
+    /** The Launchpad lifts the launcher over its own dialog while the
+     * dialog shows where Buddy is (true), and lets it back (false). */
+    spotlight(on: boolean): void {
+      if (on === spot) return;
+      spot = on;
+      draw();
     },
     /** Escape on the host's page: from full screen to the panel (the
      * person's choice for this tab), from the panel closed. Whether it was
@@ -263,7 +399,8 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
     receive(
       event: Readonly<{ data: unknown; origin: string; source: unknown }>,
     ): void {
-      if (origin === null || frame === null) return;
+      // Before the meeting the window is his hello, not the frame.
+      if (origin === null || frame === null || meeting !== null) return;
       if (receiver?.receive(event) != null) return;
       const window = seams.frameWindow();
       const message = acceptBuddyFrameMessage(
@@ -291,6 +428,7 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
     /** Something the context says may have changed (the page's path, the
      * column head, the colour scheme). */
     changed(): void {
+      readMeeting();
       draw();
       sender?.changed();
     },

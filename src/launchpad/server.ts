@@ -18,6 +18,7 @@ import {
   resolveBrowserView,
 } from "../browser/view";
 import { type CdpCall, cdpSeams, ensureThreadWindow } from "../browser/window";
+import { createFirstMeeting } from "../buddy/first-meeting";
 import { createHermesGateway } from "../buddy/hermes-gateway";
 import { buddyPersona as applyBuddyPersona } from "../buddy/persona-apply";
 import { createPersonaSave } from "../buddy/persona-save";
@@ -1188,6 +1189,9 @@ export async function startLaunchpad(
   // Nastavení → Buddy over F64's core, the change applied as `lazurio buddy
   // persona --apply` applies it, and finished here once he is idle. Its
   // journal never names a name, a value or a revision.
+  const folderLocale = async () =>
+    (await withFolderReadLock(state, () => readFolderState(state))).preferences
+      .profile.locale;
   const buddyPersona = createPersonaSave({
     home: toolsEnvironment.home,
     folder,
@@ -1198,6 +1202,27 @@ export async function startLaunchpad(
       ),
     journal: (line) =>
       console.log(JSON.stringify({ scope: "buddy-persona", ...line })),
+    // His first meeting (decision F60's addendum of 2026-10-26): one turn in
+    // his conversation in Lazurio after the person's first confirmation,
+    // hidden from the person, in the Folder's language. Only where the entry
+    // names him; its journal never names a name, the text or the key.
+    ...(entry?.buddyOrigin === undefined || toolsEnvironment.home === undefined
+      ? {}
+      : {
+          firstMeeting: {
+            meeting: createFirstMeeting({
+              home: toolsEnvironment.home,
+              path: toolsEnvironment.path,
+              xdg: toolsEnvironment.xdg,
+              run: toolsEnvironment.run,
+              journal: (line) =>
+                console.log(
+                  JSON.stringify({ scope: "buddy-first-meeting", ...line }),
+                ),
+            }),
+            locale: folderLocale,
+          },
+        }),
   });
   const buddy = createBuddyRoutes({
     present: () => entry?.buddyOrigin !== undefined,
@@ -1208,10 +1233,11 @@ export async function startLaunchpad(
     }),
     facts: () => readBuddyFacts(buddyGateway),
     persona: buddyPersona,
-    locale: async () =>
-      (await withFolderReadLock(state, () => readFolderState(state)))
-        .preferences.profile.locale,
+    locale: folderLocale,
     headers,
+    // His bubble in Chat and Automate reads his step from the shell
+    // document's `setup`, which is read anew once it changed.
+    changed: () => setup.forget(),
   });
   const newTab = createNewTabRoutes({
     browser,

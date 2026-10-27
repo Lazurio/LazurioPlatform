@@ -280,6 +280,17 @@ function buddyState(fact: BuddyFact): "done" | "missing" | "unknown" {
   return "unknown";
 }
 
+/** What Buddy's step needs next before the person met him (decision F60's
+ * addendum of 2026-10-26): `sign-in` until he is signed in, then
+ * `introduce`; none once his names are confirmed (a later sign-out
+ * included: his own window says that) or while that is not known. */
+export function buddyNextOf(
+  fact: BuddyFact,
+): "sign-in" | "introduce" | undefined {
+  if (fact === "loading" || fact.confirmed !== false) return undefined;
+  return fact.signIn === "connected" ? "introduce" : "sign-in";
+}
+
 /** One basic: done (provided ahead counts), missing, or not known. */
 export function basicState(
   facts: TourFacts,
@@ -681,13 +692,24 @@ export type StartDecision =
   | "drop"
   | "open-ai"
   | "sign-in-gh"
-  | "install";
+  | "install"
+  | "meet-buddy";
 
 export function startDecision(
   request: StartRequest,
   facts: TourFacts,
 ): StartDecision {
   if (!personOnboarding(facts)) return "drop";
+  // Buddy's bubble before the meeting (decision F60's addendum of
+  // 2026-10-26): his dialog, where his step stands, only where he is and
+  // only until his names are confirmed. A reading that failed opens it too,
+  // and the dialog says what it knows. Nothing starts by itself: a sign-in
+  // code is asked for in the dialog, never by a link.
+  if (request === "meet-buddy") {
+    if (facts.buddy === undefined) return "drop";
+    if (facts.buddy === "loading") return "wait";
+    return facts.buddy.confirmed === true ? "drop" : "meet-buddy";
+  }
   if (request === "sign-in-gh") {
     if (facts.github === "unknown" || facts.ai === "loading") return "wait";
     if (facts.ai === "missing") return "open-ai";
@@ -874,10 +896,14 @@ export function shellSetup(
       : { done: "ready", missing: "missing", unknown: "unknown" }[
           buddyState(input.buddy)
         ];
+  // What his step needs next, for his bubble before the meeting.
+  const buddyNext =
+    input.buddy === undefined ? undefined : buddyNextOf(input.buddy);
   const base = {
     ...(buddy === undefined
       ? {}
       : { buddy: buddy as "ready" | "missing" | "unknown" }),
+    ...(buddyNext === undefined ? {} : { buddyNext }),
     ...(input.ai === "organization" || input.ai === "connected"
       ? { ai: "ready" as const }
       : input.ai === "missing"
@@ -910,19 +936,52 @@ export function shellSetup(
   };
 }
 
+/** The server's `setup` with Buddy's members from this page's own reading,
+ * for while GitHub's state is not known here (decision F60's addendum of
+ * 2026-10-26): his bubble on this page follows his meeting at once, and
+ * nothing is said about GitHub that the server did not say. */
+export function withBuddySetup(
+  setup: ShellSetup,
+  buddy: BuddyFact,
+): ShellSetup {
+  const { buddy: _state, buddyNext: _next, ...rest } = setup;
+  const state = (
+    { done: "ready", missing: "missing", unknown: "unknown" } as const
+  )[buddyState(buddy)];
+  const next = buddyNextOf(buddy);
+  return Object.freeze({
+    buddy: state,
+    ...(next === undefined ? {} : { buddyNext: next }),
+    ...rest,
+  });
+}
+
 /** What a link asked the Launchpad to start on arrival, in its fragment
  * (`#lazurio-start=sign-in-gh`, `#lazurio-start=install-content`): from the
- * line in Apps, or from an older shell's column head in Chat and Automate. */
-export type StartRequest = "sign-in-gh" | "install-content";
+ * line in Apps, or from an older shell's column head in Chat and Automate;
+ * `#lazurio-start=meet-buddy` from Buddy's bubble before the meeting, in any
+ * app of his Osobní Prostředí (decision F60's addendum of 2026-10-26). */
+export type StartRequest = "sign-in-gh" | "install-content" | "meet-buddy";
 
 export const startParameter = "lazurio-start";
 
-/** Where a start request leads: Začínáme, where the sign-in and the
- * installation are steps (0201). A link of an older shell to Nástroje or
- * Toto Prostředí lands there too. */
+const startRequests: readonly string[] = Object.freeze([
+  "sign-in-gh",
+  "install-content",
+  "meet-buddy",
+]);
+
+/** Whether a value names a start request; anything else is ignored. */
+export const isStartRequest = (value: unknown): value is StartRequest =>
+  typeof value === "string" && startRequests.includes(value);
+
+/** Where a start request leads: Začínáme, where the sign-in, the
+ * installation and Buddy's step are steps (0201). A link of an older shell
+ * to Nástroje or Toto Prostředí lands there too. */
 export const startSection: Readonly<Record<StartRequest, SettingsSection>> = {
   "sign-in-gh": "start",
   "install-content": "start",
+  "meet-buddy": "start",
 };
 
 /** The fragment of the page's first address, taken apart: the start
@@ -941,7 +1000,7 @@ export function readFragment(hash: string): Readonly<{
       try {
         value = decodeURIComponent(part.slice(startParameter.length + 1));
       } catch {}
-      if (value === "sign-in-gh" || value === "install-content") start = value;
+      if (isStartRequest(value)) start = value;
       continue;
     }
     if (part !== "") rest.push(part);

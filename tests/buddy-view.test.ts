@@ -1,4 +1,7 @@
 import { expect, test } from "bun:test";
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type { BuddyPersonaShown } from "../src/buddy/persona-save";
 import { drawnKey } from "../src/launchpad/buddy-dialog";
 import { czechNames, namesFromInput } from "../src/launchpad/buddy-names";
@@ -6,6 +9,7 @@ import {
   type BuddyReading,
   type BuddySignInState,
   type BuddyStepFacts,
+  beatView,
   buddyFact,
   buddySignInRow,
   buddySignInStep,
@@ -15,7 +19,12 @@ import {
   draftChanged,
   draftOf,
   draftReady,
+  helloLine,
+  introduceNav,
   introduceScreen,
+  keepTogether,
+  meetBeats,
+  meetQuestionsAt,
   meetStart,
   parseBuddyReading,
   personaBody,
@@ -403,50 +412,69 @@ test("the dialog's first screen: the start, the code with its time, expired, Př
   ).toEqual({ kind: "failed", line: "Buddy teď neběží.", retry: false });
 });
 
-test("Buddy introduces himself in his own words: ty or vy at once, the person's name as he writes it, one form in English", () => {
-  const vy = draftOf(persona({ address: "vy" }));
-  expect(introduceScreen(vy, "cs", cs)).toEqual({
-    hello: "Ahoj, já jsem Rex.",
-    intro:
-      "Hlídám, co běží, zařídím, co potřebujete, a pamatuju si, na čem jsme se domluvili. Stačí mi napsat.",
+test("his questions in his own words, his name, the person's name, then ty or vy: nothing chosen until the person chooses, and every line follows at once (F60's addendum of 2026-10-26)", () => {
+  // The installer's proposal chooses nothing: an unconfirmed persona's
+  // address is no choice, in Czech.
+  const proposed = draftOf(persona({ address: "vy" }), "cs");
+  expect(proposed.address).toBeNull();
+  const asked = introduceScreen(proposed, "cs", cs);
+  expect(asked).toEqual({
     askName: "Jak mi budete říkat?",
+    askYou: "A jak mám říkat vám?",
+    forms: "Takhle o vás budu psát:",
     askAddress: "Mám vám vykat, nebo tykat?",
     answers: { vy: "Vykej mi", ty: "Tykej mi" },
-    askYou: "Jak vám mám říkat?",
-    forms: "Takhle o vás budu psát:",
+    chosen: null,
     traces: ["Buddy za Boba", "Výsledek pošli Bobovi"],
     fixable: true,
-    ready: true,
-  });
-  // "Tykej mi": every line of his changes with it.
-  const ty = introduceScreen({ ...vy, address: "ty" }, "cs", cs);
-  expect([ty.intro, ty.askName, ty.askAddress, ty.askYou, ty.forms]).toEqual([
-    "Hlídám, co běží, zařídím, co potřebuješ, a pamatuju si, na čem jsme se domluvili. Stačí mi napsat.",
-    "Jak mi budeš říkat?",
-    "Mám ti tykat, nebo vykat?",
-    "Jak ti mám říkat?",
-    "Takhle o tobě budu psát:",
-  ]);
-  // A blank name is still Buddy in his greeting, and cannot be sent.
-  const blank = { ...vy, buddyName: "  " };
-  expect(introduceScreen(blank, "cs", cs)).toMatchObject({
-    hello: "Ahoj, já jsem Buddy.",
     ready: false,
   });
-  // English: no ty or vy, one form.
+  // "Tykej mi": every line of his changes with it, and Pokračovat may go.
+  const ty = introduceScreen({ ...proposed, address: "ty" }, "cs", cs);
+  expect([ty.askName, ty.askYou, ty.forms, ty.askAddress, ty.chosen]).toEqual([
+    "Jak mi budeš říkat?",
+    "A jak mám říkat tobě?",
+    "Takhle o tobě budu psát:",
+    "Mám ti tykat, nebo vykat?",
+    "ty",
+  ]);
+  expect(ty.ready).toBe(true);
+  // "Vykej mi" chosen on purpose: the same words as before the choice, and
+  // now it may go.
+  const vy = introduceScreen({ ...proposed, address: "vy" }, "cs", cs);
+  expect([vy.askName, vy.askAddress, vy.chosen, vy.ready]).toEqual([
+    "Jak mi budete říkat?",
+    "Mám vám vykat, nebo tykat?",
+    "vy",
+    true,
+  ]);
+  // A confirmed persona's address is the person's own choice: shown chosen.
+  expect(
+    draftOf(persona({ address: "ty", confirmed: true }), "cs").address,
+  ).toBe("ty");
+  // A blank name cannot be sent, whatever is chosen.
+  expect(
+    introduceScreen({ ...proposed, address: "ty", buddyName: "  " }, "cs", cs)
+      .ready,
+  ).toBe(false);
+  // English: no ty or vy to choose, one form, and it may go without one.
   const english = introduceScreen(
-    withYourName(draftOf(null), "Bob", "en"),
+    withYourName(draftOf(null, "en"), "Bob", "en"),
     "en",
     en,
   );
   expect(english).toMatchObject({
-    hello: "Hi, I'm Buddy.",
+    askName: "What will you call me?",
+    askYou: "And what should I call you?",
     askAddress: null,
+    chosen: null,
     traces: ["Buddy for Bob"],
     fixable: false,
     ready: true,
   });
-  // The third screen, in his address.
+  // English keeps the file's address, which nobody is asked about.
+  expect(draftOf(persona({ address: "ty" }), "en").address).toBe("ty");
+  // The third screen, in his address, vy before a choice.
   expect(telegramScreen(persona({ address: "vy" }), cs)).toEqual({
     ask: "Chcete mi psát i na Telegramu?",
     here: "Psát mi můžete vždycky i tady v Lazuriu, vpravo dole.",
@@ -455,16 +483,167 @@ test("Buddy introduces himself in his own words: ty or vy at once, the person's 
     ask: "Chceš mi psát i na Telegramu?",
     here: "Psát mi můžeš vždycky i tady v Lazuriu, vpravo dole.",
   });
+  expect(telegramScreen({ address: null }, cs).ask).toBe(
+    "Chcete mi psát i na Telegramu?",
+  );
 });
 
-test("the draft of the names: guessed as the person types, corrected by hand with Opravit, sent with the revision read", () => {
-  expect(draftOf(null)).toEqual({
+test("his five beats in order, each one idea in his words with its drawing, vy before the choice and ty once chosen (F60's addendum of 2026-10-26)", () => {
+  const input = {
     buddyName: "Buddy",
-    address: "vy",
+    address: null,
+    apps: ["Chat", "Apps", "Automate"],
+    automate: "Automate",
+  } as const;
+  expect(meetBeats).toEqual(["hello", "does", "bots", "memory", "where"]);
+  expect(meetQuestionsAt).toBe(5);
+  const views = meetBeats.map((_, n) => beatView(n, input, cs));
+  expect(views.map((view) => [view.beat, view.progress, view.lines])).toEqual([
+    ["hello", "1 z 5", ["Ahoj, já jsem váš Buddy.", "Jsem tu pro vás."]],
+    ["does", "2 z 5", ["Zařídím, co potřebujete."]],
+    ["bots", "3 z 5", ["Práci rozdám botům a pohlídám je."]],
+    [
+      "memory",
+      "4 z 5",
+      ["Pamatuju si, na čem jsme se domluvili a co vám vyhovuje."],
+    ],
+    [
+      "where",
+      "5 z 5",
+      [
+        "Najdete mě tady vpravo dole, v každé aplikaci.",
+        "A když budete chtít, i na Telegramu.",
+      ],
+    ],
+  ]);
+  // He waves on the first beat only, which has no drawing of its own.
+  expect(views.map((view) => view.waves)).toEqual([
+    true,
+    false,
+    false,
+    false,
+    false,
+  ]);
+  expect(views[0]?.drawing).toBeNull();
+  // Four things he takes care of, true on an Osobní Prostředí without an
+  // Organization or a tailnet (no reminder: nothing reaches the person at a
+  // time of his choosing there).
+  expect(views[1]?.drawing).toEqual({
+    kind: "does",
+    cards: [
+      { icon: "globe", text: "Naplánuju cestu" },
+      { icon: "search", text: "Najdu, co hledáte" },
+      { icon: "mail", text: "Připravím e-mail" },
+      { icon: "file", text: "Shrnu dlouhý text" },
+    ],
+  });
+  expect(views[2]?.drawing).toEqual({
+    kind: "bots",
+    title: "Automate",
+    rows: [
+      { task: "Letenky do Lisabonu", status: "Pracuje…", done: false },
+      { task: "Shrnutí smlouvy", status: "Hotovo", done: true },
+    ],
+  });
+  expect(views[3]?.drawing).toEqual({
+    kind: "memory",
+    title: "Paměť",
+    items: [
+      "Faktury do pátku",
+      "Stručné odpovědi",
+      "Ráno bez porad",
+      "Dovolená v srpnu",
+    ],
+  });
+  // Where he is: the Environment's apps as its switch names them, the ones
+  // it has, and the phone.
+  expect(views[4]?.drawing).toEqual({
+    kind: "where",
+    apps: ["Chat", "Apps", "Automate"],
+    phone: "Telegram",
+  });
+  expect(beatView(4, { ...input, apps: ["Apps"] }, cs).drawing).toMatchObject({
+    apps: ["Apps"],
+  });
+  // Once the person chose ty, every line of his says ty.
+  const ty = meetBeats.map(
+    (_, n) => beatView(n, { ...input, address: "ty" }, cs).lines,
+  );
+  expect(ty).toEqual([
+    ["Ahoj, já jsem tvůj Buddy.", "Jsem tu pro tebe."],
+    ["Zařídím, co potřebuješ."],
+    ["Práci rozdám botům a pohlídám je."],
+    ["Pamatuju si, na čem jsme se domluvili a co ti vyhovuje."],
+    [
+      "Najdeš mě tady vpravo dole, v každé aplikaci.",
+      "A když budeš chtít, i na Telegramu.",
+    ],
+  ]);
+  expect(beatView(1, { ...input, address: "ty" }, cs).drawing).toMatchObject({
+    cards: expect.arrayContaining([
+      { icon: "search", text: "Najdu, co hledáš" },
+    ]),
+  });
+  // A renamed Buddy says his name; one named Buddy is never "Buddy, váš
+  // Buddy", in any case and with spaces around.
+  expect(helloLine("Rex", null, cs)).toBe("Ahoj, já jsem Rex, váš Buddy.");
+  expect(helloLine("Rex", "ty", cs)).toBe("Ahoj, já jsem Rex, tvůj Buddy.");
+  expect(helloLine(" buddy ", "ty", cs)).toBe("Ahoj, já jsem tvůj Buddy.");
+  expect(helloLine("", null, cs)).toBe("Ahoj, já jsem váš Buddy.");
+  // English: one address, his own words.
+  expect(
+    meetBeats
+      .map((_, n) => beatView(n, { ...input, buddyName: "Rex" }, en))
+      .map((view) => [view.progress, ...view.lines]),
+  ).toEqual([
+    ["1 of 5", "Hi, I'm Rex, your Buddy.", "I'm here for you."],
+    ["2 of 5", "I take care of what you need."],
+    ["3 of 5", "I hand the work to bots and keep an eye on them."],
+    ["4 of 5", "I remember what we agreed on and what you like."],
+    [
+      "5 of 5",
+      "You'll find me here, bottom right, in every app.",
+      "And on Telegram too, if you like.",
+    ],
+  ]);
+  // Out of range: the nearest beat.
+  expect(beatView(-1, input, cs).beat).toBe("hello");
+  expect(beatView(9, input, cs).beat).toBe("where");
+  // Czech typesetting: a one-letter word never ends a line on screen.
+  expect(keepTogether("přihlaste mě k ChatGPT a v Lazuriu")).toBe(
+    "přihlaste mě k\u00a0ChatGPT a\u00a0v\u00a0Lazuriu",
+  );
+  expect(keepTogether("Najdete mě tady vpravo dole, v každé aplikaci.")).toBe(
+    "Najdete mě tady vpravo dole, v\u00a0každé aplikaci.",
+  );
+});
+
+test("the introduction's way on: Další through the beats, Zpět from the second, the launcher lifted only where he says where he is, Pokračovat only once ty or vy is chosen", () => {
+  const proposed = withYourName(draftOf(null, "cs"), "Alena", "cs");
+  const way = [0, 1, 2, 3, 4, 5].map((at) => introduceNav(at, proposed, "cs"));
+  expect(way).toEqual([
+    { back: false, next: "beat", ready: true, spotlight: false },
+    { back: true, next: "beat", ready: true, spotlight: false },
+    { back: true, next: "beat", ready: true, spotlight: false },
+    { back: true, next: "beat", ready: true, spotlight: false },
+    { back: true, next: "beat", ready: true, spotlight: true },
+    { back: true, next: "confirm", ready: false, spotlight: false },
+  ]);
+  expect(
+    introduceNav(meetQuestionsAt, { ...proposed, address: "ty" }, "cs").ready,
+  ).toBe(true);
+  // English has nothing to choose.
+  expect(introduceNav(meetQuestionsAt, proposed, "en").ready).toBe(true);
+});
+
+test("the draft of the names: guessed as the person types, corrected by hand with Opravit, sent with the revision read; ty or vy required in Czech only", () => {
+  expect(draftOf(null, "cs")).toEqual({
+    buddyName: "Buddy",
+    address: null,
     user: { nominative: "", accusative: "", dative: "" },
   });
-  expect(draftReady(draftOf(null))).toBe(false);
-  const typed = withYourName(draftOf(null), "Anna", "cs");
+  expect(draftReady(draftOf(null, "cs"), "cs")).toBe(false);
+  const typed = withYourName(draftOf(null, "cs"), "Anna", "cs");
   expect(typed.user).toEqual({
     nominative: "Anna",
     accusative: "Annu",
@@ -472,26 +651,36 @@ test("the draft of the names: guessed as the person types, corrected by hand wit
   });
   const fixed = withForm(typed, "dative", "Aně");
   expect(fixed.user.dative).toBe("Aně");
-  expect(draftReady(fixed)).toBe(true);
+  // Every name there, nothing chosen: not yet in Czech, ready in English.
+  expect(draftReady(fixed, "cs")).toBe(false);
+  expect(draftReady(fixed, "en")).toBe(true);
+  const chosen = { ...fixed, address: "vy" as const };
+  expect(draftReady(chosen, "cs")).toBe(true);
   // Without a persona every draft is a change; with one, only another value.
   expect(draftChanged(typed, null)).toBe(true);
-  const read = persona();
-  expect(draftChanged(draftOf(read), read)).toBe(false);
-  expect(draftChanged({ ...draftOf(read), buddyName: " Rex " }, read)).toBe(
-    false,
+  const read = persona({ confirmed: true });
+  expect(draftChanged(draftOf(read, "cs"), read)).toBe(false);
+  expect(
+    draftChanged({ ...draftOf(read, "cs"), buddyName: " Rex " }, read),
+  ).toBe(false);
+  expect(draftChanged({ ...draftOf(read, "cs"), address: "vy" }, read)).toBe(
+    true,
   );
-  expect(draftChanged({ ...draftOf(read), address: "vy" }, read)).toBe(true);
-  expect(personaBody(fixed, null, true, "cs")).toEqual({
+  // An unconfirmed persona's proposal is a change until the person chooses.
+  const proposal = persona();
+  expect(draftChanged(draftOf(proposal, "cs"), proposal)).toBe(true);
+  expect(personaBody(chosen, null, true, "cs")).toEqual({
     buddyName: "Buddy",
     address: "vy",
     user: { nominative: "Anna", accusative: "Annu", dative: "Aně" },
     revision: null,
     confirm: true,
   });
-  // English: the one form in all three; no confirm from Settings.
+  // English: the one form in all three, the file's address kept, and vy
+  // where there is none; no confirm from Settings.
   expect(
     personaBody(
-      { ...draftOf(read), user: { ...read.user, nominative: " Bob " } },
+      { ...draftOf(read, "en"), user: { ...read.user, nominative: " Bob " } },
       revision,
       false,
       "en",
@@ -502,6 +691,14 @@ test("the draft of the names: guessed as the person types, corrected by hand wit
     user: { nominative: "Bob", accusative: "Bob", dative: "Bob" },
     revision,
   });
+  expect(
+    personaBody(
+      withYourName(draftOf(null, "en"), "Bob", "en"),
+      null,
+      true,
+      "en",
+    ).address,
+  ).toBe("vy");
   expect(saveLine({ kind: "saved", pending: true }, cs)).toBe(
     "Projeví se, až Buddy dokončí, co právě dělá.",
   );
@@ -599,5 +796,44 @@ test("what is drawn again: a code's countdown ticks in place, any other change o
   );
   expect(drawnKey(buddyStep(facts(reading()), cs))).not.toBe(
     drawnKey(buddyStep(facts(works(false)), cs)),
+  );
+});
+
+test("his waving figure is the design system's own three frames, pinned by digest, and the page bundles it only for his first beat (F60's addendum of 2026-10-26)", async () => {
+  const strip = await readFile(
+    join(
+      import.meta.dir,
+      "..",
+      "src",
+      "launchpad",
+      "images",
+      "buddy-wave.webp",
+    ),
+  );
+  // Cut losslessly from the design system's spritesheet (its SHA-256
+  // 7bbe0d629ea1e3e65cf24955372b4295f0b25d79afa51242d4cdd5b931e01f0a), row 4,
+  // frames 1 to 3: nothing redrawn, so nothing else may stand here.
+  expect(createHash("sha256").update(strip).digest("hex")).toBe(
+    "61a0c602870fd5146ba1b53b98d3f01a5f00be381d4a094b379e463c9f455e36",
+  );
+  expect(strip.byteLength).toBe(88_932);
+  // A lossless WebP of three 192 × 208 frames side by side.
+  expect(strip.subarray(0, 4).toString("latin1")).toBe("RIFF");
+  expect(strip.subarray(8, 16).toString("latin1")).toBe("WEBPVP8L");
+  const [b1 = 0, b2 = 0, b3 = 0, b4 = 0] = strip.subarray(21, 25);
+  expect([
+    1 + (b1 | ((b2 & 0x3f) << 8)),
+    1 + ((b2 >> 6) | (b3 << 2) | ((b4 & 0x0f) << 10)),
+  ]).toEqual([576, 208]);
+  const page = await readFile(
+    join(import.meta.dir, "..", "src", "launchpad", "index.html"),
+    "utf8",
+  );
+  expect(page).toContain(
+    '<div id="buddy-wave-pictures" hidden><img src="./images/buddy-wave.webp" width="576" height="208" alt="" loading="lazy" decoding="async"></div>',
+  );
+  // Without motion he stands still.
+  expect(page).toMatch(
+    /@media \(prefers-reduced-motion: reduce\) \{[^}]*\.buddy-wave img[^}]*animation: none;/,
   );
 });

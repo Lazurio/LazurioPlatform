@@ -1,4 +1,5 @@
 import { isAbsolute } from "node:path";
+import type { FirstMeeting } from "./first-meeting";
 import { promptRefreshOwed } from "./gateway-refresh";
 import {
   type Persona,
@@ -110,6 +111,9 @@ export const personaRetryMs = 15_000;
  * again, at most `personaRetryMaxMs`. */
 export const personaFailedRetryMs = 30_000;
 export const personaRetryMaxMs = 15 * 60_000;
+/** Buddy's first meeting still owed is asked again this soon, doubled each
+ * time, at most `personaWatchMs` (decision F60's addendum of 2026-10-26). */
+export const firstMeetingRetryMs = 10_000;
 /** After its start, the Launchpad reads Buddy's persona again this often on
  * its own, as often as it asks an Organization's settings (F64's addendum of
  * 2026-10-25). A change no page saw then reaches him without one: Machines'
@@ -179,6 +183,18 @@ export function createPersonaSave(
     folder: string;
     apply: () => Promise<BuddyPersona>;
     journal?: ((entry: PersonaJournalEntry) => void) | undefined;
+    /** Buddy's first meeting (decision F60's addendum of 2026-10-26): owed
+     * by the person's first confirmation, delivered once an apply has put
+     * his persona in place (`applied`, never after one that failed, was
+     * refused or still waits), and on later readings while it is owed.
+     * Absent: none (the CLI). */
+    firstMeeting?:
+      | Readonly<{
+          meeting: Pick<FirstMeeting, "owe" | "refresh" | "deliver" | "owed">;
+          /** The Folder's language, the one SOUL.md speaks. */
+          locale: () => Promise<"cs" | "en">;
+        }>
+      | undefined;
     /** Tests only: the clock of `confirmed_at` and of the retries. */
     now?: (() => Date) | undefined;
     /** Tests only: the retries' timer, and how long a save waits. */
@@ -208,6 +224,16 @@ export function createPersonaSave(
   let closed = false;
   // The next reading of the Launchpad's own, after `start`.
   let watch: unknown;
+  // Whether the last apply this Launchpad ran answered `applied`: the persona
+  // as confirmed is in Buddy's SOUL, his acting sender and his stored
+  // prompts. His first meeting goes only then, and each of its retries asks
+  // again, so an apply that failed, was refused or still runs never lets him
+  // greet in the names and the address he had before.
+  let applied = false;
+  // Every apply this Launchpad starts, counted: a greeting under way checks,
+  // right before it hands the turn to T3 Code, that no apply started since
+  // it was asked for (one that failed would leave the old persona in place).
+  let generation = 0;
 
   const schedule = (delay: number) => {
     if (retry !== undefined) timers.cancel(retry);
@@ -215,6 +241,36 @@ export function createPersonaSave(
       retry = undefined;
       void run();
     }, delay);
+  };
+
+  /** Buddy's first meeting, where one is owed: its turn goes once an apply
+   * has put his persona in place, so he greets in the names and the
+   * address just confirmed. While his T3 Code is not there yet (an apply
+   * may just have restarted it) it is asked again soon, then less often, at
+   * most as often as the Launchpad's own readings. Never a reason to fail. */
+  let greeting: unknown;
+  let greetDelay = firstMeetingRetryMs;
+  const greet = () => {
+    if (closed || input.firstMeeting === undefined || !applied) return;
+    const asked = generation;
+    void input.firstMeeting.meeting
+      .deliver(() => applied && generation === asked)
+      .then(
+        (outcome) => {
+          if (outcome !== "waiting") {
+            greetDelay = firstMeetingRetryMs;
+            return;
+          }
+          if (closed || greeting !== undefined) return;
+          const delay = greetDelay;
+          greetDelay = Math.min(greetDelay * 2, personaWatchMs);
+          greeting = timers.after(() => {
+            greeting = undefined;
+            greet();
+          }, delay);
+        },
+        () => undefined,
+      );
   };
 
   function settle(answer: BuddyPersona) {
@@ -230,6 +286,8 @@ export function createPersonaSave(
       });
     }
     if (closed) return;
+    applied = answer.state === "applied" || answer.state === "in-place";
+    if (applied) greet();
     const at = now().getTime();
     if (answer.state === "waiting") {
       failedDelay = personaFailedRetryMs;
@@ -252,6 +310,8 @@ export function createPersonaSave(
       timers.cancel(retry);
       retry = undefined;
     }
+    applied = false;
+    generation += 1;
     const current = input
       .apply()
       .catch(
@@ -295,6 +355,20 @@ export function createPersonaSave(
     const [persona, owed] = await Promise.all([readPersona(home), owedNow()]);
     if (owed && !closed && !pending() && now().getTime() >= notBefore)
       void run();
+    // A first meeting still owed (Buddy's T3 Code was not there, or the
+    // Launchpad restarted) goes on any reading that finds nothing pending,
+    // once an apply of this Launchpad's has put the persona in place: after
+    // a restart, that apply comes first.
+    else if (!owed && !pending()) {
+      if (applied) greet();
+      else if (
+        input.firstMeeting !== undefined &&
+        !closed &&
+        now().getTime() >= notBefore &&
+        (await input.firstMeeting.meeting.owed().catch(() => false))
+      )
+        void run();
+    }
     return personaShown(persona, owed || pending());
   }
 
@@ -369,6 +443,22 @@ export function createPersonaSave(
           write.kind === "busy" ? "persona-busy" : "persona-unsafe";
         return refused(Object.freeze({ kind: "blocked", reason }), reason);
       }
+      // The first confirmation owes Buddy's first meeting, recorded before
+      // the apply, so a crash in between still greets.
+      if (
+        write.kind === "written" &&
+        write.firstConfirmation === true &&
+        input.firstMeeting !== undefined
+      )
+        await input.firstMeeting.meeting
+          .owe(write.persona, await input.firstMeeting.locale())
+          .catch(() => false);
+      // A later save before the turn went gives it the names and the
+      // address just saved.
+      else if (write.kind === "written" && input.firstMeeting !== undefined)
+        await input.firstMeeting.meeting
+          .refresh(write.persona, await input.firstMeeting.locale())
+          .catch(() => false);
       const applied = appliedOf(await applyWithin(answerWithinMs));
       journal({
         operation: "save",
@@ -393,6 +483,8 @@ export function createPersonaSave(
       closed = true;
       if (retry !== undefined) timers.cancel(retry);
       retry = undefined;
+      if (greeting !== undefined) timers.cancel(greeting);
+      greeting = undefined;
       if (watch !== undefined) timers.cancel(watch);
       watch = undefined;
     },

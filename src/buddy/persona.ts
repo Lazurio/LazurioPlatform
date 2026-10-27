@@ -454,7 +454,14 @@ export type PersonaUpdate = Readonly<{
 }>;
 
 export type PersonaWrite =
-  | Readonly<{ kind: "written"; persona: Persona; revision: string }>
+  | Readonly<{
+      kind: "written";
+      persona: Persona;
+      revision: string;
+      /** This write recorded the person's first confirmation (decision
+       * F60's addendum of 2026-10-26: Buddy's first meeting follows it). */
+      firstConfirmation?: true;
+    }>
   | Readonly<{ kind: "unchanged"; persona: Persona; revision: string }>
   | Readonly<{ kind: "invalid"; field: PersonaField }>
   /** The file is not what the writer read: nothing was written. */
@@ -654,7 +661,7 @@ async function writeLocked(
     ...(confirmedAt === undefined ? {} : { confirmedAt }),
   });
   // Members the Platform does not know stay, an invalid persona's too.
-  return replacePersona(
+  const written = await replacePersona(
     home,
     persona,
     current.state === "valid" || current.state === "invalid"
@@ -663,6 +670,11 @@ async function writeLocked(
     revision,
     options.during,
   );
+  return written.kind === "written" &&
+    previous?.confirmedAt === undefined &&
+    persona.confirmedAt !== undefined
+    ? Object.freeze({ ...written, firstConfirmation: true })
+    : written;
 }
 
 /** Sets `confirmed_at` of a valid persona, once, under the persona's lock: a

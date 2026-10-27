@@ -12,7 +12,9 @@ import { parseMachineContext } from "../src/machine/context";
 import type { Store } from "../src/shell/account";
 import {
   type BuddyBubbleModel,
+  type BuddyMeeting,
   buddyLayoutKey,
+  buddyMeeting,
   createBuddyBubble,
 } from "../src/shell/buddy-bubble";
 import {
@@ -727,6 +729,7 @@ function fakeBubble(
     active: "chat" as string | null,
     path: "/files",
     playing: null as string | null,
+    meeting: null as BuddyMeeting | null,
   };
   const frame = windowOf(log.posted);
   const session = options.session ?? memory();
@@ -740,6 +743,7 @@ function fakeBubble(
       path: page.path,
       theme: "light",
     }),
+    meeting: () => page.meeting,
     frameWindow: () => (log.drawn.at(-1)?.frame ? frame : null),
     session,
     draw: (model) => {
@@ -793,8 +797,11 @@ test("with Buddy's origin: the launcher with his picture, no frame before the fi
       label: "Buddy",
       expanded: false,
       away: false,
+      badge: null,
+      spot: false,
     },
     frame: null,
+    meeting: null,
     layout: "closed",
   });
   bubble.toggle();
@@ -1052,6 +1059,8 @@ test("while Buddy is out presenting the guide his launcher waits empty, and show
     label: "Buddy",
     expanded: false,
     away: true,
+    badge: null,
+    spot: false,
   });
   // Said once; the window, the frame and the focus are as they were.
   const drawn = log.drawn.length;
@@ -1311,4 +1320,303 @@ test("the launcher's corner follows the host's `hidden` too: hidden, the clearan
   const view = await readFile("src/shell/buddy-element.ts", "utf8");
   expect(elements).toContain('static observedAttributes = ["lang", "hidden"];');
   expect(view).toContain("clearance(launcherOnPage(model, host));");
+});
+
+// ---- Before the person met Buddy (F60's addendum of 2026-10-26) -------------
+//
+// The prototype of prototypes-lazurio #92: on every app of his own Osobní
+// Prostředí, until his step needs nothing before the meeting, the launcher
+// shows "1" and his window his hello and one action to Začínáme; no frame of
+// his chat is made then. The Launchpad opens his window at the meeting's end
+// and lifts the launcher over its dialog while the dialog shows where he is.
+
+const meetHref =
+  "https://launchpad.ada.lazurio.io/settings/start#lazurio-start=meet-buddy";
+
+test("the shell document says what Buddy's step needs next only beside his missing step; anything else is no document", () => {
+  const own = shellOf("personal", {
+    buddy: { origin: buddy },
+    setup: { buddy: "missing", buddyNext: "sign-in", github: "missing" },
+  });
+  expect(own.setup).toEqual({
+    buddy: "missing",
+    buddyNext: "sign-in",
+    github: "missing",
+  });
+  // Absent: as every document before it.
+  const before = shellOf("personal", {
+    setup: { buddy: "missing", github: "missing" },
+  });
+  expect(Object.hasOwn(before.setup ?? {}, "buddyNext")).toBe(false);
+  for (const setup of [
+    { buddy: "ready", buddyNext: "sign-in", github: "missing" },
+    { buddy: "unknown", buddyNext: "introduce", github: "missing" },
+    { buddyNext: "sign-in", github: "missing" },
+    { buddy: "missing", buddyNext: "telegram", github: "missing" },
+    { buddy: "missing", buddyNext: "Sign-in", github: "missing" },
+    { buddy: "missing", buddyNext: null, github: "missing" },
+    { buddy: "missing", buddyNext: 1, github: "missing" },
+  ])
+    expect({
+      setup,
+      parsed: parseShell(documentOf("personal", { setup })),
+    }).toEqual({ setup, parsed: null });
+});
+
+test("Buddy's step before the meeting counts only on a page of his own Osobní Prostředí, with Začínáme on the Apps address the document names", () => {
+  const ownWith = (setup: Record<string, unknown>) =>
+    shellOf("personal", { buddy: { origin: buddy }, setup });
+  const signIn = ownWith({
+    buddy: "missing",
+    buddyNext: "sign-in",
+    github: "missing",
+  });
+  expect(buddyMeeting(signIn, buddy, null)).toEqual({
+    step: "sign-in",
+    href: meetHref,
+    lang: "cs",
+  });
+  expect(buddyMeeting(signIn, buddy, "en")?.lang).toBe("en");
+  expect(buddyMeeting(signIn, buddy, "de")?.lang).toBe("cs");
+  expect(
+    buddyMeeting(
+      ownWith({ buddy: "missing", buddyNext: "introduce", github: "missing" }),
+      buddy,
+      null,
+    )?.step,
+  ).toBe("introduce");
+  // Met, or nothing said: the bubble is as before.
+  for (const setup of [
+    { buddy: "ready", github: "missing" },
+    { buddy: "missing", github: "missing" },
+    { buddy: "unknown", github: "connected" },
+  ])
+    expect(buddyMeeting(ownWith(setup), buddy, null)).toBeNull();
+  expect(
+    buddyMeeting(
+      shellOf("personal", { buddy: { origin: buddy } }),
+      buddy,
+      null,
+    ),
+  ).toBeNull();
+  // Another Environment's page knows nothing of him: the account's Buddy on
+  // a work page, whatever its own document says.
+  const work = mergeAccount(
+    shellOf("work", {
+      setup: { buddy: "missing", buddyNext: "sign-in", github: "missing" },
+    }),
+    accountOf({ buddy: { origin: buddy } }),
+  );
+  expect(buddyMeeting(work, buddy, null)).toBeNull();
+  // Another person's Buddy, or none: nothing.
+  expect(buddyMeeting(signIn, "https://buddy.bob.lazurio.io", null)).toBeNull();
+  expect(buddyMeeting(signIn, null, null)).toBeNull();
+  expect(buddyMeeting(null, buddy, null)).toBeNull();
+  // A document a page drew itself is read by the same rules: his next part
+  // only beside his missing step, and Začínáme only at an https Apps
+  // address, never a path the page would resolve against another origin.
+  const drawn = (setup: object, apps = "https://launchpad.ada.lazurio.io/") =>
+    ({
+      ...signIn,
+      setup,
+      environments: signIn.environments.map((entry) => ({
+        ...entry,
+        apps: { ...entry.apps, apps },
+      })),
+    }) as Shell;
+  expect(
+    buddyMeeting(
+      drawn({ buddy: "ready", buddyNext: "sign-in", github: "missing" }),
+      buddy,
+      null,
+    ),
+  ).toBeNull();
+  expect(
+    buddyMeeting(
+      drawn({ buddy: "missing", buddyNext: "sign-in", github: "missing" }, "/"),
+      buddy,
+      null,
+    ),
+  ).toBeNull();
+});
+
+test("before the meeting: the launcher shows 1 and his window his hello and one action, never the frame; the window closes once the meeting is over", () => {
+  const session = memory();
+  session.setItem(buddyLayoutKey, "fullscreen");
+  const { bubble, page, last, log, fromFrame } = fakeBubble({ session });
+  page.meeting = { step: "sign-in", href: meetHref, lang: "cs" };
+  bubble.update();
+  expect(last()?.launcher).toEqual({
+    avatar: `${buddy}/assets/avatar.webp`,
+    label: "Buddy, 1 nová zpráva",
+    expanded: false,
+    away: false,
+    badge: "1",
+    spot: false,
+  });
+  expect(last()?.meeting).toEqual({
+    step: "sign-in",
+    hello: "Ahoj, já jsem váš Buddy.",
+    // A one-letter word never ends a line ("k ChatGPT").
+    line: "Abych vám mohl odpovídat, přihlaste mě k\u00a0ChatGPT.",
+    action: "Přihlásit Buddyho",
+    href: meetHref,
+    close: "Zavřít",
+  });
+  // His window: the panel, whatever size the tab remembers, and no frame.
+  bubble.toggle();
+  expect(last()?.layout).toBe("panel");
+  expect(last()?.frame).toBeNull();
+  expect(last()?.launcher).toMatchObject({
+    expanded: true,
+    badge: null,
+    label: "Buddy",
+  });
+  expect(log.focus).toEqual(["frame"]);
+  // Nothing of a frame counts meanwhile.
+  fromFrame({ type: "lazurio.buddy.layout", v: 1, mode: "fullscreen" });
+  expect(last()?.layout).toBe("panel");
+  // Escape closes it, and the 1 is back.
+  expect(bubble.escape()).toBe(true);
+  expect(last()?.layout).toBe("closed");
+  expect(last()?.launcher.badge).toBe("1");
+  // Signed in, not introduced: the meeting.
+  page.meeting = { step: "introduce", href: meetHref, lang: "cs" };
+  bubble.changed();
+  expect(last()?.meeting).toMatchObject({
+    line: "Pojďme se seznámit, ať vím, jak vám mám říkat.",
+    action: "Seznámit se",
+  });
+  // In English.
+  page.meeting = { step: "introduce", href: meetHref, lang: "en" };
+  bubble.changed();
+  expect(last()?.meeting).toMatchObject({
+    hello: "Hi, I'm your Buddy.",
+    line: "Let's get to know each other, so I\u00a0know what to call you.",
+    action: "Meet Buddy",
+    close: "Close",
+  });
+  expect(last()?.launcher.label).toBe("Buddy, 1 new message");
+  // The meeting is over while his hello shows: the window closes; it never
+  // turns into the frame by itself.
+  bubble.toggle();
+  expect(last()?.layout).toBe("panel");
+  page.meeting = null;
+  bubble.update();
+  expect(last()?.layout).toBe("closed");
+  expect(last()?.meeting).toBeNull();
+  expect(last()?.frame).toBeNull();
+  expect(last()?.launcher).toMatchObject({ badge: null, label: "Buddy" });
+  // From now on the launcher opens his conversation, in the remembered size.
+  bubble.toggle();
+  expect(last()?.frame).not.toBeNull();
+  expect(last()?.layout).toBe("fullscreen");
+});
+
+test("a frame made before the meeting came back stays hidden: it neither resizes his hello nor asks for an explanation, and his 1 waits while he is out", () => {
+  const { bubble, page, last, fromFrame, log } = fakeBubble();
+  bubble.update();
+  // His conversation was open once, so its frame exists.
+  bubble.toggle();
+  fromFrame({ type: "lazurio.buddy.ready", v: 1 });
+  bubble.toggle();
+  expect(last()?.frame).not.toBeNull();
+  // His step needs the meeting again (a persona confirmed anew).
+  page.meeting = { step: "introduce", href: meetHref, lang: "cs" };
+  bubble.changed();
+  bubble.toggle();
+  expect(last()?.meeting).not.toBeNull();
+  expect(last()?.layout).toBe("panel");
+  fromFrame({ type: "lazurio.buddy.layout", v: 1, mode: "fullscreen" });
+  expect(last()?.layout).toBe("panel");
+  fromFrame({
+    type: "lazurio.guide.play",
+    v: 1,
+    explainer: principleIds[0],
+  });
+  expect(log.played).toEqual([]);
+  // While Buddy is out presenting the guide his launcher waits empty, its 1
+  // too.
+  bubble.toggle();
+  expect(last()?.launcher.badge).toBe("1");
+  bubble.guideOut(true);
+  expect(last()?.launcher).toMatchObject({ away: true, badge: null });
+  bubble.guideOut(false);
+  expect(last()?.launcher.badge).toBe("1");
+});
+
+test("the Launchpad opens his window at the meeting's end and lifts the launcher over its dialog; the frame still opens nothing (F60's addendum of 2026-10-26)", () => {
+  const { bubble, last, log, fromFrame } = fakeBubble();
+  bubble.update();
+  // Opened as the person's click opens it, the frame made the first time.
+  expect(bubble.open()).toBe(true);
+  expect(last()?.layout).toBe("panel");
+  expect(last()?.frame).not.toBeNull();
+  expect(log.focus).toEqual(["frame"]);
+  // Open already: it stays open, never closes.
+  const drawn = log.drawn.length;
+  expect(bubble.open()).toBe(true);
+  expect(last()?.layout).toBe("panel");
+  expect(log.drawn.length).toBe(drawn);
+  // The frame asks for a size of a window the person closed: nothing opens.
+  bubble.toggle();
+  fromFrame({ type: "lazurio.buddy.layout", v: 1, mode: "panel" });
+  expect(last()?.layout).toBe("closed");
+  // The launcher rises over the Launchpad's dialog and comes back, drawn
+  // once for each change.
+  bubble.spotlight(true);
+  expect(last()?.launcher.spot).toBe(true);
+  const lifted = log.drawn.length;
+  bubble.spotlight(true);
+  expect(log.drawn.length).toBe(lifted);
+  bubble.spotlight(false);
+  expect(last()?.launcher.spot).toBe(false);
+  // Without his origin there is nothing to open.
+  const none = fakeBubble({ origin: null });
+  none.bubble.update();
+  expect(none.bubble.open()).toBe(false);
+  expect(none.log.drawn.every((model) => model === null)).toBe(true);
+});
+
+test("his 1, his hello and the lift in the bubble's own styles: the design system's red and blue, the launcher's own corner as a popover, no motion where less is asked for", async () => {
+  expect(buddyBubbleCss).toContain(
+    ".launcher { position: fixed; inset: auto var(--buddy-x) var(--buddy-y) auto;",
+  );
+  // A popover's own place never applies.
+  expect(buddyBubbleCss).toMatch(/\.launcher \{[^}]*margin: 0;/);
+  expect(buddyBubbleCss).toMatch(/\.launcher \{[^}]*overflow: visible;/);
+  expect(buddyBubbleCss).toMatch(
+    /\.badge \{[^}]*background: var\(--lz-red-500\);/,
+  );
+  expect(buddyBubbleCss).toContain(".badge[hidden] { display: none; }");
+  expect(buddyBubbleCss).toMatch(
+    /\.launcher\[data-spot\] \{[^}]*0 0 0 2px var\(--lz-blue-500\)[^}]*pointer-events: none;/,
+  );
+  expect(buddyBubbleCss).toContain(
+    '.window[data-meeting="shown"] iframe { display: none; }',
+  );
+  expect(buddyBubbleCss).toContain(
+    ".launcher[data-spot], .launcher[data-spot]::after { animation: none; }",
+  );
+  // The view lifts the launcher as a manual popover, after the page's own
+  // dialog, and lets it back; the element hands the Launchpad only this and
+  // the opening, which goes through the bubble.
+  const view = await readFile("src/shell/buddy-element.ts", "utf8");
+  expect(view).toContain('launcher.setAttribute("popover", "manual");');
+  expect(view).toContain("launcher.showPopover();");
+  expect(view).toContain("launcher.hidePopover();");
+  expect(view).toContain('launcher.removeAttribute("popover");');
+  const elements = await readFile("src/shell/elements.ts", "utf8");
+  expect(elements).toContain(
+    "return this.shows() ? (this.bubble?.open() ?? false) : false;",
+  );
+  expect(elements).toContain("this.bubble?.spotlight(on);");
+  // A link of his hello on this page's own origin is announced first, as the
+  // rail's links are; anywhere else it navigates the page.
+  expect(elements).toContain(
+    "if (plainClick(event) && target.origin === location.origin) {",
+  );
+  expect(elements).toContain(
+    ["detail: { href: `$", "{target.pathname}$", "{target.hash}` },"].join(""),
+  );
 });
