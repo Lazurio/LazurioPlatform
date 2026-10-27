@@ -324,6 +324,12 @@ Matěj's recorded decision in the register, carried out by a reviewed change of
 `check-canary.ts` that names it. Meanwhile the Machine that is broken is covered by
 its Recovery mode.
 
+Shorter canaries so far, each named in `shorterCanaries` of `check-canary.ts`:
+
+| Candidate | Hours | Decision |
+|---|---|---|
+| `v0.1.14-rc.2` | 3 | {{DECISION}} |
+
 ## Required lifecycle evidence
 
 For the current foundation proof, `bun run scripts/identify-proof.ts` rebuilds
