@@ -25,9 +25,14 @@ import {
   outputPaths,
 } from "../src/folder/outputs";
 import { executionOs } from "../src/folder/platform";
-import { githubIdentity, presetProfile } from "../src/folder/presets";
+import {
+  allowedPresets,
+  githubIdentity,
+  presetProfile,
+} from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
 import {
+  buddyChatRouting,
   ownSignInIdentity,
   questionTool,
   visitorsOf,
@@ -40,6 +45,9 @@ import {
   binding,
   bindings,
   entries,
+  personalRelationships,
+  personalWithEntry,
+  withBuddy,
   workRelationships,
 } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
@@ -912,6 +920,143 @@ test("with a hosted entry agents send the Operator to the Launchpad for sign-ins
         expect(text).not.toContain("/integrations/app/");
       }
     }
+});
+
+// Decision F14's addendum of 2026-10-26 (Matěj: "otevři mi chat s Buddym"
+// opens Buddy's chat in ChatGPT Desktop's panel beside the chat, as "otevři
+// Lazurio" opens the Launchpad there; root decision 0210). Where the recorded
+// entry names Buddy's origin (decision F60), which only the person's own
+// Osobní Prostředí carries, AGENTS.md and the manual name his chat at exactly
+// that address, right after the Launchpad's lines: what the user calls it,
+// opened beside the chat in ChatGPT Desktop and linked in another client,
+// never in the Environment browser, and never a channel to Buddy. Without his
+// origin nothing names it.
+test("where the entry names Buddy's origin, agents open his chat for the user beside the chat in ChatGPT Desktop and never write to him", () => {
+  const origin = "https://buddy.example.lazurio.io";
+  const withOrigin = [
+    personalWithEntry(20000, false, false, true),
+    personalWithEntry(20000, true, true, true),
+    binding({
+      ...personal,
+      relationships: personalRelationships,
+      entry: withBuddy(entries.personal),
+    }),
+  ];
+  const contract = {
+    cs: [
+      `- Chat s Buddym, jeho konverzace s uživatelem, je na \`${origin}\`.`,
+      "Tato adresa pochází z handoveru tohoto Environmentu: jinou neskládej a nikdy místo ní nedávej `localhost` ani `127.0.0.1`.",
+      "Otevřená přímo vede rovnou do jeho konverzace.",
+      "Když uživatel řekne „chat s Buddym“, „Buddy“ nebo Buddyho jméno (`persona.buddyName` z `lazurio buddy persona --json`), myslí tím tento chat.",
+      "Když ho chce a běžíš v ChatGPT Desktopu, otevři mu přesnou adresu v integrovaném prohlížeči ChatGPT Desktopu v panelu vedle chatu; v jiném klientovi mu pošli odkaz.",
+      "Přihlašuje se do něj uživatel sám.",
+      "V prohlížeči Environmentu ho nikdy neotevírej, ani přes `preview_open`.",
+      "Chat otevíráš jen uživateli: nic do něj nepiš a nic v něm nedělej, s Buddym dál nekomunikuješ (root decision 0210).",
+      "Chce-li uživatel Buddymu něco říct, otevři mu chat a napíše mu sám.",
+    ],
+    en: [
+      `- Buddy's chat, his conversation with the user, is at \`${origin}\`.`,
+      "This address comes from this Environment's handover: never compose another one and never give `localhost` or `127.0.0.1` instead.",
+      "Opened directly, it goes straight to his conversation.",
+      "When the user says “chat with Buddy”, “Buddy” or Buddy's name (`persona.buddyName` from `lazurio buddy persona --json`), they mean this chat.",
+      "When they want it and you run in ChatGPT Desktop, open the exact address for them in ChatGPT Desktop's built-in browser in the panel beside the chat; in another client, send them the link.",
+      "The user signs in to it themselves.",
+      "Never open it in the Environment browser, not even with `preview_open`.",
+      "You open the chat only for the user: write nothing in it and do nothing in it, and you still do not communicate with Buddy (root decision 0210).",
+      "When the user wants to tell Buddy something, open the chat for them and they write to him themselves.",
+    ],
+  } as const;
+  const opening = {
+    cs: "- Chat s Buddym, jeho konverzace s uživatelem, je na",
+    en: "- Buddy's chat, his conversation with the user, is at",
+  } as const;
+  // The rule that agents never message Buddy stays beside it (root decision
+  // 0210, its night addendum of 2026-10-20, point 4).
+  const noChannel = {
+    cs: "nehledáš cestu, jak mu poslat zprávu nebo ho upozornit",
+    en: "do not look for a way to send Buddy a message or notify Buddy",
+  } as const;
+  for (const machine of withOrigin) {
+    expect(machine?.entry?.buddyOrigin).toBe(origin);
+    // Every preset where Buddy can exist: a personal VM takes this one only.
+    expect(allowedPresets(machine)).toEqual(["hosted-personal"]);
+    for (const preset of allowedPresets(machine))
+      for (const locale of ["cs", "en"] as const) {
+        const outputs = renderOutputs({
+          preset,
+          machine,
+          profile: presetProfile(preset, "linux", { locale }),
+        });
+        for (const path of ["AGENTS.md", "manual/this-machine.md"] as const) {
+          const lines = outputs[path].split("\n");
+          const naming = lines.filter((line) => line.includes(origin));
+          expect(naming).toEqual([buddyChatRouting(origin)[locale]]);
+          const [line = ""] = naming;
+          for (const sentence of contract[locale])
+            expect(line).toContain(sentence);
+          // Right after the Launchpad's lines: the Launchpad, then its
+          // GitHub line on the person's own sign-in.
+          const at = lines.indexOf(line);
+          expect(lines[at - 2]).toStartWith(
+            locale === "cs"
+              ? "- Launchpad tohohle Environmentu (uživatelům mu říkej Lazurio;"
+              : "- This Environment's Launchpad (call it Lazurio towards users;",
+          );
+          expect(lines[at - 1]).toStartWith("- GitHub: ");
+        }
+        expect(outputs["AGENTS.md"]).toContain(noChannel[locale]);
+        // His origin names his chat and nothing else: no other file of the
+        // Folder carries it.
+        for (const [path, text] of Object.entries(outputs))
+          if (path !== "AGENTS.md" && path !== "manual/this-machine.md")
+            expect(text).not.toContain(origin);
+      }
+  }
+  // Without Buddy's origin nothing names his chat: every preset with a hosted
+  // entry, with the Environment browser, public and try-01, and every
+  // journey without an entry.
+  const withoutOrigin = (
+    [
+      { preset: "hosted-personal", machine: bindings.personalEntry },
+      { preset: "hosted-personal", machine: bindings.personalBrowser },
+      {
+        preset: "hosted-organization-personal",
+        machine: bindings.organizationEntry,
+      },
+      {
+        preset: "hosted-organization-personal",
+        machine: bindings.organizationBrowser,
+      },
+      {
+        preset: "hosted-organization-personal",
+        machine: bindings.organizationPublic,
+      },
+      { preset: "hosted-organization-personal", machine: tryBinding() },
+      { preset: "hosted-organization-team", machine: bindings.teamEntry },
+      { preset: "hosted-organization-team", machine: bindings.teamBrowser },
+      { preset: "hosted-organization-team", machine: bindings.teamPublic },
+      { preset: "hosted-organization-team", machine: tryBinding() },
+      {
+        preset: "hosted-organization-steward",
+        machine: bindings.automatedEntry,
+      },
+    ] as const
+  ).map((environment) => ({ ...environment, os: "linux" as const }));
+  for (const { preset, machine, os } of [...withoutOrigin, ...journeys]) {
+    expect(machine?.entry?.buddyOrigin).toBeUndefined();
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset,
+        machine,
+        profile: presetProfile(preset, os, { locale }),
+      });
+      for (const text of Object.values(outputs)) {
+        expect(text).not.toContain("https://buddy.");
+        expect(text).not.toContain("lazurio buddy persona");
+        expect(text).not.toContain(opening[locale]);
+      }
+    }
+  }
 });
 
 // Decision F19 addendum 2026-10-04: the agent clones a missing module of the

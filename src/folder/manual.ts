@@ -15,6 +15,7 @@ import type { FolderProfile } from "./profile";
 import {
   agentTools,
   assignmentLine,
+  buddyChatRouting,
   type InstructionSource,
   instructionTemplateRevision,
   integrationsPointer,
@@ -2267,7 +2268,9 @@ function deviceSsh(machine: MachineBinding): readonly Text[] {
 // nothing. Work products go to the Operator's Documents folder, and where the
 // Folder records a hosted entry they travel through the Launchpad's Files
 // page (decision F35), and the agent sends the Operator to the Launchpad for
-// every sign-in and connection (decision F19 addendum 2026-10-04).
+// every sign-in and connection (decision F19 addendum 2026-10-04). Where the
+// entry names Buddy's origin, the agent opens his chat for the Operator, the
+// same line as in AGENTS.md (decision F14's addendum of 2026-10-26).
 function operatorClient(
   preset: PresetName,
   machine: MachineBinding,
@@ -2404,6 +2407,9 @@ function operatorClient(
     ...(origin === undefined
       ? []
       : launchpadRouting(preset, origin, githubIdentity(preset, machine))),
+    ...(machine.entry?.buddyOrigin === undefined
+      ? []
+      : [buddyChatRouting(machine.entry.buddyOrigin)]),
     ...workOnly,
     chats,
   ];
