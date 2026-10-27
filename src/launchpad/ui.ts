@@ -27,7 +27,7 @@ import { createBuddyClient } from "./buddy-client";
 import { createBuddyDialog, tickCountdowns } from "./buddy-dialog";
 import { createBuddyPanel } from "./buddy-panel";
 import { createTelegramDialog } from "./buddy-telegram-dialog";
-import { type BuddyStepFacts, buddyFact } from "./buddy-view";
+import { type BuddyStepFacts, buddyFact, meetStart } from "./buddy-view";
 import { createCatalogPanel, type NewModuleOutcome } from "./catalog-panel";
 import type { PublicEntry } from "./chat";
 import {
@@ -65,6 +65,7 @@ import {
   startDecision,
   startSection,
   type TourFacts,
+  withBuddySetup,
 } from "./first-run";
 import { type PageHelpId, pageGuide, pageHelpStates } from "./guides";
 import { createIntegrationsPanel } from "./integrations-panel";
@@ -822,9 +823,51 @@ const buddyDialog = createBuddyDialog({
   avatar: buddyAvatar,
   signIn: () => void buddyClient.start(),
   save: (draft, confirm) => buddyClient.savePersona(draft, confirm, locale),
+  // The beats that show his bots and where he is name this Environment's
+  // apps as its switch does (decision F60's addendum of 2026-10-26).
+  apps: () => {
+    const words = shellMessages(locale);
+    return {
+      apps:
+        shellDocument === null
+          ? []
+          : switchTabs(shellDocument, words, "apps")
+              .filter((tab) => tab.href !== null)
+              .map((tab) => tab.label),
+      automate: words.automate,
+    };
+  },
+  // His bubble is this page's own `<lazurio-buddy>`: its launcher rises over
+  // the dialog while it shows where he is, and his window opens once the
+  // meeting is over, as the person's own click would open it.
+  spotlight: (on) => buddyElement()?.spotlight(on),
+  finished: () => {
+    firstRun();
+    buddyElement()?.openWindow();
+  },
   closed: () => firstRun(),
   telegram: () => telegramDialog.open(),
 });
+/** This page's `<lazurio-buddy>`, Buddy's bubble, once the shell defined it. */
+function buddyElement(): Readonly<{
+  spotlight(on: boolean): void;
+  openWindow(): boolean;
+}> | null {
+  const element = buddy as
+    | (HTMLElement & {
+        spotlight?: (on: boolean) => void;
+        openWindow?: () => boolean;
+      })
+    | null;
+  return element !== null &&
+    typeof element.spotlight === "function" &&
+    typeof element.openWindow === "function"
+    ? (element as unknown as {
+        spotlight(on: boolean): void;
+        openWindow(): boolean;
+      })
+    : null;
+}
 const buddyPanel = createBuddyPanel({
   copy: () => copy,
   locale: () => locale,
@@ -1001,16 +1044,24 @@ function firstRun() {
  * changed while GitHub's state is not known here. */
 function provideOwnSetup(facts: TourFacts | null) {
   if (shellDocument === null || facts === null || profileState === null) return;
-  if (facts.github === "unknown") return;
-  const setup = shellSetup({
-    preset: profileState.preset,
-    audience: facts.audience,
-    ai: facts.ai,
-    github: facts.github,
-    list: content.list(),
-    job: content.job(),
-    ...(facts.buddy === undefined ? {} : { buddy: facts.buddy }),
-  });
+  // While GitHub's state is not known here, the server's `setup` stays, with
+  // Buddy's step as this page read it: his bubble follows his meeting at
+  // once (decision F60's addendum of 2026-10-26).
+  const setup =
+    facts.github !== "unknown"
+      ? shellSetup({
+          preset: profileState.preset,
+          audience: facts.audience,
+          ai: facts.ai,
+          github: facts.github,
+          list: content.list(),
+          job: content.job(),
+          ...(facts.buddy === undefined ? {} : { buddy: facts.buddy }),
+        })
+      : shellDocument.setup === undefined || facts.buddy === undefined
+        ? undefined
+        : withBuddySetup(shellDocument.setup, facts.buddy);
+  if (facts.github === "unknown" && setup === undefined) return;
   const { setup: _, ...rest } = shellDocument;
   const next = setup === undefined ? rest : { ...rest, setup };
   const drawn = JSON.stringify(next);
@@ -1032,8 +1083,17 @@ function takeStart() {
   if (facts === null) return;
   // GitHub waits for AI, the content for its turn (0201 point 3,
   // `startDecision`): an older link starts nothing out of order.
+  // Buddy's request waits for the shell document, which says whether he is
+  // here at all.
+  if (start === "meet-buddy" && shellDocument === null && !shellRead) return;
   const decision = startDecision(start, facts);
   if (decision === "wait") return;
+  if (decision === "meet-buddy") {
+    // His dialog where his step stands: his sign-in or his introduction.
+    pendingStart = null;
+    buddyDialog.open(meetStart(buddyFacts()));
+    return;
+  }
   if (decision === "sign-in-gh") {
     if (tools.openSignIn("gh")) pendingStart = null;
     return;
@@ -1363,6 +1423,36 @@ if (pendingStart !== null) {
   if (route.view !== "settings" || route.section !== section)
     shell.navigate(settingsPath(section));
 }
+// A start request after the first address: a link of the shell on this
+// origin (`lazurio-navigate`, which the router has already followed by
+// now), Buddy's bubble on this very page among them, or the address's
+// fragment changed in place. Only the requests `readFragment` knows count;
+// the fragment leaves the address again.
+function takeStartRequest(start: StartRequest | null) {
+  if (start === null) return;
+  pendingStart = start;
+  const route = shell.route();
+  const section = startSection[start];
+  if (route.view !== "settings" || route.section !== section)
+    shell.navigate(settingsPath(section));
+  takeStart();
+}
+document.addEventListener("lazurio-navigate", (event) => {
+  const href = (event as CustomEvent<{ href?: unknown }>).detail?.href;
+  if (
+    typeof href !== "string" ||
+    !href.startsWith("/") ||
+    href.startsWith("//")
+  )
+    return;
+  takeStartRequest(readFragment(new URL(href, location.origin).hash).start);
+});
+window.addEventListener("hashchange", () => {
+  const { start } = readFragment(location.hash);
+  if (start === null) return;
+  history.replaceState(null, "", location.pathname);
+  takeStartRequest(start);
+});
 
 let current: {
   revision: number;

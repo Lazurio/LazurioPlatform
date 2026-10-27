@@ -1434,6 +1434,73 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 .telegram-asks > .buddy-own { margin: 0; }
 .telegram-ask { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 10px 12px; border: 1px solid var(--lz-line); border-radius: var(--radius-control); }
 .telegram-ask-line { margin: 0; font-size: 14px; font-weight: var(--lz-weight-akce); overflow-wrap: anywhere; }
+/* His first meeting (decision F60's addendum of 2026-10-26; the prototype's
+   buddy-meet.css, prototypes-lazurio #92): five beats of the same height, so
+   the dialog never jumps between them, each his figure and his speech
+   bubbles, which come one after another, then one small drawing and five
+   bars; then his questions, each his bubble with its answer under it. His
+   figure keeps its pixels sharp; it waves on the first beat (the design
+   system's own frames) and hops in. With less motion asked for, everything
+   is there at once and he stands still. */
+.buddy-beat { display: grid; min-height: 304px; box-sizing: border-box; align-content: center; gap: 18px; padding: 22px 22px 14px; border-radius: var(--radius-card); background: var(--muted); }
+.buddy-beat-talk { display: flex; align-items: center; justify-content: center; gap: 16px; }
+.buddy-beat-says { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: 6px; }
+.buddy-beat-line { padding: 9px 13px; font-size: 15px; animation: buddy-say 320ms ease-out both; animation-delay: calc(150ms + var(--n, 0) * 600ms); }
+.buddy-figure, .buddy-wave { display: block; flex: none; width: var(--frame, 96px); height: calc(var(--frame, 96px) * 208 / 192); }
+.buddy-figure img { display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+.buddy-wave { overflow: hidden; }
+.buddy-wave img { display: block; width: calc(var(--frame, 96px) * 3); height: 100%; max-width: none; image-rendering: pixelated; animation: buddy-wave 2.6s step-end 0.6s 2 both; }
+.buddy-wave.is-still img { animation: none; }
+.buddy-beat[data-beat="hello"] .buddy-wave { animation: buddy-hop 0.8s ease-out both; transform-origin: 50% 100%; }
+.buddy-beat-cards, .buddy-beat-bots, .buddy-beat-chips, .buddy-beat-where { margin: 0; padding: 0; list-style: none; }
+.buddy-beat-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.buddy-beat-card { display: flex; min-width: 0; align-items: center; gap: 9px; padding: 10px 12px; border: 1px solid var(--lz-line); border-radius: var(--radius-control); background: var(--lz-surface); font-size: 13.5px; animation: buddy-in 320ms ease-out both; animation-delay: calc(700ms + var(--n, 0) * 180ms); }
+.buddy-beat-card .icon { width: 15px; height: 15px; flex: none; color: var(--muted-fg); }
+.buddy-beat-panel { display: grid; gap: 9px; padding: 12px 14px; border: 1px solid var(--lz-line); border-radius: var(--radius-card); background: var(--lz-surface); animation: buddy-in 320ms ease-out 650ms both; }
+.buddy-beat-panel-title { display: inline-flex; align-items: center; gap: 6px; color: var(--muted-fg); font-size: 12.5px; font-weight: var(--lz-weight-akce); }
+.buddy-beat-panel-title .icon { width: 14px; height: 14px; }
+.buddy-beat-bots { display: grid; gap: 6px; }
+.buddy-beat-bot { display: grid; min-height: 36px; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 5px 10px 5px 6px; border-radius: var(--radius-control); background: var(--muted); font-size: 13.5px; animation: buddy-in 320ms ease-out both; animation-delay: calc(850ms + var(--n, 0) * 200ms); }
+.buddy-beat-bot-face { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 50%; background: var(--fg); color: var(--lz-surface); }
+.buddy-beat-bot-face .icon { width: 13px; height: 13px; }
+.buddy-beat-bot-task { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.buddy-beat-bot-state { display: inline-flex; align-items: center; gap: 6px; color: var(--muted-fg); font-size: 12.5px; }
+.buddy-beat-bot-state[data-done] { color: var(--success-fg); }
+.buddy-beat-bot-state .icon { width: 12px; height: 12px; }
+.buddy-beat-bot-state .spinner { width: 10px; height: 10px; }
+.buddy-beat-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.buddy-beat-chip { padding: 5px 11px; border: 1px solid var(--lz-line); border-radius: 999px; background: var(--muted); font-size: 13px; animation: buddy-in 300ms ease-out both; animation-delay: calc(850ms + var(--n, 0) * 220ms); }
+.buddy-beat-where { display: flex; align-items: flex-end; justify-content: center; gap: 12px; }
+.buddy-beat-tile { display: grid; flex: 1 1 0; min-width: 0; max-width: 140px; justify-items: center; gap: 6px; color: var(--muted-fg); font-size: 12px; animation: buddy-in 320ms ease-out both; animation-delay: calc(1300ms + var(--n, 0) * 150ms); }
+.buddy-beat-tile-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.buddy-beat-tile-screen { position: relative; width: 100%; height: 72px; box-sizing: border-box; overflow: hidden; border: 1px solid var(--lz-line); border-radius: var(--radius-control); background: var(--lz-surface); }
+.buddy-beat-tile-rail { position: absolute; top: 0; bottom: 0; left: 0; width: 12px; border-right: 1px solid var(--lz-gray-100); background: var(--muted); }
+.buddy-beat-tile-line { position: absolute; top: 12px; left: 20px; width: 52%; height: 6px; border-radius: 3px; background: var(--lz-gray-100); }
+.buddy-beat-tile-short { top: 24px; width: 32%; }
+.buddy-beat-tile-bubble { position: absolute; right: 5px; bottom: 5px; display: grid; width: 20px; height: 20px; place-items: center; overflow: hidden; border-radius: 50%; background: var(--lz-surface); box-shadow: 0 0 0 1.5px var(--lz-blue-500), 0 2px 4px rgb(0 0 0 / 12%); }
+.buddy-beat-tile-bubble img { width: 12px; height: 13px; object-fit: contain; image-rendering: pixelated; }
+.buddy-beat-phone { flex: none; width: 52px; }
+.buddy-beat-phone .buddy-beat-tile-screen { display: flex; width: 44px; height: 80px; flex-direction: column; gap: 5px; padding: 10px 5px; border-radius: 9px; }
+.buddy-beat-msg { width: 72%; height: 7px; border-radius: 4px; background: var(--muted); box-shadow: 0 0 0 1px var(--lz-gray-100); }
+.buddy-beat-msg-mine { align-self: flex-end; background: var(--lz-blue-50); }
+.buddy-beat-progress { display: flex; justify-content: center; gap: 5px; }
+.buddy-beat-progress i { width: 18px; height: 4px; border-radius: 2px; background: var(--lz-gray-100); }
+.buddy-beat-progress i[data-state="done"] { background: var(--lz-gray-300); }
+.buddy-beat-progress i[data-state="on"] { background: var(--fg); }
+.buddy-q { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: start; gap: 14px; padding: 18px 18px 20px; border-radius: var(--radius-card); background: var(--muted); }
+.buddy-q-talk { display: grid; min-width: 0; gap: 14px; }
+.buddy-q-ask { display: grid; justify-items: start; gap: 7px; }
+.buddy-q-ask .buddy-bubble { margin: 0; font-size: 14.5px; }
+.buddy-q-ask input.buddy-input { width: min(18rem, 100%); }
+.buddy-q-forms { display: grid; justify-items: start; gap: 6px; margin-top: -6px; }
+.buddy-q-forms-say { color: var(--muted-fg); font-size: 12.5px; }
+.buddy-answers { display: inline-flex; flex-wrap: wrap; gap: 8px; }
+@keyframes buddy-say { from { opacity: 0; transform: translateY(6px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes buddy-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes buddy-hop { 0% { opacity: 0; transform: translateY(14px) scale(0.92, 1.06); } 45% { opacity: 1; transform: translateY(-10px) scale(1.04, 0.97); } 70% { transform: translateY(0) scale(1.03, 0.96); } 100% { opacity: 1; transform: none; } }
+@keyframes buddy-wave { 0% { transform: none; } 22% { transform: translateX(calc(var(--frame, 96px) * -1)); } 30% { transform: translateX(calc(var(--frame, 96px) * -2)); } 38% { transform: translateX(calc(var(--frame, 96px) * -1)); } 46% { transform: translateX(calc(var(--frame, 96px) * -2)); } 54% { transform: translateX(calc(var(--frame, 96px) * -1)); } 62%, 100% { transform: none; } }
+@media (max-width: 560px) { .buddy-beat { min-height: 0; padding: 16px 12px 12px; } .buddy-beat-talk { gap: 10px; } .buddy-beat[data-beat="hello"] .buddy-wave { --frame: 96px !important; } .buddy-beat-where { gap: 8px; } .buddy-beat-cards { grid-template-columns: 1fr; } .buddy-q { grid-template-columns: 1fr; } .buddy-q-face { display: none; } }
+@media (prefers-reduced-motion: reduce) { .buddy-beat-line, .buddy-beat-card, .buddy-beat-panel, .buddy-beat-bot, .buddy-beat-chip, .buddy-beat-tile, .buddy-wave img, .buddy-beat[data-beat="hello"] .buddy-wave { animation: none; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } .spinner, .browser-panel, .browser-panel.is-leaving { animation: none; } }
 </style>
 <noscript><style>body { visibility: visible !important; animation: none !important; }</style></noscript>
@@ -1459,6 +1526,7 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M21.8883 13.5C21.1645 18.3113 17.013 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C16.1006 2 19.6248 4.46819 21.1679 8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 8H21.4C21.7314 8 22 7.73137 22 7.4V3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M2 11V4.6C2 4.26863 2.26863 4 2.6 4H8.77805C8.92127 4 9.05977 4.05124 9.16852 4.14445L12.3315 6.85555C12.4402 6.94876 12.5787 7 12.722 7H21.4C21.7314 7 22 7.26863 22 7.6V11M2 11V19.4C2 19.7314 2.26863 20 2.6 20H21.4C21.7314 20 22 19.7314 22 19.4V11M2 11H22" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M4 21.4V2.6C4 2.26863 4.26863 2 4.6 2H16.2515C16.4106 2 16.5632 2.06321 16.6757 2.17574L19.8243 5.32426C19.9368 5.43679 20 5.5894 20 5.74853V21.4C20 21.7314 19.7314 22 19.4 22H4.6C4.26863 22 4 21.7314 4 21.4Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 10L16 10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 18L16 18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 14L12 14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 2V5.4C16 5.73137 16.2686 6 16.6 6H20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-mail" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M7 9L12 12.5L17 9" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 17V7C2 5.89543 2.89543 5 4 5H20C21.1046 5 22 5.89543 22 7V17C22 18.1046 21.1046 19 20 19H4C2.89543 19 2 18.1046 2 17Z" stroke="currentColor"/></symbol>
 <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6 20L18 20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 16V4M12 4L15.5 7.5M12 4L8.5 7.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6 20L18 20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 4V16M12 16L15.5 12.5M12 16L8.5 12.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-recovery" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 12C8 14.2091 9.79086 16 12 16C14.2091 16 16 14.2091 16 12C16 9.79086 14.2091 8 12 8C9.79086 8 8 9.79086 8 12Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.2351 14.8906L5 19.0001" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.7649 14.8906L19 19.0001" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M14.7649 9.10943L19 5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.2351 9.10943L5 5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -1988,6 +2056,10 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 </dialog>
 <!-- "Seznamte se s Buddym" (decision F65): his sign-in, his introduction
      and Telegram, three screens drawn by buddy-dialog.ts. -->
+<!-- His waving figure on the first beat (decision F60's addendum of
+     2026-10-26): three frames of the design system's figure in one strip,
+     bundled with the page and loaded only when the beat shows. -->
+<div id="buddy-wave-pictures" hidden><img src="./images/buddy-wave.webp" width="576" height="208" alt="" loading="lazy" decoding="async"></div>
 <dialog id="buddy-meet" class="buddy-meet" aria-labelledby="buddy-meet-title">
 <div class="dialog-head"><h2 id="buddy-meet-title" tabindex="-1"></h2><button type="button" class="dialog-x" id="buddy-meet-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="sr-only" data-message="toolsClose">Close</span></button></div>
 <div id="buddy-meet-body" class="buddy-meet-body"></div>

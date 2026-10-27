@@ -61,8 +61,9 @@ export type FakeComposioState = {
    * where null. */
   organization?: string | null;
   /** The account's organizations `orgs list` prints, `organization` the
-   * current one by its name; `orgs switch --org-id` makes one current. */
-  organizations?: { id: string; name: string }[];
+   * current one by its name; `orgs switch --org-id` makes one current. With
+   * `created_at`, as Lazurio's build prints it from 0.4.3-lazurio.3 on. */
+  organizations?: { id: string; name: string; created_at?: string }[];
   /** `orgs switch` fails, as a CLI that cannot reach Composio would. */
   switchFails?: boolean;
   /** The key of the sign-in `login --no-wait` started, which `login --poll`

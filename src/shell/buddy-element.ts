@@ -1,5 +1,6 @@
 import type { BuddyBubbleModel } from "./buddy-bubble";
 import { buddyBubbleCss, buddyLauncherClearance } from "./buddy-styles";
+import { icon } from "./icons";
 
 // How Buddy's bubble is drawn (decision F60): in `<lazurio-buddy>`'s own
 // shadow root, made only when the page's document first names Buddy's origin
@@ -19,6 +20,16 @@ import { buddyBubbleCss, buddyLauncherClearance } from "./buddy-styles";
 // decision F56's addendum (7) of 2026-10-25). While the launcher is
 // drawn the page keeps its corner free: `--lazurio-buddy-clearance` on the
 // document says how wide it is (decision F60's addendum of 2026-10-25).
+// Before the person met Buddy (F60's addendum of 2026-10-26) the launcher
+// carries a "1" and the window holds his hello and one action, a real link
+// to Začínáme, instead of the frame. While the Launchpad's dialog shows where
+// Buddy is, the launcher itself rises over that dialog's top layer as a
+// manual popover with a ring around it: inert, as the page behind a modal
+// dialog is, so the dialog keeps the focus and its Escape.
+
+/** His window's name for assistive technology: his name, the same in every
+ * language, also while the launcher says more. */
+const buddyWindowName = "Buddy";
 
 /** The property on the document that says how wide the launcher's corner
  * is, for a page whose controls reach it. */
@@ -69,11 +80,16 @@ export function createBuddyBubbleView(
     /** The Lazurio symbol (SVG text), the launcher's mark without Buddy's
      * picture. */
     logo: string;
-    /** The launcher's click. */
+    /** The launcher's click, and the close button of his window before
+     * the meeting. */
     toggle: () => void;
     /** Escape on the host's page while the bubble has the focus, or the
      * full screen's cancel; whether it was the bubble's. */
     escape: () => boolean;
+    /** A click on the action of his window before the meeting, a link to
+     * Začínáme: the element announces a link on its own origin and closes
+     * the window. */
+    follow: (href: string, event: MouseEvent) => void;
   }>,
 ): BuddyBubbleView {
   const logoUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(options.logo)}`;
@@ -107,7 +123,12 @@ export function createBuddyBubbleView(
       launcher.dataset.fallback = "";
       picture.src = logoUrl;
     });
-    launcher.append(picture);
+    // Before the meeting: his "1", which the label says in words.
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    badge.setAttribute("aria-hidden", "true");
+    badge.hidden = true;
+    launcher.append(picture, badge);
     launcher.addEventListener("click", () => options.toggle());
     bubble.addEventListener("keydown", (event) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
@@ -120,10 +141,82 @@ export function createBuddyBubbleView(
       event.preventDefault();
       setTimeout(() => options.escape(), 0);
     });
+    // His window before the meeting: his hello and the one action, drawn
+    // here from the model's words, never from the frame.
+    const meet = document.createElement("section");
+    meet.className = "meet";
+    meet.hidden = true;
+    const head = document.createElement("div");
+    head.className = "meet-head";
+    const name = document.createElement("strong");
+    name.textContent = "Buddy";
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "meet-close";
+    close.append(icon("xmark", 18));
+    close.addEventListener("click", () => options.toggle());
+    head.append(name, close);
+    const talk = document.createElement("div");
+    talk.className = "meet-talk";
+    const face = document.createElement("img");
+    face.className = "meet-face";
+    face.alt = "";
+    face.decoding = "async";
+    face.draggable = false;
+    face.addEventListener("error", () => {
+      if (face.src !== logoUrl) face.src = logoUrl;
+    });
+    const hello = document.createElement("p");
+    hello.className = "meet-line";
+    const line = document.createElement("p");
+    line.className = "meet-line";
+    talk.append(face, hello, line);
+    const action = document.createElement("a");
+    action.className = "meet-action";
+    action.addEventListener("click", (event) =>
+      options.follow(action.href, event),
+    );
+    meet.append(head, talk, action);
+    dialog.append(meet);
     bubble.append(dialog, launcher);
     // Before the guide's layer, which plays over the bubble.
     root.prepend(bubble);
-    return { bubble, dialog, launcher, picture };
+    return {
+      bubble,
+      dialog,
+      launcher,
+      picture,
+      badge,
+      meet: { section: meet, close, face, hello, line, action },
+    };
+  }
+
+  /** The launcher over the page's own top layer while the Launchpad's dialog
+   * shows where Buddy is: a manual popover, shown after that dialog, so it
+   * stands above it; never where the browser has no popovers. */
+  function lift(launcher: HTMLButtonElement, on: boolean) {
+    const open = (() => {
+      try {
+        return launcher.matches(":popover-open");
+      } catch {
+        return false;
+      }
+    })();
+    if (on) {
+      launcher.dataset.spot = "";
+      if (open || typeof launcher.showPopover !== "function") return;
+      launcher.setAttribute("popover", "manual");
+      try {
+        launcher.showPopover();
+      } catch {}
+      return;
+    }
+    delete launcher.dataset.spot;
+    if (open)
+      try {
+        launcher.hidePopover();
+      } catch {}
+    launcher.removeAttribute("popover");
   }
 
   function layout(dialog: HTMLDialogElement, next: BuddyBubbleModel["layout"]) {
@@ -155,17 +248,33 @@ export function createBuddyBubbleView(
         return;
       }
       parts ??= build();
-      const { dialog, launcher, picture } = parts;
+      const { dialog, launcher, picture, badge, meet } = parts;
       if (avatar !== model.launcher.avatar) {
         avatar = model.launcher.avatar;
         delete launcher.dataset.fallback;
         picture.src = avatar;
+        meet.face.src = avatar;
       }
       launcher.setAttribute("aria-label", model.launcher.label);
       launcher.setAttribute("aria-expanded", String(model.launcher.expanded));
       if (model.launcher.away) launcher.dataset.away = "";
       else delete launcher.dataset.away;
-      dialog.setAttribute("aria-label", model.launcher.label);
+      badge.hidden = model.launcher.badge === null;
+      badge.textContent = model.launcher.badge ?? "";
+      lift(launcher, model.launcher.spot);
+      dialog.setAttribute("aria-label", buddyWindowName);
+      // Before the meeting: his hello in place of the frame, which stays
+      // hidden where it exists.
+      meet.section.hidden = model.meeting === null;
+      dialog.dataset.meeting = model.meeting === null ? "" : "shown";
+      if (model.meeting !== null) {
+        meet.hello.textContent = model.meeting.hello;
+        meet.line.textContent = model.meeting.line;
+        meet.action.textContent = model.meeting.action;
+        meet.action.href = model.meeting.href;
+        meet.close.setAttribute("aria-label", model.meeting.close);
+        meet.close.title = model.meeting.close;
+      }
       if (model.frame === null) {
         frame?.remove();
         frame = null;
@@ -185,6 +294,8 @@ export function createBuddyBubbleView(
     frameWindow: () => frame?.contentWindow ?? null,
     focus(target: "launcher" | "frame"): void {
       if (target === "launcher") parts?.launcher.focus({ preventScroll: true });
+      else if (parts !== null && !parts.meet.section.hidden)
+        parts.meet.action.focus({ preventScroll: true });
       else frame?.focus({ preventScroll: true });
     },
     home() {

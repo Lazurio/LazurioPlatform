@@ -1,4 +1,5 @@
 import type { BuddyPersonaShown } from "../buddy/persona-save";
+import { keepTogether } from "../shell/messages";
 import { codexDeviceCode, codexDevicePage } from "../tools/ai";
 import { namesFromInput, type PersonNames } from "./buddy-names";
 import type { BuddyFact } from "./first-run";
@@ -16,6 +17,14 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // once with "Tykej mi". No line names a model, Hermes, a code name or a
 // reason code. Pure: the DOM is start-panel.ts, buddy-dialog.ts and
 // buddy-panel.ts.
+//
+// His first meeting (decision F60's addendum of 2026-10-26; the prototype of
+// prototypes-lazurio #92, approved by the Admin): the introduction is five short
+// beats in his own words, each with one small drawing (who he is, what he
+// takes care of, his bots, his memory, where he is), then his questions in
+// the order people introduce themselves: his name, the person's name and
+// how he writes it, then ty or vy, which nobody chooses for the person.
+// Until they choose he says vy, as Lazurio does.
 
 /** His default name, as the installer names a Buddy nobody named. */
 export const defaultBuddyName = "Buddy";
@@ -603,30 +612,41 @@ export function signInScreen(facts: BuddyStepFacts, copy: Copy): SignInScreen {
   return { kind: "start" };
 }
 
-/** What the person fills in on the second screen: his name, ty or vy, and
- * their own name in its three forms. */
+/** What the person fills in on the second screen: his name, their own name
+ * in its three forms, and ty or vy, null until they choose. */
 export type PersonaDraft = Readonly<{
   buddyName: string;
-  address: "ty" | "vy";
+  address: "ty" | "vy" | null;
   user: PersonNames;
 }>;
 
-/** The draft from the persona there is: his name, his address and the
- * person's names as the installer collected them; a Buddy without one is
- * Buddy, says vy and asks for the person's name. */
-export function draftOf(persona: BuddyPersonaShown | null): PersonaDraft {
+/** The draft from the persona there is: his name and the person's names as
+ * the installer proposed them, which the dialog offers. Ty or vy is the
+ * person's own choice (decision F60's addendum of 2026-10-26: both people of
+ * the first handovers changed the preselected vy): in Czech it is chosen
+ * only once they confirmed it, and the installer's proposal chooses
+ * nothing. English asks no ty or vy and keeps what the file says. A Buddy
+ * without a persona is Buddy and asks for the person's name. */
+export function draftOf(
+  persona: BuddyPersonaShown | null,
+  locale: "cs" | "en",
+): PersonaDraft {
   if (persona === null)
     return {
       buddyName: defaultBuddyName,
-      address: "vy",
+      address: null,
       user: { nominative: "", accusative: "", dative: "" },
     };
   return {
     buddyName: persona.buddyName,
-    address: persona.address,
+    address: persona.confirmed || locale === "en" ? persona.address : null,
     user: persona.user,
   };
 }
+
+/** How Buddy speaks to the person now: as they chose, and vy until then. */
+export const addressOf = (draft: Pick<PersonaDraft, "address">): "ty" | "vy" =>
+  draft.address ?? "vy";
 
 /** The person typed their name: the forms are guessed from it again (a
  * correction by hand comes after, with Opravit). */
@@ -647,14 +667,15 @@ export function withForm(
   return { ...draft, user: { ...draft.user, [form]: value } };
 }
 
-/** Whether the draft can be sent: a name for him and for the person, and
- * in Czech both forms. */
-export function draftReady(draft: PersonaDraft): boolean {
+/** Whether the draft can be sent: a name for him and for the person, in
+ * Czech both forms and ty or vy chosen. English has no ty or vy to choose. */
+export function draftReady(draft: PersonaDraft, locale: "cs" | "en"): boolean {
   return (
     draft.buddyName.trim() !== "" &&
     draft.user.nominative.trim() !== "" &&
     draft.user.accusative.trim() !== "" &&
-    draft.user.dative.trim() !== ""
+    draft.user.dative.trim() !== "" &&
+    (locale === "en" || draft.address !== null)
   );
 }
 
@@ -684,7 +705,8 @@ export function personaBody(
   const name = draft.user.nominative.trim();
   return {
     buddyName: draft.buddyName.trim(),
-    address: draft.address,
+    // English chooses none: Lazurio's vy, as the installer proposes.
+    address: addressOf(draft),
     user:
       locale === "en"
         ? { nominative: name, accusative: name, dative: name }
@@ -698,20 +720,27 @@ export function personaBody(
   };
 }
 
-/** A line Buddy says himself, in his address: the Ty or Vy one. */
+/** A line Buddy says himself, in his address: the Ty or Vy one, and vy
+ * before the person chose. */
 export function said(
   copy: Copy,
   line:
-    | "buddySaysIntro"
+    | "buddyHello"
+    | "buddyHelloNamed"
+    | "buddyHere"
+    | "buddyDoes"
+    | "buddyDoesFind"
+    | "buddyMemory"
+    | "buddyWhere"
+    | "buddyWhereTelegram"
     | "buddyAskName"
     | "buddyAskAddress"
-    | "buddyAnswer"
     | "buddyAskYou"
     | "buddyForms"
     | "buddyTelegramAsk"
     | "buddyTelegramHere"
     | "buddyTelegramPair",
-  address: "ty" | "vy",
+  address: "ty" | "vy" | null,
 ): string {
   return copy[`${line}${address === "ty" ? "Ty" : "Vy"}`];
 }
@@ -728,20 +757,216 @@ export function telegramPairingLine(
   });
 }
 
-/** Buddy introduces himself and asks (the second screen): every line his,
- * in the address of the draft. English asks no ty or vy and shows the one
- * form. */
+// ---- His introduction: five beats ------------------------------------------
+
+/** Czech typesetting of his lines on screen, as his bubble's: one function,
+ * the shell's (`keepTogether`). */
+export { keepTogether };
+
+/** The beats of his introduction, in their order. */
+export const meetBeats = Object.freeze([
+  "hello",
+  "does",
+  "bots",
+  "memory",
+  "where",
+] as const);
+export type MeetBeat = (typeof meetBeats)[number];
+
+/** On the introduction screen: a beat (`0` to `4`), then his questions. */
+export const meetQuestionsAt = meetBeats.length;
+
+/** The small drawing of a beat, built from the design system's parts; the
+ * first beat has none, his waving figure is its picture. */
+export type BeatDrawing =
+  | Readonly<{
+      kind: "does";
+      /** Four things he takes care of (Hlas: no list of three), each true
+       * on an Osobní Prostředí without an Organization or a tailnet. */
+      cards: readonly Readonly<{ icon: string; text: string }>[];
+    }>
+  | Readonly<{
+      kind: "bots";
+      /** Where his bots live, as the switch names it, and two at work. */
+      title: string;
+      rows: readonly Readonly<{
+        task: string;
+        status: string;
+        done: boolean;
+      }>[];
+    }>
+  | Readonly<{ kind: "memory"; title: string; items: readonly string[] }>
+  | Readonly<{
+      kind: "where";
+      /** The Environment's apps as its switch names them, and the phone. */
+      apps: readonly string[];
+      phone: string;
+    }>;
+
+export type BeatView = Readonly<{
+  beat: MeetBeat;
+  /** Its place, from 0, and how the progress names it ("2 z 5"). */
+  index: number;
+  progress: string;
+  /** One or two of his speech bubbles. */
+  lines: readonly string[];
+  drawing: BeatDrawing | null;
+  /** His figure waves (the first beat). */
+  waves: boolean;
+}>;
+
+/** His hello: "Ahoj, já jsem váš Buddy." A Buddy named Buddy is never
+ * "Buddy, váš Buddy" (as SOUL.md's `who`, F64). */
+export function helloLine(
+  buddyName: string,
+  address: "ty" | "vy" | null,
+  copy: Copy,
+): string {
+  const own = buddyName.trim() || defaultBuddyName;
+  return own.toLowerCase() === defaultBuddyName.toLowerCase()
+    ? said(copy, "buddyHello", address)
+    : fill(said(copy, "buddyHelloNamed", address), { name: own });
+}
+
+/** One beat of his introduction, in his address (vy before the person
+ * chose). `apps` names the Environment's apps as its switch does, the ones
+ * it has; `automate` is the switch's name of the app where his bots work. */
+export function beatView(
+  index: number,
+  input: Readonly<{
+    buddyName: string;
+    address: "ty" | "vy" | null;
+    apps: readonly string[];
+    automate: string;
+  }>,
+  copy: Copy,
+): BeatView {
+  const at = Math.max(0, Math.min(meetBeats.length - 1, Math.floor(index)));
+  const beat = meetBeats[at] as MeetBeat;
+  const { address } = input;
+  const base = {
+    beat,
+    index: at,
+    progress: fill(copy.buddyBeatProgress, {
+      n: String(at + 1),
+      total: String(meetBeats.length),
+    }),
+    waves: beat === "hello",
+  };
+  switch (beat) {
+    case "hello":
+      return {
+        ...base,
+        lines: [
+          helloLine(input.buddyName, address, copy),
+          said(copy, "buddyHere", address),
+        ],
+        drawing: null,
+      };
+    case "does":
+      return {
+        ...base,
+        lines: [said(copy, "buddyDoes", address)],
+        drawing: {
+          kind: "does",
+          cards: [
+            { icon: "globe", text: copy.buddyDoesTrip },
+            { icon: "search", text: said(copy, "buddyDoesFind", address) },
+            { icon: "mail", text: copy.buddyDoesMail },
+            { icon: "file", text: copy.buddyDoesSum },
+          ],
+        },
+      };
+    case "bots":
+      return {
+        ...base,
+        lines: [copy.buddyBots],
+        drawing: {
+          kind: "bots",
+          title: input.automate,
+          rows: [
+            {
+              task: copy.buddyBotFlights,
+              status: copy.buddyBotWorking,
+              done: false,
+            },
+            {
+              task: copy.buddyBotContract,
+              status: copy.buddyBotDone,
+              done: true,
+            },
+          ],
+        },
+      };
+    case "memory":
+      return {
+        ...base,
+        lines: [said(copy, "buddyMemory", address)],
+        drawing: {
+          kind: "memory",
+          title: copy.buddyMemoryTitle,
+          items: [
+            copy.buddyMemoryInvoices,
+            copy.buddyMemoryShort,
+            copy.buddyMemoryMornings,
+            copy.buddyMemoryHoliday,
+          ],
+        },
+      };
+    case "where":
+      return {
+        ...base,
+        lines: [
+          said(copy, "buddyWhere", address),
+          said(copy, "buddyWhereTelegram", address),
+        ],
+        drawing: { kind: "where", apps: input.apps, phone: copy.buddyPhone },
+      };
+  }
+}
+
+/** The introduction's way on, where it stands (`at`: a beat, then his
+ * questions at `meetQuestionsAt`): Zpět from the second beat on; Další
+ * through the beats, then Pokračovat, which may go only once the draft is
+ * ready (in Czech: ty or vy chosen); and whether the launcher of his
+ * bubble rises over the dialog, while the beat that shows where he is
+ * stands. */
+export type IntroduceNav = Readonly<{
+  back: boolean;
+  next: "beat" | "confirm";
+  ready: boolean;
+  spotlight: boolean;
+}>;
+
+export function introduceNav(
+  at: number,
+  draft: PersonaDraft,
+  locale: "cs" | "en",
+): IntroduceNav {
+  const questions = at >= meetQuestionsAt;
+  return {
+    back: at > 0,
+    next: questions ? "confirm" : "beat",
+    ready: questions ? draftReady(draft, locale) : true,
+    spotlight: at === meetBeats.length - 1,
+  };
+}
+
+/** His questions after the beats (the second screen's last part): every
+ * line his, in the address the person chose, vy until then. English asks
+ * no ty or vy and shows the one form. Ty or vy is asked last, as people
+ * introduce themselves, and nothing is chosen until the person chooses. */
 export type IntroduceScreen = Readonly<{
-  hello: string;
-  intro: string;
   askName: string;
+  askYou: string;
+  forms: string;
   /** Null in English. */
   askAddress: string | null;
   answers: Readonly<{ vy: string; ty: string }>;
-  askYou: string;
-  forms: string;
-  /** How he writes the person's name: „Buddy za Matěje“ and „Výsledek pošli
-   * Matějovi“; in English „Buddy for Matěj“ alone. */
+  /** What the person chose; null before (English asks nothing). */
+  chosen: "ty" | "vy" | null;
+  /** How he writes the person's name: „Buddy za Alenu“ and „Výsledek pošli
+   * Aleně“; in English „Buddy for Alena“ alone. */
   traces: readonly string[];
   /** The forms can be corrected (Czech). */
   fixable: boolean;
@@ -754,16 +979,14 @@ export function introduceScreen(
   copy: Copy,
 ): IntroduceScreen {
   const address = draft.address;
-  const name = draft.buddyName.trim() || defaultBuddyName;
   const nominative = draft.user.nominative.trim();
   return {
-    hello: fill(copy.buddySaysHello, { name }),
-    intro: said(copy, "buddySaysIntro", address),
     askName: said(copy, "buddyAskName", address),
-    askAddress: locale === "cs" ? said(copy, "buddyAskAddress", address) : null,
-    answers: { vy: copy.buddyAnswerVy, ty: copy.buddyAnswerTy },
     askYou: said(copy, "buddyAskYou", address),
     forms: said(copy, "buddyForms", address),
+    askAddress: locale === "cs" ? said(copy, "buddyAskAddress", address) : null,
+    answers: { vy: copy.buddyAnswerVy, ty: copy.buddyAnswerTy },
+    chosen: address,
     traces:
       locale === "cs"
         ? [
@@ -772,7 +995,7 @@ export function introduceScreen(
           ]
         : [fill(copy.buddyTraceFor, { name: nominative })],
     fixable: locale === "cs",
-    ready: draftReady(draft),
+    ready: draftReady(draft, locale),
   };
 }
 
@@ -780,7 +1003,7 @@ export function introduceScreen(
  * him on Telegram too (Připojit Telegram, or Teď ne), his chat here; once his
  * bot is connected, that it is. */
 export function telegramScreen(
-  persona: Readonly<{ address: "ty" | "vy" }> | null,
+  persona: Readonly<{ address: "ty" | "vy" | null }> | null,
   copy: Copy,
   telegram?: TelegramReading,
 ): Readonly<{ ask: string; here: string; connected: string | null }> {

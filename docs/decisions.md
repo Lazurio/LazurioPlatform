@@ -2416,6 +2416,135 @@ written as a sufficient reason for silence, and that no other file of the layer 
 proven: that Buddy keeps quiet on such a notice (generated text is not proof of behavior); that is the
 next Ring 0 check.
 
+**Addendum of 2026-10-26: a bot is „bot <Name>“, without a link until MausBot has an address for it**
+(plan DEV-6676; root decision 0210 and its addendum of 2026-10-24, under which a MausBot bot is a bot).
+On 2026-10-26 a person's Buddy wrote to the person about a bot by its bare name. The Organization Admin
+asked the same day „aby Buddy nepsal jenom název bota jako 'Rocket', ale aby vždy psal 'Bot Rocket',
+ideálně s odkazem, na který když uživatel klikne, tak ho to odkáže do MausBota na toho bota, aby se mohl
+podívat, jak na tom bot pracuje“.
+
+- **The word.** `.hermes.md` says under "How you talk to the user" that Buddy always names a bot to the
+  user with the word bot and its name, in his chat in Lazurio and in Telegram. The name alone is not
+  enough, and in Czech both words take the case: bot Zuko, bota Zuka, botovi Zukovi, s botem Zukem. The
+  sentence "You call the bots by their names" goes.
+- **The examples.** Every example that names a bot carries the word: „Dal jsem to botovi Zukovi, ozvu
+  se.“ and „Bot Zuko to má hotové: …“. The tone example „Henry je hotový, testy prošly. …“ becomes „Bot
+  Zuko je hotový, …“. Beside the rule its subject reads as a bot named without the word, and Henry is
+  the name Lazurio gives a Work Environment with automations (root decision 0170). The skills
+  `lazurio-buddy-pomocnici` and `lazurio-mausbot` point to the rule with its form.
+- **No link yet.** Buddy adds no link to a bot, and he never makes up or puts together its address or
+  the address of its conversation. Both places he writes render a Markdown link:
+  - Hermes's Telegram adapter turns `[text](url)` into a MarkdownV2 link (Lazurio/hermes-agent
+    `v0.22.4-lazurio.3`, `plugins/platforms/telegram/adapter.py`, `format_message`, step 3);
+  - in his chat in Lazurio, T3 Code renders his messages through `ChatMarkdown`, which opens an external
+    link in a new tab or in the preview (Lazurio/t3code `v0.1.2-lazurio.4`,
+    `apps/web/src/components/ChatMarkdown.tsx`, `MarkdownAnchor`).
+
+  The address is what is missing. The web app at an Environment's MausBot origin has no address that
+  opens a bot or one of its conversations (Lazurio/OpenMausBot main at 50475658):
+  - `src/main.tsx` routes only `/pair`;
+  - the navigation to a conversation, `openChatLink`, is reached only from the desktop app's deep links
+    `openmausbot://thread/<id>?bot=<id>` and `openmausbot://bot/<id>`;
+  - a pairing through `/pair` lands on `/`.
+
+  A link to the bare origin would open MausBot on another bot. Lazurio/OpenMausBot#67 proposes the
+  address.
+- **The link, once MausBot has the address** (a direction for that change, not built here). Delegace
+  gives Buddy the link, because it knows the Environment and the conversation: `openmausbot run …
+  --wait none --json` prints the conversation's `threadId`. The origin is the Environment's own
+  declaration, `entry.mausbot.external_origin` of its handover, which `lazurio machine inspect` prints.
+  Delegace would read it locally, or over the same `ssh <environment>` path it uses for `openmausbot`;
+  MausBot itself has no public address on a hosted Environment. The output of `zadej`, the notices,
+  `vysledek` and `seznam` would carry the link, and the rule would change to a link only to the address
+  Delegace gave.
+
+Template revision `base-instructions-77`. The Folder re-renders, and the digest of Buddy's layer
+changes, so the F64 addendum of 2026-10-25 (#652) refreshes his stored prompts by itself.
+`tests/folder-buddy.test.ts` checks in both locales:
+- the rule, and the link line right after it, both right after the line that the tools are his;
+- the skills' pointers to the rule;
+- that the old sentence and the bare examples are gone;
+- that no file of the layer names the example bot without the word, and none links a bot.
+
+Every rendered file of the layer passes `tools/threat_patterns.py` at every scope (Lazurio/hermes-agent
+`v0.22.4-lazurio.3`). `.hermes.md` is 17.4k characters in Czech and 18.9k in English. Not proven: that
+Buddy follows the rule (generated text is not proof of behavior), and that he declines a name he has
+not seen before correctly.
+
+**Addendum of 2026-10-26: Delegace gives Buddy the link to a bot's conversation, and he links „bot <Name>“
+only to it** (plan DEV-6676; the direction of the addendum above). The Lazurio fork of MausBot gains the
+address the addendum above waited for (Lazurio/OpenMausBot#67, its pull request #68):
+- `/c/<threadId>` on an Environment's MausBot origin opens that conversation with its bot;
+- pairing keeps the address;
+- an id the app does not know opens the app on `/` with its notice that the conversation is gone.
+
+- **Delegace builds the link** (`src/buddy/delegace`). It is `<origin>/c/<threadId>`, with the
+  `threadId` that `openmausbot run … --wait none --json` printed. The origin is the MausBot origin of
+  the Environment where the bot runs, as that Environment declares it, never put together from names:
+  - here, the machine binding the Folder records from the handover (`machine.entry.mausbotOrigin`, the
+    origin of the Launchpad's Automate entry), read only from a regular file of the operator that
+    nobody else may write;
+  - in another Environment, `entry.mausbot.external_origin` of its own handover, read with `ssh
+    <environment> lazurio machine inspect` (the command prints JSON and takes no option, so no
+    `--json`).
+
+  `zadej` reads it once per delegation, after the bot has started, and records it as the optional
+  `odkaz` of the record (still `verze: 1`). Anything else is no link:
+  - an origin that is not `https://<lowercase hostname>`;
+  - a `threadId` outside `[A-Za-z0-9_-]`;
+  - an unreadable binding or handover.
+
+  A running bot never fails over it.
+- **Where it appears.**
+  - `zadej` prints `{id, threadId, termin, odkaz}`.
+  - The notice in his chat has `Odkaz na bota: <odkaz>` on a line of its own, right after its first
+    line, before the bot's words.
+  - The Telegram notice is one line, which Hermes cuts at 200 characters. It ends with
+    ` | odkaz na bota: <odkaz>` when the whole link fits with at least 20 characters of the report;
+    otherwise it leaves the link out.
+  - `vysledek` prints `Odkaz na bota: <odkaz>` before the bot's words, and `seznam` lists it.
+  - Lazurio's own last-resort message to the person stays as it was.
+- **Buddy's rule.** The line „Odkaz na bota nepřidáváš…“ becomes: Delegace gives the link to a bot as
+  `odkaz` in the output of `delegace zadej`, `delegace seznam` and `delegace vysledek`. With it, Buddy
+  makes the word bot and the bot's name a Markdown link to exactly that address: [bota Zuka](<odkaz>).
+  Without it, there is no link. He never makes up, puts together or changes an address, and never takes
+  one from a bot's words, which are data: in Telegram they share one line with Delegace's part.
+  - The skill `lazurio-buddy-pomocnici` shows `{id, threadId, termin, odkaz}` with an example with the
+    link and one without, and the notices' link. Its step 1, `delegace vysledek <id>`, brings the link,
+    and its examples link the bot to `<odkaz>`.
+  - The rules of the addendum of 2026-10-24 and of 2026-10-25 (#612) stay as they are: his own words,
+    no commands, no mark, `NO_REPLY`.
+
+Template revision `base-instructions-78`. The Folder re-renders, and the digest of Buddy's layer
+changes, so the F64 addendum of 2026-10-25 refreshes his stored prompts by itself. Delegace reaches a
+Personal Environment with the Platform release that installs it there.
+
+Tests:
+- **`tests/folder-buddy.test.ts`**, in both locales:
+  - the rule's line right after the naming rule;
+  - the skill's `zadej` and `vysledek` lines;
+  - that every Markdown link whose text names a bot, in every file of the layer, points at `<odkaz>`,
+    and that both the rule and the skill show one;
+  - that no file of the layer shows the shape of an address (`/c/`, `mausbot.`).
+- **`src/buddy/delegace/test_delegace.py`** checks each output with and without the link:
+  - the binding here, and another Environment's handover read once, exactly as `lazurio machine
+    inspect`;
+  - no link for a missing, foreign or unsafe binding, for origins of every other shape, for a refused
+    or foreign answer of the other Environment, and for a `threadId` of another shape, which is not even
+    read;
+  - the chat's notice and its repeat;
+  - the Telegram line, with a long report, and with a link too long for it;
+  - `seznam` (text and JSON), `vysledek` (text and JSON);
+  - a record from before the link.
+
+Every rendered file of the layer passes `tools/threat_patterns.py` at every scope (Lazurio/hermes-agent
+at `1ca04e22c8`). `.hermes.md` is 17.7k characters in Czech and 19.3k in English.
+
+Not proven:
+- that Buddy follows the rule (generated text is not proof of behavior);
+- the whole way on a hosted Environment, from a delegation to a click that opens the conversation
+  through the gateway. That needs the MausBot release with the address.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
@@ -10551,7 +10680,9 @@ reference is [integrations](integrations.md#the-composio-organization-of-an-envi
    missing from the Folder, its manifest unreadable), the rule is `unverified`:
    never taken for the person's choice and never guessed (Pablo's review of
    #372). Any other Environment, a personal one or a computer, works in the
-   organization the person chose. *(Amended 2026-10-13, after rc.65:)* the owning
+   organization the person chose *(amended 2026-10-26: a personal Environment works
+   in the account's default organization, see the addendum of that day)*.
+   *(Amended 2026-10-13, after rc.65:)* the owning
    Organization is the one Organization settings select (F45):
    `selectCatalogOrganization` with the binding's `owner.organization`, the manifest
    slug compared case-insensitively as GitHub compares slugs, else the directory
@@ -10601,6 +10732,7 @@ reference is [integrations](integrations.md#the-composio-organization-of-an-envi
    Environment's sign-in dialog advises the default organization, the one
    Composio made at the sign-up, and the person chooses it. Once the CLI prints
    when an organization was created, the oldest one can be chosen by the rule.
+   *(Done on 2026-10-26, see the addendum of that day.)*
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -11472,6 +11604,73 @@ main). In a headless browser on the preview with `composio-signed-out`, in Czech
 English: on main, after the sign-in Gmail's "Připojit" landed on Settings → Tools; now
 it stays on Integrace with its form, a card read before the sign-in connects after a
 live check, and a Composio switched off says so on its cards.
+
+**Addendum 2026-10-26, reported by the Operator: a personal Environment works in the
+account's default Composio organization.** On his personal Environment the Operator
+found the apps of a work organization where his personal ones belong. Composio's browser
+sign-in lands in the organization open in Composio's dashboard, and that is often an
+Organization's one, since the person creates those there (point 5 of addendum (2) of
+2026-10-13); the Launchpad then left a personal Environment's organization to the
+person, because the CLI did not say which organization is the default (point 7). Root
+decision 0162 says the personal Environment uses the account's default organization
+(its addendum of 2026-10-13, point 2), and point 7 named the missing step: the CLI
+printing when each organization was created.
+
+1. **The default organization is the oldest.** Composio marks none as the default and
+   lists the newest first; the one it made at the sign-up is the account's oldest.
+   Lazurio's build of the CLI prints each organization's `created_at` in `orgs list`
+   from `0.4.3-lazurio.3` on (Lazurio/composio#4), and `defaultComposioOrganization`
+   takes the oldest. An account read on 2026-10-26 confirms it: its default
+   organization was made at the sign-up and each Organization's one weeks later, and
+   the list showed the default one last.
+2. **Brought current like an Organization's one.** A Machine binding whose owner is a
+   person, the personal Environment, has the rule `default`. The Integrace reading, the
+   sign-in dialog of Settings → Tools and every link and removal make the default
+   organization current where another one is, journaled as in point 2 of addendum (2).
+   The dialog offers no choice there, since the next reading would undo it; Integrace
+   and agents read the default organization as `{name, state, default: true}`, named as
+   Composio names it and never rewritten as an Organization's name would be.
+3. **Nothing guessed.** Where an organization has no date (Composio's own CLI, or
+   Lazurio's before `0.4.3-lazurio.3`), where two are equally old, or where the list is
+   a full page of 50 (`orgs list` prints one page, the newest first, so the oldest may
+   be left out; Pablo's review of Lazurio/composio#4), the verdict is `chosen`: the
+   person's current organization and the dialog's choice, as before this addendum.
+   Where the default organization exists but cannot be made current, nothing of
+   Composio counts, as in point 4.
+4. **Unchanged:** an Organization's Environment and a Team Environment (the rule of the
+   Organization's name), and a computer, where the person chooses.
+5. **The pin moves to `0.4.3-lazurio.3`.** `composioBuild` names it, the installer at the
+   release's own commit `5bcde7de8dc78681e8d44262fcf134afab19e091` (the squash of
+   Lazurio/composio#4; its `install.sh` byte for byte the one of `0.4.3-lazurio.2`) and
+   the four archives' SHA-256 as the release's `checksums.txt` lists them and the
+   downloaded archives hash (read 2026-10-26). An Environment with `0.4.3-lazurio.2`
+   keeps the person's choice until the person updates Composio in Settings → Tools,
+   which then says that it is not the build Lazurio uses, as with every pin (note of
+   2026-10-19). The release ran its own installation check on Linux and macOS; its
+   macOS arm64 build, run in an isolated home with a copy of one real account's
+   sign-in, printed each organization's `created_at` and the default one as the oldest.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The default organization by a name ending in `_workspace` | No CLI change; but a guess about Composio's naming; rejected as in addendum (2) |
+| The default organization as the last one `orgs list` prints | No CLI change; but Composio documents no order; rejected |
+| Remember the person's choice for the Environment | Survives a new sign-in; but the first sign-in still lands in the open organization, and root decision 0162 names the default one; rejected |
+| Read the dates from Composio's API in the Launchpad | No CLI release; but a second way to Composio with the person's key beside the one CLI (root decision 0162, addendum of 2026-10-08, point 4); rejected |
+
+Verified by tests: the dates kept as `createdAt` where they are dates and left out
+otherwise (`tests/tools-login.test.ts`); the oldest organization as the default, and
+`chosen` without a date for each, between two equally old, without any and on a full
+page of 50; the rule
+`default` on a personal Environment and `chosen` on a computer; on a personal
+Environment the sign-in dialog and the Integrace reading making the default
+organization current after a sign-in that landed in another one, the dialog with
+nothing to choose, an organization made current behind the reading switched back and
+a link going to the default organization, switched back first; a default organization
+that cannot be made current with no account listed, a link refused, and the page and
+`lazurio integrations list` naming it as Composio does; a CLI without dates leaving
+the choice to the person as before (`tests/integrations-composio-organization.test.ts`);
+Začínáme's Composio step done only where the default organization is current
+(`tests/first-run.test.ts`).
 
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
@@ -18793,6 +18992,173 @@ wherever their composers reach the window's edge, which point 4 measured for T3 
   - full screen, asked for by a stand-in frame on Buddy's origin, covered the whole window;
   - `hidden` on `<lazurio-buddy>` removed the clearance and hid the launcher, and removing it
     restored both; with the frame open, `<html>`'s style saw no write in two seconds.
+
+### F60 addendum of 2026-10-26: Buddy's first meeting, his bubble before it and his first message
+
+**Decided by the Organization Admin (2026-10-26)**, who approved the prototype of
+HumanAndMachine-ai/prototypes-lazurio #92 at `4772dfe0` ("Vypadá dobře, pokračuj") after two real
+handovers of Buddy: the introduction was one sentence and three questions, both people switched
+the preselected vy to ty, and Buddy's first message in the chat said little more than hello. In
+the Admin's words: "To bychom měli dopilovat, protože to bude nejvíce důležité, tak se Buddy
+představí uživatelům." The Buddy lead decided the prototype's open questions as below; the Admin
+may overrule them. This amends F65 points 4 and 8 and
+adds to points 1 to 5 above.
+
+1. **His bubble before the meeting is the shell's.** `lazurio.shell.v1`'s `setup` gains
+   `buddyNext` (additive in v1, ignored by older parsers): beside `buddy` `missing` while the
+   person has not confirmed his names, `sign-in` until he is signed in, then `introduce`. It is
+   absent once the names are confirmed (a later sign-out included: his own window says that, as
+   before), whenever it is not known, and without Buddy; it never carries a name or a code.
+   - Its sources are the reading `setup.buddy` already has: the server's setup cache
+     (`shellSetup`, `buddyNextOf`), and the Launchpad's page from its own reading, also while
+     GitHub's state is not known there (`withBuddySetup`, which keeps the server's members).
+   - The server reads `setup` anew after a sign-in that finished, a sign-out and names written
+     (`createBuddyRoutes`' `changed`). Chat and Automate follow at their next reading of the
+     document: on load, focus or visibility (F36's addendum of 2026-10-18).
+   - Only on a page of his own Osobní Prostředí (`buddyMeeting`: Buddy's origin is of the current
+     Environment's base host, which only a personal Environment's one-label id can be) the
+     launcher shows "1" ("Buddy, 1 nová zpráva" to assistive technology; none while his window
+     shows or while he is out presenting the guide). His window is then the panel with his
+     figure, his hello and the one thing he needs, and one action: "Přihlásit Buddyho" or
+     "Seznámit se". These are the shell's own words, in vy and "váš Buddy", since his name is not
+     in the document.
+   - No frame is made before the meeting: nothing of his chat loads, and the chat of a Buddy who
+     is signed in but not introduced stays hidden (the prototype's question 9). A frame made
+     before stays hidden, asks for no size and no explanation. A window open when the meeting
+     comes or goes closes; it never turns into the other by itself.
+   - On another Environment's page (one of the same tailnet, point 1) that Launchpad does not
+     know his step, so his bubble is as before.
+2. **The way into the dialog is a link.** The action is a real link to Začínáme of the Launchpad
+   that the document names for that Environment (its `apps.apps`, never composed from another
+   origin) with the fragment `#lazurio-start=meet-buddy`, a top-level navigation. On the
+   Launchpad's own page it is announced as `lazurio-navigate` and taken without a reload; the
+   Launchpad also takes the fragment changed in place. `readFragment` takes only the requests it
+   knows and ignores every other value. `startDecision` opens the dialog where his step stands
+   (`meetStart`: his sign-in, or his introduction) only where Buddy is and until his names are
+   confirmed, and waits for his reading. Nothing starts by itself: a code is asked for in the
+   dialog, never by a link.
+3. **The introduction is five beats, then his questions** (F65 point 4's second screen).
+   - Each beat is his figure, one or two of his speech bubbles and one drawing: who he is, what
+     he takes care of, his bots, his memory, where he is. Další and Zpět move between them, and
+     five bars say where they stand ("2 z 5").
+   - Then his questions, in the order people introduce themselves: his name, the person's name
+     with its forms and Opravit, then ty or vy.
+   - **Nothing is preselected.** `PersonaDraft.address` is null until the person chooses. In
+     Czech the installer's proposal chooses nothing (`draftOf` takes the address only from a
+     confirmed persona), and `draftReady` requires a choice, so Pokračovat waits. English asks no
+     ty or vy: it keeps the file's address, vy where there is none.
+   - Before the choice he says vy; "Tykej mi" changes every line of his at once.
+   - The four things he takes care of are true on an Osobní Prostředí of Product 1, without an
+     Organization or a tailnet. "Najdu, co hledáte" (his bots search the web), "Připravím
+     e-mail" (a draft in the chat, nothing sent) and "Shrnu dlouhý text" stay. "Připomenu
+     schůzku" became "Naplánuju cestu" (his bots look into connections; nothing booked or paid
+     without the person): a reminder needs a channel that reaches the person when it is due,
+     which his conversation in Lazurio alone does not give, and he reads no calendar
+     there.
+   - The beats name the Environment's apps as its switch does: his bots' Automate, and Chat,
+     Apps and Automate where the Environment has them.
+   - His lines keep a one-letter word with the next one (`keepTogether`, the prototype's).
+4. **Where he is: the real launcher over the dialog.** On the fifth beat the Launchpad lifts the
+   launcher of its own `<lazurio-buddy>` (`spotlight`, not interface v1). It is a manual popover
+   shown after the modal dialog, so the top layer puts it above the dialog's backdrop, in its
+   own corner, with a blue ring and a small hop. It stays inert, as the page behind a modal
+   dialog is, so the dialog keeps the focus and Escape. It goes back when the beat changes or
+   the dialog closes. Without motion the ring stands still and nothing hops.
+5. **He waves.** On the first beat his figure waves: three frames of the design system's
+   spritesheet (row 4, frames 1 to 3; the sheet's SHA-256 `7bbe0d629ea1e3e6…`).
+   - They are cut losslessly into one strip, `src/launchpad/images/buddy-wave.webp`
+     (576 × 208 px, 88,932 bytes, SHA-256 `61a0c602870fd514…`). Its alpha and every visible
+     pixel are the sheet's; nothing is redrawn or smoothed, as the design system's consumer
+     contract asks. The test pins the digest.
+   - CSS steps play it twice, scaled with `pixelated`, and the page loads it only when the beat
+     shows. Without motion he stands still.
+6. **The meeting's end opens his window.** "Teď ne" on the Telegram screen (unchanged otherwise)
+   closes the dialog and opens Buddy's window through `<lazurio-buddy>`'s `openWindow()`, as the
+   person's click would (not interface v1). The frame still never opens it (point 5). × only
+   closes the dialog.
+7. **His first message is his own.** After the person's first confirmation the Launchpad gives
+   Buddy one turn in his conversation in Lazurio, which the person never sees, and he greets
+   them.
+   - **When.** `writePersona` says when a write records the first confirmation
+     (`firstConfirmation`). The Launchpad records the turn before the apply: the confirmation,
+     the key, the exact text and the state, in `~/.local/state/lazurio/buddy/first-meeting.json`
+     (`lazurio.buddy-first-meeting.v1`, 0600 in 0700, beside F64's records). It sends the turn
+     once an apply of the Launchpad's has answered `applied`, so he greets in the names and the
+     address just confirmed: never after an apply that failed, was refused or still waits, and
+     every retry of the turn asks again. A delivery under way asks once more after its last
+     read, with nothing awaited before it hands the turn to T3 Code: an apply that started since
+     (another save) leaves the turn owed.
+     A save after the confirmation, before the turn went, gives the owed turn the names and the
+     address just saved. The record changes one step at a time in the Launchpad (owed anew,
+     refreshed, sent, refused, expired), each step reading and writing it at once, and a
+     delivery's outcome lands only on the turn it sent, so nothing writes over a newer
+     confirmation or a turn that went. A reading while it is owed sends it the same way; after
+     a Launchpad restart one apply comes first.
+   - **How.** The path and the mark of Delegace's notices: Buddy's own runtime runs
+     `t3 lazurio buddy thread`, then `t3 thread send <thread> --mode queue --idempotency-key
+     lazurio-first-meeting-<the confirmation's digits> --message-file -` against
+     `--base-dir ~/.t3-buddy`. That `t3` alone runs with `T3CODE_ACTING_SENDER=delegace`, the
+     acting sender that T3 Code shows to Buddy and never to the person (Lazurio/t3code
+     `apps/web/src/lazurio/actingSender.ts` `hidesMessage` and `MessagesTimeline.tsx`, at
+     `v0.1.2-lazurio.4`). `queue` puts it behind a turn of his, never into it.
+   - **What.** Lazurio's note to Buddy in the Folder's language: the prototype's three short
+     paragraphs in the person's address, with the vocative his to form. No emoji, no list of
+     what he can do, no tool or service and no signature; his limit by root decision 0089.
+   - **How often.** Once per confirmation. A failure that may pass leaves it owed, with the same
+     key and text: it is asked again 10 s later, doubling up to two minutes (his T3 Code may just
+     have been restarted by the apply), and on every reading that finds nothing pending. A
+     refusal that the same key never fixes ends it (`refused`), and a day after the confirmation
+     it expires.
+   - **Where not.** Never on Telegram, never from `lazurio buddy persona --confirm`. The journal
+     names the operation and the outcome, never a name, the text or the key.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Buddy's T3 surface draws the window before the meeting | Needs his step across origins and a release of the fork, and loads his frame before the meeting; rejected for the shell |
+| A new same-origin read, `/.lazurio/buddy.json` | A second reading of the facts behind `setup.buddy`, and one more request per page; rejected for one member of `setup` |
+| New values of `setup.buddy` | An older parser refuses a value it does not know, so not additive; rejected for a new member |
+| The screen in the link (`sign-in`, `introduce`) | The bubble's knowledge can be older than the Launchpad's; rejected for the Launchpad deciding |
+| The link starts a code | A navigation would start a POST; rejected: the dialog asks |
+| The Launchpad writes the greeting itself | Not Buddy's own message; rejected |
+| An acting-sender kind of Lazurio's own in T3 Code | Needs a T3 Code release; `delegace` is the kind T3 Code hides now; possible later |
+| The dialog non-modal with its own scrim | The focus trap and Escape rebuilt by hand; rejected for a popover over the modal |
+| The spritesheet whole, or a lossy cut | 1,959,990 bytes, or pixels the design system did not draw; rejected for the lossless strip |
+| The turn at once, before the persona is applied | He would greet with his old prompt, and the apply's restart could meet his turn; rejected for after the apply |
+
+**Verified by:**
+- `tests/shell-buddy.test.ts`: `buddyNext` taken only beside a missing step and in its two
+  values; the step counted only on his own Osobní Prostředí and only at an https Apps address;
+  the "1", his hello and the action, no frame, the panel whatever the tab remembers, Escape, the
+  window closing when the meeting comes or goes, a frame made before staying hidden, `open()` and
+  `spotlight()`, the styles of the badge, the lift and less motion.
+- `tests/first-run-buddy.test.ts`: `buddyNextOf`, `setup` with and without it, `withBuddySetup`,
+  the fragment's requests and every other value ignored, `startDecision` for `meet-buddy`.
+- `tests/buddy-view.test.ts`: the five beats in vy, in ty and in English, the cards and drawings,
+  the questions with nothing chosen and every line following "Tykej mi", the way on
+  (`introduceNav`), the draft.
+- `tests/buddy-voice.test.ts`: his new lines in pairs by his address, Lazurio's in vy, no
+  developer word.
+- `tests/buddy-first-meeting.test.ts`: the text and the key; the turn owed and recorded once per
+  confirmation, sent with exactly Delegace's commands and environment, the text only on stdin;
+  owed while T3 Code is not there, does not answer or answers garbled, then sent with the same
+  key and text; each final refusal recorded and nothing elsewhere; expiry; a link or another
+  schema owing nothing; in the Launchpad's persona, only the first confirmation owing it, nothing
+  sent while Buddy is busy, asked again 10 s and 20 s later while T3 Code is away, and a restart
+  taking it up; `firstConfirmation`; the routes' `changed`.
+- Mutation checks and the browser check: listed in the change's pull request.
+
+**Honest limits.**
+- No Osobní Prostředí ran it, and the hidden turn did not run end to end: `t3` was a fake with
+  the shapes Delegace's tests record. The acceptance is on Bob's Osobní Prostředí of the
+  reference Organization (root decision 0204), as listed in the pull request.
+- Chat and Automate learn of the meeting at their next reading of the shell document, not at
+  once.
+- Buddy's Lazurio layer says nothing of the note; the note says what it is. T3 Code records it
+  as Delegace's.
+- The prototype's first message promises "a já pohlídám, ať na nic nezapomenete". Without
+  Telegram he keeps it only when the person writes to him (the reason "Připomenu schůzku" went).
+- After "Teď ne" the Launchpad's own tour of Začínáme comes back beside his window, as after any
+  step.
 
 ## F61 — Buddy's chat in Lazurio is T3 Code with Hermes over ACP: the Platform's side
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Contract tests for delegace with fake `openmausbot`, `hermes`, `ssh` and `t3`.
+"""Contract tests for delegace with fake `openmausbot`, `hermes`, `ssh`, `t3` and `lazurio`.
 
 A "wake" (the notice Buddy gets) is what reaches Buddy. In Telegram it is a
 `completed` event on a Kanban card that has a `wake` subscription; the fake
@@ -219,6 +219,25 @@ if os.environ.get("FAKE_SSH_DOWN"):
 sys.exit(subprocess.run(["sh", "-c", a[-1]]).returncode)
 '''
 
+# The Platform CLI of the other Environment: `lazurio machine inspect` prints
+# that Environment's handover as `{"kind":"machine-context-observed","context":
+# <handover>,…}` and takes no option (LazurioPlatform src/machine/cli.ts). It
+# answers as `lazurio.json` in the fake's directory says, by default as a
+# Machine without one.
+FAKE_LAZURIO = r'''
+import json, os, sys
+d = os.environ["FAKE_DIR"]
+with open(os.path.join(d, "lazurio-calls.jsonl"), "a") as fh:
+    fh.write(json.dumps({"argv": sys.argv[1:]}) + "\n")
+path = os.path.join(d, "lazurio.json")
+answer = json.load(open(path)) if os.path.exists(path) else {"exit": 2, "out": ""}
+if sys.argv[1:] != ["machine", "inspect"]:
+    answer = {"exit": 2, "out": ""}
+out = answer.get("out")
+print(out if isinstance(out, str) else json.dumps(out))
+sys.exit(answer["exit"])
+'''
+
 # `wait --json` as MausBot 0.1.115 prints it: no `reply`, the answer is the newest bot text message.
 DONE = {"exit": 0, "out": {"status": "settled", "state": "completed", "taskId": "th-1",
                            "job": {"state": "completed", "reason": "zuko finished", "needsInput": []},
@@ -256,6 +275,7 @@ class DelegaceTest(unittest.TestCase):
             (os.path.join(bindir, "hermes"), FAKE_HERMES),
             (os.path.join(bindir, "openmausbot"), FAKE_MAUSBOT),
             (os.path.join(bindir, "ssh"), FAKE_SSH),
+            (os.path.join(bindir, "lazurio"), FAKE_LAZURIO),
             (os.path.join(bindir, "t3"), DECOY_T3),
             (self.t3_runtime, FAKE_T3),
         ):
@@ -349,6 +369,49 @@ class DelegaceTest(unittest.TestCase):
     def messages(self):
         """What reached Buddy's thread: one message per key, as T3 Code keeps it."""
         return self.t3_state()["messages"]
+
+    def binding(self, preferences, mode=0o600):
+        """The Lazurio Folder's state with the machine binding, as the Folder
+        records it from the handover: `machine.entry.mausbotOrigin`."""
+        path = os.path.join(self.tmp.name, "Lazurio", ".lazurio", "preferences.json")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        if os.path.lexists(path):
+            os.remove(path)
+        body = preferences if isinstance(preferences, str) else json.dumps(preferences)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(body)
+        os.chmod(path, mode)
+        return path
+
+    def bound_to(self, origin):
+        return self.binding({"schemaVersion": 3, "revision": 4, "machine": {
+            "kind": "personal-vm", "entry": {"externalOrigin": "https://launchpad.personal.example.test",
+                                             "mausbotOrigin": origin, "mausbotListenPort": 4102}}})
+
+    def handover(self, answer):
+        """What `lazurio machine inspect` prints on the other Environment."""
+        with open(os.path.join(self.fake, "lazurio.json"), "w") as fh:
+            json.dump(answer, fh)
+
+    def handover_with(self, origin):
+        self.handover({"exit": 0, "out": {"kind": "machine-context-observed", "digest": "0" * 64, "authority": "none",
+                                          "context": {"schema": "lazurio.machine.v1", "entry": {
+                                              "launchpad": {"external_origin": "https://launchpad.work-01.example.test"},
+                                              "mausbot": {"external_origin": origin, "listen_port": 4102}}}}})
+
+    def lazurio_calls(self):
+        path = os.path.join(self.fake, "lazurio-calls.jsonl")
+        if not os.path.exists(path):
+            return []
+        with open(path) as fh:
+            return [json.loads(line)["argv"] for line in fh]
+
+    def ssh_commands(self):
+        path = os.path.join(self.fake, "ssh-calls.jsonl")
+        if not os.path.exists(path):
+            return []
+        with open(path) as fh:
+            return [json.loads(line)["argv"] for line in fh]
 
     def calls(self, verb=None):
         path = os.path.join(self.fake, "mausbot-calls.jsonl")
@@ -604,12 +667,13 @@ class DelegaceTest(unittest.TestCase):
         self.mausbot_says(wait=[DONE])
         rid = self.zadej_ok(extra=("--env", "work-env"))
         self.hlidej()
-        with open(os.path.join(self.fake, "ssh-calls.jsonl")) as fh:
-            ssh = [json.loads(line)["argv"] for line in fh]
-        self.assertEqual(len(ssh), 2)
-        self.assertIn("work-env", ssh[0])
+        ssh = self.ssh_commands()
+        self.assertEqual(len(ssh), 3)
+        self.assertTrue(all("work-env" in argv for argv in ssh))
         self.assertTrue(ssh[0][-1].startswith("openmausbot run zuko - --wait none"))
-        self.assertTrue(ssh[1][-1].startswith("openmausbot wait --thread th-1"))
+        self.assertEqual(ssh[1][-1], "lazurio machine inspect")  # the link's origin, once; no link here
+        self.assertTrue(ssh[2][-1].startswith("openmausbot wait --thread th-1"))
+        self.assertIsNone(self.rec(rid)["odkaz"])
         self.assertIn("Odpověz jedním slovem", self.calls("run")[0]["stdin"])
         # that Environment's home is not known here, so its own `~` and an absolute path
         self.assertIn(f"ukládej do `~/Documents/buddy/{rid}/`", self.calls("run")[0]["stdin"])
@@ -1432,6 +1496,199 @@ class DelegaceTest(unittest.TestCase):
         self.assertEqual(self.delegace("potvrd", rec["id"]).returncode, 0)
         self.assertEqual(self.rec(rec["id"])["stav"], "vyrizeno")
 
+
+    # -- the link to the bot's conversation (Lazurio/OpenMausBot#67)
+
+    HERE = "https://mausbot.personal.example.test"
+    THERE = "https://mausbot.work-01.example.test"
+
+    def test_zadej_gives_the_link_from_this_environment_s_machine_binding(self):
+        self.bound_to(self.HERE)
+        p = self.zadej()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        out = json.loads(p.stdout)
+        link = f"{self.HERE}/c/th-1"
+        self.assertEqual(out, {"id": out["id"], "threadId": "th-1", "termin": out["termin"], "odkaz": link})
+        self.assertEqual(self.rec(out["id"])["odkaz"], link)
+        self.assertEqual((self.lazurio_calls(), self.ssh_commands()), ([], []))
+
+    def test_a_bot_in_another_environment_gets_that_environment_s_own_origin_read_once(self):
+        self.bound_to(self.HERE)
+        self.handover_with(self.THERE)
+        self.mausbot_says(wait=[RUNNING, RUNNING, DONE])
+        p = self.zadej(extra=("--env", "work-env"))
+        self.assertEqual(p.returncode, 0, p.stderr)
+        out = json.loads(p.stdout)
+        link = f"{self.THERE}/c/th-1"
+        self.assertEqual(out["odkaz"], link)
+        for _ in range(3):
+            self.hlidej()
+        self.assertEqual(self.rec(out["id"])["vysledek_stav"], "HOTOVO")
+        self.assertEqual(self.rec(out["id"])["odkaz"], link)
+        # Read on that Environment, once per delegation, exactly as its CLI takes it.
+        self.assertEqual(self.lazurio_calls(), [["machine", "inspect"]])
+        self.assertEqual([argv[-1] for argv in self.ssh_commands() if "lazurio" in argv[-1]], ["lazurio machine inspect"])
+        self.assertTrue(all("work-env" in argv for argv in self.ssh_commands()))
+
+    def test_without_an_origin_there_is_no_link_and_none_is_put_together(self):
+        valid = {"schemaVersion": 3, "machine": {"entry": {"mausbotOrigin": self.HERE, "mausbotListenPort": 4102}}}
+        here = [
+            ("no Folder state", None),
+            ("a workstation's binding", {"schemaVersion": 3, "machine": None}),
+            ("an entry without MausBot", {"schemaVersion": 3, "machine": {"entry": {"externalOrigin": self.HERE}}}),
+            ("not JSON", "{nope"),
+            ("a JSON array", "[]"),
+            ("group-writable", (valid, 0o664)),
+            ("world-writable", (valid, 0o602)),
+        ] + [(f"origin {origin!r}", {"schemaVersion": 3, "machine": {"entry": {"mausbotOrigin": origin}}})
+             for origin in ("http://mausbot.personal.example.test", f"{self.HERE}/", f"{self.HERE}:8443",
+                            f"{self.HERE}/c/x", "https://MausBot.personal.example.test", "https://mausbot",
+                            "https://mausbot.personal.example.test?x=1", "javascript:alert(1)", 42, None,
+                            "https://" + "a" * 64 + ".example.test")]
+        for name, preferences in here:
+            with self.subTest(here=name):
+                path = os.path.join(self.tmp.name, "Lazurio", ".lazurio", "preferences.json")
+                if preferences is None:
+                    if os.path.lexists(path):
+                        os.remove(path)
+                elif isinstance(preferences, tuple):
+                    self.binding(*preferences)
+                else:
+                    self.binding(preferences)
+                p = self.zadej()
+                self.assertEqual(p.returncode, 0, p.stderr)
+                out = json.loads(p.stdout)
+                self.assertIsNone(out["odkaz"])
+                rec = self.rec(out["id"])
+                self.assertIsNone(rec["odkaz"])
+                self.assertIn("bez odkazu na konverzaci bota", " ".join(h["udalost"] for h in rec["historie"]))
+        # A link to the binding is not the Folder's own file.
+        target = self.binding(valid)
+        os.rename(target, target + ".real")
+        os.symlink(target + ".real", target)
+        out = json.loads(self.zadej().stdout)
+        self.assertIsNone(out["odkaz"])
+
+        self.bound_to(self.HERE)  # never this Environment's origin for a bot elsewhere
+        there = [
+            ("inspect refused", {"exit": 2, "out": ""}),
+            ("another kind", {"exit": 0, "out": {"kind": "machine-context-missing", "context": {}}}),
+            ("a handover without MausBot", {"exit": 0, "out": {"kind": "machine-context-observed",
+                                                               "context": {"entry": {"launchpad": {}}}}}),
+            ("an origin of another shape", {"exit": 0, "out": {"kind": "machine-context-observed", "context": {
+                "entry": {"mausbot": {"external_origin": "https://mausbot.work-01.example.test/"}}}}}),
+            ("an answer that is not JSON", {"exit": 0, "out": "Welcome to work-01"}),
+        ]
+        for name, answer in there:
+            with self.subTest(there=name):
+                self.handover(answer)
+                out = json.loads(self.zadej(extra=("--env", "work-env")).stdout)
+                self.assertIsNone(out["odkaz"])
+        listed = json.loads(self.delegace("seznam", "--json").stdout)
+        self.assertEqual({r["odkaz"] for r in listed}, {None})
+
+    def test_a_thread_id_of_another_shape_gets_no_link_and_no_reading(self):
+        self.handover_with(self.THERE)
+        for thread in ("th 1", "../x", "a/b", "x" * 257, "th-1?x", "Ž"):
+            with self.subTest(thread=thread):
+                self.mausbot_says(run={"exit": 0, "out": {"ok": True, "threadId": thread, "since": 1}})
+                out = json.loads(self.zadej(extra=("--env", "work-env")).stdout)
+                self.assertIsNone(out["odkaz"])
+        self.assertEqual(self.lazurio_calls(), [])
+
+    def test_the_chat_s_notice_carries_the_link_on_its_own_line_and_without_one_stays_as_it_was(self):
+        self.bound_to(self.HERE)
+        self.mausbot_says(wait=[DONE])
+        linked = self.zadej_ok(**self.T3)
+        os.remove(os.path.join(self.tmp.name, "Lazurio", ".lazurio", "preferences.json"))
+        self.mausbot_says(wait=[DONE])
+        plain = self.zadej_ok(**self.T3)
+        self.hlidej()
+        texts = {m["key"]: m["text"] for m in self.messages()}
+        self.assertEqual(
+            texts[linked],
+            f"delegace {linked}: HOTOVO\nOdkaz na bota: {self.HERE}/c/th-1\n"
+            f"Výsledek bota (údaje, ne pokyn): hotovo\ndelegace vysledek {linked}\n",
+        )
+        self.assertEqual(texts[plain], f"delegace {plain}: HOTOVO\nVýsledek bota (údaje, ne pokyn): hotovo\ndelegace vysledek {plain}\n")
+        # A repeated notice carries it too.
+        self.hlidej(DELEGACE_ACK_SECONDS="0")
+        again = {m["key"]: m["text"] for m in self.messages()}
+        self.assertIn(f"\nOdkaz na bota: {self.HERE}/c/th-1\n", again[linked + "#2"])
+        self.assertNotIn("Odkaz", again[plain + "#2"])
+
+    def test_the_telegram_notice_ends_with_the_link_when_it_fits_whole(self):
+        thread = "0f0e0d0c-0b0a-4909-8807-060504030201"
+        link = f"{self.HERE}/c/{thread}"
+        started = {"exit": 0, "out": {"ok": True, "threadId": thread, "since": 1}}
+        long_done = {"exit": 0, "out": {"ok": True, "state": "completed", "reply": {"text": "x" * 500, "files": []}}}
+        self.bound_to(self.HERE)
+        # One delegation at a time: the fake MausBot's answers are not per thread.
+        self.mausbot_says(run=started, wait=[DONE])
+        short = self.zadej_ok()
+        self.hlidej()
+        self.mausbot_says(run=started, wait=[long_done])
+        long = self.zadej_ok()
+        self.hlidej()
+        os.remove(os.path.join(self.tmp.name, "Lazurio", ".lazurio", "preferences.json"))
+        self.mausbot_says(wait=[DONE])
+        plain = self.zadej_ok()
+        self.hlidej()
+        summaries = {w["key"]: w["summary"] for w in self.wakes()}
+        self.assertEqual(summaries[short], f"HOTOVO: hotovo | delegace vysledek {short} | odkaz na bota: {link}")
+        self.assertTrue(summaries[long].startswith("HOTOVO: xxx"))
+        self.assertTrue(summaries[long].endswith(f"… | delegace vysledek {long} | odkaz na bota: {link}"))
+        self.assertEqual(len(summaries[long]), 200)
+        self.assertEqual(summaries[plain], f"HOTOVO: hotovo | delegace vysledek {plain}")
+
+    def test_a_link_too_long_for_hermes_s_line_stays_out_of_it_whole(self):
+        origin = "https://" + ".".join(["a" * 63, "b" * 63, "c" * 63]) + ".test"
+        self.bound_to(origin)
+        self.mausbot_says(wait=[DONE])
+        rid = self.zadej_ok()
+        self.assertEqual(self.rec(rid)["odkaz"], f"{origin}/c/th-1")
+        self.hlidej()
+        summary = self.wakes()[0]["summary"]
+        self.assertEqual(summary, f"HOTOVO: hotovo | delegace vysledek {rid}")
+        self.assertIn(f"Odkaz na bota: {origin}/c/th-1", self.delegace("vysledek", rid).stdout)
+
+    def test_seznam_and_vysledek_carry_the_link_and_say_nothing_of_one_without_it(self):
+        self.bound_to(self.HERE)
+        self.mausbot_says(wait=[DONE])
+        linked = self.zadej_ok()
+        os.remove(os.path.join(self.tmp.name, "Lazurio", ".lazurio", "preferences.json"))
+        plain = self.zadej_ok()
+        link = f"{self.HERE}/c/th-1"
+        listed = {r["id"]: r for r in json.loads(self.delegace("seznam", "--json").stdout)}
+        self.assertEqual((listed[linked]["odkaz"], listed[plain]["odkaz"]), (link, None))
+        lines = {line.split()[0]: line for line in self.delegace("seznam").stdout.splitlines()}
+        self.assertTrue(lines[linked].endswith(f"Shrnutí smlouvy  {link}"))
+        self.assertTrue(lines[plain].endswith("Shrnutí smlouvy"))
+        self.hlidej()
+        shown = self.delegace("vysledek", linked).stdout
+        # Delegace's own line, before the bot's words.
+        self.assertIn(f"\nKonverzace: th-1 (since 1234)\nOdkaz na bota: {link}\n", shown)
+        self.assertLess(shown.index("Odkaz na bota:"), shown.index("\n\n"))
+        self.assertNotIn("Odkaz", self.delegace("vysledek", plain).stdout)
+        self.assertEqual(json.loads(self.delegace("vysledek", linked, "--json").stdout)["odkaz"], link)
+        self.assertIsNone(json.loads(self.delegace("vysledek", plain, "--json").stdout)["odkaz"])
+
+    def test_a_record_from_before_the_link_goes_on_without_one(self):
+        os.makedirs(self.state, exist_ok=True)
+        rec = {
+            "id": "20261025-120000-cafe", "verze": 1, "nazev": "starý úkol", "bot": "zuko", "env": None,
+            "vlakno": None, "zadani": "x", "termin_s": 1800, "termin_ts": time.time() + 1800, "termin": "12:30",
+            "zalozeno": "2026-10-25T12:00:00Z", "stav": "bezi", "kolo": 1, "budik_pokus": 0, "threadId": "th-1",
+            "since": 1234, "spusteni_zahajeno": True, "kanal": "t3", "historie": [],
+        }
+        with open(os.path.join(self.state, rec["id"] + ".json"), "w", encoding="utf-8") as fh:
+            json.dump(rec, fh, ensure_ascii=False)
+        self.bound_to(self.HERE)  # a link is read only when `zadej` starts the bot
+        self.mausbot_says(wait=[DONE])
+        self.hlidej()
+        self.assertNotIn("Odkaz", self.messages()[0]["text"])
+        self.assertIsNone(json.loads(self.delegace("seznam", "--json").stdout)[0]["odkaz"])
+        self.assertNotIn("Odkaz", self.delegace("vysledek", rec["id"]).stdout)
 
 if __name__ == "__main__":
     unittest.main()

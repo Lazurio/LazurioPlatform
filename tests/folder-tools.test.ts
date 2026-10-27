@@ -128,8 +128,8 @@ test("the catalog tiers and setup modes; the operator's other tools are not acti
   for (const locale of ["cs", "en"] as const) {
     const target = findTool("composio")?.activation?.installation[locale];
     for (const part of [
-      "0.4.3-lazurio.2",
-      "`@composio/cli@0.4.3-lazurio.2`",
+      "0.4.3-lazurio.3",
+      "`@composio/cli@0.4.3-lazurio.3`",
       "https://github.com/Lazurio/composio",
       "`lazurio tools install composio`",
       "`lazurio tools update composio`",
@@ -735,7 +735,7 @@ test("a profile change and a handover refresh carry the enabled tools forward", 
 });
 
 test("a Folder rendered by an older template revision is upgraded by a tools change", async () => {
-  expect(instructionTemplateRevision).toBe("base-instructions-76");
+  expect(instructionTemplateRevision).toBe("base-instructions-78");
   const { preferences, manifest } = await planned();
   const older = {
     ...manifest,
@@ -758,7 +758,7 @@ test("a Folder rendered by an older template revision is upgraded by a tools cha
       recorded,
     );
     if (upgrade.kind !== "profile-change") throw new Error("Expected upgrade");
-    expect(upgrade.manifest.templateRevision).toBe("base-instructions-76");
+    expect(upgrade.manifest.templateRevision).toBe("base-instructions-78");
     expect(upgrade.previous).toEqual(older.outputs);
     expect(enabledTools(upgrade.preferences)).toEqual(tools);
     expect(upgrade.files).toEqual(

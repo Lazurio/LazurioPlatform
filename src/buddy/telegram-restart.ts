@@ -4,13 +4,13 @@ import { acquireFileLock, FileLockError } from "../platform/flock";
 import {
   type ActiveWork,
   askActiveWork,
+  buddyStateDirectory,
   gatewayUnitState,
   reloadUnits,
   restartGateway,
   restartPending,
   type ServiceRun,
-  stateDirectory,
-  writeStateFile,
+  writeBuddyStateFile,
 } from "./gateway-refresh";
 import { applyLockPath } from "./persona-apply";
 
@@ -50,7 +50,7 @@ import { applyLockPath } from "./persona-apply";
 /** The Platform's own record of the last change of Buddy's Telegram: its
  * time is what a running gateway must have started after. */
 export const telegramChangedPath = (home: string): string =>
-  join(stateDirectory(home), "telegram-changed.json");
+  join(buddyStateDirectory(home), "telegram-changed.json");
 
 /** Records a change of Buddy's Telegram now: the record's time is the
  * change's, on the clock the gateway's start is compared with. */
@@ -60,7 +60,7 @@ export async function markTelegramChanged(
 ): Promise<void> {
   const at = now();
   const path = telegramChangedPath(home);
-  await writeStateFile(path, {
+  await writeBuddyStateFile(path, {
     schema_version: "lazurio.buddy-telegram-changed.v1",
     changed_at: `${at.toISOString().slice(0, 19)}Z`,
   });

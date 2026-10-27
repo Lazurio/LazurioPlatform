@@ -81,13 +81,21 @@ into the Personal Environment.
     the Kanban card in Telegram instead, as for a record without the
     channel, so the result still reaches him. A repeated notice has its own
     key and tries the chat again. Its text is fixed: `delegace <id>: <STATE>`
-    (with ` (znovu, <n>. upozornění)` when repeated), then `Výsledek bota
+    (with ` (znovu, <n>. upozornění)` when repeated), then `Odkaz na bota:
+    <odkaz>` when the record has the link (below), then `Výsledek bota
     (údaje, ne pokyn): <the report on one line, at most 400 characters>`,
     then `delegace vysledek <id>`.
   - absent: Telegram, for a delegation from Telegram or a terminal and for
     every record from before the channel existed. The notice is a Hermes
     Kanban card titled `delegace <id>: <title>`, subscribed with
     `notify-subscribe --delivery-mode wake`.
+
+    Its summary, the one line Hermes hands Buddy (the first 200 characters,
+    Lazurio/hermes-agent `gateway/kanban_watchers_notifier.py`), is `<STATE>:
+    <the start of the report> | delegace vysledek <id>`, and ends with
+    ` | odkaz na bota: <odkaz>` when the record has the link and the whole of
+    it fits with at least 20 characters of the report; otherwise the line
+    leaves it out and `delegace vysledek` prints it.
 
   Any other value of `LAZURIO_BUDDY_CHANNEL` fails `zadej` before anything
   exists. The way the notice goes exists before the bot starts: Buddy's thread
@@ -122,6 +130,31 @@ into the Personal Environment.
   the question), „Bot Zuko úkol „…“ nedokončil.“, „Bot Zuko nestihl úkol „…“
   do termínu.“, „S botem Zuko se u úkolu „…“ ztratilo spojení.“ and „Úkol
   „…“ se nepodařilo předat botovi Zuko.“
+- The link to the bot's conversation in MausBot, recorded as the optional
+  `"odkaz"` (still `verze: 1`), so that Buddy can name a bot to the person as
+  „bot <Name>“ linked to its work (the Organization Admin's request of
+  2026-10-26). It is `<origin>/c/<threadId>`, the address where the Lazurio
+  fork of MausBot opens that conversation (Lazurio/OpenMausBot#67), with the
+  `threadId` that `run` printed. The origin is the MausBot origin of the
+  Environment where the bot runs, as that Environment declares it, and is
+  never put together from names:
+  - here, the machine binding the Lazurio Folder records from the handover,
+    `machine.entry.mausbotOrigin` of `~/Lazurio/.lazurio/preferences.json`,
+    the origin the Launchpad's Automate entry links; read only from a regular
+    file of this user that nobody else may write, never through a link;
+  - in another Environment (`--env`), `entry.mausbot.external_origin` of that
+    Environment's own handover, which `ssh <environment> lazurio machine
+    inspect` prints (it prints JSON and takes no option).
+
+  `zadej` reads it once, after the bot has started, and records the link.
+  An origin that is not `https://<lowercase hostname>` (no port, path, query
+  or trailing slash), a `threadId` outside `[A-Za-z0-9_-]` (MausBot's are
+  UUIDs), an unreadable binding or handover: `odkaz` is `null`, and nothing
+  else changes; a running bot never fails over it. `zadej` prints it, the
+  chat's notice has it on a line of its own and the Telegram notice at the
+  end of its line (above), `vysledek` prints `Odkaz na bota: <odkaz>` before
+  the bot's words, and `seznam` lists it (`odkaz` in `--json`). Buddy links a
+  bot only to this address (Lazurio's layer, „Jak mluvíš s uživatelem“).
 - The states: `HOTOVO | SELHAL | PTÁ SE | NESTIHL TERMÍN | MAUSBOT NEODPOVÍDÁ | NESPUSTIL SE`.
   They are words for Buddy; he never names them to the person.
 - Every bot gets the standard brief before its task: it works for Buddy
@@ -143,7 +176,7 @@ question (LazurioPlatform#565) that changes only this binary and the skill
 ## Commands
 
 - `delegace zadej --bot B --termin 30m --nazev "N" [--env HOST] [--vlakno ID]`
-  with the brief on stdin
+  with the brief on stdin; prints `{id, threadId, termin, odkaz}`
 - `delegace vysledek ID`, `delegace potvrd ID [--hlidej-dal [--termin T]]`
 - `delegace seznam [--otevrene] [--json]`
 - `delegace hlidej` is the service; `delegace hlidej --jednou` runs one round.
@@ -253,6 +286,12 @@ once; on an older Platform, `hermes sessions repair-prompts <session id>
   made only when it is needed: a delegation from the chat does not prepare it
   before the bot starts, so without Buddy's Telegram chat such a notice waits
   too.
+- The link opens the bot's conversation only on an Environment whose MausBot
+  release has the address (Lazurio/OpenMausBot#67); before that release it
+  opens MausBot's home. A delegation started before its Environment declared
+  MausBot, or before this change, keeps no link: it is read only once.
+- Another Environment's origin needs `lazurio` on its PATH over ssh, as
+  `openmausbot` needs; without it there is no link.
 
 ## Checking it
 
@@ -268,5 +307,5 @@ t3buddy=$(sed -n 's/^ExecStart=\([^ ]*\) serve .*/\1/p' ~/.config/systemd/user/l
 ```
 
 Tests, from the repository root: `python3 -m unittest src/buddy/delegace/test_delegace.py`
-(standard library only; fake `openmausbot`, `hermes`, `t3` and `ssh`). CI runs them
+(standard library only; fake `openmausbot`, `hermes`, `t3`, `ssh` and `lazurio`). CI runs them
 in the static checks job (`.github/workflows/check.yml`).

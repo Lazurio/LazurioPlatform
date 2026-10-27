@@ -200,6 +200,11 @@ export function createBuddyRoutes(
     /** The Folder's profile locale. */
     locale: () => Promise<BuddyLocale>;
     headers: Readonly<Record<string, string>>;
+    /** His step changed: a sign-in finished, he was signed out, or his
+     * names were written. The shell document's `setup` is read anew, so his
+     * bubble in Chat and Automate follows (decision F60's addendum of
+     * 2026-10-26). */
+    changed?: (() => void) | undefined;
   }>,
 ) {
   const response = (body: unknown, status = 200) =>
@@ -285,15 +290,22 @@ export function createBuddyRoutes(
         const asked = personaRequest(value);
         if ("error" in asked) return response({ error: asked.error }, 400);
         const answer = await input.persona.save(asked.update, asked.revision);
+        if (answer.kind === "persona" && answer.outcome === "written")
+          input.changed?.();
         return answer.kind === "invalid"
           ? response({ error: answer.reason }, 400)
           : response(answer, personaStatus(answer));
       }
       const signIn = input.signIn;
-      const answered = (answer: Readonly<{ kind: string; reason?: string }>) =>
-        answer.kind === "unavailable"
+      const answered = (
+        answer: Readonly<{ kind: string; reason?: string }>,
+      ) => {
+        if (answer.kind === "signed-in" || answer.kind === "signed-out")
+          input.changed?.();
+        return answer.kind === "unavailable"
           ? response({ error: "buddy-unavailable", reason: answer.reason }, 503)
           : response(answer, answer.kind === "blocked" ? 409 : 200);
+      };
       if (url.pathname === buddyRoutePaths.start)
         return answered(await signIn.start());
       if (url.pathname === buddyRoutePaths.signOut)

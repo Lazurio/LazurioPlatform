@@ -1832,14 +1832,17 @@ export type OrganizationChoice = Readonly<{
 
 /** The Composio organization this Environment's Organization's name gives
  * it, and how the person's account stands to it (decision F42, addendum of
- * 2026-10-13); null where the person chooses it. `personal`: a personal
- * Environment, where the advice is the account's default organization. */
+ * 2026-10-13); on a person's own Environment the account's default one, by
+ * the name Composio gives it (addendum of 2026-10-26); the person's choice
+ * on a computer, and on a personal Environment (`personal`) whose
+ * organizations the CLI does not date. */
 export type OrganizationRuleView =
   | Readonly<{
       kind: "named";
       name: string;
       state: "matches" | "missing" | "ambiguous" | "elsewhere";
     }>
+  | Readonly<{ kind: "default"; name: string; state: "matches" | "elsewhere" }>
   /** An Organization owns the Environment, but its name cannot be read. */
   | Readonly<{ kind: "unverified" }>
   | Readonly<{ kind: "chosen"; personal: boolean }>;
@@ -1851,7 +1854,15 @@ export function organizationRule(input: unknown): OrganizationRuleView {
       : {};
   const organization = value.organization;
   if (organization && typeof organization === "object") {
-    const { name, state } = organization as Record<string, unknown>;
+    const {
+      name,
+      state,
+      default: own,
+    } = organization as Record<string, unknown>;
+    if (own === true)
+      return text(name) && (state === "matches" || state === "elsewhere")
+        ? { kind: "default", name: name as string, state }
+        : { kind: "chosen", personal: true };
     if (state === "unverified" && name === null) return { kind: "unverified" };
     if (
       text(name) &&
@@ -1906,8 +1917,10 @@ export function organizationChoices(
  *   organizations cannot be read, or no organization is current, as when
  *   the list is empty); the dialog keeps reading.
  * - `connected`: the account and the organization current after the
- *   reading made the Organization's one current; `choices` where the person
- *   chooses among several (a personal Environment, a computer). */
+ *   reading made the Organization's one, or on a person's own Environment
+ *   the account's default one, current; `choices` where the person chooses
+ *   among several (a computer, or a personal Environment whose organizations
+ *   the CLI does not date). */
 export type ComposioDialogView =
   | Readonly<{ kind: "create"; name: string }>
   | Readonly<{ kind: "rename"; name: string }>
@@ -1948,11 +1961,19 @@ export function composioDialogView(
         message: fill(copy.toolsComposioOrgElsewhere, { name }),
       };
   }
+  // The account's default organization, by the name Composio gives it.
+  if (rule.kind === "default" && rule.state === "elsewhere")
+    return {
+      kind: "problem",
+      message: fill(copy.toolsComposioOrgElsewhere, { name: rule.name }),
+    };
   // Connected only with an organization current: an empty list or one with
   // none marked current is not connected, and the dialog reads again.
   if (current === null)
     return { kind: "problem", message: copy.toolsComposioOrgUnavailable };
-  if (rule.kind === "named")
+  // The rule decided the organization: nothing to choose, as the next
+  // reading would make it current again.
+  if (rule.kind === "named" || rule.kind === "default")
     return { kind: "connected", account, organization: current, choices: null };
   return {
     kind: "connected",

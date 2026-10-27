@@ -115,7 +115,7 @@ export function createBuddyPanel(
   // what the person typed since.
   let formFor: string | null = null;
   let formPersona: BuddyPersonaShown | null = null;
-  let draft: PersonaDraft = draftOf(null);
+  let draft: PersonaDraft = draftOf(null, "cs");
   let fixing = false;
   let saving = false;
   let lastSave: PersonaSaveResult | null = null;
@@ -483,7 +483,9 @@ export function createBuddyPanel(
     function drawSave() {
       const persona = options.facts().reading?.persona ?? null;
       save.disabled =
-        saving || !draftReady(draft) || !draftChanged(draft, persona);
+        saving ||
+        !draftReady(draft, options.locale()) ||
+        !draftChanged(draft, persona);
       status.textContent = statusLine(options.copy());
     }
     name.addEventListener("input", () => {
@@ -532,11 +534,12 @@ export function createBuddyPanel(
     }
     const edited =
       formFor !== null &&
-      JSON.stringify(draft) !== JSON.stringify(draftOf(formPersona));
+      JSON.stringify(draft) !==
+        JSON.stringify(draftOf(formPersona, options.locale()));
     const typed = edited ? draft : null;
     formFor = id;
     formPersona = persona;
-    draft = typed ?? draftOf(persona);
+    draft = typed ?? draftOf(persona, options.locale());
     fixing = false;
     drawSaveNow = buildForm(copy);
   }

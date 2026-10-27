@@ -330,7 +330,7 @@ test("a change of the persona: the revision read and the confirmation sent; save
   fake.reply(buddyRoutePaths.read, { ok: true, value: answer() });
   await buddy.read();
   const draft = {
-    ...draftOf(buddy.reading()?.persona ?? null),
+    ...draftOf(buddy.reading()?.persona ?? null, "cs"),
     buddyName: "Rex",
   };
   const saved = persona({
@@ -499,7 +499,7 @@ test("a reading begun before a save answered is dropped and asked again: the sav
   // ...while the person saves; the server answers revision B.
   routes.reply(buddyRoutePaths.persona, savedAs(revB));
   const draft = {
-    ...draftOf(buddy.reading()?.persona ?? null),
+    ...draftOf(buddy.reading()?.persona ?? null, "cs"),
     buddyName: "Rex",
   };
   expect(await buddy.savePersona(draft, true, "cs")).toEqual({
@@ -545,7 +545,7 @@ test("a reading begun before a 409 installed the persona there now is dropped to
       current: persona({ buddyName: "Max", revision: revC }),
     },
   });
-  const draft = draftOf(buddy.reading()?.persona ?? null);
+  const draft = draftOf(buddy.reading()?.persona ?? null, "cs");
   expect(await buddy.savePersona(draft, false, "cs")).toEqual({
     kind: "changed",
   });
@@ -643,7 +643,7 @@ test("an older save's answer that arrives after a newer one's is not installed",
   await routes.release(0, readingOf(revA));
   await first;
   routes.hold(true);
-  const draft = draftOf(buddy.reading()?.persona ?? null);
+  const draft = draftOf(buddy.reading()?.persona ?? null, "cs");
   const older = buddy.savePersona({ ...draft, buddyName: "Rex" }, false, "cs");
   const newer = buddy.savePersona({ ...draft, buddyName: "Max" }, false, "cs");
   await tick();
@@ -671,7 +671,7 @@ test("a reading overtaken every time stops after its tries and keeps what the pa
     );
     await buddy.savePersona(
       {
-        ...draftOf(buddy.reading()?.persona ?? null),
+        ...draftOf(buddy.reading()?.persona ?? null, "cs"),
         buddyName: names[attempt] ?? "",
       },
       false,

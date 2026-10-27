@@ -3,7 +3,7 @@ import { constants } from "node:fs";
 import { open, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { qrMatrix, qrSvg } from "../tools/qr";
-import { stateDirectory, writeStateFile } from "./gateway-refresh";
+import { buddyStateDirectory, writeBuddyStateFile } from "./gateway-refresh";
 import type {
   GatewayAnswer,
   GatewayFailure,
@@ -466,7 +466,7 @@ export function telegramStatusOf(
 /** The bot this Launchpad connected: its username and a digest of Hermes's
  * preview of its token, never the token. 0600 in Buddy's state directory. */
 export const telegramBotPath = (home: string): string =>
-  join(stateDirectory(home), "telegram-bot.json");
+  join(buddyStateDirectory(home), "telegram-bot.json");
 
 const botSchema = "lazurio.buddy-telegram-bot.v1";
 
@@ -749,7 +749,7 @@ export function createBuddyTelegram(
     // The bot's username beside Hermes's preview of what it saved now.
     const after = await card();
     if (home !== undefined && after.ok && after.value?.preview)
-      await writeStateFile(telegramBotPath(home), {
+      await writeBuddyStateFile(telegramBotPath(home), {
         schema_version: botSchema,
         username: bot.username,
         preview_sha256: previewDigest(after.value.preview),

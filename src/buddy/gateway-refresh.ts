@@ -598,8 +598,9 @@ export async function refreshPrompts(
 // ---- A refresh that is owed -------------------------------------------------
 
 /** Buddy's state directory, beside the installer's records. */
-export const stateDirectory = (home: string): string =>
+export const buddyStateDirectory = (home: string): string =>
   join(home, ".local", "state", "lazurio", "buddy");
+const stateDirectory = buddyStateDirectory;
 
 /** The record that Buddy's stored prompts are owed a refresh: written before
  * SOUL.md changes, or before a refresh his changed Lazurio layer owes,
@@ -612,7 +613,7 @@ export const promptRefreshOwedPath = (home: string): string =>
 
 /** A file of the Platform's own in Buddy's state directory: 0600 in a 0700
  * directory, written whole and renamed into place. */
-export async function writeStateFile(
+export async function writeBuddyStateFile(
   path: string,
   document: Readonly<Record<string, string>>,
 ): Promise<void> {
@@ -650,7 +651,7 @@ export async function owePromptRefresh(
   now: () => Date = () => new Date(),
 ): Promise<void> {
   if (await promptRefreshMarked(home)) return;
-  await writeStateFile(promptRefreshOwedPath(home), {
+  await writeBuddyStateFile(promptRefreshOwedPath(home), {
     schema_version: "lazurio.buddy-prompt-refresh.v1",
     owed_since: `${now().toISOString().slice(0, 19)}Z`,
   });
@@ -777,7 +778,7 @@ export const recordPromptInputs = (
   home: string,
   inputs: PromptInputs,
 ): Promise<void> =>
-  writeStateFile(promptInputsPath(home), {
+  writeBuddyStateFile(promptInputsPath(home), {
     schema_version: promptInputsSchema,
     layer_digest: inputs.layerDigest,
   });

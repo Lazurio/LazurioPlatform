@@ -18,6 +18,7 @@ import {
   resolveBrowserView,
 } from "../browser/view";
 import { type CdpCall, cdpSeams, ensureThreadWindow } from "../browser/window";
+import { createFirstMeeting } from "../buddy/first-meeting";
 import { createHermesGateway } from "../buddy/hermes-gateway";
 import { readPersona } from "../buddy/persona";
 import { buddyPersona as applyBuddyPersona } from "../buddy/persona-apply";
@@ -1238,6 +1239,9 @@ export async function startLaunchpad(
   // Nastavení → Buddy over F64's core, the change applied as `lazurio buddy
   // persona --apply` applies it, and finished here once he is idle. Its
   // journal never names a name, a value or a revision.
+  const folderLocale = async () =>
+    (await withFolderReadLock(state, () => readFolderState(state))).preferences
+      .profile.locale;
   const buddyPersona = createPersonaSave({
     home: toolsEnvironment.home,
     folder,
@@ -1253,6 +1257,27 @@ export async function startLaunchpad(
     },
     journal: (line) =>
       console.log(JSON.stringify({ scope: "buddy-persona", ...line })),
+    // His first meeting (decision F60's addendum of 2026-10-26): one turn in
+    // his conversation in Lazurio after the person's first confirmation,
+    // hidden from the person, in the Folder's language. Only where the entry
+    // names him; its journal never names a name, the text or the key.
+    ...(entry?.buddyOrigin === undefined || toolsEnvironment.home === undefined
+      ? {}
+      : {
+          firstMeeting: {
+            meeting: createFirstMeeting({
+              home: toolsEnvironment.home,
+              path: toolsEnvironment.path,
+              xdg: toolsEnvironment.xdg,
+              run: toolsEnvironment.run,
+              journal: (line) =>
+                console.log(
+                  JSON.stringify({ scope: "buddy-first-meeting", ...line }),
+                ),
+            }),
+            locale: folderLocale,
+          },
+        }),
   });
   const buddy = createBuddyRoutes({
     present: () => entry?.buddyOrigin !== undefined,
@@ -1264,10 +1289,11 @@ export async function startLaunchpad(
     facts: () => readBuddyFacts(buddyGateway),
     persona: buddyPersona,
     telegram: buddyTelegram,
-    locale: async () =>
-      (await withFolderReadLock(state, () => readFolderState(state)))
-        .preferences.profile.locale,
+    locale: folderLocale,
     headers,
+    // His bubble in Chat and Automate reads his step from the shell
+    // document's `setup`, which is read anew once it changed.
+    changed: () => setup.forget(),
   });
   const newTab = createNewTabRoutes({
     browser,
@@ -2510,8 +2536,10 @@ export async function startLaunchpad(
             server.timeout(request, 60);
             // An Organization's Environment works in the Composio
             // organization of its Organization's name, made current here
-            // after the sign-in (decision F42, addendum of 2026-10-13); the
-            // person chooses elsewhere.
+            // after the sign-in (decision F42, addendum of 2026-10-13); a
+            // person's own Environment in the account's default one, made
+            // current likewise (addendum of 2026-10-26); the person chooses
+            // on a computer.
             const { preferences } = await withFolderReadLock(state, () =>
               readFolderState(state),
             );
@@ -2544,6 +2572,48 @@ export async function startLaunchpad(
               toolsEnvironment.path,
               toolsEnvironment.platform,
             );
+            const journal = (entry: Readonly<Record<string, string>>) => {
+              console.log(JSON.stringify(entry));
+              // Composio's sign-in now names another organization.
+              if (entry.outcome === "switched") toolsReading.forget();
+            };
+            const unreadable = {
+              kind: "composio-organizations-failed",
+              reason: "unreadable",
+            } as const;
+            // A person's own Environment: the account's default
+            // organization, which the sign-in may not have landed in.
+            if (rule.kind === "default") {
+              const converged =
+                command === undefined
+                  ? null
+                  : await convergeComposioOrganization(
+                      toolsEnvironment,
+                      command,
+                      rule,
+                      journal,
+                    );
+              if (converged === null) return response(unreadable);
+              const { verdict, organizations } = converged;
+              // The CLI does not date them: the person's choice, as before.
+              if (verdict.kind === "chosen")
+                return response({
+                  kind: "composio-organizations",
+                  organizations,
+                  organization: null,
+                  personal: true,
+                });
+              if (verdict.kind === "matches") integrations.forget();
+              return response({
+                kind: "composio-organizations",
+                organizations,
+                organization: {
+                  name: verdict.organization.name,
+                  state: verdict.kind,
+                  default: true,
+                },
+              });
+            }
             const converged =
               command === undefined
                 ? null
@@ -2551,17 +2621,9 @@ export async function startLaunchpad(
                     toolsEnvironment,
                     command,
                     rule,
-                    (entry) => {
-                      console.log(JSON.stringify(entry));
-                      // Composio's sign-in now names another organization.
-                      if (entry.outcome === "switched") toolsReading.forget();
-                    },
+                    journal,
                   );
-            if (converged === null)
-              return response({
-                kind: "composio-organizations-failed",
-                reason: "unreadable",
-              });
+            if (converged === null) return response(unreadable);
             // Found or made current: the Integrace reading the Launchpad
             // keeps for a minute may still say it is missing, so the next
             // one reads again (the end-to-end test of 2026-10-19).
