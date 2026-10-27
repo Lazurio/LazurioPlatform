@@ -2,6 +2,7 @@ import { constants } from "node:fs";
 import { lstat, mkdir, open } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  planChatgptAppsChange,
   planFolderChange,
   planOrganizationSettingsChange,
   planProfileChange,
@@ -21,7 +22,12 @@ import { inspectOwnedDirectory } from "./owned-directory";
 import { executionOs } from "./platform";
 import { derivePreset, type PresetName } from "./presets";
 import { readFolderState, readOwnedStateFile } from "./read-state";
-import { enabledTools, folderOrganizationSettings, toolNotes } from "./state";
+import {
+  enabledTools,
+  folderOrganizationSettings,
+  personalChatgptApps,
+  toolNotes,
+} from "./state";
 import {
   type FileIdentity,
   transactionSchemaVersion,
@@ -86,7 +92,12 @@ export type FolderChangeRequest =
       machine: MachineBinding;
       preset?: PresetName;
     }>
-  | Readonly<{ kind: "organization-settings"; settings: unknown }>;
+  | Readonly<{ kind: "organization-settings"; settings: unknown }>
+  | Readonly<{
+      kind: "chatgpt-apps";
+      expectedRevision: number;
+      allowed: unknown;
+    }>;
 
 function planRequestedChange(
   state: FolderState,
@@ -117,6 +128,14 @@ function planRequestedChange(
       request.settings,
       inspect,
     );
+  if (request.kind === "chatgpt-apps")
+    return planChatgptAppsChange(
+      state.preferences,
+      state.manifest,
+      request.expectedRevision,
+      request.allowed,
+      inspect,
+    );
   // No caller-held revision: the refresh re-renders the recorded choices under
   // the lock from the current handover. Its one choice is the preset a changed
   // assignment now derives (`preset-derivation-changed`): the profile change
@@ -139,6 +158,7 @@ function planRequestedChange(
       tools: enabledTools(state.preferences),
       notes: toolNotes(state.preferences),
       organizationSettings: folderOrganizationSettings(state.preferences),
+      chatgptAppsAllowed: personalChatgptApps(state.preferences),
     },
     inspect,
   );

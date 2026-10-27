@@ -28,16 +28,23 @@ import {
   isTemplateRevision,
   toolEnvironmentOf,
 } from "../folder/render";
-import { enabledTools } from "../folder/state";
+import {
+  enabledTools,
+  type FolderPreferences,
+  folderOrganizationSettings,
+  personalChatgptApps,
+} from "../folder/state";
 import { type GithubStatus, pilotStatus } from "../github/cli";
 import { tokenVariableNames } from "../github/leftovers";
 import { pilotPaths } from "../github/pilot";
+import { codexKeptHere } from "../integrations/chatgpt-apps";
 import { machineBinding } from "../machine/binding";
 import { preparationReasons } from "../modules/preparation-refusal";
 import {
   type RuntimeSecretFinding,
   runtimeSecretReasons,
 } from "../modules/runtime-secrets";
+import { chatgptAppsPolicyOf } from "../organization-settings/governance";
 import {
   type Catalog,
   type ModuleReason,
@@ -67,6 +74,11 @@ import {
   toolCatalog,
   toolOffered,
 } from "../tools/catalog";
+import {
+  type CodexAppsFacts,
+  codexAppsInputOf,
+  observeCodexApps,
+} from "../tools/codex-apps";
 import { type ToolsEnvironment, toolsOverview } from "../tools/overview";
 import { type ToolSignIn, toolsSignIn, toolsStatus } from "../tools/status";
 import {
@@ -132,6 +144,9 @@ export const doctorCheckIds = [
   "chat-defaults",
   "environment-browser",
   "computer-use",
+  // Whether the operator's Codex keeps the ChatGPT account's apps off where
+  // they are not allowed (decision F42's addendum of 2026-10-27).
+  "chatgpt-apps",
 ] as const;
 export type DoctorCheckId = (typeof doctorCheckIds)[number];
 
@@ -170,6 +185,7 @@ export const doctorGroupOf: Readonly<Record<DoctorCheckId, DoctorGroup>> =
     "chat-defaults": "machine",
     "environment-browser": "machine",
     "computer-use": "machine",
+    "chatgpt-apps": "machine",
   });
 
 export type DoctorOutcome = "ok" | "warn" | "fail" | "skipped";
@@ -179,6 +195,14 @@ export type DoctorOutcome = "ok" | "warn" | "fail" | "skipped";
 const ownReasons = [
   "chat-defaults-outdated",
   "chat-defaults-unavailable",
+  // ChatGPT's apps (decision F42's addendum of 2026-10-27): not allowed and
+  // still on in Codex, an app the person turned on by name, a configuration
+  // that cannot be read, or no Codex.
+  "chatgpt-apps-on",
+  "chatgpt-suggestions-on",
+  "chatgpt-apps-exception",
+  "codex-config-unreadable",
+  "codex-absent",
   // product
   "not-installed",
   "running-not-active",
@@ -333,6 +357,13 @@ export const doctorContextRules: Readonly<
     "other",
     "unknown",
   ] satisfies ExecutorService[]),
+  // ChatGPT's apps: whether they are allowed, who decided, how Codex has
+  // them and how many apps the person turned on by name.
+  chatgptApps: oneOf(["allowed", "not-allowed"]),
+  decidedBy: oneOf(["organization", "person"]),
+  codexApps: oneOf(["on", "off", "unreadable", "absent"]),
+  codexSuggestions: oneOf(["on", "off"]),
+  exceptions: count,
   codexMcp: oneOf(agentRegistrations),
   claudeMcp: oneOf(agentRegistrations),
   // The GitHub sign-in pilot (decision F48): which part of its wiring, which
@@ -818,6 +849,48 @@ async function executorCheck(host: ExecutorHost): Promise<DoctorCheck> {
     : check("executor", "warn", `executor-${status.state}`, context);
 }
 
+/** ChatGPT's apps (decision F42's addendum of 2026-10-27): `ok` where they
+ * are allowed or Codex has them and its suggestions off; `warn` where they
+ * are not allowed and Codex still has them, or its suggestions of plugins,
+ * on (`lazurio integrations chatgpt-apps apply`
+ * converges it, and so does the Launchpad's start), where the person turned
+ * an app on by name (Lazurio never changes that), or where the
+ * configuration cannot be read; `skipped` on the person's own computer and
+ * without Codex. Never `fail`: the agents keep working either way. */
+export function chatgptAppsCheck(
+  preferences: FolderPreferences | null,
+  facts: CodexAppsFacts | null,
+): DoctorCheck {
+  if (preferences === null || !codexKeptHere(preferences.preset.name))
+    return check("chatgpt-apps", "skipped", "not-hosted");
+  const policy = chatgptAppsPolicyOf(
+    preferences.preset.name,
+    folderOrganizationSettings(preferences),
+    personalChatgptApps(preferences),
+  );
+  const context: ErrorContext = {
+    chatgptApps: policy.allowed ? "allowed" : "not-allowed",
+    decidedBy: policy.source,
+    ...(facts === null ? {} : { codexApps: facts.state }),
+    ...(facts?.state === "on" || facts?.state === "off"
+      ? { codexSuggestions: facts.suggestions }
+      : {}),
+    ...(facts?.state === "off" ? { exceptions: facts.exceptions.length } : {}),
+  };
+  if (facts === null || facts.state === "absent")
+    return check("chatgpt-apps", "skipped", "codex-absent", context);
+  if (policy.allowed) return check("chatgpt-apps", "ok", undefined, context);
+  if (facts.state === "unreadable")
+    return check("chatgpt-apps", "warn", "codex-config-unreadable", context);
+  if (facts.state === "on")
+    return check("chatgpt-apps", "warn", "chatgpt-apps-on", context);
+  if (facts.suggestions === "on")
+    return check("chatgpt-apps", "warn", "chatgpt-suggestions-on", context);
+  return facts.exceptions.length > 0
+    ? check("chatgpt-apps", "warn", "chatgpt-apps-exception", context)
+    : check("chatgpt-apps", "ok", undefined, context);
+}
+
 /** The GitHub sign-in pilot (decision F48), only while it is on: the shared
  * App sign-in, the wiring of gh and Git, and every account-wide
  * credential left in the Environment (the SSH probe only with `--sign-in`).
@@ -942,6 +1015,17 @@ export async function collectDoctor(
   const chat = observed.preferences?.machine?.entry
     ? await chatDefaults(environment.tools)
     : null;
+  const preferences = observed.preferences ?? null;
+  const chatgptApps = chatgptAppsCheck(
+    preferences,
+    preferences !== null && codexKeptHere(preferences.preset.name)
+      ? await observeCodexApps({
+          ...codexAppsInputOf(env, platform),
+          home: environment.tools.home,
+          path: environment.tools.path,
+        }).catch(() => ({ state: "unreadable" }) as const)
+      : null,
+  );
 
   const executor = await executorCheck(
     environment.executor ??
@@ -1068,6 +1152,7 @@ export async function collectDoctor(
       browser.context,
     ),
     check("computer-use", computer.outcome, computer.reason, computer.context),
+    chatgptApps,
   ];
   // Group order, stable within a group.
   const ordered = doctorGroups.flatMap((group) =>

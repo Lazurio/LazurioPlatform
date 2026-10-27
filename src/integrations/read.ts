@@ -4,12 +4,17 @@ import { withFolderReadLock } from "../folder/lock";
 import type { MachineBinding } from "../folder/machine-binding";
 import type { PresetName } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
-import { folderOrganizationSettings } from "../folder/state";
 import {
+  folderOrganizationSettings,
+  personalChatgptApps,
+} from "../folder/state";
+import {
+  chatgptAppsPolicyOf,
   composioPolicyOf,
   organizationGoverns,
 } from "../organization-settings/governance";
 import { executorToolName } from "../tools/catalog";
+import { type CodexAppsInput, observeCodexApps } from "../tools/codex-apps";
 import {
   type ToolOverview,
   type ToolsEnvironment,
@@ -19,6 +24,7 @@ import {
 import { pinnedUpdateOffered } from "../tools/pin";
 import { integrationsCatalog } from "./catalog";
 import type { IntegrationsCatalog } from "./catalog-schema";
+import { codexKeptHere } from "./chatgpt-apps";
 import {
   type ComposioOrganizationRule,
   composioOrganizationRule,
@@ -93,6 +99,9 @@ export type IntegrationsHost = Readonly<{
   /** Test seam: how that rule reads the Folder's Organizations and waits
    * before it reads them again (`composioOrganizationRule`). */
   organizationReading?: OwnerReading;
+  /** The operator's Codex, where this process keeps it (decision F42's
+   * addendum of 2026-10-27); absent or null: not read. */
+  codexApps?: CodexAppsInput | null;
 }>;
 
 /** The scope of the rule: a personal Environment and the person's own
@@ -297,6 +306,18 @@ export async function readIntegrations(
   // Environment where they say nothing.
   const settings = folderOrganizationSettings(preferences);
   const recorded = composioPolicyOf(preferences.preset.name, settings);
+  // Who allows ChatGPT's apps here, and how Codex has them.
+  const chatgpt = chatgptAppsPolicyOf(
+    preferences.preset.name,
+    settings,
+    personalChatgptApps(preferences),
+  );
+  const codexApps =
+    host.codexApps != null && codexKeptHere(preferences.preset.name)
+      ? await observeCodexApps(host.codexApps).catch(
+          () => ({ state: "unreadable" }) as const,
+        )
+      : null;
   const [overview, reading, policy, context] = await Promise.all([
     toolsOverview(host.folder, host.tools, { signIn: true }).catch(() => null),
     readExecutor(host.executor, catalog),
@@ -362,6 +383,17 @@ export async function readIntegrations(
     // The Organization's Microsoft 365 company app, as the Folder records
     // it (decision F42 addendum (c) of 2026-10-14).
     microsoft365: microsoft365Here(preferences.preset.name, settings),
+    chatgptApps: {
+      allowed: chatgpt.allowed,
+      source: chatgpt.source,
+      set: chatgpt.set,
+      // Still on where Codex suggests plugins to install, too.
+      codex:
+        codexApps?.state === "off" && codexApps.suggestions === "on"
+          ? "on"
+          : (codexApps?.state ?? null),
+      exceptions: codexApps?.state === "off" ? codexApps.exceptions.length : 0,
+    },
     readAt: (host.now ?? (() => new Date()))().toISOString(),
   });
 }

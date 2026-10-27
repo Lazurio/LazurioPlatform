@@ -1,3 +1,4 @@
+import type { ChatgptAppsPolicy } from "../integrations/policy";
 import type { ToolNotes } from "../tools/catalog";
 import {
   isServerServices,
@@ -16,6 +17,7 @@ import {
   agentTools,
   assignmentLine,
   buddyChatRouting,
+  chatgptAppsLine,
   type InstructionSource,
   instructionTemplateRevision,
   integrationsPointer,
@@ -33,6 +35,7 @@ import {
   renderedTools,
   sharedEnvironment,
   sharedSignInWarning,
+  sourceChatgptApps,
   type Text,
   type ToolEnvironment,
   toolEnvironmentOf,
@@ -418,6 +421,7 @@ const publicPublication: Text = t(
 function workingHere(
   preset: PresetName,
   machine: MachineBinding | null,
+  chatgpt: ChatgptAppsPolicy,
 ): readonly Text[] {
   const team = preset === "hosted-organization-team";
   const isPublic = githubIdentity(preset, machine) === "none";
@@ -739,7 +743,7 @@ function workingHere(
     ),
     ...(preset === "hosted-personal" ? [] : [blank, ...building(preset)]),
     blank,
-    ...connectedApplications(preset),
+    ...connectedApplications(preset, chatgpt),
     blank,
     ...secrets(preset, isPublic),
     blank,
@@ -1423,11 +1427,25 @@ function microsoft365Guidance(preset: PresetName): readonly Text[] {
   ];
 }
 
+// The manual's bullet on the ChatGPT account's apps: AGENTS.md's line under
+// the chapter's bold lead (decision F42's addendum of 2026-10-27).
+function chatgptAppsBullet(chatgpt: ChatgptAppsPolicy): Text {
+  const line = chatgptAppsLine(chatgpt);
+  return t(
+    line.cs.replace(/^- /, "- **Aplikace z ChatGPT.** "),
+    line.en.replace(/^- /, "- **ChatGPT apps.** "),
+  );
+}
+
 // Integrace on every preset (root decision 0162, addendum of 2026-10-09;
 // decision F42): what is here and how to read it, the order of the paths,
-// that only a person connects an Integrace, custom MCP servers into
-// Executor, no own integrations, a write is a Publication.
-const connectedApplications = (preset: PresetName): readonly Text[] => [
+// whether the ChatGPT account's apps are one (addendum of 2026-10-27), that
+// only a person connects an Integrace, custom MCP servers into Executor, no
+// own integrations, a write is a Publication.
+const connectedApplications = (
+  preset: PresetName,
+  chatgpt: ChatgptAppsPolicy,
+): readonly Text[] => [
   t("## Integrace", "## Integrations"),
   t(
     "Integrace je aplikace nebo služba připojená k tomuhle Environmentu. Každá má právě jednu cestu: nástrojem z Nastavení → Nástroje (`gh` pro GitHub, `wacli` pro WhatsApp, `gogcli` pro Google na osobním Environmentu, `neon` pro Neon), přímo přes Executor tohohle Environmentu, nebo přes Composio s vlastním Composio účtem uživatele (decision 0162). Uživatelé je připojují, vidí a odpojují v Launchpadu v Apps → Integrace; ty zjistíš totéž příkazem `lazurio integrations list --json`: u každé aplikace cestu, stav účtů a odkaz na její kartu.",
@@ -1435,14 +1453,15 @@ const connectedApplications = (preset: PresetName): readonly Text[] => [
   ),
   blank,
   t(
-    "- **Pořadí.** Integraci použij tam, kde je připojená: nejdřív nástroj aplikace, potom Executor (MCP server `executor` tvého harnessu s nástroji `skills` a `execute`, nebo příkaz `executor`; oba popisuje nástroj `executor` v `manual/this-machine.md`), potom Composio (`composio search` a `composio execute`). Composio použij jen pro Integraci, jejíž cestou je Composio: kde ho Organizace nebo uživatel nepovolil, se nepoužívá.",
-    "- **Order.** Use an Integration where it is connected: first the app's tool, then Executor (your harness's MCP server `executor` with the tools `skills` and `execute`, or the `executor` command; the tool `executor` in `manual/this-machine.md` describes both), then Composio (`composio search` and `composio execute`). Use Composio only for an Integration whose path is Composio: where the Organization or the user has not allowed it, it is not used.",
+    "- **Pořadí.** Integraci použij tam, kde je připojená: nejdřív nástroj z Nastavení → Nástroje (`gh`, `wacli`, …), potom Executor (MCP server `executor` tvého harnessu s nástroji `skills` a `execute`, nebo příkaz `executor`; oba popisuje nástroj `executor` v `manual/this-machine.md`), potom Composio (`composio search` a `composio execute`). Composio použij jen pro Integraci, jejíž cestou je Composio: kde ho Organizace nebo uživatel nepovolil, se nepoužívá.",
+    "- **Order.** Use an Integration where it is connected: first the tool from Settings → Tools (`gh`, `wacli`, …), then Executor (your harness's MCP server `executor` with the tools `skills` and `execute`, or the `executor` command; the tool `executor` in `manual/this-machine.md` describes both), then Composio (`composio search` and `composio execute`). Use Composio only for an Integration whose path is Composio: where the Organization or the user has not allowed it, it is not used.",
   ),
   // Unknown is not "not connected" (decision F42, addendum of 2026-10-27).
   t(
     '- **Neověřeno neznamená nepřipojeno.** Když se zdroj aplikace (nástroje, Executor nebo Composio) nepodařilo přečíst nebo nejde ověřit organizaci Composia, třeba ve chvíli, kdy `lazurio update` přepisuje Organizaci, uvádí `lazurio integrations list --json` u aplikace `"connected": null` a proč v `unknown` (třeba `executor-unavailable`, `composio-unreadable` nebo `composio-unverified`). Uživateli pak nikdy neříkej, že aplikace připojená není, neposílej ho ji připojit znovu a nepřecházej kvůli tomu na jinou cestu. Za chvíli si seznam přečti znovu, nebo operaci rovnou zkus cestou aplikace. Composio s neověřenou organizací (`composio-unverified`, `composio-elsewhere`) ale nepoužívej, dokud ji další čtení neověří: mohlo by pracovat v organizaci jiné Organizace. Když operace selže, nahlas konkrétní chybu s nástrojem a účtem, které jsi použil; když stav zůstává neověřený, řekni uživateli právě to a pošli mu odkaz na kartu aplikace; tlačítko Zkontrolovat připojení na stránce Integrace ho přečte znovu.',
     "- **Not verified does not mean not connected.** When a source of an app (the tools, Executor or Composio) could not be read, or Composio's organization cannot be verified, for instance while `lazurio update` rewrites an Organization, `lazurio integrations list --json` gives the app `\"connected\": null` and the reason in `unknown` (such as `executor-unavailable`, `composio-unreadable` or `composio-unverified`). Then never tell the user the app is not connected, never send them to connect it again and do not switch to another way because of it. Read the list again in a moment, or simply try the operation through the app's path. Composio with an unverified organization (`composio-unverified`, `composio-elsewhere`), however, you do not use until a later reading verifies it: it might work in another Organization's organization. When the operation fails, report the concrete error with the tool and the account you used; when the state stays unverified, tell the user exactly that and send them the link to the app's card; Check connections on the Integrations page reads it again.",
   ),
+  chatgptAppsBullet(chatgpt),
   t(
     "- **Integraci nepřipojuj sám.** Přihlášení je souhlas uživatele. Chybějící Integraci připojí uživatel v Apps → Integrace: pošli mu odkaz na její kartu (`link` v `lazurio integrations list --json`); kde odkaz není, řekni mu, ať ji tam připojí. Připojení sám nespouštěj, ani v Composiu, ani v Executoru.",
     "- **Never connect an Integration yourself.** The sign-in is the user's consent. The user connects a missing Integration in Apps → Integrations: send them the link to its card (`link` in `lazurio integrations list --json`); where there is no link, ask them to connect it there. Never start a connection yourself, neither in Composio nor in Executor.",
@@ -2701,7 +2720,7 @@ export function renderManual(
     "manual/this-machine.md": thisMachine(source),
     "manual/working-here.md": titled(
       t("Jak se tu pracuje", "Working here"),
-      workingHere(source.preset, source.machine),
+      workingHere(source.preset, source.machine, sourceChatgptApps(source)),
     ),
     "manual/roles.md": titled(t("Role", "Roles"), roles),
     "manual/glossary.md": titled(t("Slovník", "Glossary"), glossary),

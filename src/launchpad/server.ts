@@ -60,6 +60,10 @@ import { ownDataValue } from "../folder/state-fields";
 import { updateProfile, updateTools } from "../folder/update-profile";
 import { resolvedVoice } from "../folder/voice";
 import {
+  chatgptAppsItem,
+  convergeChatgptApps,
+} from "../integrations/chatgpt-apps";
+import {
   composioOrganizationRule,
   convergeComposioOrganization,
 } from "../integrations/composio-organization";
@@ -105,6 +109,7 @@ import {
   toolSelection,
   vaultToolName,
 } from "../tools/catalog";
+import { type CodexAppsInput, codexAppsInputOf } from "../tools/codex-apps";
 import {
   folderPreset,
   githubLoginRefused,
@@ -641,6 +646,10 @@ export async function startLaunchpad(
      * starts (decision F53): the same rule as Executor's
      * (`vaultAtStart`). Absent: it never does. */
     vaultAtStart?: (() => Promise<boolean>) | undefined;
+    /** Whether this Launchpad keeps the operator's Codex in line with
+     * ChatGPT's apps (decision F42's addendum of 2026-10-27): exactly where
+     * it sets Executor up (`executorAtStart`). Absent: it never does. */
+    codexAppsAtStart?: (() => Promise<boolean>) | undefined;
   }>,
   hostedOptions: HostedOptions = {},
   // Where the tools screen reads its live facts: this process's PATH and
@@ -1102,6 +1111,11 @@ export async function startLaunchpad(
     integrationSeams?.executor !== undefined
       ? integrationSeams.executor
       : processExecutorEndpoint(process.env);
+  // The operator's Codex, once this Launchpad knows it keeps it (decision
+  // F42's addendum of 2026-10-27): ChatGPT's apps follow what the Folder
+  // records, at the start, after the Organization's settings and after the
+  // person's choice. Null until then and where it never does.
+  let codexApps: CodexAppsInput | null = integrationSeams?.codexApps ?? null;
   const integrations = createIntegrationsRoutes({
     folder,
     // Its reading of the tools has the sign-ins: gh's SSH proof is the one
@@ -1146,6 +1160,7 @@ export async function startLaunchpad(
               entry,
               () => cdpSeams(process.env, runProcess).cdp,
             ),
+      codexApps,
     }),
     journal: (line) => console.log(JSON.stringify(line)),
   });
@@ -1320,6 +1335,9 @@ export async function startLaunchpad(
     journal: (line) => console.log(JSON.stringify(line)),
     onApplied: () => integrations.forget(),
     executor: integrationExecutor,
+    // ChatGPT's apps in Codex once the Folder took the settings: the item
+    // `integrations.chatgpt_apps.allowed` says how it went.
+    chatgptApps: () => chatgptAppsItem(folder, codexApps),
     seams: organizationSettingsSeams,
   }).catch(() => {
     // The Launchpad serves without them; the Folder keeps what it records.
@@ -2968,6 +2986,30 @@ export async function startLaunchpad(
           // A restart his Telegram owed before this start (decision F66).
           buddyTelegramRestart.start().catch(() => undefined),
         ]).then(() => undefined);
+  // ChatGPT's apps (decision F42's addendum of 2026-10-27): where this
+  // Launchpad sets Executor up, it keeps the operator's Codex in line with
+  // what the Folder records, once now and after every change it makes.
+  // Never awaited and never a reason for the start to fail; its journal
+  // says the outcome, never a value.
+  const codexAppsAtStart = installed?.codexAppsAtStart;
+  if (codexApps === null && codexAppsAtStart !== undefined)
+    void (async () => {
+      if (!(await codexAppsAtStart()) || closing) return;
+      codexApps = codexAppsInputOf(process.env, process.platform);
+      const { converged } = await convergeChatgptApps(folder, codexApps);
+      if (converged !== null)
+        console.log(
+          JSON.stringify({
+            scope: "chatgpt-apps",
+            event: "converge",
+            outcome: converged.kind,
+            ...(converged.reason === undefined
+              ? {}
+              : { reason: converged.reason }),
+          }),
+        );
+      integrations.forget();
+    })().catch(() => undefined);
   // Executor (decision F44, addendum of 2026-10-11, #298): where install and
   // update only report it, this Launchpad sets it up in the background once
   // it listens, through the one setup of Settings → Tools. Never awaited and

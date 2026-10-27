@@ -6,6 +6,7 @@ import {
   folderOrganizationSettings,
   parseFolderPreferences,
   parseInstructionManifest,
+  personalChatgptApps,
   stateFields,
   toolNotes,
 } from "./state";
@@ -133,6 +134,7 @@ export async function validatePreparation(
       tools: enabledTools(preferences),
       notes: toolNotes(preferences),
       organizationSettings: folderOrganizationSettings(preferences),
+      chatgptAppsAllowed: personalChatgptApps(preferences),
     },
     async (path) => recordedFile(previousManifest.outputs, path),
   );

@@ -421,6 +421,7 @@ test("a healthy Environment: ok, exit 0, every group, the same answer in both fo
     "chat-defaults skipped not-hosted",
     "environment-browser skipped no-user-manager",
     "computer-use skipped no-user-manager",
+    "chatgpt-apps skipped not-hosted",
   ]);
   expect(find(result.json, "tool", "gh")).toEqual({
     id: "tool",

@@ -1,11 +1,18 @@
 import { isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { ExecutorHost } from "../executor/flow";
+import { codexAppsInputOf } from "../tools/codex-apps";
 import { toolsEnvironmentOf } from "../tools/overview";
 import { runTool } from "../tools/status";
 import type { CliContext, CommandOutput } from "../update/cli";
 import { operatorFolder } from "../update/cli";
 import { exitFailure, exitOk, exitUsage } from "../update/errors";
+import {
+  type ChatgptAppsStatus,
+  chatgptAppsStatus,
+  convergeChatgptApps,
+  setChatgptApps,
+} from "./chatgpt-apps";
 import { composioOrganizationName } from "./composio-organization-name";
 import {
   type ExecutorEndpoint,
@@ -38,7 +45,19 @@ export const integrationsHelp = `integrations list [--folder <absolute Folder>] 
   stderr (the operation and its outcome, never a name or an id); the tools'
   sign-in checks and Composio may reach the network. Without --folder, the
   Environment's own Folder. Exit status: 0 read, 2 usage or no Folder, 1
-  failure.`;
+  failure.
+integrations chatgpt-apps [allow|disallow|apply] [--folder <absolute Folder>] [--json]
+  Whether agents may use the apps, plugins and connectors of the user's
+  ChatGPT account (Codex's codex_apps) here, who decides (the Organization's
+  settings, or on a personal Environment and the user's own computer the
+  user; off unless allowed) and how the operator's Codex has them
+  (config.toml [apps._default] enabled and [features] tool_suggest, its
+  suggestions of plugins). allow and disallow record the user's own choice
+  and only where no Organization governs; they are the user's, never an
+  agent's. apply brings Codex in a Remote Environment to what applies (the
+  repair of doctor's chatgpt-apps); it changes only those two keys, never
+  another of the configuration. Exit status: 0 done, 2 usage, refused or no
+  Folder, 1 failure.`;
 
 export type IntegrationsCliContext = CliContext &
   Readonly<{
@@ -137,6 +156,15 @@ export function integrationsText(overview: IntegrationsOverview): string {
   lines.push(
     `Sources: tools ${overview.sources.tools} · Executor ${overview.sources.executor} · Composio ${overview.sources.composio}.`,
   );
+  // ChatGPT's apps (decision F42's addendum of 2026-10-27): a way to an app
+  // only where allowed, and then only for an app the catalog does not have.
+  const chatgpt = overview.chatgptApps;
+  if (chatgpt !== undefined)
+    lines.push(
+      chatgpt.allowed
+        ? "ChatGPT apps: allowed here, only for an app this list does not have; an app of the list is used as its Integration."
+        : `ChatGPT apps: not allowed here (${chatgpt.source === "organization" ? "the Organization's settings" : "the user's choice"}): they are no way to an Integration; never search, suggest or connect a plugin.`,
+    );
   // Composio not in the organization of this Environment's Organization's
   // name (decision F42, addendum (2) of 2026-10-13): the person sees to it,
   // under the name Composio accepts (note of 2026-10-17). The account's
@@ -179,15 +207,123 @@ export function integrationsText(overview: IntegrationsOverview): string {
   return lines.join("\n");
 }
 
+/** The status in a few plain lines. */
+export function chatgptAppsText(status: ChatgptAppsStatus): string {
+  const { policy, codex } = status;
+  const who =
+    policy.source === "organization"
+      ? policy.set
+        ? "the Organization's settings"
+        : "the Organization's settings (not set: off)"
+      : policy.set
+        ? "the user's own choice"
+        : "the user's own choice (not made: off)";
+  const lines = [
+    `ChatGPT apps: ${policy.allowed ? "allowed" : "not allowed"} here, by ${who}.`,
+  ];
+  if (codex === null)
+    lines.push("Codex: this computer's own; Lazurio does not change it.");
+  else if (codex.state === "absent") lines.push("Codex: not installed.");
+  else if (codex.state === "unreadable")
+    lines.push("Codex: its config.toml cannot be read.");
+  else if (codex.state === "on" || codex.suggestions === "on")
+    lines.push(
+      policy.allowed
+        ? `Codex: apps ${codex.state}, plugin suggestions ${codex.suggestions}.`
+        : `Codex: ${codex.state === "on" ? "apps" : "plugin suggestions"} still on; lazurio integrations chatgpt-apps apply turns them off.`,
+    );
+  else
+    lines.push(
+      `Codex: apps off (${codex.by === "lazurio" ? "by Lazurio" : codex.by === "feature" ? "features.apps = false" : "by the user's own setting"})${
+        codex.exceptions.length === 0
+          ? "."
+          : `, but ${codex.exceptions.length} app(s) turned on by name in config.toml stay on; Lazurio does not change them.`
+      }`,
+    );
+  return lines.join("\n");
+}
+
+async function runChatgptAppsCommand(
+  action: string | undefined,
+  folder: string,
+  json: boolean,
+  context: IntegrationsCliContext,
+): Promise<CommandOutput> {
+  const codex = codexAppsInputOf(context.env, context.platform);
+  try {
+    if (action === "allow" || action === "disallow") {
+      const result = await setChatgptApps(folder, action === "allow", codex);
+      if (result.kind === "blocked")
+        return {
+          code: exitUsage,
+          ...(json
+            ? { stdout: JSON.stringify(result) }
+            : {
+                stderr:
+                  result.reason === "organization-governed"
+                    ? "The Organization decides ChatGPT apps here: its Admin changes it in the Organization's settings."
+                    : `Not recorded: ${result.reason}.`,
+              }),
+        };
+      return {
+        code: exitOk,
+        stdout: json
+          ? JSON.stringify(result.status)
+          : chatgptAppsText(result.status),
+      };
+    }
+    if (action === "apply") {
+      const { converged } = await convergeChatgptApps(folder, codex);
+      const status = await chatgptAppsStatus(folder, codex);
+      const refused = converged?.kind === "refused";
+      return {
+        code: refused ? exitFailure : exitOk,
+        stdout: json
+          ? JSON.stringify({
+              ...status,
+              converged: converged?.kind ?? "not-kept",
+              ...(converged?.reason === undefined
+                ? {}
+                : { reason: converged.reason }),
+            })
+          : chatgptAppsText(status),
+        ...(refused && !json
+          ? {
+              stderr: `Codex's config.toml was left as it is (${converged.reason}).`,
+            }
+          : {}),
+      };
+    }
+    const status = await chatgptAppsStatus(folder, codex);
+    return {
+      code: exitOk,
+      stdout: json ? JSON.stringify(status) : chatgptAppsText(status),
+    };
+  } catch {
+    return {
+      code: exitFailure,
+      ...(json
+        ? {
+            stdout: JSON.stringify({
+              kind: "blocked",
+              reason: "folder-unreadable",
+            }),
+          }
+        : { stderr: "The Folder's ChatGPT apps could not be read." }),
+    };
+  }
+}
+
 export async function runIntegrationsCommand(
   args: readonly string[],
   context: IntegrationsCliContext,
 ): Promise<CommandOutput> {
   const usage = Object.freeze({
     code: exitUsage,
-    stderr: `Usage: integrations list [--folder <absolute Folder>] [--json]\n${integrationsHelp}`,
+    stderr: `Usage: integrations list|chatgpt-apps [--folder <absolute Folder>] [--json]\n${integrationsHelp}`,
   });
   let values: { folder?: string | undefined; json?: boolean | undefined };
+  let chatgpt: { action: string | undefined } | null = null;
   try {
     const parsed = parseArgs({
       args: [...args],
@@ -195,7 +331,16 @@ export async function runIntegrationsCommand(
       allowPositionals: true,
       options: { folder: { type: "string" }, json: { type: "boolean" } },
     });
-    if (parsed.positionals.length !== 1 || parsed.positionals[0] !== "list")
+    const [command, action, ...rest] = parsed.positionals;
+    if (command === "chatgpt-apps") {
+      if (
+        rest.length > 0 ||
+        (action !== undefined &&
+          !["allow", "disallow", "apply"].includes(action))
+      )
+        return usage;
+      chatgpt = { action };
+    } else if (parsed.positionals.length !== 1 || command !== "list")
       return usage;
     values = parsed.values;
   } catch {
@@ -222,6 +367,8 @@ export async function runIntegrationsCommand(
             stderr: "No Folder known: name it with --folder <absolute Folder>.",
           }),
     };
+  if (chatgpt !== null)
+    return runChatgptAppsCommand(chatgpt.action, folder, json, context);
   // The Composio organization the reading makes current, journaled as the
   // Launchpad journals it (decision F42, addendum (2) of 2026-10-13).
   const journaled: string[] = [];
@@ -244,6 +391,7 @@ export async function runIntegrationsCommand(
         ? {}
         : { executorPresent: context.executorPresent }),
       ...(context.now === undefined ? {} : { now: context.now }),
+      codexApps: codexAppsInputOf(context.env, context.platform),
     });
     return {
       code: exitOk,

@@ -79,6 +79,11 @@ export async function launchpadSettingsPoller(
     /** The Environment's Executor, where the company apps are applied
      * (decision F42 addendum (c) of 2026-10-14); null where it has none. */
     executor?: () => ExecutorEndpoint | null;
+    /** Brings the operator's Codex to what the Folder records of ChatGPT's
+     * apps (decision F42's addendum of 2026-10-27), after an apply. */
+    chatgptApps?: () => Promise<
+      Readonly<{ outcome: "applied" | "failed"; detail: string | null }>
+    >;
     seams?: OrganizationSettingsSeams | undefined;
   }>,
 ): Promise<SettingsPoller | null> {
@@ -117,7 +122,12 @@ export async function launchpadSettingsPoller(
     folder: input.folder,
     source,
     apply: (folder, delivered) =>
-      applyOrganizationSettings(folder, delivered, { microsoft365 }),
+      applyOrganizationSettings(folder, delivered, {
+        microsoft365,
+        ...(input.chatgptApps === undefined
+          ? {}
+          : { chatgptApps: input.chatgptApps }),
+      }),
     store:
       input.seams?.store ??
       (input.base === undefined

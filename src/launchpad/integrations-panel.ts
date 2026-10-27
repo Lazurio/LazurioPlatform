@@ -40,6 +40,8 @@ import {
   type ComposioTrip,
   type ComposioUpdate,
   cardView,
+  chatgptAppsFoot,
+  chatgptAppsLines,
   composioOrganizationChanged,
   composioOrganizationLine,
   composioOrganizationWaits,
@@ -1145,6 +1147,45 @@ export function createIntegrationsPanel(
     return hint;
   }
 
+  /** "Aplikace z ChatGPT" (decision F42's addendum of 2026-10-27): a line
+   * at the foot of Vše, with its switch on the person's own Environment. */
+  let chatgptSaving = false;
+  function chatgptAppsHint(): HTMLElement | null {
+    if (overview === null) return null;
+    const copy = options.copy();
+    const foot = chatgptAppsFoot(overview, copy);
+    if (foot === null) return null;
+    const hint = element("p", "integrations-hint", foot.text);
+    hint.dataset.setting = "chatgpt-apps";
+    const action = foot.action;
+    if (action !== null) {
+      const toggle = button(action.label, "", () => {
+        void setChatgptApps(action.allowed);
+      });
+      toggle.disabled = chatgptSaving;
+      hint.append(" ", toggle);
+    }
+    return hint;
+  }
+
+  async function setChatgptApps(allowed: boolean) {
+    chatgptSaving = true;
+    render();
+    let ok = false;
+    try {
+      ({ ok } = await options.post("/api/integrations/chatgpt-apps", {
+        allowed,
+      }));
+    } catch {}
+    chatgptSaving = false;
+    if (!ok)
+      note = {
+        tone: "danger",
+        text: options.copy().integrationsChatgptAppsFailed,
+      };
+    void load(true);
+  }
+
   function appsSection(tab: "all" | "connected"): HTMLElement[] {
     const copy = options.copy();
     if (overview === null) return [];
@@ -1220,6 +1261,8 @@ export function createIntegrationsPanel(
       );
     const hint = tab === "all" ? composioHint("p") : null;
     if (hint !== null) nodes.push(hint);
+    const chatgpt = tab === "all" && !searching ? chatgptAppsHint() : null;
+    if (chatgpt !== null) nodes.push(chatgpt);
     section.append(...nodes);
     return [section];
   }
@@ -1973,6 +2016,8 @@ export function createIntegrationsPanel(
       return;
     }
     for (const line of sourceLines(overview, copy))
+      problems.push(notice("warning", line));
+    for (const line of chatgptAppsLines(overview, copy))
       problems.push(notice("warning", line));
     // Composio in no organization of this Environment's Organization's
     // name: what to do in Composio (decision F42, addendum of 2026-10-13;

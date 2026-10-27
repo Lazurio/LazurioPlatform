@@ -72,8 +72,8 @@ test("AGENTS.md says what an Integrace is, the order, the command and that agent
     expect(agents).toContain("`lazurio integrations list --json`");
     expect(agents).toContain(
       cs
-        ? "v tomhle pořadí: nástroj aplikace, potom Executor (MCP server `executor` tvého harnessu nebo příkaz `executor`), potom Composio (`composio execute`)."
-        : "in this order: the app's tool, then Executor (your harness's MCP server `executor`, or the `executor` command), then Composio (`composio execute`).",
+        ? "v tomhle pořadí: nástroj z Nastavení → Nástroje (`gh`, `wacli`, …), potom Executor (MCP server `executor` tvého harnessu nebo příkaz `executor`), potom Composio (`composio execute`)."
+        : "in this order: the tool from Settings → Tools (`gh`, `wacli`, …), then Executor (your harness's MCP server `executor`, or the `executor` command), then Composio (`composio execute`).",
     );
     expect(agents).toContain(
       cs
