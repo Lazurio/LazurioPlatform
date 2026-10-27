@@ -2593,6 +2593,59 @@ the line (generated text is not proof of behavior), and that ChatGPT Desktop's b
 shows Buddy's chat after the gateway's sign-in on a real Osobní Prostředí; that is the next Ring 0
 check.
 
+**Addendum of 2026-10-27, decided by the Organization Admin: nothing irreversible without
+„Publikuj“.** An agent sent an e-mail on a person's behalf when the person did not want it sent. The
+rule of the addendum of 2026-10-05 was in place, but long, and its key sentence („i když tě požádal
+rovnou „pošli““) sat in the middle of it; the manual even allowed an "unambiguous „odešli to“" as the
+mandate. The Organization Admin replaced it with one compact rule in their own words,
+`publicationRule` in `src/folder/render.ts`:
+
+- What cannot be taken back or what someone else will see (an e-mail or message, a form, a payment, a
+  deletion, a merge, a deployment, publishing) is first prepared as a draft, and the agent shows in the
+  chat what exactly it will do, to whom and where.
+- It finishes only after an explicit „Publikuj“ / "Publish" for that draft in this chat.
+- „Pošli to“ or „odpověz mu“ is the request to prepare the draft, never the instruction to send.
+- When the agent does not know whether a step can be undone, it treats it as irreversible.
+
+Where it renders, once each: `AGENTS.md` on every Environment but a public one, the manual's section
+"Your work, Publication, Release" (replacing "Prepare first, then Publication") and Buddy's
+`.hermes.md`.
+
+Right after it, in each of those places but on a public Environment (which publishes nothing),
+`publicationScope` says what the rule leaves in force, so that no generated file forbids what another
+of its rules allows (review of #683): preparing a pull request is no Publication and needs no asking
+(commits, pushes to its branch, opening it, Ready; the manual's "Without asking you may"), and
+„Publikuj“ is also the question tool's Publication option and an explicit mandate from the user, but
+only for the operations the mandate names (root decision 0089, Buddy's mandates); everything else
+irreversible, above all e-mails, messages and invitations, waits for „Publikuj“ in this chat. Buddy's
+own delegation line says „Publikuj“ instead of "explicit instruction" too. A GitHub assignment stays
+what the manual's handover says: it creates no rights and replaces no Publication instruction. Removed rather than added: the Team line's own copy of the rule for external applications,
+the manual's „odešli to“ and its repeated "explicit instruction" in the Publication definition, and
+the connected applications' "sharing outside the Organization" (sharing inside it is seen by someone
+else too); that bullet now points to the rule. The "Buddy" section of `AGENTS.md` says „Publikuj“
+instead of "explicit instruction", and the English `new-module` skill says “Publish” instead of
+“Publikuj”.
+
+Unchanged in substance, and now said beside the rule rather than only elsewhere: what Publication and
+Release are and who may approve them (live rights to the exact operation); preparing pull requests
+without asking; the question tool's choice of Publication counting as „Publikuj“; Buddy's mandates
+(root decision 0089). Unchanged: the Team Environment (F31): a named user publishes its pull requests,
+the agent never merges, not even on „Publikuj“, and asks „Komu mám říct, aby tyhle změny
+publikoval?“; a public Environment publishes nothing; the catalog's usage of tools that write outside;
+every behavior of the product (only generated text changes).
+
+Template revision `base-instructions-82` (the open sibling pull requests #679 and #680 hold 80 and 81;
+whichever merges later moves to the next free number and re-pins its digest and snapshots).
+`tests/folder-manual.test.ts` checks, on every preset and both public Environments in both locales,
+that the rule is once in `AGENTS.md` (not on a public one), once in `manual/working-here.md` and once
+in Buddy's `.hermes.md`, that `publicationScope` follows it directly in each (not on a public
+Environment) and names the preparation, the question tool and the mandate, that the permissions it
+names are still the ones the manual and Buddy's mandates grant, that the Team line follows both on a
+Team Environment, and that no generated file or file of Buddy's layer keeps the old wording. Buddy's
+layer passes `tools/threat_patterns.py` at context and strict scope (Lazurio/hermes-agent main at
+5a91c801, the same file) and is 17.9k characters in Czech and 19.6k in English. Not proven: that
+agents follow the rule (generated text is not proof of behavior).
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered

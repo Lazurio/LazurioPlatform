@@ -23,8 +23,8 @@ import { tryBinding } from "./fixtures/try-environments";
 // `bun test -u` does not touch it. The fixtures in `tests/fixtures` feed the
 // compositions too.
 const pinned = {
-  revision: "base-instructions-79",
-  digest: "5537aa98d5cffcab5e3485ba291b183b7a7aaf6d521d7bfb0a71e4e67712cad8",
+  revision: "base-instructions-82",
+  digest: "de5a6d5fbdc62da3c958b4235d3eb67121c0cb58086b9eb3ad3a1a3b06842bdd",
 } as const;
 
 const optionalTools = activatableTools()

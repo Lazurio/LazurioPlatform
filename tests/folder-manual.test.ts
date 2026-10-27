@@ -20,6 +20,7 @@ import {
 import { renderManual } from "../src/folder/manual";
 import {
   buddyLayerPaths,
+  buddyRulesPath,
   manualPaths,
   outputFile,
   outputPaths,
@@ -34,6 +35,8 @@ import { renderOutputs } from "../src/folder/preview";
 import {
   buddyChatRouting,
   ownSignInIdentity,
+  publicationRule,
+  publicationScope,
   questionTool,
   visitorsOf,
 } from "../src/folder/render";
@@ -1328,21 +1331,18 @@ test("missing rights are escalated on every preset; only the Team hands every pu
             : "- In a Team Environment never merge, not even on “Publish” in the thread",
         ),
       ]).toEqual([journey.preset, locale, !team, !team, team]);
-      // AGENTS.md says it too; elsewhere Publication stays the Operator's.
+      // AGENTS.md says it too, after the rule every preset shares and what
+      // that rule leaves in force.
       expect(
         outputs["AGENTS.md"].includes(
-          locale === "cs"
-            ? "Z týmového Environmentu změny vždy schválí a publikuje jmenovaný uživatel a odpovídá za ně; sám nemerguj."
-            : "A named user always approves and publishes the changes from a Team Environment and answers for them; never merge yourself.",
+          `${publicationRule[locale]}\n${publicationScope[locale]}\n${
+            locale === "cs"
+              ? "- Pull request z týmového Environmentu vždy schválí a publikuje jmenovaný uživatel a odpovídá za něj; sám nemerguj, ani na „Publikuj“."
+              : "- A named user always approves and publishes a pull request from a Team Environment and answers for it; never merge yourself, not even on “Publish”."
+          }`,
         ),
       ).toBe(team);
-      expect(
-        outputs["AGENTS.md"].includes(
-          locale === "cs"
-            ? "Publikace (odeslání, odevzdání, merge, nasazení, jiné dokončení viditelné navenek) patří uživateli."
-            : "Publication (sending, submitting, a merge, a deployment, any other externally visible finishing) belongs to the user.",
-        ),
-      ).toBe(!team);
+      expect(outputs["AGENTS.md"]).toContain(publicationRule[locale]);
       expect(
         outputs["AGENTS.md"].includes(
           locale === "cs"
@@ -1874,17 +1874,18 @@ test("the agent's work is a pull request, GitHub is the authority for source cod
         ),
         henry.every((line) => line.includes("0170")),
       ]).toEqual([...where, 1, true, true]);
-      // Publication stays exactly as defined, and the work is prepared first.
+      // Publication stays exactly as defined, and nothing irreversible
+      // happens without "Publish" (the addendum of 2026-10-27).
       for (const sentence of cs
         ? [
             "- **Publikace** je akt, kterým se tvoje práce stává těžko vratnou nebo viditelnou navenek: merge, odeslání, nasazení;",
-            "- **Nejdřív připravit, pak Publikovat.**",
-            "e-mail uložený jako koncept v Outlooku",
+            "- **Nic nevratného bez „Publikuj“.**",
+            "e-mail uložený jako koncept",
           ]
         : [
             "- **Publication** is the act that makes your work hard to revert or visible outside: a merge, sending, deploying;",
-            "- **Prepare first, then Publication.**",
-            "an e-mail saved as a draft in Outlook",
+            "- **Nothing irreversible without “Publish”.**",
+            "an e-mail saved as a draft",
           ])
         expect([...where, sentence, workingHere.includes(sentence)]).toEqual([
           ...where,
@@ -2024,6 +2025,137 @@ test("the agent's work is a pull request, GitHub is the authority for source cod
         environment.os !== "windows",
         environment.preset === "local" && environment.os === "macos",
       ]);
+    }
+});
+
+// Decision F14's addendum of 2026-10-27: one compact rule in the Owner's words
+// replaces the long Publication line. It is in AGENTS.md on every Environment
+// but a public one, in the manual's Publication section and in Buddy's rules,
+// once in each, and no generated file keeps the old wording, in particular
+// that an unambiguous "send it" or a "send" at the start of a task could be
+// more than the request for a draft.
+test("nothing irreversible without “Publish”: one rule in AGENTS.md, the manual and Buddy's rules, and the old wording is gone (F14 addendum of 2026-10-27)", () => {
+  const environments = [
+    ...journeys,
+    {
+      preset: "hosted-organization-team",
+      machine: bindings.teamPublic,
+      os: "linux",
+    },
+    {
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationPublic,
+      os: "linux",
+    },
+  ] as const;
+  const retired = [
+    "požádal rovnou „pošli“",
+    "asked you straight away to “send”",
+    "jednoznačné „odešli to“",
+    "an unambiguous “send it”",
+    "Nejdřív připravit, pak Publikovat",
+    "Prepare first, then Publication",
+    "sdílení mimo Organizaci",
+    "share outside the Organization",
+    "bez výslovného pokynu uživatele nebo mandátu",
+    "the user's explicit instruction or a mandate",
+  ];
+  const count = (text: string, part: string) => text.split(part).length - 1;
+  for (const environment of environments)
+    for (const locale of ["cs", "en"] as const) {
+      const composition = {
+        preset: environment.preset,
+        machine: environment.machine,
+        profile: presetProfile(environment.preset, environment.os, { locale }),
+      };
+      const outputs = renderOutputs(composition);
+      const layer = renderBuddyLayer(composition);
+      const isPublic =
+        githubIdentity(environment.preset, environment.machine) === "none";
+      const where = [environment.preset, environment.os, isPublic, locale];
+      const rule = publicationRule[locale];
+      const scope = publicationScope[locale];
+      expect([
+        ...where,
+        count(outputs["AGENTS.md"], rule),
+        count(outputs["manual/working-here.md"], rule),
+        count(layer[buddyRulesPath], rule),
+      ]).toEqual([...where, isPublic ? 0 : 1, 1, 1]);
+      // The rule never stands alone: right after it, wherever something can
+      // be published, comes what it leaves in force, so that no consumer file
+      // forbids what another of its rules allows. Preparing a pull request is
+      // allowed without asking, and the question tool's choice and an
+      // explicit mandate of the user count as "Publish" only for the
+      // operations they name; e-mails and messages still wait.
+      const team = environment.preset === "hosted-organization-team";
+      const ruleLine = (text: string) =>
+        text.split("\n").find((line) => line.startsWith(rule)) ?? "";
+      const followedByScope = (text: string) =>
+        text.includes(`${ruleLine(text)}\n${scope}\n`);
+      expect([
+        ...where,
+        count(outputs["AGENTS.md"], scope),
+        count(outputs["manual/working-here.md"], scope),
+        count(layer[buddyRulesPath], scope),
+        followedByScope(outputs["AGENTS.md"]),
+        followedByScope(outputs["manual/working-here.md"]),
+        followedByScope(layer[buddyRulesPath]),
+        ruleLine(outputs["manual/working-here.md"]) === rule,
+      ]).toEqual([
+        ...where,
+        isPublic ? 0 : 1,
+        isPublic ? 0 : 1,
+        1,
+        !isPublic,
+        !isPublic,
+        true,
+        !team,
+      ]);
+      for (const part of locale === "cs"
+        ? [
+            "pull request se připravuje bez ptaní",
+            "volba Publikace v nástroji na otázky",
+            "výslovný mandát uživatele, ale jen pro operace, které mandát jmenuje",
+            "hlavně e-maily, zprávy a pozvánky, čeká na „Publikuj“ v tomto chatu",
+          ]
+        : [
+            "a pull request is prepared without asking",
+            "the Publication option in the question tool",
+            "an explicit mandate from the user, but only for the operations the mandate names",
+            "above all e-mails, messages and invitations, waits for “Publish” in this chat",
+          ])
+        expect([...where, part, scope.includes(part)]).toEqual([
+          ...where,
+          part,
+          true,
+        ]);
+      // The permissions the scope names are the ones the Folder still
+      // grants: the manual's "Without asking you may" and Buddy's mandates.
+      if (!isPublic)
+        expect([
+          ...where,
+          outputs["manual/working-here.md"].includes(
+            locale === "cs"
+              ? "Zakládat worktrees, průběžně commitovat a pushovat do PR branche a otevírat pull requesty."
+              : "Create worktrees, commit and push to the PR branch continuously, and open pull requests.",
+          ),
+          layer[buddyRulesPath].includes(
+            locale === "cs"
+              ? "merge, Publikace nebo Release mimo výslovný mandát chtějí souhlas uživatele s přesnou operací"
+              : "a merge, Publication or Release outside an explicit mandate need the user's consent to the exact operation",
+          ),
+        ]).toEqual([...where, true, true]);
+      for (const [path, text] of [
+        ...Object.entries(outputs),
+        ...buddyLayerPaths.map((path) => [path, layer[path]] as const),
+      ])
+        for (const sentence of retired)
+          expect([...where, path, sentence, text.includes(sentence)]).toEqual([
+            ...where,
+            path,
+            sentence,
+            false,
+          ]);
     }
 });
 
