@@ -23,8 +23,8 @@ import { tryBinding } from "./fixtures/try-environments";
 // `bun test -u` does not touch it. The fixtures in `tests/fixtures` feed the
 // compositions too.
 const pinned = {
-  revision: "base-instructions-83",
-  digest: "3925e6be73bc41f4df927f3dd15f2dc581394c58a3ef4025b6dc56511ca14bd5",
+  revision: "base-instructions-84",
+  digest: "a153d7757abedd1c607ca810c46ef92629a7c7133150cd195cbd21ca84fa807c",
 } as const;
 
 const optionalTools = activatableTools()
@@ -149,16 +149,36 @@ const environments = [
       },
     },
   },
+  // ChatGPT's apps (decision F42's addendum of 2026-10-27): allowed by the
+  // Organization, and turned on by the person on their own Environment and
+  // on their own computer; every other composition has them off.
+  {
+    preset: "hosted-organization-personal",
+    machine: bindings.organizationEntry,
+    os: "linux",
+    settings: { integrations: { chatgpt_apps: { allowed: true } } },
+  },
+  {
+    preset: "hosted-personal",
+    machine: bindings.personalEntry,
+    os: "linux",
+    chatgptAppsAllowed: true,
+  },
+  { preset: "local", machine: null, os: "macos", chatgptAppsAllowed: true },
 ] as const;
 
 function compositions() {
   const all = [];
   for (const environment of environments)
     for (const locale of ["cs", "en"] as const) {
-      const settings =
-        "settings" in environment
+      const settings = {
+        ...("settings" in environment
           ? { organizationSettings: environment.settings }
-          : {};
+          : {}),
+        ...("chatgptAppsAllowed" in environment
+          ? { chatgptAppsAllowed: environment.chatgptAppsAllowed }
+          : {}),
+      };
       all.push({
         preset: environment.preset,
         machine: environment.machine,

@@ -145,6 +145,9 @@ async function installedLaunchpad(explicitBase: string, folder: string) {
     }),
     executorAtStart: executorAtStart(context, base),
     vaultAtStart: vaultAtStart(context, base),
+    // ChatGPT's apps in the operator's Codex (decision F42's addendum of
+    // 2026-10-27): exactly where it sets Executor up.
+    codexAppsAtStart: executorAtStart(context, base),
   };
 }
 

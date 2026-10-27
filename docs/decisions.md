@@ -2634,8 +2634,8 @@ the agent never merges, not even on „Publikuj“, and asks „Komu mám říct
 publikoval?“; a public Environment publishes nothing; the catalog's usage of tools that write outside;
 every behavior of the product (only generated text changes).
 
-Template revision `base-instructions-82` (the open sibling pull requests #679 and #680 hold 80 and 81;
-whichever merges later moves to the next free number and re-pins its digest and snapshots).
+Template revision `base-instructions-82` (the sibling pull requests #679 and #680, merged after it,
+moved to the next free numbers, 83 and 84, and re-pinned their digests and snapshots).
 `tests/folder-manual.test.ts` checks, on every preset and both public Environments in both locales,
 that the rule is once in `AGENTS.md` (not on a public one), once in `manual/working-here.md` and once
 in Buddy's `.hermes.md`, that `publicationScope` follows it directly in each (not on a public
@@ -11858,6 +11858,144 @@ Composio's or gh's sign-in probe timed out leaving only its own apps unknown, an
 a probe that says signed out settling them (`tests/integrations-unknown.test.ts`); Executor down or not this account's leaving
 Notion unknown (`tests/integrations-routes.test.ts`); sources not read leaving each
 app unknown by its own reason (`tests/integrations-model.test.ts`).
+
+**Addendum 2026-10-27, decided by Matěj as the Owner: "Aplikace z ChatGPT", the apps of the
+person's ChatGPT account are no way to an Integrace unless allowed.** Codex 0.162 (its
+feature `apps`, stable and on) gives agents every app, plugin and connector of the
+signed-in ChatGPT account as the MCP server `codex_apps`. On the hosted Environments
+of one client Organization agents used them beside the Integrace: one mailbox had two
+unmanaged ways (`composio execute OUTLOOK_*` and the account's own Outlook
+connector), one agent made and deployed a website through the ChatGPT account's
+Sites app, and where Lazurio wrongly said Outlook was not connected, an agent
+searched the account's plugins for one. The Folder's rule "the app's tool, then
+Executor, then Composio" read as "the app's own tool", a ChatGPT app, and nothing
+said that ChatGPT's apps are not a way. Root decisions 0162 (one way per app) and
+0194 (the Organization's settings in the Dashboard) give the model; the reference is
+[integrations](integrations.md#chatgpt-apps-aplikace-z-chatgpt).
+
+1. **One setting, off unless allowed.** `integrations.chatgpt_apps.allowed` (a
+   boolean, snake_case as every key of the tree) is a leaf of the Organization's
+   settings beside Composio's, delivered and recorded by F45's seam: the Dashboard,
+   the Launchpad, `organizationSettings` in the Folder. Unlike Composio, absent is
+   not allowed. On a personal Environment and the person's own computer the person
+   decides with the Folder's own preference `chatgptAppsAllowed` (`true`, or absent
+   for off), changed only by the person in Apps → Integrace (`POST
+   /api/integrations/chatgpt-apps`, `lazurio integrations chatgpt-apps
+   allow|disallow`) through the one Folder transaction; an Organization's Environment
+   refuses it (`organization-governed`). `chatgptAppsPolicyOf` is the one seam:
+   `{allowed, source: "organization" | "person", set}`.
+2. **Off in Codex by Codex's own switches.** Where they are not allowed, Lazurio
+   writes `[apps._default] enabled = false` and `[features] tool_suggest = false`
+   into the operator's `$CODEX_HOME/config.toml` (`src/tools/codex-apps.ts`). The
+   first is the documented default of every app, which Codex applies to every
+   `codex_apps` tool by its connector. Read on 2026-10-27 with Codex 0.164.0
+   (`app/installed` over its app-server with `-c apps._default.enabled=false`, read
+   only): every installed app becomes disabled and not callable, OpenAI's own ones
+   included, Plugin Management (`connector_openai_plugin_management`, the
+   `plugin_management_*` tools), Sites, the ChatGPT Space (`connector_openai_pages`),
+   Search Service, Safety Settings, Hotline and Pets. The default alone leaves
+   Codex's `<recommended_plugins>` block in the prompt, which lists curated plugins
+   available to install (Outlook Email among them), and its suggestions of plugins
+   and connectors to install; `tool_suggest = false` takes both away (read the same
+   day with `codex debug prompt-input`: the block is gone with `-c
+   features.tool_suggest=false`), decided by the Owner the same day. Not
+   `features.apps = false`: it switches off a whole feature of the person's Codex, a
+   wider change than these two keys. Web search is not an app (`web_search`, a hosted
+   tool) and stays, as do MCP servers, Executor's among them.
+3. **Exactly two keys, and only Lazurio's lines.** Each line Lazurio writes carries
+   a marker (`# lazurio: chatgpt-apps`); where it replaces the person's own `true`
+   it keeps it beside the marker (`(was: …)`) and writes it back where they are
+   allowed again; a table Lazurio created goes with its line. Every other byte of the
+   file stays: the new file is renamed over the old one with its mode, only where it
+   did not change meanwhile, and only when the text checks as the same configuration
+   but those keys. Already off by the person's own `false` or by `features.apps =
+   false` is left as it is, also where they are allowed: that is the person's
+   choice. An app the person turned on by name (`[apps.<id>] enabled =
+   true`), which Codex prefers to the default, is the person's exception: never
+   changed, said by doctor (`chatgpt-apps-exception`) and on the Integrace page, and
+   the Folder's text still does not let agents use it as a way to an Integrace.
+   Lazurio does not edit `apps._default` or `features` in a dotted or inline form, a
+   link or a file that does not parse (`config-shape`, `config-not-regular`,
+   `config-unreadable`), and says so; then it changes neither key.
+4. **Where and when.** Only where Lazurio sets the operator account up: a Remote
+   Environment's supervised Launchpad, exactly where it sets Executor up (F44's
+   `executorAtStart`), at its start, after the Organization's settings changed the
+   Folder (the item `integrations.chatgpt_apps.allowed` reports `failed` with Codex's
+   reason, `codex-config-shape`, where Codex could not follow) and after the person's
+   choice; and `lazurio integrations chatgpt-apps apply`, the repair doctor names. The
+   person's own computer is theirs: Lazurio never changes its Codex, and only the
+   Folder's text says what the person chose. Codex reads the file when a chat starts:
+   new chats follow, running ones keep their tools. Doctor's check `chatgpt-apps`
+   (group Environment, never `fail`) warns where they are not allowed and Codex still
+   has them on (`chatgpt-apps-on`) or still suggests plugins
+   (`chatgpt-suggestions-on`), where an app stays on by name, and where the file
+   cannot be read.
+   The Environment reports the item only for a key the Organization governs now or
+   governed before (F45 point 7): a Dashboard that never delivered it never sees it,
+   and one that refuses a report naming it gets it again without it (F45's
+   narrowed retry).
+5. **An amendment of F44's and F59's principle.** `agent-mcp.ts` adds and removes only
+   Lazurio's own MCP entry and never changes another; ChatGPT's apps are the one
+   exception, outside the MCP entries: two keys of the person's configuration, by the
+   Owner's decision, because the person's own connectors are a second unmanaged way
+   to the same app, and the Organization decides the ways (0162, 0194).
+6. **When allowed.** Lazurio leaves Codex's apps and suggestions as they are (it
+   takes back only its own lines). Agents may use a ChatGPT app for an app the catalog of Integrace does
+   not have; an app of the catalog is always used as its Integrace, and agents never
+   connect a plugin themselves.
+7. **The Folder (template revision `base-instructions-84`, after the sibling changes of
+   the same day: F14's publication rule took `base-instructions-82` and the unknown
+   reading above `base-instructions-83`).** The order says exactly
+   "the tool from Settings → Tools (`gh`, `wacli`, …), then Executor, then Composio",
+   in AGENTS.md and the manual. Off: ChatGPT's apps, plugins and connectors (Codex's
+   `codex_apps`, plugin management and suggestions) are no way to an Integrace, never
+   search, suggest or connect a plugin, send the person to the app's Integrace card,
+   and who can allow them. On: the line of point 6. Two working rules join every
+   AGENTS.md (F14): results of technical checks (`lazurio doctor`, `doctor:task`, a
+   repository URL mismatch) are not shown to people unless they block their task, a
+   known one belongs in its issue; and "zapamatuj si" never edits a generated file,
+   which stops every later update of the instructions (`drift`; one Environment
+   received no instruction update for nine days that way): a personal rule goes into
+   the harness's personal instructions (`$CODEX_HOME/AGENTS.md`,
+   `~/.claude/CLAUDE.md`), an Organization's as a PR or issue to it.
+
+Failure modes: a configuration Lazurio does not edit leaves the apps on and says so
+(doctor, the page, the report item); a person who edits Lazurio's line back to `true`
+gets it turned off again at the next converge, where they are not allowed; a write
+that races another writer of `config.toml` (Codex's own settings, the person) is not
+made (`config-changed`) and is tried again at the next converge; the setting is
+Codex's default, not a lock: an app turned on by name stays on, and the lock would be
+Codex's managed requirements (`requirements.toml`, `apps.<id>.enabled = false`, per
+app), which Machines could write and which this addendum does not; Claude Code's own
+connectors of claude.ai are not part of it.
+
+Compatibility: a Folder that records `chatgptAppsAllowed`, or an Organization's
+settings with `chatgpt_apps`, is unreadable by a release before this one, as F45's
+section was; updates move forward only (F17). An older Platform that receives the key
+reports it `unsupported` (F45 point 3) and applies the rest. Lazurio
+Core's `organization-settings-lib.mjs` and the manifest schema need the same leaf
+before an Organization writes it (0194 point 6), the Dashboard its editor.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| `features.apps = false` | One key for everything; but it switches off a whole feature of the person's Codex; rejected for the two narrower keys |
+| Per-app `[apps.<id>] enabled = false` for every app | Precise; but the list is the account's and changes, and Lazurio would hold a copy of it; rejected |
+| Codex's managed `requirements.toml` | A lock the person cannot undo; but per app, written by Machines as root, and a lock on a personal Environment is not the person's choice; not now |
+| The instructions alone | Nothing changes in Codex; but the evidence was agents using the tools they had; rejected |
+| Allowed by default, like Composio | Nothing changes for anyone; but the evidence; rejected by the Owner |
+
+Verified by tests: the leaf, its key in the vocabulary, the answer and the report with
+the key (`tests/organization-settings.test.ts`,
+`tests/chatgpt-apps.test.ts`); the policy with absent as off; the person's preference
+recorded, carried by a tools change, removed again and refused on an Organization's
+Environment; the Folder's lines in both languages for all four cases and the two
+working rules; the apply's item from Codex's outcome; doctor's outcomes
+(`tests/chatgpt-apps.test.ts`); the converge on a temporary CODEX_HOME, appending only
+its table to the person's configuration, idempotent, its mode kept, exactly reversed,
+the person's own line written back, an exception reported, a dotted form, a link and a
+missing Codex left alone (`tests/codex-apps.test.ts`); the Launchpad's reading, the
+person's switch and Codex following it, an Organization's refusal and the CLI's repair
+(`tests/integrations-chatgpt-apps.test.ts`).
 
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 

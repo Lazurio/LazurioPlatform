@@ -1111,8 +1111,11 @@ declared operator ensures a second installer unit, `lazurio-codex-app-server.ser
 user's own `~/.local/bin/codex app-server daemon start` at every boot, so a Codex
 client connecting over SSH finds the daemon without anyone starting it by hand. This
 is the one thing the Platform does with Codex beyond reporting it: it never installs,
-updates, downgrades or reconfigures Codex and never runs its installer; without Codex
-at its standard entry the unit's condition skips the start. Install and update never
+updates or downgrades Codex and never runs its installer; without Codex
+at its standard entry the unit's condition skips the start. Its configuration the
+Platform changes only for its own MCP entries, through Codex's CLI (F44, F59), and
+for the apps of the person's ChatGPT account, two keys of `config.toml`
+(`[apps._default] enabled` and `[features] tool_suggest`, [F42's addendum of 2026-10-27](integrations.md#chatgpt-apps-aplikace-z-chatgpt)). Install and update never
 restart or stop the daemon, since that would end live Codex sessions. `lazurio doctor`
 reports it as `codex-app-server` (`ok`, or `warn` with the next step, never `fail`).
 The unit text is in [product update](update.md#state-on-disk).

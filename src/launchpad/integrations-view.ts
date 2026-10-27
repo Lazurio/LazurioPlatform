@@ -151,6 +151,23 @@ function isServer(value: unknown): value is CustomServer {
   );
 }
 
+function isChatgptApps(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  const reading = value as Record<string, unknown>;
+  return (
+    typeof reading.allowed === "boolean" &&
+    (reading.source === "organization" || reading.source === "person") &&
+    typeof reading.set === "boolean" &&
+    (reading.codex === null ||
+      ["on", "off", "unreadable", "absent"].includes(
+        reading.codex as string,
+      )) &&
+    typeof reading.exceptions === "number" &&
+    Number.isSafeInteger(reading.exceptions) &&
+    reading.exceptions >= 0
+  );
+}
+
 /** `GET /api/integrations` as the page takes it, or null for any other
  * answer (a refusal, a shape of another version). */
 export function parseIntegrations(value: unknown): IntegrationsOverview | null {
@@ -185,6 +202,7 @@ export function parseIntegrations(value: unknown): IntegrationsOverview | null {
     !answer.apps.every(isApp) ||
     !Array.isArray(answer.custom) ||
     !answer.custom.every(isServer) ||
+    !(answer.chatgptApps === undefined || isChatgptApps(answer.chatgptApps)) ||
     typeof answer.readAt !== "string"
   )
     return null;
@@ -842,6 +860,53 @@ export function composioOrganizationChanged(
     (rule.kind !== "named" && rule.kind !== "default") ||
     rule.state !== shown.state
   );
+}
+
+/** "Aplikace z ChatGPT" at the foot of Vše (decision F42's addendum of
+ * 2026-10-27): whether they are on here and who decides. Where the
+ * Organization decides it is said, never changed; on the person's own
+ * Environment its switch (`allowed`: what the switch asks for). Null where
+ * the reading does not say. */
+export function chatgptAppsFoot(
+  overview: IntegrationsOverview,
+  copy: Copy,
+): Readonly<{
+  text: string;
+  action: Readonly<{ label: string; allowed: boolean }> | null;
+}> | null {
+  const reading = overview.chatgptApps;
+  if (reading === undefined) return null;
+  if (reading.source === "organization")
+    return {
+      text: reading.allowed
+        ? copy.integrationsChatgptAppsOnOrganization
+        : copy.integrationsChatgptAppsOffOrganization,
+      action: null,
+    };
+  return reading.allowed
+    ? {
+        text: copy.integrationsChatgptAppsOnPerson,
+        action: { label: copy.integrationsChatgptAppsTurnOff, allowed: false },
+      }
+    : {
+        text: copy.integrationsChatgptAppsOffPerson,
+        action: { label: copy.integrationsChatgptAppsTurnOn, allowed: true },
+      };
+}
+
+/** Where they are not allowed and Codex still has them: still on, or on
+ * for apps its own settings turn on by name. */
+export function chatgptAppsLines(
+  overview: IntegrationsOverview,
+  copy: Copy,
+): string[] {
+  const reading = overview.chatgptApps;
+  if (reading === undefined || reading.allowed) return [];
+  if (reading.codex === "on" || reading.codex === "unreadable")
+    return [copy.integrationsChatgptAppsStillOn];
+  return reading.codex === "off" && reading.exceptions > 0
+    ? [copy.integrationsChatgptAppsExceptions]
+    : [];
 }
 
 /** One line per source that could not be read, so a missing source is

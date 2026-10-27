@@ -26,7 +26,7 @@ import {
   type PathChoice,
   type Rules,
 } from "./path";
-import type { ComposioPolicy } from "./policy";
+import type { ChatgptAppsPolicy, ComposioPolicy } from "./policy";
 
 // The Integrace of one Environment (decision F42): one list for people and
 // agents, every catalog app with its one path and its accounts, the apps a
@@ -246,12 +246,28 @@ export type IntegrationsOverview = Readonly<{
     executor: SourceState;
     composio: SourceState;
   }>;
+  /** "Aplikace z ChatGPT" (decision F42's addendum of 2026-10-27): whether
+   * agents may use the apps of the person's ChatGPT account here, who
+   * decides (`set`: whether they did; not set is off), and how the
+   * operator's Codex has them, with the number of apps the person turned on
+   * by name; `codex` null where Lazurio does not keep Codex here. Always
+   * in a reading; optional so that an overview of an earlier shape still
+   * parses. */
+  chatgptApps?: ChatgptAppsReading;
   /** The tools for one app that are connected here. */
   tools: readonly AppTool[];
   apps: readonly IntegrationApp[];
   custom: readonly CustomServer[];
   /** When the sources were read (ISO 8601). */
   readAt: string;
+}>;
+
+export type ChatgptAppsReading = Readonly<{
+  allowed: boolean;
+  source: ChatgptAppsPolicy["source"];
+  set: boolean;
+  codex: "on" | "off" | "unreadable" | "absent" | null;
+  exceptions: number;
 }>;
 
 export type MergeInput = Readonly<{
@@ -288,6 +304,9 @@ export type MergeInput = Readonly<{
    * (decision F42 addendum (c) of 2026-10-14): its one card stands for
    * Outlook, OneDrive and SharePoint. Null or absent where none is set up. */
   microsoft365?: Microsoft365Here | null;
+  /** ChatGPT's apps here; absent: not allowed, nobody decided, Codex not
+   * read. */
+  chatgptApps?: ChatgptAppsReading;
   readAt: string;
 }>;
 
@@ -657,6 +676,15 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
       executor: input.executor.state,
       composio: !policy.allowed ? "not-allowed" : input.composio.state,
     }),
+    chatgptApps: Object.freeze(
+      input.chatgptApps ?? {
+        allowed: false,
+        source: scope === "organization" ? "organization" : "person",
+        set: false,
+        codex: null,
+        exceptions: 0,
+      },
+    ),
     tools: Object.freeze(tools),
     apps: Object.freeze(apps),
     custom: Object.freeze(custom),

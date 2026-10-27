@@ -1,5 +1,6 @@
 import type { PresetName } from "../folder/presets";
 import {
+  type ChatgptAppsPolicy,
   type ComposioPolicy,
   environmentComposioPolicy,
 } from "../integrations/policy";
@@ -104,4 +105,27 @@ export function composioPolicyOf(
   return allowed === undefined
     ? environmentComposioPolicy
     : Object.freeze({ allowed, source: "organization" as const });
+}
+
+/** Whether agents may use the ChatGPT account's apps here, and who decided
+ * (decision F42's addendum of 2026-10-27): the Organization's recorded
+ * settings on its Environments, where an absent key is off; the person's
+ * own preference elsewhere, off until they allow them. */
+export function chatgptAppsPolicyOf(
+  preset: PresetName,
+  settings: OrganizationSettingsValues,
+  personal: boolean,
+): ChatgptAppsPolicy {
+  if (!organizationGoverns(preset))
+    return Object.freeze({
+      allowed: personal,
+      source: "person" as const,
+      set: personal,
+    });
+  const allowed = settings.integrations?.chatgpt_apps?.allowed;
+  return Object.freeze({
+    allowed: allowed === true,
+    source: "organization" as const,
+    set: allowed !== undefined,
+  });
 }

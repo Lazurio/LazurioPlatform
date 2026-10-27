@@ -1776,6 +1776,21 @@ const en = {
     "Composio does not work in {this}'s organization now. Click Check connections.",
   integrationsToolsUnreadable: "The tools could not be read.",
   integrationsRetry: "Try again",
+  integrationsChatgptAppsOffOrganization:
+    "ChatGPT apps are off {in this}: the Organization does not allow them. Agents use only the apps connected here in Integrations.",
+  integrationsChatgptAppsOnOrganization:
+    "The Organization allows ChatGPT apps {in this}, for apps Integrations does not have.",
+  integrationsChatgptAppsOffPerson:
+    "ChatGPT apps are off {in this}. Agents use only the apps connected here in Integrations.",
+  integrationsChatgptAppsOnPerson:
+    "ChatGPT apps are on {in this}, for apps Integrations does not have.",
+  integrationsChatgptAppsTurnOn: "Turn on",
+  integrationsChatgptAppsTurnOff: "Turn off",
+  integrationsChatgptAppsFailed: "The setting could not be saved. Try again.",
+  integrationsChatgptAppsStillOn:
+    "Codex still offers agents ChatGPT apps {in this}. Ask the agent in Chat to fix it.",
+  integrationsChatgptAppsExceptions:
+    "Some ChatGPT apps stay on in Codex because its own settings turn them on by name.",
   integrationsConnect: "Connect",
   integrationsAddAccount: "Add account",
   integrationsConnected: "Connected",
@@ -3696,6 +3711,22 @@ const cs: Record<MessageKey, string> = {
     "Composio teď nepracuje v organizaci {tohoto}. Klikněte na Zkontrolovat připojení.",
   integrationsToolsUnreadable: "Nástroje se nepodařilo načíst.",
   integrationsRetry: "Zkusit znovu",
+  integrationsChatgptAppsOffOrganization:
+    "Aplikace z ChatGPT jsou {v tomto} vypnuté, Organizace je nepovoluje. Agenti používají jen aplikace připojené tady v Integracích.",
+  integrationsChatgptAppsOnOrganization:
+    "Organizace {v tomto} povoluje aplikace z ChatGPT pro aplikace, které Integrace nemají.",
+  integrationsChatgptAppsOffPerson:
+    "Aplikace z ChatGPT jsou {v tomto} vypnuté. Agenti používají jen aplikace připojené tady v Integracích.",
+  integrationsChatgptAppsOnPerson:
+    "Aplikace z ChatGPT jsou {v tomto} zapnuté pro aplikace, které Integrace nemají.",
+  integrationsChatgptAppsTurnOn: "Zapnout",
+  integrationsChatgptAppsTurnOff: "Vypnout",
+  integrationsChatgptAppsFailed:
+    "Nastavení se nepodařilo uložit. Zkuste to znovu.",
+  integrationsChatgptAppsStillOn:
+    "Codex {v tomto} agentům aplikace z ChatGPT pořád nabízí. Požádejte agenta v Chatu, ať to opraví.",
+  integrationsChatgptAppsExceptions:
+    "Některé aplikace z ChatGPT zůstávají v Codexu zapnuté, protože je jeho vlastní nastavení zapíná jmenovitě.",
   integrationsConnect: "Připojit",
   integrationsAddAccount: "Přidat účet",
   integrationsConnected: "Připojeno",
