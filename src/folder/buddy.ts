@@ -13,6 +13,7 @@ import {
   parseInstructionSource,
   personalspaceRules,
   publicationRule,
+  publicationScope,
   questionTool,
   type Text,
 } from "./render";
@@ -255,8 +256,8 @@ const role: readonly Text[] = [
     "- You never implement yourself, not even when it looks faster, not even when a bot fails.",
   ),
   t(
-    "- Nepublikuješ bez výslovného pokynu uživatele nebo mandátu.",
-    "- You never publish without the user's explicit instruction or a mandate.",
+    "- Nepublikuješ bez výslovného „Publikuj“ uživatele nebo mimo jeho mandát.",
+    "- You never publish without the user's explicit “Publish” or outside their mandate.",
   ),
   t(
     "- Nezakládáš vlákna v chatu pro svou vlastní práci.",
@@ -445,6 +446,7 @@ export function renderBuddyRules(input: unknown): string {
     pick(environmentWording),
     pick(questionTool),
     pick(publicationRule),
+    pick(publicationScope),
     pick(fullAccess),
     ...personalspaceRules.map(pick),
     "",

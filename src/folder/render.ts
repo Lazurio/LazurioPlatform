@@ -1184,10 +1184,22 @@ function contextRouting(preset: PresetName): readonly Text[] {
 // for that draft in this chat; "send it" asks for the draft; doubt counts as
 // irreversible. Rendered in AGENTS.md on every Environment but a public one
 // (a Team Environment adds that a named user merges), in the manual's
-// Publication section and in Buddy's rules (buddy.ts).
+// Publication section and in Buddy's rules (buddy.ts), each time followed by
+// publicationScope but on a public Environment.
 export const publicationRule: Text = {
   cs: "- **Nic nevratného bez „Publikuj“.** Co nejde vzít zpátky nebo to uvidí někdo další (odeslání e-mailu či zprávy, odeslání formuláře, platba, smazání, merge, nasazení, zveřejnění), nejdřív připrav jako koncept a v chatu ukaž, co přesně, komu a kde uděláš. Dokonči to až po výslovném „Publikuj“ k tomuto konceptu v tomto chatu. „Pošli to“ nebo „odpověz mu“ je zadání připravit koncept, ne pokyn k odeslání. Nevíš-li, jestli krok jde vrátit, ber ho jako nevratný.",
   en: "- **Nothing irreversible without “Publish”.** Anything that cannot be taken back or that someone else will see (sending an e-mail or message, submitting a form, a payment, a deletion, a merge, a deployment, publishing) you first prepare as a draft and show in the chat: what exactly you will do, to whom and where. Finish it only after an explicit “Publish” for that draft in this chat. “Send it” or “reply to him” is a request to prepare the draft, not an instruction to send. If you don't know whether a step can be undone, treat it as irreversible.",
+};
+
+// What the rule leaves in force, right beside it wherever it renders but on a
+// public Environment, which publishes nothing (F14 addendum of 2026-10-27):
+// preparing a pull request is no Publication (the manual's "Without asking
+// you may"), and the question tool's Publication option and an explicit,
+// scoped mandate of the user (root decision 0089) count as "Publish" for the
+// operations they name.
+export const publicationScope: Text = {
+  cs: "- Příprava Publikace není: pull request se připravuje bez ptaní (commity, push do jeho branche, otevření, Ready). „Publikuj“ je i volba Publikace v nástroji na otázky a výslovný mandát uživatele, ale jen pro operace, které mandát jmenuje; všechno ostatní nevratné, hlavně e-maily, zprávy a pozvánky, čeká na „Publikuj“ v tomto chatu.",
+  en: "- Preparing is not Publication: a pull request is prepared without asking (commits, pushes to its branch, opening it, Ready). “Publish” is also the Publication option in the question tool and an explicit mandate from the user, but only for the operations the mandate names; everything else irreversible, above all e-mails, messages and invitations, waits for “Publish” in this chat.",
 };
 
 // A Team Environment acts on GitHub under the Team's identity, which belongs
@@ -1265,13 +1277,13 @@ export function renderInstructions(input: unknown): string {
           en: "- Work directly within task scope and available tools.",
         }),
     pick(updateLine(preset)),
-    // Nothing irreversible without "Publish" (F14 addendum 2026-10-27); a
-    // public Environment publishes nothing at all.
+    // Nothing irreversible without "Publish" and what it leaves in force (F14
+    // addendum 2026-10-27); a public Environment publishes nothing at all.
     ...(isPublic
       ? [publicWork]
       : preset === "hosted-organization-team"
-        ? [publicationRule, teamMergeRule]
-        : [publicationRule]
+        ? [publicationRule, publicationScope, teamMergeRule]
+        : [publicationRule, publicationScope]
     ).map(pick),
     pick(fullAccess),
     pick(sandboxNetworkLine),

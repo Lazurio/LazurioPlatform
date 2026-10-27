@@ -31,6 +31,7 @@ import {
   instructionTemplateRevision,
   personalspaceRules,
   publicationRule,
+  publicationScope,
   questionTool,
 } from "../src/folder/render";
 import { voiceSection } from "../src/folder/voice";
@@ -122,6 +123,7 @@ test(".hermes.md is composed from AGENTS.md's own fragments: the voice, the kind
       environmentWording,
       questionTool,
       publicationRule,
+      publicationScope,
       fullAccess,
       ...personalspaceRules,
     ]) {

@@ -36,6 +36,7 @@ import {
   buddyChatRouting,
   ownSignInIdentity,
   publicationRule,
+  publicationScope,
   questionTool,
   visitorsOf,
 } from "../src/folder/render";
@@ -1330,10 +1331,11 @@ test("missing rights are escalated on every preset; only the Team hands every pu
             : "- In a Team Environment never merge, not even on “Publish” in the thread",
         ),
       ]).toEqual([journey.preset, locale, !team, !team, team]);
-      // AGENTS.md says it too, after the rule every preset shares.
+      // AGENTS.md says it too, after the rule every preset shares and what
+      // that rule leaves in force.
       expect(
         outputs["AGENTS.md"].includes(
-          `${publicationRule[locale]}\n${
+          `${publicationRule[locale]}\n${publicationScope[locale]}\n${
             locale === "cs"
               ? "- Pull request z týmového Environmentu vždy schválí a publikuje jmenovaný uživatel a odpovídá za něj; sám nemerguj, ani na „Publikuj“."
               : "- A named user always approves and publishes a pull request from a Team Environment and answers for it; never merge yourself, not even on “Publish”."
@@ -2055,6 +2057,8 @@ test("nothing irreversible without “Publish”: one rule in AGENTS.md, the man
     "Prepare first, then Publication",
     "sdílení mimo Organizaci",
     "share outside the Organization",
+    "bez výslovného pokynu uživatele nebo mandátu",
+    "the user's explicit instruction or a mandate",
   ];
   const count = (text: string, part: string) => text.split(part).length - 1;
   for (const environment of environments)
@@ -2070,12 +2074,77 @@ test("nothing irreversible without “Publish”: one rule in AGENTS.md, the man
         githubIdentity(environment.preset, environment.machine) === "none";
       const where = [environment.preset, environment.os, isPublic, locale];
       const rule = publicationRule[locale];
+      const scope = publicationScope[locale];
       expect([
         ...where,
         count(outputs["AGENTS.md"], rule),
         count(outputs["manual/working-here.md"], rule),
         count(layer[buddyRulesPath], rule),
       ]).toEqual([...where, isPublic ? 0 : 1, 1, 1]);
+      // The rule never stands alone: right after it, wherever something can
+      // be published, comes what it leaves in force, so that no consumer file
+      // forbids what another of its rules allows. Preparing a pull request is
+      // allowed without asking, and the question tool's choice and an
+      // explicit mandate of the user count as "Publish" only for the
+      // operations they name; e-mails and messages still wait.
+      const team = environment.preset === "hosted-organization-team";
+      const ruleLine = (text: string) =>
+        text.split("\n").find((line) => line.startsWith(rule)) ?? "";
+      const followedByScope = (text: string) =>
+        text.includes(`${ruleLine(text)}\n${scope}\n`);
+      expect([
+        ...where,
+        count(outputs["AGENTS.md"], scope),
+        count(outputs["manual/working-here.md"], scope),
+        count(layer[buddyRulesPath], scope),
+        followedByScope(outputs["AGENTS.md"]),
+        followedByScope(outputs["manual/working-here.md"]),
+        followedByScope(layer[buddyRulesPath]),
+        ruleLine(outputs["manual/working-here.md"]) === rule,
+      ]).toEqual([
+        ...where,
+        isPublic ? 0 : 1,
+        isPublic ? 0 : 1,
+        1,
+        !isPublic,
+        !isPublic,
+        true,
+        !team,
+      ]);
+      for (const part of locale === "cs"
+        ? [
+            "pull request se připravuje bez ptaní",
+            "volba Publikace v nástroji na otázky",
+            "výslovný mandát uživatele, ale jen pro operace, které mandát jmenuje",
+            "hlavně e-maily, zprávy a pozvánky, čeká na „Publikuj“ v tomto chatu",
+          ]
+        : [
+            "a pull request is prepared without asking",
+            "the Publication option in the question tool",
+            "an explicit mandate from the user, but only for the operations the mandate names",
+            "above all e-mails, messages and invitations, waits for “Publish” in this chat",
+          ])
+        expect([...where, part, scope.includes(part)]).toEqual([
+          ...where,
+          part,
+          true,
+        ]);
+      // The permissions the scope names are the ones the Folder still
+      // grants: the manual's "Without asking you may" and Buddy's mandates.
+      if (!isPublic)
+        expect([
+          ...where,
+          outputs["manual/working-here.md"].includes(
+            locale === "cs"
+              ? "Zakládat worktrees, průběžně commitovat a pushovat do PR branche a otevírat pull requesty."
+              : "Create worktrees, commit and push to the PR branch continuously, and open pull requests.",
+          ),
+          layer[buddyRulesPath].includes(
+            locale === "cs"
+              ? "merge, Publikace nebo Release mimo výslovný mandát chtějí souhlas uživatele s přesnou operací"
+              : "a merge, Publication or Release outside an explicit mandate need the user's consent to the exact operation",
+          ),
+        ]).toEqual([...where, true, true]);
       for (const [path, text] of [
         ...Object.entries(outputs),
         ...buddyLayerPaths.map((path) => [path, layer[path]] as const),
