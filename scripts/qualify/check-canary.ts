@@ -30,7 +30,11 @@ export const canaryHours = 8;
 export const shorterCanaries: Readonly<
   Record<string, Readonly<{ hours: number; decision: string }>>
 > = {
-  "v0.1.14-rc.2": { hours: 3, decision: "{{DECISION}}" },
+  "v0.1.14-rc.2": {
+    hours: 3,
+    decision:
+      "root decision 0166, addendum 2026-10-27, HumanAndMachines/Lazurio#658",
+  },
 };
 
 /** The hours the canary of `candidate` must last. */

@@ -328,7 +328,7 @@ Shorter canaries so far, each named in `shorterCanaries` of `check-canary.ts`:
 
 | Candidate | Hours | Decision |
 |---|---|---|
-| `v0.1.14-rc.2` | 3 | {{DECISION}} |
+| `v0.1.14-rc.2` | 3 | root decision 0166, addendum 2026-10-27, HumanAndMachines/Lazurio#658 |
 
 ## Required lifecycle evidence
 
