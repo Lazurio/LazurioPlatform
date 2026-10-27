@@ -88,7 +88,15 @@ export type GatewayFailure =
 
 export type GatewayResult<T> =
   | Readonly<{ ok: true; value: T }>
-  | Readonly<{ ok: false; reason: GatewayFailure }>;
+  | Readonly<{
+      ok: false;
+      reason: GatewayFailure;
+      /** The request was handed to Hermes and no clear answer came (no
+       * answer in time, a connection cut, an answer of no known shape): it
+       * may still run there, in the gateway that took it (decision F66).
+       * Absent where nothing was sent or Hermes answered that nothing ran. */
+      uncertain?: true;
+    }>;
 
 /** The gateway as its `identify` answered. */
 export type GatewayEndpoint = Readonly<{
@@ -211,6 +219,9 @@ const isObject = (value: unknown): value is Json =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 const failed = (reason: GatewayFailure) =>
   Object.freeze({ ok: false as const, reason });
+/** A failure after the request was handed to Hermes: it may still run. */
+const uncertainly = (reason: GatewayFailure) =>
+  Object.freeze({ ok: false as const, reason, uncertain: true as const });
 const succeeded = <T>(value: T) => Object.freeze({ ok: true as const, value });
 
 type NodeKind = "home" | "directory" | "socket";
@@ -520,7 +531,7 @@ function httpExchange(
           if (settled) return;
           size += chunk.byteLength;
           if (size > answerBytesMax) {
-            finish(failed("invalid-answer"));
+            finish(uncertainly("invalid-answer"));
             return;
           }
           chunks.push(chunk);
@@ -536,11 +547,19 @@ function httpExchange(
             }
           finish(succeeded({ status: response.statusCode ?? 0, body }));
         });
-        response.on("error", () => finish(failed("not-ready")));
+        response.on("error", () => finish(uncertainly("not-ready")));
       },
     );
-    const timer = setTimeout(() => finish(failed("timeout")), timeoutMs);
-    outgoing.on("error", () => finish(failed("not-ready")));
+    // From here on the request may reach Hermes: whatever ends it without
+    // a whole answer leaves it uncertain, unless nothing ever listened.
+    const timer = setTimeout(() => finish(uncertainly("timeout")), timeoutMs);
+    outgoing.on("error", (error: NodeJS.ErrnoException) =>
+      finish(
+        error.code === "ECONNREFUSED"
+          ? failed("not-ready")
+          : uncertainly("not-ready"),
+      ),
+    );
     if (body === undefined) outgoing.end();
     else outgoing.end(body);
   });

@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { chmod, mkdir, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { type AddressInfo, createServer } from "node:net";
 import { join } from "node:path";
 import {
   createHermesGateway,
@@ -45,6 +46,12 @@ const verbs = (fake: FakeHermesGateway) =>
 const failure = (reason: string): GatewayResult<never> => ({
   ok: false,
   reason: reason as never,
+});
+/** A failure after the request was handed to Hermes: it may still run. */
+const uncertain = (reason: string): GatewayResult<never> => ({
+  ok: false,
+  reason: reason as never,
+  uncertain: true,
 });
 
 posix(
@@ -724,16 +731,17 @@ posix(
   () =>
     within({}, async (fake) => {
       const gateway = client(fake, { httpMs: 300, controlMs: 300 });
+      // Handed to Hermes and no clear answer: it may still run there.
       fake.state.http = () => new Promise<Response>(() => undefined);
       expect(await gateway.request("GET", "/api/providers/oauth")).toEqual(
-        failure("timeout"),
+        uncertain("timeout"),
       );
       fake.state.http = () =>
         new Response(JSON.stringify({ providers: "x".repeat(300 * 1024) }), {
           headers: { "content-type": "application/json" },
         });
       expect(await gateway.request("GET", "/api/providers/oauth")).toEqual(
-        failure("invalid-answer"),
+        uncertain("invalid-answer"),
       );
       fake.state.http = undefined;
       fake.state.identify = () => ({ raw: "x".repeat(600 * 1024) });
@@ -906,9 +914,66 @@ posix(
         }).request("DELETE", "/api/env", {
           body: { key: "TELEGRAM_HOME_CHANNEL" },
         }),
-      ).toEqual(failure("timeout"));
+      ).toEqual(uncertain("timeout"));
       expect(fake.requests).toHaveLength(1);
     }),
+);
+
+posix(
+  "a write is uncertain once Hermes may have taken it: no answer in time or a connection cut after it was sent; nothing listening, Hermes's own not-ready and a refused ticket are clear",
+  async () => {
+    const write = { body: { key: "TELEGRAM_HOME_CHANNEL", value: "1" } };
+    // A listener that takes the request whole, then cuts the connection.
+    const cutting = createServer((socket) => {
+      socket.once("data", () => socket.destroy());
+    });
+    await new Promise<void>((resolve) =>
+      cutting.listen(0, "127.0.0.1", () => resolve()),
+    );
+    const cutPort = (cutting.address() as AddressInfo).port;
+    // A port where nothing listens.
+    const closed = createServer();
+    await new Promise<void>((resolve) =>
+      closed.listen(0, "127.0.0.1", () => resolve()),
+    );
+    const closedPort = (closed.address() as AddressInfo).port;
+    await new Promise<void>((resolve) => closed.close(() => resolve()));
+    try {
+      await within({}, async (fake) => {
+        const to = (port: number) => {
+          fake.state.identify = (identify) => {
+            (identify.result as Record<string, unknown>).api_origin =
+              `http://127.0.0.1:${port}`;
+            return identify;
+          };
+        };
+        to(cutPort);
+        expect(await client(fake).request("PUT", "/api/env", write)).toEqual(
+          uncertain("not-ready"),
+        );
+        to(closedPort);
+        expect(await client(fake).request("PUT", "/api/env", write)).toEqual(
+          failure("not-ready"),
+        );
+        fake.state.identify = undefined;
+        fake.state.http = () =>
+          Response.json(
+            { error: "gateway_not_ready", state: "starting" },
+            { status: 503 },
+          );
+        expect(await client(fake).request("PUT", "/api/env", write)).toEqual(
+          failure("not-ready"),
+        );
+        fake.state.http = () =>
+          Response.json(recorded.http.unauthorized.body, { status: 401 });
+        expect(await client(fake).request("PUT", "/api/env", write)).toEqual(
+          failure("refused"),
+        );
+      });
+    } finally {
+      await new Promise<void>((resolve) => cutting.close(() => resolve()));
+    }
+  },
 );
 
 posix(

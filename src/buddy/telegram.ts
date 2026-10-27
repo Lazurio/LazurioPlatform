@@ -598,6 +598,27 @@ export function createBuddyTelegram(
           Object.freeze({ ok: false, reason: "invalid-answer" }),
       );
 
+  /** A write of Hermes's. One that ends without a clear answer may still
+   * run in Hermes later, in the gateway that took it, after a newer write:
+   * so it owes a restart, as a change does, and `approve` waits for that
+   * restart. A restart ends the gateway that may still run it. Every
+   * Telegram write goes through here but the disconnect's one DELETE,
+   * whose restart is owed before it is sent. */
+  const write = async (
+    operation: TelegramJournalEntry["operation"],
+    method: "PUT" | "POST",
+    path: string,
+    body: Readonly<Record<string, unknown>>,
+    capability?: string,
+  ): Promise<GatewayResult<GatewayAnswer>> => {
+    const answer = await ask(method, path, body, capability);
+    if (!answer.ok && answer.uncertain === true) {
+      journal({ operation, outcome: "restart-owed", reason: answer.reason });
+      await input.changed().catch(() => undefined);
+    }
+    return answer;
+  };
+
   async function card(): Promise<GatewayResult<TelegramCard | null>> {
     const answer = await ask("GET", platformsPath);
     if (!answer.ok) return answer;
@@ -689,7 +710,8 @@ export function createBuddyTelegram(
       });
     if (text === undefined) return line("unknown");
     if (!always && text === pairingWritten) return;
-    const written = await ask(
+    const written = await write(
+      "pairing-text",
       "PUT",
       "/api/config",
       { config: { gateway: { [pairingMessage.key]: text } } },
@@ -730,7 +752,7 @@ export function createBuddyTelegram(
     // for a new file), `platforms.telegram.enabled: true` into its
     // config.yaml, explicitly, so a token saved by any other way ends the
     // same. Its audit line names the keys, never a value.
-    const saved = await ask("PUT", platformPath, {
+    const saved = await write("connect", "PUT", platformPath, {
       env: { TELEGRAM_BOT_TOKEN: token },
       enabled: true,
     });
@@ -740,7 +762,7 @@ export function createBuddyTelegram(
     intent = "connect";
     // The quiet keys before the restart that reads them; a connect without
     // them still connects, and the journal says so.
-    const quiet = await ask("PUT", "/api/config", {
+    const quiet = await write("connect", "PUT", "/api/config", {
       config: telegramQuietConfig,
     });
     if (!quiet.ok || quiet.value.status !== 200)
@@ -771,10 +793,12 @@ export function createBuddyTelegram(
       return answer;
     };
     // Only once the restart the last change owes is done, as the page
-    // offers it: the approval then reaches a gateway that started after that
-    // change, so a home-channel DELETE a disconnect sent to an earlier one
-    // can no longer run after it. A page from before (another tab) gets the
-    // state as it is, „Připojuje se…“, and nothing is written.
+    // offers it, or the one a write owes that ended without a clear answer:
+    // the approval then reaches a gateway that started after both, so no
+    // write an earlier gateway took (a disconnect's DELETE, an earlier
+    // approval's home channel) can still run after it. A page from before
+    // (another tab) gets the state as it is, „Připojuje se…“, and nothing
+    // is written.
     if (input.owed()) {
       journal({
         operation: "approve",
@@ -795,7 +819,7 @@ export function createBuddyTelegram(
     // (`hermes_cli/setup_platforms.py`), written by Hermes in this gateway's
     // own process, so its next turn sees it. It replaces any home channel a
     // disconnect left.
-    const channel = await ask("PUT", "/api/env", {
+    const channel = await write("approve", "PUT", "/api/env", {
       key: "TELEGRAM_HOME_CHANNEL",
       value: candidate.userId,
     });
@@ -804,7 +828,7 @@ export function createBuddyTelegram(
     // Then Hermes's own approval, which takes the request off its list. One
     // that expired meanwhile (404) leaves nothing to approve.
     if (candidate.requestId !== undefined) {
-      const approval = await ask("POST", "/api/pairing/approve", {
+      const approval = await write("approve", "POST", "/api/pairing/approve", {
         platform: "telegram",
         request_id: candidate.requestId,
       });
@@ -816,7 +840,7 @@ export function createBuddyTelegram(
     // is what Delegace reads, and is what the state reads as connected. A
     // write that failed before it leaves the account offered, so "Ano"
     // finishes it.
-    const allowed = await ask("PUT", platformPath, {
+    const allowed = await write("approve", "PUT", platformPath, {
       env: { TELEGRAM_ALLOWED_USERS: candidate.userId },
     });
     if (!allowed.ok) return end(unavailable(allowed.reason));
@@ -837,7 +861,7 @@ export function createBuddyTelegram(
     };
     // Off, its token and its allowlist gone: the next connect asks again
     // whose account it is, and the installer's next run finds no Telegram.
-    const off = await ask("PUT", platformPath, {
+    const off = await write("disconnect", "PUT", platformPath, {
       enabled: false,
       clear_env: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_ALLOWED_USERS"],
     });
@@ -853,7 +877,8 @@ export function createBuddyTelegram(
     // remove now stays, and nothing asks again: a DELETE that timed out here
     // may still run in Hermes later, and a second one could overtake a newer
     // approval's home channel. While Telegram is off it is inert, and the
-    // next approval writes its own over it.
+    // next approval writes its own over it. Not through `write`: the restart
+    // that ends a gateway still holding it is owed above, before it is sent.
     const channel = await ask("DELETE", "/api/env", {
       key: "TELEGRAM_HOME_CHANNEL",
     });

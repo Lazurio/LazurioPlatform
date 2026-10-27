@@ -654,6 +654,158 @@ posix(
     }),
 );
 
+/** Hermes holds the first write that `matches`, in the gateway that took
+ * it: released while that gateway still runs, the write runs; a gateway
+ * that has restarted since never runs it. */
+function holdOnce(
+  fake: FakeHermesGateway,
+  matches: (request: { method: string; path: string }) => boolean,
+) {
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let holding = true;
+  let ran = false;
+  fake.state.http = async (request) => {
+    if (!holding || !matches(request)) return undefined;
+    holding = false;
+    const on = fake.state.instance;
+    await held;
+    if (fake.state.instance !== on)
+      return Response.json(
+        { error: "gateway_not_ready", state: "draining" },
+        { status: 503 },
+      );
+    ran = true;
+    return undefined;
+  };
+  return { release: () => release(), ran: () => ran };
+}
+
+posix(
+  "approve: a home channel Hermes holds past the client's timeout owes a restart; no other account is approved before it, and the late write never runs after it",
+  () =>
+    within(
+      async ({ fake, core, owe, changes, journal }) => {
+        await core.connect(token);
+        owe(false);
+        fake.state.telegram.runtime = "connected";
+        fake.telegramMessage(person, "jana_s");
+        fake.telegramMessage(stranger, "druhy_ucet");
+        const read = await core.read();
+        const handleOf = (name: string) =>
+          read.state === "waiting"
+            ? (read.requests?.find((request) => request.name === name)
+                ?.request as string)
+            : "";
+        const held = holdOnce(
+          fake,
+          (request) => request.method === "PUT" && request.path === "/api/env",
+        );
+        const before = changes();
+        // A's home channel: no answer in time, so it may still run.
+        expect(await core.approve(handleOf("jana_s"))).toEqual({
+          kind: "unavailable",
+          reason: "timeout",
+        });
+        expect(changes()).toBe(before + 1);
+        expect(journal).toContainEqual({
+          operation: "approve",
+          outcome: "restart-owed",
+          reason: "timeout",
+        });
+        // B before the restart: nothing written, „Připojuje se…“.
+        fake.requests.length = 0;
+        expect(await core.approve(handleOf("druhy_ucet"))).toMatchObject({
+          kind: "telegram",
+          state: "starting",
+          pending: true,
+        });
+        expect(writesOf(fake)).toEqual([]);
+        // The restart ends the gateway that holds A's write; then B.
+        owe(false);
+        fake.restart();
+        expect(await core.approve(handleOf("druhy_ucet"))).toEqual({
+          kind: "telegram",
+          state: "connected",
+          bot: "rex_buddy_bot",
+        });
+        held.release();
+        await Bun.sleep(50);
+        expect(held.ran()).toBe(false);
+        expect(fake.state.telegram).toMatchObject({
+          allowed: stranger,
+          home: stranger,
+        });
+      },
+      undefined,
+      { httpMs: 1_000 },
+    ),
+);
+
+posix(
+  "connect: a token write Hermes holds past the client's timeout owes a restart, and Ano waits for it",
+  () =>
+    within(
+      async ({ fake, core, owe, changes, journal }) => {
+        await core.connect(token);
+        owe(false);
+        fake.state.telegram.runtime = "connected";
+        fake.telegramMessage(person, "jana_s");
+        const read = await core.read();
+        const handle =
+          read.state === "waiting"
+            ? (read.requests?.[0]?.request as string)
+            : "";
+        // Připojit again; Hermes holds the token's write.
+        const held = holdOnce(
+          fake,
+          (request) =>
+            request.method === "PUT" &&
+            request.path === "/api/messaging/platforms/telegram",
+        );
+        const before = changes();
+        expect(await core.connect(otherToken)).toEqual({
+          kind: "unavailable",
+          reason: "timeout",
+        });
+        expect(changes()).toBe(before + 1);
+        expect(journal).toContainEqual({
+          operation: "connect",
+          outcome: "restart-owed",
+          reason: "timeout",
+        });
+        // Ano before the restart: nothing written.
+        fake.requests.length = 0;
+        expect(await core.approve(handle)).toMatchObject({
+          kind: "telegram",
+          state: "starting",
+          pending: true,
+        });
+        expect(writesOf(fake)).toEqual([]);
+        // After it, Ano goes through, and the held token never lands.
+        owe(false);
+        fake.restart();
+        expect(await core.approve(handle)).toEqual({
+          kind: "telegram",
+          state: "connected",
+          bot: "rex_buddy_bot",
+        });
+        held.release();
+        await Bun.sleep(50);
+        expect(held.ran()).toBe(false);
+        expect(fake.state.telegram).toMatchObject({
+          token,
+          allowed: person,
+          home: person,
+        });
+      },
+      undefined,
+      { httpMs: 1_000 },
+    ),
+);
+
 posix(
   "approve: a request that expires between the list and the approval leaves nothing to approve; the account is allowed",
   () =>

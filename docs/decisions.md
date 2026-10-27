@@ -20670,7 +20670,10 @@ enough for anyone's mother.
      stays: `node:http` without a proxy, loopback, no `Origin`, a ticket per call, and only a
      401 (Hermes authenticates before any route runs, so nothing ran) sends the same body once
      more with a new ticket; nothing else is ever sent twice. This amends F63 point 2 ("a body
-     is never sent").
+     is never sent"). A failure after the request was handed to Hermes (no answer within the
+     client's 15 seconds, a connection cut, an answer too large) is marked `uncertain`: it may
+     still run there. Nothing listening, a refused ticket and Hermes's own "not ready" answer
+     are clear, since nothing ran (point 13).
 4. **The person's account.** A bot with a token and no allowlist answers an unknown account
    with Hermes's pairing code and lets nothing through (`gateway/config.py:645`
    `unauthorized_dm_behavior` "pair", `gateway/authz_mixin.py:716-758`). The page lists the
@@ -20768,10 +20771,11 @@ enough for anyone's mother.
      request the old gateway held either ran before it stopped or never runs.
    - **"Ano, to jsem já" only after the restart.** The page offers it only then (point 7: a
      restart owed reads `starting`). A page from before the change, in another tab, still
-     shows it, so the core checks it too. While a restart the last change owes is not done,
-     the approval writes nothing and answers Telegram's state as it is, `starting`, which the
-     page shows as „Připojuje se…“. The journal says `approve` `pending` `restart-owed`. Once
-     the restart is done, the same "Ano" goes through. (The Buddy lead, 2026-10-27.)
+     shows it, so the core checks it too. While a restart is owed, by the last change or by a
+     write that ended without a clear answer (point 13), the approval writes nothing and
+     answers Telegram's state as it is, `starting`, which the page shows as „Připojuje se…“.
+     The journal says `approve` `pending` `restart-owed`. Once the restart is done, the same
+     "Ano" goes through. (The Buddy lead, 2026-10-27.)
    - (Reviews of 2026-10-26 and 2026-10-27: such a failure first answered before the restart
      was owed, so the running gateway kept polling the old bot. Then a reading retried the
      DELETE, later under the lock of every change and with a record of its own, and a retry
@@ -20825,7 +20829,8 @@ enough for anyone's mother.
       scalar of `config.yaml` into the gateway's environment (`gateway/run.py:2075-2077`). A persona applied from the Launchpad
       (Začínáme, Nastavení → Buddy, or a refresh it owes) writes them again while the bot's
       record says it was connected from here, and only when the words changed. That write never
-      holds the apply up and never restarts anything.
+      holds the apply up, and restarts nothing unless it ends without a clear answer (point
+      13).
     - **Feature detection.** F63's client takes a `capability` a call needs: a gateway whose
       `identify` does not list it is not asked (`outdated`), as `requireContract` does for the
       sign-in. An older Hermes (`v0.22.4-lazurio.3` lists none) therefore gets no write and
@@ -20833,6 +20838,25 @@ enough for anyone's mother.
       asked, or words that cannot be read change nothing else either. The journal says which:
       `pairing-text` `written`, `outdated`, `failed`, `unavailable` with the gateway's reason,
       or `unknown`.
+13. **A write without a clear answer owes a restart.** Hermes runs a write in a thread of the
+    gateway (`scoped_to_thread`, `hermes_cli/web_routers/config_env.py:328-349`), and the
+    client giving up does not stop it. So a write that timed out may still run later, after a
+    newer one. For example, an approval's home channel for account A could land after account
+    B was approved on the same gateway, so the allowlist names B and the home channel A while
+    the state reads connected (the reviewer's finding of 2026-10-27).
+    - Every Telegram write the core makes is covered: the connect's token, quiet keys and
+      words, an approval's home channel, Hermes's approval and the allowlist, a persona's
+      words, and the disconnect's off write. When one ends `uncertain` (point 3), the core
+      records a restart as owed through F64's controller (point 6), as a change does. The
+      journal says `restart-owed` with the reason.
+    - The restart ends the gateway that may still run it: such a write either ran before that
+      gateway stopped or never runs. Until then no approval goes on (point 8), so the next one
+      reaches a gateway that started after it.
+    - The disconnect's one DELETE needs nothing more: its restart is owed before it is sent
+      (point 8).
+    - A gateway without a systemd unit is the exception: no restart is owed there, so there
+      is no such guarantee (the limits below).
+    - (The Buddy lead, 2026-10-27, the reviewer's second option.)
 
 **Not decided here.** Hermes's reply to a sender it rate-limits (three requests already
 pending) stays its own English. Hermes's card names no bot username; the name getMe gave,
@@ -20871,6 +20895,9 @@ now, and "Je to váš účet …?" stays (the Buddy lead, 2026-10-26). The insta
 | A DELETE conditional on the value it expects | Would close any late DELETE in Hermes itself, but its writer takes only the key (`hermes_cli/web_models.py:26-28`): a fork change, not taken now; the one DELETE cannot overtake an approval (point 8) |
 | Leave the home channel at Odpojit without asking | Inert while Telegram is off, but a reconnect's restart attaches it to the new bot until the approval (`plugins/platforms/telegram/gateway_env.py:18`); rejected for one DELETE in the disconnect's own flow, and a leftover only where Hermes did not remove it |
 | Drop the restart when systemd does not answer | Lost until another change or a Launchpad restart; rejected for keeping it owed and asking later and later |
+| A conditional or ordered write in Hermes (the value it expects, or a sequence number it checks) | Would make a late write harmless in Hermes itself, but its writers take neither: a fork change for every writer, not taken now; a restart reaches the same with what exists (point 13) |
+| A longer timeout | Hermes may hold a write longer than any timeout, and the page would wait that long; rejected |
+| Serializing only the HTTP exchange (the core's lock) | The lock is let go when the client gives up, while Hermes may still run the write; rejected for the restart an uncertain write owes |
 
 **Verified by** `tests/buddy-hermes-gateway.test.ts`: a named write carries its JSON body as
 `application/json` with its exact length and the same grant (one ticket, no `Origin`, no
@@ -20913,7 +20940,14 @@ DELETE ever reached Hermes. A home channel Hermes refuses to remove (500) stayin
 reading asks again, with or without a token saved elsewhere, and the next approval writing
 over it. Both fail on the code with a reading's retry. An approval from a page from before a
 second Připojit, while its restart is owed, writing nothing and answering `starting`, then
-going through after the restart; it fails without the check.
+going through after the restart; it fails without the check. The reviewer's second race: account
+A's home channel held by Hermes past the client's timeout owing a restart, account B's approval
+before it writing nothing and answering `starting`, then after the restart B approved, with the
+allowlist and the home channel both B, and A's held write never running. A connect whose token
+Hermes holds past the timeout owing a restart that "Ano" waits for. Both fail on the code before
+the rule. `tests/buddy-hermes-gateway.test.ts`: no answer in time, a connection cut after the
+request and an answer too large are `uncertain`; nothing listening, Hermes's own "not ready"
+and a refused ticket are not.
 `tests/buddy-telegram-restart.test.ts`: one restart while idle and none owed after; busy and
 no answer waiting, two changes needing one restart; two minutes after any start; a start by
 anyone settling it; a stopped gateway and a gateway with no unit owing nothing; systemd not
@@ -20965,11 +20999,11 @@ Nastavení → Buddy not connected, waiting and connected, and Odpojit; no error
   nepřijímá" until the person connects it again.
 - Two tabs are one Launchpad: its operations run one at a time, and its restart under F64's
   turn. No CLI changes Telegram.
-- The disconnect's one DELETE may still run in Hermes after the client gave up on it; it ends
-  with the gateway that took it, at the restart the disconnect owes. An approval waits for the
-  restart its reconnect owes (point 8), so only a gateway without a systemd unit, where no
-  restart is ever owed, is outside this; only a DELETE that takes the value it expects (a fork
-  change) would cover that too.
+- A write that ended without a clear answer, the disconnect's one DELETE among them, may
+  still run in Hermes after the client gave up on it. It ends with the gateway that took it, at
+  the restart it owes (points 8 and 13), and no approval goes on before that restart. Only a
+  gateway without a systemd unit, where no restart is ever owed, is outside this. Only writes
+  that take the value they expect (a fork change) would cover that too.
 - A home channel a disconnect could not remove stays. Until the restart the disconnect owes,
   the old bot still runs, as after every disconnect, so a home-channel delivery of Hermes (a
   cron job's) could still reach the person's own chat then. After a reconnect and its
