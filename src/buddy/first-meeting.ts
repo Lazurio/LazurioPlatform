@@ -221,12 +221,14 @@ export function createFirstMeeting(
     run: ToolRunner;
     journal?: FirstMeetingJournal | undefined;
     now?: (() => Date) | undefined;
-    /** Tests only: the record's writer. */
+    /** Tests only: the record's reader and writer. */
+    read?: typeof readFirstMeeting | undefined;
     write?: typeof writeFirstMeeting | undefined;
   }>,
 ) {
   const now = input.now ?? (() => new Date());
   const journal: FirstMeetingJournal = (entry) => input.journal?.(entry);
+  const read = input.read ?? readFirstMeeting;
   const write = input.write ?? writeFirstMeeting;
   let delivering: Promise<FirstMeetingDelivery> | null = null;
 
@@ -250,7 +252,7 @@ export function createFirstMeeting(
     reason?: string,
   ): Promise<boolean> =>
     exclusive(async () => {
-      const record = await readFirstMeeting(input.home);
+      const record = await read(input.home);
       if (record === null || record.key !== key || record.state !== "owed")
         return false;
       await write(input.home, {
@@ -304,7 +306,7 @@ export function createFirstMeeting(
   async function attempt(
     current: (() => boolean) | undefined,
   ): Promise<FirstMeetingDelivery> {
-    const record = await readFirstMeeting(input.home);
+    const record = await read(input.home);
     if (record === null || record.state !== "owed") return "none";
     const confirmed = Date.parse(record.confirmedAt);
     if (
@@ -326,15 +328,16 @@ export function createFirstMeeting(
       !threadId.test(thread)
     )
       return "waiting";
-    // The lookups above may take long (up to a minute each): an apply that
+    // The text as the record holds it now (a later save may have refreshed
+    // it), only while this turn is still the owed one.
+    const latest = await read(input.home);
+    if (latest === null || latest.key !== record.key || latest.state !== "owed")
+      return latest?.state === "owed" ? "waiting" : "none";
+    // Last, with nothing awaited between it and the send: the lookups and the
+    // read above may take long (up to a minute each), and an apply that
     // started meanwhile, after another save, has not put the persona in
     // place yet, so the turn stays owed for the next apply's greeting.
     if (current !== undefined && !current()) return "waiting";
-    // The text as the record holds it now (a later save may have refreshed
-    // it), only while this turn is still the owed one.
-    const latest = await readFirstMeeting(input.home);
-    if (latest === null || latest.key !== record.key || latest.state !== "owed")
-      return latest?.state === "owed" ? "waiting" : "none";
     const sent = await t3(
       runtime,
       [
@@ -380,7 +383,7 @@ export function createFirstMeeting(
       const confirmedAt = persona.confirmedAt;
       if (confirmedAt === undefined) return false;
       return exclusive(async () => {
-        const before = await readFirstMeeting(input.home);
+        const before = await read(input.home);
         if (before?.confirmedAt === confirmedAt) return false;
         await write(input.home, {
           confirmedAt,
@@ -395,7 +398,7 @@ export function createFirstMeeting(
 
     /** Whether a turn is owed now (its record says so). */
     async owed(): Promise<boolean> {
-      return (await readFirstMeeting(input.home))?.state === "owed";
+      return (await read(input.home))?.state === "owed";
     },
 
     /** A later save, before the turn went: an owed turn of the same
@@ -406,7 +409,7 @@ export function createFirstMeeting(
       locale: PersonaLocale,
     ): Promise<boolean> {
       return exclusive(async () => {
-        const record = await readFirstMeeting(input.home);
+        const record = await read(input.home);
         if (
           record === null ||
           record.state !== "owed" ||

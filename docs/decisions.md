@@ -18956,8 +18956,9 @@ adds to points 1 to 5 above.
      (`lazurio.buddy-first-meeting.v1`, 0600 in 0700, beside F64's records). It sends the turn
      once an apply of the Launchpad's has answered `applied`, so he greets in the names and the
      address just confirmed: never after an apply that failed, was refused or still waits, and
-     every retry of the turn asks again. A delivery under way asks once more right before it
-     hands the turn to T3 Code: an apply that started since (another save) leaves the turn owed.
+     every retry of the turn asks again. A delivery under way asks once more after its last
+     read, with nothing awaited before it hands the turn to T3 Code: an apply that started since
+     (another save) leaves the turn owed.
      A save after the confirmation, before the turn went, gives the owed turn the names and the
      address just saved. The record changes one step at a time in the Launchpad (owed anew,
      refreshed, sent, refused, expired), each step reading and writing it at once, and a

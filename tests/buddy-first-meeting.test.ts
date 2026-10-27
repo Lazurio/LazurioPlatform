@@ -525,6 +525,7 @@ async function launchpad(
   user: string,
   answers: ApplyAnswer[],
   t3 = fakeT3("sent"),
+  meeting: Readonly<{ read?: typeof readFirstMeeting }> = {},
 ) {
   const folder = join(user, "Lazurio");
   await mkdir(dirname(join(folder, buddyRulesPath)), { recursive: true });
@@ -540,7 +541,12 @@ async function launchpad(
     timers: hand.timers,
     answerWithinMs: 1_000,
     firstMeeting: {
-      meeting: createFirstMeeting({ home: user, run: t3.run, now: hand.now }),
+      meeting: createFirstMeeting({
+        home: user,
+        run: t3.run,
+        now: hand.now,
+        ...meeting,
+      }),
       locale: async () => "cs",
     },
   });
@@ -796,6 +802,98 @@ function heldWrites() {
     release: () => release(),
   };
 }
+
+/** The record's reader, whose next read waits until `release`. */
+function heldReads() {
+  let hold = false;
+  let waiting = false;
+  let release = () => {};
+  const read = async (user: string) => {
+    if (hold) {
+      hold = false;
+      waiting = true;
+      await new Promise<void>((resolve) => {
+        release = () => {
+          waiting = false;
+          resolve();
+        };
+      });
+    }
+    return readFirstMeeting(user);
+  };
+  return {
+    read,
+    holdNext: () => {
+      hold = true;
+    },
+    waiting: async () => waiting,
+    release: () => release(),
+  };
+}
+
+/** The fake T3 Code that, once its first thread lookup answered, holds the
+ * record's next read: the delivery's last read before it sends. */
+function lookupThenHold(
+  t3: ReturnType<typeof fakeT3>,
+  reads: ReturnType<typeof heldReads>,
+) {
+  let armed = true;
+  const run: ToolRunner = async (command, timeout, env, options) => {
+    const result = await t3.run(command, timeout, env, options);
+    if (command[1] === "lazurio" && armed) {
+      armed = false;
+      reads.holdNext();
+    }
+    return result;
+  };
+  return { ...t3, run };
+}
+
+posix(
+  "the apply's generation is asked after the delivery's last read, right before it sends: a save meanwhile whose apply fails leaves the turn owed with no send until an apply answers applied",
+  async () => {
+    await home(async (user) => {
+      await mkdir(dirname(personaPath(user)), { recursive: true, mode: 0o700 });
+      await writePersona(user, values, null);
+      const reads = heldReads();
+      const t3 = lookupThenHold(fakeT3("sent"), reads);
+      const { save, hand, fake } = await launchpad(
+        user,
+        ["applied", "failed", "applied"],
+        t3,
+        { read: reads.read },
+      );
+      await save.save(
+        { ...values, confirm: true },
+        await sha256(personaPath(user)),
+      );
+      await until(reads.waiting);
+      // The delivery holds its last read; the person switches to vy, and
+      // that save's apply fails.
+      await save.save(
+        { ...values, address: "vy" },
+        await sha256(personaPath(user)),
+      );
+      await settle();
+      expect(fake.calls()).toBe(2);
+      reads.release();
+      await settle();
+      expect(t3.sends().length).toBe(0);
+      expect((await readFirstMeeting(user))?.state).toBe("owed");
+      await hand.pass(10_000);
+      expect(t3.sends().length).toBe(0);
+      // The failed apply's retry applies: the turn goes once, in vy.
+      await hand.pass(personaFailedRetryMs);
+      expect(fake.calls()).toBe(3);
+      await until(sentRecord(user));
+      expect(t3.sends().length).toBe(1);
+      const read = await readPersona(user);
+      if (read.state !== "valid") throw new Error("a persona");
+      expect(t3.sends()[0]?.stdin).toBe(firstMeetingText(read.persona, "cs"));
+      save.close();
+    });
+  },
+);
 
 posix(
   "the record changes one step at a time: a refresh held over a delivery's end leaves the turn sent, and one held over a newer confirmation leaves the newer turn owed",
