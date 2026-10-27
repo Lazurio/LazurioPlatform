@@ -4,6 +4,7 @@ import {
   adoptedHandoverFolder,
   initializeHandoverFolder,
 } from "../folder/initialize-folder";
+import { FolderOperationBusyError } from "../folder/lock";
 import type { MachineBinding } from "../folder/machine-binding";
 import { executionOs } from "../folder/platform";
 import {
@@ -89,7 +90,13 @@ the edited path (owned files are never overwritten), preset-derivation-changed
 preset the handover derives), template-upgrade-required (a newer product rendered the Folder;
 nothing is downgraded), or a machine-context-* code. Exit 1 is an
 operation failure; an interrupted refresh is completed with
-profile-resume --folder <Folder> --target-revision <n>.`;
+profile-resume --folder <Folder> --target-revision <n>.
+Every outcome of folder-init, folder-refresh and inspect is exactly one JSON
+object on stdout; text for people goes to stderr. A Folder whose lock another
+Lazurio operation still holds after the adoption check waited answers
+{"kind":"blocked","reason":"folder-busy","retryable":true} with exit 2, nothing
+changed: the same command may simply be run again. Any other failure answers
+{"kind":"failed","reason":"internal"} with exit 1.`;
 
 const choices = {
   locale: ["cs", "en"],
@@ -209,19 +216,44 @@ export async function runMachineCommand(
       result: { ...result, machineContextDigest: observed.digest },
     };
   } catch (error) {
-    if (error instanceof FolderAdoptionError)
-      return { code: 2, result: describeFolderAdoption(error) };
-    if (error instanceof MachineContextError)
-      return {
-        code: 2,
-        result: {
-          kind: "blocked",
-          reason: error.code,
-          next: "Ask the operator who hosts this Remote Environment to verify the handover; do not edit the identity file or reset product trust.",
-        },
-      };
-    throw error;
+    return machineFailureAnswer(error);
   }
+}
+
+// Every failure of folder-init, folder-refresh and inspect is one JSON answer
+// too, because Lazurio Machines reads exactly one (issue #655). A busy Folder
+// is named as retryable; anything unexpected names nothing it read, as the
+// CLI's own failure text does, and says only that the operation failed.
+export function machineFailureAnswer(error: unknown) {
+  if (error instanceof FolderAdoptionError)
+    return { code: 2, result: describeFolderAdoption(error) };
+  if (error instanceof MachineContextError)
+    return {
+      code: 2,
+      result: {
+        kind: "blocked" as const,
+        reason: error.code,
+        next: "Ask the operator who hosts this Remote Environment to verify the handover; do not edit the identity file or reset product trust.",
+      },
+    };
+  if (error instanceof FolderOperationBusyError)
+    return {
+      code: 2,
+      result: {
+        kind: "blocked" as const,
+        reason: "folder-busy" as const,
+        retryable: true as const,
+        next: "Another Lazurio operation holds this Folder; run the same command again in a moment. Nothing was changed.",
+      },
+    };
+  return {
+    code: 1,
+    result: {
+      kind: "failed" as const,
+      reason: "internal" as const,
+      next: "The Folder operation failed and its state may require recovery; no automatic retry or cleanup was performed.",
+    },
+  };
 }
 
 // What `machine inspect` prints: the validated handover exactly as written,
