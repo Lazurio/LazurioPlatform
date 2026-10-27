@@ -20617,6 +20617,10 @@ enough for anyone's mother.
    - "Seznamte se s Buddym" ends with Připojit Telegram beside Teď ne (F65 point 4 had Teď ne
      alone). It closes that dialog and opens **Připojit Telegram**; the step is done before
      it and never waits for Telegram. Once his bot is connected, the screen says so.
+     Opened from there, Připojit Telegram is part of the meeting: however it closes
+     (Hotovo, Zavřít, Escape), the meeting ends as Teď ne ends it (F60's addendum of
+     2026-10-26), and Buddy's window opens with his first message, as in the approved
+     prototype (prototypes-lazurio #92). Opened from Kanály, closing it ends nothing.
    - The step gets the optional part Telegram (volitelné) with the same state (F65 left it
      for "the part arriving with its state"); it never decides whether the step is done.
    - Připojit Telegram is the wireframe's dialog (prototypes-lazurio #90,

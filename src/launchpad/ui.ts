@@ -815,6 +815,7 @@ const telegramDialog = createTelegramDialog({
   connect: (token) => buddyClient.connectTelegram(token),
   approve: (request) => buddyClient.approveTelegram(request),
   closed: () => drawBuddy(),
+  meetingOver: () => meetingFinished(),
 });
 const buddyDialog = createBuddyDialog({
   copy: () => copy,
@@ -841,13 +842,17 @@ const buddyDialog = createBuddyDialog({
   // the dialog while it shows where he is, and his window opens once the
   // meeting is over, as the person's own click would open it.
   spotlight: (on) => buddyElement()?.spotlight(on),
-  finished: () => {
-    firstRun();
-    buddyElement()?.openWindow();
-  },
+  finished: () => meetingFinished(),
   closed: () => firstRun(),
-  telegram: () => telegramDialog.open(),
+  telegram: () => telegramDialog.open(undefined, "meeting"),
 });
+/** The meeting with Buddy is over ("Teď ne", Hotovo, or Telegram's dialog
+ * it opened, closed): the page draws again and his window opens, where his
+ * first message comes, as the person's own click would open it. */
+function meetingFinished() {
+  firstRun();
+  buddyElement()?.openWindow();
+}
 /** This page's `<lazurio-buddy>`, Buddy's bubble, once the shell defined it. */
 function buddyElement(): Readonly<{
   spotlight(on: boolean): void;
@@ -883,8 +888,8 @@ const buddyPanel = createBuddyPanel({
   signOut: () => buddyClient.signOut(),
   save: (draft) => buddyClient.savePersona(draft, false, locale),
   telegram: {
-    open: () => telegramDialog.open("botfather"),
-    resume: () => telegramDialog.open("start"),
+    open: () => telegramDialog.open("botfather", "channels"),
+    resume: () => telegramDialog.open("start", "channels"),
     disconnect: () => buddyClient.disconnectTelegram(),
   },
 });

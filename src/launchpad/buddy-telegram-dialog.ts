@@ -32,6 +32,12 @@ type Copy = Readonly<Record<MessageKey, string>>;
 //      account that wrote to it. Připojuje se… while Buddy's gateway takes
 //      it in, without an error when Telegram makes it wait.
 //
+// Opened from the meeting's last screen, it is part of the meeting: however
+// it closes (Hotovo once his bot is connected, Zavřít, Escape), the meeting
+// ends as "Teď ne" ends it, and his window opens with his first message
+// (the approved prototype, prototypes-lazurio #92). Opened from Nastavení →
+// Buddy → Kanály, closing it ends nothing.
+//
 // The token is never kept: the field is the only place the page holds it,
 // and it is emptied before the answer comes. Every value is drawn with
 // textContent; the bot's code only as the server's own QR drawing.
@@ -66,6 +72,10 @@ const spinner = () => {
 /** BotFather, as Telegram opens him. */
 export const botFatherUrl = "https://t.me/BotFather";
 
+/** Where the dialog was opened from: the meeting's last screen, or
+ * Nastavení → Buddy → Kanály. */
+export type TelegramEntry = "meeting" | "channels";
+
 export function createTelegramDialog(
   options: Readonly<{
     copy: () => Copy;
@@ -74,6 +84,9 @@ export function createTelegramDialog(
     approve: (request: string) => Promise<TelegramApproveResult>;
     /** The dialog closed: the page draws again. */
     closed: () => void;
+    /** It closed after the meeting's last screen opened it: the meeting
+     * ends, as with "Teď ne". */
+    meetingOver: () => void;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -93,6 +106,8 @@ export function createTelegramDialog(
   let approving: string | null = null;
   let line: string | null = null;
   let drawn: string | null = null;
+  // Where this visit was opened from: every open says it.
+  let entry: TelegramEntry = "channels";
   // The token's field of this visit, read and emptied as it is sent.
   let field: HTMLInputElement | null = null;
 
@@ -414,12 +429,14 @@ export function createTelegramDialog(
     drawn = null;
     line = null;
     options.closed();
+    if (entry === "meeting") options.meetingOver();
   });
 
   return Object.freeze({
     /** Opens where his Telegram stands: Start while it starts or waits,
-     * else BotFather. */
-    open(at?: TelegramStep) {
+     * else BotFather. `from` says what its close ends. */
+    open(at: TelegramStep | undefined, from: TelegramEntry) {
+      entry = from;
       step = at ?? telegramFirstStep(options.telegram());
       line = null;
       approving = null;

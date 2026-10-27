@@ -261,7 +261,8 @@ export function createBuddyDialog(
     finished: () => void;
     /** The dialog closed: the page draws again (its tour comes back). */
     closed: () => void;
-    /** "Připojit Telegram": this dialog closes and that one opens. */
+    /** "Připojit Telegram": this dialog closes and that one opens; its
+     * close ends the meeting. */
     telegram: () => void;
   }>,
 ) {
