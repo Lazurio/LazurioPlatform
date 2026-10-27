@@ -3,14 +3,19 @@ import {
   createTelegramDialog,
   type TelegramEntry,
 } from "../src/launchpad/buddy-telegram-dialog";
-import type { TelegramReading } from "../src/launchpad/buddy-view";
+import type {
+  TelegramConnectResult,
+  TelegramReading,
+} from "../src/launchpad/buddy-view";
 import { messages } from "../src/launchpad/messages";
 
 // "Připojit Telegram" opened from the meeting's last screen is part of the
 // meeting (decision F66 with F60's addendum of 2026-10-26, the approved
 // prototype prototypes-lazurio #92): however it closes, the meeting ends as
 // "Teď ne" ends it, and his window opens. Opened from Nastavení → Buddy →
-// Kanály, closing it ends nothing. The dialog runs on a small stand-in for
+// Kanály, closing it ends nothing. While a write to Hermes is in doubt, a
+// connect waits (F66 point 13): only the dialog keeps its token, and sends it
+// once when a reading says `retry`. The dialog runs on a small stand-in for
 // the page's DOM, enough for what it draws; the browser closes it by itself
 // on Escape.
 
@@ -25,6 +30,7 @@ class FakeNode {
   readonly dataset: Record<string, string> = {};
   textContent = "";
   className = "";
+  value = "";
   open = false;
   constructor(readonly tagName: string) {}
   setAttribute(name: string, value: string) {
@@ -54,6 +60,10 @@ class FakeNode {
     this.dispatch("click");
   }
   focus() {}
+  /** Lines found by class are not looked for here. */
+  querySelector() {
+    return null;
+  }
   showModal() {
     this.open = true;
   }
@@ -84,7 +94,11 @@ afterEach(() => {
 const cs = messages("cs");
 
 /** The dialog on the stand-in, with what its closes led to. */
-function page(reading: TelegramReading) {
+function page(
+  reading: TelegramReading,
+  connect: (token: string) => Promise<TelegramConnectResult> = async () =>
+    ({ kind: "invalid" }) as never,
+) {
   const byId = new Map<string, FakeNode>();
   const node = (selector: string) => {
     let found = byId.get(selector);
@@ -104,7 +118,7 @@ function page(reading: TelegramReading) {
   const dialog = createTelegramDialog({
     copy: () => cs,
     telegram: () => current,
-    connect: async () => ({ kind: "invalid" }) as never,
+    connect,
     approve: async () => ({ kind: "failed" }),
     closed: () => ends.push("closed"),
     meetingOver: () => ends.push("meeting over"),
@@ -126,10 +140,22 @@ function page(reading: TelegramReading) {
     /** Escape: the browser closes the dialog itself. */
     escape: () => node("#buddy-telegram").close(),
     navButton,
+    /** The token's field of this visit. */
+    field: () => {
+      const found = [...node("#buddy-telegram-body").walk()].find(
+        (child) => child.tagName === "input",
+      );
+      if (found === undefined) throw new Error("No token field");
+      return found;
+    },
     /** His Telegram changed while the dialog shows. */
     becomes: (next: TelegramReading) => {
       current = next;
       dialog.render();
+    },
+    /** The reading changed, and nothing draws yet. */
+    takes: (next: TelegramReading) => {
+      current = next;
     },
   };
 }
@@ -193,4 +219,90 @@ test("from Nastavení → Buddy → Kanály, closing it ends nothing, also after
   view.open("channels");
   view.escape();
   expect(view.ends).toEqual(["closed", "closed", "meeting over", "closed"]);
+});
+
+test("a connect that waits for a write in doubt: only the dialog keeps its token, sends it once when the reading asks, and forgets it otherwise", async () => {
+  const token = `${"7".repeat(10)}:AAH${"q".repeat(32)}`;
+  const none: TelegramReading = { state: "none", requests: [], pending: false };
+  const held: TelegramReading = {
+    state: "starting",
+    requests: [],
+    pending: true,
+    held: true,
+  };
+  const asked: TelegramReading = { ...none, retry: true };
+  const turn = () => Bun.sleep(1);
+  /** Připojit with the token pasted, the connect answering `answers` in turn
+   * ("saved" after them). */
+  async function paste(answers: TelegramConnectResult[]) {
+    const sent: string[] = [];
+    // The client takes the answer in as the reading before it says "held".
+    const view: ReturnType<typeof page> = page(none, async (value) => {
+      sent.push(value);
+      const answer = answers.shift() ?? { kind: "saved" };
+      if (answer.kind === "held") view.takes(held);
+      return answer;
+    });
+    view.open("channels");
+    view.navButton(cs.telegramBotCreated).click();
+    const field = view.field();
+    field.value = token;
+    view.navButton(cs.telegramConnect).click();
+    await turn();
+    // The field holds it no longer than the sending.
+    expect(field.value).toBe("");
+    // Read again while it waits.
+    view.becomes(held);
+    await turn();
+    return { view, sent };
+  }
+
+  // Asked once the barrier lifts: sent again, once.
+  {
+    const { view, sent } = await paste([{ kind: "held" }]);
+    expect(sent).toEqual([token]);
+    view.becomes(asked);
+    await turn();
+    view.becomes(asked);
+    await turn();
+    expect(sent).toEqual([token, token]);
+  }
+  // Waiting again on its way: kept, and sent at the next ask.
+  {
+    const { view, sent } = await paste([{ kind: "held" }, { kind: "held" }]);
+    view.becomes(asked);
+    await turn();
+    view.becomes(asked);
+    await turn();
+    expect(sent).toEqual([token, token, token]);
+  }
+  // A reading without the ask (a later disconnect, or its time gone):
+  // forgotten, and never sent after.
+  {
+    const { view, sent } = await paste([{ kind: "held" }]);
+    view.becomes({ ...none, pending: true });
+    await turn();
+    view.becomes(asked);
+    await turn();
+    expect(sent).toEqual([token]);
+  }
+  // The dialog closed meanwhile: forgotten.
+  {
+    const { view, sent } = await paste([{ kind: "held" }]);
+    view.cross();
+    view.open("channels");
+    view.becomes(asked);
+    await turn();
+    expect(sent).toEqual([token]);
+  }
+  // Refused when sent again: back to the token's step, and nothing kept.
+  {
+    const { view, sent } = await paste([{ kind: "held" }, { kind: "refused" }]);
+    view.becomes(asked);
+    await turn();
+    expect(view.field().value).toBe("");
+    view.becomes(asked);
+    await turn();
+    expect(sent).toEqual([token, token]);
+  }
 });

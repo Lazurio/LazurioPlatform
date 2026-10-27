@@ -1207,6 +1207,8 @@ export async function startLaunchpad(
     },
     journal: (line) =>
       console.log(JSON.stringify({ scope: "buddy-telegram", ...line })),
+    // What waited for a write in doubt goes on once its restart is made.
+    cleared: (why) => buddyTelegram.cleared(why),
   });
   const buddyTelegram = createBuddyTelegram({
     gateway: buddyGateway,
@@ -1214,6 +1216,8 @@ export async function startLaunchpad(
     owed: () => buddyTelegramRestart.owed(),
     restartedRecently: () => buddyTelegramRestart.restartedRecently(),
     changed: () => buddyTelegramRestart.changed(),
+    uncertain: () => buddyTelegramRestart.uncertain(),
+    blocked: () => buddyTelegramRestart.blocked(),
     checkBot: hostedOptions.telegramBot,
     // His words to an account his bot does not know yet: his persona's name
     // and address in the Folder's language, as his SOUL.md has them; Buddy

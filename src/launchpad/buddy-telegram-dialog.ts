@@ -38,6 +38,11 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // (the approved prototype, prototypes-lazurio #92). Opened from Nastavení →
 // Buddy → Kanály, closing it ends nothing.
 //
+// While a write to Hermes is in doubt, a connect waits ("held"): only this
+// dialog keeps its token, in memory, and sends it once more when the reading
+// says `retry`; a reading without it (a later disconnect, or the time for it
+// gone) forgets it, and so does closing the dialog.
+//
 // The token is never kept: the field is the only place the page holds it,
 // and it is emptied before the answer comes. Every value is drawn with
 // textContent; the bot's code only as the server's own QR drawing.
@@ -110,6 +115,8 @@ export function createTelegramDialog(
   let entry: TelegramEntry = "channels";
   // The token's field of this visit, read and emptied as it is sent.
   let field: HTMLInputElement | null = null;
+  // The token of a connect that waits for a write in doubt, in memory only.
+  let waiting: string | null = null;
 
   const button = (
     label: string,
@@ -225,7 +232,8 @@ export function createTelegramDialog(
     drawNav();
     const result = await options.connect(token);
     sending = false;
-    if (result.kind === "saved") {
+    if (result.kind === "held") waiting = token;
+    if (result.kind === "saved" || result.kind === "held") {
       move("start");
       return;
     }
@@ -394,8 +402,34 @@ export function createTelegramDialog(
     );
   }
 
+  /** The connect that waited: sent once more when the reading invites it,
+   * forgotten when it no longer can. */
+  function resume() {
+    const token = waiting;
+    const reading = options.telegram();
+    if (token === null || sending || reading === undefined || reading.held)
+      return;
+    waiting = null;
+    if (reading.retry !== true) return;
+    sending = true;
+    void options.connect(token).then((result) => {
+      sending = false;
+      if (result.kind === "held") waiting = token;
+      else if (result.kind !== "saved") {
+        // Refused now: the person pastes it again, with the reason.
+        move("token");
+        line = telegramConnectLine(result, options.copy());
+        const status = body.querySelector<HTMLElement>(".telegram-token-line");
+        if (status) status.textContent = line ?? "";
+        return;
+      }
+      render();
+    });
+  }
+
   function render() {
     if (!dialog.open) return;
+    resume();
     const copy = options.copy();
     title.textContent = copy.telegramDialogTitle;
     close.setAttribute("aria-label", copy.toolsClose);
@@ -426,6 +460,7 @@ export function createTelegramDialog(
     // Nothing of a token stays behind the dialog.
     if (field !== null) field.value = "";
     field = null;
+    waiting = null;
     drawn = null;
     line = null;
     options.closed();

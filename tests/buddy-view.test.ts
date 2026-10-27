@@ -874,6 +874,22 @@ test("Telegram of an answer: only its states, a bot's name, the page's handles; 
   });
   for (const value of [null, {}, { state: "linked" }, []])
     expect(parseTelegram(value)).toEqual(unknownTelegram);
+  // A connect that waits for a write in doubt, and the page asked for its
+  // token: only as true.
+  expect(
+    parseTelegram({ state: "starting", pending: true, held: true }),
+  ).toEqual({ state: "starting", requests: [], pending: true, held: true });
+  expect(parseTelegram({ state: "none", retry: true })).toEqual({
+    state: "none",
+    requests: [],
+    pending: false,
+    retry: true,
+  });
+  expect(parseTelegram({ state: "none", held: "yes", retry: 1 })).toEqual({
+    state: "none",
+    requests: [],
+    pending: false,
+  });
   // A reading names it where the Launchpad says it.
   expect(
     parseBuddyReading({

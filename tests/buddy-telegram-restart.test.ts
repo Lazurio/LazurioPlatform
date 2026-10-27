@@ -3,14 +3,17 @@ import { lstat, mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { ActiveWork } from "../src/buddy/gateway-refresh";
+import { writeBuddyStateFile } from "../src/buddy/gateway-refresh";
 import { applyLockPath } from "../src/buddy/persona-apply";
 import {
   createTelegramRestart,
   markTelegramChanged,
+  type TelegramFollowUp,
   type TelegramRestartJournalEntry,
   telegramChangedPath,
   telegramRestartRetryMs,
   telegramRestartSpacingMs,
+  telegramUncertainPath,
 } from "../src/buddy/telegram-restart";
 import { acquireFileLock } from "../src/platform/flock";
 import type { ToolRunner } from "../src/tools/status";
@@ -37,7 +40,8 @@ function usUtc(microseconds: bigint): string {
 
 type World = {
   systemd: boolean;
-  unit: "running" | "stopped" | "absent";
+  /** `stopping`: systemd stops it, and its process may still run. */
+  unit: "running" | "stopping" | "stopped" | "absent";
   /** The gateway's main process start, in ms since the epoch. */
   startedAt: number;
   needsReload: boolean;
@@ -47,6 +51,15 @@ type World = {
   calls: string[][];
   /** The clock's offset from the real one. */
   offset: number;
+  /** Runs once the gateway has restarted, within the attempt: a write in
+   * the middle of it. */
+  onRestart?: (() => void) | undefined;
+  /** How far the clock moves while the gateway restarts (ms). */
+  restartTakes: number;
+  /** What the core's follow-up answers, in order; "done" after them. */
+  followUps: ("done" | "again")[];
+  /** Why the follow-up was asked, and when (ms of the test's clock). */
+  followed: { why: TelegramFollowUp; at: number }[];
 };
 
 type Timer = { at: number; callback: () => void; done: boolean };
@@ -74,6 +87,9 @@ async function within(
     work: "idle",
     calls: [],
     offset: 0,
+    followUps: [],
+    followed: [],
+    restartTakes: 0,
   };
   const now = () => Date.now() + world.offset;
   const run: ToolRunner = async (command) => {
@@ -89,12 +105,14 @@ async function within(
           stdout: "LoadState=not-found\nActiveState=inactive\n",
           stderr: "",
         };
+      // A main process, while it runs or systemd stops it.
+      const main = world.unit === "running" || world.unit === "stopping";
       return {
         exitCode: 0,
         stdout: [
           "LoadState=loaded",
-          `ActiveState=${world.unit === "running" ? "active" : "inactive"}`,
-          `ExecMainStartTimestamp=${world.unit === "running" ? usUtc(BigInt(world.startedAt) * 1000n) : ""}`,
+          `ActiveState=${{ running: "active", stopping: "deactivating", stopped: "inactive" }[world.unit]}`,
+          `ExecMainStartTimestamp=${main ? usUtc(BigInt(world.startedAt) * 1000n) : ""}`,
           `NeedDaemonReload=${world.needsReload ? "yes" : "no"}`,
         ].join("\n"),
         stderr: "",
@@ -108,6 +126,8 @@ async function within(
       if (!world.restartWorks) return { exitCode: 1, stdout: "", stderr: "" };
       // Its new main process starts after everything written so far.
       world.startedAt = now() + 1;
+      world.offset += world.restartTakes;
+      world.onRestart?.();
       return { exitCode: 0, stdout: "", stderr: "" };
     }
     return { exitCode: 1, stdout: "", stderr: "" };
@@ -118,6 +138,10 @@ async function within(
     home,
     service: { run, env: { HOME: home } },
     activeWork: async () => world.work,
+    cleared: async (why) => {
+      world.followed.push({ why, at: now() });
+      return world.followUps.shift() ?? "done";
+    },
     now,
     journal: (entry) => journal.push(entry),
     timers: {
@@ -403,5 +427,174 @@ posix(
       expect(restarts()).toBe(4);
       // A line only when the outcome changes.
       expect(journal.map((entry) => entry.outcome)).toEqual(["failed", "done"]);
+    }),
+);
+
+// ---- A write in doubt (F66 point 13) -----------------------------------------
+
+posix(
+  "a write in doubt holds the barrier until the restart: blocked, kept on disk, lifted by the restart, and what waited asked once",
+  () =>
+    within(async ({ home, world, restart, restarts }) => {
+      expect(await restart.blocked()).toBe(false);
+      expect(await restart.uncertain()).toBe("recorded");
+      expect(await restart.blocked()).toBe(true);
+      expect(restart.owed()).toBe(true);
+      expect((await lstat(telegramUncertainPath(home))).mode & 0o777).toBe(
+        0o600,
+      );
+      expect(await restart.settled()).toEqual({ state: "done" });
+      expect(restarts()).toBe(1);
+      expect(await restart.blocked()).toBe(false);
+      expect(restart.owed()).toBe(false);
+      for (let turn = 0; turn < 20; turn += 1) await Bun.sleep(1);
+      await expect(lstat(telegramUncertainPath(home))).rejects.toThrow();
+      expect(world.followed.map((entry) => entry.why)).toEqual(["lifted"]);
+    }),
+);
+
+posix(
+  "a write in doubt during an attempt is not lifted by it: the attempt that write asked for decides, after the spacing",
+  () =>
+    within(async ({ world, restart, restarts, advance }) => {
+      // A change asks an attempt; a write ends in doubt as its restart is
+      // made, so it may have reached the new gateway.
+      world.restartTakes = 5;
+      world.onRestart = () => {
+        world.onRestart = undefined;
+        void restart.uncertain();
+      };
+      expect(await restart.changed()).toBe("recorded");
+      await restart.settled();
+      for (let turn = 0; turn < 50; turn += 1) await Bun.sleep(1);
+      expect(restarts()).toBe(1);
+      // That restart may have started before the write: still held.
+      expect(await restart.blocked()).toBe(true);
+      expect(restart.owed()).toBe(true);
+      expect(world.followed).toEqual([]);
+      await advance(telegramRestartSpacingMs);
+      expect(restarts()).toBe(2);
+      expect(await restart.blocked()).toBe(false);
+      expect(restart.owed()).toBe(false);
+      expect(world.followed.map((entry) => entry.why)).toEqual(["lifted"]);
+    }),
+);
+
+posix(
+  "what waited is asked again later and later while it answers again (his gateway not ready yet)",
+  () =>
+    within(async ({ world, restart, advance }) => {
+      world.followUps = ["again", "again"];
+      await restart.uncertain();
+      await restart.settled();
+      for (let turn = 0; turn < 20; turn += 1) await Bun.sleep(1);
+      expect(world.followed).toHaveLength(1);
+      // After 15 s, then 30 s after that; done then. (The fixture's clock
+      // moves with real time too: each step keeps a margin.)
+      await advance(telegramRestartRetryMs / 2);
+      expect(world.followed).toHaveLength(1);
+      await advance(telegramRestartRetryMs);
+      expect(world.followed).toHaveLength(2);
+      await advance(telegramRestartRetryMs);
+      expect(world.followed).toHaveLength(2);
+      await advance(2 * telegramRestartRetryMs);
+      expect(world.followed).toHaveLength(3);
+      await advance(15 * 60_000);
+      expect(world.followed).toHaveLength(3);
+    }),
+);
+
+posix(
+  "a Launchpad that starts finds the barrier on disk: blocked before anything is asked, lifted by its first restart",
+  () =>
+    within(async ({ home, world, restart, restarts }) => {
+      // Left by the Launchpad before this one: the write's own record, and
+      // no change's.
+      await writeBuddyStateFile(telegramUncertainPath(home), {
+        schema_version: "lazurio.buddy-telegram-uncertain.v1",
+      });
+      expect(await restart.blocked()).toBe(true);
+      await restart.start();
+      expect(restarts()).toBe(1);
+      expect(await restart.blocked()).toBe(false);
+      for (let turn = 0; turn < 20; turn += 1) await Bun.sleep(1);
+      expect(world.followed.map((entry) => entry.why)).toEqual(["lifted"]);
+    }),
+);
+
+posix(
+  "a Launchpad that starts without a barrier asks what waited once (a disconnect kept across it)",
+  () =>
+    within(async ({ world, restart }) => {
+      await restart.start();
+      for (let turn = 0; turn < 20; turn += 1) await Bun.sleep(1);
+      expect(world.followed.map((entry) => entry.why)).toEqual(["start"]);
+    }),
+);
+
+posix(
+  "a gateway systemd is still stopping may still run the write: asked again, and the barrier lifts once it has stopped",
+  () =>
+    within(async ({ world, restart, restarts, advance, journal }) => {
+      world.unit = "stopping";
+      expect(await restart.uncertain()).toBe("recorded");
+      expect(await restart.settled()).toEqual({
+        state: "pending",
+        reason: "stopping",
+      });
+      expect(await restart.blocked()).toBe(true);
+      expect(restart.owed()).toBe(true);
+      // Stopped: the process that took the write is gone, and whoever
+      // starts the gateway reads the files then.
+      world.unit = "stopped";
+      await advance(telegramRestartRetryMs);
+      expect(restarts()).toBe(0);
+      expect(await restart.blocked()).toBe(false);
+      expect(world.followed.map((entry) => entry.why)).toEqual(["lifted"]);
+      expect(journal.map((entry) => entry.outcome)).toEqual([
+        "pending",
+        "none",
+      ]);
+    }),
+);
+
+posix(
+  "repeated: each write in doubt raises the barrier again and each lift asks once; a gateway someone else started after the write's record lifts it with no restart of ours",
+  () =>
+    within(async ({ world, restart, restarts, advance }) => {
+      await restart.uncertain();
+      expect(await restart.settled()).toEqual({ state: "done" });
+      expect(await restart.blocked()).toBe(false);
+      // A second one, a write's timeout later, within the spacing: its
+      // restart waits for the spacing.
+      await advance(5_000);
+      await restart.uncertain();
+      expect(await restart.settled()).toEqual({
+        state: "pending",
+        reason: "spacing",
+      });
+      expect(await restart.blocked()).toBe(true);
+      // F64's apply restarts the gateway meanwhile, after the record.
+      await advance(1_000);
+      world.startedAt = Date.now() + world.offset;
+      await advance(telegramRestartRetryMs);
+      expect(restarts()).toBe(1);
+      expect(await restart.blocked()).toBe(false);
+      // A third: its own restart after the spacing, its own lift.
+      await advance(5_000);
+      await restart.uncertain();
+      expect(await restart.settled()).toEqual({
+        state: "pending",
+        reason: "spacing",
+      });
+      expect(await restart.blocked()).toBe(true);
+      await advance(telegramRestartSpacingMs);
+      expect(restarts()).toBe(2);
+      expect(await restart.blocked()).toBe(false);
+      expect(world.followed.map((entry) => entry.why)).toEqual([
+        "lifted",
+        "lifted",
+        "lifted",
+      ]);
     }),
 );

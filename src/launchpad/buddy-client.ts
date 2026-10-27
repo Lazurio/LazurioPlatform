@@ -391,7 +391,7 @@ export function createBuddyClient(
       if (!isRecord(value)) return { kind: "failed" };
       if (answer.ok && value.kind === "telegram") {
         installTelegram(parseTelegram(value));
-        return { kind: "saved" };
+        return value.held === true ? { kind: "held" } : { kind: "saved" };
       }
       if (value.error === "invalid-token") return { kind: "invalid" };
       if (value.error === "buddy-unavailable") return { kind: "unavailable" };

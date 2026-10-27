@@ -40,6 +40,12 @@ export type TelegramReading = Readonly<{
   botQr?: string;
   requests: readonly Readonly<{ request: string; name: string }>[];
   pending: boolean;
+  /** A write in doubt waits for Buddy's gateway to restart: nothing is
+   * written until then. */
+  held?: true;
+  /** The connect that waited may go now: the page that keeps its token
+   * sends it once more. */
+  retry?: true;
 }>;
 
 /** What `GET /api/buddy` answers, as the page reads it. */
@@ -107,7 +113,7 @@ const requestShape = /^[0-9a-f]{32}$/;
  * only with the page's handle of it and a name of at most 64 characters. */
 export function parseTelegram(value: unknown): TelegramReading {
   if (!isRecord(value)) return unknownTelegram;
-  const { state, reason, bot, botQr, requests, pending } = value;
+  const { state, reason, bot, botQr, requests, pending, held, retry } = value;
   if (typeof state !== "string" || !telegramStates.has(state))
     return unknownTelegram;
   const asked = Array.isArray(requests)
@@ -133,6 +139,8 @@ export function parseTelegram(value: unknown): TelegramReading {
     ...(typeof botQr === "string" ? { botQr } : {}),
     requests: Object.freeze(asked),
     pending: pending === true,
+    ...(held === true ? { held: true as const } : {}),
+    ...(retry === true ? { retry: true as const } : {}),
   });
 }
 
@@ -1207,6 +1215,10 @@ export const looksLikeBotToken = (text: string): boolean =>
 /** What a connect answered, as the page says it. */
 export type TelegramConnectResult =
   | Readonly<{ kind: "saved" }>
+  /** Nothing written yet: a write in doubt waits for Buddy's gateway to
+   * restart, and the page sends the token once more when the reading says
+   * `retry`. */
+  | Readonly<{ kind: "held" }>
   /** Not a token of a bot's shape. */
   | Readonly<{ kind: "invalid" }>
   /** Telegram does not know the token. */
@@ -1224,6 +1236,7 @@ export function telegramConnectLine(
 ): string | null {
   switch (result.kind) {
     case "saved":
+    case "held":
       return null;
     case "invalid":
       return copy.telegramTokenShape;

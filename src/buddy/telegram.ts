@@ -10,6 +10,7 @@ import type {
   GatewayResult,
   HermesGateway,
 } from "./hermes-gateway";
+import type { TelegramFollowUp } from "./telegram-restart";
 
 // Buddy on Telegram (decision F66, plan DEV-6676 PR 5; root decision 0207
 // with its addendum of 2026-10-18: every Buddy has his own bot, which his
@@ -93,6 +94,15 @@ import type {
 //   stays. While Telegram is off it is inert (no token, no allowlist, the
 //   platform off), and the next approval writes its own over it. Everything
 //   else here takes effect at once.
+// - A write that ends without a clear answer may still run in Hermes after
+//   a newer one (F66 point 13). It owes a restart, and until the gateway
+//   that took it is gone no Telegram change goes to Hermes (`blocked`):
+//   Hermes reads these files only when the gateway starts, so nothing is
+//   lost by waiting. The latest change is kept: a connect answers `held`,
+//   and only the page keeps its token, sending it once when a reading says
+//   `retry`; a disconnect is kept in `telegram-intent.json` and made by the
+//   follow-up (`cleared`) after the restart. Either replaces the other; an
+//   approval and his words wait too.
 //
 // Hermes's own words (`message`, `error_message`, `detail`) never leave this
 // module; its answers become a closed state. The journal names the
@@ -418,6 +428,12 @@ export type TelegramStatus = Readonly<{
   requests?: readonly TelegramRequestView[];
   /** A restart that brings the change in waits for Buddy to be idle. */
   pending?: true;
+  /** A write without a clear answer waits for that restart: nothing goes to
+   * Hermes until then, and the latest change waits with it. */
+  held?: true;
+  /** The connect that waited may go now: the page that keeps its token
+   * sends it once more. */
+  retry?: true;
 }>;
 
 /** The state from Hermes's card: a pure function. A restart owed means the
@@ -503,6 +519,44 @@ async function readBotRecord(
   }
 }
 
+// ---- The latest intent while a write is in doubt --------------------------------
+
+/** A disconnect asked while a write was in doubt: done once its restart is.
+ * No secret: `{intent: "disconnect", at}`, 0600 in Buddy's state directory. */
+export const telegramIntentPath = (home: string): string =>
+  join(buddyStateDirectory(home), "telegram-intent.json");
+
+const intentSchema = "lazurio.buddy-telegram-intent.v1";
+
+async function readIntent(home: string): Promise<"disconnect" | null> {
+  try {
+    const handle = await open(
+      telegramIntentPath(home),
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
+    let text: string;
+    try {
+      const info = await handle.stat();
+      if (!info.isFile() || info.size > 4096) return null;
+      text = await handle.readFile("utf8");
+    } finally {
+      await handle.close();
+    }
+    const record: unknown = JSON.parse(text);
+    return isObject(record) &&
+      record.schema_version === intentSchema &&
+      record.intent === "disconnect"
+      ? "disconnect"
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** How long, after the barrier lifted, the page may send the token of the
+ * connect that waited. */
+export const telegramRetryWindowMs = 10 * 60_000;
+
 // ---- The core -------------------------------------------------------------------
 
 export type TelegramJournalEntry = Readonly<{
@@ -547,6 +601,13 @@ export function createBuddyTelegram(
     restartedRecently?: (() => boolean) | undefined;
     /** The change is made in Hermes: its restart is asked for. */
     changed: () => Promise<unknown>;
+    /** A write ended without a clear answer: its restart is owed, and the
+     * barrier holds until it is made. */
+    uncertain: () => Promise<unknown>;
+    /** Whether that barrier holds: no Telegram change goes to Hermes. */
+    blocked: () => Promise<boolean>;
+    /** Tests only: the clock, in milliseconds since the epoch. */
+    now?: (() => number) | undefined;
     /** Tests only: Telegram's word on a token. */
     checkBot?: BotChecker | undefined;
     /** Buddy's words to an account his bot does not know yet: his persona,
@@ -575,6 +636,13 @@ export function createBuddyTelegram(
   // and the gateway starts again after it, Hermes cannot be asked, and the
   // change is on its way, not unknown.
   let intent: "connect" | "disconnect" | null = null;
+  const now = input.now ?? Date.now;
+  // The latest change asked while a write was in doubt; a disconnect is on
+  // disk too (`telegram-intent.json`), a connect only here and in the page
+  // that keeps its token.
+  let latest: "connect" | "disconnect" | null = null;
+  // Until when the page may send that connect's token once more.
+  let retryUntil = 0;
   let queue: Promise<unknown> = Promise.resolve();
   const serial = <T>(operation: () => Promise<T>): Promise<T> => {
     const run = queue.then(operation, operation);
@@ -600,8 +668,8 @@ export function createBuddyTelegram(
 
   /** A write of Hermes's. One that ends without a clear answer may still
    * run in Hermes later, in the gateway that took it, after a newer write:
-   * so it owes a restart, as a change does, and `approve` waits for that
-   * restart. A restart ends the gateway that may still run it. Every
+   * so it owes a restart, as a change does, and every Telegram change waits
+   * for that restart (`blocked`). A restart ends the gateway that may still run it. Every
    * Telegram write goes through here but the disconnect's one DELETE,
    * whose restart is owed before it is sent. */
   const write = async (
@@ -614,7 +682,7 @@ export function createBuddyTelegram(
     const answer = await ask(method, path, body, capability);
     if (!answer.ok && answer.uncertain === true) {
       journal({ operation, outcome: "restart-owed", reason: answer.reason });
-      await input.changed().catch(() => undefined);
+      await input.uncertain().catch(() => undefined);
     }
     return answer;
   };
@@ -647,6 +715,25 @@ export function createBuddyTelegram(
   }
 
   async function status(): Promise<TelegramStatus> {
+    const disconnecting = await disconnectWaits();
+    // A write in doubt: the latest change waits with it, whatever Hermes's
+    // card says until the restart. A connect that waited stays so until the
+    // follow-up asks the page for its token, so no reading between the lift
+    // and the follow-up tells the page to forget it.
+    if ((await input.blocked()) || (home !== undefined && latest === "connect"))
+      return Object.freeze(
+        disconnecting
+          ? { state: "none", pending: true, held: true }
+          : { state: "starting", pending: true, held: true },
+      );
+    // A disconnect that waited, being made now.
+    if (disconnecting) return Object.freeze({ state: "none", pending: true });
+    const view = await reading();
+    return retryUntil > now() ? Object.freeze({ ...view, retry: true }) : view;
+  }
+
+  /** Telegram as Hermes's card has it. */
+  async function reading(): Promise<TelegramStatus> {
     const read = await card();
     if (!read.ok || read.value === null) {
       const owed = input.owed();
@@ -710,6 +797,8 @@ export function createBuddyTelegram(
       });
     if (text === undefined) return line("unknown");
     if (!always && text === pairingWritten) return;
+    // A write in doubt: the words wait, and its lift writes them again.
+    if (await input.blocked()) return line("held");
     const written = await write(
       "pairing-text",
       "PUT",
@@ -723,6 +812,52 @@ export function createBuddyTelegram(
     if (written.value.status !== 200) return line("failed");
     pairingWritten = text;
     line("written");
+  }
+
+  /** The latest change, kept while a write is in doubt: nothing goes to
+   * Hermes. A connect is kept here (its token only in the page), a
+   * disconnect on disk too; either replaces the other. The answer is the
+   * state, which says `held` for a connect that waits until the follow-up,
+   * queued after this, asks the page for its token: so a lift after this
+   * connect looked at the barrier loses nothing. */
+  async function hold(kind: "connect" | "disconnect"): Promise<TelegramAnswer> {
+    latest = kind;
+    retryUntil = 0;
+    if (home !== undefined)
+      await (kind === "disconnect"
+        ? writeBuddyStateFile(telegramIntentPath(home), {
+            schema_version: intentSchema,
+            intent: "disconnect",
+            at: new Date(now()).toISOString(),
+          })
+        : rm(telegramIntentPath(home), { force: true })
+      ).catch(() => undefined);
+    journal({ operation: kind, outcome: "held", reason: "restart-owed" });
+    return telegram();
+  }
+
+  /** A disconnect asked while a write was in doubt and not made yet. With
+   * no home known nothing waits: no barrier, no restart (the documented
+   * exception). */
+  const disconnectWaits = async (): Promise<boolean> =>
+    home !== undefined &&
+    (latest === "disconnect" || (await readIntent(home)) === "disconnect");
+
+  /** The latest change is made: nothing waits any longer. */
+  async function settleIntent(): Promise<void> {
+    latest = null;
+    retryUntil = 0;
+    if (home !== undefined)
+      await rm(telegramIntentPath(home), { force: true }).catch(
+        () => undefined,
+      );
+  }
+
+  /** A write of an approval ended in doubt: its restart is owed, and the
+   * page shows Telegram as it is until then. */
+  async function doubted(): Promise<TelegramAnswer> {
+    journal({ operation: "approve", outcome: "held", reason: "restart-owed" });
+    return telegram();
   }
 
   const unavailable = (reason: GatewayFailure): TelegramAnswer =>
@@ -748,6 +883,10 @@ export function createBuddyTelegram(
     const bot = await checkBot(token);
     if (bot.kind === "refused") return end(failed("token-refused"));
     if (bot.kind === "unreachable") return end(failed("telegram-unreachable"));
+    // A write in doubt: nothing goes to Hermes until its restart. This
+    // connect is the latest change; the page keeps its token and sends it
+    // once more when the reading says `retry`.
+    if (await input.blocked()) return hold("connect");
     // Hermes's own writer: the token into its `.env` (its mode kept, 0600
     // for a new file), `platforms.telegram.enabled: true` into its
     // config.yaml, explicitly, so a token saved by any other way ends the
@@ -756,10 +895,15 @@ export function createBuddyTelegram(
       env: { TELEGRAM_BOT_TOKEN: token },
       enabled: true,
     });
-    if (!saved.ok) return end(unavailable(saved.reason));
+    if (!saved.ok)
+      return saved.uncertain === true
+        ? hold("connect")
+        : end(unavailable(saved.reason));
     if (saved.value.status === 400) return end(failed("token-refused"));
     if (saved.value.status !== 200) return end(failed("failed"));
     intent = "connect";
+    // The latest change is made: a disconnect that waited goes.
+    await settleIntent();
     // The quiet keys before the restart that reads them; a connect without
     // them still connects, and the journal says so.
     const quiet = await write("connect", "PUT", "/api/config", {
@@ -796,10 +940,11 @@ export function createBuddyTelegram(
     // offers it, or the one a write owes that ended without a clear answer:
     // the approval then reaches a gateway that started after both, so no
     // write an earlier gateway took (a disconnect's DELETE, an earlier
-    // approval's home channel) can still run after it. A page from before
-    // (another tab) gets the state as it is, „Připojuje se…“, and nothing
-    // is written.
-    if (input.owed()) {
+    // approval's home channel) can still run after it. Nor while a
+    // disconnect that waited is not made yet: it is the latest change. A
+    // page from before (another tab) gets the state as it is, „Připojuje
+    // se…“, and nothing is written.
+    if ((await input.blocked()) || input.owed() || (await disconnectWaits())) {
       journal({
         operation: "approve",
         outcome: "pending",
@@ -823,7 +968,10 @@ export function createBuddyTelegram(
       key: "TELEGRAM_HOME_CHANNEL",
       value: candidate.userId,
     });
-    if (!channel.ok) return end(unavailable(channel.reason));
+    if (!channel.ok)
+      return channel.uncertain === true
+        ? doubted()
+        : end(unavailable(channel.reason));
     if (channel.value.status !== 200) return end(failed("failed"));
     // Then Hermes's own approval, which takes the request off its list. One
     // that expired meanwhile (404) leaves nothing to approve.
@@ -832,7 +980,10 @@ export function createBuddyTelegram(
         platform: "telegram",
         request_id: candidate.requestId,
       });
-      if (!approval.ok) return end(unavailable(approval.reason));
+      if (!approval.ok)
+        return approval.uncertain === true
+          ? doubted()
+          : end(unavailable(approval.reason));
       if (approval.value.status !== 200 && approval.value.status !== 404)
         return end(failed("failed"));
     }
@@ -843,12 +994,23 @@ export function createBuddyTelegram(
     const allowed = await write("approve", "PUT", platformPath, {
       env: { TELEGRAM_ALLOWED_USERS: candidate.userId },
     });
-    if (!allowed.ok) return end(unavailable(allowed.reason));
+    if (!allowed.ok)
+      return allowed.uncertain === true
+        ? doubted()
+        : end(unavailable(allowed.reason));
     if (allowed.value.status !== 200) return end(failed("failed"));
     return end(await telegram());
   }
 
   async function disconnect(): Promise<TelegramAnswer> {
+    // A write in doubt: nothing goes to Hermes until its restart. This
+    // disconnect is the latest change, kept on disk and made after it.
+    if (await input.blocked()) return hold("disconnect");
+    return disconnectNow();
+  }
+
+  /** The disconnect's writes. */
+  async function disconnectNow(): Promise<TelegramAnswer> {
     const end = (answer: TelegramAnswer): TelegramAnswer => {
       journal({
         operation: "disconnect",
@@ -865,9 +1027,14 @@ export function createBuddyTelegram(
       enabled: false,
       clear_env: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_ALLOWED_USERS"],
     });
-    if (!off.ok) return end(unavailable(off.reason));
+    // In doubt: kept as the latest change, made after its restart.
+    if (!off.ok)
+      return off.uncertain === true
+        ? hold("disconnect")
+        : end(unavailable(off.reason));
     if (off.value.status !== 200) return end(failed("failed"));
     intent = "disconnect";
+    await settleIntent();
     // Hermes has the bot off: the restart that takes it out of the running
     // gateway is owed from now, whatever the cleanup after it does.
     if (home !== undefined)
@@ -910,6 +1077,39 @@ export function createBuddyTelegram(
       serial(async () => {
         if (home !== undefined && (await readBotRecord(home)) !== null)
           await writePairingText(false);
+      }),
+    /** The barrier lifted (or the Launchpad started): what waited goes on.
+     * A connect that waited may be sent again by the page that keeps its
+     * token; a disconnect that waited is made, asked "again" while Hermes
+     * cannot take it yet; his words are written again where his bot is
+     * connected from here. */
+    cleared: (why: TelegramFollowUp): Promise<"done" | "again"> =>
+      // In the queue, after every change asked before the lift: a connect
+      // or a disconnect that looked at the barrier before it is kept by now.
+      serial(async () => {
+        // Another write in doubt: its own lift asks again.
+        if (await input.blocked()) return "done";
+        if (await disconnectWaits()) {
+          latest = null;
+          const answer = await disconnectNow();
+          // Hermes not ready yet: asked again later. Hermes refusing it: the
+          // intent goes, and the page shows Telegram as Hermes has it, with
+          // Odpojit.
+          if (answer.kind === "unavailable") return "again";
+          if (answer.kind === "failed") await settleIntent();
+          return "done";
+        }
+        if (latest === "connect") {
+          latest = null;
+          retryUntil = now() + telegramRetryWindowMs;
+        }
+        if (
+          why === "lifted" &&
+          home !== undefined &&
+          (await readBotRecord(home)) !== null
+        )
+          await writePairingText(true);
+        return "done";
       }),
   });
 }

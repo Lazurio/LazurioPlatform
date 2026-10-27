@@ -1,4 +1,4 @@
-import { lstat, mkdir, utimes } from "node:fs/promises";
+import { lstat, mkdir, rm, utimes } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { acquireFileLock, FileLockError } from "../platform/flock";
 import {
@@ -46,6 +46,20 @@ import { applyLockPath } from "./persona-apply";
 //   later and later, at most every 15 minutes, and the idle and spacing rules
 //   hold when it answers. Only a gateway with no unit at all owes nothing:
 //   whoever starts it reads the files then.
+// - A write that ended without a clear answer (`uncertain`) may still run in
+//   the gateway that took it, after any later write. It owes a restart like
+//   a change, and it holds a barrier until the gateway that took it is gone:
+//   the core sends no Telegram change to Hermes while `blocked` (it keeps the
+//   latest intent instead). Its own record is `telegram-uncertain.json`,
+//   written before anything else, so a Launchpad restart keeps the barrier
+//   and the restart it owes. The barrier lifts only with a restart, a
+//   gateway found started after both records, or one found stopped, after
+//   every change asked so far; a change during an attempt leaves it to the
+//   attempt that change asked for, and a gateway systemd is still stopping
+//   is asked again. Lifted, the core's follow-up (`cleared`) applies what
+//   waited, asked again later and later while it answers "again" (his
+//   gateway not ready yet). A gateway without a unit lifts it without a
+//   restart: the documented exception.
 
 /** The Platform's own record of the last change of Buddy's Telegram: its
  * time is what a running gateway must have started after. */
@@ -67,6 +81,17 @@ export async function markTelegramChanged(
   await utimes(path, at, at);
 }
 
+/** The barrier of a write that ended without a clear answer, and its record:
+ * present until the restart that ends the gateway that may still run it, and
+ * written at the write's end, on the clock the gateway's start is compared
+ * with. No content but its schema; 0600 in Buddy's 0700 state directory. */
+export const telegramUncertainPath = (home: string): string =>
+  join(buddyStateDirectory(home), "telegram-uncertain.json");
+
+/** Why the core's follow-up is asked: the barrier lifted, or the Launchpad
+ * started (a disconnect that waited across it). */
+export type TelegramFollowUp = "lifted" | "start";
+
 /** How long a gateway runs before a restart this owes may stop it again. */
 export const telegramRestartSpacingMs = 120_000;
 /** While Buddy is busy the restart is asked again this often. */
@@ -85,7 +110,10 @@ export type TelegramRestartOutcome =
   | Readonly<{
       state: "none" | "done" | "failed" | "unanswered" | "unavailable";
     }>
-  | Readonly<{ state: "pending"; reason: "busy" | "spacing" | "turn" }>;
+  | Readonly<{
+      state: "pending";
+      reason: "busy" | "spacing" | "turn" | "stopping";
+    }>;
 
 export type TelegramRestartTimers = Readonly<{
   after(callback: () => void, ms: number): unknown;
@@ -120,6 +148,11 @@ export function createTelegramRestart(
     now?: (() => number) | undefined;
     journal?: ((entry: TelegramRestartJournalEntry) => void) | undefined;
     spacingMs?: number | undefined;
+    /** What waited for the barrier: asked when it lifts and when the
+     * Launchpad starts; "again" asks once more later. */
+    cleared?:
+      | ((why: TelegramFollowUp) => Promise<"done" | "again">)
+      | undefined;
   }>,
 ) {
   const home = input.home;
@@ -136,6 +169,36 @@ export function createTelegramRestart(
   let restartedAt: number | null = null;
   let failedDelay = telegramRestartFailedMs;
   let journaled: string | null = null;
+  // Every change and uncertain write counts here: an attempt lifts what is
+  // owed only when nothing was asked after it began.
+  let generation = 0;
+  // A write without a clear answer waits for a restart; kept on disk too.
+  let barrier = false;
+  let loaded: Promise<void> | null = null;
+  const load = (): Promise<void> =>
+    (loaded ??= (async () => {
+      if (home === undefined) return;
+      if (
+        await lstat(telegramUncertainPath(home)).then(
+          () => true,
+          () => false,
+        )
+      ) {
+        barrier = true;
+        owed = true;
+      }
+    })());
+  // The barrier's file, written and removed in the order asked.
+  let marking: Promise<unknown> = Promise.resolve();
+  const mark = (operation: () => Promise<unknown>): Promise<unknown> => {
+    const next = marking.then(operation, operation);
+    marking = next.catch(() => undefined);
+    return next;
+  };
+  // The core's follow-up, asked again later while it answers "again".
+  let lifts = 0;
+  let follow: unknown;
+  let followDelay = telegramRestartRetryMs;
 
   const journal = (outcome: TelegramRestartOutcome) => {
     const line = JSON.stringify(outcome);
@@ -171,13 +234,18 @@ export function createTelegramRestart(
         return Object.freeze({ state: "unanswered" });
       if (unit.state === "absent")
         return Object.freeze({ state: "unavailable" });
+      // A gateway systemd is stopping may still run a write it took: asked
+      // again once it has stopped.
+      if (unit.state === "stopped" && unit.stopping === true)
+        return Object.freeze({ state: "pending", reason: "stopping" });
       // A gateway that does not run reads the files when it starts.
       if (unit.state !== "running") return Object.freeze({ state: "none" });
-      // Only this record decides here; units systemd has not reread are
+      // Only these records decide here; units systemd has not reread are
       // reread before the restart, never restarted on.
       if (
         !(await restartPending({ ...unit, needsReload: false }, [
           telegramChangedPath(home),
+          telegramUncertainPath(home),
         ]))
       )
         return Object.freeze({ state: "none" });
@@ -207,7 +275,29 @@ export function createTelegramRestart(
     );
   };
 
-  function settle(outcome: TelegramRestartOutcome) {
+  /** The core's follow-up: what waited for the barrier. */
+  function followUp(why: TelegramFollowUp) {
+    if (closed || input.cleared === undefined) return;
+    if (follow !== undefined) timers.cancel(follow);
+    follow = undefined;
+    const again = () => {
+      if (closed) return;
+      follow = timers.after(() => {
+        follow = undefined;
+        followUp(why);
+      }, followDelay);
+      followDelay = Math.min(followDelay * 2, telegramRestartRetryMaxMs);
+    };
+    input.cleared(why).then(
+      (answer) => {
+        if (answer === "again") again();
+        else followDelay = telegramRestartRetryMs;
+      },
+      () => again(),
+    );
+  }
+
+  function settle(outcome: TelegramRestartOutcome, seen: number) {
     journal(outcome);
     if (outcome.state === "pending") {
       failedDelay = telegramRestartFailedMs;
@@ -224,7 +314,19 @@ export function createTelegramRestart(
     // records itself and asks again.
     if (outcome.state === "done") restartedAt = now();
     failedDelay = telegramRestartFailedMs;
+    // A change or an uncertain write during this attempt may postdate the
+    // start it read: the attempt that change asked for decides.
+    if (seen !== generation) return;
     owed = false;
+    if (barrier) {
+      barrier = false;
+      lifts += 1;
+      if (home !== undefined)
+        void mark(() => rm(telegramUncertainPath(home), { force: true })).catch(
+          () => undefined,
+        );
+      followUp("lifted");
+    }
   }
 
   function run(): Promise<TelegramRestartOutcome> {
@@ -233,15 +335,42 @@ export function createTelegramRestart(
       timers.cancel(retry);
       retry = undefined;
     }
+    const seen = generation;
     const current = attempt()
       .catch((): TelegramRestartOutcome => Object.freeze({ state: "failed" }))
       .then((outcome) => {
         running = null;
-        settle(outcome);
+        settle(outcome, seen);
         return outcome;
       });
     running = current;
     return current;
+  }
+
+  /** A change, or a write in doubt, recorded by `write`: then the restart
+   * asked for in the background, or joined while one is under way or
+   * waits. Resolves once it is recorded; `settled` follows the attempt. */
+  async function record(
+    write: (home: string) => Promise<unknown>,
+  ): Promise<"recorded" | "unrecorded"> {
+    if (home === undefined) return "unrecorded";
+    await load();
+    try {
+      await write(home);
+    } catch {
+      return "unrecorded";
+    }
+    generation += 1;
+    owed = true;
+    if (closed) return "recorded";
+    // An attempt under way may have read the gateway's start before this
+    // record: one more attempt follows it.
+    const before = running;
+    asked = (async () => {
+      if (before !== null) await before;
+      return run();
+    })().catch(() => null);
+    return "recorded";
   }
 
   return Object.freeze({
@@ -258,23 +387,37 @@ export function createTelegramRestart(
      * restart asked for in the background, or joined while one is under
      * way or waits. Resolves once the change is recorded; `settled` follows
      * the attempt. */
-    async changed(): Promise<"recorded" | "unrecorded"> {
+    changed: () =>
+      record((at) => markTelegramChanged(at, () => new Date(now()))),
+
+    /** A write that ended without a clear answer: it may still run in the
+     * gateway that took it. A restart is owed, as for a change, and the
+     * barrier holds until it is made. */
+    async uncertain(): Promise<"recorded" | "unrecorded"> {
+      // No home, no restart: nothing to wait for (the documented exception).
       if (home === undefined) return "unrecorded";
-      try {
-        await markTelegramChanged(home, () => new Date(now()));
-      } catch {
-        return "unrecorded";
-      }
+      // Before any wait: an attempt under way never lifts what this owes.
+      generation += 1;
+      barrier = true;
       owed = true;
-      if (closed) return "recorded";
-      // An attempt under way may have read the gateway's start before this
-      // record: one more attempt follows it.
-      const before = running;
-      asked = (async () => {
-        if (before !== null) await before;
-        return run();
-      })().catch(() => null);
-      return "recorded";
+      // Its own record, kept until the barrier lifts.
+      return record((at) =>
+        mark(async () => {
+          const path = telegramUncertainPath(at);
+          const time = new Date(now());
+          await writeBuddyStateFile(path, {
+            schema_version: "lazurio.buddy-telegram-uncertain.v1",
+          });
+          await utimes(path, time, time);
+        }),
+      );
+    },
+
+    /** Whether a write without a clear answer still waits for its restart:
+     * no Telegram change goes to Hermes until then. */
+    async blocked(): Promise<boolean> {
+      await load();
+      return barrier;
     },
 
     /** The attempt the last change asked for has ended (tests, and the
@@ -286,13 +429,19 @@ export function createTelegramRestart(
      * was ever recorded, nothing is asked. */
     async start(): Promise<void> {
       if (home === undefined || closed) return;
+      await load();
+      const before = lifts;
       const recorded = await lstat(telegramChangedPath(home)).then(
         () => true,
         () => false,
       );
-      if (!recorded) return;
-      owed = true;
-      await run();
+      if (recorded || barrier) {
+        owed = true;
+        await run();
+      }
+      // What waited across a Launchpad restart, the barrier lifted already
+      // (a lift during this start asked it itself).
+      if (!barrier && lifts === before) followUp("start");
     },
 
     /** The Launchpad stops: nothing more is asked. */
@@ -300,6 +449,8 @@ export function createTelegramRestart(
       closed = true;
       if (retry !== undefined) timers.cancel(retry);
       retry = undefined;
+      if (follow !== undefined) timers.cancel(follow);
+      follow = undefined;
     },
   });
 }

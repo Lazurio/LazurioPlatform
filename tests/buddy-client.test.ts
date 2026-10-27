@@ -785,6 +785,18 @@ test("Telegram: every refusal is a closed result, and a request gone is read aga
       kind,
     );
   }
+  // Nothing written yet: a write in doubt waits for Buddy's restart.
+  fake.reply(buddyRoutePaths.telegramConnect, {
+    ok: true,
+    value: { kind: "telegram", state: "starting", pending: true, held: true },
+  });
+  expect(await buddy.connectTelegram(syntheticToken)).toEqual({
+    kind: "held",
+  });
+  expect(buddy.reading()?.telegram).toMatchObject({
+    state: "starting",
+    held: true,
+  });
   fake.reply(buddyRoutePaths.telegramApprove, {
     ok: false,
     value: { kind: "blocked", reason: "request-gone" },
