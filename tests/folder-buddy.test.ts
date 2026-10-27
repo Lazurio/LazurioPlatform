@@ -863,7 +863,7 @@ test("every Environment's AGENTS.md says who Buddy is before the working rules: 
       "nehledáš cestu, jak mu poslat zprávu nebo ho upozornit",
       "Výsledek patří do vlákna",
       "nástrojem na otázky",
-      "Publikuješ jen na výslovný pokyn uživatele",
+      "Publikuješ jen na výslovné „Publikuj“ uživatele",
       "gbrain nepoužívej, pokud ti to uživatel výslovně neřekne.",
     ])
       expect(buddy).toContain(phrase);

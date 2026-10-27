@@ -467,7 +467,7 @@ const organizationModuleBar: readonly Text[] = [
   ),
   t(
     "- Hotová práce má dva pull requesty: první verzi do `<login Organizace>/<slug>` a slot do rootu Organizace. Merge obou je Publikace: zeptej se před ní a merguj až na výslovné „Publikuj“ (`manual/working-here.md`). Po merge srovnej oba checkouty (`git -C organizations/<org> pull --ff-only` a `git -C organizations/<org>/workspace/<slug> pull --ff-only`) a odstraň oba task worktrees.",
-    "- The finished work has two pull requests: the first version into `<Organization login>/<slug>` and the slot into the Organization root. Merging both is Publication: ask before it and merge only on an explicit “Publikuj” (`manual/working-here.md`). After the merge, bring both checkouts up to date (`git -C organizations/<org> pull --ff-only` and `git -C organizations/<org>/workspace/<slug> pull --ff-only`) and remove both task worktrees.",
+    "- The finished work has two pull requests: the first version into `<Organization login>/<slug>` and the slot into the Organization root. Merging both is Publication: ask before it and merge only on an explicit “Publish” (`manual/working-here.md`). After the merge, bring both checkouts up to date (`git -C organizations/<org> pull --ff-only` and `git -C organizations/<org>/workspace/<slug> pull --ff-only`) and remove both task worktrees.",
   ),
   t(
     "- Teprve pak modul spusť: `lazurio module start <Organizace>/<slug> --json` (na macOS v Launchpadu; `python-uv` a `none` se takhle nespouštějí), otevři `result.runtime.url` v prohlížeči, ověř, že se stránka vykreslila, a dej uživateli odkaz.",

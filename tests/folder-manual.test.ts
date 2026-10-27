@@ -20,6 +20,7 @@ import {
 import { renderManual } from "../src/folder/manual";
 import {
   buddyLayerPaths,
+  buddyRulesPath,
   manualPaths,
   outputFile,
   outputPaths,
@@ -34,6 +35,7 @@ import { renderOutputs } from "../src/folder/preview";
 import {
   buddyChatRouting,
   ownSignInIdentity,
+  publicationRule,
   questionTool,
   visitorsOf,
 } from "../src/folder/render";
@@ -1328,21 +1330,17 @@ test("missing rights are escalated on every preset; only the Team hands every pu
             : "- In a Team Environment never merge, not even on “Publish” in the thread",
         ),
       ]).toEqual([journey.preset, locale, !team, !team, team]);
-      // AGENTS.md says it too; elsewhere Publication stays the Operator's.
+      // AGENTS.md says it too, after the rule every preset shares.
       expect(
         outputs["AGENTS.md"].includes(
-          locale === "cs"
-            ? "Z týmového Environmentu změny vždy schválí a publikuje jmenovaný uživatel a odpovídá za ně; sám nemerguj."
-            : "A named user always approves and publishes the changes from a Team Environment and answers for them; never merge yourself.",
+          `${publicationRule[locale]}\n${
+            locale === "cs"
+              ? "- Pull request z týmového Environmentu vždy schválí a publikuje jmenovaný uživatel a odpovídá za něj; sám nemerguj, ani na „Publikuj“."
+              : "- A named user always approves and publishes a pull request from a Team Environment and answers for it; never merge yourself, not even on “Publish”."
+          }`,
         ),
       ).toBe(team);
-      expect(
-        outputs["AGENTS.md"].includes(
-          locale === "cs"
-            ? "Publikace (odeslání, odevzdání, merge, nasazení, jiné dokončení viditelné navenek) patří uživateli."
-            : "Publication (sending, submitting, a merge, a deployment, any other externally visible finishing) belongs to the user.",
-        ),
-      ).toBe(!team);
+      expect(outputs["AGENTS.md"]).toContain(publicationRule[locale]);
       expect(
         outputs["AGENTS.md"].includes(
           locale === "cs"
@@ -1874,17 +1872,18 @@ test("the agent's work is a pull request, GitHub is the authority for source cod
         ),
         henry.every((line) => line.includes("0170")),
       ]).toEqual([...where, 1, true, true]);
-      // Publication stays exactly as defined, and the work is prepared first.
+      // Publication stays exactly as defined, and nothing irreversible
+      // happens without "Publish" (the addendum of 2026-10-27).
       for (const sentence of cs
         ? [
             "- **Publikace** je akt, kterým se tvoje práce stává těžko vratnou nebo viditelnou navenek: merge, odeslání, nasazení;",
-            "- **Nejdřív připravit, pak Publikovat.**",
-            "e-mail uložený jako koncept v Outlooku",
+            "- **Nic nevratného bez „Publikuj“.**",
+            "e-mail uložený jako koncept",
           ]
         : [
             "- **Publication** is the act that makes your work hard to revert or visible outside: a merge, sending, deploying;",
-            "- **Prepare first, then Publication.**",
-            "an e-mail saved as a draft in Outlook",
+            "- **Nothing irreversible without “Publish”.**",
+            "an e-mail saved as a draft",
           ])
         expect([...where, sentence, workingHere.includes(sentence)]).toEqual([
           ...where,
@@ -2024,6 +2023,70 @@ test("the agent's work is a pull request, GitHub is the authority for source cod
         environment.os !== "windows",
         environment.preset === "local" && environment.os === "macos",
       ]);
+    }
+});
+
+// Decision F14's addendum of 2026-10-27: one compact rule in the Owner's words
+// replaces the long Publication line. It is in AGENTS.md on every Environment
+// but a public one, in the manual's Publication section and in Buddy's rules,
+// once in each, and no generated file keeps the old wording, in particular
+// that an unambiguous "send it" or a "send" at the start of a task could be
+// more than the request for a draft.
+test("nothing irreversible without “Publish”: one rule in AGENTS.md, the manual and Buddy's rules, and the old wording is gone (F14 addendum of 2026-10-27)", () => {
+  const environments = [
+    ...journeys,
+    {
+      preset: "hosted-organization-team",
+      machine: bindings.teamPublic,
+      os: "linux",
+    },
+    {
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationPublic,
+      os: "linux",
+    },
+  ] as const;
+  const retired = [
+    "požádal rovnou „pošli“",
+    "asked you straight away to “send”",
+    "jednoznačné „odešli to“",
+    "an unambiguous “send it”",
+    "Nejdřív připravit, pak Publikovat",
+    "Prepare first, then Publication",
+    "sdílení mimo Organizaci",
+    "share outside the Organization",
+  ];
+  const count = (text: string, part: string) => text.split(part).length - 1;
+  for (const environment of environments)
+    for (const locale of ["cs", "en"] as const) {
+      const composition = {
+        preset: environment.preset,
+        machine: environment.machine,
+        profile: presetProfile(environment.preset, environment.os, { locale }),
+      };
+      const outputs = renderOutputs(composition);
+      const layer = renderBuddyLayer(composition);
+      const isPublic =
+        githubIdentity(environment.preset, environment.machine) === "none";
+      const where = [environment.preset, environment.os, isPublic, locale];
+      const rule = publicationRule[locale];
+      expect([
+        ...where,
+        count(outputs["AGENTS.md"], rule),
+        count(outputs["manual/working-here.md"], rule),
+        count(layer[buddyRulesPath], rule),
+      ]).toEqual([...where, isPublic ? 0 : 1, 1, 1]);
+      for (const [path, text] of [
+        ...Object.entries(outputs),
+        ...buddyLayerPaths.map((path) => [path, layer[path]] as const),
+      ])
+        for (const sentence of retired)
+          expect([...where, path, sentence, text.includes(sentence)]).toEqual([
+            ...where,
+            path,
+            sentence,
+            false,
+          ]);
     }
 });
 
