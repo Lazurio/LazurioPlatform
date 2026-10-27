@@ -65,7 +65,12 @@ an Environment no later than the Platform. Every Machine of the stage ran both f
   - The reading at 17:45:30–17:45:54Z was the same on all six.
 - **Recovery issues: none** (searched at 2026-10-27T19:16:01Z, every issue state):
   - `repo:Lazurio/LazurioPlatform is:issue label:recovery "0.1.14-rc.2"` and the `v0.1.14-rc.2` variant: 0. Issues mentioning recovery created since the candidate was published: 0.
-  - Issues naming the candidate at all: #681 and #682, both findings of the stage's own acceptance, and #547, where the same finding as an older candidate's was appended. None is a Recovery issue.
+  - Issues naming the candidate at all:
+    - #681 and #682, findings of the stage's own acceptance;
+    - #547, where the same finding as an older candidate's was appended;
+    - #380 and #552, the known CI flakes seen when the candidate was cut.
+
+    None is a Recovery issue.
 - **No Recovery mode.** Recovery mode is chosen only when the Launchpad starts. Every start inside the stage (the
   deliberate restarts below) came up `healthy`, and every unit had `NRestarts` 0 at the end.
 
@@ -92,8 +97,8 @@ an Environment no later than the Platform. Every Machine of the stage ran both f
    - **"bot <Name>" and the link to the bot's conversation (#663, #666):** one delegation, one result. The link opened the bot's real conversation.
    - **The line that lets an agent open Buddy's chat (#662):** present in the rendered Folder with the Environment's exact address.
    - **Composio in the account's default organization (#661):** after the sign-in, connected to the default organization with no choice offered, also after a reload. The web dashboard had another organization open.
-   - **Findings, none from this candidate's Platform behaviour and none blocking:**
-     - #681: the bubble's "1" stays in already-open Chat and Automate tabs until reload;
+   - **Findings, none blocking:**
+     - #681: the bubble's "1" stays in already-open Chat and Automate tabs until reload, a cosmetic finding in this candidate's first meeting;
      - #682: the "Používají agenti" switch stays off after a sign-in, as in v0.1.13;
      - #547: the update view links the latest public release's notes.
 
