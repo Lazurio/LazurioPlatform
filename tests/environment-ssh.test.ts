@@ -16,6 +16,8 @@ import {
   assignedEnvironments,
   type MachineBinding,
 } from "../src/folder/machine-binding";
+import { presetProfile } from "../src/folder/presets";
+import { renderOutputs } from "../src/folder/preview";
 import { withEnvironmentSsh } from "../src/machine/cli";
 import {
   includeLine,
@@ -24,14 +26,16 @@ import {
   renderEnvironmentsKnownHosts,
   writeEnvironmentSsh,
 } from "../src/ssh-access/environments";
+import { journeys } from "./fixtures/journeys";
 import { binding, bindings } from "./fixtures/machine-bindings";
 import handover from "./fixtures/machine-context-personal-assigned.json";
 
 // SSH from the Osobní Prostředí into the Work Environments assigned to its
 // owner (root decision 0192, addendum of 2026-10-26; plan DEV-6676 P2): from
 // the binding the Folder records, `lazurio machine folder-init` and
-// `folder-refresh` write the person's SSH config for its assigned peers. The
-// fixture is the reference Organization's Bob with a synthetic host key.
+// `folder-refresh` write the person's SSH config for its assigned peers, and
+// the personal Folder's AGENTS.md lists the same aliases. The fixture is the
+// reference Organization's Bob with a synthetic host key.
 
 const uid = process.getuid?.();
 const homes: string[] = [];
@@ -87,6 +91,15 @@ const [laptop, assigned] = handover.relationships.peers as unknown as [
   Json,
 ];
 const link = assigned.ssh as Json;
+const without = (value: Json, ...keys: string[]) =>
+  Object.fromEntries(
+    Object.entries(value).filter(([key]) => !keys.includes(key)),
+  );
+// The same work VM as Machines writes it to a Platform below the gate.
+const unassigned = {
+  ...without(assigned, "environment", "access"),
+  ssh: without(link, "host_keys"),
+};
 // A second assigned Work Environment with two host keys, in another
 // Organization; the same Environment id twice keeps the first.
 const otherKey =
@@ -367,4 +380,75 @@ test("the machine commands add the outcome only when the Folder records this bin
       path: "~/.ssh/config.d/lazurio-environments.conf",
     },
   });
+});
+
+test("only the personal Folder lists the aliases: AGENTS.md in „Z tohoto Osobního Prostředí“ and the manual's exception to confirming a peer, only with assigned peers", () => {
+  const heading = {
+    cs: "## Z tohoto Osobního Prostředí",
+    en: "## From this Personal Environment",
+  };
+  const exception = {
+    cs: "- Dosažitelnost rozhoduje Headscale a není to identita ani mandát. Pracovní Prostředí přidělená uživateli uvádí `AGENTS.md` (Z tohoto Osobního Prostředí) a jejich přidělení zaznamenal handover. U ostatních peerů handover nezaznamenává, čí jsou: než na nich začneš pracovat nebo ovládat zařízení, potvrď s uživatelem, že jsou jeho nebo že jsou přiřazené jemu.",
+    en: "- Reachability is decided by Headscale and is neither identity nor mandate. `AGENTS.md` lists the Work Environments assigned to the user (From this Personal Environment), and the handover records their assignment. For any other peer the handover does not record whose it is: before you work on one or operate a device, confirm with the user that it is theirs or assigned to them.",
+  };
+  const general = {
+    cs: "- Dosažitelnost rozhoduje Headscale a není to identita ani mandát: handover nezaznamenává, čí peer je. Než na peeru začneš pracovat nebo ovládat zařízení, potvrď s uživatelem, že je jeho nebo že je přiřazený jemu.",
+    en: "- Reachability is decided by Headscale and is neither identity nor mandate: the handover does not record whose a peer is. Before you work on a peer or operate a device, confirm with the user that it is theirs or assigned to them.",
+  };
+  for (const locale of ["cs", "en"] as const) {
+    for (const journey of journeys) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      expect(outputs["AGENTS.md"]).not.toContain(heading[locale]);
+      expect(outputs["manual/this-machine.md"]).not.toContain(
+        exception[locale],
+      );
+    }
+    const render = (machine: MachineBinding) =>
+      renderOutputs({
+        preset: "hosted-personal",
+        machine,
+        profile: presetProfile("hosted-personal", "linux", { locale }),
+      });
+    const outputs = render(bindings.personalAssigned);
+    const agents = outputs["AGENTS.md"];
+    const start = agents.indexOf(`\n${heading[locale]}\n`);
+    expect(start).toBeGreaterThan(-1);
+    const end = agents.indexOf("\n## ", start + 1);
+    const section = agents.slice(start + 1, end + 1);
+    expect(section).toContain(`- \`ssh ${environment}\``);
+    expect(section).toContain("`~/.ssh/config.d/lazurio-environments.conf`");
+    expect(section).toContain(
+      locale === "cs"
+        ? "Přidělení zaznamenal handover, takže ho s uživatelem nepotvrzuješ."
+        : "The handover records the assignment, so you do not confirm it with the user.",
+    );
+    expect(section).toContain("`ssh-keyscan`");
+    // The section after Boundaries, the manual's line with its exception,
+    // and nothing else differs from the same handover below Machines' gate.
+    expect(agents.lastIndexOf("\n## ", start - 1)).toBe(
+      agents.indexOf(locale === "cs" ? "\n## Hranice\n" : "\n## Boundaries\n"),
+    );
+    const plain = render(
+      binding({
+        ...handover,
+        relationships: { zone: "personal", peers: [laptop, unassigned] },
+      }),
+    );
+    expect(agents.replace(section, "")).toBe(plain["AGENTS.md"]);
+    const manual = outputs["manual/this-machine.md"];
+    expect(manual).toContain(`\n${exception[locale]}\n`);
+    expect(manual.replace(exception[locale], general[locale])).toBe(
+      plain["manual/this-machine.md"],
+    );
+    expect({
+      ...outputs,
+      "AGENTS.md": "",
+      "manual/this-machine.md": "",
+    }).toEqual({ ...plain, "AGENTS.md": "", "manual/this-machine.md": "" });
+    expect(agents).toMatchSnapshot(locale);
+  }
 });

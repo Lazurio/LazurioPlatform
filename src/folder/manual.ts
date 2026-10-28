@@ -1,6 +1,7 @@
 import type { ChatgptAppsPolicy } from "../integrations/policy";
 import type { ToolNotes } from "../tools/catalog";
 import {
+  assignedEnvironments,
   isServerServices,
   type MachineBinding,
   type MachinePeer,
@@ -2136,7 +2137,10 @@ const sshRules: readonly Text[] = [
 // work VM, device work onto a device. The handover records reachability, not
 // whose a peer is (a peer carries no owner or operator, and its zone may be
 // null), so the peers are named neutrally from the record and the agent
-// confirms with the Operator before working on one. Nothing is guessed.
+// confirms with the Operator before working on one. Nothing is guessed. The
+// exception is a Work Environment the handover records as assigned to the
+// owner (root decision 0192, addendum of 2026-10-26; plan DEV-6676 P2):
+// AGENTS.md lists those, and only then does this line say so.
 function reachesOverSsh(peer: MachinePeer): boolean {
   return peer.ssh !== null && peer.ssh.direction !== "inbound";
 }
@@ -2166,10 +2170,15 @@ function fromPersonalVm(
           ),
           ...reachable.map((peer) => same(peerLine(peer, locale))),
         ]),
-    t(
-      "- Dosažitelnost rozhoduje Headscale a není to identita ani mandát: handover nezaznamenává, čí peer je. Než na peeru začneš pracovat nebo ovládat zařízení, potvrď s uživatelem, že je jeho nebo že je přiřazený jemu.",
-      "- Reachability is decided by Headscale and is neither identity nor mandate: the handover does not record whose a peer is. Before you work on a peer or operate a device, confirm with the user that it is theirs or assigned to them.",
-    ),
+    assignedEnvironments(machine).length === 0
+      ? t(
+          "- Dosažitelnost rozhoduje Headscale a není to identita ani mandát: handover nezaznamenává, čí peer je. Než na peeru začneš pracovat nebo ovládat zařízení, potvrď s uživatelem, že je jeho nebo že je přiřazený jemu.",
+          "- Reachability is decided by Headscale and is neither identity nor mandate: the handover does not record whose a peer is. Before you work on a peer or operate a device, confirm with the user that it is theirs or assigned to them.",
+        )
+      : t(
+          "- Dosažitelnost rozhoduje Headscale a není to identita ani mandát. Pracovní Prostředí přidělená uživateli uvádí `AGENTS.md` (Z tohoto Osobního Prostředí) a jejich přidělení zaznamenal handover. U ostatních peerů handover nezaznamenává, čí jsou: než na nich začneš pracovat nebo ovládat zařízení, potvrď s uživatelem, že jsou jeho nebo že jsou přiřazené jemu.",
+          "- Reachability is decided by Headscale and is neither identity nor mandate. `AGENTS.md` lists the Work Environments assigned to the user (From this Personal Environment), and the handover records their assignment. For any other peer the handover does not record whose it is: before you work on one or operate a device, confirm with the user that it is theirs or assigned to them.",
+        ),
     t(
       "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment, který ti uživatel potvrdí jako přiřazený jemu, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Repozitář Organizace sem nikdy neklonuj.",
       "- Organization work (code, repositories, runs) belongs in a work Remote Environment the user confirms is assigned to them, never in this Environment: connect over SSH and work there. Never clone an Organization repository into this personal Remote Environment.",

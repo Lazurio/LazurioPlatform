@@ -29,7 +29,8 @@ type MachineNetwork = Readonly<{
 // Machine's owner, reached outbound over SSH under its named account, with
 // its Environment id and the host keys from the Organization's records.
 // Machines writes them only for a Platform that reads them; they are read
-// as written and nothing uses them yet.
+// as written, and only a personal Machine's Folder and the person's SSH
+// config use them (src/ssh-access/environments.ts).
 export type MachineZone = "personal" | "work";
 export type MachinePeer = Readonly<{
   name: string;
