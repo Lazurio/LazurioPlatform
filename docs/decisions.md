@@ -20485,6 +20485,70 @@ serving while it keeps running (`release_profile_home`), and the Nous poller's a
 configuration after a save that happened before the "not found". Buddy's state is read live from
 Hermes's own card in any case, so a save shows at the next reading.
 
+**Addendum of 2026-10-28, decided by the product owner: a subscription is required
+(Lazurio/LazurioPlatform#694, plan DEV-6676 G1).** A Personal Environment's Buddy was signed in
+with a free ChatGPT account. OpenAI approved the sign-in, and every turn then failed with an HTTP
+400 ("The '<model>' model is not supported when using Codex with a ChatGPT account.") that never
+named the plan, so the person could not tell what was wrong. Of the options (allow free accounts
+on a weaker model, translate only the error, or require a subscription), the product owner chose
+to require one.
+
+What changes:
+- **The gate.** Where Buddy's gateway lists `lazurio-codex-entitlement-v1`
+  (Lazurio/hermes-agent#20), the poll that sees `approved` asks Hermes
+  `GET /api/providers/oauth/openai-codex/entitlement`.
+  - Hermes reads the plan from the stored token's claim and whether the account's own Codex
+    catalog lists Buddy's model. The answer carries no token, account id or address.
+  - Only a whole answer refuses, one whose members bear its verdict out, for `openai-codex`
+    and a model: `no-subscription` with the plan `free` and no catalog asked, or
+    `model-missing` with another plan, or none, and a catalog that answered without the model.
+  - That signs Buddy out again through the same route as „Odhlásit“, a second time where the
+    first try fails. The answer is `unusable` with the reason and `signedOut`, whether the
+    sign-out happened. Where it did not, the account is still signed in and nothing claims
+    otherwise. The page knows it holds a refused account until a sign-out, or a new sign-in
+    the core keeps. A later sign-in that fails or ends before that does not end it, so the
+    page never says „Připojeno“ or „Pracuje“ meanwhile. A reload forgets it. The CLI says he
+    is still signed in with it and how to sign him out. Where the sign-out did happen, his whole
+    sign-in is gone: the page's reading says so at once, no reading begun before takes it
+    back, and a fresh one follows.
+  - The journal records the sign-out's outcome with the reason, then the poll's `unusable`.
+- **What never blocks.** `usable`, `unknown`, no answer, an answer of no known or of an
+  inconsistent shape (a lone verdict among them), or a Hermes without the capability keeps the
+  sign-in.
+- **What the person sees.** The page treats `unusable` as a failure of this sign-in, in one plain
+  sentence:
+  - „Tento účet ChatGPT je bez předplatného a Buddy předplatné potřebuje. Přihlaste ho účtem
+    s předplatným ChatGPT.“
+  - „Předplatné tohoto účtu ChatGPT Buddymu nestačí. Přihlaste ho jiným účtem.“
+
+  What to do sits behind the "?". The new sign-in is „Přihlásit jiný účet“. `lazurio buddy
+  sign-in start` writes `unusable` on its line and says the same in English on stderr.
+- **The sign-in step, after a person's first meeting with Buddy on 2026-10-28.** This amends
+  F65 point 4's first screen. It holds in the dialog, on the Začínáme step and in Nastavení →
+  Buddy, in both languages.
+  - Just the steps. The line above them („Buddy se přihlásí vlastním účtem ChatGPT.“) goes, and
+    so does the line about the agents' own sign-ins. The guide over Začínáme already says
+    „Agenti se k AI přihlašují zvlášť“.
+  - Step 1 names the subscription: „Přihlaste se svým účtem ChatGPT s předplatným.“ with
+    „Otevřít ChatGPT“. Step 2 is „Zadejte tento kód.“
+  - The person signs in, so the action is „Přihlásit se“, not „Přihlásit Buddyho“. Opened from
+    Nastavení → Buddy, the dialog takes its row's name, „Přihlášení k ChatGPT“.
+  - The code step says what to do before ChatGPT can refuse the code: „Když ChatGPT kód
+    nepřijme, zapněte si přihlášení kódem v nastavení zabezpečení ChatGPT a znovu klikněte na
+    „Otevřít ChatGPT“.“ It has no link, since the repository has no stable address of that
+    setting.
+  - While the person signs in, one calm line waits with the code's time and no spinner. „Zrušit“
+    does not come back as the main action, and only fetching a code keeps its spinner.
+  - „Připojeno“ stands alone, prominent, in the success colour. The sign-in part says it in the
+    same colour, as a tool's sign-in in Nástroje does.
+
+Not in this revision:
+- the link „Jak získat předplatné“, whose address is open;
+- OpenAI's mark on „Přihlásit se“: docs/licensing.md allows it only on Začínáme's „Přihlásit
+  ChatGPT“, and any other place is a new decision;
+- a reading that reports an account already signed in without a subscription;
+- the plain sentence for the same 400 in a running chat (Hermes's runtime half of #694).
+
 ## F64 — Buddy's persona: one source (`persona.json`) and one deriver (the Platform)
 
 **Proposed for plan DEV-6676 in the Buddy lead's shaping of 2026-10-25 (its §1.4, §2 and

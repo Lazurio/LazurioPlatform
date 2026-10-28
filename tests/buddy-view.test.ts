@@ -208,6 +208,22 @@ test("a sign-in route's answer: a code only as OpenAI's exact page and a whole c
     kind: "failed",
     reason: "failed",
   });
+  // An account the core signed out again because it cannot run Buddy
+  // (Lazurio/LazurioPlatform#694); a reason of no known shape is the free
+  // plan's, the stricter sentence.
+  for (const reason of ["no-subscription", "model-missing"] as const) {
+    expect(
+      buddySignInStep({ kind: "unusable", reason, signedOut: true }),
+    ).toEqual({ kind: "failed", reason });
+    // One the core could not sign out is still stored.
+    expect(
+      buddySignInStep({ kind: "unusable", reason, signedOut: false }),
+    ).toEqual({ kind: "failed", reason, stored: true });
+  }
+  expect(buddySignInStep({ kind: "unusable", reason: "teapot" })).toEqual({
+    kind: "failed",
+    reason: "no-subscription",
+  });
   expect(
     buddySignInStep({ kind: "blocked", reason: "hermes-outdated" }),
   ).toEqual({ kind: "blocked", reason: "hermes-outdated" });
@@ -308,6 +324,8 @@ test("Začínáme's step: done only when he is signed in and the person confirme
 test("the step while a code is on its way, and each way it can stop, in one plain line", () => {
   const waiting = buddyStep(facts(reading(), pending()), cs);
   expect(waiting.action).toBe("resume");
+  // One calm line with the code's time and no spinner (the onboarding of
+  // 2026-10-28): no `busy`.
   expect(waiting.parts[0]).toEqual({
     id: "sign-in",
     mark: "open",
@@ -317,8 +335,18 @@ test("the step while a code is on its way, and each way it can stop, in one plai
       template: "Čeká na přihlášení, kód platí ještě {left}",
       expiresAt: at + 14 * 60_000 + 32_000,
     },
-    busy: true,
   });
+  expect(buddyStep(facts(reading(), pending()), en).parts[0]?.status).toBe(
+    "Waiting for the sign-in, the code is valid for another 14:32",
+  );
+  // Nastavení → Buddy shows the same part, calm as well.
+  expect([buddySignInRow(facts(reading(), pending()), cs).part]).toEqual(
+    waiting.parts.slice(0, 1),
+  );
+  // Only the moment a code is fetched has a spinner.
+  expect(
+    buddyStep(facts(reading(), { kind: "starting" }), cs).parts[0],
+  ).toMatchObject({ status: "Připravuji kód…", busy: true });
   // Past its time: expired at once, "Nový kód".
   const expired = buddyStep(facts(reading(), pending(at - 1)), cs);
   expect(expired).toMatchObject({ failed: true, action: "new-code" });
@@ -351,6 +379,112 @@ test("the step while a code is on its way, and each way it can stop, in one plai
     "Přihlášení ještě běží. Zkuste to za chvíli znovu.",
   );
   expect(failed("sign-in-running").action).toBe("sign-in");
+  // An account that cannot run Buddy: its line, what to do behind the "?",
+  // and "Přihlásit jiný účet", as the dialog says it.
+  expect(failed("no-subscription").parts[0]).toEqual({
+    id: "sign-in",
+    mark: "warn",
+    title: "Přihlášení k ChatGPT",
+    status:
+      "Tento účet ChatGPT je bez předplatného a Buddy předplatné potřebuje. Přihlaste ho účtem s předplatným ChatGPT.",
+    help: "Předplatné si pořídíte přímo v ChatGPT. Potom Buddyho přihlaste znovu, tímto účtem nebo jiným, který předplatné už má.",
+  });
+  expect(failed("model-missing").parts[0]?.status).toBe(
+    "Předplatné tohoto účtu ChatGPT Buddymu nestačí. Přihlaste ho jiným účtem.",
+  );
+  // A refused account Hermes still holds (the page's `refused`): a reading
+  // that says he is signed in does not make it Připojeno, whatever this
+  // page's later sign-ins did; with none held, a reading that says so again
+  // does.
+  const holding = (
+    signIn: BuddySignInState,
+    refused: "no-subscription" | "model-missing" = "no-subscription",
+  ): BuddyStepFacts => ({ ...facts(works(true), signIn), refused });
+  const stored = buddyStep(
+    holding({ kind: "failed", reason: "no-subscription" }),
+    cs,
+  );
+  expect(stored).toMatchObject({
+    done: false,
+    failed: true,
+    action: "sign-in-other",
+  });
+  expect(stored.parts[0]?.status).toBe(
+    "Tento účet ChatGPT je bez předplatného a Buddy předplatné potřebuje. Přihlaste ho účtem s předplatným ChatGPT.",
+  );
+  expect(
+    buddySignInRow(
+      holding({ kind: "failed", reason: "model-missing" }, "model-missing"),
+      cs,
+    ),
+  ).toMatchObject({ controls: "sign-in-other", part: { mark: "warn" } });
+  // A later sign-in that failed before its code (Buddy needs an update):
+  // its own line, no action, and still no Připojeno, no done step.
+  const outdated = holding({ kind: "failed", reason: "hermes-outdated" });
+  expect(buddyStep(outdated, cs)).toMatchObject({
+    done: false,
+    failed: true,
+    action: "none",
+  });
+  expect(buddyStep(outdated, cs).parts[0]?.status).toBe(
+    "Buddy potřebuje aktualizaci, než se tu dá přihlásit.",
+  );
+  expect(buddySignInRow(outdated, cs).controls).toBe("none");
+  expect(signInScreen(outdated, cs)).toMatchObject({
+    kind: "failed",
+    retry: false,
+  });
+  expect(meetStart(outdated)).toBe("sign-in");
+  // One whose code expired: a new one, still not Připojeno.
+  expect(
+    buddyStep(holding({ kind: "failed", reason: "expired" }), cs),
+  ).toMatchObject({ done: false, action: "new-code" });
+  // One whose start the gateway did not answer: a new sign-in, with
+  // another account.
+  expect(
+    buddyStep(holding({ kind: "failed", reason: "unavailable" }), cs).action,
+  ).toBe("sign-in-other");
+  // Nothing under way (a cancelled one): the refusal again, and its action.
+  const idle = holding({ kind: "idle" });
+  expect(buddyStep(idle, cs)).toMatchObject({
+    failed: true,
+    action: "sign-in-other",
+  });
+  expect(buddyStep(idle, cs).parts[0]?.status).toBe(
+    "Tento účet ChatGPT je bez předplatného a Buddy předplatné potřebuje. Přihlaste ho účtem s předplatným ChatGPT.",
+  );
+  expect(signInScreen(idle, cs)).toMatchObject({
+    kind: "failed",
+    retry: true,
+    otherAccount: true,
+  });
+  // A new code on its way: the code, and he is not Připojeno meanwhile.
+  expect(signInScreen(holding(pending()), cs)).toMatchObject({ kind: "code" });
+  expect(meetStart(holding(pending()))).toBe("sign-in");
+  // The first run does not count it as his sign-in.
+  expect(buddyFact(works(true), "no-subscription")).toEqual({
+    signIn: "none",
+    confirmed: true,
+  });
+  expect(buddyFact(works(true))).toEqual({
+    signIn: "connected",
+    confirmed: true,
+  });
+  expect(
+    buddyStep(
+      facts(works(false), { kind: "failed", reason: "no-subscription" }),
+      cs,
+    ).parts[0],
+  ).toMatchObject({ mark: "done", status: "Připojeno" });
+  for (const reason of ["no-subscription", "model-missing"] as const) {
+    expect(failed(reason)).toMatchObject({
+      failed: true,
+      action: "sign-in-other",
+    });
+    expect(
+      buddySignInRow(facts(reading(), { kind: "failed", reason }), cs).controls,
+    ).toBe("sign-in-other");
+  }
   expect(failed("unavailable").parts[0]?.status).toBe("Buddy teď neběží.");
   expect(failed("no-answer").parts[0]?.status).toBe(
     "Lazurio na přihlášení neodpovědělo.",
@@ -402,6 +536,32 @@ test("the dialog's first screen: the start, the code with its time, expired, Př
   expect(
     signInScreen(facts(reading(), { kind: "failed", reason: "refused" }), cs),
   ).toMatchObject({ kind: "failed", retry: true, help: expect.any(String) });
+  // No subscription, or a plan without his model: the plain sentence, what to
+  // do behind the "?", and a new sign-in with another account.
+  expect(
+    signInScreen(
+      facts(reading(), { kind: "failed", reason: "no-subscription" }),
+      cs,
+    ),
+  ).toEqual({
+    kind: "failed",
+    line: "Tento účet ChatGPT je bez předplatného a Buddy předplatné potřebuje. Přihlaste ho účtem s předplatným ChatGPT.",
+    help: cs.buddyNoSubscriptionHelp,
+    retry: true,
+    otherAccount: true,
+  });
+  expect(
+    signInScreen(
+      facts(reading(), { kind: "failed", reason: "model-missing" }),
+      cs,
+    ),
+  ).toEqual({
+    kind: "failed",
+    line: "Předplatné tohoto účtu ChatGPT Buddymu nestačí. Přihlaste ho jiným účtem.",
+    help: cs.buddyModelMissingHelp,
+    retry: true,
+    otherAccount: true,
+  });
   expect(
     signInScreen(
       facts(reading(), { kind: "failed", reason: "hermes-outdated" }),
@@ -754,6 +914,12 @@ test("Nastavení → Buddy, Stav: Pracuje, Čeká na přihlášení or Buddy te�
   expect(buddyStateView(works(true), cs)).toEqual({
     tone: "ok",
     word: "Pracuje",
+  });
+  // Signed in with a refused account Hermes still holds: he waits for
+  // another.
+  expect(buddyStateView(works(true), cs, "model-missing")).toEqual({
+    tone: "off",
+    word: "Čeká na přihlášení",
   });
   expect(buddyStateView(reading(), cs)).toEqual({
     tone: "off",

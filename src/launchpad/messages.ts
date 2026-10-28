@@ -1189,13 +1189,22 @@ const en = {
   buddyPartSignIn: "ChatGPT sign-in",
   buddyPartPersona: "Name",
   buddySignInStarting: "Getting a code…",
-  buddySignInWaiting: "Waiting for the sign-in, the code holds {left} more",
+  buddySignInWaiting:
+    "Waiting for the sign-in, the code is valid for another {left}",
   buddyCodeExpired: "The code expired.",
   buddyRefused: "ChatGPT did not accept a sign-in by code.",
   buddyRefusedHelpLabel: "What to do",
   buddyRefusedHelp:
     "A ChatGPT account allows a sign-in by code in the security settings of ChatGPT. A work account's administrator allows it for the account. Then ask for a new code.",
   buddyLost: "This code no longer works.",
+  buddyNoSubscription:
+    "This ChatGPT account has no subscription, and Buddy needs one. Sign him in with an account that has a ChatGPT subscription.",
+  buddyNoSubscriptionHelp:
+    "You take out a subscription in ChatGPT itself. Then sign Buddy in again, with this account or another one that already has a subscription.",
+  buddyModelMissing:
+    "This ChatGPT account's subscription is not enough for Buddy. Sign him in with another account.",
+  buddyModelMissingHelp:
+    "ChatGPT does not offer this account everything Buddy needs, even with its subscription. Sign Buddy in with another account with a ChatGPT subscription.",
   buddyFailed: "The sign-in did not work.",
   buddyNoAnswer: "Lazurio did not answer the sign-in.",
   buddyOutdated: "Buddy needs an update before he can be signed in here.",
@@ -1205,22 +1214,26 @@ const en = {
   buddyNotYet: "Not yet",
   buddyPersonaVy: "{name}",
   buddyPersonaTy: "{name}",
-  buddySignIn: "Sign Buddy in",
+  // The person signs in, with their own account (the onboarding of
+  // 2026-10-28): "Sign in", step 1 names the subscription, and the code's
+  // step says what to do if ChatGPT does not take the code.
+  buddySignIn: "Sign in",
   buddyContinue: "Continue",
   buddyCancel: "Cancel",
   buddyNewCode: "New code",
+  buddySignInOther: "Sign in with another account",
   buddySignInAgain: "Sign in again",
   buddyEdit: "Edit",
-  buddySay: "Buddy signs in with his own ChatGPT account.",
-  buddyOpenPage: "Open the ChatGPT page",
+  buddySignInWith: "Sign in with your ChatGPT account that has a subscription.",
   buddyOpenButton: "Open ChatGPT",
-  buddyEnterCode: "Sign in and enter the code",
+  buddyEnterCode: "Enter this code.",
+  buddyCodeSetting:
+    "If ChatGPT does not accept the code, turn on sign-in with a code in your ChatGPT security settings and click “{open}” again.",
   buddyCodeLabel: "Code",
   buddyCopy: "Copy",
   buddyCopied: "Copied",
-  buddyHolds: "The code holds {left} more.",
+  buddyHolds: "The code is valid for another {left}.",
   buddyWaiting: "Waiting for the sign-in…",
-  buddyOwn: "This sign-in is Buddy's own. Agents sign in separately.",
   buddyDone: "Done",
   buddyLater: "Not now",
   buddyDialogStep: "Step {n} of {total}",
@@ -3182,6 +3195,14 @@ const cs: Record<MessageKey, string> = {
   buddyRefusedHelp:
     "Účet ChatGPT musí mít přihlášení kódem zapnuté v nastavení zabezpečení ChatGPT. U pracovního účtu ho povoluje jeho správce. Pak si vyžádejte nový kód.",
   buddyLost: "Tento kód už neplatí.",
+  buddyNoSubscription:
+    "Tento účet ChatGPT je bez předplatného a Buddy předplatné potřebuje. Přihlaste ho účtem s předplatným ChatGPT.",
+  buddyNoSubscriptionHelp:
+    "Předplatné si pořídíte přímo v ChatGPT. Potom Buddyho přihlaste znovu, tímto účtem nebo jiným, který předplatné už má.",
+  buddyModelMissing:
+    "Předplatné tohoto účtu ChatGPT Buddymu nestačí. Přihlaste ho jiným účtem.",
+  buddyModelMissingHelp:
+    "ChatGPT tomuto účtu nenabízí všechno, co Buddy potřebuje, i s jeho předplatným. Přihlaste Buddyho jiným účtem s předplatným ChatGPT.",
   buddyFailed: "Přihlášení se nepovedlo.",
   buddyNoAnswer: "Lazurio na přihlášení neodpovědělo.",
   buddyOutdated: "Buddy potřebuje aktualizaci, než se tu dá přihlásit.",
@@ -3191,22 +3212,23 @@ const cs: Record<MessageKey, string> = {
   buddyNotYet: "Zatím ne",
   buddyPersonaVy: "{name}, vyká vám",
   buddyPersonaTy: "{name}, tyká vám",
-  buddySignIn: "Přihlásit Buddyho",
+  buddySignIn: "Přihlásit se",
   buddyContinue: "Pokračovat",
   buddyCancel: "Zrušit",
   buddyNewCode: "Nový kód",
+  buddySignInOther: "Přihlásit jiný účet",
   buddySignInAgain: "Přihlásit znovu",
   buddyEdit: "Upravit",
-  buddySay: "Buddy se přihlásí vlastním účtem ChatGPT.",
-  buddyOpenPage: "Otevřete stránku ChatGPT",
+  buddySignInWith: "Přihlaste se svým účtem ChatGPT s předplatným.",
   buddyOpenButton: "Otevřít ChatGPT",
-  buddyEnterCode: "Přihlaste se a zadejte kód",
+  buddyEnterCode: "Zadejte tento kód.",
+  buddyCodeSetting:
+    "Když ChatGPT kód nepřijme, zapněte si přihlášení kódem v nastavení zabezpečení ChatGPT a znovu klikněte na „{open}“.",
   buddyCodeLabel: "Kód",
   buddyCopy: "Kopírovat",
   buddyCopied: "Zkopírováno",
   buddyHolds: "Kód platí ještě {left}.",
   buddyWaiting: "Čekám na přihlášení…",
-  buddyOwn: "Toto přihlášení patří jen Buddymu. Agenti se přihlašují zvlášť.",
   buddyDone: "Hotovo",
   buddyLater: "Teď ne",
   buddyDialogStep: "Krok {n} ze {total}",

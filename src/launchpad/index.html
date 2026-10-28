@@ -1349,6 +1349,9 @@ button:not(.primary) .provider-openai { color: #000000; }
 .buddy-part-title { font-weight: var(--lz-weight-akce); }
 .buddy-part-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--muted-fg); }
 .buddy-part[data-mark="warn"] .buddy-part-status { color: var(--warning-fg); }
+/* His sign-in once it is done says Připojeno in the success colour, as a
+   tool's sign-in in Nástroje does (the onboarding of 2026-10-28). */
+.buddy-part[data-part="sign-in"][data-mark="done"] .buddy-part-status { color: var(--success-fg); }
 .buddy-part > .buddy-help { grid-column: 2 / -1; }
 @container (max-width: 520px) { .buddy-part { grid-template-columns: 16px 1fr; } .buddy-part-status { grid-column: 2; } }
 button.buddy-help-toggle { width: 20px; height: 20px; padding: 0; border-radius: 50%; color: var(--muted-fg); font-size: 12px; }
@@ -1370,9 +1373,14 @@ dialog.buddy-meet { width: min(36rem, calc(100vw - 2rem)); }
 .buddy-steps .button .icon { width: 13px; height: 13px; }
 .buddy-code { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .buddy-code .tools-code { margin: 0; padding: 2px 10px; border: 1px solid var(--lz-line); border-radius: var(--radius-control); font-size: 1.25rem; letter-spacing: 0.08em; }
-.buddy-holds { color: var(--muted-fg); font-size: 13px; }
+/* The sign-in's code step (the onboarding of 2026-10-28): what to do where
+   ChatGPT does not take the code, quiet; one calm line that waits, with the
+   time the code holds and no spinner; Připojeno alone and prominent. */
+.buddy-note { max-width: 34rem; color: var(--muted-fg); font-size: 13px; line-height: 1.45; }
+.buddy-wait { color: var(--muted-fg); font-size: 13px; }
+.buddy-connected { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid var(--success-border); border-radius: var(--radius-card); background: var(--success-bg); color: var(--success-fg); font-size: 17px; font-weight: var(--lz-weight-title); }
+.buddy-connected .icon { width: 22px; height: 22px; flex: none; }
 .buddy-again { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding-top: 12px; border-top: 1px solid var(--lz-gray-100); }
-.buddy-again .buddy-own { flex: 1 1 14rem; }
 .buddy-meet-art { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border-radius: var(--radius-card); background: var(--muted); }
 .buddy-face { display: grid; width: 48px; height: 48px; flex: none; place-items: center; overflow: hidden; border-radius: 50%; background: var(--lz-surface); box-shadow: 0 0 0 1px var(--lz-line); color: var(--fg); font-size: 18px; font-weight: var(--lz-weight-title); }
 .buddy-face img { width: 100%; height: 100%; object-fit: cover; }

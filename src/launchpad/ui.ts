@@ -489,11 +489,15 @@ const buddyClient = createBuddyClient({
 let buddyAsked = false;
 const buddyHere = (): boolean =>
   shellDocument?.buddy !== undefined && !buddyClient.absent();
-const buddyFacts = (): BuddyStepFacts => ({
-  reading: buddyClient.reading(),
-  signIn: buddyClient.signIn(),
-  now: Date.now(),
-});
+const buddyFacts = (): BuddyStepFacts => {
+  const refused = buddyClient.refused();
+  return {
+    reading: buddyClient.reading(),
+    signIn: buddyClient.signIn(),
+    now: Date.now(),
+    ...(refused === undefined ? {} : { refused }),
+  };
+};
 /** Reads Buddy once the page knows he is here, and again when asked. */
 function readBuddy(again = false) {
   if (!buddyHere() || (buddyAsked && !again)) return;
@@ -509,7 +513,9 @@ function firstRunFacts(): TourFacts | null {
     ai: aiFact(),
     github: githubFact(toolsOverview, profileState.revision),
     content: content.fact(),
-    ...(buddyHere() ? { buddy: buddyFact(buddyClient.reading()) } : {}),
+    ...(buddyHere()
+      ? { buddy: buddyFact(buddyClient.reading(), buddyClient.refused()) }
+      : {}),
   };
 }
 // Whether this Environment's GitHub identity can prepare the Organization
