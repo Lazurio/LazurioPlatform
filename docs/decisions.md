@@ -2728,8 +2728,8 @@ with their names, commands and conditions, and the closing line after them; that
 Personalspace rule is kept and „Kde co je“ no longer speaks of SSH; and that no line of any file of
 the layer but the closing one names `-J`, `-A`, `ProxyJump`, `ForwardAgent` or agent forwarding.
 Every file of the layer passes `tools/threat_patterns.py` (Lazurio/hermes-agent `main`, `5a91c801`)
-at the all, context and strict scopes. `.hermes.md` is 18,423 characters in Czech and 19,971 in
-English, 29 below the 20,000, so the next addition to the layer has to make room. Not proven: that
+at the all, context and strict scopes. `.hermes.md` is 18,291 characters in Czech and 19,773 in
+English (after #695), 227 below the 20,000, so the next addition to the layer has to make room. Not proven: that
 Buddy keeps the order (generated text is not proof of behavior), and a real route through a
 station, which needs P2's file and an Admin's Osobní Prostředí on Ring 0.
 
