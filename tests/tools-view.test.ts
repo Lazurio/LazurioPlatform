@@ -2098,10 +2098,33 @@ test("Settings → Tools opened for one tool focuses what is left to do: the sig
   ).toBe("link-ssh");
   // Not offered here: no switch to turn on, and no sign-in.
   expect(revealControl(wacli({ offered: false }), copy)).toBeNull();
-  // The Organization does not allow it: no sign-in; its (locked) switch.
+  // The Organization does not allow it: no sign-in, and its switch does not
+  // move (the row disables it by the same rule): nothing to act on, also
+  // where it is installed and signed in (Pablo's review of #709).
   expect(
     revealControl(
       wacli({ installed: true, organization: { allowed: false } }),
+      copy,
+    ),
+  ).toBeNull();
+  expect(
+    revealControl(
+      wacli({
+        installed: true,
+        signIn: { state: "signed-in", account: "1" },
+        organization: { allowed: false },
+      }),
+      copy,
+    ),
+  ).toBeNull();
+  // Allowed by the Organization explicitly: as without its word.
+  expect(
+    revealControl(
+      wacli({
+        installed: true,
+        signIn: { state: "signed-in", account: "1" },
+        organization: { allowed: true },
+      }),
       copy,
     ),
   ).toBe("toggle");

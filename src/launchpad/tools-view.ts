@@ -744,14 +744,21 @@ export function signInMode(
  * only the switch where the tool is installed and signed in and just not
  * used by agents; otherwise its sign-in or installation, "Link SSH key",
  * or the setup with an agent; otherwise the switch where it is off; null
- * where the row has nothing left to do. Its `data-control`. */
+ * where the row has nothing a person can do. Its `data-control`. */
 export function revealControl(
   tool: ToolOverview,
   copy: Copy,
   brokered = false,
 ): "curated" | "link-ssh" | "agent" | "toggle" | null {
-  // A tool this Environment does not offer has no switch to turn on.
-  const switchable = tool.offered && tool.tier !== "required" && !tool.enabled;
+  // A tool this Environment does not offer has no switch to turn on, and
+  // the switch of one the Organization decides does not move (the row
+  // disables it by the same rule, `organizationView`; Pablo's review of
+  // #709).
+  const switchable =
+    tool.offered &&
+    tool.tier !== "required" &&
+    !tool.enabled &&
+    !organizationView(tool, copy).locked;
   if (switchable && tool.installed && tool.signIn?.state === "signed-in")
     return "toggle";
   if (tool.offered) {

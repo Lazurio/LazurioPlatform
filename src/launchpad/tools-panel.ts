@@ -1928,19 +1928,39 @@ export function createToolsPanel(
       const tool = overview.tools.find((entry) => entry.name === name);
       if (item !== undefined && tool !== undefined) {
         revealing = null;
-        revealed = { name, until: Date.now() + revealMs };
+        const mark = { name, until: Date.now() + revealMs };
+        revealed = mark;
         item.classList.add("revealed");
-        setTimeout(() => item.classList.remove("revealed"), revealMs);
+        // The mark ends on the row drawn then: a render meanwhile replaced
+        // this one (Pablo's review of #709). A later reveal keeps its own.
+        setTimeout(() => {
+          if (revealed !== mark) return;
+          revealed = null;
+          groups
+            .querySelector(`li[data-tool="${name}"]`)
+            ?.classList.remove("revealed");
+        }, revealMs);
         item.scrollIntoView({ block: "center", behavior: "smooth" });
         const control = revealControl(
           tool,
           copy,
           overview.sharedEnvironment === true,
         );
-        if (control !== null)
-          item
-            .querySelector<HTMLElement>(`[data-control="${control}"]`)
-            ?.focus({ preventScroll: true });
+        const target =
+          control === null
+            ? null
+            : item.querySelector<HTMLButtonElement>(
+                `[data-control="${control}"]`,
+              );
+        // Nothing to act on there (a row the Organization decides): the
+        // row itself takes the focus, with its sentence why. A disabled
+        // control never does.
+        if (target !== null && !target.disabled)
+          target.focus({ preventScroll: true });
+        else {
+          item.tabIndex = -1;
+          item.focus({ preventScroll: true });
+        }
       }
     }
   }
