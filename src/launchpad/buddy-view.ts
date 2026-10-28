@@ -197,15 +197,19 @@ export function buddyFact(reading: BuddyReading | null): BuddyFact {
 // ---- The sign-in this page holds ------------------------------------------
 
 /** Why a sign-in did not go on, as the page says it: the core's reasons
- * (`expired`, `refused`, `lost`, `failed`), no gateway (`unavailable`), no
- * answer from the Launchpad (`no-answer`), a Hermes without the cancellation
- * contract (`hermes-outdated`), or another sign-in still running
+ * (`expired`, `refused`, `lost`, `failed`), an account the core signed out
+ * again because it cannot run Buddy (`no-subscription`, `model-missing`;
+ * Lazurio/LazurioPlatform#694), no gateway (`unavailable`), no answer from
+ * the Launchpad (`no-answer`), a Hermes without the cancellation contract
+ * (`hermes-outdated`), or another sign-in still running
  * (`sign-in-running`). */
 export type BuddySignInFailure =
   | "expired"
   | "refused"
   | "lost"
   | "failed"
+  | "no-subscription"
+  | "model-missing"
   | "unavailable"
   | "no-answer"
   | "hermes-outdated"
@@ -238,7 +242,13 @@ export type BuddySignInStep =
   | Readonly<{ kind: "signed-in" }>
   | Readonly<{
       kind: "failed";
-      reason: "expired" | "refused" | "lost" | "failed";
+      reason:
+        | "expired"
+        | "refused"
+        | "lost"
+        | "failed"
+        | "no-subscription"
+        | "model-missing";
     }>
   /** No sign-in by this handle (any more), or one cancelled. */
   | Readonly<{ kind: "none" }>
@@ -282,6 +292,16 @@ export function buddySignInStep(value: unknown): BuddySignInStep | null {
     }
     case "signed-in":
       return { kind: "signed-in" };
+    // The core signed out an account that cannot run Buddy; the page says
+    // why, as a failure of this sign-in.
+    case "unusable":
+      return {
+        kind: "failed",
+        reason:
+          value.reason === "model-missing"
+            ? "model-missing"
+            : "no-subscription",
+      };
     case "failed":
       return {
         kind: "failed",
@@ -339,6 +359,13 @@ function failureLine(
       return { line: copy.buddyRefused, help: copy.buddyRefusedHelp };
     case "lost":
       return { line: copy.buddyLost };
+    case "no-subscription":
+      return {
+        line: copy.buddyNoSubscription,
+        help: copy.buddyNoSubscriptionHelp,
+      };
+    case "model-missing":
+      return { line: copy.buddyModelMissing, help: copy.buddyModelMissingHelp };
     case "unavailable":
       return { line: copy.buddyNotRunning };
     case "no-answer":
@@ -471,7 +498,11 @@ function nextSignIn(
   if (signIn.kind === "failed")
     return !retryable(signIn.reason)
       ? "none"
-      : signIn.reason === "unavailable" || signIn.reason === "sign-in-running"
+      : signIn.reason === "unavailable" ||
+          signIn.reason === "sign-in-running" ||
+          // A new sign-in, with another account: no code of this one helps.
+          signIn.reason === "no-subscription" ||
+          signIn.reason === "model-missing"
         ? "sign-in"
         : "new-code";
   // A gateway that does not run, or a reading that failed, cannot start one.
@@ -581,12 +612,14 @@ export type SignInScreen =
   | Readonly<{ kind: "expired" }>
   | Readonly<{ kind: "connected" }>
   /** A line, what to do about it where it says, and whether a new code
-   * may help. */
+   * may help; `otherAccount`: the new sign-in is with another account
+   * („Přihlásit jiný účet“ instead of „Nový kód“). */
   | Readonly<{
       kind: "failed";
       line: string;
       help?: string;
       retry: boolean;
+      otherAccount?: true;
     }>;
 
 export function signInScreen(facts: BuddyStepFacts, copy: Copy): SignInScreen {
@@ -610,6 +643,10 @@ export function signInScreen(facts: BuddyStepFacts, copy: Copy): SignInScreen {
       line,
       ...(help === undefined ? {} : { help }),
       retry: retryable(signIn.reason),
+      ...(signIn.reason === "no-subscription" ||
+      signIn.reason === "model-missing"
+        ? { otherAccount: true as const }
+        : {}),
     };
   }
   if (reading === null) return { kind: "checking" };

@@ -20364,6 +20364,41 @@ serving while it keeps running (`release_profile_home`), and the Nous poller's a
 configuration after a save that happened before the "not found". Buddy's state is read live from
 Hermes's own card in any case, so a save shows at the next reading.
 
+**Addendum of 2026-10-28, decided by the product owner: a subscription is required
+(Lazurio/LazurioPlatform#694, plan DEV-6676 G1).** A Personal Environment's Buddy was signed in
+with a free ChatGPT account. OpenAI approved the sign-in, and every turn then failed with an HTTP
+400 ("The '<model>' model is not supported when using Codex with a ChatGPT account.") that never
+named the plan, so the person could not tell what was wrong. Of the options (allow free accounts
+on a weaker model, translate only the error, or require a subscription), the product owner chose
+to require one.
+
+What changes:
+- **The gate.** Where Buddy's gateway lists `lazurio-codex-entitlement-v1`
+  (Lazurio/hermes-agent#20), the poll that sees `approved` asks Hermes
+  `GET /api/providers/oauth/openai-codex/entitlement`.
+  - Hermes reads the plan from the stored token's claim and whether the account's own Codex
+    catalog lists Buddy's model. The answer carries no token, account id or address.
+  - The verdict `no-subscription` (plan `free`) or `model-missing` signs Buddy out again through
+    the same route as „Odhlásit“. The answer is `unusable` with that reason, also when the
+    sign-out fails.
+  - The journal records the sign-out with the reason, then the poll's `unusable`.
+- **What never blocks.** `usable`, `unknown`, no answer, an answer of no known shape, or a Hermes
+  without the capability keeps the sign-in.
+- **What the person sees.** The page treats `unusable` as a failure of this sign-in, in one plain
+  sentence:
+  - „Tento účet ChatGPT je bez předplatného a Buddy předplatné potřebuje. Přihlaste ho účtem
+    s předplatným ChatGPT.“
+  - „Tento účet ChatGPT nemůže používat model, se kterým Buddy pracuje. Přihlaste ho jiným
+    účtem.“
+
+  What to do sits behind the "?". The new sign-in is „Přihlásit jiný účet“. `lazurio buddy
+  sign-in start` writes `unusable` on its line and says the same in English on stderr.
+
+Not in this revision: the link „Jak získat předplatné“ (its address is open), step 1's copy
+„Přihlaste se svým účtem ChatGPT s předplatným“ with the rest of the sign-in copy, a reading
+that reports an account already signed in without a subscription, and the plain sentence for the
+same 400 in a running chat (Hermes's runtime half of #694).
+
 ## F64 — Buddy's persona: one source (`persona.json`) and one deriver (the Platform)
 
 **Proposed for plan DEV-6676 in the Buddy lead's shaping of 2026-10-25 (its §1.4, §2 and

@@ -414,7 +414,14 @@ export function createBuddyDialog(
         }
         if (view.retry) {
           const again = element("div", "buddy-again");
-          again.append(button(copy.buddyNewCode, options.signIn, true), own);
+          again.append(
+            button(
+              view.otherAccount ? copy.buddySignInOther : copy.buddyNewCode,
+              options.signIn,
+              true,
+            ),
+            own,
+          );
           nodes.push(again);
         }
         return nodes;

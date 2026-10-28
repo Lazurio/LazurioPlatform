@@ -233,6 +233,115 @@ posix(
     }),
 );
 
+// The subscription decision of 2026-10-28 (Lazurio/LazurioPlatform#694): an
+// account OpenAI signs in that cannot run Buddy's model is signed out again,
+// where Hermes answers it (Lazurio/hermes-agent#20).
+posix(
+  "an approved account without a subscription, or whose plan lacks his model, is signed out again and answered unusable",
+  async () => {
+    for (const verdict of ["no-subscription", "model-missing"] as const)
+      await within({ entitlement: verdict }, async (fake, signIn, journal) => {
+        const started = await signIn.start();
+        if (started.kind !== "pending") throw new Error("not pending");
+        const [hermes] = [...fake.sessions.keys()];
+        fake.approve(hermes as string);
+        expect(await signIn.poll(started.session)).toEqual({
+          kind: "unusable",
+          reason: verdict,
+        });
+        expect(fake.state.signedIn).toBe(false);
+        expect(fake.requests.map((r) => `${r.method} ${r.path}`)).toEqual([
+          "POST /api/providers/oauth/openai-codex/start",
+          `GET /api/providers/oauth/openai-codex/poll/${hermes}`,
+          "GET /api/providers/oauth/openai-codex/entitlement",
+          "DELETE /api/providers/oauth/openai-codex",
+        ]);
+        expect(journal).toEqual([
+          { operation: "start", outcome: "pending" },
+          { operation: "sign-out", outcome: "signed-out", reason: verdict },
+          { operation: "poll", outcome: "unusable", reason: verdict },
+        ]);
+        // Answered once; the handle names none afterwards.
+        expect(await signIn.poll(started.session)).toEqual({ kind: "none" });
+        clean(JSON.stringify(journal), fake);
+      });
+  },
+);
+
+posix(
+  "an approved account Hermes finds usable, cannot check, or a Hermes without the route keeps the sign-in; only a gateway that lists the capability is asked",
+  async () => {
+    for (const entitlement of ["usable", "unknown", undefined] as const)
+      await within(
+        entitlement === undefined ? {} : { entitlement },
+        async (fake, signIn, journal) => {
+          const started = await signIn.start();
+          if (started.kind !== "pending") throw new Error("not pending");
+          fake.approve([...fake.sessions.keys()][0] as string);
+          expect(await signIn.poll(started.session)).toEqual({
+            kind: "signed-in",
+          });
+          expect(fake.state.signedIn).toBe(true);
+          const calls = fake.requests.map((r) => `${r.method} ${r.path}`);
+          expect(
+            calls.includes("GET /api/providers/oauth/openai-codex/entitlement"),
+          ).toBe(entitlement !== undefined);
+          expect(calls).not.toContain(
+            "DELETE /api/providers/oauth/openai-codex",
+          );
+          expect(journal).toEqual([
+            { operation: "start", outcome: "pending" },
+            { operation: "poll", outcome: "signed-in" },
+          ]);
+        },
+      );
+  },
+);
+
+posix(
+  "a refused account stays unusable when its sign-out fails; an entitlement answer of no known shape refuses nothing",
+  () =>
+    within(
+      { entitlement: "no-subscription" },
+      async (fake, signIn, journal) => {
+        const codex = "/api/providers/oauth/openai-codex";
+        fake.state.http = (request) =>
+          request.method === "DELETE" && request.path === codex
+            ? Response.json({ detail: "boom" }, { status: 500 })
+            : undefined;
+        let started = await signIn.start();
+        if (started.kind !== "pending") throw new Error("not pending");
+        fake.approve([...fake.sessions.keys()].at(-1) as string);
+        expect(await signIn.poll(started.session)).toEqual({
+          kind: "unusable",
+          reason: "no-subscription",
+        });
+        expect(journal.slice(-2)).toEqual([
+          {
+            operation: "sign-out",
+            outcome: "failed",
+            reason: "no-subscription",
+          },
+          { operation: "poll", outcome: "unusable", reason: "no-subscription" },
+        ]);
+        for (const answer of [
+          Response.json({ verdict: "maybe" }),
+          Response.json({ detail: "Internal Server Error" }, { status: 500 }),
+          new Response("not json"),
+        ]) {
+          fake.state.http = (request) =>
+            request.path === `${codex}/entitlement` ? answer : undefined;
+          started = await signIn.start();
+          if (started.kind !== "pending") throw new Error("not pending");
+          fake.approve([...fake.sessions.keys()].at(-1) as string);
+          expect(await signIn.poll(started.session)).toEqual({
+            kind: "signed-in",
+          });
+        }
+      },
+    ),
+);
+
 posix(
   "poll's endings: expired, refused, failed with Hermes's words withheld, lost when Hermes forgot it or restarted",
   () =>

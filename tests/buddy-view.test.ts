@@ -208,6 +208,18 @@ test("a sign-in route's answer: a code only as OpenAI's exact page and a whole c
     kind: "failed",
     reason: "failed",
   });
+  // An account the core signed out again because it cannot run Buddy
+  // (Lazurio/LazurioPlatform#694); a reason of no known shape is the free
+  // plan's, the stricter sentence.
+  for (const reason of ["no-subscription", "model-missing"] as const)
+    expect(buddySignInStep({ kind: "unusable", reason })).toEqual({
+      kind: "failed",
+      reason,
+    });
+  expect(buddySignInStep({ kind: "unusable", reason: "teapot" })).toEqual({
+    kind: "failed",
+    reason: "no-subscription",
+  });
   expect(
     buddySignInStep({ kind: "blocked", reason: "hermes-outdated" }),
   ).toEqual({ kind: "blocked", reason: "hermes-outdated" });
@@ -402,6 +414,32 @@ test("the dialog's first screen: the start, the code with its time, expired, Př
   expect(
     signInScreen(facts(reading(), { kind: "failed", reason: "refused" }), cs),
   ).toMatchObject({ kind: "failed", retry: true, help: expect.any(String) });
+  // No subscription, or a plan without his model: the plain sentence, what to
+  // do behind the "?", and a new sign-in with another account.
+  expect(
+    signInScreen(
+      facts(reading(), { kind: "failed", reason: "no-subscription" }),
+      cs,
+    ),
+  ).toEqual({
+    kind: "failed",
+    line: "Tento účet ChatGPT je bez předplatného a Buddy předplatné potřebuje. Přihlaste ho účtem s předplatným ChatGPT.",
+    help: cs.buddyNoSubscriptionHelp,
+    retry: true,
+    otherAccount: true,
+  });
+  expect(
+    signInScreen(
+      facts(reading(), { kind: "failed", reason: "model-missing" }),
+      cs,
+    ),
+  ).toEqual({
+    kind: "failed",
+    line: "Tento účet ChatGPT nemůže používat model, se kterým Buddy pracuje. Přihlaste ho jiným účtem.",
+    help: cs.buddyModelMissingHelp,
+    retry: true,
+    otherAccount: true,
+  });
   expect(
     signInScreen(
       facts(reading(), { kind: "failed", reason: "hermes-outdated" }),

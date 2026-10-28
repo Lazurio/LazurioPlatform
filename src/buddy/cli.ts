@@ -317,10 +317,18 @@ export async function runBuddyCommand(
   };
 }
 
-/** A blocked answer in words, on stderr. */
+/** A blocked answer, or an account that cannot run Buddy, in words, on
+ * stderr. */
 function blockedWords(
   answer: BuddySignInAnswer | BuddySignOutAnswer,
 ): Readonly<{ stderr?: string }> {
+  if (answer.kind === "unusable")
+    return {
+      stderr:
+        answer.reason === "no-subscription"
+          ? "This ChatGPT account has no subscription, and Buddy needs one. He was signed out again; sign him in with an account that has a ChatGPT subscription."
+          : "This ChatGPT account cannot use the model Buddy works with. He was signed out again; sign him in with another account.",
+    };
   if (answer.kind !== "blocked") return {};
   return {
     stderr:

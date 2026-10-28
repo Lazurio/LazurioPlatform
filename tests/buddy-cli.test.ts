@@ -146,6 +146,36 @@ posix(
     }),
 );
 
+posix(
+  "lazurio buddy sign-in start with an account without a subscription: unusable on its line, signed out again, and why in words (Lazurio/LazurioPlatform#694)",
+  () =>
+    within(
+      async (fake, run, folders) => {
+        const lines: string[] = [];
+        const done = run(["sign-in", "start", "--folder", folders.buddy], {
+          pollMs: 20,
+          write: (line) => {
+            lines.push(line);
+            if (lines.length === 1)
+              setTimeout(() => fake.approve("Fixture_Session_000001"), 60);
+          },
+        });
+        expect(await done).toEqual({
+          code: 1,
+          stdout: "",
+          stderr:
+            "This ChatGPT account has no subscription, and Buddy needs one. He was signed out again; sign him in with an account that has a ChatGPT subscription.",
+        });
+        expect(lines.map((line) => JSON.parse(line)).at(-1)).toEqual({
+          kind: "unusable",
+          reason: "no-subscription",
+        });
+        expect(fake.state.signedIn).toBe(false);
+      },
+      { entitlement: "no-subscription" },
+    ),
+);
+
 posix("Ctrl-C cancels the sign-in on Hermes", () =>
   within(async (fake, run, folders) => {
     const interrupt = new AbortController();

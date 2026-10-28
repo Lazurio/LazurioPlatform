@@ -53,6 +53,18 @@ import type {
 // module: the answer and the journal get a closed reason. The journal names
 // the operation, the outcome and the reason, never a code, a handle, a ticket
 // or a session.
+//
+// A sign-in OpenAI approved is not yet a working Buddy (the subscription
+// decision of 2026-10-28, Lazurio/LazurioPlatform#694): a free account, or one
+// whose plan lacks his model, signs in and then fails every turn with an HTTP
+// 400 that never names the plan. Where the gateway's `identify` lists
+// `lazurio-codex-entitlement-v1` (Lazurio/hermes-agent#20), the approved poll
+// asks Hermes `GET /api/providers/oauth/openai-codex/entitlement`. Its verdict
+// `no-subscription` or `model-missing` signs Buddy out again and answers
+// `unusable` with that reason, also when the sign-out fails, since that store
+// is what Hermes's status and the next reading report. Every other answer
+// (`usable`, `unknown`, no answer, a Hermes without the capability) keeps the
+// sign-in: what cannot be checked never blocks.
 
 /** How often the holder asks again: Začínáme's AI step asks every 2 s too. */
 export const buddySignInPollMs = 2_000;
@@ -98,9 +110,17 @@ export type BuddyGatewayUnavailable = Readonly<{
   reason: GatewayFailure;
 }>;
 
+/** Why an account OpenAI signed in cannot run Buddy (the subscription
+ * decision of 2026-10-28, Lazurio/LazurioPlatform#694): a free plan, or a
+ * plan whose catalog lacks his model. */
+export type BuddyUnusableReason = "no-subscription" | "model-missing";
+
 export type BuddySignInAnswer =
   | BuddySignInPending
   | Readonly<{ kind: "signed-in" }>
+  /** OpenAI signed the account in, but it cannot run Buddy's model: signed
+   * out again, so nothing is left for his chat and Telegram to fail on. */
+  | Readonly<{ kind: "unusable"; reason: BuddyUnusableReason }>
   | Readonly<{ kind: "failed"; reason: BuddySignInFailure }>
   /** No sign-in by this handle (any more). */
   | Readonly<{ kind: "none" }>
@@ -153,6 +173,10 @@ const refusedByOpenAi = (text: unknown) =>
   text.startsWith("OpenAI rejected the device-code login request");
 
 const codexPath = "/api/providers/oauth/openai-codex";
+
+/** The capability of a Hermes that answers whether the signed-in account may
+ * run Buddy's model (Lazurio/hermes-agent#20). */
+export const codexEntitlementCapability = "lazurio-codex-entitlement-v1";
 
 /** What Hermes said of a cancel. */
 type Ending =
@@ -213,7 +237,9 @@ export function createBuddySignIn(
     journal({
       operation,
       outcome: answer.kind,
-      ...(answer.kind === "failed" ? { reason: answer.reason } : {}),
+      ...(answer.kind === "failed" || answer.kind === "unusable"
+        ? { reason: answer.reason }
+        : {}),
     });
     return answer;
   };
@@ -334,6 +360,47 @@ export function createBuddySignIn(
       : pending(session, code);
   }
 
+  /** Hermes's verdict on the account it just saved, where it refuses it; a
+   * Hermes without the capability, no answer or any other verdict refuses
+   * nothing. */
+  async function refusal(): Promise<BuddyUnusableReason | undefined> {
+    let answer: GatewayResult<GatewayAnswer>;
+    try {
+      answer = await gateway.request("GET", `${codexPath}/entitlement`, {
+        capability: codexEntitlementCapability,
+      });
+    } catch {
+      return undefined;
+    }
+    if (!answer.ok) return undefined;
+    const { status, body } = answer.value;
+    if (status !== 200 || !isObject(body)) return undefined;
+    return body.verdict === "no-subscription" ||
+      body.verdict === "model-missing"
+      ? body.verdict
+      : undefined;
+  }
+
+  /** The approved sign-in's answer: `signed-in`, or `unusable` once Hermes
+   * refuses the account, signed out again (journaled as a sign-out). */
+  async function approved(): Promise<BuddySignInAnswer> {
+    const reason = await refusal();
+    if (reason === undefined) return { kind: "signed-in" };
+    let outcome: string;
+    try {
+      const answer = await gateway.request("DELETE", codexPath);
+      outcome = !answer.ok
+        ? "unavailable"
+        : answer.value.status === 200 || answer.value.status === 409
+          ? "signed-out"
+          : "failed";
+    } catch {
+      outcome = "failed";
+    }
+    journal({ operation: "sign-out", outcome, reason });
+    return { kind: "unusable", reason };
+  }
+
   /** What one answer of Hermes's poll means for the held sign-in. */
   async function follow(
     session: Session,
@@ -355,7 +422,7 @@ export function createBuddySignIn(
         case "pending":
           return pending(session, code);
         case "approved":
-          return end("poll", { kind: "signed-in" });
+          return end("poll", await approved());
         case "expired":
           return end("poll", { kind: "failed", reason: "expired" });
         case "denied":

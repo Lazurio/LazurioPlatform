@@ -55,6 +55,7 @@ type Json = Record<string, unknown>;
 /** Lazurio/hermes-agent#19 at f068a0bd, `gateway/lazurio_pairing_message.py`:
  * Hermes's own names, not the client's. */
 const pairingCapability = "lazurio-pairing-message-v1";
+const entitlementCapability = "lazurio-codex-entitlement-v1";
 const pairingKey = "unauthorized_dm_pairing_message";
 
 export type ControlRequest = Readonly<{ line: string; value: Json | null }>;
@@ -109,7 +110,18 @@ export type FakeGatewayOptions = Readonly<{
    * advertises it (Lazurio/hermes-agent#19; default: no, as
    * v0.22.4-lazurio.3). */
   pairingMessage?: boolean;
+  /** The verdict its entitlement route gives the signed-in account, and
+   * then it advertises the route (Lazurio/hermes-agent#20); default: no
+   * route, as v0.22.4-lazurio.4. */
+  entitlement?: FakeEntitlementVerdict;
 }>;
+
+/** The verdicts of `GET /api/providers/oauth/openai-codex/entitlement`. */
+export type FakeEntitlementVerdict =
+  | "usable"
+  | "no-subscription"
+  | "model-missing"
+  | "unknown";
 
 type SignInSession = {
   status: string;
@@ -182,6 +194,9 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
     contract: options.contract !== false,
     /** Whether it keeps and advertises the configurable pairing reply. */
     pairingMessage: options.pairingMessage === true,
+    /** Its entitlement route's verdict; undefined: no route, not
+     * advertised. */
+    entitlement: options.entitlement as FakeEntitlementVerdict | undefined,
     /** Its Telegram: not set up. */
     telegram: {
       token: null,
@@ -290,6 +305,28 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
         state.signedIn = false;
         return json(recorded.http.signOut);
       }
+      // Lazurio/hermes-agent#20: what it says of the account it holds; a
+      // Hermes without it answers FastAPI's 404.
+      if (
+        request.method === "GET" &&
+        url.pathname === `${codex}/entitlement` &&
+        state.entitlement !== undefined
+      )
+        return Response.json({
+          provider: "openai-codex",
+          model: "gpt-6.1-terra",
+          plan: state.entitlement === "no-subscription" ? "free" : "plus",
+          catalog: state.signedIn
+            ? state.entitlement === "model-missing"
+              ? "missing"
+              : state.entitlement === "unknown"
+                ? "unreachable"
+                : state.entitlement === "no-subscription"
+                  ? "not-asked"
+                  : "listed"
+            : "not-asked",
+          verdict: state.signedIn ? state.entitlement : "unknown",
+        });
       const telegramAnswer = telegramRoute(
         request.method,
         url.pathname,
@@ -584,6 +621,11 @@ export async function fakeHermesGateway(options: FakeGatewayOptions = {}) {
         result.capabilities = [
           ...(result.capabilities as unknown[]),
           pairingCapability,
+        ];
+      if (state.entitlement !== undefined)
+        result.capabilities = [
+          ...(result.capabilities as unknown[]),
+          entitlementCapability,
         ];
       return state.identify === undefined ? answer : state.identify(answer);
     }
