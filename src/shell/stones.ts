@@ -6,7 +6,7 @@
 // `semanticAppIconKey` (`launchpad/public/app-icon-key.js`) and its
 // `LAZURIO_APP_ICON_FILES` and `LAZURIO_APP_ICON_ACCENTS`
 // (`launchpad/public/app.js`), with the same keys and the same token order
-// until 2026-10-28, when the design system's set grew from 13 stones to 22 and
+// until 2026-10-28, when the design system's set grew from 13 stones to 23 and
 // the keys here grew with it; the root Launchpad keeps the older 13.
 // Pure: shared by the Launchpad page, and later the Dashboard and the forks.
 
@@ -27,6 +27,7 @@ export const stoneKeys = [
   "datasheet",
   "pricebook",
   "invoice",
+  "legal",
   "finance",
   "installation",
   "dashboard",
@@ -64,7 +65,7 @@ function tokens(app: StoneSource): ReadonlySet<string> {
 }
 
 // The fallback, in the root's order: the first group with a token wins. The
-// groups added on 2026-10-28 (finance, automation, presentation, prototype,
+// groups added on 2026-10-28 (legal, finance, automation, presentation, prototype,
 // export, and the split of the book into wiki, knowledge, guide and book)
 // sit where they win over the group that used to catch their words.
 const fallback: readonly (readonly [StoneKey, readonly string[]])[] = [
@@ -73,6 +74,7 @@ const fallback: readonly (readonly [StoneKey, readonly string[]])[] = [
   ["product", ["product", "products", "catalog", "catalogue"]],
   ["pricebook", ["pricebook", "pricing", "prices"]],
   ["invoice", ["invoice", "invoices", "billing"]],
+  ["legal", ["legal", "law", "contract", "contracts", "compliance", "gdpr"]],
   [
     "installation",
     ["installation", "installations", "maintenance", "repair", "service"],
@@ -147,6 +149,7 @@ export const stoneFiles: Readonly<Record<StoneKey, string>> = {
   deal: "deals-96.png",
   pricebook: "pricebook-96.png",
   invoice: "invoices-96.png",
+  legal: "legal-96.png",
   finance: "finance-96.png",
   profitability: "profitability-96.png",
   marketing: "content-96.png",
@@ -173,6 +176,7 @@ export const stoneAccents: Readonly<Record<string, string>> = {
   "deals-96.png": "var(--lz-expressive-vermilion)",
   "pricebook-96.png": "var(--lz-expressive-vermilion)",
   "invoices-96.png": "var(--lz-expressive-orange)",
+  "legal-96.png": "var(--lz-blue-500)",
   "finance-96.png": "var(--lz-expressive-mint)",
   "profitability-96.png": "var(--lz-expressive-orange)",
   "exports-96.png": "var(--lz-expressive-mint)",

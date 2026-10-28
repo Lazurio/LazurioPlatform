@@ -6619,7 +6619,7 @@ each of its origins.
    the title without a trailing ` vN`, the root Launchpad's `appBaseTitle`; without a
    title it is the module id. The line is the declared description, otherwise the
    org-agnostic sentence of the stone's key; without an app it is "No app". The stone
-   is one of the design system's Lazurio stones (13 at first, 22 since 2026-10-28),
+   is one of the design system's Lazurio stones (13 at first, 23 since 2026-10-28),
    chosen only by a generic semantic key: the declared `icon`, otherwise the root
    Launchpad's org-agnostic fallback from the module id, the app id and the tags
    (`semanticAppIconKey`, ported with its keys and order to `src/shell/stones.ts`;

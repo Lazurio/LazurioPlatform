@@ -23,6 +23,7 @@ import knowledgebase from "./vendor/stones/knowledgebase-96.png" with {
 import lazurioDesignSystem from "./vendor/stones/lazurio-design-system-96.png" with {
   type: "file",
 };
+import legal from "./vendor/stones/legal-96.png" with { type: "file" };
 import missionControl from "./vendor/stones/mission-control-96.png" with {
   type: "file",
 };
@@ -59,6 +60,7 @@ export const stoneFilePaths: Readonly<Record<string, string>> = {
   "invoices-96.png": invoices,
   "knowledgebase-96.png": knowledgebase,
   "lazurio-design-system-96.png": lazurioDesignSystem,
+  "legal-96.png": legal,
   "mission-control-96.png": missionControl,
   "presentation-96.png": presentation,
   "pricebook-96.png": pricebook,

@@ -169,6 +169,7 @@ const descriptionKeys: Readonly<Record<StoneKey, MessageKey>> = {
   book: "appsDescriptionBook",
   presentation: "appsDescriptionPresentation",
   prototype: "appsDescriptionPrototype",
+  legal: "appsDescriptionLegal",
   finance: "appsDescriptionFinance",
   export: "appsDescriptionExport",
   pen: "appsDescriptionPen",

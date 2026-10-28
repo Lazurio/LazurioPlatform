@@ -66,13 +66,12 @@ reaches it too.
 The design system's Lazurio stones (`content/brand/icons/*-96.png`, Lazurio's own
 artwork, 96 × 96 px, drawn at 48 × 48 on a tile and 20 × 20 in a list). Since
 2026-10-28 they come byte-for-byte from `HumanAndMachine-ai/design-system-lazurio`
-at commit `af19bb83e071836a8b9c6d627495103e95fac37e` (#111, "Ikony: nine new
-module stones, a book Knowledgebase and a palette Design system"), not from the
-pin above. The set grew from 13 stones to 22: Knowledgebase is the approved
+at commit `2d6308eaa3ada8181b86407186649d4394172d94` (#111,
+"Ikony: a Legal stone with the section sign"), not from the pin above. The set grew from 13 stones to 23: Knowledgebase is the approved
 book on yellow, the mint book it had keeps its bytes as `wiki-96.png`,
 Documentation is the book on lazurite, Design system a palette, and finance,
-profitability, prototypes, automations, exports, warehouse and installation are
-new. The 11 other stones have the same drawings as the previous copy (from
+profitability, prototypes, automations, exports, warehouse, installation and
+legal (a section sign) are new. The 11 other stones have the same drawings as the previous copy (from
 `4439aef645b7432181216aab3799d7f7819d6592`), now with the transparent
 surroundings the design system gave every stone on 2026-10-11 (190e735,
 "Prvky: Module stones on a transparent background"); the previous copy still
@@ -97,6 +96,7 @@ Launchpad's `launchpad/public/app-icons/lazurio/README.md` require.
 | `stones/invoices-96.png` | `content/brand/icons/invoices-96.png` | `4ec8e212266ef58df65de0a531ac5626655064a73cfb9dea37377b682cdb79e9` |
 | `stones/knowledgebase-96.png` | `content/brand/icons/knowledgebase-96.png` | `57c265274ecc731efa0aa90026ae1898f1abc838cea5a0ba3bbbe5070e60ad2f` |
 | `stones/lazurio-design-system-96.png` | `content/brand/icons/lazurio-design-system-96.png` | `a754d089b8cbf5f17813d1d45a8b5e352ad43cf0720133ec5c562dd8d7f676bc` |
+| `stones/legal-96.png` | `content/brand/icons/legal-96.png` | `4f8f0a4d2b03d0f699cb25fabee724f83ddb11c92944692d8abc02fa3da549b4` |
 | `stones/mission-control-96.png` | `content/brand/icons/mission-control-96.png` | `e22f7a5f8cf4298884cb8b02c9972c039d666e6378d0f6319eeca162f8280bca` |
 | `stones/presentation-96.png` | `content/brand/icons/presentation-96.png` | `ebe0d2511ea30d2f84ddb6a5a0eecc3288dd165de52c61dd9b215a6f1544dc5a` |
 | `stones/pricebook-96.png` | `content/brand/icons/pricebook-96.png` | `6461b920fe470539883cf8203477d42a03dcfeddc92c1337645909e3f266ebd5` |
