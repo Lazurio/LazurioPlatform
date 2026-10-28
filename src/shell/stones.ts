@@ -5,20 +5,29 @@
 // an Organization or a specific module name. A port of the root Launchpad's
 // `semanticAppIconKey` (`launchpad/public/app-icon-key.js`) and its
 // `LAZURIO_APP_ICON_FILES` and `LAZURIO_APP_ICON_ACCENTS`
-// (`launchpad/public/app.js`), with the same keys and the same token order.
+// (`launchpad/public/app.js`), with the same keys and the same token order
+// until 2026-10-28, when the design system's set grew from 13 stones to 22 and
+// the keys here grew with it; the root Launchpad keeps the older 13.
 // Pure: shared by the Launchpad page, and later the Dashboard and the forks.
 
 export const stoneKeys = [
   "control",
+  "automation",
+  "knowledge",
+  "wiki",
+  "guide",
   "book",
   "pen",
+  "presentation",
   "palette",
+  "prototype",
   "deal",
   "warehouse",
   "product",
   "datasheet",
   "pricebook",
   "invoice",
+  "finance",
   "installation",
   "dashboard",
   "profitability",
@@ -26,6 +35,7 @@ export const stoneKeys = [
   "website",
   "examples",
   "database",
+  "export",
   "system",
   "app",
 ] as const;
@@ -53,7 +63,10 @@ function tokens(app: StoneSource): ReadonlySet<string> {
   );
 }
 
-// The fallback, in the root's order: the first group with a token wins.
+// The fallback, in the root's order: the first group with a token wins. The
+// groups added on 2026-10-28 (finance, automation, presentation, prototype,
+// export, and the split of the book into wiki, knowledge, guide and book)
+// sit where they win over the group that used to catch their words.
 const fallback: readonly (readonly [StoneKey, readonly string[]])[] = [
   ["datasheet", ["datasheet", "datasheets", "spreadsheet", "spreadsheets"]],
   ["warehouse", ["warehouse", "inventory", "stock"]],
@@ -66,25 +79,20 @@ const fallback: readonly (readonly [StoneKey, readonly string[]])[] = [
   ],
   ["dashboard", ["dashboard", "analytics", "metrics", "reporting"]],
   ["profitability", ["profitability", "profit", "margin", "forecast"]],
+  ["finance", ["finance", "finances", "accounting", "cashflow"]],
   [
     "deal",
     ["deal", "deals", "sales", "crm", "quote", "quotes", "offer", "offers"],
   ],
-  ["control", ["mission", "control", "admin", "automation", "automations"]],
+  ["automation", ["automation", "automations", "workflow", "workflows"]],
+  ["control", ["mission", "control", "admin"]],
+  ["wiki", ["wiki"]],
+  ["knowledge", ["knowledge", "knowledgebase"]],
+  ["guide", ["guide", "guides", "onboarding"]],
+  ["book", ["doc", "docs", "document", "documents", "documentation", "manual"]],
   [
-    "book",
-    [
-      "knowledge",
-      "knowledgebase",
-      "guide",
-      "doc",
-      "docs",
-      "document",
-      "documents",
-      "documentation",
-      "wiki",
-      "manual",
-    ],
+    "presentation",
+    ["presentation", "presentations", "deck", "decks", "slides"],
   ],
   ["pen", ["content", "editor", "blog", "news", "copy"]],
   [
@@ -93,7 +101,12 @@ const fallback: readonly (readonly [StoneKey, readonly string[]])[] = [
   ],
   ["website", ["website", "websites", "web", "portal", "site"]],
   ["examples", ["example", "examples", "sample", "samples", "demo", "demos"]],
+  [
+    "prototype",
+    ["prototype", "prototypes", "mockup", "mockups", "wireframe", "wireframes"],
+  ],
   ["palette", ["design", "brand", "theme", "palette"]],
+  ["export", ["export", "exports", "download", "downloads"]],
   ["database", ["database", "db", "repository", "storage", "ledger", "mint"]],
   ["system", ["system", "server", "infrastructure", "infra"]],
 ];
@@ -112,42 +125,59 @@ export function semanticAppIconKey(app: StoneSource): StoneKey {
 /** The stone file of each key; several keys share a drawing. */
 export const stoneFiles: Readonly<Record<StoneKey, string>> = {
   control: "mission-control-96.png",
+  automation: "automations-96.png",
   dashboard: "presentation-96.png",
   system: "settings-96.png",
   app: "clients-96.png",
-  database: "knowledgebase-96.png",
+  database: "wiki-96.png",
   examples: "presentation-96.png",
-  book: "guide-96.png",
+  knowledge: "knowledgebase-96.png",
+  wiki: "wiki-96.png",
+  guide: "guide-96.png",
+  book: "documentation-96.png",
   pen: "content-96.png",
+  presentation: "presentation-96.png",
   palette: "lazurio-design-system-96.png",
+  prototype: "prototypes-96.png",
   datasheet: "presentation-96.png",
   website: "website-lazurio-96.png",
-  warehouse: "clients-96.png",
+  warehouse: "warehouse-96.png",
   product: "brainstorm-96.png",
-  installation: "settings-96.png",
+  installation: "installation-96.png",
   deal: "deals-96.png",
   pricebook: "pricebook-96.png",
   invoice: "invoices-96.png",
-  profitability: "pricebook-96.png",
+  finance: "finance-96.png",
+  profitability: "profitability-96.png",
   marketing: "content-96.png",
+  export: "exports-96.png",
 };
 
 /** The colour of each drawing (a design-system token): two keys that share a
  * file share its colour. */
 export const stoneAccents: Readonly<Record<string, string>> = {
   "mission-control-96.png": "var(--lz-blue-500)",
+  "automations-96.png": "var(--lz-blue-500)",
   "presentation-96.png": "var(--lz-expressive-orchid)",
   "settings-96.png": "var(--lz-blue-500)",
   "clients-96.png": "var(--lz-expressive-mint)",
-  "knowledgebase-96.png": "var(--lz-expressive-mint)",
+  "knowledgebase-96.png": "var(--lz-expressive-yellow)",
+  "wiki-96.png": "var(--lz-expressive-mint)",
+  "documentation-96.png": "var(--lz-blue-500)",
   "guide-96.png": "var(--lz-expressive-yellow)",
   "content-96.png": "var(--lz-expressive-orange)",
   "lazurio-design-system-96.png": "var(--lz-expressive-orchid)",
+  "prototypes-96.png": "var(--lz-expressive-orchid)",
   "website-lazurio-96.png": "var(--lz-blue-500)",
   "brainstorm-96.png": "var(--lz-expressive-yellow)",
   "deals-96.png": "var(--lz-expressive-vermilion)",
   "pricebook-96.png": "var(--lz-expressive-vermilion)",
   "invoices-96.png": "var(--lz-expressive-orange)",
+  "finance-96.png": "var(--lz-expressive-mint)",
+  "profitability-96.png": "var(--lz-expressive-orange)",
+  "exports-96.png": "var(--lz-expressive-mint)",
+  "warehouse-96.png": "var(--lz-expressive-yellow)",
+  "installation-96.png": "var(--lz-expressive-orange)",
 };
 
 /** Where the Launchpad serves the stones, on every origin of the

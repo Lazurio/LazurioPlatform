@@ -29,7 +29,7 @@ test("the fallback reads module id, app id and tags, in the root's order", () =>
   const key = (module: string, id = "", tags: string[] = []) =>
     semanticAppIconKey({ module, id, tags });
   expect(key("mission-control")).toBe("control");
-  expect(key("knowledgebase")).toBe("book");
+  expect(key("knowledgebase")).toBe("knowledge");
   expect(key("deals")).toBe("deal");
   expect(key("website")).toBe("website");
   expect(key("design-system")).toBe("palette");
@@ -41,6 +41,16 @@ test("the fallback reads module id, app id and tags, in the root's order", () =>
   expect(key("pricing-offers")).toBe("pricebook");
   expect(key("stock-catalog")).toBe("warehouse");
   expect(key("sales-automation")).toBe("deal");
+  // Since 2026-10-28: wiki before knowledge, knowledge before the book.
+  expect(key("wiki", "", ["knowledge", "documentation"])).toBe("wiki");
+  expect(key("knowledgebase", "", ["manual"])).toBe("knowledge");
+  expect(key("documentation")).toBe("book");
+  expect(key("guide")).toBe("guide");
+  expect(key("finances")).toBe("finance");
+  expect(key("presentations")).toBe("presentation");
+  expect(key("prototypes-lazurio")).toBe("prototype");
+  expect(key("automations")).toBe("automation");
+  expect(key("exports")).toBe("export");
   expect(key("infra")).toBe("system");
   expect(key("orders")).toBe("app");
   expect(semanticAppIconKey({})).toBe("app");
@@ -53,7 +63,7 @@ test("every key has a vendored stone and a colour; keys that share a drawing sha
     )
   ).sort();
   expect(Object.keys(stoneFilePaths).sort()).toEqual(vendored);
-  expect(vendored).toHaveLength(13);
+  expect(vendored).toHaveLength(22);
   for (const key of stoneKeys) {
     const file = stoneFiles[key];
     expect(vendored).toContain(file);

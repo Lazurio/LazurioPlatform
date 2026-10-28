@@ -480,7 +480,15 @@ const en = {
   // when its app declares none (decision F36; the root Launchpad's
   // `description.<key>`).
   appsDescriptionControl: "Processes, automations, and work coordination.",
-  appsDescriptionBook: "Guides, documentation, and shared knowledge.",
+  appsDescriptionAutomation: "Automations and recurring tasks.",
+  appsDescriptionKnowledge: "Shared knowledge and rules of the Organization.",
+  appsDescriptionWiki: "Team pages, how-tos, and know-how.",
+  appsDescriptionGuide: "Step-by-step guides and onboarding.",
+  appsDescriptionBook: "Documentation, manuals, and reference material.",
+  appsDescriptionPresentation: "Slide decks and their exports.",
+  appsDescriptionPrototype: "Prototypes and screen drafts.",
+  appsDescriptionFinance: "Finances, cash flow, and accounting records.",
+  appsDescriptionExport: "Data exports and downloads.",
   appsDescriptionPen: "Create, manage, and publish content.",
   appsDescriptionPalette: "Visual system, brand, and shared components.",
   appsDescriptionDeal: "Deals, proposals, and customer work.",
@@ -2512,7 +2520,15 @@ const cs: Record<MessageKey, string> = {
   // when its app declares none (decision F36; the root Launchpad's
   // `description.<key>`).
   appsDescriptionControl: "Procesy, automatizace a koordinace práce.",
-  appsDescriptionBook: "Návody, dokumentace a sdílené znalosti.",
+  appsDescriptionAutomation: "Automatizace a opakované úlohy.",
+  appsDescriptionKnowledge: "Sdílené znalosti a pravidla Organizace.",
+  appsDescriptionWiki: "Týmové stránky, návody a know-how.",
+  appsDescriptionGuide: "Průvodce a zaučení krok za krokem.",
+  appsDescriptionBook: "Dokumentace, manuály a referenční podklady.",
+  appsDescriptionPresentation: "Prezentace a jejich exporty.",
+  appsDescriptionPrototype: "Prototypy a návrhy obrazovek.",
+  appsDescriptionFinance: "Finance, cash flow a účetní podklady.",
+  appsDescriptionExport: "Exporty a stahování dat.",
   appsDescriptionPen: "Tvorba, správa a publikace obsahu.",
   appsDescriptionPalette: "Vizuální systém, značka a sdílené komponenty.",
   appsDescriptionDeal: "Obchodní případy, nabídky a práce se zákazníky.",
