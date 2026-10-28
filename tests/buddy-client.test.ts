@@ -10,7 +10,16 @@ import {
 } from "../src/launchpad/buddy-client";
 import { buddyRoutePaths } from "../src/launchpad/buddy-paths";
 import { buddyRoutePaths as serverPaths } from "../src/launchpad/buddy-routes";
-import { draftOf, withYourName } from "../src/launchpad/buddy-view";
+import {
+  type BuddyStepFacts,
+  buddyFact,
+  buddySignInRow,
+  buddyStateView,
+  buddyStep,
+  draftOf,
+  withYourName,
+} from "../src/launchpad/buddy-view";
+import { messages } from "../src/launchpad/messages";
 import { codexDevicePage } from "../src/tools/ai";
 
 // Decision F65 in the page (buddy-client.ts): Buddy's reading, the one
@@ -388,6 +397,120 @@ test("a refused account Hermes still holds stays known across later sign-ins tha
   });
   expect(await kept.buddy.signOut()).toBe(false);
   expect(kept.buddy.refused()).toBe("no-subscription");
+});
+
+test("a later account the core refused and signed out: the page's views never say Připojeno on the reading from before, and a fresh one follows (client and views together)", async () => {
+  const cs = messages("cs");
+  const works = answer({ state: "works", signIn: { state: "connected" } });
+  const none = answer({ state: "waits", signIn: { state: "none" } });
+  // Reads the test holds until it lets them go.
+  const fake = routes();
+  let release = () => {};
+  let held: Promise<void> | null = null;
+  const transport: BuddyTransport = {
+    get: async (path) => {
+      if (path === buddyRoutePaths.read && held !== null) await held;
+      return fake.transport.get(path);
+    },
+    post: fake.transport.post,
+  };
+  const { buddy, clock } = client({ ...fake, transport });
+  const facts = (): BuddyStepFacts => {
+    const refused = buddy.refused();
+    return {
+      reading: buddy.reading(),
+      signIn: buddy.signIn(),
+      now: at,
+      ...(refused === undefined ? {} : { refused }),
+    };
+  };
+  const says = () => {
+    const now = facts();
+    return {
+      done: buddyStep(now, cs).done,
+      part: buddyStep(now, cs).parts[0]?.status,
+      row: buddySignInRow(now, cs).controls,
+      stav: buddyStateView(now.reading, cs, now.refused).word,
+      firstRun: buddyFact(now.reading, now.refused),
+    };
+  };
+  const refusedLine =
+    "Předplatné tohoto účtu ChatGPT Buddymu nestačí. Přihlaste ho jiným účtem.";
+  // A refused account Hermes still holds; the reading says he works.
+  fake.reply(buddyRoutePaths.read, { ok: true, value: works });
+  await buddy.read();
+  fake.reply(buddyRoutePaths.start, { ok: true, value: pending() });
+  fake.reply(buddyRoutePaths.poll, {
+    ok: true,
+    value: { kind: "unusable", reason: "no-subscription", signedOut: false },
+  });
+  await buddy.start();
+  await clock.run(2000);
+  expect(says()).toMatchObject({ done: false, stav: "Čeká na přihlášení" });
+  // „Přihlásit jiný účet“: refused too, and this time signed out, so Hermes
+  // holds nothing. A reading that began before answers what was true then.
+  held = new Promise<void>((go) => {
+    release = go;
+  });
+  fake.reply(
+    buddyRoutePaths.read,
+    { ok: true, value: works },
+    { ok: true, value: none },
+  );
+  fake.reply(buddyRoutePaths.start, { ok: true, value: pending() });
+  await buddy.start();
+  const before = buddy.read();
+  fake.reply(buddyRoutePaths.poll, {
+    ok: true,
+    value: { kind: "unusable", reason: "model-missing", signedOut: true },
+  });
+  await clock.run(2000);
+  expect(buddy.refused()).toBeUndefined();
+  // Before any reading arrives the page already says what it learned.
+  const meanwhile = {
+    done: false,
+    part: refusedLine,
+    row: "sign-in-other",
+    stav: "Čeká na přihlášení",
+    firstRun: { signIn: "none", confirmed: false },
+  } as const;
+  expect(says()).toEqual(meanwhile);
+  // The reading begun before is overtaken and asked again: the fresh one
+  // is installed, never the stale one.
+  release();
+  await before;
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  expect(buddy.reading()).toMatchObject({ state: "waits", signIn: "none" });
+  expect(says()).toEqual(meanwhile);
+});
+
+test("„Přihlásit znovu“ over a working account with one the core refuses and signs out: the reading says he is not signed in at once, since his whole sign-in went", async () => {
+  const { buddy, fake, clock } = client();
+  fake.reply(buddyRoutePaths.read, {
+    ok: true,
+    value: answer({ state: "works", signIn: { state: "connected" } }),
+  });
+  await buddy.read();
+  expect(buddy.reading()).toMatchObject({
+    state: "works",
+    signIn: "connected",
+  });
+  fake.reply(buddyRoutePaths.start, { ok: true, value: pending() });
+  fake.reply(buddyRoutePaths.poll, {
+    ok: true,
+    value: { kind: "unusable", reason: "no-subscription", signedOut: true },
+  });
+  fake.reply(buddyRoutePaths.read, { ok: true, value: answer() });
+  await buddy.start();
+  await clock.run(2000);
+  expect(buddy.refused()).toBeUndefined();
+  expect(buddy.reading()).toMatchObject({ state: "waits", signIn: "none" });
+  expect(
+    buddyStep(
+      { reading: buddy.reading(), signIn: buddy.signIn(), now: at },
+      messages("cs"),
+    ),
+  ).toMatchObject({ done: false, action: "sign-in-other" });
 });
 
 test("Zrušit ends the code on Hermes; one Hermes did not confirm ending stays on screen", async () => {

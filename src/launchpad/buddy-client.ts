@@ -146,6 +146,20 @@ export function createBuddyClient(
     );
   }
 
+  /** The core signed out a refused account, and Hermes's sign-out removes his
+   * whole sign-in: the reading says he is not signed in at once, no reading
+   * begun before may take it back, and a fresh one follows. */
+  function installSignedOut() {
+    learned();
+    if (reading !== null && reading.signIn === "connected")
+      reading = {
+        ...reading,
+        signIn: "none",
+        state: reading.state === "works" ? "waits" : reading.state,
+      };
+    void read();
+  }
+
   /** Telegram as an answer of the page's own says it now. */
   function installTelegram(telegram: TelegramReading) {
     learned();
@@ -235,8 +249,13 @@ export function createBuddyClient(
     if (step?.kind === "failed") {
       // A refused account: still held where its sign-out failed, gone where
       // it happened, since Hermes's sign-out removes his whole sign-in.
-      if (step.reason === "no-subscription" || step.reason === "model-missing")
+      if (
+        step.reason === "no-subscription" ||
+        step.reason === "model-missing"
+      ) {
         refused = step.stored === true ? step.reason : undefined;
+        if (step.stored !== true) installSignedOut();
+      }
       set({ kind: "failed", reason: step.reason });
       options.changed();
       return;

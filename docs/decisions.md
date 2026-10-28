@@ -20387,7 +20387,9 @@ What changes:
     otherwise. The page knows it holds a refused account until a sign-out, or a new sign-in
     the core keeps. A later sign-in that fails or ends before that does not end it, so the
     page never says „Připojeno“ or „Pracuje“ meanwhile. A reload forgets it. The CLI says he
-    is still signed in with it and how to sign him out.
+    is still signed in with it and how to sign him out. Where the sign-out did happen, his whole
+    sign-in is gone: the page's reading says so at once, no reading begun before takes it
+    back, and a fresh one follows.
   - The journal records the sign-out's outcome with the reason, then the poll's `unusable`.
 - **What never blocks.** `usable`, `unknown`, no answer, an answer of no known or of an
   inconsistent shape (a lone verdict among them), or a Hermes without the capability keeps the
