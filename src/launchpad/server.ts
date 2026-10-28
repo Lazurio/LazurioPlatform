@@ -40,7 +40,7 @@ import { readSyncRecord, type SyncRequest, syncContent } from "../content/sync";
 import type { ExecutorHost } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
 import { type DocumentsHost, processDocumentsHost } from "../files/documents";
-import { enableToolForAgents } from "../folder/enable-tool";
+import { type AgentsSwitch, enableToolForAgents } from "../folder/enable-tool";
 import { inspectProfileChange } from "../folder/inspect-profile-change";
 import {
   inspectToolsChange,
@@ -666,11 +666,13 @@ export async function startLaunchpad(
     process.platform,
   ),
   // Test seams of the curated install and login (decision F19): the
-  // official-source fetcher, the architecture and the login timings.
+  // official-source fetcher, the architecture, the login timings and the
+  // switch that follows a sign-in (F19's addendum of 2026-10-28).
   curatedOptions: Readonly<{
     fetch?: InstallFetch;
     arch?: string;
     login?: Partial<LoginEnvironment>;
+    switchOn?: (folder: string, tool: string) => Promise<AgentsSwitch>;
   }> = {},
   // The recovery use case of this installation (`lazurio recover`), for the
   // read-only Recovery view of Settings. Trusted composition, never HTTP
@@ -910,8 +912,13 @@ export async function startLaunchpad(
   // without the switch (a required one; codex and claude are no catalog
   // tools of agents) or one the switch would refuse (decisions F44, F45).
   // A person may turn it off again. Each one is journaled: the tool and
-  // what became of the switch, nothing else.
-  const switching = new Map<string, Promise<void>>();
+  // what became of the switch, nothing else. Every switch under way is kept
+  // until it settles, so a closing Launchpad waits for each one, and each
+  // outcome keeps its own: its answer waits for that switch and never for
+  // another sign-in's of the same tool (Pablo's review of #702).
+  const switching = new Set<Promise<void>>();
+  const switchOf = new WeakMap<SignedInState, Promise<void>>();
+  const switchOn = curatedOptions.switchOn ?? enableToolForAgents;
   const switchOnAfter = (signedIn: SignedInState) => {
     const tool = signedIn.tool;
     if (signedIn.already === true) return;
@@ -926,7 +933,7 @@ export async function startLaunchpad(
           ...(reason === undefined ? {} : { reason }),
         }),
       );
-    const switched: Promise<void> = enableToolForAgents(folder, tool)
+    const switched: Promise<void> = switchOn(folder, tool)
       .then(
         (result) => {
           journal(
@@ -939,18 +946,29 @@ export async function startLaunchpad(
         },
         () => journal("failed"),
       )
-      .finally(() => {
-        if (switching.get(tool) === switched) switching.delete(tool);
-      });
-    switching.set(tool, switched);
+      .finally(() => switching.delete(switched));
+    switching.add(switched);
+    // The sessions hand this same outcome to its holder (`start`, `poll`).
+    switchOf.set(signedIn, switched);
   };
-  // A sign-in's outcome is answered once its switch followed it, so the
+  // A sign-in's outcome is answered once its own switch followed it, so the
   // page's reading after it shows the switch as it is; bounded, where the
   // Folder is held longer the page's next reading shows it.
-  const switchedAfter = async (tool: string) => {
-    const switched = switching.get(tool);
-    if (switched !== undefined)
-      await Promise.race([switched, Bun.sleep(switchWaitMs)]);
+  const switchedAfter = async (outcome: LoginState) => {
+    const switched =
+      outcome.kind === "signed-in" ? switchOf.get(outcome) : undefined;
+    if (switched === undefined) return;
+    let late: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        switched,
+        new Promise<void>((resolve) => {
+          late = setTimeout(resolve, switchWaitMs);
+        }),
+      ]);
+    } finally {
+      clearTimeout(late);
+    }
   };
   // The curated logins of this Launchpad (decision F19): in memory, held by
   // the browser that started each one through its session handle, ended on
@@ -2890,7 +2908,7 @@ export async function startLaunchpad(
             // note of 2026-10-19), so Integrace read again, once the
             // switch followed it.
             if (started.kind === "signed-in") {
-              await switchedAfter(tool);
+              await switchedAfter(started);
               integrations.forget();
             }
             // A refusal before anything ran (codex and claude without the
@@ -2920,7 +2938,7 @@ export async function startLaunchpad(
               ? withQr(logins.poll(tool, handle))
               : logins.cancel(tool, handle);
           if (answered.kind === "signed-in") {
-            await switchedAfter(tool);
+            await switchedAfter(answered);
             integrations.forget();
           }
           return response(answered);
@@ -3175,8 +3193,9 @@ export async function startLaunchpad(
           await shell?.stop();
           await health?.stop(true);
           await loginClose;
-          // The switch that follows a sign-in is a Folder change: it completes.
-          await Promise.allSettled(switching.values());
+          // Each switch that follows a sign-in is a Folder change: it
+          // completes.
+          await Promise.allSettled(switching);
           await settingsClose;
           const result = applicationClose
             ? await applicationClose

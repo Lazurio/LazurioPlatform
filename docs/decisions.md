@@ -4400,7 +4400,10 @@ Integrace say so.
      as used.
    - The page no longer changes the Folder after a sign-in; `autoEnable` is gone and the
      page only reads again.
-   - A Launchpad that closes lets a switch under way complete, as any Folder change.
+   - Each outcome waits for its own switch only, never for another sign-in's of the same
+     tool. A Launchpad that closes lets every switch under way complete, as any Folder
+     change, also one that a later sign-in of the same tool overtook (Pablo's review of
+     #702).
 4. **Journal.** One line per switch: `{"scope":"tools-agents","tool":…,"outcome":…}`. The
    outcome is `enabled`, `on`, `failed`, or `refused` with the Folder's reason. Nothing
    else is written.
@@ -4416,7 +4419,9 @@ The tests are:
   and with nobody polling; a switch turned off again stays off;
 - `tests/tools-login.test.ts`: the follower hears one end and no cancel, and a failing one
   is harmless;
-- `tests/launchpad-wacli-sign-in.test.ts`: a tool signed in before stays off.
+- `tests/launchpad-wacli-sign-in.test.ts`: a tool signed in before stays off;
+- `tests/launchpad-sign-in-switch.test.ts`: two sign-ins of one tool overlap while the first
+  switch is held. Each answer waits for its own switch, and closing waits for both.
 
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 

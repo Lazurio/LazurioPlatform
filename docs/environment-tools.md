@@ -513,8 +513,9 @@ Launchpad's Folder (Matěj 2026-10-04, F19's addendum of 2026-10-28, #682). The
 Launchpad does it as the sign-in ends, at the Folder's current revision, through the
 same change as the switch. It happens whichever page started the sign-in (Začínáme,
 Settings → Tools, Integrace) and also when nobody polls it, because its window was
-closed. A `poll` or `start` that answers `signed-in` answers once the switch followed,
-waiting at most 5 seconds, so the page's next reading shows it. Nothing is switched for:
+closed. A `poll` or `start` that answers `signed-in` answers once that sign-in's own
+switch followed, waiting at most 5 seconds, so the page's next reading shows it. A closing
+Launchpad waits for every switch under way. Nothing is switched for:
 - a tool signed in before (`already`);
 - a tool without the switch (a required one; codex and claude are not catalog tools of
   agents);
