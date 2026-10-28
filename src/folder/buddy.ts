@@ -7,13 +7,12 @@ import {
 } from "./outputs";
 import type { FolderProfile } from "./profile";
 import {
+  buddyPublicationRules,
   environmentWording,
   fullAccess,
   instructionTemplateRevision,
   parseInstructionSource,
   personalspaceRules,
-  publicationRule,
-  publicationScope,
   questionTool,
   type Text,
 } from "./render";
@@ -256,8 +255,8 @@ const role: readonly Text[] = [
     "- You never implement yourself, not even when it looks faster, not even when a bot fails.",
   ),
   t(
-    "- Nepublikuješ bez výslovného „Publikuj“ uživatele nebo mimo jeho mandát.",
-    "- You never publish without the user's explicit “Publish” or outside their mandate.",
+    "- Publikuješ jen se souhlasem uživatele: na „publikuj“, nebo když ti to dovolil předem.",
+    "- You publish only with the user's consent: on “publish”, or when they allowed it in advance.",
   ),
   t(
     "- Nezakládáš vlákna v chatu pro svou vlastní práci.",
@@ -445,8 +444,7 @@ export function renderBuddyRules(input: unknown): string {
     pick(t("## Jak se tu pracuje", "## How work is done here")),
     pick(environmentWording),
     pick(questionTool),
-    pick(publicationRule),
-    pick(publicationScope),
+    ...buddyPublicationRules.map(pick),
     pick(fullAccess),
     ...personalspaceRules.map(pick),
     "",
@@ -948,16 +946,16 @@ const threads: BuddySkill = {
       "## Answers and approvals for the user",
     ),
     t(
-      "- Sám odpovíš nebo schválíš jen tehdy, když to plyne z výslovného pokynu uživatele nebo z platného mandátu, který je jeho trvalou žádostí (decision 0089), a nejde o krok, ke kterému vždy chce souhlas: billing, secrets, destruktivní operace, přístupy, merge, Publikace, Release. Jinak se ho zeptáš nástrojem `clarify` s volbami a odpovíš až jeho slovy.",
-      "- You answer or approve yourself only when it follows from the user's explicit instruction or a valid mandate, which is the user's standing request (decision 0089), and it is no step that always needs the user's consent: billing, secrets, destructive operations, access, a merge, Publication, a Release. Otherwise you ask the user with the `clarify` tool and options, and answer only in the user's words.",
+      "- Sám odpovíš nebo schválíš jen tehdy, když to plyne z výslovného pokynu uživatele nebo z platného mandátu, který je jeho trvalou žádostí (decision 0089), a nejde o krok, ke kterému vždy chce souhlas: billing, secrets, destruktivní operace, přístupy, Release. Merge a Publikaci schválíš jen s jeho souhlasem: jeho „publikuj“ k tomu PR, nebo jeho dovolení předem na ten úkol či celé vlákno, které neodvolal; souhlas si nikdy nedomýšlíš. Jinak se ho zeptáš nástrojem `clarify` s volbami a odpovíš až jeho slovy.",
+      "- You answer or approve yourself only when it follows from the user's explicit instruction or a valid mandate, which is the user's standing request (decision 0089), and it is no step that always needs the user's consent: billing, secrets, destructive operations, access, a Release. You approve a merge or Publication only with the user's consent: their “publish” for that PR, or their permission given in advance for that task or the whole thread and not taken back; you never assume consent. Otherwise you ask the user with the `clarify` tool and options, and answer only in the user's words.",
     ),
     t(
       "- Na T3 Code starším než 0.1.1-lazurio.2 začni odpověď „Buddy za <jméno uživatele ve 4. pádě>:“; novější ukazuje stopu u odpovědi i schválení sám.",
       "- On T3 Code older than 0.1.1-lazurio.2 start the answer with “Buddy za <the user's name>:”; a newer one shows the mark on answers and approvals itself.",
     ),
     t(
-      "- „Publikuj“ do vlákna pošleš jen jako rozhodnutí uživatele o tomto konkrétním PR, jeho slovy: „Publikuj.“ (na starší verzi „Buddy za <jméno uživatele ve 4. pádě>: Publikuj.“).",
-      "- You send “Publikuj” (Publish) into a thread only as the user's decision on that exact PR, in the user's words: “Publikuj.” (on an older version “Buddy za <the user's name>: Publikuj.”).",
+      "- „Publikuj“ do vlákna pošleš jen jako rozhodnutí uživatele: jeho „publikuj“ k tomuto PR, nebo jeho neodvolané dovolení předem na tento úkol či celé vlákno; jeho slovy: „Publikuj.“ (na starší verzi „Buddy za <jméno uživatele ve 4. pádě>: Publikuj.“).",
+      "- You send “Publikuj” (Publish) into a thread only as the user's decision: their “publish” for that PR, or their permission given in advance for that task or the whole thread, not taken back; in the user's words: “Publikuj.” (on an older version “Buddy za <the user's name>: Publikuj.”).",
     ),
     blank,
     t("## Hranice", "## Limits"),
