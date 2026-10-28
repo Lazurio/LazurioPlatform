@@ -424,10 +424,11 @@ export async function planFolderChange(
   // rendered (decision F44), and switching it off changes only the record;
   // and so is a changed section of Organization settings, which Settings →
   // Tools and `lazurio tools` act on (decision F45). The relationships follow
-  // the handover (F10): every member of a peer is rendered except an assigned
-  // peer's Environment id, access and host keys (root decision 0192, addendum
-  // of 2026-10-26), which nothing renders or acts on yet, so a change of only
-  // those is recorded here too, never left behind the handover.
+  // the handover (F10): every member of a peer is rendered in the Folder
+  // except an assigned peer's host keys (root decision 0192, addendum of
+  // 2026-10-26), which only the person's SSH config outside the Folder carries
+  // (src/ssh-access/environments.ts), so a change of only those is recorded
+  // here too, never left behind the handover.
   if (
     preview.plan.kind === "unchanged" &&
     JSON.stringify(nextVoice) === JSON.stringify(current.agentVoice) &&

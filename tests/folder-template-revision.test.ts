@@ -23,8 +23,8 @@ import { tryBinding } from "./fixtures/try-environments";
 // `bun test -u` does not touch it. The fixtures in `tests/fixtures` feed the
 // compositions too.
 const pinned = {
-  revision: "base-instructions-87",
-  digest: "e57bfbdc3eff2c518ee8ab5531f8baea3275eb4d907907281df1c917df921a27",
+  revision: "base-instructions-88",
+  digest: "c82981ae1638f0eb54f2be2e749a13bb1fe288e613c0fc569383b565f0058f64",
 } as const;
 
 const optionalTools = activatableTools()
@@ -41,6 +41,14 @@ const environments = [
   { preset: "local", machine: null, os: "macos" },
   { preset: "hosted-personal", machine: bindings.personal, os: "linux" },
   { preset: "hosted-personal", machine: bindings.personalRelated, os: "linux" },
+  // With an assigned Work Environment (root decision 0192, addendum of
+  // 2026-10-26; plan DEV-6676 P2): the personal Folder's section that lists
+  // its alias renders only there.
+  {
+    preset: "hosted-personal",
+    machine: bindings.personalAssigned,
+    os: "linux",
+  },
   {
     preset: "hosted-organization-personal",
     machine: bindings.organization,

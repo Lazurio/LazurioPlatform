@@ -98,7 +98,10 @@ export type MachineOwner =
 // `hostKeys` from the Organization's records (the handover's `host_keys`).
 // The three come together or not at all, and absent they stay absent, so a
 // peer recorded without them keeps its bytes. They are context, not
-// authority: recorded and carried forward exactly, used by nothing here yet.
+// authority: recorded and carried forward exactly. A personal Machine's
+// Folder names its assigned peers to its agents and the Platform writes the
+// person's SSH config for them (`assignedEnvironments`); nothing else uses
+// them.
 export type MachineZone = "personal" | "work";
 export type MachinePeerHostKey = Readonly<{ type: "ssh-ed25519"; key: string }>;
 export type MachinePeer = Readonly<{
@@ -120,6 +123,55 @@ export type MachineRelationships = Readonly<{
   zone: MachineZone;
   peers: readonly MachinePeer[];
 }>;
+
+/** A Work Environment assigned to a personal Machine's owner that SSH reaches
+ * from it (root decision 0192, addendum of 2026-10-26): its Environment id,
+ * the alias, with its Organization and the link Machines recorded. */
+export type AssignedEnvironment = Readonly<{
+  environment: string;
+  organization: string;
+  host: string;
+  user: string;
+  hostKeys: readonly MachinePeerHostKey[];
+}>;
+
+/** The assigned peers of a personal Machine, in the handover's order, each
+ * Environment id once (the first wins, as in an SSH config): what the
+ * personal Folder's `AGENTS.md` lists and what the Platform writes into the
+ * person's SSH config, from the same binding. Empty for any other Machine,
+ * and for a handover without the members (below Machines' gate). */
+export function assignedEnvironments(
+  machine: MachineBinding | null | undefined,
+): readonly AssignedEnvironment[] {
+  if (machine?.kind !== "personal-vm") return [];
+  const seen = new Set<string>();
+  const found: AssignedEnvironment[] = [];
+  for (const peer of machine.relationships?.peers ?? []) {
+    const link = peer.ssh;
+    if (
+      peer.access !== "assigned" ||
+      peer.environment === undefined ||
+      peer.organization === null ||
+      link === null ||
+      link.user === null ||
+      link.hostKeys === undefined ||
+      link.hostKeys.length === 0 ||
+      seen.has(peer.environment)
+    )
+      continue;
+    seen.add(peer.environment);
+    found.push(
+      Object.freeze({
+        environment: peer.environment,
+        organization: peer.organization,
+        host: link.host,
+        user: link.user,
+        hostKeys: link.hostKeys,
+      }),
+    );
+  }
+  return Object.freeze(found);
+}
 
 // The hosted entry of this Machine (decision F16), projected from the
 // handover's `entry` (Machines 0.12.93) one member to one: the Launchpad's four

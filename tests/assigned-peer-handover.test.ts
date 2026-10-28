@@ -22,8 +22,10 @@ import handover from "./fixtures/machine-context-personal-assigned.json";
 // assigned to its Owner in the same tailnet is always on. Machines #948 gives
 // such a peer of the personal VM's relationships its Environment id, `access:
 // "assigned"` and the host keys from the Organization's records. The Platform
-// reads and records them exactly and uses them for nothing yet. The fixture is
-// the personal VM of the reference Organization's Bob (synthetic values).
+// reads and records them exactly; plan DEV-6676 P2 uses them only in the
+// personal Folder and the person's SSH config (tests/environment-ssh.test.ts).
+// The fixture is the personal VM of the reference Organization's Bob
+// (synthetic values).
 
 type Json = Record<string, unknown>;
 const bytes = (value: unknown) => Buffer.from(JSON.stringify(value));
@@ -473,7 +475,11 @@ for (const [name, peer, valid, branch = "personal"] of cases)
     );
   });
 
-test("the members are used by nothing yet: the generated Folder and Toto Prostředí are the same without them", () => {
+// Plan DEV-6676 P2 uses the members in two places of the Folder: the personal
+// AGENTS.md lists the assigned aliases, and the manual says those need no
+// confirmation (tests/environment-ssh.test.ts). Every other generated file
+// and Toto Prostředí stay the same without them.
+test("the members change only the personal AGENTS.md and manual/this-machine.md: every other generated file and Toto Prostředí are the same without them", () => {
   const plain = binding({
     ...handover,
     relationships: { zone: "personal", peers: [laptop, unassigned] },
@@ -486,7 +492,18 @@ test("the members are used by nothing yet: the generated Folder and Toto Prostř
         machine,
         profile: presetProfile("hosted-personal", "linux", { locale }),
       });
-    expect(render(bindings.personalAssigned)).toEqual(render(plain));
+    const withMembers = render(bindings.personalAssigned);
+    const without = render(plain);
+    expect(withMembers["AGENTS.md"]).not.toBe(without["AGENTS.md"]);
+    expect(withMembers["manual/this-machine.md"]).not.toBe(
+      without["manual/this-machine.md"],
+    );
+    const rest = (outputs: typeof without) => ({
+      ...outputs,
+      "AGENTS.md": "",
+      "manual/this-machine.md": "",
+    });
+    expect(rest(withMembers)).toEqual(rest(without));
     const copy = messages(locale);
     const facts = (machine: MachineBinding) =>
       environmentFacts(
