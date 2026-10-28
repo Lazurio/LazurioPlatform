@@ -20388,8 +20388,7 @@ What changes:
   sentence:
   - „Tento účet ChatGPT je bez předplatného a Buddy předplatné potřebuje. Přihlaste ho účtem
     s předplatným ChatGPT.“
-  - „Tento účet ChatGPT nemůže používat model, se kterým Buddy pracuje. Přihlaste ho jiným
-    účtem.“
+  - „Předplatné tohoto účtu ChatGPT Buddymu nestačí. Přihlaste ho jiným účtem.“
 
   What to do sits behind the "?". The new sign-in is „Přihlásit jiný účet“. `lazurio buddy
   sign-in start` writes `unusable` on its line and says the same in English on stderr.

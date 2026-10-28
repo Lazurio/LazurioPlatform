@@ -414,11 +414,13 @@ export type BuddyPart = Readonly<{
 }>;
 
 /** The step's one action: "Přihlásit se" (starts the sign-in and opens
- * the dialog), "Zrušit" and "Pokračovat" while a code is on its way,
+ * the dialog), "Přihlásit jiný účet" (the same, after an account that
+ * cannot run Buddy), "Zrušit" and "Pokračovat" while a code is on its way,
  * "Nový kód", "Pokračovat" to his introduction once he is signed in, or
  * "Upravit" (Nastavení → Buddy) once the step is done. */
 export type BuddyStepAction =
   | "sign-in"
+  | "sign-in-other"
   | "resume"
   | "new-code"
   | "introduce"
@@ -491,7 +493,7 @@ function signInPart(facts: BuddyStepFacts, copy: Copy): BuddyPart {
 /** What a sign-in that is not under way offers next. */
 function nextSignIn(
   facts: BuddyStepFacts,
-): "resume" | "new-code" | "sign-in" | "none" {
+): "resume" | "new-code" | "sign-in" | "sign-in-other" | "none" {
   const { reading, signIn, now } = facts;
   if (reading === null) return "none";
   if (signIn.kind === "pending")
@@ -500,13 +502,12 @@ function nextSignIn(
   if (signIn.kind === "failed")
     return !retryable(signIn.reason)
       ? "none"
-      : signIn.reason === "unavailable" ||
-          signIn.reason === "sign-in-running" ||
-          // A new sign-in, with another account: no code of this one helps.
-          signIn.reason === "no-subscription" ||
-          signIn.reason === "model-missing"
-        ? "sign-in"
-        : "new-code";
+      : // A new sign-in, with another account: no code of this one helps.
+        signIn.reason === "no-subscription" || signIn.reason === "model-missing"
+        ? "sign-in-other"
+        : signIn.reason === "unavailable" || signIn.reason === "sign-in-running"
+          ? "sign-in"
+          : "new-code";
   // A gateway that does not run, or a reading that failed, cannot start one.
   return reading.signIn === "unknown" ? "none" : "sign-in";
 }
@@ -1116,11 +1117,18 @@ export function buddyStateView(
 
 /** Přihlášení k ChatGPT in Nastavení → Buddy: the part's state, and its
  * controls: ⋯ with Přihlásit znovu and Odhlásit once he is signed in,
- * "Přihlásit" before, "Zrušit" and "Pokračovat" while a code is on its way,
- * "Nový kód" after one that did not finish. */
+ * "Přihlásit" before, "Přihlásit jiný účet" after an account that cannot
+ * run Buddy, "Zrušit" and "Pokračovat" while a code is on its way, "Nový
+ * kód" after one that did not finish. */
 export type BuddySignInRow = Readonly<{
   part: BuddyPart;
-  controls: "menu" | "sign-in" | "resume" | "new-code" | "none";
+  controls:
+    | "menu"
+    | "sign-in"
+    | "sign-in-other"
+    | "resume"
+    | "new-code"
+    | "none";
 }>;
 
 export function buddySignInRow(

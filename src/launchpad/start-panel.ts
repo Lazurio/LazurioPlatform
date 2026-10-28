@@ -370,6 +370,9 @@ export function createStartPanel(
       case "sign-in":
         actions.push(button(copy.buddySignIn, handlers.signIn, true));
         break;
+      case "sign-in-other":
+        actions.push(button(copy.buddySignInOther, handlers.signIn, true));
+        break;
       case "resume":
         actions.push(
           button(copy.buddyCancel, handlers.cancel),

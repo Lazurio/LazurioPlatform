@@ -226,6 +226,11 @@ export function createBuddyPanel(
           button(copy.buddySignInShort, options.signIn, "primary"),
         );
         break;
+      case "sign-in-other":
+        controls.append(
+          button(copy.buddySignInOther, options.signIn, "primary"),
+        );
+        break;
       case "resume":
         controls.append(
           button(copy.buddyCancel, options.cancel),

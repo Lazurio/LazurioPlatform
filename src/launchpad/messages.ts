@@ -1200,11 +1200,11 @@ const en = {
   buddyNoSubscription:
     "This ChatGPT account has no subscription, and Buddy needs one. Sign him in with an account that has a ChatGPT subscription.",
   buddyNoSubscriptionHelp:
-    "Buddy works with a model that ChatGPT offers only with a subscription, such as Plus or Pro. Sign in with an account that has one, or take out a subscription for this account in ChatGPT and sign in again.",
+    "You take out a subscription in ChatGPT itself. Then sign Buddy in again, with this account or another one that already has a subscription.",
   buddyModelMissing:
-    "This ChatGPT account cannot use the model Buddy works with. Sign him in with another account.",
+    "This ChatGPT account's subscription is not enough for Buddy. Sign him in with another account.",
   buddyModelMissingHelp:
-    "Buddy works with GPT-6.1 Terra. Sign in with a ChatGPT account whose subscription includes it.",
+    "ChatGPT does not offer this account everything Buddy needs, even with its subscription. Sign Buddy in with another account with a ChatGPT subscription.",
   buddyFailed: "The sign-in did not work.",
   buddyNoAnswer: "Lazurio did not answer the sign-in.",
   buddyOutdated: "Buddy needs an update before he can be signed in here.",
@@ -3198,11 +3198,11 @@ const cs: Record<MessageKey, string> = {
   buddyNoSubscription:
     "Tento účet ChatGPT je bez předplatného a Buddy předplatné potřebuje. Přihlaste ho účtem s předplatným ChatGPT.",
   buddyNoSubscriptionHelp:
-    "Buddy pracuje s modelem, který ChatGPT nabízí jen s předplatným, například Plus nebo Pro. Přihlaste se účtem, který ho má, nebo si pro tento účet předplatné v ChatGPT pořiďte a přihlaste se znovu.",
+    "Předplatné si pořídíte přímo v ChatGPT. Potom Buddyho přihlaste znovu, tímto účtem nebo jiným, který předplatné už má.",
   buddyModelMissing:
-    "Tento účet ChatGPT nemůže používat model, se kterým Buddy pracuje. Přihlaste ho jiným účtem.",
+    "Předplatné tohoto účtu ChatGPT Buddymu nestačí. Přihlaste ho jiným účtem.",
   buddyModelMissingHelp:
-    "Buddy pracuje s modelem GPT-6.1 Terra. Přihlaste se účtem ChatGPT, jehož předplatné ho zahrnuje.",
+    "ChatGPT tomuto účtu nenabízí všechno, co Buddy potřebuje, i s jeho předplatným. Přihlaste Buddyho jiným účtem s předplatným ChatGPT.",
   buddyFailed: "Přihlášení se nepovedlo.",
   buddyNoAnswer: "Lazurio na přihlášení neodpovědělo.",
   buddyOutdated: "Buddy potřebuje aktualizaci, než se tu dá přihlásit.",

@@ -244,7 +244,7 @@ test('a refused account: the plain sentence, its "?", and Přihlásit jiný úč
     expect(view.texts()[0]).toBe(
       reason === "no-subscription"
         ? "Tento účet ChatGPT je bez předplatného a Buddy předplatné potřebuje. Přihlaste ho účtem s předplatným ChatGPT."
-        : "Tento účet ChatGPT nemůže používat model, se kterým Buddy pracuje. Přihlaste ho jiným účtem.",
+        : "Předplatné tohoto účtu ChatGPT Buddymu nestačí. Přihlaste ho jiným účtem.",
     );
     expect(view.buttons()).toEqual([
       { label: "?", primary: false },

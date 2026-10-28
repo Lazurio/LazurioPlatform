@@ -375,6 +375,28 @@ test("the step while a code is on its way, and each way it can stop, in one plai
     "Přihlášení ještě běží. Zkuste to za chvíli znovu.",
   );
   expect(failed("sign-in-running").action).toBe("sign-in");
+  // An account that cannot run Buddy: its line, what to do behind the "?",
+  // and "Přihlásit jiný účet", as the dialog says it.
+  expect(failed("no-subscription").parts[0]).toEqual({
+    id: "sign-in",
+    mark: "warn",
+    title: "Přihlášení k ChatGPT",
+    status:
+      "Tento účet ChatGPT je bez předplatného a Buddy předplatné potřebuje. Přihlaste ho účtem s předplatným ChatGPT.",
+    help: "Předplatné si pořídíte přímo v ChatGPT. Potom Buddyho přihlaste znovu, tímto účtem nebo jiným, který předplatné už má.",
+  });
+  expect(failed("model-missing").parts[0]?.status).toBe(
+    "Předplatné tohoto účtu ChatGPT Buddymu nestačí. Přihlaste ho jiným účtem.",
+  );
+  for (const reason of ["no-subscription", "model-missing"] as const) {
+    expect(failed(reason)).toMatchObject({
+      failed: true,
+      action: "sign-in-other",
+    });
+    expect(
+      buddySignInRow(facts(reading(), { kind: "failed", reason }), cs).controls,
+    ).toBe("sign-in-other");
+  }
   expect(failed("unavailable").parts[0]?.status).toBe("Buddy teď neběží.");
   expect(failed("no-answer").parts[0]?.status).toBe(
     "Lazurio na přihlášení neodpovědělo.",
@@ -447,7 +469,7 @@ test("the dialog's first screen: the start, the code with its time, expired, Př
     ),
   ).toEqual({
     kind: "failed",
-    line: "Tento účet ChatGPT nemůže používat model, se kterým Buddy pracuje. Přihlaste ho jiným účtem.",
+    line: "Předplatné tohoto účtu ChatGPT Buddymu nestačí. Přihlaste ho jiným účtem.",
     help: cs.buddyModelMissingHelp,
     retry: true,
     otherAccount: true,

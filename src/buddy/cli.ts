@@ -327,7 +327,7 @@ function blockedWords(
       stderr:
         answer.reason === "no-subscription"
           ? "This ChatGPT account has no subscription, and Buddy needs one. He was signed out again; sign him in with an account that has a ChatGPT subscription."
-          : "This ChatGPT account cannot use the model Buddy works with. He was signed out again; sign him in with another account.",
+          : "This ChatGPT account's subscription is not enough for Buddy. He was signed out again; sign him in with another account.",
     };
   if (answer.kind !== "blocked") return {};
   return {
