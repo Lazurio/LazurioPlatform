@@ -20393,11 +20393,31 @@ What changes:
 
   What to do sits behind the "?". The new sign-in is „Přihlásit jiný účet“. `lazurio buddy
   sign-in start` writes `unusable` on its line and says the same in English on stderr.
+- **The sign-in step, after a person's first meeting with Buddy on 2026-10-28.** This amends
+  F65 point 4's first screen. It holds in the dialog, on the Začínáme step and in Nastavení →
+  Buddy, in both languages.
+  - Just the steps. The line above them („Buddy se přihlásí vlastním účtem ChatGPT.“) goes, and
+    so does the line about the agents' own sign-ins. The guide over Začínáme already says
+    „Agenti se k AI přihlašují zvlášť“.
+  - Step 1 names the subscription: „Přihlaste se svým účtem ChatGPT s předplatným.“ with
+    „Otevřít ChatGPT“. Step 2 is „Zadejte tento kód.“
+  - The person signs in, so the action is „Přihlásit se“, not „Přihlásit Buddyho“. Opened from
+    Nastavení → Buddy, the dialog takes its row's name, „Přihlášení k ChatGPT“.
+  - The code step says what to do before ChatGPT can refuse the code: „Když ChatGPT kód
+    nepřijme, zapněte si přihlášení kódem v nastavení zabezpečení ChatGPT a znovu klikněte na
+    „Otevřít ChatGPT“.“ It has no link, since the repository has no stable address of that
+    setting.
+  - While the person signs in, one calm line waits with the code's time and no spinner. „Zrušit“
+    does not come back as the main action, and only fetching a code keeps its spinner.
+  - „Připojeno“ stands alone, prominent, in the success colour. The sign-in part says it in the
+    same colour, as a tool's sign-in in Nástroje does.
 
-Not in this revision: the link „Jak získat předplatné“ (its address is open), step 1's copy
-„Přihlaste se svým účtem ChatGPT s předplatným“ with the rest of the sign-in copy, a reading
-that reports an account already signed in without a subscription, and the plain sentence for the
-same 400 in a running chat (Hermes's runtime half of #694).
+Not in this revision:
+- the link „Jak získat předplatné“, whose address is open;
+- OpenAI's mark on „Přihlásit se“: docs/licensing.md allows it only on Začínáme's „Přihlásit
+  ChatGPT“, and any other place is a new decision;
+- a reading that reports an account already signed in without a subscription;
+- the plain sentence for the same 400 in a running chat (Hermes's runtime half of #694).
 
 ## F64 — Buddy's persona: one source (`persona.json`) and one deriver (the Platform)
 

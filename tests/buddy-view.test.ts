@@ -320,6 +320,8 @@ test("Začínáme's step: done only when he is signed in and the person confirme
 test("the step while a code is on its way, and each way it can stop, in one plain line", () => {
   const waiting = buddyStep(facts(reading(), pending()), cs);
   expect(waiting.action).toBe("resume");
+  // One calm line with the code's time and no spinner (the onboarding of
+  // 2026-10-28): no `busy`.
   expect(waiting.parts[0]).toEqual({
     id: "sign-in",
     mark: "open",
@@ -329,8 +331,18 @@ test("the step while a code is on its way, and each way it can stop, in one plai
       template: "Čeká na přihlášení, kód platí ještě {left}",
       expiresAt: at + 14 * 60_000 + 32_000,
     },
-    busy: true,
   });
+  expect(buddyStep(facts(reading(), pending()), en).parts[0]?.status).toBe(
+    "Waiting for the sign-in, the code is valid for another 14:32",
+  );
+  // Nastavení → Buddy shows the same part, calm as well.
+  expect([buddySignInRow(facts(reading(), pending()), cs).part]).toEqual(
+    waiting.parts.slice(0, 1),
+  );
+  // Only the moment a code is fetched has a spinner.
+  expect(
+    buddyStep(facts(reading(), { kind: "starting" }), cs).parts[0],
+  ).toMatchObject({ status: "Připravuji kód…", busy: true });
   // Past its time: expired at once, "Nový kód".
   const expired = buddyStep(facts(reading(), pending(at - 1)), cs);
   expect(expired).toMatchObject({ failed: true, action: "new-code" });

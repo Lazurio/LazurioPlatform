@@ -404,15 +404,16 @@ export type BuddyPart = Readonly<{
   mark: BuddyPartMark;
   title: string;
   status: string;
-  /** The status counts down (a code on its way). */
+  /** The status counts down (a code on its way): one calm line, no
+   * spinner. */
   countdown?: Countdown;
-  /** Something runs: a spinner before the status. */
+  /** Something runs for a moment: a spinner before the status. */
   busy?: boolean;
   /** What to do about it, behind a "?". */
   help?: string;
 }>;
 
-/** The step's one action: "Přihlásit Buddyho" (starts the sign-in and opens
+/** The step's one action: "Přihlásit se" (starts the sign-in and opens
  * the dialog), "Zrušit" and "Pokračovat" while a code is on its way,
  * "Nový kód", "Pokračovat" to his introduction once he is signed in, or
  * "Upravit" (Nastavení → Buddy) once the step is done. */
@@ -449,6 +450,8 @@ function signInPart(facts: BuddyStepFacts, copy: Copy): BuddyPart {
   if (signIn.kind === "pending") {
     if (expired(signIn, now))
       return { ...base, mark: "warn", status: copy.buddyCodeExpired };
+    // A code that waits for the person is one calm line with its time, no
+    // spinner (the onboarding of 2026-10-28: the two together stressed).
     const countdown = {
       template: copy.buddySignInWaiting,
       expiresAt: signIn.expiresAt,
@@ -458,7 +461,6 @@ function signInPart(facts: BuddyStepFacts, copy: Copy): BuddyPart {
       mark: "open",
       status: countdownText(countdown, now),
       countdown,
-      busy: true,
     };
   }
   if (signIn.kind === "starting")
@@ -594,14 +596,18 @@ export function meetStart(facts: BuddyStepFacts): MeetScreen {
     : "sign-in";
 }
 
-/** The dialog's first screen. */
+/** The dialog's first screen: just the steps, no line above them (the
+ * onboarding of 2026-10-28). */
 export type SignInScreen =
   | Readonly<{ kind: "checking" }>
-  /** "Přihlásit Buddyho", and that the sign-in is his alone. */
+  /** Step 1's line, that the account needs a subscription, and "Přihlásit
+   * se": the person signs in. */
   | Readonly<{ kind: "start" }>
   | Readonly<{ kind: "starting" }>
-  /** The page and the code, the time it holds, "Čekám na přihlášení…" and
-   * "Nový kód". */
+  /** Step 1, the sign-in on OpenAI's page with "Otevřít ChatGPT"; step 2,
+   * the code with Kopírovat; what to do where ChatGPT does not take the
+   * code; one calm line that waits, with the time the code holds; and
+   * "Nový kód" as a quiet second action. */
   | Readonly<{
       kind: "code";
       code: string;
@@ -610,6 +616,7 @@ export type SignInScreen =
     }>
   /** "Kód vypršel." with "Nový kód" as the main action. */
   | Readonly<{ kind: "expired" }>
+  /** "Připojeno", alone and prominent. */
   | Readonly<{ kind: "connected" }>
   /** A line, what to do about it where it says, and whether a new code
    * may help; `otherAccount`: the new sign-in is with another account

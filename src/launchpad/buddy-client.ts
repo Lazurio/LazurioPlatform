@@ -258,7 +258,7 @@ export function createBuddyClient(
     signIn: (): BuddySignInState => signIn,
     read,
 
-    /** "Přihlásit Buddyho", "Nový kód", "Přihlásit znovu": a new code. A
+    /** "Přihlásit se", "Nový kód", "Přihlásit znovu": a new code. A
      * start Hermes refuses while another sign-in runs keeps the code shown. */
     async start(): Promise<void> {
       timers.cancel(pollTimer);

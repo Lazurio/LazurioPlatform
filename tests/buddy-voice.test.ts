@@ -131,7 +131,8 @@ test("Lazurio's own lines say vy, never ty", () => {
   // Where they speak to the person, they say vy.
   for (const key of [
     "buddyEnterCode",
-    "buddyOpenPage",
+    "buddySignInWith",
+    "buddyCodeSetting",
     "buddySignOutText",
     "buddyRunning",
     "buddySaveChanged",
@@ -189,19 +190,24 @@ test("no line names a code name, a command, a model or a reason; nobody is a pom
     }
 });
 
-test("the dialog's and the step's words are the wireframe's, adapted only where the rules ask", () => {
+// The sign-in's words after the onboarding of 2026-10-28: the person signs
+// in ("Přihlásit se") with their own account with a subscription; no line
+// above the steps and none about the agents' own sign-ins; the code's step
+// says what to do where ChatGPT does not take the code.
+test("the dialog's and the step's words are the wireframe's, adapted where the rules and the onboarding of 2026-10-28 ask", () => {
   expect([
     cs.buddyStepTitle,
     cs.buddySignIn,
-    cs.buddySay,
-    cs.buddyOpenPage,
+    cs.buddySignInWith,
     cs.buddyOpenButton,
     cs.buddyEnterCode,
+    cs.buddyCodeSetting,
     cs.buddyCopy,
     cs.buddyWaiting,
+    cs.buddyHolds,
     cs.buddyCodeExpired,
     cs.buddyNewCode,
-    cs.buddyOwn,
+    cs.buddySignInOther,
     cs.buddyLater,
     cs.buddyPartSignIn,
     cs.buddyPartPersona,
@@ -212,16 +218,17 @@ test("the dialog's and the step's words are the wireframe's, adapted only where 
     cs.buddySignOut,
   ]).toEqual([
     "Seznamte se s Buddym",
-    "Přihlásit Buddyho",
-    "Buddy se přihlásí vlastním účtem ChatGPT.",
-    "Otevřete stránku ChatGPT",
+    "Přihlásit se",
+    "Přihlaste se svým účtem ChatGPT s předplatným.",
     "Otevřít ChatGPT",
-    "Přihlaste se a zadejte kód",
+    "Zadejte tento kód.",
+    "Když ChatGPT kód nepřijme, zapněte si přihlášení kódem v nastavení zabezpečení ChatGPT a znovu klikněte na „{open}“.",
     "Kopírovat",
     "Čekám na přihlášení…",
+    "Kód platí ještě {left}.",
     "Kód vypršel.",
     "Nový kód",
-    "Toto přihlášení patří jen Buddymu. Agenti se přihlašují zvlášť.",
+    "Přihlásit jiný účet",
     "Teď ne",
     "Přihlášení k ChatGPT",
     "Jméno a oslovení",

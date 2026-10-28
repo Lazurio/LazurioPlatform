@@ -440,7 +440,7 @@ export function createBuddySignIn(
   }
 
   return Object.freeze({
-    /** Přihlásit Buddyho, Nový kód, Přihlásit znovu: a new sign-in, once the
+    /** Přihlásit se, Nový kód, Přihlásit znovu: a new sign-in, once the
      * one before it can no longer complete. */
     start: () => serial(start),
 
