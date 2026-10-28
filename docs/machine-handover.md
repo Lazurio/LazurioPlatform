@@ -247,7 +247,7 @@ bumped. It prints one JSON object with `machineContextDigest`:
 | Result | Exit | Meaning |
 | --- | --- | --- |
 | `{"kind":"refreshed","revision":<n>}` | 0 | The rendered files changed; revision `n` records the new binding |
-| `{"kind":"unchanged"}` | 0 | The current handover renders the same bytes and declares the same entry and relationships (identical handover, or only `installed` rewritten); nothing is written, the recorded binding and revision stay. A changed entry is recorded (`refreshed`) even when no rendered text names the changed value, because the Launchpad acts on it; so are changed relationships, because the binding's relationships follow the handover and an [assigned peer's](#assigned-peers-root-decision-0192-addendum-of-2026-10-26) Environment id, access and host keys are rendered nowhere |
+| `{"kind":"unchanged"}` | 0 | The current handover renders the same bytes and declares the same entry and relationships (identical handover, or only `installed` rewritten); nothing is written, the recorded binding and revision stay. A changed entry is recorded (`refreshed`) even when no rendered text names the changed value, because the Launchpad acts on it; so are changed relationships, because the binding's relationships follow the handover and an [assigned peer's](#assigned-peers-root-decision-0192-addendum-of-2026-10-26) access and host keys are rendered nowhere in the Folder. On a personal Machine either answer adds `environmentSsh` ([assigned peers](#assigned-peers-root-decision-0192-addendum-of-2026-10-26)) |
 | `{"kind":"blocked","reason":"folder-not-initialized",…}` | 2 | No Folder state: run `folder-init` first; nothing is created |
 | `{"kind":"blocked","reason":"drift","path":…}` / `"unsafe-path"` | 2 | An owned file was edited, removed or replaced by a link; it is named and never overwritten, nothing is written |
 | `{"kind":"blocked","reason":"folder-binding-changed",…}` / `"folder-state-unrecognized"` | 2 | Another Machine's handover, or pending/unrecognized state |
@@ -475,16 +475,62 @@ at least its gate, which stays unset until a Platform release with this reader
 exists. A Platform that vendors an earlier schema refuses a handover carrying them,
 as for `entry` and `vault`.
 
-**Read, not used.** This release records the members and carries them through
-`folder-refresh`, profile changes and `profile-resume`, and uses them for nothing:
-no generated file, no line of the Launchpad and nothing outside the Folder's state
-depends on them. They are context, not authority. A refresh records a change of
-them even though nothing it renders changes, so the recorded binding never stays
-behind the handover ([refresh](#refresh-after-a-handover-rewrite)), and recovery
-evidence withholds `environment` as a name of the peer. What they are for is the
-plan's later work (DEV-6676 P2–P4: the Osobní Prostředí's SSH aliases and pinned
-host keys, the names agents, Buddy and Delegace use, and the read-only list in
-Nastavení); nothing of it is decided here.
+**Recorded and carried.** The Platform records the members and carries them through
+`folder-refresh`, profile changes and `profile-resume`. They are context, not
+authority. A refresh records a change of them even when nothing it renders changes,
+so the recorded binding never stays behind the handover
+([refresh](#refresh-after-a-handover-rewrite)), and recovery evidence withholds
+`environment` as a name of the peer.
+
+**What uses them (plan DEV-6676 P2).** Only a personal VM's binding, and only its
+peers with all three members (`assignedEnvironments` in
+`src/folder/machine-binding.ts`; the first of an Environment id wins), in two places:
+
+- **The person's SSH config.** When the Folder records exactly this handover's
+  binding, after a `folder-init` that answers `initialized` and after a
+  `folder-refresh` that ends `refreshed` or `unchanged`, the Platform writes from
+  that binding:
+  - `~/.ssh/config.d/lazurio-environments.conf` (0600): a header line saying the
+    Platform writes it, then per Environment `Host <environment>` with `HostName
+    <ssh.host>`, `User <ssh.user>`, `HostKeyAlias <environment>`, `UserKnownHostsFile
+    ~/.ssh/known_hosts_lazurio_environments`, `StrictHostKeyChecking yes`,
+    `IdentityFile ~/.ssh/lazurio-environment-ed25519` (the Osobní Prostředí's one
+    key, which Machines create in it), `IdentitiesOnly yes` and `ForwardAgent no`;
+  - `~/.ssh/known_hosts_lazurio_environments` (0644): the same header, then
+    `<environment> ssh-ed25519 <key>` per host key;
+  - the line `Include ~/.ssh/config.d/lazurio-environments.conf` at the top of
+    `~/.ssh/config`, before any `Host` or `Match` block, as OpenSSH needs for it to
+    apply to every host. It is inserted once, when no such line is among the file's
+    global lines; every byte of the person's file and its mode are kept, and a
+    missing file is created 0600.
+
+  A file at either of the Platform's paths without the header is the person's and is
+  never overwritten or removed. A symlinked `~/.ssh`, `~/.ssh/config.d` or file,
+  another account's file, a hard link and anything but a regular file are refused
+  too. Each refusal changes nothing and is answered as `environmentSsh: {kind:
+  "blocked", reason, path}` with the `~/` path, beside the command's own answer,
+  whose exit code stays the same. **Without assigned peers** (below Machines' gate,
+  or after the last assignment ends) the two files are removed when they are the
+  Platform's and nothing is created; the `Include` line stays, since OpenSSH skips an
+  `Include` that matches no file, and the person's config is not touched. Every file
+  is replaced in one rename and only when its bytes or mode differ, so a second run
+  answers `unchanged`. A `folder-init` that answers `already-adopted` writes nothing,
+  since the Folder may still record an older handover until the `folder-refresh`
+  that follows; any other Machine is left alone.
+- **The personal Folder's `AGENTS.md`.** „Z tohoto Osobního Prostředí“ (From this
+  Personal Environment), after the boundaries, lists `ssh <environment>` with its
+  Organization per assigned Environment and says that Organization work belongs
+  there under its own `AGENTS.md`, that the Personalspace, personal sign-ins and
+  Buddy's memory stay here, and that a refused connection or a changed host key is
+  for the user, never a pin to change. Its assignment is recorded, so the agent does
+  not confirm it with the user, and `manual/this-machine.md` says so in its line on
+  confirming a peer before working on it, which otherwise stays as it was. Both
+  render only with an assigned peer.
+
+Nothing else depends on them: no other generated file and no line of the Launchpad.
+The SSH config's three files belong to the person's account, outside the Folder, so
+the Folder's digests, drift check and recovery do not cover them. Delegace's `--env`
+and the read-only list in Nastavení are the plan's later work (P3, P4).
 
 ## The hosted entry (decision F16)
 

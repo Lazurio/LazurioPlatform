@@ -1220,6 +1220,59 @@ use, and the read-only list in Nastavení); this amendment decides none of it.
 | Leave the refresh rule to the release that uses the members | A change of only the members, such as a rotated host key, would stay `unchanged` and the recorded binding would fall behind the handover, contrary to the 2026-09-23 amendment (the relationships follow the current handover); rejected |
 | Record changed relationships like a changed entry (selected) | One more condition; no handover without the members refreshes differently, because every other member is rendered |
 
+**Amendment 2026-10-28 (root decision 0192's addendum of 2026-10-26, points (c) to (e),
+plan DEV-6676 P2; on top of the amendment above).** The Platform uses an assigned peer's
+members in two places, from the recorded binding only, and nowhere else. This replaces
+point 2 of the amendment above; points 1, 3 and 4 stand.
+
+1. **The person's SSH config.** Whenever the Folder records exactly this handover's
+   binding (`folder-init` answering `initialized`, `folder-refresh` answering `refreshed`
+   or `unchanged`), a personal Machine's Platform writes
+   `~/.ssh/config.d/lazurio-environments.conf` (0600): one `Host <environment>` block per
+   assigned Environment with `HostName` and `User` from the peer's link, its host keys
+   pinned under `HostKeyAlias <environment>` in the Platform's own
+   `~/.ssh/known_hosts_lazurio_environments` (0644) with `StrictHostKeyChecking yes`, the
+   Osobní Prostředí's one key `~/.ssh/lazurio-environment-ed25519` with `IdentitiesOnly
+   yes` (point (c); one key per source Environment, not per edge), and `ForwardAgent no`.
+   One `Include` line at the top of `~/.ssh/config` makes it apply to every host.
+   - The Platform is the only writer of the two files, which say so on their first line.
+     A file there without that line, a link or another account's file is refused, and
+     nothing changes.
+   - The command's answer reports the outcome as `environmentSsh` and keeps its exit
+     code: the Folder is what it is, and a refused file is the person's to move.
+   - Until Machines opens its gate, handovers carry no members: nothing is written and
+     nothing fails.
+2. **The personal Folder's instructions.** `AGENTS.md` lists each alias in „Z tohoto
+   Osobního Prostředí“ with what goes with it: Organization work there under its own
+   `AGENTS.md`, no Personalspace, personal sign-ins or Buddy's memory carried there, only
+   the needed result back, and a refused connection or a changed host key reported,
+   never a pin edited (points (d) and (e); 0202 point 3). The handover records their
+   assignment, so `manual/this-machine.md` exempts them from confirming a peer with the
+   user; every other peer still needs it.
+
+The rule of the decision that the Platform derives no access or reachability from the
+relationships stands. The Platform writes what Machines derived and recorded; the network
+grant and the target's key line hold the access, and the config opens nothing the
+network does not.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Without assigned peers, also remove the `Include` line | Edits the person's file each time the set empties and fills again; OpenSSH skips an `Include` that matches no file; rejected |
+| Without assigned peers, keep both files with only the header | A file nothing uses; the Platform's own files are safe to remove; rejected |
+| Without assigned peers, remove the two files and keep the `Include` line (selected) | One harmless line stays in the person's config |
+| Append the `Include` line at the end of `~/.ssh/config` | After a `Host` or `Match` line it applies only within that block; rejected |
+| Insert it at the top once, unless it already stands among the global lines (selected) | Every byte of the person's lines and the file's mode are kept |
+| Write only on `folder-refresh` | Machines runs `folder-init` alone on the first apply, so `AGENTS.md` would name aliases the config lacks until the next apply; rejected |
+| Also write on `folder-init`'s `already-adopted` | The Folder may still record an older handover; the refresh that follows in the same apply writes; rejected |
+
+Template revision `base-instructions-86`, re-pinned when this rebases onto `main`.
+`tests/environment-ssh.test.ts` holds the config and known-hosts goldens, a second run
+that changes nothing, the `Include` line keeping the person's bytes and mode, the refusal
+of a foreign file and of every link, the empty set, the commands' answers, and the
+personal `AGENTS.md` (snapshot) and manual; P1's tests now exempt those two files. Not
+proven: a real login with the generated config, which needs Machines M1 (the key), M3 (the
+target's key line) and the gate, on the reference Organization first (0204).
+
 
 A user-facing "Machine profile" choice has two effects with two owners: infrastructure
 custody and topology belong to the hosting engine, Environment configuration to
