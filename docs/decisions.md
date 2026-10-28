@@ -12107,6 +12107,27 @@ missing Codex left alone (`tests/codex-apps.test.ts`); the Launchpad's reading, 
 person's switch and Codex following it, an Organization's refusal and the CLI's repair
 (`tests/integrations-chatgpt-apps.test.ts`).
 
+*Note of 2026-10-28 (Matěj): an app that its tool connects starts that from its card.*
+On Apps → Integrace, WhatsApp's card said "Připojuje se nástrojem wacli." and offered
+"Otevřít Nástroje". The button only switched the page to Settings → Tools, with nothing
+scrolled to or opened. A person who did not know to scroll down to wacli and press its
+button never connected WhatsApp.
+- **The card's button is "Připojit".** It names the tool (`open-tools` with `tool`).
+- **The tool's own sign-in opens over Integrace** where the tool has one, as its row
+  would open it (`tools.connect`): wacli's QR code, gh's device code.
+- **Otherwise Settings → Tools opens at the tool's row** (`tools.reveal`), for a tool an
+  agent sets up or a tool signed in but off for agents. The row is scrolled to the middle
+  and tinted for a moment, and the mark ends on the row drawn at that moment. The control to
+  act on next takes the focus (`revealControl`): the sign-in or installation, "Link SSH key"
+  or the setup with an agent, else the switch. A row the Organization decides has nothing to
+  act on: the row itself takes the focus, with its sentence why.
+- **Elsewhere:** Composio's card for its switch ("Otevřít Nástroje") opens at Composio's
+  switch. Začínáme's GitHub and Composio steps reveal their row where their sign-in cannot
+  open.
+
+Points 3 and 5 are unchanged. Tested: `revealControl` (`tests/tools-view.test.ts`) and
+the cards (`tests/integrations-page.test.ts`, `tests/integrations-composio-ready.test.ts`).
+
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
 > **Superseded in part by [F53](#f53--every-environment-owns-its-vault-its-own-organization-in-the-networks-vaultwarden-created-by-its-technical-account)

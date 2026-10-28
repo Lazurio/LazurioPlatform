@@ -50,6 +50,7 @@ import {
   parseLoginState,
   parseToolsOverview,
   qrImageSource,
+  revealControl,
   signedInMessage,
   signInMode,
   sourceLink,
@@ -76,6 +77,9 @@ type Post = (
   path: string,
   body: unknown,
 ) => Promise<{ value: unknown; ok: boolean }>;
+
+// How long the row of a tool this page was opened for stays marked.
+const revealMs = 2_400;
 
 // The tools section of the page (decision F18). The server derives every
 // fact; the browser shows it as text and sends back the full next selection
@@ -186,6 +190,10 @@ export function createToolsPanel(
   }
   let focus: { name: string; control: string } | null = null;
   let opener: HTMLElement | null = null;
+  // A tool this page was opened for from elsewhere (`reveal`): waiting for
+  // its row to be drawn, then marked for a moment.
+  let revealing: string | null = null;
+  let revealed: Readonly<{ name: string; until: number }> | null = null;
 
   const element = <K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -1462,6 +1470,8 @@ export function createToolsPanel(
   function card(tool: ToolOverview, copy: Copy): HTMLLIElement {
     const item = element("li", "row");
     item.dataset.tool = tool.name;
+    if (revealed?.name === tool.name && Date.now() < revealed.until)
+      item.classList.add("revealed");
     const main = element("div", "row-main");
     const text = element("div", "row-copy");
     const title = element("h3", "row-title", tool.name);
@@ -1909,6 +1919,47 @@ export function createToolsPanel(
       focusRow(focus);
       focus = null;
     }
+    if (revealing !== null && !busy) {
+      const name = revealing;
+      const item = row(name);
+      const tool = overview.tools.find((entry) => entry.name === name);
+      if (item !== undefined && tool !== undefined) {
+        revealing = null;
+        const mark = { name, until: Date.now() + revealMs };
+        revealed = mark;
+        item.classList.add("revealed");
+        // The mark ends on the row drawn then: a render meanwhile replaced
+        // this one (Pablo's review of #709). A later reveal keeps its own.
+        setTimeout(() => {
+          if (revealed !== mark) return;
+          revealed = null;
+          groups
+            .querySelector(`li[data-tool="${name}"]`)
+            ?.classList.remove("revealed");
+        }, revealMs);
+        item.scrollIntoView({ block: "center", behavior: "smooth" });
+        const control = revealControl(
+          tool,
+          copy,
+          overview.sharedEnvironment === true,
+        );
+        const target =
+          control === null
+            ? null
+            : item.querySelector<HTMLButtonElement>(
+                `[data-control="${control}"]`,
+              );
+        // Nothing to act on there (a row the Organization decides): the
+        // row itself takes the focus, with its sentence why. A disabled
+        // control never does.
+        if (target !== null && !target.disabled)
+          target.focus({ preventScroll: true });
+        else {
+          item.tabIndex = -1;
+          item.focus({ preventScroll: true });
+        }
+      }
+    }
   }
 
   // The named control of a tool's row or, when a sign-in or sign-out
@@ -2142,6 +2193,29 @@ export function createToolsPanel(
     return true;
   }
 
+  /** A tool connected from elsewhere (Integrace's card for an app its tool
+   * connects, Matěj 2026-10-28): its sign-in opens over the page that asked,
+   * as its row would open it (`openSignIn`). The tools are read live first,
+   * as for Composio's card (decision F42, note of 2026-10-19): a reading from
+   * before a sign-in elsewhere decides nothing. False where it has no
+   * sign-in to open now (an agent sets it up, or it is signed in and only
+   * off for agents): the caller then opens Settings → Tools at its row
+   * (`reveal`). */
+  async function connect(name: string): Promise<boolean> {
+    await refresh({ signIn: true });
+    return openSignIn(name);
+  }
+
+  /** Settings → Tools opened for one tool (Matěj 2026-10-28): once its row
+   * is drawn, it is scrolled to the middle of the page and marked for a
+   * moment, and the control a person acts on next takes the focus
+   * (`revealControl`): its sign-in, installation or setup, else its
+   * switch. */
+  function reveal(name: string) {
+    revealing = name;
+    render();
+  }
+
   /** Composio signed in, but not in the organization of its Organization's
    * name (Začínáme's "Dokončit", decision F42, note of 2026-10-19): its
    * dialog opens at what is left to do in Composio, as after a sign-in. A
@@ -2175,5 +2249,12 @@ export function createToolsPanel(
   }
 
   render();
-  return { refresh, openSignIn, openComposioOrganization, running };
+  return {
+    refresh,
+    openSignIn,
+    connect,
+    reveal,
+    openComposioOrganization,
+    running,
+  };
 }

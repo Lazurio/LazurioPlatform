@@ -779,12 +779,12 @@ const startPanel = createStartPanel({
   reveal: () => vaultPage.revealBitwarden(),
   toured: () => tour.toured(),
   signInGithub: () => {
-    if (!tools.openSignIn("gh")) shell.navigate(settingsPath("tools"));
+    if (!tools.openSignIn("gh")) toolsAt("gh");
   },
   // Signed in already, the dialog opens at the step left in Composio.
   signInComposio: () => {
     if (!tools.openSignIn("composio") && !tools.openComposioOrganization())
-      shell.navigate(settingsPath("tools"));
+      toolsAt("composio");
   },
   // "Přihlásit kódem": ChatGPT's sign-in by code (root decision 0201 point 10).
   signInAi: (tool, byCode) =>
@@ -1107,6 +1107,18 @@ function takeStart() {
   if (decision === "open-ai") startPanel.focusAi();
   if (decision === "install") void content.start();
 }
+// Settings → Tools at one tool's row (Matěj 2026-10-28): whoever sends a
+// person there for a tool shows them where to go on, never only the page.
+function toolsAt(name: string) {
+  shell.navigate(settingsPath("tools"));
+  tools.reveal(name);
+}
+// Integrace's card for an app its tool connects (Matěj 2026-10-28): the
+// tool's sign-in opens over Integrace where it has one, so WhatsApp's QR
+// code shows at once; otherwise Settings → Tools opens at the tool's row.
+async function openTool(name: string) {
+  if (!(await tools.connect(name))) toolsAt(name);
+}
 function setupAction(action: SetupAction) {
   if (action === "resolve-in-chat") {
     resolveInChat();
@@ -1213,9 +1225,12 @@ const integrations = createIntegrationsPanel({
       () => tools.refresh({ signIn: true }),
       () => {
         shell.navigate(settingsPath("tools"));
-        return tools.openSignIn("composio");
+        if (tools.openSignIn("composio")) return true;
+        tools.reveal("composio");
+        return false;
       },
     ),
+  openTool: (tool) => void openTool(tool),
   admin: async () => {
     const key = catalog.soleOrganization();
     if (key === null) return false;
