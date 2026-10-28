@@ -12052,8 +12052,10 @@ button never connected WhatsApp.
   would open it (`tools.connect`): wacli's QR code, gh's device code.
 - **Otherwise Settings → Tools opens at the tool's row** (`tools.reveal`), for a tool an
   agent sets up or a tool signed in but off for agents. The row is scrolled to the middle
-  and tinted for a moment. The control to act on next takes the focus (`revealControl`):
-  the sign-in or installation, "Link SSH key" or the setup with an agent, else the switch.
+  and tinted for a moment, and the mark ends on the row drawn at that moment. The control to
+  act on next takes the focus (`revealControl`): the sign-in or installation, "Link SSH key"
+  or the setup with an agent, else the switch. A row the Organization decides has nothing to
+  act on: the row itself takes the focus, with its sentence why.
 - **Elsewhere:** Composio's card for its switch ("Otevřít Nástroje") opens at Composio's
   switch. Začínáme's GitHub and Composio steps reveal their row where their sign-in cannot
   open.

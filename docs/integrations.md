@@ -88,9 +88,11 @@ Tools, where nothing showed which row to use.
   `openSignIn`). The page reads the tools first where it has no reading yet.
 - **Otherwise** (a tool an agent sets up, or one that is signed in but off for
   agents), Settings → Tools opens at the tool's row (`tools.reveal`). The row is
-  scrolled to the middle and tinted with the accent for a moment. The control the
-  user acts on next takes the focus (`revealControl`): the sign-in or installation,
-  "Link SSH key" or the setup with an agent, else the switch.
+  scrolled to the middle and tinted with the accent for a moment; the mark ends on the
+  row drawn at that moment. The control the user acts on next takes the focus
+  (`revealControl`): the sign-in or installation, "Link SSH key" or the setup with an
+  agent, else the switch. A row the Organization decides has nothing to act on, so the
+  row itself takes the focus, with its sentence why. A disabled control never does.
 
 Začínáme's GitHub and Composio steps, and Composio's card, use the same reveal where
 their sign-in cannot open. Composio
