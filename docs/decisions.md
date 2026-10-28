@@ -1267,7 +1267,7 @@ network does not.
 | Write only on `folder-refresh` | Machines runs `folder-init` alone on the first apply, so `AGENTS.md` would name aliases the config lacks until the next apply; rejected |
 | Also write on `folder-init`'s `already-adopted` | The Folder may still record an older handover; the refresh that follows in the same apply writes; rejected |
 
-Template revision `base-instructions-86`, re-pinned when this rebases onto `main`.
+Template revision `base-instructions-88`: it was 86 until it rebased onto `main` after `base-instructions-87` (#689) merged first.
 `tests/environment-ssh.test.ts` holds the config and known-hosts goldens, a second run
 that changes nothing, the `Include` line keeping the person's bytes and mode, the refusal
 of a foreign file and of every link, the empty set, the commands' answers, and the
