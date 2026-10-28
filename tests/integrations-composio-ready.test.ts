@@ -96,6 +96,29 @@ async function connect(app: App) {
   return { status: answer.status, value: (await answer.json()) as unknown };
 }
 
+// Composio's "Používají agenti" as Settings → Tools reads it.
+async function composioOn(app: App): Promise<boolean | undefined> {
+  const status = (await (await app.post("/api/tools/status", {})).json()) as {
+    tools: { name: string; enabled: boolean }[];
+  };
+  return status.tools.find((tool) => tool.name === "composio")?.enabled;
+}
+
+// Composio's sign-in as the dialog starts it; the person authorizes in
+// Composio's tab, so the CLI's next check signs in. Answers the handle.
+async function signInStarted(
+  world: Awaited<ReturnType<typeof setup>>["world"],
+  app: App,
+): Promise<string> {
+  const started = (await (
+    await app.post("/api/tools/login/start", { tool: "composio" })
+  ).json()) as { kind: string; session: string };
+  expect(started.kind).toBe("pending");
+  const key = (await readComposioState(world.home)).pendingLogin ?? "";
+  await Bun.write(join(world.home, ".fake-composio", "approve"), key);
+  return started.session;
+}
+
 test("switching Composio on for agents makes the next reading current, and Připojit connects", async () => {
   // Signed in, "Používají agenti" off: the reading the page keeps says so.
   const { app } = await setup({}, []);
@@ -175,6 +198,54 @@ test("a sign-in completed in the Launchpad makes the next reading current; signe
   expect(noteAfterReading(asks, null, cs)).toEqual(asks);
   const other = { text: cs.integrationsConnectFailed, tone: "danger" as const };
   expect(noteAfterReading(other, parsed(after), cs)).toEqual(other);
+}, 30_000);
+
+// #682 (Matěj 2026-10-28): after Composio's sign-in in Začínáme
+// "Používají agenti" stayed off, so Integrace said agents do not use it.
+// The page turned it on itself after its reading, and a second reading the
+// organizations' check started at the same time left that page busy, so the
+// change was dropped; a page closed meanwhile never made it. The Launchpad
+// now turns it on as the sign-in ends (F19's addendum of 2026-10-28).
+test("a sign-in completed in the Launchpad turns Composio on for agents before it answers signed in; a person may turn it off again", async () => {
+  const { world, app } = await setup({ signedIn: false, pollScale: 0.02 }, []);
+  expect(await composioOn(app)).toBe(false);
+  const session = await signInStarted(world, app);
+  let state = "pending";
+  for (let i = 0; i < 100 && state === "pending"; i++) {
+    await Bun.sleep(100);
+    state = (
+      (await (
+        await app.post("/api/tools/login/poll", { tool: "composio", session })
+      ).json()) as { kind: string }
+    ).kind;
+  }
+  expect(state).toBe("signed-in");
+  // The reading right after the answer, as the page makes it, shows the
+  // switch on; Integrace say Composio connects apps, with nothing reloaded.
+  expect(await composioOn(app)).toBe(true);
+  const after = await reading(app);
+  expect(after.sources.composio).toBe("ok");
+  expect(salesforce(after)).toEqual({ path: "composio", signIn: false });
+
+  // Off again by the person: it stays off, the next readings do not turn
+  // it back on.
+  await switchTool(app, "composio", false);
+  await app.post("/api/tools/status", { signIn: true, fresh: true });
+  expect(await composioOn(app)).toBe(false);
+  expect((await reading(app)).sources.composio).toBe("off");
+}, 30_000);
+
+test("a sign-in that ends with its page closed, nobody polling it, still turns Composio on for agents", async () => {
+  const { world, app } = await setup({ signedIn: false, pollScale: 0.02 }, []);
+  await signInStarted(world, app);
+  // No poll: the dialog was closed, or the page left.
+  let on = await composioOn(app);
+  for (let i = 0; i < 100 && on !== true; i++) {
+    await Bun.sleep(100);
+    on = await composioOn(app);
+  }
+  expect(on).toBe(true);
+  expect((await reading(app)).sources.composio).toBe("ok");
 }, 30_000);
 
 test("the page reads the Integrace again when a tool is installed or switched on or off", () => {

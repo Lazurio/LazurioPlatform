@@ -40,6 +40,7 @@ import { readSyncRecord, type SyncRequest, syncContent } from "../content/sync";
 import type { ExecutorHost } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
 import { type DocumentsHost, processDocumentsHost } from "../files/documents";
+import { enableToolForAgents } from "../folder/enable-tool";
 import { inspectProfileChange } from "../folder/inspect-profile-change";
 import {
   inspectToolsChange,
@@ -120,6 +121,7 @@ import {
   createLoginSessions,
   type LoginEnvironment,
   type LoginState,
+  type SignedInState,
   type SignInPage,
 } from "../tools/login";
 import {
@@ -396,6 +398,10 @@ export const shellDocumentPath = "/.lazurio/shell.json";
  * Organization's settings to be asked and applied (decision F45) before it
  * answers with what the Folder records. */
 const settingsWaitMs = 5_000;
+
+/** How long the answer of a sign-in's outcome waits for "Používají agenti"
+ * to follow it (F19's addendum of 2026-10-28) before it answers anyway. */
+const switchWaitMs = 5_000;
 
 /** How long the page's boot document may wait for the Folder's lock, and
  * for everything it reads (F36's addendum of 2026-10-08): the page is never
@@ -896,6 +902,56 @@ export async function startLaunchpad(
   // A setup goes on after its answer: its end drops the reading again.
   const forgetToolsAfter = (ended: Promise<void>) =>
     void ended.catch(() => undefined).then(() => toolsReading.forget());
+  // "Používají agenti" follows a sign-in this Launchpad completed (Matěj
+  // 2026-10-04, F19's addendum of 2026-10-28, #682): this process turns it
+  // on in its Folder as the sign-in ends, at the current revision, whichever
+  // page started it (Začínáme, Nástroje, Integrace) and whether or not the
+  // page is still open. Never for a tool that was signed in before, one
+  // without the switch (a required one; codex and claude are no catalog
+  // tools of agents) or one the switch would refuse (decisions F44, F45).
+  // A person may turn it off again. Each one is journaled: the tool and
+  // what became of the switch, nothing else.
+  const switching = new Map<string, Promise<void>>();
+  const switchOnAfter = (signedIn: SignedInState) => {
+    const tool = signedIn.tool;
+    if (signedIn.already === true) return;
+    const entry = activatableTools().find((each) => each.name === tool);
+    if (entry === undefined || entry.activation.tier === "required") return;
+    const journal = (outcome: string, reason?: string) =>
+      console.log(
+        JSON.stringify({
+          scope: "tools-agents",
+          tool,
+          outcome,
+          ...(reason === undefined ? {} : { reason }),
+        }),
+      );
+    const switched: Promise<void> = enableToolForAgents(folder, tool)
+      .then(
+        (result) => {
+          journal(
+            result.kind,
+            result.kind === "refused" ? result.reason : undefined,
+          );
+          // As after the switch itself: Integrace read again (Nástroje
+          // read the recorded selection every time).
+          integrations.forget();
+        },
+        () => journal("failed"),
+      )
+      .finally(() => {
+        if (switching.get(tool) === switched) switching.delete(tool);
+      });
+    switching.set(tool, switched);
+  };
+  // A sign-in's outcome is answered once its switch followed it, so the
+  // page's reading after it shows the switch as it is; bounded, where the
+  // Folder is held longer the page's next reading shows it.
+  const switchedAfter = async (tool: string) => {
+    const switched = switching.get(tool);
+    if (switched !== undefined)
+      await Promise.race([switched, Bun.sleep(switchWaitMs)]);
+  };
   // The curated logins of this Launchpad (decision F19): in memory, held by
   // the browser that started each one through its session handle, ended on
   // completion, cancel, expiry and shutdown.
@@ -923,6 +979,7 @@ export async function startLaunchpad(
         setup.forget();
       }
     },
+    afterSignIn: switchOnAfter,
     signInPage: launchpadSignInPage(entry, () =>
       integrationSeams?.environmentBrowser !== undefined
         ? integrationSeams.environmentBrowser
@@ -2830,8 +2887,12 @@ export async function startLaunchpad(
               ...(value.deviceCode === true ? { deviceCode: true } : {}),
             });
             // Signed in: what connects the apps changed (decision F42,
-            // note of 2026-10-19), so Integrace read again.
-            if (started.kind === "signed-in") integrations.forget();
+            // note of 2026-10-19), so Integrace read again, once the
+            // switch followed it.
+            if (started.kind === "signed-in") {
+              await switchedAfter(tool);
+              integrations.forget();
+            }
             // A refusal before anything ran (codex and claude without the
             // Environment browser, or with the Organization's AI) is one as
             // every other.
@@ -2858,7 +2919,10 @@ export async function startLaunchpad(
             url.pathname === "/api/tools/login/poll"
               ? withQr(logins.poll(tool, handle))
               : logins.cancel(tool, handle);
-          if (answered.kind === "signed-in") integrations.forget();
+          if (answered.kind === "signed-in") {
+            await switchedAfter(tool);
+            integrations.forget();
+          }
           return response(answered);
         }
         if (
@@ -3111,6 +3175,8 @@ export async function startLaunchpad(
           await shell?.stop();
           await health?.stop(true);
           await loginClose;
+          // The switch that follows a sign-in is a Folder change: it completes.
+          await Promise.allSettled(switching.values());
           await settingsClose;
           const result = applicationClose
             ? await applicationClose

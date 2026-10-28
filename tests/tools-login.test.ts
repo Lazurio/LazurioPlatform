@@ -443,6 +443,45 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
+  "afterSignIn hears a sign-in that ends signed in once, as it ends, with nobody polling; a cancel is none, and a failing follower changes nothing (F19's addendum of 2026-10-28)",
+  async () => {
+    const opened = await home(["composio"]);
+    const heard: LoginState[] = [];
+    const sessions = createLoginSessions({
+      ...opened.environment,
+      afterSignIn: (outcome) => {
+        heard.push(outcome);
+        throw new Error("a follower that fails");
+      },
+    });
+    try {
+      const cancelled = await sessions.start("composio");
+      if (cancelled.kind !== "pending") throw new Error("not pending");
+      sessions.cancel("composio", cancelled.session);
+      const started = await sessions.start("composio");
+      if (started.kind !== "pending") throw new Error("not pending");
+      await opened.approve();
+      // Nobody polls: the page was closed.
+      await waitFor(() => heard.length > 0);
+      const signedIn: LoginState = {
+        kind: "signed-in",
+        tool: "composio",
+        account: "op@example.com",
+        organization: "First",
+      };
+      expect(heard).toEqual([signedIn]);
+      // The holder still reads the outcome, once.
+      expect(sessions.poll("composio", started.session)).toEqual(signedIn);
+      expect(sessions.poll("composio", started.session).kind).toBe("none");
+      expect(heard).toHaveLength(1);
+    } finally {
+      await sessions.close();
+      await opened.close();
+    }
+  },
+);
+
+test.skipIf(!posix)(
   "composio: the first step is a process of the session and ends with it",
   async () => {
     const opened = await home(["composio"]);
