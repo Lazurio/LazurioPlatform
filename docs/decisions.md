@@ -2723,6 +2723,51 @@ skill approves a merge or Publication, and relays „Publikuj“, only on the us
 pull request or their unrevoked permission given in advance, and never assumes consent. A Release
 still needs the user's explicit instruction, and a Team Environment's named user still publishes.
 
+**Addendum of 2026-10-27: Buddy's route to another Environment of the page context: its own name,
+a step into the administration station, or plain words** (the Organization Admin's request, plan
+DEV-6676 task F; root decision 0192, its addendum of 2026-10-26, point (g); 0202; 0210 point 5).
+Matěj wants Buddy on the pages of every Environment the person can reach within the one Conglomerate
+of their Osobní Prostředí, knowing which Environment a page is and how to get there. The page
+context names it (`lazurio.buddy.context` v1, F60), and the layer already had Buddy use `ssh <id>`
+only for a name in `~/.ssh/config.d/lazurio-environments.conf`. It lacked the route through the
+person's administration station: an Admin's Buddy reaches Henry (0192's addendum, point (g)) and
+colleagues' Environments (0202, 0210 point 5) by a step into the station, with its own access.
+
+What changes in „Bublina v Lazuriu“: the three lines on the context's Environment become an order
+of routes for an Environment other than this Osobní Prostředí:
+
+1. its id is a `Host` in that file: he looks with `ssh <id> …` and gives work to a bot there with
+   `delegace zadej --env <id>`;
+2. else, when the file has the user's own Work Environment of the same Organization (the id's part
+   after the first dot), he steps into it with a nested command, `ssh <station> '…'`, and goes on by
+   its `AGENTS.md`: as an Admin's administration station it reaches colleagues' Work and Team
+   Environments and Henry. Work there goes to a bot in the target Environment when possible;
+3. else, or when that leads nowhere, he tells the user in a sentence or two, without technical
+   words, that he cannot reach it yet, because no route leads there from this Osobní Prostředí.
+
+One line closes the order: this Osobní Prostředí's sign-ins are never forwarded (no `ssh -J`, `-A`
+or copied keys), no address or host key is guessed and no unknown host key accepted, and an
+Organization's data stay there, with only the result the user needs coming back (0192's addendum,
+point (e); 0202 point 3). The sign-in rule moves there from „Kde co je“ („Do jiného Prostředí
+vstupuješ relací SSH a přihlášení tohoto Osobního Prostředí nepřeposíláš“), to keep `.hermes.md`
+under the 20,000 characters Hermes loads uncut; the rule on his memory and the Personalspace stays
+in „Co neděláš nikdy“.
+
+Unchanged: the rest of the layer, the skills, `AGENTS.md` and every other file of the Folder.
+Nothing writes `lazurio-environments.conf` yet (P2 of the same plan), so until then every Buddy
+takes route 3, as today.
+
+Template revision `base-instructions-87`: the addendum above took 85, and the stacked P2 (#691)
+holds 86. `tests/folder-buddy.test.ts` checks, in both locales, the order line right after the page context, the three numbered routes
+with their names, commands and conditions, and the closing line after them; that the memory and
+Personalspace rule is kept and „Kde co je“ no longer speaks of SSH; and that no line of any file of
+the layer but the closing one names `-J`, `-A`, `ProxyJump`, `ForwardAgent` or agent forwarding.
+Every file of the layer passes `tools/threat_patterns.py` (Lazurio/hermes-agent `main`, `5a91c801`)
+at the all, context and strict scopes. `.hermes.md` is 18,291 characters in Czech and 19,773 in
+English (after #695), 227 below the 20,000, so the next addition to the layer has to make room. Not proven: that
+Buddy keeps the order (generated text is not proof of behavior), and a real route through a
+station, which needs P2's file and an Admin's Osobní Prostředí on Ring 0.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
