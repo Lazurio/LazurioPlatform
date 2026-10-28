@@ -865,17 +865,36 @@ test("the skills: the directory's name is the frontmatter's, a description Herme
     expect(mausbot).not.toContain("OpenMausBot#55");
     const threads = layer[buddySkillPath("lazurio-t3-orchestration")];
     // T3 Code 0.1.2 sends with `queue` by default (0.1.1 with `auto`), so
-    // Buddy always names the mode; it launches in the project's mode, while
-    // 0.1.1 always launches with full access, and the launch line says both.
+    // Buddy always names the mode, and sends `auto`: a message steers a turn
+    // in progress (F14 addendum of 2026-10-28). It launches in the project's
+    // mode, while 0.1.1 always launches with full access; the line says both.
     for (const fact of [
       "0.1.0-lazurio.5",
       "Lazurio/t3code#94",
-      "--mode queue",
+      "--mode auto --message-file -",
       "0.1.2",
       "(decision 0172)",
     ])
       expect(threads).toContain(fact);
-    expect(threads).not.toContain("(`--mode auto`");
+    expect(threads).not.toContain("--mode queue --message-file -");
+    const sendRule = threads
+      .split("\n")
+      .find((line) =>
+        line.startsWith(locale === "cs" ? "U `send`" : "Always pass `--mode`"),
+      );
+    for (const fact of {
+      cs: [
+        "posílej `auto`",
+        "nezastaví ho",
+        "do fronty jde, jen když ve vlákně čeká otázka nebo schválení",
+      ],
+      en: [
+        "send `auto`",
+        "without stopping it",
+        "queues only while a question or an approval waits",
+      ],
+    }[locale])
+      expect(sendRule).toContain(fact);
     const launch = threads
       .split("\n")
       .find((line) => line.startsWith("- `t3 thread launch`"));

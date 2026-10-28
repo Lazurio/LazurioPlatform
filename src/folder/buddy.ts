@@ -862,8 +862,8 @@ const threads: BuddySkill = {
       "| a new thread | `t3 thread launch --title <title> --message-file - --json` |",
     ),
     t(
-      "| další zpráva | `t3 thread send <vlákno> --mode queue --message-file - --json` (dále `steer`, `auto`, `restart`) |",
-      "| another message | `t3 thread send <thread> --mode queue --message-file - --json` (also `steer`, `auto`, `restart`) |",
+      "| další zpráva | `t3 thread send <vlákno> --mode auto --message-file - --json` (dále `queue`, `steer`, `restart`) |",
+      "| another message | `t3 thread send <thread> --mode auto --message-file - --json` (also `queue`, `steer`, `restart`) |",
     ),
     t(
       "| zastavit tah | `t3 thread interrupt <vlákno> --json` |",
@@ -899,8 +899,8 @@ const threads: BuddySkill = {
     ),
     blank,
     t(
-      "U `send` vždycky uveď `--mode`: výchozí režim se mezi verzemi T3 Code liší (do 0.1.1 `auto`, od 0.1.2 `queue`). Bez jiného pokynu uživatele posílej `queue`, zpráva počká, až agent dokončí rozdělaný tah.",
-      "Always pass `--mode` to `send`: the default differs between T3 Code versions (`auto` up to 0.1.1, `queue` from 0.1.2). Unless the user asks otherwise, send `queue`, so the message waits until the agent finishes the turn in progress.",
+      "U `send` vždycky uveď `--mode`: výchozí režim se mezi verzemi T3 Code liší (do 0.1.1 `auto`, od 0.1.2 `queue`). Bez jiného pokynu uživatele posílej `auto`: rozdělaný tah agenta zpráva doplní a nezastaví ho, nečinné vlákno rozběhne a do fronty jde, jen když ve vlákně čeká otázka nebo schválení.",
+      "Always pass `--mode` to `send`: the default differs between T3 Code versions (`auto` up to 0.1.1, `queue` from 0.1.2). Unless the user asks otherwise, send `auto`: the message joins the agent's turn in progress without stopping it, starts an idle thread, and queues only while a question or an approval waits in the thread.",
     ),
     blank,
     t("## Přehled pro uživatele", "## The overview for the user"),

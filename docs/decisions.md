@@ -2823,6 +2823,22 @@ English (after #695), 227 below the 20,000, so the next addition to the layer ha
 Buddy keeps the order (generated text is not proof of behavior), and a real route through a
 station, which needs P2's file and an Admin's Osobní Prostředí on Ring 0.
 
+**Addendum of 2026-10-28, decided by the Organization Admin: Buddy's message to a thread steers.** On
+2026-10-28 the Organization Admin decided that a message to an agent, a bot or Buddy steers the turn
+in progress by default instead of queuing behind it. Buddy's `lazurio-t3-orchestration` skill
+therefore sends `t3 thread send <thread> --mode auto` (also `queue`, `steer`, `restart`) and, unless
+the user asks otherwise, `auto`. From Lazurio/t3code `v0.1.2-lazurio.2` (`ThreadManagementService`),
+`auto` steers a turn in progress, starts an idle thread, and queues only while a question or an
+approval waits in the thread: steering that turn would abort the provider's pending request before
+anyone answers it. Whether a steer reaches a running turn as such or as an interrupt and a new turn
+(an ACP agent without active steering) is T3 Code's, not the skill's. Delegace's notices and the
+first meeting keep `--mode queue`: they go to Buddy's own thread, where a steer interrupts and
+restarts his turn until his own active steer is released (Lazurio/t3code#138). His Telegram follows
+the same decision in Hermes (Lazurio/hermes-agent#22: the Lazurio default of
+`display.busy_input_mode` is `steer`); the Platform writes no busy key, so the person's own `/busy`
+stands. Template revision `base-instructions-86`; `tests/folder-buddy.test.ts` checks the row and
+the rule in both locales.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
