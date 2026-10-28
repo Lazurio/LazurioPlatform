@@ -26,12 +26,11 @@ import {
 import { presetNames, presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
 import {
+  buddyPublicationRules,
   environmentWording,
   fullAccess,
   instructionTemplateRevision,
   personalspaceRules,
-  publicationRule,
-  publicationScope,
   questionTool,
 } from "../src/folder/render";
 import { voiceSection } from "../src/folder/voice";
@@ -122,8 +121,7 @@ test(".hermes.md is composed from AGENTS.md's own fragments: the voice, the kind
     for (const fragment of [
       environmentWording,
       questionTool,
-      publicationRule,
-      publicationScope,
+      ...buddyPublicationRules,
       fullAccess,
       ...personalspaceRules,
     ]) {
@@ -865,7 +863,7 @@ test("every Environment's AGENTS.md says who Buddy is before the working rules: 
       "nehledáš cestu, jak mu poslat zprávu nebo ho upozornit",
       "Výsledek patří do vlákna",
       "nástrojem na otázky",
-      "Publikuješ jen na výslovné „Publikuj“ uživatele",
+      "Publikuješ jen se souhlasem uživatele: na „publikuj“",
       "gbrain nepoužívej, pokud ti to uživatel výslovně neřekne.",
     ])
       expect(buddy).toContain(phrase);

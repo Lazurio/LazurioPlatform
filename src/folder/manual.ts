@@ -17,6 +17,7 @@ import {
   agentTools,
   assignmentLine,
   buddyChatRouting,
+  buddyPublicationRules,
   chatgptAppsLine,
   type InstructionSource,
   instructionTemplateRevision,
@@ -29,8 +30,7 @@ import {
   parseInstructionSource,
   peerLine,
   personaIdentity,
-  publicationRule,
-  publicationScope,
+  publicationRules,
   publicIdentity,
   renderedTools,
   sharedEnvironment,
@@ -492,16 +492,19 @@ function workingHere(
       "- **Publikace** je akt, kterým se tvoje práce stává těžko vratnou nebo viditelnou navenek: merge, odeslání, nasazení; v datových aplikacích už commit a push tlačítkem „Publikovat změny“. Patří uživateli a jestli ji smí schválit, rozhodují jeho živá práva k přesné operaci.",
       "- **Publication** is the act that makes your work hard to revert or visible outside: a merge, sending, deploying; in data applications already the commit and push of the “Publish changes” button. It belongs to the user, and their live rights to the exact operation decide whether they may approve it.",
     ),
-    // The same rule as AGENTS.md and what it leaves in force (F14 addendum
-    // 2026-10-27); a public Environment publishes nothing. A Team
-    // Environment's pull request stays with its named publisher (F31).
-    team
-      ? t(
-          `${publicationRule.cs} Pull request z týmového Environmentu ale vždy publikuje jmenovaný uživatel (odstavec o týmovém Environmentu níže).`,
-          `${publicationRule.en} A pull request from a Team Environment, however, is always published by a named user (the Team Environment paragraph below).`,
-        )
-      : publicationRule,
-    ...(isPublic ? [] : [publicationScope]),
+    // The same Publication block as AGENTS.md (F14 addendum 2026-10-28). A
+    // public Environment publishes nothing and proposes nothing on GitHub,
+    // so it keeps only what Publication is. A Team Environment's pull
+    // request stays with its named publisher (F31).
+    ...(isPublic ? buddyPublicationRules : publicationRules),
+    ...(team
+      ? [
+          t(
+            "- Pull request z týmového Environmentu ale vždy publikuje jmenovaný uživatel (odstavec o týmovém Environmentu níže).",
+            "- A pull request from a Team Environment, however, is always published by a named user (the Team Environment paragraph below).",
+          ),
+        ]
+      : []),
     t(
       "- **Release** je vydání označené verze ven přes GitHub Release. Není to Publikace; spouští ho jen ten, komu to GitHub dovolí (typicky Steward nebo Admin), a pro tebe platí stejný explicitní pokyn.",
       "- **Release** is a tagged version going out through a GitHub Release. It is not a Publication; only whoever GitHub allows (typically a Steward or an Admin) triggers it, and for you the same explicit instruction applies.",

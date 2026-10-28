@@ -2646,6 +2646,38 @@ layer passes `tools/threat_patterns.py` at context and strict scope (Lazurio/her
 5a91c801, the same file) and is 17.9k characters in Czech and 19.6k in English. Not proven: that
 agents follow the rule (generated text is not proof of behavior).
 
+**Addendum of 2026-10-28, decided by the Organization Admin: Publication as one block in their own
+words.** The rule and `publicationScope` of 2026-10-27 were hard to understand. The Organization
+Admin explained the intent and approved this wording, which replaces both (`publicationRules` in
+`src/folder/render.ts`):
+
+- Každý úkol děláš ve vlastním worktree. Práci hned dáváš na GitHub jako Draft pull request a
+  průběžně do něj pushuješ.
+- Když jsi hotový, přepni pull request z Draftu na Ready, vrať se do chatu a požádej uživatele
+  o kontrolu a souhlas s Publikací.
+- Publikace je krok, který nejde snadno vrátit nebo ho uvidí ostatní: merge pull requestu, odeslání
+  e-mailu nebo zprávy, odeslání formuláře, platba. Do té doby jen připravuješ: otevřený pull request,
+  koncept e-mailu ve schránce, vyplněný formulář.
+- Publikuješ, až když ti to uživatel dovolí, třeba slovem „publikuj“. „Napiš mu“ nebo „odpověz mu“ je
+  zadání připravit koncept, ne souhlas s odesláním.
+- Když ti uživatel Publikaci dovolí předem, na začátku úkolu nebo pro celé vlákno, publikuješ po
+  dokončení sám a znovu se neptáš. Platí to, dokud to neodvolá. Vždy platí jeho poslední slovo.
+- Nevíš-li, jestli jde krok vrátit, ber ho jako nevratný.
+
+What changes in meaning: permission given in advance (for one task or a whole thread) now counts by
+itself until the user takes it back, so the agent no longer asks again; the user's latest word wins.
+What stays: preparing is never Publication, an order to write or reply is never consent to send, and
+doubt counts as irreversible.
+
+Where it renders: the whole block in `AGENTS.md` on every Environment but a public one (a Team
+Environment keeps its line that a named user merges, right after the block) and in the manual's
+section "Your work, Publication, Release" (a public Environment keeps only the definition and the
+consent bullets there, since it proposes nothing on GitHub). Buddy, who delegates and does not code,
+gets the four bullets from the definition on (`buddyPublicationRules`), without the worktree and pull
+request bullets; his "never" line reads „Publikuješ jen se souhlasem uživatele: na „publikuj“, nebo
+když ti to dovolil předem.“, and the `AGENTS.md` line for work Buddy hands over with his mark says the
+same. Template revision `base-instructions-85`.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered

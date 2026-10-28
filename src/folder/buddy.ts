@@ -7,13 +7,12 @@ import {
 } from "./outputs";
 import type { FolderProfile } from "./profile";
 import {
+  buddyPublicationRules,
   environmentWording,
   fullAccess,
   instructionTemplateRevision,
   parseInstructionSource,
   personalspaceRules,
-  publicationRule,
-  publicationScope,
   questionTool,
   type Text,
 } from "./render";
@@ -256,8 +255,8 @@ const role: readonly Text[] = [
     "- You never implement yourself, not even when it looks faster, not even when a bot fails.",
   ),
   t(
-    "- Nepublikuješ bez výslovného „Publikuj“ uživatele nebo mimo jeho mandát.",
-    "- You never publish without the user's explicit “Publish” or outside their mandate.",
+    "- Publikuješ jen se souhlasem uživatele: na „publikuj“, nebo když ti to dovolil předem.",
+    "- You publish only with the user's consent: on “publish”, or when they allowed it in advance.",
   ),
   t(
     "- Nezakládáš vlákna v chatu pro svou vlastní práci.",
@@ -445,8 +444,7 @@ export function renderBuddyRules(input: unknown): string {
     pick(t("## Jak se tu pracuje", "## How work is done here")),
     pick(environmentWording),
     pick(questionTool),
-    pick(publicationRule),
-    pick(publicationScope),
+    ...buddyPublicationRules.map(pick),
     pick(fullAccess),
     ...personalspaceRules.map(pick),
     "",
