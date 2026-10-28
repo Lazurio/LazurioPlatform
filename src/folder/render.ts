@@ -505,10 +505,17 @@ function boundarySection(
           en: "- Personalspace: never present in an Organization-owned Environment. Do not create or mount one and never copy personal data or sign-ins here.",
         }),
     preset === "hosted-personal"
-      ? pick({
-          cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu, který ti uživatel potvrdí jako přiřazený jemu; repozitáře Organizací sem nikdy neklonuj.",
-          en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment the user confirms is assigned to them; never clone Organization repositories here.",
-        })
+      ? assignedEnvironments(machine).length === 0
+        ? pick({
+            cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu, který ti uživatel potvrdí jako přiřazený jemu; repozitáře Organizací sem nikdy neklonuj.",
+            en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment the user confirms is assigned to them; never clone Organization repositories here.",
+          })
+        : // The assigned ones need no confirmation (root decision 0192,
+          // addendum of 2026-10-26); any other still does.
+          pick({
+            cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu přiděleném uživateli. Ta z oddílu „Z tohoto Osobního Prostředí“ jsou přidělená podle handoveru; každé jiné ti uživatel musí potvrdit jako přiřazené jemu. Repozitáře Organizací sem nikdy neklonuj.",
+            en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment assigned to the user. Those in the section From this Personal Environment are assigned by the handover; any other the user must confirm is assigned to them. Never clone Organization repositories here.",
+          })
       : pick({
           cs: "- Organizace: repozitáře žijí v `organizations/<org>/`; každá Organizace je vlastní access hranice a vlastní git repozitář.",
           en: "- Organizations: repositories live under `organizations/<org>/`; each Organization is its own access boundary and its own git repository.",

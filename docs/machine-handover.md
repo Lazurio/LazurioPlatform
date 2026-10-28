@@ -523,9 +523,12 @@ peers with all three members (`assignedEnvironments` in
   there under its own `AGENTS.md`, that the Personalspace, personal sign-ins and
   Buddy's memory stay here, and that a refused connection or a changed host key is
   for the user, never a pin to change. Its assignment is recorded, so the agent does
-  not confirm it with the user, and `manual/this-machine.md` says so in its line on
-  confirming a peer before working on it, which otherwise stays as it was. Both
-  render only with an assigned peer.
+  not confirm it with the user. Every line that would contradict that says so too:
+  the Boundaries' line on Organization work in `AGENTS.md`, and in
+  `manual/this-machine.md` the line on confirming a peer before working on it and the
+  line on where Organization work belongs. Each keeps the confirmation for every other
+  work Environment. All of these render only with an assigned peer, and stay as they
+  were without one.
 
 Nothing else depends on them: no other generated file and no line of the Launchpad.
 The SSH config's three files belong to the person's account, outside the Folder, so

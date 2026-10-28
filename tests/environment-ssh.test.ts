@@ -395,6 +395,28 @@ test("only the personal Folder lists the aliases: AGENTS.md in „Z tohoto Osobn
     cs: "- Dosažitelnost rozhoduje Headscale a není to identita ani mandát: handover nezaznamenává, čí peer je. Než na peeru začneš pracovat nebo ovládat zařízení, potvrď s uživatelem, že je jeho nebo že je přiřazený jemu.",
     en: "- Reachability is decided by Headscale and is neither identity nor mandate: the handover does not record whose a peer is. Before you work on a peer or operate a device, confirm with the user that it is theirs or assigned to them.",
   };
+  // Organization work in AGENTS.md's Boundaries and in the manual: with
+  // assigned peers, those need no confirmation and any other still does.
+  const boundary = {
+    plain: {
+      cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu, který ti uživatel potvrdí jako přiřazený jemu; repozitáře Organizací sem nikdy neklonuj.",
+      en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment the user confirms is assigned to them; never clone Organization repositories here.",
+    },
+    assigned: {
+      cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu přiděleném uživateli. Ta z oddílu „Z tohoto Osobního Prostředí“ jsou přidělená podle handoveru; každé jiné ti uživatel musí potvrdit jako přiřazené jemu. Repozitáře Organizací sem nikdy neklonuj.",
+      en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment assigned to the user. Those in the section From this Personal Environment are assigned by the handover; any other the user must confirm is assigned to them. Never clone Organization repositories here.",
+    },
+  };
+  const work = {
+    plain: {
+      cs: "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment, který ti uživatel potvrdí jako přiřazený jemu, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Repozitář Organizace sem nikdy neklonuj.",
+      en: "- Organization work (code, repositories, runs) belongs in a work Remote Environment the user confirms is assigned to them, never in this Environment: connect over SSH and work there. Never clone an Organization repository into this personal Remote Environment.",
+    },
+    assigned: {
+      cs: "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment přidělený uživateli, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Přidělená Pracovní Prostředí uvádí `AGENTS.md` (Z tohoto Osobního Prostředí) a jejich přidělení nepotvrzuješ; každé jiné ti uživatel musí potvrdit jako přiřazené jemu. Repozitář Organizace sem nikdy neklonuj.",
+      en: "- Organization work (code, repositories, runs) belongs in a work Remote Environment assigned to the user, never in this Environment: connect over SSH and work there. `AGENTS.md` lists the assigned Work Environments (From this Personal Environment), and you do not confirm their assignment; any other the user must confirm is assigned to them. Never clone an Organization repository into this personal Remote Environment.",
+    },
+  };
   for (const locale of ["cs", "en"] as const) {
     for (const journey of journeys) {
       const outputs = renderOutputs({
@@ -427,8 +449,9 @@ test("only the personal Folder lists the aliases: AGENTS.md in „Z tohoto Osobn
         : "The handover records the assignment, so you do not confirm it with the user.",
     );
     expect(section).toContain("`ssh-keyscan`");
-    // The section after Boundaries, the manual's line with its exception,
-    // and nothing else differs from the same handover below Machines' gate.
+    // The section after Boundaries, the Boundaries' and the manual's lines on
+    // Organization work, the manual's line with its exception, and nothing
+    // else differs from the same handover below Machines' gate.
     expect(agents.lastIndexOf("\n## ", start - 1)).toBe(
       agents.indexOf(locale === "cs" ? "\n## Hranice\n" : "\n## Boundaries\n"),
     );
@@ -438,12 +461,28 @@ test("only the personal Folder lists the aliases: AGENTS.md in „Z tohoto Osobn
         relationships: { zone: "personal", peers: [laptop, unassigned] },
       }),
     );
-    expect(agents.replace(section, "")).toBe(plain["AGENTS.md"]);
+    expect(agents).toContain(`\n${boundary.assigned[locale]}\n`);
+    expect(
+      agents
+        .replace(section, "")
+        .replace(boundary.assigned[locale], boundary.plain[locale]),
+    ).toBe(plain["AGENTS.md"]);
     const manual = outputs["manual/this-machine.md"];
     expect(manual).toContain(`\n${exception[locale]}\n`);
-    expect(manual.replace(exception[locale], general[locale])).toBe(
-      plain["manual/this-machine.md"],
-    );
+    expect(manual).toContain(`\n${work.assigned[locale]}\n`);
+    expect(
+      manual
+        .replace(exception[locale], general[locale])
+        .replace(work.assigned[locale], work.plain[locale]),
+    ).toBe(plain["manual/this-machine.md"]);
+    // Review of #691: no line of the whole AGENTS.md or manual still asks
+    // the user to confirm every work Environment, which would contradict the
+    // section; below the gate both still do.
+    const confirmEvery =
+      /který ti uživatel potvrdí jako přiřazený jemu|the user confirms is assigned to them/;
+    for (const text of [agents, manual]) expect(text).not.toMatch(confirmEvery);
+    for (const text of [plain["AGENTS.md"], plain["manual/this-machine.md"]])
+      expect(text).toMatch(confirmEvery);
     expect({
       ...outputs,
       "AGENTS.md": "",

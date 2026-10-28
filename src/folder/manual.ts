@@ -2179,10 +2179,17 @@ function fromPersonalVm(
           "- Dosažitelnost rozhoduje Headscale a není to identita ani mandát. Pracovní Prostředí přidělená uživateli uvádí `AGENTS.md` (Z tohoto Osobního Prostředí) a jejich přidělení zaznamenal handover. U ostatních peerů handover nezaznamenává, čí jsou: než na nich začneš pracovat nebo ovládat zařízení, potvrď s uživatelem, že jsou jeho nebo že jsou přiřazené jemu.",
           "- Reachability is decided by Headscale and is neither identity nor mandate. `AGENTS.md` lists the Work Environments assigned to the user (From this Personal Environment), and the handover records their assignment. For any other peer the handover does not record whose it is: before you work on one or operate a device, confirm with the user that it is theirs or assigned to them.",
         ),
-    t(
-      "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment, který ti uživatel potvrdí jako přiřazený jemu, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Repozitář Organizace sem nikdy neklonuj.",
-      "- Organization work (code, repositories, runs) belongs in a work Remote Environment the user confirms is assigned to them, never in this Environment: connect over SSH and work there. Never clone an Organization repository into this personal Remote Environment.",
-    ),
+    assignedEnvironments(machine).length === 0
+      ? t(
+          "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment, který ti uživatel potvrdí jako přiřazený jemu, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Repozitář Organizace sem nikdy neklonuj.",
+          "- Organization work (code, repositories, runs) belongs in a work Remote Environment the user confirms is assigned to them, never in this Environment: connect over SSH and work there. Never clone an Organization repository into this personal Remote Environment.",
+        )
+      : // An assigned Work Environment needs no confirmation (root decision
+        // 0192, addendum of 2026-10-26); any other still does.
+        t(
+          "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment přidělený uživateli, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Přidělená Pracovní Prostředí uvádí `AGENTS.md` (Z tohoto Osobního Prostředí) a jejich přidělení nepotvrzuješ; každé jiné ti uživatel musí potvrdit jako přiřazené jemu. Repozitář Organizace sem nikdy neklonuj.",
+          "- Organization work (code, repositories, runs) belongs in a work Remote Environment assigned to the user, never in this Environment: connect over SSH and work there. `AGENTS.md` lists the assigned Work Environments (From this Personal Environment), and you do not confirm their assignment; any other the user must confirm is assigned to them. Never clone an Organization repository into this personal Remote Environment.",
+        ),
     t(
       "- Co potřebuje vlastní zařízení uživatele, například přihlášený prohlížeč, se dělá přes SSH na zařízení, které ti uživatel potvrdí jako své.",
       "- What needs the user's own device, for example the signed-in browser, is done over SSH on a device the user confirms is theirs.",

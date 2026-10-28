@@ -1247,8 +1247,10 @@ point 2 of the amendment above; points 1, 3 and 4 stand.
    `AGENTS.md`, no Personalspace, personal sign-ins or Buddy's memory carried there, only
    the needed result back, and a refused connection or a changed host key reported,
    never a pin edited (points (d) and (e); 0202 point 3). The handover records their
-   assignment, so `manual/this-machine.md` exempts them from confirming a peer with the
-   user; every other peer still needs it.
+   assignment, so they need no confirmation with the user. The lines that ask for one
+   say so with an assigned peer: `AGENTS.md`'s Boundaries line on Organization work, and
+   `manual/this-machine.md`'s lines on confirming a peer and on where Organization work
+   belongs (review of #691). Every other peer and work Environment still needs it.
 
 The rule of the decision that the Platform derives no access or reachability from the
 relationships stands. The Platform writes what Machines derived and recorded; the network
