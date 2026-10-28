@@ -79,7 +79,6 @@ import {
   type IntegrationsTab,
   integrationsPath,
   type PageRoute,
-  settingsPath,
 } from "./routes";
 import {
   composioDialogView,
@@ -149,6 +148,9 @@ export function createIntegrationsPanel(
      * could not be read, and the person stays here; otherwise Settings →
      * Tools is shown, with its sign-in `opened` where it could open. */
     signInComposio: () => Promise<ComposioSignInAnswer>;
+    /** A card's tool in Settings → Tools (Matěj 2026-10-28): its sign-in
+     * over this page where it has one, else Settings → Tools at its row. */
+    openTool: (tool: string) => void;
     /** Whether the person is the Organization's Admin or Owner (GitHub's
      * answer); false where it is not known. */
     admin: () => Promise<boolean>;
@@ -944,7 +946,7 @@ export function createIntegrationsPanel(
       form(app, true);
       return;
     }
-    if (action.kind === "open-tools") options.navigate(settingsPath("tools"));
+    if (action.kind === "open-tools") options.openTool(action.tool);
     else if (action.kind === "ask-admin") void askAdmin(app, line);
     else if (action.kind === "set-up" || action.kind === "allow") {
       const target = options.dashboard();

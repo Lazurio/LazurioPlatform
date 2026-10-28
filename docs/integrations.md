@@ -77,7 +77,23 @@ the sign-in is the user's consent, so they send the link to its card.
 
 A tool counts as connected when agents use it (required, or switched on in
 Settings → Tools), it is installed and its sign-in probe says signed in; `gogcli`
-counts only on a personal Environment and the user's own computer. Composio
+counts only on a personal Environment and the user's own computer.
+
+**An app that its tool connects** (Matěj 2026-10-28) shows the line "Připojuje se
+nástrojem <tool>." and the button "Připojit" (`open-tools` with its `tool`). Before
+this, the button said "Otevřít Nástroje" and only switched the page to Settings →
+Tools, where nothing showed which row to use.
+- **Where the tool has its own sign-in** (wacli's QR code, gh's device code), the
+  click opens that dialog over Integrace, as the tool's row would (`tools.connect`,
+  `openSignIn`). The page reads the tools first where it has no reading yet.
+- **Otherwise** (a tool an agent sets up, or one that is signed in but off for
+  agents), Settings → Tools opens at the tool's row (`tools.reveal`). The row is
+  scrolled to the middle and tinted with the accent for a moment. The control the
+  user acts on next takes the focus (`revealControl`): the sign-in or installation,
+  "Link SSH key" or the setup with an agent, else the switch.
+
+Začínáme's GitHub and Composio steps, and Composio's card, use the same reveal where
+their sign-in cannot open. Composio
 counts when it is allowed, switched on for agents, installed and signed in.
 
 Whether Composio is allowed is one rule over the Organization settings the Folder
@@ -948,8 +964,9 @@ was not a reading or was superseded never sends the user away: the card says
 but off for agents (`off`), a card says "Composio je připojené, ale agenti ho
 nepoužívají: v Nástrojích má vypnuté „Používají agenti“." ("Composio is
 connected, but agents don't use it: “Used by agents” is off in Tools.")
-with "Otevřít Nástroje", and a connect is refused as `composio-signed-out` as
-before.
+with "Otevřít Nástroje", which opens Settings → Tools at Composio's row with its
+switch focused (`tools.reveal`, Matěj 2026-10-28), and a connect is refused as
+`composio-signed-out` as before.
 
 | Route | Body | Answer |
 | --- | --- | --- |

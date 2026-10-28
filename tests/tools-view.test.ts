@@ -40,6 +40,7 @@ import {
   parseLoginState,
   parseToolsOverview,
   qrImageSource,
+  revealControl,
   signedInMessage,
   signInLine,
   signInMode,
@@ -2036,6 +2037,74 @@ test("opening a tool's sign-in from outside its row: its flow, or the SSH link o
   expect(signInMode(gh(undefined, false), copy, true)).toBeNull();
   expect(signInMode(gh({ state: "signed-out" }), copy, true)).toBeNull();
   expect(signInMode(tool({ installed: true }), copy)).toBe("login");
+});
+
+// Matěj 2026-10-28: Integrace's card for an app its tool connects, and
+// Začínáme, open Settings → Tools at the tool's row where its sign-in cannot
+// open in place; the control a person acts on next takes the focus.
+test("Settings → Tools opened for one tool focuses what is left to do: the sign-in, the setup, else the switch", () => {
+  const copy = messages("cs");
+  const wacli = (overrides: Partial<ToolOverview>) =>
+    tool({ name: "wacli", command: "wacli", tier: "optional", ...overrides });
+  // Not installed, or signed out: its sign-in (with the installation).
+  expect(revealControl(wacli({ installed: false }), copy)).toBe("curated");
+  expect(
+    revealControl(
+      wacli({ installed: true, signIn: { state: "signed-out" } }),
+      copy,
+    ),
+  ).toBe("curated");
+  // Installed and signed in, only off for agents: its switch.
+  expect(
+    revealControl(
+      wacli({ installed: true, signIn: { state: "signed-in", account: "1" } }),
+      copy,
+    ),
+  ).toBe("toggle");
+  // Working and on: nothing left to do there.
+  expect(
+    revealControl(
+      wacli({
+        installed: true,
+        enabled: true,
+        signIn: { state: "signed-in", account: "1" },
+      }),
+      copy,
+    ),
+  ).toBeNull();
+  // A tool an agent sets up: "Připojit s pomocí agenta".
+  expect(
+    revealControl(
+      tool({ name: "neon", command: "neon", setup: "agent", tier: "optional" }),
+      copy,
+    ),
+  ).toBe("agent");
+  // gh signed in without a working SSH key: "Link SSH key".
+  expect(
+    revealControl(
+      tool({
+        name: "gh",
+        command: "gh",
+        tier: "required",
+        installed: true,
+        signIn: {
+          state: "signed-in",
+          account: "o",
+          ssh: { state: "not-linked" },
+        },
+      }),
+      copy,
+    ),
+  ).toBe("link-ssh");
+  // Not offered here: no switch to turn on, and no sign-in.
+  expect(revealControl(wacli({ offered: false }), copy)).toBeNull();
+  // The Organization does not allow it: no sign-in; its (locked) switch.
+  expect(
+    revealControl(
+      wacli({ installed: true, organization: { allowed: false } }),
+      copy,
+    ),
+  ).toBe("toggle");
 });
 
 // #516 (F19's addendum of 2026-10-19): closing the shared sign-in dialog (its

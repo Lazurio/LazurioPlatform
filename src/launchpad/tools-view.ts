@@ -739,6 +739,30 @@ export function signInMode(
   return linkSsh ? "ssh" : null;
 }
 
+/** The control of a tool's row that a person sent to Settings → Tools for
+ * that tool acts on next (Integrace's card, Začínáme; Matěj 2026-10-28):
+ * only the switch where the tool is installed and signed in and just not
+ * used by agents; otherwise its sign-in or installation, "Link SSH key",
+ * or the setup with an agent; otherwise the switch where it is off; null
+ * where the row has nothing left to do. Its `data-control`. */
+export function revealControl(
+  tool: ToolOverview,
+  copy: Copy,
+  brokered = false,
+): "curated" | "link-ssh" | "agent" | "toggle" | null {
+  // A tool this Environment does not offer has no switch to turn on.
+  const switchable = tool.offered && tool.tier !== "required" && !tool.enabled;
+  if (switchable && tool.installed && tool.signIn?.state === "signed-in")
+    return "toggle";
+  if (tool.offered) {
+    const { primary, linkSsh } = curatedActions(tool, copy, brokered);
+    if (primary !== null) return "curated";
+    if (linkSsh) return "link-ssh";
+    if (tool.setup !== "launchpad") return "agent";
+  }
+  return switchable ? "toggle" : null;
+}
+
 /** What Nástroje's "?" can truthfully point at (decision F56's addendum (2)
  * of 2026-10-18; Pablo's review of #503), from what the page draws, in its
  * order: `connect`, where a person connects a tool with their own account

@@ -231,7 +231,8 @@ test("Composio signed in but off for agents: the card says so with the switch's 
     line: "Composio je připojené, ale agenti ho nepoužívají: v Nástrojích má vypnuté „Používají agenti“.",
     connected: false,
     pathLabel: null,
-    action: { kind: "open-tools", label: "Otevřít Nástroje" },
+    // Settings → Tools at Composio's row, its switch focused.
+    action: { kind: "open-tools", label: "Otevřít Nástroje", tool: "composio" },
     composio: false,
   });
   expect(cardView(gmail, entry, options(en, true)).line).toBe(

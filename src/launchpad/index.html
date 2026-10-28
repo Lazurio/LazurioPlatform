@@ -609,6 +609,10 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 /* Being checked, it confirms nothing: no line takes the success colour before the current reading, so GitHub is never green from an older reading whose SSH may have broken since (F19's addendum of 2026-10-19). */
 #tools-groups[data-checking] .tool-signin[data-state="signed-in"] { color: inherit; }
 @media (prefers-reduced-motion: reduce) { #tools-groups[data-checking] { transition: none; } }
+/* The row of the tool this page was opened for (Integrace's card, Začínáme; Matěj 2026-10-28): tinted with the accent for a moment, then as every row. */
+.row.revealed { animation: tool-revealed 2.4s ease-out; }
+@keyframes tool-revealed { 0%, 55% { background: color-mix(in oklab, var(--lz-accent) 12%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .row.revealed { animation: none; background: color-mix(in oklab, var(--lz-accent) 8%, transparent); } }
 .row-details { margin-top: 0.5rem; }
 .row-details[open] > .details-body { display: grid; gap: 0.75rem; margin-top: 0.625rem; padding: 0.75rem; border-radius: var(--radius-control); background: var(--muted); border: 1px solid var(--lz-gray-100); }
 .details-body h4 { color: var(--fg); font-size: 12.5px; font-weight: var(--lz-weight-akce); }
