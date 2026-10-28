@@ -1322,8 +1322,8 @@ test("missing rights are escalated on every preset; only the Team hands every pu
         ),
         workingHere.includes(
           locale === "cs"
-            ? "- Když uživatel v threadu zvolí Publikaci (volbou „Publikovat vaším jménem“ v nástroji na otázky nebo výslovným „Publikuj“): mergni"
-            : "- When the user chooses Publication in the thread (the option “Publish in your name” in the question tool or an explicit “Publish”): merge",
+            ? "- Když uživatel Publikaci dovolí (volbou „Publikovat vaším jménem“ v nástroji na otázky, slovem „publikuj“, nebo předem na tento úkol či celé vlákno a neodvolal ji): mergni"
+            : "- When the user allows Publication (the option “Publish in your name” in the question tool, the word “publish”, or in advance for this task or the whole thread, not taken back): merge",
         ),
         workingHere.includes(
           locale === "cs"
@@ -2068,6 +2068,20 @@ test("Publication is one block in the Owner's words in AGENTS.md, the manual and
     "Preparing is not Publication",
     "Nepublikuješ bez výslovného „Publikuj“",
     "You never publish without the user's explicit “Publish”",
+    // Consumers that asked for a fresh "Publish" every time, against consent
+    // given in advance (Pablo's review of #695).
+    "bez výslovného „Publikuj“ uživatele k tomu konceptu",
+    "without the user's explicit “Publish” for that draft",
+    "jen jako rozhodnutí uživatele o tomto konkrétním PR",
+    "only as the user's decision on that exact PR",
+    "merguj až na jeho výslovné „Publikuj“",
+    "merge only on their explicit “Publish”",
+    "merguj až na výslovné „Publikuj“",
+    "merge only on an explicit “Publish”",
+    "dokonči až na výslovné „Publikuj“",
+    "only on an explicit “Publish” (the section",
+    "kterou uživatel výslovně schválil",
+    "a Publication the user explicitly approved",
   ];
   const count = (text: string, part: string) => text.split(part).length - 1;
   for (const environment of environments)
@@ -2124,6 +2138,17 @@ test("Publication is one block in the Owner's words in AGENTS.md, the manual and
           part,
           true,
         ]);
+      // The handoff asks the Publication pair only when consent was not
+      // given in advance (not on a Team Environment, whose named user always
+      // publishes).
+      expect([
+        ...where,
+        outputs["manual/working-here.md"].includes(
+          locale === "cs"
+            ? "Když ti uživatel Publikaci dovolil předem, na tento úkol nebo pro celé vlákno, a neodvolal ji, dvojotázku nepokládej"
+            : "When the user allowed Publication in advance, for this task or the whole thread, and has not taken it back, do not ask the pair",
+        ),
+      ]).toEqual([...where, !team]);
       // Buddy's own "never" line and the line for work he hands over say the
       // same consent.
       expect([

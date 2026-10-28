@@ -2678,6 +2678,16 @@ request bullets; his "never" line reads „Publikuješ jen se souhlasem uživate
 když ti to dovolil předem.“, and the `AGENTS.md` line for work Buddy hands over with his mark says the
 same. Template revision `base-instructions-85`.
 
+The consumers that asked for a fresh „publikuj“ every time follow the same consent (review of #695):
+the manual's handoff asks the Publication pair only when the user has not allowed Publication in
+advance (otherwise the agent publishes and says so); its merge step, the issue mandate, Microsoft
+365 mail (`send`/`sendMail`), connected applications' writes and Executor approvals take the user's
+consent, also given in advance and not taken back, and „napiš mu“ or „odpověz mu“ stays no consent;
+the `new-module` skill merges right away under such consent and asks otherwise; Buddy's orchestration
+skill approves a merge or Publication, and relays „Publikuj“, only on the user's „publikuj“ for that
+pull request or their unrevoked permission given in advance, and never assumes consent. A Release
+still needs the user's explicit instruction, and a Team Environment's named user still publishes.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered

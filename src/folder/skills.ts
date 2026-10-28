@@ -431,8 +431,8 @@ const personalModuleRest: readonly Text[] = [
     "- The finished work is two pull requests: the module's first version into `<login>/<slug>` and the slot from the Personalspace's task worktree into `<login>/<login>_GEN3` (commit `modules.manifest.json`, push the branch and open the pull request). When they are finished and verified, mark them ready for review (`manual/working-here.md`).",
   ),
   t(
-    "- Merge obou je Publikace uživatele: zeptej se ho, jestli je máš Publikovat, a merguj až na jeho výslovné „Publikuj“ (`manual/working-here.md`).",
-    "- Merging them is the user's Publication: ask them whether you should publish them, and merge only on their explicit “Publish” (`manual/working-here.md`).",
+    "- Merge obou je Publikace uživatele: merguj až s jeho souhlasem. Když ti ho dal předem na tento úkol nebo celé vlákno a neodvolal ho, merguj rovnou; jinak se ho zeptej, jestli je máš Publikovat (`manual/working-here.md`).",
+    "- Merging them is the user's Publication: merge only with their consent. When they gave it in advance for this task or the whole thread and have not taken it back, merge right away; otherwise ask them whether you should publish them (`manual/working-here.md`).",
   ),
   t(
     '- Po merge srovnej oba checkouty (`git -C personalspace/<login>_GEN3 pull --ff-only` a `git -C personalspace/<login>_GEN3/workspace/<slug> pull --ff-only`) a odstraň oba task worktrees (`git -C personalspace/<login>_GEN3 worktree remove "$PWD/personalspace/.worktrees/<task>"` a `git -C personalspace/<login>_GEN3/workspace/<slug> worktree remove .worktrees/<task>`).',
@@ -466,8 +466,8 @@ const organizationModuleBar: readonly Text[] = [
     "- Before you ask about Publication, show the user the first version running: from the worktree by the manual start in `README.md` on a free port (not the module's port) and in the browser; `none` has nothing to run, show the repository's contents. Do not use `lazurio module start` yet: it runs only the module's primary checkout, and the Organization's catalog sees the module only after the slot is merged.",
   ),
   t(
-    "- Hotová práce má dva pull requesty: první verzi do `<login Organizace>/<slug>` a slot do rootu Organizace. Merge obou je Publikace: zeptej se před ní a merguj až na výslovné „Publikuj“ (`manual/working-here.md`). Po merge srovnej oba checkouty (`git -C organizations/<org> pull --ff-only` a `git -C organizations/<org>/workspace/<slug> pull --ff-only`) a odstraň oba task worktrees.",
-    "- The finished work has two pull requests: the first version into `<Organization login>/<slug>` and the slot into the Organization root. Merging both is Publication: ask before it and merge only on an explicit “Publish” (`manual/working-here.md`). After the merge, bring both checkouts up to date (`git -C organizations/<org> pull --ff-only` and `git -C organizations/<org>/workspace/<slug> pull --ff-only`) and remove both task worktrees.",
+    "- Hotová práce má dva pull requesty: první verzi do `<login Organizace>/<slug>` a slot do rootu Organizace. Merge obou je Publikace: merguj až se souhlasem uživatele, neodvolaný souhlas daný předem na tento úkol nebo celé vlákno platí, jinak se zeptej (`manual/working-here.md`). Po merge srovnej oba checkouty (`git -C organizations/<org> pull --ff-only` a `git -C organizations/<org>/workspace/<slug> pull --ff-only`) a odstraň oba task worktrees.",
+    "- The finished work has two pull requests: the first version into `<Organization login>/<slug>` and the slot into the Organization root. Merging both is Publication: merge only with the user's consent; consent given in advance for this task or the whole thread and not taken back counts, otherwise ask (`manual/working-here.md`). After the merge, bring both checkouts up to date (`git -C organizations/<org> pull --ff-only` and `git -C organizations/<org>/workspace/<slug> pull --ff-only`) and remove both task worktrees.",
   ),
   t(
     "- Teprve pak modul spusť: `lazurio module start <Organizace>/<slug> --json` (na macOS v Launchpadu; `python-uv` a `none` se takhle nespouštějí), otevři `result.runtime.url` v prohlížeči, ověř, že se stránka vykreslila, a dej uživateli odkaz.",
