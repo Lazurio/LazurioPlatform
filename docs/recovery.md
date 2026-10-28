@@ -176,7 +176,8 @@ Per line, in this order:
    declares them (the checkout directory need not be the login, `<Owner>_GEN3`;
    nothing else of those files is read), the Machine binding the Folder records and the Machine
    handover (Machine, Owner, Team, assignment login and id, tailnet node, host,
-   custody repository, peers and their hosts, the hosted entry's hostnames, and the
+   custody repository, peers, an assigned peer's Environment id and their hosts, the
+   hosted entry's hostnames, and the
    own vault's account, name and host, decision F53).
 4. A long run (32 or more of `[A-Za-z0-9+/_=-]`) withholds the line unless it is
    exactly a 40- or 64-character lowercase hex digest that is either the running or

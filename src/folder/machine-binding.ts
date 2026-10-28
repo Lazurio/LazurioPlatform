@@ -86,18 +86,33 @@ export type MachineOwner =
     }>;
 
 // This Machine's tailnet peers from its own point of view, as Machines derives
-// them from the home Conglomerate Host grants: names only, no node ids, keys,
-// addresses or credentials. Rendered only when present; Headscale enforces it.
+// them from the home Conglomerate Host grants: names and public identity only,
+// no node ids, machine keys, addresses, private keys or credentials. Rendered
+// only when present; Headscale enforces it.
+//
+// A peer whose edge a rule opens, not a reviewed device grant, says so (root
+// decision 0192, addendum of 2026-10-26; Machines #948): a work VM of an
+// Organization assigned to this personal Machine's owner carries `access:
+// "assigned"`, its Environment id `environment` (`<machine>.<organization>`)
+// and, on its outbound SSH link under a named account, the host keys
+// `hostKeys` from the Organization's records (the handover's `host_keys`).
+// The three come together or not at all, and absent they stay absent, so a
+// peer recorded without them keeps its bytes. They are context, not
+// authority: recorded and carried forward exactly, used by nothing here yet.
 export type MachineZone = "personal" | "work";
+export type MachinePeerHostKey = Readonly<{ type: "ssh-ed25519"; key: string }>;
 export type MachinePeer = Readonly<{
   name: string;
   kind: "personal-vm" | "workspace-vm" | "client-device" | "conglomerate-host";
   zone: MachineZone | null;
   organization: string | null;
+  environment?: string;
+  access?: "assigned";
   ssh: Readonly<{
     host: string;
     user: string | null;
     direction: "outbound" | "inbound" | "both";
+    hostKeys?: readonly MachinePeerHostKey[];
   }> | null;
   https: readonly string[];
 }>;
@@ -176,13 +191,17 @@ export type MachineBinding = Readonly<{
 // slugs are hyphen-separated alphanumeric words (owner, host, tailnet identity;
 // a personal Machine name at most 32, a GitHub login at most 39), a workspace
 // Machine name is the schema's looser `^[a-z][a-z0-9-]{0,31}$`, a peer name is
-// one DNS label.
+// one DNS label, an assigned peer's Environment id is two slugs joined by a
+// dot (at most 96) and its host key the base64 blob of one ed25519 public
+// key, without type or comment.
 const slug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const workspaceName = /^[a-z][a-z0-9-]{0,31}$/;
 const dnsLabel = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const hostname =
   /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
 const osAccount = /^[a-z_][a-z0-9_-]{0,30}$/;
+const environmentId = /^[a-z0-9]+(?:-[a-z0-9]+)*\.[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const ed25519PublicKey = /^AAAAC3NzaC1lZDI1NTE5AAAAI[A-Za-z0-9+/]{43}$/;
 const zones: readonly MachineZone[] = ["personal", "work"];
 const peerKinds: readonly MachinePeer["kind"][] = [
   "personal-vm",
@@ -218,6 +237,11 @@ function isGithubId(value: unknown): value is number {
 }
 function isGithubLogin(value: unknown): value is string {
   return isSlug(value) && value.length <= 39;
+}
+function isEnvironmentId(value: unknown): value is string {
+  return (
+    typeof value === "string" && value.length <= 96 && environmentId.test(value)
+  );
 }
 function oneOf<T extends string>(
   values: readonly T[],
@@ -299,12 +323,37 @@ function owner(input: unknown): MachineOwner {
   );
 }
 
+// The host keys of an assigned peer, by the wire schema's rule: one to four
+// distinct closed `{type, key}` items, each one ed25519 public key.
+function hostKeys(input: unknown): readonly MachinePeerHostKey[] {
+  if (!Array.isArray(input) || input.length < 1 || input.length > 4)
+    throw new Error("Invalid Machine peer");
+  const keys = Array.from(input, (item: unknown) => {
+    const value = stateFields(item, ["type", "key"]);
+    if (
+      value.type !== "ssh-ed25519" ||
+      typeof value.key !== "string" ||
+      !ed25519PublicKey.test(value.key)
+    )
+      throw new Error("Invalid Machine peer");
+    return Object.freeze({ type: value.type, key: value.key });
+  });
+  if (new Set(keys.map(({ key }) => key)).size !== keys.length)
+    throw new Error("Invalid Machine peer");
+  return Object.freeze(keys);
+}
+
 function peer(input: unknown): MachinePeer {
+  // With `access` the peer is assigned and `environment` is required with
+  // it; without it neither is allowed (the schema's dependentRequired). The
+  // exact field list refuses either alone.
+  const assigned = ownDataValue(input, "access") !== undefined;
   const value = stateFields(input, [
     "name",
     "kind",
     "zone",
     "organization",
+    ...(assigned ? ["environment", "access"] : []),
     "ssh",
     "https",
   ]);
@@ -319,20 +368,44 @@ function peer(input: unknown): MachinePeer {
     new Set(value.https).size !== value.https.length
   )
     throw new Error("Invalid Machine peer");
+  // An assigned peer is a work VM of an Organization, reached over SSH.
+  let membership: Readonly<{ environment: string; access: "assigned" }> | null =
+    null;
+  if (assigned) {
+    if (
+      value.access !== "assigned" ||
+      !isEnvironmentId(value.environment) ||
+      value.kind !== "workspace-vm" ||
+      value.zone !== "work" ||
+      value.organization === null ||
+      value.ssh === null
+    )
+      throw new Error("Invalid Machine peer");
+    membership = { environment: value.environment, access: value.access };
+  }
   let ssh: MachinePeer["ssh"] = null;
   if (value.ssh !== null) {
-    const link = stateFields(value.ssh, ["host", "user", "direction"]);
+    // Host keys exactly on an assigned peer's link (required there, unknown
+    // elsewhere), which goes outbound under a named account.
+    const link = stateFields(value.ssh, [
+      "host",
+      "user",
+      "direction",
+      ...(assigned ? ["hostKeys"] : []),
+    ]);
     if (
       !isHostname(link.host) ||
       (link.user !== null &&
         (typeof link.user !== "string" || !osAccount.test(link.user))) ||
-      !oneOf(directions, link.direction)
+      !oneOf(directions, link.direction) ||
+      (assigned && (link.user === null || link.direction !== "outbound"))
     )
       throw new Error("Invalid Machine peer");
     ssh = Object.freeze({
       host: link.host,
       user: link.user,
       direction: link.direction,
+      ...(assigned ? { hostKeys: hostKeys(link.hostKeys) } : {}),
     });
   }
   return Object.freeze({
@@ -340,6 +413,7 @@ function peer(input: unknown): MachinePeer {
     kind: value.kind,
     zone: value.zone,
     organization: value.organization,
+    ...(membership ?? {}),
     ssh,
     https: Object.freeze([...value.https]),
   });

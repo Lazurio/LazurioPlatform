@@ -140,13 +140,17 @@ export async function folderNames(folder: string): Promise<PrivateValue[]> {
 type Peer = Readonly<{
   name: string;
   organization: string | null;
+  environment?: string;
   ssh: Readonly<{ host: string; user: string | null }> | null;
   https: readonly string[];
 }>;
 
+// An assigned peer's Environment id (root decision 0192, addendum of
+// 2026-10-26) is one more name of the peer: `<machine>.<organization>`.
 const peerValues = (peers: readonly Peer[] | undefined): PrivateValue[] =>
   (peers ?? []).flatMap((peer) => [
     ...value("peer", peer.name),
+    ...value("peer", peer.environment),
     ...value("organization", peer.organization),
     ...value("hostname", peer.ssh?.host),
     ...value("user", peer.ssh?.user),
