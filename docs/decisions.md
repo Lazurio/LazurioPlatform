@@ -20378,12 +20378,18 @@ What changes:
   `GET /api/providers/oauth/openai-codex/entitlement`.
   - Hermes reads the plan from the stored token's claim and whether the account's own Codex
     catalog lists Buddy's model. The answer carries no token, account id or address.
-  - The verdict `no-subscription` (plan `free`) or `model-missing` signs Buddy out again through
-    the same route as „Odhlásit“. The answer is `unusable` with that reason, also when the
-    sign-out fails.
-  - The journal records the sign-out with the reason, then the poll's `unusable`.
-- **What never blocks.** `usable`, `unknown`, no answer, an answer of no known shape, or a Hermes
-  without the capability keeps the sign-in.
+  - Only a whole answer refuses, one whose members bear its verdict out, for `openai-codex`
+    and a model: `no-subscription` with the plan `free` and no catalog asked, or
+    `model-missing` with another plan, or none, and a catalog that answered without the model.
+  - That signs Buddy out again through the same route as „Odhlásit“, a second time where the
+    first try fails. The answer is `unusable` with the reason and `signedOut`, whether the
+    sign-out happened. Where it did not, the account is still signed in and nothing claims
+    otherwise: the page keeps the refusal, never „Připojeno“, until a sign-out or a new
+    sign-in, and the CLI says he is still signed in with it and how to sign him out.
+  - The journal records the sign-out's outcome with the reason, then the poll's `unusable`.
+- **What never blocks.** `usable`, `unknown`, no answer, an answer of no known or of an
+  inconsistent shape (a lone verdict among them), or a Hermes without the capability keeps the
+  sign-in.
 - **What the person sees.** The page treats `unusable` as a failure of this sign-in, in one plain
   sentence:
   - „Tento účet ChatGPT je bez předplatného a Buddy předplatné potřebuje. Přihlaste ho účtem

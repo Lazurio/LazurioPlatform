@@ -285,6 +285,28 @@ test("a poll that ends it: expired, refused, or a Launchpad that holds it no mor
     value: { error: "buddy-unavailable", reason: "draining" },
   });
   expect(silent.buddy.signIn().kind).toBe("pending");
+  // An account the core refused: signed out again, or still stored where
+  // its sign-out failed, which the page keeps.
+  expect(
+    (
+      await run({
+        ok: true,
+        value: { kind: "unusable", reason: "model-missing", signedOut: true },
+      })
+    ).buddy.signIn(),
+  ).toEqual({ kind: "failed", reason: "model-missing" });
+  expect(
+    (
+      await run({
+        ok: true,
+        value: {
+          kind: "unusable",
+          reason: "no-subscription",
+          signedOut: false,
+        },
+      })
+    ).buddy.signIn(),
+  ).toEqual({ kind: "failed", reason: "no-subscription", stored: true });
 });
 
 test("Zrušit ends the code on Hermes; one Hermes did not confirm ending stays on screen", async () => {

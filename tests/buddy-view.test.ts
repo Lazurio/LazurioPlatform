@@ -211,11 +211,15 @@ test("a sign-in route's answer: a code only as OpenAI's exact page and a whole c
   // An account the core signed out again because it cannot run Buddy
   // (Lazurio/LazurioPlatform#694); a reason of no known shape is the free
   // plan's, the stricter sentence.
-  for (const reason of ["no-subscription", "model-missing"] as const)
-    expect(buddySignInStep({ kind: "unusable", reason })).toEqual({
-      kind: "failed",
-      reason,
-    });
+  for (const reason of ["no-subscription", "model-missing"] as const) {
+    expect(
+      buddySignInStep({ kind: "unusable", reason, signedOut: true }),
+    ).toEqual({ kind: "failed", reason });
+    // One the core could not sign out is still stored.
+    expect(
+      buddySignInStep({ kind: "unusable", reason, signedOut: false }),
+    ).toEqual({ kind: "failed", reason, stored: true });
+  }
   expect(buddySignInStep({ kind: "unusable", reason: "teapot" })).toEqual({
     kind: "failed",
     reason: "no-subscription",
@@ -388,6 +392,37 @@ test("the step while a code is on its way, and each way it can stop, in one plai
   expect(failed("model-missing").parts[0]?.status).toBe(
     "Předplatné tohoto účtu ChatGPT Buddymu nestačí. Přihlaste ho jiným účtem.",
   );
+  // An account the core refused but could not sign out: a reading that
+  // says he is signed in does not make it Připojeno; once signed out, a
+  // reading that says so again does.
+  const stored = buddyStep(
+    facts(works(false), {
+      kind: "failed",
+      reason: "no-subscription",
+      stored: true,
+    }),
+    cs,
+  );
+  expect(stored).toMatchObject({ failed: true, action: "sign-in-other" });
+  expect(stored.parts[0]?.status).toBe(
+    "Tento účet ChatGPT je bez předplatného a Buddy předplatné potřebuje. Přihlaste ho účtem s předplatným ChatGPT.",
+  );
+  expect(
+    buddySignInRow(
+      facts(works(false), {
+        kind: "failed",
+        reason: "model-missing",
+        stored: true,
+      }),
+      cs,
+    ),
+  ).toMatchObject({ controls: "sign-in-other", part: { mark: "warn" } });
+  expect(
+    buddyStep(
+      facts(works(false), { kind: "failed", reason: "no-subscription" }),
+      cs,
+    ).parts[0],
+  ).toMatchObject({ mark: "done", status: "Připojeno" });
   for (const reason of ["no-subscription", "model-missing"] as const) {
     expect(failed(reason)).toMatchObject({
       failed: true,

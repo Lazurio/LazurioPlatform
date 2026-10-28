@@ -59,12 +59,15 @@ import type {
 // whose plan lacks his model, signs in and then fails every turn with an HTTP
 // 400 that never names the plan. Where the gateway's `identify` lists
 // `lazurio-codex-entitlement-v1` (Lazurio/hermes-agent#20), the approved poll
-// asks Hermes `GET /api/providers/oauth/openai-codex/entitlement`. Its verdict
-// `no-subscription` or `model-missing` signs Buddy out again and answers
-// `unusable` with that reason, also when the sign-out fails, since that store
-// is what Hermes's status and the next reading report. Every other answer
-// (`usable`, `unknown`, no answer, a Hermes without the capability) keeps the
-// sign-in: what cannot be checked never blocks.
+// asks Hermes `GET /api/providers/oauth/openai-codex/entitlement`. Only a whole
+// answer of its contract refuses: the verdict `no-subscription` with the plan
+// `free` and no catalog asked, or `model-missing` with a catalog that answered
+// without his model, for `openai-codex` and a model. That signs Buddy out again
+// (tried twice) and answers `unusable` with the reason and whether the sign-out
+// happened: where it did not, the account is still signed in, and nothing
+// claims otherwise. Every other answer (`usable`, `unknown`, no answer, an
+// answer of no known or of an inconsistent shape, a Hermes without the
+// capability) keeps the sign-in: what cannot be checked never blocks.
 
 /** How often the holder asks again: Začínáme's AI step asks every 2 s too. */
 export const buddySignInPollMs = 2_000;
@@ -119,8 +122,14 @@ export type BuddySignInAnswer =
   | BuddySignInPending
   | Readonly<{ kind: "signed-in" }>
   /** OpenAI signed the account in, but it cannot run Buddy's model: signed
-   * out again, so nothing is left for his chat and Telegram to fail on. */
-  | Readonly<{ kind: "unusable"; reason: BuddyUnusableReason }>
+   * out again, so nothing is left for his chat and Telegram to fail on;
+   * `signedOut: false` where Hermes did not sign it out on a second try
+   * either, so the account is still signed in. */
+  | Readonly<{
+      kind: "unusable";
+      reason: BuddyUnusableReason;
+      signedOut: boolean;
+    }>
   | Readonly<{ kind: "failed"; reason: BuddySignInFailure }>
   /** No sign-in by this handle (any more). */
   | Readonly<{ kind: "none" }>
@@ -177,6 +186,23 @@ const codexPath = "/api/providers/oauth/openai-codex";
 /** The capability of a Hermes that answers whether the signed-in account may
  * run Buddy's model (Lazurio/hermes-agent#20). */
 export const codexEntitlementCapability = "lazurio-codex-entitlement-v1";
+
+/** The verdict of a whole entitlement answer (Lazurio/hermes-agent#20) that
+ * refuses the account, where its other members bear it out: `no-subscription`
+ * for the plan `free`, whose catalog is not asked; `model-missing` for another
+ * plan, or none, whose catalog answered without Buddy's model. Anything else
+ * refuses nothing. */
+function refusedVerdict(body: Json): BuddyUnusableReason | undefined {
+  const { provider, model, plan, catalog, verdict } = body;
+  if (provider !== "openai-codex" || typeof model !== "string" || !model.trim())
+    return undefined;
+  if (plan !== null && typeof plan !== "string") return undefined;
+  if (verdict === "no-subscription")
+    return plan === "free" && catalog === "not-asked" ? verdict : undefined;
+  if (verdict === "model-missing")
+    return plan !== "free" && catalog === "missing" ? verdict : undefined;
+  return undefined;
+}
 
 /** What Hermes said of a cancel. */
 type Ending =
@@ -360,9 +386,9 @@ export function createBuddySignIn(
       : pending(session, code);
   }
 
-  /** Hermes's verdict on the account it just saved, where it refuses it; a
-   * Hermes without the capability, no answer or any other verdict refuses
-   * nothing. */
+  /** Hermes's verdict on the account it just saved, where a whole answer
+   * refuses it; a Hermes without the capability, no answer, any other verdict
+   * or an answer its members do not bear out refuses nothing. */
   async function refusal(): Promise<BuddyUnusableReason | undefined> {
     let answer: GatewayResult<GatewayAnswer>;
     try {
@@ -375,30 +401,35 @@ export function createBuddySignIn(
     if (!answer.ok) return undefined;
     const { status, body } = answer.value;
     if (status !== 200 || !isObject(body)) return undefined;
-    return body.verdict === "no-subscription" ||
-      body.verdict === "model-missing"
-      ? body.verdict
-      : undefined;
+    return refusedVerdict(body);
+  }
+
+  /** One sign-out of Buddy's ChatGPT account: `signed-out` for Hermes's 200,
+   * or its 409 for an empty store. */
+  async function removeAccount(): Promise<
+    "signed-out" | "unavailable" | "failed"
+  > {
+    try {
+      const answer = await gateway.request("DELETE", codexPath);
+      if (!answer.ok) return "unavailable";
+      return answer.value.status === 200 || answer.value.status === 409
+        ? "signed-out"
+        : "failed";
+    } catch {
+      return "failed";
+    }
   }
 
   /** The approved sign-in's answer: `signed-in`, or `unusable` once Hermes
-   * refuses the account, signed out again (journaled as a sign-out). */
+   * refuses the account, signed out again (journaled as a sign-out, tried a
+   * second time where the first failed); `signedOut` says whether it was. */
   async function approved(): Promise<BuddySignInAnswer> {
     const reason = await refusal();
     if (reason === undefined) return { kind: "signed-in" };
-    let outcome: string;
-    try {
-      const answer = await gateway.request("DELETE", codexPath);
-      outcome = !answer.ok
-        ? "unavailable"
-        : answer.value.status === 200 || answer.value.status === 409
-          ? "signed-out"
-          : "failed";
-    } catch {
-      outcome = "failed";
-    }
+    let outcome = await removeAccount();
+    if (outcome !== "signed-out") outcome = await removeAccount();
     journal({ operation: "sign-out", outcome, reason });
-    return { kind: "unusable", reason };
+    return { kind: "unusable", reason, signedOut: outcome === "signed-out" };
   }
 
   /** What one answer of Hermes's poll means for the held sign-in. */

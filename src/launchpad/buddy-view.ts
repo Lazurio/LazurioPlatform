@@ -230,7 +230,9 @@ export type BuddySignInState =
     }>
   /** The person finished it here: Připojeno, until the next reading. */
   | Readonly<{ kind: "signed-in" }>
-  | Readonly<{ kind: "failed"; reason: BuddySignInFailure }>;
+  /** `stored`: an account the core refused but could not sign out, so a
+   * reading still says he is signed in with it. */
+  | Readonly<{ kind: "failed"; reason: BuddySignInFailure; stored?: true }>;
 
 export const idleBuddySignIn: BuddySignInState = Object.freeze({
   kind: "idle",
@@ -249,6 +251,7 @@ export type BuddySignInStep =
         | "failed"
         | "no-subscription"
         | "model-missing";
+      stored?: true;
     }>
   /** No sign-in by this handle (any more), or one cancelled. */
   | Readonly<{ kind: "none" }>
@@ -292,8 +295,8 @@ export function buddySignInStep(value: unknown): BuddySignInStep | null {
     }
     case "signed-in":
       return { kind: "signed-in" };
-    // The core signed out an account that cannot run Buddy; the page says
-    // why, as a failure of this sign-in.
+    // The core signed out an account that cannot run Buddy, or could not
+    // (`stored`); the page says why, as a failure of this sign-in.
     case "unusable":
       return {
         kind: "failed",
@@ -301,6 +304,7 @@ export function buddySignInStep(value: unknown): BuddySignInStep | null {
           value.reason === "model-missing"
             ? "model-missing"
             : "no-subscription",
+        ...(value.signedOut === false ? { stored: true as const } : {}),
       };
     case "failed":
       return {
@@ -391,8 +395,13 @@ const expired = (
 
 /** Buddy is signed in, by the reading or by the sign-in this page saw
  * finish before the reading followed. */
+/** Signed in, as this page's sign-in says, or as a reading does, except for
+ * an account this page's sign-in refused and could not sign out: a reading
+ * cannot tell it from one that works. */
 const connectedOf = (reading: BuddyReading | null, signIn: BuddySignInState) =>
-  reading?.signIn === "connected" || signIn.kind === "signed-in";
+  signIn.kind === "signed-in" ||
+  (reading?.signIn === "connected" &&
+    !(signIn.kind === "failed" && signIn.stored === true));
 
 // ---- Začínáme: the step -----------------------------------------------------
 

@@ -228,7 +228,11 @@ export function createBuddyClient(
       return;
     }
     if (step?.kind === "failed") {
-      set({ kind: "failed", reason: step.reason });
+      set({
+        kind: "failed",
+        reason: step.reason,
+        ...(step.stored === true ? { stored: true as const } : {}),
+      });
       options.changed();
       return;
     }

@@ -322,13 +322,20 @@ export async function runBuddyCommand(
 function blockedWords(
   answer: BuddySignInAnswer | BuddySignOutAnswer,
 ): Readonly<{ stderr?: string }> {
-  if (answer.kind === "unusable")
+  if (answer.kind === "unusable") {
+    const why =
+      answer.reason === "no-subscription"
+        ? "This ChatGPT account has no subscription, and Buddy needs one."
+        : "This ChatGPT account's subscription is not enough for Buddy.";
+    // Only a sign-out that happened is claimed.
     return {
-      stderr:
-        answer.reason === "no-subscription"
-          ? "This ChatGPT account has no subscription, and Buddy needs one. He was signed out again; sign him in with an account that has a ChatGPT subscription."
-          : "This ChatGPT account's subscription is not enough for Buddy. He was signed out again; sign him in with another account.",
+      stderr: !answer.signedOut
+        ? `${why} Signing him out failed, so he is still signed in with it: run \`lazurio buddy sign-out\`, then sign him in with another account.`
+        : answer.reason === "no-subscription"
+          ? `${why} He was signed out again; sign him in with an account that has a ChatGPT subscription.`
+          : `${why} He was signed out again; sign him in with another account.`,
     };
+  }
   if (answer.kind !== "blocked") return {};
   return {
     stderr:

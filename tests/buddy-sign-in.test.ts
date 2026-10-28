@@ -248,6 +248,7 @@ posix(
         expect(await signIn.poll(started.session)).toEqual({
           kind: "unusable",
           reason: verdict,
+          signedOut: true,
         });
         expect(fake.state.signedIn).toBe(false);
         expect(fake.requests.map((r) => `${r.method} ${r.path}`)).toEqual([
@@ -299,12 +300,16 @@ posix(
 );
 
 posix(
-  "a refused account stays unusable when its sign-out fails; an entitlement answer of no known shape refuses nothing",
+  "a refused account's sign-out is tried twice; where both fail the answer says he is still signed in, and nothing claims a sign-out",
   () =>
     within(
       { entitlement: "no-subscription" },
       async (fake, signIn, journal) => {
         const codex = "/api/providers/oauth/openai-codex";
+        const deletes = () =>
+          fake.requests.filter((r) => r.method === "DELETE" && r.path === codex)
+            .length;
+        // Both tries fail: Hermes still holds the account.
         fake.state.http = (request) =>
           request.method === "DELETE" && request.path === codex
             ? Response.json({ detail: "boom" }, { status: 500 })
@@ -315,7 +320,10 @@ posix(
         expect(await signIn.poll(started.session)).toEqual({
           kind: "unusable",
           reason: "no-subscription",
+          signedOut: false,
         });
+        expect(deletes()).toBe(2);
+        expect(fake.state.signedIn).toBe(true);
         expect(journal.slice(-2)).toEqual([
           {
             operation: "sign-out",
@@ -324,22 +332,138 @@ posix(
           },
           { operation: "poll", outcome: "unusable", reason: "no-subscription" },
         ]);
-        for (const answer of [
-          Response.json({ verdict: "maybe" }),
-          Response.json({ detail: "Internal Server Error" }, { status: 500 }),
-          new Response("not json"),
-        ]) {
+        // The first try fails, the second signs him out.
+        let tries = 0;
+        fake.state.http = (request) => {
+          if (request.method !== "DELETE" || request.path !== codex)
+            return undefined;
+          tries += 1;
+          return tries === 1
+            ? Response.json({ detail: "boom" }, { status: 500 })
+            : undefined;
+        };
+        started = await signIn.start();
+        if (started.kind !== "pending") throw new Error("not pending");
+        fake.approve([...fake.sessions.keys()].at(-1) as string);
+        expect(await signIn.poll(started.session)).toEqual({
+          kind: "unusable",
+          reason: "no-subscription",
+          signedOut: true,
+        });
+        expect(fake.state.signedIn).toBe(false);
+        expect(journal.slice(-2)).toEqual([
+          {
+            operation: "sign-out",
+            outcome: "signed-out",
+            reason: "no-subscription",
+          },
+          { operation: "poll", outcome: "unusable", reason: "no-subscription" },
+        ]);
+      },
+    ),
+);
+
+posix(
+  "only a whole entitlement answer whose members bear its verdict out refuses: a lone, inconsistent or unknown answer signs nobody out",
+  () =>
+    within({ entitlement: "usable" }, async (fake, signIn) => {
+      const codex = "/api/providers/oauth/openai-codex";
+      const whole = {
+        provider: "openai-codex",
+        model: "gpt-6.1-terra",
+      };
+      for (const answer of [
+        // A lone verdict, either one.
+        { verdict: "model-missing" },
+        { verdict: "no-subscription" },
+        // The verdict its members do not bear out.
+        {
+          ...whole,
+          plan: "plus",
+          catalog: "not-asked",
+          verdict: "no-subscription",
+        },
+        {
+          ...whole,
+          plan: "free",
+          catalog: "listed",
+          verdict: "no-subscription",
+        },
+        { ...whole, plan: "plus", catalog: "listed", verdict: "model-missing" },
+        {
+          ...whole,
+          plan: "free",
+          catalog: "missing",
+          verdict: "model-missing",
+        },
+        { ...whole, plan: 7, catalog: "missing", verdict: "model-missing" },
+        // Another provider, or no model.
+        {
+          ...whole,
+          provider: "openrouter",
+          plan: "free",
+          catalog: "not-asked",
+          verdict: "no-subscription",
+        },
+        {
+          ...whole,
+          model: " ",
+          plan: "plus",
+          catalog: "missing",
+          verdict: "model-missing",
+        },
+        // A verdict of no known kind.
+        { ...whole, plan: "plus", catalog: "listed", verdict: "maybe" },
+      ]) {
+        fake.state.http = (request) =>
+          request.path === `${codex}/entitlement`
+            ? Response.json(answer)
+            : undefined;
+        const started = await signIn.start();
+        if (started.kind !== "pending") throw new Error("not pending");
+        fake.approve([...fake.sessions.keys()].at(-1) as string);
+        expect({ answer, poll: await signIn.poll(started.session) }).toEqual({
+          answer,
+          poll: { kind: "signed-in" },
+        });
+        expect(fake.state.signedIn).toBe(true);
+      }
+      for (const answer of [
+        Response.json({ detail: "Internal Server Error" }, { status: 500 }),
+        new Response("not json"),
+      ]) {
+        fake.state.http = (request) =>
+          request.path === `${codex}/entitlement` ? answer : undefined;
+        const started = await signIn.start();
+        if (started.kind !== "pending") throw new Error("not pending");
+        fake.approve([...fake.sessions.keys()].at(-1) as string);
+        expect(await signIn.poll(started.session)).toEqual({
+          kind: "signed-in",
+        });
+      }
+      expect(
+        fake.requests.filter((r) => r.method === "DELETE" && r.path === codex),
+      ).toEqual([]);
+      // Hermes's own whole answers still refuse (model-missing for a plan
+      // whose catalog lacks the model, or for no plan claim).
+      for (const plan of ["plus", null])
+        for (const [catalog, verdict] of [
+          ["missing", "model-missing"],
+        ] as const) {
           fake.state.http = (request) =>
-            request.path === `${codex}/entitlement` ? answer : undefined;
-          started = await signIn.start();
+            request.path === `${codex}/entitlement`
+              ? Response.json({ ...whole, plan, catalog, verdict })
+              : undefined;
+          const started = await signIn.start();
           if (started.kind !== "pending") throw new Error("not pending");
           fake.approve([...fake.sessions.keys()].at(-1) as string);
           expect(await signIn.poll(started.session)).toEqual({
-            kind: "signed-in",
+            kind: "unusable",
+            reason: "model-missing",
+            signedOut: true,
           });
         }
-      },
-    ),
+    }),
 );
 
 posix(
