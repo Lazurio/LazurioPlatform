@@ -862,6 +862,21 @@ test("Nastavení → Buddy, Stav: Pracuje, Čeká na přihlášení or Buddy te�
     tone: "ok",
     word: "Pracuje",
   });
+  // Signed in with an account this page refused and could not sign out: he
+  // waits for another; one it signed out leaves the reading's word.
+  expect(
+    buddyStateView(works(true), cs, {
+      kind: "failed",
+      reason: "model-missing",
+      stored: true,
+    }),
+  ).toEqual({ tone: "off", word: "Čeká na přihlášení" });
+  expect(
+    buddyStateView(works(true), cs, {
+      kind: "failed",
+      reason: "model-missing",
+    }),
+  ).toEqual({ tone: "ok", word: "Pracuje" });
   expect(buddyStateView(reading(), cs)).toEqual({
     tone: "off",
     word: "Čeká na přihlášení",

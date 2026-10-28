@@ -1111,13 +1111,19 @@ export function saveLine(result: PersonaSaveResult, copy: Copy): string | null {
 // ---- Nastavení → Buddy --------------------------------------------------------
 
 /** His state in a dot and a word: Pracuje, Čeká na přihlášení, or Buddy teď
- * neběží; nothing claimed while it is not known. */
+ * neběží; nothing claimed while it is not known. An account this page's
+ * sign-in refused and could not sign out does not make him work: he waits
+ * for a sign-in with another account. */
 export function buddyStateView(
   reading: BuddyReading | null,
   copy: Copy,
+  signIn: BuddySignInState = idleBuddySignIn,
 ): Readonly<{ tone: "ok" | "off" | "warn"; word: string }> {
   if (reading === null) return { tone: "off", word: copy.startChecking };
-  if (reading.state === "works") return { tone: "ok", word: copy.buddyWorks };
+  if (reading.state === "works")
+    return signIn.kind === "failed" && signIn.stored === true
+      ? { tone: "off", word: copy.buddyWaits }
+      : { tone: "ok", word: copy.buddyWorks };
   if (reading.state === "waits") return { tone: "off", word: copy.buddyWaits };
   return reading.reason === "not-running"
     ? { tone: "warn", word: copy.buddyStateNotRunning }
