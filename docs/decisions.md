@@ -2839,6 +2839,29 @@ the same decision in Hermes (Lazurio/hermes-agent#22: the Lazurio default of
 stands. Template revision `base-instructions-86`; `tests/folder-buddy.test.ts` checks the row and
 the rule in both locales.
 
+**Addendum of 2026-10-28, decided by the Organization Admin: a simple task is Buddy's own; pace and
+overview.** A task Buddy promised for 15 minutes took 50. Bot results waited behind his own turn,
+other topics mixed into the promised block, and every task went through a bot, even a QR payment the
+bot made in 37 seconds. The Organization Admin decided:
+
+- **A simple task of about two minutes, by feel, Buddy does himself**, also in another Environment,
+  such as a QR payment. What outgrows it (more steps, code, an unclear end) he gives to a bot in the
+  Environment the work belongs to and returns to the user, as before. He still never implements, and
+  he never waits for a bot („Na bota nečekej“ stays).
+- **Pace and overview.**
+  - He answers briefly first, then works.
+  - He keeps the time he promises; when he will miss it, he says so at once, with a new plan.
+  - In an agreed block he stays on its topic and asks one thing at a time; the rest waits for a short
+    summary at its end.
+  - What he cannot see (a phone, an app) he says at once and asks for a screenshot.
+  - He names another app's buttons in that app's language.
+
+Where it renders: `.hermes.md` (its section „Práci dáváš botům“ and a new section „Tempo a přehled“)
+and the skill `lazurio-buddy-pomocnici`. `.hermes.md` stays under the 20,000 characters Hermes loads
+uncut: 18,267 in Czech and 19,938 in English. The root's rule that Buddy gives his own work to bots
+(root decision 0210) gets the same addendum in the root. Template revision `base-instructions-86`
+(unreleased, re-pinned). `tests/folder-buddy.test.ts` checks both locales (4 of 4 mutations caught).
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
