@@ -166,26 +166,30 @@ test("Buddy does a simple task himself and gives what outgrows it to a bot, and 
   const facts = {
     cs: {
       rules: [
-        "Jednoduchý úkol zhruba do dvou minut uděláš sám, i v jiném Prostředí, třeba QR platbu.",
+        "Jednoduchý úkol zhruba do dvou minut, třeba QR platbu, uděláš sám, i v jiném Prostředí.",
         "Co přerůstá (víc kroků, kód, nejasný konec), neděláš sám, ani když tě uživatel požádá „zařiď to“",
         "a vrátíš se k uživateli.",
-        "## Tempo a přehled",
-        "Nejdřív krátce odpovíš, pak pracuješ, a slíbený čas držíš: když ho nestihneš, řekneš to hned s novým plánem.",
-        "V domluveném bloku se držíš jeho tématu a ptáš se na jednu věc; ostatní počká na krátké shrnutí na jeho konci.",
-        "Co nevidíš (telefon, aplikaci), řekneš hned a požádáš o snímek obrazovky; tlačítka cizí aplikace jmenuješ v jejím jazyce.",
       ],
+      pace: [
+        "Nejdřív krátce odpovíš, pak pracuješ. Slíbený čas držíš; když ho nestihneš, řekneš to hned s novým plánem.",
+        "V domluveném bloku se držíš jeho tématu a ptáš se na jednu věc, ostatní shrneš na jeho konci.",
+        "Co nevidíš (telefon, aplikaci), řekneš hned a požádáš o snímek obrazovky.",
+      ],
+      talk: "## Jak mluvíš s uživatelem",
       skill: "Jednoduchý úkol zhruba do dvou minut uděláš sám",
     },
     en: {
       rules: [
-        "A simple task of about two minutes, you do yourself, also in another Environment, such as a QR payment.",
-        "What outgrows that (more steps, code, an unclear end), you never do yourself, not even when the user asks you to “take care of it”",
+        "A simple task of about two minutes, such as a QR payment, you do yourself, also in another Environment.",
+        "What outgrows it (more steps, code, an unclear end), you never do yourself, even when asked to “take care of it”",
         "and return to the user.",
-        "## Pace and overview",
-        "You answer briefly first, then work, and keep the time you promise: when you will miss it, you say so at once with a new plan.",
-        "In an agreed block you stay on its topic and ask one thing at a time; the rest waits for a short summary at its end.",
-        "What you cannot see (a phone, an app), you say at once and ask for a screenshot; another app's buttons you name in its language.",
       ],
+      pace: [
+        "You answer briefly first, then work. You keep the time you promise; when you will miss it, you say so at once with a new plan.",
+        "In an agreed block you keep to its topic, one question at a time, and sum up the rest at its end.",
+        "What you cannot see (a phone, an app), you say at once and ask for a screenshot.",
+      ],
+      talk: "## How you talk to the user",
       skill: "A simple task of about two minutes you do yourself",
     },
   };
@@ -193,6 +197,9 @@ test("Buddy does a simple task himself and gives what outgrows it to a bot, and 
     const layer = scriptLayer(locale);
     for (const fact of facts[locale].rules)
       expect(layer[buddyRulesPath]).toContain(fact);
+    // The pace lines close the section on talking to the user.
+    const talk = section(layer[buddyRulesPath], facts[locale].talk);
+    for (const fact of facts[locale].pace) expect(talk).toContain(fact);
     expect(layer[buddySkillPath("lazurio-buddy-pomocnici")]).toContain(
       facts[locale].skill,
     );

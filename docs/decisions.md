@@ -2836,8 +2836,8 @@ first meeting keep `--mode queue`: they go to Buddy's own thread, where a steer 
 restarts his turn until his own active steer is released (Lazurio/t3code#138). His Telegram follows
 the same decision in Hermes (Lazurio/hermes-agent#22: the Lazurio default of
 `display.busy_input_mode` is `steer`); the Platform writes no busy key, so the person's own `/busy`
-stands. Template revision `base-instructions-86`; `tests/folder-buddy.test.ts` checks the row and
-the rule in both locales.
+stands. Template revision `base-instructions-89` (86 until #691 took 88 and #689 87 on `main`);
+`tests/folder-buddy.test.ts` checks the row and the rule in both locales.
 
 **Addendum of 2026-10-28, decided by the Organization Admin: a simple task is Buddy's own; pace and
 overview.** A task Buddy promised for 15 minutes took 50. Bot results waited behind his own turn,
@@ -2854,13 +2854,20 @@ bot made in 37 seconds. The Organization Admin decided:
   - In an agreed block he stays on its topic and asks one thing at a time; the rest waits for a short
     summary at its end.
   - What he cannot see (a phone, an app) he says at once and asks for a screenshot.
-  - He names another app's buttons in that app's language.
 
-Where it renders: `.hermes.md` (its section „Práci dáváš botům“ and a new section „Tempo a přehled“)
-and the skill `lazurio-buddy-pomocnici`. `.hermes.md` stays under the 20,000 characters Hermes loads
-uncut: 18,267 in Czech and 19,938 in English. The root's rule that Buddy gives his own work to bots
-(root decision 0210) gets the same addendum in the root. Template revision `base-instructions-86`
-(unreleased, re-pinned). `tests/folder-buddy.test.ts` checks both locales (4 of 4 mutations caught).
+Where it renders: `.hermes.md`, in its section „Práci dáváš botům“ and in two lines that close
+„Jak mluvíš s uživatelem“, and the skill `lazurio-buddy-pomocnici`. `.hermes.md` has to stay under
+the 20,000 characters Hermes loads uncut, and after #689 there was no room left:
+
+- the pace lines have no section of their own;
+- the line on another app's buttons named in its language was dropped;
+- the mark line no longer explains T3 Code before 0.1.1-lazurio.2 (every Environment runs 0.1.2 or
+  later), nor, in English, the form of the user's name.
+
+That leaves 18,593 characters in Czech and 19,970 in English. The root's rule that Buddy gives his own
+work to bots (root decision 0210) gets the same addendum in the root. Template revision
+`base-instructions-89` (unreleased). `tests/folder-buddy.test.ts` checks both locales, the pace lines
+inside the section on talking to the user.
 
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
