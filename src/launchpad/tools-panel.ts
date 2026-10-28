@@ -13,7 +13,6 @@ import type { MessageKey } from "./messages";
 import { integrationsPath } from "./routes";
 import {
   answerWithin,
-  autoEnable,
   type ComposioDialogView,
   composioConnectedLine,
   composioDialogView,
@@ -840,15 +839,13 @@ export function createToolsPanel(
     return more;
   }
 
-  // A sign-in completed in this Launchpad session turns "Používají agenti"
-  // on (Matěj 2026-10-04), after the reading that follows it, so the change
-  // is made at the current revision; never for a tool signed in before.
-  function afterSignIn(name: string, state: LoginView) {
-    void refresh({ signIn: true }).then(() => {
-      const tool = overview?.tools.find((entry) => entry.name === name);
-      if (tool !== undefined && autoEnable(tool, state))
-        void toggle(tool, true);
-    });
+  // A completed sign-in is read again with its row. Its "Používají agenti"
+  // is on by then where it follows the sign-in (Matěj 2026-10-04): the
+  // Launchpad turns it on as the sign-in ends and answers the outcome after
+  // that (F19's addendum of 2026-10-28, #682), so the page never changes
+  // the Folder for it and a page closed meanwhile misses nothing.
+  function afterSignIn() {
+    void refresh({ signIn: true });
   }
 
   /** A sign-in that ended while its window was closed (#516): the page
@@ -894,7 +891,7 @@ export function createToolsPanel(
     // window open, said by its row and Začínáme.
     if (!visible(current)) {
       endDetached(current, false);
-      afterSignIn(current.tool.name, state);
+      afterSignIn();
       return;
     }
     if (ssh !== null) {
@@ -911,7 +908,7 @@ export function createToolsPanel(
         ),
         doneRow(),
       );
-      afterSignIn(current.tool.name, state);
+      afterSignIn();
       return;
     }
     if (current.tool.name === "composio") {
@@ -932,7 +929,7 @@ export function createToolsPanel(
         key: null,
       };
       void readComposio(current);
-      afterSignIn(current.tool.name, state);
+      afterSignIn();
       return;
     }
     const message = signedInMessage(state, copy);
@@ -946,7 +943,7 @@ export function createToolsPanel(
       doneRow(),
     );
     // The card's sign-in line follows.
-    afterSignIn(current.tool.name, state);
+    afterSignIn();
   }
 
   // Composio after its sign-in (decision F42, addendum (2) of 2026-10-13,

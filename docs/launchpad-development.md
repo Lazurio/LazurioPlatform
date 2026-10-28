@@ -2379,10 +2379,12 @@ status" (with them again and `fresh: true`, read anew), and shows:
   "Connect with an agent") and the switch with its visible label
   "Used by agents" / "Používají agenti" ("Always on" for a required tool). A signed-in
   gh whose key is not linked shows "Link SSH key" as the row's primary action. A
-  sign-in completed in this Launchpad session turns the switch on (`autoEnable`, Matěj
-  2026-10-04): after the reading that follows the sign-in, so the change is made at the
-  current revision, never for a tool that was signed in before (`already`), and the
-  user may turn it off again. On a Team Environment (the preset `hosted-organization-team`,
+  sign-in completed in this Launchpad turns the switch on (Matěj 2026-10-04). The
+  server does it as the sign-in ends, at the current revision, and answers the outcome
+  only after that (F19's addendum of 2026-10-28, #682). So the page's reading after the
+  sign-in shows the switch on, and the page never changes the Folder for it. It is never
+  turned on for a tool that was signed in before (`already`), and the user may turn it
+  off again. On a Team Environment (the preset `hosted-organization-team`,
   the shared case) the gh row has no "Sign in" or "Link SSH key", and "Install" instead
   of "Install and sign in" while gh is missing (its notice ends with the Team
   sentence); a subdued sentence says that this Team Environment works in GitHub through

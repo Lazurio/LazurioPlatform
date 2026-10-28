@@ -508,12 +508,36 @@ true` for codex only (ChatGPT's sign-in by code; any other tool or value, or bes
 `sshKey`, is `400` `invalid-device-code`). No answer carries private
 key content or a public key's blob; only the key's path and SHA-256 fingerprint.
 
+A sign-in that ends signed in turns the tool's "Používají agenti" on in the
+Launchpad's Folder (Matěj 2026-10-04, F19's addendum of 2026-10-28, #682). The
+Launchpad does it as the sign-in ends, at the Folder's current revision, through the
+same change as the switch. It happens whichever page started the sign-in (Začínáme,
+Settings → Tools, Integrace) and also when nobody polls it, because its window was
+closed. A `poll` or `start` that answers `signed-in` answers once that sign-in's own
+switch followed, waiting at most 5 seconds, so the page's next reading shows it. A closing
+Launchpad waits for every switch under way. Nothing is switched for:
+- a tool signed in before (`already`);
+- a tool without the switch (a required one; codex and claude are not catalog tools of
+  agents);
+- a tool the switch would refuse: not offered here (F44), or not allowed by the
+  Organization (F45).
+
+The person may turn the switch off again; no later reading turns it back on. The
+`lazurio tools login` command takes no Folder and switches nothing.
+
 A challenge is never written to a log, a file, the Folder or an error. The Launchpad
 writes one JSON line to its journal (the unit's journal on a Machine) when a sign-in
 starts and one when it ends: `{"scope":"tools-login","tool":"wacli","event":"start"}`
 and `{"scope":"tools-login","tool":"wacli","event":"end","outcome":"failed","reason":"no-challenge"}`,
 with the tool, the outcome (`signed-in`, `failed`, `blocked`, `expired`, `cancelled`)
 and the fixed reason code only; never the tool's output, a challenge or an account.
+The switch that follows a sign-in writes one more line,
+`{"scope":"tools-agents","tool":"composio","outcome":"enabled"}`. Its outcome is one of:
+- `enabled`;
+- `on` (it was on already);
+- `refused`, with the Folder's reason (`tool-not-offered`, `organization-governed`,
+  `drift`…);
+- `failed`.
 The tools keep
 their own pending state in their own stores (composio's pending login in
 `~/.composio`), which is the tool's custody and is not copied anywhere. On a shared

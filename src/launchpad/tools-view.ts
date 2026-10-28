@@ -440,26 +440,6 @@ export function connectionLine(
   };
 }
 
-/** Whether a sign-in that just completed in this Launchpad turns the tool's
- * "Používají agenti" on (Matěj 2026-10-04), so that it works without a
- * second step: only a tool that has the switch (not a required one) and has
- * it off, and never when the tool was signed in before the sign-in started.
- * A person may turn it off again. */
-export function autoEnable(
-  tool: Pick<ToolOverview, "tier" | "enabled" | "organization"> | undefined,
-  state: LoginView,
-): boolean {
-  return (
-    state.kind === "signed-in" &&
-    state.already !== true &&
-    tool !== undefined &&
-    tool.tier !== "required" &&
-    !tool.enabled &&
-    // The Organization decides a tool it does not allow (decision F45).
-    tool.organization?.allowed !== false
-  );
-}
-
 /** What Composio's sign-in dialog says beside "Otevřít Composio", before
  * the person signs in there: in a Team Environment (the reading's
  * `sharedEnvironment`) with the Team's Composio account, not a personal one

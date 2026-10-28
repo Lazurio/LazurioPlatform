@@ -4358,6 +4358,71 @@ Still unseen: OpenAI's own refusal of a code where the setting is off. Also unch
 Začínáme's button on a real Environment, which Example cannot show, since its AI there
 is the Organization's. The evidence is on Lazurio/LazurioPlatform#576 and #517.
 
+**Addendum 2026-10-28 (Matěj, Lazurio/LazurioPlatform#682): the Launchpad turns
+"Používají agenti" on as a sign-in ends.**
+
+During an onboarding (Začínáme) on a work Environment, Composio's sign-in completed but
+its "Používají agenti" stayed off. Integrace then said that agents do not use Composio
+and offered no link, so Composio did not work. The v0.1.14 acceptance on the reference
+Organization's personal Environment had seen the same on 2026-10-27.
+
+The rule of 2026-10-04 lived in the page: after the reading that the sign-in caused, the
+page switched the tool on through `/api/tools/update`. For Composio, the dialog's check of
+the organizations started a second reading at the same moment. The later reading
+superseded the first, and the page, busy while it ran, dropped the change without a word.
+A page closed meanwhile never made the change at all.
+
+Matěj: however a person sets Composio up, once it is signed in the switch is on and
+Integrace say so.
+
+1. **The server follows the sign-in.**
+   - The login sessions call their owner's `afterSignIn` once for every sign-in that ends
+     signed in, as it ends (`finish`), also with nobody polling. A follower that fails
+     changes nothing of the outcome.
+   - The Launchpad turns the tool's switch on there with `enableToolForAgents`. That is
+     the switch's own change at the Folder's current revision. Where another change holds
+     the Folder or changed it meanwhile, it reads the Folder again, up to four attempts,
+     as the vault's switch is made (F53). The vault now uses the same function.
+2. **What it switches.**
+   - Only a catalog tool that has the switch: not a required one, and not codex or claude,
+     which are not catalog tools of agents.
+   - Never a tool signed in before (`already`).
+   - Never where the switch itself would be refused: not offered here (F44,
+     `tool-not-offered`), not allowed by the Organization (F45, `organization-governed`),
+     or a drifted Folder.
+
+   A person may turn the switch off again; only the next sign-in that this Launchpad
+   completes turns it back on.
+3. **The answer follows the switch.**
+   - `/api/tools/login/poll` and `/start` answer `signed-in` once the switch followed,
+     waiting at most 5 seconds, and then drop the Integrace reading. The page's reading
+     after the outcome shows the switch on, and Integrace's next reading counts Composio
+     as used.
+   - The page no longer changes the Folder after a sign-in; `autoEnable` is gone and the
+     page only reads again.
+   - Each outcome waits for its own switch only, never for another sign-in's of the same
+     tool. A Launchpad that closes lets every switch under way complete, as any Folder
+     change, also one that a later sign-in of the same tool overtook (Pablo's review of
+     #702).
+4. **Journal.** One line per switch: `{"scope":"tools-agents","tool":…,"outcome":…}`. The
+   outcome is `enabled`, `on`, `failed`, or `refused` with the Folder's reason. Nothing
+   else is written.
+
+Not in this addendum:
+- `lazurio tools login` takes no Folder and switches nothing.
+- A sign-in made outside Lazurio, such as `composio login` in a terminal, is not seen.
+- Začínáme's Composio step still says "Připojeno" from the sign-in and the organization
+  alone.
+
+The tests are:
+- `tests/integrations-composio-ready.test.ts`: through the routes with the dialog polling
+  and with nobody polling; a switch turned off again stays off;
+- `tests/tools-login.test.ts`: the follower hears one end and no cancel, and a failing one
+  is harmless;
+- `tests/launchpad-wacli-sign-in.test.ts`: a tool signed in before stays off;
+- `tests/launchpad-sign-in-switch.test.ts`: two sign-ins of one tool overlap while the first
+  switch is held. Each answer waits for its own switch, and closing waits for both.
+
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 
 **Matěj's decision 2026-09-28, implemented in this revision for Linux and macOS.**
