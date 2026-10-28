@@ -1186,7 +1186,7 @@ were an assignment, while the overlay records nothing and is chosen by the singl
 switch Machines already writes.
 
 **Amendment 2026-10-26 (root decision 0192's addendum of the same day, plan DEV-6676
-P1; pending the Machines re-pin).** SSH from an Osobní Prostředí into every Pracovní
+P1; vendored from Machines v0.12.211).** SSH from an Osobní Prostředí into every Pracovní
 Prostředí assigned to its Owner in the same tailnet is always on; the target's host
 key comes from the Organization's records, never from a first connection (point (d)),
 and Lazurio writes these Environments' names into the Osobní Prostředí (point (e)).
@@ -1194,8 +1194,8 @@ Machines #948 carries that in the handover's peers: `environment` (the Environme
 `<machine>.<organization>`), `access: "assigned"` and `ssh.host_keys` (one to four
 ed25519 public keys), all three or none, only on a work VM of an Organization reached
 outbound over SSH under a named account. The vendored schema takes them byte for byte
-from that pull request's head, with `pending` in `schema-provenance.json` until it
-merges and the pin moves there. The Platform:
+from Machines v0.12.211, the release that carries that pull request's merge. The
+Platform:
 
 1. **Reads and records them exactly.** The binding's parser accepts what the schema
    accepts and refuses the rest; it records them as `environment`, `access` and

@@ -151,12 +151,14 @@ test("the vendored schema carries Machines #633's local_port: optional, a port o
   // Re-pinned since to Machines #664, which adds only the `services`
   // assignment and the Organization-branch `services` list, and then to
   // Machines #811, released as v0.12.191 (the tag's commit), which adds only
-  // the personal VM's `entry.buddy`.
+  // the personal VM's `entry.buddy`, and then to Machines #948, released as
+  // v0.12.211 (the tag's commit), which adds only a peer's `environment`,
+  // `access` and `ssh.host_keys`.
   expect(provenance.source_pull_request).toBe(
-    "https://github.com/HumanAndMachine-ai/Machines/pull/811",
+    "https://github.com/HumanAndMachine-ai/Machines/pull/948",
   );
   expect(provenance.source_commit).toBe(
-    "811b3f7c706331be4db931dbfa5913538e6db99b",
+    "a8726744ba1e5d9cf28f3045782e85a1f77564f6",
   );
   const browser = (
     schema as unknown as {

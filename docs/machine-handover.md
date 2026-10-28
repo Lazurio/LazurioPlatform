@@ -10,17 +10,14 @@ does not authorize deployment, restart, access changes or resident removal.
 
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
-JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`.
-Pending the merge of Machines pull request **#948** (a Draft; root decision 0192,
-addendum of 2026-10-26, plan DEV-6676), the vendored file is byte for byte its head
-`9e18cd26e7160da6b2ca586851aa5287dbfea4e8` (SHA-256
-`ca5cdb767888826fe028e589ea120628a6d830552256cc0d141c0681e038addc`), which adds only
-a peer's optional `environment`, `access` and `ssh.host_keys`
+JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`. The pin is
+Machines **v0.12.211** (tag commit `a8726744ba1e5d9cf28f3045782e85a1f77564f6`, which
+carries the merge of pull request **#948**, `44e9002e5f6e03d0b85227b4c5d360a13d97e68d`;
+SHA-256 `ca5cdb767888826fe028e589ea120628a6d830552256cc0d141c0681e038addc`; root
+decision 0192, addendum of 2026-10-26, plan DEV-6676), which added only a peer's
+optional `environment`, `access` and `ssh.host_keys`
 ([below](#assigned-peers-root-decision-0192-addendum-of-2026-10-26)) to the schema of
-v0.12.191 and changes nothing else. `schema-provenance.json` keeps naming v0.12.191
-as its source and says so in `pending`; the test "the vendored schema is pinned,
-nothing pending" fails until the re-pin to #948's merge, by design, so this cannot
-merge before it. Before it, the pin was
+v0.12.191 and changed nothing else. Before it, the pin was
 Machines **v0.12.191** (tag commit `811b3f7c706331be4db931dbfa5913538e6db99b`,
 which carries the merge of pull request **#811**, `3cc8e002be8840838a74d6ebd52c747a375b1ba1`;
 SHA-256 `a23925e1da2da6e32acc1bcbfb4855dea02e6b2cf39f294cf7a2b2bfe1882bca`), which added
@@ -452,7 +449,7 @@ The addendum makes SSH from an Osobní Prostředí into every Pracovní Prostře
 assigned to its Owner in the same tailnet always on. The Osobní Prostředí knows each
 target's host key from the records of the Organization that owns it, never from a
 first connection (point (d)), and Lazurio writes these Environments' names into it
-for agents, Buddy and Delegace (point (e)). Machines #948 (pending, see
+for agents, Buddy and Delegace (point (e)). Machines #948 (released in v0.12.211, see
 [above](#one-upstream-contract)) carries what that needs in the peers of the
 personal VM's `relationships`: three optional members that come only together.
 

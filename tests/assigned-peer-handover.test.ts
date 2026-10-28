@@ -51,15 +51,13 @@ const unassigned = {
 };
 
 test("the vendored schema is Machines #948's: a peer's environment, access and ssh.host_keys, only together", () => {
-  // Pending the merge of #948 (schema-provenance.json): its head's bytes.
-  expect(provenance.sha256).toBe(
-    "ca5cdb767888826fe028e589ea120628a6d830552256cc0d141c0681e038addc",
-  );
-  expect(provenance.pending).toContain(
-    "9e18cd26e7160da6b2ca586851aa5287dbfea4e8",
-  );
-  expect(provenance.pending).toContain(
+  // Released as v0.12.211 (the tag's commit carries #948's merge 44e9002e).
+  expect(provenance.source_pull_request).toBe(
     "https://github.com/HumanAndMachine-ai/Machines/pull/948",
+  );
+  expect(provenance.source_tag).toBe("v0.12.211");
+  expect(provenance.source_sha256).toBe(
+    "ca5cdb767888826fe028e589ea120628a6d830552256cc0d141c0681e038addc",
   );
   const item = (
     schema as unknown as {
