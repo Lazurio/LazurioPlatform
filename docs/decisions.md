@@ -20384,8 +20384,10 @@ What changes:
   - That signs Buddy out again through the same route as „Odhlásit“, a second time where the
     first try fails. The answer is `unusable` with the reason and `signedOut`, whether the
     sign-out happened. Where it did not, the account is still signed in and nothing claims
-    otherwise: the page keeps the refusal, never „Připojeno“, until a sign-out or a new
-    sign-in, and the CLI says he is still signed in with it and how to sign him out.
+    otherwise. The page knows it holds a refused account until a sign-out, or a new sign-in
+    the core keeps. A later sign-in that fails or ends before that does not end it, so the
+    page never says „Připojeno“ or „Pracuje“ meanwhile. A reload forgets it. The CLI says he
+    is still signed in with it and how to sign him out.
   - The journal records the sign-out's outcome with the reason, then the poll's `unusable`.
 - **What never blocks.** `usable`, `unknown`, no answer, an answer of no known or of an
   inconsistent shape (a lone verdict among them), or a Hermes without the capability keeps the

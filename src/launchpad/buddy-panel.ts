@@ -192,7 +192,7 @@ export function createBuddyPanel(
 
   function drawState(copy: Copy) {
     const facts = options.facts();
-    const state = buddyStateView(facts.reading, copy, facts.signIn);
+    const state = buddyStateView(facts.reading, copy, facts.refused);
     const row = buddySignInRow(facts, copy);
     const name = buddyNameOf(facts.reading);
     const key = drawnKey([state, row, name, options.avatar()]);

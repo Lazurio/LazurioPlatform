@@ -1,6 +1,7 @@
 import { buddyRoutePaths } from "./buddy-paths";
 import {
   type BuddyReading,
+  type BuddyRefusedAccount,
   type BuddySignInState,
   buddySignInStep,
   idleBuddySignIn,
@@ -92,6 +93,9 @@ export function createBuddyClient(
   let reading: BuddyReading | null = null;
   let absent = false;
   let signIn: BuddySignInState = idleBuddySignIn;
+  // A refused account Hermes still holds: kept across this page's later
+  // sign-ins until a sign-out, or one the core keeps, ends it.
+  let refused: BuddyRefusedAccount | undefined;
   // A newer start, cancel or sign-out ends the questions of an older one.
   let turn = 0;
   let pollTimer: unknown;
@@ -221,6 +225,7 @@ export function createBuddyClient(
     const step = buddySignInStep(await ask(buddyRoutePaths.poll, { session }));
     if (mine !== turn || signIn.kind !== "pending") return;
     if (step?.kind === "signed-in") {
+      refused = undefined;
       set({ kind: "signed-in" });
       learned();
       options.changed();
@@ -228,11 +233,11 @@ export function createBuddyClient(
       return;
     }
     if (step?.kind === "failed") {
-      set({
-        kind: "failed",
-        reason: step.reason,
-        ...(step.stored === true ? { stored: true as const } : {}),
-      });
+      // A refused account: still held where its sign-out failed, gone where
+      // it happened, since Hermes's sign-out removes his whole sign-in.
+      if (step.reason === "no-subscription" || step.reason === "model-missing")
+        refused = step.stored === true ? step.reason : undefined;
+      set({ kind: "failed", reason: step.reason });
       options.changed();
       return;
     }
@@ -260,6 +265,8 @@ export function createBuddyClient(
     /** The Environment has no Buddy (404 `buddy-absent`). */
     absent: (): boolean => absent,
     signIn: (): BuddySignInState => signIn,
+    /** A refused account Hermes still holds (`BuddyRefusedAccount`). */
+    refused: (): BuddyRefusedAccount | undefined => refused,
     read,
 
     /** "Přihlásit se", "Nový kód", "Přihlásit znovu": a new code. A
@@ -323,6 +330,7 @@ export function createBuddyClient(
       const value = await ask(buddyRoutePaths.signOut, {});
       const done = isRecord(value) && value.kind === "signed-out";
       if (done) {
+        refused = undefined;
         // A reading begun before the sign-out still says he is signed in.
         learned();
         if (mine === turn) set(idleBuddySignIn);

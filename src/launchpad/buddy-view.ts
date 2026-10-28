@@ -184,10 +184,17 @@ export const unknownBuddyReading: BuddyReading = Object.freeze({
 /** The first run's fact of Buddy (first-run.ts): `loading` until read; a
  * reading that failed claims nothing of his names, as an AI that could not
  * be read is never claimed missing. */
-export function buddyFact(reading: BuddyReading | null): BuddyFact {
+export function buddyFact(
+  reading: BuddyReading | null,
+  refused?: BuddyRefusedAccount,
+): BuddyFact {
   if (reading === null) return "loading";
   return {
-    signIn: reading.signIn,
+    // A refused account Hermes still holds is no sign-in of his.
+    signIn:
+      reading.signIn === "connected" && refused !== undefined
+        ? "none"
+        : reading.signIn,
     confirmed:
       reading.persona?.confirmed ??
       (reading === unknownBuddyReading ? null : false),
@@ -230,9 +237,13 @@ export type BuddySignInState =
     }>
   /** The person finished it here: Připojeno, until the next reading. */
   | Readonly<{ kind: "signed-in" }>
-  /** `stored`: an account the core refused but could not sign out, so a
-   * reading still says he is signed in with it. */
-  | Readonly<{ kind: "failed"; reason: BuddySignInFailure; stored?: true }>;
+  | Readonly<{ kind: "failed"; reason: BuddySignInFailure }>;
+
+/** An account this page's sign-in refused and the core could not sign out:
+ * Hermes still holds it, and a reading cannot tell it from one that works.
+ * The page keeps it across its later sign-ins, until a sign-out or a new
+ * sign-in that the core keeps; a reload forgets it. */
+export type BuddyRefusedAccount = "no-subscription" | "model-missing";
 
 export const idleBuddySignIn: BuddySignInState = Object.freeze({
   kind: "idle",
@@ -395,13 +406,16 @@ const expired = (
 
 /** Buddy is signed in, by the reading or by the sign-in this page saw
  * finish before the reading followed. */
-/** Signed in, as this page's sign-in says, or as a reading does, except for
- * an account this page's sign-in refused and could not sign out: a reading
- * cannot tell it from one that works. */
-const connectedOf = (reading: BuddyReading | null, signIn: BuddySignInState) =>
+/** Signed in, as this page's sign-in says, or as a reading does, except
+ * while Hermes holds an account this page refused: a reading cannot tell it
+ * from one that works. */
+const connectedOf = (
+  reading: BuddyReading | null,
+  signIn: BuddySignInState,
+  refused: BuddyRefusedAccount | undefined,
+) =>
   signIn.kind === "signed-in" ||
-  (reading?.signIn === "connected" &&
-    !(signIn.kind === "failed" && signIn.stored === true));
+  (reading?.signIn === "connected" && refused === undefined);
 
 // ---- Začínáme: the step -----------------------------------------------------
 
@@ -450,11 +464,13 @@ export type BuddyStepFacts = Readonly<{
   reading: BuddyReading | null;
   signIn: BuddySignInState;
   now: number;
+  /** A refused account Hermes still holds (`BuddyRefusedAccount`). */
+  refused?: BuddyRefusedAccount;
 }>;
 
 /** The sign-in part of the step and of Nastavení → Buddy. */
 function signInPart(facts: BuddyStepFacts, copy: Copy): BuddyPart {
-  const { reading, signIn, now } = facts;
+  const { reading, signIn, now, refused } = facts;
   const base = { id: "sign-in" as const, title: copy.buddyPartSignIn };
   if (reading === null)
     return { ...base, mark: "open", status: copy.startChecking };
@@ -481,26 +497,39 @@ function signInPart(facts: BuddyStepFacts, copy: Copy): BuddyPart {
       status: copy.buddySignInStarting,
       busy: true,
     };
-  if (connectedOf(reading, signIn))
+  if (connectedOf(reading, signIn, refused))
     return { ...base, mark: "done", status: copy.startConnected };
-  if (signIn.kind === "failed") {
-    const { line, help } = failureLine(signIn.reason, copy);
+  const failed = (reason: BuddySignInFailure): BuddyPart => {
+    const { line, help } = failureLine(reason, copy);
     return {
       ...base,
       mark: "warn",
       status: line,
       ...(help === undefined ? {} : { help }),
     };
-  }
+  };
+  if (signIn.kind === "failed") return failed(signIn.reason);
   if (reading.signIn === "unknown")
     return reading.reason === "not-running"
       ? { ...base, mark: "warn", status: copy.buddyNotRunning }
       : { ...base, mark: "open", status: copy.buddyUnknown };
+  // No sign-in of this page says more: the refused account Hermes holds.
+  if (refused !== undefined) return failed(refused);
   return { ...base, mark: "open", status: copy.startNotConnected };
 }
 
 /** What a sign-in that is not under way offers next. */
 function nextSignIn(
+  facts: BuddyStepFacts,
+): "resume" | "new-code" | "sign-in" | "sign-in-other" | "none" {
+  const next = nextAction(facts);
+  // While Hermes holds a refused account, any new sign-in is with another.
+  return next === "sign-in" && facts.refused !== undefined
+    ? "sign-in-other"
+    : next;
+}
+
+function nextAction(
   facts: BuddyStepFacts,
 ): "resume" | "new-code" | "sign-in" | "sign-in-other" | "none" {
   const { reading, signIn, now } = facts;
@@ -529,7 +558,7 @@ export function buddyStep(facts: BuddyStepFacts, copy: Copy): BuddyStepView {
   const { reading, signIn } = facts;
   const persona = reading?.persona ?? null;
   const confirmed = persona?.confirmed === true;
-  const connected = connectedOf(reading, signIn);
+  const connected = connectedOf(reading, signIn, facts.refused);
   const sign = signInPart(facts, copy);
   const names: BuddyPart = {
     id: "persona",
@@ -600,7 +629,7 @@ export const meetScreens: readonly MeetScreen[] = [
 /** Where the dialog opens: the sign-in until he is signed in, then his
  * introduction. */
 export function meetStart(facts: BuddyStepFacts): MeetScreen {
-  return connectedOf(facts.reading, facts.signIn) &&
+  return connectedOf(facts.reading, facts.signIn, facts.refused) &&
     facts.signIn.kind !== "pending"
     ? "introduce"
     : "sign-in";
@@ -640,7 +669,7 @@ export type SignInScreen =
     }>;
 
 export function signInScreen(facts: BuddyStepFacts, copy: Copy): SignInScreen {
-  const { reading, signIn, now } = facts;
+  const { reading, signIn, now, refused } = facts;
   if (signIn.kind === "pending")
     return expired(signIn, now)
       ? { kind: "expired" }
@@ -651,7 +680,7 @@ export function signInScreen(facts: BuddyStepFacts, copy: Copy): SignInScreen {
           holds: { template: copy.buddyHolds, expiresAt: signIn.expiresAt },
         };
   if (signIn.kind === "starting") return { kind: "starting" };
-  if (connectedOf(reading, signIn)) return { kind: "connected" };
+  if (connectedOf(reading, signIn, refused)) return { kind: "connected" };
   if (signIn.kind === "failed") {
     if (signIn.reason === "expired") return { kind: "expired" };
     const { line, help } = failureLine(signIn.reason, copy);
@@ -676,6 +705,17 @@ export function signInScreen(facts: BuddyStepFacts, copy: Copy): SignInScreen {
           : copy.buddyUnknown,
       retry: false,
     };
+  // No sign-in of this page says more: the refused account Hermes holds.
+  if (refused !== undefined) {
+    const { line, help } = failureLine(refused, copy);
+    return {
+      kind: "failed",
+      line,
+      ...(help === undefined ? {} : { help }),
+      retry: true,
+      otherAccount: true,
+    };
+  }
   return { kind: "start" };
 }
 
@@ -1111,17 +1151,17 @@ export function saveLine(result: PersonaSaveResult, copy: Copy): string | null {
 // ---- Nastavení → Buddy --------------------------------------------------------
 
 /** His state in a dot and a word: Pracuje, Čeká na přihlášení, or Buddy teď
- * neběží; nothing claimed while it is not known. An account this page's
- * sign-in refused and could not sign out does not make him work: he waits
- * for a sign-in with another account. */
+ * neběží; nothing claimed while it is not known. A refused account Hermes
+ * still holds does not make him work: he waits for a sign-in with another
+ * account. */
 export function buddyStateView(
   reading: BuddyReading | null,
   copy: Copy,
-  signIn: BuddySignInState = idleBuddySignIn,
+  refused?: BuddyRefusedAccount,
 ): Readonly<{ tone: "ok" | "off" | "warn"; word: string }> {
   if (reading === null) return { tone: "off", word: copy.startChecking };
   if (reading.state === "works")
-    return signIn.kind === "failed" && signIn.stored === true
+    return refused !== undefined
       ? { tone: "off", word: copy.buddyWaits }
       : { tone: "ok", word: copy.buddyWorks };
   if (reading.state === "waits") return { tone: "off", word: copy.buddyWaits };
@@ -1152,7 +1192,7 @@ export function buddySignInRow(
 ): BuddySignInRow {
   const part = signInPart(facts, copy);
   const next = nextSignIn(facts);
-  const connected = connectedOf(facts.reading, facts.signIn);
+  const connected = connectedOf(facts.reading, facts.signIn, facts.refused);
   return {
     part,
     controls:

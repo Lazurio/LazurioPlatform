@@ -285,28 +285,109 @@ test("a poll that ends it: expired, refused, or a Launchpad that holds it no mor
     value: { error: "buddy-unavailable", reason: "draining" },
   });
   expect(silent.buddy.signIn().kind).toBe("pending");
-  // An account the core refused: signed out again, or still stored where
-  // its sign-out failed, which the page keeps.
-  expect(
-    (
-      await run({
-        ok: true,
-        value: { kind: "unusable", reason: "model-missing", signedOut: true },
-      })
-    ).buddy.signIn(),
-  ).toEqual({ kind: "failed", reason: "model-missing" });
-  expect(
-    (
-      await run({
-        ok: true,
-        value: {
-          kind: "unusable",
-          reason: "no-subscription",
-          signedOut: false,
-        },
-      })
-    ).buddy.signIn(),
-  ).toEqual({ kind: "failed", reason: "no-subscription", stored: true });
+  // An account the core refused: signed out again, or still held where its
+  // sign-out failed, which the page keeps as `refused`.
+  const out = await run({
+    ok: true,
+    value: { kind: "unusable", reason: "model-missing", signedOut: true },
+  });
+  expect(out.buddy.signIn()).toEqual({
+    kind: "failed",
+    reason: "model-missing",
+  });
+  expect(out.buddy.refused()).toBeUndefined();
+  const held = await run({
+    ok: true,
+    value: { kind: "unusable", reason: "no-subscription", signedOut: false },
+  });
+  expect(held.buddy.signIn()).toEqual({
+    kind: "failed",
+    reason: "no-subscription",
+  });
+  expect(held.buddy.refused()).toBe("no-subscription");
+});
+
+test("a refused account Hermes still holds stays known across later sign-ins that fail, until a sign-out or one the core keeps", async () => {
+  const refuseHeld = async () => {
+    const made = client();
+    made.fake.reply(buddyRoutePaths.start, { ok: true, value: pending() });
+    made.fake.reply(buddyRoutePaths.poll, {
+      ok: true,
+      value: { kind: "unusable", reason: "no-subscription", signedOut: false },
+    });
+    made.fake.reply(buddyRoutePaths.read, { ok: true, value: answer() });
+    await made.buddy.start();
+    await made.clock.run(2000);
+    expect(made.buddy.refused()).toBe("no-subscription");
+    return made;
+  };
+  // „Přihlásit jiný účet“ refused before its code: still held.
+  for (const reply of [
+    { ok: false, value: { kind: "blocked", reason: "hermes-outdated" } },
+    { ok: false, value: { error: "buddy-unavailable", reason: "no-socket" } },
+    { ok: true, value: { kind: "failed", reason: "failed" } },
+  ] as const) {
+    const { buddy, fake } = await refuseHeld();
+    fake.reply(buddyRoutePaths.start, reply);
+    await buddy.start();
+    expect(buddy.signIn().kind).toBe("failed");
+    expect(buddy.refused()).toBe("no-subscription");
+  }
+  // A new code: held while it waits, and after it expires or is lost.
+  for (const ending of ["expired", "lost"] as const) {
+    const { buddy, fake, clock } = await refuseHeld();
+    fake.reply(buddyRoutePaths.start, { ok: true, value: pending() });
+    await buddy.start();
+    expect(buddy.signIn().kind).toBe("pending");
+    expect(buddy.refused()).toBe("no-subscription");
+    fake.reply(buddyRoutePaths.poll, {
+      ok: true,
+      value: { kind: "failed", reason: ending },
+    });
+    await clock.run(2000);
+    expect(buddy.signIn()).toEqual({ kind: "failed", reason: ending });
+    expect(buddy.refused()).toBe("no-subscription");
+  }
+  // Another refused account, still held: the newer reason.
+  {
+    const { buddy, fake, clock } = await refuseHeld();
+    fake.reply(buddyRoutePaths.start, { ok: true, value: pending() });
+    fake.reply(buddyRoutePaths.poll, {
+      ok: true,
+      value: { kind: "unusable", reason: "model-missing", signedOut: false },
+    });
+    await buddy.start();
+    await clock.run(2000);
+    expect(buddy.refused()).toBe("model-missing");
+  }
+  // Ended: a sign-in the core keeps, a refused one it signed out (his whole
+  // sign-in goes), or „Odhlásit“.
+  for (const value of [
+    { kind: "signed-in" },
+    { kind: "unusable", reason: "model-missing", signedOut: true },
+  ] as const) {
+    const { buddy, fake, clock } = await refuseHeld();
+    fake.reply(buddyRoutePaths.start, { ok: true, value: pending() });
+    fake.reply(buddyRoutePaths.poll, { ok: true, value });
+    await buddy.start();
+    await clock.run(2000);
+    expect(buddy.refused()).toBeUndefined();
+  }
+  const { buddy, fake } = await refuseHeld();
+  fake.reply(buddyRoutePaths.signOut, {
+    ok: true,
+    value: { kind: "signed-out" },
+  });
+  expect(await buddy.signOut()).toBe(true);
+  expect(buddy.refused()).toBeUndefined();
+  // A sign-out that failed keeps it.
+  const kept = await refuseHeld();
+  kept.fake.reply(buddyRoutePaths.signOut, {
+    ok: true,
+    value: { kind: "failed", reason: "failed" },
+  });
+  expect(await kept.buddy.signOut()).toBe(false);
+  expect(kept.buddy.refused()).toBe("no-subscription");
 });
 
 test("Zrušit ends the code on Hermes; one Hermes did not confirm ending stays on screen", async () => {
