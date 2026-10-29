@@ -2869,6 +2869,113 @@ work to bots (root decision 0210) gets the same addendum in the root. Template r
 `base-instructions-89` (unreleased). `tests/folder-buddy.test.ts` checks both locales, the pace lines
 inside the section on talking to the user.
 
+### Proposal of 2026-10-29: the person's own instructions for agents, and a person's own entries in a hosted Folder (for Matěj's decision; not decided, not implemented)
+
+On 2026-10-29 Matěj raised two questions.
+- **Own instructions.** People should be able to tweak how agents behave where that makes sense, in one standard way, and Lazurio should learn about it, because each tweak marks something the product should fix. His first idea was a pattern in the Launchpad's settings that finds part of the instructions and replaces it, or adds to it. He also asked whether this belongs to the Folder or only to the Organization, whose repository the Folder's instructions point to.
+- **Foreign entries.** Should one entry that a person or a tool leaves at the top of the Folder stop a whole update? He asked whether people may keep their own files there, as long as `organizations/`, `personalspace/` and Lazurio's own files stay untouched.
+
+#### What is already fixed
+
+- **F3: what is rejected.** Editing generated instructions creates a second truth, and editing Platform source per person creates personal product forks. Both are rejected, and so is a generic profile DSL.
+- **F3: what is accepted.** "Preserved machine-local custom sources" and "free-form working instructions" are accepted design requirements. Composition precedence must be explicit, and an imported proposal never authorizes anything. F3 left the storage format and the activation UI open.
+- **F14: digests.** Every generated file carries a digest. A hand-edited file refuses every later change with `drift` and its path. F14 deferred an operator `notes/` area.
+- **F42: the "zapamatuj si" rule.** Its addendum's working rule says "zapamatuj si" never edits a generated file. A personal rule goes into the harness's personal instructions (`$CODEX_HOME/AGENTS.md`, `~/.claude/CLAUDE.md`), and an Organization's rule goes to the Organization as a pull request or an issue.
+- **The manual: Organizations hold their rules.** Every Organization has its own `AGENTS.md`, and an agent loads it before working inside. "This manual gives you the method; the Organization holds the company's meanings and rules."
+- **The hosted boundary (F10's amendment of 2026-09-23, the handover refresh).** A hosted Folder refuses every top-level entry it neither owns nor tolerates. It does so before the journal, before every replacement and in `profile-resume`. A workstation Folder keeps the person's own top-level files.
+- **Machines since v0.12.188 (HumanAndMachine-ai/Machines#788).** It tolerates a person's own entries in an adopted Folder and records a `folder-refresh` refused with `folder-foreign-entry` as a finding, so the rest of the apply converges. The Folder keeps its old instructions until the entry is moved. Machines still refuses what it cannot work around:
+  - a top-level `.git`, the user's checkout of the root that root decision 0144 keeps Machines from installing over (`git-checkout`);
+  - a mount or a non-plain `.lazurio`;
+  - any foreign entry before the Platform has adopted the Folder.
+
+#### What is observed
+
+- **People do tweak the generated file, and it costs them their updates.**
+  - #653: on one Environment the owner added a short section to `AGENTS.md` by hand, and every refresh was then blocked with `drift`.
+  - F42 records an Environment that received no instruction update for nine days the same way.
+  - The generated file is the only place a person finds, and editing it stops the updates the person would need most.
+- **Harness personal instructions are not a standard way.** They hold one harness each (Codex, Claude Code and Hermes each read their own). They live outside the Folder, so the person's other Environments never see them. Neither the Organization nor Lazurio learns about them.
+- **Foreign entries are rarely a person's own files.**
+  - #256 lists tool directories (`.codex`, `.agents` before it was owned, `.git`, `.aws`) and a bot's report file.
+  - On 2026-10-28 one work Environment was held back from a Platform release because of a single **empty** log file (0 bytes). It was most likely created by a command redirected into a file while the Folder was the working directory; no product writes that name. Nobody had created it knowingly and nothing in it mattered. It still stopped the update of the instructions until it was moved out by hand the next morning.
+
+#### Proposal A: own instructions, in two places
+
+1. **The Organization: shared, and the primary place.**
+   - An Organization's rules for agents live in its repository's `AGENTS.md`, changed by pull request. This already exists.
+   - The proposal names it as the standard way to tweak agents' behavior for everyone working in that Organization. The generated `AGENTS.md` says so in one line.
+   - Review, history and visibility come from GitHub, so Lazurio learns of such a tweak wherever it may read the Organization.
+2. **The Environment: one person's, for how agents work for them here.**
+   - **Where it is set.** Nastavení → Agenti gets one plain text field, „Vlastní pokyny pro agenty“ ("Own instructions for agents"). The text is a preference of the Environment, F3's machine-local custom source, kept under the existing environment-configuration owner.
+   - **How it renders.**
+     - The Folder renders it into the generated `AGENTS.md` as its last section, „Pokyny uživatele“ ("The user's instructions"), through the one change path (preview, then apply).
+     - Changing it is a new rendering, never `drift`, and its digest joins the recorded preferences.
+     - Every harness that reads the Folder's `AGENTS.md` gets it at once, with no file per harness.
+   - **Precedence**, stated in the section's first line:
+     - these instructions change how agents work here;
+     - they never widen access, a mandate, Publication or Release, secrets or the Personalspace boundary;
+     - where they conflict with the generated rules, those rules win and the agent says so.
+   - **Agents write it only on the person's word.** When the person says "zapamatuj si", the agent proposes the exact line and saves it with `lazurio folder instructions add`, through the same preview and apply. The person sees it in Settings and can remove it there. F42's rule then points here instead of to the harness's personal instructions.
+   - **Bounds.** Plain text, no includes or links to files, at most 4,000 characters. A longer text is refused at save.
+3. **No pattern replacement.** Additions in plain words („místo X dělej Y“) cover what a replacement would. The variants below say why.
+4. **Lazurio learns about it without watching anyone.**
+   - The Organization: through its pull requests.
+   - The Environment: when the person saves, Settings offers „Poslat Lazuriu jako podnět“. It is an explicit choice on each save. It opens a prepared issue in this repository with the text as the person sees it, filed through the person's own GitHub sign-in. Nothing is sent automatically: a Personal Environment is private (root decision 0091).
+
+#### Proposal B: a person's own entries in a hosted Folder
+
+1. **Tolerated after adoption.** Once a hosted Folder has state, it treats names it neither owns nor tolerates as a workstation Folder does. They are never read, written, moved or refused, and every transaction preserves them.
+2. **Still refused, as today, by name and before the journal:**
+   - an owned name that is not what the Folder recorded (`drift`, `unsafe-path`);
+   - a name the new template revision is about to own. That collision is the only case where a person's ordinary entry can really conflict with the Folder;
+   - a top-level `.git`, as Machines#788 already refuses it today (root decision 0144). See open question 3.
+3. **Adoption stays strict.** Before the Folder has state, every foreign entry is refused, so Lazurio never adopts someone else's checkout. Machines refuses the same before adoption.
+4. **Reported, not refused.** `lazurio doctor` and the Launchpad name the foreign top-level entries in a quiet notice, with where outputs belong (`~/Documents`). Names that silently change agents' instructions are named first: a top-level `CLAUDE.md`, `AGENTS.override.md` or `.codex/`. Machines already counts such entries without naming them.
+5. **The cause stays addressed where it is.** Agents keep the rule that outputs go to `~/Documents`, and Buddy's bots keep their task folder (Delegace). Nothing changes there.
+
+#### Variants considered
+
+| Variant | Trade-off / disposition |
+| --- | --- |
+| A pattern that finds and replaces part of the generated instructions (the first idea) | The text changes with almost every template revision (89 so far), so a pattern silently stops matching or matches something else. A replacement can remove a boundary unseen, and F3 rejected a DSL. Rejected |
+| Edit the generated `AGENTS.md` by hand and keep the edit by a three-way merge | A second truth, with a conflict on every release; F3. Rejected |
+| The harness's personal instructions (today's advice) | One harness each, outside the Folder, invisible. Stays a person's private choice, no longer Lazurio's advice |
+| An own file in the Folder (`AGENTS.local.md`, or F14's deferred `notes/`) | A new owned top-level name is a boundary change. Harnesses read it only because `AGENTS.md` says so, and any agent can edit it without a preview. Weaker than a preference; rejected |
+| The Organization's `AGENTS.md` plus one preference of the Environment, rendered as the last section (selected) | One path for every harness. The Organization's tweaks are reviewed on GitHub, and a person's tweak is a rendering, not drift |
+| Keep refusing every foreign entry (today) | One empty file stops an Environment's update. Rejected |
+| Tolerate a list of known tool names (#256, option 1) | The list never ends: logs, reports, a tool's configuration. Rejected |
+| A one-click "move out of the Folder" (#256, option 3) | Useful as a tidy-up in the notice, but as a gate it still blocks until a person acts. Kept as an action, not as the gate |
+| Machines moves foreign entries aside before every refresh (#653's pattern) | Writes into the person's space on every apply. Kept as a manual repair only |
+| Tolerate, refuse only a collision and a top-level `.git`, report (selected) | The boundary protects what the Folder owns, and it agrees with Machines on `.git`, and nothing else |
+
+#### Failure modes
+
+- **An own instruction against a boundary,** for example "you may read the Personalspace of others". The section's first line says the generated rules win, so the agent follows them and tells the person why.
+- **An own instruction that is risky but within the person's rights,** for example a standing consent to publish. That is the person's mandate, as F14's rule on consent given in advance allows. Live GitHub rights and branch rules still decide.
+- **Too long, or not plain text:** refused at save, and nothing is written.
+- **A collision** with a name a new release claims: refused by name before the journal. The person moves the entry, and Machines records the finding and converges the rest, as today.
+- **Entries pile up at the root:** the doctor's notice says so. Nothing blocks.
+- **A harness reads a foreign file as instructions** (`CLAUDE.md`, `AGENTS.override.md`): named first in the notice. The person decides; the Folder does not delete it.
+
+#### Open questions for Matěj
+
+1. **Precedence inside an Organization.** Its `AGENTS.md` wins over the person's own instructions where they conflict (recommended: the Organization is the access boundary and its process binds everyone in it), or the person's wins for working habits.
+2. **Who sees a Work Environment's own instructions.** The Environment is the Organization's, so its Owners could see them in Přehled Organizace (recommended: yes on a Work Environment, never on a Personal Environment), or nobody but the person.
+3. **A `.git` at the top of the Folder** (#256). Today Machines#788 refuses it (`git-checkout`), while the Platform refuses it only as one more foreign entry. The proposal keeps refusing it in the Platform too, by its own name (recommended: it stays consistent with Machines and root decision 0144). The alternative is to only report it, which would diverge from Machines.
+
+#### Delivery, if decided, in this order
+
+1. **B in this repository.**
+   - `requireClaimedFolderBoundary` refuses only a collision and a top-level `.git`, and the doctor reports the rest.
+   - Tests: a foreign file at the root leaves a refresh `refreshed` and the file untouched; a collision with a newly owned name is refused by name before the journal; adoption still refuses.
+   - Then a release, and the Machines pin. Machines#788's finding stays the path for older releases.
+2. **A.**
+   - The pieces: the preference, its rendering as the last section in both locales, the Settings field, `lazurio folder instructions`, and F42's rule pointing here.
+   - It takes a new template revision.
+   - Tests: preview and apply, the digest, the precedence line in both locales, and the bound.
+3. **#653's existing drift.** Where a hand-added section can be proven (the rest matches the recorded digest), the repair offers to move exactly that text into the new field, instead of only discarding it.
+4. **The Lazurio Root on a workstation** gets the same mechanism under root decision 0219 (plan DEV-6693).
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
