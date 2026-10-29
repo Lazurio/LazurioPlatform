@@ -2823,6 +2823,52 @@ English (after #695), 227 below the 20,000, so the next addition to the layer ha
 Buddy keeps the order (generated text is not proof of behavior), and a real route through a
 station, which needs P2's file and an Admin's Osobní Prostředí on Ring 0.
 
+**Addendum of 2026-10-28, decided by the Organization Admin: Buddy's message to a thread steers.** On
+2026-10-28 the Organization Admin decided that a message to an agent, a bot or Buddy steers the turn
+in progress by default instead of queuing behind it. Buddy's `lazurio-t3-orchestration` skill
+therefore sends `t3 thread send <thread> --mode auto` (also `queue`, `steer`, `restart`) and, unless
+the user asks otherwise, `auto`. From Lazurio/t3code `v0.1.2-lazurio.2` (`ThreadManagementService`),
+`auto` steers a turn in progress, starts an idle thread, and queues only while a question or an
+approval waits in the thread: steering that turn would abort the provider's pending request before
+anyone answers it. Whether a steer reaches a running turn as such or as an interrupt and a new turn
+(an ACP agent without active steering) is T3 Code's, not the skill's. Delegace's notices and the
+first meeting keep `--mode queue`: they go to Buddy's own thread, where a steer interrupts and
+restarts his turn until his own active steer is released (Lazurio/t3code#138). His Telegram follows
+the same decision in Hermes (Lazurio/hermes-agent#22: the Lazurio default of
+`display.busy_input_mode` is `steer`); the Platform writes no busy key, so the person's own `/busy`
+stands. Template revision `base-instructions-89` (86 until #691 took 88 and #689 87 on `main`);
+`tests/folder-buddy.test.ts` checks the row and the rule in both locales.
+
+**Addendum of 2026-10-28, decided by the Organization Admin: a simple task is Buddy's own; pace and
+overview.** A task Buddy promised for 15 minutes took 50. Bot results waited behind his own turn,
+other topics mixed into the promised block, and every task went through a bot, even a QR payment the
+bot made in 37 seconds. The Organization Admin decided:
+
+- **A simple task of about two minutes, by feel, Buddy does himself**, also in another Environment,
+  such as a QR payment. What outgrows it (more steps, code, an unclear end) he gives to a bot in the
+  Environment the work belongs to and returns to the user, as before. He still never implements, and
+  he never waits for a bot („Na bota nečekej“ stays).
+- **Pace and overview.**
+  - He answers briefly first, then works.
+  - He keeps the time he promises; when he will miss it, he says so at once, with a new plan.
+  - In an agreed block he stays on its topic and asks one thing at a time; the rest waits for a short
+    summary at its end.
+  - What he cannot see (a phone, an app) he says at once and asks for a screenshot.
+
+Where it renders: `.hermes.md`, in its section „Práci dáváš botům“ and in two lines that close
+„Jak mluvíš s uživatelem“, and the skill `lazurio-buddy-pomocnici`. `.hermes.md` has to stay under
+the 20,000 characters Hermes loads uncut, and after #689 there was no room left:
+
+- the pace lines have no section of their own;
+- the line on another app's buttons named in its language was dropped;
+- the mark line no longer explains T3 Code before 0.1.1-lazurio.2 (every Environment runs 0.1.2 or
+  later), nor, in English, the form of the user's name.
+
+That leaves 18,593 characters in Czech and 19,970 in English. The root's rule that Buddy gives his own
+work to bots (root decision 0210) gets the same addendum in the root. Template revision
+`base-instructions-89` (unreleased). `tests/folder-buddy.test.ts` checks both locales, the pace lines
+inside the section on talking to the user.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered

@@ -159,6 +159,60 @@ test(".hermes.md carries only the default voice: a custom voice never reaches it
   }
 });
 
+// The Organization Admin's decisions of 2026-10-28 (F14 addendum), after a
+// promised 15-minute task took 50: a simple task of about two minutes is
+// Buddy's own, what outgrows it a bot's; and he keeps pace and overview.
+test("Buddy does a simple task himself and gives what outgrows it to a bot, and keeps pace and overview", () => {
+  const facts = {
+    cs: {
+      rules: [
+        "Jednoduchý úkol zhruba do dvou minut, třeba QR platbu, uděláš sám, i v jiném Prostředí.",
+        "Co přerůstá (víc kroků, kód, nejasný konec), neděláš sám, ani když tě uživatel požádá „zařiď to“",
+        "a vrátíš se k uživateli.",
+      ],
+      pace: [
+        "Nejdřív krátce odpovíš, pak pracuješ. Slíbený čas držíš; když ho nestihneš, řekneš to hned s novým plánem.",
+        "V domluveném bloku se držíš jeho tématu a ptáš se na jednu věc, ostatní shrneš na jeho konci.",
+        "Co nevidíš (telefon, aplikaci), řekneš hned a požádáš o snímek obrazovky.",
+      ],
+      talk: "## Jak mluvíš s uživatelem",
+      skill: "Jednoduchý úkol zhruba do dvou minut uděláš sám",
+    },
+    en: {
+      rules: [
+        "A simple task of about two minutes, such as a QR payment, you do yourself, also in another Environment.",
+        "What outgrows it (more steps, code, an unclear end), you never do yourself, even when asked to “take care of it”",
+        "and return to the user.",
+      ],
+      pace: [
+        "You answer briefly first, then work. You keep the time you promise; when you will miss it, you say so at once with a new plan.",
+        "In an agreed block you keep to its topic, one question at a time, and sum up the rest at its end.",
+        "What you cannot see (a phone, an app), you say at once and ask for a screenshot.",
+      ],
+      talk: "## How you talk to the user",
+      skill: "A simple task of about two minutes you do yourself",
+    },
+  };
+  for (const locale of locales) {
+    const layer = scriptLayer(locale);
+    for (const fact of facts[locale].rules)
+      expect(layer[buddyRulesPath]).toContain(fact);
+    // The pace lines close the section on talking to the user.
+    const talk = section(layer[buddyRulesPath], facts[locale].talk);
+    for (const fact of facts[locale].pace) expect(talk).toContain(fact);
+    expect(layer[buddySkillPath("lazurio-buddy-pomocnici")]).toContain(
+      facts[locale].skill,
+    );
+    // The old absolute rule is gone: never "you do not do it yourself" for every task.
+    expect(layer[buddyRulesPath]).not.toContain(
+      "When you want to find something out, do something or watch something, you do not do it yourself",
+    );
+    expect(layer[buddyRulesPath]).not.toContain(
+      "Když chceš něco zjistit, udělat nebo pohlídat, neděláš to sám",
+    );
+  }
+});
+
 test(".hermes.md carries Buddy's role about the user: coordinator, bots, threads read always and written on request, the mark, the persona, where things are, the layers and the Důkladný profile", () => {
   const cs = renderBuddyRules({
     preset: "local",
@@ -865,17 +919,36 @@ test("the skills: the directory's name is the frontmatter's, a description Herme
     expect(mausbot).not.toContain("OpenMausBot#55");
     const threads = layer[buddySkillPath("lazurio-t3-orchestration")];
     // T3 Code 0.1.2 sends with `queue` by default (0.1.1 with `auto`), so
-    // Buddy always names the mode; it launches in the project's mode, while
-    // 0.1.1 always launches with full access, and the launch line says both.
+    // Buddy always names the mode, and sends `auto`: a message steers a turn
+    // in progress (F14 addendum of 2026-10-28). It launches in the project's
+    // mode, while 0.1.1 always launches with full access; the line says both.
     for (const fact of [
       "0.1.0-lazurio.5",
       "Lazurio/t3code#94",
-      "--mode queue",
+      "--mode auto --message-file -",
       "0.1.2",
       "(decision 0172)",
     ])
       expect(threads).toContain(fact);
-    expect(threads).not.toContain("(`--mode auto`");
+    expect(threads).not.toContain("--mode queue --message-file -");
+    const sendRule = threads
+      .split("\n")
+      .find((line) =>
+        line.startsWith(locale === "cs" ? "U `send`" : "Always pass `--mode`"),
+      );
+    for (const fact of {
+      cs: [
+        "posílej `auto`",
+        "nezastaví ho",
+        "do fronty jde, jen když ve vlákně čeká otázka nebo schválení",
+      ],
+      en: [
+        "send `auto`",
+        "without stopping it",
+        "queues only while a question or an approval waits",
+      ],
+    }[locale])
+      expect(sendRule).toContain(fact);
     const launch = threads
       .split("\n")
       .find((line) => line.startsWith("- `t3 thread launch`"));
