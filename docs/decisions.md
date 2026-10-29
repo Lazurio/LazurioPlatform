@@ -2882,8 +2882,11 @@ On 2026-10-29 Matěj raised two questions.
 - **F14: digests.** Every generated file carries a digest. A hand-edited file refuses every later change with `drift` and its path. F14 deferred an operator `notes/` area.
 - **F42: the "zapamatuj si" rule.** Its addendum's working rule says "zapamatuj si" never edits a generated file. A personal rule goes into the harness's personal instructions (`$CODEX_HOME/AGENTS.md`, `~/.claude/CLAUDE.md`), and an Organization's rule goes to the Organization as a pull request or an issue.
 - **The manual: Organizations hold their rules.** Every Organization has its own `AGENTS.md`, and an agent loads it before working inside. "This manual gives you the method; the Organization holds the company's meanings and rules."
-- **The hosted boundary (F14's amendment of 2026-09-23).** A hosted Folder refuses every top-level entry it neither owns nor tolerates. It does so before the journal, before every replacement and in `profile-resume`. A workstation Folder keeps the person's own top-level files.
-- **Machines since v0.12.188 (HumanAndMachine-ai/Machines#788).** A `folder-refresh` refused with `folder-foreign-entry` is recorded as a finding, and the rest of the apply converges. The Folder keeps its old instructions until the entry is moved.
+- **The hosted boundary (F10's amendment of 2026-09-23, the handover refresh).** A hosted Folder refuses every top-level entry it neither owns nor tolerates. It does so before the journal, before every replacement and in `profile-resume`. A workstation Folder keeps the person's own top-level files.
+- **Machines since v0.12.188 (HumanAndMachine-ai/Machines#788).** It tolerates a person's own entries in an adopted Folder and records a `folder-refresh` refused with `folder-foreign-entry` as a finding, so the rest of the apply converges. The Folder keeps its old instructions until the entry is moved. Machines still refuses what it cannot work around:
+  - a top-level `.git`, the user's checkout of the root that root decision 0144 keeps Machines from installing over (`git-checkout`);
+  - a mount or a non-plain `.lazurio`;
+  - any foreign entry before the Platform has adopted the Folder.
 
 #### What is observed
 
@@ -2924,7 +2927,8 @@ On 2026-10-29 Matěj raised two questions.
 1. **Tolerated after adoption.** Once a hosted Folder has state, it treats names it neither owns nor tolerates as a workstation Folder does. They are never read, written, moved or refused, and every transaction preserves them.
 2. **Still refused, as today, by name and before the journal:**
    - an owned name that is not what the Folder recorded (`drift`, `unsafe-path`);
-   - a name the new template revision is about to own. That collision is the only case where a foreign entry can really conflict with the Folder.
+   - a name the new template revision is about to own. That collision is the only case where a person's ordinary entry can really conflict with the Folder;
+   - a top-level `.git`, as Machines#788 already refuses it today (root decision 0144). See open question 3.
 3. **Adoption stays strict.** Before the Folder has state, every foreign entry is refused, so Lazurio never adopts someone else's checkout. Machines refuses the same before adoption.
 4. **Reported, not refused.** `lazurio doctor` and the Launchpad name the foreign top-level entries in a quiet notice, with where outputs belong (`~/Documents`). Names that silently change agents' instructions are named first: a top-level `CLAUDE.md`, `AGENTS.override.md` or `.codex/`. Machines already counts such entries without naming them.
 5. **The cause stays addressed where it is.** Agents keep the rule that outputs go to `~/Documents`, and Buddy's bots keep their task folder (Delegace). Nothing changes there.
@@ -2942,7 +2946,7 @@ On 2026-10-29 Matěj raised two questions.
 | Tolerate a list of known tool names (#256, option 1) | The list never ends: logs, reports, a tool's configuration. Rejected |
 | A one-click "move out of the Folder" (#256, option 3) | Useful as a tidy-up in the notice, but as a gate it still blocks until a person acts. Kept as an action, not as the gate |
 | Machines moves foreign entries aside before every refresh (#653's pattern) | Writes into the person's space on every apply. Kept as a manual repair only |
-| Tolerate, refuse only a collision, report (selected) | The boundary protects what the Folder owns and nothing else |
+| Tolerate, refuse only a collision and a top-level `.git`, report (selected) | The boundary protects what the Folder owns, and it agrees with Machines on `.git`, and nothing else |
 
 #### Failure modes
 
@@ -2957,12 +2961,12 @@ On 2026-10-29 Matěj raised two questions.
 
 1. **Precedence inside an Organization.** Its `AGENTS.md` wins over the person's own instructions where they conflict (recommended: the Organization is the access boundary and its process binds everyone in it), or the person's wins for working habits.
 2. **Who sees a Work Environment's own instructions.** The Environment is the Organization's, so its Owners could see them in Přehled Organizace (recommended: yes on a Work Environment, never on a Personal Environment), or nobody but the person.
-3. **A `.git` at the top of the Folder** (#256): reported like any other entry (recommended), or refused, because the Folder has become someone's repository.
+3. **A `.git` at the top of the Folder** (#256). Today Machines#788 refuses it (`git-checkout`), while the Platform refuses it only as one more foreign entry. The proposal keeps refusing it in the Platform too, by its own name (recommended: it stays consistent with Machines and root decision 0144). The alternative is to only report it, which would diverge from Machines.
 
 #### Delivery, if decided, in this order
 
 1. **B in this repository.**
-   - `requireClaimedFolderBoundary` refuses only a collision, and the doctor reports the rest.
+   - `requireClaimedFolderBoundary` refuses only a collision and a top-level `.git`, and the doctor reports the rest.
    - Tests: a foreign file at the root leaves a refresh `refreshed` and the file untouched; a collision with a newly owned name is refused by name before the journal; adoption still refuses.
    - Then a release, and the Machines pin. Machines#788's finding stays the path for older releases.
 2. **A.**
