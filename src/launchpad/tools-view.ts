@@ -448,6 +448,20 @@ export function composioSignInText(copy: Copy, shared: boolean): string {
   return shared ? copy.toolsLoginComposioTextTeam : copy.toolsLoginComposioText;
 }
 
+/** What gh's sign-in dialog says above its code: the scope refresh of "Link
+ * SSH key" (`ssh`), or the sign-in itself, which on an Environment whose
+ * GitHub is its persona's (`persona`, the Automated Environment) is
+ * confirmed with the persona's account, not the person's own (decision F27's
+ * addendum of 2026-10-30). */
+export function ghCodeText(
+  copy: Copy,
+  mode: "install" | "login" | "ssh",
+  persona: boolean,
+): string {
+  if (mode === "ssh") return copy.toolsLoginRefreshText;
+  return persona ? copy.toolsLoginGhTextPersona : copy.toolsLoginGhText;
+}
+
 /** The title of a tool's sign-in dialog: "Připojit GitHub", "Připojit
  * aplikace" (Composio), otherwise "Připojit <tool>". gh keeps its title when
  * it only links the SSH key (`ssh`, which only gh has): "Připojit znovu" on

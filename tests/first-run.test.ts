@@ -12,13 +12,16 @@ import {
   firstProgress,
   freshTourProgress,
   githubFact,
+  hasOnboarding,
   idleAutoStart,
   nextBasic,
+  ownAccount,
   parseTourProgress,
+  personaGithub,
   readFragment,
   resolveOf,
+  responsibleLogin,
   shellSetup,
-  signsInAsPerson,
   startDecision,
   startSection,
   type TourFacts,
@@ -30,6 +33,7 @@ import {
   tourStorageKey,
 } from "../src/launchpad/first-run";
 import { messages } from "../src/launchpad/messages";
+import { bindings } from "./fixtures/machine-bindings";
 
 // The first run of an Environment: root decision 0188 as reshaped by 0201
 // (points 1-3 and 8), ported from the wireframe's rules (prototypes-lazurio
@@ -88,23 +92,43 @@ const fresh = (
 });
 const P = freshTourProgress;
 
-test("only Environments that sign in to GitHub as their person get the first run", () => {
-  expect(signsInAsPerson("hosted-personal")).toBe(true);
-  expect(signsInAsPerson("hosted-organization-personal")).toBe(true);
-  expect(signsInAsPerson("local")).toBe(true);
-  // A Team's Environment acts through the Organization's app, a Steward's
-  // (Automated) one as its persona: their basics are the Organization's.
+test("every Environment whose GitHub is signed in on it gets the onboarding, the Automated one included; a Team Environment does not", () => {
   for (const preset of [
-    "hosted-organization-team",
+    "hosted-personal",
+    "hosted-organization-personal",
+    "local",
+    // The Automated Environment (F27's addendum of 2026-10-30): a work
+    // Environment whose responsible user signs in its persona's account.
     "hosted-organization-steward",
-    "",
-    null,
   ]) {
-    expect(signsInAsPerson(preset)).toBe(false);
+    expect(hasOnboarding(preset)).toBe(true);
+    expect(nextBasic(fresh(preset))).toBe("ai");
+    expect(tourStep(fresh(preset), P, null)).toBe("gear");
+    expect(appsSetupLine(fresh(preset), cs)?.text).toBe("AI není připojené.");
+  }
+  // A Team's Environment acts through the Organization's app, and its
+  // hosting prepares it (0188 point 3).
+  for (const preset of ["hosted-organization-team", "", null]) {
+    expect(hasOnboarding(preset)).toBe(false);
     expect(nextBasic(fresh(preset as string))).toBeNull();
     expect(tourStep(fresh(preset as string), P, null)).toBeNull();
     expect(appsSetupLine(fresh(preset as string), cs)).toBeNull();
   }
+});
+
+test("only the Automated Environment's GitHub is its persona's", () => {
+  expect(personaGithub("hosted-organization-steward")).toBe(true);
+  for (const preset of [
+    "local",
+    "hosted-personal",
+    "hosted-organization-personal",
+    "hosted-organization-team",
+    "unknown-preset",
+    "",
+    null,
+    undefined,
+  ])
+    expect(personaGithub(preset)).toBe(false);
 });
 
 test("the basics in the order AI → GitHub → content (0201 point 3)", () => {
@@ -641,6 +665,168 @@ test("GitHub from the Tools reading of the profile shown", () => {
   ).toBe("missing");
 });
 
+test("the Automated Environment's soft check: only its responsible user's own login, from its binding, letter case ignored", () => {
+  const steward = "hosted-organization-steward";
+  // The handover names the responsible user (`owner.assignment`
+  // `automation`), never the persona.
+  expect(responsibleLogin(steward, bindings.automated)).toBe("example");
+  // No assignment that names one: nothing to compare with.
+  for (const machine of [
+    bindings.organization,
+    bindings.assignedTeam,
+    bindings.team,
+    null,
+    undefined,
+  ])
+    expect(responsibleLogin(steward, machine)).toBeNull();
+  // Another preset never compares, whatever its binding says: a work
+  // Environment's own person signs in there.
+  for (const preset of [
+    "hosted-organization-personal",
+    "hosted-organization-team",
+    "local",
+    "hosted-personal",
+  ]) {
+    expect(responsibleLogin(preset, bindings.automated)).toBeNull();
+    expect(responsibleLogin(preset, bindings.assignedOperator)).toBeNull();
+  }
+  expect(ownAccount("example", "example")).toBe(true);
+  expect(ownAccount("EXAMPLE", "Example")).toBe(true);
+  expect(ownAccount("example-persona", "example")).toBe(false);
+  expect(ownAccount(undefined, "example")).toBe(false);
+  expect(ownAccount(null, "example")).toBe(false);
+  expect(ownAccount("example", null)).toBe(false);
+});
+
+test("gh signed in as the responsible user's own account is the GitHub fact `own-account`, whatever SSH says; any other account reads as before", () => {
+  const reading = (
+    account: string,
+    ssh: "linked" | "not-linked" | "unknown",
+  ) => ({
+    revision: 1,
+    sharedEnvironment: false,
+    tools: [
+      {
+        name: "gh",
+        installed: true,
+        signIn: { state: "signed-in" as const, account, ssh: { state: ssh } },
+      },
+    ],
+  });
+  for (const ssh of ["linked", "not-linked", "unknown"] as const) {
+    expect(githubFact(reading("example", ssh), 1, "example")).toBe(
+      "own-account",
+    );
+    expect(githubFact(reading("Example", ssh), 1, "eXample")).toBe(
+      "own-account",
+    );
+  }
+  expect(githubFact(reading("example-persona", "linked"), 1, "example")).toBe(
+    "connected",
+  );
+  expect(
+    githubFact(reading("example-persona", "not-linked"), 1, "example"),
+  ).toBe("incomplete");
+  // Without a login to compare with (every other preset): as before.
+  expect(githubFact(reading("example", "linked"), 1)).toBe("connected");
+  expect(githubFact(reading("example", "linked"), 1, null)).toBe("connected");
+  // A reading of another revision says nothing, the check included.
+  expect(githubFact(reading("example", "linked"), 2, "example")).toBe(
+    "unknown",
+  );
+});
+
+test("the responsible user's own account is the missing GitHub basic: the count, the next basic, the line that leads to the step, the tour, the shell's prompt; a link never switches it", () => {
+  const automated = (overrides: Partial<TourFacts>) =>
+    fresh("hosted-organization-steward", {
+      ai: "organization",
+      github: "own-account",
+      ...overrides,
+    });
+  expect(basicsDone(automated({}))).toBe(1);
+  expect(nextBasic(automated({}))).toBe("github");
+  expect(tourStep(automated({}), P, null)).toBe("gear");
+  expect(tourStep(automated({}), P, "start")).toBe("github");
+  expect(appsSetupLine(automated({}), cs)).toEqual({
+    tone: "info",
+    icon: "key",
+    text: "Na GitHubu je přihlášený váš vlastní účet, sem patří účet persony.",
+    actions: [{ action: "open-start", label: "Přepnout účet" }],
+  });
+  expect(appsSetupLine(automated({}), en)?.text).toBe(
+    "GitHub is signed in with your own account; the persona's belongs here.",
+  );
+  // The persona's account not there yet: the line names it.
+  expect(appsSetupLine(automated({ github: "missing" }), cs)).toEqual({
+    tone: "info",
+    icon: "key",
+    text: "Účet persony na GitHubu není připojený.",
+    actions: [{ action: "sign-in-gh", label: "Připojit GitHub" }],
+  });
+  // A start request never signs anyone out: only the step's own button.
+  expect(startDecision("sign-in-gh", automated({}))).toBe("drop");
+  expect(startDecision("sign-in-gh", automated({ github: "missing" }))).toBe(
+    "sign-in-gh",
+  );
+  expect(startDecision("install-content", automated({}))).toBe("drop");
+  expect(
+    shellSetup({
+      preset: "hosted-organization-steward",
+      ai: "organization",
+      github: "own-account",
+      list: null,
+      job: null,
+    }),
+  ).toEqual({ ai: "ready", github: "missing" });
+  expect(
+    shellSetup({
+      preset: "hosted-organization-steward",
+      ai: "organization",
+      github: "connected",
+      list: null,
+      job: null,
+    }),
+  ).toEqual({ ai: "ready", github: "connected" });
+  // The persona's account connected: GitHub is done.
+  expect(basicsDone(automated({ github: "connected" }))).toBe(2);
+  expect(nextBasic(automated({ github: "connected" }))).toBe("content");
+});
+
+test("the tour's GitHub stops name the persona's account on the Automated Environment, and only there", () => {
+  const apps = { chat: true, automate: true };
+  const at = (preset: string, step: "gear" | "github") =>
+    tourStop(step, fresh(preset, { ai: "organization" }), apps, cs);
+  expect(at("hosted-organization-steward", "gear")).toMatchObject({
+    target: "gear",
+    title: "Připojte GitHub persony",
+    text: "Agenti pracují pod jejím účtem.",
+  });
+  expect(at("hosted-organization-steward", "github")).toMatchObject({
+    target: "start-github",
+    title: "Připojte účet persony",
+    text: "Váš vlastní účet sem nepatří.",
+  });
+  expect(at("hosted-organization-personal", "gear")).toMatchObject({
+    title: "Připojte GitHub",
+    text: "Zpřístupní vaše repozitáře.",
+  });
+  expect(at("hosted-organization-personal", "github")).toMatchObject({
+    title: "Připojte GitHub",
+    text: "Pro přístup k vašim modulům.",
+  });
+  expect(
+    tourStop(
+      "github",
+      fresh("hosted-organization-steward", { ai: "organization" }),
+      apps,
+      en,
+    ),
+  ).toMatchObject({
+    title: "Connect the persona's account",
+    text: "Your own account does not belong here.",
+  });
+});
+
 test("the first address: the token and a start request apart, both leading to Začínáme", () => {
   expect(readFragment("#abc123")).toEqual({ token: "abc123", start: null });
   expect(readFragment("#lazurio-start=sign-in-gh")).toEqual({
@@ -681,18 +867,26 @@ test("the content's turn: after AI and GitHub, waiting while they are not read, 
   expect(person("connected", "unknown")).toBe("unknown");
   for (const ai of ["connected", "organization", "unknown"] as const)
     expect(person(ai, "connected")).toBeNull();
-  // A Team or an Automated Environment: only a known missing GitHub.
-  for (const preset of [
-    "hosted-organization-team",
-    "hosted-organization-steward",
-  ]) {
-    expect(contentBlockedBy({ preset, ai: "missing", github: "unknown" })).toBe(
-      null,
-    );
-    expect(contentBlockedBy({ preset, ai: "missing", github: "missing" })).toBe(
-      "github",
-    );
-  }
+  // The Automated Environment keeps the same order (F27's addendum of
+  // 2026-10-30): the content never before AI, then never before GitHub.
+  const automated = (
+    ai: TourFacts["ai"],
+    github: TourFacts["github"],
+  ): ReturnType<typeof contentBlockedBy> =>
+    contentBlockedBy({ preset: "hosted-organization-steward", ai, github });
+  expect(automated("missing", "connected")).toBe("ai");
+  expect(automated("connected", "missing")).toBe("github");
+  expect(automated("organization", "own-account")).toBe("github");
+  expect(automated("loading", "connected")).toBe("unknown");
+  expect(automated("organization", "connected")).toBeNull();
+  // A Team Environment: only a known missing GitHub.
+  const team = "hosted-organization-team";
+  expect(
+    contentBlockedBy({ preset: team, ai: "missing", github: "unknown" }),
+  ).toBe(null);
+  expect(
+    contentBlockedBy({ preset: team, ai: "missing", github: "missing" }),
+  ).toBe("github");
 });
 
 test("a start request of the address keeps the order: an older #lazurio-start=install-content starts nothing before AI", () => {
@@ -909,17 +1103,31 @@ test("the start by itself never comes after a stop, never during a run, never be
       work({ ai: "connected", github: "connected" }),
     ]),
   ).toEqual([4]);
-  // Without a first run (a Team or an Automated Environment): never.
-  for (const preset of [
-    "hosted-organization-team",
-    "hosted-organization-steward",
-  ])
-    expect(
-      run([
-        fresh(preset, { ai: "missing", github: "missing" }),
-        fresh(preset, { ai: "connected", github: "connected" }),
-      ]),
-    ).toEqual([]);
+  // Without a first run (a Team Environment): never.
+  expect(
+    run([
+      fresh("hosted-organization-team", { ai: "missing", github: "missing" }),
+      fresh("hosted-organization-team", {
+        ai: "connected",
+        github: "connected",
+      }),
+    ]),
+  ).toEqual([]);
+  // The Automated Environment starts it as a work Environment does, once
+  // the persona's account replaced the responsible user's own (F27's
+  // addendum of 2026-10-30).
+  const automated = (overrides: Partial<TourFacts>) =>
+    fresh("hosted-organization-steward", overrides);
+  expect(
+    run([
+      automated({ ai: "organization", github: "missing" }),
+      automated({ ai: "organization", github: "own-account" }),
+      automated({ ai: "organization", github: "own-account" }),
+      automated({ ai: "organization", github: "missing" }),
+      automated({ ai: "organization", github: "connected" }),
+      automated({ ai: "organization", github: "connected" }),
+    ]),
+  ).toEqual([4]);
   // One rule: it starts only where every other start may.
   for (const ai of ["missing", "loading", "unknown", "connected"] as const)
     for (const github of ["missing", "unknown", "connected"] as const) {
@@ -1033,16 +1241,25 @@ test("GitHub connected badly counts as missing: no basic done, no content before
       job: null,
     }),
   ).toMatchObject({ ai: "ready", github: "missing", content: "missing" });
-  // On a Team or an Automated Environment, whose GitHub is the
-  // Organization's or the persona's, only a known missing GitHub holds the
-  // content back, as before.
-  for (const preset of [
-    "hosted-organization-team",
-    "hosted-organization-steward",
-  ])
-    expect(
-      contentBlockedBy({ preset, ai: "connected", github: "incomplete" }),
-    ).toBeNull();
+  // On a Team Environment, whose GitHub is the Organization's, only a known
+  // missing GitHub holds the content back, as before. The Automated
+  // Environment counts a broken link as a work Environment does: its
+  // persona's account was signed in through the same curated sign-in, which
+  // links the SSH key (F27's addendum of 2026-10-30).
+  expect(
+    contentBlockedBy({
+      preset: "hosted-organization-team",
+      ai: "connected",
+      github: "incomplete",
+    }),
+  ).toBeNull();
+  expect(
+    contentBlockedBy({
+      preset: "hosted-organization-steward",
+      ai: "connected",
+      github: "incomplete",
+    }),
+  ).toBe("github");
 });
 
 test("the content never starts by itself when GitHub arrives without SSH; it starts once the link works", () => {

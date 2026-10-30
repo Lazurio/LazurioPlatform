@@ -25,7 +25,8 @@ import {
   contentBlockedBy,
   demoAi,
   demoOnboarding,
-  signsInAsPerson,
+  hasOnboarding,
+  personaGithub,
   type TourFacts,
 } from "./first-run";
 import type { MessageKey } from "./messages";
@@ -67,11 +68,14 @@ export type StartStep = Readonly<{
 /** The GitHub step's one action, enabled only once AI is there (0201 point
  * 3): "Připojit"; `reconnect`, "Připojit znovu", where GitHub is connected
  * badly (signed in, SSH not working here, #515), which finishes the link;
- * `open`, "Otevřít", which shows the sign-in this page runs again (#516).
- * Null when GitHub is connected or not known yet. */
+ * `switch`, "Přepnout účet", where the responsible user's own account is
+ * signed in on the Automated Environment (F27's addendum of 2026-10-30),
+ * which signs it out and opens the sign-in for the persona's; `open`,
+ * "Otevřít", which shows the sign-in this page runs again (#516). Null when
+ * GitHub is connected or not known yet. */
 export type GithubAction = Readonly<{
   enabled: boolean;
-  kind?: "reconnect" | "open";
+  kind?: "reconnect" | "switch" | "open";
 }> | null;
 
 /** What the AI step offers besides its line (root decision 0201 points 3-6,
@@ -368,6 +372,22 @@ function githubStep(facts: StartFacts, copy: Copy): [StartStep, GithubAction] {
   // Offered once an agent can help (an AI not known is not claimed missing);
   // before, the step waits, its number saying the order.
   const ready = facts.ai !== "missing" && facts.ai !== "loading";
+  // The responsible user's own account where the persona's belongs (F27's
+  // addendum of 2026-10-30): whatever its SSH, the step says so plainly,
+  // and "Přepnout účet" signs it out and opens the sign-in for the
+  // persona's account.
+  if (facts.github === "own-account")
+    return [
+      {
+        ...base,
+        mark: ready ? "failed" : "later",
+        status:
+          facts.githubLogin === null
+            ? copy.startGithubOwnAccountPlain
+            : fill(copy.startGithubOwnAccount, { login: facts.githubLogin }),
+      },
+      { enabled: ready, kind: "switch" },
+    ];
   // Connected badly (#515): gh signed in, but this Environment does not
   // reach GitHub over SSH as the account, so its content would not
   // download. It says so, and "Připojit znovu" finishes the link.
@@ -385,8 +405,11 @@ function githubStep(facts: StartFacts, copy: Copy): [StartStep, GithubAction] {
       ...base,
       mark: ready ? "now" : "later",
       // What GitHub opens is the "?"'s (decision F56's addendum of
-      // 2026-10-18); the step says its state.
-      status: copy.startNotConnected,
+      // 2026-10-18); the step says its state, and on the Automated
+      // Environment whose account belongs here.
+      status: personaGithub(facts.preset)
+        ? copy.startGithubPersona
+        : copy.startNotConnected,
     },
     { enabled: ready },
   ];
@@ -420,10 +443,11 @@ function contentStep(facts: StartFacts, copy: Copy): StartStep {
 }
 
 /** Začínáme from the facts, or null where the Environment has none (a Team
- * or an Automated Environment: their Organization prepares them) or has the
- * demo onboarding instead (a public Environment, `demoStartView`). */
+ * Environment: its Organization prepares it) or has the demo onboarding
+ * instead (a public Environment, `demoStartView`). The Automated Environment
+ * has it as a work Environment does (F27's addendum of 2026-10-30). */
 export function startView(facts: StartFacts, copy: Copy): StartView | null {
-  if (!signsInAsPerson(facts.preset) || demoOnboarding(facts)) return null;
+  if (!hasOnboarding(facts.preset) || demoOnboarding(facts)) return null;
   const [github, action] = githubStep(facts, copy);
   const [ai, aiAction] = aiStep(facts, copy);
   const buddy =
@@ -475,7 +499,7 @@ export function startView(facts: StartFacts, copy: Copy): StartView | null {
 /** The count beside Začínáme in the Settings navigation ("1/3", with Buddy
  * "1/4") while a basic is missing; null otherwise. */
 export function startCount(facts: TourFacts): string | null {
-  if (!signsInAsPerson(facts.preset) || demoOnboarding(facts)) return null;
+  if (!hasOnboarding(facts.preset) || demoOnboarding(facts)) return null;
   const all = basicsOf(facts);
   const missing = all.some((basic) => basicState(facts, basic) === "missing");
   return missing ? `${basicsDone(facts)}/${all.length}` : null;

@@ -54,14 +54,16 @@ import {
   createComposioOrganizationReader,
   githubAccount,
   githubFact,
+  hasOnboarding,
   idleAutoStart,
   nextBasic,
+  personaGithub,
   readFragment,
   resolveOf,
+  responsibleLogin,
   type SetupAction,
   type StartRequest,
   shellSetup,
-  signsInAsPerson,
   startDecision,
   startSection,
   type TourFacts,
@@ -251,7 +253,7 @@ function drawGuide(route: PageRoute) {
         ? "demo"
         : profileState === null
           ? null
-          : signsInAsPerson(profileState.preset)
+          : hasOnboarding(profileState.preset)
             ? "basics"
             : "none",
       tools: toolTargets,
@@ -456,6 +458,10 @@ let profileState: Readonly<{
   preset: string;
   revision: number;
   machine: string | null;
+  /** The login whose own account does not belong in gh here: the
+   * Automated Environment's responsible user (`responsibleLogin`, F27's
+   * addendum of 2026-10-30); null elsewhere. */
+  responsible: string | null;
 }> | null = null;
 // Whether the profile was read (`POST /api/profile`), and whether that read
 // failed.
@@ -511,7 +517,11 @@ function firstRunFacts(): TourFacts | null {
     // A public Environment's demo onboarding (decision F55), by the entry.
     ...(isPublicEnvironment(entry) ? { audience: "public" as const } : {}),
     ai: aiFact(),
-    github: githubFact(toolsOverview, profileState.revision),
+    github: githubFact(
+      toolsOverview,
+      profileState.revision,
+      profileState.responsible,
+    ),
     content: content.fact(),
     ...(buddyHere()
       ? { buddy: buddyFact(buddyClient.reading(), buddyClient.refused()) }
@@ -640,7 +650,11 @@ const content = createContentPanel({
   github: () =>
     profileState === null
       ? "unknown"
-      : githubFact(toolsOverview, profileState.revision),
+      : githubFact(
+          toolsOverview,
+          profileState.revision,
+          profileState.responsible,
+        ),
   modules: (login) => catalog.modulesOf(login),
   pluralModules: (count) =>
     copy[
@@ -787,6 +801,12 @@ const startPanel = createStartPanel({
   signInGithub: () => {
     if (!tools.openSignIn("gh")) toolsAt("gh");
   },
+  // "Přepnout účet" (F27's addendum of 2026-10-30): where the sign-out does
+  // not end signed out, Nástroje at gh's row, whose notice says why.
+  switchGithub: () =>
+    void tools.switchAccount("gh").then((opened) => {
+      if (!opened) toolsAt("gh");
+    }),
   // Signed in already, the dialog opens at the step left in Composio.
   signInComposio: () => {
     if (!tools.openSignIn("composio") && !tools.openComposioOrganization())
@@ -1034,7 +1054,7 @@ function firstRun() {
   if (startNav !== null)
     startNav.hidden =
       profileState !== null &&
-      !signsInAsPerson(profileState.preset) &&
+      !hasOnboarding(profileState.preset) &&
       !isPublicEnvironment(entry);
   drawVaultNav();
   const count = facts === null ? null : startCount(facts);
@@ -1635,6 +1655,7 @@ async function load() {
     preset: current.preset.name,
     revision: current.revision,
     machine: current.machine?.name ?? null,
+    responsible: responsibleLogin(current.preset.name, current.machine),
   };
   // The content core owns availability; a persona account uses the same
   // content operation as a person's work Environment.
@@ -1737,7 +1758,7 @@ const tools = createToolsPanel({
     const github =
       profileState === null
         ? "unknown"
-        : githubFact(overview, profileState.revision);
+        : githubFact(overview, profileState.revision, profileState.responsible);
     if (githubSeen !== "connected" && github === "connected")
       void content.refresh({ restore: false });
     githubSeen = github;
@@ -1760,6 +1781,9 @@ const tools = createToolsPanel({
   // A sign-in of this page started, moved on or ended, its window open or
   // closed (#516): Začínáme follows.
   signInsChanged: () => firstRun(),
+  // The Automated Environment's gh is the persona's account (F27's addendum
+  // of 2026-10-30): its code is confirmed with that account.
+  persona: () => personaGithub(profileState?.preset),
 });
 const voice = voicePanel({
   post,
