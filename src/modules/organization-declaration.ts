@@ -1,5 +1,6 @@
 import { inspectCanonicalInventory } from "../organizations/canonical-inventory";
 import { expectedLegacyProjection } from "../organizations/legacy-projection";
+import { compileOrganizationModulesIndex } from "../organizations/modules-index";
 import { resolveOrganizationRootDocuments } from "../organizations/root-resolution";
 import {
   canonicalJson,
@@ -32,6 +33,8 @@ export type OrganizationDocumentTexts = Readonly<{
   modules: string;
   /** `company.gen3.json`, or null where the root has none (`current`). */
   legacy: string | null;
+  /** Optional derived template inventory; null means no previous output. */
+  modulesIndex?: string | null;
 }>;
 
 const refused = (message: string) =>
@@ -66,11 +69,41 @@ export function declareOrganizationSlots(
       "manifest_invalid",
       `The Organization root resolves ${before.state}${before.issues.length > 0 ? ` (${before.issues.join(", ")})` : ""}; a slot is declared only in a root that resolves cleanly.`,
     );
-  const modules = slots.reduce(
+  let modules = slots.reduce(
     (text, slot) => insertModuleSlotText(text, slot),
     texts.modules,
   );
-  const modulesDocument = JSON.parse(modules) as { module_slots: unknown[] };
+  let modulesDocument = JSON.parse(modules) as {
+    module_slots: unknown[];
+    teams?: unknown;
+  };
+  const canonicalTeams = (canonical as { teams?: unknown }).teams;
+  // Older inventories carry a compatibility roster. Its authority is canonical.
+  if (
+    Object.hasOwn(modulesDocument, "teams") &&
+    canonicalTeams !== undefined &&
+    canonicalJson(modulesDocument.teams) !== canonicalJson(canonicalTeams)
+  ) {
+    modulesDocument.teams = canonicalTeams;
+    modules = `${JSON.stringify(modulesDocument, null, 2)}\n`;
+    modulesDocument = JSON.parse(modules) as typeof modulesDocument;
+  }
+  const modulesIndex = compileOrganizationModulesIndex(
+    canonical,
+    modulesDocument,
+  );
+  if (modulesIndex !== null && texts.modulesIndex != null) {
+    let supported = false;
+    try {
+      supported =
+        (JSON.parse(texts.modulesIndex) as { schema_version?: unknown })
+          .schema_version === "companiesascode.modules_index.v2";
+    } catch {
+      /* Report no file content from a malformed index. */
+    }
+    if (!supported)
+      throw refused("The existing modules index has an unsupported schema.");
+  }
   let projection: ReturnType<typeof expectedLegacyProjection>;
   try {
     projection = expectedLegacyProjection(canonical, modulesDocument);
@@ -123,7 +156,12 @@ export function declareOrganizationSlots(
       `The new slot conflicts with the Organization's declarations (${named.map((issue) => issue.code).join(", ")}).`,
       "Choose another slug for the module.",
     );
-  return Object.freeze({ canonical: nextCanonical, modules, legacy });
+  return Object.freeze({
+    canonical: nextCanonical,
+    modules,
+    legacy,
+    ...(modulesIndex === null ? {} : { modulesIndex }),
+  });
 }
 
 function resolve(canonical: unknown, modules: string, legacy: string | null) {

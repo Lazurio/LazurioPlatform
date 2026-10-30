@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { lstat, readdir, readFile, realpath } from "node:fs/promises";
+import { lstat, readdir, readFile, realpath, symlink } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 import { processContentGit } from "../src/content/git";
 import type { MembershipAnswer } from "../src/content/role";
@@ -836,6 +836,58 @@ describe("the real run", () => {
   );
 
   posixTest(
+    "an index edited during preparation is preserved with all registration documents",
+    async () => {
+      const setup = await scenario({
+        worktree: true,
+        canonical: (document) => {
+          document.governance = {
+            file_ownership: { derived: ["generated/**"] },
+          };
+        },
+      });
+      const path = join(setup.worktree, "generated/modules.index.json");
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(
+        path,
+        '{"schema_version":"companiesascode.modules_index.v2"}\n',
+      );
+      const { report } = await created(
+        setup,
+        { selector: "acme/intervening" },
+        runHost(setup, {
+          install: install(async () => {
+            await writeFile(path, "an intervening edit\n");
+          }),
+        }),
+      );
+      expect(report.issues.map((issue) => issue.code)).toContain(
+        "manifest_changed",
+      );
+      expect(await readFile(path, "utf8")).toBe("an intervening edit\n");
+      expect(
+        await readFile(join(setup.worktree, "modules.manifest.json"), "utf8"),
+      ).toBe(setup.documents.modules);
+    },
+  );
+
+  posixTest(
+    "a symlinked generated directory is refused before repository creation",
+    async () => {
+      const setup = await scenario({ worktree: true });
+      const target = join(setup.folder, "outside-index");
+      await mkdir(target);
+      await symlink(target, join(setup.worktree, "generated"));
+      const plan = await dryRun(setup);
+      expect(plan.reason).toBe("manifest_invalid");
+      expect(setup.calls.map((call) => call.kind)).not.toContain(
+        "createRepository",
+      );
+      expect(await readdir(target)).toEqual([]);
+    },
+  );
+
+  posixTest(
     "documents changed during the run: the module stays, nothing is written over them",
     async () => {
       const setup = await scenario({ worktree: true });
@@ -1041,6 +1093,53 @@ describe("a module with data (--data)", () => {
       expect((await dryRun(taken, { data: true, stack: "none" })).reason).toBe(
         "data_needs_bun_app",
       );
+    },
+  );
+
+  posixTest(
+    "module --data regenerates a template-owned index in the review worktree",
+    async () => {
+      const setup = await scenario({
+        worktree: true,
+        canonical: (document) => {
+          document.governance = {
+            file_ownership: { derived: ["generated/**"] },
+          };
+        },
+      });
+      const { report } = await created(
+        setup,
+        { selector: "acme/catalogue", data: true },
+        runHost(setup, { initData: fakeInit([]) }),
+      );
+      expect(report.status).toBe("completed");
+      const index = JSON.parse(
+        await readFile(
+          join(setup.worktree, "generated/modules.index.json"),
+          "utf8",
+        ),
+      );
+      expect(
+        index.modules.map((entry: { path: string }) => entry.path),
+      ).toEqual([
+        "workspace/catalogue",
+        "workspace/catalogue/db",
+        "workspace/web",
+      ]);
+      expect(
+        index.manifest_slots.map((entry: { path: string }) => entry.path),
+      ).toEqual([
+        "workspace/web",
+        "workspace/later",
+        "workspace/catalogue",
+        "workspace/catalogue/db",
+      ]);
+      expect(index.manifest_slots.at(-1)).toMatchObject({
+        space: "workspace",
+        teams: ["core", "sales"],
+        git: { branch: "v3" },
+      });
+      expect(await git(setup.root, "status", "--porcelain")).toBe("");
     },
   );
 
