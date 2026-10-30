@@ -5667,8 +5667,8 @@ explicitly by the operator, so nothing is switched silently.
 
 **Decided by Matěj (Organization Admin) on 2026-10-30 (plan DEV-6665). It changes root
 decision 0188 point 3 for the Automated Environment through root decision 0188's
-addendum of 2026-10-30 in `HumanAndMachines/Lazurio` (pending; its link follows), and
-extends root decision 0201 to it.** In his words: „Jestli chceme mít nadefinovaný
+addendum of 2026-10-30 (HumanAndMachines/Lazurio#675), and extends root decision 0201
+to it.** In his words: „Jestli chceme mít nadefinovaný
 "automation environment" jako druh enviromentu, tak by to dle mého měl být jakoby
 standardní pracovní enviroment, akorát s tím, že se o něj nestará dedikovaný uživatel, ale
 je to jakoby nějakého uživatele sekundární enviroment. Ale mělo by platit, že i v tomto
