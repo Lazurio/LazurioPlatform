@@ -104,7 +104,7 @@ import {
 } from "./tools-view";
 import { createTour } from "./tour";
 import type { PillStatus } from "./update-pill";
-import { fill, pillView, pillVisible } from "./update-view";
+import { pillView, pillVisible } from "./update-view";
 import { createVaultPagePanel } from "./vault-page-panel";
 import {
   bitwardenTarget,
@@ -2110,9 +2110,6 @@ const updateError =
 const updateStateInvalid = document.querySelector<HTMLParagraphElement>(
   "#update-state-invalid",
 );
-const updateFolderRefresh = document.querySelector<HTMLParagraphElement>(
-  "#update-folder-refresh",
-);
 if (
   !updateSection ||
   !updateText ||
@@ -2120,8 +2117,7 @@ if (
   !updateAction ||
   !updateChecked ||
   !updateError ||
-  !updateStateInvalid ||
-  !updateFolderRefresh
+  !updateStateInvalid
 )
   throw new Error("Missing update UI");
 let updateStatus: PillStatus | null = null;
@@ -2129,8 +2125,8 @@ let updateNote: string | null = null;
 function renderUpdate() {
   if (!updateStatus || !updateSection) return;
   const view = pillView(updateStatus, copy, Date.now());
-  // Only while an update is available (pillVisible); the Folder refresh
-  // line below is independent of the pill.
+  // Only while an update is available (pillVisible). The Folder's refresh
+  // is part of the update and never shown (F17's addendum of 2026-10-30).
   updateSection.hidden = !pillVisible(updateStatus);
   if (updateText) updateText.textContent = view.text;
   if (updateNotes) {
@@ -2154,26 +2150,6 @@ function renderUpdate() {
   if (updateStateInvalid) {
     updateStateInvalid.hidden = view.stateInvalid === null;
     updateStateInvalid.textContent = view.stateInvalid ?? "";
-  }
-  // Read-only: the command is shown, never run from here. It stands in its
-  // own selectable monospace line of the sentence.
-  if (updateFolderRefresh) {
-    const refresh = updateStatus.folderRefresh;
-    updateFolderRefresh.hidden = view.folderRefresh === null;
-    if (refresh === null) updateFolderRefresh.replaceChildren();
-    else {
-      const [before, after = ""] = fill(copy.updateFolderRefresh, {
-        recorded: refresh.recorded,
-        product: refresh.product,
-      }).split("{command}");
-      const command = document.createElement("code");
-      command.textContent = refresh.command;
-      updateFolderRefresh.replaceChildren(
-        (before ?? "").trimEnd(),
-        command,
-        after,
-      );
-    }
   }
 }
 async function refreshUpdate() {

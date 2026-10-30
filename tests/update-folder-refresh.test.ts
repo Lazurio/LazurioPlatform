@@ -1,6 +1,6 @@
 import { afterAll, afterEach, expect, test } from "bun:test";
-import { createHash } from "node:crypto";
 import {
+  appendFile,
   mkdir,
   mkdtemp,
   readFile,
@@ -10,14 +10,24 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runCli } from "../src/cli";
 import { initializeFolder } from "../src/folder/initialize-folder";
-import { outputPaths } from "../src/folder/outputs";
+import { withFolderOperationLock } from "../src/folder/lock";
 import { executionOs } from "../src/folder/platform";
-import { folderRefreshNeeded } from "../src/folder/refresh-needed";
+import {
+  folderRefreshNeeded,
+  neededRefresh,
+} from "../src/folder/refresh-needed";
 import { instructionTemplateRevision } from "../src/folder/render";
 import { initializeMachineFolder } from "../src/machine/cli";
 import { type CliContext, runUpdateCommand } from "../src/update/cli";
+import { refreshFolderWhenBehind } from "../src/update/folder-refresh";
+import { layout, readSelector } from "../src/update/layout";
+import type { ProcessRunner } from "../src/update/self-check";
+import {
+  recordedRevisions,
+  refreshRunner,
+  renderedBy,
+} from "./fixtures/folder-refresh";
 import { binding } from "./fixtures/machine-bindings";
 import personal from "./fixtures/machine-context-personal.json";
 import {
@@ -28,9 +38,11 @@ import {
   type World,
 } from "./fixtures/update-world";
 
-// "Folder refresh needed" (F17 addendum 2026-09-28): the operator updates
-// Lazurio, the update never writes the Folder, and the result names the one
-// command that re-renders it. Every home and Folder here is temporary.
+// The update refreshes the Folder (F17's addendum of 2026-10-30): after the
+// switch, by the version it activated, and also when nothing newer was found;
+// a blocked refresh leaves the update successful and stays visible to agents.
+// Every home and Folder here is temporary; the refresh is this checkout's
+// own CLI, the templates of the active version.
 
 const profile = {
   os: executionOs(process.platform),
@@ -40,6 +52,23 @@ const profile = {
   detail: "concise",
   coordination: "direct",
 } as const;
+const unchangedProfile = (folder: string, revision = 1) => [
+  "profile-update",
+  "--folder",
+  folder,
+  "--expected-revision",
+  String(revision),
+  "--access",
+  "local",
+  "--purpose",
+  "human",
+  "--locale",
+  "en",
+  "--detail",
+  "concise",
+  "--coordination",
+  "direct",
+];
 
 let parent: string | undefined;
 let world: World | undefined;
@@ -56,186 +85,523 @@ async function temporary() {
   return parent;
 }
 
-// A Folder as an earlier release left it: its generated files carry that
-// revision and the manifest records exactly those bytes, so the one planner
-// can upgrade it.
-async function renderedBy(folder: string, revision: string) {
-  const path = join(folder, ".lazurio", "instructions.json");
-  const manifest = JSON.parse(await readFile(path, "utf8"));
-  const outputs: Record<string, string> = {};
-  for (const output of outputPaths) {
-    const content = `${(
-      await readFile(join(folder, output), "utf8")
-    ).replaceAll(
-      instructionTemplateRevision,
-      revision,
-    )}\nText of an earlier release.\n`;
-    await writeFile(join(folder, output), content);
-    outputs[output] = createHash("sha256").update(content).digest("hex");
-  }
-  await writeFile(
-    path,
-    JSON.stringify({ ...manifest, templateRevision: revision, outputs }),
-  );
+async function hostedFolder(folder: string) {
+  await mkdir(folder, { mode: 0o700 });
+  await mkdir(join(folder, "organizations"), { mode: 0o700 });
+  await mkdir(join(folder, "personalspace"), { mode: 0o700 });
+  await initializeMachineFolder(folder, binding(personal), {
+    preset: undefined,
+    locale: undefined,
+    detail: undefined,
+    coordination: undefined,
+  });
+}
+
+/** `lazurio update` as an agent runs it, with the given runner for its
+ * processes and, on a hosted Machine, the declared operator's Folder. */
+function updater(
+  running: string,
+  run: ProcessRunner,
+  hosted?: string,
+): (args: string[]) => ReturnType<typeof runUpdateCommand> {
+  const context: CliContext = {
+    identity: { version: running, commit: commitOf(running), target },
+    platform: process.platform,
+    env: { HOME: world?.root, XDG_DATA_HOME: world?.root },
+    executable: join(world?.root ?? "", "downloaded-lazurio"),
+    environment: world?.environment(running),
+    run,
+    ...(hosted === undefined ? {} : { hostedFolder: async () => hosted }),
+  };
+  return (args) =>
+    runUpdateCommand([...args, "--base", world?.base ?? ""], context);
 }
 
 test.skipIf(process.platform === "win32")(
-  "a workstation Folder names the unchanged profile update, and that exact command refreshes it",
-  async () => {
-    const folder = join(await temporary(), "Lazurio");
-    await initializeFolder(folder, profile);
-    // Current: nothing to report.
-    expect(
-      await folderRefreshNeeded(folder, instructionTemplateRevision),
-    ).toBeNull();
-    await renderedBy(folder, "base-instructions-8");
-    const refresh = await folderRefreshNeeded(
-      folder,
-      instructionTemplateRevision,
-    );
-    expect(refresh).toEqual({
-      folder,
-      recorded: "base-instructions-8",
-      product: instructionTemplateRevision,
-      command: `lazurio profile-update --folder ${folder} --expected-revision 1 --access local --purpose human --locale en --detail concise --coordination direct`,
-    });
-    // A newer or unknown recorded revision is never "behind".
-    expect(await folderRefreshNeeded(folder, "base-instructions-7")).toBeNull();
-    expect(await folderRefreshNeeded(join(folder, "absent"), "x")).toBeNull();
-
-    // The reported command, run as it is printed.
-    const args = (refresh?.command ?? "").split(" ").slice(1);
-    const log = console.log;
-    console.log = () => {};
-    try {
-      expect(await runCli(args)).toBe(0);
-    } finally {
-      console.log = log;
-    }
-    expect(
-      await folderRefreshNeeded(folder, instructionTemplateRevision),
-    ).toBeNull();
-    expect(await readFile(join(folder, "AGENTS.md"), "utf8")).not.toContain(
-      "Text of an earlier release.",
-    );
-  },
-);
-
-test.skipIf(process.platform === "win32")(
-  "a hosted Folder names machine folder-refresh, and a path with spaces is quoted for the shell",
+  "which refresh a Folder needs: its unchanged profile, or the handover for the declared operator's hosted Folder",
   async () => {
     const root = await temporary();
     const folder = join(root, "Lazurio");
-    await mkdir(folder, { mode: 0o700 });
-    await mkdir(join(folder, "organizations"), { mode: 0o700 });
-    await mkdir(join(folder, "personalspace"), { mode: 0o700 });
-    await initializeMachineFolder(folder, binding(personal), {
-      preset: undefined,
-      locale: undefined,
-      detail: undefined,
-      coordination: undefined,
-    });
+    await initializeFolder(folder, profile);
+    // Current: nothing needed.
+    expect(
+      await neededRefresh(folder, instructionTemplateRevision, undefined),
+    ).toBeNull();
     await renderedBy(folder, "base-instructions-8");
     expect(
-      await folderRefreshNeeded(folder, instructionTemplateRevision),
-    ).toMatchObject({ command: "lazurio machine folder-refresh" });
-
-    const spaced = join(root, "My 'Lazurio'");
-    await initializeFolder(spaced, profile);
-    await renderedBy(spaced, "base-instructions-8");
+      await neededRefresh(folder, instructionTemplateRevision, undefined),
+    ).toEqual({
+      refresh: {
+        folder,
+        recorded: "base-instructions-8",
+        product: instructionTemplateRevision,
+      },
+      command: unchangedProfile(folder),
+    });
+    // A Folder without a handover binding is never refreshed from one.
     expect(
-      (await folderRefreshNeeded(spaced, instructionTemplateRevision))?.command,
-    ).toStartWith(
-      `lazurio profile-update --folder '${root}/My '\\''Lazurio'\\''' --expected-revision 1`,
-    );
+      (await neededRefresh(folder, instructionTemplateRevision, folder))
+        ?.command,
+    ).toEqual(unchangedProfile(folder));
+    // A newer or unknown recorded revision is never behind; nothing is
+    // needed where nothing can be read.
+    expect(
+      await neededRefresh(folder, "base-instructions-7", undefined),
+    ).toBeNull();
+    expect(await folderRefreshNeeded(join(folder, "absent"), "x")).toBeNull();
+
+    const hosted = join(root, "Hosted");
+    await hostedFolder(hosted);
+    await renderedBy(hosted, "base-instructions-8");
+    expect(
+      (await neededRefresh(hosted, instructionTemplateRevision, hosted))
+        ?.command,
+    ).toEqual(["machine", "folder-refresh"]);
+    // A hosted Folder that is not the declared operator's: its own recorded
+    // profile at its revision, the same template upgrade.
+    expect(
+      (await neededRefresh(hosted, instructionTemplateRevision, undefined))
+        ?.command[0],
+    ).toBe("profile-update");
   },
 );
 
 test.skipIf(process.platform === "win32")(
-  "lazurio update and update status report the refresh, human and JSON, and never write the Folder",
+  "lazurio update refreshes a workstation Folder after the switch, by the version it activated",
   async () => {
     world = await createWorld();
     const folder = join(world.root, "Lazurio");
     await initializeFolder(folder, profile);
     await renderedBy(folder, "base-instructions-8");
-    const manifest = await readFile(
-      join(folder, ".lazurio/instructions.json"),
-      "utf8",
-    );
-    const context = (running: string, hosted?: string): CliContext => ({
-      identity: { version: running, commit: commitOf(running), target },
-      platform: process.platform,
-      env: { HOME: world?.root, XDG_DATA_HOME: world?.root },
-      executable: join(world?.root ?? "", "downloaded-lazurio"),
-      environment: world?.environment(running),
-      ...(hosted === undefined ? {} : { hostedFolder: async () => hosted }),
+    const { run, calls } = refreshRunner(world.base);
+    await world.release("1.1.0", {
+      templateRevision: instructionTemplateRevision,
     });
-    const run = (args: string[], running = "1.0.0", hosted?: string) =>
-      runUpdateCommand(
-        [...args, "--base", world?.base ?? ""],
-        context(running, hosted),
-      );
-    const command = `lazurio profile-update --folder ${folder} --expected-revision 1 --access local --purpose human --locale en --detail concise --coordination direct`;
-    const line = (product: string) =>
-      `Folder refresh needed: ${folder} was rendered by base-instructions-8, Lazurio renders ${product}. Run: ${command}`;
 
-    // Status: the active product is this one, so its revision is known.
-    expect((await run(["status", "--folder", folder])).stdout).toBe(
-      [
-        "running 1.0.0",
-        "active 1.0.0",
-        "latest known never checked",
-        line(instructionTemplateRevision),
-      ].join("\n"),
-    );
-    // The hosted Machine's declared operator Folder, without --folder.
-    expect(
-      JSON.parse(
-        (await run(["status", "--json"], "1.0.0", folder)).stdout ?? "",
-      ).folderRefresh,
-    ).toEqual({
-      folder,
-      recorded: "base-instructions-8",
-      product: instructionTemplateRevision,
-      command,
-    });
-    // No Folder known: nothing reported.
-    expect(
-      JSON.parse((await run(["status", "--json"])).stdout ?? "").folderRefresh,
-    ).toBeNull();
-
-    // The update: the new executable says which revision it renders.
-    await world.release("1.1.0", { templateRevision: "base-instructions-10" });
-    expect(await run(["--folder", folder])).toEqual({
+    const updated = await updater("1.0.0", run)(["--folder", folder]);
+    expect(updated).toEqual({
       code: 0,
       stdout: [
         "Updated from 1.0.0 to 1.1.0. A running Launchpad finishes the update when it restarts.",
-        line("base-instructions-10"),
+        "Refreshed the Folder's generated files (AGENTS.md, manual/, the skills) for this version.",
       ].join("\n"),
     });
-    // Up to date: the one answering is the active one.
+    // Once, after the switch, with the Folder's recorded choices.
+    expect(calls).toEqual([
+      { command: unchangedProfile(folder), active: "1.1.0" },
+    ]);
+    expect(await recordedRevisions(folder)).toEqual({
+      template: instructionTemplateRevision,
+      revision: 2,
+    });
+    expect(await readFile(join(folder, "AGENTS.md"), "utf8")).not.toContain(
+      "Text of an earlier release.",
+    );
+    // Agents' status: nothing is needed any more.
     expect(
       JSON.parse(
-        (await run(["--json", "--folder", folder], "1.1.0")).stdout ?? "",
+        (await updater("1.1.0", run)(["status", "--folder", folder, "--json"]))
+          .stdout ?? "",
+      ).folderRefresh,
+    ).toBeNull();
+    // Current Lazurio and a current Folder: nothing to refresh, nothing run.
+    expect(
+      JSON.parse(
+        (await updater("1.1.0", run)(["--folder", folder, "--json"])).stdout ??
+          "",
       ),
-    ).toMatchObject({
-      kind: "up-to-date",
-      folderRefresh: { product: instructionTemplateRevision },
-    });
-    // An executable that does not say which revision it renders reports
-    // nothing rather than a guess.
+    ).toMatchObject({ kind: "up-to-date", folderRefresh: null });
+    expect(calls).toHaveLength(1);
+
+    // A version that does not say which revision it renders is never
+    // guessed at: nothing is refreshed.
+    await renderedBy(folder, "base-instructions-8");
     await world.release("1.2.0");
     expect(
       JSON.parse(
-        (await run(["--json", "--folder", folder], "1.1.0")).stdout ?? "",
+        (await updater("1.1.0", run)(["--folder", folder, "--json"])).stdout ??
+          "",
       ),
     ).toMatchObject({ kind: "updated", to: "1.2.0", folderRefresh: null });
-    // Reporting only: the Folder is exactly as it was.
+    expect(calls).toHaveLength(1);
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "already current: lazurio update refreshes a Folder that an earlier refresh or a Machines install left behind",
+  async () => {
+    world = await createWorld();
+    await world.release("1.0.0");
+    const folder = join(world.root, "Lazurio");
+    await initializeFolder(folder, profile);
+    await renderedBy(folder, "base-instructions-8");
+    const { run, calls } = refreshRunner(world.base);
+
+    expect(await updater("1.0.0", run)(["--folder", folder])).toEqual({
+      code: 0,
+      stdout: [
+        "Lazurio 1.0.0 is up to date.",
+        "Refreshed the Folder's generated files (AGENTS.md, manual/, the skills) for this version.",
+      ].join("\n"),
+    });
+    expect(calls).toEqual([
+      { command: unchangedProfile(folder), active: "1.0.0" },
+    ]);
+    expect((await recordedRevisions(folder)).template).toBe(
+      instructionTemplateRevision,
+    );
+    // An executable that is not the active one does not speak for the
+    // active version's templates: nothing is refreshed.
+    await renderedBy(folder, "base-instructions-8");
     expect(
-      await readFile(join(folder, ".lazurio/instructions.json"), "utf8"),
-    ).toBe(manifest);
-    // --folder belongs to the two commands that report it, and is absolute.
-    expect((await run(["--check", "--folder", folder])).code).toBe(2);
-    expect((await run(["status", "--folder", "relative"])).code).toBe(2);
+      JSON.parse(
+        (await updater("0.9.0", run)(["--folder", folder, "--json"])).stdout ??
+          "",
+      ),
+    ).toMatchObject({ kind: "up-to-date", folderRefresh: null });
+    expect(calls).toHaveLength(1);
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "an edited generated file blocks the refresh: the update stays successful and final, nothing is overwritten, and agents keep seeing it",
+  async () => {
+    world = await createWorld();
+    const folder = join(world.root, "Lazurio");
+    await initializeFolder(folder, profile);
+    await renderedBy(folder, "base-instructions-8");
+    const agents = join(folder, "AGENTS.md");
+    const rendered = await readFile(agents, "utf8");
+    await appendFile(agents, "My own rule.\n");
+    const { run } = refreshRunner(world.base);
+    await world.release("1.1.0", {
+      templateRevision: instructionTemplateRevision,
+    });
+
+    const updated = await updater("1.0.0", run)(["--folder", folder, "--json"]);
+    expect(updated.code).toBe(0);
+    expect(JSON.parse(updated.stdout ?? "")).toMatchObject({
+      kind: "updated",
+      to: "1.1.0",
+      folderRefresh: { state: "blocked", reason: "drift", path: "AGENTS.md" },
+    });
+    // The switch is final; the person's edit is untouched.
+    expect(await readSelector(world.base)).toBe("1.1.0");
+    expect(await readFile(agents, "utf8")).toEndWith("My own rule.\n");
+    expect(await recordedRevisions(folder)).toEqual({
+      template: "base-instructions-8",
+      revision: 1,
+    });
+    // For agents: status still says the refresh is needed, and the next
+    // update names it again with what to do.
+    expect(
+      (await updater("1.1.0", run)(["status", "--folder", folder])).stdout,
+    ).toEndWith(
+      `Folder refresh needed: ${folder} was rendered by base-instructions-8, Lazurio renders ${instructionTemplateRevision}. lazurio update --folder ${folder} refreshes it and names anything that blocks it.`,
+    );
+    expect(await updater("1.1.0", run)(["--folder", folder])).toEqual({
+      code: 0,
+      stdout: [
+        "Lazurio 1.1.0 is up to date.",
+        "The Folder's generated files were not refreshed (drift: AGENTS.md). It was changed by hand and is never overwritten: with the user's consent, move their change out of it, then run the same lazurio update again.",
+      ].join("\n"),
+    });
+    // Resolved: the same update refreshes it.
+    await writeFile(agents, rendered);
+    expect(
+      JSON.parse(
+        (await updater("1.1.0", run)(["--folder", folder, "--json"])).stdout ??
+          "",
+      ),
+    ).toMatchObject({
+      kind: "up-to-date",
+      folderRefresh: { state: "refreshed" },
+    });
+    expect((await recordedRevisions(folder)).template).toBe(
+      instructionTemplateRevision,
+    );
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "a hosted Remote Environment: the declared operator's Folder is refreshed from its handover, whatever the refresh answers",
+  async () => {
+    world = await createWorld();
+    const folder = join(world.root, "Lazurio");
+    await hostedFolder(folder);
+    await renderedBy(folder, "base-instructions-8");
+    await world.release("1.1.0", {
+      templateRevision: instructionTemplateRevision,
+    });
+    // `machine folder-refresh` reads the root-issued handover, which a test
+    // has not: its answers are scripted, exactly as it prints them.
+    const answers = [
+      {
+        exitCode: 2,
+        stdout: JSON.stringify({
+          kind: "blocked",
+          reason: "folder-foreign-entry",
+          entry: "notes.txt",
+          next: "Move this entry out of the Folder.",
+          machineContextDigest: "0".repeat(64),
+        }),
+      },
+      {
+        exitCode: 0,
+        stdout: JSON.stringify({
+          kind: "refreshed",
+          revision: 2,
+          machineContextDigest: "0".repeat(64),
+        }),
+      },
+    ];
+    const { run, calls } = refreshRunner(
+      world.base,
+      (_command, call) => answers[call - 1],
+    );
+
+    // No --folder: the declared operator's Folder.
+    const blocked = await updater("1.0.0", run, folder)(["--json"]);
+    expect(blocked.code).toBe(0);
+    expect(JSON.parse(blocked.stdout ?? "")).toMatchObject({
+      kind: "updated",
+      to: "1.1.0",
+      folderRefresh: {
+        state: "blocked",
+        reason: "folder-foreign-entry",
+        path: "notes.txt",
+      },
+    });
+    expect(calls).toEqual([
+      { command: ["machine", "folder-refresh"], active: "1.1.0" },
+    ]);
+    // The next update finds nothing newer and refreshes it.
+    expect(
+      JSON.parse(
+        (await updater("1.1.0", run, folder)(["--json"])).stdout ?? "",
+      ),
+    ).toMatchObject({
+      kind: "up-to-date",
+      folderRefresh: { state: "refreshed" },
+    });
+    expect(calls).toHaveLength(2);
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "a busy Folder is retried a bounded number of times; one another operation refreshed meanwhile is unchanged",
+  async () => {
+    const root = await temporary();
+    const base = join(root, "base");
+    const folder = join(root, "Lazurio");
+    await initializeFolder(folder, profile);
+    await renderedBy(folder, "base-instructions-8");
+    const state = join(folder, ".lazurio");
+    // Another operation holds the Folder's lock until it is let go.
+    const hold = () => {
+      let release = () => {};
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let acquired = () => {};
+      const holding = new Promise<void>((resolve) => {
+        acquired = resolve;
+      });
+      const done = withFolderOperationLock(state, async () => {
+        acquired();
+        await released;
+      });
+      return {
+        holding,
+        release: () => {
+          release();
+          return done;
+        },
+      };
+    };
+    const refresh = (run: ProcessRunner, attempts = 3) =>
+      refreshFolderWhenBehind({
+        base,
+        folder,
+        product: instructionTemplateRevision,
+        env: {},
+        run,
+        retry: { attempts, delayMs: 0 },
+      });
+
+    // Busy once, then free: refreshed on the second attempt.
+    const first = hold();
+    await first.holding;
+    const freed = refreshRunner(base, async (_command, call) => {
+      if (call === 2) await first.release();
+      return undefined;
+    });
+    expect(await refresh(freed.run)).toEqual({ state: "refreshed" });
+    expect(freed.calls).toHaveLength(2);
+    expect((await recordedRevisions(folder)).template).toBe(
+      instructionTemplateRevision,
+    );
+
+    // Busy all along: named after the last attempt, nothing written.
+    await renderedBy(folder, "base-instructions-8");
+    const second = hold();
+    await second.holding;
+    const held = refreshRunner(base);
+    expect(await refresh(held.run)).toEqual({
+      state: "blocked",
+      reason: "folder-busy",
+    });
+    expect(held.calls).toHaveLength(3);
+    await second.release();
+    expect((await recordedRevisions(folder)).template).toBe(
+      "base-instructions-8",
+    );
+
+    // Refreshed by someone else while this one waited: unchanged.
+    const raced = refreshRunner(base, async (command, call) => {
+      if (call !== 1) return undefined;
+      await refreshRunner(base).run([layout(base).selector, ...command], 1_000);
+      return {
+        exitCode: 2,
+        stdout: JSON.stringify({
+          kind: "blocked",
+          reason: "folder-busy",
+          retryable: true,
+        }),
+      };
+    });
+    expect(await refresh(raced.run)).toEqual({ state: "unchanged" });
+    expect(raced.calls).toHaveLength(1);
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "a refresh that fails, hangs or answers something else is named, never thrown",
+  async () => {
+    const root = await temporary();
+    const folder = join(root, "Lazurio");
+    await initializeFolder(folder, profile);
+    await renderedBy(folder, "base-instructions-8");
+    const refresh = (run: ProcessRunner) =>
+      refreshFolderWhenBehind({
+        base: join(root, "base"),
+        folder,
+        product: instructionTemplateRevision,
+        env: {},
+        run,
+        retry: { attempts: 2, delayMs: 0 },
+      });
+    const answer =
+      (result: Awaited<ReturnType<ProcessRunner>>): ProcessRunner =>
+      async () =>
+        result;
+    expect(await refresh(answer("timeout"))).toEqual({
+      state: "failed",
+      reason: "timeout",
+    });
+    expect(
+      await refresh(
+        answer({
+          exitCode: 1,
+          stdout: JSON.stringify({ kind: "failed", reason: "internal" }),
+        }),
+      ),
+    ).toEqual({ state: "failed", reason: "internal" });
+    expect(await refresh(answer({ exitCode: 1, stdout: "" }))).toEqual({
+      state: "failed",
+      reason: "internal",
+    });
+    expect(await refresh(answer({ exitCode: 0, stdout: "{}" }))).toEqual({
+      state: "failed",
+      reason: "internal",
+    });
+    expect(await refresh(answer({ exitCode: 0, stdout: "not json" }))).toEqual({
+      state: "failed",
+      reason: "output",
+    });
+    expect(
+      await refresh(async () => {
+        throw new Error("not executable");
+      }),
+    ).toEqual({ state: "failed", reason: "internal" });
+    // Only the product's codes and a plain path within the Folder pass.
+    expect(
+      await refresh(
+        answer({
+          exitCode: 2,
+          stdout: JSON.stringify({
+            kind: "blocked",
+            reason: "drift",
+            path: "manual/a\nb.md",
+          }),
+        }),
+      ),
+    ).toEqual({ state: "blocked", reason: "drift" });
+    expect(
+      await refresh(
+        answer({
+          exitCode: 2,
+          stdout: JSON.stringify({ kind: "blocked", reason: "Not a code" }),
+        }),
+      ),
+    ).toEqual({ state: "failed", reason: "internal" });
+    // A path is kept only when it stays within the Folder and every
+    // character shows as itself (Pablo's review of #731): an absolute path,
+    // an upward or empty segment, a drive or UNC prefix, a terminal escape
+    // or a bidirectional override is dropped and the reason stays.
+    const blockedAt = (path: string) =>
+      refresh(
+        answer({
+          exitCode: 2,
+          stdout: JSON.stringify({ kind: "blocked", reason: "drift", path }),
+        }),
+      );
+    for (const path of [
+      "/etc/passwd",
+      "../outside",
+      "manual/../../outside",
+      "./AGENTS.md",
+      "manual//x.md",
+      "manual/",
+      "C:\\Windows\\system.ini",
+      "\\\\server\\share",
+      "manual/\u001b[31mBAD",
+      "manual/\u009b31mBAD",
+      "manual/\u202egnp.exe",
+      "manual/\u200bhidden.md",
+      "x".repeat(513),
+    ])
+      expect(await blockedAt(path)).toEqual({
+        state: "blocked",
+        reason: "drift",
+      });
+    for (const path of [
+      "AGENTS.md",
+      "manual/this-machine.md",
+      "notes.txt",
+      "manual/Příručka.md",
+    ])
+      expect(await blockedAt(path)).toEqual({
+        state: "blocked",
+        reason: "drift",
+        path,
+      });
+    // A foreign entry is named by `entry`, held to the same rule.
+    expect(
+      await refresh(
+        answer({
+          exitCode: 2,
+          stdout: JSON.stringify({
+            kind: "blocked",
+            reason: "folder-foreign-entry",
+            entry: "../outside",
+          }),
+        }),
+      ),
+    ).toEqual({ state: "blocked", reason: "folder-foreign-entry" });
+    // Nothing above wrote anything.
+    expect((await recordedRevisions(folder)).template).toBe(
+      "base-instructions-8",
+    );
   },
 );

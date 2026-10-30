@@ -34,7 +34,13 @@ implemented by the document that records it.
    the same `lazurio update` command. Qualified against the fixture origin with fake
    service-manager and child seams and by a compiled unsupervised Launchpad; the
    native click path on a supervised Linux Machine (unit start, journal readback,
-   restart, failed candidate) and macOS remain unproven.
+   restart, failed candidate) and macOS remain unproven. The same command refreshes
+   the Folder after the switch and when nothing is newer, and the pill shows nothing
+   of it ([F17's addendum of 2026-10-30](decisions.md#f17--operator-tools-belong-to-the-operator-the-rollout-pins-the-baseline-and-repairs)):
+   qualified with fixture executables and this checkout's own refresh. A released
+   version's refresh through the selector on a supervised Machine, including
+   `folder-busy` against the Launchpad that the switch has just restarted, remains
+   unproven.
 6. **Hosted entry adapter.** Unauthenticated denial, authenticated access, WebSockets,
    unknown hosts and module links ([hosted entry](hosted-entry.md)).
 7. **Materialization and content synchronization.** One real Organization and one

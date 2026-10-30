@@ -765,6 +765,10 @@ downloaded way in and is neither needed nor used here.
    Anything else: `activation-unhealthy` (`{from, to}`), exit status 1. **Nothing
    is switched back.** The new version stays active; its Launchpad is in
    Recovery mode (below) or not running, and the unit keeps restarting it.
+6. **Refresh the Folder** ([F17's addendum of 2026-10-30](decisions.md#f17--operator-tools-belong-to-the-operator-the-rollout-pins-the-baseline-and-repairs)),
+   still under the lock, when the Folder records an older template revision than the
+   new version renders: that version's own refresh, through the selector
+   ([below](#the-folders-refresh)). Whatever it answers, the outcome above stands.
 
 What the probe cannot catch lands in Recovery mode: a conflict on the real port,
 a difference between the updater's and the unit's environment, a crash after
@@ -968,7 +972,10 @@ Launchpad's own synchronization, its tools part pre-warms with the Launchpad's o
 resolver, whose fetches its builds share, its builds are swapped in by the Launchpad at
 once, and Lazurio is updated through the pill's own action, which
 starts `lazurio update --version` in the unit that outlives the restart it causes
-(`result: "started"`). The job lives in the Launchpad's memory and ends with it; what the
+(`result: "started"`), and which refreshes the Folder after the switch. When the check
+finds nothing newer (`result: "current"`), the Launchpad runs the Folder's refresh as
+`lazurio update` would ([below](#the-folders-refresh)); nothing of it is a line of the
+run. The job lives in the Launchpad's memory and ends with it; what the
 run did stays in its owners' records (the content's record, the builds' states, the
 selector). A Launchpad that is not an installed one answers `503 update-unavailable`; a
 public Environment, whose visitors do not own it, `404`. Nová karta's Aktualizovat is its
@@ -998,8 +1005,16 @@ The pipeline owns the minimum version (a pin is a minimum, F17's addendum of 202
   is shown; it changes no state. `state-invalid` is shown with its path and offers no action. The page
   shows the pill only while an update is available or under way, after a failed
   update and with `state-invalid`; "up to date" and a running check show nothing
-  (Matěj 2026-09-28, as in T3 Code). The Folder refresh line below is
-  independent of the pill.
+  (Matěj 2026-09-28, as in T3 Code). A run in flight is "downloading" only while
+  the version it fetches is newer than the Launchpad. That version is read from the
+  run's unit, which systemd-run describes by its command line
+  (`… update --version v<version> …`), or kept by the child that runs it. While
+  downloading, the pill names that version, not a newer release learned meanwhile.
+  After the restart, while the run finishes what follows the switch (the Folder's
+  refresh, the units), nothing is downloading and nothing is offered to start, even
+  when a newer release is already known. A run whose version is unknown counts as
+  downloading while a newer release is known. Nothing about the Folder's refresh is ever shown
+  ([below](#the-folders-refresh)).
 - **CLI.** `lazurio update` (everything, [above](#one-lazurio-update-content-tools-builds-and-lazurio-itself)), `--check`, `--version <tag>`, `update status
   [--json]`, `--folder <Folder>` on `update` and `update status`,
   `lazurio install [--verify-release <directory>] [--service
@@ -1009,19 +1024,38 @@ The pipeline owns the minimum version (a pin is a minimum, F17's addendum of 202
   ([hosted entry](hosted-entry.md)); the pill and `POST /api/update/apply` pass the
   gateway's admission like every other request there. Other commands print a one-line notice from
   `last-check.json` and never touch the network for it.
-- **Folder refresh needed.** An update never writes the Folder
-  ([F14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)). When the
-  Folder records an older template revision than the active product renders, the
-  results of `lazurio update` (`updated` and `up-to-date`), `update status` and
-  the pill carry `folderRefresh {folder, recorded, product, command}` and a user
-  reads "Folder refresh needed" with that command: `lazurio machine
-  folder-refresh` on a hosted Machine, `lazurio profile-update` with the recorded
-  choices at the current revision on a workstation. The Folder is `--folder`, the
-  supervised unit's, the Launchpad's own, or on a hosted Machine the declared
-  operator's from the handover; none known, nothing is said. The updater learns
-  the revision of a new version from its `self-check` report
-  (`templateRevision`); a version that does not state it is reported as nothing,
-  never guessed. Reading only: no lock, no write, never a reason to refuse.
+- <a id="the-folders-refresh"></a>**The Folder's refresh** ([F17's addendum of
+  2026-10-30](decisions.md#f17--operator-tools-belong-to-the-operator-the-rollout-pins-the-baseline-and-repairs)).
+  When the Folder records an older template revision than the active version renders,
+  `lazurio update` refreshes it itself, after the switch and also when it finds nothing
+  newer. The refresh is the active version's own command, run through the selector as a
+  bounded child (two minutes), so it is the one Folder change path
+  ([F14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)) with its lock,
+  transaction and refusals, never a second writer:
+  - `lazurio machine folder-refresh` for the declared operator's Folder on a hosted
+    Machine;
+  - `lazurio profile-update` with the recorded choices at the current revision for
+    every other Folder.
+
+  The Folder is `--folder`, the supervised unit's, or on a hosted Machine the declared
+  operator's from the handover; none known, nothing is refreshed. The updater learns the
+  revision of a new version from its `self-check` report (`templateRevision`); a version
+  that does not state it refreshes nothing, never a guess. `folder-busy` and
+  `stale-revision` are retried (six attempts, a second apart), each after reading the
+  Folder again. A refresh that is blocked or fails never fails, reverts or delays the
+  update: the result carries the outcome as `folderRefresh {state: "refreshed" |
+  "unchanged" | "blocked" | "failed", reason?, path?}`, or `null` when none was needed,
+  and the exit status stays the product's. `reason` is only a product code, and `path`
+  only a path within the Folder: relative, without an empty, `.` or `..` segment or a
+  drive or UNC prefix, at most 512 characters, and with no control or invisible
+  formatting character, so nothing reaches a terminal as an escape. Anything else the
+  child printed is dropped. The text names the refusal and what to do
+  about it. The Launchpad's update of everything, when its check finds nothing newer,
+  runs the same refresh under the update lock (and leaves it to an update that holds
+  the lock). The Launchpad never shows a refresh, needed or blocked.
+  `lazurio update status` (`folderRefresh {folder, recorded, product}`) and `lazurio
+  doctor` (`folder-refresh`, `warn folder-refresh-needed`) keep reporting a Folder that
+  still needs one, for agents; reading only, no lock, no write.
 - **Exit status.** `0` success or up to date, `10` update available (`--check`),
   `2` usage, `1` failure or busy. `--json` carries one stable error code from a
   short list (`network-unavailable`, `release-invalid`, `attestation-invalid`,
