@@ -555,6 +555,11 @@ or the Launchpad's sign-in, chooses the persona's account in the device flow and
 keeps its two-factor authentication and recovery codes outside the Environment. The
 rendered Folder states this rule; the gate does not compare accounts
 ([workspace presets](workspace-presets.md#the-steward-preset-automated-environment)).
+Since [F27's addendum of 2026-10-30](decisions.md#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)
+the sign-in dialog's line says to confirm the code with the persona's account, and
+Začínáme's GitHub step counts gh signed in as the responsible user's own login as not
+done, with "Přepnout účet", which signs it out as "Odhlásit" does and opens the
+sign-in again. That soft check refuses nothing.
 
 #### gh on a Team Environment
 

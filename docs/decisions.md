@@ -500,6 +500,12 @@ content is preserved; unreadable children are reported. Never run installation
 implicitly on login, start or product upgrade. No account elevation, admission,
 MausBot permission or publication mandate is implied. The first-run tour is not
 changed by this content operation.
+*Amended 2026-10-30 ([F27's addendum](#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)): the Automated Environment now has the
+first run of a work Environment, Začínáme, the line, the tour and the content's start by
+itself included. Its content still comes from this one operation and its availability stays
+the core's; it starts by itself only in an open Launchpad view that saw the AI or GitHub
+arrive (root decision 0201), as on a work Environment, never on the Launchpad's own start or a
+product update.*
 
 Acceptance uses an Automated handover and a separate persona login with Write,
 real Git root/module clones including a tracked internal symlink, a second run
@@ -4456,7 +4462,10 @@ must say that GitHub is connected badly and must be connected again.
    GitHub arrives. `startDecision` and `openSignIn("gh")` open the SSH link where that is
    what is missing. On a Team or an Automated Environment, whose GitHub is the
    Organization's or the persona's and may work over HTTPS, nothing changes: only a known
-   missing GitHub holds their content back. The server's GitHub probe for the shell's
+   missing GitHub holds their content back. *Amended 2026-10-30 ([F27's
+   addendum](#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)): the Automated Environment, whose persona's account the curated
+   sign-in links over SSH as a person's, counts it as a work Environment does; only the
+   Team Environment keeps this rule.* The server's GitHub probe for the shell's
    `setup` reads the same status with the same kept proofs.
 5. **Nástroje.** gh's line takes the success colour only while the link works: "Připojeno
    jako octocat · SSH klíč nepropojený" draws the account in the neutral colour and the key
@@ -4600,7 +4609,8 @@ has no sign-in by code; a long-lived `claude setup-token` is not offered.
    nejdřív zapněte…"): wherever the step offers the choice, also after "Přihlásit jiný účet";
    never where the Organization provides the AI, while the AI is being read, on a Remote
    Environment without the Environment browser (the step keeps its line, as before) or on
-   an Environment without the step (Team, Automated, public). While its code waits the
+   an Environment without the step (Team, public; the Automated Environment has it since
+   [F27's addendum of 2026-10-30](#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)). While its code waits the
    step says "Otevřete stránku ChatGPT v kterémkoli prohlížeči, třeba v telefonu, a
    opište kód. Platí 15 minut." with the waiting mark and "Zrušit", and shows the code
    with "Kopírovat" and "Otevřít ChatGPT" (a new tab): the block of gh's code in its
@@ -5652,6 +5662,123 @@ explicitly by the operator, so nothing is switched silently.
 | Refresh switches to the newly derived preset by itself | A silent switch of provider identity, against F10's refresh rule; rejected for the explicit `--preset` |
 | Profile change reads the current handover | The Launchpad and profile commands would read the Linux handover and mix an infrastructure rewrite into an Operator's revision, as F10 rejected; rejected |
 | `folder-refresh --preset <derived>` (selected) | One explicit option on the existing refresh, same planner and transaction; takes only the derived preset |
+
+### Addendum 2026-10-30 (Matěj): the Automated Environment has the onboarding of a Work Environment
+
+**Decided by Matěj (Organization Admin) on 2026-10-30 (plan DEV-6665). It changes root
+decision 0188 point 3 for the Automated Environment through root decision 0188's
+addendum of 2026-10-30 in `HumanAndMachines/Lazurio` (pending; its link follows), and
+extends root decision 0201 to it.** In his words: „Jestli chceme mít nadefinovaný
+"automation environment" jako druh enviromentu, tak by to dle mého měl být jakoby
+standardní pracovní enviroment, akorát s tím, že se o něj nestará dedikovaný uživatel, ale
+je to jakoby nějakého uživatele sekundární enviroment. Ale mělo by platit, že i v tomto
+enviromentu je onboarding, kde se připojuje AI (pokud to není napojené na pool), přihlašuje
+se tam github, clonuje se organizace, aby měli agenti přístup na moduly pod daným github
+účtem, napojuje se composio atd. Prostě.. Vnímám to jako standardní záležitost.“
+
+The Automated Environment is a work Environment of the Organization that its responsible
+user sets up as one of their secondary Environments, and it has the onboarding of 0201 as
+a work Environment of one person has it. Until now the Platform kept it out of the first
+run together with the Team Environment (`signsInAsPerson`): its responsible user signed
+the persona's account in in Nastavení → Nástroje and installed the content in Nastavení →
+Toto Prostředí → Obsah Prostředí or with `lazurio organization install` (F9's amendment of
+2026-10-12).
+
+1. **One gate that names what it decides.** `hasOnboarding(preset)` in
+   `src/launchpad/first-run.ts` holds for `local`, `hosted-personal`,
+   `hosted-organization-personal` and now `hosted-organization-steward`: every preset whose
+   GitHub is signed in on the Environment itself. It decides Nastavení → Začínáme and its
+   count in the Settings navigation, the line in Apps, the shell document's `setup` and
+   with it the column's prompt, the tour, the content's start by itself, the content-before-AI
+   rule in the page and in `POST /api/content/install` (`ai-missing`), and who gets "Vyřešit v
+   Chatu" (`prepare-content`, audience `environment-operator`: the person behind the
+   Environment's admission, here its responsible user). `signsInAsPerson` is gone, since
+   none of its uses meant the person's own sign-in. Where that is the meaning, the preset's
+   provider identity says it (`githubIdentity(…) === "own-sign-in"`, as the doctor's
+   `ssh-not-linked` warning reads it), unchanged.
+2. **AI.** Done without any action where the Organization's AI pool serves the Environment
+   (`GET /api/ai` answers `organization`, as everywhere); otherwise the responsible user
+   connects ChatGPT or Claude in Začínáme as on a work Environment.
+3. **GitHub is the persona's own account** (0169 point 2, F27), never the responsible
+   user's own account and never Lazurio for GitHub. Začínáme's step says so while it is not
+   connected ("Nepřipojeno. Sem patří účet persony, ne váš." / "Not connected. The persona's
+   account belongs here, not yours."), and so do its tour stops ("Připojte GitHub persony" ·
+   "Agenti pracují pod jejím účtem."; "Připojte účet persony" · "Váš vlastní účet sem
+   nepatří."), the line in Apps ("Účet persony na GitHubu není připojený.") and gh's sign-in
+   dialog ("Zkopírujte kód a na GitHubu ho potvrďte účtem persony, ne svým."). The words follow
+   the preset's provider identity `persona-account` (`personaGithub`). Connected means what it
+   means on a work Environment: gh signed in and this Environment reaching GitHub over SSH as
+   that account (F19's addendum of 2026-10-19, #515); the curated sign-in links the key for the
+   persona's account as it does for a person's.
+4. **A soft check of the account.** Where gh is signed in as the login the binding names as
+   the responsible user (`owner.assignment` `{kind: "automation", githubLogin}`, compared
+   case-insensitively: `responsibleLogin`, `ownAccount`), the GitHub fact is `own-account`,
+   whatever SSH says. The step is not done and says "Je přihlášený váš vlastní účet @login. Sem
+   patří účet persony." / "Your own account @login is signed in. The persona's account belongs
+   here." with the warning mark, and offers "Přepnout účet" ("Switch account"). It signs that
+   account out exactly as gh's "Odhlásit" in Nástroje does (the Machine's SSH key removed from
+   it first) and opens gh's sign-in for the persona's. The line in Apps says it too and leads to
+   that step, as "Připojit AI" leads to the AI step; a start request in the address never
+   switches it, so no link signs anyone out. The server's GitHub probe for the shell's `setup`
+   keeps the account with its state, so the column's prompt counts the same. The check
+   decides that step's state and nothing else: whatever already follows the GitHub step
+   follows it (the count, the next basic, the tour, the prompt, and the content's turn in
+   Začínáme and Obsah Prostředí, since the content comes after GitHub), but no sign-in, tool,
+   CLI command or route refuses anything by it, and it grants nothing. It is soft: the
+   handover names the user, not the persona, so any other account passes, and a login renamed
+   after the handover was written is not caught.
+5. **Content.** The handover's Organization, installed through the same content core under
+   the persona's live GitHub role (F9's addendum of 2026-10-04 and amendment of 2026-10-12).
+   It starts by itself once this view saw the AI or GitHub arrive and both are there, as on a
+   work Environment: only an open Launchpad view starts it that way, never the Launchpad's
+   own start, a product update or a sign-in alone. While the AI is provably missing,
+   `POST /api/content/install` refuses with `ai-missing`, as for a work Environment;
+   `lazurio organization install` stays the explicit command without that rule.
+6. **The optional steps** after the basics, as on a work Environment: Composio where Nástroje
+   offer it, SSH from the responsible user's own computer (0169: only that user connects over
+   SSH, for service interventions) with ChatGPT Desktop over it, and "Trezor v Bitwardenu"
+   where the Environment's vault page gives its steps.
+
+**Unchanged.** The Team Environment (`hosted-organization-team`, the services Environment of
+root decision 0209 included) has no Začínáme, tour, line or `setup`, and its content stays its
+hosting's (0188 point 3 stays for it); a public Environment keeps its demo onboarding (F55).
+The persona's identity, the bot team and Lazurio MausBot are not touched. The generated Folder
+manual and templates say nothing about the Automated Environment's first run, so no template
+text changes and the template revision stays. The doctor's `ssh-not-linked` warning stays
+scoped to the person's own sign-in. gh's row in Nástroje, its sign-in and sign-out, the content
+core's scope and every access decision stay as they are; GitHub stays the authority.
+
+**Earlier statements this addendum changes.** For the Automated Environment: the
+[workspace presets](workspace-presets.md#the-steward-preset-automated-environment)' "Platform
+does not compare accounts" (the sign-in gate still does not; only Začínáme's step compares, to
+say so); F9's amendment of 2026-10-12 where it says the first-run tour is not changed by the
+content operation; the F36 addendum of 2026-10-15 and the F19 addenda of 2026-10-19 and
+2026-10-21 where they set the Automated Environment apart from the first run. Each now says
+so where it stands.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Stretch `signsInAsPerson` to the Steward preset | One name fewer, but it would say the persona is a person, the misreading 0169 and F9's amendment of 2026-10-12 reject; rejected for `hasOnboarding`, which names what the gate decides |
+| A reduced first run for the Automated Environment (no tour, GitHub only) | Less to show to one Owner or Admin, but a second first run to keep, against "standardní záležitost"; rejected: the same onboarding, with the persona's words where they differ |
+| Compare gh's account with the persona's login | Would prove the right account, but the handover names only the responsible user and the Platform keeps no roster (F27, F10's "never infer"); rejected for the soft check, which can only say "not your own" |
+| Refuse gh's sign-in, or the content install, while the responsible user's own account is signed in | Harder to get wrong, but a new gate on a person's sign-in and on the content core from a guess about whose account it is; rejected: the check decides only the step's state |
+| Offer the content while the responsible user's own account is signed in | The check would hold nothing back, but Začínáme would offer step 3 before step 2 and the Organization would be cloned with that user's own rights, restricted slots included, onto the persona's Environment; rejected: the content's turn follows the GitHub step there as everywhere, and only the page waits |
+| "Přepnout účet" signs the persona's account in beside the user's (`gh auth login` again) | One step fewer, but the user's own token stays on the persona's Environment as an inactive gh account; rejected for sign-out first, then the sign-in |
+| The line's button, or a start request in the address, switches the account | One click from Apps, but a link would sign someone out; rejected: only the step's own button switches, and the line leads there |
+| Keep `signsInAsPerson` beside `hasOnboarding` | A second preset list for a question no first-run use asks any more; where the person's own sign-in is meant (the doctor), the preset's provider identity already says it; rejected |
+
+**Verification.** Unit and route tests: `tests/first-run.test.ts`, `tests/start-view.test.ts`,
+`tests/tools-view.test.ts`, `tests/content-routes.test.ts` (the install route's `ai-missing`
+on the Steward preset, `prepared-by-hosting` on the Team one),
+`tests/server-services-environment.test.ts` and `tests/first-run-automated.test.ts` (behind a
+hosted Launchpad's admission: the shell's `setup` on the Steward preset and none on the Team
+one, `prepare-content` for the responsible user and the Team's 404, and the soft check with the
+fake gh and ssh and the system's `ssh-keygen`). In a browser (root decision 0178): headless
+Chrome against `scripts/preview-launchpad.ts hosted cs|en … automated gh-signed-out`, the whole
+path from the persona's wording through the responsible user's own account and "Přepnout účet"
+to "Připojeno jako @octocat" and "Prostředí je připravené.", in both languages; the Team and
+Work previews unchanged. Not yet seen on a real Automated Environment: that waits for a release
+and its rollout (0204).
 
 ## F28 — Towards people the place they work in is the Environment; a hosted one is a Remote Environment
 
@@ -8270,7 +8397,8 @@ the member, who could not fix the Organization's root, was still sent to Chat.
    same. A basic provided ahead is done without the person: an Organization's AI pool, which
    configures Codex with a provider that needs no OpenAI sign-in. A Team Environment's
    brokered GitHub is the Organization's, and that Environment has no Začínáme at all (0188
-   point 3, kept by the wireframe).
+   point 3, kept by the wireframe). *Since [F27's addendum of 2026-10-30](#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment) the
+   Automated Environment has the same basics, its GitHub the persona's own account.*
 2. **Whether AI works, the CLIs say** (0201 point 6). `GET /api/ai` answers
    `{ kind: "ai", state, providers }` from Codex's own app-server (`codex app-server` over
    stdio, `initialize` then `account/read` without refreshing a token: an account works,
@@ -8435,8 +8563,10 @@ What this changes, in both languages:
      rule of root decision 0198 as the one line). The rule, "Kdo má přístup do
      Prostředí, má všechna jeho hesla.", stays on Nastavení → Trezor (`vaultPageRule`).
    - **Prohlídka aplikace** loses "Krátce ukáže, co je kde."; a ready Environment says
-     "Prostředí je připravené." without "Sem se můžete kdykoli vrátit.", and a Team or
-     Automated Environment "Tady není co nastavovat." without who prepares it.
+     "Prostředí je připravené." without "Sem se můžete kdykoli vrátit.", and a Team
+     Environment "Tady není co nastavovat." without who prepares it (an Automated
+     Environment too until [F27's addendum of 2026-10-30](#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment) gave it the
+     onboarding).
      Composio's, SSH's and Codex Desktop's lines stay: their titles do not say what they
      are for.
 
@@ -18056,7 +18186,8 @@ loses the sentences it replaces in the same change, in both languages.
    wireframe's where it has the section):
    - **Začínáme** `settings-start`: the steps that prepare the Environment, the AI first,
      the modules after GitHub, the optional steps at any time. Only where it has the
-     basics (`firstRun`'s person presets, `PageGuideFacts.start`): a public
+     basics (the presets with the onboarding, `hasOnboarding`, the Automated one
+     included since F27's addendum of 2026-10-30; `PageGuideFacts.start`): a public
      Environment's demo (F55) and an Environment with nothing to set up have no "?",
      since nothing on them explains. Removed: GitHub's line while it is not connected
      ("Zpřístupní vaše repozitáře a moduly.", now the state "Nepřipojeno"). Kept: every
