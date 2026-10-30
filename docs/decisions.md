@@ -21266,6 +21266,28 @@ and was removed: a value that is no layer's digest never equals one.
 - Children are told apart by Hermes's `_delegate_from` marker. A subagent's run from before
   Hermes wrote it, ended in a way that counts, is cleared once, which is harmless.
 
+### F64 follow-up of 2026-10-30: the person's name only now and then (#703)
+
+Buddy opened almost every reply with the person's name in the vocative, clarifying questions
+included. The person: once in a while is fine, at the start of every sentence it is annoying.
+Every derived SOUL.md said "Oslovuješ uživatele jménem." / "You call the user by name.", with
+nothing about how often, and the model read it as an instruction for every message.
+
+Under the Organization Admin's mandate of 2026-10-29 for the Buddy diagnostics fixes, the
+sentence now reads, in all four variants (cs and en, ty and vy): „Uživatele oslovuješ jménem jen
+občas, třeba na začátku rozhovoru nebo když na tom záleží; nezačínáš jím každou odpověď ani
+otázku.“ / "You call the user by name only now and then, for example at the start of a
+conversation or when it matters; you do not start every reply or question with it."
+
+- **One source of the bytes, as F64 holds.** The interim installer 2026-10-30.5 renders the same
+  sentence, and on Platform 0.1.14 and later it no longer renders SOUL.md at all: it writes only
+  `persona.json` and calls `lazurio buddy persona --apply`. The goldens are regenerated from it,
+  and every other byte of every render, check, build and quoting case is unchanged.
+- **How it reaches a running Buddy.** F64's apply writes SOUL.md whenever it runs. The release
+  that carries this also changes Buddy's Lazurio layer (`base-instructions-90`, #724), which owes
+  a refresh, so the Launchpad applies it once he is idle. A change of the renderer alone would
+  owe none: SOUL.md would stay as it is until his next apply (#729).
+
 ## F65 — Buddy in Začínáme and Nastavení → Buddy: his step first, his persona changed in place, the agents' AI not locked behind him
 
 **Proposed for plan DEV-6676 in the Buddy lead's shaping of 2026-10-25 (its §3.2, §3.4 to
