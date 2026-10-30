@@ -1,3 +1,4 @@
+import type { FolderRefresh } from "../folder/refresh-needed";
 import { type UpdateError, UpdateFailure, updateError } from "../update/errors";
 import type { ProductItem } from "../update/everything";
 import { isProductVersion } from "../update/identity";
@@ -6,7 +7,6 @@ import {
   type CheckResult,
   checkForUpdate,
   readStatus,
-  refreshCurrentFolder,
   type UpdateEnvironment,
   type UpdateStatus,
 } from "../update/update";
@@ -16,8 +16,6 @@ import { compareVersions } from "../update/version";
  * the one check use case, and a state derived when asked from what is on disk,
  * what the poller last learned and the activation in flight. Nothing here
  * downloads or activates: the action starts `lazurio update` and follows it.
- * The Folder's refresh is part of that update and never shown here (decision
- * F17's addendum of 2026-10-30): a person never reads that one is needed.
  */
 export const pillStates = [
   "idle",
@@ -35,9 +33,6 @@ export type PillStatus = Readonly<{
   running: string;
   active: string | null;
   latest: string | null;
-  /** The version the update in flight downloads, while it does and when
-   * known; otherwise null. */
-  target: string | null;
   notesUrl: string | null;
   /** Time of the last verified check; null when none is known. */
   checkedAt: string | null;
@@ -51,6 +46,9 @@ export type PillStatus = Readonly<{
   action: PillAction | null;
   error: UpdateError | null;
   stateInvalid: string | null;
+  /** This Launchpad's Folder renders an older template revision than the
+   * running product: said with the exact command, never done here. */
+  folderRefresh: FolderRefresh | null;
 }>;
 
 export const staleAfterMs = 24 * 60 * 60_000;
@@ -81,21 +79,12 @@ export function derivePillStatus(input: PillInput): PillStatus {
     (floor === null || compareVersions(lastCheck.latest, floor) >= 0);
   // The selector names a version this Launchpad is not: the switch is done.
   const switched = active !== null && active !== running;
-  // A run in flight downloads only while the version it fetches is newer
-  // than this Launchpad. After the restart this Launchpad IS that version,
-  // and the run only finishes what follows the switch (the Folder's refresh,
-  // the units): nothing a person waits for, so nothing is shown, even when a
-  // newer release became known meanwhile (Pablo's review of #731). A run
-  // whose version is unknown downloads while a newer release is known.
-  const fetching =
-    activation.inFlight &&
-    (activation.target === undefined
-      ? available
-      : compareVersions(activation.target, running) > 0);
-  const state: PillState = switched
-    ? "activating"
-    : fetching
-      ? "downloading"
+  const state: PillState = activation.inFlight
+    ? switched
+      ? "activating"
+      : "downloading"
+    : switched
+      ? "activating"
       : input.checking
         ? "checking"
         : available
@@ -106,9 +95,8 @@ export function derivePillStatus(input: PillInput): PillStatus {
   // the updater ended before the restart: the switch is final, and a restart
   // of this Launchpad is what finishes it. Nothing goes back.
   const restartRequired = state === "activating" && !activation.inFlight;
-  // Nothing to start while a run is still in flight: it would answer busy.
   const action: PillAction | null =
-    state === "available" && lastCheck !== null && !activation.inFlight
+    state === "available" && lastCheck !== null
       ? error === null
         ? "update"
         : error.code === "reinstall-required"
@@ -127,7 +115,6 @@ export function derivePillStatus(input: PillInput): PillStatus {
     running,
     active,
     latest: lastCheck?.latest ?? null,
-    target: state === "downloading" ? (activation.target ?? null) : null,
     notesUrl: lastCheck?.notesUrl ?? null,
     checkedAt: lastCheck?.checkedAt ?? null,
     stale: age !== null && age > (input.staleAfterMs ?? staleAfterMs),
@@ -136,6 +123,7 @@ export function derivePillStatus(input: PillInput): PillStatus {
     action,
     error,
     stateInvalid: status.stateInvalid,
+    folderRefresh: status.folderRefresh,
   });
 }
 
@@ -249,9 +237,7 @@ export type UpdatePill = Readonly<{
   /** The product part of one `lazurio update` from the Launchpad (root
    * decision 0212 point 3): a check now, and when it verifies a newer
    * release, the pill's own action for it, which starts `lazurio update`
-   * in the unit that outlives the restart it causes (and that refreshes the
-   * Folder after the switch); when it finds nothing newer, the Folder's
-   * refresh `lazurio update` would perform then. */
+   * in the unit that outlives the restart it causes. */
   updateNow(): Promise<ProductItem>;
 }>;
 
@@ -314,17 +300,12 @@ export function createUpdatePill(input: {
         Object.freeze({ part: "product", result: "failed", code });
       const checked = await poller.checkNow();
       if (checked.kind === "error") return failed(checked.code);
-      if (checked.kind === "up-to-date") {
-        // As `lazurio update` that finds nothing newer: a Folder an older
-        // template revision rendered is refreshed, and its outcome stays
-        // with agents (`lazurio update status`, `lazurio doctor`).
-        await refreshCurrentFolder(environment);
+      if (checked.kind === "up-to-date")
         return Object.freeze({
           part: "product",
           result: "current",
           version: checked.running,
         });
-      }
       let applied = await apply(checked.latest);
       // A check that another one overtook names the newer release: once.
       if (applied.kind === "stale" && applied.latest !== null)

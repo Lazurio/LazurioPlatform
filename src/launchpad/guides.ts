@@ -231,8 +231,8 @@ export const vaultAgentsGuide = (
   ],
 });
 
-/** Settings → Začínáme where it has the basics (the presets with the
- * onboarding, not a public Environment): the steps that prepare the
+/** Settings → Začínáme where it has the basics (`firstRun`'s person
+ * presets, not a public Environment): the steps that prepare the
  * Environment, the AI first, GitHub, the optional ones. With Buddy
  * (decision F65) his step first and the agents' own AI after it, in at
  * most four stops: the steps, Buddy, the AI, GitHub. */
@@ -488,10 +488,9 @@ export type PageGuideFacts = Readonly<{
   composio: boolean | null;
   vault: VaultGuideFacts;
   /** What Settings → Začínáme shows here: the basics (`basics`, where the
-   * Environment has the onboarding, the Automated one included), the public
-   * demo (`demo`, F55), or nothing to set up (`none`, a Team Environment);
-   * null until the profile is read. Only the basics have something to
-   * explain. */
+   * Environment signs in as its person), the public demo (`demo`, F55), or
+   * nothing to set up (`none`, a Team or Automated Environment); null until
+   * the profile is read. Only the basics have something to explain. */
   start: "basics" | "demo" | "none" | null;
   /** What Settings → Nástroje can point at, as its panel last drew it
    * (`toolGuideTargets`); null until the tools are read: its "?" waits. */

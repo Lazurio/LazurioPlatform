@@ -276,9 +276,7 @@ export type ContentView = Readonly<{
 
 /** "Obsah Prostředí": a row per item and the one action. `github` says
  * whether GitHub is connected here (`unknown` does not block; connected
- * badly, `incomplete`, blocks as missing does, #515, and so does the
- * responsible user's own account where the persona's belongs,
- * `own-account`); `blockedBy`,
+ * badly, `incomplete`, blocks as missing does, #515); `blockedBy`,
  * where given, what must come first (`contentBlockedBy` in first-run.ts, root
  * decision 0201 point 3), and replaces `github`: the action, a download or
  * "Zkusit znovu", is not offered before its turn, only a sentence why;
@@ -364,9 +362,7 @@ export function contentView(
   const block =
     options.blockedBy !== undefined
       ? options.blockedBy
-      : options.github === "missing" ||
-          options.github === "incomplete" ||
-          options.github === "own-account"
+      : options.github === "missing" || options.github === "incomplete"
         ? "github"
         : null;
   const notYet =

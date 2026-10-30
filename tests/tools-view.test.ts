@@ -18,7 +18,6 @@ import {
   createLoginPoll,
   curatedActions,
   currentNotes,
-  ghCodeText,
   gitIdentityNote,
   installOutcome,
   type LoginView,
@@ -1171,24 +1170,6 @@ test("in a Team Environment Nástroje names the Team's Composio account, elsewhe
   expect(composioSignInText(en, false)).toBe(
     "Sign in to Composio in your browser.",
   );
-});
-
-test("gh's code on the Automated Environment is confirmed with the persona's account (F27's addendum of 2026-10-30)", () => {
-  const cs = messages("cs");
-  const en = messages("en");
-  expect(ghCodeText(cs, "login", true)).toBe(
-    "Zkopírujte kód a na GitHubu ho potvrďte účtem persony, ne svým.",
-  );
-  expect(ghCodeText(en, "install", true)).toBe(
-    "Copy the code and confirm it on GitHub with the persona's account, not your own.",
-  );
-  for (const mode of ["install", "login"] as const) {
-    expect(ghCodeText(cs, mode, false)).toBe(cs.toolsLoginGhText);
-    expect(ghCodeText(en, mode, false)).toBe(en.toolsLoginGhText);
-  }
-  // The scope refresh of "Link SSH key" keeps its own line.
-  for (const persona of [true, false])
-    expect(ghCodeText(cs, "ssh", persona)).toBe(cs.toolsLoginRefreshText);
 });
 
 test("Composio's dialog reads again calmly while the person works in Composio, and stops once connected, closed or hidden", () => {

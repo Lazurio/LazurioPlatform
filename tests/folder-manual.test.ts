@@ -228,10 +228,8 @@ test("no generated output mentions a rollback command or a way back to an earlie
 // F17 addendum 2026-09-28). Since the addendum of 2026-10-02 the agent runs the
 // update itself, in the background at the start of every piece of work, on
 // every preset. No generated text may still forbid the update, wait for the
-// Operator to ask for it or hand the version to the pin. Since the addendum of
-// 2026-10-30 the update refreshes the Folder itself: every text says so, none
-// still has the agent run the refresh after an update, and every text names
-// the refresh to run once a blocked one is resolved.
+// Operator to ask for it or hand the version to the pin, and every text names
+// the refresh that follows.
 test("no generated output forbids lazurio update or gives the product version to the pin", () => {
   const forbidding = [
     /(do not|don't|never) run `lazurio (update|install)/i,
@@ -265,36 +263,12 @@ test("no generated output forbids lazurio update or gives the product version to
           ]);
       const hosted = journey.machine !== null;
       const troubleshooting = outputs["manual/troubleshooting.md"];
-      // The update refreshes the Folder itself, on every preset.
-      expect(troubleshooting).toMatch(
-        locale === "cs"
-          ? /`lazurio update[^`]*` po aktualizaci sám obnoví generované soubory/
-          : /After an update, `lazurio update[^`]*` itself refreshes/,
-      );
-      expect(troubleshooting).toContain(
-        locale === "cs"
-          ? "uživatele o obnovu nežádáš"
-          : "never ask the user to refresh anything",
-      );
-      // A blocked refresh: named for the agent, resolved with the user's
-      // consent, then the refresh with its real command.
-      expect(troubleshooting).toContain("`folderRefresh`");
+      // The refresh after an update is named with its real command.
       expect(troubleshooting).toContain(
         hosted
           ? "`lazurio machine folder-refresh`"
-          : "`lazurio update --folder <Folder>`",
+          : "`lazurio profile-update`",
       );
-      for (const path of outputPaths)
-        for (const stale of [
-          /Folder refresh needed/,
-          /run it as part of the same update/,
-          /spusť ho jako součást téže aktualizace/,
-        ])
-          expect([path, locale, stale.test(outputs[path])]).toEqual([
-            path,
-            locale,
-            false,
-          ]);
     }
 });
 

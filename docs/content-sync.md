@@ -306,11 +306,8 @@ signed-in persona account (F9 amendment of 2026-10-12). Its preset describes the
 working arrangement and responsible user; it does not require a hosting archive,
 prove a Steward role, or grant repository access. Its repositories are ordinary
 Git clones, including tracked internal symlinks. CLI and Settings → This Environment
-use this same core; the content response owns UI availability. Since [F27's addendum
-of 2026-10-30](decisions.md#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)
-Začínáme offers and starts it there too, as on a work Environment: after the AI and
-the persona's GitHub, by itself in an open Launchpad view that saw one of them arrive,
-and the install route refuses `ai-missing` while the AI is provably missing.
+use this same core; the content response owns UI availability. The first-run tour
+for a user's own account is separate and is unchanged.
 
 A request for an item the kind never holds is refused as a whole
 (`not-for-this-environment`). The identity is gh's sign-in on this Environment, found

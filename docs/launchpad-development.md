@@ -211,12 +211,9 @@ information page is reached only from its tile's menu.
   [below](#vault-apps--trezor); only where the Environment has a vault), Oblíbené (the
   favourites, pinned) and, at its bottom, the Marketplace. There is no module list (its
   rows led to technical details and confused users) and no search.
-- **Marketplace.** The entry is in the Apps column of every Environment. It opens the
-  curated pilot catalog, Šablony aplikací with the one offer Presentations, its
-  detail and the dialog "Přidat do Organizace", which hands a brief to the agent and
-  installs nothing itself (`marketplace.ts`, `marketplace-panel.ts`; [the curated
-  pilot](marketplace.md#the-curated-pilot-in-the-launchpad-plan-dev-6593)). The rest of
-  the [marketplace](marketplace.md) remains future direction.
+- **Marketplace.** The entry is in the Apps column of every Environment. For now it
+  says "již brzy" (coming soon) and opens a placeholder page; it is not the
+  [future marketplace](marketplace.md).
 - **Favourites.** Set from a module's "⋯" menu ("Přidat do oblíbených" / "Odebrat z
   oblíbených"). They are pinned in the column, where a favourite opens its app
   directly. On the home a starred module comes first in its section, in the column's
@@ -1188,7 +1185,7 @@ the frame.
 | JSON of the last answer (`#result`) | Settings → General, behind "Technical details" |
 | This Environment (read-only handover) | Settings → This Environment (Czech "Tento Environment"): "Obsah Environmentu", then the kind, whom it belongs to and who works in it in a person's words, the recorded technical facts folded under "Pro podporu" (root decision 0188) |
 | Tools (groups, cards, dialogs, MCP card) | Settings → Tools; Refresh status is its page action in the header |
-| Product update pill | Sidebar footer above Settings/Back, visible from every route, and only while an update is available or under way (Matěj 2026-09-28, as in T3 Code). The update refreshes the Folder itself and nothing about a refresh is shown (F17 addendum 2026-10-30; the read-only "Folder refresh needed" line with its command is removed) |
+| Product update pill, with the read-only "Folder refresh needed" line (F17 addendum) | Sidebar footer above Settings/Back, visible from every route, and only while an update is available or under way (Matěj 2026-09-28, as in T3 Code); the Folder refresh line is independent of the pill, a subdued notice right above it with the command in selectable monospace |
 | Application (development lifecycle) | Launchpad home `/`, not a setting; since P4 replaced there by the catalog; since P5 the module page carries the lifecycle ([below](#module-lifecycle)), the development API stays |
 
 **Patterns adopted from T3 Code** (source: `pingdotgg/t3code` at `d15210cd3d`,
@@ -3131,12 +3128,10 @@ ended the tour for good, and the Organization's download ran before any AI could
 after the wireframe of HumanAndMachine-ai/prototypes-lazurio 1eefc3d (`setup.tsx`,
 `screens/Start.tsx`, `screens/Tour.tsx`, PRs #48 and #49) and [F36's addendum of
 2026-10-15](decisions.md#f36-addendum-of-2026-10-15-začínáme-the-basics-from-live-facts-ai-first-root-decision-0201).
-Only where the Environment has the onboarding (`hasOnboarding`): the presets
-`hosted-personal`, `hosted-organization-personal` and `local`, which sign in to GitHub as
-their user, and since [F27's addendum of 2026-10-30](decisions.md#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)
-`hosted-organization-steward`, the Automated Environment, whose GitHub is its persona's own
-account, signed in by its responsible user. A Team Environment acts through the
-Organization's app, its basics are the Organization's, and it gets none of it.
+Only where the Environment signs in to GitHub as its user: the presets
+`hosted-personal`, `hosted-organization-personal` and `local`. A Team or an Automated
+Environment acts through the Organization's app or its persona, its basics are the
+Organization's, and it gets none of it.
 
 - **The basics** (0201 point 1): an AI an agent can work with, GitHub signed in as the
   user, and the content (the Organization, on the personal Environment the
@@ -3156,9 +3151,7 @@ Organization's app, its basics are the Organization's, and it gets none of it.
     unknown, unprobed, stale or Team reading says nothing; gh not installed is missing;
     connected only when gh is signed in and this Environment reaches GitHub over SSH as
     that account, `incomplete` when it does not, which counts as missing, F19's addendum
-    of 2026-10-19; on the Automated Environment gh signed in as the responsible user's own
-    login, the one its handover's `automation` assignment names, letter case ignored, is
-    `own-account`, which counts as missing too, whatever SSH says);
+    of 2026-10-19);
   - the content from the content routes (`content-client.ts`, `content-view.ts`).
 - **Nastavení → Začínáme** (`/settings/start`, first in the Settings column with the
   count "1/3" while a basic is missing; `start-view.ts`, `start-panel.ts`): "Hotovo
@@ -3196,13 +3189,7 @@ Organization's app, its basics are the Organization's, and it gets none of it.
      working): "Připojení nefunguje." with the warning mark and "Připojit znovu", which
      opens "Link SSH key" under the title "Připojit GitHub". A sign-in the page runs, its
      window closed or open: "Čeká na vaše potvrzení." or "Dokončuje se připojení…" with
-     the waiting mark and "Otevřít", which shows it again (F19's addendum of 2026-10-19).
-     On the Automated Environment the step names the persona's account: "Nepřipojeno. Sem
-     patří účet persony, ne váš."; with the responsible user's own account signed in, "Je
-     přihlášený váš vlastní účet @login. Sem patří účet persony." with the warning mark
-     and "Přepnout účet", which signs that account out as gh's "Odhlásit" in Nástroje does
-     and opens gh's sign-in, whose dialog says to confirm the code with the persona's
-     account (F27's addendum of 2026-10-30);
+     the waiting mark and "Otevřít", which shows it again (F19's addendum of 2026-10-19);
   3. **Stáhnout <Organizace>** / **Připravit osobní prostor** / both: the content's own
      rows inside the step (the same `content-panel.ts` as Toto Prostředí draws).
      Once this view saw GitHub or the AI arrive (from missing to there; what was there
@@ -3227,14 +3214,11 @@ Organization's app, its basics are the Organization's, and it gets none of it.
   and Codex Desktop, both leading to Settings → SSH; between them "Trezor v Bitwardenu"
   where Apps → Trezor gives the steps for Bitwarden, its "Návod" opening them) and
   "Prohlídka aplikace" ("Spustit
-  prohlídku" / "Spustit znovu" starts the introduction in Apps). A Team Environment's
-  Začínáme says only "Tady není co nastavovat.".
+  prohlídku" / "Spustit znovu" starts the introduction in Apps). A Team or Automated
+  Environment's Začínáme says only "Tady není co nastavovat.".
 - **The line in Apps** (`appsSetupLine`): until the basics exist, one line under the
   head, the next missing basic first: "AI není připojené." · "Připojit AI";
-  "GitHub není připojený." · "Připojit GitHub" (on the Automated Environment "Účet persony
-  na GitHubu není připojený." · "Připojit GitHub", and with the responsible user's own
-  account "Na GitHubu je přihlášený váš vlastní účet, sem patří účet persony." · "Přepnout
-  účet", which leads to the step); "<Organizace> tu ještě není." ·
+  "GitHub není připojený." · "Připojit GitHub"; "<Organizace> tu ještě není." ·
   "Stáhnout"; "Osobní prostor tu ještě není." · "Připravit"; while it runs "Stahuje se
   <Organizace>." · "Zobrazit"; "Příprava se zastavila." · "Vyřešit v Chatu" or "Připojit
   AI", "Zkusit znovu"; for an Organization not prepared for this version, to a member who
@@ -3249,9 +3233,7 @@ Organization's app, its basics are the Organization's, and it gets none of it.
   facts.
 - **Start requests.** A button of the line is a link to `/settings/start` with the
   action in the fragment, decided by `startDecision`: `#lazurio-start=sign-in-gh` opens
-  gh's sign-in once Nástroje have read gh and AI is there (never over the responsible
-  user's own account on the Automated Environment: only the step's "Přepnout účet" signs
-  it out), `#lazurio-start=install-content`
+  gh's sign-in once Nástroje have read gh and AI is there, `#lazurio-start=install-content`
   starts the installation once the content is read, something is missing and its turn has
   come; without AI either shows the AI step and starts nothing. A link of an older shell to
   Nástroje or Toto Prostředí lands on Začínáme too. `readFragment` takes the fragment

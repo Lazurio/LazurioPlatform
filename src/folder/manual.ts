@@ -980,8 +980,8 @@ const glossary: readonly Text[] = [
     "| Profile | The communication axes of the generated instructions (`locale`, `detail`, `coordination`) plus the fixed axes the preset pins. |",
   ),
   t(
-    "| Revize šablon (template revision) | Verze generovaného textu, kterou nese každý generovaný soubor; novější release produktu Folder převykreslí sám při `lazurio update`, nebo při refreshi či změně profilu. |",
-    "| Template revision | The version of the generated text every generated file carries; a newer product release re-renders the Folder by itself during `lazurio update`, or on a refresh or profile change. |",
+    "| Revize šablon (template revision) | Verze generovaného textu, kterou nese každý generovaný soubor; novější release produktu Folder při dalším refreshi nebo změně profilu převykreslí. |",
+    "| Template revision | The version of the generated text every generated file carries; a newer product release re-renders the Folder on the next refresh or profile change. |",
   ),
   t(
     "| Pull request (PR) | Navržená změna kódu na GitHubu, tvoje práce na kódu. Rozpracovaný může být ve stavu GitHub Draft PR; jeho merge je Publikace. |",
@@ -1171,9 +1171,8 @@ const codexAppServer: readonly Text[] = [
 // updater `lazurio update`, on a workstation and on a hosted Machine alike
 // (decision F17 addendum 2026-09-28). On a hosted Machine the Machines pin is
 // only a minimum a rollout installs or raises to. An agent updates at the start
-// of every piece of work (F17 addendum 2026-10-02); the update refreshes the
-// Folder itself, and the agent resolves a blocked refresh with the user's
-// consent (F17 addendum 2026-10-30).
+// of every piece of work and runs the Folder refresh that follows (F17
+// addendum 2026-10-02).
 function productUpdate(preset: PresetName): readonly Text[] {
   const team = preset === "hosted-organization-team";
   if (preset !== "local")
@@ -1210,8 +1209,8 @@ function productUpdate(preset: PresetName): readonly Text[] {
       ),
       doctor,
       t(
-        "- `lazurio update` po aktualizaci sám obnoví generované soubory Folderu (`AGENTS.md`, `manual/`, skilly), když je vykreslila starší verze, a obnoví je i tehdy, když je Lazurio už aktuální. Nic dalšího kvůli tomu nespouštíš a uživatele o obnovu nežádáš. Zablokovaná obnova aktualizaci nezruší: odpověď ji pojmenuje (`folderRefresh` v `--json`, třeba `blocked` s `drift` a cestou souboru) a `lazurio update status` i `lazurio doctor` ji dál hlásí jako potřebnou. Upravený generovaný soubor se nikdy nepřepíše: se souhlasem uživatele přesuň jeho úpravu tam, kam patří (pravidlo o „Zapamatuj si“ v `AGENTS.md`), a pak spusť `lazurio machine folder-refresh`. Při `folder-busy` nic nedělej, další aktualizace obnovu zopakuje.",
-        "- After an update, `lazurio update` itself refreshes the Folder's generated files (`AGENTS.md`, `manual/`, the skills) when an older version rendered them, and also when Lazurio is already current. You run nothing else for it and never ask the user to refresh anything. A blocked refresh does not undo the update: its answer names it (`folderRefresh` in `--json`, for example `blocked` with `drift` and the file's path), and `lazurio update status` and `lazurio doctor` keep reporting it as needed. An edited generated file is never overwritten: with the user's consent move their change to where it belongs (the rule on “remember this” in `AGENTS.md`), then run `lazurio machine folder-refresh`. On `folder-busy` do nothing; the next update refreshes it.",
+        "- Po aktualizaci můžou být generované soubory Folderu (`AGENTS.md`, `manual/`, skilly) starší než produkt. `lazurio update` i `lazurio update status` pak hlásí „Folder refresh needed“. Obnoví je `lazurio machine folder-refresh`, spusť ho jako součást téže aktualizace. Upravený generovaný soubor obnovu zablokuje s `drift` a cestou souboru; nic se nepřepíše.",
+        "- After an update the Folder's generated files (`AGENTS.md`, `manual/`, the skills) can be older than the product. `lazurio update` and `lazurio update status` then say \"Folder refresh needed\". `lazurio machine folder-refresh` refreshes them; run it as part of the same update. An edited generated file blocks the refresh with `drift` and the file's path; nothing is overwritten.",
       ),
       t(
         "- Cesta zpět neexistuje: Lazurio se nikdy nevrací na dřívější verzi. Nová verze se před přepnutím sama ověří; když neprojde, odstraní se a nic se nezmění. Oprava jde jen dopředu, novějším releasem; nikdy nekopíruj starší binárku a verzi nesnižuj.",
@@ -1250,8 +1249,8 @@ function productUpdate(preset: PresetName): readonly Text[] {
     ),
     doctor,
     t(
-      "- `lazurio update --folder <Folder>` po aktualizaci sám obnoví generované soubory toho Folderu, když je vykreslila starší verze, a obnoví je i tehdy, když je Lazurio už aktuální. Nic dalšího kvůli tomu nespouštíš a uživatele o obnovu nežádáš. Zablokovaná obnova aktualizaci nezruší: odpověď ji pojmenuje (`folderRefresh` v `--json`, třeba `blocked` s `drift` a cestou souboru) a `lazurio update status --folder <Folder>` i `lazurio doctor` ji dál hlásí jako potřebnou. Upravený generovaný soubor se nikdy nepřepíše: se souhlasem uživatele přesuň jeho úpravu tam, kam patří (pravidlo o „Zapamatuj si“ v `AGENTS.md`), a pak spusť znovu `lazurio update --folder <Folder>`.",
-      "- After an update, `lazurio update --folder <Folder>` itself refreshes that Folder's generated files when an older version rendered them, and also when Lazurio is already current. You run nothing else for it and never ask the user to refresh anything. A blocked refresh does not undo the update: its answer names it (`folderRefresh` in `--json`, for example `blocked` with `drift` and the file's path), and `lazurio update status --folder <Folder>` and `lazurio doctor` keep reporting it as needed. An edited generated file is never overwritten: with the user's consent move their change to where it belongs (the rule on “remember this” in `AGENTS.md`), then run `lazurio update --folder <Folder>` again.",
+      "- Po aktualizaci můžou být generované soubory Folderu starší než produkt. `lazurio update --folder <Folder>`, `lazurio update status --folder <Folder>` i pill v Launchpadu pak hlásí „Folder refresh needed“ s přesným příkazem: znovu použij nezměněný profil (v profilovém panelu Launchpadu náhled a použití, nebo nahlášený `lazurio profile-update`). Upravený generovaný soubor obnovu zablokuje s `drift`; nic se nepřepíše.",
+      '- After an update the Folder\'s generated files can be older than the product. `lazurio update --folder <Folder>`, `lazurio update status --folder <Folder>` and the Launchpad pill then say "Folder refresh needed" with the exact command: apply the unchanged profile again (preview and apply in the Launchpad profile panel, or the reported `lazurio profile-update`). An edited generated file blocks the refresh with `drift`; nothing is overwritten.',
     ),
     t(
       "- Cesta zpět neexistuje: Lazurio se nikdy nevrací na dřívější verzi. Nová verze před přepnutím projde self-checkem a nanečisto spustí svůj Launchpad na soukromém socketu, bez zápisu; když neprojde, odstraní se a nic se nezmění. Přepnutím je aktualizace hotová. Když se Launchpad potom nerozběhne zdravě, `lazurio update` skončí `activation-unhealthy`: nová verze zůstává aktivní a Launchpad ukazuje Recovery mode s důvodem, nebo neběží.",
@@ -1747,8 +1746,8 @@ function troubleshooting(preset: PresetName): readonly Text[] {
     blank,
     t("## Generované soubory", "## Generated files"),
     t(
-      "`AGENTS.md` a každý soubor v `manual/` jsou generované a `.lazurio/instructions.json` zaznamenává jejich digesty a revizi šablon. Ručně upravený nebo smazaný soubor se nikdy nepřepíše: změna skončí `drift` s cestou souboru. Novější release produktu převykreslí všechny generované soubory sám při `lazurio update`, a také při `folder-refresh` nebo změně profilu, pokud každý soubor pořád odpovídá svému zaznamenanému digestu; jediný upravený soubor zablokuje celý upgrade a nic se nezapíše. Produkt zatím nemá příkaz na obnovu; vlastní poznámky drž mimo generované soubory (plánuje se oblast `notes/` pro uživatele) a opravený manuál ber jako změnu produktu přes pull request.",
-      "`AGENTS.md` and every file in `manual/` are generated, and `.lazurio/instructions.json` records their digests and the template revision. A hand-edited or removed file is never overwritten: the change path refuses with `drift` and the file's path. A newer product release re-renders every generated file by itself during `lazurio update`, and also on a `folder-refresh` or profile change, provided every file still matches its recorded digest; a single edited file blocks the whole upgrade and nothing is written. The product has no restore command yet; keep your own notes outside the generated files (a `notes/` area for the user is planned) and treat a corrected manual as a product change through a pull request.",
+      "`AGENTS.md` a každý soubor v `manual/` jsou generované a `.lazurio/instructions.json` zaznamenává jejich digesty a revizi šablon. Ručně upravený nebo smazaný soubor se nikdy nepřepíše: změna skončí `drift` s cestou souboru. Novější release produktu převykreslí všechny generované soubory při dalším `folder-refresh` nebo změně profilu, pokud každý soubor pořád odpovídá svému zaznamenanému digestu; jediný upravený soubor zablokuje celý upgrade a nic se nezapíše. Produkt zatím nemá příkaz na obnovu; vlastní poznámky drž mimo generované soubory (plánuje se oblast `notes/` pro uživatele) a opravený manuál ber jako změnu produktu přes pull request.",
+      "`AGENTS.md` and every file in `manual/` are generated, and `.lazurio/instructions.json` records their digests and the template revision. A hand-edited or removed file is never overwritten: the change path refuses with `drift` and the file's path. A newer product release re-renders every generated file on the next `folder-refresh` or profile change, provided every file still matches its recorded digest; a single edited file blocks the whole upgrade and nothing is written. The product has no restore command yet; keep your own notes outside the generated files (a `notes/` area for the user is planned) and treat a corrected manual as a product change through a pull request.",
     ),
     blank,
     // Why a chat without network is not a broken application (decision F14

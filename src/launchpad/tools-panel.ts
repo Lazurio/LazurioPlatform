@@ -23,7 +23,6 @@ import {
   createLoginPoll,
   curatedActions,
   currentNotes,
-  ghCodeText,
   gitIdentityNote,
   installOutcome,
   type LoginFlowState,
@@ -110,10 +109,6 @@ export function createToolsPanel(
      * to finishing, or ended (`running`), its window open or closed (#516):
      * Začínáme says it. */
     signInsChanged?: () => void;
-    /** Whether this Environment's GitHub is its persona's (the Automated
-     * Environment): gh's code is confirmed with the persona's account
-     * (`ghCodeText`). */
-    persona?: () => boolean;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -737,7 +732,9 @@ export function createToolsPanel(
         element(
           "p",
           "",
-          ghCodeText(copy, current.mode, options.persona?.() === true),
+          current.mode === "ssh"
+            ? copy.toolsLoginRefreshText
+            : copy.toolsLoginGhText,
         ),
         ...deviceCodeBlock({
           code: challenge.code,
@@ -2196,24 +2193,6 @@ export function createToolsPanel(
     return true;
   }
 
-  /** "Přepnout účet" of Začínáme's GitHub step (decision F27's addendum of
-   * 2026-10-30): the account signed in now is signed out exactly as the
-   * row's "Odhlásit" does (for gh with the Machine's SSH key removed from it
-   * first), then the tool's sign-in opens for another one. True when it
-   * opened; false when the account is still signed in after the sign-out
-   * (the row's notice says why) or nothing could open. */
-  async function switchAccount(name: string): Promise<boolean> {
-    if (loginDialog.open || busy || overview === null) return false;
-    const tool = overview.tools.find((entry) => entry.name === name);
-    if (tool === undefined) return false;
-    if (tool.signIn?.state === "signed-in") {
-      await logout(tool);
-      const after = overview?.tools.find((entry) => entry.name === name);
-      if (after?.signIn?.state === "signed-in") return false;
-    }
-    return openSignIn(name);
-  }
-
   /** A tool connected from elsewhere (Integrace's card for an app its tool
    * connects, Matěj 2026-10-28): its sign-in opens over the page that asked,
    * as its row would open it (`openSignIn`). The tools are read live first,
@@ -2273,7 +2252,6 @@ export function createToolsPanel(
   return {
     refresh,
     openSignIn,
-    switchAccount,
     connect,
     reveal,
     openComposioOrganization,

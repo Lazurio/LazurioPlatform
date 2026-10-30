@@ -177,7 +177,6 @@ const descriptionKeys: Readonly<Record<StoneKey, MessageKey>> = {
   marketing: "appsDescriptionMarketing",
   website: "appsDescriptionWebsite",
   examples: "appsDescriptionExamples",
-  presentation: "appsDescriptionPresentation",
   database: "appsDescriptionDatabase",
   app: "appsDescriptionApp",
   system: "appsDescriptionSystem",

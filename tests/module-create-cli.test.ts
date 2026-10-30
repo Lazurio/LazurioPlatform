@@ -307,8 +307,7 @@ posixTest(
       new Response(child.stderr).text(),
       child.exited,
     ]);
-    // The plan's blocked reason is on stdout (module-create-step and the report), stderr is empty.
-    expect(code, `${stderr}\n${stdout}`).toBe(0);
+    expect(code, stderr).toBe(0);
     const lines = stdout.trim().split("\n");
     expect(JSON.parse(lines[1] as string)).toMatchObject({
       kind: "module-create-step",

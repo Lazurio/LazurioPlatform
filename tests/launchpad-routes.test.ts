@@ -64,7 +64,6 @@ test("a path names the view and the settings section; the canonical path is one"
     "/vault",
     "/vault/requests/:id",
     "/marketplace",
-    "/marketplace/:offer",
     "/settings",
     // Začínáme, first in Settings (root decision 0201).
     "/settings/start",

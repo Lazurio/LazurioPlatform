@@ -605,10 +605,14 @@ test("the content step's title names what lives here", () => {
   });
 });
 
-test("a Team Environment has no Začínáme; the count shows only while a basic is missing", () => {
-  const team = "hosted-organization-team";
-  expect(startView(facts({ preset: team }), cs)).toBeNull();
-  expect(startCount(facts({ preset: team }))).toBeNull();
+test("a Team or an Automated Environment has no Začínáme; the count shows only while a basic is missing", () => {
+  for (const preset of [
+    "hosted-organization-team",
+    "hosted-organization-steward",
+  ]) {
+    expect(startView(facts({ preset }), cs)).toBeNull();
+    expect(startCount(facts({ preset }))).toBeNull();
+  }
   expect(startCount(facts())).toBe("0/3");
   expect(startCount(facts({ ai: "connected" }))).toBe("1/3");
   expect(
@@ -943,110 +947,6 @@ test("GitHub connected badly: the step says it does not work and offers to conne
   expect(startCount(facts({ ai: "connected", github: "incomplete" }))).toBe(
     "1/3",
   );
-});
-
-test("the Automated Environment has the Začínáme of a work Environment: AI, then the persona's GitHub, then its Organization, and the count (F27's addendum of 2026-10-30)", () => {
-  const automated = (overrides: Partial<StartFacts> = {}) =>
-    facts({ preset: "hosted-organization-steward", ...overrides });
-  const view = startView(automated(), cs);
-  expect(view?.intro).toBe("Hotovo 0 ze 3 kroků.");
-  expect(view?.steps.map((step) => [step.basic, step.mark])).toEqual([
-    ["ai", "now"],
-    ["github", "later"],
-    ["content", "later"],
-  ]);
-  // Its GitHub step says whose account belongs here, in both languages.
-  expect(view?.steps[1]).toEqual({
-    basic: "github",
-    mark: "later",
-    title: "GitHub",
-    status: "Nepřipojeno. Sem patří účet persony, ne váš.",
-  });
-  expect(startView(automated(), en)?.steps[1]?.status).toBe(
-    "Not connected. The persona's account belongs here, not yours.",
-  );
-  expect(startCount(automated())).toBe("0/3");
-  // The Organization's AI pool: done without any action.
-  const pooled = automated({
-    ai: "organization",
-    aiReading: {
-      state: "organization",
-      providers: [{ provider: "codex", state: "provided" }],
-    },
-  });
-  expect(startView(pooled, cs)?.steps[0]).toMatchObject({
-    basic: "ai",
-    mark: "done",
-    status: "Zajišťuje vaše Organizace.",
-  });
-  expect(startView(pooled, cs)?.ai).toEqual({ kind: "none" });
-  expect(startView(pooled, cs)?.github).toEqual({ enabled: true });
-  expect(startCount(pooled)).toBe("1/3");
-  // Without the pool, the person connects an AI as on a work Environment.
-  expect(startView(automated(), cs)?.ai).toMatchObject({ kind: "choose" });
-  // The persona's account connected: the content's turn.
-  const connected = startView(
-    {
-      ...pooled,
-      github: "connected",
-      githubLogin: "example-persona",
-    },
-    cs,
-  );
-  expect(connected?.steps[1]).toMatchObject({
-    mark: "done",
-    status: "Připojeno jako @example-persona",
-  });
-  expect(connected?.steps[2]?.mark).toBe("now");
-  expect(startCount({ ...pooled, github: "connected" })).toBe("2/3");
-  expect(
-    startCount({ ...pooled, github: "connected", content: { state: "ready" } }),
-  ).toBeNull();
-  expect(
-    startView(
-      { ...pooled, github: "connected", content: { state: "ready" } },
-      cs,
-    )?.intro,
-  ).toBe("Prostředí je připravené.");
-});
-
-test("the responsible user's own account on the Automated Environment: not done, said plainly, and Přepnout účet once AI is there", () => {
-  const own = (overrides: Partial<StartFacts> = {}) =>
-    facts({
-      preset: "hosted-organization-steward",
-      ai: "organization",
-      aiReading: { state: "organization", providers: [] },
-      github: "own-account",
-      githubLogin: "example",
-      ...overrides,
-    });
-  const view = startView(own(), cs);
-  expect(view?.steps[1]).toEqual({
-    basic: "github",
-    mark: "failed",
-    title: "GitHub",
-    status: "Je přihlášený váš vlastní účet @example. Sem patří účet persony.",
-  });
-  expect(view?.github).toEqual({ enabled: true, kind: "switch" });
-  expect(view?.done).toBe(1);
-  // Its content waits for the persona's account.
-  expect(view?.steps[2]?.mark).toBe("later");
-  expect(startCount(own())).toBe("1/3");
-  expect(startView(own(), en)?.steps[1]?.status).toBe(
-    "Your own account @example is signed in. The persona's account belongs here.",
-  );
-  expect(startView(own({ githubLogin: null }), cs)?.steps[1]?.status).toBe(
-    "Je přihlášený váš vlastní účet. Sem patří účet persony.",
-  );
-  expect(cs.startGithubSwitch).toBe("Přepnout účet");
-  expect(en.startGithubSwitch).toBe("Switch account");
-  // Before AI it waits for its turn, as every GitHub action does.
-  const early = startView(
-    own({ ai: "missing", aiReading: { state: "missing", providers: [] } }),
-    cs,
-  );
-  expect(early?.steps[1]?.mark).toBe("later");
-  expect(early?.github).toEqual({ enabled: false, kind: "switch" });
 });
 
 test("a GitHub sign-in that runs shows as running, its window closed or not, and opens again", () => {

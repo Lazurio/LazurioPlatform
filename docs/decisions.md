@@ -500,12 +500,6 @@ content is preserved; unreadable children are reported. Never run installation
 implicitly on login, start or product upgrade. No account elevation, admission,
 MausBot permission or publication mandate is implied. The first-run tour is not
 changed by this content operation.
-*Amended 2026-10-30 ([F27's addendum](#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)): the Automated Environment now has the
-first run of a work Environment, Začínáme, the line, the tour and the content's start by
-itself included. Its content still comes from this one operation and its availability stays
-the core's; it starts by itself only in an open Launchpad view that saw the AI or GitHub
-arrive (root decision 0201), as on a work Environment, never on the Launchpad's own start or a
-product update.*
 
 Acceptance uses an Automated handover and a separate persona login with Write,
 real Git root/module clones including a tracked internal symlink, a second run
@@ -1473,14 +1467,7 @@ repository.
 notes (today an edited generated file is refused and there is no restore command; the
 troubleshooting document says so). The Launchpad may later show which product version
 rendered the Folder. No automatic writes: the re-rendering after a product update is
-decided below and happens only through an explicit change. *Note of 2026-10-30:* that
-explicit change is now part of the update itself. `lazurio update` runs the refresh
-through this same change path once it has activated a version, and also when it finds
-nothing newer
-([F17's addendum of 2026-10-30](#f17--operator-tools-belong-to-the-operator-the-rollout-pins-the-baseline-and-repairs)).
-The update is the person's request to bring the Environment up to date, and the refresh
-is the one change path run as its own command, not a second writer. So a product
-update still never writes the Folder by any other path.
+decided below and happens only through an explicit change.
 
 **Decided 2026-09-24: a newer template revision re-renders the Folder.** Until
 `base-instructions-4` every change of the template revision made a refresh and a
@@ -1510,7 +1497,7 @@ conditions:
 | Alternative | Trade-off / disposition |
 | --- | --- |
 | Keep `template-upgrade-required` for every change of revision | No new state path; hosted Machines never receive a corrected manual; rejected |
-| Re-render automatically on product activation | A write the Operator did not ask for, and a second writer beside the change path; rejected. *Revisited 2026-10-30 (F17's addendum):* the update the person asked for runs the refresh through this change path; a write at activation itself stays rejected |
+| Re-render automatically on product activation | A write the Operator did not ask for, and a second writer beside the change path; rejected |
 | A separate `folder-upgrade` command | The same planner and transaction under a second name, and one more step for Machines; rejected |
 | Upgrade inside the existing planner, digests as proof (selected) | One path, the existing refusal for edited files, no downgrade |
 
@@ -2902,24 +2889,6 @@ Room: Czech 18,724 characters, English 19,990 (under the 20,000 Hermes loads unc
 lines on introducing himself and on the chat's own T3 Code say the same in fewer words. Template
 revision `base-instructions-90`. `tests/folder-buddy.test.ts` checks both locales.
 
-**Follow-up of 2026-10-30, the Organization Admin's decision of 2026-10-28 (#708; root decision 0210,
-addendum of 2026-10-30, HumanAndMachines/Lazurio#678; plan DEV-6676): what Buddy writes to other people
-for the user reads like a person.** Buddy had opened a handover to a colleague of his user with the line
-„Buddy za Matěje“ and an official register, because his rules put that mark on everything he wrote or
-approved for the user for others. Matěj: „Teď je to takové strojové… Něco jako: Ahoj Honzo, Matěj mě
-poprosil, že ti mám… a na konci ať se podepíše jako Buddy… ne prostě Buddy za Matěje… hezky přirozeně.“
-
-- **To other people:** a message, e-mail, comment or document he writes for the user opens with a
-  greeting by name, says in one plain sentence that the user asked him („Ahoj Honzo, <jméno uživatele>
-  mě prosí, abych ti předal…“), goes on in friendly words and is signed „Buddy“, with no „Buddy za …“
-  line. The example stays in the present tense, so it never puts the user into a gendered past tense.
-- **In T3 Code threads and approvals** T3 Code shows the mark itself (Lazurio/t3code#106); Buddy writes
-  none there. **To the user** he still signs nothing. He never appears as the user.
-
-Room: Czech 18,830 characters, English 19,976 (under the 20,000 Hermes loads uncut); the English line on
-messages to the user says the same in fewer words. Template revision `base-instructions-92`.
-`tests/folder-buddy.test.ts` checks both locales.
-
 ### Proposal of 2026-10-29: the person's own instructions for agents, and a person's own entries in a hosted Folder (for Matěj's decision; not decided, not implemented)
 
 On 2026-10-29 Matěj raised two questions.
@@ -3323,10 +3292,7 @@ and warns, with both paths, when another program named `lazurio` resolves first 
 legacy root CLI linked by Bun into `~/.bun/bin`, for example); it changes nothing about
 that program.
 
-*"Folder refresh needed."* *(Superseded by the addendum of 2026-10-30 below: the update now refreshes the Folder
-itself, and people never see a refresh. Only `lazurio update status` and `lazurio
-doctor` still report a needed one, for agents.)*
-A product update never writes the Folder (F14). So
+*"Folder refresh needed."* A product update never writes the Folder (F14). So
 `lazurio update`, `lazurio update status` and the installed Launchpad's update pill say
 "Folder refresh needed" with the exact command when the Folder records an older
 template revision than the active product renders: `lazurio machine folder-refresh`
@@ -3367,9 +3333,8 @@ decision: agents update proactively and continuously, and they resolve a diverge
 checkout for the Operator without losing work.
 
 1. At the start of every piece of work an agent runs `lazurio update` in the background
-   and, when it reports "Folder refresh needed", the refresh. *(Since the addendum of
-   2026-10-30 the update runs the refresh itself; the agent only resolves a blocked one
-   with the user's consent.)* It tells the Operator what changed. Only the Launchpad restarts ([product update](update.md)); applications,
+   and, when it reports "Folder refresh needed", the refresh. It tells the Operator what
+   changed. Only the Launchpad restarts ([product update](update.md)); applications,
    T3 Code and Codex sessions keep running (F29 point 3), and a concurrent run ends
    `busy`. The product itself still activates nothing on its own.
 2. Until content synchronization exists (F9, [content synchronization](content-sync.md),
@@ -3411,116 +3376,6 @@ to ask.
 | Keep "only when the Operator asks" | Environments drift and published changes stay invisible; rejected |
 | Let the product update itself on a timer | Activation stays an explicit step of the updater (F13); an agent runs the same updater in the open and reports what changed; rejected |
 | Report a diverged checkout and stop | The work waits for a person who may not know Git; rejected: the agent keeps the work first, then resolves |
-
-**Addendum 2026-10-30 (Matěj): the update refreshes the Folder; people never see a
-refresh.** Matěj, the Organization Admin, clicked Update in the Launchpad of a hosted
-Work Environment. The column then said „Folder je potřeba obnovit. Spusťte: lazurio
-machine folder-refresh“ ("The Folder needs a refresh. Run: …"). His decision, in his
-words: „Myslím si, že je to produktově špatně, protože dejme tomu, že uživatelé, kteří to
-používají, nejsou technicky zdatní. Tady tahleta hláška říká uživateli, aby udělal něco
-v terminálu, což je úplně špatně. Takže si myslím, že tady tenhle refresh toho folderu by
-se měl stát automaticky hned po tom, co proběhne update, a tyhle informace by se
-k uživateli vlastně vůbec neměly dostat, že by potřeboval něco refreshnout.“ In short:
-the people who use Lazurio need not be technical; a message that sends them to a terminal
-is wrong; the refresh happens automatically right after the update, and the need for one
-never reaches them.
-
-What changes:
-
-1. **The update refreshes.** After a successful activation, `lazurio update` refreshes
-   the Folder in the same run. It does so whether a person ran it in a terminal or the
-   pill started it in its unit, because both are the same command. The step lives in one
-   place of the update core (`refreshAfter` in `src/update/update.ts`):
-   - It runs the newly active version's own refresh through the selector, as a bounded
-     child (`src/update/folder-refresh.ts`), because the templates are that version's.
-   - The declared operator's Folder of a hosted Machine gets `lazurio machine
-     folder-refresh`. Every other Folder gets `lazurio profile-update` with its recorded
-     choices at its current revision, which the one planner turns into the template
-     upgrade (F14).
-   - The Folder is the one the update already resolves: `--folder`, the supervised
-     unit's, or the declared operator's.
-   - It runs only when the Folder records an older template revision than the active
-     version renders, and only when that version states which revision it renders (its
-     self-check's `templateRevision`). Otherwise nothing runs.
-2. **Also when nothing is newer.** When `lazurio update` finds no newer release but the
-   Folder still records an older revision, it refreshes too, with the active version.
-   That happens after a blocked or busy refresh, or after a Machines install moved the
-   version. The Launchpad's update of everything (Nová karta's Aktualizovat, root
-   decision 0212 point 3) does the same when its check finds nothing newer. It uses the
-   same function under the update lock: while an update holds the lock, that update
-   refreshes instead.
-3. **Activation stays final.** A blocked or failed refresh never fails, reverts or
-   delays the success of the update. The switch happened before it, and the exit status
-   stays the product's.
-   - `folder-busy` is retried, at most six attempts a second apart: the Launchpad that
-     the switch has just restarted reads the Folder under its lock for moments.
-     `stale-revision` (a concurrent change of the Folder) is retried the same way.
-   - Every attempt reads the Folder again, so a Folder that another operation refreshed
-     meanwhile is `unchanged`. The child is bounded to two minutes.
-   - The result's `folderRefresh` is now the outcome, `{state: "refreshed" | "unchanged"
-     | "blocked" | "failed", reason?, path?}`, or `null` when none was needed. It
-     replaces the command. `reason` is only a product code. `path` is only a path
-     within the Folder: relative, normalized, at most 512 characters and with no
-     control or invisible formatting character. Anything else the child printed
-     never reaches the result or a terminal (Pablo's review).
-   - `profile-update` now answers a busy Folder as `machine folder-refresh` does
-     (`{"kind":"blocked","reason":"folder-busy","retryable":true}`, exit 2) instead of a
-     bare failure, so the update can tell busy from failed.
-4. **Nothing in the Launchpad.** The pill's refresh line, its message in both locales,
-   its element and `folderRefresh` in `GET /api/update/status` are removed. The pill
-   also no longer shows "downloading" while the run that switched it finishes the steps
-   after the switch (the refresh and the units). After the restart, the Launchpad is the
-   new version and nothing newer is being fetched.
-   - "Downloading" is bound to the version the run in flight fetches: its unit's
-     description, or the child's own argument. It is never bound to the newest release
-     known, so a release published while the run finishes is not shown as downloading
-     (Pablo's review).
-   - While a run is in flight, the pill offers nothing to start.
-5. **Agents still see a blocked refresh and fix it.** `lazurio update status` and
-   `lazurio doctor` (`folder-refresh`, `warn folder-refresh-needed`) keep reporting a
-   Folder behind the product: no refresh ran yet, or the last one was blocked.
-   - The CLI's text names the refusal and the agent's next step.
-   - The generated manual says three things. The update refreshes the Folder itself.
-     The agent never asks the user to refresh anything. A blocked refresh is resolved
-     with the user's consent (an edit moves to where it belongs), and then the refresh
-     runs again: `lazurio machine folder-refresh` in a Remote Environment, `lazurio
-     update --folder <Folder>` on a workstation.
-   - Template revision `base-instructions-91`.
-
-What stays:
-
-- The Folder change path: the same planner, transaction, archive and recovery. An
-  edited generated file is never overwritten, and a Folder is never downgraded
-  (`template-upgrade-required`).
-- The Machines resident role keeps running `folder-init` and `folder-refresh` after
-  handover writes and after `install`, and reads exactly one JSON object. `lazurio
-  install` refreshes nothing, and the Folder lock's semantics do not change.
-- `lazurio update --check` and a failed update refresh nothing. The pill starts the same
-  `lazurio update --version` in the transient unit as before.
-- F14 rejected "re-render automatically on product activation" for two reasons: a write
-  the Operator did not ask for, and a second writer beside the change path. Neither
-  holds here. The update is the request to bring the Environment up to date, and the
-  refresh is the one change path, run as its own command.
-
-**The first update into this release** is performed by the previous version's updater,
-which only reports. That update refreshes nothing; the person sees nothing either,
-because the new Launchpad has no line. The next `lazurio update` refreshes the Folder
-(agents run one at the start of every piece of work), and so does the Launchpad's
-Aktualizovat.
-
-Root decision 0161 still says that after an update the Folder's generated files are
-refreshed by the command the product prints („Po aktualizaci obnoví vygenerované soubory
-Folderu příkazem, který produkt sám vypíše“). Its addendum of 2026-10-30, pending in the
-root repository, amends it.
-
-| Alternative | Trade-off / disposition |
-| --- | --- |
-| Keep "Folder refresh needed" with the command | A person who clicked Update is sent to a terminal; rejected by Matěj |
-| The new version's Launchpad refreshes the Folder when it starts | Would cover the first update into this release, but writes at every start (a reboot, a Recovery restart), races the Machines role's own `folder-refresh` right after `install`, must stay out of the read-only start probe, and the update's result could not say what happened; rejected |
-| The updater renders the Folder in-process | The updater is the version being replaced, so its templates are not the new version's; rejected |
-| A new refresh command, or a unit of its own | A second mechanism beside the one change path; rejected |
-| Refresh after every update, needed or not | Every agent's start of work would take the Folder lock and read the handover for nothing; rejected: only when the Folder records an older revision |
-| The update runs the active version's own refresh as a bounded child, from the CLI and the pill alike (selected) | One place, the one change path, the new version's templates, the outcome in the result; the first update into this release does not refresh, the next one does |
 
 ## F18 — Enabled tools of the Environment
 
@@ -4601,10 +4456,7 @@ must say that GitHub is connected badly and must be connected again.
    GitHub arrives. `startDecision` and `openSignIn("gh")` open the SSH link where that is
    what is missing. On a Team or an Automated Environment, whose GitHub is the
    Organization's or the persona's and may work over HTTPS, nothing changes: only a known
-   missing GitHub holds their content back. *Amended 2026-10-30 ([F27's
-   addendum](#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)): the Automated Environment, whose persona's account the curated
-   sign-in links over SSH as a person's, counts it as a work Environment does; only the
-   Team Environment keeps this rule.* The server's GitHub probe for the shell's
+   missing GitHub holds their content back. The server's GitHub probe for the shell's
    `setup` reads the same status with the same kept proofs.
 5. **Nástroje.** gh's line takes the success colour only while the link works: "Připojeno
    jako octocat · SSH klíč nepropojený" draws the account in the neutral colour and the key
@@ -4748,8 +4600,7 @@ has no sign-in by code; a long-lived `claude setup-token` is not offered.
    nejdřív zapněte…"): wherever the step offers the choice, also after "Přihlásit jiný účet";
    never where the Organization provides the AI, while the AI is being read, on a Remote
    Environment without the Environment browser (the step keeps its line, as before) or on
-   an Environment without the step (Team, public; the Automated Environment has it since
-   [F27's addendum of 2026-10-30](#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)). While its code waits the
+   an Environment without the step (Team, Automated, public). While its code waits the
    step says "Otevřete stránku ChatGPT v kterémkoli prohlížeči, třeba v telefonu, a
    opište kód. Platí 15 minut." with the waiting mark and "Zrušit", and shows the code
    with "Kopírovat" and "Otevřít ChatGPT" (a new tab): the block of gh's code in its
@@ -5801,123 +5652,6 @@ explicitly by the operator, so nothing is switched silently.
 | Refresh switches to the newly derived preset by itself | A silent switch of provider identity, against F10's refresh rule; rejected for the explicit `--preset` |
 | Profile change reads the current handover | The Launchpad and profile commands would read the Linux handover and mix an infrastructure rewrite into an Operator's revision, as F10 rejected; rejected |
 | `folder-refresh --preset <derived>` (selected) | One explicit option on the existing refresh, same planner and transaction; takes only the derived preset |
-
-### Addendum 2026-10-30 (Matěj): the Automated Environment has the onboarding of a Work Environment
-
-**Decided by Matěj (Organization Admin) on 2026-10-30 (plan DEV-6665). It changes root
-decision 0188 point 3 for the Automated Environment through root decision 0188's
-addendum of 2026-10-30 (HumanAndMachines/Lazurio#675), and extends root decision 0201
-to it.** In his words: „Jestli chceme mít nadefinovaný
-"automation environment" jako druh enviromentu, tak by to dle mého měl být jakoby
-standardní pracovní enviroment, akorát s tím, že se o něj nestará dedikovaný uživatel, ale
-je to jakoby nějakého uživatele sekundární enviroment. Ale mělo by platit, že i v tomto
-enviromentu je onboarding, kde se připojuje AI (pokud to není napojené na pool), přihlašuje
-se tam github, clonuje se organizace, aby měli agenti přístup na moduly pod daným github
-účtem, napojuje se composio atd. Prostě.. Vnímám to jako standardní záležitost.“
-
-The Automated Environment is a work Environment of the Organization that its responsible
-user sets up as one of their secondary Environments, and it has the onboarding of 0201 as
-a work Environment of one person has it. Until now the Platform kept it out of the first
-run together with the Team Environment (`signsInAsPerson`): its responsible user signed
-the persona's account in in Nastavení → Nástroje and installed the content in Nastavení →
-Toto Prostředí → Obsah Prostředí or with `lazurio organization install` (F9's amendment of
-2026-10-12).
-
-1. **One gate that names what it decides.** `hasOnboarding(preset)` in
-   `src/launchpad/first-run.ts` holds for `local`, `hosted-personal`,
-   `hosted-organization-personal` and now `hosted-organization-steward`: every preset whose
-   GitHub is signed in on the Environment itself. It decides Nastavení → Začínáme and its
-   count in the Settings navigation, the line in Apps, the shell document's `setup` and
-   with it the column's prompt, the tour, the content's start by itself, the content-before-AI
-   rule in the page and in `POST /api/content/install` (`ai-missing`), and who gets "Vyřešit v
-   Chatu" (`prepare-content`, audience `environment-operator`: the person behind the
-   Environment's admission, here its responsible user). `signsInAsPerson` is gone, since
-   none of its uses meant the person's own sign-in. Where that is the meaning, the preset's
-   provider identity says it (`githubIdentity(…) === "own-sign-in"`, as the doctor's
-   `ssh-not-linked` warning reads it), unchanged.
-2. **AI.** Done without any action where the Organization's AI pool serves the Environment
-   (`GET /api/ai` answers `organization`, as everywhere); otherwise the responsible user
-   connects ChatGPT or Claude in Začínáme as on a work Environment.
-3. **GitHub is the persona's own account** (0169 point 2, F27), never the responsible
-   user's own account and never Lazurio for GitHub. Začínáme's step says so while it is not
-   connected ("Nepřipojeno. Sem patří účet persony, ne váš." / "Not connected. The persona's
-   account belongs here, not yours."), and so do its tour stops ("Připojte GitHub persony" ·
-   "Agenti pracují pod jejím účtem."; "Připojte účet persony" · "Váš vlastní účet sem
-   nepatří."), the line in Apps ("Účet persony na GitHubu není připojený.") and gh's sign-in
-   dialog ("Zkopírujte kód a na GitHubu ho potvrďte účtem persony, ne svým."). The words follow
-   the preset's provider identity `persona-account` (`personaGithub`). Connected means what it
-   means on a work Environment: gh signed in and this Environment reaching GitHub over SSH as
-   that account (F19's addendum of 2026-10-19, #515); the curated sign-in links the key for the
-   persona's account as it does for a person's.
-4. **A soft check of the account.** Where gh is signed in as the login the binding names as
-   the responsible user (`owner.assignment` `{kind: "automation", githubLogin}`, compared
-   case-insensitively: `responsibleLogin`, `ownAccount`), the GitHub fact is `own-account`,
-   whatever SSH says. The step is not done and says "Je přihlášený váš vlastní účet @login. Sem
-   patří účet persony." / "Your own account @login is signed in. The persona's account belongs
-   here." with the warning mark, and offers "Přepnout účet" ("Switch account"). It signs that
-   account out exactly as gh's "Odhlásit" in Nástroje does (the Machine's SSH key removed from
-   it first) and opens gh's sign-in for the persona's. The line in Apps says it too and leads to
-   that step, as "Připojit AI" leads to the AI step; a start request in the address never
-   switches it, so no link signs anyone out. The server's GitHub probe for the shell's `setup`
-   keeps the account with its state, so the column's prompt counts the same. The check
-   decides that step's state and nothing else: whatever already follows the GitHub step
-   follows it (the count, the next basic, the tour, the prompt, and the content's turn in
-   Začínáme and Obsah Prostředí, since the content comes after GitHub), but no sign-in, tool,
-   CLI command or route refuses anything by it, and it grants nothing. It is soft: the
-   handover names the user, not the persona, so any other account passes, and a login renamed
-   after the handover was written is not caught.
-5. **Content.** The handover's Organization, installed through the same content core under
-   the persona's live GitHub role (F9's addendum of 2026-10-04 and amendment of 2026-10-12).
-   It starts by itself once this view saw the AI or GitHub arrive and both are there, as on a
-   work Environment: only an open Launchpad view starts it that way, never the Launchpad's
-   own start, a product update or a sign-in alone. While the AI is provably missing,
-   `POST /api/content/install` refuses with `ai-missing`, as for a work Environment;
-   `lazurio organization install` stays the explicit command without that rule.
-6. **The optional steps** after the basics, as on a work Environment: Composio where Nástroje
-   offer it, SSH from the responsible user's own computer (0169: only that user connects over
-   SSH, for service interventions) with ChatGPT Desktop over it, and "Trezor v Bitwardenu"
-   where the Environment's vault page gives its steps.
-
-**Unchanged.** The Team Environment (`hosted-organization-team`, the services Environment of
-root decision 0209 included) has no Začínáme, tour, line or `setup`, and its content stays its
-hosting's (0188 point 3 stays for it); a public Environment keeps its demo onboarding (F55).
-The persona's identity, the bot team and Lazurio MausBot are not touched. The generated Folder
-manual and templates say nothing about the Automated Environment's first run, so no template
-text changes and the template revision stays. The doctor's `ssh-not-linked` warning stays
-scoped to the person's own sign-in. gh's row in Nástroje, its sign-in and sign-out, the content
-core's scope and every access decision stay as they are; GitHub stays the authority.
-
-**Earlier statements this addendum changes.** For the Automated Environment: the
-[workspace presets](workspace-presets.md#the-steward-preset-automated-environment)' "Platform
-does not compare accounts" (the sign-in gate still does not; only Začínáme's step compares, to
-say so); F9's amendment of 2026-10-12 where it says the first-run tour is not changed by the
-content operation; the F36 addendum of 2026-10-15 and the F19 addenda of 2026-10-19 and
-2026-10-21 where they set the Automated Environment apart from the first run. Each now says
-so where it stands.
-
-| Alternative | Trade-off / disposition |
-| --- | --- |
-| Stretch `signsInAsPerson` to the Steward preset | One name fewer, but it would say the persona is a person, the misreading 0169 and F9's amendment of 2026-10-12 reject; rejected for `hasOnboarding`, which names what the gate decides |
-| A reduced first run for the Automated Environment (no tour, GitHub only) | Less to show to one Owner or Admin, but a second first run to keep, against "standardní záležitost"; rejected: the same onboarding, with the persona's words where they differ |
-| Compare gh's account with the persona's login | Would prove the right account, but the handover names only the responsible user and the Platform keeps no roster (F27, F10's "never infer"); rejected for the soft check, which can only say "not your own" |
-| Refuse gh's sign-in, or the content install, while the responsible user's own account is signed in | Harder to get wrong, but a new gate on a person's sign-in and on the content core from a guess about whose account it is; rejected: the check decides only the step's state |
-| Offer the content while the responsible user's own account is signed in | The check would hold nothing back, but Začínáme would offer step 3 before step 2 and the Organization would be cloned with that user's own rights, restricted slots included, onto the persona's Environment; rejected: the content's turn follows the GitHub step there as everywhere, and only the page waits |
-| "Přepnout účet" signs the persona's account in beside the user's (`gh auth login` again) | One step fewer, but the user's own token stays on the persona's Environment as an inactive gh account; rejected for sign-out first, then the sign-in |
-| The line's button, or a start request in the address, switches the account | One click from Apps, but a link would sign someone out; rejected: only the step's own button switches, and the line leads there |
-| Keep `signsInAsPerson` beside `hasOnboarding` | A second preset list for a question no first-run use asks any more; where the person's own sign-in is meant (the doctor), the preset's provider identity already says it; rejected |
-
-**Verification.** Unit and route tests: `tests/first-run.test.ts`, `tests/start-view.test.ts`,
-`tests/tools-view.test.ts`, `tests/content-routes.test.ts` (the install route's `ai-missing`
-on the Steward preset, `prepared-by-hosting` on the Team one),
-`tests/server-services-environment.test.ts` and `tests/first-run-automated.test.ts` (behind a
-hosted Launchpad's admission: the shell's `setup` on the Steward preset and none on the Team
-one, `prepare-content` for the responsible user and the Team's 404, and the soft check with the
-fake gh and ssh and the system's `ssh-keygen`). In a browser (root decision 0178): headless
-Chrome against `scripts/preview-launchpad.ts hosted cs|en … automated gh-signed-out`, the whole
-path from the persona's wording through the responsible user's own account and "Přepnout účet"
-to "Připojeno jako @octocat" and "Prostředí je připravené.", in both languages; the Team and
-Work previews unchanged. Not yet seen on a real Automated Environment: that waits for a release
-and its rollout (0204).
 
 ## F28 — Towards people the place they work in is the Environment; a hosted one is a Remote Environment
 
@@ -8536,8 +8270,7 @@ the member, who could not fix the Organization's root, was still sent to Chat.
    same. A basic provided ahead is done without the person: an Organization's AI pool, which
    configures Codex with a provider that needs no OpenAI sign-in. A Team Environment's
    brokered GitHub is the Organization's, and that Environment has no Začínáme at all (0188
-   point 3, kept by the wireframe). *Since [F27's addendum of 2026-10-30](#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment) the
-   Automated Environment has the same basics, its GitHub the persona's own account.*
+   point 3, kept by the wireframe).
 2. **Whether AI works, the CLIs say** (0201 point 6). `GET /api/ai` answers
    `{ kind: "ai", state, providers }` from Codex's own app-server (`codex app-server` over
    stdio, `initialize` then `account/read` without refreshing a token: an account works,
@@ -8702,10 +8435,8 @@ What this changes, in both languages:
      rule of root decision 0198 as the one line). The rule, "Kdo má přístup do
      Prostředí, má všechna jeho hesla.", stays on Nastavení → Trezor (`vaultPageRule`).
    - **Prohlídka aplikace** loses "Krátce ukáže, co je kde."; a ready Environment says
-     "Prostředí je připravené." without "Sem se můžete kdykoli vrátit.", and a Team
-     Environment "Tady není co nastavovat." without who prepares it (an Automated
-     Environment too until [F27's addendum of 2026-10-30](#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment) gave it the
-     onboarding).
+     "Prostředí je připravené." without "Sem se můžete kdykoli vrátit.", and a Team or
+     Automated Environment "Tady není co nastavovat." without who prepares it.
      Composio's, SSH's and Codex Desktop's lines stay: their titles do not say what they
      are for.
 
@@ -18325,8 +18056,7 @@ loses the sentences it replaces in the same change, in both languages.
    wireframe's where it has the section):
    - **Začínáme** `settings-start`: the steps that prepare the Environment, the AI first,
      the modules after GitHub, the optional steps at any time. Only where it has the
-     basics (the presets with the onboarding, `hasOnboarding`, the Automated one
-     included since F27's addendum of 2026-10-30; `PageGuideFacts.start`): a public
+     basics (`firstRun`'s person presets, `PageGuideFacts.start`): a public
      Environment's demo (F55) and an Environment with nothing to set up have no "?",
      since nothing on them explains. Removed: GitHub's line while it is not connected
      ("Zpřístupní vaše repozitáře a moduly.", now the state "Nepřipojeno"). Kept: every

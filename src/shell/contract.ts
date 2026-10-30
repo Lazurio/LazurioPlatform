@@ -114,11 +114,10 @@ export type ShellSetupItem = Readonly<
 
 /** What the current Environment still lacks before it is usable (root
  * decision 0188, the first run, and 0201 point 1: its basics): its AI, the
- * GitHub sign-in of its person (on an Automated Environment, of its
- * persona) and its content, the Organization or the Personalspace, as its
- * Launchpad reads them. The column head counts them in a quiet prompt that
- * opens Začínáme. Only an Environment with the onboarding has it (every
- * preset but the Team one); the document leaves it out elsewhere and
+ * GitHub sign-in of its person and its content, the Organization or the
+ * Personalspace, as its Launchpad reads them. The column head counts them in
+ * a quiet prompt that opens Začínáme. Only an Environment that signs in to
+ * GitHub as its person has it; the document leaves it out elsewhere and
  * whenever the Launchpad cannot tell GitHub's state. */
 export type ShellSetup = Readonly<{
   /** Buddy's step where the Environment has him (decision F65, additive in

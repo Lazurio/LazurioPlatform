@@ -54,16 +54,14 @@ import {
   createComposioOrganizationReader,
   githubAccount,
   githubFact,
-  hasOnboarding,
   idleAutoStart,
   nextBasic,
-  personaGithub,
   readFragment,
   resolveOf,
-  responsibleLogin,
   type SetupAction,
   type StartRequest,
   shellSetup,
+  signsInAsPerson,
   startDecision,
   startSection,
   type TourFacts,
@@ -79,7 +77,6 @@ import {
   type MachineView,
   presetChoice,
 } from "./machine-view";
-import { createMarketplacePanel } from "./marketplace-panel";
 import { type MessageKey, messages } from "./messages";
 import { moduleCopy } from "./module-view";
 import { createHelpVideo } from "./page-help";
@@ -107,7 +104,7 @@ import {
 } from "./tools-view";
 import { createTour } from "./tour";
 import type { PillStatus } from "./update-pill";
-import { pillView, pillVisible } from "./update-view";
+import { fill, pillView, pillVisible } from "./update-view";
 import { createVaultPagePanel } from "./vault-page-panel";
 import {
   bitwardenTarget,
@@ -254,7 +251,7 @@ function drawGuide(route: PageRoute) {
         ? "demo"
         : profileState === null
           ? null
-          : hasOnboarding(profileState.preset)
+          : signsInAsPerson(profileState.preset)
             ? "basics"
             : "none",
       tools: toolTargets,
@@ -388,7 +385,6 @@ const catalog = createCatalogPanel({
   navigate: (path) => shell.navigate(path),
   loaded: () => {
     shell.relabel();
-    if (framed) marketplace.render();
     drawMachine();
     // A public Environment's Začínáme names the module to try.
     startPanel.render();
@@ -460,10 +456,6 @@ let profileState: Readonly<{
   preset: string;
   revision: number;
   machine: string | null;
-  /** The login whose own account does not belong in gh here: the
-   * Automated Environment's responsible user (`responsibleLogin`, F27's
-   * addendum of 2026-10-30); null elsewhere. */
-  responsible: string | null;
 }> | null = null;
 // Whether the profile was read (`POST /api/profile`), and whether that read
 // failed.
@@ -519,11 +511,7 @@ function firstRunFacts(): TourFacts | null {
     // A public Environment's demo onboarding (decision F55), by the entry.
     ...(isPublicEnvironment(entry) ? { audience: "public" as const } : {}),
     ai: aiFact(),
-    github: githubFact(
-      toolsOverview,
-      profileState.revision,
-      profileState.responsible,
-    ),
+    github: githubFact(toolsOverview, profileState.revision),
     content: content.fact(),
     ...(buddyHere()
       ? { buddy: buddyFact(buddyClient.reading(), buddyClient.refused()) }
@@ -652,11 +640,7 @@ const content = createContentPanel({
   github: () =>
     profileState === null
       ? "unknown"
-      : githubFact(
-          toolsOverview,
-          profileState.revision,
-          profileState.responsible,
-        ),
+      : githubFact(toolsOverview, profileState.revision),
   modules: (login) => catalog.modulesOf(login),
   pluralModules: (count) =>
     copy[
@@ -803,12 +787,6 @@ const startPanel = createStartPanel({
   signInGithub: () => {
     if (!tools.openSignIn("gh")) toolsAt("gh");
   },
-  // "Přepnout účet" (F27's addendum of 2026-10-30): where the sign-out does
-  // not end signed out, Nástroje at gh's row, whose notice says why.
-  switchGithub: () =>
-    void tools.switchAccount("gh").then((opened) => {
-      if (!opened) toolsAt("gh");
-    }),
   // Signed in already, the dialog opens at the step left in Composio.
   signInComposio: () => {
     if (!tools.openSignIn("composio") && !tools.openComposioOrganization())
@@ -1056,7 +1034,7 @@ function firstRun() {
   if (startNav !== null)
     startNav.hidden =
       profileState !== null &&
-      !hasOnboarding(profileState.preset) &&
+      !signsInAsPerson(profileState.preset) &&
       !isPublicEnvironment(entry);
   drawVaultNav();
   const count = facts === null ? null : startCount(facts);
@@ -1402,14 +1380,6 @@ const browser = createBrowserPanel({
   },
   changed: () => tour.update(),
 });
-// The Marketplace (plan DEV-6593): its catalog, an offer's detail and the
-// form whose brief goes to Chat as "+ Nový modul"'s does.
-const marketplace = createMarketplacePanel({
-  copy: () => copy,
-  route: () => shell.route(),
-  catalog: () => catalog.current(),
-  handOver: (prompt) => handOver(prompt),
-});
 // The frame: routes, the catalog and settings navigation, the breadcrumb and
 // the sheet of a narrow viewport. It shows its first route while it is
 // created; `framed` says it exists.
@@ -1433,7 +1403,6 @@ const shell = createShell({
       route.view === "settings" ? "settings" : "apps",
     );
     catalog.render(route);
-    marketplace.render(route);
     // Back on "Všechny moduly" the catalog is read again (the first read
     // starts below, once the frame exists).
     if (framed && (route.view === "home" || route.view === "organization"))
@@ -1613,7 +1582,6 @@ function relabel() {
   ssh.render();
   theme.render();
   vaultPage.render();
-  if (framed) marketplace.render();
   vaultVideo.render();
   vaultRequests.relabel();
   files.relabel();
@@ -1667,7 +1635,6 @@ async function load() {
     preset: current.preset.name,
     revision: current.revision,
     machine: current.machine?.name ?? null,
-    responsible: responsibleLogin(current.preset.name, current.machine),
   };
   // The content core owns availability; a persona account uses the same
   // content operation as a person's work Environment.
@@ -1770,7 +1737,7 @@ const tools = createToolsPanel({
     const github =
       profileState === null
         ? "unknown"
-        : githubFact(overview, profileState.revision, profileState.responsible);
+        : githubFact(overview, profileState.revision);
     if (githubSeen !== "connected" && github === "connected")
       void content.refresh({ restore: false });
     githubSeen = github;
@@ -1793,9 +1760,6 @@ const tools = createToolsPanel({
   // A sign-in of this page started, moved on or ended, its window open or
   // closed (#516): Začínáme follows.
   signInsChanged: () => firstRun(),
-  // The Automated Environment's gh is the persona's account (F27's addendum
-  // of 2026-10-30): its code is confirmed with that account.
-  persona: () => personaGithub(profileState?.preset),
 });
 const voice = voicePanel({
   post,
@@ -2146,6 +2110,9 @@ const updateError =
 const updateStateInvalid = document.querySelector<HTMLParagraphElement>(
   "#update-state-invalid",
 );
+const updateFolderRefresh = document.querySelector<HTMLParagraphElement>(
+  "#update-folder-refresh",
+);
 if (
   !updateSection ||
   !updateText ||
@@ -2153,7 +2120,8 @@ if (
   !updateAction ||
   !updateChecked ||
   !updateError ||
-  !updateStateInvalid
+  !updateStateInvalid ||
+  !updateFolderRefresh
 )
   throw new Error("Missing update UI");
 let updateStatus: PillStatus | null = null;
@@ -2161,8 +2129,8 @@ let updateNote: string | null = null;
 function renderUpdate() {
   if (!updateStatus || !updateSection) return;
   const view = pillView(updateStatus, copy, Date.now());
-  // Only while an update is available (pillVisible). The Folder's refresh
-  // is part of the update and never shown (F17's addendum of 2026-10-30).
+  // Only while an update is available (pillVisible); the Folder refresh
+  // line below is independent of the pill.
   updateSection.hidden = !pillVisible(updateStatus);
   if (updateText) updateText.textContent = view.text;
   if (updateNotes) {
@@ -2186,6 +2154,26 @@ function renderUpdate() {
   if (updateStateInvalid) {
     updateStateInvalid.hidden = view.stateInvalid === null;
     updateStateInvalid.textContent = view.stateInvalid ?? "";
+  }
+  // Read-only: the command is shown, never run from here. It stands in its
+  // own selectable monospace line of the sentence.
+  if (updateFolderRefresh) {
+    const refresh = updateStatus.folderRefresh;
+    updateFolderRefresh.hidden = view.folderRefresh === null;
+    if (refresh === null) updateFolderRefresh.replaceChildren();
+    else {
+      const [before, after = ""] = fill(copy.updateFolderRefresh, {
+        recorded: refresh.recorded,
+        product: refresh.product,
+      }).split("{command}");
+      const command = document.createElement("code");
+      command.textContent = refresh.command;
+      updateFolderRefresh.replaceChildren(
+        (before ?? "").trimEnd(),
+        command,
+        after,
+      );
+    }
   }
 }
 async function refreshUpdate() {

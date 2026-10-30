@@ -115,6 +115,7 @@ const en = {
     "Update state needs the user's intervention: {path}. Nothing is changed automatically.",
   updateStarted: "Update started…",
   updateRefused: "The update was not started; the state shown was refreshed.",
+  updateFolderRefresh: "Folder refresh needed. Run: {command}",
   toolsTitle: "Tools",
   toolsSwitchLabel: "Used by agents",
   toolsSwitchNamed: "Used by agents: {name}",
@@ -294,8 +295,6 @@ const en = {
   toolsLoginStarting: "Starting the connection…",
   toolsLoginStartingDetail: "It usually takes a few seconds.",
   toolsLoginGhText: "Copy the code and confirm it on GitHub.",
-  toolsLoginGhTextPersona:
-    "Copy the code and confirm it on GitHub with the persona's account, not your own.",
   toolsLoginGhLink: "Open GitHub",
   toolsLoginCodeLabel: "One-time code",
   toolsLoginComposioText: "Sign in to Composio in your browser.",
@@ -497,7 +496,6 @@ const en = {
   appsDescriptionMarketing: "Marketing activities, campaigns, and materials.",
   appsDescriptionWebsite: "Web content, pages, and public presentation.",
   appsDescriptionExamples: "Examples, patterns, and reference solutions.",
-  appsDescriptionPresentation: "Presentations and their slides.",
   appsDescriptionDatabase: "Data, records, and their safe management.",
   appsDescriptionApp: "Working files and materials for this module.",
   appsDescriptionSystem: "Operations tools and technical infrastructure.",
@@ -568,49 +566,8 @@ const en = {
     "I want to build a new module in the Lazurio Workspace.\nIt will be in my personal space, as a private repository on my GitHub account {login}.\n\nUse the skill `new-module`. First ask me what the module is for and what it should solve for me, choose the technical details yourself, and before you start building, show me the plan to confirm.",
   appsGuide: "Guide",
   appsMarketplace: "Marketplace",
-  // The Marketplace (plan DEV-6593, marketplace.ts): one section and, in
-  // its pilot, one offer. No price, install count or rating.
-  marketAppTemplates: "App templates",
-  marketBack: "Marketplace",
-  marketNotFound: "This offer is not in the Marketplace.",
-  marketScreensGallery: "The library with an example presentation",
-  marketScreensSlide: "A slide of the example presentation",
-  marketAdd: "Add to Organization",
-  marketAddTitle: "Add {title} to an Organization",
-  marketTarget: "Organization",
-  marketTargetNone: "No Organization here is connected to GitHub yet.",
-  marketStart: "Start with",
-  marketSeedEmpty: "An empty library",
-  marketSeedSample: "An example presentation",
-  marketWhat:
-    "In Chat, the agent prepares a private {title} module for {name} with you. Before anything there changes, it shows you the plan to approve.",
-  marketTaken:
-    "{name} already has a module named {module}. The agent agrees another name with you.",
-  marketHandOver: "Continue in Chat",
-  marketCancel: "Cancel",
-  marketClose: "Close",
-  marketNotYet: "Available once version {version} is released.",
-  marketHandedOver:
-    "Chat opened in a new tab with the brief ready. Send it when you are ready.",
-  marketCopied: "The brief is in your clipboard. Paste it into a new chat.",
-  marketCopyFailed:
-    "The brief could not be handed over. Open Chat and ask the agent to add {title} from the Marketplace.",
-  marketSeedEmptyBrief:
-    "an empty library (do not carry the example presentation over)",
-  marketSeedSampleBrief: "the example presentation from the release",
-  marketPresentationsSummary:
-    "A library of presentations you create with your agent.",
-  marketPresentationsLibrary: "Library",
-  marketPresentationsLibraryText:
-    "Every presentation in one place, with a preview of its first slide and the sources it was built from.",
-  marketPresentationsPlayback: "Presenting and PDF",
-  marketPresentationsPlaybackText:
-    "Present the slides in the browser and move through them with the arrow keys. Print them to 16:9 PDF pages.",
-  marketPresentationsAgent: "Created with your agent",
-  marketPresentationsAgentText:
-    "Tell the agent who the presentation is for and what it should draw on. It proposes an outline, drafts the slides from your Organization's sources and hands them to you for review.",
-  marketAdoptPrompt:
-    "I want to add the app template {title} from the Lazurio Marketplace to my Organization {name} (GitHub {login}).\nRelease: {repository} {tag}, commit {commit}, license {license}. Start with {seed}.\n\nFollow docs/adoption.md of exactly that commit. First check my live rights in the Organization, whether the name {module} is free and the compatibility, and show me the plan to confirm. Create the module with `lazurio module create --stack {stack}` as a private repository, merge the pinned commit so it stays an ancestor and prepare everything as a pull request. Choose the Teams with me from the Organization's real list. Where my rights do not reach, prepare an exact request for whoever has them and work around nothing. Merge or activate nothing without my explicit instruction.",
+  appsSoon: "coming soon",
+  appsMarketplaceSoon: "Coming soon",
   title: "Lazurio Launchpad",
   homeTitle: "Launchpad",
   catalogBreadcrumb: "Where you are in the Launchpad",
@@ -1065,10 +1022,6 @@ const en = {
   setupGithubAction: "Connect GitHub",
   setupGithubBroken: "The GitHub connection does not work.",
   setupGithubReconnect: "Connect again",
-  setupGithubPersona: "The persona's GitHub account is not connected.",
-  setupGithubOwnAccount:
-    "GitHub is signed in with your own account; the persona's belongs here.",
-  setupGithubSwitch: "Switch account",
   setupOrganizationMissing: "{name} is not here yet.",
   setupPersonalMissing: "Your personal space is not here yet.",
   setupOrganizationRunning: "{name} is downloading.",
@@ -1086,8 +1039,6 @@ const en = {
   tourGearAiTitle: "First connect AI",
   tourGearGithubTitle: "Connect GitHub",
   tourGearGithubText: "It opens your repositories.",
-  tourGearGithubPersonaTitle: "Connect the persona's GitHub",
-  tourGearGithubPersonaText: "The agents work under its account.",
   tourGearFailedTitle: "The preparation did not work",
   tourGearFailedText: "See what to do next.",
   tourPersonalText: "A place for your own things.",
@@ -1100,8 +1051,6 @@ const en = {
   tourAiText: "Sign in with your ChatGPT or Claude account.",
   tourGithubTitle: "Connect GitHub",
   tourGithubText: "For access to your modules.",
-  tourGithubPersonaTitle: "Connect the persona's account",
-  tourGithubPersonaText: "Your own account does not belong here.",
   tourPrepareFailedTitle: "The preparation did not work",
   tourPrepareFailedText: "Here is what to do next.",
   tourPreparePersonalTitle: "Prepare your personal space",
@@ -1192,13 +1141,6 @@ const en = {
   startGithubConnectedPlain: "Connected",
   startGithubBroken: "The connection does not work.",
   startGithubReconnect: "Connect again",
-  startGithubPersona:
-    "Not connected. The persona's account belongs here, not yours.",
-  startGithubOwnAccount:
-    "Your own account @{login} is signed in. The persona's account belongs here.",
-  startGithubOwnAccountPlain:
-    "Your own account is signed in. The persona's account belongs here.",
-  startGithubSwitch: "Switch account",
   startGithubWaiting: "Waiting for your confirmation.",
   startGithubFinishing: "Finishing the connection…",
   startConnect: "Connect",
@@ -2231,6 +2173,7 @@ const cs: Record<MessageKey, string> = {
     "Stav aktualizace vyžaduje zásah uživatele: {path}. Automaticky se nic nemění.",
   updateStarted: "Aktualizace spuštěna…",
   updateRefused: "Aktualizace nebyla spuštěna; zobrazený stav byl obnoven.",
+  updateFolderRefresh: "Folder je potřeba obnovit. Spusťte: {command}",
   toolsTitle: "Nástroje",
   toolsSwitchLabel: "Používají agenti",
   toolsSwitchNamed: "Používají agenti: {name}",
@@ -2399,8 +2342,6 @@ const cs: Record<MessageKey, string> = {
   toolsLoginStarting: "Spouštím připojení…",
   toolsLoginStartingDetail: "Obvykle to trvá pár sekund.",
   toolsLoginGhText: "Zkopírujte kód a potvrďte ho na GitHubu.",
-  toolsLoginGhTextPersona:
-    "Zkopírujte kód a na GitHubu ho potvrďte účtem persony, ne svým.",
   toolsLoginGhLink: "Otevřít GitHub",
   toolsLoginCodeLabel: "Jednorázový kód",
   toolsLoginComposioText: "Přihlaste se do Composia v prohlížeči.",
@@ -2601,7 +2542,6 @@ const cs: Record<MessageKey, string> = {
   appsDescriptionMarketing: "Marketingové aktivity, kampaně a podklady.",
   appsDescriptionWebsite: "Webový obsah, stránky a veřejná prezentace.",
   appsDescriptionExamples: "Ukázky, vzory a referenční řešení.",
-  appsDescriptionPresentation: "Prezentace a jejich slidy.",
   appsDescriptionDatabase: "Data, záznamy a jejich bezpečná správa.",
   appsDescriptionApp: "Pracovní podklady a soubory tohoto modulu.",
   appsDescriptionSystem: "Provozní nástroje a technické zázemí.",
@@ -2669,47 +2609,8 @@ const cs: Record<MessageKey, string> = {
     "Chci postavit nový modul do Workspace Lazuria.\nBude v mém osobním prostoru, jako soukromý repozitář na mém GitHub účtu {login}.\n\nPoužij skill `new-module`. Nejdřív se mě vyptej, k čemu modul bude a co mi má vyřešit, technické věci zvol sám a než začneš stavět, ukaž mi plán k potvrzení.",
   appsGuide: "Guide",
   appsMarketplace: "Marketplace",
-  marketAppTemplates: "Šablony aplikací",
-  marketBack: "Marketplace",
-  marketNotFound: "Tato nabídka v Marketplace není.",
-  marketScreensGallery: "Knihovna s ukázkovou prezentací",
-  marketScreensSlide: "Slide ukázkové prezentace",
-  marketAdd: "Přidat do Organizace",
-  marketAddTitle: "Přidat {title} do Organizace",
-  marketTarget: "Organizace",
-  marketTargetNone: "Žádná Organizace tady zatím není propojená s GitHubem.",
-  marketStart: "Začít s",
-  marketSeedEmpty: "Prázdnou knihovnou",
-  marketSeedSample: "Ukázkovou prezentací",
-  marketWhat:
-    "Agent s vámi v Chatu připraví soukromý modul {title} pro Organizaci {name}. Než se v ní cokoli změní, ukáže vám plán ke schválení.",
-  marketTaken:
-    "Organizace {name} už modul {module} má. Agent s vámi domluví jiný název.",
-  marketHandOver: "Pokračovat v Chatu",
-  marketCancel: "Zrušit",
-  marketClose: "Zavřít",
-  marketNotYet: "Půjde to po vydání verze {version}.",
-  marketHandedOver:
-    "Chat se otevřel v nové záložce s připraveným zadáním. Odešlete ho, až budete chtít.",
-  marketCopied: "Zadání je ve schránce. Vložte ho do nového vlákna v Chatu.",
-  marketCopyFailed:
-    "Zadání se nepodařilo předat. Otevřete Chat a požádejte agenta, ať přidá {title} z Marketplace.",
-  marketSeedEmptyBrief: "prázdnou knihovnou (ukázkovou prezentaci nepřenášej)",
-  marketSeedSampleBrief: "ukázkovou prezentací z vydání",
-  marketPresentationsSummary:
-    "Knihovna prezentací, které tvoříte se svým agentem.",
-  marketPresentationsLibrary: "Knihovna",
-  marketPresentationsLibraryText:
-    "Všechny prezentace na jednom místě, u každé náhled prvního slidu a podklady, ze kterých vznikla.",
-  marketPresentationsPlayback: "Promítání a PDF",
-  marketPresentationsPlaybackText:
-    "Slidy promítáte v prohlížeči a listujete jimi šipkami. Do PDF je vytisknete ve formátu 16:9.",
-  marketPresentationsAgent: "Tvorba s agentem",
-  marketPresentationsAgentText:
-    "Řekněte agentovi, komu je prezentace určená a z čeho má vycházet. Navrhne osnovu, připraví slidy z podkladů vaší Organizace a dá vám je ke kontrole.",
-  // In Czech the person's own words to the agent, so tykání (0199).
-  marketAdoptPrompt:
-    "Chci přidat šablonu aplikace {title} z Marketplace Lazuria do své Organizace {name} (GitHub {login}).\nVydání: {repository} {tag}, commit {commit}, licence {license}. Začni s {seed}.\n\nPostupuj podle docs/adoption.md přesně z tohoto commitu. Nejdřív živě ověř moje práva v Organizaci, jestli je název {module} volný a kompatibilitu, a ukaž mi plán k potvrzení. Modul založ příkazem `lazurio module create --stack {stack}` jako soukromý repozitář, připnutý commit slouč tak, aby zůstal předkem, a všechno připrav jako pull request. Teamy se mnou vyber ze skutečného seznamu Organizace. Kde moje práva nestačí, připrav přesnou žádost pro toho, kdo je má, a nic neobcházej. Nic nemerguj ani neaktivuj bez mého výslovného pokynu.",
+  appsSoon: "již brzy",
+  appsMarketplaceSoon: "Již brzy",
   title: "Lazurio",
   homeTitle: "Apps",
   catalogBreadcrumb: "Kde v Lazuriu jste",
@@ -3134,10 +3035,6 @@ const cs: Record<MessageKey, string> = {
   setupGithubAction: "Připojit GitHub",
   setupGithubBroken: "Připojení GitHubu nefunguje.",
   setupGithubReconnect: "Připojit znovu",
-  setupGithubPersona: "Účet persony na GitHubu není připojený.",
-  setupGithubOwnAccount:
-    "Na GitHubu je přihlášený váš vlastní účet, sem patří účet persony.",
-  setupGithubSwitch: "Přepnout účet",
   setupOrganizationMissing: "{name} tu ještě není.",
   setupPersonalMissing: "Osobní prostor tu ještě není.",
   setupOrganizationRunning: "Stahuje se {name}.",
@@ -3155,8 +3052,6 @@ const cs: Record<MessageKey, string> = {
   tourGearAiTitle: "Nejdřív připojte AI",
   tourGearGithubTitle: "Připojte GitHub",
   tourGearGithubText: "Zpřístupní vaše repozitáře.",
-  tourGearGithubPersonaTitle: "Připojte GitHub persony",
-  tourGearGithubPersonaText: "Agenti pracují pod jejím účtem.",
   tourGearFailedTitle: "Příprava se nepovedla",
   tourGearFailedText: "Podívejte se, co dál.",
   tourPersonalText: "Místo pro vaše vlastní věci.",
@@ -3169,8 +3064,6 @@ const cs: Record<MessageKey, string> = {
   tourAiText: "Přihlaste se svým účtem ChatGPT nebo Claude.",
   tourGithubTitle: "Připojte GitHub",
   tourGithubText: "Pro přístup k vašim modulům.",
-  tourGithubPersonaTitle: "Připojte účet persony",
-  tourGithubPersonaText: "Váš vlastní účet sem nepatří.",
   tourPrepareFailedTitle: "Příprava se nepovedla",
   tourPrepareFailedText: "Tady je, co dál.",
   tourPreparePersonalTitle: "Připravte osobní prostor",
@@ -3258,12 +3151,6 @@ const cs: Record<MessageKey, string> = {
   startGithubConnectedPlain: "Připojeno",
   startGithubBroken: "Připojení nefunguje.",
   startGithubReconnect: "Připojit znovu",
-  startGithubPersona: "Nepřipojeno. Sem patří účet persony, ne váš.",
-  startGithubOwnAccount:
-    "Je přihlášený váš vlastní účet @{login}. Sem patří účet persony.",
-  startGithubOwnAccountPlain:
-    "Je přihlášený váš vlastní účet. Sem patří účet persony.",
-  startGithubSwitch: "Přepnout účet",
   startGithubWaiting: "Čeká na vaše potvrzení.",
   startGithubFinishing: "Dokončuje se připojení…",
   startConnect: "Připojit",

@@ -164,12 +164,7 @@ import { createContentRoutes } from "./content-routes";
 import { prepareContext } from "./content-view";
 import { createExecutorRoutes, isExecutorJob } from "./executor-routes";
 import { createFilesRoutes, maxRequestBytes } from "./files-routes";
-import {
-  hasOnboarding,
-  ownAccount,
-  responsibleLogin,
-  shellSetup,
-} from "./first-run";
+import { shellSetup, signsInAsPerson } from "./first-run";
 import { guideVideoPath } from "./guide-video";
 import { guideVideoAnswer, isGuideVideoPath } from "./guide-video-files";
 import { serveHealthSocket } from "./health-socket";
@@ -185,7 +180,6 @@ import {
   type IntegrationsSeams,
 } from "./integrations-routes";
 import { BodyTooLarge, readJsonBody } from "./json-body";
-import { adoptionOf } from "./marketplace";
 import {
   issueMausbotLink,
   mausbotPairingPath,
@@ -220,7 +214,6 @@ import {
   serveShell,
 } from "./page";
 import {
-  adoptionDocument,
   isOrganizationPrompt,
   isPromptId,
   personalModuleDocument,
@@ -1027,8 +1020,8 @@ export async function startLaunchpad(
   const chatPrompts = createChatPromptCheck(toolsEnvironment);
   // What this Environment still lacks (root decision 0188), for the shell
   // document's `setup` and the prompt `prepare-content`: GitHub's sign-in of
-  // its person (on the Automated Environment its persona's), kept a minute,
-  // and its content as the content routes report it (below).
+  // its person, kept a minute, and its content as the content routes report
+  // it (below).
   const github = createGithubProbe(toolsWithProofs);
   let closing = false;
   const headers = {
@@ -1130,13 +1123,12 @@ export async function startLaunchpad(
     headers,
     personalspace: personalspace.decide,
     // The content never before AI (root decision 0201 point 3, the same
-    // rule as the page's `contentBlockedBy`): where the Environment has the
-    // onboarding (the Automated one too, F27's addendum of 2026-10-30), an
-    // AI that every CLI answered is missing refuses the start. One that
-    // could not be checked does not.
+    // rule as the page's `contentBlockedBy`): where the Environment signs in
+    // as its person, an AI that every CLI answered is missing refuses the
+    // start. One that could not be checked does not.
     refuseInstall: async () => {
       const preset = await folderPreset(folder).catch(() => undefined);
-      if (preset === undefined || !hasOnboarding(preset) || publicEnvironment)
+      if (preset === undefined || !signsInAsPerson(preset) || publicEnvironment)
         return null;
       return (await ai.state()).state === "missing" ? "ai-missing" : null;
     },
@@ -1437,14 +1429,10 @@ export async function startLaunchpad(
       readFolderState(state),
     );
     const preset = current.preferences.preset.name;
-    if (!hasOnboarding(preset) || publicEnvironment) return undefined;
-    // The Automated Environment's soft check (F27's addendum of
-    // 2026-10-30): the responsible user's own account where the persona's
-    // belongs counts as missing, as Začínáme counts it.
-    const responsible = responsibleLogin(preset, current.preferences.machine);
+    if (!signsInAsPerson(preset) || publicEnvironment) return undefined;
     const [reading, signIn, read, buddyFact] = await Promise.all([
       ai.state(),
-      github.reading(),
+      github.state(),
       readContent(contentState),
       // Buddy's step where the entry names him (decision F65): his sign-in
       // as Hermes's card says it and whether his names were confirmed.
@@ -1460,9 +1448,7 @@ export async function startLaunchpad(
     return shellSetup({
       preset,
       ai: reading.state,
-      github: ownAccount(signIn.account, responsible)
-        ? "own-account"
-        : signIn.state,
+      github: signIn,
       ...read,
       ...(buddyFact === undefined ? {} : { buddy: buddyFact }),
     });
@@ -1727,9 +1713,11 @@ export async function startLaunchpad(
             (hostedOptions.offlineTailnet ?? machineTailnet)(),
             themeStore.read(),
           ]);
-          // GitHub and the content only where the Environment has the
-          // onboarding (setup-state.ts).
-          const known = hasOnboarding(inputs.preset) ? setup.peek() : undefined;
+          // GitHub and the content only where the Environment signs in as
+          // its person (setup-state.ts).
+          const known = signsInAsPerson(inputs.preset)
+            ? setup.peek()
+            : undefined;
           // Whether the elements register the offline guide's worker
           // (decision F41): only where the worker's address serves it. The
           // Environment's theme always (root decision 0208).
@@ -1803,33 +1791,8 @@ export async function startLaunchpad(
         const id = promptRequest[1] as string;
         const login = url.searchParams.get("org");
         const keys = [...url.searchParams.keys()];
-        if (keys.some((key) => key !== "org")) return notFound();
-        if (adoptionOf(id) !== null) {
-          // A Marketplace adoption (plan DEV-6593): for an Organization of
-          // this Folder bound to the link's login, only while its offer's
-          // release is recorded (prompts.ts `adoptionDocument`).
-          if (login === null || keys.length !== 1) return notFound();
-          try {
-            const organization = promptOrganization(
-              organizationsOnly(await catalog.read()),
-              login,
-            );
-            if (organization === null) return notFound();
-            const current = await withFolderReadLock(state, () =>
-              readFolderState(state),
-            );
-            const document = adoptionDocument(
-              id,
-              folder,
-              organization,
-              folderMessages(current.preferences),
-            );
-            return document === null ? notFound() : response(document);
-          } catch {
-            return notFound();
-          }
-        }
-        if (!isPromptId(id)) return notFound();
+        if (!isPromptId(id) || keys.some((key) => key !== "org"))
+          return notFound();
         if (promptAudience(id) === "personalspace-holder") {
           // The personal space's "+ Nový modul" (`new-personal-module`):
           // only for the account that holds the Personalspace, decided now
@@ -1855,17 +1818,16 @@ export async function startLaunchpad(
         }
         if (!isOrganizationPrompt(id)) {
           // The Folder's prompt (`prepare-content`): only on an Environment
-          // with the onboarding (the Automated one's responsible user
-          // included, F27's addendum of 2026-10-30), only while the last
-          // installation stopped, and, when the link names a login, only for
-          // the content of that login (the Organization, or the person for
-          // the Personalspace).
+          // that signs in as its person, only while the last installation
+          // stopped, and, when the link names a login, only for the content
+          // of that login (the Organization, or the person for the
+          // Personalspace).
           if (keys.length > 1) return notFound();
           try {
             const current = await withFolderReadLock(state, () =>
               readFolderState(state),
             );
-            if (!hasOnboarding(current.preferences.preset.name))
+            if (!signsInAsPerson(current.preferences.preset.name))
               return notFound();
             const copy = folderMessages(current.preferences);
             const read = await readContent(contentState);

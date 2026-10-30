@@ -1,8 +1,3 @@
-import {
-  type PresetName,
-  presetNames,
-  workspacePreset,
-} from "../folder/presets";
 import type { ShellSetup } from "../shell/contract";
 import type { AiState } from "../tools/ai";
 import type { ToolOverview, ToolsOverview } from "../tools/overview";
@@ -26,92 +21,33 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // HumanAndMachine-ai/prototypes-lazurio 1eefc3d, `setup.tsx`,
 // `screens/Start.tsx`, `screens/Tour.tsx`). The Environment is usable when it
 // has its basics: an AI an agent can work with, GitHub signed in as its
-// person (on the Automated Environment as its persona), and its content (the
-// Organization, or on the personal Environment the Personalspace).
-// Nastavení → Začínáme lists them, in the order AI → GitHub → content, from
-// live facts only; nothing about them is stored. Until they exist the
-// onboarding shows on every page load: the tour points at the next missing
-// basic, Apps says it in one line and the shell's column keeps a quiet
-// prompt. "Dokončím později" puts the tour away for this view only. The
+// person, and its content (the Organization, or on the personal Environment
+// the Personalspace). Nastavení → Začínáme lists them, in the order AI →
+// GitHub → content, from live facts only; nothing about them is stored. Until
+// they exist the onboarding shows on every page load: the tour points at the
+// next missing basic, Apps says it in one line and the shell's column keeps a
+// quiet prompt. "Dokončím později" puts the tour away for this view only. The
 // browser keeps only where the introduction after the basics points. It runs
-// only where the Environment has the onboarding (`hasOnboarding`). A public
+// only where the Environment signs in to GitHub as its person. A public
 // Environment (root decision 0204, decision F55) has none of it: nobody signs
 // in there, so it has no basics, and its tour is the introduction from the
 // first visit (`demoOnboarding`). Pure: the DOM is tour.ts, start-panel.ts
 // and catalog-panel.ts.
 
-/** The presets whose Environment has the onboarding of root decision 0201:
- * every one whose GitHub is signed in on the Environment itself. A personal
- * Remote Environment, an Organization's work Environment of one person and a
- * workstation sign in as their person. The Automated Environment (the
- * Steward preset, decision F27) is a work Environment of the Organization
- * that its responsible user sets up, signed in as its persona's own account,
- * and has the same onboarding (F27's addendum of 2026-10-30, root decision
- * 0188's addendum of that day). A Team Environment acts through the
- * Organization's Lazurio for GitHub and its hosting prepares it: no
- * Začínáme, tour or line there (0188 point 3). */
-export const onboardingPresets = Object.freeze([
+/** The presets whose Environment signs in to GitHub as its person: a
+ * personal Remote Environment, an Organization's work Environment of one
+ * person, and a workstation. A Team Environment acts through the
+ * Organization's Lazurio for GitHub and an Automated one as its persona, and
+ * their AI is the Organization's; neither asks the person, so neither gets
+ * Začínáme, the tour or the line (0188 point 3). */
+export const personPresets = Object.freeze([
   "local",
   "hosted-personal",
   "hosted-organization-personal",
-  "hosted-organization-steward",
 ] as const);
 
-export function hasOnboarding(preset: string | null | undefined): boolean {
-  return (onboardingPresets as readonly string[]).includes(preset ?? "");
-}
-
-/** Whether the Environment's GitHub is its persona's own account, not the
- * person's (the preset's provider identity `persona-account`: the Steward
- * preset of the Automated Environment, decisions 0169 and F27). Začínáme's
- * GitHub step, its tour stops and the line in Apps say so. */
-export function personaGithub(preset: string | null | undefined): boolean {
-  return (
-    (presetNames as readonly string[]).includes(preset ?? "") &&
-    workspacePreset(preset as PresetName).providerIdentity === "persona-account"
-  );
-}
-
-/** The recorded binding as far as the soft check below reads it: the
- * Organization branch's assignment (src/folder/machine-binding.ts on the
- * server, machine-view.ts `MachineView` in the page). */
-type AssignedMachine = Readonly<{
-  owner: Readonly<{
-    kind: string;
-    assignment?: Readonly<{ kind: string; githubLogin?: string }>;
-  }>;
-}>;
-
-/** The login whose own account does not belong in gh here: on an
- * Environment whose GitHub is its persona's, its responsible user's, as the
- * handover's `owner.assignment` `{kind: "automation"}` names them (decision
- * 0169). Null everywhere else, and where the binding names nobody (a Steward
- * preset chosen explicitly on a work VM without a stated assignment). */
-export function responsibleLogin(
-  preset: string | null | undefined,
-  machine: AssignedMachine | null | undefined,
-): string | null {
-  if (!personaGithub(preset)) return null;
-  const assignment = machine?.owner.assignment;
-  return assignment?.kind === "automation" &&
-    typeof assignment.githubLogin === "string"
-    ? assignment.githubLogin
-    : null;
-}
-
-/** Whether gh's account is that responsible user's own (GitHub compares
- * logins case-insensitively): the soft check of F27's addendum of
- * 2026-10-30. A renamed login is not caught; any other account passes, since
- * the handover names the user, not the persona. */
-export function ownAccount(
-  account: string | null | undefined,
-  responsible: string | null,
-): boolean {
-  return (
-    responsible !== null &&
-    typeof account === "string" &&
-    account.toLowerCase() === responsible.toLowerCase()
-  );
+export function signsInAsPerson(preset: string | null | undefined): boolean {
+  return (personPresets as readonly string[]).includes(preset ?? "");
 }
 
 /** Whether GitHub is connected here, by Settings → Nástroje's own reading
@@ -122,17 +58,8 @@ export function ownAccount(
  * (decision F19, addendum 2026-10-19, #515): signed in while SSH does not
  * work is `incomplete`, connected badly, which counts as missing (its one
  * action finishes the link); signed in while SSH could not be verified is
- * `unknown`. `own-account`, whatever SSH says: on an Environment whose
- * GitHub is its persona's, gh is signed in as its responsible user's own
- * account (`responsibleLogin`, F27's addendum of 2026-10-30). It counts as
- * missing, and its one action switches the account; it is only this step's
- * state, so no sign-in, tool or route refuses anything by it. */
-export type GithubFact =
-  | "missing"
-  | "incomplete"
-  | "own-account"
-  | "connected"
-  | "unknown";
+ * `unknown`. */
+export type GithubFact = "missing" | "incomplete" | "connected" | "unknown";
 
 type ToolsReading =
   | (Pick<ToolsOverview, "revision" | "sharedEnvironment"> &
@@ -141,12 +68,9 @@ type ToolsReading =
       }>)
   | null;
 
-/** `responsible`: the login whose own account does not belong here
- * (`responsibleLogin`), null where any account does. */
 export function githubFact(
   overview: ToolsReading,
   currentRevision: number | null,
-  responsible: string | null = null,
 ): GithubFact {
   const github = overview?.tools.find((tool) => tool.name === "gh");
   if (
@@ -161,7 +85,6 @@ export function githubFact(
   const signIn = github.signIn;
   if (signIn?.state === "signed-out") return "missing";
   if (signIn?.state !== "signed-in") return "unknown";
-  if (ownAccount(signIn.account, responsible)) return "own-account";
   return signIn.ssh?.state === "linked"
     ? "connected"
     : signIn.ssh?.state === "not-linked"
@@ -296,12 +219,12 @@ export function demoAi(ai: AiFact): "organization" | "connected" | "none" {
   return ai === "organization" || ai === "connected" ? ai : "none";
 }
 
-/** Whether the Environment has the basics of 0201: its preset has the
- * onboarding and it is no public Environment. */
-function basicsOnboarding(
+/** Whether the Environment has the basics of a person (0201): it signs in as
+ * its person and is no public Environment. */
+function personOnboarding(
   facts: Pick<TourFacts, "preset" | "audience">,
 ): boolean {
-  return hasOnboarding(facts.preset) && !demoOnboarding(facts);
+  return signsInAsPerson(facts.preset) && !demoOnboarding(facts);
 }
 
 /** The basics of 0201 point 1, in their order (point 3). */
@@ -385,7 +308,7 @@ export function basicState(
   if (basic === "github")
     return facts.github === "connected"
       ? "done"
-      : githubMissing(facts.github)
+      : facts.github === "missing" || facts.github === "incomplete"
         ? "missing"
         : "unknown";
   const content = facts.content.state;
@@ -395,12 +318,6 @@ export function basicState(
       ? "missing"
       : "unknown";
 }
-
-/** GitHub known not to be there as it belongs: signed out or not installed,
- * connected badly (#515), or signed in as the responsible user's own account
- * where the persona's belongs (F27's addendum of 2026-10-30). */
-export const githubMissing = (fact: GithubFact): boolean =>
-  fact === "missing" || fact === "incomplete" || fact === "own-account";
 
 /** How many basics are done, for "Dokončit nastavení (1 ze 3)", with Buddy
  * "(1 ze 4)". */
@@ -417,7 +334,7 @@ export function basicsDone(facts: TourFacts): number {
  * missing, so it does not hold the rest, and neither does a Buddy whose
  * sign-in cannot be read once his names are confirmed. */
 export function nextBasic(facts: TourFacts): Basic | null | undefined {
-  if (!basicsOnboarding(facts)) return null;
+  if (!personOnboarding(facts)) return null;
   if (facts.buddy !== undefined) {
     if (facts.buddy === "loading") return undefined;
     if (buddyState(facts.buddy) === "missing") return "buddy";
@@ -502,7 +419,7 @@ export function firstProgress(facts: TourFacts): TourProgress | null {
   // A visitor of a public Environment is new to it on every first visit.
   if (demoOnboarding(facts)) return freshTourProgress;
   const next = nextBasic(facts);
-  if (!hasOnboarding(facts.preset) || next === undefined) return null;
+  if (!signsInAsPerson(facts.preset) || next === undefined) return null;
   return next === null ? finishedTourProgress : freshTourProgress;
 }
 
@@ -519,7 +436,7 @@ export function tourStep(
   // A public Environment has no basics: only the introduction.
   if (demoOnboarding(facts))
     return progress === null ? null : (tourIntro[progress.intro] ?? null);
-  if (!hasOnboarding(facts.preset)) return null;
+  if (!signsInAsPerson(facts.preset)) return null;
   const next = nextBasic(facts);
   if (next === undefined) return null;
   if (next !== null) {
@@ -598,9 +515,6 @@ export function tourStop(
       ? (item.name ?? item.login)
       : copy.tourOrganization;
   const failed = content.state === "failed";
-  // The persona's account belongs on its Environment (F27's addendum of
-  // 2026-10-30).
-  const persona = personaGithub(facts.preset);
   switch (step) {
     case "gear": {
       const next = nextBasic(facts);
@@ -609,13 +523,7 @@ export function tourStop(
       if (next === "buddy") return stop("gear", copy.tourGearBuddyTitle, null);
       if (next === "ai") return stop("gear", copy.tourGearAiTitle, null);
       if (next === "github")
-        return persona
-          ? stop(
-              "gear",
-              copy.tourGearGithubPersonaTitle,
-              copy.tourGearGithubPersonaText,
-            )
-          : stop("gear", copy.tourGearGithubTitle, copy.tourGearGithubText);
+        return stop("gear", copy.tourGearGithubTitle, copy.tourGearGithubText);
       if (failed)
         return stop("gear", copy.tourGearFailedTitle, copy.tourGearFailedText);
       return personal
@@ -633,13 +541,7 @@ export function tourStop(
     case "ai":
       return stop("start-ai", copy.tourAiTitle, copy.tourAiText);
     case "github":
-      return persona
-        ? stop(
-            "start-github",
-            copy.tourGithubPersonaTitle,
-            copy.tourGithubPersonaText,
-          )
-        : stop("start-github", copy.tourGithubTitle, copy.tourGithubText);
+      return stop("start-github", copy.tourGithubTitle, copy.tourGithubText);
     case "prepare":
       if (failed)
         return stop(
@@ -697,19 +599,16 @@ export function tourStop(
 /** What must come before the content may be installed (root decision 0201
  * point 3), the one rule of every start: the button and "Zkusit znovu" of
  * the content, the line in Apps, a start request in the address, the start
- * after GitHub and the install route itself. Where the Environment has the
- * onboarding (the Automated one included, F27's addendum of 2026-10-30):
- * `ai` while its AI is provably missing (every CLI answered so), `github`
- * while GitHub is not connected, `unknown` while either is not read yet. An
- * AI that could not be checked (`unknown`: a CLI did not answer) does not
- * hold the content back, as it holds nothing else back: a timeout must not
- * lock an Environment out of its content, and a stop then leads to Chat.
- * GitHub connected badly (`incomplete`: signed in, SSH not working, #515)
- * holds it back as a missing one does: the download clones over SSH and
- * would fail. So does the responsible user's own account where the
- * persona's belongs (`own-account`): the content's turn follows the GitHub
- * step, and it would be cloned with that user's rights. Elsewhere (a Team
- * Environment, whose basics are the Organization's) and on a public
+ * after GitHub and the install route itself. Where the Environment signs in
+ * as its person: `ai` while its AI is provably missing (every CLI answered
+ * so), `github` while GitHub is not connected, `unknown` while either is not
+ * read yet. An AI that could not be checked (`unknown`: a CLI did not
+ * answer) does not hold the content back, as it holds nothing else back: a
+ * timeout must not lock an Environment out of its content, and a stop then
+ * leads to Chat. GitHub connected badly (`incomplete`: signed in, SSH not
+ * working, #515) holds it back as a missing one does: the download clones
+ * over SSH and would fail. Elsewhere (a Team or an Automated Environment,
+ * whose basics are the Organization's or the persona's) and on a public
  * Environment, whose visitors sign in to nothing, only a known missing
  * GitHub does. Null: it may start. */
 export type ContentBlock = "ai" | "github" | "unknown";
@@ -717,11 +616,12 @@ export type ContentBlock = "ai" | "github" | "unknown";
 export function contentBlockedBy(
   facts: Pick<TourFacts, "preset" | "audience" | "ai" | "github">,
 ): ContentBlock | null {
-  if (!basicsOnboarding(facts))
+  if (!personOnboarding(facts))
     return facts.github === "missing" ? "github" : null;
   if (facts.ai === "missing") return "ai";
   if (facts.ai === "loading") return "unknown";
-  if (githubMissing(facts.github)) return "github";
+  if (facts.github === "missing" || facts.github === "incomplete")
+    return "github";
   if (facts.github === "unknown") return "unknown";
   return null;
 }
@@ -768,7 +668,7 @@ export function autoStartStep(
     (state.github === false && github === true);
   const next = (armed: boolean): AutoStart =>
     Object.freeze({ ai, github, armed });
-  if (!basicsOnboarding(facts)) return { state: next(false), start: false };
+  if (!personOnboarding(facts)) return { state: next(false), start: false };
   const armed = state.armed || arrived;
   if (!armed) return { state: next(false), start: false };
   const content = facts.content.state;
@@ -786,10 +686,7 @@ export function autoStartStep(
  * gh whose SSH does not work here is its SSH link (`incomplete`, #515;
  * tools-view `signInMode`); `install` starts the installation. GitHub's
  * sign-in waits for AI as Začínáme offers it, and the installation for its
- * turn (`contentBlockedBy`). The responsible user's own account where the
- * persona's belongs (`own-account`) is dropped: switching it signs that
- * account out, which only the step's own "Přepnout účet" does, never a
- * link. */
+ * turn (`contentBlockedBy`). */
 export type StartDecision =
   | "wait"
   | "drop"
@@ -802,7 +699,7 @@ export function startDecision(
   request: StartRequest,
   facts: TourFacts,
 ): StartDecision {
-  if (!basicsOnboarding(facts)) return "drop";
+  if (!personOnboarding(facts)) return "drop";
   // Buddy's bubble before the meeting (decision F60's addendum of
   // 2026-10-26): his dialog, where his step stands, only where he is and
   // only until his names are confirmed. A reading that failed opens it too,
@@ -816,9 +713,7 @@ export function startDecision(
   if (request === "sign-in-gh") {
     if (facts.github === "unknown" || facts.ai === "loading") return "wait";
     if (facts.ai === "missing") return "open-ai";
-    return facts.github === "connected" || facts.github === "own-account"
-      ? "drop"
-      : "sign-in-gh";
+    return facts.github === "connected" ? "drop" : "sign-in-gh";
   }
   const content = facts.content.state;
   if (content === "loading" || content === "unknown") return "wait";
@@ -875,11 +770,7 @@ export type SetupLine = Readonly<{
 /** The line in Apps until the Environment has its basics (the wireframe's
  * `SetupBanner`): the next missing basic in the order AI → GitHub → content,
  * a running preparation, or a stopped one with where it leads (`resolve`).
- * Only where the Environment has the onboarding, and only what is known. On
- * the Automated Environment GitHub's line names the persona's account, and
- * the responsible user's own account leads to Začínáme's step, which
- * switches it (F27's addendum of 2026-10-30), as "Připojit AI" leads to the
- * AI step. */
+ * Only where it signs in as its person, and only what is known. */
 export function appsSetupLine(
   facts: TourFacts &
     Readonly<{
@@ -906,14 +797,7 @@ export function appsSetupLine(
       text: copy.setupAi,
       actions: [{ action: "open-start", label: copy.setupAiAction }],
     };
-  if (next === "github") {
-    if (facts.github === "own-account")
-      return {
-        tone: "info",
-        icon: "key",
-        text: copy.setupGithubOwnAccount,
-        actions: [{ action: "open-start", label: copy.setupGithubSwitch }],
-      };
+  if (next === "github")
     // Connected badly (#515): it does not work, and it connects again.
     return facts.github === "incomplete"
       ? {
@@ -925,12 +809,9 @@ export function appsSetupLine(
       : {
           tone: "info",
           icon: "key",
-          text: personaGithub(facts.preset)
-            ? copy.setupGithubPersona
-            : copy.setupGithub,
+          text: copy.setupGithub,
           actions: [{ action: "sign-in-gh", label: copy.setupGithubAction }],
         };
-  }
   const content = facts.content;
   if (content.state === "failed") {
     const resolve = facts.resolve ?? "chat";
@@ -989,13 +870,12 @@ export function appsSetupLine(
 }
 
 /** The shell document's `setup` from what is known (root decisions 0188 and
- * 0201): undefined where the preset has no onboarding, on a public
- * Environment (decision F55) or while GitHub's state is not known; `ai` only
- * when it is known. GitHub connected badly (#515) and the responsible user's
- * own account where the persona's belongs are `missing` there:
- * `lazurio.shell.v1` knows connected or missing, and the prompt leads to
- * Začínáme, which says the rest. The server's document and the Launchpad
- * page's own column head both draw from it. */
+ * 0201): undefined where the preset does not sign in as its person, on a
+ * public Environment (decision F55) or while GitHub's state is not known;
+ * `ai` only when it is known. GitHub connected badly is `missing` there
+ * (#515): `lazurio.shell.v1` knows connected or missing, and the prompt
+ * leads to Začínáme, which says the rest. The server's document and the
+ * Launchpad page's own column head both draw from it. */
 export function shellSetup(
   input: Readonly<{
     preset: string;
@@ -1008,7 +888,7 @@ export function shellSetup(
     buddy?: BuddyFact | undefined;
   }>,
 ): ShellSetup | undefined {
-  if (!basicsOnboarding(input) || input.github === "unknown") return undefined;
+  if (!personOnboarding(input) || input.github === "unknown") return undefined;
   const fact = contentFact(input.list, input.job);
   const buddy =
     input.buddy === undefined

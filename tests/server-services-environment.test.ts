@@ -21,7 +21,7 @@ import {
 import { renderOutputs } from "../src/folder/preview";
 import { workEnvironment } from "../src/github/pilot";
 import { launchpadBoot } from "../src/launchpad/boot-document";
-import { hasOnboarding } from "../src/launchpad/first-run";
+import { signsInAsPerson } from "../src/launchpad/first-run";
 import {
   assignmentText,
   environmentFacts,
@@ -281,7 +281,7 @@ test("Služby serveru derive the Team preset and only it: GitHub only through th
   expect(githubLoginRefused(team, "gh", "ssh-key")).toBe(true);
   // No Začínáme asks the person to sign in to GitHub there, and the hosting
   // prepares its content through the broker.
-  expect(hasOnboarding(team)).toBe(false);
+  expect(signsInAsPerson(team)).toBe(false);
   expect(contentScope(team, servicesBinding)).toEqual({
     allowed: false,
     reason: "prepared-by-hosting",
