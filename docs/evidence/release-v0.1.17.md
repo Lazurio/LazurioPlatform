@@ -116,6 +116,10 @@ T3 Code on the personal VM stayed `0.1.2-lazurio.6`.
    - Both were running on all three.
    - On one work VM the planning app answered `healthy: false` right after its start and `healthy: true` at
      15:09:46Z. It was still starting, not a failure.
+   - At 15:32:59–15:33:03Z both modules were stopped on all three. These were clean stops (`Stopping`, `Stopped`, no
+     failure), one Machine after another, two seconds apart, so they were requested from outside. The Platform
+     stops nothing by itself, and the Machines do not record who asked. See "Other changes" below.
+   - The opening of the modules, which G.3 also asks for, was checked after the end reading (step 5).
 3. **Acceptance of the agent rules, read-only on every Machine:** on the work VMs at 13:08:45–13:09:01Z, after
    both lanes; on the personal VM from its apply's readback, at 15:05Z.
    - Every Folder renders template revision `base-instructions-90`.
@@ -135,12 +139,33 @@ T3 Code on the personal VM stayed `0.1.2-lazurio.6`.
    - **Handover (#724; 15:14:10–15:15:01Z).** A small task for a bot: the handover in one sentence, and the bot's
      result reported in the same minute.
    - **The name (#730).** The person's name opened one of the four replies.
+5. **23:19:03–23:25:17Z, after the end reading: the modules open through the Launchpad.**
+   - G.3 asks that the modules users work with start **and open** through the Launchpad or
+     `lazurio module open`. This release has no `lazurio module open` command; [Launchpad
+     parity](../launchpad-parity.md) describes it as the target. So the opening went the way a person opens a
+     module: in a browser, on the module's own hostname, through the Environment's gateway and Launchpad.
+   - **Setup:**
+     - The Machines were still on the candidate, unchanged since the end reading.
+     - All modules had been stopped since 15:33Z. A first attempt at 23:17Z with the CLI only printed its usage
+       (there is no such command) and stopped the already stopped modules, so it changed nothing.
+     - Every module was opened cold, so the Launchpad started it on demand.
+   - **On each of the three work VMs both modules opened, as the Organization's test accounts:**
+     - HTTP 200;
+     - the content module's own front page;
+     - the planning app's plan board.
+     - The two person-assigned work VMs were opened as their assigned users, and the public one after its sign-in
+       page.
+   - **Afterwards:**
+     - At 23:25:45–23:25:50Z each Launchpad unit had still been active since its G.3 restart, with `NRestarts` 0,
+       and `recover` answered `healthy`.
+     - The modules were stopped again, as they were found.
 
 ### Other changes on the same Machines during the stage
 
 | When (UTC) | What | Effect on the candidate |
 |---|---|---|
 | 15:10:46–15:15:01 | On the personal VM, Buddy's chat as the Owner test account, with one bot task | none; the Launchpad unit kept running |
+| 15:32:59–15:33:03 | On the three work VMs that hold modules, both modules stopped cleanly from outside the Platform (not attributed on the Machines) | none; the Launchpad units kept running |
 
 ### Per Machine
 
