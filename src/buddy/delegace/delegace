@@ -556,7 +556,9 @@ def queued_runs(thread: str) -> set[str] | None:
         items = (data or {}).get("items")
         if code != 0 or not isinstance(items, list):
             return None
-        runs.update(item["queuedRunId"] for item in items if isinstance(item, dict) and isinstance(item.get("queuedRunId"), str))
+        if not all(isinstance(item, dict) and isinstance(item.get("queuedRunId"), str) for item in items):
+            return None  # another shape: unreadable, never an empty queue
+        runs.update(item["queuedRunId"] for item in items)
         cursor = (data or {}).get("nextCursor")
         if cursor is None:
             return runs
@@ -1239,6 +1241,7 @@ def cmd_potvrd(args) -> int:
         if args.hlidej_dal:
             if not rec.get("threadId"):
                 raise DelegaceError(f"delegace {args.id} nemá konverzaci bota, není co hlídat")
+            termin_s = parse_duration(args.termin) if args.termin else None
             withdraw_queued_notices(rec)
             rec["kolo"] = rec.get("kolo", 1) + 1
             rec["stav"] = "bezi"
@@ -1246,8 +1249,8 @@ def cmd_potvrd(args) -> int:
             rec["nedostupny_od_ts"] = None
             for key in ("vysledek_stav", "vysledek", "vysledek_ts", "probuzen", "probuzen_ts"):
                 rec[key] = None
-            if args.termin:
-                rec["termin_s"] = parse_duration(args.termin)
+            if termin_s is not None:
+                rec["termin_s"] = termin_s
                 rec["termin_ts"] = now() + rec["termin_s"]
                 rec["termin"] = human_time(rec["termin_ts"])
             note(rec, f'potvrzeno, hlídám dál ({rec["kolo"]}. kolo, termín {rec["termin"]})')

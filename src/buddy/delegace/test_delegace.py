@@ -182,6 +182,8 @@ if a[:2] == ["thread", "send"] and opt("--message-file") == "-" and opt("--idemp
 # Buddy's queue behind his running turn (Lazurio/t3code agent CLI); a runtime
 # without these commands is FAKE_T3_QUEUE unset.
 if a[:2] == ["queue", "list"] and os.environ.get("FAKE_T3_QUEUE"):
+    if os.environ.get("FAKE_T3_QUEUE_SHAPE") == "other":  # items without queuedRunId
+        done(0, {"items": [{"id": run} for run in st.setdefault("queue", [])], "nextCursor": None})
     done(0, {"items": [{"queuedRunId": run, "text": "…", "truncated": False} for run in st.setdefault("queue", [])],
              "nextCursor": None})
 if a[:2] == ["queue", "cancel"] and os.environ.get("FAKE_T3_QUEUE"):
@@ -932,6 +934,34 @@ class DelegaceTest(unittest.TestCase):
         self.assertEqual(rec["stav"], "vyrizeno")
         self.assertEqual(rec["t3"][rid + "#2"]["doruceni"], "staženo")
         self.assertEqual(rec["t3"][rid]["doruceni"], "zahajeno")
+
+    def test_a_queue_answer_of_another_shape_is_unreadable_not_empty(self):
+        # Pablo's review of #723: items without queuedRunId must not read as an empty queue, which
+        # would start the clock while the notice still waits.
+        self.mausbot_says(wait=[DONE])
+        rid = self.zadej_ok(**self.T3)
+        env = {"DELEGACE_ACK_SECONDS": "0", "FAKE_T3_QUEUE": "1", "FAKE_T3_QUEUE_SHAPE": "other"}
+        self.hlidej(**env)
+        self.hlidej(**env)
+        rec = self.rec(rid)
+        self.assertEqual(rec["t3"][rid]["doruceni"], "queued")
+        self.assertNotIn("ceka", rec["t3"][rid])
+        # Unreadable keeps the clock from the send: the reminder goes out as before.
+        self.assertEqual([m["key"] for m in self.messages()], [rid, rid + "#2"])
+
+    def test_an_invalid_deadline_on_watching_on_withdraws_nothing(self):
+        # Pablo's review of #723: a refused `potvrd --hlidej-dal` changes nothing, in T3 Code either.
+        self.mausbot_says(wait=[QUESTION])
+        rid = self.zadej_ok(**self.T3)
+        self.hlidej(FAKE_T3_QUEUE="1")
+        before = self.rec(rid)
+        p = self.delegace("potvrd", rid, "--hlidej-dal", "--termin", "brzy", FAKE_T3_QUEUE="1")
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("neplatný termín", p.stderr)
+        state = self.t3_state()
+        self.assertEqual(state["queue"], ["run-1"])
+        self.assertNotIn("cancelled", state)
+        self.assertEqual(self.rec(rid), before)
 
     def test_a_queue_that_cannot_be_read_keeps_the_reminders_and_the_last_resort(self):
         # A runtime without `t3 queue` (FAKE_T3_QUEUE unset): the clock runs
