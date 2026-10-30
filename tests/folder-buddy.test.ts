@@ -171,7 +171,8 @@ test("Buddy does a simple task himself and gives what outgrows it to a bot, and 
         "a vrátíš se k uživateli.",
       ],
       pace: [
-        "Nejdřív krátce odpovíš, pak pracuješ. Slíbený čas držíš; když ho nestihneš, řekneš to hned s novým plánem.",
+        "Než sáhneš po prvním nástroji, napíšeš jednu krátkou větu, co uděláš a kdy se ozveš; pak pracuješ. Slíbený čas držíš; když ho nestihneš, řekneš to hned s novým plánem.",
+        "Když dáš práci botovi, řekneš to jednou větou a nic víc: „Dal jsem to botovi Zukovi, ozvu se.“",
         "V domluveném bloku se držíš jeho tématu a ptáš se na jednu věc, ostatní shrneš na jeho konci.",
         "Co nevidíš (telefon, aplikaci), řekneš hned a požádáš o snímek obrazovky.",
       ],
@@ -185,7 +186,8 @@ test("Buddy does a simple task himself and gives what outgrows it to a bot, and 
         "and return to the user.",
       ],
       pace: [
-        "You answer briefly first, then work. You keep the time you promise; when you will miss it, you say so at once with a new plan.",
+        "Before your first tool, one short sentence on what you will do and when; then work. You keep the time you promise; when you will miss it, you say so at once with a new plan.",
+        "When you give work to a bot, you say so in one sentence, nothing more: “I gave it to bot Zuko, I'll get back to you.”",
         "In an agreed block you keep to its topic, one question at a time, and sum up the rest at its end.",
         "What you cannot see (a phone, an app), you say at once and ask for a screenshot.",
       ],
@@ -267,7 +269,7 @@ test(".hermes.md carries Buddy's role about the user: coordinator, bots, threads
   ])
     expect(cs).toContain(phrase);
   for (const phrase of [
-    "You mention commands (`/help`, say)",
+    "commands (`/help`), tools, settings, models or Hermes only when the user asks",
     "You never sign your messages to the user",
     "for the user for others",
     "T3 Code from version 0.1.1-lazurio.2 shows the mark itself",
@@ -417,7 +419,8 @@ test(".hermes.md gives Buddy the route to another Environment of the page contex
   const expected = {
     cs: {
       heading: "## Bublina v Lazuriu",
-      order: "- Pro jiné Prostředí z kontextu volíš cestu v tomto pořadí:",
+      order:
+        "- Pro jiné Prostředí, ze stránky i ze zprávy, volíš cestu v tomto pořadí:",
       routes: [
         [
           "`~/.ssh/config.d/lazurio-environments.conf`",
@@ -435,6 +438,8 @@ test(".hermes.md gives Buddy the route to another Environment of the page contex
           "nebo když to nikam nevede",
           "obyčejnými větami bez technických slov",
           "že se do něj zatím nedostaneš: odsud do něj nevede cesta",
+          // #689 on Ring 0 (2026-10-30): Buddy took a hand-written alias of ~/.ssh/config instead.
+          "ani když v `~/.ssh/config` najdeš jiný alias",
         ],
       ],
       never:
@@ -444,7 +449,7 @@ test(".hermes.md gives Buddy the route to another Environment of the page contex
     },
     en: {
       heading: "## The bubble in Lazurio",
-      order: "- For another Environment from the context, in this order:",
+      order: "- For another Environment (page or message), in this order:",
       routes: [
         [
           "`~/.ssh/config.d/lazurio-environments.conf`",
@@ -462,6 +467,7 @@ test(".hermes.md gives Buddy the route to another Environment of the page contex
           "or when that leads nowhere",
           "without technical words",
           "that you cannot reach it yet: no route leads there from here",
+          "whatever `~/.ssh/config` says",
         ],
       ],
       never:

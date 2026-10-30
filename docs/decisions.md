@@ -2869,6 +2869,26 @@ work to bots (root decision 0210) gets the same addendum in the root. Template r
 `base-instructions-89` (unreleased). `tests/folder-buddy.test.ts` checks both locales, the pace lines
 inside the section on talking to the user.
 
+**Follow-up of 2026-10-30, Ring 0 acceptance of v0.1.16 and Buddy diagnostics (plan DEV-6676):
+the route rule binds every other Environment, and the pace lines say what Buddy writes before he
+works.** Under the Organization Admin's mandate of 2026-10-29 for the Buddy diagnostics fixes:
+
+- **Route (#689 failed on Ring 0).** Asked in his own chat for a read on his user's Work Environment,
+  Buddy found no `lazurio-environments.conf`, read `~/.ssh/config`, and used a hand-written alias
+  that a test grant had left there. The order of routes was written "for another Environment from
+  the context", and his request named the Environment in the message. The rule now holds for
+  another Environment from the page or a message. Its last step says that no route leads there
+  whatever `~/.ssh/config` has: only the file Lazurio writes and the station lead into another
+  Environment, so a route follows the assignment and the membership, and ends with them.
+- **Pace (#711 on Ring 0).** "He answers briefly first" did not happen: his first and only reply
+  came two minutes later. The line now says what comes first: one short sentence, before his first
+  tool, on what he will do and when he is back. A handover to a bot came in three sentences; the
+  line says one sentence and nothing more.
+
+Room: Czech 18,724 characters, English 19,990 (under the 20,000 Hermes loads uncut). In English the
+lines on introducing himself and on the chat's own T3 Code say the same in fewer words. Template
+revision `base-instructions-90`. `tests/folder-buddy.test.ts` checks both locales.
+
 ### Proposal of 2026-10-29: the person's own instructions for agents, and a person's own entries in a hosted Folder (for Matěj's decision; not decided, not implemented)
 
 On 2026-10-29 Matěj raised two questions.
