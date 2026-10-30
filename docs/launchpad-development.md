@@ -3128,10 +3128,12 @@ ended the tour for good, and the Organization's download ran before any AI could
 after the wireframe of HumanAndMachine-ai/prototypes-lazurio 1eefc3d (`setup.tsx`,
 `screens/Start.tsx`, `screens/Tour.tsx`, PRs #48 and #49) and [F36's addendum of
 2026-10-15](decisions.md#f36-addendum-of-2026-10-15-začínáme-the-basics-from-live-facts-ai-first-root-decision-0201).
-Only where the Environment signs in to GitHub as its user: the presets
-`hosted-personal`, `hosted-organization-personal` and `local`. A Team or an Automated
-Environment acts through the Organization's app or its persona, its basics are the
-Organization's, and it gets none of it.
+Only where the Environment has the onboarding (`hasOnboarding`): the presets
+`hosted-personal`, `hosted-organization-personal` and `local`, which sign in to GitHub as
+their user, and since [F27's addendum of 2026-10-30](decisions.md#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)
+`hosted-organization-steward`, the Automated Environment, whose GitHub is its persona's own
+account, signed in by its responsible user. A Team Environment acts through the
+Organization's app, its basics are the Organization's, and it gets none of it.
 
 - **The basics** (0201 point 1): an AI an agent can work with, GitHub signed in as the
   user, and the content (the Organization, on the personal Environment the
@@ -3151,7 +3153,9 @@ Organization's, and it gets none of it.
     unknown, unprobed, stale or Team reading says nothing; gh not installed is missing;
     connected only when gh is signed in and this Environment reaches GitHub over SSH as
     that account, `incomplete` when it does not, which counts as missing, F19's addendum
-    of 2026-10-19);
+    of 2026-10-19; on the Automated Environment gh signed in as the responsible user's own
+    login, the one its handover's `automation` assignment names, letter case ignored, is
+    `own-account`, which counts as missing too, whatever SSH says);
   - the content from the content routes (`content-client.ts`, `content-view.ts`).
 - **Nastavení → Začínáme** (`/settings/start`, first in the Settings column with the
   count "1/3" while a basic is missing; `start-view.ts`, `start-panel.ts`): "Hotovo
@@ -3189,7 +3193,13 @@ Organization's, and it gets none of it.
      working): "Připojení nefunguje." with the warning mark and "Připojit znovu", which
      opens "Link SSH key" under the title "Připojit GitHub". A sign-in the page runs, its
      window closed or open: "Čeká na vaše potvrzení." or "Dokončuje se připojení…" with
-     the waiting mark and "Otevřít", which shows it again (F19's addendum of 2026-10-19);
+     the waiting mark and "Otevřít", which shows it again (F19's addendum of 2026-10-19).
+     On the Automated Environment the step names the persona's account: "Nepřipojeno. Sem
+     patří účet persony, ne váš."; with the responsible user's own account signed in, "Je
+     přihlášený váš vlastní účet @login. Sem patří účet persony." with the warning mark
+     and "Přepnout účet", which signs that account out as gh's "Odhlásit" in Nástroje does
+     and opens gh's sign-in, whose dialog says to confirm the code with the persona's
+     account (F27's addendum of 2026-10-30);
   3. **Stáhnout <Organizace>** / **Připravit osobní prostor** / both: the content's own
      rows inside the step (the same `content-panel.ts` as Toto Prostředí draws).
      Once this view saw GitHub or the AI arrive (from missing to there; what was there
@@ -3214,11 +3224,14 @@ Organization's, and it gets none of it.
   and Codex Desktop, both leading to Settings → SSH; between them "Trezor v Bitwardenu"
   where Apps → Trezor gives the steps for Bitwarden, its "Návod" opening them) and
   "Prohlídka aplikace" ("Spustit
-  prohlídku" / "Spustit znovu" starts the introduction in Apps). A Team or Automated
-  Environment's Začínáme says only "Tady není co nastavovat.".
+  prohlídku" / "Spustit znovu" starts the introduction in Apps). A Team Environment's
+  Začínáme says only "Tady není co nastavovat.".
 - **The line in Apps** (`appsSetupLine`): until the basics exist, one line under the
   head, the next missing basic first: "AI není připojené." · "Připojit AI";
-  "GitHub není připojený." · "Připojit GitHub"; "<Organizace> tu ještě není." ·
+  "GitHub není připojený." · "Připojit GitHub" (on the Automated Environment "Účet persony
+  na GitHubu není připojený." · "Připojit GitHub", and with the responsible user's own
+  account "Na GitHubu je přihlášený váš vlastní účet, sem patří účet persony." · "Přepnout
+  účet", which leads to the step); "<Organizace> tu ještě není." ·
   "Stáhnout"; "Osobní prostor tu ještě není." · "Připravit"; while it runs "Stahuje se
   <Organizace>." · "Zobrazit"; "Příprava se zastavila." · "Vyřešit v Chatu" or "Připojit
   AI", "Zkusit znovu"; for an Organization not prepared for this version, to a member who
@@ -3233,7 +3246,9 @@ Organization's, and it gets none of it.
   facts.
 - **Start requests.** A button of the line is a link to `/settings/start` with the
   action in the fragment, decided by `startDecision`: `#lazurio-start=sign-in-gh` opens
-  gh's sign-in once Nástroje have read gh and AI is there, `#lazurio-start=install-content`
+  gh's sign-in once Nástroje have read gh and AI is there (never over the responsible
+  user's own account on the Automated Environment: only the step's "Přepnout účet" signs
+  it out), `#lazurio-start=install-content`
   starts the installation once the content is read, something is missing and its turn has
   come; without AI either shows the AI step and starts nothing. A link of an older shell to
   Nástroje or Toto Prostředí lands on Začínáme too. `readFragment` takes the fragment

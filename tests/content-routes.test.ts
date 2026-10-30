@@ -1161,3 +1161,45 @@ posixTest(
   },
   60_000,
 );
+
+posixTest(
+  "the install route waits for AI on the Automated Environment as on a work Environment; a Team Environment's content stays its hosting's (F27's addendum of 2026-10-30)",
+  async () => {
+    world = await createWorld();
+    const stub = stubGitHub(world);
+    const automated = await launchpad(
+      await presetFolder(
+        world,
+        "hosted-organization-steward",
+        bindings.automated,
+      ),
+      contentHost(world, stub.github),
+      aiAnswer("missing"),
+    );
+    const refused = await automated.post("/api/content/install", {});
+    expect([refused.status, await refused.json()]).toEqual([
+      403,
+      { error: "not-allowed", reason: "ai-missing" },
+    ]);
+    expect((await automated.get("/api/content/jobs/latest")).status).toBe(404);
+    expect(stub.calls).toEqual([]);
+    await closing?.();
+    closing = undefined;
+    // The AI never decides a Team Environment's content.
+    const team = await launchpad(
+      await presetFolder(
+        world,
+        "hosted-organization-team",
+        bindings.assignedTeam,
+      ),
+      contentHost(world, stub.github),
+      aiAnswer("missing"),
+    );
+    const prepared = await team.post("/api/content/install", {});
+    expect([prepared.status, await prepared.json()]).toEqual([
+      403,
+      { error: "not-allowed", reason: "prepared-by-hosting" },
+    ]);
+  },
+  60_000,
+);
