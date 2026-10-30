@@ -1185,7 +1185,7 @@ the frame.
 | JSON of the last answer (`#result`) | Settings → General, behind "Technical details" |
 | This Environment (read-only handover) | Settings → This Environment (Czech "Tento Environment"): "Obsah Environmentu", then the kind, whom it belongs to and who works in it in a person's words, the recorded technical facts folded under "Pro podporu" (root decision 0188) |
 | Tools (groups, cards, dialogs, MCP card) | Settings → Tools; Refresh status is its page action in the header |
-| Product update pill, with the read-only "Folder refresh needed" line (F17 addendum) | Sidebar footer above Settings/Back, visible from every route, and only while an update is available or under way (Matěj 2026-09-28, as in T3 Code); the Folder refresh line is independent of the pill, a subdued notice right above it with the command in selectable monospace |
+| Product update pill | Sidebar footer above Settings/Back, visible from every route, and only while an update is available or under way (Matěj 2026-09-28, as in T3 Code). The update refreshes the Folder itself and nothing about a refresh is shown (F17 addendum 2026-10-30; the read-only "Folder refresh needed" line with its command is removed) |
 | Application (development lifecycle) | Launchpad home `/`, not a setting; since P4 replaced there by the catalog; since P5 the module page carries the lifecycle ([below](#module-lifecycle)), the development API stays |
 
 **Patterns adopted from T3 Code** (source: `pingdotgg/t3code` at `d15210cd3d`,

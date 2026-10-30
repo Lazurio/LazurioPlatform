@@ -232,6 +232,13 @@ as the declared operator, after every handover write on a Machine whose Folder e
 lazurio machine folder-refresh
 ```
 
+The user's `lazurio update` runs the same command itself, after it activates a version
+and when it finds nothing newer, whenever the Folder records an older template revision
+than the active version renders
+([F17's addendum of 2026-10-30](decisions.md#f17--operator-tools-belong-to-the-operator-the-rollout-pins-the-baseline-and-repairs)).
+It is the same command with the same lock and answers; the role's own runs do not
+change.
+
 The handover, the operator and the Folder are bound exactly as for `folder-init`, and
 no caller-held revision is needed: the refresh keeps the recorded choices and plans
 under the Folder lock from the revision it finds. Its one option, `--preset <name>`,
@@ -298,10 +305,11 @@ The Launchpad shows the refreshed binding on its next read; an open panel holdin
 old revision gets `stale-revision` on apply, as after any concurrent change. The
 refresh re-renders what the handover changes, and everything when the active product
 renders a newer template revision than the Folder records: after Machines installs a
-release with new templates, or the user runs `lazurio update` (which then reports
-"Folder refresh needed"), the next `folder-refresh` is `refreshed` with the new
-`AGENTS.md` and `manual/`, provided no generated file was edited (otherwise `drift`
-and its path, nothing written). A Folder rendered by a newer revision than the active
+release with new templates, the role's next `folder-refresh` is `refreshed` with the
+new `AGENTS.md` and `manual/`, provided no generated file was edited (otherwise `drift`
+and its path, nothing written). After the user's `lazurio update` the update has
+already run this refresh, so the role's next one is `unchanged`, or `blocked` for the
+same reason the update named. A Folder rendered by a newer revision than the active
 product stays `template-upgrade-required` and is never downgraded
 ([F14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)). There is no
 program rollback any more ([product update](update.md), change of 2026-09-28), so an
@@ -770,7 +778,10 @@ on a Machine whose Folder exists (and after `updated`), the role runs
 `lazurio machine folder-refresh` (added after v0.1.2; the role needs a pinned release
 that has it) so the Folder follows the current handover: exit 0 `refreshed` or
 `unchanged` is success, exit 2 `blocked` is a finding to report with its `reason` and
-`path`, not a failure to retry, and exit 1 is an operation failure.
+`path`, not a failure to retry, and exit 1 is an operation failure. Nothing of this
+changes with F17's addendum of 2026-10-30: `lazurio install` refreshes nothing, and a
+user's `lazurio update` that refreshed the Folder first makes the role's refresh
+`unchanged` (or `folder-busy` while that refresh holds the lock, retryable as before).
 
 ### What the Machines role does with the Lazurio version (F17 addendum 2026-09-28)
 
@@ -791,7 +802,7 @@ Every step below uses only what the product already answers.
 | `install` over a supervised installation answers `activation-unhealthy` | A Recovery-mode finding for the readback, never a retry: the new version stays active, nothing was undone, and the repair is forward (a fixed release, or the condition the Launchpad's Recovery mode names) |
 | After `installed` or `updated` | Run `lazurio machine folder-refresh` as today (above) |
 | PATH entry | Verify, do not create: `install --json` returns `entry`. `state` `created`, `present` or `replaced` is correct; `conflict` or `failed` is a finding with `entry.next` in the readback, and the role never replaces the occupant. A Machine without the entry is repaired by the next `install`, not by a link the role writes itself. The operator account's login shell has `~/.local/bin` on PATH (`workspace_tools` already provides it for npm); `entry.shadowedBy` not `null` is a finding |
-| Readback | `lazurio update status --json`: `active`, `highWater`, `lastCheck` and `folderRefresh` are facts to report; an active version above the pin is not drift |
+| Readback | `lazurio update status --json`: `active`, `highWater`, `lastCheck` and `folderRefresh` (`null`, or `{folder, recorded, product}` while the Folder still needs a refresh) are facts to report; an active version above the pin is not drift |
 
 The role keeps its custody-staged, digest-pinned bytes and its attestation check for
 installing and raising. The user's own `lazurio update` verifies inside the product

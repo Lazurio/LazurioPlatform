@@ -1467,7 +1467,14 @@ repository.
 notes (today an edited generated file is refused and there is no restore command; the
 troubleshooting document says so). The Launchpad may later show which product version
 rendered the Folder. No automatic writes: the re-rendering after a product update is
-decided below and happens only through an explicit change.
+decided below and happens only through an explicit change. *Note of 2026-10-30:* that
+explicit change is now part of the update itself. `lazurio update` runs the refresh
+through this same change path once it has activated a version, and also when it finds
+nothing newer
+([F17's addendum of 2026-10-30](#f17--operator-tools-belong-to-the-operator-the-rollout-pins-the-baseline-and-repairs)).
+The update is the person's request to bring the Environment up to date, and the refresh
+is the one change path run as its own command, not a second writer. So a product
+update still never writes the Folder by any other path.
 
 **Decided 2026-09-24: a newer template revision re-renders the Folder.** Until
 `base-instructions-4` every change of the template revision made a refresh and a
@@ -1497,7 +1504,7 @@ conditions:
 | Alternative | Trade-off / disposition |
 | --- | --- |
 | Keep `template-upgrade-required` for every change of revision | No new state path; hosted Machines never receive a corrected manual; rejected |
-| Re-render automatically on product activation | A write the Operator did not ask for, and a second writer beside the change path; rejected |
+| Re-render automatically on product activation | A write the Operator did not ask for, and a second writer beside the change path; rejected. *Revisited 2026-10-30 (F17's addendum):* the update the person asked for runs the refresh through this change path; a write at activation itself stays rejected |
 | A separate `folder-upgrade` command | The same planner and transaction under a second name, and one more step for Machines; rejected |
 | Upgrade inside the existing planner, digests as proof (selected) | One path, the existing refusal for edited files, no downgrade |
 
@@ -3292,7 +3299,10 @@ and warns, with both paths, when another program named `lazurio` resolves first 
 legacy root CLI linked by Bun into `~/.bun/bin`, for example); it changes nothing about
 that program.
 
-*"Folder refresh needed."* A product update never writes the Folder (F14). So
+*"Folder refresh needed."* *(Superseded by the addendum of 2026-10-30 below: the update now refreshes the Folder
+itself, and people never see a refresh. Only `lazurio update status` and `lazurio
+doctor` still report a needed one, for agents.)*
+A product update never writes the Folder (F14). So
 `lazurio update`, `lazurio update status` and the installed Launchpad's update pill say
 "Folder refresh needed" with the exact command when the Folder records an older
 template revision than the active product renders: `lazurio machine folder-refresh`
@@ -3333,8 +3343,9 @@ decision: agents update proactively and continuously, and they resolve a diverge
 checkout for the Operator without losing work.
 
 1. At the start of every piece of work an agent runs `lazurio update` in the background
-   and, when it reports "Folder refresh needed", the refresh. It tells the Operator what
-   changed. Only the Launchpad restarts ([product update](update.md)); applications,
+   and, when it reports "Folder refresh needed", the refresh. *(Since the addendum of
+   2026-10-30 the update runs the refresh itself; the agent only resolves a blocked one
+   with the user's consent.)* It tells the Operator what changed. Only the Launchpad restarts ([product update](update.md)); applications,
    T3 Code and Codex sessions keep running (F29 point 3), and a concurrent run ends
    `busy`. The product itself still activates nothing on its own.
 2. Until content synchronization exists (F9, [content synchronization](content-sync.md),
@@ -3376,6 +3387,108 @@ to ask.
 | Keep "only when the Operator asks" | Environments drift and published changes stay invisible; rejected |
 | Let the product update itself on a timer | Activation stays an explicit step of the updater (F13); an agent runs the same updater in the open and reports what changed; rejected |
 | Report a diverged checkout and stop | The work waits for a person who may not know Git; rejected: the agent keeps the work first, then resolves |
+
+**Addendum 2026-10-30 (Matěj): the update refreshes the Folder; people never see a
+refresh.** Matěj, the Organization Admin, clicked Update in the Launchpad of a hosted
+Work Environment. The column then said „Folder je potřeba obnovit. Spusťte: lazurio
+machine folder-refresh“ ("The Folder needs a refresh. Run: …"). His decision, in his
+words: „Myslím si, že je to produktově špatně, protože dejme tomu, že uživatelé, kteří to
+používají, nejsou technicky zdatní. Tady tahleta hláška říká uživateli, aby udělal něco
+v terminálu, což je úplně špatně. Takže si myslím, že tady tenhle refresh toho folderu by
+se měl stát automaticky hned po tom, co proběhne update, a tyhle informace by se
+k uživateli vlastně vůbec neměly dostat, že by potřeboval něco refreshnout.“ In short:
+the people who use Lazurio need not be technical; a message that sends them to a terminal
+is wrong; the refresh happens automatically right after the update, and the need for one
+never reaches them.
+
+What changes:
+
+1. **The update refreshes.** After a successful activation, `lazurio update` refreshes
+   the Folder in the same run. It does so whether a person ran it in a terminal or the
+   pill started it in its unit, because both are the same command. The step lives in one
+   place of the update core (`refreshAfter` in `src/update/update.ts`):
+   - It runs the newly active version's own refresh through the selector, as a bounded
+     child (`src/update/folder-refresh.ts`), because the templates are that version's.
+   - The declared operator's Folder of a hosted Machine gets `lazurio machine
+     folder-refresh`. Every other Folder gets `lazurio profile-update` with its recorded
+     choices at its current revision, which the one planner turns into the template
+     upgrade (F14).
+   - The Folder is the one the update already resolves: `--folder`, the supervised
+     unit's, or the declared operator's.
+   - It runs only when the Folder records an older template revision than the active
+     version renders, and only when that version states which revision it renders (its
+     self-check's `templateRevision`). Otherwise nothing runs.
+2. **Also when nothing is newer.** When `lazurio update` finds no newer release but the
+   Folder still records an older revision, it refreshes too, with the active version.
+   That happens after a blocked or busy refresh, or after a Machines install moved the
+   version. The Launchpad's update of everything (Nová karta's Aktualizovat, root
+   decision 0212 point 3) does the same when its check finds nothing newer. It uses the
+   same function under the update lock: while an update holds the lock, that update
+   refreshes instead.
+3. **Activation stays final.** A blocked or failed refresh never fails, reverts or
+   delays the success of the update. The switch happened before it, and the exit status
+   stays the product's.
+   - `folder-busy` is retried, at most six attempts a second apart: the Launchpad that
+     the switch has just restarted reads the Folder under its lock for moments.
+     `stale-revision` (a concurrent change of the Folder) is retried the same way.
+   - Every attempt reads the Folder again, so a Folder that another operation refreshed
+     meanwhile is `unchanged`. The child is bounded to two minutes.
+   - The result's `folderRefresh` is now the outcome, `{state: "refreshed" | "unchanged"
+     | "blocked" | "failed", reason?, path?}`, or `null` when none was needed. It
+     replaces the command.
+   - `profile-update` now answers a busy Folder as `machine folder-refresh` does
+     (`{"kind":"blocked","reason":"folder-busy","retryable":true}`, exit 2) instead of a
+     bare failure, so the update can tell busy from failed.
+4. **Nothing in the Launchpad.** The pill's refresh line, its message in both locales,
+   its element and `folderRefresh` in `GET /api/update/status` are removed. The pill
+   also no longer shows "downloading" while the run that switched it finishes the steps
+   after the switch (the refresh and the units). After the restart, the Launchpad is the
+   new version and nothing newer is being fetched.
+5. **Agents still see a blocked refresh and fix it.** `lazurio update status` and
+   `lazurio doctor` (`folder-refresh`, `warn folder-refresh-needed`) keep reporting a
+   Folder behind the product: no refresh ran yet, or the last one was blocked.
+   - The CLI's text names the refusal and the agent's next step.
+   - The generated manual says three things. The update refreshes the Folder itself.
+     The agent never asks the user to refresh anything. A blocked refresh is resolved
+     with the user's consent (an edit moves to where it belongs), and then the refresh
+     runs again: `lazurio machine folder-refresh` in a Remote Environment, `lazurio
+     update --folder <Folder>` on a workstation.
+   - Template revision `base-instructions-91`.
+
+What stays:
+
+- The Folder change path: the same planner, transaction, archive and recovery. An
+  edited generated file is never overwritten, and a Folder is never downgraded
+  (`template-upgrade-required`).
+- The Machines resident role keeps running `folder-init` and `folder-refresh` after
+  handover writes and after `install`, and reads exactly one JSON object. `lazurio
+  install` refreshes nothing, and the Folder lock's semantics do not change.
+- `lazurio update --check` and a failed update refresh nothing. The pill starts the same
+  `lazurio update --version` in the transient unit as before.
+- F14 rejected "re-render automatically on product activation" for two reasons: a write
+  the Operator did not ask for, and a second writer beside the change path. Neither
+  holds here. The update is the request to bring the Environment up to date, and the
+  refresh is the one change path, run as its own command.
+
+**The first update into this release** is performed by the previous version's updater,
+which only reports. That update refreshes nothing; the person sees nothing either,
+because the new Launchpad has no line. The next `lazurio update` refreshes the Folder
+(agents run one at the start of every piece of work), and so does the Launchpad's
+Aktualizovat.
+
+Root decision 0161 still says that after an update the Folder's generated files are
+refreshed by the command the product prints („Po aktualizaci obnoví vygenerované soubory
+Folderu příkazem, který produkt sám vypíše“). Its addendum of 2026-10-30, pending in the
+root repository, amends it.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep "Folder refresh needed" with the command | A person who clicked Update is sent to a terminal; rejected by Matěj |
+| The new version's Launchpad refreshes the Folder when it starts | Would cover the first update into this release, but writes at every start (a reboot, a Recovery restart), races the Machines role's own `folder-refresh` right after `install`, must stay out of the read-only start probe, and the update's result could not say what happened; rejected |
+| The updater renders the Folder in-process | The updater is the version being replaced, so its templates are not the new version's; rejected |
+| A new refresh command, or a unit of its own | A second mechanism beside the one change path; rejected |
+| Refresh after every update, needed or not | Every agent's start of work would take the Folder lock and read the handover for nothing; rejected: only when the Folder records an older revision |
+| The update runs the active version's own refresh as a bounded child, from the CLI and the pill alike (selected) | One place, the one change path, the new version's templates, the outcome in the result; the first update into this release does not refresh, the next one does |
 
 ## F18 — Enabled tools of the Environment
 
