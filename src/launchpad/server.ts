@@ -18,11 +18,15 @@ import {
   resolveBrowserView,
 } from "../browser/view";
 import { type CdpCall, cdpSeams, ensureThreadWindow } from "../browser/window";
+import { createFirstMeeting } from "../buddy/first-meeting";
 import { createHermesGateway } from "../buddy/hermes-gateway";
+import { readPersona } from "../buddy/persona";
 import { buddyPersona as applyBuddyPersona } from "../buddy/persona-apply";
 import { createPersonaSave } from "../buddy/persona-save";
 import { createBuddySignIn } from "../buddy/sign-in";
 import { buddyStatus, readBuddyFacts } from "../buddy/status";
+import { type BotChecker, createBuddyTelegram } from "../buddy/telegram";
+import { createTelegramRestart } from "../buddy/telegram-restart";
 import { createPersonalspaceHolder } from "../content/holder";
 import {
   type ContentHost,
@@ -36,6 +40,7 @@ import { readSyncRecord, type SyncRequest, syncContent } from "../content/sync";
 import type { ExecutorHost } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
 import { type DocumentsHost, processDocumentsHost } from "../files/documents";
+import { type AgentsSwitch, enableToolForAgents } from "../folder/enable-tool";
 import { inspectProfileChange } from "../folder/inspect-profile-change";
 import {
   inspectToolsChange,
@@ -55,6 +60,10 @@ import {
 import { ownDataValue } from "../folder/state-fields";
 import { updateProfile, updateTools } from "../folder/update-profile";
 import { resolvedVoice } from "../folder/voice";
+import {
+  chatgptAppsItem,
+  convergeChatgptApps,
+} from "../integrations/chatgpt-apps";
 import {
   composioOrganizationRule,
   convergeComposioOrganization,
@@ -101,6 +110,7 @@ import {
   toolSelection,
   vaultToolName,
 } from "../tools/catalog";
+import { type CodexAppsInput, codexAppsInputOf } from "../tools/codex-apps";
 import {
   folderPreset,
   githubLoginRefused,
@@ -111,6 +121,7 @@ import {
   createLoginSessions,
   type LoginEnvironment,
   type LoginState,
+  type SignedInState,
   type SignInPage,
 } from "../tools/login";
 import {
@@ -131,11 +142,13 @@ import {
 } from "../update/everything";
 import { embeddedIdentity } from "../update/identity";
 import { runProcess } from "../update/self-check";
+import { serviceEnvironment } from "../update/service-control";
 import type { VaultHost } from "../vault/flow";
 import { enableVaultForAgents, processVaultHost } from "../vault/host";
 import type { LaunchpadBoot } from "./boot";
 import { launchpadBoot, vaultInAppsOf, withBoot } from "./boot-document";
 import { createBuddyRoutes } from "./buddy-routes";
+import { telegramPairingLine } from "./buddy-view";
 import { createCatalogReading, organizationsOnly } from "./catalog-reading";
 import {
   asksForBuddy,
@@ -151,7 +164,12 @@ import { createContentRoutes } from "./content-routes";
 import { prepareContext } from "./content-view";
 import { createExecutorRoutes, isExecutorJob } from "./executor-routes";
 import { createFilesRoutes, maxRequestBytes } from "./files-routes";
-import { shellSetup, signsInAsPerson } from "./first-run";
+import {
+  hasOnboarding,
+  ownAccount,
+  responsibleLogin,
+  shellSetup,
+} from "./first-run";
 import { guideVideoPath } from "./guide-video";
 import { guideVideoAnswer, isGuideVideoPath } from "./guide-video-files";
 import { serveHealthSocket } from "./health-socket";
@@ -248,6 +266,10 @@ import { createVaultRoutes, isVaultJob, vaultRoutePaths } from "./vault-routes";
 /** Test seam for the hosted admission: the auth-endpoint fetcher and clock. */
 export type HostedOptions = Readonly<{
   fetcher?: AuthFetcher;
+  /** Telegram's word on a bot's token before Buddy's Hermes saves it
+   * (decision F66): by default its Bot API (`getMe`). Trusted composition,
+   * never HTTP input; tests and the preview supply their own. */
+  telegramBot?: BotChecker;
   now?: () => number;
   /** How long the gateway's `ensure` waits for a started app to report
    * healthy (default `ensureWaitMsDefault`). */
@@ -383,6 +405,10 @@ export const shellDocumentPath = "/.lazurio/shell.json";
  * Organization's settings to be asked and applied (decision F45) before it
  * answers with what the Folder records. */
 const settingsWaitMs = 5_000;
+
+/** How long the answer of a sign-in's outcome waits for "Používají agenti"
+ * to follow it (F19's addendum of 2026-10-28) before it answers anyway. */
+const switchWaitMs = 5_000;
 
 /** How long the page's boot document may wait for the Folder's lock, and
  * for everything it reads (F36's addendum of 2026-10-08): the page is never
@@ -633,6 +659,10 @@ export async function startLaunchpad(
      * starts (decision F53): the same rule as Executor's
      * (`vaultAtStart`). Absent: it never does. */
     vaultAtStart?: (() => Promise<boolean>) | undefined;
+    /** Whether this Launchpad keeps the operator's Codex in line with
+     * ChatGPT's apps (decision F42's addendum of 2026-10-27): exactly where
+     * it sets Executor up (`executorAtStart`). Absent: it never does. */
+    codexAppsAtStart?: (() => Promise<boolean>) | undefined;
   }>,
   hostedOptions: HostedOptions = {},
   // Where the tools screen reads its live facts: this process's PATH and
@@ -643,11 +673,13 @@ export async function startLaunchpad(
     process.platform,
   ),
   // Test seams of the curated install and login (decision F19): the
-  // official-source fetcher, the architecture and the login timings.
+  // official-source fetcher, the architecture, the login timings and the
+  // switch that follows a sign-in (F19's addendum of 2026-10-28).
   curatedOptions: Readonly<{
     fetch?: InstallFetch;
     arch?: string;
     login?: Partial<LoginEnvironment>;
+    switchOn?: (folder: string, tool: string) => Promise<AgentsSwitch>;
   }> = {},
   // The recovery use case of this installation (`lazurio recover`), for the
   // read-only Recovery view of Settings. Trusted composition, never HTTP
@@ -879,6 +911,72 @@ export async function startLaunchpad(
   // A setup goes on after its answer: its end drops the reading again.
   const forgetToolsAfter = (ended: Promise<void>) =>
     void ended.catch(() => undefined).then(() => toolsReading.forget());
+  // "Používají agenti" follows a sign-in this Launchpad completed (Matěj
+  // 2026-10-04, F19's addendum of 2026-10-28, #682): this process turns it
+  // on in its Folder as the sign-in ends, at the current revision, whichever
+  // page started it (Začínáme, Nástroje, Integrace) and whether or not the
+  // page is still open. Never for a tool that was signed in before, one
+  // without the switch (a required one; codex and claude are no catalog
+  // tools of agents) or one the switch would refuse (decisions F44, F45).
+  // A person may turn it off again. Each one is journaled: the tool and
+  // what became of the switch, nothing else. Every switch under way is kept
+  // until it settles, so a closing Launchpad waits for each one, and each
+  // outcome keeps its own: its answer waits for that switch and never for
+  // another sign-in's of the same tool (Pablo's review of #702).
+  const switching = new Set<Promise<void>>();
+  const switchOf = new WeakMap<SignedInState, Promise<void>>();
+  const switchOn = curatedOptions.switchOn ?? enableToolForAgents;
+  const switchOnAfter = (signedIn: SignedInState) => {
+    const tool = signedIn.tool;
+    if (signedIn.already === true) return;
+    const entry = activatableTools().find((each) => each.name === tool);
+    if (entry === undefined || entry.activation.tier === "required") return;
+    const journal = (outcome: string, reason?: string) =>
+      console.log(
+        JSON.stringify({
+          scope: "tools-agents",
+          tool,
+          outcome,
+          ...(reason === undefined ? {} : { reason }),
+        }),
+      );
+    const switched: Promise<void> = switchOn(folder, tool)
+      .then(
+        (result) => {
+          journal(
+            result.kind,
+            result.kind === "refused" ? result.reason : undefined,
+          );
+          // As after the switch itself: Integrace read again (Nástroje
+          // read the recorded selection every time).
+          integrations.forget();
+        },
+        () => journal("failed"),
+      )
+      .finally(() => switching.delete(switched));
+    switching.add(switched);
+    // The sessions hand this same outcome to its holder (`start`, `poll`).
+    switchOf.set(signedIn, switched);
+  };
+  // A sign-in's outcome is answered once its own switch followed it, so the
+  // page's reading after it shows the switch as it is; bounded, where the
+  // Folder is held longer the page's next reading shows it.
+  const switchedAfter = async (outcome: LoginState) => {
+    const switched =
+      outcome.kind === "signed-in" ? switchOf.get(outcome) : undefined;
+    if (switched === undefined) return;
+    let late: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        switched,
+        new Promise<void>((resolve) => {
+          late = setTimeout(resolve, switchWaitMs);
+        }),
+      ]);
+    } finally {
+      clearTimeout(late);
+    }
+  };
   // The curated logins of this Launchpad (decision F19): in memory, held by
   // the browser that started each one through its session handle, ended on
   // completion, cancel, expiry and shutdown.
@@ -906,6 +1004,7 @@ export async function startLaunchpad(
         setup.forget();
       }
     },
+    afterSignIn: switchOnAfter,
     signInPage: launchpadSignInPage(entry, () =>
       integrationSeams?.environmentBrowser !== undefined
         ? integrationSeams.environmentBrowser
@@ -928,8 +1027,8 @@ export async function startLaunchpad(
   const chatPrompts = createChatPromptCheck(toolsEnvironment);
   // What this Environment still lacks (root decision 0188), for the shell
   // document's `setup` and the prompt `prepare-content`: GitHub's sign-in of
-  // its person, kept a minute, and its content as the content routes report
-  // it (below).
+  // its person (on the Automated Environment its persona's), kept a minute,
+  // and its content as the content routes report it (below).
   const github = createGithubProbe(toolsWithProofs);
   let closing = false;
   const headers = {
@@ -1031,12 +1130,13 @@ export async function startLaunchpad(
     headers,
     personalspace: personalspace.decide,
     // The content never before AI (root decision 0201 point 3, the same
-    // rule as the page's `contentBlockedBy`): where the Environment signs in
-    // as its person, an AI that every CLI answered is missing refuses the
-    // start. One that could not be checked does not.
+    // rule as the page's `contentBlockedBy`): where the Environment has the
+    // onboarding (the Automated one too, F27's addendum of 2026-10-30), an
+    // AI that every CLI answered is missing refuses the start. One that
+    // could not be checked does not.
     refuseInstall: async () => {
       const preset = await folderPreset(folder).catch(() => undefined);
-      if (preset === undefined || !signsInAsPerson(preset) || publicEnvironment)
+      if (preset === undefined || !hasOnboarding(preset) || publicEnvironment)
         return null;
       return (await ai.state()).state === "missing" ? "ai-missing" : null;
     },
@@ -1094,6 +1194,11 @@ export async function startLaunchpad(
     integrationSeams?.executor !== undefined
       ? integrationSeams.executor
       : processExecutorEndpoint(process.env);
+  // The operator's Codex, once this Launchpad knows it keeps it (decision
+  // F42's addendum of 2026-10-27): ChatGPT's apps follow what the Folder
+  // records, at the start, after the Organization's settings and after the
+  // person's choice. Null until then and where it never does.
+  let codexApps: CodexAppsInput | null = integrationSeams?.codexApps ?? null;
   const integrations = createIntegrationsRoutes({
     folder,
     // Its reading of the tools has the sign-ins: gh's SSH proof is the one
@@ -1138,6 +1243,7 @@ export async function startLaunchpad(
               entry,
               () => cdpSeams(process.env, runProcess).cdp,
             ),
+      codexApps,
     }),
     journal: (line) => console.log(JSON.stringify(line)),
   });
@@ -1186,20 +1292,94 @@ export async function startLaunchpad(
   // operation, the outcome and the reason, never a code, a handle, a ticket
   // or Hermes's session.
   const buddyGateway = createHermesGateway({ home: toolsEnvironment.home });
+  // His Telegram (decision F66): his own bot from BotFather, connected
+  // through Hermes's own writers and read live from Hermes; the restart that
+  // brings a change in is F64's, made once he is idle, at most once in two
+  // minutes, and taken up again when the Launchpad starts. Its journal never
+  // names the token, an account, a name or a request.
+  const buddyTelegramRestart = createTelegramRestart({
+    home: toolsEnvironment.home,
+    service: {
+      run: toolsEnvironment.run,
+      env: serviceEnvironment(process.env),
+    },
+    journal: (line) =>
+      console.log(JSON.stringify({ scope: "buddy-telegram", ...line })),
+    // What waited for a write in doubt goes on once its restart is made.
+    cleared: (why) => buddyTelegram.cleared(why),
+  });
+  const buddyTelegram = createBuddyTelegram({
+    gateway: buddyGateway,
+    home: toolsEnvironment.home,
+    owed: () => buddyTelegramRestart.owed(),
+    restartedRecently: () => buddyTelegramRestart.restartedRecently(),
+    changed: () => buddyTelegramRestart.changed(),
+    uncertain: () => buddyTelegramRestart.uncertain(),
+    blocked: () => buddyTelegramRestart.blocked(),
+    checkBot: hostedOptions.telegramBot,
+    // His words to an account his bot does not know yet: his persona's name
+    // and address in the Folder's language, as his SOUL.md has them; Buddy
+    // and vy where no persona can be read.
+    pairingText: async () => {
+      const home = toolsEnvironment.home;
+      if (home === undefined) return undefined;
+      const [read, current] = await Promise.all([
+        readPersona(home),
+        withFolderReadLock(state, () => readFolderState(state)),
+      ]);
+      return telegramPairingLine(
+        read.state === "valid"
+          ? read.persona
+          : { buddyName: "", address: "vy" },
+        messages(current.preferences.profile.locale),
+      );
+    },
+    journal: (line) =>
+      console.log(JSON.stringify({ scope: "buddy-telegram", ...line })),
+  });
   // His persona (decision F65): read and changed from Začínáme and
   // Nastavení → Buddy over F64's core, the change applied as `lazurio buddy
   // persona --apply` applies it, and finished here once he is idle. Its
   // journal never names a name, a value or a revision.
+  const folderLocale = async () =>
+    (await withFolderReadLock(state, () => readFolderState(state))).preferences
+      .profile.locale;
   const buddyPersona = createPersonaSave({
     home: toolsEnvironment.home,
     folder,
-    apply: () =>
-      applyBuddyPersona(
+    apply: async () => {
+      const answer = await applyBuddyPersona(
         { tools: toolsEnvironment, env: process.env },
         { folder, apply: true },
-      ),
+      );
+      // His bot's words to an account it does not know follow the persona
+      // (F66), without holding the apply up.
+      void buddyTelegram.persona().catch(() => undefined);
+      return answer;
+    },
     journal: (line) =>
       console.log(JSON.stringify({ scope: "buddy-persona", ...line })),
+    // His first meeting (decision F60's addendum of 2026-10-26): one turn in
+    // his conversation in Lazurio after the person's first confirmation,
+    // hidden from the person, in the Folder's language. Only where the entry
+    // names him; its journal never names a name, the text or the key.
+    ...(entry?.buddyOrigin === undefined || toolsEnvironment.home === undefined
+      ? {}
+      : {
+          firstMeeting: {
+            meeting: createFirstMeeting({
+              home: toolsEnvironment.home,
+              path: toolsEnvironment.path,
+              xdg: toolsEnvironment.xdg,
+              run: toolsEnvironment.run,
+              journal: (line) =>
+                console.log(
+                  JSON.stringify({ scope: "buddy-first-meeting", ...line }),
+                ),
+            }),
+            locale: folderLocale,
+          },
+        }),
   });
   const buddy = createBuddyRoutes({
     present: () => entry?.buddyOrigin !== undefined,
@@ -1210,10 +1390,12 @@ export async function startLaunchpad(
     }),
     facts: () => readBuddyFacts(buddyGateway),
     persona: buddyPersona,
-    locale: async () =>
-      (await withFolderReadLock(state, () => readFolderState(state)))
-        .preferences.profile.locale,
+    telegram: buddyTelegram,
+    locale: folderLocale,
     headers,
+    // His bubble in Chat and Automate reads his step from the shell
+    // document's `setup`, which is read anew once it changed.
+    changed: () => setup.forget(),
   });
   const newTab = createNewTabRoutes({
     browser,
@@ -1236,6 +1418,9 @@ export async function startLaunchpad(
     journal: (line) => console.log(JSON.stringify(line)),
     onApplied: () => integrations.forget(),
     executor: integrationExecutor,
+    // ChatGPT's apps in Codex once the Folder took the settings: the item
+    // `integrations.chatgpt_apps.allowed` says how it went.
+    chatgptApps: () => chatgptAppsItem(folder, codexApps),
     seams: organizationSettingsSeams,
   }).catch(() => {
     // The Launchpad serves without them; the Folder keeps what it records.
@@ -1252,10 +1437,14 @@ export async function startLaunchpad(
       readFolderState(state),
     );
     const preset = current.preferences.preset.name;
-    if (!signsInAsPerson(preset) || publicEnvironment) return undefined;
+    if (!hasOnboarding(preset) || publicEnvironment) return undefined;
+    // The Automated Environment's soft check (F27's addendum of
+    // 2026-10-30): the responsible user's own account where the persona's
+    // belongs counts as missing, as Začínáme counts it.
+    const responsible = responsibleLogin(preset, current.preferences.machine);
     const [reading, signIn, read, buddyFact] = await Promise.all([
       ai.state(),
-      github.state(),
+      github.reading(),
       readContent(contentState),
       // Buddy's step where the entry names him (decision F65): his sign-in
       // as Hermes's card says it and whether his names were confirmed.
@@ -1271,7 +1460,9 @@ export async function startLaunchpad(
     return shellSetup({
       preset,
       ai: reading.state,
-      github: signIn,
+      github: ownAccount(signIn.account, responsible)
+        ? "own-account"
+        : signIn.state,
       ...read,
       ...(buddyFact === undefined ? {} : { buddy: buddyFact }),
     });
@@ -1536,11 +1727,9 @@ export async function startLaunchpad(
             (hostedOptions.offlineTailnet ?? machineTailnet)(),
             themeStore.read(),
           ]);
-          // GitHub and the content only where the Environment signs in as
-          // its person (setup-state.ts).
-          const known = signsInAsPerson(inputs.preset)
-            ? setup.peek()
-            : undefined;
+          // GitHub and the content only where the Environment has the
+          // onboarding (setup-state.ts).
+          const known = hasOnboarding(inputs.preset) ? setup.peek() : undefined;
           // Whether the elements register the offline guide's worker
           // (decision F41): only where the worker's address serves it. The
           // Environment's theme always (root decision 0208).
@@ -1666,16 +1855,17 @@ export async function startLaunchpad(
         }
         if (!isOrganizationPrompt(id)) {
           // The Folder's prompt (`prepare-content`): only on an Environment
-          // that signs in as its person, only while the last installation
-          // stopped, and, when the link names a login, only for the content
-          // of that login (the Organization, or the person for the
-          // Personalspace).
+          // with the onboarding (the Automated one's responsible user
+          // included, F27's addendum of 2026-10-30), only while the last
+          // installation stopped, and, when the link names a login, only for
+          // the content of that login (the Organization, or the person for
+          // the Personalspace).
           if (keys.length > 1) return notFound();
           try {
             const current = await withFolderReadLock(state, () =>
               readFolderState(state),
             );
-            if (!signsInAsPerson(current.preferences.preset.name))
+            if (!hasOnboarding(current.preferences.preset.name))
               return notFound();
             const copy = folderMessages(current.preferences);
             const read = await readContent(contentState);
@@ -2753,8 +2943,12 @@ export async function startLaunchpad(
               ...(value.deviceCode === true ? { deviceCode: true } : {}),
             });
             // Signed in: what connects the apps changed (decision F42,
-            // note of 2026-10-19), so Integrace read again.
-            if (started.kind === "signed-in") integrations.forget();
+            // note of 2026-10-19), so Integrace read again, once the
+            // switch followed it.
+            if (started.kind === "signed-in") {
+              await switchedAfter(started);
+              integrations.forget();
+            }
             // A refusal before anything ran (codex and claude without the
             // Environment browser, or with the Organization's AI) is one as
             // every other.
@@ -2781,7 +2975,10 @@ export async function startLaunchpad(
             url.pathname === "/api/tools/login/poll"
               ? withQr(logins.poll(tool, handle))
               : logins.cancel(tool, handle);
-          if (answered.kind === "signed-in") integrations.forget();
+          if (answered.kind === "signed-in") {
+            await switchedAfter(answered);
+            integrations.forget();
+          }
           return response(answered);
         }
         if (
@@ -2904,7 +3101,35 @@ export async function startLaunchpad(
   const buddyAtStart =
     entry?.buddyOrigin === undefined
       ? Promise.resolve()
-      : buddyPersona.start().catch(() => undefined);
+      : Promise.all([
+          buddyPersona.start().catch(() => undefined),
+          // A restart his Telegram owed before this start (decision F66).
+          buddyTelegramRestart.start().catch(() => undefined),
+        ]).then(() => undefined);
+  // ChatGPT's apps (decision F42's addendum of 2026-10-27): where this
+  // Launchpad sets Executor up, it keeps the operator's Codex in line with
+  // what the Folder records, once now and after every change it makes.
+  // Never awaited and never a reason for the start to fail; its journal
+  // says the outcome, never a value.
+  const codexAppsAtStart = installed?.codexAppsAtStart;
+  if (codexApps === null && codexAppsAtStart !== undefined)
+    void (async () => {
+      if (!(await codexAppsAtStart()) || closing) return;
+      codexApps = codexAppsInputOf(process.env, process.platform);
+      const { converged } = await convergeChatgptApps(folder, codexApps);
+      if (converged !== null)
+        console.log(
+          JSON.stringify({
+            scope: "chatgpt-apps",
+            event: "converge",
+            outcome: converged.kind,
+            ...(converged.reason === undefined
+              ? {}
+              : { reason: converged.reason }),
+          }),
+        );
+      integrations.forget();
+    })().catch(() => undefined);
   // Executor (decision F44, addendum of 2026-10-11, #298): where install and
   // update only report it, this Launchpad sets it up in the background once
   // it listens, through the one setup of Settings → Tools. Never awaited and
@@ -2987,6 +3212,7 @@ export async function startLaunchpad(
       clearInterval(audienceTimer);
       catalog.close();
       buddyPersona.close();
+      buddyTelegramRestart.close();
       if (!closePending)
         closePending = (async () => {
           // Close admission immediately, before waiting for HTTP requests to drain.
@@ -3005,6 +3231,9 @@ export async function startLaunchpad(
           await shell?.stop();
           await health?.stop(true);
           await loginClose;
+          // Each switch that follows a sign-in is a Folder change: it
+          // completes.
+          await Promise.allSettled(switching);
           await settingsClose;
           const result = applicationClose
             ? await applicationClose

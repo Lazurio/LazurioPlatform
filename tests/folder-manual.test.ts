@@ -20,15 +20,23 @@ import {
 import { renderManual } from "../src/folder/manual";
 import {
   buddyLayerPaths,
+  buddyRulesPath,
   manualPaths,
   outputFile,
   outputPaths,
 } from "../src/folder/outputs";
 import { executionOs } from "../src/folder/platform";
-import { githubIdentity, presetProfile } from "../src/folder/presets";
+import {
+  allowedPresets,
+  githubIdentity,
+  presetProfile,
+} from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
 import {
+  buddyChatRouting,
+  buddyPublicationRules,
   ownSignInIdentity,
+  publicationRules,
   questionTool,
   visitorsOf,
 } from "../src/folder/render";
@@ -40,6 +48,9 @@ import {
   binding,
   bindings,
   entries,
+  personalRelationships,
+  personalWithEntry,
+  withBuddy,
   workRelationships,
 } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
@@ -217,8 +228,10 @@ test("no generated output mentions a rollback command or a way back to an earlie
 // F17 addendum 2026-09-28). Since the addendum of 2026-10-02 the agent runs the
 // update itself, in the background at the start of every piece of work, on
 // every preset. No generated text may still forbid the update, wait for the
-// Operator to ask for it or hand the version to the pin, and every text names
-// the refresh that follows.
+// Operator to ask for it or hand the version to the pin. Since the addendum of
+// 2026-10-30 the update refreshes the Folder itself: every text says so, none
+// still has the agent run the refresh after an update, and every text names
+// the refresh to run once a blocked one is resolved.
 test("no generated output forbids lazurio update or gives the product version to the pin", () => {
   const forbidding = [
     /(do not|don't|never) run `lazurio (update|install)/i,
@@ -252,12 +265,36 @@ test("no generated output forbids lazurio update or gives the product version to
           ]);
       const hosted = journey.machine !== null;
       const troubleshooting = outputs["manual/troubleshooting.md"];
-      // The refresh after an update is named with its real command.
+      // The update refreshes the Folder itself, on every preset.
+      expect(troubleshooting).toMatch(
+        locale === "cs"
+          ? /`lazurio update[^`]*` po aktualizaci sám obnoví generované soubory/
+          : /After an update, `lazurio update[^`]*` itself refreshes/,
+      );
+      expect(troubleshooting).toContain(
+        locale === "cs"
+          ? "uživatele o obnovu nežádáš"
+          : "never ask the user to refresh anything",
+      );
+      // A blocked refresh: named for the agent, resolved with the user's
+      // consent, then the refresh with its real command.
+      expect(troubleshooting).toContain("`folderRefresh`");
       expect(troubleshooting).toContain(
         hosted
           ? "`lazurio machine folder-refresh`"
-          : "`lazurio profile-update`",
+          : "`lazurio update --folder <Folder>`",
       );
+      for (const path of outputPaths)
+        for (const stale of [
+          /Folder refresh needed/,
+          /run it as part of the same update/,
+          /spusť ho jako součást téže aktualizace/,
+        ])
+          expect([path, locale, stale.test(outputs[path])]).toEqual([
+            path,
+            locale,
+            false,
+          ]);
     }
 });
 
@@ -914,6 +951,143 @@ test("with a hosted entry agents send the Operator to the Launchpad for sign-ins
     }
 });
 
+// Decision F14's addendum of 2026-10-26 (Matěj: "otevři mi chat s Buddym"
+// opens Buddy's chat in ChatGPT Desktop's panel beside the chat, as "otevři
+// Lazurio" opens the Launchpad there; root decision 0210). Where the recorded
+// entry names Buddy's origin (decision F60), which only the person's own
+// Osobní Prostředí carries, AGENTS.md and the manual name his chat at exactly
+// that address, right after the Launchpad's lines: what the user calls it,
+// opened beside the chat in ChatGPT Desktop and linked in another client,
+// never in the Environment browser, and never a channel to Buddy. Without his
+// origin nothing names it.
+test("where the entry names Buddy's origin, agents open his chat for the user beside the chat in ChatGPT Desktop and never write to him", () => {
+  const origin = "https://buddy.example.lazurio.io";
+  const withOrigin = [
+    personalWithEntry(20000, false, false, true),
+    personalWithEntry(20000, true, true, true),
+    binding({
+      ...personal,
+      relationships: personalRelationships,
+      entry: withBuddy(entries.personal),
+    }),
+  ];
+  const contract = {
+    cs: [
+      `- Chat s Buddym, jeho konverzace s uživatelem, je na \`${origin}\`.`,
+      "Tato adresa pochází z handoveru tohoto Environmentu: jinou neskládej a nikdy místo ní nedávej `localhost` ani `127.0.0.1`.",
+      "Otevřená přímo vede rovnou do jeho konverzace.",
+      "Když uživatel řekne „chat s Buddym“, „Buddy“ nebo Buddyho jméno (`persona.buddyName` z `lazurio buddy persona --json`), myslí tím tento chat.",
+      "Když ho chce a běžíš v ChatGPT Desktopu, otevři mu přesnou adresu v integrovaném prohlížeči ChatGPT Desktopu v panelu vedle chatu; v jiném klientovi mu pošli odkaz.",
+      "Přihlašuje se do něj uživatel sám.",
+      "V prohlížeči Environmentu ho nikdy neotevírej, ani přes `preview_open`.",
+      "Chat otevíráš jen uživateli: nic do něj nepiš a nic v něm nedělej, s Buddym dál nekomunikuješ (root decision 0210).",
+      "Chce-li uživatel Buddymu něco říct, otevři mu chat a napíše mu sám.",
+    ],
+    en: [
+      `- Buddy's chat, his conversation with the user, is at \`${origin}\`.`,
+      "This address comes from this Environment's handover: never compose another one and never give `localhost` or `127.0.0.1` instead.",
+      "Opened directly, it goes straight to his conversation.",
+      "When the user says “chat with Buddy”, “Buddy” or Buddy's name (`persona.buddyName` from `lazurio buddy persona --json`), they mean this chat.",
+      "When they want it and you run in ChatGPT Desktop, open the exact address for them in ChatGPT Desktop's built-in browser in the panel beside the chat; in another client, send them the link.",
+      "The user signs in to it themselves.",
+      "Never open it in the Environment browser, not even with `preview_open`.",
+      "You open the chat only for the user: write nothing in it and do nothing in it, and you still do not communicate with Buddy (root decision 0210).",
+      "When the user wants to tell Buddy something, open the chat for them and they write to him themselves.",
+    ],
+  } as const;
+  const opening = {
+    cs: "- Chat s Buddym, jeho konverzace s uživatelem, je na",
+    en: "- Buddy's chat, his conversation with the user, is at",
+  } as const;
+  // The rule that agents never message Buddy stays beside it (root decision
+  // 0210, its night addendum of 2026-10-20, point 4).
+  const noChannel = {
+    cs: "nehledáš cestu, jak mu poslat zprávu nebo ho upozornit",
+    en: "do not look for a way to send Buddy a message or notify Buddy",
+  } as const;
+  for (const machine of withOrigin) {
+    expect(machine?.entry?.buddyOrigin).toBe(origin);
+    // Every preset where Buddy can exist: a personal VM takes this one only.
+    expect(allowedPresets(machine)).toEqual(["hosted-personal"]);
+    for (const preset of allowedPresets(machine))
+      for (const locale of ["cs", "en"] as const) {
+        const outputs = renderOutputs({
+          preset,
+          machine,
+          profile: presetProfile(preset, "linux", { locale }),
+        });
+        for (const path of ["AGENTS.md", "manual/this-machine.md"] as const) {
+          const lines = outputs[path].split("\n");
+          const naming = lines.filter((line) => line.includes(origin));
+          expect(naming).toEqual([buddyChatRouting(origin)[locale]]);
+          const [line = ""] = naming;
+          for (const sentence of contract[locale])
+            expect(line).toContain(sentence);
+          // Right after the Launchpad's lines: the Launchpad, then its
+          // GitHub line on the person's own sign-in.
+          const at = lines.indexOf(line);
+          expect(lines[at - 2]).toStartWith(
+            locale === "cs"
+              ? "- Launchpad tohohle Environmentu (uživatelům mu říkej Lazurio;"
+              : "- This Environment's Launchpad (call it Lazurio towards users;",
+          );
+          expect(lines[at - 1]).toStartWith("- GitHub: ");
+        }
+        expect(outputs["AGENTS.md"]).toContain(noChannel[locale]);
+        // His origin names his chat and nothing else: no other file of the
+        // Folder carries it.
+        for (const [path, text] of Object.entries(outputs))
+          if (path !== "AGENTS.md" && path !== "manual/this-machine.md")
+            expect(text).not.toContain(origin);
+      }
+  }
+  // Without Buddy's origin nothing names his chat: every preset with a hosted
+  // entry, with the Environment browser, public and try-01, and every
+  // journey without an entry.
+  const withoutOrigin = (
+    [
+      { preset: "hosted-personal", machine: bindings.personalEntry },
+      { preset: "hosted-personal", machine: bindings.personalBrowser },
+      {
+        preset: "hosted-organization-personal",
+        machine: bindings.organizationEntry,
+      },
+      {
+        preset: "hosted-organization-personal",
+        machine: bindings.organizationBrowser,
+      },
+      {
+        preset: "hosted-organization-personal",
+        machine: bindings.organizationPublic,
+      },
+      { preset: "hosted-organization-personal", machine: tryBinding() },
+      { preset: "hosted-organization-team", machine: bindings.teamEntry },
+      { preset: "hosted-organization-team", machine: bindings.teamBrowser },
+      { preset: "hosted-organization-team", machine: bindings.teamPublic },
+      { preset: "hosted-organization-team", machine: tryBinding() },
+      {
+        preset: "hosted-organization-steward",
+        machine: bindings.automatedEntry,
+      },
+    ] as const
+  ).map((environment) => ({ ...environment, os: "linux" as const }));
+  for (const { preset, machine, os } of [...withoutOrigin, ...journeys]) {
+    expect(machine?.entry?.buddyOrigin).toBeUndefined();
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset,
+        machine,
+        profile: presetProfile(preset, os, { locale }),
+      });
+      for (const text of Object.values(outputs)) {
+        expect(text).not.toContain("https://buddy.");
+        expect(text).not.toContain("lazurio buddy persona");
+        expect(text).not.toContain(opening[locale]);
+      }
+    }
+  }
+});
+
 // Decision F19 addendum 2026-10-04: the agent clones a missing module of the
 // Organization's manifest after the GitHub sign-in. That is the one named
 // exception to the rule on clones, in working-here and in the current
@@ -1174,8 +1348,8 @@ test("missing rights are escalated on every preset; only the Team hands every pu
         ),
         workingHere.includes(
           locale === "cs"
-            ? "- Když uživatel v threadu zvolí Publikaci (volbou „Publikovat vaším jménem“ v nástroji na otázky nebo výslovným „Publikuj“): mergni"
-            : "- When the user chooses Publication in the thread (the option “Publish in your name” in the question tool or an explicit “Publish”): merge",
+            ? "- Když uživatel Publikaci dovolí (volbou „Publikovat vaším jménem“ v nástroji na otázky, slovem „publikuj“, nebo předem na tento úkol či celé vlákno a neodvolal ji): mergni"
+            : "- When the user allows Publication (the option “Publish in your name” in the question tool, the word “publish”, or in advance for this task or the whole thread, not taken back): merge",
         ),
         workingHere.includes(
           locale === "cs"
@@ -1183,21 +1357,17 @@ test("missing rights are escalated on every preset; only the Team hands every pu
             : "- In a Team Environment never merge, not even on “Publish” in the thread",
         ),
       ]).toEqual([journey.preset, locale, !team, !team, team]);
-      // AGENTS.md says it too; elsewhere Publication stays the Operator's.
+      // AGENTS.md says it too, after the Publication block every preset
+      // shares.
       expect(
         outputs["AGENTS.md"].includes(
-          locale === "cs"
-            ? "Z týmového Environmentu změny vždy schválí a publikuje jmenovaný uživatel a odpovídá za ně; sám nemerguj."
-            : "A named user always approves and publishes the changes from a Team Environment and answers for them; never merge yourself.",
+          `${publicationRules.map((line) => line[locale]).join("\n")}\n${
+            locale === "cs"
+              ? "- Pull request z týmového Environmentu vždy schválí a publikuje jmenovaný uživatel a odpovídá za něj; sám nemerguj, ani na „Publikuj“."
+              : "- A named user always approves and publishes a pull request from a Team Environment and answers for it; never merge yourself, not even on “Publish”."
+          }`,
         ),
       ).toBe(team);
-      expect(
-        outputs["AGENTS.md"].includes(
-          locale === "cs"
-            ? "Publikace (odeslání, odevzdání, merge, nasazení, jiné dokončení viditelné navenek) patří uživateli."
-            : "Publication (sending, submitting, a merge, a deployment, any other externally visible finishing) belongs to the user.",
-        ),
-      ).toBe(!team);
       expect(
         outputs["AGENTS.md"].includes(
           locale === "cs"
@@ -1670,8 +1840,11 @@ test("the agent's work is a pull request, GitHub is the authority for source cod
     },
   ] as const;
   const retired = [
-    // The Lazurio term "Draft", in any form; GitHub's own "Draft PR" stays.
-    /\bDraft(?! PR\b)/,
+    // The Lazurio term "Draft", in any form; GitHub's own Draft pull request
+    // and its Draft state stay ("Draft PR", "Draft pull request", „z Draftu
+    // na Ready“, "from Draft to Ready" in the Publication block, F14 addendum
+    // of 2026-10-28).
+    /\bDraft(?!(?: PR| pull request|u na Ready| to Ready)\b)/,
     /\bAI[ -]Koleg/i,
     /\bAI colleague/i,
     /\bAI seat/i,
@@ -1729,17 +1902,18 @@ test("the agent's work is a pull request, GitHub is the authority for source cod
         ),
         henry.every((line) => line.includes("0170")),
       ]).toEqual([...where, 1, true, true]);
-      // Publication stays exactly as defined, and the work is prepared first.
+      // Publication stays exactly as defined, and the user allows it (the
+      // Publication block, F14 addendum of 2026-10-28).
       for (const sentence of cs
         ? [
             "- **Publikace** je akt, kterým se tvoje práce stává těžko vratnou nebo viditelnou navenek: merge, odeslání, nasazení;",
-            "- **Nejdřív připravit, pak Publikovat.**",
-            "e-mail uložený jako koncept v Outlooku",
+            "- Publikuješ, až když ti to uživatel dovolí, třeba slovem „publikuj“.",
+            "e-mail uložený jako koncept",
           ]
         : [
             "- **Publication** is the act that makes your work hard to revert or visible outside: a merge, sending, deploying;",
-            "- **Prepare first, then Publication.**",
-            "an e-mail saved as a draft in Outlook",
+            "- Publish only once the user allows it, for example with the word “publish”.",
+            "an e-mail saved as a draft",
           ])
         expect([...where, sentence, workingHere.includes(sentence)]).toEqual([
           ...where,
@@ -1879,6 +2053,149 @@ test("the agent's work is a pull request, GitHub is the authority for source cod
         environment.os !== "windows",
         environment.preset === "local" && environment.os === "macos",
       ]);
+    }
+});
+
+// Decision F14's addendum of 2026-10-28: Publication as one block in the
+// Owner's words replaces the rule and its scope line of 2026-10-27. The whole
+// block is in AGENTS.md on every Environment but a public one and in the
+// manual's Publication section; Buddy, who delegates and does not code, and a
+// public Environment's manual get the bullets from the definition on. Each
+// appears once and in one piece, a Team Environment's merge line follows the
+// block, and no generated file keeps an earlier wording.
+test("Publication is one block in the Owner's words in AGENTS.md, the manual and Buddy's rules, and the earlier wordings are gone (F14 addendum of 2026-10-28)", () => {
+  const environments = [
+    ...journeys,
+    {
+      preset: "hosted-organization-team",
+      machine: bindings.teamPublic,
+      os: "linux",
+    },
+    {
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationPublic,
+      os: "linux",
+    },
+  ] as const;
+  const retired = [
+    "požádal rovnou „pošli“",
+    "asked you straight away to “send”",
+    "jednoznačné „odešli to“",
+    "an unambiguous “send it”",
+    "Nejdřív připravit, pak Publikovat",
+    "Prepare first, then Publication",
+    "sdílení mimo Organizaci",
+    "share outside the Organization",
+    "bez výslovného pokynu uživatele nebo mandátu",
+    "the user's explicit instruction or a mandate",
+    "Nic nevratného bez „Publikuj“.",
+    "Nothing irreversible without “Publish”.",
+    "Příprava Publikace není",
+    "Preparing is not Publication",
+    "Nepublikuješ bez výslovného „Publikuj“",
+    "You never publish without the user's explicit “Publish”",
+    // Consumers that asked for a fresh "Publish" every time, against consent
+    // given in advance (Pablo's review of #695).
+    "bez výslovného „Publikuj“ uživatele k tomu konceptu",
+    "without the user's explicit “Publish” for that draft",
+    "jen jako rozhodnutí uživatele o tomto konkrétním PR",
+    "only as the user's decision on that exact PR",
+    "merguj až na jeho výslovné „Publikuj“",
+    "merge only on their explicit “Publish”",
+    "merguj až na výslovné „Publikuj“",
+    "merge only on an explicit “Publish”",
+    "dokonči až na výslovné „Publikuj“",
+    "only on an explicit “Publish” (the section",
+    "kterou uživatel výslovně schválil",
+    "a Publication the user explicitly approved",
+  ];
+  const count = (text: string, part: string) => text.split(part).length - 1;
+  for (const environment of environments)
+    for (const locale of ["cs", "en"] as const) {
+      const composition = {
+        preset: environment.preset,
+        machine: environment.machine,
+        profile: presetProfile(environment.preset, environment.os, { locale }),
+      };
+      const outputs = renderOutputs(composition);
+      const layer = renderBuddyLayer(composition);
+      const isPublic =
+        githubIdentity(environment.preset, environment.machine) === "none";
+      const team = environment.preset === "hosted-organization-team";
+      const where = [environment.preset, environment.os, isPublic, locale];
+      const block = `${publicationRules.map((line) => line[locale]).join("\n")}\n`;
+      const consent = `${buddyPublicationRules.map((line) => line[locale]).join("\n")}\n`;
+      const worktree = publicationRules[0]?.[locale] ?? "";
+      expect([
+        ...where,
+        count(outputs["AGENTS.md"], block),
+        count(outputs["manual/working-here.md"], block),
+        count(outputs["manual/working-here.md"], consent),
+        count(layer[buddyRulesPath], consent),
+        count(layer[buddyRulesPath], worktree),
+      ]).toEqual([...where, isPublic ? 0 : 1, isPublic ? 0 : 1, 1, 1, 0]);
+      // A Team Environment's named publisher right after the block.
+      expect([
+        ...where,
+        outputs["AGENTS.md"].includes(
+          `${block}${
+            locale === "cs"
+              ? "- Pull request z týmového Environmentu vždy schválí a publikuje jmenovaný uživatel a odpovídá za něj; sám nemerguj, ani na „Publikuj“."
+              : "- A named user always approves and publishes a pull request from a Team Environment and answers for it; never merge yourself, not even on “Publish”."
+          }`,
+        ),
+      ]).toEqual([...where, team && !isPublic]);
+      // What the block says about consent: an order to write is no consent,
+      // consent given in advance holds for a task or the whole thread until
+      // it is taken back, and the latest word counts.
+      for (const part of locale === "cs"
+        ? [
+            "„Napiš mu“ nebo „odpověz mu“ je zadání připravit koncept, ne souhlas s odesláním.",
+            "na začátku úkolu nebo pro celé vlákno, publikuješ po dokončení sám a znovu se neptáš",
+            "Platí to, dokud to neodvolá. Vždy platí jeho poslední slovo.",
+          ]
+        : [
+            "“Write to him” or “reply to him” is a request to prepare a draft, not permission to send it.",
+            "at the start of a task or for the whole thread, publish on your own when you're done and don't ask again",
+            "This holds until they take it back. Their latest word always counts.",
+          ])
+        expect([...where, part, consent.includes(part)]).toEqual([
+          ...where,
+          part,
+          true,
+        ]);
+      // The handoff asks the Publication pair only when consent was not
+      // given in advance (not on a Team Environment, whose named user always
+      // publishes).
+      expect([
+        ...where,
+        outputs["manual/working-here.md"].includes(
+          locale === "cs"
+            ? "Když ti uživatel Publikaci dovolil předem, na tento úkol nebo pro celé vlákno, a neodvolal ji, dvojotázku nepokládej"
+            : "When the user allowed Publication in advance, for this task or the whole thread, and has not taken it back, do not ask the pair",
+        ),
+      ]).toEqual([...where, !team]);
+      // Buddy's own "never" line and the line for work he hands over say the
+      // same consent.
+      expect([
+        ...where,
+        layer[buddyRulesPath].includes(
+          locale === "cs"
+            ? "- Publikuješ jen se souhlasem uživatele: na „publikuj“, nebo když ti to dovolil předem."
+            : "- You publish only with the user's consent: on “publish”, or when they allowed it in advance.",
+        ),
+      ]).toEqual([...where, true]);
+      for (const [path, text] of [
+        ...Object.entries(outputs),
+        ...buddyLayerPaths.map((path) => [path, layer[path]] as const),
+      ])
+        for (const sentence of retired)
+          expect([...where, path, sentence, text.includes(sentence)]).toEqual([
+            ...where,
+            path,
+            sentence,
+            false,
+          ]);
     }
 });
 

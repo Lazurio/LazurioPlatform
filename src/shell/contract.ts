@@ -114,16 +114,24 @@ export type ShellSetupItem = Readonly<
 
 /** What the current Environment still lacks before it is usable (root
  * decision 0188, the first run, and 0201 point 1: its basics): its AI, the
- * GitHub sign-in of its person and its content, the Organization or the
- * Personalspace, as its Launchpad reads them. The column head counts them in
- * a quiet prompt that opens Začínáme. Only an Environment that signs in to
- * GitHub as its person has it; the document leaves it out elsewhere and
+ * GitHub sign-in of its person (on an Automated Environment, of its
+ * persona) and its content, the Organization or the Personalspace, as its
+ * Launchpad reads them. The column head counts them in a quiet prompt that
+ * opens Začínáme. Only an Environment with the onboarding has it (every
+ * preset but the Team one); the document leaves it out elsewhere and
  * whenever the Launchpad cannot tell GitHub's state. */
 export type ShellSetup = Readonly<{
   /** Buddy's step where the Environment has him (decision F65, additive in
    * v1): `ready` when he is signed in and the person confirmed his names,
    * `unknown` while that cannot be read. Absent: no Buddy here. */
   buddy?: "ready" | "missing" | "unknown";
+  /** What Buddy's step needs next before the person met him (decision F60's
+   * addendum of 2026-10-26, additive in v1), only with `buddy` `missing`
+   * while his names are not confirmed: `sign-in` until he is signed in, then
+   * `introduce`. Absent once the names are confirmed, a later sign-out
+   * included, whenever it is not known, and without Buddy. Never a name or a
+   * code. */
+  buddyNext?: "sign-in" | "introduce";
   /** Absent: not known. `ready`: an agent can work here (the person's
    * sign-in or the Organization's AI); additive in v1 (root decision 0201). */
   ai?: "ready" | "missing";
@@ -517,13 +525,19 @@ export function parseShellSetup(
 ): ShellSetup | undefined | false {
   if (value === undefined || value === null) return undefined;
   if (!isRecord(value)) return false;
-  const { buddy, ai, github, content, item } = value;
+  const { buddy, buddyNext, ai, github, content, item } = value;
   if (
     !(
       buddy === undefined ||
       buddy === "ready" ||
       buddy === "missing" ||
       buddy === "unknown"
+    ) ||
+    // Buddy's next part only beside his step that is missing.
+    !(
+      buddyNext === undefined ||
+      (buddy === "missing" &&
+        (buddyNext === "sign-in" || buddyNext === "introduce"))
     ) ||
     !(ai === undefined || ai === "ready" || ai === "missing") ||
     (github !== "connected" && github !== "missing") ||
@@ -560,6 +574,7 @@ export function parseShellSetup(
   }
   return Object.freeze({
     ...(buddy === undefined ? {} : { buddy }),
+    ...(buddyNext === undefined ? {} : { buddyNext }),
     ...(ai === undefined ? {} : { ai }),
     github,
     ...(content === undefined ? {} : { content }),

@@ -231,8 +231,8 @@ export const vaultAgentsGuide = (
   ],
 });
 
-/** Settings → Začínáme where it has the basics (`firstRun`'s person
- * presets, not a public Environment): the steps that prepare the
+/** Settings → Začínáme where it has the basics (the presets with the
+ * onboarding, not a public Environment): the steps that prepare the
  * Environment, the AI first, GitHub, the optional ones. With Buddy
  * (decision F65) his step first and the agents' own AI after it, in at
  * most four stops: the steps, Buddy, the AI, GitHub. */
@@ -259,14 +259,16 @@ export const startGuide = (copy: Copy, buddy = false): PageGuideInput =>
         ],
       };
 
-/** Nastavení → Buddy (decision F65): whether he works with his own
- * sign-in, and his name and how he addresses the person. */
+/** Nastavení → Buddy (decisions F65 and F66): whether he works with his
+ * own sign-in, his name and how he addresses the person, and where else to
+ * write to him. */
 export const buddyGuide = (copy: Copy): PageGuideInput => ({
   id: "settings-buddy",
   title: copy.buddyTitle,
   steps: [
     { text: copy.guideBuddyState, at: "buddy-state" },
     { text: copy.guideBuddyPersona, at: "buddy-persona" },
+    { text: copy.guideBuddyChannels, at: "buddy-channels" },
   ],
 });
 
@@ -486,9 +488,10 @@ export type PageGuideFacts = Readonly<{
   composio: boolean | null;
   vault: VaultGuideFacts;
   /** What Settings → Začínáme shows here: the basics (`basics`, where the
-   * Environment signs in as its person), the public demo (`demo`, F55), or
-   * nothing to set up (`none`, a Team or Automated Environment); null until
-   * the profile is read. Only the basics have something to explain. */
+   * Environment has the onboarding, the Automated one included), the public
+   * demo (`demo`, F55), or nothing to set up (`none`, a Team Environment);
+   * null until the profile is read. Only the basics have something to
+   * explain. */
   start: "basics" | "demo" | "none" | null;
   /** What Settings → Nástroje can point at, as its panel last drew it
    * (`toolGuideTargets`); null until the tools are read: its "?" waits. */

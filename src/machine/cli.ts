@@ -4,6 +4,7 @@ import {
   adoptedHandoverFolder,
   initializeHandoverFolder,
 } from "../folder/initialize-folder";
+import { FolderOperationBusyError } from "../folder/lock";
 import type { MachineBinding } from "../folder/machine-binding";
 import { executionOs } from "../folder/platform";
 import {
@@ -15,6 +16,11 @@ import {
   selectablePresets,
 } from "../folder/presets";
 import { refreshFolder } from "../folder/update-profile";
+import {
+  type EnvironmentSshLocation,
+  type EnvironmentSshResult,
+  writeEnvironmentSsh,
+} from "../ssh-access/environments";
 import { machineBinding } from "./binding";
 import {
   bindMachineOperator,
@@ -57,7 +63,9 @@ Adopts the existing Folder: organizations/ and personalspace/ may hold work
 and are never entered; launchpad.gen3.json and launchpad.gen3.local.json are
 tolerated; any other top-level entry is refused by name. Re-running on an
 adopted Folder reports already-adopted and changes nothing; a rewritten
-handover reaches the Folder through folder-refresh.
+handover reaches the Folder through folder-refresh. On a personal Remote
+Environment an "initialized" answer also writes the SSH config for its
+assigned Work Environments and adds "environmentSsh", as folder-refresh does.
 Run as the declared operator, never root. No path or custody override.
 No Organization checkout, gateway change, resident removal or migration.
 An interrupted recognized journal can be completed using folder-resume;
@@ -65,7 +73,8 @@ missing/damaged journals require a user's diagnosis, never blanket cleanup.
 machine folder-refresh [--preset <name>]
 Re-render the adopted Folder's generated files (AGENTS.md, manual/) from the
 current handover, keeping the recorded preset and profile. Run it as the
-declared operator after every handover rewrite and product update. --preset
+declared operator after every handover rewrite; lazurio update runs it itself
+after a product update when the Folder records an older template revision. --preset
 names the preset the handover now derives, to take it after
 preset-derivation-changed; no other preset is taken here. A Folder rendered by
 an older template revision is re-rendered in full when every generated file
@@ -74,7 +83,14 @@ The Environment identity (kind, name, Owner, tailnet node, host) must be the one
 the Folder was adopted for; assignment, relationships and the document digest
 follow the handover. Prints {"kind":"refreshed","revision":<n>} after one
 archived update transaction, or {"kind":"unchanged"} when the current handover
-renders the same bytes (nothing is written, the revision stays). A refresh
+renders the same bytes (nothing is written, the revision stays). On a
+personal Remote Environment either answer then also writes, from the recorded
+binding's assigned Work Environments, ~/.ssh/config.d/lazurio-environments.conf
+(0600), ~/.ssh/known_hosts_lazurio_environments (0644) and one Include line at
+the top of ~/.ssh/config, or removes the two files when there are none, and
+adds "environmentSsh": written, unchanged, removed, none, blocked (with reason
+and path: a file Lazurio did not write or an unsafe path, nothing changed) or
+failed; the exit code stays the refresh's. A refresh
 that records a different entry restarts the supervised Launchpad of this
 Folder, which reads its entry only when it starts, and waits for it to answer;
 modules, T3 Code and Codex keep running. The answer then adds "launchpad":
@@ -89,7 +105,13 @@ the edited path (owned files are never overwritten), preset-derivation-changed
 preset the handover derives), template-upgrade-required (a newer product rendered the Folder;
 nothing is downgraded), or a machine-context-* code. Exit 1 is an
 operation failure; an interrupted refresh is completed with
-profile-resume --folder <Folder> --target-revision <n>.`;
+profile-resume --folder <Folder> --target-revision <n>.
+Every outcome of folder-init, folder-refresh and inspect is exactly one JSON
+object on stdout; text for people goes to stderr. A Folder whose lock another
+Lazurio operation still holds after the adoption check waited answers
+{"kind":"blocked","reason":"folder-busy","retryable":true} with exit 2, nothing
+changed: the same command may simply be run again. Any other failure answers
+{"kind":"failed","reason":"internal"} with exit 1.`;
 
 const choices = {
   locale: ["cs", "en"],
@@ -188,10 +210,8 @@ export async function runMachineCommand(
     const machine = machineBinding(observed.context, observed.digest);
     if (command === "inspect")
       return { code: 0, result: machineInspection(observed) };
-    const folder = bindMachineOperator(
-      observed.context,
-      await readLinuxOperator(),
-    );
+    const operator = await readLinuxOperator();
+    const folder = bindMachineOperator(observed.context, operator);
     const { code, result } =
       command === "folder-refresh"
         ? await refreshMachineFolderAndLaunchpad(
@@ -206,22 +226,56 @@ export async function runMachineCommand(
           });
     return {
       code,
-      result: { ...result, machineContextDigest: observed.digest },
+      result: {
+        ...(await withEnvironmentSsh(result, machine, {
+          home: operator.homedir,
+          uid: operator.uid,
+        })),
+        machineContextDigest: observed.digest,
+      },
     };
   } catch (error) {
-    if (error instanceof FolderAdoptionError)
-      return { code: 2, result: describeFolderAdoption(error) };
-    if (error instanceof MachineContextError)
-      return {
-        code: 2,
-        result: {
-          kind: "blocked",
-          reason: error.code,
-          next: "Ask the operator who hosts this Remote Environment to verify the handover; do not edit the identity file or reset product trust.",
-        },
-      };
-    throw error;
+    return machineFailureAnswer(error);
   }
+}
+
+// A Folder whose lock another Lazurio operation holds: nothing changed, and
+// the same command may simply run again. `profile-update` answers the same,
+// so `lazurio update` retries either refresh (decision F17's addendum of
+// 2026-10-30).
+export const folderBusyAnswer = Object.freeze({
+  kind: "blocked" as const,
+  reason: "folder-busy" as const,
+  retryable: true as const,
+  next: "Another Lazurio operation holds this Folder; run the same command again in a moment. Nothing was changed.",
+});
+
+// Every failure of folder-init, folder-refresh and inspect is one JSON answer
+// too, because Lazurio Machines reads exactly one (issue #655). A busy Folder
+// is named as retryable; anything unexpected names nothing it read, as the
+// CLI's own failure text does, and says only that the operation failed.
+export function machineFailureAnswer(error: unknown) {
+  if (error instanceof FolderAdoptionError)
+    return { code: 2, result: describeFolderAdoption(error) };
+  if (error instanceof MachineContextError)
+    return {
+      code: 2,
+      result: {
+        kind: "blocked" as const,
+        reason: error.code,
+        next: "Ask the operator who hosts this Remote Environment to verify the handover; do not edit the identity file or reset product trust.",
+      },
+    };
+  if (error instanceof FolderOperationBusyError)
+    return { code: 2, result: folderBusyAnswer };
+  return {
+    code: 1,
+    result: {
+      kind: "failed" as const,
+      reason: "internal" as const,
+      next: "The Folder operation failed and its state may require recovery; no automatic retry or cleanup was performed.",
+    },
+  };
 }
 
 // What `machine inspect` prints: the validated handover exactly as written,
@@ -352,6 +406,42 @@ export async function refreshMachineFolderAndLaunchpad(
       launchpad: await restartLaunchpadForEntry(folder, launchpad),
     },
   };
+}
+
+// When the Folder records exactly this handover's binding (folder-init that
+// initialized it, folder-refresh that recorded it or found it the same), the
+// person's SSH config on a personal Machine follows its assigned peers (root
+// decision 0192, addendum of 2026-10-26; src/ssh-access/environments.ts), and
+// the answer says how in `environmentSsh`. "already-adopted" may record an
+// older handover until the refresh that follows it, and a blocked operation
+// wrote nothing: neither writes here, and nor does any other Machine. Neither
+// a refusal nor a failure of this step changes the exit code: the Folder is
+// what it is, and the files are the person's to fix.
+const recordsThisBinding: ReadonlySet<string> = new Set([
+  "initialized",
+  "refreshed",
+  "unchanged",
+]);
+export async function withEnvironmentSsh<
+  Result extends Readonly<{ kind: string }>,
+>(result: Result, machine: MachineBinding, location: EnvironmentSshLocation) {
+  if (machine.kind !== "personal-vm" || !recordsThisBinding.has(result.kind))
+    return result;
+  let environmentSsh: EnvironmentSshResult | { kind: "failed" };
+  try {
+    environmentSsh = await writeEnvironmentSsh(location, machine);
+  } catch {
+    environmentSsh = { kind: "failed" };
+  }
+  if (environmentSsh.kind === "blocked")
+    console.error(
+      `The SSH config for the assigned Work Environments was not written: ${environmentSsh.path} is ${environmentSsh.reason === "file-foreign" ? "not Lazurio's file" : "not a plain file or directory of this account"}. Nothing was changed; move it away and refresh again.`,
+    );
+  else if (environmentSsh.kind === "failed")
+    console.error(
+      "The SSH config for the assigned Work Environments could not be written; the Folder itself is unaffected.",
+    );
+  return { ...result, environmentSsh };
 }
 
 // The refusal names the entry; the operator decides what to do with it.

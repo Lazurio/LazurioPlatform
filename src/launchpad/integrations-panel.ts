@@ -40,6 +40,8 @@ import {
   type ComposioTrip,
   type ComposioUpdate,
   cardView,
+  chatgptAppsFoot,
+  chatgptAppsLines,
   composioOrganizationChanged,
   composioOrganizationLine,
   composioOrganizationWaits,
@@ -55,6 +57,7 @@ import {
   monogram,
   type Note,
   type NoticeTone,
+  noneConnectedText,
   noteAfterReading,
   noticeIcon,
   parseIntegrations,
@@ -76,7 +79,6 @@ import {
   type IntegrationsTab,
   integrationsPath,
   type PageRoute,
-  settingsPath,
 } from "./routes";
 import {
   composioDialogView,
@@ -146,6 +148,9 @@ export function createIntegrationsPanel(
      * could not be read, and the person stays here; otherwise Settings →
      * Tools is shown, with its sign-in `opened` where it could open. */
     signInComposio: () => Promise<ComposioSignInAnswer>;
+    /** A card's tool in Settings → Tools (Matěj 2026-10-28): its sign-in
+     * over this page where it has one, else Settings → Tools at its row. */
+    openTool: (tool: string) => void;
     /** Whether the person is the Organization's Admin or Owner (GitHub's
      * answer); false where it is not known. */
     admin: () => Promise<boolean>;
@@ -941,7 +946,7 @@ export function createIntegrationsPanel(
       form(app, true);
       return;
     }
-    if (action.kind === "open-tools") options.navigate(settingsPath("tools"));
+    if (action.kind === "open-tools") options.openTool(action.tool);
     else if (action.kind === "ask-admin") void askAdmin(app, line);
     else if (action.kind === "set-up" || action.kind === "allow") {
       const target = options.dashboard();
@@ -1030,7 +1035,16 @@ export function createIntegrationsPanel(
     if (forming === app.id && view.action.kind === "connect")
       article.append(connectForm(app, view.composio));
     const foot = element("div", "integration-foot");
-    if (view.connected) {
+    // Not verified now: said as such, never as not connected (decision F42,
+    // addendum of 2026-10-27); not the connected state the guide points at.
+    if (view.connected === null) {
+      const state = element("span", "integration-unknown");
+      state.append(
+        icon("i-info"),
+        element("span", "", copy.integrationsUnknown),
+      );
+      foot.append(state);
+    } else if (view.connected) {
       const state = element("span", "integration-state");
       state.append(
         icon("i-check"),
@@ -1135,6 +1149,45 @@ export function createIntegrationsPanel(
     return hint;
   }
 
+  /** "Aplikace z ChatGPT" (decision F42's addendum of 2026-10-27): a line
+   * at the foot of Vše, with its switch on the person's own Environment. */
+  let chatgptSaving = false;
+  function chatgptAppsHint(): HTMLElement | null {
+    if (overview === null) return null;
+    const copy = options.copy();
+    const foot = chatgptAppsFoot(overview, copy);
+    if (foot === null) return null;
+    const hint = element("p", "integrations-hint", foot.text);
+    hint.dataset.setting = "chatgpt-apps";
+    const action = foot.action;
+    if (action !== null) {
+      const toggle = button(action.label, "", () => {
+        void setChatgptApps(action.allowed);
+      });
+      toggle.disabled = chatgptSaving;
+      hint.append(" ", toggle);
+    }
+    return hint;
+  }
+
+  async function setChatgptApps(allowed: boolean) {
+    chatgptSaving = true;
+    render();
+    let ok = false;
+    try {
+      ({ ok } = await options.post("/api/integrations/chatgpt-apps", {
+        allowed,
+      }));
+    } catch {}
+    chatgptSaving = false;
+    if (!ok)
+      note = {
+        tone: "danger",
+        text: options.copy().integrationsChatgptAppsFailed,
+      };
+    void load(true);
+  }
+
   function appsSection(tab: "all" | "connected"): HTMLElement[] {
     const copy = options.copy();
     if (overview === null) return [];
@@ -1170,7 +1223,7 @@ export function createIntegrationsPanel(
         "p",
         "empty",
         tab === "connected" && !searching
-          ? copy.integrationsNoneConnected
+          ? noneConnectedText(overview, copy)
           : copy.integrationsNoneFound,
       );
       if (tab === "connected" && !searching) {
@@ -1210,6 +1263,8 @@ export function createIntegrationsPanel(
       );
     const hint = tab === "all" ? composioHint("p") : null;
     if (hint !== null) nodes.push(hint);
+    const chatgpt = tab === "all" && !searching ? chatgptAppsHint() : null;
+    if (chatgpt !== null) nodes.push(chatgpt);
     section.append(...nodes);
     return [section];
   }
@@ -1963,6 +2018,8 @@ export function createIntegrationsPanel(
       return;
     }
     for (const line of sourceLines(overview, copy))
+      problems.push(notice("warning", line));
+    for (const line of chatgptAppsLines(overview, copy))
       problems.push(notice("warning", line));
     // Composio in no organization of this Environment's Organization's
     // name: what to do in Composio (decision F42, addendum of 2026-10-13;

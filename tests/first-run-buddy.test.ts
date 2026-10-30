@@ -11,14 +11,19 @@ import {
   basicsDone,
   basicsOf,
   buddyGate,
+  buddyNextOf,
   contentBlockedBy,
   firstProgress,
   freshTourProgress,
+  isStartRequest,
   nextBasic,
+  readFragment,
   shellSetup,
+  startDecision,
   type TourFacts,
   tourStep,
   tourStop,
+  withBuddySetup,
 } from "../src/launchpad/first-run";
 import { pageGuide } from "../src/launchpad/guides";
 import { messages } from "../src/launchpad/messages";
@@ -315,8 +320,118 @@ test("the guide of Začínáme with Buddy has four stops, his step among them; N
   expect(buddy.guides[0]?.steps.map((step) => step.at)).toEqual([
     "buddy-state",
     "buddy-persona",
+    "buddy-channels",
   ]);
   expect(
     pageGuide({ view: "settings", section: "buddy" }, facts, cs).help,
   ).toBeNull();
+});
+
+// ---- Buddy's bubble before the meeting (decision F60's addendum of
+// 2026-10-26): what his step needs next in the shell document, and the
+// request of his bubble that opens his dialog in Začínáme. ----
+
+test("what Buddy's step needs next, for his bubble: his sign-in, then his introduction, and nothing once his names are confirmed or not known", () => {
+  expect(buddyNextOf(fact("none", false))).toBe("sign-in");
+  expect(buddyNextOf(fact("unknown", false))).toBe("sign-in");
+  expect(buddyNextOf(fact("connected", false))).toBe("introduce");
+  // After the meeting a sign-out is his own window's to say.
+  expect(buddyNextOf(fact("none", true))).toBeUndefined();
+  expect(buddyNextOf(fact("connected", true))).toBeUndefined();
+  expect(buddyNextOf({ signIn: "none", confirmed: null })).toBeUndefined();
+  expect(buddyNextOf("loading")).toBeUndefined();
+  const setupOf = (buddy: BuddyFact) =>
+    shellSetup({
+      preset: "hosted-personal",
+      ai: "missing",
+      github: "missing",
+      list,
+      job: null,
+      buddy,
+    });
+  expect(setupOf(fact("none", false))).toMatchObject({
+    buddy: "missing",
+    buddyNext: "sign-in",
+  });
+  expect(setupOf(fact("connected", false))).toMatchObject({
+    buddy: "missing",
+    buddyNext: "introduce",
+  });
+  // Signed out after the meeting: missing, and nothing next for the bubble.
+  const after = setupOf(fact("none", true));
+  expect(after?.buddy).toBe("missing");
+  expect(Object.hasOwn(after ?? {}, "buddyNext")).toBe(false);
+  expect(
+    Object.hasOwn(setupOf(fact("connected", true)) ?? {}, "buddyNext"),
+  ).toBe(false);
+  // What the document carries, its parser takes.
+  expect(parseShellSetup(setupOf(fact("connected", false)))).toEqual(
+    setupOf(fact("connected", false)),
+  );
+  // While GitHub is not known here, the server's setup stays, with Buddy's
+  // members from this page's own reading.
+  const server = setupOf(fact("none", false));
+  if (server === undefined) throw new Error("a setup");
+  expect(withBuddySetup(server, fact("connected", false))).toEqual({
+    ...server,
+    buddy: "missing",
+    buddyNext: "introduce",
+  });
+  const met = withBuddySetup(server, fact("connected", true));
+  const { buddyNext: _next, ...rest } = server;
+  expect(met).toEqual({ ...rest, buddy: "ready" });
+  expect(Object.hasOwn(met, "buddyNext")).toBe(false);
+});
+
+test("his bubble's request opens his dialog where his step stands, only where he is and until his names are confirmed; any other value is ignored", () => {
+  // The fragment: exactly the requests the Launchpad knows.
+  expect(readFragment("#lazurio-start=meet-buddy")).toEqual({
+    token: "",
+    start: "meet-buddy",
+  });
+  expect(readFragment("#t0ken&lazurio-start=meet-buddy")).toEqual({
+    token: "t0ken",
+    start: "meet-buddy",
+  });
+  for (const ignored of [
+    "#lazurio-start=meet-buddy-now",
+    "#lazurio-start=MEET-BUDDY",
+    "#lazurio-start=meet%20buddy",
+    "#lazurio-start=",
+    "#lazurio-start=open-start",
+    "#lazurio-start=%3Cscript%3E",
+  ])
+    expect({ ignored, start: readFragment(ignored).start }).toEqual({
+      ignored,
+      start: null,
+    });
+  expect(isStartRequest("meet-buddy")).toBe(true);
+  expect(isStartRequest("sign-in-gh")).toBe(true);
+  expect(isStartRequest("toString")).toBe(false);
+  expect(isStartRequest(undefined)).toBe(false);
+  // Where Buddy is, until his names are confirmed: his dialog.
+  const asked = (overrides: Partial<TourFacts>) =>
+    startDecision("meet-buddy", tour(overrides));
+  expect(asked({ buddy: fact("none", false) })).toBe("meet-buddy");
+  expect(asked({ buddy: fact("connected", false) })).toBe("meet-buddy");
+  // A reading that failed: the dialog says what it knows.
+  expect(asked({ buddy: { signIn: "unknown", confirmed: null } })).toBe(
+    "meet-buddy",
+  );
+  // Not read yet: it waits.
+  expect(asked({ buddy: "loading" })).toBe("wait");
+  // Met already, or no Buddy here, or no person's first run: nothing.
+  expect(asked({ buddy: fact("none", true) })).toBe("drop");
+  expect(asked({ buddy: fact("connected", true) })).toBe("drop");
+  expect(asked({})).toBe("drop");
+  expect(
+    asked({ buddy: fact("none", false), preset: "hosted-organization-team" }),
+  ).toBe("drop");
+  expect(asked({ buddy: fact("none", false), audience: "public" })).toBe(
+    "drop",
+  );
+  // Nothing of GitHub, the AI or the content decides it.
+  expect(
+    asked({ buddy: fact("none", false), ai: "loading", github: "unknown" }),
+  ).toBe("meet-buddy");
 });

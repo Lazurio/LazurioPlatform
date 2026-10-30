@@ -440,32 +440,26 @@ export function connectionLine(
   };
 }
 
-/** Whether a sign-in that just completed in this Launchpad turns the tool's
- * "Používají agenti" on (Matěj 2026-10-04), so that it works without a
- * second step: only a tool that has the switch (not a required one) and has
- * it off, and never when the tool was signed in before the sign-in started.
- * A person may turn it off again. */
-export function autoEnable(
-  tool: Pick<ToolOverview, "tier" | "enabled" | "organization"> | undefined,
-  state: LoginView,
-): boolean {
-  return (
-    state.kind === "signed-in" &&
-    state.already !== true &&
-    tool !== undefined &&
-    tool.tier !== "required" &&
-    !tool.enabled &&
-    // The Organization decides a tool it does not allow (decision F45).
-    tool.organization?.allowed !== false
-  );
-}
-
 /** What Composio's sign-in dialog says beside "Otevřít Composio", before
  * the person signs in there: in a Team Environment (the reading's
  * `sharedEnvironment`) with the Team's Composio account, not a personal one
  * (decision F42, note of 2026-10-19). */
 export function composioSignInText(copy: Copy, shared: boolean): string {
   return shared ? copy.toolsLoginComposioTextTeam : copy.toolsLoginComposioText;
+}
+
+/** What gh's sign-in dialog says above its code: the scope refresh of "Link
+ * SSH key" (`ssh`), or the sign-in itself, which on an Environment whose
+ * GitHub is its persona's (`persona`, the Automated Environment) is
+ * confirmed with the persona's account, not the person's own (decision F27's
+ * addendum of 2026-10-30). */
+export function ghCodeText(
+  copy: Copy,
+  mode: "install" | "login" | "ssh",
+  persona: boolean,
+): string {
+  if (mode === "ssh") return copy.toolsLoginRefreshText;
+  return persona ? copy.toolsLoginGhTextPersona : copy.toolsLoginGhText;
 }
 
 /** The title of a tool's sign-in dialog: "Připojit GitHub", "Připojit
@@ -737,6 +731,37 @@ export function signInMode(
   if (primary !== null)
     return primary.mode === "install-only" ? null : primary.mode;
   return linkSsh ? "ssh" : null;
+}
+
+/** The control of a tool's row that a person sent to Settings → Tools for
+ * that tool acts on next (Integrace's card, Začínáme; Matěj 2026-10-28):
+ * only the switch where the tool is installed and signed in and just not
+ * used by agents; otherwise its sign-in or installation, "Link SSH key",
+ * or the setup with an agent; otherwise the switch where it is off; null
+ * where the row has nothing a person can do. Its `data-control`. */
+export function revealControl(
+  tool: ToolOverview,
+  copy: Copy,
+  brokered = false,
+): "curated" | "link-ssh" | "agent" | "toggle" | null {
+  // A tool this Environment does not offer has no switch to turn on, and
+  // the switch of one the Organization decides does not move (the row
+  // disables it by the same rule, `organizationView`; Pablo's review of
+  // #709).
+  const switchable =
+    tool.offered &&
+    tool.tier !== "required" &&
+    !tool.enabled &&
+    !organizationView(tool, copy).locked;
+  if (switchable && tool.installed && tool.signIn?.state === "signed-in")
+    return "toggle";
+  if (tool.offered) {
+    const { primary, linkSsh } = curatedActions(tool, copy, brokered);
+    if (primary !== null) return "curated";
+    if (linkSsh) return "link-ssh";
+    if (tool.setup !== "launchpad") return "agent";
+  }
+  return switchable ? "toggle" : null;
 }
 
 /** What Nástroje's "?" can truthfully point at (decision F56's addendum (2)

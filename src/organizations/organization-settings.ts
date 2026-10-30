@@ -96,6 +96,9 @@ export const workspaceTabsMax = 12;
 // checked so an Organization that writes it keeps every other setting, then
 // dropped (`dashboardOnly`). It has no key, is never applied or reported, and
 // the Dashboard never delivers it; only a root read from Git holds it.
+// `chatgpt_apps` ("Aplikace z ChatGPT", decision F42's addendum of
+// 2026-10-27) is whether agents may use the apps, plugins and connectors of
+// the person's ChatGPT account in Codex: absent and `false` are off.
 const contract = objectNode({
   // The Organization's own tabs inside Apps' Workspace (decision F32's
   // addendum of 2026-10-16): in order, each a name and the modules in it; a
@@ -119,6 +122,7 @@ const contract = objectNode({
   ),
   integrations: objectNode({
     composio: objectNode({ allowed: booleanLeaf }, ["allowed"]),
+    chatgpt_apps: objectNode({ allowed: booleanLeaf }, ["allowed"]),
     microsoft365: objectNode(
       {
         tenant_id: stringLeaf(guidPattern),
@@ -140,6 +144,7 @@ const dashboardOnly = Object.freeze(["access_requests"]);
  * leaf, an array being one. */
 export const organizationSettingsKeys = Object.freeze([
   "integrations.composio.allowed",
+  "integrations.chatgpt_apps.allowed",
   "integrations.microsoft365.tenant_id",
   "integrations.microsoft365.client_id",
   "integrations.microsoft365.apps",
@@ -208,6 +213,7 @@ export type OrganizationSettingsValues = Readonly<{
   workspace?: Readonly<{ tabs: readonly WorkspaceTab[] }>;
   integrations?: Readonly<{
     composio?: Readonly<{ allowed: boolean }>;
+    chatgpt_apps?: Readonly<{ allowed: boolean }>;
     microsoft365?: Microsoft365Setting;
   }>;
 }>;

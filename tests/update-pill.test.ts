@@ -11,7 +11,10 @@ import {
   type PillInput,
   type PillStatus,
 } from "../src/launchpad/update-pill";
+import { pillVisible } from "../src/launchpad/update-view";
+import { acquireFileLock } from "../src/platform/flock";
 import { type UpdateError, updateError } from "../src/update/errors";
+import { refreshFolderWhenBehind } from "../src/update/folder-refresh";
 import {
   type Activation,
   type Activator,
@@ -19,8 +22,15 @@ import {
   systemdActivator,
   updateCommand,
 } from "../src/update/launchpad-activation";
+import { layout } from "../src/update/layout";
 import type { ProcessResult, ProcessRunner } from "../src/update/self-check";
-import type { CheckResult, UpdateStatus } from "../src/update/update";
+import { updateTarget } from "../src/update/service-control";
+import {
+  type CheckResult,
+  readStatus,
+  type UpdateStatus,
+} from "../src/update/update";
+import { refreshRunner, renderedBy } from "./fixtures/folder-refresh";
 import {
   closeSharedSigstore,
   createWorld,
@@ -211,6 +221,58 @@ test("every pill state and the single action for it", () => {
       },
     ],
     [
+      "the run that switched still finishes while a newer release became known: never downloading, nothing to start yet (Pablo's review of #731)",
+      {
+        status: status({
+          running: "1.1.0",
+          active: "1.1.0",
+          highWater: "1.1.0",
+          lastCheck: check("1.2.0"),
+        }),
+        activation: { inFlight: true, target: "1.1.0", failure: null },
+      },
+      {
+        state: "available",
+        action: null,
+        error: null,
+        restartRequired: false,
+        stale: false,
+      },
+    ],
+    [
+      "downloading the version in flight while a newer release became known",
+      {
+        status: status({ lastCheck: check("1.2.0") }),
+        activation: { inFlight: true, target: "1.1.0", failure: null },
+      },
+      {
+        state: "downloading",
+        action: null,
+        error: null,
+        restartRequired: false,
+        stale: false,
+      },
+    ],
+    [
+      "the new Launchpad is up while the run finishes what follows the switch (the Folder's refresh, the units): nothing is shown",
+      {
+        status: status({
+          running: "1.1.0",
+          active: "1.1.0",
+          highWater: "1.1.0",
+          lastCheck: check("1.1.0"),
+        }),
+        activation: { inFlight: true, failure: null },
+      },
+      {
+        state: "idle",
+        action: null,
+        error: null,
+        restartRequired: false,
+        stale: false,
+      },
+    ],
+    [
       "supervised, the updater ended after the switch and before the restart: a restart finishes it, nothing goes back",
       {
         status: status({
@@ -348,6 +410,24 @@ test("every pill state and the single action for it", () => {
   ];
   for (const [name, input, expected] of rows)
     expect([name, shape(derive(input))]).toEqual([name, expected]);
+  // The version a download names is the run's own.
+  expect(
+    derive({
+      status: status({ lastCheck: check("1.2.0") }),
+      activation: { inFlight: true, target: "1.1.0", failure: null },
+    }).target,
+  ).toBe("1.1.0");
+  expect(
+    derive({
+      status: status({
+        running: "1.1.0",
+        active: "1.1.0",
+        highWater: "1.1.0",
+        lastCheck: check("1.2.0"),
+      }),
+      activation: { inFlight: true, target: "1.1.0", failure: null },
+    }).target,
+  ).toBeNull();
   const shown = derive({ status: status({ lastCheck: check("1.1.0") }) });
   expect(shown).toMatchObject({
     kind: "update-pill",
@@ -503,6 +583,28 @@ test("the poller's jitter stays within its bounds", async () => {
   }
 });
 
+test("the version a running update unit fetches is read from its description, nothing else", () => {
+  // systemd-run's own description of a unit started without one: its command.
+  expect(
+    updateTarget(
+      "/home/x/.local/share/lazurio/bin/lazurio update --version v1.1.0 --json --base /home/x/.local/share/lazurio",
+    ),
+  ).toBe("1.1.0");
+  expect(updateTarget("lazurio update --version v1.2.0-rc.1 --json")).toBe(
+    "1.2.0-rc.1",
+  );
+  for (const description of [
+    undefined,
+    "",
+    "lazurio update --json",
+    "lazurio update --version 1.1.0 --json",
+    "lazurio update --version vlatest --json",
+    "lazurio update --version",
+    "lazurio update --version=v1.1.0",
+  ])
+    expect(updateTarget(description)).toBeUndefined();
+});
+
 /** A service manager stand-in answering `systemctl show`, `systemd-run`,
  * `reset-failed` and `journalctl` from a scripted unit state.
  */
@@ -511,14 +613,14 @@ function fakeManager(initial: {
   load?: string;
   journal?: string;
 }) {
-  const state = { load: "loaded", journal: "", ...initial };
+  const state = { load: "loaded", journal: "", description: "", ...initial };
   const commands: string[][] = [];
   const run: ProcessRunner = async (command) => {
     commands.push([...command]);
     const ok = (stdout = ""): ProcessResult => ({ exitCode: 0, stdout });
     if (command[0] === "systemctl" && command[2] === "show")
       return ok(
-        `LoadState=${state.load}\nActiveState=${state.active}\nInvocationID=${"ab".repeat(16)}\n`,
+        `LoadState=${state.load}\nActiveState=${state.active}\nInvocationID=${"ab".repeat(16)}\n${state.description === "" ? "" : `Description=${state.description}\n`}`,
       );
     if (command[0] === "systemctl" && command[2] === "reset-failed") {
       state.active = "inactive";
@@ -528,6 +630,8 @@ function fakeManager(initial: {
     if (command[0] === "systemd-run") {
       state.active = "active";
       state.load = "loaded";
+      // Without --description, systemd-run describes the unit by its command.
+      state.description = command.slice(command.indexOf("--") + 1).join(" ");
       return ok();
     }
     if (command[0] === "journalctl") return ok(state.journal);
@@ -567,8 +671,13 @@ test("supervised: the action is exactly systemd-run of the selector, and the pil
     "--base",
     "/base",
   ]);
-  // Running: in flight, and a second start is refused without touching the manager.
-  expect(await activator.observe()).toEqual({ inFlight: true, failure: null });
+  // Running: in flight with the version it fetches, read from the unit's
+  // description, and a second start is refused without touching the manager.
+  expect(await activator.observe()).toEqual({
+    inFlight: true,
+    target: "1.1.0",
+    failure: null,
+  });
   const before = manager.commands.length;
   await expect(activator.start("1.1.0")).rejects.toThrow("busy");
   expect(manager.commands.slice(before).map((c) => c[0])).toEqual([
@@ -644,7 +753,11 @@ test("unsupervised: the same command as a child; its --json answer is the error,
   const activator = childActivator({ base: "/base", env: {}, run });
   await activator.start("1.1.0");
   expect(commands).toEqual([[...updateCommand("/base", "1.1.0")]]);
-  expect(await activator.observe()).toEqual({ inFlight: true, failure: null });
+  expect(await activator.observe()).toEqual({
+    inFlight: true,
+    target: "1.1.0",
+    failure: null,
+  });
   await expect(activator.start("1.1.0")).rejects.toThrow("busy");
   resolveChild?.({
     exitCode: 1,
@@ -804,9 +917,10 @@ test("the pill runs the one check use case and applies only what it showed", asy
 });
 
 test.skipIf(process.platform === "win32")(
-  "the pill says when this Launchpad's Folder needs a refresh, and does nothing about it",
+  "the pill never shows the Folder's refresh, and the Launchpad's update that finds nothing newer refreshes it",
   async () => {
     world = await createWorld();
+    await world.release("1.0.0");
     const folder = join(world.root, "Lazurio");
     await initializeFolder(folder, {
       os: executionOs(process.platform),
@@ -816,41 +930,61 @@ test.skipIf(process.platform === "win32")(
       detail: "concise",
       coordination: "direct",
     });
+    await renderedBy(folder, "base-instructions-8");
+    const { run, calls } = refreshRunner(world.base);
+    const environment = world.environment("1.0.0", {
+      folder,
+      refreshFolder: (refreshed, product) =>
+        refreshFolderWhenBehind({
+          base: world.base,
+          folder: refreshed,
+          product,
+          env: {},
+          run,
+        }),
+    });
     const pill = createUpdatePill({
-      environment: world.environment("1.0.0", { folder }),
+      environment,
       activator: fakeActivator(),
+      poller: { startupDelayMs: 3_600_000, intervalMs: 3_600_000, jitterMs: 0 },
       now: () => now,
     });
-    expect((await pill.status()).folderRefresh).toBeNull();
-    // Rendered by an earlier template revision.
-    const manifest = join(folder, ".lazurio/instructions.json");
-    const recorded = await readFile(manifest, "utf8");
-    await writeFile(
-      manifest,
-      JSON.stringify({
-        ...JSON.parse(recorded),
-        templateRevision: "base-instructions-8",
-      }),
-    );
-    expect((await pill.status()).folderRefresh).toMatchObject({
+    // A Folder behind the product is nothing a person sees: no field, no
+    // pill, no line.
+    const shown = await pill.status();
+    expect(Object.keys(shown)).not.toContain("folderRefresh");
+    expect(pillVisible(shown)).toBe(false);
+    // Agents still read it.
+    expect((await readStatus(environment)).folderRefresh).toEqual({
+      folder,
       recorded: "base-instructions-8",
       product: instructionTemplateRevision,
-      command: expect.stringMatching(/^lazurio profile-update --folder /),
     });
-    // Nothing was written by asking.
-    expect(JSON.parse(await readFile(manifest, "utf8")).templateRevision).toBe(
-      "base-instructions-8",
-    );
-    // Before its restart a Launchpad is not the active product: it does not
-    // speak for the revision the new one renders.
+    // Nová karta's Aktualizovat: nothing newer, so the Folder's refresh runs
+    // as `lazurio update` would run it, and people read only "current".
+    expect(await pill.updateNow()).toEqual({
+      part: "product",
+      result: "current",
+      version: "1.0.0",
+    });
+    expect(calls.map((call) => call.command[0])).toEqual(["profile-update"]);
     expect(
-      (
-        await createUpdatePill({
-          environment: world.environment("0.9.0", { folder }),
-          activator: fakeActivator(),
-          now: () => now,
-        }).status()
-      ).folderRefresh,
-    ).toBeNull();
+      JSON.parse(
+        await readFile(join(folder, ".lazurio/instructions.json"), "utf8"),
+      ).templateRevision,
+    ).toBe(instructionTemplateRevision);
+    expect((await readStatus(environment)).folderRefresh).toBeNull();
+    // While another update holds the update lock, that one refreshes: the
+    // Launchpad leaves it alone.
+    await renderedBy(folder, "base-instructions-8");
+    const holder = await acquireFileLock(layout(world.base).lock, {
+      timeoutMs: 0,
+    });
+    try {
+      expect(await pill.updateNow()).toMatchObject({ result: "current" });
+    } finally {
+      await holder.release();
+    }
+    expect(calls).toHaveLength(1);
   },
 );

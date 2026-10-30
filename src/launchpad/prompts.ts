@@ -42,10 +42,12 @@ export const promptSchema = "lazurio.prompt.v1";
 /** Who may get a prompt. `organization-owner`: only where this Environment's
  * GitHub identity is an Owner of the Organization, GitHub's own live answer
  * (organization-owner.ts), the same rule as the "+ Nový modul" tile; a Team
- * Environment never is. `environment-operator`: the person this Environment
- * signs in to GitHub as, behind its admission: only an Environment whose
- * preset signs in as its person (first-run.ts `signsInAsPerson`), never a
- * Team or an Automated one. `personalspace-holder`: only where this
+ * Environment never is. `environment-operator`: the person behind this
+ * Environment's admission, only where its preset has the onboarding
+ * (first-run.ts `hasOnboarding`): the person a personal or work Environment
+ * or a computer signs in to GitHub as, and the responsible user of an
+ * Automated Environment (decision F27's addendum of 2026-10-30); never a
+ * Team one. `personalspace-holder`: only where this
  * Environment's GitHub account holds the Folder's Personalspace (the holder
  * decision of #186: its own, private `<login>/<login>_GEN3`, and on a
  * personal Remote Environment the handover's Owner), and the link's `org` is

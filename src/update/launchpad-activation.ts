@@ -23,6 +23,10 @@ import {
 export type Activation = Readonly<{
   /** An update started from here is still running. */
   inFlight: boolean;
+  /** The version that run fetches, when known: the pill shows "downloading"
+   * only while it is newer than this Launchpad, never during what follows
+   * the switch (the Folder's refresh, the units) after the restart. */
+  target?: string | undefined;
   /** How the last one that is not running ended, when it failed. */
   failure: UpdateError | null;
 }>;
@@ -100,6 +104,9 @@ export function systemdActivator(input: ActivatorInput): Activator {
       }
       return Object.freeze({
         inFlight: unit?.kind === "running",
+        ...(unit?.kind === "running" && unit.target !== undefined
+          ? { target: unit.target }
+          : {}),
         failure: null,
       });
     },
@@ -116,11 +123,13 @@ const childTimeoutMs = 60 * 60_000;
 export function childActivator(input: ActivatorInput): Activator {
   const run = input.run ?? runProcess;
   let child: Promise<void> | null = null;
+  let target: string | undefined;
   let failure: UpdateError | null = null;
   return Object.freeze({
     async start(version: string) {
       if (child !== null) throw new UpdateFailure("busy");
       failure = null;
+      target = version;
       child = run(
         updateCommand(input.base, version),
         childTimeoutMs,
@@ -157,10 +166,15 @@ export function childActivator(input: ActivatorInput): Activator {
         })
         .finally(() => {
           child = null;
+          target = undefined;
         });
     },
     async observe() {
-      return Object.freeze({ inFlight: child !== null, failure });
+      return Object.freeze({
+        inFlight: child !== null,
+        ...(child !== null && target !== undefined ? { target } : {}),
+        failure,
+      });
     },
   });
 }

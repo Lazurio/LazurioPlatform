@@ -52,6 +52,7 @@ function manifest(settings?: unknown): Record<string, unknown> {
 
 const ungoverned: OrganizationSettingsEntry[] = [
   { key: "integrations.composio.allowed", governed: false, value: null },
+  { key: "integrations.chatgpt_apps.allowed", governed: false, value: null },
   { key: "integrations.microsoft365.tenant_id", governed: false, value: null },
   { key: "integrations.microsoft365.client_id", governed: false, value: null },
   { key: "integrations.microsoft365.apps", governed: false, value: null },
@@ -66,6 +67,7 @@ const issue = (
 test("the settings vocabulary is the upstream one", () => {
   expect(organizationSettingsKeys).toEqual([
     "integrations.composio.allowed",
+    "integrations.chatgpt_apps.allowed",
     "integrations.microsoft365.tenant_id",
     "integrations.microsoft365.client_id",
     "integrations.microsoft365.apps",
@@ -304,6 +306,11 @@ test("the Microsoft 365 company app is identifiers beside Composio, and never re
     values: settings,
     effective: [
       { key: "integrations.composio.allowed", governed: true, value: false },
+      {
+        key: "integrations.chatgpt_apps.allowed",
+        governed: false,
+        value: null,
+      },
       {
         key: "integrations.microsoft365.tenant_id",
         governed: true,
@@ -548,6 +555,11 @@ test("access requests are accepted and ignored: the other settings beside them s
     effective: [
       { key: "integrations.composio.allowed", governed: true, value: true },
       {
+        key: "integrations.chatgpt_apps.allowed",
+        governed: false,
+        value: null,
+      },
+      {
         key: "integrations.microsoft365.tenant_id",
         governed: true,
         value: tenantId,
@@ -615,4 +627,55 @@ test("access requests are a closed object with a required boolean, as in Core", 
     expect(
       organizationSettings(parseCanonicalOrganization(manifest(settings))),
     ).toEqual({ status: "invalid", values: null, effective: null, issues });
+});
+
+test("ChatGPT apps are one boolean leaf beside Composio, and absent is not governed", () => {
+  for (const allowed of [false, true]) {
+    const settings = { integrations: { chatgpt_apps: { allowed } } };
+    const verdict = organizationSettings(
+      parseCanonicalOrganization(manifest(settings)),
+    );
+    expect(verdict.status).toBe("valid");
+    expect(verdict.values).toEqual(settings);
+    expect(
+      verdict.effective?.find(
+        (entry) => entry.key === "integrations.chatgpt_apps.allowed",
+      ),
+    ).toEqual({
+      key: "integrations.chatgpt_apps.allowed",
+      governed: true,
+      value: allowed,
+    });
+  }
+  // `allowed` is required once the group is there, and only a boolean.
+  expect(
+    organizationSettings(
+      parseCanonicalOrganization(
+        manifest({ integrations: { chatgpt_apps: {} } }),
+      ),
+    ).issues,
+  ).toEqual([
+    issue(
+      "settings_field_missing",
+      "/settings/integrations/chatgpt_apps/allowed",
+    ),
+  ]);
+  expect(
+    organizationSettings(
+      parseCanonicalOrganization(
+        manifest({
+          integrations: { chatgpt_apps: { allowed: "no", plugins: true } },
+        }),
+      ),
+    ).issues,
+  ).toEqual([
+    issue(
+      "settings_type_invalid",
+      "/settings/integrations/chatgpt_apps/allowed",
+    ),
+    issue(
+      "settings_field_unknown",
+      "/settings/integrations/chatgpt_apps/plugins",
+    ),
+  ]);
 });

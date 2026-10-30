@@ -6,6 +6,7 @@ import { folderOrganizationSettings } from "../folder/state";
 import { ownDataValue, stateFields } from "../folder/state-fields";
 import { integrationsCatalog } from "../integrations/catalog";
 import type { IntegrationsCatalog } from "../integrations/catalog-schema";
+import { setChatgptApps } from "../integrations/chatgpt-apps";
 import {
   type ComposioOrganizationRule,
   folderComposioOrganizationRule,
@@ -34,6 +35,7 @@ import { composioToolkitOf } from "../integrations/model";
 import type { ComposioPolicySource } from "../integrations/policy";
 import { createIntegrationsReader } from "../integrations/read";
 import { escapeHtml } from "../shell/offline-page";
+import type { CodexAppsInput } from "../tools/codex-apps";
 import type { ToolsEnvironment } from "../tools/overview";
 import { resolveOnPath } from "../tools/status";
 import { BodyTooLarge, readJsonBody } from "./json-body";
@@ -62,6 +64,10 @@ import { fill } from "./update-view";
 //                                           keys-required for a kept key that
 //                                           must come again
 //   POST /api/integrations/custom/remove    {id, confirm: true}
+//   POST /api/integrations/chatgpt-apps     {allowed}: the person's own
+//                                           choice of ChatGPT's apps where
+//                                           no Organization governs (409
+//                                           organization-governed elsewhere)
 //
 // The reading answers 200 with each source's own state, so an Executor that
 // is down or a Composio that is signed out never makes the page fail; only a
@@ -98,6 +104,13 @@ export type IntegrationsSeams = Readonly<{
    * company app's sign-in there (decision F42 addendum (c) of 2026-10-14);
    * null or absent where there is none. */
   forgetMicrosoftSignIn?: (() => Promise<boolean>) | null | undefined;
+  /** The operator's Codex where this Launchpad keeps it in line with ChatGPT's
+   * apps (decision F42's addendum of 2026-10-27): a Remote Environment's
+   * supervised Launchpad; null or absent where it does not (a development
+   * run, the person's own computer). */
+  codexApps?: CodexAppsInput | null | undefined;
+  /** Called after the person's choice of ChatGPT's apps changed the Folder. */
+  chatgptAppsChanged?: (() => void) | undefined;
 }>;
 
 const sessionPattern = /^[0-9a-f]{32}$/;
@@ -178,6 +191,7 @@ export function createIntegrationsRoutes(
         : { composioOrganization: seams.composioOrganization }),
       ...(seams.catalog === undefined ? {} : { catalog: seams.catalog }),
       ...(seams.now === undefined ? {} : { now: seams.now }),
+      ...(seams.codexApps == null ? {} : { codexApps: seams.codexApps }),
       // A pending Composio account is listed only while a sign-in started
       // here waits for it (decision F42, addendum of 2026-10-12).
       composioSignIns: () => sessions.signIns(),
@@ -278,6 +292,26 @@ export function createIntegrationsRoutes(
         extend(120);
         try {
           return response(await reader.overview(refresh === "1"));
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
+      if (url.pathname === "/api/integrations/chatgpt-apps") {
+        const value = await body(request, ["allowed"]);
+        if (value instanceof Response) return value;
+        if (typeof value.allowed !== "boolean")
+          return response({ error: "invalid-allowed" }, 400);
+        const seams = input.seams();
+        try {
+          const result = await setChatgptApps(
+            input.folder,
+            value.allowed,
+            seams.codexApps ?? null,
+          );
+          if (result.kind === "blocked") return response(result, 409);
+          reader.forget();
+          seams.chatgptAppsChanged?.();
+          return response({ ...result.status, change: result.kind });
         } catch {
           return response({ error: "operation-failed" }, 500);
         }

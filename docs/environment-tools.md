@@ -508,12 +508,36 @@ true` for codex only (ChatGPT's sign-in by code; any other tool or value, or bes
 `sshKey`, is `400` `invalid-device-code`). No answer carries private
 key content or a public key's blob; only the key's path and SHA-256 fingerprint.
 
+A sign-in that ends signed in turns the tool's "Používají agenti" on in the
+Launchpad's Folder (Matěj 2026-10-04, F19's addendum of 2026-10-28, #682). The
+Launchpad does it as the sign-in ends, at the Folder's current revision, through the
+same change as the switch. It happens whichever page started the sign-in (Začínáme,
+Settings → Tools, Integrace) and also when nobody polls it, because its window was
+closed. A `poll` or `start` that answers `signed-in` answers once that sign-in's own
+switch followed, waiting at most 5 seconds, so the page's next reading shows it. A closing
+Launchpad waits for every switch under way. Nothing is switched for:
+- a tool signed in before (`already`);
+- a tool without the switch (a required one; codex and claude are not catalog tools of
+  agents);
+- a tool the switch would refuse: not offered here (F44), or not allowed by the
+  Organization (F45).
+
+The person may turn the switch off again; no later reading turns it back on. The
+`lazurio tools login` command takes no Folder and switches nothing.
+
 A challenge is never written to a log, a file, the Folder or an error. The Launchpad
 writes one JSON line to its journal (the unit's journal on a Machine) when a sign-in
 starts and one when it ends: `{"scope":"tools-login","tool":"wacli","event":"start"}`
 and `{"scope":"tools-login","tool":"wacli","event":"end","outcome":"failed","reason":"no-challenge"}`,
 with the tool, the outcome (`signed-in`, `failed`, `blocked`, `expired`, `cancelled`)
 and the fixed reason code only; never the tool's output, a challenge or an account.
+The switch that follows a sign-in writes one more line,
+`{"scope":"tools-agents","tool":"composio","outcome":"enabled"}`. Its outcome is one of:
+- `enabled`;
+- `on` (it was on already);
+- `refused`, with the Folder's reason (`tool-not-offered`, `organization-governed`,
+  `drift`…);
+- `failed`.
 The tools keep
 their own pending state in their own stores (composio's pending login in
 `~/.composio`), which is the tool's custody and is not copied anywhere. On a shared
@@ -531,6 +555,11 @@ or the Launchpad's sign-in, chooses the persona's account in the device flow and
 keeps its two-factor authentication and recovery codes outside the Environment. The
 rendered Folder states this rule; the gate does not compare accounts
 ([workspace presets](workspace-presets.md#the-steward-preset-automated-environment)).
+Since [F27's addendum of 2026-10-30](decisions.md#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)
+the sign-in dialog's line says to confirm the code with the persona's account, and
+Začínáme's GitHub step counts gh signed in as the responsible user's own login as not
+done, with "Přepnout účet", which signs it out as "Odhlásit" does and opens the
+sign-in again. That soft check refuses nothing.
 
 #### gh on a Team Environment
 
@@ -1111,8 +1140,11 @@ declared operator ensures a second installer unit, `lazurio-codex-app-server.ser
 user's own `~/.local/bin/codex app-server daemon start` at every boot, so a Codex
 client connecting over SSH finds the daemon without anyone starting it by hand. This
 is the one thing the Platform does with Codex beyond reporting it: it never installs,
-updates, downgrades or reconfigures Codex and never runs its installer; without Codex
-at its standard entry the unit's condition skips the start. Install and update never
+updates or downgrades Codex and never runs its installer; without Codex
+at its standard entry the unit's condition skips the start. Its configuration the
+Platform changes only for its own MCP entries, through Codex's CLI (F44, F59), and
+for the apps of the person's ChatGPT account, two keys of `config.toml`
+(`[apps._default] enabled` and `[features] tool_suggest`, [F42's addendum of 2026-10-27](integrations.md#chatgpt-apps-aplikace-z-chatgpt)). Install and update never
 restart or stop the daemon, since that would end live Codex sessions. `lazurio doctor`
 reports it as `codex-app-server` (`ok`, or `warn` with the next step, never `fail`).
 The unit text is in [product update](update.md#state-on-disk).

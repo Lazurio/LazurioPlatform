@@ -42,7 +42,9 @@ import {
   parseFolderPreferences,
   parseInstructionManifest,
   parseOrganizationSettingsValues,
+  personalChatgptApps,
   toolNotes,
+  withChatgptApps,
   withOrganizationSettings,
   withToolSelection,
 } from "./state";
@@ -120,6 +122,7 @@ export async function planProfileChange(
       tools: enabledTools(current),
       notes: toolNotes(current),
       organizationSettings: folderOrganizationSettings(current),
+      chatgptAppsAllowed: personalChatgptApps(current),
     },
     inspect,
   );
@@ -184,6 +187,7 @@ export async function planToolsChange(
           ? keptNotes(toolNotes(current), tools)
           : parseToolNotes(requestedNotes, tools),
       organizationSettings: settings,
+      chatgptAppsAllowed: personalChatgptApps(current),
     },
     inspect,
   );
@@ -221,6 +225,45 @@ export async function planOrganizationSettingsChange(
       tools: enabledTools(current),
       notes: toolNotes(current),
       organizationSettings: settings,
+      chatgptAppsAllowed: personalChatgptApps(current),
+    },
+    inspect,
+  );
+}
+
+// The person's choice of their ChatGPT account's apps (decision F42's
+// addendum of 2026-10-27) at the expected revision, everything else carried
+// forward. On an Environment an Organization governs the Organization
+// decides, so any choice is refused (`organization-governed`); the same
+// choice is `unchanged`.
+export async function planChatgptAppsChange(
+  currentPreferencesInput: unknown,
+  currentManifestInput: unknown,
+  expectedRevision: number,
+  allowed: unknown,
+  inspect: (path: OutputPath) => Promise<ObservedFile>,
+) {
+  const current = parseFolderPreferences(currentPreferencesInput);
+  if (typeof allowed !== "boolean")
+    throw new Error("Invalid ChatGPT apps choice");
+  if (organizationGoverns(current.preset.name))
+    return {
+      kind: "blocked",
+      reason: "organization-governed",
+      setting: "integrations.chatgpt_apps.allowed",
+    } as const;
+  return planFolderChange(
+    current,
+    currentManifestInput,
+    expectedRevision,
+    {
+      preset: current.preset.name,
+      profile: current.profile,
+      machine: current.machine,
+      tools: enabledTools(current),
+      notes: toolNotes(current),
+      organizationSettings: folderOrganizationSettings(current),
+      chatgptAppsAllowed: allowed,
     },
     inspect,
   );
@@ -244,8 +287,9 @@ function keptNotes(notes: ToolNotes, tools: readonly string[]): ToolNotes {
 // re-projected). The Machine identity never changes here; the
 // handover-derived rest of the binding (assignment, relationships, document
 // digest, entry) follows the handover. A binding that renders the same bytes
-// and declares the same entry is `unchanged` and is not recorded, so a
-// re-apply that only rewrote `installed` never bumps the revision.
+// and declares the same entry and relationships is `unchanged` and is not
+// recorded, so a re-apply that only rewrote `installed` never bumps the
+// revision.
 export type FolderChange = Readonly<{
   // Undefined keeps the record; null removes the last override.
   agentVoice?: AgentVoice | null;
@@ -255,6 +299,9 @@ export type FolderChange = Readonly<{
   tools: readonly string[];
   notes: ToolNotes;
   organizationSettings: OrganizationSettingsValues;
+  /** The person's choice of their ChatGPT account's apps; kept only on a
+   * preset no Organization governs. */
+  chatgptAppsAllowed: boolean;
 }>;
 
 export async function planFolderChange(
@@ -331,6 +378,10 @@ export async function planFolderChange(
     presetName === current.preset.name
       ? current.preset
       : presetReference(presetName, machine);
+  // The person's choice of ChatGPT's apps holds where they decide; an
+  // Organization's Environment follows its Organization.
+  const chatgptApps =
+    change.chatgptAppsAllowed === true && !organizationGoverns(preset.name);
 
   // The recorded digests must be what the current composition renders; a
   // manifest that claims other bytes is incomplete state, not drift. Only this
@@ -352,6 +403,7 @@ export async function planFolderChange(
       tools,
       toolNotes: notes,
       organizationSettings: settings,
+      ...(chatgptApps ? { chatgptAppsAllowed: true as const } : {}),
     },
     manifest.outputs,
     inspect,
@@ -371,37 +423,48 @@ export async function planFolderChange(
   // changed selection or note: a tool this Environment does not offer is not
   // rendered (decision F44), and switching it off changes only the record;
   // and so is a changed section of Organization settings, which Settings →
-  // Tools and `lazurio tools` act on (decision F45).
+  // Tools and `lazurio tools` act on (decision F45). The relationships follow
+  // the handover (F10): every member of a peer is rendered in the Folder
+  // except an assigned peer's host keys (root decision 0192, addendum of
+  // 2026-10-26), which only the person's SSH config outside the Folder carries
+  // (src/ssh-access/environments.ts), so a change of only those is recorded
+  // here too, never left behind the handover.
   if (
     preview.plan.kind === "unchanged" &&
     JSON.stringify(nextVoice) === JSON.stringify(current.agentVoice) &&
     JSON.stringify(machine?.entry) === JSON.stringify(current.machine?.entry) &&
+    JSON.stringify(machine?.relationships) ===
+      JSON.stringify(current.machine?.relationships) &&
     JSON.stringify(tools) === JSON.stringify(enabledTools(current)) &&
     JSON.stringify(notes) === JSON.stringify(toolNotes(current)) &&
     JSON.stringify(settings) ===
-      JSON.stringify(folderOrganizationSettings(current))
+      JSON.stringify(folderOrganizationSettings(current)) &&
+    chatgptApps === personalChatgptApps(current)
   )
     return { kind: "unchanged" } as const;
   if (current.revision === Number.MAX_SAFE_INTEGER)
     return { kind: "blocked", reason: "revision-exhausted" } as const;
   const { agentVoice: _previousVoice, ...currentFields } = current;
   const preferences = parseFolderPreferences(
-    withOrganizationSettings(
-      withToolSelection(
-        {
-          ...currentFields,
-          schemaVersion:
-            current.schemaVersion === 3 || nextVoice !== undefined ? 3 : 2,
-          ...(nextVoice === undefined ? {} : { agentVoice: nextVoice }),
-          revision: current.revision + 1,
-          preset,
-          machine,
-          profile: change.profile,
-        },
-        tools,
-        notes,
+    withChatgptApps(
+      withOrganizationSettings(
+        withToolSelection(
+          {
+            ...currentFields,
+            schemaVersion:
+              current.schemaVersion === 3 || nextVoice !== undefined ? 3 : 2,
+            ...(nextVoice === undefined ? {} : { agentVoice: nextVoice }),
+            revision: current.revision + 1,
+            preset,
+            machine,
+            profile: change.profile,
+          },
+          tools,
+          notes,
+        ),
+        settings,
       ),
-      settings,
+      chatgptApps,
     ),
   );
   // Every change writes the manifest of this product's outputs: an older

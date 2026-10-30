@@ -20,18 +20,30 @@ type MachineNetwork = Readonly<{
   headscale_server_url: string;
   headscale_hostname: string;
 }>;
-// Zones of upstream decision 0155. Peers are names only, as Machines derives
-// them from the home Conglomerate Host grants; nothing here is a grant either.
+// Zones of upstream decision 0155. Peers are names and public identity only,
+// as Machines derives them from the home Conglomerate Host grants; nothing
+// here is a grant either. `environment`, `access` and `ssh.host_keys` (root
+// decision 0192, addendum of 2026-10-26; Machines #948) come only together,
+// on a peer whose edge that addendum's rule opens rather than a reviewed
+// device grant: a work VM of an Organization assigned to this personal
+// Machine's owner, reached outbound over SSH under its named account, with
+// its Environment id and the host keys from the Organization's records.
+// Machines writes them only for a Platform that reads them; they are read
+// as written, and only a personal Machine's Folder and the person's SSH
+// config use them (src/ssh-access/environments.ts).
 export type MachineZone = "personal" | "work";
 export type MachinePeer = Readonly<{
   name: string;
   kind: "personal-vm" | "workspace-vm" | "client-device" | "conglomerate-host";
   zone: MachineZone | null;
   organization: string | null;
+  environment?: string;
+  access?: "assigned";
   ssh: Readonly<{
     host: string;
     user: string | null;
     direction: "outbound" | "inbound" | "both";
+    host_keys?: readonly Readonly<{ type: "ssh-ed25519"; key: string }>[];
   }> | null;
   https: readonly string[];
 }>;

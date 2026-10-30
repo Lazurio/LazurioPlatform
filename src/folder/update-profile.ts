@@ -105,6 +105,24 @@ export async function recordOrganizationSettings(
   );
 }
 
+// Records the person's choice of their ChatGPT account's apps (decision
+// F42's addendum of 2026-10-27) and re-renders the generated Folder with what
+// it allows: the same planner, transaction, archive and recovery
+// (`profile-resume`) as a profile change. Refused where an Organization
+// governs (`organization-governed`); the same choice is `unchanged`.
+export async function updateChatgptApps(
+  folder: string,
+  expectedRevision: number,
+  allowed: boolean,
+  checkpoint: (step: UpdateStep) => Promise<void> = async () => {},
+) {
+  return changeFolder(
+    folder,
+    { kind: "chatgpt-apps", expectedRevision, allowed },
+    checkpoint,
+  );
+}
+
 async function changeFolder(
   folder: string,
   request: FolderChangeRequest,

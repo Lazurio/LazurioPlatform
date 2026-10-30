@@ -8,7 +8,7 @@ import type {
   IntegrationsOverview,
   SourceState,
 } from "../integrations/model";
-import { forAdmin } from "../integrations/model";
+import { forAdmin, unknownReasons } from "../integrations/model";
 import {
   type AppTool,
   appTools,
@@ -124,7 +124,12 @@ function isApp(value: unknown): value is IntegrationApp {
     integrationIdPattern.test(app.id) &&
     typeof app.name === "string" &&
     isChoice(app.path) &&
-    typeof app.connected === "boolean" &&
+    // Connected or not, or unknown with its reason (decision F42, addendum
+    // of 2026-10-27).
+    (typeof app.connected === "boolean"
+      ? app.unknown === undefined
+      : app.connected === null &&
+        (unknownReasons as readonly unknown[]).includes(app.unknown)) &&
     Array.isArray(app.accounts) &&
     app.accounts.every(isAccount) &&
     typeof app.catalog === "boolean" &&
@@ -143,6 +148,23 @@ function isServer(value: unknown): value is CustomServer {
     (server.state === "ready" || states.has(server.state as string)) &&
     (server.tools === null ||
       (typeof server.tools === "number" && Number.isSafeInteger(server.tools)))
+  );
+}
+
+function isChatgptApps(value: unknown): boolean {
+  if (typeof value !== "object" || value === null) return false;
+  const reading = value as Record<string, unknown>;
+  return (
+    typeof reading.allowed === "boolean" &&
+    (reading.source === "organization" || reading.source === "person") &&
+    typeof reading.set === "boolean" &&
+    (reading.codex === null ||
+      ["on", "off", "unreadable", "absent"].includes(
+        reading.codex as string,
+      )) &&
+    typeof reading.exceptions === "number" &&
+    Number.isSafeInteger(reading.exceptions) &&
+    reading.exceptions >= 0
   );
 }
 
@@ -180,6 +202,7 @@ export function parseIntegrations(value: unknown): IntegrationsOverview | null {
     !answer.apps.every(isApp) ||
     !Array.isArray(answer.custom) ||
     !answer.custom.every(isServer) ||
+    !(answer.chatgptApps === undefined || isChatgptApps(answer.chatgptApps)) ||
     typeof answer.readAt !== "string"
   )
     return null;
@@ -199,7 +222,8 @@ export function tabLabels(
   overview: IntegrationsOverview | null,
   copy: Copy,
 ): Readonly<Record<IntegrationsTab, string>> {
-  const connected = overview?.apps.filter((app) => app.connected).length ?? 0;
+  const connected =
+    overview?.apps.filter((app) => app.connected === true).length ?? 0;
   const custom = overview?.custom.length ?? 0;
   const count = (label: string, n: number) => (n > 0 ? `${label} ${n}` : label);
   return {
@@ -207,6 +231,19 @@ export function tabLabels(
     connected: count(copy.integrationsTabConnected, connected),
     custom: count(copy.integrationsTabCustom, custom),
   };
+}
+
+/** What Připojené says when it lists nothing: that no app is connected
+ * only where every app was verified; else that the connections could not be
+ * verified now, never that there are none (decision F42, addendum of
+ * 2026-10-27). */
+export function noneConnectedText(
+  overview: IntegrationsOverview,
+  copy: Copy,
+): string {
+  return overview.apps.some((app) => app.connected === null)
+    ? copy.integrationsNoneVerified
+    : copy.integrationsNoneConnected;
 }
 
 /** Accounts that need the person: expired sign-ins on an app's path. */
@@ -228,7 +265,7 @@ export function attentionCount(overview: IntegrationsOverview | null): number {
  * with a direct path here (on a personal Environment the one-click ones);
  * always the apps a connected tool connects and the apps connected here. */
 export function offered(app: IntegrationApp): boolean {
-  if (app.connected || app.accounts.length > 0) return true;
+  if (app.connected === true || app.accounts.length > 0) return true;
   // An Organization's company app is offered for its Admin to set up.
   return app.path.path !== null || app.path.missing === "company-app";
 }
@@ -237,7 +274,11 @@ export function offered(app: IntegrationApp): boolean {
  * then what connects here, then what cannot yet; each group in catalog
  * order. A search finds every app; Vše without one lists what is offered,
  * and always the app a card link names (`linked`), even one nothing
- * connects here, so the link opens its card with what is missing. */
+ * connects here, so the link opens its card with what is missing.
+ * Připojené lists what is verified connected and the apps with accounts; an
+ * app not verified now (`connected` null) is not counted there, and the
+ * page's line about its source says why (decision F42, addendum of
+ * 2026-10-27). */
 export function visibleApps(
   overview: IntegrationsOverview,
   catalog: readonly CatalogApp[],
@@ -259,7 +300,9 @@ export function visibleApps(
   };
   const pool =
     tab === "connected"
-      ? overview.apps.filter((app) => app.connected || app.accounts.length > 0)
+      ? overview.apps.filter(
+          (app) => app.connected === true || app.accounts.length > 0,
+        )
       : wanted === ""
         ? overview.apps.filter((app) => offered(app) || app.id === linked)
         : overview.apps;
@@ -272,7 +315,7 @@ export function visibleApps(
           ),
         );
   const rank = (app: IntegrationApp) =>
-    app.connected ? 0 : app.path.path !== null ? 1 : 2;
+    app.connected === true ? 0 : app.path.path !== null ? 1 : 2;
   return matching
     .map((app, index) => ({ app, index }))
     .sort((a, b) => rank(a.app) - rank(b.app) || a.index - b.index)
@@ -298,7 +341,10 @@ const providerNames: Readonly<Record<string, string>> = {
  * its one action, or nothing (through its tool it is just there). */
 export type CardAction =
   | Readonly<{ kind: "connect"; label: string; path: "direct" | "composio" }>
-  | Readonly<{ kind: "open-tools"; label: string }>
+  /** The app's tool in Settings → Tools (Matěj 2026-10-28): its sign-in
+   * opens over Integrace where it has one, otherwise Settings → Tools opens
+   * at its row, with the control to act on next. */
+  | Readonly<{ kind: "open-tools"; label: string; tool: string }>
   | Readonly<{ kind: "set-up"; label: string }>
   | Readonly<{ kind: "allow"; label: string }>
   | Readonly<{ kind: "ask-admin"; label: string }>
@@ -311,7 +357,10 @@ export type CardView = Readonly<{
   /** The line under the name: the app's sentence, why nothing connects it,
    * or that a connection waits for the browser. */
   line: string;
-  connected: boolean;
+  /** Connected, not, or null where it cannot be verified now: the card
+   * then says "Nelze teď ověřit", never that it is not connected, and keeps
+   * its action (decision F42, addendum of 2026-10-27). */
+  connected: boolean | null;
   pathLabel: string | null;
   action: CardAction;
   /** Whether connecting goes through Composio, a third party: the form
@@ -319,21 +368,36 @@ export type CardView = Readonly<{
   composio: boolean;
 }>;
 
+type CardOptions = Readonly<{
+  locale: "cs" | "en";
+  scope: IntegrationsOverview["scope"];
+  admin: boolean;
+  /** Whether the Organization's Dashboard link is known here, which the
+   * Admin's "Nastavit v Dashboardu" and "Povolit Composio" open. */
+  dashboard: boolean;
+  copy: Copy;
+  /** Composio is signed in here but off for agents (the reading's
+   * `sources.composio` is `off`, decision F42's note of 2026-10-19). */
+  composioOff?: boolean;
+}>;
+
 export function cardView(
   app: IntegrationApp,
   entry: CatalogApp | undefined,
-  options: Readonly<{
-    locale: "cs" | "en";
-    scope: IntegrationsOverview["scope"];
-    admin: boolean;
-    /** Whether the Organization's Dashboard link is known here, which the
-     * Admin's "Nastavit v Dashboardu" and "Povolit Composio" open. */
-    dashboard: boolean;
-    copy: Copy;
-    /** Composio is signed in here but off for agents (the reading's
-     * `sources.composio` is `off`, decision F42's note of 2026-10-19). */
-    composioOff?: boolean;
-  }>,
+  options: CardOptions,
+): CardView {
+  const view = knownCardView(app, entry, options);
+  // Unknown is never "not connected" (decision F42, addendum of
+  // 2026-10-27): the state says so; what the card offers stays.
+  return app.connected === null
+    ? { ...view, connected: null, pathLabel: null }
+    : view;
+}
+
+function knownCardView(
+  app: IntegrationApp,
+  entry: CatalogApp | undefined,
+  options: CardOptions,
 ): CardView {
   const { copy } = options;
   const choice = forAdmin(app.path, options.admin);
@@ -344,12 +408,12 @@ export function cardView(
     (app.catalog ? app.name : copy.integrationsOutsideCatalog);
   const own = app.accounts.filter((account) => !account.spare);
   const waiting =
-    !app.connected &&
+    app.connected === false &&
     own.length > 0 &&
     own.every((account) => account.state === "pending");
   const label = pathLabel(choice, copy);
   // Composio signed in, but its "Používají agenti" off: the card says so in
-  // the switch's words and opens Settings → Tools, where the switch is,
+  // the switch's words and opens Settings → Tools at Composio's switch,
   // instead of asking for a sign-in that is there (decision F42, note of
   // 2026-10-19).
   if (
@@ -361,7 +425,11 @@ export function cardView(
       line: copy.integrationsComposioOff,
       connected: false,
       pathLabel: null,
-      action: { kind: "open-tools", label: copy.integrationsOpenTools },
+      action: {
+        kind: "open-tools",
+        label: copy.integrationsOpenTools,
+        tool: "composio",
+      },
       composio: false,
     };
   if (choice.path === "tool")
@@ -375,8 +443,8 @@ export function cardView(
   if (choice.path === "direct" || choice.path === "composio")
     return {
       line: waiting ? copy.integrationsFinishInBrowser : about,
-      connected: app.connected,
-      pathLabel: app.connected ? label : null,
+      connected: app.connected === true,
+      pathLabel: app.connected === true ? label : null,
       action: {
         kind: "connect",
         label: own.some(
@@ -397,12 +465,19 @@ export function cardView(
       action: { kind: "none" },
       composio: false,
     };
+  // Its tool connects it: "Připojit" starts that, here where the tool
+  // signs in (WhatsApp's QR code), otherwise at its row in Settings → Tools
+  // (Matěj 2026-10-28).
   if (choice.missing === "tool")
     return {
       line: fill(copy.integrationsMissingTool, { tool: choice.tool }),
       connected: false,
       pathLabel: null,
-      action: { kind: "open-tools", label: copy.integrationsOpenTools },
+      action: {
+        kind: "open-tools",
+        label: copy.integrationsConnect,
+        tool: choice.tool,
+      },
       composio: false,
     };
   const line =
@@ -799,6 +874,53 @@ export function composioOrganizationChanged(
     (rule.kind !== "named" && rule.kind !== "default") ||
     rule.state !== shown.state
   );
+}
+
+/** "Aplikace z ChatGPT" at the foot of Vše (decision F42's addendum of
+ * 2026-10-27): whether they are on here and who decides. Where the
+ * Organization decides it is said, never changed; on the person's own
+ * Environment its switch (`allowed`: what the switch asks for). Null where
+ * the reading does not say. */
+export function chatgptAppsFoot(
+  overview: IntegrationsOverview,
+  copy: Copy,
+): Readonly<{
+  text: string;
+  action: Readonly<{ label: string; allowed: boolean }> | null;
+}> | null {
+  const reading = overview.chatgptApps;
+  if (reading === undefined) return null;
+  if (reading.source === "organization")
+    return {
+      text: reading.allowed
+        ? copy.integrationsChatgptAppsOnOrganization
+        : copy.integrationsChatgptAppsOffOrganization,
+      action: null,
+    };
+  return reading.allowed
+    ? {
+        text: copy.integrationsChatgptAppsOnPerson,
+        action: { label: copy.integrationsChatgptAppsTurnOff, allowed: false },
+      }
+    : {
+        text: copy.integrationsChatgptAppsOffPerson,
+        action: { label: copy.integrationsChatgptAppsTurnOn, allowed: true },
+      };
+}
+
+/** Where they are not allowed and Codex still has them: still on, or on
+ * for apps its own settings turn on by name. */
+export function chatgptAppsLines(
+  overview: IntegrationsOverview,
+  copy: Copy,
+): string[] {
+  const reading = overview.chatgptApps;
+  if (reading === undefined || reading.allowed) return [];
+  if (reading.codex === "on" || reading.codex === "unreadable")
+    return [copy.integrationsChatgptAppsStillOn];
+  return reading.codex === "off" && reading.exceptions > 0
+    ? [copy.integrationsChatgptAppsExceptions]
+    : [];
 }
 
 /** One line per source that could not be read, so a missing source is

@@ -1188,7 +1188,7 @@ the frame.
 | JSON of the last answer (`#result`) | Settings → General, behind "Technical details" |
 | This Environment (read-only handover) | Settings → This Environment (Czech "Tento Environment"): "Obsah Environmentu", then the kind, whom it belongs to and who works in it in a person's words, the recorded technical facts folded under "Pro podporu" (root decision 0188) |
 | Tools (groups, cards, dialogs, MCP card) | Settings → Tools; Refresh status is its page action in the header |
-| Product update pill, with the read-only "Folder refresh needed" line (F17 addendum) | Sidebar footer above Settings/Back, visible from every route, and only while an update is available or under way (Matěj 2026-09-28, as in T3 Code); the Folder refresh line is independent of the pill, a subdued notice right above it with the command in selectable monospace |
+| Product update pill | Sidebar footer above Settings/Back, visible from every route, and only while an update is available or under way (Matěj 2026-09-28, as in T3 Code). The update refreshes the Folder itself and nothing about a refresh is shown (F17 addendum 2026-10-30; the read-only "Folder refresh needed" line with its command is removed) |
 | Application (development lifecycle) | Launchpad home `/`, not a setting; since P4 replaced there by the catalog; since P5 the module page carries the lifecycle ([below](#module-lifecycle)), the development API stays |
 
 **Patterns adopted from T3 Code** (source: `pingdotgg/t3code` at `d15210cd3d`,
@@ -1950,6 +1950,7 @@ characters escaped), Czech or English by the Folder's locale.
 | machine | `codex-app-server` | `observeCodexAppServer` ([F29](decisions.md#f29--entry-units-of-a-remote-environment-the-launchpad-t3-code-and-the-operators-codex-app-server)): `systemctl --user show` of `lazurio-codex-app-server.service`, then, when it is active, `codex app-server daemon version` from `~/.local/bin/codex` (10 s, PATH and HOME only); never `fail`, never in `recover` | `ok` when active and Codex answers `running`; `warn app-server-outdated` with `appServerVersion` and `cliVersion` when Codex answers `running` with two different versions (an app-server a client started over SSH outside the unit; replacing it is the user's call, `manual/troubleshooting.md`, issue #173), `warn daemon-not-running`, `warn daemon-state-unknown`, `warn unit-failed`, `unit-inactive`, `unit-not-loaded` (the next step is `systemctl --user start lazurio-codex-app-server.service`, or `lazurio install --service systemd-user --folder <Folder>` when the unit is missing); `skipped no-user-manager`, `not-supervised`, `not-hosted`, `codex-missing`, `user-manager-unreachable`, `unit-state-unknown` |
 | machine | `environment-browser` | `observeEnvironmentBrowser` ([F38](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway)): `systemctl --user show` of `lazurio-display.service`, `lazurio-browser.service` and `lazurio-browser-view.service`, then the browser's DevTools (`127.0.0.1:9222/json/version`) and the view (`127.0.0.1:<entry.browser.listen_port>/`), 3 s each, then every holder file in `$XDG_RUNTIME_DIR/lazurio-browser/holders` (`unreadableHolderFiles`, root decision 0191 point 32); never `fail`, never in `recover`, never `agent-browser doctor` (it cleans files) | `ok` when all three are active, both answer and every holder file can be read; `warn browser-unit-not-loaded`, `browser-unit-failed`, `browser-unit-inactive` with the `unit`, `warn browser-not-answering`, `browser-view-not-answering`, `warn browser-holder-unreadable` with the `files` (or the directory) it could not read: a file the hub read before keeps the tabs of its last reading until it can be read again, a file the hub has not read since the view started holds no tab, and doctor cannot tell the two apart; `skipped no-user-manager`, `not-supervised`, `not-hosted`, `browser-not-declared`, `user-manager-unreachable` |
 | machine | `computer-use` | `observeComputerUse` ([F59](decisions.md#f59--computer-use-on-a-remote-environment-the-cua-drivers-daemon-on-the-screen-one-mcp-server-computer-for-every-agent)): `~/.local/bin/cua-driver` a regular executable, `systemctl --user show` of `lazurio-computer.service`, then the driver's own `cua-driver doctor --json` (15 s, on `DISPLAY=:1` with `XDG_SESSION_TYPE=x11`, the user manager's session bus, telemetry and update check off; on Linux it only reads), then `codex mcp get computer --json` and `~/.claude.json`; never `fail`, never in `recover` | `ok` when the unit is active, the driver's doctor reports an X11 display and a reachable AT-SPI bus and every installed harness has Lazurio's entry (context `toolVersion`, the driver's version, `codexMcp`, `claudeMcp`); `warn computer-driver-missing` (the next step is Machines' install of the pinned driver), `warn computer-unit-not-loaded`, `computer-unit-failed`, `computer-unit-inactive` (`systemctl --user status lazurio-computer.service`, or the same install again), `warn computer-doctor-unreadable` (no JSON answer in time), `warn computer-display-unavailable` (the display probe is not X11, or the X11 connection is an error; no windows yet is still X11), `warn computer-accessibility-unavailable` (no AT-SPI bus: `at-spi2-core`, `dbus-user-session` and `gdbus` are Machines' packages), `warn computer-agents-missing` with `codexMcp`/`claudeMcp` (an entry of that name that is not Lazurio's is `conflict` and stays); `skipped no-user-manager`, `not-supervised`, `not-hosted`, `browser-not-declared` (no screen), `user-manager-unreachable` |
+| machine | `chatgpt-apps` | `chatgptAppsCheck` ([F42's addendum of 2026-10-27](decisions.md#f42--integrace-one-catalog-for-the-environment-one-path-per-app-executors-api-behind-the-launchpad)): the Folder's policy (`chatgptAppsPolicyOf`) and the operator's `$CODEX_HOME/config.toml` (`observeCodexApps`, read only); never `fail`, never in `recover` | `ok` where ChatGPT's apps are allowed or Codex has them off (context `chatgptApps`, `decidedBy`, `codexApps`, `codexSuggestions`, `exceptions`); `warn chatgpt-apps-on` (not allowed and still on: `lazurio integrations chatgpt-apps apply`, or the Launchpad's next start), `warn chatgpt-suggestions-on` (apps off, but Codex still suggests plugins: the same repair), `warn chatgpt-apps-exception` (apps the person turned on by name stay on; Lazurio never changes them), `warn codex-config-unreadable`; `skipped not-hosted` (the person's own computer), `codex-absent` |
 
 **C.2 step 4.** The apply reads `lazurio doctor --json` and stops on any `fail`; for
 modules it keeps reading `lazurio module list --json`, since only the apply knows which
@@ -2381,10 +2382,12 @@ status" (with them again and `fresh: true`, read anew), and shows:
   "Connect with an agent") and the switch with its visible label
   "Used by agents" / "Používají agenti" ("Always on" for a required tool). A signed-in
   gh whose key is not linked shows "Link SSH key" as the row's primary action. A
-  sign-in completed in this Launchpad session turns the switch on (`autoEnable`, Matěj
-  2026-10-04): after the reading that follows the sign-in, so the change is made at the
-  current revision, never for a tool that was signed in before (`already`), and the
-  user may turn it off again. On a Team Environment (the preset `hosted-organization-team`,
+  sign-in completed in this Launchpad turns the switch on (Matěj 2026-10-04). The
+  server does it as the sign-in ends, at the current revision, and answers the outcome
+  only after that (F19's addendum of 2026-10-28, #682). So the page's reading after the
+  sign-in shows the switch on, and the page never changes the Folder for it. It is never
+  turned on for a tool that was signed in before (`already`), and the user may turn it
+  off again. On a Team Environment (the preset `hosted-organization-team`,
   the shared case) the gh row has no "Sign in" or "Link SSH key", and "Install" instead
   of "Install and sign in" while gh is missing (its notice ends with the Team
   sentence); a subdued sentence says that this Team Environment works in GitHub through
@@ -3128,10 +3131,12 @@ ended the tour for good, and the Organization's download ran before any AI could
 after the wireframe of HumanAndMachine-ai/prototypes-lazurio 1eefc3d (`setup.tsx`,
 `screens/Start.tsx`, `screens/Tour.tsx`, PRs #48 and #49) and [F36's addendum of
 2026-10-15](decisions.md#f36-addendum-of-2026-10-15-začínáme-the-basics-from-live-facts-ai-first-root-decision-0201).
-Only where the Environment signs in to GitHub as its user: the presets
-`hosted-personal`, `hosted-organization-personal` and `local`. A Team or an Automated
-Environment acts through the Organization's app or its persona, its basics are the
-Organization's, and it gets none of it.
+Only where the Environment has the onboarding (`hasOnboarding`): the presets
+`hosted-personal`, `hosted-organization-personal` and `local`, which sign in to GitHub as
+their user, and since [F27's addendum of 2026-10-30](decisions.md#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)
+`hosted-organization-steward`, the Automated Environment, whose GitHub is its persona's own
+account, signed in by its responsible user. A Team Environment acts through the
+Organization's app, its basics are the Organization's, and it gets none of it.
 
 - **The basics** (0201 point 1): an AI an agent can work with, GitHub signed in as the
   user, and the content (the Organization, on the personal Environment the
@@ -3151,7 +3156,9 @@ Organization's, and it gets none of it.
     unknown, unprobed, stale or Team reading says nothing; gh not installed is missing;
     connected only when gh is signed in and this Environment reaches GitHub over SSH as
     that account, `incomplete` when it does not, which counts as missing, F19's addendum
-    of 2026-10-19);
+    of 2026-10-19; on the Automated Environment gh signed in as the responsible user's own
+    login, the one its handover's `automation` assignment names, letter case ignored, is
+    `own-account`, which counts as missing too, whatever SSH says);
   - the content from the content routes (`content-client.ts`, `content-view.ts`).
 - **Nastavení → Začínáme** (`/settings/start`, first in the Settings column with the
   count "1/3" while a basic is missing; `start-view.ts`, `start-panel.ts`): "Hotovo
@@ -3189,7 +3196,13 @@ Organization's, and it gets none of it.
      working): "Připojení nefunguje." with the warning mark and "Připojit znovu", which
      opens "Link SSH key" under the title "Připojit GitHub". A sign-in the page runs, its
      window closed or open: "Čeká na vaše potvrzení." or "Dokončuje se připojení…" with
-     the waiting mark and "Otevřít", which shows it again (F19's addendum of 2026-10-19);
+     the waiting mark and "Otevřít", which shows it again (F19's addendum of 2026-10-19).
+     On the Automated Environment the step names the persona's account: "Nepřipojeno. Sem
+     patří účet persony, ne váš."; with the responsible user's own account signed in, "Je
+     přihlášený váš vlastní účet @login. Sem patří účet persony." with the warning mark
+     and "Přepnout účet", which signs that account out as gh's "Odhlásit" in Nástroje does
+     and opens gh's sign-in, whose dialog says to confirm the code with the persona's
+     account (F27's addendum of 2026-10-30);
   3. **Stáhnout <Organizace>** / **Připravit osobní prostor** / both: the content's own
      rows inside the step (the same `content-panel.ts` as Toto Prostředí draws).
      Once this view saw GitHub or the AI arrive (from missing to there; what was there
@@ -3214,11 +3227,14 @@ Organization's, and it gets none of it.
   and Codex Desktop, both leading to Settings → SSH; between them "Trezor v Bitwardenu"
   where Apps → Trezor gives the steps for Bitwarden, its "Návod" opening them) and
   "Prohlídka aplikace" ("Spustit
-  prohlídku" / "Spustit znovu" starts the introduction in Apps). A Team or Automated
-  Environment's Začínáme says only "Tady není co nastavovat.".
+  prohlídku" / "Spustit znovu" starts the introduction in Apps). A Team Environment's
+  Začínáme says only "Tady není co nastavovat.".
 - **The line in Apps** (`appsSetupLine`): until the basics exist, one line under the
   head, the next missing basic first: "AI není připojené." · "Připojit AI";
-  "GitHub není připojený." · "Připojit GitHub"; "<Organizace> tu ještě není." ·
+  "GitHub není připojený." · "Připojit GitHub" (on the Automated Environment "Účet persony
+  na GitHubu není připojený." · "Připojit GitHub", and with the responsible user's own
+  account "Na GitHubu je přihlášený váš vlastní účet, sem patří účet persony." · "Přepnout
+  účet", which leads to the step); "<Organizace> tu ještě není." ·
   "Stáhnout"; "Osobní prostor tu ještě není." · "Připravit"; while it runs "Stahuje se
   <Organizace>." · "Zobrazit"; "Příprava se zastavila." · "Vyřešit v Chatu" or "Připojit
   AI", "Zkusit znovu"; for an Organization not prepared for this version, to a member who
@@ -3233,7 +3249,9 @@ Organization's, and it gets none of it.
   facts.
 - **Start requests.** A button of the line is a link to `/settings/start` with the
   action in the fragment, decided by `startDecision`: `#lazurio-start=sign-in-gh` opens
-  gh's sign-in once Nástroje have read gh and AI is there, `#lazurio-start=install-content`
+  gh's sign-in once Nástroje have read gh and AI is there (never over the responsible
+  user's own account on the Automated Environment: only the step's "Přepnout účet" signs
+  it out), `#lazurio-start=install-content`
   starts the installation once the content is read, something is missing and its turn has
   come; without AI either shows the AI step and starts nothing. A link of an older shell to
   Nástroje or Toto Prostředí lands on Začínáme too. `readFragment` takes the fragment

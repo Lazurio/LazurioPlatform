@@ -22,12 +22,13 @@ import { acquireFileLock, FileLockError } from "../platform/flock";
 // „Buddy za <jméno>“, Lazurio/t3code#106) and the members of Buddy's T3
 // settings that come from it (`chat.ts`: the acting sender and his display
 // name). The validation and the renderers are a byte-for-byte port of the
-// interim installer `buddy-install.sh` 2026-10-25.1 (`persona_check`,
+// interim installer `buddy-install.sh` 2026-10-30.5 (`persona_check`,
 // `acting_name_ok`, `soul_text`, `acting_dropin_text`, `sd_env` and
-// `persona-build`; 2026-10-24.2 renders the same bytes), so the installer's
-// next run finds the very bytes it would have written, and the installer and
-// Machines (Machines#701) can call `lazurio buddy persona --apply` instead of
-// rendering. The goldens in `tests/fixtures/buddy-persona` are the installer's
+// `persona-build`; 2026-10-25.1 and 2026-10-24.2 render the same bytes but
+// for SOUL.md's name sentence, #703), so the installer's next run finds the
+// very bytes it would have written, and the installer and Machines
+// (Machines#701) can call `lazurio buddy persona --apply` instead of
+// rendering, as 2026-10-30.5 does on Platform 0.1.14 and later. The goldens in `tests/fixtures/buddy-persona` are the installer's
 // own output; the installer itself lives outside this repository.
 //
 // Delegace's persona drop-in (`delegace.service.d/persona.conf`) is not
@@ -236,15 +237,17 @@ const tones = {
 
 /** How the address reads in each language. English has no ty and vy, but the
  * person may write to Buddy in Czech: the address holds in every language
- * with a formal and an informal you (Machines#880, point 4). */
+ * with a formal and an informal you (Machines#880, point 4). The person's name
+ * is for the moments it carries something, never the opening of every reply
+ * or question (#703). */
 const addresses = {
   cs: {
-    ty: "tykáš. Oslovuješ uživatele jménem. Platí to v každém jazyce, ve kterém uživatel píše: kde jazyk rozlišuje formální a neformální oslovení, používáš neformální.",
-    vy: "vykáš: vy, váš, vám a rozkazovací způsob v množném čísle („zkontrolujte“). Oslovuješ uživatele jménem. Platí to v každém jazyce, ve kterém uživatel píše: kde jazyk rozlišuje formální a neformální oslovení, používáš formální.",
+    ty: "tykáš. Uživatele oslovuješ jménem jen občas, třeba na začátku rozhovoru nebo když na tom záleží; nezačínáš jím každou odpověď ani otázku. Platí to v každém jazyce, ve kterém uživatel píše: kde jazyk rozlišuje formální a neformální oslovení, používáš neformální.",
+    vy: "vykáš: vy, váš, vám a rozkazovací způsob v množném čísle („zkontrolujte“). Uživatele oslovuješ jménem jen občas, třeba na začátku rozhovoru nebo když na tom záleží; nezačínáš jím každou odpověď ani otázku. Platí to v každém jazyce, ve kterém uživatel píše: kde jazyk rozlišuje formální a neformální oslovení, používáš formální.",
   },
   en: {
-    ty: "you use the informal one (in Czech: tykání), and you never use a past tense that would assume the user's gender. You call the user by name.",
-    vy: "you use the formal one (in Czech: vykání — vy, váš, vám and plural imperatives), and you never use a past tense that would assume the user's gender. You call the user by name.",
+    ty: "you use the informal one (in Czech: tykání), and you never use a past tense that would assume the user's gender. You call the user by name only now and then, for example at the start of a conversation or when it matters; you do not start every reply or question with it.",
+    vy: "you use the formal one (in Czech: vykání — vy, váš, vám and plural imperatives), and you never use a past tense that would assume the user's gender. You call the user by name only now and then, for example at the start of a conversation or when it matters; you do not start every reply or question with it.",
   },
 } as const;
 
@@ -454,7 +457,14 @@ export type PersonaUpdate = Readonly<{
 }>;
 
 export type PersonaWrite =
-  | Readonly<{ kind: "written"; persona: Persona; revision: string }>
+  | Readonly<{
+      kind: "written";
+      persona: Persona;
+      revision: string;
+      /** This write recorded the person's first confirmation (decision
+       * F60's addendum of 2026-10-26: Buddy's first meeting follows it). */
+      firstConfirmation?: true;
+    }>
   | Readonly<{ kind: "unchanged"; persona: Persona; revision: string }>
   | Readonly<{ kind: "invalid"; field: PersonaField }>
   /** The file is not what the writer read: nothing was written. */
@@ -654,7 +664,7 @@ async function writeLocked(
     ...(confirmedAt === undefined ? {} : { confirmedAt }),
   });
   // Members the Platform does not know stay, an invalid persona's too.
-  return replacePersona(
+  const written = await replacePersona(
     home,
     persona,
     current.state === "valid" || current.state === "invalid"
@@ -663,6 +673,11 @@ async function writeLocked(
     revision,
     options.during,
   );
+  return written.kind === "written" &&
+    previous?.confirmedAt === undefined &&
+    persona.confirmedAt !== undefined
+    ? Object.freeze({ ...written, firstConfirmation: true })
+    : written;
 }
 
 /** Sets `confirmed_at` of a valid persona, once, under the persona's lock: a

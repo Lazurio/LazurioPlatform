@@ -14,7 +14,7 @@ import {
   manualDirectoryReceipt,
   recordInitializationCreation,
 } from "./initialization-receipt";
-import { withFolderOperationLock } from "./lock";
+import { withFolderOperationLock, withFolderReadLock } from "./lock";
 import { type MachineBinding, machineIdentity } from "./machine-binding";
 import {
   createManualDirectory,
@@ -354,6 +354,12 @@ async function syncDirectory(directory: string) {
   }
 }
 
+/** How long the adoption check waits for another holder of the Folder's
+ * lock. The check is a read, and right after an upgrade it runs beside the
+ * restarted Launchpad, whose own short reads hold the lock for moments
+ * (issue #655); a lock still held after this is a busy Folder. */
+export const adoptionReadWaitMs = 30_000;
+
 // Idempotent re-run: valid state recorded for the same Machine reports the
 // adopted Folder (with the preset and the binding it already has); another
 // Machine's handover or unrecognized state is refused by name. Only the
@@ -361,6 +367,7 @@ async function syncDirectory(directory: string) {
 export async function adoptedHandoverFolder(
   folder: string,
   machine: MachineBinding | null,
+  waitMs = adoptionReadWaitMs,
 ) {
   const state = join(folder, ".lazurio");
   try {
@@ -372,8 +379,10 @@ export async function adoptedHandoverFolder(
   let current: Awaited<ReturnType<typeof readFolderState>>;
   try {
     await inspectOwnedDirectory(state);
-    current = await withFolderOperationLock(state, () =>
-      readFolderState(state),
+    current = await withFolderReadLock(
+      state,
+      () => readFolderState(state),
+      waitMs,
     );
   } catch (error) {
     if (error instanceof Error && /busy/.test(error.message)) throw error;

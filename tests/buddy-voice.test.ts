@@ -29,15 +29,24 @@ const added = keys.filter(
     ].includes(key),
 );
 
-/** The lines Buddy says himself, in pairs by his address. */
+/** The lines Buddy says himself, in pairs by his address: his first
+ * meeting's beats (decision F60's addendum of 2026-10-26) among them. */
 const buddyLines = [
-  "buddySaysIntro",
+  "buddyHello",
+  "buddyHelloNamed",
+  "buddyHere",
+  "buddyDoes",
+  "buddyDoesFind",
+  "buddyMemory",
+  "buddyWhere",
+  "buddyWhereTelegram",
   "buddyAskName",
   "buddyAskAddress",
   "buddyAskYou",
   "buddyForms",
   "buddyTelegramAsk",
   "buddyTelegramHere",
+  "buddyTelegramPair",
 ] as const;
 const said = new Set<string>(
   buddyLines.flatMap((line) => [`${line}Ty`, `${line}Vy`]),
@@ -47,7 +56,17 @@ const said = new Set<string>(
  * or the person's words, in no address of Lazurio's. */
 const notLazurio = new Set<string>([
   ...said,
-  "buddySaysHello",
+  // His own words in the beats' drawings, in no address.
+  "buddyDoesTrip",
+  "buddyDoesMail",
+  "buddyDoesSum",
+  "buddyBots",
+  "buddyBotFlights",
+  "buddyBotContract",
+  "buddyMemoryInvoices",
+  "buddyMemoryShort",
+  "buddyMemoryMornings",
+  "buddyMemoryHoliday",
   "buddyAnswerVy",
   "buddyAnswerTy",
   "buddyTraceFor",
@@ -83,6 +102,8 @@ const tyWords = new Set([
   "zadej",
   "přihlas",
   "napiš",
+  "najdeš",
+  "hledáš",
 ]);
 const vyWords = new Set([
   "vy",
@@ -96,6 +117,8 @@ const vyWords = new Set([
   "chcete",
   "můžete",
   "máte",
+  "najdete",
+  "hledáte",
 ]);
 const has = (text: string, set: ReadonlySet<string>) =>
   words(text).some((word) => set.has(word));
@@ -108,7 +131,8 @@ test("Lazurio's own lines say vy, never ty", () => {
   // Where they speak to the person, they say vy.
   for (const key of [
     "buddyEnterCode",
-    "buddyOpenPage",
+    "buddySignInWith",
+    "buddyCodeSetting",
     "buddySignOutText",
     "buddyRunning",
     "buddySaveChanged",
@@ -166,19 +190,24 @@ test("no line names a code name, a command, a model or a reason; nobody is a pom
     }
 });
 
-test("the dialog's and the step's words are the wireframe's, adapted only where the rules ask", () => {
+// The sign-in's words after the onboarding of 2026-10-28: the person signs
+// in ("Přihlásit se") with their own account with a subscription; no line
+// above the steps and none about the agents' own sign-ins; the code's step
+// says what to do where ChatGPT does not take the code.
+test("the dialog's and the step's words are the wireframe's, adapted where the rules and the onboarding of 2026-10-28 ask", () => {
   expect([
     cs.buddyStepTitle,
     cs.buddySignIn,
-    cs.buddySay,
-    cs.buddyOpenPage,
+    cs.buddySignInWith,
     cs.buddyOpenButton,
     cs.buddyEnterCode,
+    cs.buddyCodeSetting,
     cs.buddyCopy,
     cs.buddyWaiting,
+    cs.buddyHolds,
     cs.buddyCodeExpired,
     cs.buddyNewCode,
-    cs.buddyOwn,
+    cs.buddySignInOther,
     cs.buddyLater,
     cs.buddyPartSignIn,
     cs.buddyPartPersona,
@@ -189,16 +218,17 @@ test("the dialog's and the step's words are the wireframe's, adapted only where 
     cs.buddySignOut,
   ]).toEqual([
     "Seznamte se s Buddym",
-    "Přihlásit Buddyho",
-    "Buddy se přihlásí vlastním účtem ChatGPT.",
-    "Otevřete stránku ChatGPT",
+    "Přihlásit se",
+    "Přihlaste se svým účtem ChatGPT s předplatným.",
     "Otevřít ChatGPT",
-    "Přihlaste se a zadejte kód",
+    "Zadejte tento kód.",
+    "Když ChatGPT kód nepřijme, zapněte si přihlášení kódem v nastavení zabezpečení ChatGPT a znovu klikněte na „{open}“.",
     "Kopírovat",
     "Čekám na přihlášení…",
+    "Kód platí ještě {left}.",
     "Kód vypršel.",
     "Nový kód",
-    "Toto přihlášení patří jen Buddymu. Agenti se přihlašují zvlášť.",
+    "Přihlásit jiný účet",
     "Teď ne",
     "Přihlášení k ChatGPT",
     "Jméno a oslovení",
@@ -214,4 +244,77 @@ test("the dialog's and the step's words are the wireframe's, adapted only where 
   );
   expect(cs.buddyPending).toBe("Projeví se, až Buddy dokončí, co právě dělá.");
   expect(cs.buddyStateNotRunning).toBe("Buddy teď neběží");
+});
+
+// Telegram (decision F66): Lazurio's own lines, vy, plain; "token" only as
+// BotFather says it to the person, in the lines about what he sent.
+const telegramKeys = keys.filter((key) => key.startsWith("telegram"));
+/** The lines that speak of BotFather's token. */
+const botFatherToken = new Set<string>([
+  "telegramGuideToken",
+  "telegramStepToken",
+  "telegramTokenLabel",
+  "telegramTokenKept",
+  "telegramTokenShape",
+  "telegramTokenRefused",
+]);
+
+test("Telegram's lines say vy, name no mechanism, and say token only as BotFather does", () => {
+  expect(telegramKeys.length).toBeGreaterThan(40);
+  const developer =
+    /hermes|gateway|oauth|codex|\bapi\b|session|pairing|párov|allowlist|restart|systemd|json|\.env|config|webhook|polling|\bid\b|getme|--/i;
+  for (const copy of [cs, en])
+    for (const key of telegramKeys) {
+      const text = copy[key];
+      expect({ key, developer: developer.test(text) }).toEqual({
+        key,
+        developer: false,
+      });
+      expect({
+        key,
+        token: /token/i.test(text) && !botFatherToken.has(key),
+      }).toEqual({
+        key,
+        token: false,
+      });
+      expect(text).not.toMatch(/pomocn|helper/i);
+    }
+  for (const key of telegramKeys)
+    expect({ key, ty: has(cs[key], tyWords) }).toEqual({ key, ty: false });
+  // Where they ask the person to act, they say vy.
+  for (const key of [
+    "telegramStepBotFather",
+    "telegramStepToken",
+    "telegramStepStart",
+    "telegramGuideOpen",
+    "telegramTokenShape",
+    "telegramTokenRefused",
+    "telegramIsItYou",
+  ] as const)
+    expect({ key, text: cs[key] }).toEqual({
+      key,
+      text: expect.stringMatching(/te\b|te[,.]|vám|vás|váš|vaš/),
+    });
+  // The wireframe's words where it has them.
+  expect([
+    cs.telegramDialogTitle,
+    cs.telegramStepBotFather,
+    cs.telegramStepToken,
+    cs.telegramStepStart,
+    cs.telegramOpenBotFather,
+    cs.telegramBotCreated,
+    cs.telegramNone,
+    cs.buddyTelegramConnect,
+    cs.buddyChannelsGroup,
+  ]).toEqual([
+    "Připojit Telegram",
+    "Založte bota u @BotFather.",
+    "Vložte token, který vám BotFather poslal.",
+    "Otevřete svého bota a stiskněte Start.",
+    "Otevřít BotFather",
+    "Bot je založený",
+    "Nepřipojeno",
+    "Připojit Telegram",
+    "Kanály",
+  ]);
 });

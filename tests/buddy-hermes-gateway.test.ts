@@ -1,9 +1,12 @@
 import { expect, test } from "bun:test";
 import { chmod, mkdir, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { type AddressInfo, createServer } from "node:net";
 import { join } from "node:path";
 import {
   createHermesGateway,
   type GatewayResult,
+  gatewayBodyBytesMax,
+  gatewayBodyCalls,
   oauthCancelContract,
 } from "../src/buddy/hermes-gateway";
 import {
@@ -44,6 +47,12 @@ const failure = (reason: string): GatewayResult<never> => ({
   ok: false,
   reason: reason as never,
 });
+/** A failure after the request was handed to Hermes: it may still run. */
+const uncertain = (reason: string): GatewayResult<never> => ({
+  ok: false,
+  reason: reason as never,
+  uncertain: true,
+});
 
 posix(
   "identify: the recorded answer of a ready gateway serving exactly this home, its socket in the home",
@@ -57,6 +66,12 @@ posix(
           instanceId: recorded.control.identify.result.instance_id,
           apiOrigin: fake.apiOrigin,
           contract: true,
+          capabilities: [
+            "session-authority-v1",
+            "durable-admission-v1",
+            "event-replay-v1",
+            oauthCancelContract.value,
+          ],
         },
       });
       expect(fake.control.map((request) => request.line)).toEqual([
@@ -125,6 +140,59 @@ posix(
         const identified = await client(fake).identify();
         expect(identified.ok && identified.value.contract).toBe(expected);
       }
+    });
+  },
+);
+
+posix(
+  "a capability a call names: read from identify, and the call never reaches a gateway that does not list it",
+  async () => {
+    const capability = "lazurio-pairing-message-v1";
+    const write = {
+      body: { config: { gateway: { unauthorized_dm_pairing_message: "x" } } },
+      capability,
+    };
+    // v0.22.4-lazurio.3 lists none.
+    await within({}, async (fake) => {
+      const identified = await client(fake).identify();
+      expect(identified.ok && identified.value.capabilities).not.toContain(
+        capability,
+      );
+      expect(await client(fake).request("PUT", "/api/config", write)).toEqual(
+        failure("outdated"),
+      );
+      // Asked who it is, then nothing: no ticket, no call.
+      expect(verbs(fake)).toEqual(["identify", "identify"]);
+      expect(fake.requests).toHaveLength(0);
+    });
+    await within({ pairingMessage: true }, async (fake) => {
+      const answer = await client(fake).request("PUT", "/api/config", write);
+      expect(answer.ok && answer.value.status).toBe(200);
+      expect(fake.requests.map((request) => JSON.parse(request.body))).toEqual([
+        write.body,
+      ]);
+      // Only text counts, and only that exact name.
+      fake.state.identify = (identify) => {
+        const result = identify.result as Record<string, unknown>;
+        result.capabilities = [
+          "session-authority-v1",
+          1,
+          null,
+          { capability },
+          `${capability}-draft`,
+        ];
+        return identify;
+      };
+      const identified = await client(fake).identify();
+      expect(identified.ok && identified.value.capabilities).toEqual([
+        "session-authority-v1",
+        `${capability}-draft`,
+      ]);
+      fake.requests.length = 0;
+      expect(await client(fake).request("PUT", "/api/config", write)).toEqual(
+        failure("outdated"),
+      );
+      expect(fake.requests).toHaveLength(0);
     });
   },
 );
@@ -663,16 +731,17 @@ posix(
   () =>
     within({}, async (fake) => {
       const gateway = client(fake, { httpMs: 300, controlMs: 300 });
+      // Handed to Hermes and no clear answer: it may still run there.
       fake.state.http = () => new Promise<Response>(() => undefined);
       expect(await gateway.request("GET", "/api/providers/oauth")).toEqual(
-        failure("timeout"),
+        uncertain("timeout"),
       );
       fake.state.http = () =>
         new Response(JSON.stringify({ providers: "x".repeat(300 * 1024) }), {
           headers: { "content-type": "application/json" },
         });
       expect(await gateway.request("GET", "/api/providers/oauth")).toEqual(
-        failure("invalid-answer"),
+        uncertain("invalid-answer"),
       );
       fake.state.http = undefined;
       fake.state.identify = () => ({ raw: "x".repeat(600 * 1024) });
@@ -692,4 +761,265 @@ posix("only an /api/ path without a query is ever asked", () =>
       await expect(client(fake).request("GET", path)).rejects.toThrow();
     expect(fake.control).toHaveLength(0);
   }),
+);
+
+// Decision F66: a body only for Hermes's own writers of Buddy's Telegram.
+
+/** A token of a bot's shape, made here so the repository holds none. */
+const syntheticToken = `${"7".repeat(10)}:AAH${"x".repeat(32)}`;
+
+posix(
+  "a named write carries its JSON body as application/json with its exact length; every other call carries none",
+  () =>
+    within({}, async (fake) => {
+      const gateway = client(fake);
+      const body = {
+        env: { TELEGRAM_BOT_TOKEN: syntheticToken },
+        enabled: true,
+      };
+      const answer = await gateway.request(
+        "PUT",
+        "/api/messaging/platforms/telegram",
+        { body },
+      );
+      expect(answer.ok && answer.value.status).toBe(200);
+      await gateway.request("GET", "/api/messaging/platforms");
+      await gateway.request("POST", "/api/providers/oauth/openai-codex/start");
+      const [put, get, post] = fake.requests;
+      expect(put?.method).toBe("PUT");
+      expect(put?.body).toBe(JSON.stringify(body));
+      expect(put?.headers["content-type"]).toBe("application/json");
+      expect(put?.headers["content-length"]).toBe(
+        String(Buffer.byteLength(JSON.stringify(body))),
+      );
+      // The same grant as every call: one ticket, no Origin, no proxy.
+      expect(put?.headers["x-hermes-gateway-ticket"]).toBe(
+        fake.spent[0] as string,
+      );
+      for (const name of ["origin", "referer", "cookie", "authorization"])
+        expect(put?.headers[name]).toBeUndefined();
+      expect(get?.body).toBe("");
+      expect(get?.headers["content-type"]).toBeUndefined();
+      expect(post?.body).toBe("");
+      expect(post?.headers["content-length"]).toBe("0");
+      // The answer is Hermes's; the token is not in it.
+      expect(JSON.stringify(answer)).not.toContain(syntheticToken);
+    }),
+);
+
+posix(
+  "a body only for the named writes, one JSON object of at most 16 KiB: anything else is refused before anything is sent",
+  () =>
+    within({}, async (fake) => {
+      const gateway = client(fake);
+      expect([...gatewayBodyCalls].sort()).toEqual([
+        "DELETE /api/env",
+        "POST /api/pairing/approve",
+        "PUT /api/config",
+        "PUT /api/env",
+        "PUT /api/messaging/platforms/telegram",
+      ]);
+      const refused: [
+        Parameters<typeof gateway.request>[0],
+        string,
+        unknown,
+      ][] = [
+        ["GET", "/api/messaging/platforms", { a: 1 }],
+        ["POST", "/api/providers/oauth/openai-codex/start", {}],
+        ["PUT", "/api/messaging/platforms/discord", { enabled: true }],
+        ["POST", "/api/pairing/revoke", { platform: "telegram" }],
+        ["PUT", "/api/messaging/platforms/telegram", ["not", "an", "object"]],
+        [
+          "PUT",
+          "/api/config",
+          { config: { big: "x".repeat(gatewayBodyBytesMax) } },
+        ],
+      ];
+      for (const [method, path, body] of refused)
+        await expect(
+          gateway.request(method, path, {
+            body: body as Record<string, unknown>,
+          }),
+        ).rejects.toThrow();
+      // Asked nothing: not who it is, no ticket, no call.
+      expect(fake.control).toHaveLength(0);
+      expect(fake.requests).toHaveLength(0);
+      // At the bound it goes.
+      const config = { config: { a: "" } };
+      const room =
+        gatewayBodyBytesMax - Buffer.byteLength(JSON.stringify(config));
+      const answer = await gateway.request("PUT", "/api/config", {
+        body: { config: { a: "x".repeat(room) } },
+      });
+      expect(answer.ok && answer.value.status).toBe(200);
+      expect(fake.requests[0]?.body).toHaveLength(gatewayBodyBytesMax);
+    }),
+);
+
+posix(
+  "a write refused at authentication is sent once more with the same body and a new ticket; any other answer of a write is never sent again",
+  () =>
+    within({}, async (fake) => {
+      const body = { env: { TELEGRAM_ALLOWED_USERS: "123456789" } };
+      let refusals = 1;
+      fake.state.http = () =>
+        refusals-- > 0
+          ? Response.json(recorded.http.unauthorized.body, { status: 401 })
+          : undefined;
+      const answer = await client(fake).request(
+        "PUT",
+        "/api/messaging/platforms/telegram",
+        { body },
+      );
+      expect(answer.ok && answer.value.status).toBe(200);
+      expect(fake.requests.map((request) => request.body)).toEqual([
+        JSON.stringify(body),
+        JSON.stringify(body),
+      ]);
+      expect(new Set(fake.spent).size).toBe(2);
+      expect(fake.state.telegram.allowed).toBe("123456789");
+
+      // Refused twice: `refused`, and not a third time.
+      fake.requests.length = 0;
+      fake.state.http = () =>
+        Response.json(recorded.http.unauthorized.body, { status: 401 });
+      expect(
+        await client(fake).request("PUT", "/api/env", {
+          body: { key: "TELEGRAM_HOME_CHANNEL", value: "123456789" },
+        }),
+      ).toEqual(failure("refused"));
+      expect(fake.requests).toHaveLength(2);
+
+      // A failed write is its answer: sent once.
+      fake.requests.length = 0;
+      fake.state.http = () =>
+        Response.json({ detail: "Internal server error" }, { status: 500 });
+      const failed = await client(fake).request(
+        "POST",
+        "/api/pairing/approve",
+        { body: { platform: "telegram", request_id: "0123456789abcdef" } },
+      );
+      expect(failed.ok && failed.value.status).toBe(500);
+      expect(fake.requests).toHaveLength(1);
+      // The gateway stops answering in the middle: not sent again either.
+      fake.requests.length = 0;
+      fake.state.http = () =>
+        new Promise<Response>(() => {
+          // never answers
+        });
+      expect(
+        await createHermesGateway({
+          home: fake.userHome,
+          httpMs: 200,
+        }).request("DELETE", "/api/env", {
+          body: { key: "TELEGRAM_HOME_CHANNEL" },
+        }),
+      ).toEqual(uncertain("timeout"));
+      expect(fake.requests).toHaveLength(1);
+    }),
+);
+
+posix(
+  "a write is uncertain once Hermes may have taken it: no answer in time or a connection cut after it was sent; nothing listening, Hermes's own not-ready and a refused ticket are clear",
+  async () => {
+    const write = { body: { key: "TELEGRAM_HOME_CHANNEL", value: "1" } };
+    // A listener that takes the request whole, then cuts the connection.
+    const cutting = createServer((socket) => {
+      socket.once("data", () => socket.destroy());
+    });
+    await new Promise<void>((resolve) =>
+      cutting.listen(0, "127.0.0.1", () => resolve()),
+    );
+    const cutPort = (cutting.address() as AddressInfo).port;
+    // A port where nothing listens.
+    const closed = createServer();
+    await new Promise<void>((resolve) =>
+      closed.listen(0, "127.0.0.1", () => resolve()),
+    );
+    const closedPort = (closed.address() as AddressInfo).port;
+    await new Promise<void>((resolve) => closed.close(() => resolve()));
+    try {
+      await within({}, async (fake) => {
+        const to = (port: number) => {
+          fake.state.identify = (identify) => {
+            (identify.result as Record<string, unknown>).api_origin =
+              `http://127.0.0.1:${port}`;
+            return identify;
+          };
+        };
+        to(cutPort);
+        expect(await client(fake).request("PUT", "/api/env", write)).toEqual(
+          uncertain("not-ready"),
+        );
+        to(closedPort);
+        expect(await client(fake).request("PUT", "/api/env", write)).toEqual(
+          failure("not-ready"),
+        );
+        fake.state.identify = undefined;
+        fake.state.http = () =>
+          Response.json(
+            { error: "gateway_not_ready", state: "starting" },
+            { status: 503 },
+          );
+        expect(await client(fake).request("PUT", "/api/env", write)).toEqual(
+          failure("not-ready"),
+        );
+        fake.state.http = () =>
+          Response.json(recorded.http.unauthorized.body, { status: 401 });
+        expect(await client(fake).request("PUT", "/api/env", write)).toEqual(
+          failure("refused"),
+        );
+      });
+    } finally {
+      await new Promise<void>((resolve) => cutting.close(() => resolve()));
+    }
+  },
+);
+
+posix(
+  "HTTP_PROXY never sees a body: a write goes to the loopback listener itself",
+  () =>
+    within({}, async (fake) => {
+      const proxied: string[] = [];
+      const proxy = Bun.serve({
+        hostname: "127.0.0.1",
+        port: 0,
+        async fetch(request) {
+          proxied.push(await request.text());
+          return Response.json({ ok: true });
+        },
+      });
+      try {
+        const module = join(import.meta.dir, "../src/buddy/hermes-gateway.ts");
+        const child = Bun.spawn(
+          [
+            process.execPath,
+            "-e",
+            `const { createHermesGateway } = await import(${JSON.stringify(module)});
+             const answer = await createHermesGateway({ home: process.argv.at(-1) })
+               .request("PUT", "/api/messaging/platforms/telegram", { body: { env: { TELEGRAM_BOT_TOKEN: process.argv.at(-2) }, enabled: true } });
+             console.log(JSON.stringify(answer.ok ? answer.value.status : answer));`,
+            syntheticToken,
+            fake.userHome,
+          ],
+          {
+            env: {
+              ...process.env,
+              HTTP_PROXY: `http://127.0.0.1:${proxy.port}`,
+              http_proxy: `http://127.0.0.1:${proxy.port}`,
+              NO_PROXY: "",
+              no_proxy: "",
+            },
+            stdout: "pipe",
+            stderr: "pipe",
+          },
+        );
+        expect(await new Response(child.stdout).text()).toBe("200\n");
+        expect(await child.exited).toBe(0);
+        expect(proxied).toEqual([]);
+        expect(fake.state.telegram.token).toBe(syntheticToken);
+      } finally {
+        proxy.stop(true);
+      }
+    }),
 );

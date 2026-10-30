@@ -1,5 +1,7 @@
+import type { ChatgptAppsPolicy } from "../integrations/policy";
 import type { ToolNotes } from "../tools/catalog";
 import {
+  assignedEnvironments,
   isServerServices,
   type MachineBinding,
   type MachinePeer,
@@ -15,6 +17,9 @@ import type { FolderProfile } from "./profile";
 import {
   agentTools,
   assignmentLine,
+  buddyChatRouting,
+  buddyPublicationRules,
+  chatgptAppsLine,
   type InstructionSource,
   instructionTemplateRevision,
   integrationsPointer,
@@ -26,10 +31,12 @@ import {
   parseInstructionSource,
   peerLine,
   personaIdentity,
+  publicationRules,
   publicIdentity,
   renderedTools,
   sharedEnvironment,
   sharedSignInWarning,
+  sourceChatgptApps,
   type Text,
   type ToolEnvironment,
   toolEnvironmentOf,
@@ -415,6 +422,7 @@ const publicPublication: Text = t(
 function workingHere(
   preset: PresetName,
   machine: MachineBinding | null,
+  chatgpt: ChatgptAppsPolicy,
 ): readonly Text[] {
   const team = preset === "hosted-organization-team";
   const isPublic = githubIdentity(preset, machine) === "none";
@@ -482,17 +490,22 @@ function workingHere(
       "- **Your work** stays revertible and, above all, editable until it is published: a change in a worktree, an open pull request, an e-mail saved as a draft.",
     ),
     t(
-      "- **Publikace** je akt, kterým se tvoje práce stává těžko vratnou nebo viditelnou navenek: merge, odeslání, nasazení; v datových aplikacích už commit a push tlačítkem „Publikovat změny“. Publikace patří uživateli: provedeš ji jen na jeho explicitní pokyn, který platí v aktuálním threadu a nepřenáší se dál. Jestli ji uživatel smí schválit, rozhodují jeho živá práva k přesné operaci.",
-      "- **Publication** is the act that makes your work hard to revert or visible outside: a merge, sending, deploying; in data applications already the commit and push of the “Publish changes” button. Publication belongs to the user: you perform it only on their explicit instruction, which holds in the current thread and does not carry over. Whether the user may approve it is decided by their live rights to the exact operation.",
+      "- **Publikace** je akt, kterým se tvoje práce stává těžko vratnou nebo viditelnou navenek: merge, odeslání, nasazení; v datových aplikacích už commit a push tlačítkem „Publikovat změny“. Patří uživateli a jestli ji smí schválit, rozhodují jeho živá práva k přesné operaci.",
+      "- **Publication** is the act that makes your work hard to revert or visible outside: a merge, sending, deploying; in data applications already the commit and push of the “Publish changes” button. It belongs to the user, and their live rights to the exact operation decide whether they may approve it.",
     ),
-    // Every task is prepared first; an instruction to "send" at the start of
-    // a task is the brief to prepare it, and the explicit "Publish" for it is
-    // the full mandate to finish it (F14 addendum 2026-10-05). A Team
-    // Environment's pull request stays with its named publisher (F31).
-    t(
-      `- **Nejdřív připravit, pak Publikovat.** Platí pro každý úkol: kód, e-mail, zprávu, pozvánku, vyplnění formuláře i jinou práci v externí aplikaci. U kódu je tvou prací pull request. V externí aplikaci připrav práci přímo v ní a předej ji uživateli nedokončenou (e-mail uložený jako koncept v Outlooku, vyplněný a neodeslaný formulář, neodeslaná zpráva); uprav ji podle jeho připomínek. Pokyn „pošli e-mail …“ na začátku úkolu je zadání k přípravě, ne Publikace. Výslovné „Publikuj“ (nebo jednoznačné „odešli to“) k té konkrétní připravené práci je plný mandát uživatele k jejímu dokončení: odešli, odevzdej nebo zveřejni ji, podle toho, co dokončení v té aplikaci znamená, a ohlas, že je hotovo.${team ? " Pull request z týmového Environmentu ale vždy publikuje jmenovaný uživatel (odstavec o týmovém Environmentu níže)." : ""}`,
-      `- **Prepare first, then Publication.** This holds for every task: code, an e-mail, a message, an invitation, filling in a form and any other work in an external application. For code your work is the pull request. In an external application prepare the work inside it and hand it to the user unfinished (an e-mail saved as a draft in Outlook, a filled-in form not submitted, an unsent message); revise it according to their comments. An instruction “send an e-mail …” at the start of a task is the brief to prepare it, not a Publication. An explicit “Publish” (or an unambiguous “send it”) for that particular prepared work is the user's full mandate to finish it: send, submit or make it public, whatever finishing means in that application, and report that it is done.${team ? " A pull request from a Team Environment, however, is always published by a named user (the Team Environment paragraph below)." : ""}`,
-    ),
+    // The same Publication block as AGENTS.md (F14 addendum 2026-10-28). A
+    // public Environment publishes nothing and proposes nothing on GitHub,
+    // so it keeps only what Publication is. A Team Environment's pull
+    // request stays with its named publisher (F31).
+    ...(isPublic ? buddyPublicationRules : publicationRules),
+    ...(team
+      ? [
+          t(
+            "- Pull request z týmového Environmentu ale vždy publikuje jmenovaný uživatel (odstavec o týmovém Environmentu níže).",
+            "- A pull request from a Team Environment, however, is always published by a named user (the Team Environment paragraph below).",
+          ),
+        ]
+      : []),
     t(
       "- **Release** je vydání označené verze ven přes GitHub Release. Není to Publikace; spouští ho jen ten, komu to GitHub dovolí (typicky Steward nebo Admin), a pro tebe platí stejný explicitní pokyn.",
       "- **Release** is a tagged version going out through a GitHub Release. It is not a Publication; only whoever GitHub allows (typically a Steward or an Admin) triggers it, and for you the same explicit instruction applies.",
@@ -644,8 +657,8 @@ function workingHere(
         ]
       : [
           t(
-            "Blok zůstává textem zprávy. Hned pod ním polož nástrojem na otázky (decision 0211) standardizovanou dvojotázku „Mám změny Publikovat vaším jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?“ s volbami „Publikovat vaším jménem“ a „Požádat jiného Kolegu“. Žádnou z nich neoznačuj jako doporučenou: volbu vždy nabídni a nikdy ji nerozhoduj za uživatele. Bez nástroje na otázky napiš dvojotázku pod blok jako očíslované volby a dodej, že čekáš na odpověď.",
-            "The block stays in the text of the message. Right below it ask the standardized pair with the question tool (decision 0211): “Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?”, with the options “Publish in your name” and “Ask another Kolega”. Mark neither of them as recommended: always offer the choice and never decide it for the user. Without a question tool write the pair below the block as numbered options and add that you are waiting for the answer.",
+            "Když ti uživatel Publikaci dovolil předem, na tento úkol nebo pro celé vlákno, a neodvolal ji, dvojotázku nepokládej: publikuj podle bodu níže a v handoffu napiš, že je publikováno. Jinak blok zůstává textem zprávy. Hned pod ním polož nástrojem na otázky (decision 0211) standardizovanou dvojotázku „Mám změny Publikovat vaším jménem? Nebo mám požádat jiného Kolegu o kontrolu a Publikaci?“ s volbami „Publikovat vaším jménem“ a „Požádat jiného Kolegu“. Žádnou z nich neoznačuj jako doporučenou: volbu vždy nabídni a nikdy ji nerozhoduj za uživatele. Bez nástroje na otázky napiš dvojotázku pod blok jako očíslované volby a dodej, že čekáš na odpověď.",
+            "When the user allowed Publication in advance, for this task or the whole thread, and has not taken it back, do not ask the pair: publish as the point below says and say in the handoff that it is published. Otherwise the block stays in the text of the message. Right below it ask the standardized pair with the question tool (decision 0211): “Shall I Publish the changes in your name? Or shall I ask another Kolega to review and Publish?”, with the options “Publish in your name” and “Ask another Kolega”. Mark neither of them as recommended: always offer the choice and never decide it for the user. Without a question tool write the pair below the block as numbered options and add that you are waiting for the answer.",
           ),
           blank,
           t(
@@ -658,8 +671,8 @@ function workingHere(
       ? []
       : [
           t(
-            "- Když uživatel v threadu zvolí Publikaci (volbou „Publikovat vaším jménem“ v nástroji na otázky nebo výslovným „Publikuj“): mergni přesný head podle oddílu Git a GitHub výše, metodou, kterou repozitář povoluje, a ukliď worktree. Pak aktualizuj čistý checkout, ze kterého aplikace na tomhle Environmentu běží (`git pull --ff-only`); totéž platí po publikaci dat. Přes `runtime.url` aplikace ověř, že je změna vidět, a když není, aplikaci restartuj (`lazurio module stop`, pak `start`).",
-            "- When the user chooses Publication in the thread (the option “Publish in your name” in the question tool or an explicit “Publish”): merge the exact head as the section Git and GitHub above says, with a method the repository allows, and clean up the worktree. Then update the clean checkout the application in this Environment runs from (`git pull --ff-only`); the same holds after a data publication. Check through the application's `runtime.url` that the change is visible, and when it is not, restart the application (`lazurio module stop`, then `start`).",
+            "- Když uživatel Publikaci dovolí (volbou „Publikovat vaším jménem“ v nástroji na otázky, slovem „publikuj“, nebo předem na tento úkol či celé vlákno a neodvolal ji): mergni přesný head podle oddílu Git a GitHub výše, metodou, kterou repozitář povoluje, a ukliď worktree. Pak aktualizuj čistý checkout, ze kterého aplikace na tomhle Environmentu běží (`git pull --ff-only`); totéž platí po publikaci dat. Přes `runtime.url` aplikace ověř, že je změna vidět, a když není, aplikaci restartuj (`lazurio module stop`, pak `start`).",
+            "- When the user allows Publication (the option “Publish in your name” in the question tool, the word “publish”, or in advance for this task or the whole thread, not taken back): merge the exact head as the section Git and GitHub above says, with a method the repository allows, and clean up the worktree. Then update the clean checkout the application in this Environment runs from (`git pull --ff-only`); the same holds after a data publication. Check through the application's `runtime.url` that the change is visible, and when it is not, restart the application (`lazurio module stop`, then `start`).",
           ),
         ]),
     t(
@@ -701,8 +714,8 @@ function workingHere(
       "- **An issue does not stop the work.** Continue with everything that does not depend on the answer. Stop only where you cannot continue safely without it or where the decision belongs to the user.",
     ),
     t(
-      "- **Mandát platí jen pro zápis.** Issue bez pokynu uživatele nezavíráš ani neprioritizuješ a přiřazuješ ho jen při eskalaci chybějících práv (níže). Merge a nasazení zůstávají Publikací a stejně jako Release se dělají jen na jeho výslovný pokyn.",
-      "- **The mandate covers filing only.** You do not close or prioritize an issue without the user's instruction, and you assign one only to escalate missing rights (below). A merge and a deployment remain a Publication and, like a Release, happen only on their explicit instruction.",
+      "- **Mandát platí jen pro zápis.** Issue bez pokynu uživatele nezavíráš ani neprioritizuješ a přiřazuješ ho jen při eskalaci chybějících práv (níže). Merge a nasazení zůstávají Publikací a dělají se jen s jeho souhlasem (oddíl Tvoje práce, Publikace, Release); Release jen na jeho výslovný pokyn.",
+      "- **The mandate covers filing only.** You do not close or prioritize an issue without the user's instruction, and you assign one only to escalate missing rights (below). A merge and a deployment remain a Publication and happen only with their consent (the section Your work, Publication, Release); a Release only on their explicit instruction.",
     ),
     t(
       "- **Issue není plán.** Plán, priorita a odpovědnost patří do Mission Controlu Organizace; otevřenou otázku tam místo issue nezapisuj.",
@@ -734,7 +747,7 @@ function workingHere(
     ),
     ...(preset === "hosted-personal" ? [] : [blank, ...building(preset)]),
     blank,
-    ...connectedApplications(preset),
+    ...connectedApplications(preset, chatgpt),
     blank,
     ...secrets(preset, isPublic),
     blank,
@@ -967,8 +980,8 @@ const glossary: readonly Text[] = [
     "| Profile | The communication axes of the generated instructions (`locale`, `detail`, `coordination`) plus the fixed axes the preset pins. |",
   ),
   t(
-    "| Revize šablon (template revision) | Verze generovaného textu, kterou nese každý generovaný soubor; novější release produktu Folder při dalším refreshi nebo změně profilu převykreslí. |",
-    "| Template revision | The version of the generated text every generated file carries; a newer product release re-renders the Folder on the next refresh or profile change. |",
+    "| Revize šablon (template revision) | Verze generovaného textu, kterou nese každý generovaný soubor; novější release produktu Folder převykreslí sám při `lazurio update`, nebo při refreshi či změně profilu. |",
+    "| Template revision | The version of the generated text every generated file carries; a newer product release re-renders the Folder by itself during `lazurio update`, or on a refresh or profile change. |",
   ),
   t(
     "| Pull request (PR) | Navržená změna kódu na GitHubu, tvoje práce na kódu. Rozpracovaný může být ve stavu GitHub Draft PR; jeho merge je Publikace. |",
@@ -1158,8 +1171,9 @@ const codexAppServer: readonly Text[] = [
 // updater `lazurio update`, on a workstation and on a hosted Machine alike
 // (decision F17 addendum 2026-09-28). On a hosted Machine the Machines pin is
 // only a minimum a rollout installs or raises to. An agent updates at the start
-// of every piece of work and runs the Folder refresh that follows (F17
-// addendum 2026-10-02).
+// of every piece of work (F17 addendum 2026-10-02); the update refreshes the
+// Folder itself, and the agent resolves a blocked refresh with the user's
+// consent (F17 addendum 2026-10-30).
 function productUpdate(preset: PresetName): readonly Text[] {
   const team = preset === "hosted-organization-team";
   if (preset !== "local")
@@ -1196,8 +1210,8 @@ function productUpdate(preset: PresetName): readonly Text[] {
       ),
       doctor,
       t(
-        "- Po aktualizaci můžou být generované soubory Folderu (`AGENTS.md`, `manual/`, skilly) starší než produkt. `lazurio update` i `lazurio update status` pak hlásí „Folder refresh needed“. Obnoví je `lazurio machine folder-refresh`, spusť ho jako součást téže aktualizace. Upravený generovaný soubor obnovu zablokuje s `drift` a cestou souboru; nic se nepřepíše.",
-        "- After an update the Folder's generated files (`AGENTS.md`, `manual/`, the skills) can be older than the product. `lazurio update` and `lazurio update status` then say \"Folder refresh needed\". `lazurio machine folder-refresh` refreshes them; run it as part of the same update. An edited generated file blocks the refresh with `drift` and the file's path; nothing is overwritten.",
+        "- `lazurio update` po aktualizaci sám obnoví generované soubory Folderu (`AGENTS.md`, `manual/`, skilly), když je vykreslila starší verze, a obnoví je i tehdy, když je Lazurio už aktuální. Nic dalšího kvůli tomu nespouštíš a uživatele o obnovu nežádáš. Zablokovaná obnova aktualizaci nezruší: odpověď ji pojmenuje (`folderRefresh` v `--json`, třeba `blocked` s `drift` a cestou souboru) a `lazurio update status` i `lazurio doctor` ji dál hlásí jako potřebnou. Upravený generovaný soubor se nikdy nepřepíše: se souhlasem uživatele přesuň jeho úpravu tam, kam patří (pravidlo o „Zapamatuj si“ v `AGENTS.md`), a pak spusť `lazurio machine folder-refresh`. Při `folder-busy` nic nedělej, další aktualizace obnovu zopakuje.",
+        "- After an update, `lazurio update` itself refreshes the Folder's generated files (`AGENTS.md`, `manual/`, the skills) when an older version rendered them, and also when Lazurio is already current. You run nothing else for it and never ask the user to refresh anything. A blocked refresh does not undo the update: its answer names it (`folderRefresh` in `--json`, for example `blocked` with `drift` and the file's path), and `lazurio update status` and `lazurio doctor` keep reporting it as needed. An edited generated file is never overwritten: with the user's consent move their change to where it belongs (the rule on “remember this” in `AGENTS.md`), then run `lazurio machine folder-refresh`. On `folder-busy` do nothing; the next update refreshes it.",
       ),
       t(
         "- Cesta zpět neexistuje: Lazurio se nikdy nevrací na dřívější verzi. Nová verze se před přepnutím sama ověří; když neprojde, odstraní se a nic se nezmění. Oprava jde jen dopředu, novějším releasem; nikdy nekopíruj starší binárku a verzi nesnižuj.",
@@ -1236,8 +1250,8 @@ function productUpdate(preset: PresetName): readonly Text[] {
     ),
     doctor,
     t(
-      "- Po aktualizaci můžou být generované soubory Folderu starší než produkt. `lazurio update --folder <Folder>`, `lazurio update status --folder <Folder>` i pill v Launchpadu pak hlásí „Folder refresh needed“ s přesným příkazem: znovu použij nezměněný profil (v profilovém panelu Launchpadu náhled a použití, nebo nahlášený `lazurio profile-update`). Upravený generovaný soubor obnovu zablokuje s `drift`; nic se nepřepíše.",
-      '- After an update the Folder\'s generated files can be older than the product. `lazurio update --folder <Folder>`, `lazurio update status --folder <Folder>` and the Launchpad pill then say "Folder refresh needed" with the exact command: apply the unchanged profile again (preview and apply in the Launchpad profile panel, or the reported `lazurio profile-update`). An edited generated file blocks the refresh with `drift`; nothing is overwritten.',
+      "- `lazurio update --folder <Folder>` po aktualizaci sám obnoví generované soubory toho Folderu, když je vykreslila starší verze, a obnoví je i tehdy, když je Lazurio už aktuální. Nic dalšího kvůli tomu nespouštíš a uživatele o obnovu nežádáš. Zablokovaná obnova aktualizaci nezruší: odpověď ji pojmenuje (`folderRefresh` v `--json`, třeba `blocked` s `drift` a cestou souboru) a `lazurio update status --folder <Folder>` i `lazurio doctor` ji dál hlásí jako potřebnou. Upravený generovaný soubor se nikdy nepřepíše: se souhlasem uživatele přesuň jeho úpravu tam, kam patří (pravidlo o „Zapamatuj si“ v `AGENTS.md`), a pak spusť znovu `lazurio update --folder <Folder>`.",
+      "- After an update, `lazurio update --folder <Folder>` itself refreshes that Folder's generated files when an older version rendered them, and also when Lazurio is already current. You run nothing else for it and never ask the user to refresh anything. A blocked refresh does not undo the update: its answer names it (`folderRefresh` in `--json`, for example `blocked` with `drift` and the file's path), and `lazurio update status --folder <Folder>` and `lazurio doctor` keep reporting it as needed. An edited generated file is never overwritten: with the user's consent move their change to where it belongs (the rule on “remember this” in `AGENTS.md`), then run `lazurio update --folder <Folder>` again.",
     ),
     t(
       "- Cesta zpět neexistuje: Lazurio se nikdy nevrací na dřívější verzi. Nová verze před přepnutím projde self-checkem a nanečisto spustí svůj Launchpad na soukromém socketu, bez zápisu; když neprojde, odstraní se a nic se nezmění. Přepnutím je aktualizace hotová. Když se Launchpad potom nerozběhne zdravě, `lazurio update` skončí `activation-unhealthy`: nová verze zůstává aktivní a Launchpad ukazuje Recovery mode s důvodem, nebo neběží.",
@@ -1408,8 +1422,8 @@ function microsoft365Guidance(preset: PresetName): readonly Text[] {
       "- **Microsoft 365 through the company app.** Where the Organization set it up, Outlook, OneDrive and SharePoint are one Integration directly through Executor, `m365` (Microsoft Graph). Each connected Microsoft account is one connection of it, and there may be several side by side: when it is not clear which account to work with, ask the user. You reach only what the signed-in user can reach. Find the operations in Executor (`executor tools search`), never by guessing a path.",
     ),
     t(
-      '- **Pošta jen jako koncept.** E-mail připrav jako koncept (`POST /me/messages` s `body.contentType: "Text"`; odpověď přes `createReply` a potom `PATCH` jejího těla), přečti ho zpět ze serveru (`GET /me/messages/{id}`) a pošli uživateli jeho `webLink`. `send` ani `sendMail` bez výslovného „Publikuj“ uživatele k tomu konceptu nevolej; firemní aplikace právo odesílat ve výchozím stavu ani nemá. Událost v kalendáři s účastníky rozesílá pozvánky, je to tedy Publikace.',
-      '- **Mail only as a draft.** Prepare an e-mail as a draft (`POST /me/messages` with `body.contentType: "Text"`; a reply through `createReply`, then `PATCH` its body), read it back from the server (`GET /me/messages/{id}`) and send the user its `webLink`. Never call `send` or `sendMail` without the user\'s explicit “Publish” for that draft; by default the company app has no right to send at all. A calendar event with attendees sends invitations, so it is a Publication.',
+      '- **Pošta jen jako koncept.** E-mail připrav jako koncept (`POST /me/messages` s `body.contentType: "Text"`; odpověď přes `createReply` a potom `PATCH` jejího těla), přečti ho zpět ze serveru (`GET /me/messages/{id}`) a pošli uživateli jeho `webLink`. `send` ani `sendMail` nevolej bez souhlasu uživatele s odesláním („publikuj“, nebo dovolení předem na tento úkol či celé vlákno, které neodvolal); „napiš mu“ ani „odpověz mu“ souhlas není; firemní aplikace právo odesílat ve výchozím stavu ani nemá. Událost v kalendáři s účastníky rozesílá pozvánky, je to tedy Publikace.',
+      '- **Mail only as a draft.** Prepare an e-mail as a draft (`POST /me/messages` with `body.contentType: "Text"`; a reply through `createReply`, then `PATCH` its body), read it back from the server (`GET /me/messages/{id}`) and send the user its `webLink`. Never call `send` or `sendMail` without the user\'s consent to send (“publish”, or permission given in advance for this task or the whole thread and not taken back); “write to him” or “reply to him” is no consent; by default the company app has no right to send at all. A calendar event with attendees sends invitations, so it is a Publication.',
     ),
     t(
       "- **Soubory po id položek.** Integrace nemá adresování cestou (`root:/cesta:`). Web SharePointu najdi jednou (`GET /sites/{site-id}` s id `<host>:/sites/<web>`, jinak `GET /sites?search=<název>`), potom jeho knihovnu (`/sites/{site-id}/drive`), a složky procházej po id položek (`/drives/{drive-id}/items/{item-id}/children`). Než řekneš, že je složka prázdná nebo soubor chybí, načti všechny stránky výsledku (`@odata.nextLink`). Nahrávej vedle originálu pod novým jménem s `@microsoft.graph.conflictBehavior=fail`; nic nepřepisuj a nemaž bez pokynu uživatele.",
@@ -1418,11 +1432,25 @@ function microsoft365Guidance(preset: PresetName): readonly Text[] {
   ];
 }
 
+// The manual's bullet on the ChatGPT account's apps: AGENTS.md's line under
+// the chapter's bold lead (decision F42's addendum of 2026-10-27).
+function chatgptAppsBullet(chatgpt: ChatgptAppsPolicy): Text {
+  const line = chatgptAppsLine(chatgpt);
+  return t(
+    line.cs.replace(/^- /, "- **Aplikace z ChatGPT.** "),
+    line.en.replace(/^- /, "- **ChatGPT apps.** "),
+  );
+}
+
 // Integrace on every preset (root decision 0162, addendum of 2026-10-09;
 // decision F42): what is here and how to read it, the order of the paths,
-// that only a person connects an Integrace, custom MCP servers into
-// Executor, no own integrations, a write is a Publication.
-const connectedApplications = (preset: PresetName): readonly Text[] => [
+// whether the ChatGPT account's apps are one (addendum of 2026-10-27), that
+// only a person connects an Integrace, custom MCP servers into Executor, no
+// own integrations, a write is a Publication.
+const connectedApplications = (
+  preset: PresetName,
+  chatgpt: ChatgptAppsPolicy,
+): readonly Text[] => [
   t("## Integrace", "## Integrations"),
   t(
     "Integrace je aplikace nebo služba připojená k tomuhle Environmentu. Každá má právě jednu cestu: nástrojem z Nastavení → Nástroje (`gh` pro GitHub, `wacli` pro WhatsApp, `gogcli` pro Google na osobním Environmentu, `neon` pro Neon), přímo přes Executor tohohle Environmentu, nebo přes Composio s vlastním Composio účtem uživatele (decision 0162). Uživatelé je připojují, vidí a odpojují v Launchpadu v Apps → Integrace; ty zjistíš totéž příkazem `lazurio integrations list --json`: u každé aplikace cestu, stav účtů a odkaz na její kartu.",
@@ -1430,9 +1458,15 @@ const connectedApplications = (preset: PresetName): readonly Text[] => [
   ),
   blank,
   t(
-    "- **Pořadí.** Integraci použij tam, kde je připojená: nejdřív nástroj aplikace, potom Executor (MCP server `executor` tvého harnessu s nástroji `skills` a `execute`, nebo příkaz `executor`; oba popisuje nástroj `executor` v `manual/this-machine.md`), potom Composio (`composio search` a `composio execute`). Composio použij jen pro Integraci, jejíž cestou je Composio: kde ho Organizace nebo uživatel nepovolil, se nepoužívá.",
-    "- **Order.** Use an Integration where it is connected: first the app's tool, then Executor (your harness's MCP server `executor` with the tools `skills` and `execute`, or the `executor` command; the tool `executor` in `manual/this-machine.md` describes both), then Composio (`composio search` and `composio execute`). Use Composio only for an Integration whose path is Composio: where the Organization or the user has not allowed it, it is not used.",
+    "- **Pořadí.** Integraci použij tam, kde je připojená: nejdřív nástroj z Nastavení → Nástroje (`gh`, `wacli`, …), potom Executor (MCP server `executor` tvého harnessu s nástroji `skills` a `execute`, nebo příkaz `executor`; oba popisuje nástroj `executor` v `manual/this-machine.md`), potom Composio (`composio search` a `composio execute`). Composio použij jen pro Integraci, jejíž cestou je Composio: kde ho Organizace nebo uživatel nepovolil, se nepoužívá.",
+    "- **Order.** Use an Integration where it is connected: first the tool from Settings → Tools (`gh`, `wacli`, …), then Executor (your harness's MCP server `executor` with the tools `skills` and `execute`, or the `executor` command; the tool `executor` in `manual/this-machine.md` describes both), then Composio (`composio search` and `composio execute`). Use Composio only for an Integration whose path is Composio: where the Organization or the user has not allowed it, it is not used.",
   ),
+  // Unknown is not "not connected" (decision F42, addendum of 2026-10-27).
+  t(
+    '- **Neověřeno neznamená nepřipojeno.** Když se zdroj aplikace (nástroje, Executor nebo Composio) nepodařilo přečíst nebo nejde ověřit organizaci Composia, třeba ve chvíli, kdy `lazurio update` přepisuje Organizaci, uvádí `lazurio integrations list --json` u aplikace `"connected": null` a proč v `unknown` (třeba `executor-unavailable`, `composio-unreadable` nebo `composio-unverified`). Uživateli pak nikdy neříkej, že aplikace připojená není, neposílej ho ji připojit znovu a nepřecházej kvůli tomu na jinou cestu. Za chvíli si seznam přečti znovu, nebo operaci rovnou zkus cestou aplikace. Composio s neověřenou organizací (`composio-unverified`, `composio-elsewhere`) ale nepoužívej, dokud ji další čtení neověří: mohlo by pracovat v organizaci jiné Organizace. Když operace selže, nahlas konkrétní chybu s nástrojem a účtem, které jsi použil; když stav zůstává neověřený, řekni uživateli právě to a pošli mu odkaz na kartu aplikace; tlačítko Zkontrolovat připojení na stránce Integrace ho přečte znovu.',
+    "- **Not verified does not mean not connected.** When a source of an app (the tools, Executor or Composio) could not be read, or Composio's organization cannot be verified, for instance while `lazurio update` rewrites an Organization, `lazurio integrations list --json` gives the app `\"connected\": null` and the reason in `unknown` (such as `executor-unavailable`, `composio-unreadable` or `composio-unverified`). Then never tell the user the app is not connected, never send them to connect it again and do not switch to another way because of it. Read the list again in a moment, or simply try the operation through the app's path. Composio with an unverified organization (`composio-unverified`, `composio-elsewhere`), however, you do not use until a later reading verifies it: it might work in another Organization's organization. When the operation fails, report the concrete error with the tool and the account you used; when the state stays unverified, tell the user exactly that and send them the link to the app's card; Check connections on the Integrations page reads it again.",
+  ),
+  chatgptAppsBullet(chatgpt),
   t(
     "- **Integraci nepřipojuj sám.** Přihlášení je souhlas uživatele. Chybějící Integraci připojí uživatel v Apps → Integrace: pošli mu odkaz na její kartu (`link` v `lazurio integrations list --json`); kde odkaz není, řekni mu, ať ji tam připojí. Připojení sám nespouštěj, ani v Composiu, ani v Executoru.",
     "- **Never connect an Integration yourself.** The sign-in is the user's consent. The user connects a missing Integration in Apps → Integrations: send them the link to its card (`link` in `lazurio integrations list --json`); where there is no link, ask them to connect it there. Never start a connection yourself, neither in Composio nor in Executor.",
@@ -1455,12 +1489,12 @@ const connectedApplications = (preset: PresetName): readonly Text[] => [
     "- **Do not build your own integration** (your own OAuth app, launcher, API client or scraper) without the user's explicit decision; never scraping or servers built on a signed-in session's cookies.",
   ),
   t(
-    "- **Zápis je Publikace.** Napojená aplikace umí číst, zapisovat i mazat, ale schopnost není souhlas. Odeslání, zveřejnění, smazání nebo sdílení mimo Organizaci proveď až na výslovné „Publikuj“ uživatele k připravené práci (oddíl Tvoje práce, Publikace, Release výše); do té doby ji připrav neodeslanou. Zkoušky dělej na pojmenovaném testovacím cíli.",
-    "- **A write is a Publication.** A connected application can read, write and delete, but capability is not consent. Send, publish, delete or share outside the Organization only on the user's explicit “Publish” for the prepared work (the section Your work, Publication, Release above); until then, prepare it unsent. Test against a named test target.",
+    "- **Zápis je Publikace.** Napojená aplikace umí číst, zapisovat i mazat, ale schopnost není souhlas: co nejde vzít zpátky nebo to uvidí někdo další, dokonči až se souhlasem uživatele (oddíl Tvoje práce, Publikace, Release výše). Zkoušky dělej na pojmenovaném testovacím cíli.",
+    "- **A write is a Publication.** A connected application can read, write and delete, but capability is not consent: finish anything that cannot be taken back or that someone else will see only with the user's consent (the section Your work, Publication, Release above). Test against a named test target.",
   ),
   t(
-    "- **Schválení v Executoru.** Executor některá volání pozastaví a vrátí ti je ke schválení (`waiting_for_interaction`): nástroje, které server označil jako ničivé, a zápisy do API. Potvrď je (`resume` s `accept`) jen u kroku, který práci jen připraví (třeba uloží koncept), nebo u Publikace, kterou uživatel výslovně schválil; jinak je odmítni (`decline`).",
-    "- **Approvals in Executor.** Executor pauses some calls and returns them to you for approval (`waiting_for_interaction`): tools the server marks as destructive, and writes to an API. Accept them (`resume` with `accept`) only for a step that only prepares the work (saving a draft, say) or for a Publication the user explicitly approved; otherwise decline them (`decline`).",
+    "- **Schválení v Executoru.** Executor některá volání pozastaví a vrátí ti je ke schválení (`waiting_for_interaction`): nástroje, které server označil jako ničivé, a zápisy do API. Potvrď je (`resume` s `accept`) jen u kroku, který práci jen připraví (třeba uloží koncept), nebo u Publikace, ke které máš souhlas uživatele (i daný předem a neodvolaný); jinak je odmítni (`decline`).",
+    "- **Approvals in Executor.** Executor pauses some calls and returns them to you for approval (`waiting_for_interaction`): tools the server marks as destructive, and writes to an API. Accept them (`resume` with `accept`) only for a step that only prepares the work (saving a draft, say) or for a Publication you have the user's consent to (also given in advance and not taken back); otherwise decline them (`decline`).",
   ),
   t(
     "- **Každá Organizace zvlášť.** Pracuješ-li pro víc Organizací, používej nástroje a účty té, pro kterou právě pracuješ, a data mezi nimi nepřenášej. Na týmovém Environmentu se přihlašují jen týmové účty, nikdy osobní. Integrace sdílené celou Organizací popisuje její vlastní katalog a mění se PR do Organizace; do Folderu se Integrace nezapisují.",
@@ -1713,8 +1747,8 @@ function troubleshooting(preset: PresetName): readonly Text[] {
     blank,
     t("## Generované soubory", "## Generated files"),
     t(
-      "`AGENTS.md` a každý soubor v `manual/` jsou generované a `.lazurio/instructions.json` zaznamenává jejich digesty a revizi šablon. Ručně upravený nebo smazaný soubor se nikdy nepřepíše: změna skončí `drift` s cestou souboru. Novější release produktu převykreslí všechny generované soubory při dalším `folder-refresh` nebo změně profilu, pokud každý soubor pořád odpovídá svému zaznamenanému digestu; jediný upravený soubor zablokuje celý upgrade a nic se nezapíše. Produkt zatím nemá příkaz na obnovu; vlastní poznámky drž mimo generované soubory (plánuje se oblast `notes/` pro uživatele) a opravený manuál ber jako změnu produktu přes pull request.",
-      "`AGENTS.md` and every file in `manual/` are generated, and `.lazurio/instructions.json` records their digests and the template revision. A hand-edited or removed file is never overwritten: the change path refuses with `drift` and the file's path. A newer product release re-renders every generated file on the next `folder-refresh` or profile change, provided every file still matches its recorded digest; a single edited file blocks the whole upgrade and nothing is written. The product has no restore command yet; keep your own notes outside the generated files (a `notes/` area for the user is planned) and treat a corrected manual as a product change through a pull request.",
+      "`AGENTS.md` a každý soubor v `manual/` jsou generované a `.lazurio/instructions.json` zaznamenává jejich digesty a revizi šablon. Ručně upravený nebo smazaný soubor se nikdy nepřepíše: změna skončí `drift` s cestou souboru. Novější release produktu převykreslí všechny generované soubory sám při `lazurio update`, a také při `folder-refresh` nebo změně profilu, pokud každý soubor pořád odpovídá svému zaznamenanému digestu; jediný upravený soubor zablokuje celý upgrade a nic se nezapíše. Produkt zatím nemá příkaz na obnovu; vlastní poznámky drž mimo generované soubory (plánuje se oblast `notes/` pro uživatele) a opravený manuál ber jako změnu produktu přes pull request.",
+      "`AGENTS.md` and every file in `manual/` are generated, and `.lazurio/instructions.json` records their digests and the template revision. A hand-edited or removed file is never overwritten: the change path refuses with `drift` and the file's path. A newer product release re-renders every generated file by itself during `lazurio update`, and also on a `folder-refresh` or profile change, provided every file still matches its recorded digest; a single edited file blocks the whole upgrade and nothing is written. The product has no restore command yet; keep your own notes outside the generated files (a `notes/` area for the user is planned) and treat a corrected manual as a product change through a pull request.",
     ),
     blank,
     // Why a chat without network is not a broken application (decision F14
@@ -2104,7 +2138,10 @@ const sshRules: readonly Text[] = [
 // work VM, device work onto a device. The handover records reachability, not
 // whose a peer is (a peer carries no owner or operator, and its zone may be
 // null), so the peers are named neutrally from the record and the agent
-// confirms with the Operator before working on one. Nothing is guessed.
+// confirms with the Operator before working on one. Nothing is guessed. The
+// exception is a Work Environment the handover records as assigned to the
+// owner (root decision 0192, addendum of 2026-10-26; plan DEV-6676 P2):
+// AGENTS.md lists those, and only then does this line say so.
 function reachesOverSsh(peer: MachinePeer): boolean {
   return peer.ssh !== null && peer.ssh.direction !== "inbound";
 }
@@ -2134,14 +2171,26 @@ function fromPersonalVm(
           ),
           ...reachable.map((peer) => same(peerLine(peer, locale))),
         ]),
-    t(
-      "- Dosažitelnost rozhoduje Headscale a není to identita ani mandát: handover nezaznamenává, čí peer je. Než na peeru začneš pracovat nebo ovládat zařízení, potvrď s uživatelem, že je jeho nebo že je přiřazený jemu.",
-      "- Reachability is decided by Headscale and is neither identity nor mandate: the handover does not record whose a peer is. Before you work on a peer or operate a device, confirm with the user that it is theirs or assigned to them.",
-    ),
-    t(
-      "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment, který ti uživatel potvrdí jako přiřazený jemu, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Repozitář Organizace sem nikdy neklonuj.",
-      "- Organization work (code, repositories, runs) belongs in a work Remote Environment the user confirms is assigned to them, never in this Environment: connect over SSH and work there. Never clone an Organization repository into this personal Remote Environment.",
-    ),
+    assignedEnvironments(machine).length === 0
+      ? t(
+          "- Dosažitelnost rozhoduje Headscale a není to identita ani mandát: handover nezaznamenává, čí peer je. Než na peeru začneš pracovat nebo ovládat zařízení, potvrď s uživatelem, že je jeho nebo že je přiřazený jemu.",
+          "- Reachability is decided by Headscale and is neither identity nor mandate: the handover does not record whose a peer is. Before you work on a peer or operate a device, confirm with the user that it is theirs or assigned to them.",
+        )
+      : t(
+          "- Dosažitelnost rozhoduje Headscale a není to identita ani mandát. Pracovní Prostředí přidělená uživateli uvádí `AGENTS.md` (Z tohoto Osobního Prostředí) a jejich přidělení zaznamenal handover. U ostatních peerů handover nezaznamenává, čí jsou: než na nich začneš pracovat nebo ovládat zařízení, potvrď s uživatelem, že jsou jeho nebo že jsou přiřazené jemu.",
+          "- Reachability is decided by Headscale and is neither identity nor mandate. `AGENTS.md` lists the Work Environments assigned to the user (From this Personal Environment), and the handover records their assignment. For any other peer the handover does not record whose it is: before you work on one or operate a device, confirm with the user that it is theirs or assigned to them.",
+        ),
+    assignedEnvironments(machine).length === 0
+      ? t(
+          "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment, který ti uživatel potvrdí jako přiřazený jemu, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Repozitář Organizace sem nikdy neklonuj.",
+          "- Organization work (code, repositories, runs) belongs in a work Remote Environment the user confirms is assigned to them, never in this Environment: connect over SSH and work there. Never clone an Organization repository into this personal Remote Environment.",
+        )
+      : // An assigned Work Environment needs no confirmation (root decision
+        // 0192, addendum of 2026-10-26); any other still does.
+        t(
+          "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment přidělený uživateli, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Přidělená Pracovní Prostředí uvádí `AGENTS.md` (Z tohoto Osobního Prostředí) a jejich přidělení nepotvrzuješ; každé jiné ti uživatel musí potvrdit jako přiřazené jemu. Repozitář Organizace sem nikdy neklonuj.",
+          "- Organization work (code, repositories, runs) belongs in a work Remote Environment assigned to the user, never in this Environment: connect over SSH and work there. `AGENTS.md` lists the assigned Work Environments (From this Personal Environment), and you do not confirm their assignment; any other the user must confirm is assigned to them. Never clone an Organization repository into this personal Remote Environment.",
+        ),
     t(
       "- Co potřebuje vlastní zařízení uživatele, například přihlášený prohlížeč, se dělá přes SSH na zařízení, které ti uživatel potvrdí jako své.",
       "- What needs the user's own device, for example the signed-in browser, is done over SSH on a device the user confirms is theirs.",
@@ -2267,7 +2316,9 @@ function deviceSsh(machine: MachineBinding): readonly Text[] {
 // nothing. Work products go to the Operator's Documents folder, and where the
 // Folder records a hosted entry they travel through the Launchpad's Files
 // page (decision F35), and the agent sends the Operator to the Launchpad for
-// every sign-in and connection (decision F19 addendum 2026-10-04).
+// every sign-in and connection (decision F19 addendum 2026-10-04). Where the
+// entry names Buddy's origin, the agent opens his chat for the Operator, the
+// same line as in AGENTS.md (decision F14's addendum of 2026-10-26).
 function operatorClient(
   preset: PresetName,
   machine: MachineBinding,
@@ -2404,6 +2455,9 @@ function operatorClient(
     ...(origin === undefined
       ? []
       : launchpadRouting(preset, origin, githubIdentity(preset, machine))),
+    ...(machine.entry?.buddyOrigin === undefined
+      ? []
+      : [buddyChatRouting(machine.entry.buddyOrigin)]),
     ...workOnly,
     chats,
   ];
@@ -2686,7 +2740,7 @@ export function renderManual(
     "manual/this-machine.md": thisMachine(source),
     "manual/working-here.md": titled(
       t("Jak se tu pracuje", "Working here"),
-      workingHere(source.preset, source.machine),
+      workingHere(source.preset, source.machine, sourceChatgptApps(source)),
     ),
     "manual/roles.md": titled(t("Role", "Roles"), roles),
     "manual/glossary.md": titled(t("Slovník", "Glossary"), glossary),

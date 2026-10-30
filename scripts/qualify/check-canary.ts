@@ -24,6 +24,23 @@ import { basename } from "node:path";
 export const canarySchema = "lazurio.canary.v1";
 export const canaryHours = 8;
 
+/** Shorter canaries, each for one named candidate, each Matěj's decision
+ * recorded in the register before the candidate was cut. Nothing else
+ * shortens a canary: not a record, not a reviewer. */
+export const shorterCanaries: Readonly<
+  Record<string, Readonly<{ hours: number; decision: string }>>
+> = {
+  "v0.1.14-rc.2": {
+    hours: 3,
+    decision:
+      "root decision 0166, addendum 2026-10-27, HumanAndMachines/Lazurio#658",
+  },
+};
+
+/** The hours the canary of `candidate` must last. */
+export const requiredHours = (candidate: string): number =>
+  shorterCanaries[candidate]?.hours ?? canaryHours;
+
 export const machineKinds = ["work", "personal"] as const;
 export const machineHealth = ["healthy", "recovery-mode", "unhealthy"] as const;
 
@@ -107,10 +124,10 @@ export function canaryFindings(
   if (Number.isNaN(start) || Number.isNaN(end))
     findings.push("start and end must be UTC times (YYYY-MM-DDThh:mm:ssZ)");
   else if (end > now.getTime()) findings.push("the canary ends in the future");
-  else if (end - start < canaryHours * 3600_000) {
+  else if (end - start < requiredHours(candidate) * 3600_000) {
     const minutes = Math.max(0, Math.floor((end - start) / 60_000));
     findings.push(
-      `the canary lasted ${Math.floor(minutes / 60)} h ${minutes % 60} min; ${canaryHours} hours are required`,
+      `the canary lasted ${Math.floor(minutes / 60)} h ${minutes % 60} min; ${requiredHours(candidate)} hours are required`,
     );
   }
   if (!matches(value.reviewer, loginPattern))
@@ -336,6 +353,6 @@ if (import.meta.main) {
     process.exit(1);
   }
   console.log(
-    `The canary of ${candidate} passed: ${canaryHours} hours on every listed Machine${provenance ? ", recorded by a pull request merged into the default branch before this tag" : ""}.`,
+    `The canary of ${candidate} passed: ${requiredHours(candidate)} hours on every listed Machine${candidate in shorterCanaries ? ` (shortened by ${shorterCanaries[candidate]?.decision})` : ""}${provenance ? ", recorded by a pull request merged into the default branch before this tag" : ""}.`,
   );
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Contract tests for delegace with fake `openmausbot`, `hermes`, `ssh` and `t3`.
+"""Contract tests for delegace with fake `openmausbot`, `hermes`, `ssh`, `t3` and `lazurio`.
 
 A "wake" (the notice Buddy gets) is what reaches Buddy. In Telegram it is a
 `completed` event on a Kanban card that has a `wake` subscription; the fake
@@ -172,12 +172,26 @@ if a[:2] == ["thread", "send"] and opt("--message-file") == "-" and opt("--idemp
         refuse(final, "T3 Code refused the message.")
     st["n"] += 1
     result = {"threadId": a[2], "runId": "run-%d" % st["n"], "status": "queued", "delivery": "queued"}
+    st.setdefault("queue", []).append(result["runId"])
     st["keys"][key] = result
     st["messages"].append({"thread": a[2], "key": key, "argv": a, "text": text, "acting": sender})
     lost = os.environ.get("FAKE_T3_LOSE_ANSWER")
     if lost:  # it went out, but the answer that came back says only that something failed
         refuse(lost, "T3 Code did not complete the request.")
     done(0, result)
+# Buddy's queue behind his running turn (Lazurio/t3code agent CLI); a runtime
+# without these commands is FAKE_T3_QUEUE unset.
+if a[:2] == ["queue", "list"] and os.environ.get("FAKE_T3_QUEUE"):
+    if os.environ.get("FAKE_T3_QUEUE_SHAPE") == "other":  # items without queuedRunId
+        done(0, {"items": [{"id": run} for run in st.setdefault("queue", [])], "nextCursor": None})
+    done(0, {"items": [{"queuedRunId": run, "text": "…", "truncated": False} for run in st.setdefault("queue", [])],
+             "nextCursor": None})
+if a[:2] == ["queue", "cancel"] and os.environ.get("FAKE_T3_QUEUE"):
+    if a[3] not in st.setdefault("queue", []):
+        refuse("invalid_request", "Writes fail once the run is no longer queued.")
+    st["queue"].remove(a[3])
+    st.setdefault("cancelled", []).append(a[3])
+    done(0, {"sequence": 1})
 refuse("invalid_request", "unknown command")
 '''
 
@@ -219,6 +233,25 @@ if os.environ.get("FAKE_SSH_DOWN"):
 sys.exit(subprocess.run(["sh", "-c", a[-1]]).returncode)
 '''
 
+# The Platform CLI of the other Environment: `lazurio machine inspect` prints
+# that Environment's handover as `{"kind":"machine-context-observed","context":
+# <handover>,…}` and takes no option (LazurioPlatform src/machine/cli.ts). It
+# answers as `lazurio.json` in the fake's directory says, by default as a
+# Machine without one.
+FAKE_LAZURIO = r'''
+import json, os, sys
+d = os.environ["FAKE_DIR"]
+with open(os.path.join(d, "lazurio-calls.jsonl"), "a") as fh:
+    fh.write(json.dumps({"argv": sys.argv[1:]}) + "\n")
+path = os.path.join(d, "lazurio.json")
+answer = json.load(open(path)) if os.path.exists(path) else {"exit": 2, "out": ""}
+if sys.argv[1:] != ["machine", "inspect"]:
+    answer = {"exit": 2, "out": ""}
+out = answer.get("out")
+print(out if isinstance(out, str) else json.dumps(out))
+sys.exit(answer["exit"])
+'''
+
 # `wait --json` as MausBot 0.1.115 prints it: no `reply`, the answer is the newest bot text message.
 DONE = {"exit": 0, "out": {"status": "settled", "state": "completed", "taskId": "th-1",
                            "job": {"state": "completed", "reason": "zuko finished", "needsInput": []},
@@ -256,6 +289,7 @@ class DelegaceTest(unittest.TestCase):
             (os.path.join(bindir, "hermes"), FAKE_HERMES),
             (os.path.join(bindir, "openmausbot"), FAKE_MAUSBOT),
             (os.path.join(bindir, "ssh"), FAKE_SSH),
+            (os.path.join(bindir, "lazurio"), FAKE_LAZURIO),
             (os.path.join(bindir, "t3"), DECOY_T3),
             (self.t3_runtime, FAKE_T3),
         ):
@@ -346,9 +380,62 @@ class DelegaceTest(unittest.TestCase):
         with open(path, encoding="utf-8") as fh:
             return json.load(fh)
 
+    def t3_turn_takes_queued(self):
+        """Buddy's thread starts the oldest message queued behind his turn."""
+        path = os.path.join(self.fake, "t3.json")
+        with open(path, encoding="utf-8") as fh:
+            st = json.load(fh)
+        taken = st["queue"].pop(0)
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(st, fh, indent=1, ensure_ascii=False)
+        return taken
+
     def messages(self):
         """What reached Buddy's thread: one message per key, as T3 Code keeps it."""
         return self.t3_state()["messages"]
+
+    def binding(self, preferences, mode=0o600):
+        """The Lazurio Folder's state with the machine binding, as the Folder
+        records it from the handover: `machine.entry.mausbotOrigin`."""
+        path = os.path.join(self.tmp.name, "Lazurio", ".lazurio", "preferences.json")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        if os.path.lexists(path):
+            os.remove(path)
+        body = preferences if isinstance(preferences, str) else json.dumps(preferences)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(body)
+        os.chmod(path, mode)
+        return path
+
+    def bound_to(self, origin):
+        return self.binding({"schemaVersion": 3, "revision": 4, "machine": {
+            "kind": "personal-vm", "entry": {"externalOrigin": "https://launchpad.personal.example.test",
+                                             "mausbotOrigin": origin, "mausbotListenPort": 4102}}})
+
+    def handover(self, answer):
+        """What `lazurio machine inspect` prints on the other Environment."""
+        with open(os.path.join(self.fake, "lazurio.json"), "w") as fh:
+            json.dump(answer, fh)
+
+    def handover_with(self, origin):
+        self.handover({"exit": 0, "out": {"kind": "machine-context-observed", "digest": "0" * 64, "authority": "none",
+                                          "context": {"schema": "lazurio.machine.v1", "entry": {
+                                              "launchpad": {"external_origin": "https://launchpad.work-01.example.test"},
+                                              "mausbot": {"external_origin": origin, "listen_port": 4102}}}}})
+
+    def lazurio_calls(self):
+        path = os.path.join(self.fake, "lazurio-calls.jsonl")
+        if not os.path.exists(path):
+            return []
+        with open(path) as fh:
+            return [json.loads(line)["argv"] for line in fh]
+
+    def ssh_commands(self):
+        path = os.path.join(self.fake, "ssh-calls.jsonl")
+        if not os.path.exists(path):
+            return []
+        with open(path) as fh:
+            return [json.loads(line)["argv"] for line in fh]
 
     def calls(self, verb=None):
         path = os.path.join(self.fake, "mausbot-calls.jsonl")
@@ -604,12 +691,13 @@ class DelegaceTest(unittest.TestCase):
         self.mausbot_says(wait=[DONE])
         rid = self.zadej_ok(extra=("--env", "work-env"))
         self.hlidej()
-        with open(os.path.join(self.fake, "ssh-calls.jsonl")) as fh:
-            ssh = [json.loads(line)["argv"] for line in fh]
-        self.assertEqual(len(ssh), 2)
-        self.assertIn("work-env", ssh[0])
+        ssh = self.ssh_commands()
+        self.assertEqual(len(ssh), 3)
+        self.assertTrue(all("work-env" in argv for argv in ssh))
         self.assertTrue(ssh[0][-1].startswith("openmausbot run zuko - --wait none"))
-        self.assertTrue(ssh[1][-1].startswith("openmausbot wait --thread th-1"))
+        self.assertEqual(ssh[1][-1], "lazurio machine inspect")  # the link's origin, once; no link here
+        self.assertTrue(ssh[2][-1].startswith("openmausbot wait --thread th-1"))
+        self.assertIsNone(self.rec(rid)["odkaz"])
         self.assertIn("Odpověz jedním slovem", self.calls("run")[0]["stdin"])
         # that Environment's home is not known here, so its own `~` and an absolute path
         self.assertIn(f"ukládej do `~/Documents/buddy/{rid}/`", self.calls("run")[0]["stdin"])
@@ -690,7 +778,7 @@ class DelegaceTest(unittest.TestCase):
         rec = self.rec(rid)
         self.assertEqual(rec["stav"], "probuzen")
         self.assertEqual(rec["probuzeni"][0]["vlakno"], "buddy-thread-1")
-        self.assertEqual(rec["t3"][rid], {"vlakno": "buddy-thread-1", "doruceni": "queued"})
+        self.assertEqual(rec["t3"][rid], {"vlakno": "buddy-thread-1", "doruceni": "queued", "beh": "run-1"})
         self.assertEqual(self.wakes(), [])
         self.assertEqual(self.hermes_state()["tasks"], {})
         p = self.delegace("potvrd", rid)
@@ -798,6 +886,98 @@ class DelegaceTest(unittest.TestCase):
         self.assertEqual(self.wakes(), [])
         self.assertEqual([s["to"] for s in self.hermes_state()["sends"]], ["telegram:111"])
         self.assertEqual(self.rec(rid)["stav"], "eskalovano")
+
+    # The acknowledgement clock runs from delivery (Lazurio/LazurioPlatform#713):
+    # a notice queued behind Buddy's long turn is no unanswered notice.
+    def test_a_notice_queued_behind_buddys_turn_gets_no_reminder_until_he_gets_it(self):
+        self.mausbot_says(wait=[DONE])
+        rid = self.zadej_ok(**self.T3)
+        env = {"DELEGACE_ACK_SECONDS": "0", "FAKE_T3_QUEUE": "1"}
+        self.hlidej(**env)  # the notice, queued behind his turn
+        for _ in range(3):
+            self.hlidej(**env)
+        # No reminder and no message to the person while it waits.
+        self.assertEqual([m["key"] for m in self.messages()], [rid])
+        self.assertEqual(self.hermes_state()["sends"], [])
+        rec = self.rec(rid)
+        self.assertEqual(rec["stav"], "probuzen")
+        self.assertEqual(sum("čeká ve frontě" in h["udalost"] for h in rec["historie"]), 1)
+        # His turn takes it: the clock starts then, not at the send.
+        self.assertEqual(self.t3_turn_takes_queued(), "run-1")
+        started = time.time()
+        self.hlidej(**env)
+        rec = self.rec(rid)
+        self.assertGreaterEqual(rec["probuzen_ts"], started)
+        self.assertEqual(rec["t3"][rid]["doruceni"], "zahajeno")
+        self.assertEqual([m["key"] for m in self.messages()], [rid])
+        # Unanswered after delivery, the reminder follows, and waits in its turn too.
+        self.hlidej(**env)
+        self.hlidej(**env)
+        self.assertEqual([m["key"] for m in self.messages()], [rid, rid + "#2"])
+        self.assertEqual(self.hermes_state()["sends"], [])
+
+    def test_an_acknowledgement_withdraws_the_reminders_still_queued(self):
+        self.mausbot_says(wait=[DONE])
+        rid = self.zadej_ok(**self.T3)
+        env = {"DELEGACE_ACK_SECONDS": "0", "FAKE_T3_QUEUE": "1"}
+        self.hlidej(**env)
+        self.t3_turn_takes_queued()
+        self.hlidej(**env)  # delivered: the clock starts
+        self.hlidej(**env)  # unanswered: the reminder, queued
+        self.assertEqual([m["key"] for m in self.messages()], [rid, rid + "#2"])
+        p = self.delegace("potvrd", rid, FAKE_T3_QUEUE="1")
+        self.assertEqual(p.returncode, 0, p.stderr)
+        state = self.t3_state()
+        self.assertEqual(state["cancelled"], ["run-2"])
+        self.assertEqual(state["queue"], [])
+        rec = self.rec(rid)
+        self.assertEqual(rec["stav"], "vyrizeno")
+        self.assertEqual(rec["t3"][rid + "#2"]["doruceni"], "staženo")
+        self.assertEqual(rec["t3"][rid]["doruceni"], "zahajeno")
+
+    def test_a_queue_answer_of_another_shape_is_unreadable_not_empty(self):
+        # Pablo's review of #723: items without queuedRunId must not read as an empty queue, which
+        # would start the clock while the notice still waits.
+        self.mausbot_says(wait=[DONE])
+        rid = self.zadej_ok(**self.T3)
+        env = {"DELEGACE_ACK_SECONDS": "0", "FAKE_T3_QUEUE": "1", "FAKE_T3_QUEUE_SHAPE": "other"}
+        self.hlidej(**env)
+        self.hlidej(**env)
+        rec = self.rec(rid)
+        self.assertEqual(rec["t3"][rid]["doruceni"], "queued")
+        self.assertNotIn("ceka", rec["t3"][rid])
+        # Unreadable keeps the clock from the send: the reminder goes out as before.
+        self.assertEqual([m["key"] for m in self.messages()], [rid, rid + "#2"])
+
+    def test_an_invalid_deadline_on_watching_on_withdraws_nothing(self):
+        # Pablo's review of #723: a refused `potvrd --hlidej-dal` changes nothing, in T3 Code either.
+        self.mausbot_says(wait=[QUESTION])
+        rid = self.zadej_ok(**self.T3)
+        self.hlidej(FAKE_T3_QUEUE="1")
+        before = self.rec(rid)
+        p = self.delegace("potvrd", rid, "--hlidej-dal", "--termin", "brzy", FAKE_T3_QUEUE="1")
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("neplatný termín", p.stderr)
+        state = self.t3_state()
+        self.assertEqual(state["queue"], ["run-1"])
+        self.assertNotIn("cancelled", state)
+        self.assertEqual(self.rec(rid), before)
+
+    def test_a_queue_that_cannot_be_read_keeps_the_reminders_and_the_last_resort(self):
+        # A runtime without `t3 queue` (FAKE_T3_QUEUE unset): the clock runs
+        # from the send, as before, so a Buddy who never answers still escalates.
+        self.mausbot_says(wait=[DONE])
+        rid = self.zadej_ok(**self.T3)
+        env = {"DELEGACE_ACK_SECONDS": "0"}
+        for _ in range(4):
+            self.hlidej(**env)
+        self.assertEqual([m["key"] for m in self.messages()], [rid, rid + "#2", rid + "#3"])
+        self.assertEqual([s["to"] for s in self.hermes_state()["sends"]], ["telegram:111"])
+        self.assertIn(["queue", "list", "buddy-thread-1", "--limit", "100", "--base-dir", self.t3_home, "--json"],
+                      [c["argv"] for c in self.t3_state()["calls"]])
+        # The acknowledgement still works when nothing can be withdrawn.
+        p = self.delegace("potvrd", rid)
+        self.assertEqual(p.returncode, 0, p.stderr)
 
     def test_an_unknown_channel_starts_nothing(self):
         for wrong in ("lazurio_web", "T3", "telegram", "t3:buddy"):
@@ -1432,6 +1612,199 @@ class DelegaceTest(unittest.TestCase):
         self.assertEqual(self.delegace("potvrd", rec["id"]).returncode, 0)
         self.assertEqual(self.rec(rec["id"])["stav"], "vyrizeno")
 
+
+    # -- the link to the bot's conversation (Lazurio/OpenMausBot#67)
+
+    HERE = "https://mausbot.personal.example.test"
+    THERE = "https://mausbot.work-01.example.test"
+
+    def test_zadej_gives_the_link_from_this_environment_s_machine_binding(self):
+        self.bound_to(self.HERE)
+        p = self.zadej()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        out = json.loads(p.stdout)
+        link = f"{self.HERE}/c/th-1"
+        self.assertEqual(out, {"id": out["id"], "threadId": "th-1", "termin": out["termin"], "odkaz": link})
+        self.assertEqual(self.rec(out["id"])["odkaz"], link)
+        self.assertEqual((self.lazurio_calls(), self.ssh_commands()), ([], []))
+
+    def test_a_bot_in_another_environment_gets_that_environment_s_own_origin_read_once(self):
+        self.bound_to(self.HERE)
+        self.handover_with(self.THERE)
+        self.mausbot_says(wait=[RUNNING, RUNNING, DONE])
+        p = self.zadej(extra=("--env", "work-env"))
+        self.assertEqual(p.returncode, 0, p.stderr)
+        out = json.loads(p.stdout)
+        link = f"{self.THERE}/c/th-1"
+        self.assertEqual(out["odkaz"], link)
+        for _ in range(3):
+            self.hlidej()
+        self.assertEqual(self.rec(out["id"])["vysledek_stav"], "HOTOVO")
+        self.assertEqual(self.rec(out["id"])["odkaz"], link)
+        # Read on that Environment, once per delegation, exactly as its CLI takes it.
+        self.assertEqual(self.lazurio_calls(), [["machine", "inspect"]])
+        self.assertEqual([argv[-1] for argv in self.ssh_commands() if "lazurio" in argv[-1]], ["lazurio machine inspect"])
+        self.assertTrue(all("work-env" in argv for argv in self.ssh_commands()))
+
+    def test_without_an_origin_there_is_no_link_and_none_is_put_together(self):
+        valid = {"schemaVersion": 3, "machine": {"entry": {"mausbotOrigin": self.HERE, "mausbotListenPort": 4102}}}
+        here = [
+            ("no Folder state", None),
+            ("a workstation's binding", {"schemaVersion": 3, "machine": None}),
+            ("an entry without MausBot", {"schemaVersion": 3, "machine": {"entry": {"externalOrigin": self.HERE}}}),
+            ("not JSON", "{nope"),
+            ("a JSON array", "[]"),
+            ("group-writable", (valid, 0o664)),
+            ("world-writable", (valid, 0o602)),
+        ] + [(f"origin {origin!r}", {"schemaVersion": 3, "machine": {"entry": {"mausbotOrigin": origin}}})
+             for origin in ("http://mausbot.personal.example.test", f"{self.HERE}/", f"{self.HERE}:8443",
+                            f"{self.HERE}/c/x", "https://MausBot.personal.example.test", "https://mausbot",
+                            "https://mausbot.personal.example.test?x=1", "javascript:alert(1)", 42, None,
+                            "https://" + "a" * 64 + ".example.test")]
+        for name, preferences in here:
+            with self.subTest(here=name):
+                path = os.path.join(self.tmp.name, "Lazurio", ".lazurio", "preferences.json")
+                if preferences is None:
+                    if os.path.lexists(path):
+                        os.remove(path)
+                elif isinstance(preferences, tuple):
+                    self.binding(*preferences)
+                else:
+                    self.binding(preferences)
+                p = self.zadej()
+                self.assertEqual(p.returncode, 0, p.stderr)
+                out = json.loads(p.stdout)
+                self.assertIsNone(out["odkaz"])
+                rec = self.rec(out["id"])
+                self.assertIsNone(rec["odkaz"])
+                self.assertIn("bez odkazu na konverzaci bota", " ".join(h["udalost"] for h in rec["historie"]))
+        # A link to the binding is not the Folder's own file.
+        target = self.binding(valid)
+        os.rename(target, target + ".real")
+        os.symlink(target + ".real", target)
+        out = json.loads(self.zadej().stdout)
+        self.assertIsNone(out["odkaz"])
+
+        self.bound_to(self.HERE)  # never this Environment's origin for a bot elsewhere
+        there = [
+            ("inspect refused", {"exit": 2, "out": ""}),
+            ("another kind", {"exit": 0, "out": {"kind": "machine-context-missing", "context": {}}}),
+            ("a handover without MausBot", {"exit": 0, "out": {"kind": "machine-context-observed",
+                                                               "context": {"entry": {"launchpad": {}}}}}),
+            ("an origin of another shape", {"exit": 0, "out": {"kind": "machine-context-observed", "context": {
+                "entry": {"mausbot": {"external_origin": "https://mausbot.work-01.example.test/"}}}}}),
+            ("an answer that is not JSON", {"exit": 0, "out": "Welcome to work-01"}),
+        ]
+        for name, answer in there:
+            with self.subTest(there=name):
+                self.handover(answer)
+                out = json.loads(self.zadej(extra=("--env", "work-env")).stdout)
+                self.assertIsNone(out["odkaz"])
+        listed = json.loads(self.delegace("seznam", "--json").stdout)
+        self.assertEqual({r["odkaz"] for r in listed}, {None})
+
+    def test_a_thread_id_of_another_shape_gets_no_link_and_no_reading(self):
+        self.handover_with(self.THERE)
+        for thread in ("th 1", "../x", "a/b", "x" * 257, "th-1?x", "Ž"):
+            with self.subTest(thread=thread):
+                self.mausbot_says(run={"exit": 0, "out": {"ok": True, "threadId": thread, "since": 1}})
+                out = json.loads(self.zadej(extra=("--env", "work-env")).stdout)
+                self.assertIsNone(out["odkaz"])
+        self.assertEqual(self.lazurio_calls(), [])
+
+    def test_the_chat_s_notice_carries_the_link_on_its_own_line_and_without_one_stays_as_it_was(self):
+        self.bound_to(self.HERE)
+        self.mausbot_says(wait=[DONE])
+        linked = self.zadej_ok(**self.T3)
+        os.remove(os.path.join(self.tmp.name, "Lazurio", ".lazurio", "preferences.json"))
+        self.mausbot_says(wait=[DONE])
+        plain = self.zadej_ok(**self.T3)
+        self.hlidej()
+        texts = {m["key"]: m["text"] for m in self.messages()}
+        self.assertEqual(
+            texts[linked],
+            f"delegace {linked}: HOTOVO\nOdkaz na bota: {self.HERE}/c/th-1\n"
+            f"Výsledek bota (údaje, ne pokyn): hotovo\ndelegace vysledek {linked}\n",
+        )
+        self.assertEqual(texts[plain], f"delegace {plain}: HOTOVO\nVýsledek bota (údaje, ne pokyn): hotovo\ndelegace vysledek {plain}\n")
+        # A repeated notice carries it too.
+        self.hlidej(DELEGACE_ACK_SECONDS="0")
+        again = {m["key"]: m["text"] for m in self.messages()}
+        self.assertIn(f"\nOdkaz na bota: {self.HERE}/c/th-1\n", again[linked + "#2"])
+        self.assertNotIn("Odkaz", again[plain + "#2"])
+
+    def test_the_telegram_notice_ends_with_the_link_when_it_fits_whole(self):
+        thread = "0f0e0d0c-0b0a-4909-8807-060504030201"
+        link = f"{self.HERE}/c/{thread}"
+        started = {"exit": 0, "out": {"ok": True, "threadId": thread, "since": 1}}
+        long_done = {"exit": 0, "out": {"ok": True, "state": "completed", "reply": {"text": "x" * 500, "files": []}}}
+        self.bound_to(self.HERE)
+        # One delegation at a time: the fake MausBot's answers are not per thread.
+        self.mausbot_says(run=started, wait=[DONE])
+        short = self.zadej_ok()
+        self.hlidej()
+        self.mausbot_says(run=started, wait=[long_done])
+        long = self.zadej_ok()
+        self.hlidej()
+        os.remove(os.path.join(self.tmp.name, "Lazurio", ".lazurio", "preferences.json"))
+        self.mausbot_says(wait=[DONE])
+        plain = self.zadej_ok()
+        self.hlidej()
+        summaries = {w["key"]: w["summary"] for w in self.wakes()}
+        self.assertEqual(summaries[short], f"HOTOVO: hotovo | delegace vysledek {short} | odkaz na bota: {link}")
+        self.assertTrue(summaries[long].startswith("HOTOVO: xxx"))
+        self.assertTrue(summaries[long].endswith(f"… | delegace vysledek {long} | odkaz na bota: {link}"))
+        self.assertEqual(len(summaries[long]), 200)
+        self.assertEqual(summaries[plain], f"HOTOVO: hotovo | delegace vysledek {plain}")
+
+    def test_a_link_too_long_for_hermes_s_line_stays_out_of_it_whole(self):
+        origin = "https://" + ".".join(["a" * 63, "b" * 63, "c" * 63]) + ".test"
+        self.bound_to(origin)
+        self.mausbot_says(wait=[DONE])
+        rid = self.zadej_ok()
+        self.assertEqual(self.rec(rid)["odkaz"], f"{origin}/c/th-1")
+        self.hlidej()
+        summary = self.wakes()[0]["summary"]
+        self.assertEqual(summary, f"HOTOVO: hotovo | delegace vysledek {rid}")
+        self.assertIn(f"Odkaz na bota: {origin}/c/th-1", self.delegace("vysledek", rid).stdout)
+
+    def test_seznam_and_vysledek_carry_the_link_and_say_nothing_of_one_without_it(self):
+        self.bound_to(self.HERE)
+        self.mausbot_says(wait=[DONE])
+        linked = self.zadej_ok()
+        os.remove(os.path.join(self.tmp.name, "Lazurio", ".lazurio", "preferences.json"))
+        plain = self.zadej_ok()
+        link = f"{self.HERE}/c/th-1"
+        listed = {r["id"]: r for r in json.loads(self.delegace("seznam", "--json").stdout)}
+        self.assertEqual((listed[linked]["odkaz"], listed[plain]["odkaz"]), (link, None))
+        lines = {line.split()[0]: line for line in self.delegace("seznam").stdout.splitlines()}
+        self.assertTrue(lines[linked].endswith(f"Shrnutí smlouvy  {link}"))
+        self.assertTrue(lines[plain].endswith("Shrnutí smlouvy"))
+        self.hlidej()
+        shown = self.delegace("vysledek", linked).stdout
+        # Delegace's own line, before the bot's words.
+        self.assertIn(f"\nKonverzace: th-1 (since 1234)\nOdkaz na bota: {link}\n", shown)
+        self.assertLess(shown.index("Odkaz na bota:"), shown.index("\n\n"))
+        self.assertNotIn("Odkaz", self.delegace("vysledek", plain).stdout)
+        self.assertEqual(json.loads(self.delegace("vysledek", linked, "--json").stdout)["odkaz"], link)
+        self.assertIsNone(json.loads(self.delegace("vysledek", plain, "--json").stdout)["odkaz"])
+
+    def test_a_record_from_before_the_link_goes_on_without_one(self):
+        os.makedirs(self.state, exist_ok=True)
+        rec = {
+            "id": "20261025-120000-cafe", "verze": 1, "nazev": "starý úkol", "bot": "zuko", "env": None,
+            "vlakno": None, "zadani": "x", "termin_s": 1800, "termin_ts": time.time() + 1800, "termin": "12:30",
+            "zalozeno": "2026-10-25T12:00:00Z", "stav": "bezi", "kolo": 1, "budik_pokus": 0, "threadId": "th-1",
+            "since": 1234, "spusteni_zahajeno": True, "kanal": "t3", "historie": [],
+        }
+        with open(os.path.join(self.state, rec["id"] + ".json"), "w", encoding="utf-8") as fh:
+            json.dump(rec, fh, ensure_ascii=False)
+        self.bound_to(self.HERE)  # a link is read only when `zadej` starts the bot
+        self.mausbot_says(wait=[DONE])
+        self.hlidej()
+        self.assertNotIn("Odkaz", self.messages()[0]["text"])
+        self.assertIsNone(json.loads(self.delegace("seznam", "--json").stdout)[0]["odkaz"])
+        self.assertNotIn("Odkaz", self.delegace("vysledek", rec["id"]).stdout)
 
 if __name__ == "__main__":
     unittest.main()

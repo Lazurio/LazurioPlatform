@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import { messages } from "../src/launchpad/messages";
 import {
-  autoEnable,
   connectionLine,
   curatedActions,
   nextSelection,
@@ -140,7 +139,7 @@ for (const locale of ["cs", "en"] as const)
     });
   });
 
-test("a locked tool offers no sign-in or installation, still a sign-out, and is not switched on by one", () => {
+test("a locked tool offers no sign-in or installation, still a sign-out", () => {
   const copy = messages("en");
   expect(curatedActions(forbidden, copy)).toEqual({
     primary: null,
@@ -153,9 +152,6 @@ test("a locked tool offers no sign-in or installation, still a sign-out, and is 
     logout: false,
     linkSsh: false,
   });
-  expect(
-    autoEnable(forbidden, { kind: "signed-in", already: false } as never),
-  ).toBe(false);
 });
 
 test("a change of another tool carries the person's kept choice of the locked one", () => {

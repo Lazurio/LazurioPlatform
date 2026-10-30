@@ -55,6 +55,10 @@ export const instructionManifestSchema = 3;
 // Folder renders what they allow: exactly the governed keys of the closed
 // section, in one representation (keys sorted, nothing empty), only on an
 // Environment an Organization governs; absent when it governs nothing here.
+// `chatgptAppsAllowed` (decision F42's addendum of 2026-10-27) is the
+// person's own choice to let agents use the apps of their ChatGPT account,
+// only where no Organization governs (a personal Environment, the person's
+// own computer): `true`, or absent for off, the default.
 export type FolderPreferences = Readonly<{
   schemaVersion: 2 | 3;
   agentVoice?: AgentVoice;
@@ -66,7 +70,28 @@ export type FolderPreferences = Readonly<{
   tools?: readonly string[];
   toolNotes?: ToolNotes;
   organizationSettings?: OrganizationSettingsValues;
+  chatgptAppsAllowed?: true;
 }>;
+
+/** Whether the person allowed the apps of their ChatGPT account here
+ * (decision F42's addendum of 2026-10-27); false when they did not. */
+export function personalChatgptApps(
+  preferences: Pick<FolderPreferences, "chatgptAppsAllowed">,
+): boolean {
+  return preferences.chatgptAppsAllowed === true;
+}
+
+// The preference fields with the person's choice of ChatGPT's apps: the key
+// present only when they allowed them.
+export function withChatgptApps<
+  T extends Readonly<{ chatgptAppsAllowed?: unknown }>,
+>(
+  fields: T,
+  allowed: boolean,
+): Omit<T, "chatgptAppsAllowed"> & { chatgptAppsAllowed?: true } {
+  const { chatgptAppsAllowed: _, ...rest } = fields;
+  return allowed ? { ...rest, chatgptAppsAllowed: true } : rest;
+}
 
 /** The Organization settings a Folder applies; `{}` when none. */
 export function folderOrganizationSettings(
@@ -184,6 +209,7 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
   const withNotes = ownDataValue(input, "toolNotes") !== undefined;
   const withSettings =
     ownDataValue(input, "organizationSettings") !== undefined;
+  const withChatgpt = ownDataValue(input, "chatgptAppsAllowed") !== undefined;
   const value = stateFields(input, [
     "schemaVersion",
     "revision",
@@ -195,6 +221,7 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
     ...(withTools ? ["tools"] : []),
     ...(withNotes ? ["toolNotes"] : []),
     ...(withSettings ? ["organizationSettings"] : []),
+    ...(withChatgpt ? ["chatgptAppsAllowed"] : []),
   ]);
   if (
     (value.schemaVersion !== 2 && value.schemaVersion !== 3) ||
@@ -225,6 +252,13 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
     if (!organizationGoverns(preset.name))
       throw new Error("No Organization governs this Environment");
   }
+  // One representation (`true` or absent), and only where the person
+  // decides: an Organization decides on its Environments.
+  if (
+    withChatgpt &&
+    (value.chatgptAppsAllowed !== true || organizationGoverns(preset.name))
+  )
+    throw new Error("Invalid ChatGPT apps preference");
   return Object.freeze({
     schemaVersion: value.schemaVersion,
     ...(withVoice ? { agentVoice: parseAgentVoice(value.agentVoice) } : {}),
@@ -238,6 +272,7 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
     ...(tools === undefined ? {} : { tools }),
     ...(notes === undefined ? {} : { toolNotes: notes }),
     ...(settings === undefined ? {} : { organizationSettings: settings }),
+    ...(withChatgpt ? { chatgptAppsAllowed: true as const } : {}),
   });
 }
 

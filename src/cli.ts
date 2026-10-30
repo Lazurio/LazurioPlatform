@@ -20,6 +20,7 @@ import { initializeFolder } from "./folder/initialize-folder";
 import { inspectLegacyPaths } from "./folder/inspect-legacy-paths";
 import { inspectProfileChange } from "./folder/inspect-profile-change";
 import { inspectOutput } from "./folder/inventory";
+import { FolderOperationBusyError } from "./folder/lock";
 import {
   canonicalCheckoutDirectory,
   inspectOwnedDirectory,
@@ -50,6 +51,7 @@ import { startLaunchpad } from "./launchpad/server";
 import { createUpdatePill } from "./launchpad/update-pill";
 import {
   describeFolderAdoption,
+  folderBusyAnswer,
   MachineUsageError,
   machineHelp,
   runMachineCommand,
@@ -145,6 +147,9 @@ async function installedLaunchpad(explicitBase: string, folder: string) {
     }),
     executorAtStart: executorAtStart(context, base),
     vaultAtStart: vaultAtStart(context, base),
+    // ChatGPT's apps in the operator's Codex (decision F42's addendum of
+    // 2026-10-27): exactly where it sets Executor up.
+    codexAppsAtStart: executorAtStart(context, base),
   };
 }
 
@@ -413,7 +418,13 @@ async function runOtherCommand(args: string[]): Promise<number> {
           }),
         version: context.identity.version,
       });
+      // Exactly one JSON object on stdout in every outcome (issue #655); a
+      // failure's text for people follows on stderr.
       console.log(JSON.stringify(result));
+      if (result.kind === "failed")
+        console.error(
+          "Folder operation failed. State may require recovery; no automatic retry or cleanup was performed.",
+        );
       return code;
     } catch (error) {
       // A wrong invocation is a usage error with the help text, not a failed
@@ -607,6 +618,10 @@ resumes and finalizes an existing prepared update, or verifies its completed arc
 Target revision is the NEW revision, not the old expected revision of profile-update.
 It accepts no profile choices and never reclaims a stale lock or damaged journal.
 Exit status: 0 completed/unchanged/preview available, 2 blocked plan, 1 operation failure.
+A profile command on a Folder whose lock another Lazurio operation holds answers
+{"kind":"blocked","reason":"folder-busy","retryable":true} with exit 2, nothing changed;
+lazurio update runs profile-update with the recorded choices as its Folder refresh
+and retries that.
 folder-init uses the same profile choices with an ABSENT canonical --folder path.
 It creates a new Folder at revision 1; no revision/digest options are accepted.
 A failed initialization is retained for folder-resume, never automatically retried.
@@ -992,6 +1007,13 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
           : {}),
       });
     } catch (error) {
+      // A Folder another Lazurio operation holds is a retryable refusal, as
+      // `machine folder-refresh` answers it: `lazurio update` runs this
+      // command as its refresh and retries it (F17's addendum of 2026-10-30).
+      if (error instanceof FolderOperationBusyError) {
+        console.log(JSON.stringify(folderBusyAnswer));
+        return 2;
+      }
       // A foreign top-level entry is a named refusal before any write.
       if (!(error instanceof FolderAdoptionError)) throw error;
       console.log(JSON.stringify(describeFolderAdoption(error)));

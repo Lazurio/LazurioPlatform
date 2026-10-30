@@ -68,6 +68,15 @@ export type ApplyOptions = Readonly<{
   ) => Promise<
     Readonly<{ outcome: "applied" | "failed"; detail: string | null }>
   >;
+  /** Brings the operator's Codex to what the Folder now records of the
+   * ChatGPT account's apps (decision F42's addendum of 2026-10-27), once the
+   * Folder took the settings, governed or not (absent is off): its outcome
+   * is the item `integrations.chatgpt_apps.allowed` where the Organization
+   * governs it. Without it, the Folder's answer alone says how that item
+   * turned out. */
+  chatgptApps?: () => Promise<
+    Readonly<{ outcome: "applied" | "failed"; detail: string | null }>
+  >;
 }>;
 
 /** The keys a section governs. */
@@ -139,6 +148,14 @@ export async function applyOrganizationSettings(
           detail: "executor-failed",
         }))
       : null;
+  // So do ChatGPT's apps, in the operator's Codex.
+  const codex =
+    detail === null && options.chatgptApps
+      ? await options.chatgptApps().catch(() => ({
+          outcome: "failed" as const,
+          detail: "codex-failed",
+        }))
+      : null;
   const items: SettingsItem[] = organizationSettingsKeys
     .filter((key) => governed.has(key))
     .map((key) =>
@@ -146,12 +163,14 @@ export async function applyOrganizationSettings(
         executor !== null &&
           (microsoft365SettingKeys as readonly string[]).includes(key)
           ? { key, outcome: executor.outcome, detail: executor.detail }
-          : {
-              key,
-              outcome:
-                detail === null ? ("applied" as const) : ("failed" as const),
-              detail,
-            },
+          : codex !== null && key === "integrations.chatgpt_apps.allowed"
+            ? { key, outcome: codex.outcome, detail: codex.detail }
+            : {
+                key,
+                outcome:
+                  detail === null ? ("applied" as const) : ("failed" as const),
+                detail,
+              },
       ),
     );
   for (const key of delivered.unsupported)

@@ -6,7 +6,7 @@ import { presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
 import { instructionTemplateRevision } from "../src/folder/render";
 import { activatableTools } from "../src/tools/catalog";
-import { bindings } from "./fixtures/machine-bindings";
+import { bindings, personalWithEntry } from "./fixtures/machine-bindings";
 import { tryBinding } from "./fixtures/try-environments";
 
 // The template revision names the bytes of the generated Folder (decision
@@ -23,8 +23,8 @@ import { tryBinding } from "./fixtures/try-environments";
 // `bun test -u` does not touch it. The fixtures in `tests/fixtures` feed the
 // compositions too.
 const pinned = {
-  revision: "base-instructions-76",
-  digest: "7e7af7a97b77ca04e6fa05bdf5214bb5f5ae2e74dcfeaf5adc8e5e57feb5bae1",
+  revision: "base-instructions-91",
+  digest: "ec3ef88586f711dd9ae815f8603640dea7d48b446b76ddb53d32f79bfe71aa62",
 } as const;
 
 const optionalTools = activatableTools()
@@ -41,6 +41,14 @@ const environments = [
   { preset: "local", machine: null, os: "macos" },
   { preset: "hosted-personal", machine: bindings.personal, os: "linux" },
   { preset: "hosted-personal", machine: bindings.personalRelated, os: "linux" },
+  // With an assigned Work Environment (root decision 0192, addendum of
+  // 2026-10-26; plan DEV-6676 P2): the personal Folder's section that lists
+  // its alias renders only there.
+  {
+    preset: "hosted-personal",
+    machine: bindings.personalAssigned,
+    os: "linux",
+  },
   {
     preset: "hosted-organization-personal",
     machine: bindings.organization,
@@ -88,6 +96,14 @@ const environments = [
     os: "linux",
   },
   { preset: "hosted-personal", machine: bindings.personalBrowser, os: "linux" },
+  // With Buddy's origin (decision F60), which only the person's own Osobní
+  // Prostředí records: the line that opens his chat for the user renders only
+  // there (decision F14's addendum of 2026-10-26).
+  {
+    preset: "hosted-personal",
+    machine: personalWithEntry(20000, true, true, true),
+    os: "linux",
+  },
   // A public Environment (root decision 0204, F55's addendum of 2026-10-17):
   // no GitHub identity, on a Team Environment and on one of one operator.
   {
@@ -141,16 +157,36 @@ const environments = [
       },
     },
   },
+  // ChatGPT's apps (decision F42's addendum of 2026-10-27): allowed by the
+  // Organization, and turned on by the person on their own Environment and
+  // on their own computer; every other composition has them off.
+  {
+    preset: "hosted-organization-personal",
+    machine: bindings.organizationEntry,
+    os: "linux",
+    settings: { integrations: { chatgpt_apps: { allowed: true } } },
+  },
+  {
+    preset: "hosted-personal",
+    machine: bindings.personalEntry,
+    os: "linux",
+    chatgptAppsAllowed: true,
+  },
+  { preset: "local", machine: null, os: "macos", chatgptAppsAllowed: true },
 ] as const;
 
 function compositions() {
   const all = [];
   for (const environment of environments)
     for (const locale of ["cs", "en"] as const) {
-      const settings =
-        "settings" in environment
+      const settings = {
+        ...("settings" in environment
           ? { organizationSettings: environment.settings }
-          : {};
+          : {}),
+        ...("chatgptAppsAllowed" in environment
+          ? { chatgptAppsAllowed: environment.chatgptAppsAllowed }
+          : {}),
+      };
       all.push({
         preset: environment.preset,
         machine: environment.machine,

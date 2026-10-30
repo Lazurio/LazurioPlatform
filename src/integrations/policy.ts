@@ -25,3 +25,22 @@ export const environmentComposioPolicy: ComposioPolicy = Object.freeze({
 
 /** A policy given by a test instead of the Folder's recorded settings. */
 export type ComposioPolicySource = () => Promise<ComposioPolicy>;
+
+// Whether agents may use the apps, plugins and connectors of the person's
+// ChatGPT account in Codex ("Aplikace z ChatGPT", decision F42's addendum of
+// 2026-10-27): on an Organization's Environment its Organization decides
+// (`integrations.chatgpt_apps.allowed`), on a personal Environment and the
+// person's own computer the person (the Folder's `chatgptAppsAllowed`). Off
+// unless someone allowed it: unlike Composio, an Organization that says
+// nothing does not allow them. The Folder's text, the Integrace page,
+// `lazurio integrations chatgpt-apps`, doctor and the Codex configuration
+// read this seam only (`chatgptAppsPolicyOf`).
+
+export type ChatgptAppsPolicy = Readonly<{
+  allowed: boolean;
+  /** Who decides here: the Organization's settings, or the person. */
+  source: "organization" | "person";
+  /** Whether that decision was made (`false`: nobody allowed them, the
+   * default, off). */
+  set: boolean;
+}>;

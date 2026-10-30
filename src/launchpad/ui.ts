@@ -26,7 +26,8 @@ import { browserPanelOrigin } from "./browser-panel-view";
 import { createBuddyClient } from "./buddy-client";
 import { createBuddyDialog, tickCountdowns } from "./buddy-dialog";
 import { createBuddyPanel } from "./buddy-panel";
-import { type BuddyStepFacts, buddyFact } from "./buddy-view";
+import { createTelegramDialog } from "./buddy-telegram-dialog";
+import { type BuddyStepFacts, buddyFact, meetStart } from "./buddy-view";
 import { createCatalogPanel, type NewModuleOutcome } from "./catalog-panel";
 import type { PublicEntry } from "./chat";
 import {
@@ -53,17 +54,20 @@ import {
   createComposioOrganizationReader,
   githubAccount,
   githubFact,
+  hasOnboarding,
   idleAutoStart,
   nextBasic,
+  personaGithub,
   readFragment,
   resolveOf,
+  responsibleLogin,
   type SetupAction,
   type StartRequest,
   shellSetup,
-  signsInAsPerson,
   startDecision,
   startSection,
   type TourFacts,
+  withBuddySetup,
 } from "./first-run";
 import { type PageHelpId, pageGuide, pageHelpStates } from "./guides";
 import { createIntegrationsPanel } from "./integrations-panel";
@@ -103,7 +107,7 @@ import {
 } from "./tools-view";
 import { createTour } from "./tour";
 import type { PillStatus } from "./update-pill";
-import { fill, pillView, pillVisible } from "./update-view";
+import { pillView, pillVisible } from "./update-view";
 import { createVaultPagePanel } from "./vault-page-panel";
 import {
   bitwardenTarget,
@@ -250,7 +254,7 @@ function drawGuide(route: PageRoute) {
         ? "demo"
         : profileState === null
           ? null
-          : signsInAsPerson(profileState.preset)
+          : hasOnboarding(profileState.preset)
             ? "basics"
             : "none",
       tools: toolTargets,
@@ -456,6 +460,10 @@ let profileState: Readonly<{
   preset: string;
   revision: number;
   machine: string | null;
+  /** The login whose own account does not belong in gh here: the
+   * Automated Environment's responsible user (`responsibleLogin`, F27's
+   * addendum of 2026-10-30); null elsewhere. */
+  responsible: string | null;
 }> | null = null;
 // Whether the profile was read (`POST /api/profile`), and whether that read
 // failed.
@@ -489,11 +497,15 @@ const buddyClient = createBuddyClient({
 let buddyAsked = false;
 const buddyHere = (): boolean =>
   shellDocument?.buddy !== undefined && !buddyClient.absent();
-const buddyFacts = (): BuddyStepFacts => ({
-  reading: buddyClient.reading(),
-  signIn: buddyClient.signIn(),
-  now: Date.now(),
-});
+const buddyFacts = (): BuddyStepFacts => {
+  const refused = buddyClient.refused();
+  return {
+    reading: buddyClient.reading(),
+    signIn: buddyClient.signIn(),
+    now: Date.now(),
+    ...(refused === undefined ? {} : { refused }),
+  };
+};
 /** Reads Buddy once the page knows he is here, and again when asked. */
 function readBuddy(again = false) {
   if (!buddyHere() || (buddyAsked && !again)) return;
@@ -507,9 +519,15 @@ function firstRunFacts(): TourFacts | null {
     // A public Environment's demo onboarding (decision F55), by the entry.
     ...(isPublicEnvironment(entry) ? { audience: "public" as const } : {}),
     ai: aiFact(),
-    github: githubFact(toolsOverview, profileState.revision),
+    github: githubFact(
+      toolsOverview,
+      profileState.revision,
+      profileState.responsible,
+    ),
     content: content.fact(),
-    ...(buddyHere() ? { buddy: buddyFact(buddyClient.reading()) } : {}),
+    ...(buddyHere()
+      ? { buddy: buddyFact(buddyClient.reading(), buddyClient.refused()) }
+      : {}),
   };
 }
 // Whether this Environment's GitHub identity can prepare the Organization
@@ -634,7 +652,11 @@ const content = createContentPanel({
   github: () =>
     profileState === null
       ? "unknown"
-      : githubFact(toolsOverview, profileState.revision),
+      : githubFact(
+          toolsOverview,
+          profileState.revision,
+          profileState.responsible,
+        ),
   modules: (login) => catalog.modulesOf(login),
   pluralModules: (count) =>
     copy[
@@ -779,12 +801,18 @@ const startPanel = createStartPanel({
   reveal: () => vaultPage.revealBitwarden(),
   toured: () => tour.toured(),
   signInGithub: () => {
-    if (!tools.openSignIn("gh")) shell.navigate(settingsPath("tools"));
+    if (!tools.openSignIn("gh")) toolsAt("gh");
   },
+  // "Přepnout účet" (F27's addendum of 2026-10-30): where the sign-out does
+  // not end signed out, Nástroje at gh's row, whose notice says why.
+  switchGithub: () =>
+    void tools.switchAccount("gh").then((opened) => {
+      if (!opened) toolsAt("gh");
+    }),
   // Signed in already, the dialog opens at the step left in Composio.
   signInComposio: () => {
     if (!tools.openSignIn("composio") && !tools.openComposioOrganization())
-      shell.navigate(settingsPath("tools"));
+      toolsAt("composio");
   },
   // "Přihlásit kódem": ChatGPT's sign-in by code (root decision 0201 point 10).
   signInAi: (tool, byCode) =>
@@ -807,6 +835,16 @@ const startPanel = createStartPanel({
 });
 // The dialog "Seznamte se s Buddym" and Nastavení → Buddy (decision F65).
 const buddyAvatar = () => buddyAvatarSource(shellDocument?.buddy?.origin);
+// "Připojit Telegram" (decision F66): his own bot from BotFather, from
+// Nastavení → Buddy → Kanály and the last screen of "Seznamte se s Buddym".
+const telegramDialog = createTelegramDialog({
+  copy: () => copy,
+  telegram: () => buddyClient.reading()?.telegram,
+  connect: (token, intent) => buddyClient.connectTelegram(token, intent),
+  approve: (request) => buddyClient.approveTelegram(request),
+  closed: () => drawBuddy(),
+  meetingOver: () => meetingFinished(),
+});
 const buddyDialog = createBuddyDialog({
   copy: () => copy,
   locale: () => locale,
@@ -814,8 +852,55 @@ const buddyDialog = createBuddyDialog({
   avatar: buddyAvatar,
   signIn: () => void buddyClient.start(),
   save: (draft, confirm) => buddyClient.savePersona(draft, confirm, locale),
+  // The beats that show his bots and where he is name this Environment's
+  // apps as its switch does (decision F60's addendum of 2026-10-26).
+  apps: () => {
+    const words = shellMessages(locale);
+    return {
+      apps:
+        shellDocument === null
+          ? []
+          : switchTabs(shellDocument, words, "apps")
+              .filter((tab) => tab.href !== null)
+              .map((tab) => tab.label),
+      automate: words.automate,
+    };
+  },
+  // His bubble is this page's own `<lazurio-buddy>`: its launcher rises over
+  // the dialog while it shows where he is, and his window opens once the
+  // meeting is over, as the person's own click would open it.
+  spotlight: (on) => buddyElement()?.spotlight(on),
+  finished: () => meetingFinished(),
   closed: () => firstRun(),
+  telegram: () => telegramDialog.open(undefined, "meeting"),
 });
+/** The meeting with Buddy is over ("Teď ne", Hotovo, or Telegram's dialog
+ * it opened, closed): the page draws again and his window opens, where his
+ * first message comes, as the person's own click would open it. */
+function meetingFinished() {
+  firstRun();
+  buddyElement()?.openWindow();
+}
+/** This page's `<lazurio-buddy>`, Buddy's bubble, once the shell defined it. */
+function buddyElement(): Readonly<{
+  spotlight(on: boolean): void;
+  openWindow(): boolean;
+}> | null {
+  const element = buddy as
+    | (HTMLElement & {
+        spotlight?: (on: boolean) => void;
+        openWindow?: () => boolean;
+      })
+    | null;
+  return element !== null &&
+    typeof element.spotlight === "function" &&
+    typeof element.openWindow === "function"
+    ? (element as unknown as {
+        spotlight(on: boolean): void;
+        openWindow(): boolean;
+      })
+    : null;
+}
 const buddyPanel = createBuddyPanel({
   copy: () => copy,
   locale: () => locale,
@@ -830,6 +915,11 @@ const buddyPanel = createBuddyPanel({
   resume: () => buddyDialog.open("sign-in", "sign-in"),
   signOut: () => buddyClient.signOut(),
   save: (draft) => buddyClient.savePersona(draft, false, locale),
+  telegram: {
+    open: () => telegramDialog.open("botfather", "channels"),
+    resume: () => telegramDialog.open("start", "channels"),
+    disconnect: () => buddyClient.disconnectTelegram(),
+  },
 });
 const buddyNav = document.querySelector<HTMLElement>("#buddy-nav");
 // The codes' countdowns, filled in place each second while one waits.
@@ -840,6 +930,7 @@ function drawBuddy() {
   if (buddyNav !== null) buddyNav.hidden = !buddyHere();
   buddyPanel.render();
   buddyDialog.render();
+  telegramDialog.render();
   firstRun();
   const waiting = buddyClient.signIn().kind === "pending";
   if (waiting && buddyTicker === undefined)
@@ -965,7 +1056,7 @@ function firstRun() {
   if (startNav !== null)
     startNav.hidden =
       profileState !== null &&
-      !signsInAsPerson(profileState.preset) &&
+      !hasOnboarding(profileState.preset) &&
       !isPublicEnvironment(entry);
   drawVaultNav();
   const count = facts === null ? null : startCount(facts);
@@ -986,16 +1077,24 @@ function firstRun() {
  * changed while GitHub's state is not known here. */
 function provideOwnSetup(facts: TourFacts | null) {
   if (shellDocument === null || facts === null || profileState === null) return;
-  if (facts.github === "unknown") return;
-  const setup = shellSetup({
-    preset: profileState.preset,
-    audience: facts.audience,
-    ai: facts.ai,
-    github: facts.github,
-    list: content.list(),
-    job: content.job(),
-    ...(facts.buddy === undefined ? {} : { buddy: facts.buddy }),
-  });
+  // While GitHub's state is not known here, the server's `setup` stays, with
+  // Buddy's step as this page read it: his bubble follows his meeting at
+  // once (decision F60's addendum of 2026-10-26).
+  const setup =
+    facts.github !== "unknown"
+      ? shellSetup({
+          preset: profileState.preset,
+          audience: facts.audience,
+          ai: facts.ai,
+          github: facts.github,
+          list: content.list(),
+          job: content.job(),
+          ...(facts.buddy === undefined ? {} : { buddy: facts.buddy }),
+        })
+      : shellDocument.setup === undefined || facts.buddy === undefined
+        ? undefined
+        : withBuddySetup(shellDocument.setup, facts.buddy);
+  if (facts.github === "unknown" && setup === undefined) return;
   const { setup: _, ...rest } = shellDocument;
   const next = setup === undefined ? rest : { ...rest, setup };
   const drawn = JSON.stringify(next);
@@ -1017,8 +1116,17 @@ function takeStart() {
   if (facts === null) return;
   // GitHub waits for AI, the content for its turn (0201 point 3,
   // `startDecision`): an older link starts nothing out of order.
+  // Buddy's request waits for the shell document, which says whether he is
+  // here at all.
+  if (start === "meet-buddy" && shellDocument === null && !shellRead) return;
   const decision = startDecision(start, facts);
   if (decision === "wait") return;
+  if (decision === "meet-buddy") {
+    // His dialog where his step stands: his sign-in or his introduction.
+    pendingStart = null;
+    buddyDialog.open(meetStart(buddyFacts()));
+    return;
+  }
   if (decision === "sign-in-gh") {
     if (tools.openSignIn("gh")) pendingStart = null;
     return;
@@ -1026,6 +1134,18 @@ function takeStart() {
   pendingStart = null;
   if (decision === "open-ai") startPanel.focusAi();
   if (decision === "install") void content.start();
+}
+// Settings → Tools at one tool's row (Matěj 2026-10-28): whoever sends a
+// person there for a tool shows them where to go on, never only the page.
+function toolsAt(name: string) {
+  shell.navigate(settingsPath("tools"));
+  tools.reveal(name);
+}
+// Integrace's card for an app its tool connects (Matěj 2026-10-28): the
+// tool's sign-in opens over Integrace where it has one, so WhatsApp's QR
+// code shows at once; otherwise Settings → Tools opens at the tool's row.
+async function openTool(name: string) {
+  if (!(await tools.connect(name))) toolsAt(name);
 }
 function setupAction(action: SetupAction) {
   if (action === "resolve-in-chat") {
@@ -1133,9 +1253,12 @@ const integrations = createIntegrationsPanel({
       () => tools.refresh({ signIn: true }),
       () => {
         shell.navigate(settingsPath("tools"));
-        return tools.openSignIn("composio");
+        if (tools.openSignIn("composio")) return true;
+        tools.reveal("composio");
+        return false;
       },
     ),
+  openTool: (tool) => void openTool(tool),
   admin: async () => {
     const key = catalog.soleOrganization();
     if (key === null) return false;
@@ -1357,6 +1480,36 @@ if (pendingStart !== null) {
   if (route.view !== "settings" || route.section !== section)
     shell.navigate(settingsPath(section));
 }
+// A start request after the first address: a link of the shell on this
+// origin (`lazurio-navigate`, which the router has already followed by
+// now), Buddy's bubble on this very page among them, or the address's
+// fragment changed in place. Only the requests `readFragment` knows count;
+// the fragment leaves the address again.
+function takeStartRequest(start: StartRequest | null) {
+  if (start === null) return;
+  pendingStart = start;
+  const route = shell.route();
+  const section = startSection[start];
+  if (route.view !== "settings" || route.section !== section)
+    shell.navigate(settingsPath(section));
+  takeStart();
+}
+document.addEventListener("lazurio-navigate", (event) => {
+  const href = (event as CustomEvent<{ href?: unknown }>).detail?.href;
+  if (
+    typeof href !== "string" ||
+    !href.startsWith("/") ||
+    href.startsWith("//")
+  )
+    return;
+  takeStartRequest(readFragment(new URL(href, location.origin).hash).start);
+});
+window.addEventListener("hashchange", () => {
+  const { start } = readFragment(location.hash);
+  if (start === null) return;
+  history.replaceState(null, "", location.pathname);
+  takeStartRequest(start);
+});
 
 let current: {
   revision: number;
@@ -1514,6 +1667,7 @@ async function load() {
     preset: current.preset.name,
     revision: current.revision,
     machine: current.machine?.name ?? null,
+    responsible: responsibleLogin(current.preset.name, current.machine),
   };
   // The content core owns availability; a persona account uses the same
   // content operation as a person's work Environment.
@@ -1616,7 +1770,7 @@ const tools = createToolsPanel({
     const github =
       profileState === null
         ? "unknown"
-        : githubFact(overview, profileState.revision);
+        : githubFact(overview, profileState.revision, profileState.responsible);
     if (githubSeen !== "connected" && github === "connected")
       void content.refresh({ restore: false });
     githubSeen = github;
@@ -1639,6 +1793,9 @@ const tools = createToolsPanel({
   // A sign-in of this page started, moved on or ended, its window open or
   // closed (#516): Začínáme follows.
   signInsChanged: () => firstRun(),
+  // The Automated Environment's gh is the persona's account (F27's addendum
+  // of 2026-10-30): its code is confirmed with that account.
+  persona: () => personaGithub(profileState?.preset),
 });
 const voice = voicePanel({
   post,
@@ -1989,9 +2146,6 @@ const updateError =
 const updateStateInvalid = document.querySelector<HTMLParagraphElement>(
   "#update-state-invalid",
 );
-const updateFolderRefresh = document.querySelector<HTMLParagraphElement>(
-  "#update-folder-refresh",
-);
 if (
   !updateSection ||
   !updateText ||
@@ -1999,8 +2153,7 @@ if (
   !updateAction ||
   !updateChecked ||
   !updateError ||
-  !updateStateInvalid ||
-  !updateFolderRefresh
+  !updateStateInvalid
 )
   throw new Error("Missing update UI");
 let updateStatus: PillStatus | null = null;
@@ -2008,8 +2161,8 @@ let updateNote: string | null = null;
 function renderUpdate() {
   if (!updateStatus || !updateSection) return;
   const view = pillView(updateStatus, copy, Date.now());
-  // Only while an update is available (pillVisible); the Folder refresh
-  // line below is independent of the pill.
+  // Only while an update is available (pillVisible). The Folder's refresh
+  // is part of the update and never shown (F17's addendum of 2026-10-30).
   updateSection.hidden = !pillVisible(updateStatus);
   if (updateText) updateText.textContent = view.text;
   if (updateNotes) {
@@ -2033,26 +2186,6 @@ function renderUpdate() {
   if (updateStateInvalid) {
     updateStateInvalid.hidden = view.stateInvalid === null;
     updateStateInvalid.textContent = view.stateInvalid ?? "";
-  }
-  // Read-only: the command is shown, never run from here. It stands in its
-  // own selectable monospace line of the sentence.
-  if (updateFolderRefresh) {
-    const refresh = updateStatus.folderRefresh;
-    updateFolderRefresh.hidden = view.folderRefresh === null;
-    if (refresh === null) updateFolderRefresh.replaceChildren();
-    else {
-      const [before, after = ""] = fill(copy.updateFolderRefresh, {
-        recorded: refresh.recorded,
-        product: refresh.product,
-      }).split("{command}");
-      const command = document.createElement("code");
-      command.textContent = refresh.command;
-      updateFolderRefresh.replaceChildren(
-        (before ?? "").trimEnd(),
-        command,
-        after,
-      );
-    }
   }
 }
 async function refreshUpdate() {

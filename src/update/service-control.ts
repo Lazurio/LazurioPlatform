@@ -6,6 +6,7 @@ import {
   updateError,
   updateErrorCodes,
 } from "./errors";
+import { versionOfTag } from "./identity";
 import { layout } from "./layout";
 import { type ProcessRunner, runProcess } from "./self-check";
 
@@ -138,8 +139,23 @@ async function serviceOutput(
  */
 export type UpdateUnitState =
   | Readonly<{ kind: "absent" }>
-  | Readonly<{ kind: "running" }>
+  /** `target`: the version the run fetches (`updateTarget`), when its unit
+   * names one. */
+  | Readonly<{ kind: "running"; target?: string }>
   | Readonly<{ kind: "failed"; invocationId: string }>;
+
+/** The version a running update unit fetches. The unit is started without
+ * `--description`, so systemd-run describes it by its command line,
+ * `<selector> update --version v<version> --json --base <base>`
+ * (launchpad-activation.ts `updateCommand`); an older Launchpad's unit reads
+ * the same. Undefined when the description names no product version. */
+export function updateTarget(
+  description: string | undefined,
+): string | undefined {
+  const words = (description ?? "").split(/\s+/);
+  const at = words.indexOf("--version");
+  return at < 0 ? undefined : versionOfTag(words[at + 1]);
+}
 
 export async function observeUpdateUnit(
   input: ServiceCommand,
@@ -148,7 +164,7 @@ export async function observeUpdateUnit(
     "systemctl",
     "--user",
     "show",
-    "--property=LoadState,ActiveState,InvocationID",
+    "--property=LoadState,ActiveState,InvocationID,Description",
     "--",
     updateUnit,
   ]);
@@ -166,11 +182,17 @@ export async function observeUpdateUnit(
     return /^[0-9a-f]{32}$/.test(invocationId)
       ? Object.freeze({ kind: "failed" as const, invocationId })
       : null;
-  return ["active", "activating", "deactivating", "reloading"].includes(
-    active ?? "",
+  if (
+    !["active", "activating", "deactivating", "reloading"].includes(
+      active ?? "",
+    )
   )
-    ? Object.freeze({ kind: "running" as const })
-    : null;
+    return null;
+  const target = updateTarget(properties.get("Description"));
+  return Object.freeze({
+    kind: "running" as const,
+    ...(target === undefined ? {} : { target }),
+  });
 }
 
 /** The one stable error code a failed run of the update unit printed with

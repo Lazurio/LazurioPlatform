@@ -106,9 +106,11 @@ and F17. In short:
 - **The rollout.** Installs when absent or broken, raises a version below the pin,
   never lowers one; a version above the pin is the fact `ahead`, not drift. The
   Machines role never runs `lazurio update`.
-- **The Folder.** A product update never writes the Folder (F14). `update`, `update
-  status` and the pill say "Folder refresh needed" with the exact command when the
-  Folder records an older template revision.
+- **The Folder.** `lazurio update` refreshes the Folder itself when it records an
+  older template revision, after the switch and when nothing is newer, through the one
+  Folder change path (F14); people never see a refresh. `update status` and `doctor`
+  keep reporting one that is still needed, for agents (F17 addendum 2026-10-30, which
+  replaced the "Folder refresh needed" line with its command).
 - **A Team Environment.** Any of its users may update; the update affects all of
   them, and the generated text says so (F17 addendum 2026-10-02, point 4). This
   answers question Q6 of the draft.
@@ -326,7 +328,7 @@ cites them.
 | # | Slice | Repository | State on `main` (2026-10-06) |
 | --- | --- | --- | --- |
 | S1 | Decisions: user owns the version, pin is a minimum, first installation, no rollback, one-way migration | Platform, root | Done: F17 addendum, F20, F21, F22; root 0161 addendum, 0164, 0166–0168 |
-| S2 | `~/.local/bin/lazurio`; hosted manual lets the user update; "Folder refresh needed" | Platform | Done (F17 addendum); released only in pre-releases |
+| S2 | `~/.local/bin/lazurio`; hosted manual lets the user update; "Folder refresh needed" | Platform | Done (F17 addendum); released only in pre-releases. The refresh line is replaced by the update's own refresh (F17 addendum 2026-10-30) |
 | S3 | Machines role: pin as a minimum, verify the PATH entry, never run `lazurio update` | Machines | Contract in [machine handover](machine-handover.md#what-the-machines-role-does-with-the-lazurio-version-f17-addendum-2026-09-28); implementation **unverified** here; repair above the pin open (Q5) |
 | S4 | First installation: `install.sh` with `--verify-release`, attached to releases; the website route | Platform, website | Script done; route and first final release with it missing ([#223](https://github.com/Lazurio/LazurioPlatform/issues/223)). npm second door not scheduled |
 | S8 | Hosted Linux Environments: the F22 switch apply (M2), resident removed | Machines, Platform | Under way since 2026-09-29 (F25); slices in [Launchpad parity, E](launchpad-parity.md#e-slices); first in order |

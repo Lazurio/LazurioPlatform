@@ -76,15 +76,17 @@ import { bindings } from "./fixtures/machine-bindings";
 // Buddy's persona (decision F64): one source, `persona.json`, and one deriver,
 // the Platform, byte for byte as the interim installer derives it.
 //
-// The goldens are the installer's own output: `buddy-install.sh` 2026-10-25.1,
-// sha256 f241352974ea153b6ad21a02227676d12ab33094502dc71c617b94a1457d3c3e
+// The goldens are the installer's own output: `buddy-install.sh` 2026-10-30.5,
+// sha256 7487e0c732a6d9fac296027d96afb591651a975b7e0189b9e0aceb6679f6c886
 // (`goldens.provenance`). `tests/fixtures/buddy-persona/generate-goldens.py`
 // checked that sha256, extracted the Python helper the installer writes at run
 // time (its heredoc `h.py`) into a temporary directory and ran the helper's
 // own commands into real files: `persona-check`, `soul-render`,
 // `acting-dropin-render` and `persona-build`, and its `sd_env` for raw values.
-// 2026-10-24.2 (sha256 fdd770f3…25ea5) rendered every one of these bytes the
-// same; 2026-10-25.1 adds only the refusal of lone surrogates. The installer
+// 2026-10-25.1 (sha256 f2413529…3c3e) rendered every one of these bytes the
+// same but for SOUL.md's name sentence, which 2026-10-30.5 replaces in all four
+// variants (#703); 2026-10-24.2 (sha256 fdd770f3…25ea5) rendered the same as
+// 2026-10-25.1, which adds only the refusal of lone surrogates. The installer
 // lives outside this repository (an interim draft its maintainer owns, until
 // Machines take the install over), so the provenance is its recorded sha256
 // and these committed goldens; with the installer at hand they are produced
@@ -106,10 +108,10 @@ const personaOf = (document: unknown): Persona => {
 const sha256 = (text: string) =>
   createHash("sha256").update(Buffer.from(text, "utf8")).digest("hex");
 
-test("the provenance of the goldens is the installer 2026-10-25.1, by its sha256", () => {
-  expect(goldens.provenance.version).toBe("2026-10-25.1");
+test("the provenance of the goldens is the installer 2026-10-30.5, by its sha256", () => {
+  expect(goldens.provenance.version).toBe("2026-10-30.5");
   expect(goldens.provenance.sha256).toBe(
-    "f241352974ea153b6ad21a02227676d12ab33094502dc71c617b94a1457d3c3e",
+    "7487e0c732a6d9fac296027d96afb591651a975b7e0189b9e0aceb6679f6c886",
   );
   // cs and en, ty and vy, with and without a tone, Buddy named Buddy, and the
   // quoting of ", \ and % all present.
@@ -159,6 +161,27 @@ test("SOUL.md, byte for byte as the installer renders it: cs and en, ty and vy, 
     "- Tón: Krátce, s humorem a bez vaty.\n",
   );
   expect(soul("tone-quoting", "en")).toContain('Říkej "ahoj", cesta C:\\Users');
+});
+
+test("the person's name is for the moments it carries something, never the opening of every reply or question (#703): cs and en, ty and vy", () => {
+  for (const address of ["ty", "vy"] as const) {
+    const persona = personaOf({
+      schema_version: "lazurio.buddy-persona.v1",
+      buddy_name: "Rex",
+      address,
+      user: { nominative: "Ada", accusative: "Adu", dative: "Adě" },
+    });
+    const cs = soulText(persona, "cs");
+    expect(cs).toContain(
+      "Uživatele oslovuješ jménem jen občas, třeba na začátku rozhovoru nebo když na tom záleží; nezačínáš jím každou odpověď ani otázku.",
+    );
+    expect(cs).not.toContain("Oslovuješ uživatele jménem.");
+    const en = soulText(persona, "en");
+    expect(en).toContain(
+      "You call the user by name only now and then, for example at the start of a conversation or when it matters; you do not start every reply or question with it.",
+    );
+    expect(en).not.toContain("You call the user by name.");
+  }
 });
 
 test("the gateway's drop-in, byte for byte with the installer's quoting: % doubled, and \" and \\ escaped where no persona name can reach", () => {

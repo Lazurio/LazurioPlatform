@@ -88,10 +88,11 @@ export async function systemctl(
 // ---- The gateway's unit -----------------------------------------------------
 
 /** The gateway's unit as systemd holds it. `startedAt`: when its main process
- * started, in microseconds since the epoch. */
+ * started, in microseconds since the epoch. `stopping`: systemd is stopping
+ * it, and its process may still run. */
 export type GatewayUnit =
   | Readonly<{ state: "running"; startedAt: bigint; needsReload: boolean }>
-  | Readonly<{ state: "stopped"; needsReload: boolean }>
+  | Readonly<{ state: "stopped"; needsReload: boolean; stopping?: true }>
   | Readonly<{ state: "absent" }>
   /** No user manager to ask, or an answer that is none. */
   | Readonly<{ state: "unknown" }>;
@@ -161,7 +162,11 @@ export async function gatewayUnitState(
     startedAt !== undefined
   )
     return Object.freeze({ state: "running", startedAt, needsReload });
-  return Object.freeze({ state: "stopped", needsReload });
+  return Object.freeze({
+    state: "stopped",
+    needsReload,
+    ...(active === "deactivating" ? { stopping: true as const } : {}),
+  });
 }
 
 /** When a file was last written, in microseconds since the epoch; undefined
@@ -598,8 +603,9 @@ export async function refreshPrompts(
 // ---- A refresh that is owed -------------------------------------------------
 
 /** Buddy's state directory, beside the installer's records. */
-const stateDirectory = (home: string): string =>
+export const buddyStateDirectory = (home: string): string =>
   join(home, ".local", "state", "lazurio", "buddy");
+const stateDirectory = buddyStateDirectory;
 
 /** The record that Buddy's stored prompts are owed a refresh: written before
  * SOUL.md changes, or before a refresh his changed Lazurio layer owes,
@@ -612,7 +618,7 @@ export const promptRefreshOwedPath = (home: string): string =>
 
 /** A file of the Platform's own in Buddy's state directory: 0600 in a 0700
  * directory, written whole and renamed into place. */
-async function writeStateFile(
+export async function writeBuddyStateFile(
   path: string,
   document: Readonly<Record<string, string>>,
 ): Promise<void> {
@@ -650,7 +656,7 @@ export async function owePromptRefresh(
   now: () => Date = () => new Date(),
 ): Promise<void> {
   if (await promptRefreshMarked(home)) return;
-  await writeStateFile(promptRefreshOwedPath(home), {
+  await writeBuddyStateFile(promptRefreshOwedPath(home), {
     schema_version: "lazurio.buddy-prompt-refresh.v1",
     owed_since: `${now().toISOString().slice(0, 19)}Z`,
   });
@@ -777,7 +783,7 @@ export const recordPromptInputs = (
   home: string,
   inputs: PromptInputs,
 ): Promise<void> =>
-  writeStateFile(promptInputsPath(home), {
+  writeBuddyStateFile(promptInputsPath(home), {
     schema_version: promptInputsSchema,
     layer_digest: inputs.layerDigest,
   });

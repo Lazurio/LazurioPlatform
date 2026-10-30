@@ -147,10 +147,20 @@ OpenMausBot. `hosted-organization-steward` is that Environment's preset:
   interventions; colleagues work with the persona through GitHub. Personalspace is
   never present; Organization repositories are mounted under `organizations/<org>/`
   exactly as on the other Organization presets. The responsible user installs
-  them with the ordinary explicit content operation in Settings or
-  `lazurio organization install`, under the persona's live GitHub role; the
+  them with the ordinary content operation, under the persona's live GitHub role:
+  in Začínáme, where it starts by itself once the AI and GitHub are there, in
+  Settings → Toto Prostředí, or with `lazurio organization install`; the
   Automated label neither grants Steward rights nor requires a hosting archive
   (F9 amendment of 2026-10-12).
+- **Onboarding of a work Environment** (Matěj 2026-10-30, [F27's
+  addendum](decisions.md#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment);
+  root decision 0188's addendum of that day). The Automated Environment has
+  Nastavení → Začínáme with its count, the line in Apps, the shell column's
+  prompt, the tour, the content's start by itself and the content-before-AI rule,
+  as `hosted-organization-personal` has them (`hasOnboarding` in
+  `src/launchpad/first-run.ts`): the AI, done without any action where the
+  Organization's AI pool serves it; GitHub, signed in as the persona's account;
+  the handover's Organization; then the optional steps.
 - **Provider identity `persona-account`.** The persona's own GitHub user account
   (a bot account), one per Organization (not a GitHub App: a code owner, a requested reviewer
   and an assignee must be users). It is neither the user's account nor Lazurio for
@@ -161,9 +171,14 @@ OpenMausBot. `hosted-organization-steward` is that Environment's preset:
   gh` or in the Launchpad (Tools), chooses the persona's account in the browser's
   device flow and links this Machine's SSH key to it. The user holds the account's
   two-factor authentication and recovery codes outside the Machine. Signing in the
-  user's own account there is wrong by the rendered rules; Platform does not
-  compare accounts (the handover names the user, not the persona) and grants
-  nothing. Composio and wacli behave as on a Work Environment.
+  user's own account there is wrong by the rendered rules. The sign-in gate does
+  not compare accounts (the handover names the user, not the persona) and grants
+  nothing; since F27's addendum of 2026-10-30 Začínáme's GitHub step alone does,
+  softly: gh signed in as the login of the handover's `automation` assignment
+  (letter case ignored) is not done there, says that the persona's account
+  belongs here and offers "Přepnout účet", which signs that account out and opens
+  the sign-in again. Nothing else, no sign-in, tool or route, refuses anything by
+  it. Composio and wacli behave as on a Work Environment.
 - **Surfaces** `launchpad`, `hosted-entry` (which already carries T3 Code, as on every
   hosted preset) and `mausbot`, the Lazurio MausBot web app of the Machine (its
   link from the Launchpad is the [Lazurio MausBot entry](launchpad-development.md#lazurio-mausbot-entry),

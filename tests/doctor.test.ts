@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import {
+  appendFile,
   chmod,
   lstat,
   mkdir,
@@ -37,6 +38,7 @@ import {
 } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
+import { instructionTemplateRevision } from "../src/folder/render";
 import { machineBinding } from "../src/machine/binding";
 import { parseMachineContext } from "../src/machine/context";
 import { exitBroken } from "../src/recover/cli";
@@ -51,6 +53,7 @@ import {
 } from "./fixtures/catalog-folder";
 import { executorWorld } from "./fixtures/fake-executor";
 import { githubHostKeys, realSshKeygen } from "./fixtures/fake-login-tools";
+import { renderedBy } from "./fixtures/folder-refresh";
 import { handoverEntry } from "./fixtures/machine-bindings";
 import organizationContext from "./fixtures/machine-context.json";
 import { runChild } from "./fixtures/run-child";
@@ -421,6 +424,7 @@ test("a healthy Environment: ok, exit 0, every group, the same answer in both fo
     "chat-defaults skipped not-hosted",
     "environment-browser skipped no-user-manager",
     "computer-use skipped no-user-manager",
+    "chatgpt-apps skipped not-hosted",
   ]);
   expect(find(result.json, "tool", "gh")).toEqual({
     id: "tool",
@@ -441,6 +445,29 @@ test("a healthy Environment: ok, exit 0, every group, the same answer in both fo
     lines.some((line) => /^ {2}ok\s+module\s+alpha\/web$/.test(line)),
   ).toBe(true);
   expect(lines.at(-1)).toBe("Read only; nothing was changed.");
+});
+
+test("a Folder an older template revision rendered needs attention for agents, also while its refresh is blocked", async () => {
+  // `lazurio update` refreshes it itself (F17's addendum of 2026-10-30);
+  // doctor keeps naming one it could not, never the command a person runs.
+  const world = await createWorld();
+  await renderedBy(world.folder, "base-instructions-8");
+  const needed: DoctorCheck = {
+    id: "folder-refresh",
+    outcome: "warn",
+    reason: "folder-refresh-needed",
+    context: {
+      recorded: "base-instructions-8",
+      product: instructionTemplateRevision,
+    },
+  };
+  const result = await doctor(world);
+  expect(result.json.verdict).toBe("attention");
+  expect(find(result.json, "folder-refresh")).toEqual(needed);
+  expectSameAnswer(result.human, result.json);
+  // An edited generated file blocks the refresh: still needed, still named.
+  await appendFile(join(world.folder, "AGENTS.md"), "My own rule.\n");
+  expect(find((await doctor(world)).json, "folder-refresh")).toEqual(needed);
 });
 
 test("a pending Folder transaction is broken: exit 3, the tools still read", async () => {

@@ -1,0 +1,2180 @@
+import { expect, test } from "bun:test";
+import { lstat, readFile, writeFile } from "node:fs/promises";
+import { createHermesGateway } from "../src/buddy/hermes-gateway";
+import {
+  type BotCheck,
+  createBuddyTelegram,
+  pairingMessage,
+  type TelegramCard,
+  type TelegramJournalEntry,
+  telegramBotChecker,
+  telegramBotPath,
+  telegramCardOf,
+  telegramIntentPath,
+  telegramQuietConfig,
+  telegramStatusOf,
+} from "../src/buddy/telegram";
+import {
+  type FakeHermesGateway,
+  fakeHermesGateway,
+} from "./fixtures/fake-hermes-gateway";
+
+// Decision F66: Buddy's own Telegram bot through Hermes's own writers, read
+// live from Hermes, against the stand-in for his gateway whose Telegram is
+// derived from Hermes's code at v0.22.4-lazurio.3. The token reaches Hermes's
+// writer once, after Telegram said it is a bot's, and nothing else: not an
+// answer, not the journal, not a file. Hermes's own words and ids stay in the
+// core. Telegram's flood limit and timeouts read as "on its way", never as an
+// error.
+
+const posix = test.skipIf(process.platform === "win32");
+
+/** A token of a bot's shape, made here so the repository holds none. */
+const token = `${"7".repeat(10)}:AAH${"q".repeat(32)}`;
+const otherToken = `${"8".repeat(10)}:BBH${"w".repeat(32)}`;
+const thirdToken = `${"9".repeat(10)}:CCH${"e".repeat(32)}`;
+const person = "4242424242";
+const stranger = "5151515151";
+
+type Fixture = Readonly<{
+  fake: FakeHermesGateway;
+  core: ReturnType<typeof createBuddyTelegram>;
+  journal: TelegramJournalEntry[];
+  checked: string[];
+  changes: () => number;
+  owe: (value: boolean) => void;
+  /** The restart a write in doubt owes, as F64's controller makes it: a
+   * new gateway, nothing owed, and the barrier lifted with what waited
+   * (unless `follow` is false: the follow-up not run yet). */
+  restart: (follow?: boolean) => Promise<void>;
+  /** Whether the barrier of a write in doubt holds. */
+  held: () => boolean;
+  /** Runs once, just after the next look at the barrier: a lift between a
+   * change's look and what it does. */
+  afterBlocked: (hook: () => void) => void;
+}>;
+
+async function within(
+  body: (fixture: Fixture) => Promise<void>,
+  check: (token: string) => BotCheck | Promise<BotCheck> = () => ({
+    kind: "bot",
+    username: "rex_buddy_bot",
+  }),
+  setup: Readonly<{
+    fake?: Parameters<typeof fakeHermesGateway>[0];
+    pairingText?: () => Promise<string | undefined>;
+    /** How long the client waits for an answer of Hermes. */
+    httpMs?: number;
+    /** The core's clock. */
+    now?: () => number;
+  }> = {},
+) {
+  const fake = await fakeHermesGateway(setup.fake);
+  const journal: TelegramJournalEntry[] = [];
+  const checked: string[] = [];
+  let changes = 0;
+  let owed = false;
+  let barrier = false;
+  let afterBlocked: (() => void) | undefined;
+  const core = createBuddyTelegram({
+    gateway: createHermesGateway({
+      home: fake.userHome,
+      ...(setup.httpMs === undefined ? {} : { httpMs: setup.httpMs }),
+    }),
+    home: fake.userHome,
+    owed: () => owed,
+    changed: async () => {
+      changes += 1;
+      owed = true;
+    },
+    uncertain: async () => {
+      changes += 1;
+      owed = true;
+      barrier = true;
+    },
+    blocked: async () => {
+      const value = barrier;
+      const hook = afterBlocked;
+      afterBlocked = undefined;
+      hook?.();
+      return value;
+    },
+    checkBot: async (value) => {
+      checked.push(value);
+      return check(value);
+    },
+    pairingText: setup.pairingText,
+    journal: (entry) => journal.push(entry),
+    now: setup.now,
+  });
+  try {
+    await body({
+      fake,
+      core,
+      journal,
+      checked,
+      changes: () => changes,
+      owe: (value) => {
+        owed = value;
+      },
+      restart: async (follow = true) => {
+        fake.restart();
+        owed = false;
+        if (barrier) {
+          barrier = false;
+          if (follow) await core.cleared("lifted");
+        }
+      },
+      held: () => barrier,
+      afterBlocked: (hook) => {
+        afterBlocked = hook;
+      },
+    });
+  } finally {
+    await fake.close();
+  }
+}
+
+/** Neither the token, an account, Hermes's request ids nor its words leave
+ * the core. */
+function clean(value: unknown, fake: FakeHermesGateway) {
+  const text = JSON.stringify(value);
+  for (const secret of [token, otherToken, person, stranger, "Hermes words"])
+    expect(text).not.toContain(secret);
+  for (const entry of fake.state.telegram.pending)
+    expect(text).not.toContain(entry.request_id);
+}
+
+/** What reached Hermes besides reads: method, path and body. */
+const writesOf = (fake: FakeHermesGateway) =>
+  fake.requests
+    .filter((request) => request.method !== "GET")
+    .map((request) => [request.method, request.path, JSON.parse(request.body)]);
+
+/** A connect that waits: `starting`, held, with its id for the page. */
+const heldConnect = {
+  kind: "telegram",
+  state: "starting",
+  pending: true,
+  held: true,
+  intent: expect.stringMatching(/^[0-9a-f]{32}$/),
+} as const;
+
+/** A connect sent again that a newer change replaced. */
+const superseded = { kind: "blocked", reason: "superseded" } as const;
+
+/** The id a held connect's answer gave its page. */
+const idOf = (answer: unknown): string =>
+  (answer as { intent?: string }).intent ?? "";
+
+/** Hermes answering 500 to exactly one write. */
+const failing =
+  (method: string, path: string) =>
+  (request: { method: string; path: string }) =>
+    request.method === method && request.path === path
+      ? Response.json({ detail: "Internal server error" }, { status: 500 })
+      : undefined;
+
+const card = (patch: Partial<TelegramCard> = {}): TelegramCard => ({
+  enabled: true,
+  configured: true,
+  runtime: "connected",
+  errorCode: null,
+  allowlisted: false,
+  allowed: [],
+  preview: "«redacted:7777...qqqq»",
+  ...patch,
+});
+
+test("the state is a pure function of Hermes's card: Telegram's waits and refusals at first read as on its way", () => {
+  const facts = { owed: false };
+  expect(telegramStatusOf(null, facts)).toEqual({ state: "unknown" });
+  expect(telegramStatusOf(card({ configured: false }), facts)).toEqual({
+    state: "none",
+  });
+  expect(telegramStatusOf(card({ enabled: false }), facts)).toEqual({
+    state: "none",
+  });
+  // A disconnect that waits for Buddy says so.
+  expect(telegramStatusOf(card({ enabled: false }), { owed: true })).toEqual({
+    state: "none",
+    pending: true,
+  });
+  // A restart owed: the running gateway still has what it read before,
+  // whatever its card says of the platform.
+  for (const runtime of ["connected", "fatal", "pending_restart", null])
+    expect(
+      telegramStatusOf(card({ runtime, errorCode: "telegram_auth_error" }), {
+        owed: true,
+        bot: "rex_buddy_bot",
+      }),
+    ).toEqual({ state: "starting", bot: "rex_buddy_bot", pending: true });
+  // Connecting, retrying after a flood limit or a timeout, never started,
+  // briefly disconnected: on its way, never an error.
+  for (const runtime of [
+    "connecting",
+    "retrying",
+    "pending_restart",
+    "disconnected",
+    "paused",
+    null,
+  ])
+    expect(
+      telegramStatusOf(
+        card({ runtime, errorCode: "telegram_connect_error" }),
+        facts,
+      ),
+    ).toEqual({ state: "starting" });
+  expect(
+    telegramStatusOf(
+      card({ runtime: "fatal", errorCode: "telegram_auth_error" }),
+      facts,
+    ),
+  ).toEqual({ state: "failed", reason: "refused" });
+  expect(
+    telegramStatusOf(
+      card({ runtime: "fatal", errorCode: "telegram_polling_conflict" }),
+      facts,
+    ),
+  ).toEqual({ state: "failed", reason: "conflict" });
+  expect(
+    telegramStatusOf(
+      card({ runtime: "fatal", errorCode: "missing_dependency" }),
+      facts,
+    ),
+  ).toEqual({ state: "failed", reason: "failed" });
+  // Running: connected once anyone is allowed, else it waits for the
+  // person's Start with who asked.
+  expect(
+    telegramStatusOf(card({ allowlisted: true, allowed: [person] }), facts),
+  ).toEqual({ state: "connected" });
+  expect(
+    telegramStatusOf(card(), {
+      owed: false,
+      requests: [{ request: "a".repeat(32), name: "rex" }],
+    }),
+  ).toEqual({
+    state: "waiting",
+    requests: [{ request: "a".repeat(32), name: "rex" }],
+  });
+});
+
+test("Hermes's card is read only as Telegram's, of its known shape", () => {
+  const entry = {
+    id: "telegram",
+    enabled: true,
+    configured: true,
+    state: "connected",
+    error_code: null,
+    env_vars: [
+      { key: "TELEGRAM_BOT_TOKEN", redacted_value: "«redacted:7777...qqqq»" },
+      {
+        key: "TELEGRAM_ALLOWED_USERS",
+        value: ` ${person}, *,x `,
+        is_set: true,
+      },
+    ],
+  };
+  expect(
+    telegramCardOf({ platforms: [{ ...entry, id: "discord" }, entry] }),
+  ).toEqual({
+    enabled: true,
+    configured: true,
+    runtime: "connected",
+    errorCode: null,
+    allowlisted: true,
+    allowed: [person],
+    preview: "«redacted:7777...qqqq»",
+  });
+  for (const body of [
+    null,
+    { platforms: {} },
+    { platforms: [] },
+    { platforms: [entry, entry] },
+    { platforms: [{ ...entry, enabled: "yes" }] },
+  ])
+    expect(telegramCardOf(body)).toBeNull();
+});
+
+posix(
+  "connect: Telegram first, then Hermes's writer once with exactly the token and enabled, the quiet keys, the restart asked; the token nowhere else",
+  () =>
+    within(async ({ fake, core, journal, checked, changes }) => {
+      const answer = await core.connect(token);
+      expect(checked).toEqual([token]);
+      const writes = fake.requests.filter(
+        (request) => request.method !== "GET",
+      );
+      expect(writes.map((request) => [request.method, request.path])).toEqual([
+        ["PUT", "/api/messaging/platforms/telegram"],
+        ["PUT", "/api/config"],
+      ]);
+      expect(JSON.parse(writes[0]?.body ?? "")).toEqual({
+        env: { TELEGRAM_BOT_TOKEN: token },
+        enabled: true,
+      });
+      // Explicit, so a token saved any other way ends the same.
+      expect(fake.state.telegram.enabled).toBe(true);
+      expect(JSON.parse(writes[1]?.body ?? "")).toEqual({
+        config: telegramQuietConfig,
+      });
+      expect(fake.state.telegram.config).toEqual({
+        display: {
+          platforms: {
+            telegram: {
+              tool_progress: false,
+              long_running_notifications: false,
+              suppress_warning_notifications: true,
+            },
+          },
+        },
+        compression: { codex_gpt55_autoraise_notice: false },
+        platforms: {
+          telegram: {
+            gateway_restart_notification: false,
+            extra: { drop_pending_on_cold_boot: false },
+          },
+        },
+      });
+      expect(changes()).toBe(1);
+      // On its way, its bot named, its address as a code to scan.
+      expect(answer).toMatchObject({
+        kind: "telegram",
+        state: "starting",
+        bot: "rex_buddy_bot",
+        pending: true,
+      });
+      expect(answer.kind === "telegram" && answer.botQr).toStartWith("<svg");
+      expect(journal).toEqual([{ operation: "connect", outcome: "telegram" }]);
+      clean([answer, journal], fake);
+      // The record of the bot: its name and a digest of Hermes's preview.
+      const record = await readFile(telegramBotPath(fake.userHome), "utf8");
+      expect(record).not.toContain(token);
+      expect(record).not.toContain("redacted");
+      expect(JSON.parse(record)).toMatchObject({
+        schema_version: "lazurio.buddy-telegram-bot.v1",
+        username: "rex_buddy_bot",
+      });
+      expect((await lstat(telegramBotPath(fake.userHome))).mode & 0o777).toBe(
+        0o600,
+      );
+    }),
+);
+
+posix(
+  "connect: a token of another shape, one Telegram does not know or Telegram not answering saves nothing and asks no restart",
+  async () => {
+    await within(async ({ fake, core, checked, changes, journal }) => {
+      for (const value of [
+        "",
+        "123",
+        `${token}\n`,
+        "abc:".concat("x".repeat(40)),
+      ])
+        expect(await core.connect(value)).toEqual({
+          kind: "invalid",
+          reason: "invalid-token",
+        });
+      expect(checked).toEqual([]);
+      expect(fake.requests).toHaveLength(0);
+      expect(changes()).toBe(0);
+      clean(journal, fake);
+    });
+    await within(
+      async ({ fake, core, changes }) => {
+        expect(await core.connect(token)).toEqual({
+          kind: "failed",
+          reason: "token-refused",
+        });
+        expect(fake.requests).toHaveLength(0);
+        expect(fake.state.telegram.token).toBeNull();
+        expect(changes()).toBe(0);
+      },
+      () => ({ kind: "refused" }),
+    );
+    await within(
+      async ({ fake, core, changes }) => {
+        expect(await core.connect(token)).toEqual({
+          kind: "failed",
+          reason: "telegram-unreachable",
+        });
+        expect(fake.requests).toHaveLength(0);
+        expect(changes()).toBe(0);
+      },
+      () => ({ kind: "unreachable" }),
+    );
+  },
+);
+
+posix(
+  "connect: Hermes refusing the token, failing, or not running changes nothing it reports; its words never leave",
+  () =>
+    within(async ({ fake, core, changes, journal }) => {
+      fake.state.http = (request) =>
+        request.method === "PUT"
+          ? Response.json(
+              { detail: `Hermes words about ${token}` },
+              { status: 400 },
+            )
+          : undefined;
+      const refused = await core.connect(token);
+      expect(refused).toEqual({ kind: "failed", reason: "token-refused" });
+      fake.state.http = (request) =>
+        request.method === "PUT"
+          ? Response.json({ detail: "Internal server error" }, { status: 500 })
+          : undefined;
+      expect(await core.connect(token)).toEqual({
+        kind: "failed",
+        reason: "failed",
+      });
+      expect(changes()).toBe(0);
+      fake.state.http = undefined;
+      await fake.stop();
+      const down = await core.connect(token);
+      expect(down).toEqual({ kind: "unavailable", reason: "no-socket" });
+      expect(await core.read()).toEqual({ state: "unknown" });
+      clean([refused, down, journal], fake);
+    }),
+);
+
+posix(
+  "the bot's name shows only while Hermes still holds a token of the preview it was recorded with",
+  () =>
+    within(async ({ fake, core, owe }) => {
+      await core.connect(token);
+      owe(false);
+      fake.state.telegram.runtime = "connected";
+      fake.state.telegram.allowed = person;
+      expect(await core.read()).toEqual({
+        state: "connected",
+        bot: "rex_buddy_bot",
+      });
+      // Replaced elsewhere (the installer, Hermes's own dashboard): no name.
+      fake.state.telegram.token = otherToken;
+      expect(await core.read()).toEqual({ state: "connected" });
+      // A record that is not one, or a link, names nothing either.
+      fake.state.telegram.token = token;
+      await writeFile(telegramBotPath(fake.userHome), "{");
+      expect(await core.read()).toEqual({ state: "connected" });
+    }),
+);
+
+posix(
+  "approve: who asked, by a handle of this process; the home channel, Hermes's approval, then the allowlist; the installer's end state",
+  () =>
+    within(async ({ fake, core, owe, journal }) => {
+      await core.connect(token);
+      owe(false);
+      fake.state.telegram.runtime = "connected";
+      // Nobody yet: it waits for the person's Start.
+      expect(await core.read()).toMatchObject({
+        state: "waiting",
+        requests: [],
+      });
+      const mine = fake.telegramMessage(person, "jana_s");
+      const theirs = fake.telegramMessage(stranger, "Somebody Else");
+      expect(mine).not.toBeNull();
+      const read = await core.read();
+      if (read.state !== "waiting") throw new Error("waiting");
+      expect(read.requests?.map((request) => request.name).sort()).toEqual([
+        "Somebody Else",
+        "jana_s",
+      ]);
+      // Two handles of the page's own shape, neither Hermes's id.
+      const handles = read.requests?.map((request) => request.request) ?? [];
+      expect(new Set(handles).size).toBe(2);
+      for (const handle of handles) {
+        expect(handle).toMatch(/^[0-9a-f]{32}$/);
+        expect([mine, theirs]).not.toContain(handle);
+      }
+      clean(read, fake);
+      const handle = read.requests?.find((request) => request.name === "jana_s")
+        ?.request as string;
+      fake.requests.length = 0;
+      const answer = await core.approve(handle);
+      const writes = fake.requests.filter(
+        (request) => request.method !== "GET",
+      );
+      expect(
+        writes.map((request) => [
+          request.method,
+          request.path,
+          JSON.parse(request.body),
+        ]),
+      ).toEqual([
+        ["PUT", "/api/env", { key: "TELEGRAM_HOME_CHANNEL", value: person }],
+        [
+          "POST",
+          "/api/pairing/approve",
+          { platform: "telegram", request_id: mine },
+        ],
+        [
+          "PUT",
+          "/api/messaging/platforms/telegram",
+          { env: { TELEGRAM_ALLOWED_USERS: person } },
+        ],
+      ]);
+      // As the installer leaves it: that account allowed, the home channel
+      // its private chat, everyone else kept out.
+      expect(fake.state.telegram.allowed).toBe(person);
+      expect(fake.state.telegram.home).toBe(person);
+      expect(fake.state.telegram.approved.map((user) => user.user_id)).toEqual([
+        person,
+      ]);
+      expect(fake.telegramMessage("6161616161", "late")).toBeNull();
+      expect(answer).toEqual({
+        kind: "telegram",
+        state: "connected",
+        bot: "rex_buddy_bot",
+      });
+      expect(journal.at(-1)).toEqual({
+        operation: "approve",
+        outcome: "telegram",
+      });
+      clean([answer, journal], fake);
+    }),
+);
+
+posix(
+  "approve: a request no longer there writes nothing; one Hermes approved and the allowlist does not name is offered and completed without a second approval",
+  () =>
+    within(async ({ fake, core, owe }) => {
+      await core.connect(token);
+      owe(false);
+      fake.state.telegram.runtime = "connected";
+      fake.telegramMessage(person, "jana_s");
+      const read = await core.read();
+      const handle =
+        read.state === "waiting" ? (read.requests?.[0]?.request as string) : "";
+      // It expired meanwhile.
+      fake.state.telegram.pending = [];
+      fake.requests.length = 0;
+      expect(await core.approve(handle)).toEqual({
+        kind: "blocked",
+        reason: "request-gone",
+      });
+      expect(
+        fake.requests.filter((request) => request.method !== "GET"),
+      ).toEqual([]);
+      expect(await core.approve("f".repeat(32))).toEqual({
+        kind: "blocked",
+        reason: "request-gone",
+      });
+      // Approved by Hermes before (a reconnect, or a terminal), not allowed.
+      fake.state.telegram.approved = [{ user_id: person, user_name: "jana_s" }];
+      const again = await core.read();
+      expect(again).toMatchObject({
+        state: "waiting",
+        requests: [{ name: "jana_s" }],
+      });
+      fake.requests.length = 0;
+      const answer = await core.approve(
+        again.state === "waiting"
+          ? (again.requests?.[0]?.request as string)
+          : "",
+      );
+      expect(answer).toMatchObject({ kind: "telegram", state: "connected" });
+      expect(
+        fake.requests
+          .filter((request) => request.method !== "GET")
+          .map((request) => request.path),
+      ).toEqual(["/api/env", "/api/messaging/platforms/telegram"]);
+      expect(fake.state.telegram.allowed).toBe(person);
+      expect(fake.state.telegram.home).toBe(person);
+    }),
+);
+
+posix(
+  "approve: a write that fails halfway claims nothing; the account stays offered, and Ano again finishes it without a second approval",
+  () =>
+    within(async ({ fake, core, owe }) => {
+      await core.connect(token);
+      owe(false);
+      fake.state.telegram.runtime = "connected";
+      const mine = fake.telegramMessage(person, "jana_s");
+      if (mine === null) throw new Error("Hermes recorded the request");
+      const offered = async () => {
+        const read = await core.read();
+        expect(read).toMatchObject({
+          state: "waiting",
+          requests: [{ name: "jana_s" }],
+        });
+        return read.state === "waiting"
+          ? (read.requests?.[0]?.request as string)
+          : "";
+      };
+      const refused = { kind: "failed", reason: "failed" } as const;
+      // The home channel: nothing written at all.
+      fake.state.http = failing("PUT", "/api/env");
+      expect(await core.approve(await offered())).toEqual(refused);
+      expect(fake.state.telegram).toMatchObject({ allowed: "", home: null });
+      expect(
+        fake.state.telegram.pending.map((entry) => entry.request_id),
+      ).toEqual([mine]);
+      // Hermes's approval: the home channel is there, the allowlist is not.
+      fake.state.http = failing("POST", "/api/pairing/approve");
+      expect(await core.approve(await offered())).toEqual(refused);
+      expect(fake.state.telegram).toMatchObject({ allowed: "", home: person });
+      // The allowlist: Hermes approved the account, which stays offered.
+      fake.state.http = failing("PUT", "/api/messaging/platforms/telegram");
+      expect(await core.approve(await offered())).toEqual(refused);
+      expect(fake.state.telegram.pending).toEqual([]);
+      expect(fake.state.telegram.approved.map((user) => user.user_id)).toEqual([
+        person,
+      ]);
+      expect(fake.state.telegram.allowed).toBe("");
+      // The gateway gone at the allowlist: the same.
+      fake.state.http = (request) =>
+        request.method === "PUT" &&
+        request.path === "/api/messaging/platforms/telegram"
+          ? Response.json(
+              { error: "gateway_not_ready", state: "draining" },
+              { status: 503 },
+            )
+          : undefined;
+      expect(await core.approve(await offered())).toEqual({
+        kind: "unavailable",
+        reason: "draining",
+      });
+      // Ano again: the home channel and the allowlist, no second approval.
+      fake.state.http = undefined;
+      const handle = await offered();
+      fake.requests.length = 0;
+      expect(await core.approve(handle)).toEqual({
+        kind: "telegram",
+        state: "connected",
+        bot: "rex_buddy_bot",
+      });
+      expect(
+        writesOf(fake).map(([method, path]) => `${method} ${path}`),
+      ).toEqual(["PUT /api/env", "PUT /api/messaging/platforms/telegram"]);
+      expect(fake.state.telegram).toMatchObject({
+        allowed: person,
+        home: person,
+      });
+    }),
+);
+
+posix(
+  "approve: while the restart the last connect owes is not done, Ano writes nothing and answers the state as it is, Připojuje se…; after the restart it goes through",
+  () =>
+    within(async ({ fake, core, owe, journal }) => {
+      await core.connect(token);
+      owe(false);
+      fake.state.telegram.runtime = "connected";
+      const mine = fake.telegramMessage(person, "jana_s");
+      if (mine === null) throw new Error("Hermes recorded the request");
+      const read = await core.read();
+      const handle =
+        read.state === "waiting" ? (read.requests?.[0]?.request as string) : "";
+      expect(handle).toMatch(/^[0-9a-f]{32}$/);
+      // Připojit again (another tab): a restart is owed, and a page from
+      // before still offers Ano.
+      await core.connect(token);
+      fake.requests.length = 0;
+      expect(await core.approve(handle)).toMatchObject({
+        kind: "telegram",
+        state: "starting",
+        bot: "rex_buddy_bot",
+        pending: true,
+      });
+      expect(writesOf(fake)).toEqual([]);
+      expect(fake.state.telegram).toMatchObject({ allowed: "", home: null });
+      expect(
+        fake.state.telegram.pending.map((entry) => entry.request_id),
+      ).toEqual([mine]);
+      expect(journal.at(-1)).toEqual({
+        operation: "approve",
+        outcome: "pending",
+        reason: "restart-owed",
+      });
+      // The restart is done: a new gateway, and Ano goes through.
+      owe(false);
+      fake.restart();
+      expect(await core.approve(handle)).toEqual({
+        kind: "telegram",
+        state: "connected",
+        bot: "rex_buddy_bot",
+      });
+      expect(
+        writesOf(fake).map(([method, path]) => `${method} ${path}`),
+      ).toEqual([
+        "PUT /api/env",
+        "POST /api/pairing/approve",
+        "PUT /api/messaging/platforms/telegram",
+      ]);
+      expect(fake.state.telegram).toMatchObject({
+        allowed: person,
+        home: person,
+      });
+    }),
+);
+
+/** Hermes holds the first write that `matches`, in the gateway that took
+ * it: released while that gateway still runs, the write runs; a gateway
+ * that has restarted since never runs it. */
+function holdOnce(
+  fake: FakeHermesGateway,
+  matches: (request: FakeHermesGateway["requests"][number]) => boolean,
+) {
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let holding = true;
+  let ran = false;
+  fake.state.http = async (request) => {
+    if (!holding || !matches(request)) return undefined;
+    holding = false;
+    const on = fake.state.instance;
+    await held;
+    if (fake.state.instance !== on)
+      return Response.json(
+        { error: "gateway_not_ready", state: "draining" },
+        { status: 503 },
+      );
+    ran = true;
+    return undefined;
+  };
+  return { release: () => release(), ran: () => ran };
+}
+
+posix(
+  "approve: a home channel Hermes holds past the client's timeout owes a restart; no other account is approved before it, and the late write never runs after it",
+  () =>
+    within(
+      async ({ fake, core, owe, changes, journal, restart }) => {
+        await core.connect(token);
+        owe(false);
+        fake.state.telegram.runtime = "connected";
+        fake.telegramMessage(person, "jana_s");
+        fake.telegramMessage(stranger, "druhy_ucet");
+        const read = await core.read();
+        const handleOf = (name: string) =>
+          read.state === "waiting"
+            ? (read.requests?.find((request) => request.name === name)
+                ?.request as string)
+            : "";
+        const held = holdOnce(
+          fake,
+          (request) => request.method === "PUT" && request.path === "/api/env",
+        );
+        const before = changes();
+        // A's home channel: no answer in time, so it may still run. The
+        // page shows Telegram as it is until the restart.
+        expect(await core.approve(handleOf("jana_s"))).toEqual({
+          kind: "telegram",
+          state: "starting",
+          pending: true,
+          held: true,
+        });
+        expect(changes()).toBe(before + 1);
+        expect(journal).toContainEqual({
+          operation: "approve",
+          outcome: "restart-owed",
+          reason: "timeout",
+        });
+        expect(journal).toContainEqual({
+          operation: "approve",
+          outcome: "held",
+          reason: "restart-owed",
+        });
+        // B before the restart: nothing written, „Připojuje se…“.
+        fake.requests.length = 0;
+        expect(await core.approve(handleOf("druhy_ucet"))).toMatchObject({
+          kind: "telegram",
+          state: "starting",
+          pending: true,
+        });
+        expect(writesOf(fake)).toEqual([]);
+        // The restart ends the gateway that holds A's write; then B.
+        await restart();
+        expect(await core.approve(handleOf("druhy_ucet"))).toEqual({
+          kind: "telegram",
+          state: "connected",
+          bot: "rex_buddy_bot",
+        });
+        held.release();
+        await Bun.sleep(50);
+        expect(held.ran()).toBe(false);
+        expect(fake.state.telegram).toMatchObject({
+          allowed: stranger,
+          home: stranger,
+        });
+      },
+      undefined,
+      { httpMs: 1_000 },
+    ),
+);
+
+posix(
+  "connect: a token write Hermes holds past the client's timeout owes a restart, and Ano waits for it",
+  () =>
+    within(
+      async ({ fake, core, owe, changes, journal, restart }) => {
+        await core.connect(token);
+        owe(false);
+        fake.state.telegram.runtime = "connected";
+        fake.telegramMessage(person, "jana_s");
+        const read = await core.read();
+        const handle =
+          read.state === "waiting"
+            ? (read.requests?.[0]?.request as string)
+            : "";
+        // Připojit again; Hermes holds the token's write.
+        const held = holdOnce(
+          fake,
+          (request) =>
+            request.method === "PUT" &&
+            request.path === "/api/messaging/platforms/telegram",
+        );
+        const before = changes();
+        // It waits as the latest change: „Připojuje se…“.
+        const waiting = await core.connect(otherToken);
+        expect(waiting).toEqual(heldConnect);
+        expect(changes()).toBe(before + 1);
+        expect(journal).toContainEqual({
+          operation: "connect",
+          outcome: "restart-owed",
+          reason: "timeout",
+        });
+        expect(journal).toContainEqual({
+          operation: "connect",
+          outcome: "held",
+          reason: "restart-owed",
+        });
+        // Ano before the restart: nothing written.
+        fake.requests.length = 0;
+        expect(await core.approve(handle)).toMatchObject({
+          kind: "telegram",
+          state: "starting",
+          pending: true,
+        });
+        expect(writesOf(fake)).toEqual([]);
+        // After it, Ano goes through, and the held token never lands. Ano
+        // is a newer change: the waiting connect can no longer go on.
+        await restart();
+        expect(await core.read()).toMatchObject({ retry: true });
+        expect(await core.approve(handle)).toEqual({
+          kind: "telegram",
+          state: "connected",
+          bot: "rex_buddy_bot",
+        });
+        held.release();
+        await Bun.sleep(50);
+        expect(held.ran()).toBe(false);
+        expect(await core.connect(otherToken, idOf(waiting))).toEqual(
+          superseded,
+        );
+        expect(fake.state.telegram).toMatchObject({
+          token,
+          allowed: person,
+          home: person,
+        });
+      },
+      undefined,
+      { httpMs: 1_000 },
+    ),
+);
+
+const tokenWrite = (request: FakeHermesGateway["requests"][number]) =>
+  request.method === "PUT" &&
+  request.path === "/api/messaging/platforms/telegram";
+
+posix(
+  "a connect whose token write is in doubt cannot undo a later disconnect: the disconnect waits on disk as the latest change and is made after the restart (#674)",
+  () =>
+    within(
+      async (fixture) => {
+        const { fake, core, restart } = fixture;
+        await connected(fixture);
+        const held = holdOnce(fake, tokenWrite);
+        const waiting = await core.connect(otherToken);
+        expect(waiting).toEqual(heldConnect);
+        // Odpojit: nothing goes to Hermes; it waits as the latest change.
+        fake.requests.length = 0;
+        expect(await core.disconnect()).toEqual({
+          kind: "telegram",
+          state: "none",
+          pending: true,
+          held: true,
+        });
+        expect(writesOf(fake)).toEqual([]);
+        const intent = telegramIntentPath(fake.userHome);
+        expect((await lstat(intent)).mode & 0o777).toBe(0o600);
+        const record = JSON.parse(await readFile(intent, "utf8"));
+        expect(record).toEqual({
+          schema_version: "lazurio.buddy-telegram-intent.v1",
+          intent: "disconnect",
+          at: expect.stringMatching(/^\d{4}-\d\d-\d\dT/),
+        });
+        // The old token write lands in the gateway that took it.
+        held.release();
+        await Bun.sleep(50);
+        expect(held.ran()).toBe(true);
+        expect(fake.state.telegram).toMatchObject({
+          token: otherToken,
+          enabled: true,
+        });
+        // The restart: the disconnect that waited is made, once.
+        await restart();
+        expect(fake.state.telegram).toMatchObject({
+          token: null,
+          enabled: false,
+          allowed: "",
+          home: null,
+        });
+        await expect(lstat(intent)).rejects.toThrow();
+        expect(await core.read()).toEqual({ state: "none", pending: true });
+        // The page that kept the connect's token is never asked for it, and
+        // its id is refused.
+        expect(await core.connect(otherToken, idOf(waiting))).toEqual(
+          superseded,
+        );
+        expect(fake.state.telegram).toMatchObject({ token: null });
+      },
+      undefined,
+      { httpMs: 1_000 },
+    ),
+);
+
+posix(
+  "a disconnect whose off write is in doubt waits as the latest change; a connect then waits too and replaces it, and goes once the restart is made",
+  () =>
+    within(
+      async (fixture) => {
+        const { fake, core, restart } = fixture;
+        await connected(fixture);
+        const held = holdOnce(fake, tokenWrite);
+        expect(await core.disconnect()).toEqual({
+          kind: "telegram",
+          state: "none",
+          pending: true,
+          held: true,
+        });
+        const intent = telegramIntentPath(fake.userHome);
+        await lstat(intent);
+        // Připojit: nothing goes to Hermes until the restart; the latest
+        // change is the connect now.
+        fake.requests.length = 0;
+        const waiting = await core.connect(otherToken);
+        expect(waiting).toEqual(heldConnect);
+        expect(writesOf(fake)).toEqual([]);
+        await expect(lstat(intent)).rejects.toThrow();
+        // The old off write lands in the gateway that took it.
+        held.release();
+        await Bun.sleep(50);
+        expect(fake.state.telegram).toMatchObject({
+          token: null,
+          enabled: false,
+        });
+        await restart();
+        // Nothing is disconnected again; the page that keeps the token is
+        // asked for it once more, and the connect goes.
+        expect(writesOf(fake)).toEqual([]);
+        expect(await core.read()).toMatchObject({ state: "none", retry: true });
+        expect(await core.read()).not.toHaveProperty("intent");
+        expect(await core.connect(otherToken, idOf(waiting))).toMatchObject({
+          kind: "telegram",
+          state: "starting",
+          pending: true,
+        });
+        expect(fake.state.telegram).toMatchObject({
+          token: otherToken,
+          enabled: true,
+        });
+        expect(await core.read()).not.toHaveProperty("retry");
+        // Once: the same id again is refused.
+        expect(await core.connect(otherToken, idOf(waiting))).toEqual(
+          superseded,
+        );
+      },
+      undefined,
+      { httpMs: 1_000 },
+    ),
+);
+
+posix(
+  "his words while a write is in doubt wait, and its restart writes the latest ones",
+  () => {
+    let words = wordsVy;
+    return within(
+      async ({ fake, core, owe, restart, held: barrier }) => {
+        await core.connect(token);
+        owe(false);
+        const held = holdOnce(
+          fake,
+          (request) =>
+            request.method === "PUT" &&
+            request.path === "/api/config" &&
+            request.body.includes(pairingMessage.key),
+        );
+        words = wordsTy;
+        await core.persona();
+        expect(barrier()).toBe(true);
+        // Changed again while in doubt: nothing goes to Hermes.
+        words = "Ahoj, tady Max. Potvrď prosím v Lazuriu, že jsi to ty.";
+        fake.requests.length = 0;
+        await core.persona();
+        expect(writesOf(fake)).toEqual([]);
+        // The old words land late; the restart writes the latest.
+        held.release();
+        await Bun.sleep(50);
+        await restart();
+        expect(
+          (fake.state.telegram.config.gateway as Record<string, unknown>)
+            .unauthorized_dm_pairing_message,
+        ).toBe(words);
+      },
+      undefined,
+      {
+        fake: { pairingMessage: true },
+        pairingText: async () => words,
+        httpMs: 1_000,
+      },
+    );
+  },
+);
+
+posix(
+  "a lift between a connect's look at the barrier and its keeping the connect: the answer still says it waits, and the page is asked for the token after it",
+  () =>
+    within(
+      async (fixture) => {
+        const { fake, core, restart, afterBlocked } = fixture;
+        await connected(fixture);
+        const held = holdOnce(fake, tokenWrite);
+        await core.connect(otherToken);
+        held.release();
+        await Bun.sleep(50);
+        // Připojit again: the restart lifts the barrier just after this
+        // connect looked at it.
+        let lifted: Promise<void> = Promise.resolve();
+        afterBlocked(() => {
+          lifted = restart();
+        });
+        fake.requests.length = 0;
+        const waiting = await core.connect(otherToken);
+        expect(waiting).toEqual(heldConnect);
+        await lifted;
+        expect(writesOf(fake)).toEqual([]);
+        // The follow-up came after it in the queue: the page is asked.
+        expect(await core.read()).toMatchObject({ retry: true });
+        expect(await core.connect(otherToken, idOf(waiting))).toMatchObject({
+          kind: "telegram",
+          state: "starting",
+        });
+        expect(fake.state.telegram).toMatchObject({
+          token: otherToken,
+          enabled: true,
+        });
+      },
+      undefined,
+      { httpMs: 1_000 },
+    ),
+);
+
+posix(
+  "between the lift and its follow-up a reading still says the connect waits, so the page keeps its token until it is asked for it",
+  () =>
+    within(
+      async (fixture) => {
+        const { fake, core, restart } = fixture;
+        await connected(fixture);
+        const held = holdOnce(fake, tokenWrite);
+        await core.connect(otherToken);
+        held.release();
+        await Bun.sleep(50);
+        await restart(false);
+        expect(await core.read()).toEqual({
+          state: "starting",
+          pending: true,
+          held: true,
+        });
+        expect(await core.cleared("lifted")).toBe("done");
+        expect(await core.read()).toMatchObject({ retry: true });
+        expect(await core.read()).not.toHaveProperty("held");
+      },
+      undefined,
+      { httpMs: 1_000 },
+    ),
+);
+
+// ---- Two pages, one waiting connect each (#676) ------------------------------
+
+/** Tab A's connect ends in doubt and waits; tab B's connect waits after it,
+ * the latest change; A's old write lands in the old gateway; the restart.
+ * Both pages then hold a token and an id, and both read `retry`. */
+async function twoWaiting(fixture: Fixture) {
+  const { fake, core, restart } = fixture;
+  await connected(fixture);
+  const held = holdOnce(fake, tokenWrite);
+  const a = await core.connect(otherToken);
+  const b = await core.connect(thirdToken);
+  expect(a).toEqual(heldConnect);
+  expect(b).toEqual(heldConnect);
+  expect(idOf(a)).not.toBe(idOf(b));
+  held.release();
+  await Bun.sleep(50);
+  expect(fake.state.telegram).toMatchObject({ token: otherToken });
+  await restart();
+  // Both pages read the same reading; no id is ever in one.
+  const reading = await core.read();
+  expect(reading).toMatchObject({ retry: true });
+  expect(JSON.stringify(reading)).not.toContain(idOf(a));
+  expect(JSON.stringify(reading)).not.toContain(idOf(b));
+  return { a: idOf(a), b: idOf(b) };
+}
+
+posix(
+  "two pages, two tokens: only the latest connect goes on, once; an older page's retry, early or late, is refused and B's bot stays (#676)",
+  () =>
+    within(
+      async (fixture) => {
+        const { fake, core, journal } = fixture;
+        const id = await twoWaiting(fixture);
+        // A's retry arrives first: B's connect replaced it.
+        fake.requests.length = 0;
+        expect(await core.connect(otherToken, id.a)).toEqual(superseded);
+        expect(writesOf(fake)).toEqual([]);
+        // B's goes on.
+        expect(await core.connect(thirdToken, id.b)).toMatchObject({
+          kind: "telegram",
+        });
+        expect(fake.state.telegram).toMatchObject({
+          token: thirdToken,
+          enabled: true,
+        });
+        // A's delayed retry from its older reading, and B's sent twice: refused,
+        // whatever order the two requests arrive in.
+        fake.requests.length = 0;
+        expect(
+          await Promise.all([
+            core.connect(otherToken, id.a),
+            core.connect(thirdToken, id.b),
+          ]),
+        ).toEqual([superseded, superseded]);
+        expect(writesOf(fake)).toEqual([]);
+        expect(fake.state.telegram).toMatchObject({
+          token: thirdToken,
+          enabled: true,
+        });
+        expect(journal).toContainEqual({
+          operation: "connect",
+          outcome: "blocked",
+          reason: "superseded",
+        });
+      },
+      undefined,
+      { httpMs: 1_000 },
+    ),
+);
+
+posix(
+  "two pages, two tokens: a disconnect after the restart ends both waiting connects; neither late retry brings a bot back (#676)",
+  () =>
+    within(
+      async (fixture) => {
+        const { fake, core } = fixture;
+        const id = await twoWaiting(fixture);
+        // B disconnects before either page sends its token again.
+        expect(await core.disconnect()).toMatchObject({ state: "none" });
+        expect(fake.state.telegram).toMatchObject({
+          token: null,
+          enabled: false,
+        });
+        fake.requests.length = 0;
+        expect(await core.connect(otherToken, id.a)).toEqual(superseded);
+        expect(await core.connect(thirdToken, id.b)).toEqual(superseded);
+        expect(writesOf(fake)).toEqual([]);
+        expect(fake.state.telegram).toMatchObject({
+          token: null,
+          enabled: false,
+        });
+        expect(await core.read()).not.toHaveProperty("retry");
+      },
+      undefined,
+      { httpMs: 1_000 },
+    ),
+);
+
+posix(
+  "two pages, two tokens: a disconnect kept behind a new write in doubt ends the connect that could go on; its retry is refused and the disconnect is made (#676)",
+  () => {
+    let words = wordsVy;
+    return within(
+      async (fixture) => {
+        const { fake, core, restart, held: barrier } = fixture;
+        const id = await twoWaiting(fixture);
+        // His words end in doubt: a new barrier, before either page sends.
+        const held = holdOnce(
+          fake,
+          (request) =>
+            request.method === "PUT" &&
+            request.path === "/api/config" &&
+            request.body.includes(pairingMessage.key),
+        );
+        words = wordsTy;
+        await core.persona();
+        expect(barrier()).toBe(true);
+        // Odpojit waits behind it, the latest change.
+        expect(await core.disconnect()).toMatchObject({
+          state: "none",
+          held: true,
+        });
+        fake.requests.length = 0;
+        expect(await core.connect(thirdToken, id.b)).toEqual(superseded);
+        expect(await core.connect(otherToken, id.a)).toEqual(superseded);
+        expect(writesOf(fake)).toEqual([]);
+        held.release();
+        await Bun.sleep(50);
+        await restart();
+        expect(fake.state.telegram).toMatchObject({
+          token: null,
+          enabled: false,
+        });
+      },
+      undefined,
+      {
+        fake: { pairingMessage: true },
+        pairingText: async () => words,
+        httpMs: 1_000,
+      },
+    );
+  },
+);
+
+posix(
+  "a retry is spent once taken, a disconnect Hermes refuses and a Připojit Telegram refuses still end the connect that waited: its id is refused after each (#676)",
+  () => {
+    let check: BotCheck = { kind: "bot", username: "rex_buddy_bot" };
+    return within(
+      async (fixture) => {
+        const { fake, core } = fixture;
+        // Taken, then Telegram does not answer: spent all the same.
+        let id = await twoWaiting(fixture);
+        check = { kind: "unreachable" };
+        expect(await core.connect(thirdToken, id.b)).toEqual({
+          kind: "failed",
+          reason: "telegram-unreachable",
+        });
+        check = { kind: "bot", username: "rex_buddy_bot" };
+        expect(await core.connect(thirdToken, id.b)).toEqual(superseded);
+        expect(await core.read()).not.toHaveProperty("retry");
+        // Odpojit that Hermes refuses: the latest change all the same.
+        id = await twoWaiting(fixture);
+        fake.state.http = failing("PUT", "/api/messaging/platforms/telegram");
+        expect(await core.disconnect()).toEqual({
+          kind: "failed",
+          reason: "failed",
+        });
+        fake.state.http = undefined;
+        expect(await core.connect(thirdToken, id.b)).toEqual(superseded);
+        // Připojit with a token Telegram does not know: the latest too.
+        id = await twoWaiting(fixture);
+        check = { kind: "refused" };
+        expect(await core.connect(otherToken)).toEqual({
+          kind: "failed",
+          reason: "token-refused",
+        });
+        check = { kind: "bot", username: "rex_buddy_bot" };
+        expect(await core.connect(thirdToken, id.b)).toEqual(superseded);
+      },
+      () => check,
+      { httpMs: 1_000 },
+    );
+  },
+);
+
+posix(
+  "a retry while its connect still waits keeps it waiting with the same id; a fresh connect after the restart ends it; its time ends it too",
+  () => {
+    let clock = Date.now();
+    return within(
+      async (fixture) => {
+        const { fake, core, restart } = fixture;
+        await connected(fixture);
+        const held = holdOnce(fake, tokenWrite);
+        const waiting = await core.connect(otherToken);
+        held.release();
+        await Bun.sleep(50);
+        // Before the follow-up: still waiting, the same id, nothing written.
+        await restart(false);
+        fake.requests.length = 0;
+        expect(await core.connect(otherToken, idOf(waiting))).toEqual({
+          ...heldConnect,
+          intent: idOf(waiting),
+        });
+        expect(writesOf(fake)).toEqual([]);
+        // The follow-up; then a fresh Připojit from another page.
+        expect(await core.cleared("lifted")).toBe("done");
+        expect(await core.connect(thirdToken)).toMatchObject({
+          kind: "telegram",
+        });
+        expect(await core.connect(otherToken, idOf(waiting))).toEqual(
+          superseded,
+        );
+        expect(fake.state.telegram).toMatchObject({ token: thirdToken });
+        // Another one waits; ten minutes after its lift it can no longer go.
+        const again = holdOnce(fake, tokenWrite);
+        const late = await core.connect(otherToken);
+        again.release();
+        await Bun.sleep(50);
+        await restart();
+        expect(await core.read()).toMatchObject({ retry: true });
+        clock += 10 * 60_000;
+        expect(await core.read()).not.toHaveProperty("retry");
+        expect(await core.connect(otherToken, idOf(late))).toEqual(superseded);
+      },
+      undefined,
+      { httpMs: 1_000, now: () => clock },
+    );
+  },
+);
+
+posix(
+  "a disconnect that waited and Hermes cannot take yet stays the latest change: Ano writes nothing, and the follow-up asked again makes it",
+  () =>
+    within(
+      async (fixture) => {
+        const { fake, core, owe, restart } = fixture;
+        await core.connect(token);
+        owe(false);
+        fake.state.telegram.runtime = "connected";
+        fake.telegramMessage(person, "jana_s");
+        const read = await core.read();
+        const handle =
+          read.state === "waiting"
+            ? (read.requests?.[0]?.request as string)
+            : "";
+        const held = holdOnce(fake, tokenWrite);
+        await core.connect(otherToken);
+        await core.disconnect();
+        held.release();
+        await Bun.sleep(50);
+        // After the restart Hermes does not take the off write yet.
+        fake.state.http = (request) =>
+          tokenWrite(request)
+            ? Response.json(
+                { error: "gateway_not_ready", state: "starting" },
+                { status: 503 },
+              )
+            : undefined;
+        await restart();
+        expect(await core.read()).toEqual({ state: "none", pending: true });
+        // Ano from a page from before: nothing is written.
+        fake.requests.length = 0;
+        expect(await core.approve(handle)).toEqual({
+          kind: "telegram",
+          state: "none",
+          pending: true,
+        });
+        expect(writesOf(fake)).toEqual([]);
+        // Asked again: Hermes takes it now, once.
+        fake.state.http = undefined;
+        expect(await core.cleared("lifted")).toBe("done");
+        expect(fake.state.telegram).toMatchObject({
+          token: null,
+          enabled: false,
+          allowed: "",
+        });
+        await expect(
+          lstat(telegramIntentPath(fake.userHome)),
+        ).rejects.toThrow();
+        expect(await core.cleared("lifted")).toBe("done");
+        expect(
+          fake.requests.filter((request) => tokenWrite(request)),
+        ).toHaveLength(1);
+      },
+      undefined,
+      { httpMs: 1_000 },
+    ),
+);
+
+posix(
+  "a disconnect that waited and Hermes refuses after the restart is not asked again: its intent goes, and the page shows Telegram as Hermes has it, with Odpojit",
+  () =>
+    within(
+      async (fixture) => {
+        const { fake, core, restart, journal } = fixture;
+        await connected(fixture);
+        const held = holdOnce(fake, tokenWrite);
+        await core.connect(otherToken);
+        await core.disconnect();
+        held.release();
+        await Bun.sleep(50);
+        fake.state.http = failing("PUT", "/api/messaging/platforms/telegram");
+        await restart();
+        await expect(
+          lstat(telegramIntentPath(fake.userHome)),
+        ).rejects.toThrow();
+        expect(journal).toContainEqual({
+          operation: "disconnect",
+          outcome: "failed",
+          reason: "failed",
+        });
+        expect(await core.read()).toMatchObject({ state: "connected" });
+      },
+      undefined,
+      { httpMs: 1_000 },
+    ),
+);
+
+posix(
+  "approve: a request that expires between the list and the approval leaves nothing to approve; the account is allowed",
+  () =>
+    within(async ({ fake, core, owe }) => {
+      await core.connect(token);
+      owe(false);
+      fake.state.telegram.runtime = "connected";
+      fake.telegramMessage(person, "jana_s");
+      const read = await core.read();
+      const handle =
+        read.state === "waiting" ? (read.requests?.[0]?.request as string) : "";
+      // Hermes's hour ends as the person presses Ano.
+      fake.state.http = (request) => {
+        if (request.method !== "POST") return undefined;
+        fake.state.telegram.pending = [];
+        return undefined;
+      };
+      expect(await core.approve(handle)).toEqual({
+        kind: "telegram",
+        state: "connected",
+        bot: "rex_buddy_bot",
+      });
+      expect(fake.state.telegram).toMatchObject({
+        allowed: person,
+        home: person,
+        approved: [],
+      });
+    }),
+);
+
+/** Until `done`, at most two seconds. */
+async function until(done: () => boolean) {
+  for (let wait = 0; wait < 400 && !done(); wait += 1) await Bun.sleep(5);
+  expect(done()).toBe(true);
+}
+
+/** Connected as the installer leaves it: the person allowed, their chat the
+ * home channel. */
+async function connected(fixture: Fixture) {
+  const { fake, core, owe } = fixture;
+  await core.connect(token);
+  owe(false);
+  Object.assign(fake.state.telegram, {
+    runtime: "connected",
+    allowed: person,
+    home: person,
+  });
+}
+
+/** The DELETEs that reached Hermes. */
+const deletesOf = (fake: FakeHermesGateway) =>
+  fake.requests.filter((request) => request.method === "DELETE");
+
+/** The person connects another bot; the restart that connect owes is made
+ * (a new gateway: Hermes serves these calls in the gateway's own process,
+ * F63); the stranger's account presses Start and the person approves it. */
+async function reconnectAndApprove(fixture: Fixture) {
+  const { fake, core, owe } = fixture;
+  await core.connect(otherToken);
+  owe(false);
+  fake.restart();
+  fake.state.telegram.runtime = "connected";
+  fake.telegramMessage(stranger, "jana_s");
+  const read = await core.read();
+  return core.approve(
+    read.state === "waiting" ? (read.requests?.[0]?.request as string) : "",
+  );
+}
+
+posix(
+  "disconnect: its home-channel DELETE, held by Hermes past the client's timeout, is asked once and after the restart is owed; no reading asks again, and the account approved after the reconnect's restart keeps its home channel",
+  () =>
+    within(
+      async (fixture) => {
+        const { fake, core, changes, journal } = fixture;
+        await connected(fixture);
+        const before = changes();
+        // Hermes holds the DELETE. It runs in the gateway that took it, and
+        // a request of a gateway that has stopped never runs after.
+        let release = () => {};
+        const held = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        let ran = false;
+        fake.state.http = async (request) => {
+          if (request.method !== "DELETE") return undefined;
+          const on = fake.state.instance;
+          await held;
+          if (fake.state.instance !== on)
+            return Response.json(
+              { error: "gateway_not_ready", state: "draining" },
+              { status: 503 },
+            );
+          ran = true;
+          return undefined;
+        };
+        const disconnecting = core.disconnect();
+        await until(() => deletesOf(fake).length === 1);
+        // Before Hermes answers the DELETE, the restart that takes the bot
+        // out is already owed, and the bot's record is gone.
+        expect(changes()).toBe(before + 1);
+        await expect(lstat(telegramBotPath(fake.userHome))).rejects.toThrow();
+        // The client gives up on it; the disconnect answers all the same.
+        expect(await disconnecting).toEqual({
+          kind: "telegram",
+          state: "none",
+          pending: true,
+        });
+        expect(journal.slice(-2)).toEqual([
+          { operation: "home-channel", outcome: "left", reason: "timeout" },
+          { operation: "disconnect", outcome: "telegram" },
+        ]);
+        expect(fake.state.telegram).toMatchObject({
+          token: null,
+          enabled: false,
+          allowed: "",
+          home: person,
+        });
+        // Readings while it is off ask nothing of Hermes's files.
+        for (let reading = 0; reading < 3; reading += 1)
+          expect(await core.read()).toMatchObject({ state: "none" });
+        await Bun.sleep(50);
+        expect(deletesOf(fake)).toHaveLength(1);
+        // The person connects another bot, and after its restart approves
+        // another account.
+        expect(await reconnectAndApprove(fixture)).toEqual({
+          kind: "telegram",
+          state: "connected",
+          bot: "rex_buddy_bot",
+        });
+        expect(fake.state.telegram).toMatchObject({
+          allowed: stranger,
+          home: stranger,
+        });
+        // The held DELETE is released: its gateway has stopped, and the new
+        // account's home channel stays.
+        release();
+        await Bun.sleep(50);
+        expect(ran).toBe(false);
+        for (let reading = 0; reading < 3; reading += 1)
+          expect(await core.read()).toMatchObject({ state: "connected" });
+        await Bun.sleep(50);
+        expect(fake.state.telegram.home).toBe(stranger);
+        expect(deletesOf(fake)).toHaveLength(1);
+      },
+      undefined,
+      { httpMs: 1_000 },
+    ),
+);
+
+posix(
+  "disconnect: a home channel Hermes refuses to remove stays; no reading asks again, with or without a token saved elsewhere, and the next approval writes its own over it",
+  () =>
+    within(async (fixture) => {
+      const { fake, core, changes, journal } = fixture;
+      await connected(fixture);
+      const before = changes();
+      fake.state.http = failing("DELETE", "/api/env");
+      expect(await core.disconnect()).toEqual({
+        kind: "telegram",
+        state: "none",
+        pending: true,
+      });
+      expect(changes()).toBe(before + 1);
+      expect(journal.slice(-2)).toEqual([
+        { operation: "home-channel", outcome: "left", reason: "failed" },
+        { operation: "disconnect", outcome: "telegram" },
+      ]);
+      expect(fake.state.telegram).toMatchObject({
+        token: null,
+        enabled: false,
+        allowed: "",
+        home: person,
+      });
+      fake.state.http = undefined;
+      // Off; then a token saved elsewhere, switched off or on: no reading
+      // asks Hermes to remove anything.
+      expect(await core.read()).toMatchObject({ state: "none" });
+      fake.state.telegram.token = otherToken;
+      expect(await core.read()).toMatchObject({ state: "none" });
+      fake.state.telegram.token = null;
+      fake.state.telegram.enabled = true;
+      expect(await core.read()).toMatchObject({ state: "none" });
+      fake.state.telegram.enabled = false;
+      await Bun.sleep(50);
+      expect(deletesOf(fake)).toHaveLength(1);
+      expect(fake.state.telegram.home).toBe(person);
+      // Connected again and approved: its own home channel over the old one.
+      await reconnectAndApprove(fixture);
+      expect(fake.state.telegram).toMatchObject({
+        allowed: stranger,
+        home: stranger,
+      });
+      expect(deletesOf(fake)).toHaveLength(1);
+    }),
+);
+
+posix(
+  "disconnect: off, the token and the allowlist cleared by Hermes's writer, no home channel left, the bot's record gone, one restart asked",
+  () =>
+    within(async ({ fake, core, owe, changes, journal }) => {
+      await core.connect(token);
+      owe(false);
+      fake.state.telegram.runtime = "connected";
+      fake.state.telegram.allowed = person;
+      fake.state.telegram.home = person;
+      fake.requests.length = 0;
+      const answer = await core.disconnect();
+      expect(
+        fake.requests
+          .filter((request) => request.method !== "GET")
+          .map((request) => [
+            request.method,
+            request.path,
+            JSON.parse(request.body),
+          ]),
+      ).toEqual([
+        [
+          "PUT",
+          "/api/messaging/platforms/telegram",
+          {
+            enabled: false,
+            clear_env: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_ALLOWED_USERS"],
+          },
+        ],
+        ["DELETE", "/api/env", { key: "TELEGRAM_HOME_CHANNEL" }],
+      ]);
+      expect(fake.state.telegram).toMatchObject({
+        token: null,
+        enabled: false,
+        allowed: "",
+        home: null,
+      });
+      expect(changes()).toBe(2);
+      // It says so until the restart that takes it out.
+      expect(answer).toEqual({
+        kind: "telegram",
+        state: "none",
+        pending: true,
+      });
+      await expect(lstat(telegramBotPath(fake.userHome))).rejects.toThrow();
+      // Without a home channel Hermes answers 404: still disconnected.
+      expect(await core.disconnect()).toMatchObject({
+        kind: "telegram",
+        state: "none",
+      });
+      clean([answer, journal], fake);
+    }),
+);
+
+posix(
+  "one operation at a time: a connect and an approval asked together run one after the other",
+  () =>
+    within(async ({ fake, core, owe }) => {
+      fake.state.telegram.runtime = "connected";
+      const order: string[] = [];
+      fake.state.http = async (request) => {
+        if (request.method !== "GET") order.push(request.path);
+        return undefined;
+      };
+      await Promise.all([core.connect(token), core.disconnect()]);
+      owe(false);
+      expect(order).toEqual([
+        "/api/messaging/platforms/telegram",
+        "/api/config",
+        "/api/messaging/platforms/telegram",
+        "/api/env",
+      ]);
+    }),
+);
+
+// ---- Buddy's words to an account his bot does not know --------------------------
+
+/** His words as the Launchpad renders them (buddy-view.ts), in Czech. */
+const wordsVy =
+  "Dobrý den, tady Rex. Potvrďte prosím v Lazuriu, že jste to vy, a pak mi napište znovu.";
+const wordsTy =
+  "Ahoj, tady Rex. Potvrď prosím v Lazuriu, že jsi to ty, a pak mi napiš znovu.";
+const bodyOf = (text: string) => ({
+  config: { gateway: { unauthorized_dm_pairing_message: text } },
+});
+
+posix(
+  "his words: where Hermes lists the capability, the connect writes them through its config writer, and the person's Start gets them instead of a command",
+  () =>
+    within(
+      async ({ fake, core, owe, journal }) => {
+        const answer = await core.connect(token);
+        expect(writesOf(fake)).toEqual([
+          [
+            "PUT",
+            "/api/messaging/platforms/telegram",
+            { env: { TELEGRAM_BOT_TOKEN: token }, enabled: true },
+          ],
+          ["PUT", "/api/config", { config: telegramQuietConfig }],
+          ["PUT", "/api/config", bodyOf(wordsVy)],
+        ]);
+        expect(pairingMessage).toEqual({
+          capability: "lazurio-pairing-message-v1",
+          key: "unauthorized_dm_pairing_message",
+        });
+        // Beside the quiet keys, in the gateway's own section.
+        expect(fake.state.telegram.config).toMatchObject({
+          gateway: { unauthorized_dm_pairing_message: wordsVy },
+          compression: { codex_gpt55_autoraise_notice: false },
+        });
+        expect(answer).toMatchObject({ kind: "telegram", state: "starting" });
+        expect(journal).toEqual([
+          { operation: "pairing-text", outcome: "written" },
+          { operation: "connect", outcome: "telegram" },
+        ]);
+        // The journal names no word of his.
+        expect(JSON.stringify(journal)).not.toContain("Rex");
+        owe(false);
+        fake.state.telegram.runtime = "connected";
+        fake.telegramMessage(person, "jana_s");
+        expect(fake.state.telegram.replies).toEqual([wordsVy]);
+      },
+      undefined,
+      { fake: { pairingMessage: true }, pairingText: async () => wordsVy },
+    ),
+);
+
+posix(
+  "his words: an older Hermes is never asked and keeps its own reply, and one that refuses them, or words that cannot be read, change nothing else; the connect works the same",
+  async () => {
+    const connects = async (
+      fake: FakeHermesGateway,
+      core: Fixture["core"],
+      owe: Fixture["owe"],
+    ) => {
+      const answer = await core.connect(token);
+      expect(answer).toMatchObject({ kind: "telegram", state: "starting" });
+      expect(fake.state.telegram).toMatchObject({ token, enabled: true });
+      owe(false);
+      fake.state.telegram.runtime = "connected";
+      fake.telegramMessage(person, "jana_s");
+      // Hermes's own reply, with its code and its command.
+      expect(fake.state.telegram.replies).toHaveLength(1);
+      expect(fake.state.telegram.replies[0]).toContain(
+        "hermes pairing approve telegram",
+      );
+    };
+    // v0.22.4-lazurio.3: no capability, so no write at all.
+    await within(
+      async ({ fake, core, owe, journal }) => {
+        await connects(fake, core, owe);
+        expect(writesOf(fake).map(([, path]) => path)).toEqual([
+          "/api/messaging/platforms/telegram",
+          "/api/config",
+        ]);
+        expect(journal).toEqual([
+          { operation: "pairing-text", outcome: "outdated" },
+          { operation: "connect", outcome: "telegram" },
+        ]);
+      },
+      undefined,
+      { pairingText: async () => wordsVy },
+    );
+    // A Hermes that refuses the write.
+    await within(
+      async ({ fake, core, owe, journal }) => {
+        fake.state.http = (request) =>
+          request.method === "PUT" && request.body.includes(pairingMessage.key)
+            ? Response.json(
+                { detail: "Internal server error" },
+                { status: 500 },
+              )
+            : undefined;
+        await connects(fake, core, owe);
+        expect(journal).toEqual([
+          { operation: "pairing-text", outcome: "failed" },
+          { operation: "connect", outcome: "telegram" },
+        ]);
+      },
+      undefined,
+      { fake: { pairingMessage: true }, pairingText: async () => wordsVy },
+    );
+    // Words that cannot be read: nothing written.
+    await within(
+      async ({ fake, core, owe, journal }) => {
+        await connects(fake, core, owe);
+        expect(writesOf(fake)).toHaveLength(2);
+        expect(journal).toEqual([
+          { operation: "pairing-text", outcome: "unknown" },
+          { operation: "connect", outcome: "telegram" },
+        ]);
+      },
+      undefined,
+      {
+        fake: { pairingMessage: true },
+        pairingText: async () => {
+          throw new Error("no Folder");
+        },
+      },
+    );
+  },
+);
+
+posix(
+  "his words after a change of his persona: written again only while his bot is connected from here, and only when they changed",
+  () => {
+    let words = wordsVy;
+    return within(
+      async ({ fake, core, owe, journal }) => {
+        // Not connected from here: nothing.
+        await core.persona();
+        expect(fake.requests).toHaveLength(0);
+        await core.connect(token);
+        owe(false);
+        fake.requests.length = 0;
+        journal.length = 0;
+        // The same words: nothing.
+        await core.persona();
+        expect(fake.requests).toHaveLength(0);
+        words = wordsTy;
+        await core.persona();
+        expect(writesOf(fake)).toEqual([
+          ["PUT", "/api/config", bodyOf(wordsTy)],
+        ]);
+        expect(journal).toEqual([
+          { operation: "pairing-text", outcome: "written" },
+        ]);
+        fake.state.telegram.runtime = "connected";
+        fake.telegramMessage(person, "jana_s");
+        expect(fake.state.telegram.replies).toEqual([wordsTy]);
+        // Disconnected: his bot answers nobody, nothing is written.
+        await core.disconnect();
+        fake.requests.length = 0;
+        words = wordsVy;
+        await core.persona();
+        expect(writesOf(fake)).toEqual([]);
+      },
+      undefined,
+      { fake: { pairingMessage: true }, pairingText: async () => words },
+    );
+  },
+);
+
+// ---- Telegram's own word on a token -------------------------------------------
+
+posix(
+  "getMe: a bot and its name, a token Telegram does not know, and nothing usable as unreachable; the token only in the path",
+  async () => {
+    const seen: string[] = [];
+    let answer: () => Response = () =>
+      Response.json({
+        ok: true,
+        result: { id: 7777777777, is_bot: true, username: "rex_buddy_bot" },
+      });
+    const telegram = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch(request) {
+        const url = new URL(request.url);
+        seen.push(`${request.method} ${url.pathname}${url.search}`);
+        for (const [name, value] of request.headers)
+          if (name !== "host") expect(value).not.toContain(token);
+        // Where a redirect would lead: a bot, which must never count.
+        if (url.pathname === "/elsewhere")
+          return Response.json({
+            ok: true,
+            result: { is_bot: true, username: "other_buddy_bot" },
+          });
+        return answer();
+      },
+    });
+    try {
+      const check = telegramBotChecker({
+        origin: `http://127.0.0.1:${telegram.port}`,
+        timeoutMs: 1_000,
+      });
+      expect(await check(token)).toEqual({
+        kind: "bot",
+        username: "rex_buddy_bot",
+      });
+      expect(seen).toEqual([`GET /bot${token}/getMe`]);
+      const cases: readonly (readonly [() => Response, string])[] = [
+        [
+          () =>
+            Response.json(
+              { ok: false, error_code: 401, description: "Unauthorized" },
+              { status: 401 },
+            ),
+          "refused",
+        ],
+        [
+          () =>
+            Response.json(
+              { ok: false, error_code: 404, description: "Not Found" },
+              { status: 404 },
+            ),
+          "refused",
+        ],
+        [
+          () =>
+            Response.json({
+              ok: true,
+              result: { is_bot: false, username: "x" },
+            }),
+          "refused",
+        ],
+        // Telegram's flood limit, its own failure, an answer of no shape, a
+        // redirect, a name of no shape: not a refusal of the token.
+        [
+          () =>
+            Response.json(
+              { ok: false, error_code: 429, parameters: { retry_after: 9 } },
+              { status: 429 },
+            ),
+          "unreachable",
+        ],
+        [() => new Response("oops", { status: 500 }), "unreachable"],
+        [() => new Response("not json"), "unreachable"],
+        [
+          () =>
+            new Response(null, {
+              status: 302,
+              headers: { location: "/elsewhere" },
+            }),
+          "unreachable",
+        ],
+        [
+          () =>
+            Response.json({
+              ok: true,
+              result: { is_bot: true, username: "x!" },
+            }),
+          "unreachable",
+        ],
+        [
+          () => new Response("x".repeat(70 * 1024), { status: 200 }),
+          "unreachable",
+        ],
+      ];
+      for (const [reply, kind] of cases) {
+        answer = reply;
+        expect((await check(token)).kind as string).toBe(kind);
+      }
+      // Not a token's shape: Telegram is not asked.
+      seen.length = 0;
+      expect(await check("123:short")).toEqual({ kind: "refused" });
+      expect(seen).toEqual([]);
+      // No answer in time.
+      answer = () => {
+        throw new Error("never");
+      };
+      const slow = Bun.serve({
+        hostname: "127.0.0.1",
+        port: 0,
+        fetch: () => new Promise<Response>(() => {}),
+      });
+      try {
+        expect(
+          await telegramBotChecker({
+            origin: `http://127.0.0.1:${slow.port}`,
+            timeoutMs: 200,
+          })(token),
+        ).toEqual({ kind: "unreachable" });
+      } finally {
+        slow.stop(true);
+      }
+      // Nobody listening.
+      expect(
+        await telegramBotChecker({
+          origin: "http://127.0.0.1:9",
+          timeoutMs: 500,
+        })(token),
+      ).toEqual({ kind: "unreachable" });
+    } finally {
+      telegram.stop(true);
+    }
+  },
+);
+
+posix(
+  "before anything was asked of it, Hermes that cannot be asked claims nothing",
+  () =>
+    within(async ({ fake, core }) => {
+      // Nothing asked yet: no claim.
+      await fake.stop();
+      expect(await core.read()).toEqual({ state: "unknown" });
+    }),
+);
+
+posix(
+  "after a connect or a disconnect, a gateway restarting reads as Připojuje se… or as off, with its pending line only while owed",
+  async () => {
+    const fake = await fakeHermesGateway();
+    let owed = false;
+    let recently = false;
+    const core = createBuddyTelegram({
+      gateway: createHermesGateway({ home: fake.userHome }),
+      home: fake.userHome,
+      owed: () => owed,
+      restartedRecently: () => recently,
+      changed: async () => {
+        owed = true;
+      },
+      uncertain: async () => {
+        owed = true;
+      },
+      blocked: async () => false,
+      checkBot: async () => ({ kind: "bot", username: "rex_buddy_bot" }),
+    });
+    try {
+      await core.connect(token);
+      fake.state.http = () =>
+        Response.json(
+          { error: "gateway_not_ready", state: "draining" },
+          { status: 503 },
+        );
+      expect(await core.read()).toEqual({ state: "starting", pending: true });
+      owed = false;
+      recently = true;
+      expect(await core.read()).toEqual({ state: "starting" });
+      recently = false;
+      expect(await core.read()).toEqual({ state: "unknown" });
+      fake.state.http = undefined;
+      await core.disconnect();
+      fake.state.http = () =>
+        Response.json(
+          { error: "gateway_not_ready", state: "starting" },
+          { status: 503 },
+        );
+      expect(await core.read()).toEqual({ state: "none", pending: true });
+    } finally {
+      await fake.close();
+    }
+  },
+);
+
+// ---- Every pair: a write in doubt, then each change before its restart ------
+//
+// F66's table: whatever write ends in doubt, no later change reaches Hermes
+// before the restart that ends the gateway holding it; the late write lands
+// there (the worst case), and after the restart the latest change stands: a
+// disconnect made by the follow-up, a connect sent again by the page that
+// keeps its token, his latest words written where his bot stays connected.
+
+type Change = "connect" | "disconnect" | "approve" | "words";
+const everyChange: readonly Change[] = [
+  "connect",
+  "disconnect",
+  "approve",
+  "words",
+];
+const wordsLatest =
+  "Ahoj, tady Max. Potvrď prosím v Lazuriu, že jsi to ty, a pak mi napiš znovu.";
+const writeOf: Record<
+  Change,
+  (request: FakeHermesGateway["requests"][number]) => boolean
+> = {
+  connect: tokenWrite,
+  disconnect: tokenWrite,
+  approve: (request) => request.method === "PUT" && request.path === "/api/env",
+  words: (request) =>
+    request.method === "PUT" &&
+    request.path === "/api/config" &&
+    request.body.includes(pairingMessage.key),
+};
+
+for (const first of everyChange)
+  for (const then of everyChange)
+    posix(
+      `${first} in doubt, then ${then} before its restart: nothing reaches Hermes, and after it the latest change stands`,
+      () => {
+        let words = wordsVy;
+        return within(
+          async (fixture) => {
+            const { fake, core, owe, restart, held: barrier } = fixture;
+            // Waiting for the person: their Start is offered.
+            await core.connect(token);
+            owe(false);
+            fake.state.telegram.runtime = "connected";
+            fake.telegramMessage(person, "jana_s");
+            const read = await core.read();
+            const handle =
+              read.state === "waiting"
+                ? (read.requests?.[0]?.request as string)
+                : "";
+            expect(handle).not.toBe("");
+            // The page keeps the token of a connect that waits, with its id.
+            let kept: { token: string; intent: string } | null = null;
+            const act = async (change: Change, value: string) => {
+              if (change === "connect") {
+                const answer = await core.connect(value);
+                if (answer.kind === "telegram" && answer.intent !== undefined)
+                  kept = { token: value, intent: answer.intent };
+                return answer;
+              }
+              if (change === "disconnect") return core.disconnect();
+              if (change === "approve") return core.approve(handle);
+              words = value;
+              return core.persona();
+            };
+            const held = holdOnce(fake, writeOf[first]);
+            await act(first, first === "words" ? wordsTy : otherToken);
+            expect(barrier()).toBe(true);
+            fake.requests.length = 0;
+            const answer = await act(
+              then,
+              then === "words" ? wordsLatest : thirdToken,
+            );
+            expect(writesOf(fake)).toEqual([]);
+            if (then !== "words")
+              expect(answer).toMatchObject({
+                kind: "telegram",
+                pending: true,
+                held: true,
+              });
+            held.release();
+            await Bun.sleep(50);
+            expect(held.ran()).toBe(true);
+            await restart();
+            const latest =
+              then === "connect" || then === "disconnect"
+                ? then
+                : first === "connect" || first === "disconnect"
+                  ? first
+                  : null;
+            // The page sends the token it keeps only when asked.
+            const after = await core.read();
+            expect(after.retry === true).toBe(latest === "connect");
+            const resend = kept as { token: string; intent: string } | null;
+            if (after.retry === true && resend !== null)
+              expect(
+                await core.connect(resend.token, resend.intent),
+              ).toMatchObject({ kind: "telegram" });
+            const telegram = fake.state.telegram;
+            if (latest === "disconnect")
+              expect(telegram).toMatchObject({
+                token: null,
+                enabled: false,
+                allowed: "",
+                home: null,
+              });
+            else {
+              expect(telegram).toMatchObject({
+                token: latest === "connect" ? resend?.token : token,
+                enabled: true,
+              });
+              expect(
+                (telegram.config.gateway as Record<string, unknown>)[
+                  pairingMessage.key
+                ],
+              ).toBe(words);
+            }
+          },
+          undefined,
+          {
+            fake: { pairingMessage: true },
+            pairingText: async () => words,
+            httpMs: 1_000,
+          },
+        );
+      },
+    );

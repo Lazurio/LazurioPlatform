@@ -9,6 +9,13 @@ import {
   type BuddyStatus,
   buddyStatus,
 } from "../buddy/status";
+import {
+  type BuddyTelegram,
+  isTelegramIntent,
+  isTelegramRequestHandle,
+  type TelegramAnswer,
+  type TelegramStatus,
+} from "../buddy/telegram";
 import type { FolderProfile } from "../folder/profile";
 import { stateFields } from "../folder/state-fields";
 import { buddyRoutePaths } from "./buddy-paths";
@@ -63,6 +70,25 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 // core journals each operation, its outcome and its reason, never a code, a
 // handle, a ticket or Hermes's session, and never a name or a revision of the
 // persona.
+//
+// Telegram (decision F66), behind the same admission and rules:
+//
+//   POST /api/buddy/telegram/connect     {token, intent?} → telegram {state,
+//                                        …, intent?} | 400 invalid-token |
+//                                        400 invalid-intent | failed
+//                                        {reason} | 409 blocked superseded
+//   POST /api/buddy/telegram/approve     {request} → telegram {state, …} |
+//                                        409 blocked request-gone
+//   POST /api/buddy/telegram/disconnect  {} → telegram {state, …}
+//
+// and `GET /api/buddy` names `telegram: {state, reason?, bot?, botQr?,
+// requests?, pending?, held?, retry?}`, read live from Hermes. `intent` is
+// the id of a connect that waits for a write in doubt (F66 point 13): only
+// the page that asked it gets it, and sends it with the token once more; a
+// newer change answers that 409 `superseded`. The token is a string of
+// the request's body for the one connect; it is never journaled, written
+// or answered, and Telegram's and Hermes's own words never leave the core.
+// Without Buddy's gateway these answer 503 `buddy-unavailable`.
 
 export { buddyRoutePaths };
 
@@ -77,9 +103,16 @@ export const buddyAnswer = (
   locale: BuddyLocale,
 ): BuddyAnswer => Object.freeze({ kind: "buddy", ...status, locale });
 
-/** What `GET /api/buddy` answers: his state, and his persona (F65). */
+/** What `GET /api/buddy` answers: his state, his persona (F65) and his
+ * Telegram (F66). */
 export type BuddyReading = BuddyAnswer &
-  Readonly<{ persona: BuddyPersonaShown | null }>;
+  Readonly<{ persona: BuddyPersonaShown | null; telegram: TelegramStatus }>;
+
+/** The one field a POST may add to its own. */
+const optionalFields: Readonly<Record<string, string>> = {
+  [buddyRoutePaths.persona]: "confirm",
+  [buddyRoutePaths.telegramConnect]: "intent",
+};
 
 const postFields: Readonly<Record<string, readonly string[]>> = {
   [buddyRoutePaths.start]: [],
@@ -87,7 +120,27 @@ const postFields: Readonly<Record<string, readonly string[]>> = {
   [buddyRoutePaths.cancel]: ["session"],
   [buddyRoutePaths.signOut]: [],
   [buddyRoutePaths.persona]: ["buddyName", "address", "user", "revision"],
+  [buddyRoutePaths.telegramConnect]: ["token"],
+  [buddyRoutePaths.telegramApprove]: ["request"],
+  [buddyRoutePaths.telegramDisconnect]: [],
 };
+
+/** A Telegram answer and its status: 400 for a token of no bot's shape,
+ * 409 for a request no longer there or a connect a newer change replaced,
+ * 503 without Buddy's gateway. */
+function telegramResponse(answer: TelegramAnswer): Readonly<{
+  status: number;
+  body: unknown;
+}> {
+  if (answer.kind === "invalid")
+    return { status: 400, body: { error: answer.reason } };
+  if (answer.kind === "unavailable")
+    return {
+      status: 503,
+      body: { error: "buddy-unavailable", reason: answer.reason },
+    };
+  return { status: answer.kind === "blocked" ? 409 : 200, body: answer };
+}
 
 /** A persona's revision: the sha256 of its file, as F64 names it. */
 const revisionShape = /^[0-9a-f]{64}$/;
@@ -152,9 +205,19 @@ export function createBuddyRoutes(
     facts: () => Promise<BuddyFacts>;
     /** His persona: read and changed (F65, `persona-save.ts`). */
     persona: Pick<PersonaSave, "read" | "save">;
+    /** His Telegram: read and changed through Hermes (F66). */
+    telegram: Pick<
+      BuddyTelegram,
+      "read" | "connect" | "approve" | "disconnect"
+    >;
     /** The Folder's profile locale. */
     locale: () => Promise<BuddyLocale>;
     headers: Readonly<Record<string, string>>;
+    /** His step changed: a sign-in finished, he was signed out, or his
+     * names were written. The shell document's `setup` is read anew, so his
+     * bubble in Chat and Automate follows (decision F60's addendum of
+     * 2026-10-26). */
+    changed?: (() => void) | undefined;
   }>,
 ) {
   const response = (body: unknown, status = 200) =>
@@ -176,14 +239,16 @@ export function createBuddyRoutes(
       if (url.pathname === buddyRoutePaths.read) {
         if (request.method !== "GET")
           return response({ error: "method-not-allowed" }, 405);
-        const [facts, locale, persona] = await Promise.all([
+        const [facts, locale, persona, telegram] = await Promise.all([
           input.facts(),
           input.locale(),
           input.persona.read(),
+          input.telegram.read(),
         ]);
         const reading: BuddyReading = Object.freeze({
           ...buddyAnswer(buddyStatus(facts), locale),
           persona,
+          telegram,
         });
         return response(reading);
       }
@@ -195,14 +260,16 @@ export function createBuddyRoutes(
       try {
         const body = await readJsonBody(request);
         const fields = postFields[url.pathname] ?? [];
-        // `confirm` is the persona's one optional field.
+        // `confirm` is the persona's one optional field, `intent` the
+        // connect's.
+        const optional = optionalFields[url.pathname];
         value = stateFields(
           body,
-          url.pathname === buddyRoutePaths.persona &&
+          optional !== undefined &&
             body !== null &&
             typeof body === "object" &&
-            Object.hasOwn(body, "confirm")
-            ? [...fields, "confirm"]
+            Object.hasOwn(body, optional)
+            ? [...fields, optional]
             : fields,
         );
       } catch (error) {
@@ -210,19 +277,52 @@ export function createBuddyRoutes(
           return response({ error: "body-too-large" }, 413);
         return response({ error: "invalid-request" }, 400);
       }
+      if (url.pathname === buddyRoutePaths.telegramConnect) {
+        // The token goes to the core as it came, for its one connect.
+        const { token, intent } = value;
+        if (typeof token !== "string" || token.length > 256)
+          return response({ error: "invalid-token" }, 400);
+        if (intent !== undefined && !isTelegramIntent(intent))
+          return response({ error: "invalid-intent" }, 400);
+        const { status, body } = telegramResponse(
+          await input.telegram.connect(token.trim(), intent),
+        );
+        return response(body, status);
+      }
+      if (url.pathname === buddyRoutePaths.telegramApprove) {
+        if (!isTelegramRequestHandle(value.request))
+          return response({ error: "invalid-request" }, 400);
+        const { status, body } = telegramResponse(
+          await input.telegram.approve(value.request),
+        );
+        return response(body, status);
+      }
+      if (url.pathname === buddyRoutePaths.telegramDisconnect) {
+        const { status, body } = telegramResponse(
+          await input.telegram.disconnect(),
+        );
+        return response(body, status);
+      }
       if (url.pathname === buddyRoutePaths.persona) {
         const asked = personaRequest(value);
         if ("error" in asked) return response({ error: asked.error }, 400);
         const answer = await input.persona.save(asked.update, asked.revision);
+        if (answer.kind === "persona" && answer.outcome === "written")
+          input.changed?.();
         return answer.kind === "invalid"
           ? response({ error: answer.reason }, 400)
           : response(answer, personaStatus(answer));
       }
       const signIn = input.signIn;
-      const answered = (answer: Readonly<{ kind: string; reason?: string }>) =>
-        answer.kind === "unavailable"
+      const answered = (
+        answer: Readonly<{ kind: string; reason?: string }>,
+      ) => {
+        if (answer.kind === "signed-in" || answer.kind === "signed-out")
+          input.changed?.();
+        return answer.kind === "unavailable"
           ? response({ error: "buddy-unavailable", reason: answer.reason }, 503)
           : response(answer, answer.kind === "blocked" ? 409 : 200);
+      };
       if (url.pathname === buddyRoutePaths.start)
         return answered(await signIn.start());
       if (url.pathname === buddyRoutePaths.signOut)

@@ -8,7 +8,10 @@ import { resolveOnPath, type ToolRunner } from "./status";
 // (`codex mcp add`, `claude mcp add --scope user`). Lazurio adds and removes
 // only its own entry: it never changes or removes another entry, never
 // rewrites one of that name that is not its own, and never restarts a running
-// session. New chats see the change; running ones keep their tools.
+// session. New chats see the change; running ones keep their tools. The one
+// change Lazurio makes to the rest of a harness's configuration is outside
+// the MCP entries: ChatGPT's apps in Codex (`codex-apps.ts`, decision F42's
+// addendum of 2026-10-27).
 
 /** The one entry a service gives its agents. */
 export type AgentMcpServer = Readonly<{

@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { withFolderReadLock } from "../folder/lock";
 import type { MachineBinding } from "../folder/machine-binding";
 import { readFolderState } from "../folder/read-state";
-import { readFolderCatalog } from "../organizations/catalog";
+import { type Catalog, readFolderCatalog } from "../organizations/catalog";
 import { selectOwnerOrganization } from "../organizations/catalog-selection";
 import {
   type ComposioOrganization,
@@ -156,6 +156,56 @@ export function composioOrganizationVerdict(
     : { kind: "elsewhere", organization, current };
 }
 
+/** How the rule reads the Folder's Organizations, and how it waits before
+ * it reads them again: by default the catalog's own reader and a timer;
+ * test seams. */
+export type OwnerReading = Readonly<{
+  readCatalog?: (folder: string) => Promise<Catalog>;
+  wait?: (ms: number) => Promise<void>;
+}>;
+
+/** How long the rule waits before it reads the Folder's Organizations again
+ * where one of them could not be read, and how many times it does (decision
+ * F42, addendum of 2026-10-27): `lazurio update` fast-forwards an
+ * Organization's root while agents read the Integrace (the Folder's rules
+ * start it at the beginning of work), and a reading in the middle of its
+ * write finds the root's documents changing, missing or half written. The
+ * write takes well under a second; the catalog's reader has no lock to wait
+ * on, it says "organization-changed: read again". */
+export const ownerRereadMs = 1_000;
+export const ownerRereads = 2;
+
+const waitMs = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** The owning Organization's name as one reading of the catalog finds it;
+ * else whether another reading may find it: the reading failed, or an
+ * Organization of the Folder could not be read and may be the owner. Two
+ * readable Organizations that both answer the owner stay ambiguous whatever
+ * a third says, and the Folder's Organizations all read leave nothing to
+ * wait for. */
+async function ownerName(
+  folder: string,
+  owner: string,
+  readCatalog: (folder: string) => Promise<Catalog>,
+): Promise<Readonly<{ name: string }> | Readonly<{ again: boolean }>> {
+  let catalog: Catalog;
+  try {
+    catalog = await readCatalog(folder);
+  } catch {
+    return { again: true };
+  }
+  const selection = selectOwnerOrganization(catalog, owner);
+  const name =
+    selection.kind === "found" ? selection.organization.displayName : null;
+  if (typeof name === "string" && organizationKey(name) !== "") return { name };
+  return {
+    again:
+      selection.kind !== "ambiguous" &&
+      catalog.organizations.some((entry) => entry.organization === null),
+  };
+}
+
 /** The rule of an Environment: the name of the Organization that owns it
  * (its Machine binding's Organization, named as the Organization's manifest
  * names it); `unverified` where an Organization owns it but its name cannot
@@ -170,25 +220,32 @@ export function composioOrganizationVerdict(
  * handover names `example`, a manifest binds `Example`), never against the
  * slug of an Organization bound to another login. Composio and the
  * Organization's settings, which say whether Composio is allowed there, so
- * never disagree on the owner. Missing or ambiguous: `unverified`. */
+ * never disagree on the owner. Missing or ambiguous: `unverified`.
+ *
+ * A reading that failed, or that could not read an Organization of the
+ * Folder while the owner was not found, is read again after
+ * `ownerRereadMs`, at most `ownerRereads` times (decision F42, addendum of
+ * 2026-10-27): an Organization's root being fast-forwarded is not an
+ * Organization whose name cannot be read. Only then `unverified`. */
 export async function composioOrganizationRule(
   folder: string,
   machine: MachineBinding | null,
+  reading: OwnerReading = {},
 ): Promise<ComposioOrganizationRule> {
   if (machine === null) return { kind: "chosen" };
   if (machine.owner.kind !== "organization") return { kind: "default" };
-  try {
-    const selection = selectOwnerOrganization(
-      await readFolderCatalog(folder),
+  const readCatalog =
+    reading.readCatalog ?? ((path) => readFolderCatalog(path));
+  const wait = reading.wait ?? waitMs;
+  for (let reread = 0; ; reread += 1) {
+    const found = await ownerName(
+      folder,
       machine.owner.organization,
+      readCatalog,
     );
-    const name =
-      selection.kind === "found" ? selection.organization.displayName : null;
-    return typeof name === "string" && organizationKey(name) !== ""
-      ? { kind: "named", name }
-      : { kind: "unverified" };
-  } catch {
-    return { kind: "unverified" };
+    if ("name" in found) return { kind: "named", name: found.name };
+    if (!found.again || reread >= ownerRereads) return { kind: "unverified" };
+    await wait(ownerRereadMs);
   }
 }
 

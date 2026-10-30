@@ -9,7 +9,9 @@ settings since decision F45 (root decision 0194, plan DEV-6653 task 693). The
 Organization's Microsoft 365 company app (task 685) connects Outlook, OneDrive and
 SharePoint directly since F42's addendum (c) of 2026-10-14
 ([below](#the-microsoft-365-company-app)); Google Workspace's company app is not part
-of it yet.
+of it yet. The apps of the person's ChatGPT account are off for agents
+unless the Organization, or on a personal Environment the person, allows them (F42's
+addendum of 2026-10-27, [below](#chatgpt-apps-aplikace-z-chatgpt)).
 
 An **Integrace** is an app or service connected to an Environment. Each has
 exactly one **path**: by its own **tool** from Settings → Tools (`gh` for GitHub,
@@ -20,7 +22,8 @@ account, [below](#the-composio-organization-of-an-environment)). Users connect,
 see and disconnect them in the Launchpad under Apps → Integrace; agents read the
 same list with
 `lazurio integrations list --json` and use an Integrace where it is connected,
-in the order tool → Executor → Composio. Agents never connect one themselves:
+in the order: the tool from Settings → Tools, then Executor, then Composio.
+Agents never connect one themselves:
 the sign-in is the user's consent, so they send the link to its card.
 
 ## Where things live
@@ -74,7 +77,25 @@ the sign-in is the user's consent, so they send the link to its card.
 
 A tool counts as connected when agents use it (required, or switched on in
 Settings → Tools), it is installed and its sign-in probe says signed in; `gogcli`
-counts only on a personal Environment and the user's own computer. Composio
+counts only on a personal Environment and the user's own computer.
+
+**An app that its tool connects** (Matěj 2026-10-28) shows the line "Připojuje se
+nástrojem <tool>." and the button "Připojit" (`open-tools` with its `tool`). Before
+this, the button said "Otevřít Nástroje" and only switched the page to Settings →
+Tools, where nothing showed which row to use.
+- **Where the tool has its own sign-in** (wacli's QR code, gh's device code), the
+  click opens that dialog over Integrace, as the tool's row would (`tools.connect`,
+  `openSignIn`). The page reads the tools first where it has no reading yet.
+- **Otherwise** (a tool an agent sets up, or one that is signed in but off for
+  agents), Settings → Tools opens at the tool's row (`tools.reveal`). The row is
+  scrolled to the middle and tinted with the accent for a moment; the mark ends on the
+  row drawn at that moment. The control the user acts on next takes the focus
+  (`revealControl`): the sign-in or installation, "Link SSH key" or the setup with an
+  agent, else the switch. A row the Organization decides has nothing to act on, so the
+  row itself takes the focus, with its sentence why. A disabled control never does.
+
+Začínáme's GitHub and Composio steps, and Composio's card, use the same reveal where
+their sign-in cannot open. Composio
 counts when it is allowed, switched on for agents, installed and signed in.
 
 Whether Composio is allowed is one rule over the Organization settings the Folder
@@ -809,6 +830,60 @@ Lazurio's side by itself.
   tenant lacks consent to a scope this release asks for; the Organization's Admin
   adds it, and the user connects again.
 
+## ChatGPT apps ("Aplikace z ChatGPT")
+
+Decision F42's addendum of 2026-10-27. Codex gives agents every app, plugin and
+connector of the signed-in ChatGPT account as the MCP server `codex_apps`. They are a
+way to an app beside the Integrace, so they are off unless someone allowed them:
+
+| Environment | Who decides | Where | Absent |
+| --- | --- | --- | --- |
+| An Organization's (work, Team, Automated) | the Organization's Admin | `settings.integrations.chatgpt_apps.allowed` in the Organization's manifest, edited in the Dashboard, delivered and recorded in the Folder by F45 | off |
+| Personal, and the person's own computer | the person | `chatgptAppsAllowed` in `.lazurio/preferences.json`, the switch at the foot of Apps → Integrace → Vše, `lazurio integrations chatgpt-apps allow\|disallow` | off |
+
+Where they are not allowed, Lazurio writes `[apps._default] enabled = false` and
+`[features] tool_suggest = false`, each with its marker, into the operator's
+`$CODEX_HOME/config.toml` and nothing else; where they are allowed again it takes its
+own lines back. It does so only on a Remote Environment,
+where it sets Executor up too: at the Launchpad's start, after the Organization's
+settings changed the Folder, after the person's switch, and on `lazurio integrations
+chatgpt-apps apply`. The person's own computer is never changed. Doctor's check
+`chatgpt-apps` reads the same file.
+
+| Codex's configuration | Not allowed | Allowed |
+| --- | --- | --- |
+| No `apps._default` (no `features`) | Lazurio's table appended | unchanged |
+| `[apps._default]` without `enabled`, or with `enabled = true` (the same for `[features]` and `tool_suggest`) | Lazurio's marked line (the person's line kept beside it) | the person's line back, Lazurio's table gone |
+| `enabled = false` (`tool_suggest = false`) by the person, or `features.apps = false` | unchanged | unchanged |
+| `[apps.<id>] enabled = true` | unchanged, reported as an exception | unchanged |
+| `apps._default` or `features` dotted or inline, a link, a file that does not parse | unchanged, reported | unchanged |
+
+What `[apps._default] enabled = false` removes (Codex 0.164.0, read 2026-10-27):
+every app of the account and OpenAI's own ones in `codex_apps` (Plugin Management,
+Sites, ChatGPT Space, Search Service, Safety Settings, Hotline, Pets).
+`[features] tool_suggest = false` removes Codex's `<recommended_plugins>` block in the
+prompt and its suggestions of plugins and connectors to install. Not removed: web
+search (`web_search`) and MCP servers (Executor's). The Folder also forbids searching,
+suggesting and connecting plugins.
+
+The reading (`GET /api/integrations`, `lazurio integrations list --json`) has
+`chatgptApps: {allowed, source: "organization" | "person", set, codex: "on" | "off" |
+"unreadable" | "absent" | null, exceptions}`; `codex` is `on` where either key is on,
+null where Lazurio does not keep Codex. The settings report names
+`integrations.chatgpt_apps.allowed` only where the Organization governs it now or
+governed before (F45). The page says who decides at the foot of Vše, with the switch only where
+the person decides, and warns where they are not allowed and Codex still has them.
+`lazurio integrations chatgpt-apps [--json]` prints the policy and Codex's state.
+
+| Part | Where |
+| --- | --- |
+| The setting | `src/organizations/organization-settings.ts` |
+| The policy | `src/integrations/policy.ts` (the shape), `src/organization-settings/governance.ts` (`chatgptAppsPolicyOf`) |
+| The person's preference | `src/folder/state.ts`, `src/folder/change-profile.ts` (`planChatgptAppsChange`), `src/folder/update-profile.ts` |
+| Codex's configuration | `src/tools/codex-apps.ts` |
+| The use case | `src/integrations/chatgpt-apps.ts` |
+| Doctor | `src/doctor/doctor.ts` (`chatgptAppsCheck`) |
+
 ## The reading: `GET /api/integrations` and `lazurio integrations list`
 
 Both answer the same document (`IntegrationsOverview`, `src/integrations/model.ts`):
@@ -830,7 +905,48 @@ and the custom MCP
 servers (address without userinfo or query, which may carry a key; a command
 server's line is not shown). A source that cannot be read is said so and never
 taken for "nothing connected"; only a Folder that cannot be read fails the route
-(500). The tools' sign-in probes and Composio reach the network, so the Launchpad
+(500).
+
+**Unknown is not "not connected"** (decision F42, addendum of 2026-10-27). An
+app's `connected` is `true` through its tool or a working account on its path,
+`false` only where every source that could connect it here was read, and `null`
+where one was not, with the reason in `unknown`: the first such source in the
+agents' order whose tool, or whose account on a way the path rule would take,
+could connect the app. `tools-unreadable` (or `tools-unavailable`): a tool made
+for the app that counts here (gogcli only on a personal Environment), where the
+tools or that tool's sign-in could not be read; `executor-unavailable`,
+`executor-unreadable`: Executor did not answer or its answer was not understood;
+`composio-unreadable`: Composio's sign-in, accounts or organizations could not
+be read; `composio-unverified`: this Environment's
+Composio organization could not be told; `composio-elsewhere`: it could not be
+made current. A state that settles it is never unknown: Executor `absent`,
+Composio not installed (`unavailable`), `signed-out`, `off` or `not-allowed`,
+since nothing connects through that source here. A sign-in probe that could not
+tell (it timed out, or its answer was not understood) settles nothing: it is a
+source not read, never a sign-out. Nothing of an unverified
+Composio is used or listed (its accounts stay out, a link and a removal are
+refused as before): only the reporting changes. The page draws such a card with
+"Nelze teď ověřit" ("Can't verify right now") in place of "Připojeno" and keeps
+its action; Připojené does not count it, and where it lists nothing while some
+app is unknown it says "Připojené aplikace teď nelze ověřit." instead of
+"Zatím žádné připojené aplikace." `lazurio integrations list` without `--json`
+counts the unknown apps by reason under "Not verified now" and never says
+"Connected: none." while one is unknown.
+
+**The Composio organization during `lazurio update`.** The rule of an
+Organization's Environment reads the Folder's catalog for its Organization's
+name. `lazurio update` fast-forwards the Organization's root meanwhile (the
+Folder's rules start it in the background at the beginning of work), and a
+reading in the middle of the write finds the root's documents changing, missing
+or half written: the catalog isolates the root (`organization-changed`, or
+another reason) or its reader throws, the owner is not found and the rule was
+`unverified`. The catalog's readers take no lock (the content lock is held for
+the whole synchronization, network included, and only one content operation
+takes it), so the rule reads again: where the reading failed, or where the owner
+was not found while an Organization of the Folder could not be read, it waits
+`ownerRereadMs` (1 s) and reads again, at most `ownerRereads` (2) times. A
+Folder whose Organizations were all read, or where two readable ones answer the
+owner, is `unverified` at once. The tools' sign-in probes and Composio reach the network, so the Launchpad
 keeps its last reading for a minute and reads again on "Zkontrolovat připojení"
 (`?refresh=1`) and after every change: a connect or a removal, a change of the
 tools in Settings → Tools (`/api/tools/update`) and a sign-in of a tool that ends
@@ -850,8 +966,9 @@ was not a reading or was superseded never sends the user away: the card says
 but off for agents (`off`), a card says "Composio je připojené, ale agenti ho
 nepoužívají: v Nástrojích má vypnuté „Používají agenti“." ("Composio is
 connected, but agents don't use it: “Used by agents” is off in Tools.")
-with "Otevřít Nástroje", and a connect is refused as `composio-signed-out` as
-before.
+with "Otevřít Nástroje", which opens Settings → Tools at Composio's row with its
+switch focused (`tools.reveal`, Matěj 2026-10-28), and a connect is refused as
+`composio-signed-out` as before.
 
 | Route | Body | Answer |
 | --- | --- | --- |
@@ -938,4 +1055,14 @@ hosted Environments names the Integrace page instead of Composio's procedure. Th
 texts it retires: `composio link` for agents, "send the link the command returns",
 "no cloud connector other than Composio", MCP servers set up per harness
 (`claude mcp add`, `~/.codex/config.toml`). Template revision `base-instructions-39`;
-the Microsoft 365 texts `base-instructions-53`.
+the Microsoft 365 texts `base-instructions-53`. Since `base-instructions-83`
+(decision F42, addendum of 2026-10-27) AGENTS.md and the chapter Integrace say
+that `"connected": null` means the state could not be verified now, not that
+the app is not connected: never say so to the user and do not switch to another
+way because of it; read the list again in a moment or try the operation through
+the app's path, but never Composio with an unverified organization
+(`composio-unverified`, `composio-elsewhere`) until a reading verifies it; report
+only a concrete failure with the tool and the account used. The exact order ("the
+tool from Settings → Tools (`gh`, `wacli`, …)"), the line on ChatGPT's apps and
+the two working rules on technical checks and "zapamatuj si" are
+`base-instructions-84`.

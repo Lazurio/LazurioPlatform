@@ -1,12 +1,18 @@
 import {
+  type BeatDrawing,
   type BuddyPart,
   type BuddyStepFacts,
+  beatView,
   type Countdown,
   countdownText,
   draftOf,
   type IntroduceScreen,
+  introduceNav,
   introduceScreen,
+  keepTogether,
   type MeetScreen,
+  meetBeats,
+  meetQuestionsAt,
   meetScreens,
   type PersonaDraft,
   type PersonaSaveResult,
@@ -27,15 +33,28 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // prototypes-lazurio #90): the first step of an Osobní Prostředí with Buddy,
 // one dialog in three screens, as Propojit Bitwarden has them.
 //
-//   1. His own ChatGPT sign-in: OpenAI's page, the code with Kopírovat, the
-//      time it still holds, "Čekám na přihlášení…", Nový kód, then
-//      Připojeno. The person signs in in their own browser; nobody copies a
-//      command and no agent is involved.
-//   2. He introduces himself, now that he can speak, and asks in his own
-//      words: what to call him, ty or vy, what to call the person, and how
-//      he will write their name, with Opravit. Pokračovat saves it with the
+//   1. The ChatGPT sign-in, just its steps (the onboarding of 2026-10-28):
+//      the person signs in with their own account with a subscription on
+//      OpenAI's page, then enters the code with Kopírovat; a quiet line says
+//      what to do where ChatGPT does not take the code, one calm line waits
+//      with the time the code holds (no spinner), Nový kód, then Připojeno
+//      alone and prominent. The person signs in in their own browser; nobody
+//      copies a command and no agent is involved.
+//   2. He introduces himself, now that he can speak (decision F60's
+//      addendum of 2026-10-26; prototypes-lazurio #92): five short beats in
+//      his own words, each with his figure and one small drawing (he waves
+//      on the first; on the last, where he is, the real launcher of his
+//      bubble rises over this dialog with a ring), then his questions: what
+//      to call him, what to call the person and how he will write their
+//      name, with Opravit, and ty or vy, which nobody chooses for the
+//      person. Pokračovat waits for that choice and saves it all with the
 //      person's confirmation.
-//   3. Telegram: for now only "Teď ne" and that his chat in Lazurio stays.
+//   3. Telegram, optional (decision F66), and that his chat in Lazurio
+//      stays. "Teď ne" ends the meeting: the dialog closes and his window
+//      opens, where his first message comes. "Připojit Telegram" closes this
+//      dialog and opens "Připojit Telegram". The step is done before it: it
+//      never waits for Telegram. Once his bot is connected, it says so, and
+//      Hotovo ends the meeting as "Teď ne" does.
 //
 // Nastavení → Buddy opens the first screen alone to sign him in again. Every
 // value is drawn with textContent; the code reaches the clipboard only by
@@ -86,6 +105,49 @@ export function tickCountdowns(root: ParentNode, now: number) {
     const text = countdownText({ template, expiresAt }, now);
     if (node.textContent !== text) node.textContent = text;
   }
+}
+
+/** His waving figure, the design system's own frames of him (one strip of
+ * three, bundled with the page): it waves twice and stays; without motion
+ * it stands still. `size` is a frame's width on screen. Null where the page
+ * carries no strip. */
+function waveNode(size: number, still = false): HTMLElement | null {
+  const source = document.querySelector<HTMLImageElement>(
+    "#buddy-wave-pictures img",
+  );
+  if (source === null) return null;
+  const frame = element("span", still ? "buddy-wave is-still" : "buddy-wave");
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.setProperty("--frame", `${size}px`);
+  const strip = source.cloneNode() as HTMLImageElement;
+  strip.removeAttribute("loading");
+  strip.alt = "";
+  frame.append(strip);
+  return frame;
+}
+
+/** His figure on a beat or beside his questions: his picture from his
+ * origin (the launcher's), or the design system's still of him where it
+ * does not load. */
+function figureNode(avatar: string | null, size: number): HTMLElement {
+  const figure = element("span", "buddy-figure");
+  figure.setAttribute("aria-hidden", "true");
+  figure.style.setProperty("--frame", `${size}px`);
+  const still = () => {
+    const wave = waveNode(size, true);
+    figure.replaceChildren(...(wave === null ? [] : [wave]));
+  };
+  if (avatar === null) still();
+  else {
+    const picture = element("img");
+    picture.alt = "";
+    picture.decoding = "async";
+    picture.draggable = false;
+    picture.addEventListener("error", still, { once: true });
+    picture.src = avatar;
+    figure.append(picture);
+  }
+  return figure;
 }
 
 /** Buddy's face: his picture from his origin (the launcher's), or the
@@ -187,12 +249,24 @@ export function createBuddyDialog(
     facts: () => BuddyStepFacts;
     /** His picture (`<origin>/assets/avatar.webp`); null without it. */
     avatar: () => string | null;
-    /** A new code ("Přihlásit Buddyho", "Nový kód"). */
+    /** A new code ("Přihlásit se", "Nový kód", "Přihlásit jiný účet"). */
     signIn: () => void;
     /** The names, with the person's confirmation from the introduction. */
     save: (draft: PersonaDraft, confirm: boolean) => Promise<PersonaSaveResult>;
+    /** The Environment's apps as its switch names them, the ones it has,
+     * and its name of Automate, where his bots work: for the beats that
+     * show them. */
+    apps: () => Readonly<{ apps: readonly string[]; automate: string }>;
+    /** Lifts the launcher of his bubble over this dialog (true) while the
+     * beat that shows where he is stands, and lets it back (false). */
+    spotlight: (on: boolean) => void;
+    /** The meeting ended with "Teď ne": his window opens. */
+    finished: () => void;
     /** The dialog closed: the page draws again (its tour comes back). */
     closed: () => void;
+    /** "Připojit Telegram": this dialog closes and that one opens; its
+     * close ends the meeting. */
+    telegram: () => void;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -210,7 +284,9 @@ export function createBuddyDialog(
   let screen: MeetScreen = "sign-in";
   // `sign-in`: Nastavení → Buddy's "Přihlásit", the first screen alone.
   let only = false;
-  let draft: PersonaDraft = draftOf(null);
+  // Where the introduction stands: a beat, then his questions.
+  let beat = 0;
+  let draft: PersonaDraft = draftOf(null, "cs");
   let fixing = false;
   let saving = false;
   let line: string | null = null;
@@ -231,30 +307,50 @@ export function createBuddyDialog(
     screen = next;
     line = null;
     fixing = false;
-    if (next === "introduce")
-      draft = draftOf(options.facts().reading?.persona ?? null);
+    if (next === "introduce") {
+      beat = 0;
+      draft = draftOf(
+        options.facts().reading?.persona ?? null,
+        options.locale(),
+      );
+    }
     drawn = null;
     render();
     title.focus({ preventScroll: true });
   }
 
+  /** Another beat of his introduction, or his questions: drawn anew, the
+   * focus on what goes on (his questions' first field, else Další). */
+  function toBeat(next: number) {
+    beat = Math.max(0, Math.min(meetQuestionsAt, next));
+    drawn = null;
+    render();
+    const target =
+      beat === meetQuestionsAt
+        ? body.querySelector<HTMLElement>("#buddy-meet-name")
+        : nav.querySelector<HTMLElement>("button.primary");
+    target?.focus({ preventScroll: true });
+  }
+
   // ---- 1. The sign-in ----
 
+  // Just the steps (the onboarding of 2026-10-28): no line above them, and
+  // nothing about the agents' own sign-ins, which this person does not need
+  // here.
   function signInBody(view: SignInScreen, copy: Copy): HTMLElement[] {
-    const say = element("p", "buddy-say", copy.buddySay);
-    const own = element("p", "buddy-own", copy.buddyOwn);
     switch (view.kind) {
       case "checking":
-        return [say, element("p", "buddy-status", copy.startChecking)];
+        return [element("p", "buddy-status", copy.startChecking)];
       case "start": {
+        // The person signs in, with an account that has a subscription.
         const act = element("div", "buddy-act");
         act.append(button(copy.buddySignIn, options.signIn, true));
-        return [say, act, own];
+        return [element("p", "buddy-say", copy.buddySignInWith), act];
       }
       case "starting": {
         const status = element("p", "buddy-status");
         status.append(spinner(), copy.buddySignInStarting);
-        return [say, status, own];
+        return [status];
       }
       case "code": {
         const steps = element("ol", "buddy-steps");
@@ -266,7 +362,7 @@ export function createBuddyDialog(
         link.append(icon("external"));
         open.append(
           element("span", "buddy-steps-n", "1"),
-          element("span", "buddy-steps-text", copy.buddyOpenPage),
+          element("span", "buddy-steps-text", copy.buddySignInWith),
           link,
         );
         const enter = element("li");
@@ -286,36 +382,48 @@ export function createBuddyDialog(
           code,
         );
         steps.append(open, enter);
-        const holds = element("p", "buddy-holds");
-        holds.append(
+        // Before ChatGPT may refuse the code: where to allow it, and that
+        // the same page opens again with its button.
+        const setting = element(
+          "p",
+          "buddy-note",
+          fill(copy.buddyCodeSetting, { open: copy.buddyOpenButton }),
+        );
+        // One calm line while the person signs in: no spinner, and the time
+        // the code holds after it, outside the announced status so a reader
+        // does not hear every second.
+        const waiting = element("p", "buddy-wait");
+        const words = element("span", "", copy.buddyWaiting);
+        words.setAttribute("role", "status");
+        waiting.append(
+          words,
+          " ",
           countdownNode(view.holds, countdownText(view.holds, Date.now())),
         );
-        const waiting = element("p", "buddy-status");
-        waiting.setAttribute("role", "status");
-        waiting.append(spinner(), copy.buddyWaiting);
         const again = element("div", "buddy-again");
-        again.append(button(copy.buddyNewCode, options.signIn), own);
-        return [say, steps, holds, waiting, again];
+        again.append(button(copy.buddyNewCode, options.signIn));
+        return [steps, setting, waiting, again];
       }
       case "expired": {
         const status = element("p", "buddy-status buddy-warn");
         status.setAttribute("role", "status");
         status.append(icon("warning"), copy.buddyCodeExpired);
         const again = element("div", "buddy-again");
-        again.append(button(copy.buddyNewCode, options.signIn, true), own);
-        return [say, status, again];
+        again.append(button(copy.buddyNewCode, options.signIn, true));
+        return [status, again];
       }
       case "connected": {
-        const status = element("p", "buddy-status buddy-ok");
+        // Done: Připojeno alone, prominent, and no step's line with it.
+        const status = element("p", "buddy-connected");
         status.setAttribute("role", "status");
         status.append(icon("check"), copy.startConnected);
-        return [say, status];
+        return [status];
       }
       case "failed": {
         const status = element("p", "buddy-status buddy-warn");
         status.setAttribute("role", "status");
         status.append(icon("warning"), view.line);
-        const nodes: HTMLElement[] = [say, status];
+        const nodes: HTMLElement[] = [status];
         if (view.help !== undefined) {
           const [toggle, text] = helpNodes(view.help, copy);
           if (toggle !== undefined) status.append(toggle);
@@ -323,7 +431,13 @@ export function createBuddyDialog(
         }
         if (view.retry) {
           const again = element("div", "buddy-again");
-          again.append(button(copy.buddyNewCode, options.signIn, true), own);
+          again.append(
+            button(
+              view.otherAccount ? copy.buddySignInOther : copy.buddyNewCode,
+              options.signIn,
+              true,
+            ),
+          );
           nodes.push(again);
         }
         return nodes;
@@ -333,24 +447,168 @@ export function createBuddyDialog(
 
   // ---- 2. He introduces himself ----
 
-  /** The second screen, built once per visit: typing changes only its
-   * lines in place, so the field keeps its focus and its caret. */
-  function introduceBody(copy: Copy): HTMLElement[] {
+  /** One beat: his figure and one or two of his speech bubbles, which come
+   * one after another, a small drawing, and the five bars of where it
+   * stands. */
+  function beatBody(copy: Copy): HTMLElement[] {
+    const view = beatView(
+      beat,
+      {
+        buddyName: draft.buddyName,
+        address: draft.address,
+        ...options.apps(),
+      },
+      copy,
+    );
+    const stage = element("div", "buddy-beat");
+    stage.dataset.beat = view.beat;
+    const talk = element("div", "buddy-beat-talk");
+    const size = view.waves ? 144 : 96;
+    const figure =
+      (view.waves ? waveNode(size) : null) ??
+      figureNode(options.avatar(), size);
+    const says = element("div", "buddy-beat-says");
+    says.setAttribute("aria-live", "polite");
+    view.lines.forEach((text, n) => {
+      const bubble = element("p", "buddy-bubble buddy-beat-line");
+      bubble.textContent = keepTogether(text);
+      bubble.style.setProperty("--n", String(n));
+      says.append(bubble);
+    });
+    talk.append(figure, says);
+    stage.append(talk);
+    const drawing = drawingNode(view.drawing);
+    if (drawing !== null) stage.append(drawing);
+    const progress = element("span", "buddy-beat-progress");
+    progress.setAttribute("role", "img");
+    progress.setAttribute("aria-label", view.progress);
+    meetBeats.forEach((_, n) => {
+      const bar = element("i");
+      if (n === view.index) bar.dataset.state = "on";
+      else if (n < view.index) bar.dataset.state = "done";
+      progress.append(bar);
+    });
+    stage.append(progress);
+    return [stage];
+  }
+
+  /** The drawing of a beat, from the design system's parts: no lines
+   * between things, position and nesting carry the relation. */
+  function drawingNode(drawing: BeatDrawing | null): HTMLElement | null {
+    if (drawing === null) return null;
+    const delayed = (node: HTMLElement, n: number) => {
+      node.style.setProperty("--n", String(n));
+      return node;
+    };
+    switch (drawing.kind) {
+      case "does": {
+        const cards = element("ul", "buddy-beat-cards");
+        drawing.cards.forEach((card, n) => {
+          const item = delayed(element("li", "buddy-beat-card"), n);
+          item.append(icon(card.icon), keepTogether(card.text));
+          cards.append(item);
+        });
+        return cards;
+      }
+      case "bots": {
+        const panel = element("div", "buddy-beat-panel");
+        const head = element("span", "buddy-beat-panel-title");
+        head.append(icon("bot"), drawing.title);
+        const rows = element("ul", "buddy-beat-bots");
+        drawing.rows.forEach((row, n) => {
+          const item = delayed(element("li", "buddy-beat-bot"), n);
+          const face = element("span", "buddy-beat-bot-face");
+          face.append(icon("bot"));
+          const state = element("span", "buddy-beat-bot-state");
+          if (row.done) {
+            state.dataset.done = "";
+            state.append(icon("check"));
+          } else state.append(spinner());
+          state.append(row.status);
+          item.append(
+            face,
+            element("span", "buddy-beat-bot-task", row.task),
+            state,
+          );
+          rows.append(item);
+        });
+        panel.append(head, rows);
+        return panel;
+      }
+      case "memory": {
+        const panel = element("div", "buddy-beat-panel");
+        const head = element("span", "buddy-beat-panel-title");
+        head.append(icon("book"), drawing.title);
+        const chips = element("ul", "buddy-beat-chips");
+        drawing.items.forEach((text, n) => {
+          chips.append(
+            delayed(element("li", "buddy-beat-chip", keepTogether(text)), n),
+          );
+        });
+        panel.append(head, chips);
+        return panel;
+      }
+      case "where": {
+        const tiles = element("ul", "buddy-beat-where");
+        const avatar = options.avatar();
+        drawing.apps.forEach((app, n) => {
+          const tile = delayed(element("li", "buddy-beat-tile"), n);
+          const screen = element("span", "buddy-beat-tile-screen");
+          const corner = element("span", "buddy-beat-tile-bubble");
+          if (avatar !== null) {
+            const picture = element("img");
+            picture.alt = "";
+            picture.decoding = "async";
+            picture.addEventListener("error", () => picture.remove(), {
+              once: true,
+            });
+            picture.src = avatar;
+            corner.append(picture);
+          }
+          screen.append(
+            element("span", "buddy-beat-tile-rail"),
+            element("span", "buddy-beat-tile-line"),
+            element("span", "buddy-beat-tile-line buddy-beat-tile-short"),
+            corner,
+          );
+          tile.append(screen, element("span", "buddy-beat-tile-name", app));
+          tiles.append(tile);
+        });
+        const phone = delayed(
+          element("li", "buddy-beat-tile buddy-beat-phone"),
+          drawing.apps.length,
+        );
+        const screen = element("span", "buddy-beat-tile-screen");
+        screen.append(
+          element("span", "buddy-beat-msg"),
+          element("span", "buddy-beat-msg buddy-beat-msg-mine"),
+        );
+        phone.append(
+          screen,
+          element("span", "buddy-beat-tile-name", drawing.phone),
+        );
+        tiles.append(phone);
+        return tiles;
+      }
+    }
+  }
+
+  /** His questions after the beats, built once per visit: typing changes
+   * only their lines in place, so a field keeps its focus and its caret.
+   * Each is his speech bubble with its answer under it: his name, the
+   * person's name and how he writes it, then ty or vy, neither chosen. */
+  function questionsBody(copy: Copy): HTMLElement[] {
     const locale = options.locale();
     const view = (): IntroduceScreen => introduceScreen(draft, locale, copy);
     const first = view();
-    const art = element("div", "buddy-meet-art");
-    const face = faceNode(options.avatar(), draft.buddyName);
-    const says = element("div", "buddy-says");
-    const hello = element("p", "buddy-bubble", first.hello);
-    const intro = element("p", "buddy-bubble", first.intro);
-    says.append(hello, intro);
-    art.append(face, says);
+    const stage = element("div", "buddy-q");
+    const face = figureNode(options.avatar(), 48);
+    face.classList.add("buddy-q-face");
+    const talk = element("div", "buddy-q-talk");
 
-    const questions = element("div", "buddy-questions");
-    const question = (ask: string, control: HTMLElement, id: string) => {
-      const row = element("div", "buddy-question");
-      const label = element("label", "buddy-ask", ask);
+    const ask = (id: string, text: string, control: HTMLElement) => {
+      const row = element("div", "buddy-q-ask");
+      const label = element("label", "buddy-bubble", keepTogether(text));
       label.htmlFor = id;
       row.append(label, control);
       return { row, label };
@@ -362,7 +620,7 @@ export function createBuddyDialog(
     nameInput.autocomplete = "off";
     nameInput.spellcheck = false;
     nameInput.setAttribute("aria-label", copy.buddyNameLabel);
-    const name = question(first.askName, nameInput, nameInput.id);
+    const name = ask(nameInput.id, first.askName, nameInput);
 
     const yourInput = element("input", "buddy-input");
     yourInput.id = "buddy-meet-you";
@@ -370,13 +628,19 @@ export function createBuddyDialog(
     yourInput.maxLength = 60;
     yourInput.autocomplete = "off";
     yourInput.setAttribute("aria-label", copy.buddyYouLabel);
-    const you = question(first.askYou, yourInput, yourInput.id);
+    const you = ask(yourInput.id, first.askYou, yourInput);
+
+    const formsRow = element("div", "buddy-q-forms");
+    const formsAsk = element("span", "buddy-q-forms-say", first.forms);
+    const forms = element("div", "buddy-forms");
+    formsRow.append(formsAsk, forms);
 
     let addressRow: HTMLElement | null = null;
     let addressLabel: HTMLElement | null = null;
     const choices: HTMLButtonElement[] = [];
     if (first.askAddress !== null) {
-      const group = element("div", "buddy-segmented");
+      // Two answers, neither chosen until the person chooses one.
+      const group = element("div", "buddy-answers");
       group.setAttribute("role", "group");
       for (const value of ["vy", "ty"] as const) {
         const choice = button(first.answers[value], () => {
@@ -387,16 +651,16 @@ export function createBuddyDialog(
         choices.push(choice);
         group.append(choice);
       }
-      addressRow = element("div", "buddy-question");
-      addressLabel = element("span", "buddy-ask", first.askAddress);
-      group.setAttribute("aria-label", first.askAddress);
+      addressRow = element("div", "buddy-q-ask");
+      addressLabel = element(
+        "p",
+        "buddy-bubble",
+        keepTogether(first.askAddress),
+      );
+      addressLabel.id = "buddy-meet-address";
+      group.setAttribute("aria-labelledby", addressLabel.id);
       addressRow.append(addressLabel, group);
     }
-
-    const formsRow = element("div", "buddy-question buddy-forms-row");
-    const formsAsk = element("span", "buddy-ask buddy-ask-quiet", first.forms);
-    const forms = element("div", "buddy-forms");
-    formsRow.append(formsAsk, forms);
     const status = element("p", "buddy-line");
     status.setAttribute("role", "status");
     status.setAttribute("aria-live", "polite");
@@ -443,21 +707,20 @@ export function createBuddyDialog(
       }
     }
 
-    function update(forms = true) {
+    /** Every line follows his address at once ("Tykej mi"). */
+    function update(redrawForms = true) {
       const current = view();
-      hello.textContent = current.hello;
-      intro.textContent = current.intro;
-      name.label.textContent = current.askName;
-      you.label.textContent = current.askYou;
-      if (addressLabel !== null && current.askAddress !== null)
-        addressLabel.textContent = current.askAddress;
+      name.label.textContent = keepTogether(current.askName);
+      you.label.textContent = keepTogether(current.askYou);
       formsAsk.textContent = current.forms;
-      for (const choice of choices)
-        choice.setAttribute(
-          "aria-pressed",
-          String(choice.dataset.address === draft.address),
-        );
-      if (forms) drawForms();
+      if (addressLabel !== null && current.askAddress !== null)
+        addressLabel.textContent = keepTogether(current.askAddress);
+      for (const choice of choices) {
+        const chosen = choice.dataset.address === current.chosen;
+        choice.setAttribute("aria-pressed", String(chosen));
+        choice.classList.toggle("primary", chosen);
+      }
+      if (redrawForms) drawForms();
       drawNav();
     }
     nameInput.addEventListener("input", () => {
@@ -468,15 +731,16 @@ export function createBuddyDialog(
       draft = withYourName(draft, yourInput.value, options.locale());
       update(!fixing);
     });
-    questions.append(
+    talk.append(
       name.row,
-      ...(addressRow === null ? [] : [addressRow]),
       you.row,
       formsRow,
+      ...(addressRow === null ? [] : [addressRow]),
     );
+    stage.append(face, talk);
     update();
     status.textContent = line ?? "";
-    return [art, questions, status];
+    return [stage, status];
   }
 
   async function confirm() {
@@ -495,11 +759,16 @@ export function createBuddyDialog(
     drawNav();
   }
 
-  // ---- 3. Telegram, later ----
+  // ---- 3. Telegram, optional ----
 
   function telegramBody(copy: Copy): HTMLElement[] {
-    const persona = options.facts().reading?.persona ?? null;
-    const words = telegramScreen(persona ?? draft, copy);
+    const reading = options.facts().reading;
+    const persona = reading?.persona ?? null;
+    const words = telegramScreen(
+      persona?.confirmed ? persona : draft,
+      copy,
+      reading?.telegram,
+    );
     const art = element("div", "buddy-meet-art");
     const face = faceNode(
       options.avatar(),
@@ -511,7 +780,11 @@ export function createBuddyDialog(
       element("p", "buddy-bubble", words.here),
     );
     art.append(face, says);
-    return [art];
+    if (words.connected === null) return [art];
+    const status = element("p", "buddy-status buddy-ok");
+    status.setAttribute("role", "status");
+    status.append(icon("check"), words.connected);
+    return [art, status];
   }
 
   // ---- The frame ----
@@ -527,14 +800,48 @@ export function createBuddyDialog(
             ? button(copy.buddyDone, () => hide(), true)
             : button(copy.buddyContinue, () => move("introduce"), true),
         );
-    } else if (screen === "introduce") {
-      const next = button(copy.buddyContinue, () => void confirm(), true);
-      next.disabled =
-        saving || !introduceScreen(draft, options.locale(), copy).ready;
-      if (saving) next.prepend(spinner());
-      items.push(next);
-    } else items.push(button(copy.buddyLater, () => hide(), true));
+    }
+    // Zpět from the second beat on; Další through the beats, then
+    // Pokračovat, which waits for the names and for ty or vy.
+    const way =
+      screen === "introduce"
+        ? introduceNav(beat, draft, options.locale())
+        : null;
+    if (way !== null) {
+      if (way.back)
+        items.push(button(copy.buddyBeatBack, () => toBeat(beat - 1)));
+      if (way.next === "beat")
+        items.push(button(copy.buddyBeatNext, () => toBeat(beat + 1), true));
+      else {
+        const next = button(copy.buddyContinue, () => void confirm(), true);
+        next.disabled = saving || !way.ready;
+        if (saving) next.prepend(spinner());
+        items.push(next);
+      }
+    }
+    // His Telegram: "Teď ne" ends the meeting, "Připojit Telegram" opens
+    // its dialog; once his bot is connected (or Hermes cannot be asked),
+    // Hotovo ends it.
+    if (screen === "telegram") {
+      const state = options.facts().reading?.telegram?.state;
+      if (state === "connected" || state === "unknown")
+        items.push(button(copy.buddyDone, () => finish(), true));
+      else
+        items.push(
+          button(copy.buddyLater, () => finish()),
+          button(
+            copy.buddyTelegramConnect,
+            () => {
+              hide();
+              options.telegram();
+            },
+            true,
+          ),
+        );
+    }
     nav.replaceChildren(...items);
+    // The launcher rises over this dialog while it shows where he is.
+    options.spotlight(dialog.open && way?.spotlight === true);
     // The steps of the guide, as Propojit Bitwarden shows them.
     dots.hidden = only;
     const index = meetScreens.indexOf(screen);
@@ -558,7 +865,9 @@ export function createBuddyDialog(
   function render() {
     if (!dialog.open) return;
     const copy = options.copy();
-    title.textContent = only ? copy.buddySignIn : copy.buddyStepTitle;
+    // Nastavení → Buddy's Přihlásit names what it opens as its row does,
+    // "Přihlášení k ChatGPT"; "Přihlásit se" is the action, not a title.
+    title.textContent = only ? copy.buddyPartSignIn : copy.buddyStepTitle;
     close.setAttribute("aria-label", copy.toolsClose);
     if (screen === "sign-in") {
       const view = signInScreen(options.facts(), copy);
@@ -570,7 +879,11 @@ export function createBuddyDialog(
     } else if (drawn === null) {
       drawn = screen;
       body.replaceChildren(
-        ...(screen === "introduce" ? introduceBody(copy) : telegramBody(copy)),
+        ...(screen === "telegram"
+          ? telegramBody(copy)
+          : beat < meetQuestionsAt
+            ? beatBody(copy)
+            : questionsBody(copy)),
       );
     }
     drawNav();
@@ -580,9 +893,17 @@ export function createBuddyDialog(
     if (dialog.open) dialog.close();
   }
 
+  /** The meeting is over ("Teď ne"): the dialog goes and his window
+   * opens, where his first message comes. */
+  function finish() {
+    hide();
+    options.finished();
+  }
+
   close.addEventListener("click", () => hide());
   dialog.addEventListener("close", () => {
     drawn = null;
+    options.spotlight(false);
     options.closed();
   });
 
@@ -594,8 +915,12 @@ export function createBuddyDialog(
       screen = only ? "sign-in" : start;
       line = null;
       fixing = false;
+      beat = 0;
       if (screen === "introduce")
-        draft = draftOf(options.facts().reading?.persona ?? null);
+        draft = draftOf(
+          options.facts().reading?.persona ?? null,
+          options.locale(),
+        );
       drawn = null;
       if (!dialog.open) {
         if (typeof dialog.showModal === "function") dialog.showModal();

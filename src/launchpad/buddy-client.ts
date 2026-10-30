@@ -1,6 +1,7 @@
 import { buddyRoutePaths } from "./buddy-paths";
 import {
   type BuddyReading,
+  type BuddyRefusedAccount,
   type BuddySignInState,
   buddySignInStep,
   idleBuddySignIn,
@@ -8,17 +9,25 @@ import {
   type PersonaSaveResult,
   parseBuddyReading,
   parsePersona,
+  parseTelegram,
   personaBody,
+  type TelegramApproveResult,
+  type TelegramConnectResult,
+  type TelegramReading,
+  telegramIntentOf,
   unknownBuddyReading,
 } from "./buddy-view";
 
 // Buddy in the page (decision F65): his reading (`GET /api/buddy`), the one
-// sign-in this page holds (`/api/buddy/sign-in/*`, F63) and a change of his
-// persona (`POST /api/buddy/persona`), for Začínáme, its dialog and
+// sign-in this page holds (`/api/buddy/sign-in/*`, F63), a change of his
+// persona (`POST /api/buddy/persona`) and his Telegram
+// (`/api/buddy/telegram/*`, F66), for Začínáme, its dialogs and
 // Nastavení → Buddy alike. Nothing is kept in the browser: a reload reads it
-// all again. While a change of the persona is still on its way to him the
+// all again, and a bot's token passes through on its way to the Launchpad
+// only. While a change of the persona is still on its way to him the
 // reading is asked again every ten seconds, while the page is shown, so the
-// line that says so goes once it is in place.
+// line that says so goes once it is in place; while his Telegram starts or
+// waits for the person's Start, every four seconds, so who asked shows soon.
 //
 // An answer never takes back what the page already knows (Pablo's review of
 // #637). What the page learns from its own operations, a persona its save
@@ -50,6 +59,9 @@ const pageTimers: BuddyTimers = {
 
 /** How often a pending change of the persona is read again. */
 export const buddyPendingReadMs = 10_000;
+/** How often Telegram is read again while it starts or waits for the
+ * person's Start. */
+export const buddyTelegramReadMs = 4_000;
 /** How many times a reading overtaken by newer knowledge is asked in all. */
 export const buddyReadAttempts = 3;
 /** A code past its time by this much is no longer asked about. */
@@ -81,6 +93,9 @@ export function createBuddyClient(
   let reading: BuddyReading | null = null;
   let absent = false;
   let signIn: BuddySignInState = idleBuddySignIn;
+  // A refused account Hermes still holds: kept across this page's later
+  // sign-ins until a sign-out, or one the core keeps, ends it.
+  let refused: BuddyRefusedAccount | undefined;
   // A newer start, cancel or sign-out ends the questions of an older one.
   let turn = 0;
   let pollTimer: unknown;
@@ -109,16 +124,48 @@ export function createBuddyClient(
     }
   };
 
-  /** The reading again in ten seconds while a change is on its way. */
+  /** The reading again while a change is on its way: in ten seconds for
+   * the persona, in four while Telegram starts or waits for the person. */
   function follow() {
     timers.cancel(rereadTimer);
     rereadTimer = undefined;
-    if (reading?.persona?.pending !== true) return;
-    rereadTimer = timers.after(() => {
-      rereadTimer = undefined;
-      if (visible()) void read();
-      else follow();
-    }, buddyPendingReadMs);
+    const telegram = reading?.telegram;
+    const telegramMoving =
+      telegram !== undefined &&
+      (telegram.state === "starting" ||
+        telegram.state === "waiting" ||
+        telegram.pending);
+    if (reading?.persona?.pending !== true && !telegramMoving) return;
+    rereadTimer = timers.after(
+      () => {
+        rereadTimer = undefined;
+        if (visible()) void read();
+        else follow();
+      },
+      telegramMoving ? buddyTelegramReadMs : buddyPendingReadMs,
+    );
+  }
+
+  /** The core signed out a refused account, and Hermes's sign-out removes his
+   * whole sign-in: the reading says he is not signed in at once, no reading
+   * begun before may take it back, and a fresh one follows. */
+  function installSignedOut() {
+    learned();
+    if (reading !== null && reading.signIn === "connected")
+      reading = {
+        ...reading,
+        signIn: "none",
+        state: reading.state === "works" ? "waits" : reading.state,
+      };
+    void read();
+  }
+
+  /** Telegram as an answer of the page's own says it now. */
+  function installTelegram(telegram: TelegramReading) {
+    learned();
+    reading = { ...(reading ?? unknownBuddyReading), telegram };
+    follow();
+    options.changed();
   }
 
   async function readOnce(): Promise<void> {
@@ -192,6 +239,7 @@ export function createBuddyClient(
     const step = buddySignInStep(await ask(buddyRoutePaths.poll, { session }));
     if (mine !== turn || signIn.kind !== "pending") return;
     if (step?.kind === "signed-in") {
+      refused = undefined;
       set({ kind: "signed-in" });
       learned();
       options.changed();
@@ -199,6 +247,15 @@ export function createBuddyClient(
       return;
     }
     if (step?.kind === "failed") {
+      // A refused account: still held where its sign-out failed, gone where
+      // it happened, since Hermes's sign-out removes his whole sign-in.
+      if (
+        step.reason === "no-subscription" ||
+        step.reason === "model-missing"
+      ) {
+        refused = step.stored === true ? step.reason : undefined;
+        if (step.stored !== true) installSignedOut();
+      }
       set({ kind: "failed", reason: step.reason });
       options.changed();
       return;
@@ -227,9 +284,11 @@ export function createBuddyClient(
     /** The Environment has no Buddy (404 `buddy-absent`). */
     absent: (): boolean => absent,
     signIn: (): BuddySignInState => signIn,
+    /** A refused account Hermes still holds (`BuddyRefusedAccount`). */
+    refused: (): BuddyRefusedAccount | undefined => refused,
     read,
 
-    /** "Přihlásit Buddyho", "Nový kód", "Přihlásit znovu": a new code. A
+    /** "Přihlásit se", "Nový kód", "Přihlásit znovu": a new code. A
      * start Hermes refuses while another sign-in runs keeps the code shown. */
     async start(): Promise<void> {
       timers.cancel(pollTimer);
@@ -290,6 +349,7 @@ export function createBuddyClient(
       const value = await ask(buddyRoutePaths.signOut, {});
       const done = isRecord(value) && value.kind === "signed-out";
       if (done) {
+        refused = undefined;
         // A reading begun before the sign-out still says he is signed in.
         learned();
         if (mine === turn) set(idleBuddySignIn);
@@ -346,6 +406,92 @@ export function createBuddyClient(
         return { kind: "changed" };
       }
       return { kind: "failed" };
+    },
+
+    /** Připojit Telegram: the token as the person pasted it, sent once and
+     * kept nowhere here. `intent`: the id of a connect that waited, when
+     * the dialog sends its token once more. */
+    async connectTelegram(
+      token: string,
+      intent?: string,
+    ): Promise<TelegramConnectResult> {
+      let answer: Readonly<{ ok: boolean; value: unknown }>;
+      try {
+        answer = await options.transport.post(
+          buddyRoutePaths.telegramConnect,
+          intent === undefined ? { token } : { token, intent },
+        );
+      } catch {
+        return { kind: "failed" };
+      }
+      const value = answer.value;
+      if (!isRecord(value)) return { kind: "failed" };
+      if (answer.ok && value.kind === "telegram") {
+        installTelegram(parseTelegram(value));
+        // Waiting, with the id of this connect: the dialog keeps the token
+        // for it. Waiting without one (a write after the token's own, in
+        // doubt): the token is saved, nothing to send again.
+        const held =
+          value.held === true ? telegramIntentOf(value.intent) : null;
+        return held === null
+          ? { kind: "saved" }
+          : { kind: "held", intent: held };
+      }
+      if (value.kind === "blocked" && value.reason === "superseded") {
+        void read();
+        return { kind: "superseded" };
+      }
+      if (value.error === "invalid-token") return { kind: "invalid" };
+      if (value.error === "buddy-unavailable") return { kind: "unavailable" };
+      if (value.kind === "failed")
+        return value.reason === "token-refused"
+          ? { kind: "refused" }
+          : value.reason === "telegram-unreachable"
+            ? { kind: "unreachable" }
+            : { kind: "failed" };
+      return { kind: "failed" };
+    },
+
+    /** "Ano, to jsem já": the account of this request allowed. */
+    async approveTelegram(request: string): Promise<TelegramApproveResult> {
+      let answer: Readonly<{ ok: boolean; value: unknown }>;
+      try {
+        answer = await options.transport.post(buddyRoutePaths.telegramApprove, {
+          request,
+        });
+      } catch {
+        return { kind: "failed" };
+      }
+      const value = answer.value;
+      if (!isRecord(value)) return { kind: "failed" };
+      if (answer.ok && value.kind === "telegram") {
+        installTelegram(parseTelegram(value));
+        return { kind: "approved" };
+      }
+      if (value.kind === "blocked" && value.reason === "request-gone") {
+        void read();
+        return { kind: "gone" };
+      }
+      if (value.error === "buddy-unavailable") return { kind: "unavailable" };
+      return { kind: "failed" };
+    },
+
+    /** Odpojit: his bot off. True once Hermes took it. */
+    async disconnectTelegram(): Promise<boolean> {
+      let answer: Readonly<{ ok: boolean; value: unknown }>;
+      try {
+        answer = await options.transport.post(
+          buddyRoutePaths.telegramDisconnect,
+          {},
+        );
+      } catch {
+        return false;
+      }
+      const value = answer.value;
+      if (!answer.ok || !isRecord(value) || value.kind !== "telegram")
+        return false;
+      installTelegram(parseTelegram(value));
+      return true;
     },
 
     /** The page goes: nothing more is asked. */

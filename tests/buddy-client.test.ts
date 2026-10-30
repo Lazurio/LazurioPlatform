@@ -5,11 +5,21 @@ import {
   type BuddyTransport,
   buddyPendingReadMs,
   buddyReadAttempts,
+  buddyTelegramReadMs,
   createBuddyClient,
 } from "../src/launchpad/buddy-client";
 import { buddyRoutePaths } from "../src/launchpad/buddy-paths";
 import { buddyRoutePaths as serverPaths } from "../src/launchpad/buddy-routes";
-import { draftOf, withYourName } from "../src/launchpad/buddy-view";
+import {
+  type BuddyStepFacts,
+  buddyFact,
+  buddySignInRow,
+  buddyStateView,
+  buddyStep,
+  draftOf,
+  withYourName,
+} from "../src/launchpad/buddy-view";
+import { messages } from "../src/launchpad/messages";
 import { codexDevicePage } from "../src/tools/ai";
 
 // Decision F65 in the page (buddy-client.ts): Buddy's reading, the one
@@ -284,6 +294,223 @@ test("a poll that ends it: expired, refused, or a Launchpad that holds it no mor
     value: { error: "buddy-unavailable", reason: "draining" },
   });
   expect(silent.buddy.signIn().kind).toBe("pending");
+  // An account the core refused: signed out again, or still held where its
+  // sign-out failed, which the page keeps as `refused`.
+  const out = await run({
+    ok: true,
+    value: { kind: "unusable", reason: "model-missing", signedOut: true },
+  });
+  expect(out.buddy.signIn()).toEqual({
+    kind: "failed",
+    reason: "model-missing",
+  });
+  expect(out.buddy.refused()).toBeUndefined();
+  const held = await run({
+    ok: true,
+    value: { kind: "unusable", reason: "no-subscription", signedOut: false },
+  });
+  expect(held.buddy.signIn()).toEqual({
+    kind: "failed",
+    reason: "no-subscription",
+  });
+  expect(held.buddy.refused()).toBe("no-subscription");
+});
+
+test("a refused account Hermes still holds stays known across later sign-ins that fail, until a sign-out or one the core keeps", async () => {
+  const refuseHeld = async () => {
+    const made = client();
+    made.fake.reply(buddyRoutePaths.start, { ok: true, value: pending() });
+    made.fake.reply(buddyRoutePaths.poll, {
+      ok: true,
+      value: { kind: "unusable", reason: "no-subscription", signedOut: false },
+    });
+    made.fake.reply(buddyRoutePaths.read, { ok: true, value: answer() });
+    await made.buddy.start();
+    await made.clock.run(2000);
+    expect(made.buddy.refused()).toBe("no-subscription");
+    return made;
+  };
+  // „Přihlásit jiný účet“ refused before its code: still held.
+  for (const reply of [
+    { ok: false, value: { kind: "blocked", reason: "hermes-outdated" } },
+    { ok: false, value: { error: "buddy-unavailable", reason: "no-socket" } },
+    { ok: true, value: { kind: "failed", reason: "failed" } },
+  ] as const) {
+    const { buddy, fake } = await refuseHeld();
+    fake.reply(buddyRoutePaths.start, reply);
+    await buddy.start();
+    expect(buddy.signIn().kind).toBe("failed");
+    expect(buddy.refused()).toBe("no-subscription");
+  }
+  // A new code: held while it waits, and after it expires or is lost.
+  for (const ending of ["expired", "lost"] as const) {
+    const { buddy, fake, clock } = await refuseHeld();
+    fake.reply(buddyRoutePaths.start, { ok: true, value: pending() });
+    await buddy.start();
+    expect(buddy.signIn().kind).toBe("pending");
+    expect(buddy.refused()).toBe("no-subscription");
+    fake.reply(buddyRoutePaths.poll, {
+      ok: true,
+      value: { kind: "failed", reason: ending },
+    });
+    await clock.run(2000);
+    expect(buddy.signIn()).toEqual({ kind: "failed", reason: ending });
+    expect(buddy.refused()).toBe("no-subscription");
+  }
+  // Another refused account, still held: the newer reason.
+  {
+    const { buddy, fake, clock } = await refuseHeld();
+    fake.reply(buddyRoutePaths.start, { ok: true, value: pending() });
+    fake.reply(buddyRoutePaths.poll, {
+      ok: true,
+      value: { kind: "unusable", reason: "model-missing", signedOut: false },
+    });
+    await buddy.start();
+    await clock.run(2000);
+    expect(buddy.refused()).toBe("model-missing");
+  }
+  // Ended: a sign-in the core keeps, a refused one it signed out (his whole
+  // sign-in goes), or „Odhlásit“.
+  for (const value of [
+    { kind: "signed-in" },
+    { kind: "unusable", reason: "model-missing", signedOut: true },
+  ] as const) {
+    const { buddy, fake, clock } = await refuseHeld();
+    fake.reply(buddyRoutePaths.start, { ok: true, value: pending() });
+    fake.reply(buddyRoutePaths.poll, { ok: true, value });
+    await buddy.start();
+    await clock.run(2000);
+    expect(buddy.refused()).toBeUndefined();
+  }
+  const { buddy, fake } = await refuseHeld();
+  fake.reply(buddyRoutePaths.signOut, {
+    ok: true,
+    value: { kind: "signed-out" },
+  });
+  expect(await buddy.signOut()).toBe(true);
+  expect(buddy.refused()).toBeUndefined();
+  // A sign-out that failed keeps it.
+  const kept = await refuseHeld();
+  kept.fake.reply(buddyRoutePaths.signOut, {
+    ok: true,
+    value: { kind: "failed", reason: "failed" },
+  });
+  expect(await kept.buddy.signOut()).toBe(false);
+  expect(kept.buddy.refused()).toBe("no-subscription");
+});
+
+test("a later account the core refused and signed out: the page's views never say Připojeno on the reading from before, and a fresh one follows (client and views together)", async () => {
+  const cs = messages("cs");
+  const works = answer({ state: "works", signIn: { state: "connected" } });
+  const none = answer({ state: "waits", signIn: { state: "none" } });
+  // Reads the test holds until it lets them go.
+  const fake = routes();
+  let release = () => {};
+  let held: Promise<void> | null = null;
+  const transport: BuddyTransport = {
+    get: async (path) => {
+      if (path === buddyRoutePaths.read && held !== null) await held;
+      return fake.transport.get(path);
+    },
+    post: fake.transport.post,
+  };
+  const { buddy, clock } = client({ ...fake, transport });
+  const facts = (): BuddyStepFacts => {
+    const refused = buddy.refused();
+    return {
+      reading: buddy.reading(),
+      signIn: buddy.signIn(),
+      now: at,
+      ...(refused === undefined ? {} : { refused }),
+    };
+  };
+  const says = () => {
+    const now = facts();
+    return {
+      done: buddyStep(now, cs).done,
+      part: buddyStep(now, cs).parts[0]?.status,
+      row: buddySignInRow(now, cs).controls,
+      stav: buddyStateView(now.reading, cs, now.refused).word,
+      firstRun: buddyFact(now.reading, now.refused),
+    };
+  };
+  const refusedLine =
+    "Předplatné tohoto účtu ChatGPT Buddymu nestačí. Přihlaste ho jiným účtem.";
+  // A refused account Hermes still holds; the reading says he works.
+  fake.reply(buddyRoutePaths.read, { ok: true, value: works });
+  await buddy.read();
+  fake.reply(buddyRoutePaths.start, { ok: true, value: pending() });
+  fake.reply(buddyRoutePaths.poll, {
+    ok: true,
+    value: { kind: "unusable", reason: "no-subscription", signedOut: false },
+  });
+  await buddy.start();
+  await clock.run(2000);
+  expect(says()).toMatchObject({ done: false, stav: "Čeká na přihlášení" });
+  // „Přihlásit jiný účet“: refused too, and this time signed out, so Hermes
+  // holds nothing. A reading that began before answers what was true then.
+  held = new Promise<void>((go) => {
+    release = go;
+  });
+  fake.reply(
+    buddyRoutePaths.read,
+    { ok: true, value: works },
+    { ok: true, value: none },
+  );
+  fake.reply(buddyRoutePaths.start, { ok: true, value: pending() });
+  await buddy.start();
+  const before = buddy.read();
+  fake.reply(buddyRoutePaths.poll, {
+    ok: true,
+    value: { kind: "unusable", reason: "model-missing", signedOut: true },
+  });
+  await clock.run(2000);
+  expect(buddy.refused()).toBeUndefined();
+  // Before any reading arrives the page already says what it learned.
+  const meanwhile = {
+    done: false,
+    part: refusedLine,
+    row: "sign-in-other",
+    stav: "Čeká na přihlášení",
+    firstRun: { signIn: "none", confirmed: false },
+  } as const;
+  expect(says()).toEqual(meanwhile);
+  // The reading begun before is overtaken and asked again: the fresh one
+  // is installed, never the stale one.
+  release();
+  await before;
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  expect(buddy.reading()).toMatchObject({ state: "waits", signIn: "none" });
+  expect(says()).toEqual(meanwhile);
+});
+
+test("„Přihlásit znovu“ over a working account with one the core refuses and signs out: the reading says he is not signed in at once, since his whole sign-in went", async () => {
+  const { buddy, fake, clock } = client();
+  fake.reply(buddyRoutePaths.read, {
+    ok: true,
+    value: answer({ state: "works", signIn: { state: "connected" } }),
+  });
+  await buddy.read();
+  expect(buddy.reading()).toMatchObject({
+    state: "works",
+    signIn: "connected",
+  });
+  fake.reply(buddyRoutePaths.start, { ok: true, value: pending() });
+  fake.reply(buddyRoutePaths.poll, {
+    ok: true,
+    value: { kind: "unusable", reason: "no-subscription", signedOut: true },
+  });
+  fake.reply(buddyRoutePaths.read, { ok: true, value: answer() });
+  await buddy.start();
+  await clock.run(2000);
+  expect(buddy.refused()).toBeUndefined();
+  expect(buddy.reading()).toMatchObject({ state: "waits", signIn: "none" });
+  expect(
+    buddyStep(
+      { reading: buddy.reading(), signIn: buddy.signIn(), now: at },
+      messages("cs"),
+    ),
+  ).toMatchObject({ done: false, action: "sign-in-other" });
 });
 
 test("Zrušit ends the code on Hermes; one Hermes did not confirm ending stays on screen", async () => {
@@ -329,7 +556,7 @@ test("a change of the persona: the revision read and the confirmation sent; save
   fake.reply(buddyRoutePaths.read, { ok: true, value: answer() });
   await buddy.read();
   const draft = {
-    ...draftOf(buddy.reading()?.persona ?? null),
+    ...draftOf(buddy.reading()?.persona ?? null, "cs"),
     buddyName: "Rex",
   };
   const saved = persona({
@@ -498,7 +725,7 @@ test("a reading begun before a save answered is dropped and asked again: the sav
   // ...while the person saves; the server answers revision B.
   routes.reply(buddyRoutePaths.persona, savedAs(revB));
   const draft = {
-    ...draftOf(buddy.reading()?.persona ?? null),
+    ...draftOf(buddy.reading()?.persona ?? null, "cs"),
     buddyName: "Rex",
   };
   expect(await buddy.savePersona(draft, true, "cs")).toEqual({
@@ -544,7 +771,7 @@ test("a reading begun before a 409 installed the persona there now is dropped to
       current: persona({ buddyName: "Max", revision: revC }),
     },
   });
-  const draft = draftOf(buddy.reading()?.persona ?? null);
+  const draft = draftOf(buddy.reading()?.persona ?? null, "cs");
   expect(await buddy.savePersona(draft, false, "cs")).toEqual({
     kind: "changed",
   });
@@ -642,7 +869,7 @@ test("an older save's answer that arrives after a newer one's is not installed",
   await routes.release(0, readingOf(revA));
   await first;
   routes.hold(true);
-  const draft = draftOf(buddy.reading()?.persona ?? null);
+  const draft = draftOf(buddy.reading()?.persona ?? null, "cs");
   const older = buddy.savePersona({ ...draft, buddyName: "Rex" }, false, "cs");
   const newer = buddy.savePersona({ ...draft, buddyName: "Max" }, false, "cs");
   await tick();
@@ -670,7 +897,7 @@ test("a reading overtaken every time stops after its tries and keeps what the pa
     );
     await buddy.savePersona(
       {
-        ...draftOf(buddy.reading()?.persona ?? null),
+        ...draftOf(buddy.reading()?.persona ?? null, "cs"),
         buddyName: names[attempt] ?? "",
       },
       false,
@@ -684,4 +911,170 @@ test("a reading overtaken every time stops after its tries and keeps what the pa
     revision: revisions[2],
     buddyName: "Ben",
   });
+});
+
+// ---- Telegram (decision F66) ------------------------------------------------
+
+const syntheticToken = `${"7".repeat(10)}:AAH${"k".repeat(32)}`;
+const handle = "f".repeat(32);
+
+test("Telegram: a connect sends the token once and keeps it nowhere; the answer becomes the reading, read again every 4 s while it starts or waits", async () => {
+  const { buddy, fake, clock } = client();
+  fake.reply(buddyRoutePaths.read, { ok: true, value: answer() });
+  await buddy.read();
+  fake.reply(buddyRoutePaths.telegramConnect, {
+    ok: true,
+    value: {
+      kind: "telegram",
+      state: "starting",
+      bot: "rex_buddy_bot",
+      pending: true,
+    },
+  });
+  expect(await buddy.connectTelegram(syntheticToken)).toEqual({
+    kind: "saved",
+  });
+  expect(fake.sent).toEqual([
+    { path: buddyRoutePaths.telegramConnect, body: { token: syntheticToken } },
+  ]);
+  expect(buddy.reading()?.telegram).toEqual({
+    state: "starting",
+    bot: "rex_buddy_bot",
+    requests: [],
+    pending: true,
+  });
+  // Nothing the client holds names the token.
+  expect(JSON.stringify(buddy.reading())).not.toContain(syntheticToken);
+  expect(clock.delays()).toContain(buddyTelegramReadMs);
+  // Started and waiting for the person: still read every 4 s.
+  fake.reply(buddyRoutePaths.read, {
+    ok: true,
+    value: answer({
+      telegram: {
+        state: "waiting",
+        bot: "rex_buddy_bot",
+        requests: [{ request: handle, name: "jana_s" }],
+      },
+    }),
+  });
+  await clock.run(buddyTelegramReadMs);
+  expect(buddy.reading()?.telegram?.requests).toEqual([
+    { request: handle, name: "jana_s" },
+  ]);
+  expect(clock.delays()).toContain(buddyTelegramReadMs);
+  fake.reply(buddyRoutePaths.telegramApprove, {
+    ok: true,
+    value: { kind: "telegram", state: "connected", bot: "rex_buddy_bot" },
+  });
+  expect(await buddy.approveTelegram(handle)).toEqual({ kind: "approved" });
+  expect(fake.sent.at(-1)).toEqual({
+    path: buddyRoutePaths.telegramApprove,
+    body: { request: handle },
+  });
+  // Connected: nothing more to follow.
+  expect(clock.delays()).not.toContain(buddyTelegramReadMs);
+  fake.reply(buddyRoutePaths.telegramDisconnect, {
+    ok: true,
+    value: { kind: "telegram", state: "none", pending: true },
+  });
+  expect(await buddy.disconnectTelegram()).toBe(true);
+  expect(buddy.reading()?.telegram).toMatchObject({
+    state: "none",
+    pending: true,
+  });
+});
+
+test("Telegram: every refusal is a closed result, and a request gone is read again", async () => {
+  const { buddy, fake } = client();
+  fake.reply(buddyRoutePaths.read, { ok: true, value: answer() });
+  await buddy.read();
+  const cases: readonly (readonly [Reply, string])[] = [
+    [{ ok: false, value: { error: "invalid-token" } }, "invalid"],
+    [
+      { ok: true, value: { kind: "failed", reason: "token-refused" } },
+      "refused",
+    ],
+    [
+      { ok: true, value: { kind: "failed", reason: "telegram-unreachable" } },
+      "unreachable",
+    ],
+    [{ ok: true, value: { kind: "failed", reason: "failed" } }, "failed"],
+    [
+      { ok: false, value: { error: "buddy-unavailable", reason: "no-socket" } },
+      "unavailable",
+    ],
+    [{ ok: false, value: "<html>" }, "failed"],
+  ];
+  for (const [reply, kind] of cases) {
+    fake.reply(buddyRoutePaths.telegramConnect, reply);
+    expect((await buddy.connectTelegram(syntheticToken)).kind as string).toBe(
+      kind,
+    );
+  }
+  // Nothing written yet: a write in doubt waits for Buddy's restart, and
+  // the answer names this connect for the page that asked it.
+  const intent = "0123456789abcdef".repeat(2);
+  fake.reply(buddyRoutePaths.telegramConnect, {
+    ok: true,
+    value: {
+      kind: "telegram",
+      state: "starting",
+      pending: true,
+      held: true,
+      intent,
+    },
+  });
+  expect(await buddy.connectTelegram(syntheticToken)).toEqual({
+    kind: "held",
+    intent,
+  });
+  expect(buddy.reading()?.telegram).toMatchObject({
+    state: "starting",
+    held: true,
+  });
+  // The reading never keeps the id.
+  expect(JSON.stringify(buddy.reading())).not.toContain(intent);
+  // Waiting with no id, or one of no shape: its token is saved, nothing to
+  // send again.
+  for (const odd of [undefined, "x".repeat(32), 7]) {
+    fake.reply(buddyRoutePaths.telegramConnect, {
+      ok: true,
+      value: {
+        kind: "telegram",
+        state: "starting",
+        pending: true,
+        held: true,
+        ...(odd === undefined ? {} : { intent: odd }),
+      },
+    });
+    expect(await buddy.connectTelegram(syntheticToken)).toEqual({
+      kind: "saved",
+    });
+  }
+  // Sent once more with its id; a newer change took its place.
+  fake.reply(buddyRoutePaths.telegramConnect, {
+    ok: false,
+    value: { kind: "blocked", reason: "superseded" },
+  });
+  const before = fake.sent.length;
+  expect(await buddy.connectTelegram(syntheticToken, intent)).toEqual({
+    kind: "superseded",
+  });
+  expect(fake.sent[before]).toEqual({
+    path: buddyRoutePaths.telegramConnect,
+    body: { token: syntheticToken, intent },
+  });
+  expect(fake.sent.length).toBe(before + 1);
+  fake.reply(buddyRoutePaths.telegramApprove, {
+    ok: false,
+    value: { kind: "blocked", reason: "request-gone" },
+  });
+  const reads = fake.sent.length;
+  expect(await buddy.approveTelegram(handle)).toEqual({ kind: "gone" });
+  expect(fake.sent.length).toBe(reads + 1);
+  fake.reply(buddyRoutePaths.telegramDisconnect, {
+    ok: false,
+    value: { error: "buddy-unavailable", reason: "no-socket" },
+  });
+  expect(await buddy.disconnectTelegram()).toBe(false);
 });
