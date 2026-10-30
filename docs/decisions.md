@@ -7282,10 +7282,11 @@ each of its origins.
    the title without a trailing ` vN`, the root Launchpad's `appBaseTitle`; without a
    title it is the module id. The line is the declared description, otherwise the
    org-agnostic sentence of the stone's key; without an app it is "No app". The stone
-   is one of the design system's 13 Lazurio stones, chosen only by a generic semantic
-   key: the declared `icon`, otherwise the root Launchpad's org-agnostic fallback from
-   the module id, the app id and the tags (`semanticAppIconKey`, ported with its keys
-   and order to `src/shell/stones.ts`). It is never chosen by an Organization or a
+   is one of the design system's Lazurio stones (13 at first, 23 since 2026-10-28),
+   chosen only by a generic semantic key: the declared `icon`, otherwise the root
+   Launchpad's org-agnostic fallback from the module id, the app id and the tags
+   (`semanticAppIconKey`, ported with its keys and order to `src/shell/stones.ts`;
+   since 2026-10-28 its keys follow the larger set and the root keeps the older 13). It is never chosen by an Organization or a
    module's name. The stones are served at `/.lazurio/stones/<file>` like the fonts. The
    overview (from the column) shows the head with "Open app", the existing lifecycle
    card, the module's facts, and how to read its log on the command line, because the

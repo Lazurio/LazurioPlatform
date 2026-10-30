@@ -162,7 +162,16 @@ export const moduleStone = (module: CatalogModule) =>
 
 const descriptionKeys: Readonly<Record<StoneKey, MessageKey>> = {
   control: "appsDescriptionControl",
+  automation: "appsDescriptionAutomation",
+  knowledge: "appsDescriptionKnowledge",
+  wiki: "appsDescriptionWiki",
+  guide: "appsDescriptionGuide",
   book: "appsDescriptionBook",
+  presentation: "appsDescriptionPresentation",
+  prototype: "appsDescriptionPrototype",
+  legal: "appsDescriptionLegal",
+  finance: "appsDescriptionFinance",
+  export: "appsDescriptionExport",
   pen: "appsDescriptionPen",
   palette: "appsDescriptionPalette",
   deal: "appsDescriptionDeal",
