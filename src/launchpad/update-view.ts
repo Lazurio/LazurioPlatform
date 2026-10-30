@@ -31,14 +31,13 @@ export type PillView = Readonly<{
   stale: boolean;
   error: string | null;
   stateInvalid: string | null;
-  folderRefresh: string | null;
 }>;
 
 /** Whether the pill is shown at all: as in T3 Code, only while an update is
  * available or under way (Matěj 2026-09-28). A failed update (its retry
  * is the same update) and update state that needs a person stay visible;
- * "up to date" and a running check show nothing. The Folder refresh line is
- * independent of the pill. */
+ * "up to date" and a running check show nothing. The Folder's refresh is
+ * part of the update and never shown (F17's addendum of 2026-10-30). */
 export function pillVisible(status: PillStatus): boolean {
   return (
     status.state === "available" ||
@@ -102,13 +101,5 @@ export function pillView(
       status.stateInvalid === null
         ? null
         : fill(copy.updateStateInvalid, { path: status.stateInvalid }),
-    folderRefresh:
-      status.folderRefresh === null
-        ? null
-        : fill(copy.updateFolderRefresh, {
-            recorded: status.folderRefresh.recorded,
-            product: status.folderRefresh.product,
-            command: status.folderRefresh.command,
-          }),
   });
 }

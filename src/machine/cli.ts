@@ -73,7 +73,8 @@ missing/damaged journals require a user's diagnosis, never blanket cleanup.
 machine folder-refresh [--preset <name>]
 Re-render the adopted Folder's generated files (AGENTS.md, manual/) from the
 current handover, keeping the recorded preset and profile. Run it as the
-declared operator after every handover rewrite and product update. --preset
+declared operator after every handover rewrite; lazurio update runs it itself
+after a product update when the Folder records an older template revision. --preset
 names the preset the handover now derives, to take it after
 preset-derivation-changed; no other preset is taken here. A Folder rendered by
 an older template revision is re-rendered in full when every generated file
@@ -238,6 +239,17 @@ export async function runMachineCommand(
   }
 }
 
+// A Folder whose lock another Lazurio operation holds: nothing changed, and
+// the same command may simply run again. `profile-update` answers the same,
+// so `lazurio update` retries either refresh (decision F17's addendum of
+// 2026-10-30).
+export const folderBusyAnswer = Object.freeze({
+  kind: "blocked" as const,
+  reason: "folder-busy" as const,
+  retryable: true as const,
+  next: "Another Lazurio operation holds this Folder; run the same command again in a moment. Nothing was changed.",
+});
+
 // Every failure of folder-init, folder-refresh and inspect is one JSON answer
 // too, because Lazurio Machines reads exactly one (issue #655). A busy Folder
 // is named as retryable; anything unexpected names nothing it read, as the
@@ -255,15 +267,7 @@ export function machineFailureAnswer(error: unknown) {
       },
     };
   if (error instanceof FolderOperationBusyError)
-    return {
-      code: 2,
-      result: {
-        kind: "blocked" as const,
-        reason: "folder-busy" as const,
-        retryable: true as const,
-        next: "Another Lazurio operation holds this Folder; run the same command again in a moment. Nothing was changed.",
-      },
-    };
+    return { code: 2, result: folderBusyAnswer };
   return {
     code: 1,
     result: {

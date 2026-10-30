@@ -220,9 +220,7 @@ button.menu-item { width: 100%; border: 0; background: transparent; font-weight:
 .menu-external { margin-left: auto; width: 13px; height: 13px; color: var(--lz-ink-faint); opacity: 0; }
 .menu-item:hover .menu-external { opacity: 1; }
 .menu-soon { margin-left: auto; padding: 1px 7px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-pill); color: var(--muted-fg); font-size: 11.5px; font-weight: 400; }
-.sidebar-notice, .update { display: grid; gap: 0.35rem; padding: 0.625rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--card); font-size: 12px; }
-.sidebar-notice { color: var(--muted-fg); overflow-wrap: anywhere; }
-.sidebar-notice code { display: block; margin-top: 0.35rem; padding: 0.25rem 0.4rem; border-radius: var(--lz-radius-xs); background: var(--muted); border: 1px solid var(--border); color: var(--fg); font-size: 11px; user-select: all; white-space: pre-wrap; overflow-wrap: anywhere; }
+.update { display: grid; gap: 0.35rem; padding: 0.625rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--card); font-size: 12px; }
 .update #update-pill { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem; color: var(--fg); }
 .update #update-pill button { margin-left: auto; }
 .update p:not(#update-pill) { color: var(--muted-fg); }
@@ -1645,11 +1643,10 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 </ul>
 </nav>
 </div>
-<!-- The foot of the column on every route: the product update pill and the
-     read-only "Folder refresh needed" line (F17 addendum), then Back inside
-     Settings. -->
+<!-- The foot of the column on every route: the product update pill, then
+     Back inside Settings. The Folder's refresh is part of the update and is
+     never shown (F17's addendum of 2026-10-30). -->
 <div class="column-foot">
-<p id="update-folder-refresh" class="sidebar-notice" role="note" hidden></p>
 <section id="update" class="update" hidden aria-labelledby="update-heading">
 <h2 id="update-heading" class="sr-only" data-message="updateTitle">Product update</h2>
 <p id="update-pill" role="status"><span id="update-text"></span> <a id="update-notes" hidden target="_blank" rel="noopener noreferrer" data-message="updateNotes">Release notes</a> <button type="button" id="update-action" class="primary" hidden></button></p>

@@ -24,7 +24,6 @@ const status = (overrides: Partial<PillStatus> = {}): PillStatus => ({
   action: null,
   error: null,
   stateInvalid: null,
-  folderRefresh: null,
   ...overrides,
 });
 
@@ -73,7 +72,6 @@ test("one line, one link and one button per state, in both languages", () => {
       stale: false,
       error: null,
       stateInvalid: null,
-      folderRefresh: null,
     });
     expect(
       view({
@@ -143,20 +141,50 @@ test("one line, one link and one button per state, in both languages", () => {
   }
 });
 
-test("a needed Folder refresh is one line with the exact command, in both languages", () => {
-  const folderRefresh = {
-    folder: "/home/example/Lazurio",
-    recorded: "base-instructions-8",
-    product: "base-instructions-9",
-    command: "lazurio machine folder-refresh",
+test("the pill says nothing about the Folder or a command, in any state or language", () => {
+  // The Folder's refresh is part of the update (F17's addendum of
+  // 2026-10-30): a person never reads that one is needed, nor a command.
+  const checked = {
+    latest: "1.1.0",
+    notesUrl: "https://example.test/notes",
+    checkedAt: new Date(now - 12 * 60_000).toISOString(),
   };
-  expect(
-    pillView(status({ folderRefresh }), messages("en"), now).folderRefresh,
-  ).toBe("Folder refresh needed. Run: lazurio machine folder-refresh");
-  expect(
-    pillView(status({ folderRefresh }), messages("cs"), now).folderRefresh,
-  ).toBe("Folder je potřeba obnovit. Spusťte: lazurio machine folder-refresh");
-  expect(pillView(status(), messages("en"), now).folderRefresh).toBeNull();
+  const states: Partial<PillStatus>[] = [
+    {},
+    { ...checked, latest: "1.0.0" },
+    { ...checked, state: "available", action: "update" },
+    { ...checked, state: "downloading" },
+    { ...checked, state: "activating", active: "1.1.0" },
+    {
+      ...checked,
+      state: "activating",
+      restartRequired: true,
+      action: "restart",
+    },
+    {
+      ...checked,
+      state: "available",
+      action: "retry",
+      error: updateError("activation-failed", { from: "1.0.0" }),
+    },
+    { stateInvalid: "/base/update/high-water" },
+  ];
+  for (const locale of ["en", "cs"])
+    for (const overrides of states) {
+      const view = pillView(status(overrides), messages(locale), now);
+      expect(Object.keys(view).sort()).toEqual([
+        "action",
+        "checked",
+        "error",
+        "notesUrl",
+        "stale",
+        "stateInvalid",
+        "text",
+      ]);
+      expect(JSON.stringify(view)).not.toMatch(
+        /Folder|folder-refresh|profile-update|lazurio /,
+      );
+    }
 });
 
 test("the pill shows only while an update is available or under way", () => {
@@ -180,15 +208,4 @@ test("the pill shows only while an update is available or under way", () => {
   expect(
     view({ error: updateError("activation-failed", { from: "1.0.0" }) }),
   ).toBe(true);
-  // The Folder refresh line is not the pill.
-  expect(
-    view({
-      folderRefresh: {
-        folder: "/f",
-        recorded: "base-instructions-8",
-        product: "base-instructions-9",
-        command: "lazurio machine folder-refresh --folder /f",
-      },
-    }),
-  ).toBe(false);
 });
