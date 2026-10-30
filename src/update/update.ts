@@ -25,7 +25,7 @@ import {
   UpdateFailure,
   updateError,
 } from "./errors";
-import type { FolderRefreshOutcome } from "./folder-refresh";
+import { type FolderRefreshOutcome, failedRefresh } from "./folder-refresh";
 import {
   type ProductIdentity,
   type ReleaseOrigin,
@@ -356,7 +356,7 @@ async function refreshAfter(
   try {
     return await refreshFolder(folder, productRevision);
   } catch {
-    return Object.freeze({ state: "failed" as const, reason: "internal" });
+    return failedRefresh("internal");
   }
 }
 

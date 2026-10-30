@@ -58,7 +58,8 @@ export type FolderRefreshInput = Readonly<{
   retry?: Readonly<{ attempts: number; delayMs: number }> | undefined;
 }>;
 
-const failed = (reason: string): FolderRefreshOutcome =>
+/** A refresh that did not complete, by how it failed. */
+export const failedRefresh = (reason: string): FolderRefreshOutcome =>
   Object.freeze({ state: "failed" as const, reason });
 
 // The product's codes and a path within the Folder, never anything else the
@@ -74,16 +75,16 @@ const plainPath = (value: unknown): value is string =>
  * `profile-update` answer: 0 refreshed (`updated`) or unchanged, 2 blocked,
  * 1 failed. */
 function outcomeOf(result: ProcessResult | null): FolderRefreshOutcome {
-  if (result === null) return failed("internal");
-  if (result === "timeout") return failed("timeout");
+  if (result === null) return failedRefresh("internal");
+  if (result === "timeout") return failedRefresh("timeout");
   let answer: Readonly<Record<string, unknown>>;
   try {
     const parsed: unknown = JSON.parse(result.stdout);
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
-      return failed("output");
+      return failedRefresh("output");
     answer = parsed as Readonly<Record<string, unknown>>;
   } catch {
-    return failed(result.exitCode === 0 ? "output" : "internal");
+    return failedRefresh(result.exitCode === 0 ? "output" : "internal");
   }
   if (
     result.exitCode === 0 &&
@@ -97,7 +98,7 @@ function outcomeOf(result: ProcessResult | null): FolderRefreshOutcome {
       ? answer.reason
       : undefined;
   if (result.exitCode !== 2 || answer.kind !== "blocked" || !reason)
-    return failed(reason ?? "internal");
+    return failedRefresh(reason ?? "internal");
   const path = answer.path ?? answer.entry;
   return Object.freeze({
     state: "blocked" as const,
