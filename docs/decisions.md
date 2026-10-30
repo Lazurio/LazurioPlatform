@@ -3009,6 +3009,66 @@ On 2026-10-29 Matěj raised two questions.
 3. **#653's existing drift.** Where a hand-added section can be proven (the rest matches the recorded digest), the repair offers to move exactly that text into the new field, instead of only discarding it.
 4. **The Lazurio Root on a workstation** gets the same mechanism under root decision 0219 (plan DEV-6693).
 
+**Addendum 2026-10-21, proposed by Anna (to be decided by Matěj): a second Folder skill,
+`ui-craft`; manifest schema 4.** Agents build module apps and websites with no shared bar
+for the details people notice: an `ease-in` menu, a hover that stays stuck after a tap, a
+form field the phone zooms into, a heading that overflows on a narrow screen. Emil
+Kowalski's skills ([github.com/emilkowalski/skills](https://github.com/emilkowalski/skills)
+at `2d228630`, MIT) hold that bar for animation, mobile and edge cases, but as fifteen
+English skills that assume React and Framer Motion and recommend opacity, blur and shadow
+transitions that an Organization's design system may forbid (the Lazurio website does).
+Installed one by one, every Environment would compete for its own copy and drift from the
+upstream.
+
+What changes:
+
+- **The skill `ui-craft`**, in the Folder's locale, byte-identical for both harnesses: when
+  an agent builds, changes or reviews an interface, and before a pull request that changes
+  what people see. It opens with precedence: the module's and the Organization's
+  `AGENTS.md`, design system and tokens override every default; a missing value is proposed
+  to that design system, never invented in the page. Then seven steps, retold in Lazurio's
+  words from upstream rather than copied: whether it should move at all (frequency and
+  purpose; deleting is the first fix); curve and duration; smooth frames; motion and
+  controls for everyone; the phone; the worst realistic data (Czech compounds and plurals
+  included); checking in a browser at 390 and 1280 px, saying what needs a real phone, and
+  leaving matters of taste to the person. No library, framework or brand is named, so it
+  holds for every stack of the generator. The credit line names the upstream and its
+  licence; `docs/licensing.md` records why no copy of its notice is needed.
+- **Two pointers.** `AGENTS.md` gains one sentence at the end of `new-module`'s line, which
+  already names both skill folders, so an agent reaches the skill also where its harness does
+  not list the Folder's skills (started inside a module's own repository, F14 addendum of
+  2026-10-14); `new-module` names it in the first version of both routes. A line of its own
+  no longer fits: with the longest custom voice the generated `AGENTS.md` keeps under its
+  32 KiB budget only about 57 bytes of room. The precedence of the project's rules stays the
+  skill's first rule.
+- **No promise about the main thread.** The skill sends predetermined motion to CSS or the Web
+  Animations API, but says only that `transform` and `opacity` usually run off the main thread;
+  layout and paint properties animate on it, so smoothness under load is profiled, not
+  assumed. Likewise `transform` and `opacity` are only often composited without new layout or
+  paint, depending on the browser and the element (Pablo's reviews of #585).
+- **Durations without a contradiction.** Small elements (a press, a tooltip, a menu) stay
+  under 300 ms; a dialog or panel may take up to 500 ms; only explanatory motion goes beyond.
+- **Manifest schema 4.** Schema 3 owned exactly `AGENTS.md`, the manual and `new-module`, so a
+  second skill is a new set. `manifestOutputPaths[3]` is frozen at that set, schema 4 owns every
+  output, this product reads 2, 3 and 4 and writes 4. A Folder at schema 3 gains `ui-craft` by
+  its next change, created only where nothing is at its paths (`unowned-file` otherwise), as
+  schema 2 gained the skills. Older binaries refuse schema 4 and are repaired forward.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Install upstream's skills as they are | Current with upstream, but English only, React-specific, and contradicting design systems that forbid opacity or shadow motion; rejected |
+| One Lazurio skill per upstream skill | Narrow triggers, but a dozen descriptions competing in every harness and a dozen files to keep bilingual; rejected |
+| The bar in each module's `AGENTS.md` | Visible inside a module's repository, but copied into every module and stale in each; the module keeps only what is its own (the Lazurio website's `AGENTS.md` does) |
+| One generated skill with project precedence, schema 4 (selected) | One home, updated with the product, in the Folder's language |
+
+Template revision `base-instructions-92`. Verified by `tests/folder-ui-craft.test.ts`: the skill
+in both locales on every preset, identical for both harnesses, its description, the precedence
+before the first step, its key rules, the credit, the `AGENTS.md` sentence and `new-module`'s
+pointer, the qualified main-thread rule; the same lines in both languages; a schema 3 Folder gaining both files where nothing is
+there and refused by path where something is. `tests/folder-skills.test.ts` covers the schemas,
+initialization and every upgrade from schema 2 with both skills. Not proven: that agents in every
+harness load it by its description and follow it.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
