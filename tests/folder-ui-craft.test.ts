@@ -105,10 +105,18 @@ test("ui-craft does not promise that CSS or WAAPI motion always runs off the mai
   expect(cs).not.toContain("běží mimo hlavní vlákno, takže");
   expect(cs).toContain("se animují na hlavním vlákně");
   expect(cs).toContain("Plynulost při zátěži ověř profilováním");
-  expect(en).not.toContain("the browser composites them without new layout or paint");
-  expect(en).toContain("depends on the browser and the element, so verify it by profiling");
-  expect(cs).not.toContain("ty prohlížeč skládá bez nového rozvržení a kreslení");
-  expect(cs).toContain("záleží ale na prohlížeči a prvku, takže to ověř profilováním");
+  expect(en).not.toContain(
+    "the browser composites them without new layout or paint",
+  );
+  expect(en).toContain(
+    "depends on the browser and the element, so verify it by profiling",
+  );
+  expect(cs).not.toContain(
+    "ty prohlížeč skládá bez nového rozvržení a kreslení",
+  );
+  expect(cs).toContain(
+    "záleží ale na prohlížeči a prvku, takže to ověř profilováním",
+  );
 });
 
 test("ui-craft's durations do not contradict each other: a dialog may take up to 500 ms", () => {
