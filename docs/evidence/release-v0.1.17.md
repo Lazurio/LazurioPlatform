@@ -3,7 +3,7 @@
 Evidence for [recovery mode G.3](../recovery-mode.md#g3-canary-stage-8-hours-on-every-machine-of-the-pilot-organization)
 and [the release cycle](../release-cycle.md#qualification-and-the-canary).
 
-The candidate `v0.1.17-rc.1` (source `4f7d1278d9a8b83040fd965e0b9359027fdf36a7`) ran for 8 h 0 min 52 s, directly
+The candidate `v0.1.17-rc.1` (source `4f7d1278d9a8b83040fd965e0b9359027fdf36a7`) ran for 8 h 22 min 11 s, directly
 observed, on every Environment of the pilot Organization, LazurioExampleOrganization, and on one personal VM. The
 final tag `v0.1.17` carries the same product source. It differs from the candidate only by this record and this
 file, under `qualification/` and `docs/evidence/`, as the release cycle allows.
@@ -90,15 +90,17 @@ T3 Code on the personal VM stayed `0.1.2-lazurio.6`.
   - Every work VM answered `lazurio recover --json` `healthy`, with the Launchpad's `/health` on `0.1.17-rc.1`.
     Each answered `lazurio update status --json` active `0.1.17-rc.1`, and its Launchpad unit had `NRestarts` 0.
   - The personal VM answered the same. Its Launchpad had started at 15:01:50Z with the apply.
-- **End:** `2026-10-30T23:08:31Z`, 8 h 0 min 52 s after the start.
-  - At 23:08:15–23:08:24Z each work VM answered `recover` `healthy` and active `0.1.17-rc.1`. Its Launchpad unit had
+- **End:** `2026-10-30T23:29:50Z`, 8 h 22 min 11 s after the start.
+  - A first end reading at 23:08:15–23:08:31Z had the same result. The stage was then extended past it, so that it
+    includes the opening of the modules (step 5 below), which G.3 asks to observe during the stage.
+  - At 23:29:31–23:29:42Z each work VM answered `recover` `healthy` and active `0.1.17-rc.1`. Its Launchpad unit had
     been active since the deliberate restart of 15:08Z, with `NRestarts` 0.
   - Each work VM's user journal since the start shows only that restart (one `Stopping`, `Stopped`, `Started`). There
     is no other start, stop, scheduled restart or failure.
-  - At 23:08:25–23:08:31Z the personal VM answered the same. Its Launchpad unit had been active since the apply at
+  - At 23:29:44–23:29:50Z the personal VM answered the same. Its Launchpad unit had been active since the apply at
     15:01:50Z, and its journal since the start shows no start, stop, restart or failure.
-  - The reading at 19:39:49–19:40:27Z was the same on all six.
-- **Recovery issues: none** (searched at 2026-10-30T23:08:38Z, every issue state).
+  - The readings at 19:39:49–19:40:27Z and 23:08:15–23:08:31Z were the same on all six.
+- **Recovery issues: none** (searched at 2026-10-30T23:08:38Z and again at 23:30:02Z, every issue state).
   - `label:recovery "0.1.17-rc.1"` and the `v0.1.17-rc.1` variant: 0.
   - Issues naming the candidate at all, neither of them a Recovery issue:
     - #722, the acceptance result below;
@@ -119,7 +121,7 @@ T3 Code on the personal VM stayed `0.1.2-lazurio.6`.
    - At 15:32:59–15:33:03Z both modules were stopped on all three. These were clean stops (`Stopping`, `Stopped`, no
      failure), one Machine after another, two seconds apart, so they were requested from outside. The Platform
      stops nothing by itself, and the Machines do not record who asked. See "Other changes" below.
-   - The opening of the modules, which G.3 also asks for, was checked after the end reading (step 5).
+   - The opening of the modules, which G.3 also asks for, was checked later in the stage (step 5).
 3. **Acceptance of the agent rules, read-only on every Machine:** on the work VMs at 13:08:45–13:09:01Z, after
    both lanes; on the personal VM from its apply's readback, at 15:05Z.
    - Every Folder renders template revision `base-instructions-90`.
@@ -139,13 +141,13 @@ T3 Code on the personal VM stayed `0.1.2-lazurio.6`.
    - **Handover (#724; 15:14:10–15:15:01Z).** A small task for a bot: the handover in one sentence, and the bot's
      result reported in the same minute.
    - **The name (#730).** The person's name opened one of the four replies.
-5. **23:19:03–23:25:17Z, after the end reading: the modules open through the Launchpad.**
+5. **23:19:03–23:25:17Z, the modules open through the Launchpad.**
    - G.3 asks that the modules users work with start **and open** through the Launchpad or
      `lazurio module open`. This release has no `lazurio module open` command; [Launchpad
      parity](../launchpad-parity.md) describes it as the target. So the opening went the way a person opens a
      module: in a browser, on the module's own hostname, through the Environment's gateway and Launchpad.
    - **Setup:**
-     - The Machines were still on the candidate, unchanged since the end reading.
+     - The Machines were on the candidate, unchanged.
      - All modules had been stopped since 15:33Z. A first attempt at 23:17Z with the CLI only printed its usage
        (there is no such command) and stopped the already stopped modules, so it changed nothing.
      - Every module was opened cold, so the Launchpad started it on demand.
