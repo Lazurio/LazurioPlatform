@@ -530,8 +530,68 @@ def wake_in_t3(rec: dict, attempt: int) -> str | None:
         crashpoint("after_t3_refused")
         return None
     crashpoint("after_t3_send")
-    rec.setdefault("t3", {})[key] = {"vlakno": thread, "doruceni": str(data.get("delivery") or "")}
+    sent = {"vlakno": thread, "doruceni": str(data.get("delivery") or "")}
+    if isinstance(data.get("runId"), str):
+        sent["beh"] = data["runId"]
+    rec.setdefault("t3", {})[key] = sent
     return thread
+
+
+# Pages of Buddy's queue read at most (100 messages each) before it counts as unreadable.
+QUEUE_PAGES = 5
+
+
+def queued_runs(thread: str) -> set[str] | None:
+    """The runs still queued behind the running turn in Buddy's thread (`t3
+    queue list`), or None when his T3 Code cannot say: a runtime without the
+    command, T3 Code down, or an answer of another shape."""
+    runs: set[str] = set()
+    cursor = None
+    for _ in range(QUEUE_PAGES):
+        args = ["queue", "list", thread, "--limit", "100"] + ([] if cursor is None else ["--cursor", str(cursor)])
+        try:
+            code, data, _detail = t3(args)
+        except DelegaceError:
+            return None
+        items = (data or {}).get("items")
+        if code != 0 or not isinstance(items, list):
+            return None
+        if not all(isinstance(item, dict) and isinstance(item.get("queuedRunId"), str) for item in items):
+            return None  # another shape: unreadable, never an empty queue
+        runs.update(item["queuedRunId"] for item in items)
+        cursor = (data or {}).get("nextCursor")
+        if cursor is None:
+            return runs
+    return None
+
+
+def queued_notice(rec: dict) -> dict | None:
+    """This attempt's chat notice while it is recorded as queued behind Buddy's
+    turn, with its run; None for any other way it went."""
+    sent = (rec.get("t3") or {}).get(wake_key(rec, rec.get("budik_pokus") or 1))
+    if isinstance(sent, dict) and sent.get("doruceni") == "queued" and isinstance(sent.get("beh"), str):
+        return sent
+    return None
+
+
+def withdraw_queued_notices(rec: dict) -> None:
+    """Take this delegation's notices that still wait in Buddy's queue back out
+    of it (`t3 queue cancel`): once he acknowledged it, they would only repeat
+    it. Best effort: a notice whose turn already started, or a T3 Code that
+    cannot cancel, stays as it is."""
+    withdrawn = 0
+    for sent in (rec.get("t3") or {}).values():
+        if not (isinstance(sent, dict) and sent.get("doruceni") == "queued" and isinstance(sent.get("beh"), str)):
+            continue
+        try:
+            code, _data, _detail = t3(["queue", "cancel", sent["vlakno"], sent["beh"]])
+        except DelegaceError:
+            return
+        if code == 0:
+            sent["doruceni"] = "staženo"
+            withdrawn += 1
+    if withdrawn:
+        note(rec, f"staženo {withdrawn} upozornění z fronty Buddyho")
 
 
 # ------------------------------------------------------------------ Kanban / wake
@@ -1011,6 +1071,25 @@ def recover_unfinished_zadej(rec: dict) -> None:
 
 
 def check_ack(rec: dict) -> None:
+    # The clock runs from when Buddy gets the notice, not from when it was
+    # queued behind his turn (Lazurio/LazurioPlatform#713): while it waits, no
+    # reminder and no message to the person. A queue that cannot be read keeps
+    # the clock from the send, so a Buddy who never answers still escalates.
+    sent = queued_notice(rec)
+    if sent is not None:
+        runs = queued_runs(sent["vlakno"])
+        if runs is not None:
+            rec["probuzen_ts"] = now()
+            rec["probuzen"] = iso(rec["probuzen_ts"])
+            if sent["beh"] in runs:
+                if not sent.get("ceka"):
+                    sent["ceka"] = True
+                    note(rec, f'{rec["budik_pokus"]}. upozornění čeká ve frontě Buddyho')
+            else:
+                sent["doruceni"] = "zahajeno"
+                note(rec, f'Buddy dostal {rec["budik_pokus"]}. upozornění')
+            save(rec)
+            return
     if now() - rec.get("probuzen_ts", 0) < ACK_SECONDS:
         return
     if rec["budik_pokus"] < 1 + MAX_REWAKES:
@@ -1162,25 +1241,28 @@ def cmd_potvrd(args) -> int:
         if args.hlidej_dal:
             if not rec.get("threadId"):
                 raise DelegaceError(f"delegace {args.id} nemá konverzaci bota, není co hlídat")
+            termin_s = parse_duration(args.termin) if args.termin else None
+            withdraw_queued_notices(rec)
             rec["kolo"] = rec.get("kolo", 1) + 1
             rec["stav"] = "bezi"
             rec["budik_pokus"] = 0
             rec["nedostupny_od_ts"] = None
             for key in ("vysledek_stav", "vysledek", "vysledek_ts", "probuzen", "probuzen_ts"):
                 rec[key] = None
-            if args.termin:
-                rec["termin_s"] = parse_duration(args.termin)
+            if termin_s is not None:
+                rec["termin_s"] = termin_s
                 rec["termin_ts"] = now() + rec["termin_s"]
                 rec["termin"] = human_time(rec["termin_ts"])
             note(rec, f'potvrzeno, hlídám dál ({rec["kolo"]}. kolo, termín {rec["termin"]})')
             save(rec)
             print(json.dumps({"id": rec["id"], "stav": "bezi", "termin": rec["termin"]}, ensure_ascii=False))
             return 0
+        withdraw_queued_notices(rec)
         if stav != "vyrizeno":
             rec["stav"] = "vyrizeno"
             rec["potvrzeno"] = iso(now())
             note(rec, "potvrzeno")
-            save(rec)
+        save(rec)
         print(json.dumps({"id": rec["id"], "stav": "vyrizeno"}, ensure_ascii=False))
         return 0
 
