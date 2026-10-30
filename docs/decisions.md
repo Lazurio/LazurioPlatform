@@ -3435,7 +3435,10 @@ What changes:
      meanwhile is `unchanged`. The child is bounded to two minutes.
    - The result's `folderRefresh` is now the outcome, `{state: "refreshed" | "unchanged"
      | "blocked" | "failed", reason?, path?}`, or `null` when none was needed. It
-     replaces the command.
+     replaces the command. `reason` is only a product code. `path` is only a path
+     within the Folder: relative, normalized, at most 512 characters and with no
+     control or invisible formatting character. Anything else the child printed
+     never reaches the result or a terminal (Pablo's review).
    - `profile-update` now answers a busy Folder as `machine folder-refresh` does
      (`{"kind":"blocked","reason":"folder-busy","retryable":true}`, exit 2) instead of a
      bare failure, so the update can tell busy from failed.

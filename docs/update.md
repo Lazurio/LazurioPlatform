@@ -1040,7 +1040,11 @@ The pipeline owns the minimum version (a pin is a minimum, F17's addendum of 202
   Folder again. A refresh that is blocked or fails never fails, reverts or delays the
   update: the result carries the outcome as `folderRefresh {state: "refreshed" |
   "unchanged" | "blocked" | "failed", reason?, path?}`, or `null` when none was needed,
-  and the exit status stays the product's. The text names the refusal and what to do
+  and the exit status stays the product's. `reason` is only a product code, and `path`
+  only a path within the Folder: relative, without an empty, `.` or `..` segment or a
+  drive or UNC prefix, at most 512 characters, and with no control or invisible
+  formatting character, so nothing reaches a terminal as an escape. Anything else the
+  child printed is dropped. The text names the refusal and what to do
   about it. The Launchpad's update of everything, when its check finds nothing newer,
   runs the same refresh under the update lock (and leaves it to an update that holds
   the lock). The Launchpad never shows a refresh, needed or blocked.

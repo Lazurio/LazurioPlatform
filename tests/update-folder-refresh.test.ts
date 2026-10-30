@@ -545,6 +545,60 @@ test.skipIf(process.platform === "win32")(
         }),
       ),
     ).toEqual({ state: "failed", reason: "internal" });
+    // A path is kept only when it stays within the Folder and every
+    // character shows as itself (Pablo's review of #731): an absolute path,
+    // an upward or empty segment, a drive or UNC prefix, a terminal escape
+    // or a bidirectional override is dropped and the reason stays.
+    const blockedAt = (path: string) =>
+      refresh(
+        answer({
+          exitCode: 2,
+          stdout: JSON.stringify({ kind: "blocked", reason: "drift", path }),
+        }),
+      );
+    for (const path of [
+      "/etc/passwd",
+      "../outside",
+      "manual/../../outside",
+      "./AGENTS.md",
+      "manual//x.md",
+      "manual/",
+      "C:\\Windows\\system.ini",
+      "\\\\server\\share",
+      "manual/\u001b[31mBAD",
+      "manual/\u009b31mBAD",
+      "manual/\u202egnp.exe",
+      "manual/\u200bhidden.md",
+      "x".repeat(513),
+    ])
+      expect(await blockedAt(path)).toEqual({
+        state: "blocked",
+        reason: "drift",
+      });
+    for (const path of [
+      "AGENTS.md",
+      "manual/this-machine.md",
+      "notes.txt",
+      "manual/Příručka.md",
+    ])
+      expect(await blockedAt(path)).toEqual({
+        state: "blocked",
+        reason: "drift",
+        path,
+      });
+    // A foreign entry is named by `entry`, held to the same rule.
+    expect(
+      await refresh(
+        answer({
+          exitCode: 2,
+          stdout: JSON.stringify({
+            kind: "blocked",
+            reason: "folder-foreign-entry",
+            entry: "../outside",
+          }),
+        }),
+      ),
+    ).toEqual({ state: "blocked", reason: "folder-foreign-entry" });
     // Nothing above wrote anything.
     expect((await recordedRevisions(folder)).template).toBe(
       "base-instructions-8",
