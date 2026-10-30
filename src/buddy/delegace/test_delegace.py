@@ -172,26 +172,12 @@ if a[:2] == ["thread", "send"] and opt("--message-file") == "-" and opt("--idemp
         refuse(final, "T3 Code refused the message.")
     st["n"] += 1
     result = {"threadId": a[2], "runId": "run-%d" % st["n"], "status": "queued", "delivery": "queued"}
-    st.setdefault("queue", []).append(result["runId"])
     st["keys"][key] = result
     st["messages"].append({"thread": a[2], "key": key, "argv": a, "text": text, "acting": sender})
     lost = os.environ.get("FAKE_T3_LOSE_ANSWER")
     if lost:  # it went out, but the answer that came back says only that something failed
         refuse(lost, "T3 Code did not complete the request.")
     done(0, result)
-# Buddy's queue behind his running turn (Lazurio/t3code agent CLI); a runtime
-# without these commands is FAKE_T3_QUEUE unset.
-if a[:2] == ["queue", "list"] and os.environ.get("FAKE_T3_QUEUE"):
-    if os.environ.get("FAKE_T3_QUEUE_SHAPE") == "other":  # items without queuedRunId
-        done(0, {"items": [{"id": run} for run in st.setdefault("queue", [])], "nextCursor": None})
-    done(0, {"items": [{"queuedRunId": run, "text": "…", "truncated": False} for run in st.setdefault("queue", [])],
-             "nextCursor": None})
-if a[:2] == ["queue", "cancel"] and os.environ.get("FAKE_T3_QUEUE"):
-    if a[3] not in st.setdefault("queue", []):
-        refuse("invalid_request", "Writes fail once the run is no longer queued.")
-    st["queue"].remove(a[3])
-    st.setdefault("cancelled", []).append(a[3])
-    done(0, {"sequence": 1})
 refuse("invalid_request", "unknown command")
 '''
 
@@ -379,16 +365,6 @@ class DelegaceTest(unittest.TestCase):
             return {"calls": [], "sends": [], "messages": []}
         with open(path, encoding="utf-8") as fh:
             return json.load(fh)
-
-    def t3_turn_takes_queued(self):
-        """Buddy's thread starts the oldest message queued behind his turn."""
-        path = os.path.join(self.fake, "t3.json")
-        with open(path, encoding="utf-8") as fh:
-            st = json.load(fh)
-        taken = st["queue"].pop(0)
-        with open(path, "w", encoding="utf-8") as fh:
-            json.dump(st, fh, indent=1, ensure_ascii=False)
-        return taken
 
     def messages(self):
         """What reached Buddy's thread: one message per key, as T3 Code keeps it."""
@@ -778,7 +754,7 @@ class DelegaceTest(unittest.TestCase):
         rec = self.rec(rid)
         self.assertEqual(rec["stav"], "probuzen")
         self.assertEqual(rec["probuzeni"][0]["vlakno"], "buddy-thread-1")
-        self.assertEqual(rec["t3"][rid], {"vlakno": "buddy-thread-1", "doruceni": "queued", "beh": "run-1"})
+        self.assertEqual(rec["t3"][rid], {"vlakno": "buddy-thread-1", "doruceni": "queued"})
         self.assertEqual(self.wakes(), [])
         self.assertEqual(self.hermes_state()["tasks"], {})
         p = self.delegace("potvrd", rid)
@@ -886,98 +862,6 @@ class DelegaceTest(unittest.TestCase):
         self.assertEqual(self.wakes(), [])
         self.assertEqual([s["to"] for s in self.hermes_state()["sends"]], ["telegram:111"])
         self.assertEqual(self.rec(rid)["stav"], "eskalovano")
-
-    # The acknowledgement clock runs from delivery (Lazurio/LazurioPlatform#713):
-    # a notice queued behind Buddy's long turn is no unanswered notice.
-    def test_a_notice_queued_behind_buddys_turn_gets_no_reminder_until_he_gets_it(self):
-        self.mausbot_says(wait=[DONE])
-        rid = self.zadej_ok(**self.T3)
-        env = {"DELEGACE_ACK_SECONDS": "0", "FAKE_T3_QUEUE": "1"}
-        self.hlidej(**env)  # the notice, queued behind his turn
-        for _ in range(3):
-            self.hlidej(**env)
-        # No reminder and no message to the person while it waits.
-        self.assertEqual([m["key"] for m in self.messages()], [rid])
-        self.assertEqual(self.hermes_state()["sends"], [])
-        rec = self.rec(rid)
-        self.assertEqual(rec["stav"], "probuzen")
-        self.assertEqual(sum("čeká ve frontě" in h["udalost"] for h in rec["historie"]), 1)
-        # His turn takes it: the clock starts then, not at the send.
-        self.assertEqual(self.t3_turn_takes_queued(), "run-1")
-        started = time.time()
-        self.hlidej(**env)
-        rec = self.rec(rid)
-        self.assertGreaterEqual(rec["probuzen_ts"], started)
-        self.assertEqual(rec["t3"][rid]["doruceni"], "zahajeno")
-        self.assertEqual([m["key"] for m in self.messages()], [rid])
-        # Unanswered after delivery, the reminder follows, and waits in its turn too.
-        self.hlidej(**env)
-        self.hlidej(**env)
-        self.assertEqual([m["key"] for m in self.messages()], [rid, rid + "#2"])
-        self.assertEqual(self.hermes_state()["sends"], [])
-
-    def test_an_acknowledgement_withdraws_the_reminders_still_queued(self):
-        self.mausbot_says(wait=[DONE])
-        rid = self.zadej_ok(**self.T3)
-        env = {"DELEGACE_ACK_SECONDS": "0", "FAKE_T3_QUEUE": "1"}
-        self.hlidej(**env)
-        self.t3_turn_takes_queued()
-        self.hlidej(**env)  # delivered: the clock starts
-        self.hlidej(**env)  # unanswered: the reminder, queued
-        self.assertEqual([m["key"] for m in self.messages()], [rid, rid + "#2"])
-        p = self.delegace("potvrd", rid, FAKE_T3_QUEUE="1")
-        self.assertEqual(p.returncode, 0, p.stderr)
-        state = self.t3_state()
-        self.assertEqual(state["cancelled"], ["run-2"])
-        self.assertEqual(state["queue"], [])
-        rec = self.rec(rid)
-        self.assertEqual(rec["stav"], "vyrizeno")
-        self.assertEqual(rec["t3"][rid + "#2"]["doruceni"], "staženo")
-        self.assertEqual(rec["t3"][rid]["doruceni"], "zahajeno")
-
-    def test_a_queue_answer_of_another_shape_is_unreadable_not_empty(self):
-        # Pablo's review of #723: items without queuedRunId must not read as an empty queue, which
-        # would start the clock while the notice still waits.
-        self.mausbot_says(wait=[DONE])
-        rid = self.zadej_ok(**self.T3)
-        env = {"DELEGACE_ACK_SECONDS": "0", "FAKE_T3_QUEUE": "1", "FAKE_T3_QUEUE_SHAPE": "other"}
-        self.hlidej(**env)
-        self.hlidej(**env)
-        rec = self.rec(rid)
-        self.assertEqual(rec["t3"][rid]["doruceni"], "queued")
-        self.assertNotIn("ceka", rec["t3"][rid])
-        # Unreadable keeps the clock from the send: the reminder goes out as before.
-        self.assertEqual([m["key"] for m in self.messages()], [rid, rid + "#2"])
-
-    def test_an_invalid_deadline_on_watching_on_withdraws_nothing(self):
-        # Pablo's review of #723: a refused `potvrd --hlidej-dal` changes nothing, in T3 Code either.
-        self.mausbot_says(wait=[QUESTION])
-        rid = self.zadej_ok(**self.T3)
-        self.hlidej(FAKE_T3_QUEUE="1")
-        before = self.rec(rid)
-        p = self.delegace("potvrd", rid, "--hlidej-dal", "--termin", "brzy", FAKE_T3_QUEUE="1")
-        self.assertNotEqual(p.returncode, 0)
-        self.assertIn("neplatný termín", p.stderr)
-        state = self.t3_state()
-        self.assertEqual(state["queue"], ["run-1"])
-        self.assertNotIn("cancelled", state)
-        self.assertEqual(self.rec(rid), before)
-
-    def test_a_queue_that_cannot_be_read_keeps_the_reminders_and_the_last_resort(self):
-        # A runtime without `t3 queue` (FAKE_T3_QUEUE unset): the clock runs
-        # from the send, as before, so a Buddy who never answers still escalates.
-        self.mausbot_says(wait=[DONE])
-        rid = self.zadej_ok(**self.T3)
-        env = {"DELEGACE_ACK_SECONDS": "0"}
-        for _ in range(4):
-            self.hlidej(**env)
-        self.assertEqual([m["key"] for m in self.messages()], [rid, rid + "#2", rid + "#3"])
-        self.assertEqual([s["to"] for s in self.hermes_state()["sends"]], ["telegram:111"])
-        self.assertIn(["queue", "list", "buddy-thread-1", "--limit", "100", "--base-dir", self.t3_home, "--json"],
-                      [c["argv"] for c in self.t3_state()["calls"]])
-        # The acknowledgement still works when nothing can be withdrawn.
-        p = self.delegace("potvrd", rid)
-        self.assertEqual(p.returncode, 0, p.stderr)
 
     def test_an_unknown_channel_starts_nothing(self):
         for wrong in ("lazurio_web", "T3", "telegram", "t3:buddy"):

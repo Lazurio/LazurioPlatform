@@ -32,7 +32,7 @@ standard library only. Ported unchanged in behavior from the pilot of
 | the bot missed its deadline | Delegace stops the work (`interrupt --tree`) and sends `NESTIHL TERMÍN` |
 | MausBot or the bot's Environment does not answer for more than 3 minutes | `MAUSBOT NEODPOVÍDÁ` |
 | the bot could not be started | `NESPUSTIL SE` at once |
-| Buddy does not confirm within 10 minutes of getting the notice | the notice again, at most twice, then Lazurio's own message to the person |
+| Buddy does not confirm within 10 minutes | the notice again, at most twice, then Lazurio's own message to the person |
 | Delegace restarts in the middle of anything | nothing is lost: the state is on disk and every outcome reaches Buddy exactly once |
 
 The bot runs where the work belongs. The state is always pulled from the
@@ -101,17 +101,6 @@ into the Personal Environment.
   exists. The way the notice goes exists before the bot starts: Buddy's thread
   answers, or the first card and its subscription are in place; otherwise the
   delegation is `nezalozen` and no bot runs.
-- The acknowledgement clock runs from when Buddy gets the notice
-  (Lazurio/LazurioPlatform#713). A chat's notice queued behind his running
-  turn (`"delivery": "queued"`) keeps its run (`t3.<key>.beh`). While `t3 queue
-  list <thread>` still lists that run, no reminder goes out and nothing
-  escalates (`t3.<key>.ceka`, and a note in `historie` once). When the run
-  leaves the queue, his turn has it: the clock starts then
-  (`t3.<key>.doruceni` becomes `zahajeno`). A queue Delegace cannot read, a
-  runtime without `t3 queue` among them, keeps the clock from the send, so a
-  Buddy who never answers still escalates. `delegace potvrd` cancels the
-  delegation's notices still queued (`t3 queue cancel`, `doruceni`
-  `staženo`), best effort: a notice whose turn already started stays.
 - The last resort, when Buddy confirms none of the three notices, is
   Lazurio's own message to the person in the Telegram DM, in Lazurio's voice
   (formal address, plain words): what the bot did with the task, that
