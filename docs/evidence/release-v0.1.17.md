@@ -118,9 +118,12 @@ T3 Code on the personal VM stayed `0.1.2-lazurio.6`.
    - Both were running on all three.
    - On one work VM the planning app answered `healthy: false` right after its start and `healthy: true` at
      15:09:46Z. It was still starting, not a failure.
-   - At 15:32:59–15:33:03Z both modules were stopped on all three. These were clean stops (`Stopping`, `Stopped`, no
-     failure), one Machine after another, two seconds apart, so they were requested from outside. The Platform
-     stops nothing by itself, and the Machines do not record who asked. See "Other changes" below.
+   - At 15:32:59–15:33:03Z both modules went to sleep on all three: clean stops (`Stopping`, `Stopped`, no failure).
+     - This is the Launchpad's own sleep of unused apps (decision F57, root decision 0195 point 23), which stops an
+       app nobody has used for 20 minutes at its next sweep, every 5 minutes.
+     - They had been started 23 minutes earlier and nobody opened them.
+     - No login, guest command or API call reached the Machines at that time (read from the Machines' and the
+       Proxmox host's records).
    - The opening of the modules, which G.3 also asks for, was checked later in the stage (step 5).
 3. **Acceptance of the agent rules, read-only on every Machine:** on the work VMs at 13:08:45–13:09:01Z, after
    both lanes; on the personal VM from its apply's readback, at 15:05Z.
@@ -148,7 +151,7 @@ T3 Code on the personal VM stayed `0.1.2-lazurio.6`.
      module: in a browser, on the module's own hostname, through the Environment's gateway and Launchpad.
    - **Setup:**
      - The Machines were on the candidate, unchanged.
-     - All modules had been stopped since 15:33Z. A first attempt at 23:17Z with the CLI only printed its usage
+     - All modules had been asleep since 15:33Z. A first attempt at 23:17Z with the CLI only printed its usage
        (there is no such command) and stopped the already stopped modules, so it changed nothing.
      - Every module was opened cold, so the Launchpad started it on demand.
    - **On each of the three work VMs both modules opened, as the Organization's test accounts:**
@@ -167,7 +170,6 @@ T3 Code on the personal VM stayed `0.1.2-lazurio.6`.
 | When (UTC) | What | Effect on the candidate |
 |---|---|---|
 | 15:10:46–15:15:01 | On the personal VM, Buddy's chat as the Owner test account, with one bot task | none; the Launchpad unit kept running |
-| 15:32:59–15:33:03 | On the three work VMs that hold modules, both modules stopped cleanly from outside the Platform (not attributed on the Machines) | none; the Launchpad units kept running |
 
 ### Per Machine
 
