@@ -3034,10 +3034,17 @@ What changes:
   leaving matters of taste to the person. No library, framework or brand is named, so it
   holds for every stack of the generator. The credit line names the upstream and its
   licence; `docs/licensing.md` records why no copy of its notice is needed.
-- **Two pointers.** `AGENTS.md` gains one line after `new-module`'s, so an agent reaches the
-  skill also where its harness does not list the Folder's skills (started inside a module's
-  own repository, F14 addendum of 2026-10-14); `new-module` names it in the first version of
-  both routes.
+- **Two pointers.** `AGENTS.md` gains one sentence at the end of `new-module`'s line, which
+  already names both skill folders, so an agent reaches the skill also where its harness does
+  not list the Folder's skills (started inside a module's own repository, F14 addendum of
+  2026-10-14); `new-module` names it in the first version of both routes. A line of its own
+  no longer fits: with the longest custom voice the generated `AGENTS.md` keeps under its
+  32 KiB budget only about 57 bytes of room. The precedence of the project's rules stays the
+  skill's first rule.
+- **No promise about the main thread.** The skill sends predetermined motion to CSS or the Web
+  Animations API, but says only that `transform` and `opacity` usually run off the main thread;
+  layout and paint properties animate on it, so smoothness under load is profiled, not
+  assumed (Pablo's review of #585).
 - **Manifest schema 4.** Schema 3 owned exactly `AGENTS.md`, the manual and `new-module`, so a
   second skill is a new set. `manifestOutputPaths[3]` is frozen at that set, schema 4 owns every
   output, this product reads 2, 3 and 4 and writes 4. A Folder at schema 3 gains `ui-craft` by
@@ -3053,8 +3060,8 @@ What changes:
 
 Template revision `base-instructions-92`. Verified by `tests/folder-ui-craft.test.ts`: the skill
 in both locales on every preset, identical for both harnesses, its description, the precedence
-before the first step, its key rules, the credit, the `AGENTS.md` line and `new-module`'s
-pointer; the same lines in both languages; a schema 3 Folder gaining both files where nothing is
+before the first step, its key rules, the credit, the `AGENTS.md` sentence and `new-module`'s
+pointer, the qualified main-thread rule; the same lines in both languages; a schema 3 Folder gaining both files where nothing is
 there and refused by path where something is. `tests/folder-skills.test.ts` covers the schemas,
 initialization and every upgrade from schema 2 with both skills. Not proven: that agents in every
 harness load it by its description and follow it.

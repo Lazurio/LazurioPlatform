@@ -628,8 +628,8 @@ const uiCraft: readonly Text[] = [
     "- Never `transition: all`; name exactly the properties that are to move.",
   ),
   t(
-    "- Předem daný pohyb patří do CSS nebo Web Animations API (`element.animate()`): běží mimo hlavní vlákno, takže vydrží i načítání stránky. JavaScript ve smyčce `requestAnimationFrame` nech jen na tah prstem a pohyb, který závisí na vstupu.",
-    "- Predetermined motion belongs in CSS or the Web Animations API (`element.animate()`): it runs off the main thread, so it survives a page that is loading. Leave a JavaScript `requestAnimationFrame` loop only to drags and motion that depends on input.",
+    "- Předem daný pohyb patří do CSS nebo Web Animations API (`element.animate()`): animaci `transform` a `opacity` prohlížeč obvykle zvládne mimo hlavní vlákno, takže vydrží i načítání stránky, ale `width`, `top` nebo `box-shadow` se animují na hlavním vlákně jako všechno ostatní. Plynulost při zátěži ověř profilováním (Performance v DevTools), nepředpokládej ji. JavaScript ve smyčce `requestAnimationFrame` nech jen na tah prstem a pohyb, který závisí na vstupu.",
+    "- Predetermined motion belongs in CSS or the Web Animations API (`element.animate()`): for `transform` and `opacity` the browser can usually run it off the main thread so it survives a page that is loading, but properties such as `width`, `top` or `box-shadow` animate on the main thread like anything else. Verify smoothness under load by profiling (DevTools Performance) rather than assuming it. Leave a JavaScript `requestAnimationFrame` loop only to drags and motion that depends on input.",
   ),
   t(
     "- Na vstup prvku do zorného pole použij `IntersectionObserver`, ne posluchač `scroll`. Při tahu zapisuj `transform` přímo do prvku: stav komponenty přerenderovaný v každém snímku i CSS proměnná měněná na rodiči (přepočítá styl všem potomkům) snímky ztrácejí.",

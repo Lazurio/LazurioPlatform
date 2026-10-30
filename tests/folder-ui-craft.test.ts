@@ -88,6 +88,25 @@ test("ui-craft has the same sections and lines in both languages", () => {
   );
 });
 
+test("ui-craft does not promise that CSS or WAAPI motion always runs off the main thread", () => {
+  const journey = journeys[0];
+  if (!journey) throw new Error("No journey");
+  const skill = (locale: "cs" | "en") =>
+    renderSkills({
+      preset: journey.preset,
+      machine: journey.machine,
+      profile: presetProfile(journey.preset, journey.os, { locale }),
+    })[codex];
+  const cs = skill("cs");
+  const en = skill("en");
+  expect(en).not.toContain("it runs off the main thread, so");
+  expect(en).toContain("animate on the main thread like anything else");
+  expect(en).toContain("Verify smoothness under load by profiling");
+  expect(cs).not.toContain("běží mimo hlavní vlákno, takže");
+  expect(cs).toContain("se animují na hlavním vlákně");
+  expect(cs).toContain("Plynulost při zátěži ověř profilováním");
+});
+
 test("a Folder of schema 3 gains ui-craft where nothing is there and is refused where something is", () => {
   const digest = "b".repeat(64);
   const previous = Object.fromEntries(

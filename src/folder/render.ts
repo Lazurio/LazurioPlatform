@@ -936,12 +936,14 @@ export const newModuleLine: Text = {
 };
 
 // Every interface an agent builds or changes is held to the Folder's skill
-// `ui-craft` (decision F14, addendum of 2026-10-21): one pointer line, so an
-// agent reaches the skill also when its harness does not offer it, for
-// instance started inside a module's own repository.
+// `ui-craft` (decision F14, addendum of 2026-10-21): one sentence after the
+// new-module line, which already names both skill folders, so an agent
+// reaches the skill also when its harness does not offer it. It fits the
+// AGENTS.md budget a separate line no longer does; the skill itself puts the
+// project's rules and design system first.
 export const uiCraftLine: Text = {
-  cs: "- Když stavíš, měníš nebo kontroluješ rozhraní (aplikaci modulu, web, přehled, formulář, animaci), použij skill `ui-craft` v `.agents/skills/` (Codex) nebo `.claude/skills/` (Claude Code) tohoto Folderu; pravidla modulu, Organizace a jejich design systému mají přednost.",
-  en: "- When you build, change or review an interface (a module's app, a website, an overview, a form, an animation), use the skill `ui-craft` in this Folder's `.agents/skills/` (Codex) or `.claude/skills/` (Claude Code); the rules of the module, the Organization and their design system come first.",
+  cs: " Pro každé rozhraní použij i `ui-craft`.",
+  en: " For any interface, use `ui-craft` too.",
 };
 
 // A chat whose client runs Codex in a sandbox without network (ChatGPT
@@ -1458,8 +1460,7 @@ export function renderInstructions(input: unknown): string {
     ...(isPublic
       ? []
       : [pick(proposalLine(preset)), pick(rightsLine), pick(gitLine)]),
-    pick(newModuleLine),
-    pick(uiCraftLine),
+    `${pick(newModuleLine)}${pick(uiCraftLine)}`,
     pick({
       cs: "- Před prací v Organizaci načti její aktuální AGENTS.md v `organizations/<org>/`; pravidla Organizace platí uvnitř jejího checkoutu a tenhle dokument je nenahrazuje. Z rootu Folderu se v konkrétní Organizaci nepracuje.",
       en: "- Before Organization work, load its current AGENTS.md under `organizations/<org>/`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root.",
