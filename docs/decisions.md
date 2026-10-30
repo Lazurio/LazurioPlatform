@@ -3044,7 +3044,10 @@ What changes:
 - **No promise about the main thread.** The skill sends predetermined motion to CSS or the Web
   Animations API, but says only that `transform` and `opacity` usually run off the main thread;
   layout and paint properties animate on it, so smoothness under load is profiled, not
-  assumed (Pablo's review of #585).
+  assumed. Likewise `transform` and `opacity` are only often composited without new layout or
+  paint, depending on the browser and the element (Pablo's reviews of #585).
+- **Durations without a contradiction.** Small elements (a press, a tooltip, a menu) stay
+  under 300 ms; a dialog or panel may take up to 500 ms; only explanatory motion goes beyond.
 - **Manifest schema 4.** Schema 3 owned exactly `AGENTS.md`, the manual and `new-module`, so a
   second skill is a new set. `manifestOutputPaths[3]` is frozen at that set, schema 4 owns every
   output, this product reads 2, 3 and 4 and writes 4. A Folder at schema 3 gains `ui-craft` by

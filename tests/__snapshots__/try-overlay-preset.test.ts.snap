@@ -11,9 +11,9 @@ exports[`golden: lazurio-bob's Work Environment renders, derives, offers and is 
   "generated": {
     "cs": {
       ".agents/skills/new-module/SKILL.md": "8cc2f101c4fc2e045b81d07082330f6392dcdb858e296f8821023f369a69c32d",
-      ".agents/skills/ui-craft/SKILL.md": "1fcc3167f1be368eb41a3d89454a10920ed9ed50780b68b3434544c38a212576",
+      ".agents/skills/ui-craft/SKILL.md": "8b30c264cfe1aae0355fa7903c399eee5f92d53bf94dc1c325e28417d600ecb6",
       ".claude/skills/new-module/SKILL.md": "8cc2f101c4fc2e045b81d07082330f6392dcdb858e296f8821023f369a69c32d",
-      ".claude/skills/ui-craft/SKILL.md": "1fcc3167f1be368eb41a3d89454a10920ed9ed50780b68b3434544c38a212576",
+      ".claude/skills/ui-craft/SKILL.md": "8b30c264cfe1aae0355fa7903c399eee5f92d53bf94dc1c325e28417d600ecb6",
       "AGENTS.md": "4b938fd8132d3c5b3e89ecc3e71791ebb5bbfa6e490d52f16b647df4bf4e16b4",
       "manual/glossary.md": "20746bc58742b5ace9f1a63843aaf53cc3a96983101388835808e41ad2f6f976",
       "manual/lazurio.md": "83f6210d987a2d96504f1e5dbdd3b00fd3049d7804ac003991bbb9d15e83acc8",
@@ -24,9 +24,9 @@ exports[`golden: lazurio-bob's Work Environment renders, derives, offers and is 
     },
     "en": {
       ".agents/skills/new-module/SKILL.md": "434d73e83b4781e9cff9cf2a29a8eeace1793eba06602d0ed61e53fe43f982fc",
-      ".agents/skills/ui-craft/SKILL.md": "c249eb762687a6d0a29da0ab61ee0ea769675b190dc83413d1236e1a6e53bf49",
+      ".agents/skills/ui-craft/SKILL.md": "008b5959484abce3e7e51b4b7215bcecc48c37b0a6d42ec3f36d602f67147981",
       ".claude/skills/new-module/SKILL.md": "434d73e83b4781e9cff9cf2a29a8eeace1793eba06602d0ed61e53fe43f982fc",
-      ".claude/skills/ui-craft/SKILL.md": "c249eb762687a6d0a29da0ab61ee0ea769675b190dc83413d1236e1a6e53bf49",
+      ".claude/skills/ui-craft/SKILL.md": "008b5959484abce3e7e51b4b7215bcecc48c37b0a6d42ec3f36d602f67147981",
       "AGENTS.md": "4fe7f6534c136d9329a2ca2f132cb193a9469363fffd4931a767471daa41ca09",
       "manual/glossary.md": "74c73f320ae95b454f4b230eac72b35bb9c5b45bf27e2cfb63ea5abf256a7e10",
       "manual/lazurio.md": "990e15319f23ee4a3be04b2e4808b519f58693c9a65d4cb135f4c37957e7ca27",
@@ -133,9 +133,9 @@ exports[`golden: team-01, a Team Environment with the broker renders, derives, o
   "generated": {
     "cs": {
       ".agents/skills/new-module/SKILL.md": "8cc2f101c4fc2e045b81d07082330f6392dcdb858e296f8821023f369a69c32d",
-      ".agents/skills/ui-craft/SKILL.md": "1fcc3167f1be368eb41a3d89454a10920ed9ed50780b68b3434544c38a212576",
+      ".agents/skills/ui-craft/SKILL.md": "8b30c264cfe1aae0355fa7903c399eee5f92d53bf94dc1c325e28417d600ecb6",
       ".claude/skills/new-module/SKILL.md": "8cc2f101c4fc2e045b81d07082330f6392dcdb858e296f8821023f369a69c32d",
-      ".claude/skills/ui-craft/SKILL.md": "1fcc3167f1be368eb41a3d89454a10920ed9ed50780b68b3434544c38a212576",
+      ".claude/skills/ui-craft/SKILL.md": "8b30c264cfe1aae0355fa7903c399eee5f92d53bf94dc1c325e28417d600ecb6",
       "AGENTS.md": "b79be0003dc1a2368de37754f2d3d3ac1be1ef4644269833abd3d22ff0b8a2fc",
       "manual/glossary.md": "20746bc58742b5ace9f1a63843aaf53cc3a96983101388835808e41ad2f6f976",
       "manual/lazurio.md": "83f6210d987a2d96504f1e5dbdd3b00fd3049d7804ac003991bbb9d15e83acc8",
@@ -146,9 +146,9 @@ exports[`golden: team-01, a Team Environment with the broker renders, derives, o
     },
     "en": {
       ".agents/skills/new-module/SKILL.md": "434d73e83b4781e9cff9cf2a29a8eeace1793eba06602d0ed61e53fe43f982fc",
-      ".agents/skills/ui-craft/SKILL.md": "c249eb762687a6d0a29da0ab61ee0ea769675b190dc83413d1236e1a6e53bf49",
+      ".agents/skills/ui-craft/SKILL.md": "008b5959484abce3e7e51b4b7215bcecc48c37b0a6d42ec3f36d602f67147981",
       ".claude/skills/new-module/SKILL.md": "434d73e83b4781e9cff9cf2a29a8eeace1793eba06602d0ed61e53fe43f982fc",
-      ".claude/skills/ui-craft/SKILL.md": "c249eb762687a6d0a29da0ab61ee0ea769675b190dc83413d1236e1a6e53bf49",
+      ".claude/skills/ui-craft/SKILL.md": "008b5959484abce3e7e51b4b7215bcecc48c37b0a6d42ec3f36d602f67147981",
       "AGENTS.md": "19542d14d419cac5d655211f8e1972eccd99089b5faefa7cf5b691b59f8f82d9",
       "manual/glossary.md": "74c73f320ae95b454f4b230eac72b35bb9c5b45bf27e2cfb63ea5abf256a7e10",
       "manual/lazurio.md": "990e15319f23ee4a3be04b2e4808b519f58693c9a65d4cb135f4c37957e7ca27",
@@ -255,9 +255,9 @@ exports[`golden: services-01, the services Environment of a server renders, deri
   "generated": {
     "cs": {
       ".agents/skills/new-module/SKILL.md": "8cc2f101c4fc2e045b81d07082330f6392dcdb858e296f8821023f369a69c32d",
-      ".agents/skills/ui-craft/SKILL.md": "1fcc3167f1be368eb41a3d89454a10920ed9ed50780b68b3434544c38a212576",
+      ".agents/skills/ui-craft/SKILL.md": "8b30c264cfe1aae0355fa7903c399eee5f92d53bf94dc1c325e28417d600ecb6",
       ".claude/skills/new-module/SKILL.md": "8cc2f101c4fc2e045b81d07082330f6392dcdb858e296f8821023f369a69c32d",
-      ".claude/skills/ui-craft/SKILL.md": "1fcc3167f1be368eb41a3d89454a10920ed9ed50780b68b3434544c38a212576",
+      ".claude/skills/ui-craft/SKILL.md": "8b30c264cfe1aae0355fa7903c399eee5f92d53bf94dc1c325e28417d600ecb6",
       "AGENTS.md": "33bca0fe4abb056f5f90080cc35e87d093b17dceb1e6ad24874e82a1036355ee",
       "manual/glossary.md": "20746bc58742b5ace9f1a63843aaf53cc3a96983101388835808e41ad2f6f976",
       "manual/lazurio.md": "83f6210d987a2d96504f1e5dbdd3b00fd3049d7804ac003991bbb9d15e83acc8",
@@ -268,9 +268,9 @@ exports[`golden: services-01, the services Environment of a server renders, deri
     },
     "en": {
       ".agents/skills/new-module/SKILL.md": "434d73e83b4781e9cff9cf2a29a8eeace1793eba06602d0ed61e53fe43f982fc",
-      ".agents/skills/ui-craft/SKILL.md": "c249eb762687a6d0a29da0ab61ee0ea769675b190dc83413d1236e1a6e53bf49",
+      ".agents/skills/ui-craft/SKILL.md": "008b5959484abce3e7e51b4b7215bcecc48c37b0a6d42ec3f36d602f67147981",
       ".claude/skills/new-module/SKILL.md": "434d73e83b4781e9cff9cf2a29a8eeace1793eba06602d0ed61e53fe43f982fc",
-      ".claude/skills/ui-craft/SKILL.md": "c249eb762687a6d0a29da0ab61ee0ea769675b190dc83413d1236e1a6e53bf49",
+      ".claude/skills/ui-craft/SKILL.md": "008b5959484abce3e7e51b4b7215bcecc48c37b0a6d42ec3f36d602f67147981",
       "AGENTS.md": "07308e3977a34ecc42d73c662373428e2834ba93dd396a865dfe02125d531099",
       "manual/glossary.md": "74c73f320ae95b454f4b230eac72b35bb9c5b45bf27e2cfb63ea5abf256a7e10",
       "manual/lazurio.md": "990e15319f23ee4a3be04b2e4808b519f58693c9a65d4cb135f4c37957e7ca27",
@@ -377,9 +377,9 @@ exports[`golden: henry-01, a Steward Environment renders, derives, offers and is
   "generated": {
     "cs": {
       ".agents/skills/new-module/SKILL.md": "8cc2f101c4fc2e045b81d07082330f6392dcdb858e296f8821023f369a69c32d",
-      ".agents/skills/ui-craft/SKILL.md": "1fcc3167f1be368eb41a3d89454a10920ed9ed50780b68b3434544c38a212576",
+      ".agents/skills/ui-craft/SKILL.md": "8b30c264cfe1aae0355fa7903c399eee5f92d53bf94dc1c325e28417d600ecb6",
       ".claude/skills/new-module/SKILL.md": "8cc2f101c4fc2e045b81d07082330f6392dcdb858e296f8821023f369a69c32d",
-      ".claude/skills/ui-craft/SKILL.md": "1fcc3167f1be368eb41a3d89454a10920ed9ed50780b68b3434544c38a212576",
+      ".claude/skills/ui-craft/SKILL.md": "8b30c264cfe1aae0355fa7903c399eee5f92d53bf94dc1c325e28417d600ecb6",
       "AGENTS.md": "d04601813aea6f860010273bc73b6a526d319603c4946b3aa91191a5e2222406",
       "manual/glossary.md": "20746bc58742b5ace9f1a63843aaf53cc3a96983101388835808e41ad2f6f976",
       "manual/lazurio.md": "83f6210d987a2d96504f1e5dbdd3b00fd3049d7804ac003991bbb9d15e83acc8",
@@ -390,9 +390,9 @@ exports[`golden: henry-01, a Steward Environment renders, derives, offers and is
     },
     "en": {
       ".agents/skills/new-module/SKILL.md": "434d73e83b4781e9cff9cf2a29a8eeace1793eba06602d0ed61e53fe43f982fc",
-      ".agents/skills/ui-craft/SKILL.md": "c249eb762687a6d0a29da0ab61ee0ea769675b190dc83413d1236e1a6e53bf49",
+      ".agents/skills/ui-craft/SKILL.md": "008b5959484abce3e7e51b4b7215bcecc48c37b0a6d42ec3f36d602f67147981",
       ".claude/skills/new-module/SKILL.md": "434d73e83b4781e9cff9cf2a29a8eeace1793eba06602d0ed61e53fe43f982fc",
-      ".claude/skills/ui-craft/SKILL.md": "c249eb762687a6d0a29da0ab61ee0ea769675b190dc83413d1236e1a6e53bf49",
+      ".claude/skills/ui-craft/SKILL.md": "008b5959484abce3e7e51b4b7215bcecc48c37b0a6d42ec3f36d602f67147981",
       "AGENTS.md": "6c982fb151517a9e986f997bae94152bffcae13545b5824dafb9ffd1e84320a1",
       "manual/glossary.md": "74c73f320ae95b454f4b230eac72b35bb9c5b45bf27e2cfb63ea5abf256a7e10",
       "manual/lazurio.md": "990e15319f23ee4a3be04b2e4808b519f58693c9a65d4cb135f4c37957e7ca27",
@@ -492,9 +492,9 @@ exports[`golden: try-01 recorded hosted-organization-personal renders as before 
 {
   "cs": {
     ".agents/skills/new-module/SKILL.md": "8cc2f101c4fc2e045b81d07082330f6392dcdb858e296f8821023f369a69c32d",
-    ".agents/skills/ui-craft/SKILL.md": "1fcc3167f1be368eb41a3d89454a10920ed9ed50780b68b3434544c38a212576",
+    ".agents/skills/ui-craft/SKILL.md": "8b30c264cfe1aae0355fa7903c399eee5f92d53bf94dc1c325e28417d600ecb6",
     ".claude/skills/new-module/SKILL.md": "8cc2f101c4fc2e045b81d07082330f6392dcdb858e296f8821023f369a69c32d",
-    ".claude/skills/ui-craft/SKILL.md": "1fcc3167f1be368eb41a3d89454a10920ed9ed50780b68b3434544c38a212576",
+    ".claude/skills/ui-craft/SKILL.md": "8b30c264cfe1aae0355fa7903c399eee5f92d53bf94dc1c325e28417d600ecb6",
     "AGENTS.md": "8a98611591abce96011bf598935b7fbacc2045aad9ab05b83c9d947acb342742",
     "manual/glossary.md": "20746bc58742b5ace9f1a63843aaf53cc3a96983101388835808e41ad2f6f976",
     "manual/lazurio.md": "83f6210d987a2d96504f1e5dbdd3b00fd3049d7804ac003991bbb9d15e83acc8",
@@ -505,9 +505,9 @@ exports[`golden: try-01 recorded hosted-organization-personal renders as before 
   },
   "en": {
     ".agents/skills/new-module/SKILL.md": "434d73e83b4781e9cff9cf2a29a8eeace1793eba06602d0ed61e53fe43f982fc",
-    ".agents/skills/ui-craft/SKILL.md": "c249eb762687a6d0a29da0ab61ee0ea769675b190dc83413d1236e1a6e53bf49",
+    ".agents/skills/ui-craft/SKILL.md": "008b5959484abce3e7e51b4b7215bcecc48c37b0a6d42ec3f36d602f67147981",
     ".claude/skills/new-module/SKILL.md": "434d73e83b4781e9cff9cf2a29a8eeace1793eba06602d0ed61e53fe43f982fc",
-    ".claude/skills/ui-craft/SKILL.md": "c249eb762687a6d0a29da0ab61ee0ea769675b190dc83413d1236e1a6e53bf49",
+    ".claude/skills/ui-craft/SKILL.md": "008b5959484abce3e7e51b4b7215bcecc48c37b0a6d42ec3f36d602f67147981",
     "AGENTS.md": "ce48e35d5fa95d4d117e45c8a844c298e565a314b260af34efdc89fc913a150a",
     "manual/glossary.md": "74c73f320ae95b454f4b230eac72b35bb9c5b45bf27e2cfb63ea5abf256a7e10",
     "manual/lazurio.md": "990e15319f23ee4a3be04b2e4808b519f58693c9a65d4cb135f4c37957e7ca27",
@@ -523,9 +523,9 @@ exports[`golden: try-01 recorded hosted-organization-personal with vault renders
 {
   "cs": {
     ".agents/skills/new-module/SKILL.md": "8cc2f101c4fc2e045b81d07082330f6392dcdb858e296f8821023f369a69c32d",
-    ".agents/skills/ui-craft/SKILL.md": "1fcc3167f1be368eb41a3d89454a10920ed9ed50780b68b3434544c38a212576",
+    ".agents/skills/ui-craft/SKILL.md": "8b30c264cfe1aae0355fa7903c399eee5f92d53bf94dc1c325e28417d600ecb6",
     ".claude/skills/new-module/SKILL.md": "8cc2f101c4fc2e045b81d07082330f6392dcdb858e296f8821023f369a69c32d",
-    ".claude/skills/ui-craft/SKILL.md": "1fcc3167f1be368eb41a3d89454a10920ed9ed50780b68b3434544c38a212576",
+    ".claude/skills/ui-craft/SKILL.md": "8b30c264cfe1aae0355fa7903c399eee5f92d53bf94dc1c325e28417d600ecb6",
     "AGENTS.md": "8a98611591abce96011bf598935b7fbacc2045aad9ab05b83c9d947acb342742",
     "manual/glossary.md": "20746bc58742b5ace9f1a63843aaf53cc3a96983101388835808e41ad2f6f976",
     "manual/lazurio.md": "83f6210d987a2d96504f1e5dbdd3b00fd3049d7804ac003991bbb9d15e83acc8",
@@ -536,9 +536,9 @@ exports[`golden: try-01 recorded hosted-organization-personal with vault renders
   },
   "en": {
     ".agents/skills/new-module/SKILL.md": "434d73e83b4781e9cff9cf2a29a8eeace1793eba06602d0ed61e53fe43f982fc",
-    ".agents/skills/ui-craft/SKILL.md": "c249eb762687a6d0a29da0ab61ee0ea769675b190dc83413d1236e1a6e53bf49",
+    ".agents/skills/ui-craft/SKILL.md": "008b5959484abce3e7e51b4b7215bcecc48c37b0a6d42ec3f36d602f67147981",
     ".claude/skills/new-module/SKILL.md": "434d73e83b4781e9cff9cf2a29a8eeace1793eba06602d0ed61e53fe43f982fc",
-    ".claude/skills/ui-craft/SKILL.md": "c249eb762687a6d0a29da0ab61ee0ea769675b190dc83413d1236e1a6e53bf49",
+    ".claude/skills/ui-craft/SKILL.md": "008b5959484abce3e7e51b4b7215bcecc48c37b0a6d42ec3f36d602f67147981",
     "AGENTS.md": "ce48e35d5fa95d4d117e45c8a844c298e565a314b260af34efdc89fc913a150a",
     "manual/glossary.md": "74c73f320ae95b454f4b230eac72b35bb9c5b45bf27e2cfb63ea5abf256a7e10",
     "manual/lazurio.md": "990e15319f23ee4a3be04b2e4808b519f58693c9a65d4cb135f4c37957e7ca27",
@@ -554,9 +554,9 @@ exports[`golden: try-01 recorded hosted-organization-team renders as before 1`] 
 {
   "cs": {
     ".agents/skills/new-module/SKILL.md": "8cc2f101c4fc2e045b81d07082330f6392dcdb858e296f8821023f369a69c32d",
-    ".agents/skills/ui-craft/SKILL.md": "1fcc3167f1be368eb41a3d89454a10920ed9ed50780b68b3434544c38a212576",
+    ".agents/skills/ui-craft/SKILL.md": "8b30c264cfe1aae0355fa7903c399eee5f92d53bf94dc1c325e28417d600ecb6",
     ".claude/skills/new-module/SKILL.md": "8cc2f101c4fc2e045b81d07082330f6392dcdb858e296f8821023f369a69c32d",
-    ".claude/skills/ui-craft/SKILL.md": "1fcc3167f1be368eb41a3d89454a10920ed9ed50780b68b3434544c38a212576",
+    ".claude/skills/ui-craft/SKILL.md": "8b30c264cfe1aae0355fa7903c399eee5f92d53bf94dc1c325e28417d600ecb6",
     "AGENTS.md": "a44be87a820bd5029ff909b60701f0cee2c92472a9fc6e9a1c39ce171f0c1062",
     "manual/glossary.md": "20746bc58742b5ace9f1a63843aaf53cc3a96983101388835808e41ad2f6f976",
     "manual/lazurio.md": "83f6210d987a2d96504f1e5dbdd3b00fd3049d7804ac003991bbb9d15e83acc8",
@@ -567,9 +567,9 @@ exports[`golden: try-01 recorded hosted-organization-team renders as before 1`] 
   },
   "en": {
     ".agents/skills/new-module/SKILL.md": "434d73e83b4781e9cff9cf2a29a8eeace1793eba06602d0ed61e53fe43f982fc",
-    ".agents/skills/ui-craft/SKILL.md": "c249eb762687a6d0a29da0ab61ee0ea769675b190dc83413d1236e1a6e53bf49",
+    ".agents/skills/ui-craft/SKILL.md": "008b5959484abce3e7e51b4b7215bcecc48c37b0a6d42ec3f36d602f67147981",
     ".claude/skills/new-module/SKILL.md": "434d73e83b4781e9cff9cf2a29a8eeace1793eba06602d0ed61e53fe43f982fc",
-    ".claude/skills/ui-craft/SKILL.md": "c249eb762687a6d0a29da0ab61ee0ea769675b190dc83413d1236e1a6e53bf49",
+    ".claude/skills/ui-craft/SKILL.md": "008b5959484abce3e7e51b4b7215bcecc48c37b0a6d42ec3f36d602f67147981",
     "AGENTS.md": "493ae9fa9c65a340d7d9840cc5922961c524a0ec7445a4029bb3bafb66ba51cf",
     "manual/glossary.md": "74c73f320ae95b454f4b230eac72b35bb9c5b45bf27e2cfb63ea5abf256a7e10",
     "manual/lazurio.md": "990e15319f23ee4a3be04b2e4808b519f58693c9a65d4cb135f4c37957e7ca27",
@@ -585,9 +585,9 @@ exports[`golden: try-01 recorded hosted-organization-team with vault renders as 
 {
   "cs": {
     ".agents/skills/new-module/SKILL.md": "8cc2f101c4fc2e045b81d07082330f6392dcdb858e296f8821023f369a69c32d",
-    ".agents/skills/ui-craft/SKILL.md": "1fcc3167f1be368eb41a3d89454a10920ed9ed50780b68b3434544c38a212576",
+    ".agents/skills/ui-craft/SKILL.md": "8b30c264cfe1aae0355fa7903c399eee5f92d53bf94dc1c325e28417d600ecb6",
     ".claude/skills/new-module/SKILL.md": "8cc2f101c4fc2e045b81d07082330f6392dcdb858e296f8821023f369a69c32d",
-    ".claude/skills/ui-craft/SKILL.md": "1fcc3167f1be368eb41a3d89454a10920ed9ed50780b68b3434544c38a212576",
+    ".claude/skills/ui-craft/SKILL.md": "8b30c264cfe1aae0355fa7903c399eee5f92d53bf94dc1c325e28417d600ecb6",
     "AGENTS.md": "a44be87a820bd5029ff909b60701f0cee2c92472a9fc6e9a1c39ce171f0c1062",
     "manual/glossary.md": "20746bc58742b5ace9f1a63843aaf53cc3a96983101388835808e41ad2f6f976",
     "manual/lazurio.md": "83f6210d987a2d96504f1e5dbdd3b00fd3049d7804ac003991bbb9d15e83acc8",
@@ -598,9 +598,9 @@ exports[`golden: try-01 recorded hosted-organization-team with vault renders as 
   },
   "en": {
     ".agents/skills/new-module/SKILL.md": "434d73e83b4781e9cff9cf2a29a8eeace1793eba06602d0ed61e53fe43f982fc",
-    ".agents/skills/ui-craft/SKILL.md": "c249eb762687a6d0a29da0ab61ee0ea769675b190dc83413d1236e1a6e53bf49",
+    ".agents/skills/ui-craft/SKILL.md": "008b5959484abce3e7e51b4b7215bcecc48c37b0a6d42ec3f36d602f67147981",
     ".claude/skills/new-module/SKILL.md": "434d73e83b4781e9cff9cf2a29a8eeace1793eba06602d0ed61e53fe43f982fc",
-    ".claude/skills/ui-craft/SKILL.md": "c249eb762687a6d0a29da0ab61ee0ea769675b190dc83413d1236e1a6e53bf49",
+    ".claude/skills/ui-craft/SKILL.md": "008b5959484abce3e7e51b4b7215bcecc48c37b0a6d42ec3f36d602f67147981",
     "AGENTS.md": "493ae9fa9c65a340d7d9840cc5922961c524a0ec7445a4029bb3bafb66ba51cf",
     "manual/glossary.md": "74c73f320ae95b454f4b230eac72b35bb9c5b45bf27e2cfb63ea5abf256a7e10",
     "manual/lazurio.md": "990e15319f23ee4a3be04b2e4808b519f58693c9a65d4cb135f4c37957e7ca27",

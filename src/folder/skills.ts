@@ -594,8 +594,8 @@ const uiCraft: readonly Text[] = [
     "- Never use `ease-in` on an interface element: it starts slowly exactly when the user most expects an answer, and the interface feels sluggish.",
   ),
   t(
-    "- **Délky:** stisk tlačítka 100–160 ms, tooltip a malý popover 125–200 ms, menu a výběr 150–250 ms, dialog a panel 200–500 ms. Prvek rozhraní drž pod 300 ms; kratší působí rychleji. Delší smí být jen vysvětlující pohyb, třeba náběh sekce na webu, a i ten nesmí zdržet obsah.",
-    "- **Durations:** a button press 100–160 ms, a tooltip or small popover 125–200 ms, a menu or select 150–250 ms, a dialog or panel 200–500 ms. Keep an interface element under 300 ms; shorter feels faster. Only explanatory motion may be longer, a website section coming in for instance, and even that must not hold the content back.",
+    "- **Délky:** stisk tlačítka 100–160 ms, tooltip a malý popover 125–200 ms, menu a výběr 150–250 ms, dialog a panel 200–500 ms. Malé prvky (stisk, tooltip, menu) drž pod 300 ms; dialog a panel přesouvají větší plochu, proto smějí mít až 500 ms. Kratší působí rychleji. Delší než 500 ms smí být jen vysvětlující pohyb, třeba náběh sekce na webu, a i ten nesmí zdržet obsah.",
+    "- **Durations:** a button press 100–160 ms, a tooltip or small popover 125–200 ms, a menu or select 150–250 ms, a dialog or panel 200–500 ms. Keep small elements (a press, a tooltip, a menu) under 300 ms; a dialog or panel moves a larger area, so it may take up to 500 ms. Shorter feels faster. Only explanatory motion may take longer than 500 ms, a website section coming in for instance, and even that must not hold the content back.",
   ),
   t(
     "- **Odezva je rychlá, rozvaha pomalá.** Odchod a uvolnění jsou kratší než příchod; pomalé smí být jen to, kde uživatel úmyslně drží nebo potvrzuje.",
@@ -620,8 +620,8 @@ const uiCraft: readonly Text[] = [
   blank,
   t("## 3. Plynulost", "## 3. Smooth frames"),
   t(
-    "- Animuj `transform` a `opacity`; ty prohlížeč skládá bez nového rozvržení a kreslení. `width`, `height`, `top`, `left`, `margin` a `padding` přepočítávají celou stránku v každém snímku: místo nich použij `scale()` a `translate()` (procenta v `translate()` počítají s velikostí prvku samého). Animovaný `box-shadow` se překresluje v každém snímku; když ho projekt povoluje, vezmi `filter: drop-shadow()`.",
-    "- Animate `transform` and `opacity`; the browser composites them without new layout or paint. `width`, `height`, `top`, `left`, `margin` and `padding` recompute the whole page every frame: use `scale()` and `translate()` instead (percentages in `translate()` refer to the element's own size). An animated `box-shadow` repaints every frame; where the project allows it, take `filter: drop-shadow()`.",
+    "- Animuj `transform` a `opacity`: prohlížeč je často dokáže složit bez nového rozvržení a kreslení, záleží ale na prohlížeči a prvku, takže to ověř profilováním. `width`, `height`, `top`, `left`, `margin` a `padding` spouštějí nové rozvržení v každém snímku: místo nich použij `scale()` a `translate()` (procenta v `translate()` počítají s velikostí prvku samého). Animovaný `box-shadow` se překresluje v každém snímku; když ho projekt povoluje, zkus `filter: drop-shadow()` a porovnej v profilu.",
+    "- Animate `transform` and `opacity`: the browser can often composite them without new layout or paint, but that depends on the browser and the element, so verify it by profiling. `width`, `height`, `top`, `left`, `margin` and `padding` trigger layout every frame: use `scale()` and `translate()` instead (percentages in `translate()` refer to the element's own size). An animated `box-shadow` repaints every frame; where the project allows it, try `filter: drop-shadow()` and compare in a profile.",
   ),
   t(
     "- Nikdy `transition: all`; vyjmenuj přesně vlastnosti, které se mají hýbat.",
@@ -632,8 +632,8 @@ const uiCraft: readonly Text[] = [
     "- Predetermined motion belongs in CSS or the Web Animations API (`element.animate()`): for `transform` and `opacity` the browser can usually run it off the main thread so it survives a page that is loading, but properties such as `width`, `top` or `box-shadow` animate on the main thread like anything else. Verify smoothness under load by profiling (DevTools Performance) rather than assuming it. Leave a JavaScript `requestAnimationFrame` loop only to drags and motion that depends on input.",
   ),
   t(
-    "- Na vstup prvku do zorného pole použij `IntersectionObserver`, ne posluchač `scroll`. Při tahu zapisuj `transform` přímo do prvku: stav komponenty přerenderovaný v každém snímku i CSS proměnná měněná na rodiči (přepočítá styl všem potomkům) snímky ztrácejí.",
-    "- Detect an element entering the view with `IntersectionObserver`, not a `scroll` listener. While dragging, write `transform` straight to the element: component state re-rendered every frame and a CSS variable changed on a parent (it recomputes the style of every descendant) both drop frames.",
+    "- Na vstup prvku do zorného pole použij `IntersectionObserver`, ne posluchač `scroll`. Při tahu zapisuj `transform` přímo do prvku: stav komponenty přerenderovaný v každém snímku i CSS proměnná měněná na rodiči (přepočítá styl potomkům, kteří ji používají) snadno ztrácejí snímky.",
+    "- Detect an element entering the view with `IntersectionObserver`, not a `scroll` listener. While dragging, write `transform` straight to the element: component state re-rendered every frame and a CSS variable changed on a parent (it restyles the descendants that use it) easily drop frames.",
   ),
   t(
     "- `will-change` přidej teprve tam, kde jsi viděl poskočení o pixel nebo naměřil ztracené snímky, a jen na prvek, který se hýbe. Animované rozostření drž pod 20 px; je drahé hlavně v Safari.",
