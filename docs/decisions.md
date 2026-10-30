@@ -3447,6 +3447,11 @@ What changes:
    also no longer shows "downloading" while the run that switched it finishes the steps
    after the switch (the refresh and the units). After the restart, the Launchpad is the
    new version and nothing newer is being fetched.
+   - "Downloading" is bound to the version the run in flight fetches: its unit's
+     description, or the child's own argument. It is never bound to the newest release
+     known, so a release published while the run finishes is not shown as downloading
+     (Pablo's review).
+   - While a run is in flight, the pill offers nothing to start.
 5. **Agents still see a blocked refresh and fix it.** `lazurio update status` and
    `lazurio doctor` (`folder-refresh`, `warn folder-refresh-needed`) keep reporting a
    Folder behind the product: no refresh ran yet, or the last one was blocked.

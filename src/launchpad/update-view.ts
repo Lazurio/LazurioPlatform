@@ -70,7 +70,8 @@ export function pillView(
               : "updateIdle";
   const values = {
     running: status.running,
-    latest: status.latest ?? "",
+    // While downloading, the version that run fetches when known.
+    latest: status.target ?? status.latest ?? "",
     active: status.active ?? "",
   };
   const label =

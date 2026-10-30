@@ -16,6 +16,7 @@ const status = (overrides: Partial<PillStatus> = {}): PillStatus => ({
   running: "1.0.0",
   active: "1.0.0",
   latest: null,
+  target: null,
   notesUrl: null,
   checkedAt: null,
   stale: false,
@@ -90,6 +91,16 @@ test("one line, one link and one button per state, in both languages", () => {
     expect(view({ ...checked, state: "downloading" }).text).toBe(
       fill(copy.updateDownloading, { latest: "1.1.0" }),
     );
+    // The run in flight names its own version, not a newer one learned
+    // meanwhile (Pablo's review of #731).
+    expect(
+      view({
+        ...checked,
+        latest: "1.2.0",
+        target: "1.1.0",
+        state: "downloading",
+      }).text,
+    ).toBe(fill(copy.updateDownloading, { latest: "1.1.0" }));
     expect(view({ ...checked, state: "activating" }).text).toBe(
       fill(copy.updateActivating, { latest: "1.1.0" }),
     );

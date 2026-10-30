@@ -24,6 +24,7 @@ import {
 } from "../src/update/launchpad-activation";
 import { layout } from "../src/update/layout";
 import type { ProcessResult, ProcessRunner } from "../src/update/self-check";
+import { updateTarget } from "../src/update/service-control";
 import {
   type CheckResult,
   readStatus,
@@ -220,6 +221,39 @@ test("every pill state and the single action for it", () => {
       },
     ],
     [
+      "the run that switched still finishes while a newer release became known: never downloading, nothing to start yet (Pablo's review of #731)",
+      {
+        status: status({
+          running: "1.1.0",
+          active: "1.1.0",
+          highWater: "1.1.0",
+          lastCheck: check("1.2.0"),
+        }),
+        activation: { inFlight: true, target: "1.1.0", failure: null },
+      },
+      {
+        state: "available",
+        action: null,
+        error: null,
+        restartRequired: false,
+        stale: false,
+      },
+    ],
+    [
+      "downloading the version in flight while a newer release became known",
+      {
+        status: status({ lastCheck: check("1.2.0") }),
+        activation: { inFlight: true, target: "1.1.0", failure: null },
+      },
+      {
+        state: "downloading",
+        action: null,
+        error: null,
+        restartRequired: false,
+        stale: false,
+      },
+    ],
+    [
       "the new Launchpad is up while the run finishes what follows the switch (the Folder's refresh, the units): nothing is shown",
       {
         status: status({
@@ -376,6 +410,24 @@ test("every pill state and the single action for it", () => {
   ];
   for (const [name, input, expected] of rows)
     expect([name, shape(derive(input))]).toEqual([name, expected]);
+  // The version a download names is the run's own.
+  expect(
+    derive({
+      status: status({ lastCheck: check("1.2.0") }),
+      activation: { inFlight: true, target: "1.1.0", failure: null },
+    }).target,
+  ).toBe("1.1.0");
+  expect(
+    derive({
+      status: status({
+        running: "1.1.0",
+        active: "1.1.0",
+        highWater: "1.1.0",
+        lastCheck: check("1.2.0"),
+      }),
+      activation: { inFlight: true, target: "1.1.0", failure: null },
+    }).target,
+  ).toBeNull();
   const shown = derive({ status: status({ lastCheck: check("1.1.0") }) });
   expect(shown).toMatchObject({
     kind: "update-pill",
@@ -531,6 +583,28 @@ test("the poller's jitter stays within its bounds", async () => {
   }
 });
 
+test("the version a running update unit fetches is read from its description, nothing else", () => {
+  // systemd-run's own description of a unit started without one: its command.
+  expect(
+    updateTarget(
+      "/home/x/.local/share/lazurio/bin/lazurio update --version v1.1.0 --json --base /home/x/.local/share/lazurio",
+    ),
+  ).toBe("1.1.0");
+  expect(updateTarget("lazurio update --version v1.2.0-rc.1 --json")).toBe(
+    "1.2.0-rc.1",
+  );
+  for (const description of [
+    undefined,
+    "",
+    "lazurio update --json",
+    "lazurio update --version 1.1.0 --json",
+    "lazurio update --version vlatest --json",
+    "lazurio update --version",
+    "lazurio update --version=v1.1.0",
+  ])
+    expect(updateTarget(description)).toBeUndefined();
+});
+
 /** A service manager stand-in answering `systemctl show`, `systemd-run`,
  * `reset-failed` and `journalctl` from a scripted unit state.
  */
@@ -539,14 +613,14 @@ function fakeManager(initial: {
   load?: string;
   journal?: string;
 }) {
-  const state = { load: "loaded", journal: "", ...initial };
+  const state = { load: "loaded", journal: "", description: "", ...initial };
   const commands: string[][] = [];
   const run: ProcessRunner = async (command) => {
     commands.push([...command]);
     const ok = (stdout = ""): ProcessResult => ({ exitCode: 0, stdout });
     if (command[0] === "systemctl" && command[2] === "show")
       return ok(
-        `LoadState=${state.load}\nActiveState=${state.active}\nInvocationID=${"ab".repeat(16)}\n`,
+        `LoadState=${state.load}\nActiveState=${state.active}\nInvocationID=${"ab".repeat(16)}\n${state.description === "" ? "" : `Description=${state.description}\n`}`,
       );
     if (command[0] === "systemctl" && command[2] === "reset-failed") {
       state.active = "inactive";
@@ -556,6 +630,8 @@ function fakeManager(initial: {
     if (command[0] === "systemd-run") {
       state.active = "active";
       state.load = "loaded";
+      // Without --description, systemd-run describes the unit by its command.
+      state.description = command.slice(command.indexOf("--") + 1).join(" ");
       return ok();
     }
     if (command[0] === "journalctl") return ok(state.journal);
@@ -595,8 +671,13 @@ test("supervised: the action is exactly systemd-run of the selector, and the pil
     "--base",
     "/base",
   ]);
-  // Running: in flight, and a second start is refused without touching the manager.
-  expect(await activator.observe()).toEqual({ inFlight: true, failure: null });
+  // Running: in flight with the version it fetches, read from the unit's
+  // description, and a second start is refused without touching the manager.
+  expect(await activator.observe()).toEqual({
+    inFlight: true,
+    target: "1.1.0",
+    failure: null,
+  });
   const before = manager.commands.length;
   await expect(activator.start("1.1.0")).rejects.toThrow("busy");
   expect(manager.commands.slice(before).map((c) => c[0])).toEqual([
@@ -672,7 +753,11 @@ test("unsupervised: the same command as a child; its --json answer is the error,
   const activator = childActivator({ base: "/base", env: {}, run });
   await activator.start("1.1.0");
   expect(commands).toEqual([[...updateCommand("/base", "1.1.0")]]);
-  expect(await activator.observe()).toEqual({ inFlight: true, failure: null });
+  expect(await activator.observe()).toEqual({
+    inFlight: true,
+    target: "1.1.0",
+    failure: null,
+  });
   await expect(activator.start("1.1.0")).rejects.toThrow("busy");
   resolveChild?.({
     exitCode: 1,

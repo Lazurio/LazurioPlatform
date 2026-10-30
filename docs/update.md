@@ -1006,9 +1006,14 @@ The pipeline owns the minimum version (a pin is a minimum, F17's addendum of 202
   shows the pill only while an update is available or under way, after a failed
   update and with `state-invalid`; "up to date" and a running check show nothing
   (Matěj 2026-09-28, as in T3 Code). A run in flight is "downloading" only while
-  what it fetches is newer than the Launchpad: after the restart, while the run
-  finishes what follows the switch (the Folder's refresh, the units), nothing is
-  shown. Nothing about the Folder's refresh is ever shown
+  the version it fetches is newer than the Launchpad. That version is read from the
+  run's unit, which systemd-run describes by its command line
+  (`… update --version v<version> …`), or kept by the child that runs it. While
+  downloading, the pill names that version, not a newer release learned meanwhile.
+  After the restart, while the run finishes what follows the switch (the Folder's
+  refresh, the units), nothing is downloading and nothing is offered to start, even
+  when a newer release is already known. A run whose version is unknown counts as
+  downloading while a newer release is known. Nothing about the Folder's refresh is ever shown
   ([below](#the-folders-refresh)).
 - **CLI.** `lazurio update` (everything, [above](#one-lazurio-update-content-tools-builds-and-lazurio-itself)), `--check`, `--version <tag>`, `update status
   [--json]`, `--folder <Folder>` on `update` and `update status`,

@@ -35,6 +35,9 @@ export type PillStatus = Readonly<{
   running: string;
   active: string | null;
   latest: string | null;
+  /** The version the update in flight downloads, while it does and when
+   * known; otherwise null. */
+  target: string | null;
   notesUrl: string | null;
   /** Time of the last verified check; null when none is known. */
   checkedAt: string | null;
@@ -78,13 +81,20 @@ export function derivePillStatus(input: PillInput): PillStatus {
     (floor === null || compareVersions(lastCheck.latest, floor) >= 0);
   // The selector names a version this Launchpad is not: the switch is done.
   const switched = active !== null && active !== running;
-  // A run in flight downloads only while what it fetches is newer than this
-  // Launchpad. After the restart this Launchpad IS the new version, and the
-  // run only finishes what follows the switch (the Folder's refresh, the
-  // units): nothing a person waits for, so nothing is shown.
+  // A run in flight downloads only while the version it fetches is newer
+  // than this Launchpad. After the restart this Launchpad IS that version,
+  // and the run only finishes what follows the switch (the Folder's refresh,
+  // the units): nothing a person waits for, so nothing is shown, even when a
+  // newer release became known meanwhile (Pablo's review of #731). A run
+  // whose version is unknown downloads while a newer release is known.
+  const fetching =
+    activation.inFlight &&
+    (activation.target === undefined
+      ? available
+      : compareVersions(activation.target, running) > 0);
   const state: PillState = switched
     ? "activating"
-    : activation.inFlight && available
+    : fetching
       ? "downloading"
       : input.checking
         ? "checking"
@@ -96,8 +106,9 @@ export function derivePillStatus(input: PillInput): PillStatus {
   // the updater ended before the restart: the switch is final, and a restart
   // of this Launchpad is what finishes it. Nothing goes back.
   const restartRequired = state === "activating" && !activation.inFlight;
+  // Nothing to start while a run is still in flight: it would answer busy.
   const action: PillAction | null =
-    state === "available" && lastCheck !== null
+    state === "available" && lastCheck !== null && !activation.inFlight
       ? error === null
         ? "update"
         : error.code === "reinstall-required"
@@ -116,6 +127,7 @@ export function derivePillStatus(input: PillInput): PillStatus {
     running,
     active,
     latest: lastCheck?.latest ?? null,
+    target: state === "downloading" ? (activation.target ?? null) : null,
     notesUrl: lastCheck?.notesUrl ?? null,
     checkedAt: lastCheck?.checkedAt ?? null,
     stale: age !== null && age > (input.staleAfterMs ?? staleAfterMs),
