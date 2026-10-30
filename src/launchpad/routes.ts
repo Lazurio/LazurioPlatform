@@ -3,6 +3,7 @@ import { customServerIdPattern } from "../integrations/custom-server";
 import { integrationIdPattern } from "../integrations/path";
 import { isServiceId } from "../organizations/server-services";
 import { isSecretRequestId, secretRequestPath } from "../vault/request-id";
+import { offerById } from "./marketplace";
 import type { MessageKey } from "./messages";
 
 // The page routes of the Launchpad: one document served under each path, the
@@ -62,8 +63,11 @@ export type PageRoute =
    * folder itself, `/files/<name>/<name>` one below it. */
   | Readonly<{ view: "files"; path: readonly string[] }>
   /** The Marketplace of the Environment, at the foot of the Apps column
-   * (decision F36 addendum of 2026-10-04): for now it says it is coming. */
-  | Readonly<{ view: "marketplace" }>
+   * (decision F36 addendum of 2026-10-04, plan DEV-6593): `/marketplace`
+   * is its catalog, `/marketplace/<offer>` one offer's detail. Whether the
+   * offer exists is the catalog's answer (marketplace.ts), not the
+   * route's. */
+  | Readonly<{ view: "marketplace"; offer?: string }>
   /** Integrace of the Environment (decision F42): `/integrations` is the tab
    * Vše, `/integrations/connected` and `/integrations/custom` the two others,
    * and `/integrations/app/<id>` one app's card in Vše, the link an agent
@@ -132,6 +136,7 @@ export const pagePaths: readonly string[] = [
   "/vault",
   "/vault/requests/:id",
   "/marketplace",
+  "/marketplace/:offer",
   "/settings",
   ...settingsSections.map((section) => `/settings/${section}`),
   ...legacyVaultPaths,
@@ -233,6 +238,13 @@ export function pageRoute(pathname: string): PageRoute {
   }
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   if (path === "/marketplace") return { view: "marketplace" };
+  if (path.startsWith("/marketplace/")) {
+    const parts = path.slice("/marketplace/".length).split("/");
+    const offer = parts.length === 1 ? segment(parts[0]) : null;
+    return offer === null
+      ? { view: "marketplace" }
+      : { view: "marketplace", offer };
+  }
   // Trezor (F53's addendum of 2026-10-18): its page, and below it.
   if (path === "/vault" || path.startsWith("/vault/"))
     return vaultRoute(path.slice("/vault".length));
@@ -325,7 +337,10 @@ export function routePath(route: PageRoute): string {
     return route.form !== undefined
       ? customServerPath(route.form.server)
       : integrationsPath(route.tab, route.app);
-  if (route.view === "marketplace") return "/marketplace";
+  if (route.view === "marketplace")
+    return route.offer === undefined
+      ? "/marketplace"
+      : `/marketplace/${encodeURIComponent(route.offer)}`;
   if (route.view === "vault")
     return route.request === undefined
       ? vaultPath
@@ -374,11 +389,21 @@ export function routeTitle(
       document: `${route.repository} · ${organization} — ${copy.title}`,
     };
   }
-  if (route.view === "marketplace")
-    return {
-      heading: copy.appsMarketplace,
-      document: `${copy.appsMarketplace} — ${copy.title}`,
-    };
+  if (route.view === "marketplace") {
+    const offer =
+      route.offer === undefined
+        ? null
+        : (offerById(route.offer)?.title ?? null);
+    return offer === null
+      ? {
+          heading: copy.appsMarketplace,
+          document: `${copy.appsMarketplace} — ${copy.title}`,
+        }
+      : {
+          heading: offer,
+          document: `${offer} · ${copy.appsMarketplace} — ${copy.title}`,
+        };
+  }
   if (route.view === "integrations")
     return {
       heading: copy.integrationsTitle,

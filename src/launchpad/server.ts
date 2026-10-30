@@ -185,6 +185,7 @@ import {
   type IntegrationsSeams,
 } from "./integrations-routes";
 import { BodyTooLarge, readJsonBody } from "./json-body";
+import { adoptionOf } from "./marketplace";
 import {
   issueMausbotLink,
   mausbotPairingPath,
@@ -219,6 +220,7 @@ import {
   serveShell,
 } from "./page";
 import {
+  adoptionDocument,
   isOrganizationPrompt,
   isPromptId,
   personalModuleDocument,
@@ -1801,8 +1803,33 @@ export async function startLaunchpad(
         const id = promptRequest[1] as string;
         const login = url.searchParams.get("org");
         const keys = [...url.searchParams.keys()];
-        if (!isPromptId(id) || keys.some((key) => key !== "org"))
-          return notFound();
+        if (keys.some((key) => key !== "org")) return notFound();
+        if (adoptionOf(id) !== null) {
+          // A Marketplace adoption (plan DEV-6593): for an Organization of
+          // this Folder bound to the link's login, only while its offer's
+          // release is recorded (prompts.ts `adoptionDocument`).
+          if (login === null || keys.length !== 1) return notFound();
+          try {
+            const organization = promptOrganization(
+              organizationsOnly(await catalog.read()),
+              login,
+            );
+            if (organization === null) return notFound();
+            const current = await withFolderReadLock(state, () =>
+              readFolderState(state),
+            );
+            const document = adoptionDocument(
+              id,
+              folder,
+              organization,
+              folderMessages(current.preferences),
+            );
+            return document === null ? notFound() : response(document);
+          } catch {
+            return notFound();
+          }
+        }
+        if (!isPromptId(id)) return notFound();
         if (promptAudience(id) === "personalspace-holder") {
           // The personal space's "+ Nový modul" (`new-personal-module`):
           // only for the account that holds the Personalspace, decided now

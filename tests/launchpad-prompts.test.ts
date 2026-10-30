@@ -414,6 +414,11 @@ posixTest(
         "/.lazurio/prompts/new-module?org=example-org&text=hello",
         "/.lazurio/prompts/new-module?org=example-org&org=example-org",
         "/.lazurio/prompts/new-module?org=a%2Fb",
+        // The Marketplace's adoption, while its release is not recorded
+        // (plan DEV-6593).
+        "/.lazurio/prompts/marketplace-presentations-empty?org=example-org",
+        "/.lazurio/prompts/marketplace-presentations-sample?org=example-org",
+        "/.lazurio/prompts/marketplace-other-empty?org=example-org",
       ]) {
         const refused = await fetch(`${base}${other}`, { headers: valid });
         expect([other, refused.status, await refused.json()]).toEqual([

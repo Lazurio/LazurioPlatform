@@ -4,6 +4,12 @@ import type { PersonalspaceHolder } from "../organizations/personalspace";
 import { newModulePrompt, newPersonalModulePrompt } from "./apps-view";
 import { organizationName } from "./catalog-view";
 import { type PrepareTarget, preparePrompt } from "./content-view";
+import {
+  type AdoptionPromptId,
+  adoptionOf,
+  adoptionPrompt,
+  adoptionPromptId,
+} from "./marketplace";
 import type { MessageKey } from "./messages";
 
 type Copy = Readonly<Record<MessageKey, string>>;
@@ -96,7 +102,7 @@ export const isOrganizationPrompt = (
 /** The answer of the route, and what the fork accepts. */
 export type PromptDocument = Readonly<{
   schema: typeof promptSchema;
-  id: PromptId;
+  id: PromptId | AdoptionPromptId;
   text: string;
   /** Where Chat opens the new thread, absolute: the Lazurio Folder's root,
    * for an Organization's prompt too (root decision 0189); the text names
@@ -191,4 +197,37 @@ export function personalModuleDocument(
     text: newPersonalModulePrompt(holder.login, copy),
     cwd: resolve(folder),
   });
+}
+
+/** The document of a Marketplace adoption (`marketplace-<offer>-<seed>`,
+ * plan DEV-6593) for one Organization of the Folder bound to a GitHub login,
+ * or null: an id no offer and seed make, or an offer whose release has no
+ * recorded commit yet. Anyone admitted to this Launchpad may get it, as
+ * anyone may open the Marketplace: the brief says nothing the page did not
+ * show, and grants nothing. The agent checks the person's live rights in
+ * the Organization before anything changes, and prepares a request where
+ * they do not reach. It opens in the Lazurio Folder's root (root decision
+ * 0189); the text names the Organization. */
+export function adoptionDocument(
+  id: string,
+  folder: string,
+  organization: BoundOrganization,
+  copy: Copy,
+): PromptDocument | null {
+  const adoption = adoptionOf(id);
+  if (adoption === null) return null;
+  const text = adoptionPrompt(
+    adoption.offer,
+    adoption.seed,
+    { name: organizationName(organization), login: organization.forgeLogin },
+    copy,
+  );
+  return text === null
+    ? null
+    : Object.freeze({
+        schema: promptSchema,
+        id: adoptionPromptId(adoption.offer, adoption.seed),
+        text,
+        cwd: resolve(folder),
+      });
 }
