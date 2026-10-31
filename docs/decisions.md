@@ -194,7 +194,7 @@ have different transactions and compatibility checks. See [recovery](migration-a
 | Decision 0144 and the Machine identity schema (F10) | **Conditional upstream amendment.** Only if preset provenance must appear in `lazurio.machine.json`: add the field upstream in the hosting engine, then re-pin and conformance-test here | Identity stays descriptive and grants nothing; nothing is derived from names; `account` stays `null` until its contract exists |
 | Decision 0145 (F12) | No amendment to the decision. **Admission superseded 2026-09-28** (Matěj, question H1, decision F22 point 1): canonical-only `current` roots execute now (variant B), without waiting for an upstream identity continuity proof; the proof requirement F12 stated is historical | Transition-only admission is retired, variant A kept one line away for the record; no fallback to the deprecated projection; no second schema; `legacy`, `projection_drift`, `conflict`, `missing` and templates still refuse |
 | Decision 0146 (F11) | No amendment: Platform consumes the per-application hostname, catalog and session model through a hosted request adapter | Gateway authenticates; forwarded identity headers are not trusted; unknown hosts refused |
-| Decision 0166 (F21) | No amendment: **accepted 2026-09-28** (Matěj, questions Q1–Q6 of the recovery-mode shaping). No program rollback; Recovery mode with a repair agent or a sanitized issue for every entry; quality gates and an 8-hour canary on the pilot Organization's work VMs and its operators' personal VMs. Within this repository it amends F4, F13, F17 (with its addendum point 3) and F18; in the root it replaces 0161's mention of the Platform's own rollback | Atomic failure, refusal before the switch, floor and high-water stay; no shorter or narrower canary without Matěj's decision recorded in the register; Machines' own rule is a separate Machines decision, not done |
+| Decision 0166 (F21) | **Accepted 2026-09-28** (Matěj, questions Q1–Q6 of the recovery-mode shaping); **amended 2026-10-27** (the canary of `v0.1.14-rc.2` lasts 3 hours) **and 2026-10-31** (the 8-hour window is replaced by one recorded smoke test as a test account of the pilot Organization and its green light, from 0.1.19 on; HumanAndMachines/Lazurio#687, #752). No program rollback; Recovery mode with a repair agent or a sanitized issue for every entry; quality gates and an 8-hour canary on the pilot Organization's work VMs and its operators' personal VMs. Within this repository it amends F4, F13, F17 (with its addendum point 3) and F18; in the root it replaces 0161's mention of the Platform's own rollback | Atomic failure, refusal before the switch, floor and high-water stay; no shorter or narrower canary without Matěj's decision recorded in the register; Machines' own rule is a separate Machines decision, not done |
 | Decisions 0167 and 0168 (F22) | No amendment: **accepted 2026-09-28** (Matěj, questions H1, H4, H6, H3 in direction, the drops of the parity shaping). The Platform Launchpad replaces the resident in one Machines apply; Ubuntu 24.04 on every hosted Machine, personal VMs by a rebuild with state transfer. Amends F8's "Not done" list, F12's admission (its addendum) and F15; in the root 0167 amends 0137 and 0049, and 0168 ends the 0159 exception on Team Environments | No side-by-side period, transition hostname or way back; no new Folder state; `entry` written only by Machines; H2, H5, H7 and the preview lease rules (B14) stay open |
 | Decisions 0134, 0140 | Installed executable carries its runtime; development/module toolchain checks remain capability-specific | No automatic machine-wide PATH/tool upgrades; packaging does not claim third-party app dependencies bundled |
 | Decision 0142 | Lazurio Folder Factory composes purpose, behavior and locale from versioned inputs | Organization language ownership and stable locale-neutral reason codes preserved |
@@ -5044,6 +5044,19 @@ rebuild of the personal VMs that precedes the first canary.
 | Recovery page from a separate program | Survives a broken executable; a second runtime and supervisor to build and qualify; rejected in favour of the gateway's static page |
 | Recovery mode in the Launchpad plus `lazurio recover` | One core, no new process, reaches the operator where they already are; selected |
 | A private intake from which maintainers write the public issue | Two gates and a reader before the public; an endpoint, a private repository and an agent pass to run; kept as the fallback if structured issues prove insufficient (Q4) |
+
+**Addendum 2026-10-31 (root decision 0166, addendum 2026-10-31; HumanAndMachines/Lazurio#687,
+#752).** Matěj, while speeding up v0.1.19: „Pojďme zrušit ten osmihodinový Canary. … místo toho
+pojďme fakt udělat mechanismus, že jedno vlákno si vezme, eh, profil Aleny nebo Boba, tam to
+odzkouší, že všechno funguje, a ve chvíli, kdy dá green light, tak jdeme releasovat, ať se tím
+nebrzdíme.“ Point 5 changes: the stage on the pilot Organization's Machines has no minimum
+window; it ends in one recorded end-to-end smoke test on the candidate, as a test account of the
+pilot Organization (its Owner or a member), and its green light. The record is
+`lazurio.canary.v2` (the account's role and the result, never a name), required by
+`scripts/qualify/check-canary.ts` for every candidate from 0.1.19 on; earlier candidates keep
+their 8 hours and their own tree's check. Accepted consequence: slow failures (memory growth,
+timers, nightly jobs) are caught in use, under Recovery mode and fix-forward. Everything else in
+F21 stays.
 
 ## F22 — The Platform Launchpad reaches parity and replaces the resident in one apply
 

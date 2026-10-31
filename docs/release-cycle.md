@@ -19,7 +19,8 @@ their separate contract versions; they are not independently drifting binaries.
 reviewed PR + CI → main → tag vX.Y.Z-rc.N → release workflow builds and attests every target
                       → release candidate (prerelease, reached only by exact tag)
                       → qualify.yml: journeys J1–J6 on disposable runners
-                      → canary: 8 hours on every hosted Machine of the pilot Organization
+                      → canary: every hosted Machine of the pilot Organization on the candidate,
+                        then the recorded smoke test's green light (no minimum window)
                       → tag vX.Y.Z at the candidate's source → final release (latest)
 ```
 
