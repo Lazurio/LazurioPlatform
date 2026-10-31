@@ -740,6 +740,64 @@ test.skipIf(!posix)(
   },
 );
 
+test.skipIf(!posix)(
+  "an orphan guest database and a guest slug collision are doctor findings too, never a silent omission",
+  async () => {
+    const parent = await realpath(await mkdtemp(join(tmpdir(), "guests-")));
+    const folder = join(parent, "Lazurio");
+    try {
+      await initializeFolder(folder, {
+        os: executionOs(process.platform),
+        access: "local",
+        purpose: "human",
+        locale: "en",
+        detail: "concise",
+        coordination: "direct",
+      });
+      await writeOrganization(folder, "HostOrg_GEN3", {
+        slug: "hostorg",
+        forge: "HostOrg",
+        state: "current",
+        modules: [{ id: "web" }],
+        slots: [
+          // A guest database whose guest parent is not declared.
+          guestMissionControlData,
+          // Two guests of one home Organization with one slug.
+          guestKnowledgebase,
+          { ...guestKnowledgebase, path: "workspace/HomeOrg_GEN3/kb" },
+        ],
+      });
+      const catalog = await readFolderCatalog(folder);
+      const host = catalog.organizations[0];
+      expect(host?.executable).toBe(true);
+      expect(host?.modules.map((module) => module.executable)).toEqual([true]);
+      expect(host?.guests).toBeUndefined();
+      expect(host?.guestIssues).toEqual([
+        "repository-id-collision",
+        "repository-db-parent-missing",
+      ]);
+      expect(
+        catalogChecks(catalog).filter((check) => check.id === "guest-module"),
+      ).toEqual([
+        {
+          id: "guest-module",
+          outcome: "warn",
+          reason: "repository-id-collision",
+          context: { organization: "hostorg" },
+        },
+        {
+          id: "guest-module",
+          outcome: "warn",
+          reason: "repository-db-parent-missing",
+          context: { organization: "hostorg" },
+        },
+      ]);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
 let world: World | undefined;
 afterEach(async () => {
   await world?.close();

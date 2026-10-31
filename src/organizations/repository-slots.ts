@@ -157,6 +157,21 @@ export const guestSlotIssues = Object.freeze([
   "guest-remote-owner-mismatch",
 ] as const);
 
+/** Every code `inspectRepositorySlots` reports. A guest slot can be
+ * implicated in the shared ones too (an orphan database, a slug collision),
+ * which Doctor then names for it (DEV-6694). */
+export const repositorySlotIssues = Object.freeze([
+  "invalid-declaration",
+  "unsupported-path",
+  "invalid-repository-slug",
+  "path-case-collision",
+  "path-identity-conflict",
+  "duplicate-path",
+  "repository-id-collision",
+  "repository-db-parent-missing",
+  ...guestSlotIssues,
+] as const);
+
 type Issue = Readonly<{ code: string; indices: readonly number[] }>;
 // Report implicated declaration indices so a later discovery consumer can quarantine
 // conflicts without losing unrelated siblings. This is not an app/module catalog.

@@ -274,6 +274,10 @@ export type CatalogOrganization = Readonly<{
   /** Its declared guest Modules, read-only, in declaration order; present
    * only when it declares one. */
   guests?: readonly CatalogGuestModule[];
+  /** The inventory issues that implicate a slot declaring
+   * `home_organization`, whatever their code; present only when there is
+   * one (DEV-6694). */
+  guestIssues?: readonly string[];
   /** The Organization's own tabs in Apps' Workspace, in its order: its
    * setting `workspace.tabs` (decision F32's addendum of 2026-10-16, root
    * decision 0194) as this Folder's root of it declares it. Present only
@@ -942,6 +946,9 @@ export async function readCatalogOrganization(
     modules: Object.freeze(modules),
     repositories: Object.freeze(repositories),
     ...(guests.length === 0 ? {} : { guests: Object.freeze(guests) }),
+    ...(result.guestIssues === undefined
+      ? {}
+      : { guestIssues: Object.freeze([...result.guestIssues]) }),
     ...workspaceTabsOf(canonical),
   });
 }

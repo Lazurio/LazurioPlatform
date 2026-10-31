@@ -51,7 +51,7 @@ import {
   type OrganizationReason,
   readFolderCatalog,
 } from "../organizations/catalog";
-import { guestSlotIssues } from "../organizations/repository-slots";
+import { repositorySlotIssues } from "../organizations/repository-slots";
 import { organizationRootStates } from "../organizations/root-resolution";
 import { checkoutReasons } from "../providers/checkout-custody";
 import {
@@ -240,9 +240,10 @@ const ownReasons = [
   "template-not-runtime",
   // Guest Modules (DEV-6694): one not here, which is a note (its home
   // Organization's repository is not readable here, or not installed yet),
-  // and the declaration issues of a guest slot, which quarantine that slot.
+  // and every inventory issue that implicates a guest slot, which quarantines
+  // that slot: its declaration, an orphan database or a collision.
   "guest-module-absent",
-  ...guestSlotIssues,
+  ...repositorySlotIssues,
   // The synchronization of primary checkouts (decision F9's amendment of
   // 2026-10-24): no run recorded yet, a checkout left as it is, or one
   // GitHub refused, did not answer or failed for a day.
@@ -793,9 +794,8 @@ export function catalogChecks(
           },
         ),
       );
-    for (const issue of entry.issues)
-      if ((guestSlotIssues as readonly string[]).includes(issue))
-        checks.push(check("guest-module", "warn", issue, { organization }));
+    for (const issue of entry.guestIssues ?? [])
+      checks.push(check("guest-module", "warn", issue, { organization }));
   }
   return checks;
 }

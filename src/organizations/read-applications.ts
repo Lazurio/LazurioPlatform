@@ -1,7 +1,7 @@
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { inspectCheckoutDirectory } from "../folder/owned-directory";
-import { object, parseModuleManifest, text } from "../modules/manifest";
+import { array, object, parseModuleManifest, text } from "../modules/manifest";
 import { readModuleApplication } from "../modules/read-application";
 import {
   type CheckoutReason,
@@ -156,6 +156,28 @@ export async function observeOrganizationApplications(
     const conflicted = new Set(
       inventory.inventory.issues.flatMap((issue) => issue.indices),
     );
+    // The inventory issues that implicate a slot declaring home_organization,
+    // whatever their code: an invalid guest declaration, but also an orphan
+    // guest database or a guest slug collision, which would otherwise only
+    // drop the guest from the catalog without a word (DEV-6694).
+    const declaredGuests = new Set(
+      array(inventory.modules.module_slots).flatMap((declaration, index) =>
+        declaration !== null &&
+        typeof declaration === "object" &&
+        Object.hasOwn(declaration, "home_organization")
+          ? [index]
+          : [],
+      ),
+    );
+    const guestIssues = [
+      ...new Set(
+        inventory.inventory.issues
+          .filter((issue) =>
+            issue.indices.some((index) => declaredGuests.has(index)),
+          )
+          .map((issue) => issue.code),
+      ),
+    ];
     const entries = [];
     // The declared productionspace repositories (root decision 0041), which
     // the catalog lists read-only and never as modules, in declaration order.
@@ -277,6 +299,9 @@ export async function observeOrganizationApplications(
         repositories: Object.freeze(repositories),
         // Only where declared, so every other observation stays as it was.
         ...(guests.length === 0 ? {} : { guests: Object.freeze(guests) }),
+        ...(guestIssues.length === 0
+          ? {}
+          : { guestIssues: Object.freeze(guestIssues) }),
         issues: inventory.inventory.issues,
         warnings: inventory.warnings,
       }),

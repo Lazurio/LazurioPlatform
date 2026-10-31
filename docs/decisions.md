@@ -22344,7 +22344,10 @@ Organization keeps it, and nothing else changes.
    that a slug is free (`assertSlotFree`).
 7. **Doctor.** `guest-module`: `ok` for a guest that is checked out, `skipped`
    (`guest-module-absent`) for one that is not, which never asks for attention, and `warn`
-   with the issue's code for an invalid guest declaration of the Organization.
+   with the issue's code for every inventory issue that implicates a slot declaring
+   `home_organization`: an invalid guest declaration, but also an orphan guest database
+   (`repository-db-parent-missing`) or a guest slug collision, so no guest drops out of the
+   catalog without a word. The catalog carries them as the Organization's `guestIssues`.
 8. **The legacy projection** copies a guest slot whole, `home_organization` included, like
    every workspace slot with a remote; its default-slug rule stays the path alone, so the
    bytes are Core's for every manifest (`organizationLegacyProjectionHash`; the synthetic
