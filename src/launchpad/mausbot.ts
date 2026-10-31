@@ -9,14 +9,13 @@ import type { MachineEntry } from "../folder/machine-binding";
 // admitted. The external origin is never called. Nothing is recorded; the
 // code is never logged, never in an error and never in a URL query.
 //
-// Both ways in are minted by `mintMausbotPairing`. The Launchpad's click on
-// Automate follows `<mausbotOrigin>/pair#code=…` (`POST /api/mausbot/pair`),
-// whose form an older MausBot only prefills. And MausBot pairs its own
-// browser as T3 Code does (the decision of 2026-10-17 and its addendum of
-// 2026-10-22, docs/launchpad-development.md "Lazurio MausBot entry"): its web
-// client asks `GET /.lazurio/mausbot/pairing` on its own origin whenever it
-// has no session and redeems the code itself, so every way into Automate is
-// paired, not only the Launchpad's click.
+// MausBot pairs its own browser as T3 Code does (the decision of 2026-10-17
+// and its addendum of 2026-10-22, docs/launchpad-development.md "Lazurio
+// MausBot entry"): its web client asks `GET /.lazurio/mausbot/pairing` on
+// its own origin whenever it has no session and redeems the code itself, so
+// every way into Automate is paired. Since the addendum of 2026-10-31 that
+// is the only way: the Launchpad's click on Automate follows the plain
+// MausBot origin, and nothing mints a pairing link.
 
 /** OpenMausBot's `POST /api/auth/pairing` (`server/index.ts`): a single-use
  * code of about five minutes, labelled for the sessions list. */
@@ -35,8 +34,7 @@ const codePattern = /^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
 export const mausbotPairingPath = "/.lazurio/mausbot/pairing";
 
 /** One browser's pairing, minted on this Machine: the answer of
- * `GET /.lazurio/mausbot/pairing` exactly, and the code of the link
- * `POST /api/mausbot/pair` answers. */
+ * `GET /.lazurio/mausbot/pairing` exactly. */
 export type MausbotPairing = Readonly<{
   kind: "mausbot-pairing";
   code: string;
@@ -48,18 +46,6 @@ export type MausbotPairingBlocked = Readonly<{
   kind: "blocked";
   reason: "mausbot-unreachable" | "mausbot-pairing-failed";
 }>;
-
-export type MausbotLink =
-  | Readonly<{ kind: "mausbot-link"; url: string }>
-  | MausbotPairingBlocked;
-
-/** `<mausbotOrigin>/pair#code=<code>`: OpenMausBot's own pairing route, the
- * shape its server answers as `url`. */
-export function mausbotPairUrl(mausbotOrigin: string, code: string): string {
-  const url = new URL("/pair", mausbotOrigin);
-  url.hash = new URLSearchParams([["code", code]]).toString();
-  return url.href;
-}
 
 /** A fresh pairing code for this Machine's Lazurio MausBot, or why not: no
  * answer from the loopback port within the timeout is `mausbot-unreachable`;
@@ -109,21 +95,4 @@ export async function mintMausbotPairing(
   }
   if (typeof code !== "string" || !codePattern.test(code)) return failed;
   return Object.freeze({ kind: "mausbot-pairing", code });
-}
-
-/** A fresh pairing link for this Machine's Lazurio MausBot, minted by
- * `mintMausbotPairing`; without a pairing (`mausbot-unreachable`,
- * `mausbot-pairing-failed`) the page follows the plain MausBot origin
- * instead. */
-export async function issueMausbotLink(
-  entry: MachineEntry,
-  timeoutMs: number = mausbotPairing.timeoutMs,
-): Promise<MausbotLink> {
-  const pairing = await mintMausbotPairing(entry, timeoutMs);
-  if (pairing.kind === "blocked") return pairing;
-  return Object.freeze({
-    kind: "mausbot-link",
-    // A pairing is minted only where the entry records MausBot's origin.
-    url: mausbotPairUrl(entry.mausbotOrigin as string, pairing.code),
-  });
 }
