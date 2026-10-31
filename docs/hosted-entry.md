@@ -229,17 +229,18 @@ The Launchpad's Chat entry (slice P7, [contract](launchpad-development.md#chat-e
 opens T3 Code at the recorded `t3codeOrigin`, never at a name derived from the
 Launchpad's own hostname. `GET /api/entry` hands the page the entry's public parts
 (Launchpad origin, T3 Code origin, module origin rule) read-only, behind this admission;
-the auth endpoint, cookie name and port are not among them. On a click the server asks
-T3's own CLI (the launcher `t3` on its PATH) for a one-time pairing token and answers
-`<t3codeOrigin>/pair#token=…`, the resident's shape; the token rides only in the
-fragment of that navigation. The pairing route is a state-changing request under the
-same-origin rule above; a Launchpad without an entry has neither the link nor the
-route. T3 Code's own admission behind the gateway is unchanged (not in scope below).
-Lazurio MausBot is entered the same way when the entry records it
-([contract](launchpad-development.md#lazurio-mausbot-entry)): `mausbotOrigin` is in the
-public parts, the loopback port is not, and the click's code rides only in the fragment
-of `<mausbotOrigin>/pair`. Since 2026-10-22 MausBot also pairs itself, as T3 Code does
-(below).
+the auth endpoint, cookie name and port are not among them. A click follows that
+origin as it is and asks the Launchpad for nothing on the way: T3 Code pairs the browser
+itself (below). Until the
+[addendum of 2026-10-31](decisions.md#f36-addendum-of-2026-10-31-the-click-into-chat-and-automate-no-longer-pairs)
+the click asked the server for a one-time pairing token (`POST /api/chat/pair`) and
+followed `<t3codeOrigin>/pair#token=…`, the resident's shape; that route is gone. A
+Launchpad without an entry has no link. T3 Code's own admission behind the gateway is
+unchanged (not in scope below). Lazurio MausBot is entered the same way when the entry
+records it ([contract](launchpad-development.md#lazurio-mausbot-entry)): `mausbotOrigin`
+is in the public parts, the loopback port is not, and a click follows the plain origin,
+where MausBot pairs itself as T3 Code does (since 2026-10-22, below); the click's
+`POST /api/mausbot/pair` is gone too.
 The Environment browser's users' view ([F38](decisions.md#f38--the-environment-browser-of-a-remote-environment-one-chromium-a-window-per-thread-a-view-behind-the-gateway),
 [F39](decisions.md#f39--the-peoples-view-of-the-environment-browser-one-tab-of-a-person-is-one-remote-tab))
 follows the same pattern: `browserOrigin` is in the public parts, the loopback port is
@@ -253,7 +254,8 @@ they open that session's window first, so a T3 thread's panel shows the thread's
 
 **T3 Code pairs itself (decision of the Organization Admin, 2026-10-17,
 [contract](launchpad-development.md#chat-entry)).** The Environment pairs every browser
-this admission lets in, not only the one that clicked Chat in the Launchpad. T3 Code's
+this admission lets in, whichever way it enters; since the addendum of 2026-10-31 it is
+the only way a browser is paired. T3 Code's
 web client asks for `GET /.lazurio/chat/pairing` on its own origin whenever it has no
 session, or only a legacy one. The gateway forwards the request as it forwards every
 `/.lazurio/*` read of the forks' origins (Machines `workloads/workspace-vm/ingress.ts`,
@@ -272,14 +274,14 @@ then answers only a page's own script fetch: `Sec-Fetch-Site: same-origin`,
 page that fetches, T3 Code's or the Launchpad's own origin, so another site or a
 sibling hostname gets nothing. The gateway forwards the namespace on MausBot's origin
 too, so a MausBot page would pass the same rule: the same admitted user, in a
-first-party app of the same Environment. The route mints through the same code as the
-click: T3's operator pairing where T3 Code offers it, the standard one on a public
+first-party app of the same Environment. The route mints T3's operator pairing where
+T3 Code offers it, the standard one on a public
 Environment. It answers `{"kind":"chat-pairing","credential":"…","expiresAt":"…"}`
 with `Cache-Control: no-store`; the credential rides only in that response body, which
-the script of the same origin reads, never in a URL. Like the click's route, it sits
-behind the whole-Environment admission: an app-only session
+the script of the same origin reads, never in a URL. It sits behind the
+whole-Environment admission: an app-only session
 ([root 0192](environment-access.md#platform-consumer-qualification)) must be refused
-here as there. T3 Code's own pairing page and its sessions stay T3's.
+here. T3 Code's own pairing page and its sessions stay T3's.
 
 **Buddy's own T3 Code pairs itself the same way ([F61's addendum of
 2026-10-22](decisions.md#f61-addendum-of-2026-10-22-the-pairing-on-buddys-origin-his-own-runtime-a-final-wake-refusal)).**
