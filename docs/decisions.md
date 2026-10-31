@@ -22284,3 +22284,100 @@ Nastavení → Buddy not connected, waiting and connected, and Odpojit; no error
   account's chat, which Telegram refuses unless that account started the new bot.
 - The page is light only (the design system has no dark UI yet): a dark device shows it light,
   with a theme's own colours where the Environment chose one.
+
+## F67 — Guest Modules: another Organization's Module in the host's workspace, kept current, never run
+
+**Direction of root decision 0221 (2026-10-30); the mechanism chosen by the Organization
+Admin on 2026-10-31 for plan DEV-6694, with one contract shared with the Lazurio Root CLI
+so that a manifest behaves the same on a computer and in an Environment (root decision
+0219). Implemented in this revision; the Organization Admin decides it.** Two
+Organizations want each other's Knowledgebase and Mission Control as context: the agents
+of one need the product context the other keeps, and the other way round. Copying would
+make a second truth; a repository moved between Organizations would change its owner,
+visibility and grants. So a host Organization mounts the Module where its home
+Organization keeps it, and nothing else changes.
+
+1. **The declaration.** A slot of the host's `modules.manifest.json` with
+   `home_organization`, the home Organization's GitHub login, at
+   `workspace/<home_organization>_GEN3/<mount>`, or its repository database child at
+   `…/<mount>/db` (`materialization: "repository_db_mount"`, with the same
+   `home_organization`). The middle segment is exactly the home Organization's own mount
+   name; `<mount>` is the existing mount grammar. Only `workspace/`: a root,
+   `modules/` or `productionspace/` path never carries `home_organization`
+   (`classifyRepositorySlotPath`, `inspectRepositorySlots`).
+2. **Its identity.** `<home_organization>/<slug>`, letter case ignored: a guest never
+   collides with the host's own `knowledgebase`, `mission-control` or
+   `mission-control-data`, only with a guest of the same home and slug
+   (`repository-id-collision`). Paths collide across all slots as before.
+3. **Slot-level issues**, each quarantining only the implicated slot, as every inventory
+   issue does: `guest-home-organization-invalid` (no GitHub login), `guest-home-is-host`
+   (the host's own `github_org`, letter case ignored), `guest-path-invalid` (a path
+   outside the guest grammar, the middle segment of another Organization, or a host slot
+   that carries `home_organization`), `guest-remote-owner-mismatch` (any remote the slot
+   declares, `git.url`, `repo`, `repository`, `repository_db.url` or `repository_db.repo`,
+   owned by anyone but the home Organization), and for a database child without its guest
+   parent the existing `repository-db-parent-missing`. Without `home_organization` a
+   two-segment workspace path stays `unsupported-path`: the host's own workspace stays
+   flat (root decision 0041). A host workspace slot with a foreign remote keeps today's
+   behaviour here (the Platform checks no host slot's owner; Core reports
+   `slot_remote_owner_mismatch`).
+4. **Content.** Installation and synchronization take a guest as a workspace module and
+   its database child as a module's data mount (F9; `declaredChildren`, `dataMountOf`):
+   cloned with this Environment's own GitHub identity from the declared remote, the
+   module on `main` and the database on its declared branch, and fast-forwarded when
+   clean. A repository the identity cannot read is that slot's `denied`
+   (`repository-denied`); its siblings go on. A guest is never prepared. The folder
+   `workspace/<Home>_GEN3/` itself is a directory of the host's root repository with its
+   own `README.md` and `AGENTS.md`; the host ignores the checkouts inside it, so its root
+   stays clean.
+5. **Never run by the host.** The catalog never reads a guest's `lazurio.module.json`,
+   whose `company` and `id` are its home's: no identity check, no module row, app, start,
+   preparation, port lease, runtime secret or hosted name. It lists guests read-only under
+   the host, like its productionspace repositories, in `guests`
+   (`{organization, module, path, homeOrganization, guest: true, checkedOut, url}`),
+   present only when the Organization declares one; `lazurio organization list` and
+   `lazurio module list` print them, with `--json` whole. The Launchpad's page does not
+   draw them yet.
+6. **"The" Knowledgebase and Mission Control** of an Organization stay its own root and
+   workspace slots: a guest is never a module of the catalog, so nothing that looks a
+   module up by slug finds it, and module creation ignores guest slots when it checks
+   that a slug is free (`assertSlotFree`).
+7. **Doctor.** `guest-module`: `ok` for a guest that is checked out, `skipped`
+   (`guest-module-absent`) for one that is not, which never asks for attention, and `warn`
+   with the issue's code for an invalid guest declaration of the Organization.
+8. **The legacy projection** copies a guest slot whole, `home_organization` included, like
+   every workspace slot with a remote; its default-slug rule stays the path alone, so the
+   bytes are Core's for every manifest (`organizationLegacyProjectionHash`; the synthetic
+   manifest of `tests/fixtures/guest-modules.ts` hashes to the same
+   `sha256:fd0f1016…dd25` in both).
+9. **Agents.** The Folder's `manual/working-here.md` explains guest Modules in general
+   terms on every Environment that holds Organizations: where they are, that the
+   `README.md` and `AGENTS.md` of the folder and of the module and the home
+   Organization's rules apply, that Lazurio keeps them current and never runs them, and
+   that a change goes as a pull request to the home repository. `AGENTS.md` points to it
+   in one sentence, within its budget (32 KiB with the longest voice). No Organization's
+   own meaning enters the product (docs/folder-context-routing.md). Template revision
+   `base-instructions-93`.
+
+**Not covered.** The Launchpad's page draws no guest yet (its Workspace and
+Productionspace sections are unchanged); the catalog JSON carries them. The Platform has
+no `lazurio module setup` (#423), so its refusal on a guest path is Core's; worktree lanes
+for guests are Core's too and refuse them in this step. A guest of a public Environment is
+read anonymously like any child, so a private home repository is `failed`
+(`clone-failed`) there. Older Platforms quarantine every guest slot as `unsupported-path`;
+the Organization keeps running.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Copy or fork the home Organization's repository into the host | A second truth and a second set of grants; rejected by root decision 0221 |
+| Mount the guest in `productionspace/` | Productionspace keeps its own branch and release models and is never synchronized; rejected by the Organization Admin's choice of 2026-10-31 |
+| Take a guest for a module of the host and relax the identity check | The host would start, prepare and lease ports for another Organization's code; rejected: guests are read-only context |
+| A guest slot in the host's `workspace/<Home>_GEN3/` with `home_organization`, kept current and listed read-only (selected) | One grammar rule, the existing install, sync and access paths; the home keeps ownership |
+
+Risks: a guest's repository is cloned with the Environment's identity, so the people of a
+shared Environment read what that identity reads, as for every repository there. A
+guest's database child declares its slug (the contract requires it); one without would
+project as Core projects it, but a Core that later reads the guest database path as a
+nested database by path alone would then project differently and set the host to
+`conflict` here: both implementations must change that rule together. `AGENTS.md` has a
+few bytes left within its budget after this sentence.

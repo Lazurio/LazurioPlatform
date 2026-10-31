@@ -322,8 +322,9 @@ type SyncChild = Readonly<{
   branch: string;
 }>;
 
-/** The modules and data mounts the root declares now: workspace modules,
- * the root-level applications and the data mounts below them, each with a
+/** The modules and data mounts the root declares now: workspace modules
+ * (guest Modules of another Organization among them, DEV-6694), the
+ * root-level applications and the data mounts below them, each with a
  * GitHub remote. Production Space, `infra` and every other slot are left
  * out; restricted slots are in (a present checkout was readable once, and
  * GitHub decides now). An unreadable declaration gives none. */
