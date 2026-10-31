@@ -5,8 +5,10 @@ and [the release cycle](../release-cycle.md#qualification-and-the-canary).
 
 The candidate `v0.1.18-rc.1` (source `bdf1adbe4947ff9a70a6920a94c3dc572ff77e33`) ran for 8 h 0 min 36 s, directly
 observed, on every Environment of the pilot Organization, LazurioExampleOrganization, and on one personal VM. The
-final tag `v0.1.18` carries the same product source. It differs from the candidate only by this record and this
-file, under `qualification/` and `docs/evidence/`, as the release cycle allows.
+final tag `v0.1.18` is to carry the same product source. It is to differ from the candidate only under
+`qualification/` and `docs/evidence/`, as the release cycle allows; the expected difference is listed below. The
+final tag, its branch and its release do not exist yet. They follow the merge of the pull request that adds this
+file.
 
 The record is [`qualification/canary/v0.1.18-rc.1.json`](../../qualification/canary/v0.1.18-rc.1.json).
 The pull request that adds this file adds it too. Machines are opaque ids, as in the record. Which Machine is
@@ -31,10 +33,17 @@ None of them was in the canary, so they go into later versions.
   the tag's history;
 - **the same source:** the tag differs from the candidate only under `qualification/` and `docs/evidence/`.
 
-On `main` the first holds and the second does not. So the tag stands on the branch `release/v0.1.18`. It starts
-at the commit that merged this record into `main` and has one commit on top, which restores the candidate's tree
-everywhere outside `qualification/` and `docs/evidence/`. The merge is that commit's parent, so provenance holds.
-The diff against the candidate is exactly this record and this file, so the same source holds. This is the path
+On `main` the first will hold and the second does not. So the tag is planned on the branch `release/v0.1.18`. It
+is to start at the commit that merges this record into `main` and to have one commit on top, which restores the
+candidate's tree everywhere outside `qualification/` and `docs/evidence/`. The merge will be that commit's parent, so
+provenance will hold.
+
+The expected difference against the candidate is four added files, all under the allowed paths:
+- this record, `qualification/canary/v0.1.18-rc.1.json`, and this file;
+- v0.1.17's canary record, `qualification/canary/v0.1.17-rc.1.json`, and its evidence,
+  `docs/evidence/release-v0.1.17.md` (#739), which reached `main` after this candidate was cut.
+
+Nothing differs outside `qualification/` and `docs/evidence/`, so the same source will hold. This is the path
 v0.1.11, v0.1.13, v0.1.16 and v0.1.17 took.
 
 ## Qualification
