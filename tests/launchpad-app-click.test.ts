@@ -303,15 +303,16 @@ test.skipIf(chrome === null || !posix || uid === 0)(
             10_000,
           ),
         ).toBe(`${origin}/`);
-        // And the Launchpad was asked nothing on the way: no pairing, no
-        // request that changes anything (the page's own background reads
-        // may still pass while it unloads).
+        // And the Launchpad was asked nothing about the app on the way: no
+        // request under Chat's or MausBot's API after the click. The page's
+        // own background reads (the tools' status, which it posts) may
+        // still pass while it unloads; they are not the click's.
         await Bun.sleep(300);
         expect([
           name,
           app.requests
             .slice(seen)
-            .filter((request) => !request.startsWith("GET ")),
+            .filter((request) => /^\S+ \/api\/(chat|mausbot)\//.test(request)),
         ]).toEqual([name, []]);
       }
       // Never a pairing route, over the whole visit.
