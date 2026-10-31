@@ -5,7 +5,9 @@ import { isEntryAudience } from "./public-environment";
 // The page's side of Chat (launchpad-parity B8) and of Lazurio MausBot
 // (DEV-6632): which link it shows, taken as the server answered it. The page
 // composes no origin; it only accepts one that has the shape the recorded
-// entry allows, and a pairing link only on that same origin.
+// entry allows. It mints no pairing: since the addendum of 2026-10-31 to the
+// decision of 2026-10-17 T3 Code and MausBot pair a browser themselves, and
+// a click follows the plain origin.
 
 /** Whether `GET /api/entry` answered that there is no entry: a
  * workstation's answer, which says as surely as an entry does that this is
@@ -57,67 +59,10 @@ export function chatHref(entry: PublicEntry | null): string | null {
   return entry?.t3codeOrigin ?? null;
 }
 
-/** The pairing link of `POST /api/chat/pair`, only as T3 Code's own pairing
- * route on the recorded origin: `/pair`, no query, a `token` fragment.
- * Anything else is null, and the page follows the plain origin instead. */
-export function chatPairLink(
-  value: unknown,
-  t3codeOrigin: string,
-): string | null {
-  return pairLink(
-    value,
-    "chat-link",
-    t3codeOrigin,
-    /^#token=[A-Za-z0-9_-]{8,128}$/,
-  );
-}
-
 /** The Lazurio MausBot entry of the sidebar (DEV-6632): its origin, as
  * recorded, or absent (no MausBot on this Machine, or a workstation). */
 export function mausbotHref(entry: PublicEntry | null): string | null {
   return entry?.mausbotOrigin ?? null;
-}
-
-/** The pairing link of `POST /api/mausbot/pair`, only as OpenMausBot's own
- * pairing route on the recorded origin: `/pair`, no query, a `code`
- * fragment. Anything else is null, and the page follows the plain origin. */
-export function mausbotPairLink(
-  value: unknown,
-  mausbotOrigin: string,
-): string | null {
-  return pairLink(
-    value,
-    "mausbot-link",
-    mausbotOrigin,
-    /^#code=[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/,
-  );
-}
-
-function pairLink(
-  value: unknown,
-  kind: string,
-  origin: string,
-  fragment: RegExp,
-): string | null {
-  if (typeof value !== "object" || value === null) return null;
-  const answer = value as { kind?: unknown; url?: unknown };
-  if (answer.kind !== kind || typeof answer.url !== "string") return null;
-  try {
-    const url = new URL(answer.url);
-    if (
-      url.origin !== origin ||
-      url.pathname !== "/pair" ||
-      url.search ||
-      url.username ||
-      url.password ||
-      !fragment.test(url.hash) ||
-      url.href !== answer.url
-    )
-      return null;
-    return url.href;
-  } catch {
-    return null;
-  }
 }
 
 /** The answer of `GET /api/chat/prompt-handoff`: whether Chat on this
@@ -140,27 +85,26 @@ const promptId = /^[a-z][a-z0-9-]{0,63}$/;
 const githubLogin = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
 
 /** Chat's address with a prepared prompt for the T3 Code fork
- * (Lazurio/t3code#35): the pairing link, or Chat's plain origin, with
- * `lazurio-prompt=<id>` and `lazurio-org=<login>` added to its fragment.
- * The fragment never reaches a server or a log, the pairing token stays as
- * it was, and a T3 Code without the hand-off ignores both. Null for an
- * address that is not on Chat's recorded origin, or a prompt outside the
+ * (Lazurio/t3code#35): Chat's plain origin with `lazurio-prompt=<id>` and
+ * `lazurio-org=<login>` in its fragment, no pairing token (the addendum of
+ * 2026-10-31 to the decision of 2026-10-17). The fork keeps the link in the
+ * tab across its own pairing (`captureLazurioPromptLink`). The fragment
+ * never reaches a server or a log, and a T3 Code without the hand-off
+ * ignores it. Null for an origin that is not one, or a prompt outside the
  * grammar. */
 export function chatPromptHref(
-  href: string,
   t3codeOrigin: string,
   prompt: PromptLink,
 ): string | null {
   if (!promptId.test(prompt.id) || !githubLogin.test(prompt.organization))
     return null;
   try {
-    const url = new URL(href);
-    if (url.origin !== t3codeOrigin || url.username || url.password)
-      return null;
-    const fragment = new URLSearchParams(url.hash.slice(1));
-    fragment.set("lazurio-prompt", prompt.id);
-    fragment.set("lazurio-org", prompt.organization);
-    url.hash = fragment.toString();
+    const url = new URL(t3codeOrigin);
+    if (url.origin !== t3codeOrigin) return null;
+    url.hash = new URLSearchParams([
+      ["lazurio-prompt", prompt.id],
+      ["lazurio-org", prompt.organization],
+    ]).toString();
     return url.href;
   } catch {
     return null;
