@@ -25,12 +25,10 @@ import {
   mintChatPairing,
   publicEntry,
   standardPairingScopes,
-  t3PairUrl,
   takesPairingScopes,
 } from "../src/launchpad/chat";
 import {
   chatHref,
-  chatPairLink,
   chatPromptHref,
   parseEntryAnswer,
   parsePromptHandoff,
@@ -294,8 +292,10 @@ async function hostedLaunchpad(
     "sec-fetch-site": "same-origin",
     "content-type": "application/json",
   };
-  const pair = (headers: Record<string, string> = sameOrigin) =>
-    fetch(`${base}/api/chat/pair`, { method: "POST", headers, body: "{}" });
+  // A POST the page's own way, to `path`: the click's former pairing
+  // route, or any other.
+  const post = (path: string, headers: Record<string, string> = sameOrigin) =>
+    fetch(`${base}${path}`, { method: "POST", headers, body: "{}" });
   // T3 Code's web client asking on its own origin, as the gateway forwards
   // it here (Machines `ingress.ts` `shellRoute`): the Launchpad's Host, the
   // session cookie alone and the browser's own Fetch Metadata of a script's
@@ -320,7 +320,7 @@ async function hostedLaunchpad(
     valid,
     ownFetch,
     runs,
-    pair,
+    post,
     selfPair,
     async close() {
       await app.close();
@@ -379,40 +379,63 @@ test.skipIf(process.platform === "win32")(
 );
 
 test.skipIf(process.platform === "win32")(
-  "hosted: Chat mints a one-time pairing link on the recorded T3 Code origin with T3's own call",
+  "hosted: the Launchpad's click mints nothing: POST /api/chat/pair answers as any unknown route does and runs nothing",
   async () => {
     const hosted = await hostedLaunchpad();
     try {
-      const { entry, home, bin, runs, pair, valid } = hosted;
-      // Without a T3 launcher on PATH: named, nothing run; the page then
-      // follows the plain origin.
-      const missing = await pair();
-      expect([missing.status, await missing.json()]).toEqual([
-        409,
-        { kind: "blocked", reason: "t3-launcher-missing" },
-      ]);
-      expect(runs).toEqual([]);
-
+      const { home, bin, runs, post, valid } = hosted;
+      // Even with a launcher that would pair (the addendum of 2026-10-31 to
+      // the decision of 2026-10-17): the click's former route is gone.
       await fakeLauncher(bin, "ok");
-      // A state-changing request needs the same-origin proof as every other.
-      expect((await pair(valid)).status).toBe(401);
-      expect(runs).toEqual([]);
-      const paired = await pair();
-      const body = await paired.json();
-      expect([paired.status, body]).toEqual([
-        200,
-        {
-          kind: "chat-link",
-          url: `https://t3code.workspace.example.lazurio.io/pair#token=${credential}`,
-        },
+      for (const headers of [undefined, valid]) {
+        const removed = await post("/api/chat/pair", headers);
+        const unknown = await post("/api/chat/unknown", headers);
+        const [removedText, unknownText] = [
+          await removed.text(),
+          await unknown.text(),
+        ];
+        expect([removed.status, removedText]).toEqual([
+          unknown.status,
+          unknownText,
+        ]);
+        expect(removedText).not.toContain(credential);
+      }
+      // Behind the same-origin proof: not found. Without it: refused
+      // before any route, as every state-changing request.
+      const removed = await post("/api/chat/pair");
+      expect([removed.status, await removed.json()]).toEqual([
+        404,
+        { error: "not-found" },
       ]);
-      expect(body.url).toBe(t3PairUrl(entry.t3codeOrigin, credential));
-      expect(chatPairLink(body, entry.t3codeOrigin)).toBe(body.url);
+      expect((await post("/api/chat/pair", valid)).status).toBe(401);
+      expect(runs).toEqual([]);
+      expect(
+        await readFile(join(bin, "t3.calls"), "utf8").catch(() => ""),
+      ).toBe("");
+      expect(await readdir(home)).toEqual([".local"]);
+    } finally {
+      await hosted.close();
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "hosted: T3 Code's own fetch gets the standard pairing with T3's own call where T3 Code offers no operator pairing, and never the output of a failed one",
+  async () => {
+    const hosted = await hostedLaunchpad();
+    try {
+      const { home, bin, runs, selfPair } = hosted;
+      await fakeLauncher(bin, "ok");
+      const answer = await selfPair();
+      expect([answer.status, await answer.json()]).toEqual([
+        200,
+        { kind: "chat-pairing", credential, expiresAt },
+      ]);
       // T3 Code's capabilities first; this one offers no operator pairing,
-      // so the resident's call (`R:launchpad/src/t3-chat-lib.mjs:75` over
-      // Machines' `t3 auth pairing create --base-dir ~/.t3`), labelled for
-      // the admitted person (the gateway named nobody here), with only HOME
-      // and PATH of this Launchpad's environment.
+      // so T3's standard call over Machines' `t3 auth pairing create
+      // --base-dir ~/.t3`, labelled for the admitted person (the gateway
+      // named nobody here), with only HOME and PATH of this Launchpad's
+      // environment.
       expect(runs).toEqual([
         capabilitiesCall(bin, home),
         versionCall(bin, home),
@@ -427,7 +450,7 @@ test.skipIf(process.platform === "win32")(
       // tool's output never passed on.
       for (const mode of ["fail", "unreadable", "shape", "expiry"]) {
         await fakeLauncher(bin, mode);
-        const failed = await pair();
+        const failed = await selfPair();
         const text = await failed.text();
         expect([mode, failed.status, JSON.parse(text)]).toEqual([
           mode,
@@ -449,7 +472,7 @@ test.skipIf(process.platform === "win32")(
   async () => {
     const hosted = await hostedLaunchpad({ username: "example" });
     try {
-      const { home, bin, runs, selfPair, pair } = hosted;
+      const { home, bin, runs, selfPair, post } = hosted;
       await fakeLauncher(bin, "ok", true);
       const answer = await selfPair();
       // What T3 Code's client accepts and nothing else (Lazurio/t3code#84):
@@ -473,17 +496,14 @@ test.skipIf(process.platform === "win32")(
       expect(
         (await readFile(join(bin, "t3.calls"), "utf8")).trim().split("\n"),
       ).toEqual(runs[1]?.command.slice(1) ?? []);
-      // The Launchpad's click mints through the same code: the same call.
+      // The Launchpad's click no longer mints: nothing more runs.
       runs.length = 0;
-      const clicked = await pair();
-      expect([clicked.status, (await clicked.json()).url]).toEqual([
-        200,
-        `https://t3code.workspace.example.lazurio.io/pair#token=${credential}`,
+      const clicked = await post("/api/chat/pair");
+      expect([clicked.status, await clicked.json()]).toEqual([
+        404,
+        { error: "not-found" },
       ]);
-      expect(runs).toEqual([
-        capabilitiesCall(bin, home),
-        pairingCall(bin, home, "operator", "Lazurio · example"),
-      ]);
+      expect(runs).toEqual([]);
       // Nothing is recorded: the home holds no token.
       expect(await readdir(home)).toEqual([".local"]);
     } finally {
@@ -1160,7 +1180,7 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
-test("the page accepts only the entry's shape and a pairing link on the recorded T3 Code origin", () => {
+test("the page accepts only the entry's shape, and its Chat entry is the recorded T3 Code origin as it is", () => {
   const entry = {
     launchpadOrigin: "https://launchpad.workspace.example.lazurio.io",
     t3codeOrigin: "https://t3code.workspace.example.lazurio.io",
@@ -1187,29 +1207,6 @@ test("the page accepts only the entry's shape and a pairing link on the recorded
     expect([answer, parseEntryAnswer(answer)]).toEqual([answer, null]);
   expect(chatHref(null)).toBeNull();
 
-  const link = `${entry.t3codeOrigin}/pair#token=${credential}`;
-  expect(
-    chatPairLink({ kind: "chat-link", url: link }, entry.t3codeOrigin),
-  ).toBe(link);
-  for (const url of [
-    `https://t3code.other.lazurio.io/pair#token=${credential}`,
-    `${entry.t3codeOrigin}/pair?token=${credential}`,
-    `${entry.t3codeOrigin}/pair?x=1#token=${credential}`,
-    `${entry.t3codeOrigin}/other#token=${credential}`,
-    `${entry.t3codeOrigin}/pair#token=short`,
-    `${entry.t3codeOrigin}/pair`,
-    `https://user@t3code.workspace.example.lazurio.io/pair#token=${credential}`,
-  ])
-    expect([
-      url,
-      chatPairLink({ kind: "chat-link", url }, entry.t3codeOrigin),
-    ]).toEqual([url, null]);
-  expect(
-    chatPairLink(
-      { kind: "blocked", reason: "t3-launcher-missing" },
-      entry.t3codeOrigin,
-    ),
-  ).toBeNull();
   // The server's projection carries exactly these three values.
   expect(
     publicEntry({
@@ -1224,41 +1221,41 @@ test("the page accepts only the entry's shape and a pairing link on the recorded
   expect(publicEntry(null)).toBeNull();
 });
 
-// "+ Nový modul" (Lazurio/t3code#35): the prompt by link, never its text.
-test("the link carries the prompt's id and the Organization's login in the fragment, on Chat's origin only", () => {
+// "+ Nový modul" (Lazurio/t3code#35): the prompt by link, never its text,
+// on Chat's plain origin without a pairing token (the addendum of 2026-10-31
+// to the decision of 2026-10-17): the fork keeps the link across its own
+// pairing.
+test("the link carries the prompt's id and the Organization's login in the fragment of Chat's plain origin, and no pairing token", () => {
   const origin = "https://t3code.workspace.example.lazurio.io";
   const prompt = { id: "new-module", organization: "Example-Org" };
-  const token = "Pairing_Token-0123456789abcdef";
-  expect(chatPromptHref(`${origin}/pair#token=${token}`, origin, prompt)).toBe(
-    `${origin}/pair#token=${token}&lazurio-prompt=new-module&lazurio-org=Example-Org`,
-  );
-  // Without a pairing: Chat's plain origin, which asks to pair first.
-  expect(chatPromptHref(origin, origin, prompt)).toBe(
+  expect(chatPromptHref(origin, prompt)).toBe(
     `${origin}/#lazurio-prompt=new-module&lazurio-org=Example-Org`,
   );
   // The personal space's "+ Nový modul": the person's own login.
   expect(
-    chatPromptHref(`${origin}/pair#token=${token}`, origin, {
+    chatPromptHref(origin, {
       id: "new-personal-module",
       organization: "example",
     }),
-  ).toBe(
-    `${origin}/pair#token=${token}&lazurio-prompt=new-personal-module&lazurio-org=example`,
-  );
-  // Never the text, and nothing in the query a server or log would see.
-  const href = new URL(
-    chatPromptHref(`${origin}/pair#token=${token}`, origin, prompt) ?? "",
-  );
-  expect(href.search).toBe("");
+  ).toBe(`${origin}/#lazurio-prompt=new-personal-module&lazurio-org=example`);
+  // Never the text, no token and nothing in the query a server or log would
+  // see: the root path, a fragment of exactly the two parameters.
+  const href = new URL(chatPromptHref(origin, prompt) ?? "");
+  expect([href.origin, href.pathname, href.search]).toEqual([origin, "/", ""]);
+  expect([...new URLSearchParams(href.hash.slice(1)).keys()]).toEqual([
+    "lazurio-prompt",
+    "lazurio-org",
+  ]);
   for (const [base, value] of [
-    ["https://t3code.other.lazurio.io/pair#token=x", prompt],
-    [`https://user@t3code.workspace.example.lazurio.io/`, prompt],
+    [`${origin}/pair`, prompt],
+    [`${origin}/`, prompt],
+    [`https://user@t3code.workspace.example.lazurio.io`, prompt],
     ["not a url", prompt],
     [origin, { id: "New Module", organization: "Example-Org" }],
     [origin, { id: "new-module", organization: "a/b" }],
     [origin, { id: "new-module", organization: "-x" }],
   ] as const)
-    expect(chatPromptHref(base, origin, value)).toBeNull();
+    expect([base, chatPromptHref(base, value)]).toEqual([base, null]);
   expect(
     parsePromptHandoff({ kind: "chat-prompt-handoff", accepted: true }),
   ).toBe(true);

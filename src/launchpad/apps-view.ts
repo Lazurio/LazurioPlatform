@@ -519,7 +519,7 @@ export type PersonalStart = Readonly<{
    * sentence why. */
   text: string;
   /** An app of the switch, whose plain click announces `lazurio-app` as its
-   * tab does (ui.ts pairs the browser on the way); a route of this page, as
+   * tab does and follows its plain origin (ui.ts); a route of this page, as
    * the column's item; null where the app does not run here (muted). */
   target:
     | Readonly<{ kind: "app"; app: "chat" | "automate"; href: string }>

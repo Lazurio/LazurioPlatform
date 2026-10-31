@@ -8,24 +8,24 @@ import { type AdmittedPerson, isLazurioUsername, nobody } from "./hosted-trust";
 import { ownerAnswerMs } from "./owner-answer";
 import { isPublicEnvironment } from "./public-environment";
 
-// Chat into T3 Code (launchpad-parity B8, slice P7): what the resident
-// Launchpad does today (`R:launchpad/src/t3-chat-lib.mjs:56-90`), with every
-// value from the recorded entry. The Launchpad runs as the same Machine user
-// as T3 Code, so it mints a one-time pairing token with T3's own CLI and hands
-// it over in the fragment of `<t3codeOrigin>/pair`; whoever holds a shell on
-// the Machine can mint the same token, and this only shortens the path for a
-// browser the gateway already admitted. Nothing is recorded; the token is
-// never logged, never in an error and never in a URL query.
+// Chat into T3 Code (launchpad-parity B8, slice P7), with every value from
+// the recorded entry. The Launchpad runs as the same Machine user as T3
+// Code, so it mints a one-time pairing token with T3's own CLI; whoever holds
+// a shell on the Machine can mint the same token, and this only shortens the
+// path for a browser the gateway already admitted. Nothing is recorded; the
+// token is never logged, never in an error and never in a URL.
 //
 // The Environment pairs its own browser (decision of the Organization Admin,
 // 2026-10-17, docs/launchpad-development.md "Chat entry"): T3 Code's web
 // client asks `GET /.lazurio/chat/pairing` on its own origin whenever it has
-// no session, so every way into Chat is paired, not only the Launchpad's
-// click. Both are minted by `mintChatPairing`: T3's operator pairing where
-// the installed T3 Code offers it, the standard one on a public Environment
-// and on an older T3 Code. The operator pairing's scopes are T3's own word;
-// the standard one names its scopes itself (`standardPairingScopes`), so a
-// newer T3 Code's wider default grant never reaches a browser paired here.
+// no session, so every way into Chat is paired. Since the addendum of
+// 2026-10-31 that is the only way: the Launchpad's click and `lazurio chat
+// link` follow the plain T3 Code origin, and nothing mints a pairing link.
+// `mintChatPairing` mints T3's operator pairing where the installed T3 Code
+// offers it, the standard one on a public Environment and on an older T3
+// Code. The operator pairing's scopes are T3's own word; the standard one
+// names its scopes itself (`standardPairingScopes`), so a newer T3 Code's
+// wider default grant never reaches a browser paired here.
 //
 // Buddy's own T3 Code on the Osobní Prostředí (F61's addendum of 2026-10-22)
 // asks the same path on his origin, which the gateway forwards here too: a
@@ -119,8 +119,7 @@ export function takesPairingScopes(version: string | null): boolean | null {
 }
 
 /** One browser's pairing, minted on this Machine: the answer of
- * `GET /.lazurio/chat/pairing` exactly, and the credential of the link
- * `POST /api/chat/pair` answers. */
+ * `GET /.lazurio/chat/pairing` exactly. */
 export type ChatPairing = Readonly<{
   kind: "chat-pairing";
   credential: string;
@@ -132,18 +131,6 @@ export type ChatPairingBlocked = Readonly<{
   kind: "blocked";
   reason: "t3-launcher-missing" | "t3-pairing-failed";
 }>;
-
-export type ChatLink =
-  | Readonly<{ kind: "chat-link"; url: string }>
-  | ChatPairingBlocked;
-
-/** `<t3codeOrigin>/pair#token=<credential>`: T3 Code's own pairing route, the
- * resident's shape (`R:launchpad/src/t3-chat-lib.mjs:56-60`). */
-export function t3PairUrl(t3codeOrigin: string, credential: string): string {
-  const url = new URL("/pair", t3codeOrigin);
-  url.hash = new URLSearchParams([["token", credential]]).toString();
-  return url.href;
-}
 
 /** The label of a minted pairing, which T3 Code's Settings → Connections
  * shows beside the session, so a person sees whose browser each one is:
@@ -358,22 +345,6 @@ export async function mintBuddyPairing(
   }
 }
 
-/** A fresh pairing link for this Machine's T3 Code, minted for `person` by
- * `mintChatPairing`; without a pairing (`t3-launcher-missing`,
- * `t3-pairing-failed`) the page follows the plain T3 Code origin instead. */
-export async function issueChatLink(
-  entry: MachineEntry,
-  environment: ToolsEnvironment,
-  person: AdmittedPerson = nobody,
-): Promise<ChatLink> {
-  const pairing = await mintChatPairing(entry, environment, person);
-  if (pairing.kind === "blocked") return pairing;
-  return Object.freeze({
-    kind: "chat-link",
-    url: t3PairUrl(entry.t3codeOrigin, pairing.credential),
-  });
-}
-
 // Whether Chat on this Environment takes a prepared prompt by link
 // (Lazurio/t3code#35): "+ Nový modul" then opens Chat with the prompt's id
 // in the link and copies nothing; otherwise the prompt goes to the clipboard
@@ -484,29 +455,25 @@ export function createChatPromptCheck(
   };
 }
 
-/** Why `lazurio chat link` answers without a pairing: asked for the plain
- * link, the launcher missing or the call refused (the pairing route's own
- * reasons), or no recorded entry. A contract for automation: never renamed
- * or reused. */
-export const chatLinkReasons = [
-  "plain-requested",
-  "t3-launcher-missing",
-  "t3-pairing-failed",
-  "not-hosted",
-] as const;
+/** Why `lazurio chat link` answers without a pairing: T3 Code pairs the
+ * browser itself (the addendum of 2026-10-31 to the decision of 2026-10-17),
+ * or there is no recorded entry. A contract for automation: never renamed or
+ * reused. `plain-requested`, `t3-launcher-missing` and `t3-pairing-failed`
+ * were the reasons while the command minted a pairing link; they are
+ * retired, not reused. */
+export const chatLinkReasons = ["t3-pairs-itself", "not-hosted"] as const;
 export type ChatLinkReason = (typeof chatLinkReasons)[number];
 
-/** The answer of `lazurio chat link` (B8's CLI, C.5 item 10): the pairing
- * link `POST /api/chat/pair` answers, from the same `issueChatLink`; without
- * one the plain T3 Code origin the page then follows, with the reason; no
- * link at all without a recorded entry. */
+/** The answer of `lazurio chat link` (B8's CLI, C.5 item 10): the plain T3
+ * Code origin the Launchpad's Chat entry follows, which pairs the browser
+ * itself; no link at all without a recorded entry. `pairing` stays in the
+ * shape, always false: the command mints nothing. */
 export type ChatLinkAnswer =
-  | Readonly<{ kind: "chat-link"; url: string; pairing: true }>
   | Readonly<{
       kind: "chat-link";
       url: string;
       pairing: false;
-      reason: Exclude<ChatLinkReason, "not-hosted">;
+      reason: "t3-pairs-itself";
     }>
   | Readonly<{
       kind: "chat-link";
@@ -515,28 +482,19 @@ export type ChatLinkAnswer =
       reason: "not-hosted";
     }>;
 
-export async function chatLinkAnswer(
-  entry: MachineEntry | null,
-  environment: ToolsEnvironment,
-  options: Readonly<{ plain: boolean }>,
-): Promise<ChatLinkAnswer> {
+export function chatLinkAnswer(entry: MachineEntry | null): ChatLinkAnswer {
   const recorded = publicEntry(entry);
-  if (entry === null || recorded === null)
-    return Object.freeze({
-      kind: "chat-link",
-      url: null,
-      pairing: false,
-      reason: "not-hosted",
-    });
-  const plain = (reason: Exclude<ChatLinkReason, "not-hosted">) =>
-    Object.freeze({
-      kind: "chat-link" as const,
-      url: recorded.t3codeOrigin,
-      pairing: false as const,
-      reason,
-    });
-  if (options.plain) return plain("plain-requested");
-  const link = await issueChatLink(entry, environment);
-  if (link.kind === "blocked") return plain(link.reason);
-  return Object.freeze({ kind: "chat-link", url: link.url, pairing: true });
+  return recorded === null
+    ? Object.freeze({
+        kind: "chat-link",
+        url: null,
+        pairing: false,
+        reason: "not-hosted",
+      })
+    : Object.freeze({
+        kind: "chat-link",
+        url: recorded.t3codeOrigin,
+        pairing: false,
+        reason: "t3-pairs-itself",
+      });
 }
