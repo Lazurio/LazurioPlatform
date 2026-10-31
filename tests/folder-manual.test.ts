@@ -35,9 +35,11 @@ import { renderOutputs } from "../src/folder/preview";
 import {
   buddyChatRouting,
   buddyPublicationRules,
+  networkLine,
   ownSignInIdentity,
   publicationRules,
   questionTool,
+  threadsRule,
   visitorsOf,
 } from "../src/folder/render";
 import { resumeInitialization } from "../src/folder/resume-initialization";
@@ -2196,6 +2198,157 @@ test("Publication is one block in the Owner's words in AGENTS.md, the manual and
             sentence,
             false,
           ]);
+    }
+});
+
+// The root's agent rules of 2026-10-31 in every Environment: threads do not
+// coordinate with each other (root decision 0218, addendum of 2026-10-31), an
+// agent never switches the Environment's own network (root decision 0217,
+// addendum of 2026-10-31), and one worktree belongs to one pull request, a
+// plan may own several (0218's addendum, point 2). The network line takes the
+// place of the Headscale, laptop and SSH lines it absorbs; who keeps the
+// order on GitHub is the Organization's, so no generated text names the
+// root's coordinator.
+test("threads do not coordinate, the Environment's network is never switched, and a worktree belongs to one pull request (root addenda of 2026-10-31)", () => {
+  const environments = [
+    ...journeys,
+    {
+      preset: "hosted-organization-team",
+      machine: bindings.teamBrowser,
+      os: "linux",
+    },
+    {
+      preset: "hosted-organization-team",
+      machine: bindings.teamPublic,
+      os: "linux",
+    },
+    {
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationPublic,
+      os: "linux",
+    },
+    { preset: "hosted-organization-team", machine: tryBinding(), os: "linux" },
+  ] as const;
+  const retired = [
+    "Při přidávání počítače do Headscale nejdřív čti",
+    "When adding a computer to Headscale, first read",
+    "ani aktivní tailnet sám neměň",
+    "or switch its active tailnet yourself",
+    "Profil Tailscale sám nepřepínej",
+    "Never switch the Tailscale profile yourself",
+  ];
+  const count = (text: string, part: string) => text.split(part).length - 1;
+  for (const environment of environments)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: environment.preset,
+        machine: environment.machine,
+        profile: presetProfile(environment.preset, environment.os, { locale }),
+      });
+      const agents = outputs["AGENTS.md"];
+      const working = outputs["manual/working-here.md"];
+      const machine = outputs["manual/this-machine.md"];
+      const hosted = environment.machine !== null;
+      const isPublic =
+        githubIdentity(environment.preset, environment.machine) === "none";
+      const where = [environment.preset, environment.machine?.name, locale];
+      // Threads: once in AGENTS.md right after the Publication block (after
+      // a Team Environment's named publisher), and in full in the manual;
+      // neither on a public Environment, which has nothing on GitHub.
+      const block = publicationRules.map((line) => line[locale]).join("\n");
+      const before =
+        environment.preset === "hosted-organization-team"
+          ? locale === "cs"
+            ? "„Komu mám říct, aby tyhle změny publikoval?“ a tomu uživateli předej pull request."
+            : "“Whom should I ask to publish these changes?” and hand that user the pull request."
+          : block;
+      expect([
+        ...where,
+        count(agents, threadsRule[locale]),
+        agents.includes(`${before}\n${threadsRule[locale]}\n`),
+        working.includes(
+          locale === "cs"
+            ? "## Vlákna se mezi sebou nekoordinují (root rozhodnutí 0218, dodatky 2026-10-31)"
+            : "## Threads do not coordinate with each other (root decision 0218, addenda 2026-10-31)",
+        ),
+        working.includes(
+          locale === "cs"
+            ? "Delegace tvé vlastní práce na tvé subagenty koordinací není."
+            : "Delegating your own work to your subagents is not coordination.",
+        ),
+      ]).toEqual([...where, isPublic ? 0 : 1, !isPublic, !isPublic, !isPublic]);
+      // The network: one line in AGENTS.md on every Environment, public ones
+      // included, with SSH and the laptop only where the Environment is
+      // hosted; in full among the manual's boundaries, which name Lazurio
+      // Machines only where the handover records the tailnet identity.
+      const recordedTailnet = (environment.machine?.network ?? null) !== null;
+      // SSH to another Environment only after checking the active tailnet:
+      // the Environment's network may sit on the wrong tailnet even if no
+      // agent switched it (Pablo's review of #754).
+      expect([
+        ...where,
+        count(agents, networkLine(hosted)[locale]),
+        count(agents, "`100.64.0.x`"),
+        count(
+          agents,
+          locale === "cs"
+            ? "s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu"
+            : "with a pinned host key and the active tailnet checked, never to a bare",
+        ),
+        machine.includes(
+          locale === "cs"
+            ? "- Síť: síť tohoto Environmentu je jedna pro všechna vlákna a relace tady"
+            : "- Network: this Environment's network is one for every thread and session here",
+        ),
+        machine.includes(
+          locale === "cs"
+            ? "Nikdy ji nepřepínej, neodhlašuj, nepřesměrovávej na jiný login server ani nevypínej"
+            : "Never switch it, sign it out, point it at another login server or stop it",
+        ),
+        machine.includes(
+          locale === "cs"
+            ? "; jeho Tailscale spravuje Lazurio Machines."
+            : ", and Lazurio Machines manages its Tailscale.",
+        ),
+      ]).toEqual([
+        ...where,
+        1,
+        hosted ? 1 : 0,
+        hosted ? 1 : 0,
+        true,
+        true,
+        recordedTailnet,
+      ]);
+      // One worktree per pull request, several per plan, each cleaned up
+      // with its own pull request.
+      for (const sentence of locale === "cs"
+        ? [
+            "Jeden worktree je jedna branch a jeden pull request; plán jich smí mít několik, každý s vlastním `<slug>`.",
+            "Rozhoduje jeho pull request, ne plán: worktree mergnutého PR ukliď hned, i když plán dál běží v jiných worktrees.",
+          ]
+        : [
+            "One worktree is one branch and one pull request; a plan may own several, each with its own `<slug>`.",
+            "Its pull request decides, not the plan: clean up the worktree of a merged PR right away, even while the plan goes on in other worktrees.",
+          ])
+        expect([...where, sentence, working.includes(sentence)]).toEqual([
+          ...where,
+          sentence,
+          true,
+        ]);
+      for (const [path, text] of Object.entries(outputs)) {
+        expect([...where, path, text.includes("Pablo")]).toEqual([
+          ...where,
+          path,
+          false,
+        ]);
+        for (const sentence of retired)
+          expect([...where, path, sentence, text.includes(sentence)]).toEqual([
+            ...where,
+            path,
+            sentence,
+            false,
+          ]);
+      }
     }
 });
 
