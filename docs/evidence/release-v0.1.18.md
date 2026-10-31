@@ -21,9 +21,9 @@ v0.1.18 adds three changes to v0.1.17:
 
 ## Why the final tag is not on `main`
 
-The final ships the candidate that passed the canary, nothing more. Six pull requests reached `main` after the
+The final ships the candidate that passed the canary, nothing more. Seven pull requests reached `main` after the
 candidate was cut:
-- #665, #325, #738, #514 and #742;
+- #665, #325, #738, #514, #742 and #741 (the macOS jobs on `macos-15`);
 - #739, v0.1.17's own canary record, which touches only `qualification/` and `docs/evidence/`.
 
 None of them was in the canary, so they go into later versions.
