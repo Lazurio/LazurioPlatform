@@ -217,6 +217,34 @@ export type CatalogRepository = Readonly<{
   services?: readonly CatalogService[];
 }>;
 
+/** A guest Module (root decision 0221, DEV-6694): a Module of another
+ * Organization, its home Organization, mounted in this Organization's
+ * `workspace/<Home>_GEN3/<module>` for context and kept up to date with the
+ * rest of its content. Listed read-only, like a productionspace repository:
+ * never a module of this Organization, never started, opened, prepared or
+ * given a port, a secret or a hosted name, and its `lazurio.module.json`,
+ * which names its home, is not read here. Its home Organization's rules,
+ * review and Publication apply to it; a change goes as a pull request to its
+ * home repository. */
+export type CatalogGuestModule = Readonly<{
+  /** The host Organization's slug, the one it is listed under. */
+  organization: string;
+  /** The slot's id: its `slug`, else the last segment of its path. */
+  module: string;
+  /** The slot path, relative to the host Organization's root. */
+  path: string;
+  /** The home Organization's GitHub login, as the slot declares it
+   * (`home_organization`). */
+  homeOrganization: string;
+  guest: true;
+  /** Whether its directory is a Git checkout of the operator's, as a
+   * repository's `checkedOut`; not checked out when this Environment's
+   * GitHub identity cannot read it or it was never installed here. */
+  checkedOut: boolean;
+  /** Its GitHub page, as a repository's `url`; null otherwise. */
+  url: string | null;
+}>;
+
 export type CatalogOrganization = Readonly<{
   /** The candidate's directory name under `organizations/`; for the
    * Personalspace group the literal `personalspace`, never the owner's
@@ -243,6 +271,13 @@ export type CatalogOrganization = Readonly<{
    * services name (root decision 0209 point 6); empty for an Organization
    * that could not be read and for the Personalspace group. */
   repositories: readonly CatalogRepository[];
+  /** Its declared guest Modules, read-only, in declaration order; present
+   * only when it declares one. */
+  guests?: readonly CatalogGuestModule[];
+  /** The inventory issues that implicate a slot declaring
+   * `home_organization`, whatever their code; present only when there is
+   * one (DEV-6694). */
+  guestIssues?: readonly string[];
   /** The Organization's own tabs in Apps' Workspace, in its order: its
    * setting `workspace.tabs` (decision F32's addendum of 2026-10-16, root
    * decision 0194) as this Folder's root of it declares it. Present only
@@ -874,6 +909,20 @@ export async function readCatalogOrganization(
         }),
     ),
   );
+  const guests = await Promise.all(
+    (result.guests ?? []).map(
+      async (slot): Promise<CatalogGuestModule> =>
+        Object.freeze({
+          organization: result.company,
+          module: slot.id,
+          path: slot.path,
+          homeOrganization: slot.home,
+          guest: true,
+          checkedOut: await isCheckedOut(directory, slot.path),
+          url: repositoryPage(slotRemote(bySlotPath.get(slot.path))),
+        }),
+    ),
+  );
   return Object.freeze({
     directory: name,
     organization: result.company,
@@ -896,6 +945,10 @@ export async function readCatalogOrganization(
     teams: Object.freeze(declaredTeams(canonical)),
     modules: Object.freeze(modules),
     repositories: Object.freeze(repositories),
+    ...(guests.length === 0 ? {} : { guests: Object.freeze(guests) }),
+    ...(result.guestIssues === undefined
+      ? {}
+      : { guestIssues: Object.freeze([...result.guestIssues]) }),
     ...workspaceTabsOf(canonical),
   });
 }
@@ -1118,6 +1171,17 @@ export function catalogModules(
 ): readonly CatalogModule[] {
   return (organization ? [organization] : catalogGroups(catalog)).flatMap(
     (entry) => entry.modules,
+  );
+}
+
+/** The guest Modules of one Organization, or of every one, in catalog
+ * order: never modules, listed beside them (DEV-6694). */
+export function catalogGuests(
+  catalog: Catalog,
+  organization?: CatalogOrganization,
+): readonly CatalogGuestModule[] {
+  return (organization ? [organization] : catalog.organizations).flatMap(
+    (entry) => entry.guests ?? [],
   );
 }
 

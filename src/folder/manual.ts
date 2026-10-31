@@ -450,6 +450,15 @@ function workingHere(
       "V Organizaci nejdřív načti její `AGENTS.md` a dodrž její kaskádu včetně příslušné role, person overlaye, workspace a bližšího modulového `AGENTS.md`. Pro orientaci použij její `MAP.md`, `GLOSSARY.md`, README a doporučené skills, pokud je má. `lazurio.organization.json` a manifest modulů, na který ukazuje, říkají, co kam patří; starší deklarace čte produkt přes svůj katalog. Neodvozuj cesty jen z názvu firmy. Tenhle manuál ti dává postup, firemní významy a pravidla drží Organizace.",
       "In the Organization, first read its `AGENTS.md` and follow its cascade, including the applicable role, person overlay, workspace and nearer module `AGENTS.md`. Use its `MAP.md`, `GLOSSARY.md`, README and recommended skills for orientation when present. `lazurio.organization.json` and the modules manifest it points to say what belongs where; the product reads older declarations through its catalog. Do not infer paths from a company name alone. This manual supplies the procedure; the Organization owns its meanings and rules.",
     ),
+    // Guest Modules (root decision 0221, DEV-6694), in general terms only.
+    ...(preset === "hosted-personal"
+      ? []
+      : [
+          t(
+            "Organizace může ve svém `workspace/` hostit Moduly jiné Organizace. Najdeš je ve složce pojmenované podle té druhé, domovské Organizace: `workspace/<Org>_GEN3/<modul>`, v manifestu modulů se slotem s `home_organization` a v `lazurio module list <Org> --json` mezi `guests` s `homeOrganization`. Repozitář patří domovské Organizaci, nic se nekopíruje a přístup k němu dál určují její práva na GitHubu; bez nich tu hostující Modul chybí a nic dalšího se nezastaví. Než s ním začneš pracovat, přečti `README.md` a `AGENTS.md` v té složce i v Modulu a řiď se pravidly domovské Organizace. Lazurio ho tu udržuje aktuální jako ostatní obsah, ale nespouští ho a nepočítá ho za Knowledgebase ani Mission Control hostitelské Organizace. Změnu posíláš jako běžný pull request do jeho domovského repozitáře, pod její review a Publikaci.",
+            "An Organization can host Modules of another Organization in its `workspace/`. You find them in a folder named after that other, home Organization: `workspace/<Org>_GEN3/<module>`, in the modules manifest as a slot with `home_organization`, and in `lazurio module list <Org> --json` among `guests` with `homeOrganization`. The repository belongs to the home Organization, nothing is copied, and its GitHub rights still decide access; without them the guest Module is simply absent here and nothing else stops. Before you work with it, read the `README.md` and `AGENTS.md` in that folder and in the module, and follow the home Organization's rules. Lazurio keeps it up to date here like the rest of the content, but never starts it and never counts it as the host Organization's Knowledgebase or Mission Control. A change goes as an ordinary pull request to its home repository, under that Organization's review and Publication.",
+          ),
+        ]),
     blank,
     t(
       "### Projdi moduly, potom připojené služby",

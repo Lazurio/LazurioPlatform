@@ -4,8 +4,10 @@ import { processPersonalspaceHolder } from "../content/holder";
 import { type CliContext, operatorFolder } from "../update/cli";
 import {
   type Catalog,
+  type CatalogGuestModule,
   type CatalogModule,
   type CatalogOrganization,
+  catalogGuests,
   catalogModules,
   findCatalogOrganization,
   handoverServerServices,
@@ -31,9 +33,12 @@ export const catalogHelp = `organization list [--folder <absolute Folder>] [--js
   service opens on this Environment's loopback; where the Folder holds no
   Organization that owns this Machine, in serverServices, named as the
   Machine handover names its owner, with no directory and no modules, which
-  is not an installed Organization and is not in the table), and on a Folder
-  with a Personalspace its group (personalspace), which is not an
-  Organization and is not in the table.
+  is not an installed Organization and is not in the table), its guest
+  Modules (guests: Modules of another Organization, its home Organization,
+  mounted at workspace/<Home>_GEN3/<module>, each with homeOrganization,
+  guest true and whether it is checked out; read-only, never run here), and
+  on a Folder with a Personalspace its group (personalspace), which is not
+  an Organization and is not in the table.
 module list [<Organization>] [--folder <absolute Folder>] [--json]
   The modules of every Organization, or of the one named by its slug or
   directory name: its workspace modules and, when declared with a
@@ -43,7 +48,12 @@ module list [<Organization>] [--folder <absolute Folder>] [--json]
   it may run or the typed reason why not. Teams come from
   module_slots[].teams; an older manifest's legacy alias (workspaces, then
   workspace) is read for compatibility and named once per Organization; a
-  module that declares none is in the default Team workspace. On a Folder
+  module that declares none is in the default Team workspace. Guest Modules
+  of another Organization (workspace/<Home>_GEN3/<module>) follow, listed
+  read-only under their home Organization (guests in --json, with
+  homeOrganization and guest true): they are kept up to date here and never
+  run, and a change to one goes as a pull request to its home repository
+  under its home Organization's rules. On a Folder
   with a Personalspace (the local and hosted-personal presets) the modules in
   personalspace/<owner>/workspace/ follow as personalspace/<module>, with no
   Teams; name the group personalspace to list only them. More than one
@@ -131,6 +141,21 @@ function legacyAliasNotes(
     );
 }
 
+// The modules an Organization declares, and its guest Modules when it has
+// any.
+const declared = (entry: CatalogOrganization) => {
+  const guests = entry.guests?.length ?? 0;
+  return `${entry.modules.length} ${entry.modules.length === 1 ? "module" : "modules"}${guests === 0 ? "" : `, ${guests} guest ${guests === 1 ? "module" : "modules"}`}`;
+};
+
+// A guest Module's row: under its home Organization, never runnable here.
+const guestRow = (entry: CatalogGuestModule) => [
+  `${entry.homeOrganization}/${entry.module}`,
+  "-",
+  "-",
+  `guest in ${entry.organization} at ${entry.path}, read-only${entry.checkedOut ? "" : ", not checked out"}`,
+];
+
 function organizationLines(catalog: Catalog): string {
   if (catalog.organizations.length === 0)
     return "No Organizations in this Folder's organizations/.";
@@ -139,7 +164,7 @@ function organizationLines(catalog: Catalog): string {
       catalog.organizations.map((entry: CatalogOrganization) => [
         entry.organization ?? entry.directory,
         entry.state ?? "-",
-        `${entry.modules.length} ${entry.modules.length === 1 ? "module" : "modules"}`,
+        declared(entry),
         status(entry),
       ]),
     ),
@@ -149,18 +174,20 @@ function organizationLines(catalog: Catalog): string {
 
 function moduleLines(
   modules: readonly CatalogModule[],
+  guests: readonly CatalogGuestModule[],
   organizations: readonly CatalogOrganization[],
 ): string {
-  if (modules.length === 0) return "No modules.";
+  if (modules.length === 0 && guests.length === 0) return "No modules.";
   return [
-    ...columns(
-      modules.map((entry) => [
+    ...columns([
+      ...modules.map((entry) => [
         `${entry.organization}/${entry.module}`,
         entry.teams.length === 0 ? "-" : entry.teams.join(","),
         entry.defaultApp ?? "-",
         status(entry),
       ]),
-    ),
+      ...guests.map(guestRow),
+    ]),
     ...legacyAliasNotes(organizations),
   ].join("\n");
 }
@@ -263,6 +290,7 @@ export async function runCatalogCommand(
       `No Organization ${shown(name)} in this Folder (or its slug is ambiguous); see lazurio organization list.`,
     );
   const modules = catalogModules(catalog, organization);
+  const guests = catalogGuests(catalog, organization);
   return done(
     0,
     {
@@ -276,11 +304,15 @@ export async function runCatalogCommand(
               : { reason: organization.reason }),
           }),
       modules,
+      ...(guests.length === 0 ? {} : { guests }),
     },
-    organization?.reason !== undefined && organization.modules.length === 0
+    organization?.reason !== undefined &&
+      organization.modules.length === 0 &&
+      guests.length === 0
       ? `${shown(organization.organization ?? organization.directory)}: ${status(organization)}`
       : moduleLines(
           modules,
+          guests,
           organization === undefined ? catalog.organizations : [organization],
         ),
   );

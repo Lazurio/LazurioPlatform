@@ -1,7 +1,7 @@
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { inspectCheckoutDirectory } from "../folder/owned-directory";
-import { object, parseModuleManifest, text } from "../modules/manifest";
+import { array, object, parseModuleManifest, text } from "../modules/manifest";
 import { readModuleApplication } from "../modules/read-application";
 import {
   type CheckoutReason,
@@ -156,6 +156,28 @@ export async function observeOrganizationApplications(
     const conflicted = new Set(
       inventory.inventory.issues.flatMap((issue) => issue.indices),
     );
+    // The inventory issues that implicate a slot declaring home_organization,
+    // whatever their code: an invalid guest declaration, but also an orphan
+    // guest database or a guest slug collision, which would otherwise only
+    // drop the guest from the catalog without a word (DEV-6694).
+    const declaredGuests = new Set(
+      array(inventory.modules.module_slots).flatMap((declaration, index) =>
+        declaration !== null &&
+        typeof declaration === "object" &&
+        Object.hasOwn(declaration, "home_organization")
+          ? [index]
+          : [],
+      ),
+    );
+    const guestIssues = [
+      ...new Set(
+        inventory.inventory.issues
+          .filter((issue) =>
+            issue.indices.some((index) => declaredGuests.has(index)),
+          )
+          .map((issue) => issue.code),
+      ),
+    ];
     const entries = [];
     // The declared productionspace repositories (root decision 0041), which
     // the catalog lists read-only and never as modules, in declaration order.
@@ -168,12 +190,30 @@ export async function observeOrganizationApplications(
         ? []
         : [Object.freeze({ id: slot.id, path: slot.path })],
     );
+    // The declared guest Modules (root decision 0221, DEV-6694): Modules of
+    // another Organization mounted in this one's `workspace/`, which the
+    // catalog lists read-only with their home Organization, like a
+    // productionspace repository. Never a module of this Organization: their
+    // `lazurio.module.json` names their home, so it is never read, compared
+    // or started here. Same exclusions as above.
+    const guests = inventory.inventory.slots.flatMap((slot) =>
+      slot?.home === undefined ||
+      slot.nestedDatabase ||
+      slot.id === null ||
+      conflicted.has(slot.index)
+        ? []
+        : [Object.freeze({ id: slot.id, path: slot.path, home: slot.home })],
+    );
     for (const slot of inventory.inventory.slots) {
       // A workspace slot is a module; a root-level application slot is one
       // only when it carries a module manifest (decision F24), never by its
-      // directory alone. Other root slots and productionspace never are.
+      // directory alone. Other root slots, productionspace and guest Modules
+      // never are.
       if (!slot) continue;
-      const workspace = slot.scope === "workspace" && !slot.nestedDatabase;
+      const workspace =
+        slot.scope === "workspace" &&
+        !slot.nestedDatabase &&
+        slot.home === undefined;
       const application =
         slot.scope === "root" &&
         rootApplicationPaths.has(slot.path) &&
@@ -257,6 +297,11 @@ export async function observeOrganizationApplications(
           : ("inspection-only" as const),
         entries: Object.freeze(entries),
         repositories: Object.freeze(repositories),
+        // Only where declared, so every other observation stays as it was.
+        ...(guests.length === 0 ? {} : { guests: Object.freeze(guests) }),
+        ...(guestIssues.length === 0
+          ? {}
+          : { guestIssues: Object.freeze(guestIssues) }),
         issues: inventory.inventory.issues,
         warnings: inventory.warnings,
       }),

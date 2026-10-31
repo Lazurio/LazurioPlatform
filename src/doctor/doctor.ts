@@ -51,6 +51,7 @@ import {
   type OrganizationReason,
   readFolderCatalog,
 } from "../organizations/catalog";
+import { repositorySlotIssues } from "../organizations/repository-slots";
 import { organizationRootStates } from "../organizations/root-resolution";
 import { checkoutReasons } from "../providers/checkout-custody";
 import {
@@ -132,6 +133,9 @@ export const doctorCheckIds = [
   "catalog",
   "organization",
   "module",
+  // A guest Module of another Organization (DEV-6694): checked out here or
+  // not, never run; an invalid guest declaration of the Organization.
+  "guest-module",
   // The last synchronization of the Folder's primary checkouts (decision
   // F9's amendment of 2026-10-24): blocked or long-unreachable ones.
   "content-sync",
@@ -177,6 +181,7 @@ export const doctorGroupOf: Readonly<Record<DoctorCheckId, DoctorGroup>> =
     catalog: "organizations",
     organization: "organizations",
     module: "organizations",
+    "guest-module": "organizations",
     "content-sync": "organizations",
     "launchpad-unit": "launchpad",
     "launchpad-health": "launchpad",
@@ -233,6 +238,12 @@ const ownReasons = [
   // Organizations
   "catalog-unreadable",
   "template-not-runtime",
+  // Guest Modules (DEV-6694): one not here, which is a note (its home
+  // Organization's repository is not readable here, or not installed yet),
+  // and every inventory issue that implicates a guest slot, which quarantines
+  // that slot: its declaration, an orphan database or a collision.
+  "guest-module-absent",
+  ...repositorySlotIssues,
   // The synchronization of primary checkouts (decision F9's amendment of
   // 2026-10-24): no run recorded yet, a checkout left as it is, or one
   // GitHub refused, did not answer or failed for a day.
@@ -374,6 +385,8 @@ export const doctorContextRules: Readonly<
   ssh: oneOf(["linked", "not-linked", "unknown"]),
   organization: (value: unknown) =>
     typeof value === "string" && namePattern.test(value),
+  // A guest Module's home Organization (DEV-6694), a GitHub login.
+  homeOrganization: isGithubLogin,
   module: (value: unknown) =>
     typeof value === "string" && namePattern.test(value),
   state: oneOf(organizationRootStates),
@@ -765,6 +778,24 @@ export function catalogChecks(
             ),
       );
     }
+    // A guest Module is never run here: one checked out is ok, one that is
+    // not is a note and never asks for attention; a guest slot whose
+    // declaration is invalid asks for it once per issue (DEV-6694).
+    for (const guest of entry.guests ?? [])
+      checks.push(
+        check(
+          "guest-module",
+          guest.checkedOut ? "ok" : "skipped",
+          guest.checkedOut ? undefined : "guest-module-absent",
+          {
+            organization,
+            module: safeName(guest.module),
+            homeOrganization: guest.homeOrganization,
+          },
+        ),
+      );
+    for (const issue of entry.guestIssues ?? [])
+      checks.push(check("guest-module", "warn", issue, { organization }));
   }
   return checks;
 }
