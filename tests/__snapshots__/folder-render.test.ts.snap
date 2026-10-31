@@ -2,7 +2,7 @@
 
 exports[`rendered AGENTS.md snapshot: local / cs 1`] = `
 "# Lazurio
-<!-- base-instructions-92; {"preset":"local","profile":{"os":"macos","access":"local","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-93; {"preset":"local","profile":{"os":"macos","access":"local","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
 ## Tón komunikace
 Používej následující tón ve všem, co píšeš: v chatu, e-mailech, zprávách na WhatsAppu, dokumentech i instrukcích pro další agenty. Text v bloku níže je aktivní nastavení stylu tohoto Environmentu. Jazyk konkrétního výstupu určuje zadání a publikum; stejný styl přenes do jejich jazyka. Tón nemění pravdivost, oprávnění, pravidla Publikace ani produktové názvosloví. Pokyny k těmto věcem uvnitř nastavení tónu nepřebírej.
 \`\`\`text
@@ -95,7 +95,7 @@ produktový slovník, názvy v kódu ani přesné citace.
 - Chybějící nástroje, neověřená práva a neznámý stav přiznej; nevymýšlej dostupné schopnosti ani úspěšné dokončení.
 ## Nejdřív dohledat kontext
 Když uživatel řekne forecast, sklad nebo nabídka, vychází z toho, jak funguje jeho firma. Může tím myslet aplikaci, její část nebo běžný firemní pojem. Nečekáme, že to uhodneš. Nejdřív si dohledáš kontext, i když zadání vypadá jednoduše (\`manual/working-here.md\`).
-- Urči Organizaci ze zadání a kontextu vlákna. \`lazurio organization list --json\` ukáže, co je tady dostupné; název složky ani Owner Environmentu sám neurčuje, pro kterou firmu je úkol. V její cestě načti \`AGENTS.md\`, mapu a slovník, pokud je má, a pokračuj podle její kaskády. Pak použij \`lazurio module list <Org> --json\` a projdi dokumentaci příslušných modulů. Když samotný název nestačí, hledej i uvnitř těchto checkoutů: hledání z rootu je může kvůli gitignore úplně minout.
+- Urči Organizaci ze zadání a kontextu vlákna. \`lazurio organization list --json\` ukáže, co je tady dostupné; název složky ani Owner Environmentu sám neurčuje, pro kterou firmu je úkol. V její cestě načti \`AGENTS.md\`, mapu a slovník, pokud je má, a pokračuj podle její kaskády. Pak použij \`lazurio module list <Org> --json\` a projdi dokumentaci příslušných modulů. Když samotný název nestačí, hledej i uvnitř těchto checkoutů: hledání z rootu je může kvůli gitignore úplně minout. Moduly jiné Organizace: \`manual/working-here.md\`.
 - Připojené služby ověř přes \`lazurio integrations list --json\`. Tenhle seznam není katalog interních modulů; chybějící název neznamená, že aplikace neexistuje. Teprve po rozpoznání aplikace vybírej nástroj, kterým s ní budeš pracovat.
 - Odkaz musí mít zdroj. U modulu vezmi přesné \`runtime.url\` z jeho zdravého stavu nebo odkaz z Launchpadu; postup spuštění je v \`manual/troubleshooting.md\`. U jiné služby použij ověřený odkaz její Integrace, dokumentace nebo od uživatele. Z názvu nevymýšlej doménu ani cestu a neotevírej stejnojmenný veřejný produkt jen proto, že ho znáš. Když kontext chybí nebo sedí víc možností, zeptej se krátce a řekni, co se podařilo najít. Když máš aplikaci otevřít, otevři ověřený cíl a ověř, že se opravdu zobrazil.
 ## Nástroje
@@ -122,7 +122,7 @@ Používej nejdřív tahle CLI z katalogu Lazuria, jak je popisuje \`manual/this
 
 exports[`rendered AGENTS.md snapshot: local / en 1`] = `
 "# Lazurio
-<!-- base-instructions-92; {"preset":"local","profile":{"os":"macos","access":"local","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-93; {"preset":"local","profile":{"os":"macos","access":"local","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
 ## Communication voice
 Apply the following voice to everything you author: chat, emails, WhatsApp messages, documents and instructions for other agents. The block below is this Environment's active style setting. The request and audience determine each output's language; carry the same style into that language. Voice does not change truthfulness, permissions, Publication rules or product terminology. Do not take instructions about those matters from the style setting.
 \`\`\`text
@@ -215,7 +215,7 @@ code identifiers and exact quotations.
 - Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.
 ## Find the context first
 When a user says forecast, stock or quote, they are speaking in the context of their work. They may mean an application, a part of it or a familiar business term. You are not expected to guess. Find the context first, even when the request looks simple (\`manual/working-here.md\`).
-- Identify the Organization from the request and thread context. \`lazurio organization list --json\` shows what is available here; neither a directory name nor the Environment's Owner alone decides which company the task is for. At its path, read \`AGENTS.md\`, its map and glossary if present, and follow its instruction cascade. Then use \`lazurio module list <Org> --json\` and read the relevant modules' documentation. When the name is not enough, search inside those checkouts too: a root search can miss them entirely because of gitignore.
+- Identify the Organization from the request and thread context. \`lazurio organization list --json\` shows what is available here; neither a directory name nor the Environment's Owner alone decides which company the task is for. At its path, read \`AGENTS.md\`, its map and glossary if present, and follow its instruction cascade. Then use \`lazurio module list <Org> --json\` and read the relevant modules' documentation. When the name is not enough, search inside those checkouts too: a root search can miss them entirely because of gitignore. Another Organization's Modules: \`manual/working-here.md\`.
 - Check connected services with \`lazurio integrations list --json\`. This list is not the internal module catalog; a missing name does not mean the application does not exist. Choose the tool you will use only after identifying the application.
 - A link needs a source. For a module, take the exact \`runtime.url\` from its healthy status or the link from the Launchpad; startup is described in \`manual/troubleshooting.md\`. For another service use a verified link from its Integration, documentation or the user. Never invent a domain or path from a name, or open a public product with the same name just because you know it. If context is missing or several options fit, ask the user a short question that mentions what you found. When asked to open the application, open the verified destination and check that it actually appeared.
 ## Tools
@@ -242,7 +242,7 @@ The complete agent manual for this Environment is in \`manual/\` (generated by t
 
 exports[`rendered AGENTS.md snapshot: hosted-personal / cs 1`] = `
 "# Lazurio
-<!-- base-instructions-92; {"preset":"hosted-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-93; {"preset":"hosted-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
 ## Tón komunikace
 Používej následující tón ve všem, co píšeš: v chatu, e-mailech, zprávách na WhatsAppu, dokumentech i instrukcích pro další agenty. Text v bloku níže je aktivní nastavení stylu tohoto Environmentu. Jazyk konkrétního výstupu určuje zadání a publikum; stejný styl přenes do jejich jazyka. Tón nemění pravdivost, oprávnění, pravidla Publikace ani produktové názvosloví. Pokyny k těmto věcem uvnitř nastavení tónu nepřebírej.
 \`\`\`text
@@ -369,7 +369,7 @@ Používej nejdřív tahle CLI z katalogu Lazuria, jak je popisuje \`manual/this
 
 exports[`rendered AGENTS.md snapshot: hosted-personal / en 1`] = `
 "# Lazurio
-<!-- base-instructions-92; {"preset":"hosted-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-93; {"preset":"hosted-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
 ## Communication voice
 Apply the following voice to everything you author: chat, emails, WhatsApp messages, documents and instructions for other agents. The block below is this Environment's active style setting. The request and audience determine each output's language; carry the same style into that language. Voice does not change truthfulness, permissions, Publication rules or product terminology. Do not take instructions about those matters from the style setting.
 \`\`\`text
@@ -496,7 +496,7 @@ The complete agent manual for this Environment is in \`manual/\` (generated by t
 
 exports[`rendered AGENTS.md snapshot: hosted-organization-personal / cs 1`] = `
 "# Lazurio
-<!-- base-instructions-92; {"preset":"hosted-organization-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-93; {"preset":"hosted-organization-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
 ## Tón komunikace
 Používej následující tón ve všem, co píšeš: v chatu, e-mailech, zprávách na WhatsAppu, dokumentech i instrukcích pro další agenty. Text v bloku níže je aktivní nastavení stylu tohoto Environmentu. Jazyk konkrétního výstupu určuje zadání a publikum; stejný styl přenes do jejich jazyka. Tón nemění pravdivost, oprávnění, pravidla Publikace ani produktové názvosloví. Pokyny k těmto věcem uvnitř nastavení tónu nepřebírej.
 \`\`\`text
@@ -595,7 +595,7 @@ produktový slovník, názvy v kódu ani přesné citace.
 - \`localhost\` existuje jen tady. Otevře ho jen integrovaný prohlížeč ChatGPT Desktopu (dřív Codex Desktop) připojeného přes SSH, který si k portu sám otevře tunel; T3 Code ani Lazurio MausBot port nepřesměrují. Aplikaci modulu odkazuj jejím \`runtime.url\` (\`manual/this-machine.md\`).
 ## Nejdřív dohledat kontext
 Když uživatel řekne forecast, sklad nebo nabídka, vychází z toho, jak funguje jeho firma. Může tím myslet aplikaci, její část nebo běžný firemní pojem. Nečekáme, že to uhodneš. Nejdřív si dohledáš kontext, i když zadání vypadá jednoduše (\`manual/working-here.md\`).
-- Urči Organizaci ze zadání a kontextu vlákna. \`lazurio organization list --json\` ukáže, co je tady dostupné; název složky ani Owner Environmentu sám neurčuje, pro kterou firmu je úkol. V její cestě načti \`AGENTS.md\`, mapu a slovník, pokud je má, a pokračuj podle její kaskády. Pak použij \`lazurio module list <Org> --json\` a projdi dokumentaci příslušných modulů. Když samotný název nestačí, hledej i uvnitř těchto checkoutů: hledání z rootu je může kvůli gitignore úplně minout.
+- Urči Organizaci ze zadání a kontextu vlákna. \`lazurio organization list --json\` ukáže, co je tady dostupné; název složky ani Owner Environmentu sám neurčuje, pro kterou firmu je úkol. V její cestě načti \`AGENTS.md\`, mapu a slovník, pokud je má, a pokračuj podle její kaskády. Pak použij \`lazurio module list <Org> --json\` a projdi dokumentaci příslušných modulů. Když samotný název nestačí, hledej i uvnitř těchto checkoutů: hledání z rootu je může kvůli gitignore úplně minout. Moduly jiné Organizace: \`manual/working-here.md\`.
 - Připojené služby ověř přes \`lazurio integrations list --json\`. Tenhle seznam není katalog interních modulů; chybějící název neznamená, že aplikace neexistuje. Teprve po rozpoznání aplikace vybírej nástroj, kterým s ní budeš pracovat.
 - Odkaz musí mít zdroj. U modulu vezmi přesné \`runtime.url\` z jeho zdravého stavu nebo odkaz z Launchpadu; postup spuštění je v \`manual/troubleshooting.md\`. U jiné služby použij ověřený odkaz její Integrace, dokumentace nebo od uživatele. Z názvu nevymýšlej doménu ani cestu a neotevírej stejnojmenný veřejný produkt jen proto, že ho znáš. Když kontext chybí nebo sedí víc možností, zeptej se krátce a řekni, co se podařilo najít. Když máš aplikaci otevřít, otevři ověřený cíl a ověř, že se opravdu zobrazil.
 ## Nástroje
@@ -623,7 +623,7 @@ Používej nejdřív tahle CLI z katalogu Lazuria, jak je popisuje \`manual/this
 
 exports[`rendered AGENTS.md snapshot: hosted-organization-personal / en 1`] = `
 "# Lazurio
-<!-- base-instructions-92; {"preset":"hosted-organization-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-93; {"preset":"hosted-organization-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
 ## Communication voice
 Apply the following voice to everything you author: chat, emails, WhatsApp messages, documents and instructions for other agents. The block below is this Environment's active style setting. The request and audience determine each output's language; carry the same style into that language. Voice does not change truthfulness, permissions, Publication rules or product terminology. Do not take instructions about those matters from the style setting.
 \`\`\`text
@@ -722,7 +722,7 @@ code identifiers and exact quotations.
 - \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Find the context first
 When a user says forecast, stock or quote, they are speaking in the context of their work. They may mean an application, a part of it or a familiar business term. You are not expected to guess. Find the context first, even when the request looks simple (\`manual/working-here.md\`).
-- Identify the Organization from the request and thread context. \`lazurio organization list --json\` shows what is available here; neither a directory name nor the Environment's Owner alone decides which company the task is for. At its path, read \`AGENTS.md\`, its map and glossary if present, and follow its instruction cascade. Then use \`lazurio module list <Org> --json\` and read the relevant modules' documentation. When the name is not enough, search inside those checkouts too: a root search can miss them entirely because of gitignore.
+- Identify the Organization from the request and thread context. \`lazurio organization list --json\` shows what is available here; neither a directory name nor the Environment's Owner alone decides which company the task is for. At its path, read \`AGENTS.md\`, its map and glossary if present, and follow its instruction cascade. Then use \`lazurio module list <Org> --json\` and read the relevant modules' documentation. When the name is not enough, search inside those checkouts too: a root search can miss them entirely because of gitignore. Another Organization's Modules: \`manual/working-here.md\`.
 - Check connected services with \`lazurio integrations list --json\`. This list is not the internal module catalog; a missing name does not mean the application does not exist. Choose the tool you will use only after identifying the application.
 - A link needs a source. For a module, take the exact \`runtime.url\` from its healthy status or the link from the Launchpad; startup is described in \`manual/troubleshooting.md\`. For another service use a verified link from its Integration, documentation or the user. Never invent a domain or path from a name, or open a public product with the same name just because you know it. If context is missing or several options fit, ask the user a short question that mentions what you found. When asked to open the application, open the verified destination and check that it actually appeared.
 ## Tools
@@ -750,7 +750,7 @@ The complete agent manual for this Environment is in \`manual/\` (generated by t
 
 exports[`rendered AGENTS.md snapshot: hosted-organization-team / cs 1`] = `
 "# Lazurio
-<!-- base-instructions-92; {"preset":"hosted-organization-team","profile":{"os":"linux","access":"remote","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-93; {"preset":"hosted-organization-team","profile":{"os":"linux","access":"remote","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
 ## Tón komunikace
 Používej následující tón ve všem, co píšeš: v chatu, e-mailech, zprávách na WhatsAppu, dokumentech i instrukcích pro další agenty. Text v bloku níže je aktivní nastavení stylu tohoto Environmentu. Jazyk konkrétního výstupu určuje zadání a publikum; stejný styl přenes do jejich jazyka. Tón nemění pravdivost, oprávnění, pravidla Publikace ani produktové názvosloví. Pokyny k těmto věcem uvnitř nastavení tónu nepřebírej.
 \`\`\`text
@@ -850,7 +850,7 @@ produktový slovník, názvy v kódu ani přesné citace.
 - \`localhost\` existuje jen tady. Otevře ho jen integrovaný prohlížeč ChatGPT Desktopu (dřív Codex Desktop) připojeného přes SSH, který si k portu sám otevře tunel; T3 Code ani Lazurio MausBot port nepřesměrují. Aplikaci modulu odkazuj jejím \`runtime.url\` (\`manual/this-machine.md\`).
 ## Nejdřív dohledat kontext
 Když uživatel řekne forecast, sklad nebo nabídka, vychází z toho, jak funguje jeho firma. Může tím myslet aplikaci, její část nebo běžný firemní pojem. Nečekáme, že to uhodneš. Nejdřív si dohledáš kontext, i když zadání vypadá jednoduše (\`manual/working-here.md\`).
-- Urči Organizaci ze zadání a kontextu vlákna. \`lazurio organization list --json\` ukáže, co je tady dostupné; název složky ani Owner Environmentu sám neurčuje, pro kterou firmu je úkol. V její cestě načti \`AGENTS.md\`, mapu a slovník, pokud je má, a pokračuj podle její kaskády. Pak použij \`lazurio module list <Org> --json\` a projdi dokumentaci příslušných modulů. Když samotný název nestačí, hledej i uvnitř těchto checkoutů: hledání z rootu je může kvůli gitignore úplně minout.
+- Urči Organizaci ze zadání a kontextu vlákna. \`lazurio organization list --json\` ukáže, co je tady dostupné; název složky ani Owner Environmentu sám neurčuje, pro kterou firmu je úkol. V její cestě načti \`AGENTS.md\`, mapu a slovník, pokud je má, a pokračuj podle její kaskády. Pak použij \`lazurio module list <Org> --json\` a projdi dokumentaci příslušných modulů. Když samotný název nestačí, hledej i uvnitř těchto checkoutů: hledání z rootu je může kvůli gitignore úplně minout. Moduly jiné Organizace: \`manual/working-here.md\`.
 - Připojené služby ověř přes \`lazurio integrations list --json\`. Tenhle seznam není katalog interních modulů; chybějící název neznamená, že aplikace neexistuje. Teprve po rozpoznání aplikace vybírej nástroj, kterým s ní budeš pracovat.
 - Odkaz musí mít zdroj. U modulu vezmi přesné \`runtime.url\` z jeho zdravého stavu nebo odkaz z Launchpadu; postup spuštění je v \`manual/troubleshooting.md\`. U jiné služby použij ověřený odkaz její Integrace, dokumentace nebo od uživatele. Z názvu nevymýšlej doménu ani cestu a neotevírej stejnojmenný veřejný produkt jen proto, že ho znáš. Když kontext chybí nebo sedí víc možností, zeptej se krátce a řekni, co se podařilo najít. Když máš aplikaci otevřít, otevři ověřený cíl a ověř, že se opravdu zobrazil.
 ## Nástroje
@@ -879,7 +879,7 @@ Používej nejdřív tahle CLI z katalogu Lazuria, jak je popisuje \`manual/this
 
 exports[`rendered AGENTS.md snapshot: hosted-organization-team / en 1`] = `
 "# Lazurio
-<!-- base-instructions-92; {"preset":"hosted-organization-team","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-93; {"preset":"hosted-organization-team","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
 ## Communication voice
 Apply the following voice to everything you author: chat, emails, WhatsApp messages, documents and instructions for other agents. The block below is this Environment's active style setting. The request and audience determine each output's language; carry the same style into that language. Voice does not change truthfulness, permissions, Publication rules or product terminology. Do not take instructions about those matters from the style setting.
 \`\`\`text
@@ -979,7 +979,7 @@ code identifiers and exact quotations.
 - \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Find the context first
 When a user says forecast, stock or quote, they are speaking in the context of their work. They may mean an application, a part of it or a familiar business term. You are not expected to guess. Find the context first, even when the request looks simple (\`manual/working-here.md\`).
-- Identify the Organization from the request and thread context. \`lazurio organization list --json\` shows what is available here; neither a directory name nor the Environment's Owner alone decides which company the task is for. At its path, read \`AGENTS.md\`, its map and glossary if present, and follow its instruction cascade. Then use \`lazurio module list <Org> --json\` and read the relevant modules' documentation. When the name is not enough, search inside those checkouts too: a root search can miss them entirely because of gitignore.
+- Identify the Organization from the request and thread context. \`lazurio organization list --json\` shows what is available here; neither a directory name nor the Environment's Owner alone decides which company the task is for. At its path, read \`AGENTS.md\`, its map and glossary if present, and follow its instruction cascade. Then use \`lazurio module list <Org> --json\` and read the relevant modules' documentation. When the name is not enough, search inside those checkouts too: a root search can miss them entirely because of gitignore. Another Organization's Modules: \`manual/working-here.md\`.
 - Check connected services with \`lazurio integrations list --json\`. This list is not the internal module catalog; a missing name does not mean the application does not exist. Choose the tool you will use only after identifying the application.
 - A link needs a source. For a module, take the exact \`runtime.url\` from its healthy status or the link from the Launchpad; startup is described in \`manual/troubleshooting.md\`. For another service use a verified link from its Integration, documentation or the user. Never invent a domain or path from a name, or open a public product with the same name just because you know it. If context is missing or several options fit, ask the user a short question that mentions what you found. When asked to open the application, open the verified destination and check that it actually appeared.
 ## Tools
@@ -1008,7 +1008,7 @@ The complete agent manual for this Environment is in \`manual/\` (generated by t
 
 exports[`rendered AGENTS.md snapshot: hosted-organization-steward / cs 1`] = `
 "# Lazurio
-<!-- base-instructions-92; {"preset":"hosted-organization-steward","profile":{"os":"linux","access":"remote","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-93; {"preset":"hosted-organization-steward","profile":{"os":"linux","access":"remote","purpose":"human","locale":"cs","detail":"concise","coordination":"direct"}} -->
 ## Tón komunikace
 Používej následující tón ve všem, co píšeš: v chatu, e-mailech, zprávách na WhatsAppu, dokumentech i instrukcích pro další agenty. Text v bloku níže je aktivní nastavení stylu tohoto Environmentu. Jazyk konkrétního výstupu určuje zadání a publikum; stejný styl přenes do jejich jazyka. Tón nemění pravdivost, oprávnění, pravidla Publikace ani produktové názvosloví. Pokyny k těmto věcem uvnitř nastavení tónu nepřebírej.
 \`\`\`text
@@ -1112,7 +1112,7 @@ produktový slovník, názvy v kódu ani přesné citace.
 - \`localhost\` existuje jen tady. Otevře ho jen integrovaný prohlížeč ChatGPT Desktopu (dřív Codex Desktop) připojeného přes SSH, který si k portu sám otevře tunel; T3 Code ani Lazurio MausBot port nepřesměrují. Aplikaci modulu odkazuj jejím \`runtime.url\` (\`manual/this-machine.md\`).
 ## Nejdřív dohledat kontext
 Když uživatel řekne forecast, sklad nebo nabídka, vychází z toho, jak funguje jeho firma. Může tím myslet aplikaci, její část nebo běžný firemní pojem. Nečekáme, že to uhodneš. Nejdřív si dohledáš kontext, i když zadání vypadá jednoduše (\`manual/working-here.md\`).
-- Urči Organizaci ze zadání a kontextu vlákna. \`lazurio organization list --json\` ukáže, co je tady dostupné; název složky ani Owner Environmentu sám neurčuje, pro kterou firmu je úkol. V její cestě načti \`AGENTS.md\`, mapu a slovník, pokud je má, a pokračuj podle její kaskády. Pak použij \`lazurio module list <Org> --json\` a projdi dokumentaci příslušných modulů. Když samotný název nestačí, hledej i uvnitř těchto checkoutů: hledání z rootu je může kvůli gitignore úplně minout.
+- Urči Organizaci ze zadání a kontextu vlákna. \`lazurio organization list --json\` ukáže, co je tady dostupné; název složky ani Owner Environmentu sám neurčuje, pro kterou firmu je úkol. V její cestě načti \`AGENTS.md\`, mapu a slovník, pokud je má, a pokračuj podle její kaskády. Pak použij \`lazurio module list <Org> --json\` a projdi dokumentaci příslušných modulů. Když samotný název nestačí, hledej i uvnitř těchto checkoutů: hledání z rootu je může kvůli gitignore úplně minout. Moduly jiné Organizace: \`manual/working-here.md\`.
 - Připojené služby ověř přes \`lazurio integrations list --json\`. Tenhle seznam není katalog interních modulů; chybějící název neznamená, že aplikace neexistuje. Teprve po rozpoznání aplikace vybírej nástroj, kterým s ní budeš pracovat.
 - Odkaz musí mít zdroj. U modulu vezmi přesné \`runtime.url\` z jeho zdravého stavu nebo odkaz z Launchpadu; postup spuštění je v \`manual/troubleshooting.md\`. U jiné služby použij ověřený odkaz její Integrace, dokumentace nebo od uživatele. Z názvu nevymýšlej doménu ani cestu a neotevírej stejnojmenný veřejný produkt jen proto, že ho znáš. Když kontext chybí nebo sedí víc možností, zeptej se krátce a řekni, co se podařilo najít. Když máš aplikaci otevřít, otevři ověřený cíl a ověř, že se opravdu zobrazil.
 ## Nástroje
@@ -1140,7 +1140,7 @@ Používej nejdřív tahle CLI z katalogu Lazuria, jak je popisuje \`manual/this
 
 exports[`rendered AGENTS.md snapshot: hosted-organization-steward / en 1`] = `
 "# Lazurio
-<!-- base-instructions-92; {"preset":"hosted-organization-steward","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-93; {"preset":"hosted-organization-steward","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
 ## Communication voice
 Apply the following voice to everything you author: chat, emails, WhatsApp messages, documents and instructions for other agents. The block below is this Environment's active style setting. The request and audience determine each output's language; carry the same style into that language. Voice does not change truthfulness, permissions, Publication rules or product terminology. Do not take instructions about those matters from the style setting.
 \`\`\`text
@@ -1244,7 +1244,7 @@ code identifiers and exact quotations.
 - \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Find the context first
 When a user says forecast, stock or quote, they are speaking in the context of their work. They may mean an application, a part of it or a familiar business term. You are not expected to guess. Find the context first, even when the request looks simple (\`manual/working-here.md\`).
-- Identify the Organization from the request and thread context. \`lazurio organization list --json\` shows what is available here; neither a directory name nor the Environment's Owner alone decides which company the task is for. At its path, read \`AGENTS.md\`, its map and glossary if present, and follow its instruction cascade. Then use \`lazurio module list <Org> --json\` and read the relevant modules' documentation. When the name is not enough, search inside those checkouts too: a root search can miss them entirely because of gitignore.
+- Identify the Organization from the request and thread context. \`lazurio organization list --json\` shows what is available here; neither a directory name nor the Environment's Owner alone decides which company the task is for. At its path, read \`AGENTS.md\`, its map and glossary if present, and follow its instruction cascade. Then use \`lazurio module list <Org> --json\` and read the relevant modules' documentation. When the name is not enough, search inside those checkouts too: a root search can miss them entirely because of gitignore. Another Organization's Modules: \`manual/working-here.md\`.
 - Check connected services with \`lazurio integrations list --json\`. This list is not the internal module catalog; a missing name does not mean the application does not exist. Choose the tool you will use only after identifying the application.
 - A link needs a source. For a module, take the exact \`runtime.url\` from its healthy status or the link from the Launchpad; startup is described in \`manual/troubleshooting.md\`. For another service use a verified link from its Integration, documentation or the user. Never invent a domain or path from a name, or open a public product with the same name just because you know it. If context is missing or several options fit, ask the user a short question that mentions what you found. When asked to open the application, open the verified destination and check that it actually appeared.
 ## Tools
@@ -1272,7 +1272,7 @@ The complete agent manual for this Environment is in \`manual/\` (generated by t
 
 exports[`relationships render only when the recorded binding carries them, one line per peer 1`] = `
 "# Lazurio
-<!-- base-instructions-92; {"preset":"hosted-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-93; {"preset":"hosted-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
 ## Communication voice
 Apply the following voice to everything you author: chat, emails, WhatsApp messages, documents and instructions for other agents. The block below is this Environment's active style setting. The request and audience determine each output's language; carry the same style into that language. Voice does not change truthfulness, permissions, Publication rules or product terminology. Do not take instructions about those matters from the style setting.
 \`\`\`text
@@ -1403,7 +1403,7 @@ The complete agent manual for this Environment is in \`manual/\` (generated by t
 
 exports[`the Assignment line renders the handover's owner.assignment and nothing else 1`] = `
 "# Lazurio
-<!-- base-instructions-92; {"preset":"hosted-organization-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-93; {"preset":"hosted-organization-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
 ## Communication voice
 Apply the following voice to everything you author: chat, emails, WhatsApp messages, documents and instructions for other agents. The block below is this Environment's active style setting. The request and audience determine each output's language; carry the same style into that language. Voice does not change truthfulness, permissions, Publication rules or product terminology. Do not take instructions about those matters from the style setting.
 \`\`\`text
@@ -1503,7 +1503,7 @@ code identifiers and exact quotations.
 - \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Find the context first
 When a user says forecast, stock or quote, they are speaking in the context of their work. They may mean an application, a part of it or a familiar business term. You are not expected to guess. Find the context first, even when the request looks simple (\`manual/working-here.md\`).
-- Identify the Organization from the request and thread context. \`lazurio organization list --json\` shows what is available here; neither a directory name nor the Environment's Owner alone decides which company the task is for. At its path, read \`AGENTS.md\`, its map and glossary if present, and follow its instruction cascade. Then use \`lazurio module list <Org> --json\` and read the relevant modules' documentation. When the name is not enough, search inside those checkouts too: a root search can miss them entirely because of gitignore.
+- Identify the Organization from the request and thread context. \`lazurio organization list --json\` shows what is available here; neither a directory name nor the Environment's Owner alone decides which company the task is for. At its path, read \`AGENTS.md\`, its map and glossary if present, and follow its instruction cascade. Then use \`lazurio module list <Org> --json\` and read the relevant modules' documentation. When the name is not enough, search inside those checkouts too: a root search can miss them entirely because of gitignore. Another Organization's Modules: \`manual/working-here.md\`.
 - Check connected services with \`lazurio integrations list --json\`. This list is not the internal module catalog; a missing name does not mean the application does not exist. Choose the tool you will use only after identifying the application.
 - A link needs a source. For a module, take the exact \`runtime.url\` from its healthy status or the link from the Launchpad; startup is described in \`manual/troubleshooting.md\`. For another service use a verified link from its Integration, documentation or the user. Never invent a domain or path from a name, or open a public product with the same name just because you know it. If context is missing or several options fit, ask the user a short question that mentions what you found. When asked to open the application, open the verified destination and check that it actually appeared.
 ## Tools
@@ -1531,7 +1531,7 @@ The complete agent manual for this Environment is in \`manual/\` (generated by t
 
 exports[`the Assignment line renders the handover's owner.assignment and nothing else 2`] = `
 "# Lazurio
-<!-- base-instructions-92; {"preset":"hosted-organization-team","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-93; {"preset":"hosted-organization-team","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
 ## Communication voice
 Apply the following voice to everything you author: chat, emails, WhatsApp messages, documents and instructions for other agents. The block below is this Environment's active style setting. The request and audience determine each output's language; carry the same style into that language. Voice does not change truthfulness, permissions, Publication rules or product terminology. Do not take instructions about those matters from the style setting.
 \`\`\`text
@@ -1632,7 +1632,7 @@ code identifiers and exact quotations.
 - \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Find the context first
 When a user says forecast, stock or quote, they are speaking in the context of their work. They may mean an application, a part of it or a familiar business term. You are not expected to guess. Find the context first, even when the request looks simple (\`manual/working-here.md\`).
-- Identify the Organization from the request and thread context. \`lazurio organization list --json\` shows what is available here; neither a directory name nor the Environment's Owner alone decides which company the task is for. At its path, read \`AGENTS.md\`, its map and glossary if present, and follow its instruction cascade. Then use \`lazurio module list <Org> --json\` and read the relevant modules' documentation. When the name is not enough, search inside those checkouts too: a root search can miss them entirely because of gitignore.
+- Identify the Organization from the request and thread context. \`lazurio organization list --json\` shows what is available here; neither a directory name nor the Environment's Owner alone decides which company the task is for. At its path, read \`AGENTS.md\`, its map and glossary if present, and follow its instruction cascade. Then use \`lazurio module list <Org> --json\` and read the relevant modules' documentation. When the name is not enough, search inside those checkouts too: a root search can miss them entirely because of gitignore. Another Organization's Modules: \`manual/working-here.md\`.
 - Check connected services with \`lazurio integrations list --json\`. This list is not the internal module catalog; a missing name does not mean the application does not exist. Choose the tool you will use only after identifying the application.
 - A link needs a source. For a module, take the exact \`runtime.url\` from its healthy status or the link from the Launchpad; startup is described in \`manual/troubleshooting.md\`. For another service use a verified link from its Integration, documentation or the user. Never invent a domain or path from a name, or open a public product with the same name just because you know it. If context is missing or several options fit, ask the user a short question that mentions what you found. When asked to open the application, open the verified destination and check that it actually appeared.
 ## Tools
@@ -1661,7 +1661,7 @@ The complete agent manual for this Environment is in \`manual/\` (generated by t
 
 exports[`the Owner line names the Team only under hosted-organization-team 1`] = `
 "# Lazurio
-<!-- base-instructions-92; {"preset":"hosted-organization-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
+<!-- base-instructions-93; {"preset":"hosted-organization-personal","profile":{"os":"linux","access":"remote","purpose":"human","locale":"en","detail":"concise","coordination":"direct"}} -->
 ## Communication voice
 Apply the following voice to everything you author: chat, emails, WhatsApp messages, documents and instructions for other agents. The block below is this Environment's active style setting. The request and audience determine each output's language; carry the same style into that language. Voice does not change truthfulness, permissions, Publication rules or product terminology. Do not take instructions about those matters from the style setting.
 \`\`\`text
@@ -1760,7 +1760,7 @@ code identifiers and exact quotations.
 - \`localhost\` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port. Link a module's application by its \`runtime.url\` (\`manual/this-machine.md\`).
 ## Find the context first
 When a user says forecast, stock or quote, they are speaking in the context of their work. They may mean an application, a part of it or a familiar business term. You are not expected to guess. Find the context first, even when the request looks simple (\`manual/working-here.md\`).
-- Identify the Organization from the request and thread context. \`lazurio organization list --json\` shows what is available here; neither a directory name nor the Environment's Owner alone decides which company the task is for. At its path, read \`AGENTS.md\`, its map and glossary if present, and follow its instruction cascade. Then use \`lazurio module list <Org> --json\` and read the relevant modules' documentation. When the name is not enough, search inside those checkouts too: a root search can miss them entirely because of gitignore.
+- Identify the Organization from the request and thread context. \`lazurio organization list --json\` shows what is available here; neither a directory name nor the Environment's Owner alone decides which company the task is for. At its path, read \`AGENTS.md\`, its map and glossary if present, and follow its instruction cascade. Then use \`lazurio module list <Org> --json\` and read the relevant modules' documentation. When the name is not enough, search inside those checkouts too: a root search can miss them entirely because of gitignore. Another Organization's Modules: \`manual/working-here.md\`.
 - Check connected services with \`lazurio integrations list --json\`. This list is not the internal module catalog; a missing name does not mean the application does not exist. Choose the tool you will use only after identifying the application.
 - A link needs a source. For a module, take the exact \`runtime.url\` from its healthy status or the link from the Launchpad; startup is described in \`manual/troubleshooting.md\`. For another service use a verified link from its Integration, documentation or the user. Never invent a domain or path from a name, or open a public product with the same name just because you know it. If context is missing or several options fit, ask the user a short question that mentions what you found. When asked to open the application, open the verified destination and check that it actually appeared.
 ## Tools
