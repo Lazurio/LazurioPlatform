@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+  createDocumentReads,
   readShellDocumentJson,
   shellDocumentPath,
 } from "../src/shell/document-read";
@@ -123,4 +124,46 @@ test("a refusal, a sign-in redirect and an answer that is no JSON stop at once",
     expect(calls).toBe(1);
     expect(lines[0]).toContain(`(${reason})`);
   }
+});
+
+test("a request during a read is one more read after it, never lost and never more than one", async () => {
+  const pending: (() => void)[] = [];
+  let reads = 0;
+  const reads$ = createDocumentReads(() => {
+    reads++;
+    return new Promise<void>((resolve) => pending.push(resolve));
+  });
+  const settle = async () => {
+    pending.shift()?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  };
+  reads$.request();
+  expect(reads).toBe(1);
+  // The page comes back online, gains focus and is shown, all during the
+  // read that will fail: one more read follows it.
+  reads$.request();
+  reads$.request();
+  reads$.request();
+  expect(reads).toBe(1);
+  await settle();
+  expect(reads).toBe(2);
+  await settle();
+  expect(reads).toBe(2);
+  // Idle again: the next request reads at once.
+  reads$.request();
+  expect(reads).toBe(3);
+  await settle();
+});
+
+test("a read that rejects still lets the queued read run", async () => {
+  let reads = 0;
+  const reads$ = createDocumentReads(async () => {
+    reads++;
+    if (reads === 1) throw new Error("failed");
+  });
+  reads$.request();
+  reads$.request();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(reads).toBe(2);
 });

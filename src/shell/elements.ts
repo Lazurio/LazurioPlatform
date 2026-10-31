@@ -16,7 +16,7 @@ import {
   type ShellSignedOut,
   shellSchema,
 } from "./contract";
-import { readShellDocumentJson } from "./document-read";
+import { createDocumentReads, readShellDocumentJson } from "./document-read";
 import { installShellFonts } from "./fonts";
 import {
   createGuide,
@@ -294,25 +294,15 @@ function requestDocument(): void {
 
 // One bounded read of the page's document (document-read.ts): transient
 // failures retry within it, so a Launchpad that restarts as the page loads
-// no longer leaves the rail an empty column. One read at a time.
-let reading = false;
-function readDocument(): void {
-  if (reading) return;
-  reading = true;
-  void readShellDocumentJson()
-    .then((value) => {
-      const shell = parseShell(value);
-      // Drawn again only when it says something else.
-      if (
-        shell !== null &&
-        JSON.stringify(shell) !== JSON.stringify(state.local())
-      )
-        provideShell(shell);
-    })
-    .finally(() => {
-      reading = false;
-    });
-}
+// no longer leaves the rail an empty column. One read at a time; a request
+// during a read is one more read after it, never lost.
+const documentReads = createDocumentReads(async () => {
+  const shell = parseShell(await readShellDocumentJson());
+  // Drawn again only when it says something else.
+  if (shell !== null && JSON.stringify(shell) !== JSON.stringify(state.local()))
+    provideShell(shell);
+});
+const readDocument = (): void => documentReads.request();
 
 // The page's document again when the page is shown again (F36's addendum of
 // 2026-10-18): on `visibilitychange` to visible, on `focus`, on `pageshow`

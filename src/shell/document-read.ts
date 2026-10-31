@@ -72,3 +72,32 @@ export async function readShellDocumentJson(
   );
   return null;
 }
+
+/** One read at a time, and none lost: a request while a cycle runs (the
+ * page coming back online during the last attempt, a focus during the first
+ * read) is kept as one more cycle after it, never more than one, so a cycle
+ * that fails after the event still gets the event's read. `read` runs a
+ * whole cycle and settles; `request` starts or queues one. */
+export function createDocumentReads(
+  read: () => Promise<void>,
+): Readonly<{ request: () => void }> {
+  let running = false;
+  let queued = false;
+  const run = (): void => {
+    running = true;
+    void read()
+      .catch(() => undefined)
+      .finally(() => {
+        running = false;
+        if (!queued) return;
+        queued = false;
+        run();
+      });
+  };
+  return Object.freeze({
+    request: () => {
+      if (running) queued = true;
+      else run();
+    },
+  });
+}
