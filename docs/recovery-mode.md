@@ -719,9 +719,10 @@ ring exists today.
 
 **What promotes a release from one ring to the next:** every apply in the ring
 `completed` with a green readback; no Machine of the ring in Recovery mode on that
-release; no Recovery or Machines failure issue naming it; the ring's time elapsed
-(for ring 1 the smoke test's green light; the later rings' times are the Machines
-decision's). The
+release; no Recovery or Machines failure issue naming it; and the ring's acceptance,
+not an elapsed time (root decision 0166, addendum 2026-10-31): for ring 1 the smoke
+test's green light, with no minimum window; for the later rings an acceptance the
+Machines decision defines. The
 evidence is a file in the repository's evidence ledger, and the next ring's owner
 overlay change cites it. Organizations' owners keep the Permit for their Machines;
 a ring marks a release eligible, it does not push it.
@@ -729,8 +730,8 @@ a ring marks a release eligible, it does not push it.
 **A defect found in a ring** stops that release's promotion. The Machines that run it
 stay on it, with the evidence, and are not rolled back; the defect is repaired by a
 new release that re-enters at ring 0 and passes every ring again up to the failing
-one. The fast lane of G.2 applies to the path, not to the ring times: a fix release
-passes ring 1 by the same stage and smoke test, and a change of that gate exists
+one. The fast lane of G.2 applies to the path, not to the ring acceptance: a fix
+release passes ring 1 by the same stage and smoke test, and a change of that gate exists
 only as Matěj's recorded decision, never as a line in the evidence.
 
 ## H. Migration of existing installations
