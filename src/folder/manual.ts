@@ -2044,10 +2044,12 @@ function boundaries(
               "- Identity: the brokered Organization identity with short-lived tokens; no personal sign-ins, sessions or credentials ever belong here.",
             ),
     // The Environment's own network (root decision 0217, addendum of
-    // 2026-10-31); in AGENTS.md in short (`networkLine`).
+    // 2026-10-31); in AGENTS.md in short (`networkLine`). Lazurio Machines
+    // is named only where the handover records this Environment's tailnet
+    // identity.
     t(
-      `- Síť: Tailscale tohoto Environmentu je jeden pro všechna vlákna a relace tady${machine === null ? "" : " a spravuje ho Lazurio Machines"}. Nikdy ho nepřepínej, neodhlašuj, nepřesměrovávej na jiný login server ani nevypínej: odřízl bys tím všechny ostatní. Do jiného tailnetu choď jen cestou, kterou Environment nabízí, třeba přes socket schváleného headless klienta (oddíl Přidání počítače do tailnetu níže) nebo přes vlastní síťový prostor toho tailnetu, který volíš u každého příkazu; když žádnou nenabízí, řekni to uživateli (root rozhodnutí 0217, dodatek 2026-10-31).`,
-      `- Network: this Environment's Tailscale is one for every thread and session here${machine === null ? "" : ", and Lazurio Machines manages it"}. Never switch it, sign it out, point it at another login server or stop it: you would cut everyone else off. Reach another tailnet only the way the Environment offers, such as an approved headless client's socket (the section Adding a computer to a tailnet below) or that tailnet's own network space chosen for each command; when it offers none, tell the user (root decision 0217, addendum 2026-10-31).`,
+      `- Síť: síť tohoto Environmentu je jedna pro všechna vlákna a relace tady${machine?.network ? "; jeho Tailscale spravuje Lazurio Machines" : ""}. Nikdy ji nepřepínej, neodhlašuj, nepřesměrovávej na jiný login server ani nevypínej: odřízl bys tím všechny ostatní. Do jiného tailnetu choď jen cestou, kterou Environment nabízí, třeba přes socket schváleného headless klienta (oddíl Přidání počítače do tailnetu níže) nebo přes vlastní síťový prostor toho tailnetu, který volíš u každého příkazu; když žádnou nenabízí, řekni to uživateli (root rozhodnutí 0217, dodatek 2026-10-31).`,
+      `- Network: this Environment's network is one for every thread and session here${machine?.network ? ", and Lazurio Machines manages its Tailscale" : ""}. Never switch it, sign it out, point it at another login server or stop it: you would cut everyone else off. Reach another tailnet only the way the Environment offers, such as an approved headless client's socket (the section Adding a computer to a tailnet below) or that tailnet's own network space chosen for each command; when it offers none, tell the user (root decision 0217, addendum 2026-10-31).`,
     ),
   ];
 }

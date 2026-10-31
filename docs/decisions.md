@@ -2937,11 +2937,12 @@ tak je nezapomeň dát i do LazurioPlatform.“
   generated text names it.
 - **The Environment's own network is never switched** (`networkLine`): never switch, sign out or stop
   it, and reach another tailnet only the way the Environment offers; on every Environment, public ones
-  included. In full among the boundaries of `manual/this-machine.md`: one Tailscale for every thread and
-  session, on a hosted Environment managed by Lazurio Machines, never switched, signed out, pointed at
-  another login server or stopped; another tailnet only through what the Environment offers (an approved
-  headless client's socket, or that tailnet's own network space chosen for each command), otherwise the
-  agent tells the user. The manual's SSH rules say „never“ where they said „yourself“.
+  included. In full among the boundaries of `manual/this-machine.md`: one network for every thread and
+  session (where the handover records the tailnet identity, its Tailscale is Lazurio Machines'), never
+  switched, signed out, pointed at another login server or stopped; another tailnet only through what
+  the Environment offers (an approved headless client's socket, or that tailnet's own network space
+  chosen for each command), otherwise the agent tells the user. The manual's SSH rules say „never“ where
+  they said „yourself“.
 - **One worktree per pull request, several per plan** (root decision 0218's addendum, point 2; the
   root's worktree lane in HumanAndMachines/Lazurio#684): the manual's worktree discipline says one
   worktree is one branch and one pull request, a plan may own several with their own `<slug>`, and a
@@ -2965,8 +2966,9 @@ product: only generated text changes. Template revision `base-instructions-94`.
 `tests/folder-manual.test.ts` checks, on every preset, a Team Environment with the browser and the
 public Environments in both locales: the threads rule once in `AGENTS.md` right after the Publication
 block and in the manual (neither on a public Environment), the network line once in `AGENTS.md` with
-`100.64.0.x` only where hosted, the manual's boundary naming Lazurio Machines only where hosted, the
-worktree sentences, and that no generated file keeps an absorbed line or names the root's coordinator.
+`100.64.0.x` only where hosted, the manual's boundary naming Lazurio Machines only where the handover
+records the tailnet identity, the worktree sentences, and that no generated file keeps an absorbed
+line or names the root's coordinator.
 Not proven: that agents follow the rules (generated text is not proof of behavior). Environments get the
 text through the next released Platform update and the normal Folder refresh.
 

@@ -2279,23 +2279,29 @@ test("threads do not coordinate, the Environment's network is never switched, an
       ]).toEqual([...where, isPublic ? 0 : 1, !isPublic, !isPublic, !isPublic]);
       // The network: one line in AGENTS.md on every Environment, public ones
       // included, with SSH and the laptop only where the Environment is
-      // hosted; in full among the manual's boundaries, where Lazurio Machines
-      // manages a hosted Environment's Tailscale.
+      // hosted; in full among the manual's boundaries, which name Lazurio
+      // Machines only where the handover records the tailnet identity.
+      const recordedTailnet = (environment.machine?.network ?? null) !== null;
       expect([
         ...where,
         count(agents, networkLine(hosted)[locale]),
         count(agents, "`100.64.0.x`"),
         machine.includes(
           locale === "cs"
-            ? "- Síť: Tailscale tohoto Environmentu je jeden pro všechna vlákna a relace tady"
-            : "- Network: this Environment's Tailscale is one for every thread and session here",
+            ? "- Síť: síť tohoto Environmentu je jedna pro všechna vlákna a relace tady"
+            : "- Network: this Environment's network is one for every thread and session here",
         ),
         machine.includes(
           locale === "cs"
-            ? "a spravuje ho Lazurio Machines. Nikdy ho nepřepínej, neodhlašuj, nepřesměrovávej na jiný login server ani nevypínej"
-            : ", and Lazurio Machines manages it. Never switch it, sign it out, point it at another login server or stop it",
+            ? "Nikdy ji nepřepínej, neodhlašuj, nepřesměrovávej na jiný login server ani nevypínej"
+            : "Never switch it, sign it out, point it at another login server or stop it",
         ),
-      ]).toEqual([...where, 1, hosted ? 1 : 0, true, hosted]);
+        machine.includes(
+          locale === "cs"
+            ? "; jeho Tailscale spravuje Lazurio Machines."
+            : ", and Lazurio Machines manages its Tailscale.",
+        ),
+      ]).toEqual([...where, 1, hosted ? 1 : 0, true, true, recordedTailnet]);
       // One worktree per pull request, several per plan, each cleaned up
       // with its own pull request.
       for (const sentence of locale === "cs"
