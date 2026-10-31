@@ -155,7 +155,6 @@ import {
   chatPairingPath,
   createChatPromptCheck,
   isOwnScriptFetch,
-  issueChatLink,
   mintBuddyPairing,
   mintChatPairing,
   publicEntry,
@@ -186,11 +185,7 @@ import {
 } from "./integrations-routes";
 import { BodyTooLarge, readJsonBody } from "./json-body";
 import { adoptionOf } from "./marketplace";
-import {
-  issueMausbotLink,
-  mausbotPairingPath,
-  mintMausbotPairing,
-} from "./mausbot";
+import { mausbotPairingPath, mintMausbotPairing } from "./mausbot";
 import { messages } from "./messages";
 import { createMaintainerCheck } from "./module-maintainer";
 import { type LaunchpadHolder, launchpadHolderOf } from "./new-tab/holder";
@@ -1917,8 +1912,9 @@ export async function startLaunchpad(
         // T3 Code's web client, without a session, asks here on its own
         // origin, which the gateway forwards behind the same admission. Only
         // a page's own fetch (chat.ts), only where Chat is T3 Code behind
-        // this Launchpad, minted for the admitted person exactly as
-        // `POST /api/chat/pair` mints. On exactly Buddy's recorded origin
+        // this Launchpad, minted for the admitted person. Since the addendum
+        // of 2026-10-31 the only way a browser is paired: the Launchpad's
+        // click follows the plain origin. On exactly Buddy's recorded origin
         // it is his own T3 Code's pairing instead (F61's addendum of
         // 2026-10-22). A HEAD mints nothing.
         if (request.method !== "GET")
@@ -1945,8 +1941,9 @@ export async function startLaunchpad(
         // 2026-10-22 to the decision of 2026-10-17): its web client, without
         // a session, asks here on its own origin, which the gateway forwards
         // behind the same admission. The chat self-pairing's guards in the
-        // same order, only where the entry records MausBot, minted exactly as
-        // `POST /api/mausbot/pair` mints. A HEAD mints nothing.
+        // same order, only where the entry records MausBot. Since the
+        // addendum of 2026-10-31 the only way a browser is paired: the
+        // Launchpad's click follows the plain origin. A HEAD mints nothing.
         if (request.method !== "GET")
           return response({ error: "method-not-allowed" }, 405);
         if (closing) return response({ error: "closing" }, 503);
@@ -2403,31 +2400,6 @@ export async function startLaunchpad(
             return response({ error: "invalid-version" }, 400);
           const result = await pill.apply(value.version);
           return response(result, result.kind === "started" ? 200 : 409);
-        }
-        if (url.pathname === "/api/chat/pair") {
-          // Chat (launchpad-parity B8): a one-time T3 Code pairing link for
-          // this admitted browser, minted by T3's own CLI for its person.
-          // Only behind a gateway: a workstation's T3 Code is wherever the
-          // operator runs it. Kept although T3 Code now pairs itself
-          // (`GET /.lazurio/chat/pairing`): older T3 Code builds need it.
-          stateFields(input, []);
-          if (entry === null) return response({ error: "not-found" }, 404);
-          server.timeout(request, 45);
-          const result = await issueChatLink(entry, toolsEnvironment, person);
-          return response(result, result.kind === "blocked" ? 409 : 200);
-        }
-        if (url.pathname === "/api/mausbot/pair") {
-          // Lazurio MausBot (DEV-6632): a one-time pairing link, minted by
-          // MausBot's own API on its recorded loopback port. Only on a
-          // Machine whose entry records MausBot. Kept although MausBot now
-          // pairs itself (`GET /.lazurio/mausbot/pairing`): older MausBot
-          // builds need it.
-          stateFields(input, []);
-          if (entry?.mausbotOrigin === undefined)
-            return response({ error: "not-found" }, 404);
-          server.timeout(request, 30);
-          const result = await issueMausbotLink(entry);
-          return response(result, result.kind === "blocked" ? 409 : 200);
         }
         if (url.pathname === "/api/apps/discover") {
           stateFields(input, []);
