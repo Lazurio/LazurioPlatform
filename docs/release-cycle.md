@@ -259,11 +259,38 @@ this repository).
 - **The next ring** (G.5) starts only after browser acceptance on that
   Organization's Environments (root decision 0178).
 
-The 8 hours start when the last of them runs the candidate; what is observed and
+The stage starts when the last of them runs the candidate; what is observed and
 what ends the stage early is
 [recovery mode G.3](recovery-mode.md#g3-canary-stage-8-hours-on-every-machine-of-the-pilot-organization).
-When the stage passed, the release reviewer adds
-`qualification/canary/<candidate>.json` by a pull request to this repository:
+
+**The smoke test ends the stage (root decision 0166, addendum 2026-10-31).** The
+8-hour window is gone. Once every in-scope Machine runs the candidate healthy, a
+thread signs in as a test account of the pilot Organization, its Owner or a member,
+checks the main path end to end and gives the green light. When the stage passed,
+the release reviewer adds `qualification/canary/<candidate>.json` by a pull request
+to this repository:
+
+```json
+{
+  "schema": "lazurio.canary.v2",
+  "candidate": "v1.4.0-rc.2",
+  "start": "2026-10-01T08:00:00Z",
+  "end": "2026-10-01T08:45:00Z",
+  "machines": [
+    { "machine": "3f9a0c1d2e4b5a69", "kind": "work", "active": "1.4.0-rc.2", "health": "healthy" },
+    { "machine": "c41d9e0a7b3f5286", "kind": "personal", "active": "1.4.0-rc.2", "health": "healthy" }
+  ],
+  "smoke": { "account": "owner", "result": "green" },
+  "reviewer": "<GitHub login>",
+  "pullRequest": "https://github.com/Lazurio/LazurioPlatform/pull/<n>"
+}
+```
+
+`start` is when the last Machine ran the candidate, `end` is the green light, and
+there is no minimum between them. `smoke.account` is the test account's role
+(`owner` or `member`), never its name; `smoke.result` is `green`. A candidate cut
+before this change is checked by its own tree's `check-canary.ts` and keeps the
+8-hour record, `lazurio.canary.v1`, which still passes:
 
 ```json
 {
@@ -287,8 +314,10 @@ or a client name never appears, and there is no member for free text. `active` i
 `lazurio update status --json` at the end of the stage, `health` is `healthy` when
 `lazurio recover --json` answered healthy at the start and the end and no Recovery
 mode happened in between (otherwise `recovery-mode` or `unhealthy`, which refuse).
-`scripts/qualify/check-canary.ts` refuses a record that is missing, lasted less than
-8 hours or has not ended, lists no Machine, no work VM or no personal VM, names a
+`scripts/qualify/check-canary.ts` refuses a record that is missing; a `v1` record
+that lasted less than its hours; a `v2` record whose smoke test is not `green`, whose
+`account` is not a role, or whose green light comes before the last Machine ran the
+candidate; a record that has not ended; one that lists no Machine, no work VM or no personal VM, names a
 Machine twice, has a Machine not on the candidate or not healthy, or has any value
 outside its shape — and it never repeats a refused value in its answer. Times are
 exactly `YYYY-MM-DDThh:mm:ssZ` and must print back as the same text, so an impossible
@@ -317,18 +346,20 @@ unmerged branch, or a record edited after its pull request, is refused. A later
 correction of the record is a new pull request, and the record then names that one.
 
 **The fast lane is the path, not the canary.** A fix goes through the same steps:
-a new candidate, the journeys (in parallel, one runner each), the review,
-and the same 8 hours on the same Machines. The canary is never shortened by a line in
-a record or by the reviewer: a shorter canary for a named release exists only as
-Matěj's recorded decision in the register, carried out by a reviewed change of
-`check-canary.ts` that names it. Meanwhile the Machine that is broken is covered by
+a new candidate, the journeys (in parallel, one runner each), the review, and the
+same stage on the same Machines, ending in a smoke test. The gate is never changed
+by a line in a record or by the reviewer: it changes only by Matěj's recorded
+decision in the register, carried out by a reviewed change of `check-canary.ts`
+that is on `main` before the candidate is cut, because the release checks the
+record with the code in the tag's tree. Meanwhile the Machine that is broken is covered by
 its Recovery mode.
 
-Shorter canaries so far, each named in `shorterCanaries` of `check-canary.ts`:
+Changes of the gate so far (the first one by `shorterCanaries` of `check-canary.ts`):
 
 | Candidate | Hours | Decision |
 |---|---|---|
 | `v0.1.14-rc.2` | 3 | root decision 0166, addendum 2026-10-27, HumanAndMachines/Lazurio#658 |
+| every candidate cut after the change | none (the smoke test, `lazurio.canary.v2`) | root decision 0166, addendum 2026-10-31, HumanAndMachines/Lazurio#687 |
 
 ## Required lifecycle evidence
 

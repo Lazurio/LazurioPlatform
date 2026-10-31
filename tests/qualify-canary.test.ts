@@ -193,6 +193,105 @@ test("a hostname or a client name is refused, and never repeated in the finding"
   ]);
 });
 
+// Root decision 0166, addendum 2026-10-31: the smoke test replaces the window.
+const smoke = (change: Record<string, unknown> = {}) => {
+  const { schema: _schema, ...rest } = record({
+    start: "2026-09-01T08:00:00Z",
+    end: "2026-09-01T08:40:00Z",
+  });
+  return {
+    schema: "lazurio.canary.v2",
+    ...rest,
+    smoke: { account: "owner", result: "green" },
+    ...change,
+  };
+};
+
+test("the smoke test's green light on every listed Machine passes, with no minimum duration", () => {
+  expect(canaryFindings(smoke(), candidate, now)).toEqual([]);
+  expect(
+    canaryFindings(
+      smoke({ smoke: { account: "member", result: "green" } }),
+      candidate,
+      now,
+    ),
+  ).toEqual([]);
+  // The green light at the very moment the last Machine ran the candidate.
+  expect(
+    canaryFindings(smoke({ end: "2026-09-01T08:00:00Z" }), candidate, now),
+  ).toEqual([]);
+});
+
+test("a smoke test without its green light, or before the candidate ran everywhere, refuses", () => {
+  expect(
+    canaryFindings(
+      smoke({ smoke: { account: "owner", result: "red" } }),
+      candidate,
+      now,
+    ),
+  ).toEqual(["smoke: the smoke test did not give the green light"]);
+  expect(
+    canaryFindings(smoke({ end: "2026-09-01T07:59:59Z" }), candidate, now),
+  ).toEqual([
+    "the smoke test's green light comes before the last Machine ran the candidate",
+  ]);
+  expect(
+    canaryFindings(smoke({ end: "2026-09-02T12:00:01Z" }), candidate, now),
+  ).toEqual(["the canary ends in the future"]);
+});
+
+test("a smoke record carries the test account's role, never its name, and keeps the Machine rules", () => {
+  expect(
+    canaryFindings(
+      smoke({ smoke: { account: "alena", result: "green" } }),
+      candidate,
+      now,
+    ),
+  ).toEqual([
+    "smoke: account is the test account's role, owner or member; never a name",
+  ]);
+  expect(
+    canaryFindings(
+      smoke({ smoke: { account: "owner", result: "green", login: "bob" } }),
+      candidate,
+      now,
+    ),
+  ).toEqual(["smoke: exactly account, result"]);
+  const { smoke: _smoke, ...withoutSmoke } = smoke();
+  expect(canaryFindings(withoutSmoke, candidate, now)).toEqual([
+    "not a lazurio.canary.v2 record: exactly schema, candidate, start, end, machines, smoke, reviewer, pullRequest",
+  ]);
+  // The same Machines as an 8-hour canary: both groups, on the candidate, healthy.
+  expect(
+    canaryFindings(
+      smoke({
+        machines: [
+          machine("3f9a0c1d2e4b5a69", "work"),
+          machine("c41d9e0a7b3f5286", "personal", { health: "unhealthy" }),
+        ],
+      }),
+      candidate,
+      now,
+    ),
+  ).toEqual(["machines[1]: was not healthy (unhealthy)"]);
+  expect(
+    canaryFindings(
+      smoke({ machines: [machine("3f9a0c1d2e4b5a69", "work")] }),
+      candidate,
+      now,
+    ),
+  ).toEqual(["no personal VM is listed; the stage needs every one"]);
+});
+
+test("an 8-hour record still needs 8 hours; only the smoke schema drops the window", () => {
+  expect(
+    canaryFindings(record({ end: "2026-09-01T08:40:00Z" }), candidate, now),
+  ).toEqual(["the canary lasted 0 h 40 min; 8 hours are required"]);
+  expect(
+    canaryFindings(record({ schema: "lazurio.canary.v3" }), candidate, now),
+  ).toEqual(["schema is not lazurio.canary.v1 or lazurio.canary.v2"]);
+});
+
 test("reviewer and pull request have their shapes", () => {
   expect(
     canaryFindings(
@@ -230,6 +329,12 @@ test("the CLI: the candidate is the file name; a missing record refuses", async 
     0,
     `The canary of ${candidate} passed: 8 hours on every listed Machine.`,
   ]);
+  await writeFile(path, JSON.stringify(smoke()));
+  expect(await check(path)).toEqual([
+    0,
+    `The canary of ${candidate} passed: every listed Machine on the candidate and healthy, and the smoke test as the reference Organization's owner gave the green light.`,
+  ]);
+  await writeFile(path, JSON.stringify(record()));
   const renamed = join(directory, "v1.2.0-rc.2.json");
   await writeFile(renamed, JSON.stringify(record()));
   expect((await check(renamed))[0]).toBe(1);

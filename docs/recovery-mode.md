@@ -571,10 +571,22 @@ named release exists only as Matěj's recorded decision in the register,
 never as a line in an evidence PR. The time a fix needs is therefore the fix lane's
 own plus 8 hours, and the Recovery mode of D is what covers the Machine meanwhile.
 
-### G.3 Canary stage: 8 hours on every Machine of the pilot Organization
+<a id="g3-canary-stage-8-hours-on-every-machine-of-the-pilot-organization"></a>
+
+### G.3 Canary stage: every Machine of the pilot Organization, then the smoke test
 
 Decided by Matěj on 2026-09-28 (Q5), replacing the earlier proposal of 24
 hours on one Environment.
+
+**Changed on 2026-10-31 (root decision 0166, addendum 2026-10-31):** the 8-hour
+window is replaced by one recorded end-to-end smoke test on the candidate. Once
+every in-scope Machine runs the candidate healthy, a thread signs in as a test
+account of the pilot Organization (its Owner or a member), checks the main path and
+gives the green light; that ends the stage. The record is `lazurio.canary.v2`
+([release cycle](release-cycle.md#qualification-and-the-canary)). Matěj accepted
+that slow failures (memory growth, timers, nightly jobs) are then caught in use,
+under Recovery mode and fix-forward. A candidate cut before this change keeps the
+8 hours its own tree checks. Below, "the 8 hours" reads as "the stage".
 
 **What "every Machine of the pilot Organization" means for the release job.** After
 `qualify.yml` passed, the candidate is rolled by its exact tag to the stage's
@@ -599,7 +611,7 @@ in the pilot Organization need no consent or window, and the next ring follows
 only after browser acceptance there
 ([release cycle, Canary](release-cycle.md#qualification-and-the-canary)).
 
-**What is observed during the 8 hours**, on every Machine:
+**What is observed during the stage**, on every Machine:
 
 - the checks R1–R5: no Machine enters Recovery mode, and `lazurio recover --json`
   answers `healthy` at the start and at the end;
@@ -613,7 +625,10 @@ only after browser acceptance there
   modules there, and the stage observes the Platform's CLI (`update status`,
   `self-check`, `recover`) and the resident's module starts;
 - real work, including a Folder refresh and a Launchpad restart on at least one
-  Machine.
+  Machine;
+- since 2026-10-31, the smoke test: the main path as the test account (sign-in,
+  the Launchpad and its Apps, a module started and opened, the chat), ending in the
+  green light.
 
 **What ends the stage early.** Any Machine entering Recovery mode on the candidate; a
 Recovery issue naming it; the unit restarting on its own; a module that started
