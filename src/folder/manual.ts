@@ -537,9 +537,12 @@ function workingHere(
       "- Primární checkout zůstává na `main`. Jeho trackovaný obsah se v něm nemění a nezakládá se v něm žádná feature branch.",
       "- The primary checkout stays on `main`. Its tracked content is not changed there and no feature branch is created there.",
     ),
+    // One worktree per pull request, several per plan (root decision 0218,
+    // addendum of 2026-10-31, point 2; the root's worktree lane in
+    // HumanAndMachines/Lazurio#684).
     t(
-      "- Každá změna žije ve worktree `<PLAN>-<slug>` ve složce `.worktrees/` owning repozitáře, odvětveném z čerstvé `origin/main`, na branchi s kódem plánu nebo úkolu. Nikdy v `/tmp`, vedle repozitáře ani uvnitř jiného repozitáře. Přesné cesty určuje `AGENTS.md` repozitáře.",
-      "- Every change lives in a worktree `<PLAN>-<slug>` under the owning repository's `.worktrees/` directory, branched from fresh `origin/main`, on a branch that carries the plan or task code. Never in `/tmp`, next to the repository, or inside another repository. The repository's `AGENTS.md` sets the exact paths.",
+      "- Každá změna žije ve worktree `<PLAN>-<slug>` ve složce `.worktrees/` owning repozitáře, odvětveném z čerstvé `origin/main`, na branchi s kódem plánu nebo úkolu. Jeden worktree je jedna branch a jeden pull request; plán jich smí mít několik, každý s vlastním `<slug>`. Nikdy v `/tmp`, vedle repozitáře ani uvnitř jiného repozitáře. Přesné cesty určuje `AGENTS.md` repozitáře.",
+      "- Every change lives in a worktree `<PLAN>-<slug>` under the owning repository's `.worktrees/` directory, branched from fresh `origin/main`, on a branch that carries the plan or task code. One worktree is one branch and one pull request; a plan may own several, each with its own `<slug>`. Never in `/tmp`, next to the repository, or inside another repository. The repository's `AGENTS.md` sets the exact paths.",
     ),
     t(
       "- Vedle worktree drž sidecar `<PLAN>-<slug>.worktree.json` (schéma `companiesascode.worktree.v1`; celý kontrakt drží skill `worktree-stewardship` Organizace): repozitář, branch, kód plánu, URL pull requestu, jakmile existuje, a `conversation_origin` s ID tvé relace (`CODEX_THREAD_ID`, `CLAUDE_CODE_SESSION_ID` nebo ID, které nabízí tvůj harness). Podle sidecaru se nahromaděné worktrees dají dohledat a bezpečně uklidit.",
@@ -563,9 +566,25 @@ function workingHere(
           "- Bring a dirty or diverged primary checkout back only so that nothing is lost: first keep every commit and every uncommitted change (`manual/troubleshooting.md`).",
         ),
     t(
-      "- Worktree smaž i se sidecarem jen tehdy, když je čistý včetně untracked souborů, nemá žádný jen lokální commit, jeho HEAD je na remote, jeho PR je mergnutý nebo výslovně opuštěný a žádný runtime ho nepoužívá.",
-      "- Remove a worktree, with its sidecar, only when it is clean including untracked files, has no local-only commit, its HEAD is on the remote, its PR is merged or explicitly abandoned and no runtime uses it.",
+      "- Worktree smaž i se sidecarem jen tehdy, když je čistý včetně untracked souborů, nemá žádný jen lokální commit, jeho HEAD je na remote, jeho PR je mergnutý nebo výslovně opuštěný a žádný runtime ho nepoužívá. Rozhoduje jeho pull request, ne plán: worktree mergnutého PR ukliď hned, i když plán dál běží v jiných worktrees.",
+      "- Remove a worktree, with its sidecar, only when it is clean including untracked files, has no local-only commit, its HEAD is on the remote, its PR is merged or explicitly abandoned and no runtime uses it. Its pull request decides, not the plan: clean up the worktree of a merged PR right away, even while the plan goes on in other worktrees.",
     ),
+    // Threads do not coordinate with each other (root decision 0218, addendum
+    // of 2026-10-31); in AGENTS.md in short (`threadsRule`). Not on a public
+    // Environment, which has nothing on GitHub.
+    ...(isPublic
+      ? []
+      : [
+          blank,
+          t(
+            "## Vlákna se mezi sebou nekoordinují (root rozhodnutí 0218, dodatek 2026-10-31)",
+            "## Threads do not coordinate with each other (root decision 0218, addendum 2026-10-31)",
+          ),
+          t(
+            "Každé vlákno jde svůj požadavek samo: má vlastní worktree, pull request, ověření a assignee. Jiným vláknům zprávy neposíláš. Co potřebuje pořadí nebo návaznost, zapíšeš na GitHub: jako závislost issue nebo pull requestu, štítek pozdržení nebo komentář s @zmínkou toho, kdo má další krok. Pořadí tak drží GitHub, ne konverzace mezi agenty. Delegace tvé vlastní práce na tvé subagenty koordinací není.",
+            "Each thread takes its own request through by itself: its own worktree, pull request, verification and assignee. Send no messages to other threads. Whatever needs an order or depends on other work goes on GitHub: as a dependency of an issue or pull request, a hold label or a comment with an @mention of whoever has the next step. GitHub holds the order, not a conversation between agents. Delegating your own work to your subagents is not coordination.",
+          ),
+        ]),
     blank,
     ...gitAndGitHub,
     blank,
@@ -2024,6 +2043,12 @@ function boundaries(
               "- Identita: brokerovaná identita Organizace s krátkodobými tokeny; osobní přihlášení, session ani credentials sem nikdy nepatří.",
               "- Identity: the brokered Organization identity with short-lived tokens; no personal sign-ins, sessions or credentials ever belong here.",
             ),
+    // The Environment's own network (root decision 0217, addendum of
+    // 2026-10-31); in AGENTS.md in short (`networkLine`).
+    t(
+      `- Síť: Tailscale tohoto Environmentu je jeden pro všechna vlákna a relace tady${machine === null ? "" : " a spravuje ho Lazurio Machines"}. Nikdy ho nepřepínej, neodhlašuj, nepřesměrovávej na jiný login server ani nevypínej: odřízl bys tím všechny ostatní. Do jiného tailnetu choď jen cestou, kterou Environment nabízí, třeba přes socket schváleného headless klienta (oddíl Přidání počítače do tailnetu níže) nebo přes vlastní síťový prostor toho tailnetu, který volíš u každého příkazu; když žádnou nenabízí, řekni to uživateli (root rozhodnutí 0217, dodatek 2026-10-31).`,
+      `- Network: this Environment's Tailscale is one for every thread and session here${machine === null ? "" : ", and Lazurio Machines manages it"}. Never switch it, sign it out, point it at another login server or stop it: you would cut everyone else off. Reach another tailnet only the way the Environment offers, such as an approved headless client's socket (the section Adding a computer to a tailnet below) or that tailnet's own network space chosen for each command; when it offers none, tell the user (root decision 0217, addendum 2026-10-31).`,
+    ),
   ];
 }
 
@@ -2099,8 +2124,8 @@ const sshRules: readonly Text[] = [
     "- Connect only to a peer's tailnet hostname as the handover records it (the `ssh.host` of a peer above), never to a bare tailnet address such as `100.64.0.x`: those addresses repeat in every tailnet and mean a different peer in each.",
   ),
   t(
-    "- Před spojením ověř aktivní tailnet: `tailscale status --json` → `CurrentTailnet.Name` musí být domovský tailnet tohohle Environmentu a `CurrentTailnet.MagicDNSSuffix` musí odpovídat zaznamenaným `ssh.host` peerů. Pokud neodpovídá, nebo si nejsi jistý, zastav se a řekni to uživateli. Profil Tailscale sám nepřepínej: je to jedno globální nastavení pro všechny relace na tomhle Environmentu.",
-    "- Before connecting, verify the active tailnet: `tailscale status --json` → `CurrentTailnet.Name` must be this Environment's home tailnet and `CurrentTailnet.MagicDNSSuffix` must match the peers' recorded `ssh.host` names. If it does not, or you cannot tell, stop and tell the user. Never switch the Tailscale profile yourself: it is one global setting for every session in this Environment.",
+    "- Před spojením ověř aktivní tailnet: `tailscale status --json` → `CurrentTailnet.Name` musí být domovský tailnet tohohle Environmentu a `CurrentTailnet.MagicDNSSuffix` musí odpovídat zaznamenaným `ssh.host` peerů. Pokud neodpovídá, nebo si nejsi jistý, zastav se a řekni to uživateli. Profil Tailscale nikdy nepřepínej: je to jedno globální nastavení pro všechny relace na tomhle Environmentu (oddíl Hranice na tomhle Environmentu výše).",
+    "- Before connecting, verify the active tailnet: `tailscale status --json` → `CurrentTailnet.Name` must be this Environment's home tailnet and `CurrentTailnet.MagicDNSSuffix` must match the peers' recorded `ssh.host` names. If it does not, or you cannot tell, stop and tell the user. Never switch the Tailscale profile: it is one global setting for every session in this Environment (the section Boundaries in this Environment above).",
   ),
   t(
     "- Host klíč peeru je vždy pinnutý: v souboru `~/.ssh/known_hosts_lazurio` pod jménem peeru jako `HostKeyAlias`. S hodnotami z handoveru:",

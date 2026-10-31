@@ -2920,6 +2920,56 @@ Room: Czech 18,830 characters, English 19,976 (under the 20,000 Hermes loads unc
 messages to the user says the same in fewer words. Template revision `base-instructions-92`.
 `tests/folder-buddy.test.ts` checks both locales.
 
+**Addendum of 2026-10-31, the root's agent rules of that day reach every Environment (root decisions
+0218 and 0217, addenda of 2026-10-31, HumanAndMachines/Lazurio#683; plan DEV-6691): threads do not
+coordinate, the Environment's network is never switched, one worktree per pull request.** Matěj, the
+Organization Admin: „to, co teďka definuješ jako pravidla pro Lazurio root, by sis měl nadefinovat i pro
+Lazurio folder … pokud definuješ nějaká pravidla, která mají platit i pro agenty obecně v environmentech,
+tak je nezapomeň dát i do LazurioPlatform.“
+
+- **Threads do not coordinate with each other** (`threadsRule` in `src/folder/render.ts`): no thread
+  sends another a message, and what needs an order or a dependency goes on GitHub as a dependency, a
+  hold label or a comment with an @mention. In `AGENTS.md` right after the Publication block (after a
+  Team Environment's named publisher); in full in its own section of `manual/working-here.md`: each
+  thread has its own worktree, pull request, verification and assignee, and delegating one's own work to
+  subagents is no coordination. Not on a public Environment, which has nothing on GitHub. Who keeps the
+  order is each Organization's own; the root's coordinator belongs to Lazurio's development and no
+  generated text names it.
+- **The Environment's own network is never switched** (`networkLine`): never switch, sign out or stop
+  it, and reach another tailnet only the way the Environment offers; on every Environment, public ones
+  included. In full among the boundaries of `manual/this-machine.md`: one Tailscale for every thread and
+  session, on a hosted Environment managed by Lazurio Machines, never switched, signed out, pointed at
+  another login server or stopped; another tailnet only through what the Environment offers (an approved
+  headless client's socket, or that tailnet's own network space chosen for each command), otherwise the
+  agent tells the user. The manual's SSH rules say „never“ where they said „yourself“.
+- **One worktree per pull request, several per plan** (root decision 0218's addendum, point 2; the
+  root's worktree lane in HumanAndMachines/Lazurio#684): the manual's worktree discipline says one
+  worktree is one branch and one pull request, a plan may own several with their own `<slug>`, and a
+  worktree is cleaned up once its own pull request is merged, while the plan goes on in others. No
+  Folder text said one worktree per plan; `AGENTS.md` keeps "every task in its own worktree".
+
+Room: `AGENTS.md` stays within its budget (32 KiB with the longest voice, measured as for F67: every
+composition of `tests/folder-template-revision.test.ts` with every optional tool, a note, the other
+profile axes and an 8,192-byte custom voice). The network line therefore takes the place of the three
+lines it overlaps, and their details stay where the line sends the agent first: the Headscale line of
+every preset (its device naming is steps 2 and 5 of the manual's Adding a computer to a tailnet) and,
+on a hosted Environment, the laptop pointer and the SSH line (checking the active tailnet before
+connecting is the manual's SSH rules). The tightest composition had 5 bytes left at
+`base-instructions-93` (try-01, recorded as Team); now the tightest has 20 (a Team Environment with the
+Environment browser, English).
+
+Unchanged: the Publication block in the Owner's words, a Team Environment's named publisher and
+identity, a public Environment that publishes nothing, Buddy's layer (he steers threads at the user's
+request and is no thread; his `.hermes.md` is near its 20,000 characters), and every behavior of the
+product: only generated text changes. Template revision `base-instructions-94`.
+`tests/folder-manual.test.ts` checks, on every preset, a Team Environment with the browser and the
+public Environments in both locales: the threads rule once in `AGENTS.md` right after the Publication
+block and in the manual (neither on a public Environment), the network line once in `AGENTS.md` with
+`100.64.0.x` only where hosted, the manual's boundary naming Lazurio Machines only where hosted, the
+worktree sentences, and that no generated file keeps an absorbed line or names the root's coordinator.
+Not proven: that agents follow the rules (generated text is not proof of behavior). Environments get the
+text through the next released Platform update and the normal Folder refresh.
+
 ### Proposal of 2026-10-29: the person's own instructions for agents, and a person's own entries in a hosted Folder (for Matěj's decision; not decided, not implemented)
 
 On 2026-10-29 Matěj raised two questions.
