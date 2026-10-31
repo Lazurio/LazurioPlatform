@@ -585,8 +585,9 @@ account of the pilot Organization (its Owner or a member), checks the main path 
 gives the green light; that ends the stage. The record is `lazurio.canary.v2`
 ([release cycle](release-cycle.md#qualification-and-the-canary)). Matěj accepted
 that slow failures (memory growth, timers, nightly jobs) are then caught in use,
-under Recovery mode and fix-forward. A candidate cut before this change keeps the
-8 hours its own tree checks. Below, "the 8 hours" reads as "the stage".
+under Recovery mode and fix-forward. Every candidate from version 0.1.19 on needs
+the smoke record; a candidate cut before this change keeps the 8 hours its own tree
+checks. Below, "the 8 hours" reads as "the stage".
 
 **What "every Machine of the pilot Organization" means for the release job.** After
 `qualify.yml` passed, the candidate is rolled by its exact tag to the stage's

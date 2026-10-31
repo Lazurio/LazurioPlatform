@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
+import { compareVersions } from "../../src/update/version";
 
 /** The canary record of a release candidate (docs/release-cycle.md
  * "Qualification and the canary"; root decision 0166 point 6): the candidate
@@ -16,9 +17,10 @@ import { basename } from "node:path";
  * signs in as a test account of the reference Organization (its Owner or a
  * member), checks the main path and gives the green light. That record is
  * `lazurio.canary.v2`: the same Machines on the candidate and healthy, no
- * minimum duration, and `smoke` with the account's role and the result. A
- * `lazurio.canary.v1` record of 8 hours (or its named shorter canary) still
- * passes; a candidate cut before this change is checked by its own tree.
+ * minimum duration, and `smoke` with the account's role and the result. Every
+ * candidate from `smokeFromVersion` on needs it; the 8-hour `lazurio.canary.v1`
+ * record (or its named shorter canary) passes only for an earlier version, and
+ * a candidate cut before this change is checked by its own tree anyway.
  *
  * Without `--provenance` the check is offline: the record alone. With it (the
  * release job) the record must also be the one its pull request merged into
@@ -34,6 +36,10 @@ export const canarySchema = "lazurio.canary.v1";
 export const canaryHours = 8;
 /** Root decision 0166 addendum 2026-10-31: the smoke test replaces the window. */
 export const smokeSchema = "lazurio.canary.v2";
+/** The first version whose candidates need the smoke test: the release reads
+ * this check from the tag's tree, so its first candidate is the first one cut
+ * after the addendum. Earlier versions keep the 8-hour record. */
+export const smokeFromVersion = "0.1.19";
 /** The role of the reference Organization's test account, never its name. */
 export const smokeAccounts = ["owner", "member"] as const;
 
@@ -153,9 +159,20 @@ export function canaryFindings(
     ];
   if (!smoke && value.schema !== canarySchema)
     findings.push(`schema is not ${canarySchema} or ${smokeSchema}`);
-  const version = candidatePattern.exec(candidate)?.[0].slice(1);
+  const match = candidatePattern.exec(candidate);
+  const version = match?.[0].slice(1);
   if (version === undefined || value.candidate !== candidate)
     findings.push(`the record is not the canary of ${candidate}`);
+  // Root decision 0166, addendum 2026-10-31: the smoke test's green light, not
+  // a window, from this version on.
+  if (
+    !smoke &&
+    match?.[1] !== undefined &&
+    compareVersions(match[1], smokeFromVersion) >= 0
+  )
+    findings.push(
+      `a candidate from ${smokeFromVersion} on needs the smoke test record, ${smokeSchema} (root decision 0166, addendum 2026-10-31)`,
+    );
   const start = instant(value.start);
   const end = instant(value.end);
   if (Number.isNaN(start) || Number.isNaN(end))

@@ -288,9 +288,10 @@ to this repository:
 
 `start` is when the last Machine ran the candidate, `end` is the green light, and
 there is no minimum between them. `smoke.account` is the test account's role
-(`owner` or `member`), never its name; `smoke.result` is `green`. A candidate cut
-before this change is checked by its own tree's `check-canary.ts` and keeps the
-8-hour record, `lazurio.canary.v1`, which still passes:
+(`owner` or `member`), never its name; `smoke.result` is `green`. Every candidate
+from version 0.1.19 on needs this record (`smokeFromVersion` in `check-canary.ts`).
+A candidate before it is checked by its own tree's `check-canary.ts` and keeps the
+8-hour record, `lazurio.canary.v1`, which passes only below 0.1.19:
 
 ```json
 {
@@ -315,7 +316,7 @@ or a client name never appears, and there is no member for free text. `active` i
 `lazurio recover --json` answered healthy at the start and the end and no Recovery
 mode happened in between (otherwise `recovery-mode` or `unhealthy`, which refuse).
 `scripts/qualify/check-canary.ts` refuses a record that is missing; a `v1` record
-that lasted less than its hours; a `v2` record whose smoke test is not `green`, whose
+for a candidate from 0.1.19 on, or one that lasted less than its hours; a `v2` record whose smoke test is not `green`, whose
 `account` is not a role, or whose green light comes before the last Machine ran the
 candidate; a record that has not ended; one that lists no Machine, no work VM or no personal VM, names a
 Machine twice, has a Machine not on the candidate or not healthy, or has any value
