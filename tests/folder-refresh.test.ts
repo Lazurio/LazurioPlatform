@@ -242,6 +242,38 @@ test.skipIf(process.platform === "win32")(
 );
 
 test.skipIf(process.platform === "win32")(
+  "a Machine moved to another host keeps its Folder and follows the new host through the refresh (#759)",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      await initializeMachineFolder(folder, before, noChoices);
+      const moved = binding({
+        ...personalHandover([laptop]),
+        host: { ...personal.host, estate_id: "another-estate" },
+      });
+      // The first apply after the move: the Folder stays adopted …
+      expect(
+        await initializeMachineFolder(folder, moved, noChoices),
+      ).toMatchObject({ code: 0, result: { kind: "already-adopted" } });
+      // … and the refresh records the new host, as any other handover change.
+      expect(await refreshMachineFolder(folder, moved)).toEqual({
+        code: 0,
+        result: { kind: "refreshed", revision: 2 },
+      });
+      expect((await preferences(folder)).machine).toEqual(
+        JSON.parse(JSON.stringify(moved)),
+      );
+      expect(await refreshMachineFolder(folder, moved)).toEqual({
+        code: 0,
+        result: { kind: "unchanged" },
+      });
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
   "another Machine's handover is refused, before and under the transaction lock",
   async () => {
     const { parent, folder } = await setup();
@@ -250,7 +282,7 @@ test.skipIf(process.platform === "win32")(
       const settled = await snapshot(folder);
       const another = binding({
         ...personalHandover([laptop, workVm]),
-        host: { ...personal.host, estate_id: "another-estate" },
+        machine: { ...personal.machine, name: "another" },
       });
       await expect(refreshMachineFolder(folder, another)).rejects.toEqual(
         new FolderAdoptionError("binding-changed", ".lazurio"),
