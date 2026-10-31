@@ -30,9 +30,10 @@ not, is the state paragraph of F21.
    journal tail and any free text stay on the Machine until the repair agent attaches
    them after reading them (Q4, decided 2026-09-28 by delegation; E.1, E.3).
 6. **Gates force quality.** Journeys on disposable Ubuntu and macOS runners against
-   the real release candidate, a canary stage of 8 hours on every hosted Machine of
-   the pilot Organization (Q5, decided 2026-09-28), and a release job that refuses a
-   final tag without them.
+   the real release candidate, a canary stage on every hosted Machine of the pilot
+   Organization that ends in a recorded smoke test's green light (Q5, decided
+   2026-09-28 as 8 hours; changed 2026-10-31, root decision 0166 addendum), and a
+   release job that refuses a final tag without them.
 7. **Machines follows the same rule** (Q6, decided 2026-09-28): an apply completes or
    does not start, and never returns to an earlier release as a way of repair.
    Defects are repaired by a new release that passes staged rings (G.4, G.5; a
@@ -555,7 +556,8 @@ a successful `qualify.yml` run of an RC whose commit equals the final tag's, or
 differs only under `docs/evidence/`. Otherwise the draft is deleted and nothing is
 published, like the ordering gate.
 
-**Canary stage.** 8 hours on every hosted Machine of the pilot Organization (G.3).
+**Canary stage.** Every hosted Machine of the pilot Organization on the candidate,
+then the recorded smoke test's green light (G.3; 8 hours until 2026-10-31).
 
 **Every recovery issue ends with a regression test.** The issue template sets the
 label `recovery` and asks for the fingerprint. The PR that closes it adds
@@ -565,16 +567,30 @@ fixture there, so the drill grows with each field failure. The release job lists
 
 **A fast lane is a requirement, the canary is not its variable.** Without rollback
 a broken Machine waits for a fix. The RC→final path (J1–J6 plus review) should fit in
-one working hour; the canary stage of a fix release is the same 8 hours on the same
-Machines (root decision 0166 point 6 gives no exception). A shorter canary for a
-named release exists only as Matěj's recorded decision in the register,
-never as a line in an evidence PR. The time a fix needs is therefore the fix lane's
-own plus 8 hours, and the Recovery mode of D is what covers the Machine meanwhile.
+one working hour; the canary stage of a fix release is the same stage on the same
+Machines, ending in a smoke test (root decision 0166 point 6 and its addendum of
+2026-10-31 give no exception). The gate changes only by Matěj's recorded decision
+in the register, never by a line in an evidence PR. The time a fix needs is
+therefore the fix lane's own plus Ring 0 and the smoke test, and the Recovery mode
+of D is what covers the Machine meanwhile.
 
-### G.3 Canary stage: 8 hours on every Machine of the pilot Organization
+<a id="g3-canary-stage-8-hours-on-every-machine-of-the-pilot-organization"></a>
+
+### G.3 Canary stage: every Machine of the pilot Organization, then the smoke test
 
 Decided by Matěj on 2026-09-28 (Q5), replacing the earlier proposal of 24
 hours on one Environment.
+
+**Changed on 2026-10-31 (root decision 0166, addendum 2026-10-31):** the 8-hour
+window is replaced by one recorded end-to-end smoke test on the candidate. Once
+every in-scope Machine runs the candidate healthy, a thread signs in as a test
+account of the pilot Organization (its Owner or a member), checks the main path and
+gives the green light; that ends the stage. The record is `lazurio.canary.v2`
+([release cycle](release-cycle.md#qualification-and-the-canary)). Matěj accepted
+that slow failures (memory growth, timers, nightly jobs) are then caught in use,
+under Recovery mode and fix-forward. Every candidate from version 0.1.19 on needs
+the smoke record; a candidate cut before this change keeps the 8 hours its own tree
+checks.
 
 **What "every Machine of the pilot Organization" means for the release job.** After
 `qualify.yml` passed, the candidate is rolled by its exact tag to the stage's
@@ -591,7 +607,7 @@ canary stage: the stage does not start until every in-scope Machine runs the
 candidate, and no final release passes without a personal VM in the count. A
 Machine that cannot take the candidate blocks
 the stage. Narrowing the scope is Matěj's decision recorded in the
-register, never a line the `release` reviewer accepts. The 8 hours start when the
+register, never a line the `release` reviewer accepts. The stage starts when the
 last of these Machines runs the candidate, proven by its `lazurio update status
 --json` (`active` equals the candidate) and a healthy Launchpad. Which personal VM
 takes part is the reviewer's to state, by its opaque id only. Rollouts and restarts
@@ -599,7 +615,7 @@ in the pilot Organization need no consent or window, and the next ring follows
 only after browser acceptance there
 ([release cycle, Canary](release-cycle.md#qualification-and-the-canary)).
 
-**What is observed during the 8 hours**, on every Machine:
+**What is observed during the stage**, on every Machine:
 
 - the checks R1–R5: no Machine enters Recovery mode, and `lazurio recover --json`
   answers `healthy` at the start and at the end;
@@ -613,14 +629,17 @@ only after browser acceptance there
   modules there, and the stage observes the Platform's CLI (`update status`,
   `self-check`, `recover`) and the resident's module starts;
 - real work, including a Folder refresh and a Launchpad restart on at least one
-  Machine.
+  Machine;
+- since 2026-10-31, the smoke test: the main path as the test account (sign-in,
+  the Launchpad and its Apps, a module started and opened, the chat), ending in the
+  green light.
 
 **What ends the stage early.** Any Machine entering Recovery mode on the candidate; a
 Recovery issue naming it; the unit restarting on its own; a module that started
 before the candidate and does not start under it; a user of the pilot
 Organization reporting a regression. The candidate is then not promoted. Its
 Machines stay on it (no rollback) and receive the fix as a new candidate, which
-re-enters at the first ring (G.5) and starts a new 8 hours.
+re-enters at the first ring (G.5) and starts a new stage.
 
 **Who promotes, by which evidence.** The final tag is cut at the candidate's commit
 (the release job already requires the same commit, G.2). The evidence PR adds
@@ -695,13 +714,15 @@ ring exists today.
 | Ring | Who | Enters when |
 |---|---|---|
 | 0 | The qualification ring: `qualify.yml` on runners, and a disposable local Ubuntu VM applied by the Machines playbook ([Launchpad parity](launchpad-parity.md), C.5) | A release candidate of either repository is published |
-| 1 | Every Environment of the pilot Organization, LazurioExampleOrganization, and at least one user's personal VM (G.3; root decision 0204 point 7); the Machines, T3 Code and MausBot runbooks call it Ring 0 | Ring 0 passed; the 8 hours of G.3 |
+| 1 | Every Environment of the pilot Organization, LazurioExampleOrganization, and at least one user's personal VM (G.3; root decision 0204 point 7); the Machines, T3 Code and MausBot runbooks call it Ring 0 | Ring 0 passed; the stage of G.3 and its smoke test's green light |
 | 2 … n | The remaining Organizations in steps, for example one further Organization, then the rest | The previous ring's evidence is merged; after ring 1 also its browser acceptance (root decision 0178) |
 
 **What promotes a release from one ring to the next:** every apply in the ring
 `completed` with a green readback; no Machine of the ring in Recovery mode on that
-release; no Recovery or Machines failure issue naming it; the ring's time elapsed
-(8 hours for ring 1; the later rings' times are the Machines decision's). The
+release; no Recovery or Machines failure issue naming it; and the ring's own gate:
+for ring 1 the smoke test's green light, with no minimum window (root decision 0166,
+addendum 2026-10-31); for the later rings the gate, a time included, that the
+Machines decision sets. The
 evidence is a file in the repository's evidence ledger, and the next ring's owner
 overlay change cites it. Organizations' owners keep the Permit for their Machines;
 a ring marks a release eligible, it does not push it.
@@ -709,8 +730,8 @@ a ring marks a release eligible, it does not push it.
 **A defect found in a ring** stops that release's promotion. The Machines that run it
 stay on it, with the evidence, and are not rolled back; the defect is repaired by a
 new release that re-enters at ring 0 and passes every ring again up to the failing
-one. The fast lane of G.2 applies to the path, not to the ring times: a fix release
-passes ring 1 for the same 8 hours, and a shorter time for a named release exists
+one. The fast lane of G.2 applies to the path, not to the ring gates: a fix release
+passes ring 1 by the same stage and smoke test, and a change of that gate exists
 only as Matěj's recorded decision, never as a line in the evidence.
 
 ## H. Migration of existing installations
@@ -901,7 +922,9 @@ proposed:
   private intake (c), which this shaping had recommended, is the fallback if the
   structured issues prove insufficient for fixes.
 - **Q5 — Canary soak?** **Decided 2026-09-28:** 8 hours on every hosted Machine of the
-  pilot Organization (G.3), not 24 hours on one Environment.
+  pilot Organization (G.3), not 24 hours on one Environment. **Changed 2026-10-31**
+  (root decision 0166, addendum 2026-10-31): no window; the stage ends in one recorded
+  smoke test as a test account of the pilot Organization and its green light.
 - **Q6 — Does "no rollback" bind Machines too?** Its resident and T3 release trees
   restore a previous tree after a failed activation (Machines
   `native-release.py:146-192`). **Decided 2026-09-28:** yes. What stays, what goes,

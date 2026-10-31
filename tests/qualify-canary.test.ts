@@ -11,12 +11,12 @@ import {
 } from "../scripts/qualify/check-canary";
 import { runChild } from "./fixtures/run-child";
 
-const candidate = "v1.2.0-rc.1";
+const candidate = "v0.1.12-rc.1";
 const now = new Date("2026-09-02T12:00:00Z");
 const machine = (id: string, kind: "work" | "personal", change = {}) => ({
   machine: id,
   kind,
-  active: "1.2.0-rc.1",
+  active: "0.1.12-rc.1",
   health: "healthy",
   ...change,
 });
@@ -128,8 +128,8 @@ test("a Machine that is not on the candidate or not healthy refuses", () => {
     "machines[2]: was not healthy (recovery-mode)",
   ]);
   // The record of another candidate is not this candidate's canary.
-  expect(canaryFindings(record(), "v1.2.0-rc.2", now)).toEqual([
-    "the record is not the canary of v1.2.0-rc.2",
+  expect(canaryFindings(record(), "v0.1.12-rc.2", now)).toEqual([
+    "the record is not the canary of v0.1.12-rc.2",
     "machines[0]: is not on the candidate",
     "machines[1]: is not on the candidate",
     "machines[2]: is not on the candidate",
@@ -193,6 +193,131 @@ test("a hostname or a client name is refused, and never repeated in the finding"
   ]);
 });
 
+// Root decision 0166, addendum 2026-10-31: the smoke test replaces the window.
+const smokeCandidate = "v0.1.19-rc.1";
+const onSmoke = (id: string, kind: "work" | "personal", change = {}) =>
+  machine(id, kind, { active: "0.1.19-rc.1", ...change });
+const smoke = (change: Record<string, unknown> = {}) => {
+  const { schema: _schema, ...rest } = record({
+    candidate: smokeCandidate,
+    start: "2026-09-01T08:00:00Z",
+    end: "2026-09-01T08:40:00Z",
+    machines: [
+      onSmoke("3f9a0c1d2e4b5a69", "work"),
+      onSmoke("0b7e44a1c9d2f310", "work"),
+      onSmoke("c41d9e0a7b3f5286", "personal"),
+    ],
+  });
+  return {
+    schema: "lazurio.canary.v2",
+    ...rest,
+    smoke: { account: "owner", result: "green" },
+    ...change,
+  };
+};
+
+test("the smoke test's green light on every listed Machine passes, with no minimum duration", () => {
+  expect(canaryFindings(smoke(), smokeCandidate, now)).toEqual([]);
+  expect(
+    canaryFindings(
+      smoke({ smoke: { account: "member", result: "green" } }),
+      smokeCandidate,
+      now,
+    ),
+  ).toEqual([]);
+  // The green light at the very moment the last Machine ran the candidate.
+  expect(
+    canaryFindings(smoke({ end: "2026-09-01T08:00:00Z" }), smokeCandidate, now),
+  ).toEqual([]);
+});
+
+test("a smoke test without its green light, or before the candidate ran everywhere, refuses", () => {
+  expect(
+    canaryFindings(
+      smoke({ smoke: { account: "owner", result: "red" } }),
+      smokeCandidate,
+      now,
+    ),
+  ).toEqual(["smoke: the smoke test did not give the green light"]);
+  expect(
+    canaryFindings(smoke({ end: "2026-09-01T07:59:59Z" }), smokeCandidate, now),
+  ).toEqual([
+    "the smoke test's green light comes before the last Machine ran the candidate",
+  ]);
+  expect(
+    canaryFindings(smoke({ end: "2026-09-02T12:00:01Z" }), smokeCandidate, now),
+  ).toEqual(["the canary ends in the future"]);
+});
+
+test("a smoke record carries the test account's role, never its name, and keeps the Machine rules", () => {
+  expect(
+    canaryFindings(
+      smoke({ smoke: { account: "alena", result: "green" } }),
+      smokeCandidate,
+      now,
+    ),
+  ).toEqual([
+    "smoke: account is the test account's role, owner or member; never a name",
+  ]);
+  expect(
+    canaryFindings(
+      smoke({ smoke: { account: "owner", result: "green", login: "bob" } }),
+      smokeCandidate,
+      now,
+    ),
+  ).toEqual(["smoke: exactly account, result"]);
+  const { smoke: _smoke, ...withoutSmoke } = smoke();
+  expect(canaryFindings(withoutSmoke, smokeCandidate, now)).toEqual([
+    "not a lazurio.canary.v2 record: exactly schema, candidate, start, end, machines, smoke, reviewer, pullRequest",
+  ]);
+  // The same Machines as an 8-hour canary: both groups, on the candidate, healthy.
+  expect(
+    canaryFindings(
+      smoke({
+        machines: [
+          onSmoke("3f9a0c1d2e4b5a69", "work"),
+          onSmoke("c41d9e0a7b3f5286", "personal", { health: "unhealthy" }),
+        ],
+      }),
+      smokeCandidate,
+      now,
+    ),
+  ).toEqual(["machines[1]: was not healthy (unhealthy)"]);
+  expect(
+    canaryFindings(
+      smoke({ machines: [onSmoke("3f9a0c1d2e4b5a69", "work")] }),
+      smokeCandidate,
+      now,
+    ),
+  ).toEqual(["no personal VM is listed; the stage needs every one"]);
+});
+
+test("an 8-hour record passes only before 0.1.19; from it on the smoke test is required", () => {
+  expect(
+    canaryFindings(record({ end: "2026-09-01T08:40:00Z" }), candidate, now),
+  ).toEqual(["the canary lasted 0 h 40 min; 8 hours are required"]);
+  // Eight full hours are not enough from 0.1.19 on: the green light is the gate.
+  const { smoke: _smoke, ...v1Fields } = smoke({
+    schema: "lazurio.canary.v1",
+    end: "2026-09-01T16:05:00Z",
+  });
+  expect(canaryFindings(v1Fields, smokeCandidate, now)).toEqual([
+    "a candidate from 0.1.19 on needs the smoke test record, lazurio.canary.v2 (root decision 0166, addendum 2026-10-31)",
+  ]);
+  expect(
+    canaryFindings(
+      { ...v1Fields, candidate: "v0.2.0-rc.3" },
+      "v0.2.0-rc.3",
+      now,
+    ),
+  ).toContain(
+    "a candidate from 0.1.19 on needs the smoke test record, lazurio.canary.v2 (root decision 0166, addendum 2026-10-31)",
+  );
+  expect(
+    canaryFindings(record({ schema: "lazurio.canary.v3" }), candidate, now),
+  ).toEqual(["schema is not lazurio.canary.v1 or lazurio.canary.v2"]);
+});
+
 test("reviewer and pull request have their shapes", () => {
   expect(
     canaryFindings(
@@ -230,7 +355,13 @@ test("the CLI: the candidate is the file name; a missing record refuses", async 
     0,
     `The canary of ${candidate} passed: 8 hours on every listed Machine.`,
   ]);
-  const renamed = join(directory, "v1.2.0-rc.2.json");
+  const smokePath = join(directory, `${smokeCandidate}.json`);
+  await writeFile(smokePath, JSON.stringify(smoke()));
+  expect(await check(smokePath)).toEqual([
+    0,
+    `The canary of ${smokeCandidate} passed: every listed Machine on the candidate and healthy, and the smoke test as the reference Organization's owner gave the green light.`,
+  ]);
+  const renamed = join(directory, "v0.1.12-rc.2.json");
   await writeFile(renamed, JSON.stringify(record()));
   expect((await check(renamed))[0]).toBe(1);
 });
