@@ -503,7 +503,9 @@ use. The gates in G exist for exactly these.
 ### G.1 What exists
 
 Pull requests run lint, typecheck, unit tests, the public guard and the proof smoke
-on `ubuntu-24.04` and `macos-14` (`.github/workflows/check.yml:11-28`,
+on `ubuntu-24.04`. The same check on `macos-15` runs on every push to `main` and on a
+manual run of `check.yml` (the way to see it on a branch before it merges); on a pull
+request the macOS job is skipped and reports as passed (`.github/workflows/check.yml`,
 `package.json:8`). A tag re-runs that check, builds each target on its own runner,
 attests, applies the ordering gate and waits for the `release` environment's reviewer
 (`.github/workflows/release.yml:61-120`). Native update qualification is a hand-run
@@ -518,7 +520,7 @@ canary.
 
 **Journeys against the real release candidate.** `qualify.yml` runs when a
 prerelease `vX.Y.Z-rc.N` is published, on GitHub-hosted runners (a fresh VM with
-`sudo` each run): `ubuntu-24.04`, `ubuntu-24.04-arm`, `macos-14`, through the real
+`sudo` each run): `ubuntu-24.04`, `ubuntu-24.04-arm`, `macos-15`, through the real
 Release and Sigstore path, not the fixture origin.
 
 **Linux means Ubuntu in the first phase** (Matěj, 2026-09-28). The journeys run
