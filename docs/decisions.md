@@ -2928,8 +2928,9 @@ Lazurio folder … pokud definuješ nějaká pravidla, která mají platit i pro
 tak je nezapomeň dát i do LazurioPlatform.“
 
 - **Threads do not coordinate with each other** (`threadsRule` in `src/folder/render.ts`): no thread
-  sends another a message, and what needs an order or a dependency goes on GitHub as a dependency, a
-  hold label or a comment with an @mention. In `AGENTS.md` right after the Publication block (after a
+  sends another a message unless the user explicitly asks for direct coordination (root 0218, second
+  addendum of 2026-10-31, HumanAndMachines/Lazurio#690), and what needs an order or a dependency goes on
+  GitHub as a dependency, a hold label or a comment with an @mention. In `AGENTS.md` right after the Publication block (after a
   Team Environment's named publisher); in full in its own section of `manual/working-here.md`: each
   thread has its own worktree, pull request, verification and assignee, and delegating one's own work to
   subagents is no coordination. Not on a public Environment, which has nothing on GitHub. Who keeps the
@@ -2964,7 +2965,7 @@ Team); now the tightest has 14 (a Team Environment with the Environment browser,
 Unchanged: the Publication block in the Owner's words, a Team Environment's named publisher and
 identity, a public Environment that publishes nothing, Buddy's layer (he steers threads at the user's
 request and is no thread; his `.hermes.md` is near its 20,000 characters), and every behavior of the
-product: only generated text changes. Template revision `base-instructions-95`.
+product: only generated text changes. Template revision `base-instructions-96`.
 `tests/folder-manual.test.ts` checks, on every preset, a Team Environment with the browser and the
 public Environments in both locales: the threads rule once in `AGENTS.md` right after the Publication
 block and in the manual (neither on a public Environment), the network line once in `AGENTS.md` with
