@@ -2268,8 +2268,8 @@ test("threads do not coordinate, the Environment's network is never switched, an
         agents.includes(`${before}\n${threadsRule[locale]}\n`),
         working.includes(
           locale === "cs"
-            ? "## Vlákna se mezi sebou nekoordinují (root rozhodnutí 0218, dodatek 2026-10-31)"
-            : "## Threads do not coordinate with each other (root decision 0218, addendum 2026-10-31)",
+            ? "## Vlákna se mezi sebou nekoordinují (root rozhodnutí 0218, dodatky 2026-10-31)"
+            : "## Threads do not coordinate with each other (root decision 0218, addenda 2026-10-31)",
         ),
         working.includes(
           locale === "cs"
@@ -2282,10 +2282,19 @@ test("threads do not coordinate, the Environment's network is never switched, an
       // hosted; in full among the manual's boundaries, which name Lazurio
       // Machines only where the handover records the tailnet identity.
       const recordedTailnet = (environment.machine?.network ?? null) !== null;
+      // SSH to another Environment only after checking the active tailnet:
+      // the Environment's network may sit on the wrong tailnet even if no
+      // agent switched it (Pablo's review of #754).
       expect([
         ...where,
         count(agents, networkLine(hosted)[locale]),
         count(agents, "`100.64.0.x`"),
+        count(
+          agents,
+          locale === "cs"
+            ? "s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu"
+            : "with a pinned host key and the active tailnet checked, never to a bare",
+        ),
         machine.includes(
           locale === "cs"
             ? "- Síť: síť tohoto Environmentu je jedna pro všechna vlákna a relace tady"
@@ -2301,7 +2310,15 @@ test("threads do not coordinate, the Environment's network is never switched, an
             ? "; jeho Tailscale spravuje Lazurio Machines."
             : ", and Lazurio Machines manages its Tailscale.",
         ),
-      ]).toEqual([...where, 1, hosted ? 1 : 0, true, true, recordedTailnet]);
+      ]).toEqual([
+        ...where,
+        1,
+        hosted ? 1 : 0,
+        hosted ? 1 : 0,
+        true,
+        true,
+        recordedTailnet,
+      ]);
       // One worktree per pull request, several per plan, each cleaned up
       // with its own pull request.
       for (const sentence of locale === "cs"

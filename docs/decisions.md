@@ -2954,15 +2954,17 @@ composition of `tests/folder-template-revision.test.ts` with every optional tool
 profile axes and an 8,192-byte custom voice). The network line therefore takes the place of the three
 lines it overlaps, and their details stay where the line sends the agent first: the Headscale line of
 every preset (its device naming is steps 2 and 5 of the manual's Adding a computer to a tailnet) and,
-on a hosted Environment, the laptop pointer and the SSH line (checking the active tailnet before
-connecting is the manual's SSH rules). The tightest composition had 5 bytes left at
-`base-instructions-93` (try-01, recorded as Team); now the tightest has 20 (a Team Environment with the
-Environment browser, English).
+on a hosted Environment, the laptop pointer and the SSH line, which keeps checking the active tailnet
+before connecting (a network may sit on the wrong tailnet even if no agent switched it; Pablo's review
+of Lazurio/LazurioPlatform#754). The threads rule also carries the root's second addendum of the same
+day (HumanAndMachines/Lazurio#690): threads talk to each other directly only when the user explicitly
+asks for it. The tightest composition had 5 bytes left at `base-instructions-93` (try-01, recorded as
+Team); now the tightest has 14 (a Team Environment with the Environment browser, English).
 
 Unchanged: the Publication block in the Owner's words, a Team Environment's named publisher and
 identity, a public Environment that publishes nothing, Buddy's layer (he steers threads at the user's
 request and is no thread; his `.hermes.md` is near its 20,000 characters), and every behavior of the
-product: only generated text changes. Template revision `base-instructions-94`.
+product: only generated text changes. Template revision `base-instructions-95`.
 `tests/folder-manual.test.ts` checks, on every preset, a Team Environment with the browser and the
 public Environments in both locales: the threads rule once in `AGENTS.md` right after the Publication
 block and in the manual (neither on a public Environment), the network line once in `AGENTS.md` with

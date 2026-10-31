@@ -577,12 +577,12 @@ function workingHere(
       : [
           blank,
           t(
-            "## Vlákna se mezi sebou nekoordinují (root rozhodnutí 0218, dodatek 2026-10-31)",
-            "## Threads do not coordinate with each other (root decision 0218, addendum 2026-10-31)",
+            "## Vlákna se mezi sebou nekoordinují (root rozhodnutí 0218, dodatky 2026-10-31)",
+            "## Threads do not coordinate with each other (root decision 0218, addenda 2026-10-31)",
           ),
           t(
-            "Každé vlákno jde svůj požadavek samo: má vlastní worktree, pull request, ověření a assignee. Jiným vláknům zprávy neposíláš. Co potřebuje pořadí nebo návaznost, zapíšeš na GitHub: jako závislost issue nebo pull requestu, štítek pozdržení nebo komentář s @zmínkou toho, kdo má další krok. Pořadí tak drží GitHub, ne konverzace mezi agenty. Delegace tvé vlastní práce na tvé subagenty koordinací není.",
-            "Each thread takes its own request through by itself: its own worktree, pull request, verification and assignee. Send no messages to other threads. Whatever needs an order or depends on other work goes on GitHub: as a dependency of an issue or pull request, a hold label or a comment with an @mention of whoever has the next step. GitHub holds the order, not a conversation between agents. Delegating your own work to your subagents is not coordination.",
+            "Každé vlákno jde svůj požadavek samo: má vlastní worktree, pull request, ověření a assignee. Jiným vláknům zprávy neposíláš; napřímo se vlákna domluví, jen když si to uživatel výslovně přeje. Co potřebuje pořadí nebo návaznost, zapíšeš na GitHub: jako závislost issue nebo pull requestu, štítek pozdržení nebo komentář s @zmínkou toho, kdo má další krok. Pořadí tak drží GitHub, ne konverzace mezi agenty. Delegace tvé vlastní práce na tvé subagenty koordinací není.",
+            "Each thread takes its own request through by itself: its own worktree, pull request, verification and assignee. Send no messages to other threads; threads talk to each other directly only when the user explicitly asks for it. Whatever needs an order or depends on other work goes on GitHub: as a dependency of an issue or pull request, a hold label or a comment with an @mention of whoever has the next step. GitHub holds the order, not a conversation between agents. Delegating your own work to your subagents is not coordination.",
           ),
         ]),
     blank,
