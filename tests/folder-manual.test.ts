@@ -2417,8 +2417,8 @@ test("every pull request has an assignee and a browser check before Ready, an as
         !isPublic,
       ]);
       const publicRepository = cs
-        ? "ve veřejném repozitáři (`Lazurio/*`) nejmenuj zákaznickou Organizaci, její moduly ani Mašiny"
-        : "a public repository (`Lazurio/*`) never names a customer Organization, its modules or Machines";
+        ? "ve veřejném repozitáři (`Lazurio/*`) nejmenuj zákaznickou Organizaci, její moduly ani Prostředí"
+        : "a public repository (`Lazurio/*`) never names a customer Organization, its modules or Environments";
       const manual = cs
         ? [
             "Změnu, se kterou se lidé potkají (stránka, přihlášení, nasazená aplikace), před Ready sám otevři v prohlížeči",

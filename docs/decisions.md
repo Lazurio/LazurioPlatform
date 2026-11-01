@@ -3007,7 +3007,7 @@ a které by vlastně měly být nadefinované pod LazurioPlatform, aby se to pro
   - the result, or that the check is missing, goes under "Verified" in the handoff.
 - **Public repositories name no customer** (the root's boundary). The product's repositories
   (`Lazurio/*`) are public, so their commits, pull requests, issues and comments never name a customer
-  Organization, its modules or Machines, and never carry a specific Organization's content. It is a
+  Organization, its modules or Environments, and never carry a specific Organization's content. It is a
   clause of the issues line in `AGENTS.md` (not on a public Environment) and its own point in the
   manual's Git and GitHub.
 - **A fresh approval.** The manual's exact-head merge also requires that the approving review was
@@ -3023,7 +3023,7 @@ question-tool line gives up two things:
   takes the same shorter line.
 
 The tightest composition (a Team Environment with the Environment browser, English) had 14 bytes left
-at `base-instructions-96`; it has 21 now. Template revision `base-instructions-97`.
+at `base-instructions-96`; it has 17 now. Template revision `base-instructions-97`.
 
 Unchanged:
 - the rest of the Publication block in the Owner's words;

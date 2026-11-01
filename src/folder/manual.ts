@@ -349,8 +349,8 @@ const gitAndGitHub: readonly Text[] = [
   ),
   blank,
   t(
-    "- **Veřejné repozitáře.** Repozitáře produktu (`Lazurio/*`) jsou veřejné: v jejich commitech, pull requestech, issues ani komentářích nejmenuj zákaznickou Organizaci, její moduly ani Mašiny a nepiš do nich obsah konkrétní Organizace.",
-    "- **Public repositories.** The product's repositories (`Lazurio/*`) are public: in their commits, pull requests, issues and comments never name a customer Organization, its modules or Machines, and never write a specific Organization's content into them.",
+    "- **Veřejné repozitáře.** Repozitáře produktu (`Lazurio/*`) jsou veřejné: v jejich commitech, pull requestech, issues ani komentářích nejmenuj zákaznickou Organizaci, její moduly ani Prostředí a nepiš do nich obsah konkrétní Organizace.",
+    "- **Public repositories.** The product's repositories (`Lazurio/*`) are public: in their commits, pull requests, issues and comments never name a customer Organization, its modules or Environments, and never write a specific Organization's content into them.",
   ),
   t(
     "- **Merge přesného headu.** Než na Publikaci uživatele mergneš, zjisti SHA headu (`gh pr view <číslo> --json headRefOid,reviews`). Stojí-li merge na schválení, musí schvalující review patřit přesně tomuto headu: jeho `commit.oid` se rovná SHA headu a review přišlo až po tomto commitu. GitHub může staré schválení po nových commitech ponechat, takže samotné `reviewDecision` není důkaz. Merguj s `gh pr merge <číslo> --match-head-commit <sha headu>` a metodou, kterou repozitář povoluje; když se head mezitím změní, GitHub merge odmítne.",
