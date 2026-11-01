@@ -4,9 +4,11 @@ Evidence for [recovery mode G.3](../recovery-mode.md#g3-canary-stage-every-machi
 and [the release cycle](../release-cycle.md#qualification-and-the-canary).
 
 The candidate `v0.1.19-rc.2` (source `e4862401582c7d3547127c8bc595da6e6b5788ff`) ran on every Environment of the
-pilot Organization, LazurioExampleOrganization, and on one personal VM, each on the candidate. One recorded smoke
-test as the pilot Organization's test accounts, its Owner and a member, then gave the green light at
-`2026-11-01T03:34:50Z`. This is the first candidate under root decision 0166's addendum of 2026-10-31: the 8-hour
+pilot Organization, LazurioExampleOrganization, and on one personal VM. One recorded smoke test as the pilot
+Organization's test accounts, its Owner and a member, then gave the green light at `2026-11-01T03:34:50Z`. The
+scope of this candidate's stage is Matěj's decision of 2026-11-01 in root decision 0166's register
+(HumanAndMachines/Lazurio#695): the public Environment for visitors is out of it, and the Prostředí služeb is
+checked by its services, without an agent reading there. The record carries the four Machines read directly. This is the first candidate under root decision 0166's addendum of 2026-10-31: the 8-hour
 window is replaced by that smoke test, and the record is `lazurio.canary.v2` (#752). The final tag `v0.1.19` is to
 carry the same product source and to differ from the candidate only under `qualification/` and `docs/evidence/`. The
 final tag and its release do not exist yet; they follow the merge of the pull request that adds this file.
@@ -14,7 +16,8 @@ final tag and its release do not exist yet; they follow the merge of the pull re
 The record is [`qualification/canary/v0.1.19-rc.2.json`](../../qualification/canary/v0.1.19-rc.2.json). The pull
 request that adds this file adds it too. Machines are opaque ids, as in the record, the same ids as in v0.1.18's
 record: the same Machines, moved to another server (a host is not identity, #760). Which Machine is which is kept only
-in the pilot Organization's own private records.
+in the pilot Organization's own private records; the two Environments outside the record are named here by their
+kind only.
 
 v0.1.19 contains everything in v0.1.18, which was not published as a final (#746), and adds:
 - a Machine moved to another server keeps its Folder: the host leaves the binding's identity (#760, fixes #759);
@@ -55,8 +58,9 @@ v0.1.17 did.
 
 ## Scope and how each Machine got the candidate
 
-The scope is all 5 Environments of the pilot Organization, its work VMs, plus one personal VM. The scope is not
-narrowed. Each Machine got the candidate through the path that pins its release, the rollout pipeline (root decision
+All 5 Environments of the pilot Organization, its work VMs, plus one personal VM got the candidate. The stage's
+scope is narrowed for this candidate only, by Matěj (HumanAndMachines/Lazurio#695; see [Per Machine](#per-machine)).
+Each Machine got the candidate through the path that pins its release, the rollout pipeline (root decision
 0205): the Plan in the pull request, the apply on its merge. The pinned Machines release was v0.12.214.
 
 **The rollout rule** was unchanged:
@@ -71,8 +75,8 @@ Every Machine met it; T3 Code was `0.1.3-lazurio.1`. Buddy's installer did not r
 the old host (#759). `v0.1.19-rc.2` carries the fix (#760): in the same apply the new Platform was installed before the
 Folder's `folder-init` and `folder-refresh`, which then answered `already-adopted` and recorded the new host.
 
-- **Four work VMs (`00910e1abf66fb61`, `06d5c433c545e38d`, `e0d566c46a1a84de`, `15074d1280e87726`), revision A with
-  the recovery of the stopped rc.1 apply, lane PR #219:**
+- **Four work VMs (`00910e1abf66fb61`, `06d5c433c545e38d`, the Prostředí služeb and the public Environment for
+  visitors), revision A with the recovery of the stopped rc.1 apply, lane PR #219:**
   - merge `49423ed1` at 02:05:51Z;
   - push run 41263763310 applied it 02:06:32–02:43:39Z with success, Permit `mp_b5aa2376…`;
   - 128 of 133 checks passed. The fifth work VM's `release` check still failed (it was revision B's), and four
@@ -116,43 +120,52 @@ Folder's `folder-init` and `folder-refresh`, which then answered `already-adopte
     warnings are tools recommended but missing, modules without an app, a module the member does not see and the
     Codex app server's version, none about the change.
 - **End:** `2026-11-01T03:34:50Z`, the green light. The result: green.
-- **Recovery issues: none** (searched at 2026-11-01T03:38:50Z, every issue state): `label:recovery "0.1.19-rc.2"`, the
-  `v0.1.19-rc.2` variant and any issue naming the candidate: 0.
+- **Recovery issues: none** (searched at 2026-11-01T03:38:50Z and again at 08:40:43Z, every issue state):
+  `label:recovery "0.1.19-rc.2"` and the `v0.1.19-rc.2` variant: 0. Issues that mention the candidate, none of them a
+  Recovery issue: #759 (the move, fixed in it), #763 and #771 (how to read two Environments after the move).
 
 ### Per Machine
 
-The reading was taken right after the green light, 03:41–03:44Z, read-only, by the thread that ran the smoke test. On
-each Machine it ran `lazurio recover --json`, `lazurio update status --json`, the Launchpad unit's state and its
-journal since 02:06Z, the start of Ring 0.
+**The scope (HumanAndMachines/Lazurio#695).** After the move two work VMs could not be read by an agent (#763): the
+Prostředí služeb, whose Codex is not signed in and whose Settings offers no Codex or Claude sign-in (#771), and the
+public Environment for visitors, to which no test account is admitted. Matěj decided on 2026-11-01, for this
+candidate only:
+- the public Environment for visitors is out of the stage's scope ("try-01 je veřejná mašina, kvuli ní nemusíme
+  blokovat release");
+- the Prostředí služeb is checked by what belongs to it, its services, and a Codex sign-in or an agent reading there is
+  not a condition ("v tomhletom prostředí služeb je potřeba testovat věci, které patří do prostředí služeb … si
+  nemyslím, že je to podmínka, aby to blokovalo release").
 
-- **Read directly on four Machines:** the personal VM over the operator path; three work VMs through the chat of
-  their own Environment, as the test accounts.
-  - `recover` answered `healthy`, all five checks `ok` (`update-state-invalid`, `folder-state`, `self-check-failed`,
-    `launchpad-unit`, `launchpad-health` with `0.1.19-rc.2`), no issue and no repair prompt.
-  - `update status` answered active `0.1.19-rc.2`, and the Launchpad unit was active with `NRestarts` 0.
-  - **Since 02:06Z** each journal shows exactly one stop and start of the Launchpad, at that Machine's own apply, and
-    no Recovery line. Recovery mode is chosen only when the Launchpad starts, and the Launchpad that answered
-    `healthy` at 03:41–03:44Z had run since before the start of the stage (03:27:57Z). So it was healthy at the start
-    and at the end, with no Recovery mode in between.
-- **Not read directly on two work VMs (`e0d566c46a1a84de`, `15074d1280e87726`):**
-  - `15074d1280e87726`'s chat could not answer: its coding agent is not signed in on that Environment.
-  - Neither test account is admitted to `e0d566c46a1a84de`.
-  - There is no operator path to the new server's guests.
-  - **What there is:** the readback of revision B's apply at 03:27:57Z, the start of the stage. Its checks passed on
-    both:
-    - `release`: the guest's receipt matches the declaration, which pins `0.1.19-rc.2`;
-    - `launchpad-platform`: the installer's Launchpad unit is active and enabled, and its health socket answers `200`
-      with a version. A Launchpad in Recovery mode answers `503`, so neither was in Recovery mode at the start.
-    - `platform`, `lazurio-folder` and `resident-config`.
-  - **What there is not:** a `recover`, `update status`, unit or journal value, and any reading at the end of the
-    stage. Their `active` and `healthy` in the record stand on that start readback alone. The gap is open in
-    #763.
+So the record lists the four Machines read directly, and nothing in it rests on a readback.
+
+**The four Machines in the record**, read right after the green light, 03:41–03:44Z, read-only, by the thread that
+ran the smoke test: the personal VM over the operator path, three work VMs through the chat of their own
+Environment, as the test accounts. On each it ran `lazurio recover --json`, `lazurio update status --json`, the
+Launchpad unit's state and its journal since 02:06Z, the start of Ring 0.
+- `recover` answered `healthy`, all five checks `ok` (`update-state-invalid`, `folder-state`, `self-check-failed`,
+  `launchpad-unit`, `launchpad-health` with `0.1.19-rc.2`), no issue and no repair prompt.
+- `update status` answered active `0.1.19-rc.2`, and the Launchpad unit was active with `NRestarts` 0.
+- **Since 02:06Z** each journal shows exactly one stop and start of the Launchpad, at that Machine's own apply, and
+  no Recovery line. Recovery mode is chosen only when the Launchpad starts, and the Launchpad that answered `healthy`
+  at 03:41–03:44Z had run since before the start of the stage (03:27:57Z). So it was healthy at the start and at the
+  end, with no Recovery mode in between.
 
 | Machine | Kind | `active` at end | `recover` start / end | Launchpad `NRestarts` at end | Read |
 |---|---|---|---|---|---|
 | `00910e1abf66fb61` | work | 0.1.19-rc.2 | healthy / healthy | 0 | 03:43:31Z, its chat |
 | `06d5c433c545e38d` | work | 0.1.19-rc.2 | healthy / healthy | 0 | 03:41:54Z, its chat |
 | `d94d6e912281c8e6` | work | 0.1.19-rc.2 | healthy / healthy | 0 | 03:41:51Z, its chat |
-| `e0d566c46a1a84de` | work | not read; receipt of the `0.1.19-rc.2` declaration at 03:27:57Z | not read; Launchpad serving at 03:27:57Z | not read | readback only |
-| `15074d1280e87726` | work | not read; receipt of the `0.1.19-rc.2` declaration at 03:27:57Z | not read; Launchpad serving at 03:27:57Z | not read | readback only |
 | `11e08b191f0fc044` | personal | 0.1.19-rc.2 | healthy / healthy | 0 | 03:41:03Z, operator path |
+
+**The Prostředí služeb, checked by its services.** Machines' readback of its guest, every check of it passing, twice:
+- at 03:27:57Z, the start of the stage: revision B's post-apply readback (push run 41267677019), 31 of 31;
+- at 03:59:10Z, after the green light: a read-only Plan of the lane (CI run 41271081108, "Plan for information", from
+  a README-only Draft in the Organization's Deployment Repo that was never merged), with no apply and no Permit.
+
+They include `release` (the guest's receipt matches the declaration that pins `0.1.19-rc.2`), `launchpad-platform`
+(the installer's Launchpad unit active and enabled, its health socket answering `200` with a version; a Launchpad in
+Recovery mode answers `503`), `resident-config`, `platform` and `lazurio-folder`. There is no `recover`, `update
+status` or unit reading of it, and by the decision above none is required for this candidate.
+
+**The public Environment for visitors** is outside the scope. For information only, the same two readbacks passed
+every check of it except `ai-ready`, which stays unknown until user acceptance.

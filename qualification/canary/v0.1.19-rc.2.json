@@ -23,18 +23,6 @@
       "health": "healthy"
     },
     {
-      "machine": "e0d566c46a1a84de",
-      "kind": "work",
-      "active": "0.1.19-rc.2",
-      "health": "healthy"
-    },
-    {
-      "machine": "15074d1280e87726",
-      "kind": "work",
-      "active": "0.1.19-rc.2",
-      "health": "healthy"
-    },
-    {
       "machine": "11e08b191f0fc044",
       "kind": "personal",
       "active": "0.1.19-rc.2",
