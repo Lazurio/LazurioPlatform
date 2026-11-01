@@ -955,8 +955,8 @@ const glossary: readonly Text[] = [
     "| GEN4 | The current generation of Lazurio: Lazurio Platform with the Lazurio Folder and Environments. This Folder is GEN4; new rules and mechanisms come in GEN4. An official designation in texts; nothing is named so. |",
   ),
   t(
-    "| GEN3 | Předchozí generace: Lazurio Root, repozitář s CLI a Organizacemi na počítači uživatele. Zůstává udržovaná pro zákazníky, kteří na ní pracují, a sdílené normy v ní odkazují na GEN4. Repozitáře Organizací nesou v názvu `_GEN3` v obou generacích. |",
-    "| GEN3 | The previous generation: the Lazurio Root, a repository with the CLI and Organizations on the user's computer. It stays maintained for customers who work on it, and its shared norms point to GEN4. Organization repositories carry `_GEN3` in their names in both generations. |",
+    "| GEN3 | Předchozí generace: Lazurio Root, repozitář s CLI a Organizacemi na počítači uživatele. Zůstává udržovaná pro zákazníky, kteří na ní pracují. Sdílené normy se z ní postupně přesouvají do GEN4; dokud přesun není hotový, je část z nich, třeba plné znění Module Standardu, jen v GEN3. Repozitáře Organizací nesou v názvu `_GEN3` v obou generacích. |",
+    "| GEN3 | The previous generation: the Lazurio Root, a repository with the CLI and Organizations on the user's computer. It stays maintained for customers who work on it. Its shared norms move to GEN4 step by step; until that is done, some of them, the full Module Standard for one, exist only in GEN3. Organization repositories carry `_GEN3` in their names in both generations. |",
   ),
   t(
     "| Lazurio Environment (Environment) | Prostředí, ve kterém se s Lazuriem pracuje: zvolený preset a profil, Folder a všechny nástroje a přihlášení, které jsou na něm dostupné (decision 0144). Česky ten Environment, na tomto Environmentu. |",

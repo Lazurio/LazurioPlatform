@@ -3206,10 +3206,14 @@ What changes:
   after the last commit, and what to check when no review arrives.
 - **The skill `module-standard`**: what a module holds (manifest, app generations, one
   process, port and addresses from the listener variables, secrets declared by name and
-  read from `LAZURIO_RUNTIME_SECRET_<NAME>`, `required_module_slots` and sibling origins,
+  read from `LAZURIO_RUNTIME_SECRET_<NAME>`, siblings declared in `required_module_slots`
+  (a sibling's API origin is passed only for a declared `workspace/<slug>`),
   the built version by `build_script`/`build_output` or `start_script`, sleeping, CI
-  minutes), the order of a conversion and its verification by a real start. No command
-  checks conformance yet (#423); the skill says so.
+  minutes), the order of a conversion, its verification in the changed worktree, and the
+  Platform start only after the merge, since `lazurio module start` runs the primary
+  checkout on `main` and may take over a running app (stopping only what the agent
+  started, with the full target; the Launchpad on macOS). No command checks conformance
+  yet (#423); the skill says so.
 - **Pointers, not AGENTS.md lines.** `working-here.md` names both skills where the
   module rules and the handover already are; AGENTS.md stays within its budget (#755).
   The glossary gains GEN3 and GEN4 (the Lazurio Root and the Lazurio Platform with its

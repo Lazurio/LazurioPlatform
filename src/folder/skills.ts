@@ -600,8 +600,10 @@ const henryReview: readonly Text[] = [
 // `secrets` and `optional_secrets` from the Environment's vault,
 // `required_module_slots` and sibling origins, `build_script`,
 // `build_output`, `static_fallback` and `start_script`), the order of a
-// conversion and its verification by a real start. No Platform command
-// checks conformance yet (#423); the agent goes through the list itself.
+// conversion, its verification in the changed worktree and the Platform
+// start only after the merge, because `lazurio module start` runs the
+// primary checkout on `main`. No Platform command checks conformance yet
+// (#423); the agent goes through the list itself.
 const moduleStandardDescription = t(
   "Použij, když měníš, převádíš nebo kontroluješ existující modul: co modul drží, aby ho Lazurio spustilo bez výjimek (manifesty, jeden proces, port a adresy z proměnných, tajné údaje z trezoru, sousední moduly, sestavená verze, health), v jakém pořadí odchylky opravit a jak to ověřit. Odchylku opravuješ v modulu, nikdy obcházením Lazuria. Nový modul zakládá skill new-module.",
   "Use when you change, convert or check an existing module: what a module holds so that Lazurio runs it without exceptions (manifests, one process, port and addresses from variables, secrets from the vault, sibling modules, the built version, health), in which order to fix deviations and how to verify it. Fix a deviation in the module, never by working around Lazurio. A new module is founded by the skill new-module.",
@@ -635,8 +637,8 @@ const moduleStandard: readonly Text[] = [
     "- **Secrets from the vault.** The app declares names only: required ones in `lazurio.runtime.secrets`, optional ones in `optional_secrets`. It reads the values from `LAZURIO_RUNTIME_SECRET_<NAME>`, which Lazurio passes from the Environment's vault to the app's own process only; without a required one the app does not start. The user stores the value in the vault, never in `.env` or the repository.",
   ),
   t(
-    "- **Sousední moduly.** Čte-li aplikace data jiného modulu, deklaruje ho v `lazurio.runtime.required_module_slots` (`workspace/<slug>` nebo `workspace/<slug>/db`) a čte jen `../<slug>/` od kořene modulu. Volá-li jeho API, bere adresu jen z `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` (slug souseda velkými písmeny, ostatní znaky jako `_`) a chybějící proměnnou zvládne typovanou chybou. Nic neimportuje mimo svůj repozitář; sdílený kód je verzovaná závislost.",
-    "- **Sibling modules.** When the app reads another module's data, it declares the module in `lazurio.runtime.required_module_slots` (`workspace/<slug>` or `workspace/<slug>/db`) and reads only `../<slug>/` from the module root. When it calls the sibling's API, it takes the address only from `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` (the sibling's slug in capitals, other characters as `_`) and handles a missing variable with a typed error. It imports nothing outside its repository; shared code is a versioned dependency.",
+    "- **Sousední moduly.** Čte-li aplikace data jiného modulu, deklaruje ho v `lazurio.runtime.required_module_slots` (`workspace/<slug>` nebo `workspace/<slug>/db`) a čte jen `../<slug>/` od kořene modulu. Volá-li jeho API, deklaruje ho v `required_module_slots` jako `workspace/<slug>` (Lazurio předá adresu jen deklarovanému sousedovi) a bere ji jen z `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` (slug souseda velkými písmeny, ostatní znaky jako `_`) a chybějící proměnnou zvládne typovanou chybou. Nic neimportuje mimo svůj repozitář; sdílený kód je verzovaná závislost.",
+    "- **Sibling modules.** When the app reads another module's data, it declares the module in `lazurio.runtime.required_module_slots` (`workspace/<slug>` or `workspace/<slug>/db`) and reads only `../<slug>/` from the module root. When it calls the sibling's API, it declares the sibling in `required_module_slots` as `workspace/<slug>` (Lazurio passes the address only for a declared sibling) and takes it only from `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` (the sibling's slug in capitals, other characters as `_`) and handles a missing variable with a typed error. It imports nothing outside its repository; shared code is a versioned dependency.",
   ),
   t(
     '- **Sestavená verze.** Z `main` Lazurio spouští sestavenou aplikaci. Statická aplikace deklaruje `build_script` a `build_output` (u SPA `static_fallback: "spa"`) a nemá `secrets`. Aplikace s vlastním serverem deklaruje `start_script`, který spustí produkční server jako jeden proces, a výstup klienta čte z `LAZURIO_RUNTIME_BUILD_OUTPUT`. Při sestavení aplikace nečte listenery ani tajné údaje.',
@@ -665,8 +667,8 @@ const moduleStandard: readonly Text[] = [
     "3. Rewrite a port lease outside the Organization's pool to a free port of the pool, and give the old → new mapping in the pull request.",
   ),
   t(
-    "4. Ověř: `bun run check` a `bun test` v každé aplikaci, pak skutečný start `lazurio module start <Org>/<modul> --json`, otevři `runtime.url` (health 200) a `lazurio module stop`.",
-    "4. Verify: `bun run check` and `bun test` in every app, then a real start with `lazurio module start <Org>/<module> --json`, open `runtime.url` (health 200) and `lazurio module stop`.",
+    "4. Ověř ve worktree se změnou: `bun install --frozen-lockfile`, `bun run check` a `bun test` v každé aplikaci, u sestavené verze i `bun run build`. Spuštění přes Platformu (`lazurio module start`) bere modul z primárního checkoutu na `main`, ne z tvého worktree, a může jen převzít už běžící aplikaci; před merge proto změnu neověří. V pull requestu ho uveď jako neověřené a ověř ho až po merge.",
+    "4. Verify in the worktree with the change: `bun install --frozen-lockfile`, `bun run check` and `bun test` in every app, and `bun run build` for the built version. A start through the Platform (`lazurio module start`) takes the module from the primary checkout on `main`, not from your worktree, and may only take over an app that is already running; so it does not verify the change before the merge. Say in the pull request that it is unverified and check it after the merge.",
   ),
   t(
     "5. Pull request modulu říká, co před převodem nesedělo a co se záměrně nemění (chování aplikace). Změna Organizace jde samostatným pull requestem do jejího kořene a oba se navzájem odkazují.",
@@ -688,8 +690,8 @@ const moduleStandard: readonly Text[] = [
     "- `bun run check` and `bun test` pass in every app.",
   ),
   t(
-    "- Skutečný start přes `lazurio module start` je zdravý a `runtime.url` odpoví 200.",
-    "- A real start through `lazurio module start` is healthy and `runtime.url` answers 200.",
+    "- Po merge: `lazurio module start <Org>/<modul> --json` a `lazurio module status <Org>/<modul> --json` hlásí zdravou aplikaci a `runtime.url` odpoví 200. Zastav jen aplikaci, kterou jsi sám spustil a která předtím neběžela, a vždy s celým cílem `lazurio module stop <Org>/<modul>`. Na macOS spouští a zastavuje aplikace Launchpad (CLI odpoví `launchpad-required`), tak to udělej v Launchpadu.",
+    "- After the merge: `lazurio module start <Org>/<module> --json` and `lazurio module status <Org>/<module> --json` report a healthy app and `runtime.url` answers 200. Stop only an app you started yourself and that was not running before, and always with the full target `lazurio module stop <Org>/<module>`. On macOS the Launchpad starts and stops apps (the CLI answers `launchpad-required`), so do it in the Launchpad.",
   ),
 ];
 
