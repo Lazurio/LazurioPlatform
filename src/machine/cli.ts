@@ -143,7 +143,10 @@ function parseMachineTokens(args: string[]) {
   }
 }
 
-function parseMachineArguments(args: string[]) {
+// Exported so a test can prove what the parser accepts without reaching the
+// handover: runMachineCommand reads the root-issued declaration and acts on
+// the declared operator's real Folder, which a test must never do (#782).
+export function parseMachineArguments(args: string[]) {
   const [command, ...options] = args;
   if (
     command !== "inspect" &&
