@@ -244,7 +244,7 @@ exactly the bytes and the commit of the candidate's published manifest.
 325048785), the public reference Organization with fictional data, and it is the
 first rollout ring of every release (decision 0204 in the
 [decision register](decision-register.md): the reference Organization is the
-first ring of every release). The qualified candidate is rolled by its exact tag to every one of its
+first wave of every rollout). The qualified candidate is rolled by its exact tag to every one of its
 Environments, the stage's work VMs, and to at least one personal VM of a user.
 That personal VM lies outside the Organization, which has none. Each is rolled
 through the path that pins its release (Machines' Plan, Permit and apply; outside
