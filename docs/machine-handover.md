@@ -349,6 +349,17 @@ It binds the declared user/home to the actual UID's Linux NSS record (not
 The Linux base system must provide root-owned `/usr/bin/getent`; it is called
 without a shell, with a fixed `passwd <uid>` query and sanitized environment.
 Missing/unsafe resolver or ambiguous output stops as `machine-operator-unavailable`.
+
+`folder-init` and `folder-refresh` then run only in the installed product (decision
+F68, #782). That is a built identity, not a fixture build, whose running file
+(`/proc/self/exe`, resolved) is `versions/<its version>/lazurio` under the trusted base
+`<home from that record>/.local/share/lazurio`, where the Machines role installs it.
+`XDG_DATA_HOME` and every other variable play no part. Anything else, a source run, a
+test in process or a pull request's own build, stops as
+`machine-not-installed-product` before the Folder or the home is read for writing, and
+nothing is written. `inspect` only reads and is not guarded. The guard covers the code
+under development reaching the live Folder by itself; it does not contain code that
+runs as the operator and calls the installed product (F68, rule 4).
 We deliberately do not use Bun 1.4.2 `os.userInfo()` here: native ARM64 qualification
 observed that its username depends on the ambient environment. No dependency on
 a separately installed Bun is introduced by the system account lookup.
