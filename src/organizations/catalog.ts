@@ -243,6 +243,11 @@ export type CatalogGuestModule = Readonly<{
   checkedOut: boolean;
   /** Its GitHub page, as a repository's `url`; null otherwise. */
   url: string | null;
+  /** Set by the Launchpad's catalog only, from the last synchronization:
+   * GitHub refused this Environment's identity for a guest that is still
+   * checked out (access lost). The checkout stays; Apps hides it (decision
+   * F67's addendum of 2026-11-01). */
+  revoked?: true;
 }>;
 
 export type CatalogOrganization = Readonly<{

@@ -1,6 +1,7 @@
 import { filesUrlPath } from "../files/rules";
 import type {
   Catalog,
+  CatalogGuestModule,
   CatalogModule,
   CatalogOrganization,
   CatalogRepository,
@@ -252,11 +253,30 @@ export type AppsTile =
       action: TileAction;
       info: string | null;
       favorite: boolean;
+    }>
+  /** A guest Module of another Organization (decision F67's addendum of
+   * 2026-11-01): drawn like a module, never opened or started here; a click
+   * says so, and its menu leads to its GitHub page. No favourite: the
+   * person's favourites are the Organization's own. */
+  | Readonly<{
+      kind: "guest";
+      key: string;
+      guest: CatalogGuestModule;
+      name: string;
+      description: string;
+      stone: Readonly<{ key: StoneKey; src: string; accent: string }>;
+      action: TileAction;
+      info: string | null;
+      favorite: false;
     }>;
 
 export type AppsSection = Readonly<{
   kind: CatalogSectionKind | "personal";
   title: string;
+  /** A quiet badge beside the flag with its explanation as a tooltip: the
+   * guest section's "hostující" (decision F67's addendum of 2026-11-01);
+   * null for every other section. */
+  badge: Readonly<{ text: string; hint: string }> | null;
   count: string;
   tiles: readonly AppsTile[];
   /** Workspace's tabs, each with its tiles, favourites first (decision F32's
@@ -275,6 +295,7 @@ export type AppsTab = Readonly<{ name: string; tiles: readonly AppsTile[] }>;
  * `workspaceTabsTarget`). */
 export type AppsSectionHead = Readonly<{
   flag: string;
+  badge: AppsSection["badge"];
   end:
     | Readonly<{ kind: "count"; count: string }>
     | Readonly<{
@@ -291,6 +312,7 @@ export function appsSectionHead(
   const [first, ...rest] = section.tabs ?? [];
   return {
     flag: section.title,
+    badge: section.badge,
     end:
       first === undefined
         ? { kind: "count", count: section.count }
@@ -393,6 +415,41 @@ export function appsTiles(
   };
 }
 
+/** A guest Module's tile: its slot id as GitHub names the repository, the
+ * org-agnostic sentence of its stone, and a click that says it is read here
+ * and opened in its home Organization. Its own `lazurio.module.json` stays
+ * unread (decision F67 point 5). */
+export function guestTile(guest: CatalogGuestModule, copy: Copy): AppsTile {
+  const stone = stoneOf(
+    semanticAppIconKey({
+      module: guest.module,
+      id: null,
+      tags: [],
+      icon: null,
+    }),
+  );
+  const key = descriptionKeys[stone.key];
+  return {
+    kind: "guest",
+    key: `g:${guest.homeOrganization.toLowerCase()}/${guest.module}`,
+    guest,
+    name: guest.module,
+    description:
+      key === undefined
+        ? copy.appsDescriptionDefault.replace("{module}", guest.module)
+        : copy[key],
+    stone,
+    action: {
+      kind: "say",
+      text: copy.appsSayGuest
+        .replace("{name}", guest.module)
+        .replaceAll("{home}", guest.homeOrganization),
+    },
+    info: guest.url,
+    favorite: false,
+  };
+}
+
 /** What a click on a repository's tile does: the one page of its services
  * opens in the Environment browser; with more than one, its own page lets
  * the person choose; anything else says that it has no app (root decision
@@ -455,6 +512,7 @@ export function appsSections(
           {
             kind: "personal",
             title: copy.catalogSectionWorkspace,
+            badge: null,
             count: count(tiles.modules.length, "modules"),
             tiles: favoritesFirst(tiles.modules, favorites),
             tabs: null,
@@ -474,34 +532,45 @@ export function appsSections(
       : group.sections;
   return sections.map(
     (section): AppsSection =>
-      section.kind === "workspace"
+      section.kind === "guest"
         ? {
             kind: section.kind,
             title: section.title,
-            count: count(tiles.modules.length, "modules"),
-            tiles: favoritesFirst(tiles.modules, favorites),
-            tabs:
-              section.tabs === null
-                ? null
-                : section.tabs.map((tab) => ({
-                    name: tab.name,
-                    tiles: favoritesFirst(
-                      tiles.modules.filter(
-                        (tile) =>
-                          tile.kind === "module" &&
-                          tab.modules.includes(tile.entry),
-                      ),
-                      favorites,
-                    ),
-                  })),
-          }
-        : {
-            kind: section.kind,
-            title: section.title,
-            count: count(tiles.repositories.length, "repositories"),
-            tiles: favoritesFirst(tiles.repositories, favorites),
+            badge: { text: copy.appsGuestBadge, hint: copy.appsGuestHint },
+            count: count(section.guests.length, "modules"),
+            tiles: section.guests.map((guest) => guestTile(guest, copy)),
             tabs: null,
-          },
+          }
+        : section.kind === "workspace"
+          ? {
+              kind: section.kind,
+              title: section.title,
+              badge: null,
+              count: count(tiles.modules.length, "modules"),
+              tiles: favoritesFirst(tiles.modules, favorites),
+              tabs:
+                section.tabs === null
+                  ? null
+                  : section.tabs.map((tab) => ({
+                      name: tab.name,
+                      tiles: favoritesFirst(
+                        tiles.modules.filter(
+                          (tile) =>
+                            tile.kind === "module" &&
+                            tab.modules.includes(tile.entry),
+                        ),
+                        favorites,
+                      ),
+                    })),
+            }
+          : {
+              kind: section.kind,
+              title: section.title,
+              badge: null,
+              count: count(tiles.repositories.length, "repositories"),
+              tiles: favoritesFirst(tiles.repositories, favorites),
+              tabs: null,
+            },
   );
 }
 

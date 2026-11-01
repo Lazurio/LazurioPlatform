@@ -222,11 +222,13 @@ test("the Workspace's head: the flag first, then the tabs' switch with 'Upravit 
   // Productionspace never has tabs: its count, and no edit even for the Owner.
   expect(appsSectionHead(productionspace, edit)).toEqual({
     flag: "Productionspace",
+    badge: null,
     end: { kind: "count", count: productionspace.count },
   });
   // A Workspace without tabs keeps its count.
   expect(appsSectionHead({ ...workspace, tabs: null }, edit)).toEqual({
     flag: "Workspace",
+    badge: null,
     end: { kind: "count", count: workspace.count },
   });
 });
