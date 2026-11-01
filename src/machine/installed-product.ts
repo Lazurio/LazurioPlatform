@@ -7,7 +7,7 @@ import {
   embeddedIdentity,
   type ProductIdentity,
 } from "../update/identity";
-import { versionExecutable } from "../update/layout";
+import { executableName } from "../update/layout";
 import { MachineContextError } from "./context";
 
 /** The one base trusted to hold the installed product on a hosted
@@ -57,16 +57,18 @@ export async function requireInstalledProduct(
     running.fixture
   )
     throw refuse();
-  let installed: string;
+  // The file must lie at exactly versions/<version>/lazurio under the trusted
+  // base itself: the base is resolved once (a home may be a link), and below
+  // it nothing may be a link, so a version directory or file that links to a
+  // build elsewhere (a worktree) is refused. The selector bin/lazurio stays a
+  // link: /proc/self/exe already names the file it points to (#789 review).
+  let expected: string;
   try {
-    installed = await resolve(
-      versionExecutable(
-        trustedInstallBase(operatorHome),
-        running.identity.version,
-      ),
-    );
+    const base = await resolve(trustedInstallBase(operatorHome));
+    expected = join(base, "versions", running.identity.version, executableName);
+    if ((await resolve(expected)) !== expected) throw refuse();
   } catch {
     throw refuse();
   }
-  if (installed !== running.executable) throw refuse();
+  if (running.executable !== expected) throw refuse();
 }
