@@ -191,3 +191,9 @@ creation at 09:54:15Z, after it had finished; the observation time above is the 
 
 **The public Environment for visitors** is outside the scope. For information only, the readbacks of the first stage
 (03:27:57Z and 03:59:10Z) passed every check of it except `ai-ready`.
+
+## About this record's review
+
+GitHub stamped the review that asked for this repeated stage (5727252484, changes requested on `ea6de5f2`) at
+09:43:38Z, one of the events of 2026-11-01 08:00–09:00Z stamped an hour late, after the approval of the repeated stage
+(5727345067, 09:16:41Z) that came later. The ids give the true order.
