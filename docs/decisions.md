@@ -22556,7 +22556,7 @@ few bytes left within its budget after this sentence.
 
 ## F68 — Only the installed product acts on the declared operator's Folder
 
-**Proposed 2026-11-01 for #782; not implemented. The Organization Admin decides it.**
+**Proposed 2026-11-01 for #782 and accepted by the Organization Admin the same day; not implemented yet: the implementation follows in its own pull request.**
 `lazurio machine folder-init` and `folder-refresh` bind the operator from the root-issued
 handover and the UID's system record, not `$USER` or `$HOME` (docs/machine-handover.md),
 and the handover's location cannot be moved by a flag or an environment variable
