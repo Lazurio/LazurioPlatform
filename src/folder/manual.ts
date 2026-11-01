@@ -234,6 +234,57 @@ const lazurio: readonly Text[] = [
     "Tyhle vrstvy se do sebe automaticky nekopírují; chat je jen cache.",
     "These layers are not copied into each other automatically; a chat is a cache.",
   ),
+  blank,
+  t("## Kdo za co odpovídá", "## Who is responsible for what"),
+  t(
+    "Když něco nefunguje nebo chybí, nejdřív urči, čí je to věc. Podle toho víš, kdo to dodá a kam to zapíšeš. Cizí věc neobcházej ve své: modul neopravuje chybu Lazuria a Lazurio nedostává výjimku kvůli modulu. Než zapíšeš issue, vyhledej shodné a postupuj podle pravidel o issues v `manual/working-here.md`.",
+    "When something does not work or is missing, first decide whose it is. That tells you who delivers it and where you record it. Do not work around someone else's part in your own: a module does not patch a Lazurio defect and Lazurio gets no exception for a module. Before filing an issue, search for a matching one and follow the issue rules in `manual/working-here.md`.",
+  ),
+  blank,
+  t(
+    "| Co nefunguje nebo chybí | Kdo to dodá | Kam to zapíšeš |",
+    "| What fails or is missing | Who delivers it | Where you record it |",
+  ),
+  same("| --- | --- | --- |"),
+  t(
+    "| Samotné Lazurio: Folder a tyto instrukce, příkaz `lazurio`, aktualizace, Launchpad (Apps, Nastavení, Soubory, Integrace), Chat, prohlížeč Prostředí, trezor, mechanismus Integrací, Module Standard a zakládání modulů | Lazurio | issue ve veřejném `Lazurio/LazurioPlatform`, bez obsahu Organizace |",
+    "| Lazurio itself: the Folder and these instructions, the `lazurio` command, updates, the Launchpad (Apps, Settings, Files, Integrations), Chat, the Environment browser, the vault, the Integrations mechanism, the Module Standard and module creation | Lazurio | an issue in the public `Lazurio/LazurioPlatform`, without Organization content |",
+  ),
+  t(
+    "| Funkce, data nebo chyba jednoho modulu (aplikace Organizace, jako CRM nebo sklad) | vlastník modulu: v Organizaci její Admin nebo ten, komu repozitář modulu patří; v Personalspace uživatel | issue v repozitáři modulu, s @zmínkou vlastníků podle CODEOWNERS a živých práv |",
+    "| A feature, the data or a defect of one module (an Organization's app, such as a CRM or a warehouse) | the module's owner: in an Organization its Admin or whoever the module repository belongs to; in the Personalspace the user | an issue in the module's repository, mentioning its owners from CODEOWNERS and live rights |",
+  ),
+  t(
+    "| Pravidla, slovník, manifest a sada modulů Organizace | Admin Organizace | pull request nebo issue do kořenového repozitáře Organizace |",
+    "| An Organization's rules, glossary, manifest and set of modules | the Organization's Admin | a pull request or issue in the Organization's root repository |",
+  ),
+  t(
+    "| Přístup: členství, Team, grant, nový repozitář, branch rules | Admin Organizace, nebo kdo to smí podle GitHubu | uděláš to jen na výslovný pokyn uživatele, který k tomu má pravomoc, a jen když živé právo má i identita, pod kterou tu na GitHubu jednáš (na týmovém Prostředí identita Organizace, ne uživatel); chybí-li právo jí, issue v kořenovém repozitáři Organizace přiřazené správci, jediná výjimka z pravidla nepřiřazovat (oddíl o chybějících právech v `manual/working-here.md`) |",
+    "| Access: membership, a Team, a grant, a new repository, branch rules | the Organization's Admin, or whoever GitHub lets do it | you do it only on the explicit instruction of a user with the authority for it, and only when the identity you act under on GitHub holds the live right as well (on a Team Environment the Organization's identity, not the user); when that identity lacks it, an issue in the Organization's root repository assigned to the administrator, the one exception to never assigning (the missing-rights section of `manual/working-here.md`) |",
+  ),
+  t(
+    "| Paměť, disk, výkon nebo síť tohoto Prostředí | Owner Prostředí; v Organizaci její Admin | v Organizaci pull request nebo issue do jejího repozitáře `infra`; jinak uživateli řekni, co přesně chybí |",
+    "| Memory, disk, performance or network of this Environment | the Environment's Owner; in an Organization its Admin | in an Organization a pull request or issue in its `infra` repository; otherwise tell the user exactly what is missing |",
+  ),
+  t(
+    "| Připojení aplikace (pošta, kalendář, chat) | uživatel sám na kartě Integrace, firemní aplikaci Admin | odkaz na kartu Integrace; chybí-li aplikace v katalogu nebo selhává samotný mechanismus, issue v `Lazurio/LazurioPlatform` |",
+    "| Connecting an app (mail, calendar, chat) | the user on the Integration's card, a company app the Admin | a link to the Integration's card; when the app is missing from the catalog or the mechanism itself fails, an issue in `Lazurio/LazurioPlatform` |",
+  ),
+  t(
+    "| Obsah práce: data, rozhodnutí, priorita | uživatel a Kolegové v Organizaci | Knowledgebase, Mission Control a repozitáře Organizace podle tabulky výše |",
+    "| The content of the work: data, decisions, priority | the user and the Colleagues in the Organization | the Organization's Knowledgebase, Mission Control and repositories as in the table above |",
+  ),
+  blank,
+  t(
+    "Když si nejsi jistý, jestli jde o Lazurio, nebo o modul, rozhoduje, kde leží kód, který se má změnit: v repozitáři modulu je to věc modulu, v produktu je to věc Lazuria. Pořád nejasné? Zapiš issue tam, kde se problém projevil, napiš, proč si nejsi jistý, a řekni to uživateli.",
+    "When you are unsure whether it is Lazurio or a module, the place of the code that has to change decides: in the module's repository it is the module's, in the product it is Lazurio's. Still unclear? File the issue where the problem shows, say why you are unsure, and tell the user.",
+  ),
+  blank,
+  t("## Pravidla hry jsou veřejná", "## The rules of the game are public"),
+  t(
+    "Lazurio je source-available: principy, rozhodnutí a pravidla, podle kterých funguje, jsou veřejné, aby se jimi mohli řídit agenti i lidé. Kód, `ARCHITECTURE.md` a rozhodnutí (`docs/decisions.md`) jsou ve veřejném repozitáři `Lazurio/LazurioPlatform`. Když nevíš, proč pravidlo platí nebo kdo za věc odpovídá, dočti si to tam, než začneš odhadovat.",
+    "Lazurio is source-available: the principles, decisions and rules it works by are public so that agents and people can play by them. The code, `ARCHITECTURE.md` and the decisions (`docs/decisions.md`) are in the public `Lazurio/LazurioPlatform` repository. When you do not know why a rule holds or who is responsible for something, read it there before you guess.",
+  ),
 ];
 
 // A change to a repository the agent only reads (decision F14 addendum
@@ -596,8 +647,8 @@ function workingHere(
             "## Threads do not coordinate with each other (root decision 0218, addenda 2026-10-31)",
           ),
           t(
-            "Každé vlákno jde svůj požadavek samo: má vlastní worktree, pull request, ověření a assignee. Jiným vláknům zprávy neposíláš, pokud si přímou koordinaci výslovně nepřeje uživatel. Co potřebuje pořadí nebo návaznost, zapíšeš na GitHub: jako závislost issue nebo pull requestu, nebo komentář s @zmínkou toho, kdo má další krok. Štítek pozdržení se nepoužívá. Pořadí tak drží GitHub, ne konverzace mezi agenty. Frontu Organizace (pořadí review, merge a vydání) drží její Henry, persona Organizace v Prostředí s automatizacemi, podle hlavní roadmapy v jejím Mission Controlu. Delegace tvé vlastní práce na tvé subagenty koordinací není.",
-            "Each thread takes its own request through by itself: its own worktree, pull request, verification and assignee. Send other threads no messages unless the user explicitly asks for direct coordination. Whatever needs an order or depends on other work goes on GitHub: as a dependency of an issue or pull request, or a comment with an @mention of whoever has the next step. There is no hold label. GitHub holds the order, not a conversation between agents. The Organization's queue (the order of reviews, merges and releases) is held by its Henry, the Organization's persona in the Environment with automations, by the main roadmap in its Mission Control. Delegating your own work to your subagents is not coordination.",
+            "Každé vlákno jde svůj požadavek samo: má vlastní worktree, pull request, ověření a assignee. Jiným vláknům zprávy neposíláš, pokud si přímou koordinaci výslovně nepřeje uživatel. Co potřebuje pořadí nebo návaznost, zapíšeš do hlavní roadmapy v Mission Controlu Organizace. Vede ji ten, kdo v Organizaci drží frontu (pořadí review, merge, vydání, nasazení a migrací): kdo to je, říká `AGENTS.md` Organizace, obvykle její Henry, persona Organizace v Prostředí s automatizacemi; Organizace bez Henryho drží frontu sama. Na GitHubu u konkrétní práce zůstává závislost issue nebo pull requestu a komentář s @zmínkou toho, kdo má další krok; tím jde pull request i podržet. Štítek pozdržení se nepoužívá. Pořadí tak drží roadmapa a GitHub, ne konverzace mezi agenty. Delegace tvé vlastní práce na tvé subagenty koordinací není.",
+            "Each thread takes its own request through by itself: its own worktree, pull request, verification and assignee. Send other threads no messages unless the user explicitly asks for direct coordination. Whatever needs an order or depends on other work goes into the main roadmap in the Organization's Mission Control. Whoever holds the Organization's queue (the order of reviews, merges, releases, deployments and migrations) keeps it: the Organization's `AGENTS.md` says who, usually its Henry, the Organization's persona in the Environment with automations; an Organization without a Henry holds its queue itself. On GitHub, the concrete work keeps a dependency of an issue or pull request and a comment with an @mention of whoever has the next step, which can also hold a pull request back. There is no hold label. The roadmap and GitHub hold the order, not a conversation between agents. Delegating your own work to your subagents is not coordination.",
           ),
           blank,
           t(
@@ -2147,8 +2198,8 @@ function botTeam(
       "**The GitHub plan.** On GitHub Free an agreement holds the same duties even where GitHub cannot enforce them all: a persona with live write access may take a pull request through and merge it on a valid assignment, and never presents that technical ability as enforced separation of powers. On a paid plan the enforced rules apply as well: where a repository lets only Owners merge, the persona secures the review and hands the merge to an Owner. A merge that triggers a deployment (in the `infra` repository, for example) is always done by a person.",
     ),
     t(
-      "**Mandát k pinům nástrojů** (dodatek 0171). Persona smí sama mergnout pull request, který sama založila ve workspace repozitáři své Organizace (ne v `infra` ani v productionspace) a který jen posouvá piny nástrojů o patch nebo minor verzi, nejvýš na výchozí verzi Lazuria, a přegeneruje lockfile. Podmínkou je zelené CI a čerstvé nezávislé schválení na přesném headu. Major verzi předá Ownerovi přiřazením. Mandát nepokrývá jiný obsah, Release ani nasazení a Owner nebo Admin Organizace ho může zúžit nebo odvolat.",
-      "**Tool-pin mandate** (0171 addendum). The persona may merge on its own a pull request it opened itself in a workspace repository of its Organization (not in `infra` or productionspace) that only moves tool pins by a patch or minor version, at most to Lazurio's default version, and regenerates the lockfile. It needs green CI and a fresh independent approval on the exact head. It hands a major version to an Owner by assignment. The mandate covers no other content, Release or deployment, and an Owner or Admin of the Organization may narrow or revoke it.",
+      "**Mandát k pinům nástrojů** (dodatek 0171). Persona smí sama mergnout pull request, který sama založila ve workspace repozitáři své Organizace (ne v `infra` ani v productionspace) a který jen posouvá piny nástrojů o patch nebo minor verzi, nejvýš na výchozí verzi Lazuria, a přegeneruje lockfile. Podmínkou je zelené CI a čerstvé nezávislé schválení na přesném headu. Major verzi (první číslo verze, u verzí `0.x` druhé) předá Ownerovi přiřazením. Mandát nepokrývá jiný obsah, Release ani nasazení a Owner nebo Admin Organizace ho může zúžit nebo odvolat.",
+      "**Tool-pin mandate** (0171 addendum). The persona may merge on its own a pull request it opened itself in a workspace repository of its Organization (not in `infra` or productionspace) that only moves tool pins by a patch or minor version, at most to Lazurio's default version, and regenerates the lockfile. It needs green CI and a fresh independent approval on the exact head. It hands a major version (the first number, for `0.x` versions the second) to an Owner by assignment. The mandate covers no other content, Release or deployment, and an Owner or Admin of the Organization may narrow or revoke it.",
     ),
   ];
 }
