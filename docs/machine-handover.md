@@ -185,6 +185,18 @@ A repeated infrastructure apply must preserve the Machine identity, the Folder
 content and the Platform-selected product version; Machines does not reselect the
 version after handover, and Platform does not rewrite the identity.
 
+**The Machine identity** an adopted Folder is bound to is `machine.kind`, the
+Machine's name, its `owner` (without `owner.assignment`) and its `network` (the
+tailnet node). The `host` is **not** part of it ([decision F10, addendum
+2026-11-01](decisions.md#f10--workspace-presets-and-typed-owner-requests), #759): a server move gives the same guest, with its disk, name, Owner
+and tailnet node, a new virtualization host, and the first apply after the move
+answers `already-adopted`, then `folder-refresh` records the new host like any other
+handover change. A handover with another kind, name, Owner or tailnet node is
+another Machine and stays `folder-binding-changed`. A copy of the guest on another
+host with the same name, Owner and tailnet node is not told apart by the binding;
+Machines keeps one Machine on one host (one lane roster per guest, the old copy
+released and fenced before the new server applies; Machines#1016).
+
 ## Consumer commands
 
 Run the installed CLI as the declared operator, not root. This is the exact command a

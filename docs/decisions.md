@@ -1292,7 +1292,7 @@ never silent cloud precedence. A generic desired-state-to-Machine pipeline is re
 Access grants, rosters, tokens, mandates and analytics consent are never part of a
 preset.
 
-**Addendum 2026-11-01 (proposed, plan DEV-6656, #759; to be decided by a person before merge):
+**Addendum 2026-11-01 (plan DEV-6656, #759; approved under the v0.1.19 release mandate):
 a host change is not an identity change.** The identity above (kind, name, Owner, tailnet node,
 host) loses `host`. A server move (DEV-6677) gives the same guest, with its disk, name, Owner and
 tailnet node, a new virtualization host. Its Folder kept the old host in its identity, so the
@@ -1300,7 +1300,10 @@ first apply after the move answered `folder-binding-changed`, Machines recorded 
 and its Launchpad switch stopped. The host is where the Machine runs, not which Machine it is:
 from this addendum it follows the current handover through `folder-refresh`, like the
 relationships. A handover of another Machine (another kind, name, Owner or tailnet node) is still
-refused with `folder-binding-changed`.
+refused with `folder-binding-changed`. The binding no longer tells a copy of the guest on another
+host (same disk, name, Owner and tailnet node) from the original; keeping one Machine on one host
+belongs where guests are declared and moved: one lane roster per guest and the move's release and
+fence of the old copy (HumanAndMachine-ai/Machines#1016).
 
 ## F11 — Hosted admission is not identity
 
