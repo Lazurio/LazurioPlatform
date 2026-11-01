@@ -1371,8 +1371,8 @@ const teamMergeRule: Text = {
 // order sees it. Right after the Publication block; not on a public
 // Environment, which has nothing on GitHub. The manual says it in full.
 export const threadsRule: Text = {
-  cs: "- Vlákna se nekoordinují: jiným vláknům píšeš jen na přání uživatele, pořadí patří na GitHub, kde frontu Organizace drží její Henry. Každý text na GitHubu podepiš `Agent: environment <UUID> · T3 thread <UUID>` (root 0218).",
-  en: "- Threads do not coordinate: message another only when the user asks; order goes on GitHub, where the Organization's Henry holds the queue. Sign each GitHub text `Agent: environment <UUID> · T3 thread <UUID>` (root 0218).",
+  cs: "- Vlákna se nekoordinují: jiným vláknům píšeš jen na přání uživatele, pořadí a návaznosti patří do hlavní roadmapy v Mission Controlu Organizace. Každý text na GitHubu podepiš `Agent: environment <UUID> · T3 thread <UUID>` (root 0218).",
+  en: "- Threads do not coordinate: message another only when the user asks; order goes into the main roadmap in the Organization's Mission Control. Sign each GitHub text `Agent: environment <UUID> · T3 thread <UUID>` (root 0218).",
 };
 
 // The Environment's own network (root decision 0217, addendum of 2026-10-31):
