@@ -326,7 +326,7 @@ export function createCatalogPanel(
     return image;
   };
   const tileMark = (tile: AppsTile, size: number) => {
-    if (tile.kind === "module")
+    if (tile.kind === "module" || tile.kind === "guest")
       return stoneImage(
         tile.stone.src,
         size,
@@ -699,7 +699,8 @@ export function createCatalogPanel(
       close();
       void toggle(group, item.key);
     });
-    list.append(star);
+    // A guest Module is no favourite of this Organization.
+    if (item.kind !== "guest") list.append(star);
     if (item.info !== null) {
       // A module's overview and a service repository's page are routes of
       // this page; any other repository's information is its GitHub page.
@@ -714,8 +715,12 @@ export function createCatalogPanel(
       }
       info.setAttribute("role", "menuitem");
       info.append(
-        svg("info"),
-        item.kind === "module" ? copy.appsInfoModule : copy.appsInfoRepository,
+        svg(item.kind === "guest" ? "external" : "info"),
+        item.kind === "module"
+          ? copy.appsInfoModule
+          : item.kind === "guest"
+            ? copy.appsInfoGuest
+            : copy.appsInfoRepository,
       );
       info.addEventListener("click", close);
       list.append(info);
@@ -797,7 +802,7 @@ export function createCatalogPanel(
     const wrap = element("div", "tile-wrap");
     const node = actionNode(item, "tile");
     node.dataset.kind = item.kind;
-    if (item.kind === "module")
+    if (item.kind === "module" || item.kind === "guest")
       node.style.setProperty("--stone-accent", item.stone.accent);
     const name = element("span", "tile-name", item.name);
     if (item.favorite) {
@@ -922,6 +927,11 @@ export function createCatalogPanel(
     );
     const top = element("div", "section-head");
     top.append(element("h2", "section-pill", head.flag));
+    if (head.badge !== null) {
+      const badge = element("span", "section-badge", head.badge.text);
+      badge.title = head.badge.hint;
+      top.append(badge);
+    }
     const grid = element("div", "tile-grid");
     if (head.end.kind === "count") {
       top.append(element("span", "section-count", head.end.count));

@@ -515,6 +515,12 @@ const en = {
   appsSayNoApp: "The module {name} has no app yet.",
   appsSayCannotStart: "The app of the module {name} cannot start right now.",
   appsSayRepository: "The repository {name} has no app.",
+  appsSayGuest:
+    "{name} is a Module of {home}, read here only. Open its app in {home}.",
+  appsGuestBadge: "guest",
+  appsGuestHint:
+    "A Module of another Organization, read here only. Changes belong to its home Organization, and GitHub decides who can read it.",
+  appsInfoGuest: "Open on GitHub",
   appsMore: "More options for {name}",
   appsFavorites: "Favourites",
   appsFavoritesLoading: "Loading favourites…",
@@ -2618,6 +2624,12 @@ const cs: Record<MessageKey, string> = {
   appsSayNoApp: "Modul {name} zatím nemá aplikaci.",
   appsSayCannotStart: "Aplikace modulu {name} teď nejde spustit.",
   appsSayRepository: "Repozitář {name} nemá aplikaci.",
+  appsSayGuest:
+    "{name} je Modul Organizace {home}, tady jen ke čtení. Jeho aplikaci otevřete v Organizaci {home}.",
+  appsGuestBadge: "hostující",
+  appsGuestHint:
+    "Modul jiné Organizace, tady jen ke čtení. Změny patří do jeho domovské Organizace a přístup k němu určuje GitHub.",
+  appsInfoGuest: "Otevřít na GitHubu",
   appsMore: "Další volby pro {name}",
   appsFavorites: "Oblíbené",
   appsFavoritesLoading: "Načítání oblíbených…",
