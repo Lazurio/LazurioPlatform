@@ -19,6 +19,7 @@ import { machineBinding } from "../src/machine/binding";
 import {
   MachineUsageError,
   machineInspection,
+  parseMachineArguments,
   runMachineCommand,
 } from "../src/machine/cli";
 import {
@@ -558,15 +559,25 @@ test("machine CLI refuses overrides, unknown presets and duplicate or invalid ch
     );
 });
 // folder-refresh takes one option, the preset a changed assignment now
-// derives: it parses and reaches the handover (which this host lacks).
-test("machine folder-refresh accepts a known --preset and nothing else", async () => {
-  const result = await runMachineCommand([
-    "folder-refresh",
-    "--preset",
-    "hosted-organization-steward",
-  ]);
-  expect(result.code).toBe(2);
-  expect(result.result.kind).toBe("blocked");
+// derives. Only the parser is exercised. runMachineCommand reads the real
+// /etc/lazurio/lazurio.machine.json and refreshes the declared operator's
+// real Folder and SSH files: on a hosted Environment whose derived preset is
+// this one, running the suite refreshed that Environment's live Folder with
+// the branch's template, which no release could then read (#782).
+test("machine folder-refresh accepts a known --preset and nothing else", () => {
+  expect(
+    parseMachineArguments([
+      "folder-refresh",
+      "--preset",
+      "hosted-organization-steward",
+    ]),
+  ).toEqual({
+    command: "folder-refresh",
+    preset: "hosted-organization-steward",
+    locale: undefined,
+    detail: undefined,
+    coordination: undefined,
+  });
 });
 test("a wrong machine invocation prints the help on stderr with exit 2, not a failed Folder operation", async () => {
   const child = Bun.spawn(
