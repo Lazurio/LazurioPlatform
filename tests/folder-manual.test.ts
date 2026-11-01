@@ -1448,7 +1448,7 @@ test("agents ask people through the harness's question tool, and the handoff's c
           ])
         expect(rule).toContain(part);
       // The notification detail is in the manual's safe habits; it left
-      // AGENTS.md for its budget (base-instructions-97).
+      // AGENTS.md for its budget (base-instructions-98).
       const popup = cs
         ? "v T3 Code i v Codex Desktopu otázka vyskočí jako upozornění, text ve zprávě ne"
         : "in T3 Code and in Codex Desktop a question pops up as a notification, text in a message does not";

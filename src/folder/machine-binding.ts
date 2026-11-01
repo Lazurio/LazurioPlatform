@@ -631,11 +631,14 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
 }
 
 // The part of a binding that names the Machine: kind, name, Owner (Organization
-// and Team, or a person), tailnet node and host. Machines rewrites the handover
-// on every apply (`installed`, and since v0.12.61 the declared assignment and the
+// and Team, or a person) and tailnet node. Machines rewrites the handover on
+// every apply (`installed`, and since v0.12.61 the declared assignment and the
 // derived relationships), so the document digest is not identity; a re-apply of
-// the same Machine must not turn an adopted Folder into a blocked one. Everything
-// outside the identity follows the current handover through the refresh.
+// the same Machine must not turn an adopted Folder into a blocked one. The host
+// is where the Machine runs, not which Machine it is: a server move gives the
+// same guest, with its disk, name, Owner and tailnet node, a new host, and its
+// Folder follows that through the refresh (#759). Everything outside the
+// identity follows the current handover through the refresh.
 export function machineIdentity(machine: MachineBinding | null) {
   if (machine === null) return null;
   const { assignment: _, ...owner } = machine.owner as MachineBinding["owner"] &
@@ -645,6 +648,5 @@ export function machineIdentity(machine: MachineBinding | null) {
     name: machine.name,
     owner,
     network: machine.network,
-    host: machine.host,
   };
 }

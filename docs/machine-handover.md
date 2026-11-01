@@ -174,7 +174,8 @@ configuration together with the **Machine binding** (kind, name, owner, team,
 assignment, tailnet node, host, relationships, entry and the handover digest).
 Machines does not rewrite the identity; a Folder adopted for a different Machine is
 refused, never rewritten. Identity is kind, name, Owner (Organization and Team, or
-a user), tailnet node and host, and it is immutable. Machines rewrites the handover
+a user) and tailnet node, and it is immutable; the host is not part of it
+([decision F10, addendum 2026-11-01](decisions.md#f10--workspace-presets-and-typed-owner-requests), #759). Machines rewrites the handover
 on every apply (`installed`, the declared assignment, the derived relationships), so
 the document digest is not identity: a re-apply of the same Machine keeps the Folder
 adopted. The rest of the binding is handover-derived content, not a choice of the
@@ -184,6 +185,15 @@ and re-renders the generated files, keeping the recorded preset and profile.
 A repeated infrastructure apply must preserve the Machine identity, the Folder
 content and the Platform-selected product version; Machines does not reselect the
 version after handover, and Platform does not rewrite the identity.
+
+**A server move** gives the same guest, with its disk, name, Owner and tailnet
+node, a new virtualization host: the first apply after the move answers
+`already-adopted`, then `folder-refresh` records the new host like the rest of the
+handover-derived binding. A handover with another kind, name, Owner or tailnet node
+is another Machine and stays `folder-binding-changed`. A copy of the guest on
+another host with the same name, Owner and tailnet node is not told apart by the
+binding; Machines keeps one Machine on one host (one lane roster per guest, the old
+copy released and fenced before the new server applies; Machines#1016).
 
 ## Consumer commands
 
