@@ -996,8 +996,8 @@ const glossary: readonly Text[] = [
     "| Zone (zóna) | The personal or the work side of one user's Environments and clients; decides who may reach whom (decision 0155). |",
   ),
   t(
-    "| Handover | Předání Remote Environmentu online z Lazurio Machines se souborem `lazurio.machine.json`; od té chvíle vnitřek patří nainstalovanému produktu (decision 0144). Folder zaznamená jeho neměnnou projekci (`machine`): druh, jméno, Owner, Team, přiřazení, tailnet node, host, vztahy. |",
-    "| Handover | Lazurio Machines delivering a Remote Environment online with `lazurio.machine.json`; from then on the inside belongs to the installed product (decision 0144). The Folder records its immutable projection (`machine`): kind, name, Owner, Team, assignment, tailnet node, host, relationships. |",
+    "| Handover | Předání Remote Environmentu online z Lazurio Machines se souborem `lazurio.machine.json`; od té chvíle vnitřek patří nainstalovanému produktu (decision 0144). Folder zaznamená jeho projekci (`machine`): druh, jméno, Owner, Team, přiřazení, tailnet node, host, vztahy. Druh, jméno, Owner a tailnet node jsou identita a nemění se; host, přiřazení a vztahy sledují aktuální předání. |",
+    "| Handover | Lazurio Machines delivering a Remote Environment online with `lazurio.machine.json`; from then on the inside belongs to the installed product (decision 0144). The Folder records its projection (`machine`): kind, name, Owner, Team, assignment, tailnet node, host, relationships. Kind, name, Owner and tailnet node are the identity and never change; the host, assignment and relationships follow the current handover. |",
   ),
   t(
     "| Workspace preset | Pojmenovaná, verzovaná kompozice pevných os profilu, výchozích hodnot, politiky Personalspace, režimu identity a povrchů. |",

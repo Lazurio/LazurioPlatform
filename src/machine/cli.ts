@@ -79,9 +79,9 @@ names the preset the handover now derives, to take it after
 preset-derivation-changed; no other preset is taken here. A Folder rendered by
 an older template revision is re-rendered in full when every generated file
 still matches its recorded digest.
-The Environment identity (kind, name, Owner, tailnet node, host) must be the one
-the Folder was adopted for; assignment, relationships and the document digest
-follow the handover. Prints {"kind":"refreshed","revision":<n>} after one
+The Environment identity (kind, name, Owner, tailnet node) must be the one the
+Folder was adopted for; the host, assignment, relationships and the document
+digest follow the handover. Prints {"kind":"refreshed","revision":<n>} after one
 archived update transaction, or {"kind":"unchanged"} when the current handover
 renders the same bytes (nothing is written, the revision stays). On a
 personal Remote Environment either answer then also writes, from the recorded
