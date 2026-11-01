@@ -27,6 +27,12 @@ import {
   folderRefreshText,
   shellWord,
 } from "../folder/refresh-needed";
+import {
+  describeFolderStateRefusal,
+  folderStateRefusal,
+  parseFolderStateRefusal,
+} from "../folder/state-error";
+import { FolderStateUnreadable } from "../folder/state-fields";
 import { LaunchpadStartRefused } from "../launchpad/start-check";
 import { hostedOperatorFolder } from "../machine/operator";
 import {
@@ -475,10 +481,15 @@ function render(result: Result, json: boolean, human: string): CommandOutput {
   // The one context value a person needs: which state a person must look at.
   // What the other parts of `lazurio update` did stays on stdout.
   const path = error.context.path;
+  // A candidate that could not read the Folder's state says what about it.
+  const folderState =
+    error.context.reason === "folder-state"
+      ? parseFolderStateRefusal(error.context)
+      : undefined;
   return Object.freeze({
     code,
     ...(human === "" ? {} : { stdout: human }),
-    stderr: `Update failed: ${error.code}${path === undefined ? "" : ` (${path})`}`,
+    stderr: `Update failed: ${error.code}${path === undefined ? "" : ` (${path})`}${folderState === undefined ? "" : `: the new version cannot read the Folder's state: ${describeFolderStateRefusal(folderState)}`}`,
   });
 }
 
@@ -535,8 +546,19 @@ export async function selfCheckCommand(
       ),
     });
   } catch (error) {
-    // No reason is printed: it could quote Folder content or a private path.
-    // A refused Launchpad probe names only its enumerated condition.
+    // No error message is printed: it could quote Folder content or a
+    // private path. A refused Launchpad probe names only its enumerated
+    // condition. A Folder state this version cannot read names its document,
+    // its condition, the field or output it is about and the template
+    // revisions, each in a checked shape (#782).
+    if (error instanceof FolderStateUnreadable) {
+      const refusal = folderStateRefusal(error);
+      return Object.freeze({
+        code: exitFailure,
+        stdout: JSON.stringify({ folderStateRefused: refusal }),
+        stderr: `Self-check failed: the Folder's state cannot be read by this version: ${describeFolderStateRefusal(refusal)}`,
+      });
+    }
     return Object.freeze({
       code: exitFailure,
       ...(error instanceof LaunchpadStartRefused

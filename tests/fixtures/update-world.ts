@@ -39,7 +39,9 @@ export const commitOf = (version: string) =>
   Buffer.from(version).toString("hex").padEnd(40, "0").slice(0, 40);
 
 /** `healthy: false` is a version whose self-check fails; `launchpadRefused`
- * one whose Launchpad probe (`self-check --launchpad`) refuses to start. */
+ * one whose Launchpad probe (`self-check --launchpad`) refuses to start;
+ * `folderStateRefused` one that cannot read the Folder's state it is shown
+ * (`self-check --folder`). */
 export function executable(
   version: string,
   options: Readonly<{
@@ -48,6 +50,7 @@ export function executable(
     /** The template revision it says it renders; absent like an old one. */
     templateRevision?: string;
     launchpadRefused?: string;
+    folderStateRefused?: Readonly<Record<string, unknown>>;
   }> = {},
 ): Uint8Array {
   const report = JSON.stringify({
@@ -71,8 +74,12 @@ export function executable(
     options.launchpadRefused === undefined
       ? `case " $* " in *" --launchpad "*) echo '${withProbe}'; exit 0;; esac\n`
       : `case " $* " in *" --launchpad "*) echo '${JSON.stringify({ launchpadRefused: options.launchpadRefused })}'; exit 1;; esac\n`;
+  const folderState =
+    options.folderStateRefused === undefined
+      ? ""
+      : `case " $* " in *" --folder "*) echo '${JSON.stringify({ folderStateRefused: options.folderStateRefused })}'; exit 1;; esac\n`;
   return new TextEncoder().encode(
-    `#!/bin/sh\n${options.healthy === false ? "exit 1\n" : ""}${probe}echo '${report}'\n`,
+    `#!/bin/sh\n${options.healthy === false ? "exit 1\n" : ""}${folderState}${probe}echo '${report}'\n`,
   );
 }
 
@@ -88,6 +95,7 @@ export type World = Readonly<{
       healthy?: boolean;
       templateRevision?: string;
       launchpadRefused?: string;
+      folderStateRefused?: Readonly<Record<string, unknown>>;
     },
   ): Promise<void>;
   environment(
@@ -158,6 +166,9 @@ export async function createWorld(
               ...(release.launchpadRefused === undefined
                 ? {}
                 : { launchpadRefused: release.launchpadRefused }),
+              ...(release.folderStateRefused === undefined
+                ? {}
+                : { folderStateRefused: release.folderStateRefused }),
             }),
           },
           ...release,

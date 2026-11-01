@@ -19,7 +19,12 @@ import {
   validatePresetComposition,
 } from "./presets";
 import { type FolderProfile, parseFolderProfile } from "./profile";
-import { ownDataValue, stateFields } from "./state-fields";
+import {
+  FolderStateUnreadable,
+  folderOutputArea,
+  ownDataValue,
+  stateFields,
+} from "./state-fields";
 import { type AgentVoice, parseAgentVoice } from "./voice";
 
 export { stateFields } from "./state-fields";
@@ -193,11 +198,34 @@ export function parseOutputDigests(
   input: unknown,
   paths: readonly OutputPath[] = manifestOutputPaths[instructionManifestSchema],
 ): RecordedDigests {
-  const value = stateFields(input, paths);
+  let value: Record<string, unknown>;
+  try {
+    value = stateFields(input, paths);
+  } catch (error) {
+    // An output this version does not render, or one it renders that is not
+    // recorded: the usual sign of a Folder written by another version.
+    if (
+      error instanceof FolderStateUnreadable &&
+      (error.condition === "unknown-field" ||
+        error.condition === "missing-field")
+    )
+      throw error.condition === "unknown-field"
+        ? error.with({
+            condition: "unknown-output",
+            area: folderOutputArea(
+              Reflect.ownKeys(input as object).find(
+                (key) => !(paths as readonly unknown[]).includes(key),
+              ),
+            ),
+          })
+        : error.with({ condition: "missing-output" });
+    throw error;
+  }
   const digests: Partial<Record<OutputPath, string>> = {};
   for (const path of paths) {
     const digest = value[path];
-    if (!isDigest(digest)) throw new Error("Invalid output digest");
+    if (!isDigest(digest))
+      throw new FolderStateUnreadable("invalid", { field: path });
     digests[path] = digest;
   }
   return Object.freeze(digests);
@@ -283,19 +311,32 @@ export function parseInstructionManifest(input: unknown): InstructionManifest {
     "templateRevision",
     "outputs",
   ]);
+  if (value.schemaVersion !== 2 && value.schemaVersion !== 3)
+    throw new FolderStateUnreadable("unsupported-schema", {
+      field: "schemaVersion",
+      templateRevision: value.templateRevision,
+    });
   if (
-    (value.schemaVersion !== 2 && value.schemaVersion !== 3) ||
     typeof value.templateRevision !== "string" ||
     value.templateRevision.length === 0
   )
-    throw new Error("Unsupported instruction manifest");
+    throw new FolderStateUnreadable("invalid", { field: "templateRevision" });
+  let outputs: RecordedDigests;
+  try {
+    outputs = parseOutputDigests(
+      value.outputs,
+      manifestOutputPaths[value.schemaVersion],
+    );
+  } catch (error) {
+    // Which version rendered the outputs is what explains them.
+    if (error instanceof FolderStateUnreadable)
+      throw error.with({ templateRevision: value.templateRevision });
+    throw error;
+  }
   return Object.freeze({
     schemaVersion: value.schemaVersion,
     preferenceRevision: revision(value.preferenceRevision),
     templateRevision: value.templateRevision,
-    outputs: parseOutputDigests(
-      value.outputs,
-      manifestOutputPaths[value.schemaVersion],
-    ),
+    outputs,
   });
 }

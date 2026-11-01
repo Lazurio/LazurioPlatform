@@ -223,13 +223,25 @@ test("install and self-check through the command surface", async () => {
   expect(
     (await selfCheckCommand(["--json", "--launchpad"], context())).code,
   ).toBe(2);
-  // A Folder this version cannot read fails the check without saying why.
+  // A Folder this version cannot read fails the check, naming the document
+  // and its condition and nothing it could quote (#782).
   expect(
     await selfCheckCommand(
       ["--json", "--folder", join(world.root, "no-folder")],
       context(),
     ),
-  ).toEqual({ code: 1, stderr: "Self-check failed" });
+  ).toEqual({
+    code: 1,
+    stdout: JSON.stringify({
+      folderStateRefused: {
+        condition: "absent",
+        file: "preferences.json",
+        product: instructionTemplateRevision,
+      },
+    }),
+    stderr:
+      "Self-check failed: the Folder's state cannot be read by this version: absent (preferences.json)",
+  });
   // State this version cannot read fails it as well.
   await writeFile(layout(fresh).highWater, "garbage");
   expect(
@@ -278,6 +290,57 @@ test.skipIf(process.platform === "win32")(
         launchpadRefused: "folder-transaction-pending",
       }),
       stderr: "Self-check failed",
+    });
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "a Folder rendered by a newer template with an output this version does not render fails the self-check by name (#782)",
+  async () => {
+    world = await createWorld();
+    const folder = join(world.root, "Lazurio");
+    await initializeFolder(folder, {
+      os: executionOs(process.platform),
+      access: "local",
+      purpose: "human",
+      locale: "en",
+      detail: "concise",
+      coordination: "direct",
+    });
+    // What a branch's build left in a live Folder: its template revision and
+    // an output no release renders.
+    const instructions = join(folder, ".lazurio", "instructions.json");
+    const recorded = JSON.parse(await readFile(instructions, "utf8"));
+    await writeFile(
+      instructions,
+      JSON.stringify({
+        ...recorded,
+        templateRevision: "base-instructions-999999",
+        outputs: {
+          ...recorded.outputs,
+          ".agents/skills/ui-craft/SKILL.md": "c".repeat(64),
+        },
+      }),
+      { mode: 0o600 },
+    );
+    expect(
+      await selfCheckCommand(
+        ["--json", "--base", world.base, "--folder", folder],
+        context(),
+      ),
+    ).toEqual({
+      code: 1,
+      stdout: JSON.stringify({
+        folderStateRefused: {
+          condition: "unknown-output",
+          file: "instructions.json",
+          area: "agents-skills",
+          recorded: "base-instructions-999999",
+          product: instructionTemplateRevision,
+          newer: true,
+        },
+      }),
+      stderr: `Self-check failed: the Folder's state cannot be read by this version: unknown-output (instructions.json, an output in .agents/skills/); the Folder was rendered by base-instructions-999999, this version renders ${instructionTemplateRevision}, an older one`,
     });
   },
 );

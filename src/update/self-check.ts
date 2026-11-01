@@ -1,10 +1,11 @@
 import { join } from "node:path";
-import { readStateJson } from "../folder/read-state";
+import { readStateDocument } from "../folder/read-state";
 import { instructionTemplateRevision } from "../folder/render";
 import {
   parseFolderPreferences,
   parseInstructionManifest,
 } from "../folder/state";
+import { parseFolderStateRefusal } from "../folder/state-error";
 import { isStartRefusal } from "../launchpad/start-check";
 import { type UpdateErrorReason, UpdateFailure } from "./errors";
 import {
@@ -68,11 +69,16 @@ export async function selfCheckReport(
     // committed. A concurrent profile update can therefore fail this read;
     // that is a retryable refusal, never a half-read success.
     const directory = join(input.folder, ".lazurio");
-    const preferences = parseFolderPreferences(
-      await readStateJson(directory, "preferences.json"),
+    // A failure is a FolderStateUnreadable naming its document (#782).
+    const preferences = await readStateDocument(
+      directory,
+      "preferences.json",
+      parseFolderPreferences,
     );
-    const manifest = parseInstructionManifest(
-      await readStateJson(directory, "instructions.json"),
+    const manifest = await readStateDocument(
+      directory,
+      "instructions.json",
+      parseInstructionManifest,
     );
     folder = Object.freeze({
       preferences: preferences.schemaVersion,
@@ -183,7 +189,7 @@ export async function requireSelfCheck(input: {
 }): Promise<string | null> {
   const failed = (
     reason: UpdateErrorReason,
-    extra: Readonly<Record<string, string | number>> = {},
+    extra: Readonly<Record<string, string | number | boolean>> = {},
   ) => new UpdateFailure("self-check-failed", { reason, ...extra });
   let result: ProcessResult;
   try {
@@ -205,15 +211,25 @@ export async function requireSelfCheck(input: {
   }
   if (result === "timeout") throw failed("timeout");
   if (result.exitCode !== 0) {
-    // A refused probe names its condition, and nothing else.
+    // A refused probe names its condition, and nothing else. A Folder state
+    // the candidate cannot read names its document, condition and template
+    // revisions, in the checked shapes only (#782).
     let refused: unknown;
+    let folderState: unknown;
     try {
-      refused = (JSON.parse(result.stdout) as { launchpadRefused?: unknown })
-        ?.launchpadRefused;
+      const said = JSON.parse(result.stdout) as {
+        launchpadRefused?: unknown;
+        folderStateRefused?: unknown;
+      };
+      refused = said?.launchpadRefused;
+      folderState = said?.folderStateRefused;
     } catch {}
-    throw isStartRefusal(refused)
-      ? failed("launchpad-refused", { refusal: refused })
-      : failed("exit", { exitCode: result.exitCode });
+    if (isStartRefusal(refused))
+      throw failed("launchpad-refused", { refusal: refused });
+    const unreadable = parseFolderStateRefusal(folderState);
+    throw unreadable === undefined
+      ? failed("exit", { exitCode: result.exitCode })
+      : failed("folder-state", unreadable);
   }
   let report: Partial<SelfCheckReport>;
   try {
