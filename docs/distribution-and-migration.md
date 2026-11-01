@@ -294,7 +294,7 @@ repository read-only; clones and fetches keep working.
 | Windows install, Folder and lock | **Not built** | Windows users | S10 |
 | Intel macOS | **Not built**; whether such users exist is **unknown** | only if they exist | — |
 | `lazurio search`, local Guide | No consumer; not carried ([Launchpad parity, F](launchpad-parity.md#f-what-we-deliberately-do-not-carry-over)) | — | — |
-| Root decision register and lasting root manuals | Open ([#224](https://github.com/Lazurio/LazurioPlatform/issues/224), Q9) | the archive | S11 |
+| Root decision register and lasting root manuals | Register moved: [decision-register.md](decision-register.md) allocates the numbers since 2026-11-01 and the Root keeps its rows as the GEN3 record; the lasting manuals move by audience (Q9) | the archive | S11 |
 | Open issues and pull requests of the root repository | Must be finished, transferred or closed | the archive | S11 |
 
 Not determined: whether a Machines or Organization build depends on the root
@@ -351,5 +351,5 @@ cites them.
 | Q6 | May any user of a Team Environment update? | Yes; the generated text says it affects all of them (F17 addendum 2026-10-02) |
 | Q7 | Rename aside instead of in-place conversion? | **Open** ([#224](https://github.com/Lazurio/LazurioPlatform/issues/224)); recommendation followed meanwhile |
 | Q8 | Archive before Windows users can migrate? | No: after the last Environment (root 0164) |
-| Q9 | Where do the root register and lasting root manuals go? | **Open** ([#224](https://github.com/Lazurio/LazurioPlatform/issues/224)) |
+| Q9 | Where do the root register and lasting root manuals go? | **Decided 2026-11-01:** one series of numbers, allocated in this repository's [decision register](decision-register.md); the Root, which stays maintained for GEN3, keeps its rows and points shared norms here. Public norms and agent rules move to this repository, internal development knowledge to the development Organization and product and business decisions to the product Organization |
 | Q10 | When is the legacy tree deleted? | **Open** ([#224](https://github.com/Lazurio/LazurioPlatform/issues/224)); recommended: never by the migration, by the user on instruction after 30 days of daily work without it |

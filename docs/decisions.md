@@ -1,5 +1,11 @@
 # Decision proposals and convergence
 
+Since 2026-11-01 Lazurio's numbered decisions, one series for GEN3 and GEN4,
+live in this repository's [decision register](decision-register.md), which
+allocates their numbers; the "maintained Lazurio decision register" and
+"upstream" below mean that register. The F decisions here are this
+repository's implementation decisions.
+
 Status: review draft, updated 2026-09-19. These local identifiers are Platform proposals,
 not new numbers in the maintained Lazurio decision register. They do not override
 legacy runtime contracts until the owning decision is amended and consumers migrate.
