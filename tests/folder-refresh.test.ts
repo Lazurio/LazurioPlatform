@@ -963,7 +963,7 @@ for (const path of ["AGENTS.md", "manual/roles.md"] as const)
     },
   );
 
-for (const revision of ["base-instructions-99", "custom-1"])
+for (const revision of ["base-instructions-100", "custom-1"])
   test.skipIf(process.platform === "win32")(
     `a Folder rendered by ${revision} is never downgraded or re-rendered`,
     async () => {
