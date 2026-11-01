@@ -329,6 +329,16 @@ test("the skill says strict TypeScript on every preset, and that a person's priv
     }
 });
 
+test("the skill says that an app with data needs a server of its own for the sync host", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const text = rendered(journey, locale)[codex];
+      const label = `${journey.preset} / ${locale}`;
+      expect(text, label).toContain("`start_script`");
+      expect(text, label).toContain("`LAZURIO_RUNTIME_BUILD_OUTPUT`");
+    }
+});
+
 test("the skill has the same sections in both languages on every preset", () => {
   for (const journey of journeys) {
     const skill = (locale: "cs" | "en") =>

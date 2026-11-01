@@ -15975,11 +15975,17 @@ of a module said it.
   decision 0196, point 8). This adds no capability and changes no check: `lazurio module create`
   already creates the repository private and refuses one GitHub created public
   (`data-not-private`), which the skill now names.
+- **Where the sync host runs.** repository-db's contract needs one sync host created at server
+  start, and `--data` adds the engine without a server, so on `vite-react` the app from `main` would
+  stay a static build (decision F58) that cannot host it. The skill now says that an app with data
+  declares `start_script` (the F58 addendum of 2026-10-21) and serves its own client. The scaffold
+  itself does not change here.
 
 **Verification.** `tests/folder-manual.test.ts`, `tests/folder-skills.test.ts`,
 `tests/module-scaffold.test.ts`: the rule on every preset and locale, on every stack and form, every
 TypeScript stack really strict with the type check in `check`, and the personal data rules only
-where they apply. Only generated text changes; no behavior of the product.
+where they apply, and the skill's rule on `start_script` on every preset. Only generated text
+changes; no behavior of the product.
 
 ## F53 — Every Environment owns its vault: its own organization in the network's Vaultwarden, created by its technical account
 

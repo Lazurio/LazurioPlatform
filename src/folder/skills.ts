@@ -364,8 +364,8 @@ const organizationModuleRoute: readonly Text[] = [
 
 // How the app reaches its data, the same in both forms.
 const dataWiring: Text = t(
-  "Aplikaci pak napoj podle `app/v1/node_modules/@lazurio/repository-db/docs/app-contract.md`: jeden sync host, čtení i zápisy přes něj a karta konceptu, ve které uživatel změny dat Publikuje. Commit a push dat do `v3` je Publikace.",
-  "Then wire the app as `app/v1/node_modules/@lazurio/repository-db/docs/app-contract.md` says: one sync host, every read and write through it, and the draft card in which the user publishes data changes. Committing and pushing data to `v3` is Publication.",
+  "Aplikaci pak napoj podle `app/v1/node_modules/@lazurio/repository-db/docs/app-contract.md`: jeden sync host, čtení i zápisy přes něj a karta konceptu, ve které uživatel změny dat Publikuje. Sync host běží jen ve vlastním serveru aplikace, proto aplikace s daty deklaruje `start_script`: bez něj se `vite-react` z `main` servíruje jako statický build, ze kterého nic neběží. Server si sám obslouží i sestavený klient (cestu dostane v `LAZURIO_RUNTIME_BUILD_OUTPUT`) a `static_fallback` z `lazurio.runtime` zmizí, protože ho Platforma u `start_script` odmítne. Commit a push dat do `v3` je Publikace.",
+  "Then wire the app as `app/v1/node_modules/@lazurio/repository-db/docs/app-contract.md` says: one sync host, every read and write through it, and the draft card in which the user publishes data changes. The sync host runs only in the app's own server, so an app with data declares `start_script`: without it `vite-react` is served from `main` as a static build, of which nothing runs. The server also serves the built client itself (its path arrives in `LAZURIO_RUNTIME_BUILD_OUTPUT`), and `static_fallback` leaves `lazurio.runtime`, because the Platform refuses it with `start_script`. Committing and pushing data to `v3` is Publication.",
 );
 
 // Steps 5 to 7 for the personal Workspace: the confirmed run, the data
