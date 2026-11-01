@@ -1292,9 +1292,8 @@ never silent cloud precedence. A generic desired-state-to-Machine pipeline is re
 Access grants, rosters, tokens, mandates and analytics consent are never part of a
 preset.
 
-**Addendum 2026-11-01 (plan DEV-6656, #759; approved under the v0.1.19 release mandate):
-a host change is not an identity change.** The identity above (kind, name, Owner, tailnet node,
-host) loses `host`. A server move (DEV-6677) gives the same guest, with its disk, name, Owner and
+**Addendum 2026-11-01 (plan DEV-6656, #759): a host change is not an identity change.** The
+identity above (kind, name, Owner, tailnet node, host) loses `host`. A server move (DEV-6677) gives the same guest, with its disk, name, Owner and
 tailnet node, a new virtualization host. Its Folder kept the old host in its identity, so the
 first apply after the move answered `folder-binding-changed`, Machines recorded `binding-pending`
 and its Launchpad switch stopped. The host is where the Machine runs, not which Machine it is:
@@ -1303,7 +1302,15 @@ relationships. A handover of another Machine (another kind, name, Owner or tailn
 refused with `folder-binding-changed`. The binding no longer tells a copy of the guest on another
 host (same disk, name, Owner and tailnet node) from the original; keeping one Machine on one host
 belongs where guests are declared and moved: one lane roster per guest and the move's release and
-fence of the old copy (HumanAndMachine-ai/Machines#1016).
+fence of the old copy (HumanAndMachine-ai/Machines#1016). The Folder glossary says the same:
+template revision `base-instructions-97`.
+
+Authority:
+- Matěj 2026-10-31 19:5xZ: „Ráno chci mít 0.1.19 na HaM připravený. Máš na to plný mandát.“
+- Rozhodl koordinátor DEV-6671 2026-11-01 ~00:0xZ v rámci tohoto mandátu. Bez změny neprojde Ring 0 na přesunuté
+  flotile s žádnou verzí a stejně by spadl první apply po přesunu HaM.
+- Princip: Mašina je VM a host je hranice nad ní (ARCHITECTURE).
+- Matěj rozhodnutí ráno potvrdí. Když nebude souhlasit, opravíme dopředu.
 
 ## F11 — Hosted admission is not identity
 
