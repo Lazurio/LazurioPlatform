@@ -531,6 +531,168 @@ const personalModuleRefusals: readonly Text[] = [
   ),
 ];
 
+// `henry-review` (decision F14, addendum of 2026-11-01): asking the
+// Organization's persona for a review and handing it a pull request to take
+// through, from the Lazurio Root's skill of the same name, without the
+// Root's mechanics. The request and the handover go only through GitHub,
+// which the persona's intake reads (decision 0169); a verdict counts only on
+// the exact head with an approval submitted after the last commit. The
+// persona's own side of the contract is in this-machine.md's bot team
+// chapter; this is the other side, for every agent that asks.
+const henryReviewDescription = t(
+  "Použij, když hotový pull request potřebuje review persony Organizace (jejího Henryho), nebo jí chceš předat jeho dotažení do main. Žádost i předání jdou jen přes GitHub a verdikt platí jen na přesném headu se schválením po posledním commitu. Nepoužívej k obcházení review, merge, nasazení ani přístupů.",
+  "Use when a finished pull request needs the review of the Organization's persona (its Henry), or when you hand the persona its completion into main. The request and the handover go only through GitHub, and a verdict counts only on the exact head with an approval submitted after the last commit. Never use it to bypass review, merge, deployment or access.",
+);
+
+const henryReview: readonly Text[] = [
+  t(
+    "Henry je persona Organizace: tým botů Lazurio MausBot v Prostředí s automatizacemi, s vlastním GitHub účtem persony a odpovědným člověkem (decision 0169). Vlastní práva nemá, jedná v grantech svého účtu. Práci si bere sám z GitHubu: review, když je jeho účet požádaným reviewerem nebo pull request už reviewoval, a dotažení, když je assignee. Jiná cesta k němu nevede: žádný soubor, skript, SSH ani zpráva jinému vláknu.",
+    "Henry is the Organization's persona: a Lazurio MausBot bot team in the Environment with automations, with the persona's own GitHub account and a responsible person (decision 0169). It has no rights of its own and acts within its account's grants. It takes work from GitHub by itself: a review when its account is a requested reviewer or has reviewed the pull request before, and the completion when it is the assignee. No other way reaches it: no file, script, SSH or message to another thread.",
+  ),
+  blank,
+  t("## Postup", "## Steps"),
+  t(
+    "1. **Login.** Najdi ho v `AGENTS.md` Organizace, které repozitář patří. Když tam žádná persona není, Organizace Henryho nemá a review dělá člověk.",
+    "1. **Login.** Find it in the `AGENTS.md` of the Organization the repository belongs to. When it names no persona, the Organization has no Henry and a person reviews.",
+  ),
+  t(
+    "2. **Připrav pull request.** Popis říká proč a co se mění, kontroly na headu jsou zelené a pull request je Ready (`gh pr ready <n>`). Draft pull request persona nevidí.",
+    "2. **Prepare the pull request.** The description says why and what changes, the checks on the head are green and the pull request is Ready (`gh pr ready <n>`). The persona does not see a Draft pull request.",
+  ),
+  t(
+    "3. **Požádej o review:** `gh pr edit <n> --add-reviewer <login>`. Žádost znamená „vyžádáno“, ne „hotovo“. Po pushi ji neopakuj, nový head persona najde sama. Chyba 422 „Reviews may only be requested from collaborators“ znamená špatný login, nebo účet persony k repozitáři nemá přístup; přístup nepřidávej, řekni to uživateli.",
+    "3. **Request the review:** `gh pr edit <n> --add-reviewer <login>`. The request means “requested”, not “done”. Do not repeat it after a push; the persona finds the new head by itself. Error 422 “Reviews may only be requested from collaborators” means a wrong login or that the persona's account has no access to the repository; do not add access, tell the user.",
+  ),
+  t(
+    "4. **Předej dotažení** jen na pokyn uživatele: přidej personu jako assignee, sebe odeber a do komentáře napiš stav, ověření a další krok. Předávat smí jen ten, kdo má k repozitáři živé právo zápisu. Přiřazení nepřidává práva: kde merge smí jen Owner (třeba v `infra`), persona po review předá dokončení Ownerovi.",
+    "4. **Hand over the completion** only on the user's instruction: add the persona as assignee, remove yourself and write the state, the verification and the next step in a comment. Only someone with live write access to the repository may hand over. An assignment adds no rights: where only an Owner may merge (in `infra`, say), the persona hands the completion to an Owner after its review.",
+  ),
+  t(
+    "5. **Nálezy** vyřiď s úsudkem: skutečnou vadu oprav hned, na ostatní odpověz věcnou námitkou v pull requestu a požádej o verdikt na nezměněném headu.",
+    "5. **Findings** you handle with judgement: fix a real defect right away, answer the rest with a factual objection in the pull request and ask for a verdict on the unchanged head.",
+  ),
+  blank,
+  t(
+    "Pull request, který založil účet persony, persona sama nereviewuje; schvaluje ho člověk.",
+    "The persona never reviews a pull request its own account opened; a person approves it.",
+  ),
+  blank,
+  t("## Ověření", "## Verification"),
+  t(
+    "- **Verdikt** platí, jen když review od loginu persony má `commit_id` rovné aktuálnímu headu a je odeslané po posledním commitu. Schválení, které GitHub přenesl po rebase nebo po merge base větve, se nepočítá: `gh pr view <n> --json headRefOid,reviews,commits`.",
+    "- **A verdict** counts only when the review from the persona's login has a `commit_id` equal to the current head and was submitted after the last commit. An approval GitHub carried over after a rebase or a merge of the base branch does not count: `gh pr view <n> --json headRefOid,reviews,commits`.",
+  ),
+  t(
+    "- **Dotažení** je hotové, až je pull request mergnutý, nebo předaný dalšímu jmenovanému assignee se stavem a dalším krokem. Komentář ani schválení samo nestačí.",
+    "- **The completion** is done once the pull request is merged, or handed to the next named assignee with the state and the next step. A comment or an approval alone is not enough.",
+  ),
+  t(
+    "- **Review nepřichází:** ověř, že pull request je Ready a login je mezi požádanými reviewery nebo už reviewoval (`gh api repos/<owner>/<repo>/pulls/<n> --jq '{draft, requested: [.requested_reviewers[].login]}'`). Pak to řekni uživateli a druhou cestu nezakládej.",
+    "- **No review arrives:** check that the pull request is Ready and the login is among the requested reviewers or has reviewed (`gh api repos/<owner>/<repo>/pulls/<n> --jq '{draft, requested: [.requested_reviewers[].login]}'`). Then tell the user, and open no second way.",
+  ),
+];
+
+// `module-standard` (decision F14, addendum of 2026-11-01): changing,
+// converting or checking an existing module against the Lazurio Module
+// Standard (root decision 0171 with its addenda), from the Lazurio Root's
+// `lazurio-module-standard` without the Root's commands. It names what this
+// Platform reads from a module (`lazurio.runtime`: listeners, health,
+// `secrets` and `optional_secrets` from the Environment's vault,
+// `required_module_slots` and sibling origins, `build_script`,
+// `build_output`, `static_fallback` and `start_script`), the order of a
+// conversion and its verification by a real start. No Platform command
+// checks conformance yet (#423); the agent goes through the list itself.
+const moduleStandardDescription = t(
+  "Použij, když měníš, převádíš nebo kontroluješ existující modul: co modul drží, aby ho Lazurio spustilo bez výjimek (manifesty, jeden proces, port a adresy z proměnných, tajné údaje z trezoru, sousední moduly, sestavená verze, health), v jakém pořadí odchylky opravit a jak to ověřit. Odchylku opravuješ v modulu, nikdy obcházením Lazuria. Nový modul zakládá skill new-module.",
+  "Use when you change, convert or check an existing module: what a module holds so that Lazurio runs it without exceptions (manifests, one process, port and addresses from variables, secrets from the vault, sibling modules, the built version, health), in which order to fix deviations and how to verify it. Fix a deviation in the module, never by working around Lazurio. A new module is founded by the skill new-module.",
+);
+
+const moduleStandard: readonly Text[] = [
+  t(
+    "Lazurio Module Standard (decision 0171) je jeden standard pro všechny moduly: Lazurio pro odchylku modulu nedělá výjimku, odchylka se opravuje v modulu. Konformanci zatím žádný příkaz Platformy neověří; projdeš ji podle tohoto postupu a co ověřit nejde, napíšeš do pull requestu. Jeden modul je jeden worktree a jeden pull request; změna Organizace (slot, pool portů) jde samostatným pull requestem do jejího kořene.",
+    "The Lazurio Module Standard (decision 0171) is one standard for every module: Lazurio makes no exception for a module's deviation, and the deviation is fixed in the module. No Platform command checks conformance yet; go through it with these steps and write in the pull request what could not be verified. One module is one worktree and one pull request; a change of the Organization (a slot, the port pool) is a pull request of its own to its root.",
+  ),
+  blank,
+  t("## Co modul drží", "## What a module holds"),
+  t(
+    "- **Manifest.** `lazurio.module.json` v kořeni: `id` shodné se slotem v manifestu Organizace, lease portu z poolu Organizace, `apps` a `default_app`.",
+    "- **Manifest.** `lazurio.module.json` at the root: an `id` equal to the slot in the Organization's manifest, a port lease from the Organization's pool, `apps` and `default_app`.",
+  ),
+  t(
+    "- **Aplikace** v `app/v<N>/`, nejvýš dvě generace (výchozí a jedna předchozí nebo kandidátní). Její `package.json` má přesný `packageManager` (Bun), commitnutý `bun.lock`, skripty `dev`, `check` a `test`, deklaraci běhu `lazurio.runtime` (listenery a health) a případně přípravu `lazurio.preparation` (`owner_package`, `prepare_script`, `check_script`). TypeScript strict a Biome.",
+    "- **The app** in `app/v<N>/`, at most two generations (the default and one earlier or candidate). Its `package.json` has an exact `packageManager` (Bun), a committed `bun.lock`, the scripts `dev`, `check` and `test`, the run declaration `lazurio.runtime` (listeners and health) and, where needed, the preparation `lazurio.preparation` (`owner_package`, `prepare_script`, `check_script`). TypeScript strict and Biome.",
+  ),
+  t(
+    "- **Jeden proces.** `dev` spustí jeden dlouhoběžící server a nic jiného. Build, data a migrace patří do `prepare_script` (nikdy do npm lifecycle jmen jako `prepare`, která `bun install` spouští sám), jen čtecí kontrola do `check_script`. Na start cestě žádné `concurrently`, `&&`, `npx` ani `VAR=…`.",
+    "- **One process.** `dev` starts one long-running server and nothing else. Build, data and migrations belong in `prepare_script` (never in an npm lifecycle name such as `prepare`, which `bun install` runs by itself), a read-only check in `check_script`. No `concurrently`, `&&`, `npx` or `VAR=…` on the start path.",
+  ),
+  t(
+    "- **Port a adresy z proměnných.** Host a port jen z `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` a `_PORT`, veřejná adresa z `_EXTERNAL_ORIGIN`. Žádné `.env`, `PORT` ani pevný port; volání `bun` na start cestě s `--no-env-file`. Health odpovídá 200 přímo, bez přesměrování; na SIGTERM proces skončí do deseti sekund a loguje na stdout.",
+    "- **Port and addresses from variables.** Host and port only from `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` and `_PORT`, the public address from `_EXTERNAL_ORIGIN`. No `.env`, `PORT` or fixed port; `bun` on the start path runs with `--no-env-file`. Health answers 200 directly, without a redirect; on SIGTERM the process ends within ten seconds and logs to stdout.",
+  ),
+  t(
+    "- **Tajné údaje z trezoru.** Aplikace deklaruje jen jména: povinná v `lazurio.runtime.secrets`, volitelná v `optional_secrets`. Hodnoty čte z `LAZURIO_RUNTIME_SECRET_<JMÉNO>`, které Lazurio předá jen procesu aplikace z trezoru Prostředí; bez povinného údaje aplikace nestartuje. Hodnotu uloží uživatel do trezoru, nikdy do `.env` ani do repozitáře.",
+    "- **Secrets from the vault.** The app declares names only: required ones in `lazurio.runtime.secrets`, optional ones in `optional_secrets`. It reads the values from `LAZURIO_RUNTIME_SECRET_<NAME>`, which Lazurio passes from the Environment's vault to the app's own process only; without a required one the app does not start. The user stores the value in the vault, never in `.env` or the repository.",
+  ),
+  t(
+    "- **Sousední moduly.** Čte-li aplikace data jiného modulu, deklaruje ho v `lazurio.runtime.required_module_slots` (`workspace/<slug>` nebo `workspace/<slug>/db`) a čte jen `../<slug>/` od kořene modulu. Volá-li jeho API, bere adresu jen z `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` (slug souseda velkými písmeny, ostatní znaky jako `_`) a chybějící proměnnou zvládne typovanou chybou. Nic neimportuje mimo svůj repozitář; sdílený kód je verzovaná závislost.",
+    "- **Sibling modules.** When the app reads another module's data, it declares the module in `lazurio.runtime.required_module_slots` (`workspace/<slug>` or `workspace/<slug>/db`) and reads only `../<slug>/` from the module root. When it calls the sibling's API, it takes the address only from `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` (the sibling's slug in capitals, other characters as `_`) and handles a missing variable with a typed error. It imports nothing outside its repository; shared code is a versioned dependency.",
+  ),
+  t(
+    '- **Sestavená verze.** Z `main` Lazurio spouští sestavenou aplikaci. Statická aplikace deklaruje `build_script` a `build_output` (u SPA `static_fallback: "spa"`) a nemá `secrets`. Aplikace s vlastním serverem deklaruje `start_script`, který spustí produkční server jako jeden proces, a výstup klienta čte z `LAZURIO_RUNTIME_BUILD_OUTPUT`. Při sestavení aplikace nečte listenery ani tajné údaje.',
+    '- **The built version.** From `main` Lazurio runs the built app. A static app declares `build_script` and `build_output` (`static_fallback: "spa"` for a single-page app) and has no `secrets`. An app with its own server declares `start_script`, which starts the production server as one process, and reads the client\'s output from `LAZURIO_RUNTIME_BUILD_OUTPUT`. The build reads no listeners or secrets.',
+  ),
+  t(
+    "- **Uspávání.** Nepoužívaná aplikace z `main` usne a další otevření ji spustí znovu: stav, který má přežít, nedrž jen v paměti.",
+    "- **Sleeping.** An unused app from `main` goes to sleep and the next opening starts it again: keep no state that has to survive only in memory.",
+  ),
+  t(
+    "- **CI šetří minuty.** Linuxová kontrola běží na každý pull request i push do `main`; Windows a macOS jen pro pull request, který mění kód, a na vyžádání, nikdy po merge ani podle plánu.",
+    "- **CI saves minutes.** The Linux check runs on every pull request and push to `main`; Windows and macOS only for a pull request that changes code and on request, never after a merge or on a schedule.",
+  ),
+  blank,
+  t("## Postup převodu", "## Converting a module"),
+  t(
+    "1. Přečti `AGENTS.md` modulu a Organizace a projdi modul proti seznamu výše; zapiš si, co nesedí.",
+    "1. Read the module's and the Organization's `AGENTS.md` and go through the module against the list above; note what does not fit.",
+  ),
+  t(
+    "2. Opravuj v tomto pořadí: start (jeden proces, příprava zvlášť), proměnné a tajné údaje, hranice a sousedé, TypeScript strict a kontroly, generace aplikace, health, sestavená verze. Přesouvá-li se adresář aplikace nebo maže generace, přidej staré cesty výstupů sestavení do kořenového `.gitignore`, jinak existující checkouty uvíznou.",
+    "2. Fix in this order: the start (one process, preparation apart), variables and secrets, boundaries and siblings, TypeScript strict and the checks, app generations, health, the built version. When an app directory moves or a generation is deleted, add the old build output paths to the root `.gitignore`, or existing checkouts get stuck.",
+  ),
+  t(
+    "3. Lease portu mimo pool Organizace přepiš na volný port poolu a mapování starý → nový uveď v pull requestu.",
+    "3. Rewrite a port lease outside the Organization's pool to a free port of the pool, and give the old → new mapping in the pull request.",
+  ),
+  t(
+    "4. Ověř: `bun run check` a `bun test` v každé aplikaci, pak skutečný start `lazurio module start <Org>/<modul> --json`, otevři `runtime.url` (health 200) a `lazurio module stop`.",
+    "4. Verify: `bun run check` and `bun test` in every app, then a real start with `lazurio module start <Org>/<module> --json`, open `runtime.url` (health 200) and `lazurio module stop`.",
+  ),
+  t(
+    "5. Pull request modulu říká, co před převodem nesedělo a co se záměrně nemění (chování aplikace). Změna Organizace jde samostatným pull requestem do jejího kořene a oba se navzájem odkazují.",
+    "5. The module's pull request says what did not fit before the conversion and what deliberately stays (the app's behaviour). A change of the Organization goes as a separate pull request to its root, and the two link each other.",
+  ),
+  blank,
+  t(
+    "Nikdy neupravuj Lazurio, aby modul „prošel“. Skutečnou mezeru standardu nebo Platformy zapiš jako issue do `Lazurio/LazurioPlatform`, bez obsahu Organizace.",
+    "Never change Lazurio so that a module “passes”. File a real gap of the standard or the Platform as an issue in `Lazurio/LazurioPlatform`, without Organization content.",
+  ),
+  blank,
+  t("## Ověření", "## Verification"),
+  t(
+    "- Každý bod seznamu sedí, nebo pull request jmenuje, co ověřit nešlo a proč.",
+    "- Every item of the list fits, or the pull request names what could not be verified and why.",
+  ),
+  t(
+    "- `bun run check` a `bun test` projdou v každé aplikaci.",
+    "- `bun run check` and `bun test` pass in every app.",
+  ),
+  t(
+    "- Skutečný start přes `lazurio module start` je zdravý a `runtime.url` odpoví 200.",
+    "- A real start through `lazurio module start` is healthy and `runtime.url` answers 200.",
+  ),
+];
+
 // Each skill's one text for this Folder, in the Folder's locale.
 function skillText(source: InstructionSource, name: SkillName): string {
   const { locale } = source.profile;
@@ -542,6 +704,25 @@ function skillText(source: InstructionSource, name: SkillName): string {
         newModuleDescription,
         { cs: "Nový modul", en: "A new module" },
         newModule(source.preset),
+      );
+    case "henry-review":
+      return skillDocument(
+        locale,
+        name,
+        henryReviewDescription,
+        { cs: "Review personou", en: "Review by the persona" },
+        henryReview,
+      );
+    case "module-standard":
+      return skillDocument(
+        locale,
+        name,
+        moduleStandardDescription,
+        {
+          cs: "Modul podle Lazurio Module Standard",
+          en: "A module to the Lazurio Module Standard",
+        },
+        moduleStandard,
       );
   }
 }
