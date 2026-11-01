@@ -2429,6 +2429,13 @@ test("every pull request has an assignee and a browser check before Ready, an as
             "jeho `commit.oid` se rovná SHA headu a review přišlo až po tomto commitu.",
             "- **Veřejné repozitáře.** Repozitáře produktu (`Lazurio/*`) jsou veřejné",
             "- **Žádný terminál.** Nikdy uživatele nežádej, aby otevřel terminál nebo do něj kopíroval příkazy",
+            // The handover's limits (root manual/pull-request-handoff.md;
+            // Pablo's review of #761).
+            "jen když platí všechno: pull request je v Ready; ověřil jsi skutečnou GitHub událost přiřazení",
+            "podle pravidel repozitáře smí tuto Publikaci předat (role Triage ani samopřiřazení nestačí)",
+            "nejde o přiřazení z doby, než toto pravidlo dorazilo do Folderu, které se samo souhlasem nestane",
+            "když původ přiřazení nebo živá práva nejde doložit, je to viditelný blokátor, ne odhad",
+            "Přiřazení nikdy nepokrývá Release, apply infrastruktury (ani ten, který by merge spustil), změnu přístupů, secrets ani jinou operaci mimo dotažení pull requestu",
           ]
         : [
             "Before Ready, open a change people will meet (a page, a sign-in, a deployed application) in a browser yourself",
@@ -2439,6 +2446,11 @@ test("every pull request has an assignee and a browser check before Ready, an as
             "its `commit.oid` equals the head SHA and it was submitted after that commit.",
             "- **Public repositories.** The product's repositories (`Lazurio/*`) are public",
             "- **No terminal.** Never ask the user to open a terminal or paste commands into one",
+            "only when all of this holds: the pull request is Ready; you verified the actual GitHub assignment event",
+            "may hand over this Publication under the repository's rules (Triage or a self-assignment is not enough)",
+            "it is not an assignment from before this rule reached the Folder, which never becomes consent by itself",
+            "when the assignment's origin or the live rights cannot be shown, that is a visible blocker, not a guess",
+            "An assignment never covers a Release, an infrastructure apply (not even one the merge would start), access changes, secrets or any other operation beyond finishing the pull request",
           ];
       for (const part of manual)
         expect([...where, part, working.includes(part)]).toEqual([
@@ -2455,8 +2467,8 @@ test("every pull request has an assignee and a browser check before Ready, an as
       // The assignment carries the mandate: no generated text asks for a
       // `/lazurio publish` comment; the handover point says it is not needed.
       const handover = cs
-        ? "přiřazení od uživatele s právem zápisu je pro assignee pokynem pull request dotáhnout včetně merge, který repozitář dovolí; další „Publikuj“ ani komentář `/lazurio publish` není potřeba"
-        : "an assignment by a user with write access is the assignee's instruction to finish the pull request, including the merge the repository allows; no further “Publish” or `/lazurio publish` comment is needed";
+        ? "Pak další „Publikuj“ ani komentář `/lazurio publish` není potřeba."
+        : "Then no further “Publish” or `/lazurio publish` comment is needed.";
       expect([...where, agents.includes("/lazurio publish")]).toEqual([
         ...where,
         false,

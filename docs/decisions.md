@@ -2988,10 +2988,23 @@ a které by vlastně měly být nadefinované pod LazurioPlatform, aby se to pro
   - a review request is only a check.
 
   This replaces the manual's "the GitHub user whose verification you are asking for".
-- **The assignment carries the mandate** (the root's `manual/pull-request-handoff.md`). An assignment
-  by a user with write access is the assignee's instruction to finish the pull request, including
-  the merge the repository allows. No further "Publish" or `/lazurio publish` comment is needed, and
-  removing the assignment ends the mandate.
+- **The assignment carries the mandate, within the root contract's limits** (the root's
+  `manual/pull-request-handoff.md`). It is the assignee's instruction to finish the pull request,
+  including the merge the repository allows, and no further "Publish" or `/lazurio publish` comment is
+  needed, only when all of this holds:
+  - the pull request is Ready;
+  - the agent verified the actual GitHub assignment event (who assigned whom) and, right before the
+    merge, that it still stands;
+  - the assigner has live Write, Maintain or Admin and may hand over this Publication under the
+    repository's rules; Triage or a self-assignment is not enough;
+  - it is not an assignment from before the rule reached the Folder, which never becomes consent by
+    itself; a new assignment event hands the work over again.
+
+  Removing the assignment ends the mandate, and an origin or live rights that cannot be shown are a
+  visible blocker. An assignment never covers a Release, an infrastructure apply (not even one the
+  merge would start), access changes, secrets or anything beyond finishing the pull request, and it
+  bypasses no branch rules or reviews. Pablo's review of #761 asked for these limits in the generated
+  text itself.
   - Before, the manual's handover point said an assignment "replaces no Publication instruction".
   - The persona line of the Henry Environment's `AGENTS.md` and the bot team's work paragraph still
     asked for a `/lazurio publish` comment, which the root dropped.
