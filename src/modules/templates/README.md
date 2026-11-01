@@ -23,6 +23,8 @@ Platform). Every file is the root's byte for byte, except:
   render the root's exact words, so its plan keeps the root's tree hash
   (`tests/module-scaffold.test.ts` holds the root's hashes at `a5615be0`).
 - **`_personal/AGENTS.md.tmpl`** is new: the rules of a personal module.
+- **Strict TypeScript in `AGENTS.md`** (decision F52's addendum of 2026-11-01):
+  both `AGENTS.md` templates state the rule the stacks already keep.
 - **The static output** (decision F58): the `astro`, `astro-starlight` and
   `vite-react` apps declare `build_output: "dist"` (`vite-react` also
   `static_fallback: "spa"`), and their `README.md` says that the Launchpad

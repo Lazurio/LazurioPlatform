@@ -312,6 +312,23 @@ test("where both places exist, an Organization's module continues at its own rou
   expect(checked).toBeGreaterThan(0);
 });
 
+test("the skill says strict TypeScript on every preset, and that a person's private data goes to their private data repository", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const text = rendered(journey, locale)[codex];
+      const cs = locale === "cs";
+      const label = `${journey.preset} / ${locale}`;
+      expect(text, label).toContain("strict TypeScript");
+      if (workspacePreset(journey.preset).personalspace !== "present") continue;
+      expect(text, label).toContain(
+        cs ? "se nikdy nezveřejňuje" : "never turns public",
+      );
+      expect(text, label).toContain(
+        cs ? "nejde spolehlivě smazat" : "cannot be reliably deleted",
+      );
+    }
+});
+
 test("the skill has the same sections in both languages on every preset", () => {
   for (const journey of journeys) {
     const skill = (locale: "cs" | "en") =>

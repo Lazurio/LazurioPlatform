@@ -115,18 +115,20 @@ function file(result: ModuleScaffoldPlan, path: string): string {
 // README), so their hashes are the root's plus that change; the root's
 // were 1fcd5e2d… (vite-react), 6050c38e… (astro) and a01509c8…
 // (astro-starlight).
+// Both `AGENTS.md` templates have since said strict TypeScript (decision F52's
+// addendum of 2026-11-01), so every stack's hash is the root's plus that change too.
 const rootTreeHashes: Readonly<Record<string, string>> = {
   "vite-react":
-    "sha256:ddb885f15b4ab0c9842105577d9af046c06457a4cf3690c21ad9e203d899e22a",
+    "sha256:14f92033abf08d08826a384393f128e0a643f8806be09067d00cf6cb134553ac",
   astro:
-    "sha256:ed2e5210f264c4f3e33c85bba507bf61513f8350637ff12f8a7c85107610b5e0",
+    "sha256:1a6204daa85400d0279e582dd986c064b5e9dd6dc2930fda612a211b16a29bac",
   "astro-starlight":
-    "sha256:43278ddd5c38c9e05b8e399346aa831c3f22aa9bbd9ffe0e41e3c47ffb94fc2f",
+    "sha256:a38abc407c9e128d5b7a599bf166ae33ce8256be871d3d4cdad427c62fa6a1ff",
   "bun-service":
-    "sha256:ac73b3f7f89ad96ea20ddff7a2dc0c6e3d5b5960db7e62a4c81113e04da91cda",
+    "sha256:800e76a7979f49358b311a70edeb3d97eb369007406d1cfa21c5733a34b8a1fc",
   "python-uv":
-    "sha256:4d7a1b232566a7d6f33be9fd92f342a943b4933c996a24fa4f657e0ba075be6f",
-  none: "sha256:3b74e3ee30ce43eba0122a216fa9076c5bd6883cf0617cf8c2acab93458babba",
+    "sha256:7e0ae8e4e54065e06c994a95a67b55ce543d3be6c618d23f7023ae8af44636ee",
+  none: "sha256:a3046d21a67c65eb0be9eca1a677e022f59d01ce862905e63a71b1e46b24d742",
 };
 
 describe("planModuleScaffold, the Organization form", () => {
@@ -138,7 +140,7 @@ describe("planModuleScaffold, the Organization form", () => {
     expect(
       plan({ displayName: "Zákaznický portál", teams: ["web"] }).treeHash,
     ).toBe(
-      "sha256:2d8832d73bfbf574a8ef3f25341a93be81725eb36be42c014c8034c81b668fd6",
+      "sha256:3af63f4c4109c37a87a826625b3864564cb1a6128779433894878c5c331c299e",
     );
   });
 
@@ -287,6 +289,41 @@ describe("planModuleScaffold, the Organization form", () => {
 });
 
 describe("planModuleScaffold, every stack", () => {
+  test("every stack's AGENTS.md says strict TypeScript, and every TypeScript stack is strict and type-checks in `check`", () => {
+    for (const owner of ["organization", "personal"] as const)
+      for (const stack of moduleScaffoldStacks) {
+        const result =
+          owner === "organization"
+            ? plan({ stack, slug: `x-${stack}` })
+            : personal({ stack, slug: `x-${stack}` });
+        const label = `${owner} ${stack}`;
+        expect(file(result, "AGENTS.md"), label).toContain("strict TypeScript");
+        expect(file(result, "AGENTS.md"), label).toContain("`python-uv`");
+        const tsconfig = result.files.find(
+          (entry) => entry.path === "app/v1/tsconfig.json",
+        );
+        if (stack === "python-uv" || stack === "none") {
+          expect(tsconfig, label).toBeUndefined();
+          continue;
+        }
+        expect(tsconfig?.content, label).toMatch(
+          /"strict": true|astro\/tsconfigs\/strict/,
+        );
+        const pkg = JSON.parse(file(result, "app/v1/package.json"));
+        expect(pkg.scripts.check, label).toMatch(/typecheck|astro check/);
+      }
+  });
+
+  test("a personal module with data says its data repository stays private and holds no secret", () => {
+    const text = file(personal({ data: true }), "AGENTS.md");
+    expect(text).toContain("soukromý");
+    expect(text).toContain("Tajné údaje");
+    expect(text).toContain("nejde spolehlivě smazat");
+    expect(file(plan({ data: true }), "AGENTS.md")).not.toContain(
+      "Tajné údaje",
+    );
+  });
+
   test("renders without leftover placeholders, with the runtime and preparation the Platform reads", () => {
     for (const owner of ["organization", "personal"] as const)
       for (const stack of moduleScaffoldStacks) {

@@ -450,7 +450,7 @@ export function planModuleScaffold(
     content: `${JSON.stringify(moduleManifest(owner.name, slug, lease), null, 2)}\n`,
   });
   const engine = `github:Lazurio/repository-db#v${pinned.repositoryDb ?? defaultScaffoldVersions.repositoryDb}`;
-  if (data) withData(files, slug, engine);
+  if (data) withData(files, slug, engine, personal);
   const sorted = [...files.values()].sort((left, right) =>
     left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
   );
@@ -524,6 +524,14 @@ export function planModuleScaffold(
   });
 }
 
+// A person's data repository (decision F52's addendum of 2026-11-01).
+const personalDataRules = `
+Datový repozitář je soukromý a patří jen uživateli: nezveřejňuj ho. Tajné údaje
+(hesla, tokeny, klíče) do něj nepatří nikdy a skutečná data nepatří do kódu
+Modulu, testovacích dat, logů, screenshotů, issue ani pull requestů. Historie
+Gitu se nepřepisuje, takže co se jednou Publikuje, nejde spolehlivě smazat.
+`;
+
 /** What `--data` changes in a module's files: its app depends on the one
  * released repository-db, its Git ignores the data mount `db/` (a repository
  * of its own), and its AGENTS.md says where the data lives and how it is
@@ -532,6 +540,7 @@ function withData(
   files: Map<string, ScaffoldFile>,
   slug: string,
   engine: string,
+  personal: boolean,
 ) {
   const app = files.get(scaffoldAppPackage);
   if (app === undefined)
@@ -571,7 +580,7 @@ Modulu ignoruje. App k nim přistupuje přes \`@lazurio/repository-db\` (jedna
 vydaná verze v \`app/v1/package.json\`), nikdy přímo přes Git. Commit a push
 dat do \`v3\` je Publikace: dělá ji tlačítko „Publikovat změny“ nebo
 \`repository-db publish\` na pokyn uživatele.
-`,
+${personal ? personalDataRules : ""}`,
     });
 }
 

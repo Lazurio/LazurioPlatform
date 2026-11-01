@@ -19,6 +19,9 @@ commitu splňuje Lazurio Module Standard. Tak ho drž.
 
 ## Standard
 
+- App je ve strict TypeScriptu: `strict` v `tsconfig.json` se nevypíná a `check`
+  spouští typovou kontrolu. Jedinou výjimkou je stack `python-uv`, jehož App je
+  v Pythonu.
 - `dev` spouští jeden proces serveru a nic jiného; build, data a migrace
   patří do přípravy (`prepare:app`), kontrola připravenosti do
   `check:prepared`.
