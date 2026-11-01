@@ -107,6 +107,50 @@ test("the manual follows the locale with the same structure in both languages an
     }
 });
 
+// Strict TypeScript is a rule of the Module Standard (root decision 0171), and
+// a personal Environment builds modules too, so its manual says it as well.
+test("the manual of every preset holds strict TypeScript for a module's application, with python-uv the one exception", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const workingHere = renderManual({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      })["manual/working-here.md"];
+      const label = `${journey.preset} / ${locale}`;
+      expect(workingHere, label).toContain("strict TypeScript");
+      expect(workingHere, label).toContain("`strict`");
+      expect(workingHere, label).toContain("`python-uv`");
+      expect(workingHere, label).toContain("`lazurio.module.json`");
+    }
+});
+
+// A person's private data belongs in their private data repository (decision
+// F52's addendum of 2026-11-01), which never turns public and holds no secret.
+test("a personal Environment's manual sends a module's private data to its private data repository and says what Git cannot undo", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const workingHere = renderManual({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      })["manual/working-here.md"];
+      const label = `${journey.preset} / ${locale}`;
+      const cs = locale === "cs";
+      expect(workingHere.includes("`<login>/<slug>-data`"), label).toBe(
+        journey.preset === "hosted-personal",
+      );
+      if (journey.preset !== "hosted-personal") continue;
+      expect(workingHere, label).toContain(
+        cs ? "se nikdy nezveřejňuje" : "never turns public",
+      );
+      expect(workingHere, label).toContain(cs ? "Tajné údaje" : "Secrets");
+      expect(workingHere, label).toContain(
+        cs ? "nejde spolehlivě smazat" : "cannot be reliably deleted",
+      );
+    }
+});
+
 test("device admission and desktop handoff distinguish personal and Organization paths", () => {
   for (const journey of journeys)
     for (const locale of ["cs", "en"] as const) {

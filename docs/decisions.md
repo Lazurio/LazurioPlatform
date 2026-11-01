@@ -15949,6 +15949,44 @@ resolving `transition`, and after the merge the catalog listing the module); a f
 mount; a data repository GitHub does not create. `tests/personal-module-create.test.ts`:
 the personal form.
 
+### F52 addendum of 2026-11-01: strict TypeScript reaches every manual, a person's private data goes to a private data repository
+
+**Decided by Matěj, the Organization Admin, 2026-11-01:** „strict TypeScript by se měl držet
+napříč všemi manuály.“ The same day he settled where a person's private data lives: in Git, in
+their own private repository, never in a public one.
+
+The rule was already kept by the stacks (`strict` in every TypeScript stack's `tsconfig.json`, the
+type check in `check`) and stated by the manual's Module Standard chapter, but that chapter belongs
+to `building`, which the preset `hosted-personal` does not carry, and neither `AGENTS.md` template
+of a module said it.
+
+- **The manual of every preset says it.** `moduleStandardRules` is the one text of the application
+  rules. The preset `hosted-personal` gets it in a chapter of its own, `personalModules`, with the
+  personal port pool; the other presets keep it in `building`. The whole `building` chapter does not
+  move there: most of it is about Organizations.
+- **A new module's `AGENTS.md` says it**, in both templates, so every tree hash changes once.
+  The one exception is the stack `python-uv`, whose application is in Python; the stack `none` has
+  no application. Existing modules stay as they are.
+- **The skill `new-module` says it.**
+- **A person's private data.** The manual, the skill and a personal module's `## Data` section say:
+  it belongs in the module's private `<login>/<slug>-data`, which never turns public; a secret never
+  goes in it; real data never goes in code, test data, logs, screenshots, issues or pull requests;
+  and what is published cannot be reliably deleted, because Git history is not rewritten (root
+  decision 0196, point 8). This adds no capability and changes no check: `lazurio module create`
+  already creates the repository private and refuses one GitHub created public
+  (`data-not-private`), which the skill now names.
+- **Where the sync host runs.** repository-db's contract needs one sync host created at server
+  start, and `--data` adds the engine without a server, so on `vite-react` the app from `main` would
+  stay a static build (decision F58) that cannot host it. The skill now says that an app with data
+  declares `start_script` (the F58 addendum of 2026-10-21) and serves its own client. The scaffold
+  itself does not change here.
+
+**Verification.** `tests/folder-manual.test.ts`, `tests/folder-skills.test.ts`,
+`tests/module-scaffold.test.ts`: the rule on every preset and locale, on every stack and form, every
+TypeScript stack really strict with the type check in `check`, and the personal data rules only
+where they apply, and the skill's rule on `start_script` on every preset. Only generated text
+changes; no behavior of the product.
+
 ## F53 — Every Environment owns its vault: its own organization in the network's Vaultwarden, created by its technical account
 
 > **Amended on 2026-10-16 by root decision 0203 point 7 ([F53 amendment of

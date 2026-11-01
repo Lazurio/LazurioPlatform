@@ -104,8 +104,8 @@ function newModule(preset: PresetName): readonly Text[] {
     ),
     blank,
     t(
-      "Technicky je modul **samostatný Git repozitář** s aplikací v TypeScriptu podle Lazurio Module Standard (decision 0171). Nikdy ho nezakládej ručně ani kopií jiného modulu; vzniká scaffoldem (krok 5).",
-      "Technically a module is **a Git repository of its own** with a TypeScript app under the Lazurio Module Standard (decision 0171). Never create it by hand or as a copy of another module; the scaffold creates it (step 5).",
+      "Technicky je modul **samostatný Git repozitář** s aplikací ve strict TypeScriptu podle Lazurio Module Standard (decision 0171; výjimkou je jen stack `python-uv`). Nikdy ho nezakládej ručně ani kopií jiného modulu; vzniká scaffoldem (krok 5).",
+      "Technically a module is **a Git repository of its own** with a strict TypeScript app under the Lazurio Module Standard (decision 0171; the stack `python-uv` is the one exception). Never create it by hand or as a copy of another module; the scaffold creates it (step 5).",
     ),
     blank,
     t("## 1. Rozhovor o účelu", "## 1. The interview about the purpose"),
@@ -364,8 +364,8 @@ const organizationModuleRoute: readonly Text[] = [
 
 // How the app reaches its data, the same in both forms.
 const dataWiring: Text = t(
-  "Aplikaci pak napoj podle `app/v1/node_modules/@lazurio/repository-db/docs/app-contract.md`: jeden sync host, čtení i zápisy přes něj a karta konceptu, ve které uživatel změny dat Publikuje. Commit a push dat do `v3` je Publikace.",
-  "Then wire the app as `app/v1/node_modules/@lazurio/repository-db/docs/app-contract.md` says: one sync host, every read and write through it, and the draft card in which the user publishes data changes. Committing and pushing data to `v3` is Publication.",
+  "Aplikaci pak napoj podle `app/v1/node_modules/@lazurio/repository-db/docs/app-contract.md`: jeden sync host, čtení i zápisy přes něj a karta konceptu, ve které uživatel změny dat Publikuje. Sync host běží jen ve vlastním serveru aplikace, proto aplikace s daty deklaruje `start_script`: bez něj se `vite-react` z `main` servíruje jako statický build, ze kterého nic neběží. Server si sám obslouží i sestavený klient (cestu dostane v `LAZURIO_RUNTIME_BUILD_OUTPUT`) a `static_fallback` z `lazurio.runtime` zmizí, protože ho Platforma u `start_script` odmítne. Commit a push dat do `v3` je Publikace.",
+  "Then wire the app as `app/v1/node_modules/@lazurio/repository-db/docs/app-contract.md` says: one sync host, every read and write through it, and the draft card in which the user publishes data changes. The sync host runs only in the app's own server, so an app with data declares `start_script`: without it `vite-react` is served from `main` as a static build, of which nothing runs. The server also serves the built client itself (its path arrives in `LAZURIO_RUNTIME_BUILD_OUTPUT`), and `static_fallback` leaves `lazurio.runtime`, because the Platform refuses it with `start_script`. Committing and pushing data to `v3` is Publication.",
 );
 
 // Steps 5 to 7 for the personal Workspace: the confirmed run, the data
@@ -399,6 +399,10 @@ const personalModuleRest: readonly Text[] = [
     "**The data repository.** With `--data` the run also creates the private repository `<login>/<slug>-data`, mounts it as the module's `db/` on branch `v3` (by the app's `repository-db init`) and declares its slot `workspace/<slug>/db` beside the module's. When the mount fails (`data-init-failed`), run the exact command from `next_steps`.",
   ),
   dataWiring,
+  t(
+    "**Soukromá osobní data.** Osobní data modulu, třeba finance nebo zdraví, patří do tohoto soukromého datového repozitáře na účtu uživatele a ten se nikdy nezveřejňuje. Tajné údaje (hesla, tokeny, klíče) do něj nepatří nikdy a skutečná data nepatří do kódu modulu, testovacích dat, logů, screenshotů, issue ani pull requestů. Než uživatel plán potvrdí, řekni mu dvě věci: historie Gitu se nepřepisuje, takže co se jednou Publikuje, nejde spolehlivě smazat (když to vadí, platí kompromisy databáze z kroku 3), a k soukromému repozitáři má přístup GitHub a vše, co má na účtu uživatele právo k repozitářům.",
+    "**Private personal data.** A module's personal data, finances or health for example, belongs in this private data repository on the user's account, which never turns public. Secrets (passwords, tokens, keys) never go in it, and real data never goes in the module's code, test data, logs, screenshots, issues or pull requests. Before the user confirms the plan, tell them two things: Git history is not rewritten, so what is once published cannot be reliably deleted (if that matters, the database trade-offs of step 3 apply), and GitHub can reach a private repository, as can anything with rights to repositories on the user's account.",
+  ),
   blank,
   t(
     "## 6. První verze osobního modulu",
@@ -522,8 +526,8 @@ const personalModuleRefusals: readonly Text[] = [
     "- `commit-failed`: there is no Git identity; ask the user to sign `gh` in with their account or to set their `user.name` and `user.email`, then run the command again.",
   ),
   t(
-    "- `create-failed`, `not-private`, `create-uncertain`: GitHub repozitář nezaložil, založil ho veřejný, nebo není jisté, kdo ho založil. Zastav se a projdi to s uživatelem; repozitář sám nepřebírej ani nemaž.",
-    "- `create-failed`, `not-private`, `create-uncertain`: GitHub did not create the repository, created it public, or it is unclear who created it. Stop and go through it with the user; never take over or delete the repository yourself.",
+    "- `create-failed`, `not-private`, `data-not-private`, `create-uncertain`: GitHub repozitář nezaložil, založil ho veřejný, nebo není jisté, kdo ho založil. Zastav se a projdi to s uživatelem; repozitář sám nepřebírej ani nemaž.",
+    "- `create-failed`, `not-private`, `data-not-private`, `create-uncertain`: GitHub did not create the repository, created it public, or it is unclear who created it. Stop and go through it with the user; never take over or delete the repository yourself.",
   ),
   t(
     "- `push-failed`, `manifest_changed`, `declare-failed`, `check-failed` (stav `action_required`): modul vznikl a jeden krok zbývá; udělej ho přesně podle `next_steps`.",

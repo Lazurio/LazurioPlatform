@@ -788,7 +788,8 @@ function workingHere(
       "Z rootu Folderu nikdy nepracuj v konkrétní Organizaci: vstup do `organizations/<org>/`, přečti její `AGENTS.md` a teprve potom měň její obsah. Mezi Organizacemi nikdy nekopíruj secrets, zákaznická data, obchodní strategii ani osobní overlaye; obecné vzory, anonymizované šablony a poučení v obecné podobě jsou v pořádku.",
       "Never work in a specific Organization from the Folder root: enter `organizations/<org>/`, read its `AGENTS.md`, and only then change its content. Never copy secrets, customer data, business strategy or personal overlays between Organizations; general patterns, anonymized templates and lessons in general form are fine.",
     ),
-    ...(preset === "hosted-personal" ? [] : [blank, ...building(preset)]),
+    blank,
+    ...(preset === "hosted-personal" ? personalModules() : building(preset)),
     blank,
     ...connectedApplications(preset, chatgpt),
     blank,
@@ -1362,6 +1363,63 @@ function moduleApplications(hosted: boolean): readonly Text[] {
   ];
 }
 
+// The Module Standard's rules for an application (root decision 0171), the same
+// on every preset that builds modules; only the pool of the lease differs.
+function moduleStandardRules(pool: Text): readonly Text[] {
+  return [
+    t(
+      `- Modul deklaruje \`lazurio.module.json\`: \`id\` shodné se slotem, lease v ${pool.cs}, \`apps\` a \`default_app\`. Aplikace žije v \`app/v<N>/\` a má přesný \`packageManager\` (Bun), commitnutý lockfile, strict TypeScript, Biome a skripty \`dev\`, \`check\` a \`test\`.`,
+      `- A module declares \`lazurio.module.json\`: an \`id\` equal to its slot, a lease in ${pool.en}, \`apps\` and \`default_app\`. Its application lives in \`app/v<N>/\` with an exact \`packageManager\` (Bun), a committed lockfile, strict TypeScript, Biome and the scripts \`dev\`, \`check\` and \`test\`.`,
+    ),
+    t(
+      "- Strict TypeScript platí od prvního commitu: `strict` v `tsconfig.json` (u Astra přes `astro/tsconfigs/strict`) se nevypíná a `check` spouští typovou kontrolu. Jedinou výjimkou je stack `python-uv`, jehož aplikace je v Pythonu; stack `none` aplikaci nemá.",
+      "- Strict TypeScript holds from the first commit: `strict` in `tsconfig.json` (for Astro through `astro/tsconfigs/strict`) stays on and `check` runs the type check. The one exception is the stack `python-uv`, whose application is in Python; the stack `none` has no application.",
+    ),
+    t(
+      "- `dev` spustí právě jeden dlouhoběžící server. Build, data a migrace patří do deklarované přípravy (`lazurio.preparation`), ne do npm lifecycle skriptů.",
+      "- `dev` starts exactly one long-running server. Build, data and migrations belong in the declared preparation (`lazurio.preparation`), not in npm lifecycle scripts.",
+    ),
+    t(
+      "- Host a port bere aplikace jen z `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` a `_PORT`: žádné `.env`, `PORT` ani pevně zapsaný port. Health odpovídá 200 přímo, na SIGTERM proces skončí do deseti sekund a loguje na stdout.",
+      "- The application takes its host and port only from `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` and `_PORT`: no `.env`, no `PORT`, no hard-coded port. Health answers 200 directly, the process exits within ten seconds of SIGTERM and logs to stdout.",
+    ),
+    t(
+      "- Modul nic neimportuje mimo svůj repozitář; sdílený kód bere jako verzovanou závislost.",
+      "- A module imports nothing from outside its repository; shared code comes as a versioned dependency.",
+    ),
+    t(
+      "- Odchylku modulu opravuješ v modulu, nikdy obcházením Launchpadu nebo Platformy; skutečnou mezeru produktu zapiš jako issue. Konformanci zatím žádný příkaz Platformy neověří: projdi pravidla sám a co ověřit nejde, uveď v handoffu.",
+      "- Fix a module's deviation in the module, never by working around the Launchpad or the Platform; file a real product gap as an issue. No Platform command checks conformance yet: go through the rules yourself and name in the handoff what could not be verified.",
+    ),
+  ];
+}
+
+// A person's own modules, for the preset that carries no Organization and so no
+// `building` chapter (decision F52; its addendum of 2026-11-01): the Module
+// Standard holds here too, and a person's private data has its own rule.
+function personalModules(): readonly Text[] {
+  return [
+    t(
+      "## Moduly a Lazurio Module Standard (decision 0171)",
+      "## Modules and the Lazurio Module Standard (decision 0171)",
+    ),
+    t(
+      "- Osobní modul je samostatný soukromý repozitář `<login>/<slug>` ve `workspace/` Personalspace s vlastním `AGENTS.md`. Vzniká jen příkazem `lazurio module create` podle skillu `new-module`. Jeden modul = jeden worktree = jeden PR.",
+      "- A personal module is a private repository of its own, `<login>/<slug>`, in the Personalspace's `workspace/` with its own `AGENTS.md`. Only `lazurio module create` makes one, as the skill `new-module` says. One module = one worktree = one PR.",
+    ),
+    ...moduleStandardRules(
+      t(
+        "osobním poolu portů (`module_port_pool` Personalspace)",
+        "the personal port pool (the Personalspace's `module_port_pool`)",
+      ),
+    ),
+    t(
+      "- Osobní data modulu, třeba finance nebo zdraví, patří do jeho soukromého datového repozitáře `<login>/<slug>-data`, připojeného jako `db/`, a ten se nikdy nezveřejňuje. Tajné údaje (hesla, tokeny, klíče) do něj nepatří nikdy a skutečná data nepatří do kódu modulu, testovacích dat, logů, screenshotů, issue ani pull requestů. Historie Gitu se nepřepisuje, takže co se jednou Publikuje, nejde spolehlivě smazat: řekni to uživateli předem (root decision 0196, bod 8).",
+      "- A module's personal data, finances or health for example, belongs in its private data repository `<login>/<slug>-data`, mounted as `db/`, which never turns public. Secrets (passwords, tokens, keys) never go in it, and real data never goes in the module's code, test data, logs, screenshots, issues or pull requests. Git history is not rewritten, so what is once published cannot be reliably deleted: tell the user beforehand (root decision 0196, point 8).",
+    ),
+  ];
+}
+
 // How Lazurio is built, for every preset that carries Organizations (decision
 // F14 addendum 2026-10-02): the agent first uses what exists, then the
 // Organization's declarations, the Module Standard (root decision 0171), the
@@ -1405,25 +1463,8 @@ function building(preset: PresetName): readonly Text[] {
       "- Nový modul, jeho slot a granty Teamů zakládá ten, komu to GitHub dovolí, typicky Admin. Agent uživatele s těmito právy to udělá na jeho výslovný pokyn: repozitář modulu, slot v manifestu Organizace (PR do jejího kořene) a granty Teamů. Změnu přístupů a mazání předem potvrď s uživatelem jako přesnou operaci. Hosting (Lazurio Machines) z Environmentu Organizace nespouštěj; změnu Environmentu navrhni jako PR nebo issue do repozitáře `infra` Organizace.",
       "- A new module, its slot and the Teams' grants are created by whoever GitHub allows, typically an Admin. The agent of a user with those rights does it on their explicit instruction: the module's repository, its slot in the Organization manifest (a PR to the Organization root) and the Teams' grants. Confirm an access change or a deletion with the user beforehand, as the exact operation. Never run the hosting (Lazurio Machines) from an Organization's Environment; propose a change of the Environment as a PR or an issue in the Organization's `infra` repository.",
     ),
-    t(
-      "- Modul deklaruje `lazurio.module.json`: `id` shodné se slotem, lease v poolu portů Organizace, `apps` a `default_app`. Aplikace žije v `app/v<N>/` a má přesný `packageManager` (Bun), commitnutý lockfile, strict TypeScript, Biome a skripty `dev`, `check` a `test`.",
-      "- A module declares `lazurio.module.json`: an `id` equal to its slot, a lease in the Organization's port pool, `apps` and `default_app`. Its application lives in `app/v<N>/` with an exact `packageManager` (Bun), a committed lockfile, strict TypeScript, Biome and the scripts `dev`, `check` and `test`.",
-    ),
-    t(
-      "- `dev` spustí právě jeden dlouhoběžící server. Build, data a migrace patří do deklarované přípravy (`lazurio.preparation`), ne do npm lifecycle skriptů.",
-      "- `dev` starts exactly one long-running server. Build, data and migrations belong in the declared preparation (`lazurio.preparation`), not in npm lifecycle scripts.",
-    ),
-    t(
-      "- Host a port bere aplikace jen z `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` a `_PORT`: žádné `.env`, `PORT` ani pevně zapsaný port. Health odpovídá 200 přímo, na SIGTERM proces skončí do deseti sekund a loguje na stdout.",
-      "- The application takes its host and port only from `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` and `_PORT`: no `.env`, no `PORT`, no hard-coded port. Health answers 200 directly, the process exits within ten seconds of SIGTERM and logs to stdout.",
-    ),
-    t(
-      "- Modul nic neimportuje mimo svůj repozitář; sdílený kód bere jako verzovanou závislost.",
-      "- A module imports nothing from outside its repository; shared code comes as a versioned dependency.",
-    ),
-    t(
-      "- Odchylku modulu opravuješ v modulu, nikdy obcházením Launchpadu nebo Platformy; skutečnou mezeru produktu zapiš jako issue. Konformanci zatím žádný příkaz Platformy neověří: projdi pravidla sám a co ověřit nejde, uveď v handoffu.",
-      "- Fix a module's deviation in the module, never by working around the Launchpad or the Platform; file a real product gap as an issue. No Platform command checks conformance yet: go through the rules yourself and name in the handoff what could not be verified.",
+    ...moduleStandardRules(
+      t("poolu portů Organizace", "the Organization's port pool"),
     ),
     blank,
     ...moduleApplications(preset !== "local"),
