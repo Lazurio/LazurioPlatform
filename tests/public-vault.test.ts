@@ -830,6 +830,26 @@ async function servedWithoutBoot(
   };
 }
 
+/** The port on the first line of DevToolsActivePort, or 0 while there is
+ * none yet. */
+function devToolsPort(contents: string): number {
+  const line = contents.split("\n")[0] ?? "";
+  if (!/^[0-9]{1,5}$/.test(line)) return 0;
+  const port = Number(line);
+  return port < 65_536 ? port : 0;
+}
+
+// Chrome creates the file before it writes the port, so an empty or partial
+// first line is not yet a port; reading it as 0 sent the test to port 0 (#669).
+test("DevToolsActivePort gives a port only once its first line holds one", () => {
+  expect(devToolsPort("")).toBe(0);
+  expect(devToolsPort("\n")).toBe(0);
+  expect(devToolsPort("92")).toBe(92);
+  expect(devToolsPort("9222\n/devtools/browser/0f0f")).toBe(9222);
+  expect(devToolsPort("70000\n")).toBe(0);
+  expect(devToolsPort(" 9222\n")).toBe(0);
+});
+
 /** A headless Chrome of its own profile and one tab in it. */
 async function headlessChrome(executable: string) {
   const profile = await realpath(
@@ -849,15 +869,38 @@ async function headlessChrome(executable: string) {
       ...(process.platform === "linux" ? ["--no-sandbox"] : []),
       "about:blank",
     ],
-    { stdout: "ignore", stderr: "ignore" },
+    { stdout: "ignore", stderr: "pipe" },
   );
+  // The last of what Chrome wrote, so a start that fails names its cause.
+  let stderr = "";
+  const decoder = new TextDecoder();
+  void (async () => {
+    for await (const chunk of child.stderr)
+      stderr = (stderr + decoder.decode(chunk, { stream: true })).slice(-4000);
+  })().catch(() => {});
+  let exited: number | undefined;
+  void child.exited.then((code) => {
+    exited = code;
+  });
+  const failed = async (why: string) => {
+    child.kill();
+    await rm(profile, { recursive: true, force: true });
+    const tail = stderr.trimEnd().split("\n").slice(-10).join("\n");
+    return new Error(`Chrome did not start: ${why}${tail ? `\n${tail}` : ""}`);
+  };
+  // Chrome creates DevToolsActivePort before it writes the port into it, so
+  // the file alone is not enough: an empty first line read as port 0 (#669).
   const portFile = join(profile, "DevToolsActivePort");
   const started = Date.now();
-  while (!existsSync(portFile)) {
-    if (Date.now() - started > 15_000) throw new Error("Chrome did not start");
-    await Bun.sleep(100);
+  let port = 0;
+  while (port === 0) {
+    if (exited !== undefined) throw await failed(`it exited with ${exited}`);
+    if (Date.now() - started > 15_000)
+      throw await failed("no DevTools port within 15 s");
+    if (existsSync(portFile))
+      port = devToolsPort(await readFile(portFile, "utf8").catch(() => ""));
+    if (port === 0) await Bun.sleep(100);
   }
-  const port = Number((await readFile(portFile, "utf8")).split("\n")[0]);
   const cdp = await connectCdp(await browserSocketUrl(port));
   return {
     async open(url: string, options: Readonly<{ javascript?: false }> = {}) {
