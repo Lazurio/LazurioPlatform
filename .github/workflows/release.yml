@@ -2,7 +2,8 @@ name: Release
 
 # Tag-driven release (docs/update.md "Publishing"):
 #
-#   tag vX.Y.Z[-rc.N] -> check; a final tag also: its candidate was qualified
+#   tag vX.Y.Z[-rc.N] -> check (static, two test shards as in check.yml); a final
+#                        tag also: its candidate was qualified
 #                        (qualify.yml) and passed the canary
 #                     -> build every target on its own runner
 #                     -> publish: manifest, ONE Sigstore attestation over the
@@ -60,8 +61,13 @@ jobs:
             echo "prerelease=$prerelease"
           } >> "$GITHUB_OUTPUT"
 
-  check:
-    name: Check the tagged source
+  # The tagged source is checked exactly as main's required checks check it
+  # (check.yml): the static checks on a runner of their own and the tests in
+  # the same two time-balanced shards. The whole suite on one runner carried
+  # twice the files of a CI runner under the same four workers, and the known
+  # timing flakes failed there more often than on main (#762).
+  static:
+    name: Static checks of the tagged source
     needs: resolve
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -74,10 +80,30 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
       - run: bun install --frozen-lockfile
       - run: bun run check:static
-      # `bun run check` with its tests as in check.yml: one worker per vCPU
-      # (four), the slowest files first, 20 s for a test without its own
-      # timeout. The serial run came within 90 s of the 20 minutes (#639).
-      - run: bun test --parallel=4 --timings=tests/timings.json --timeout=20000
+
+  check:
+    name: Check the tagged source (${{ matrix.shard }}/2)
+    needs: resolve
+    strategy:
+      # Both shards report, so one run shows every failing test of the tag.
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      # The same command as check.yml's tests: the recorded per-file
+      # durations split the files into two shards and start the slowest
+      # first, one worker per vCPU (four), 20 s for a test without its own
+      # timeout.
+      - run: bun test --shard=${{ matrix.shard }}/2 --parallel=4 --timings=tests/timings.json --timeout=20000
 
   qualified:
     name: A final tag was qualified and passed the canary
@@ -162,7 +188,7 @@ jobs:
 
   build:
     name: Build ${{ matrix.target }}
-    needs: [resolve, check, qualified]
+    needs: [resolve, static, check, qualified]
     strategy:
       fail-fast: true
       matrix:
