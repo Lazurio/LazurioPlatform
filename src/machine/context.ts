@@ -219,7 +219,9 @@ export class MachineContextError extends Error {
       | "machine-context-custody"
       | "machine-platform-unsupported"
       | "machine-operator-mismatch"
-      | "machine-operator-unavailable",
+      | "machine-operator-unavailable"
+      // decision F68: this process is not the installed product
+      | "machine-not-installed-product",
   ) {
     super(code);
   }

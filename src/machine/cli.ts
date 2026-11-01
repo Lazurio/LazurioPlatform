@@ -28,6 +28,7 @@ import {
   MachineContextError,
   readMachineContext,
 } from "./context";
+import { requireInstalledProduct, runningProduct } from "./installed-product";
 import {
   type LaunchpadSeams,
   recordedEntry,
@@ -214,6 +215,9 @@ export async function runMachineCommand(
     if (command === "inspect")
       return { code: 0, result: machineInspection(observed) };
     const operator = await readLinuxOperator();
+    // Only the installed product acts on this operator's Folder and home;
+    // refused before the binding reads them (decision F68, #782).
+    await requireInstalledProduct(await runningProduct(), operator.homedir);
     const folder = bindMachineOperator(observed.context, operator);
     const { code, result } =
       command === "folder-refresh"
@@ -266,7 +270,10 @@ export function machineFailureAnswer(error: unknown) {
       result: {
         kind: "blocked" as const,
         reason: error.code,
-        next: "Ask the operator who hosts this Remote Environment to verify the handover; do not edit the identity file or reset product trust.",
+        next:
+          error.code === "machine-not-installed-product"
+            ? "Only the installed Lazurio changes this Environment's Folder from its handover: run the installed `lazurio machine …`. A source checkout, a test or a pull request's build never does (decision F68). Nothing was changed."
+            : "Ask the operator who hosts this Remote Environment to verify the handover; do not edit the identity file or reset product trust.",
       },
     };
   if (error instanceof FolderOperationBusyError)
