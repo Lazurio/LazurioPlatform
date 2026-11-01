@@ -22577,37 +22577,65 @@ one by one does not close the class: the next test or local try can reach the sa
    - a built identity, not `0.0.0-development`;
    - not a fixture build;
    - running (`/proc/self/exe` on Linux, resolved) from `versions/<its own version>/`
-     under the operator's install base, the base the product would resolve with the
-     operator's home from the system record.
+     under the **trusted install base**:
+     `<the operator's home from the system record>/.local/share/lazurio`.
+
+   The trusted base is the one fixed path where the Machines role installs the product
+   (`lazurio install --base ~/.local/share/lazurio`, docs/machine-handover.md). It is
+   **not** resolved through `resolveInstallBase`, which follows `XDG_DATA_HOME`: an
+   invoking process could point that at a temporary directory holding a non-fixture
+   build under `lazurio/versions/<version>/` and pass every check, while the real
+   handover still selects the live Folder. No other base is trusted for these
+   operations. A hosted installation placed elsewhere by hand is not the delivered
+   product, and these operations refuse there. It keeps its `--folder` commands
+   (rule 4).
 
    Otherwise the operation refuses with `machine-not-installed-product`. The refusal
    comes after the handover is validated and before the Folder or the home is read for
    writing, and nothing is written. `machine inspect` stays allowed: it only reads and
    prints.
-2. **No switch.** No flag or environment variable turns the rule off, just as none moves
-   the handover's location. Tests reach these code paths through the seams that already
-   exist: `MachineContextSource` with a fixture root, a synthetic operator record and a
-   temporary Folder. A path a test cannot reach that way gets a seam, not an exception
-   to the rule.
-3. **The update keeps working.** A candidate runs from `versions/<version>/` under the
-   operator's base before the switch, and the activated version does after it. Both pass
-   rule 1, so the refresh after an update and a refresh started from the Launchpad are
+2. **No switch.** No flag or environment variable turns the rule off or moves the
+   trusted base, just as none moves the handover's location; `XDG_DATA_HOME`, `HOME`
+   and `PATH` play no part in it. Tests reach these code paths through the seams that
+   already exist: `MachineContextSource` with a fixture root, a synthetic operator
+   record and a temporary Folder. A path a test cannot reach that way gets a seam, not
+   an exception to the rule.
+3. **The update keeps working.** On a hosted Environment the product is installed in the
+   trusted base. A candidate runs from `versions/<version>/` there before the switch,
+   and the activated version does after it. Both pass rule 1, so the refresh after an update and a refresh started from the Launchpad are
    unchanged. A compiled product in a test's temporary base runs from that base, not
    the operator's, and is refused. That is the point of the rule.
-4. **Not covered.**
-   - Placing a branch's build into the operator's `versions/` and activating it is an
-     installation, with its own consent and qualification (F17, docs/release-cycle.md);
-     this rule does not guard that.
-   - Commands that act on a Folder named explicitly (`--folder`) act where they are
-     told; the person chose that Folder.
-   - Root-owned files (the handover itself) are out of reach of every user process
-     anyway.
+4. **What it guards, and what it does not.** It closes one path: the code under
+   development or review, run from a source checkout, a worktree or its own build,
+   reaching the live Folder and SSH files by itself through the handover. That is what
+   happened in #782. It does not stop code that runs as the operator from doing what the
+   operator can do:
+   - invoking the installed product (`lazurio machine folder-refresh` passes rule 1,
+     because it is the installed product);
+   - naming the live Folder in a command that takes `--folder`, which acts where it is
+     told;
+   - writing the files directly.
 
-**Consequences.** A pull request's build or test on a hosted Environment can fail there,
-but cannot change that Environment's Folder or SSH files. So a Steward may run a full
-suite on a Henry Environment. Trying `machine folder-refresh` from source against a real
-hosted Environment is no longer possible: a developer uses a fixture root, or installs a
-candidate on a qualification Environment.
+   A user process cannot be kept from the user's own files by a rule inside the
+   product. Placing a branch's build into the trusted base and activating it is an
+   installation, with its own consent and qualification (F17, docs/release-cycle.md).
+   Root-owned files, the handover among them, are out of reach of every user process
+   anyway.
+5. **Running code under review safely needs isolation outside the product.** To run a
+   pull request's tests where the live Folder must stay untouched, whatever the tests
+   do, the review lane runs them as an account or in a sandbox that cannot write the
+   operator's home. Examples are a separate Unix account, or a
+   `systemd-run --user` / bubblewrap sandbox with the home read-only or hidden. That
+   is a property of the Environment that runs reviews, owned by its Organization. This
+   record names the need and does not decide the mechanism.
+
+**Consequences.** A pull request's own build or source run can no longer refresh a hosted
+Environment's Folder or write its SSH files through the handover by accident, as in
+#782; it refuses instead. This is not a guarantee that a full suite of untrusted code is
+harmless on a live Environment: that needs the isolation of rule 5. Trying
+`machine folder-refresh` from source against a real hosted Environment is no longer
+possible: a developer uses a fixture root, or installs a candidate on a qualification
+Environment.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -22615,9 +22643,14 @@ candidate on a qualification Environment.
 | Refuse when `bun test` runs (`NODE_ENV`, a preload) | Covers tests only; a source run or a pull request's compiled build still writes |
 | An environment variable or flag that disables the production paths in tests | A switch a person or a script can set by mistake or on purpose; the handover's location deliberately has none |
 | Identity check only (refuse `0.0.0-development`) | Stops source runs but not a pull request's compiled build, which has a built identity |
-| Identity, not a fixture, and running from the operator's install base (proposed) | Covers source runs, tests and foreign builds with facts the product already has; costs the local try against a real hosted Environment |
+| Identity, not a fixture, and running from the base `resolveInstallBase` gives | `XDG_DATA_HOME` is a switch: a temporary base with a non-fixture build passes (Pablo's review of this record) |
+| Identity, not a fixture, and running from the trusted base `<home from the system record>/.local/share/lazurio` (proposed) | Closes the accidental path of source runs, tests and pull requests' own builds with facts the product already has; costs the local try against a real hosted Environment. It does not contain code that deliberately calls the installed product (rule 4) |
+| OS isolation of the review lane (rule 5) | The only way to make running untrusted code safe on a live Environment; owned by the Environment's Organization, complementary to this rule |
 
 Open questions for the decision:
+- whether the Platform should later offer the review lane's isolation of rule 5 itself
+  (for example a `lazurio` command that runs a command in a sandbox without the home),
+  or leave it to each Organization;
 - whether the Environment SSH files should also be written by `lazurio update` outside
   `machine folder-*`, and so fall under the same rule;
 - whether macOS and Windows, which have no handover today, need the rule now or with
