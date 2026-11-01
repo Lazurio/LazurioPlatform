@@ -754,6 +754,17 @@ downloaded way in and is neither needed nor used here.
    socket, answers its own health once and exits. A failure removes the candidate
    and ends here with `self-check-failed` (a refused probe names its condition:
    `reason: "launchpad-refused"`, `refusal: <check>`); nothing was switched.
+   A Folder state the candidate cannot read is named the same way:
+   `reason: "folder-state"` with the enumerated `condition` (for example
+   `unknown-output`, an output that version does not render), the state `file`,
+   the `field` or output it is about, the template revision the Folder records
+   (`recorded`), the candidate's (`product`) and `newer` when the Folder was
+   rendered by a newer template. Each value is kept only in a checked shape, a
+   state file's own name, a Folder-relative key or a template revision, so the
+   refusal never quotes other Folder content or a private path. `self-check`
+   prints it as `{"folderStateRefused": …}` and says it on stderr; `lazurio
+   update` adds it to its `Update failed` line, and Doctor and Recovery mode
+   carry it as the context of `folder-state-unreadable` (#782).
 3. **Switch** `bin/lazurio` by one rename and make the directory durable: the
    commit. Then raise the high-water mark; a crash in between leaves the mark
    below the active version, which the floor already covers.

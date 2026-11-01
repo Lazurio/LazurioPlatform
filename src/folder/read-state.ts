@@ -5,6 +5,7 @@ import { initializationReceipts } from "./initialization-receipt";
 import { outputFile, outputPaths, stagedName } from "./outputs";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { parseFolderPreferences, parseInstructionManifest } from "./state";
+import { FolderStateUnreadable } from "./state-fields";
 
 // Development state layout, inside the same caller-bound stable operation owner.
 // Call under its lock. Unknown entries (including any pending journal) block use.
@@ -12,13 +13,50 @@ import { parseFolderPreferences, parseInstructionManifest } from "./state";
 export async function readFolderState(stateDirectory: string) {
   await inspectStateLayout(stateDirectory, false);
   return {
-    preferences: parseFolderPreferences(
-      await readStateJson(stateDirectory, "preferences.json"),
+    preferences: await readStateDocument(
+      stateDirectory,
+      "preferences.json",
+      parseFolderPreferences,
     ),
-    manifest: parseInstructionManifest(
-      await readStateJson(stateDirectory, "instructions.json"),
+    manifest: await readStateDocument(
+      stateDirectory,
+      "instructions.json",
+      parseInstructionManifest,
     ),
   };
+}
+
+/** One state document read and parsed. A failure is a
+ * `FolderStateUnreadable` that names the document and its condition. */
+export async function readStateDocument<T>(
+  stateDirectory: string,
+  name: "preferences.json" | "instructions.json",
+  parse: (input: unknown) => T,
+): Promise<T> {
+  let input: unknown;
+  try {
+    input = await readStateJson(stateDirectory, name);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    throw new FolderStateUnreadable(
+      error instanceof SyntaxError
+        ? "not-json"
+        : code === "ENOENT"
+          ? "absent"
+          : code === "ELOOP" ||
+              (error as Error | undefined)?.message === unsafeStateFile
+            ? "unsafe"
+            : "unreadable",
+      { file: name },
+    );
+  }
+  try {
+    return parse(input);
+  } catch (error) {
+    throw error instanceof FolderStateUnreadable
+      ? error.with({ file: name })
+      : new FolderStateUnreadable("invalid", { file: name });
+  }
 }
 
 // History is retained evidence, never an alternate active-state source. Only its
@@ -70,6 +108,9 @@ const ownedStateFileNames: readonly string[] = Object.freeze([
   ".lazurio-generated",
 ]);
 
+/** The refusal of a state file that is not a plain file this user owns. */
+export const unsafeStateFile = "Unsafe Folder state file";
+
 export async function readOwnedStateFile(directory: string, name: string) {
   if (!ownedStateFileNames.includes(name))
     throw new Error("Unknown state file name");
@@ -81,7 +122,7 @@ export async function readOwnedStateFile(directory: string, name: string) {
     before.uid !== process.getuid?.() ||
     (before.mode & 0o022) !== 0
   )
-    throw new Error("Unsafe Folder state file");
+    throw new Error(unsafeStateFile);
   const file = await open(
     path,
     constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,

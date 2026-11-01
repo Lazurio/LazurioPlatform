@@ -584,6 +584,29 @@ test("a candidate whose Launchpad fails to start is removed, and the active vers
   );
 });
 
+test("supervised: a candidate that cannot read the Folder's state is refused by name, before anything is switched (#782)", async () => {
+  world = await createWorld();
+  const folderStateRefused = {
+    condition: "unknown-output",
+    file: "instructions.json",
+    field: ".agents/skills/ui-craft/SKILL.md",
+    recorded: "base-instructions-92",
+    product: "base-instructions-91",
+    newer: true,
+  };
+  await world.release("1.1.0", { folderStateRefused });
+  const service = fakeService(world.base, { folder: "/nonexistent/Folder" });
+  service.running = "1.0.0";
+  const before = await tree(world.base);
+  expect(await performUpdate(world.environment("1.0.0", { service }))).toEqual({
+    kind: "error",
+    code: "self-check-failed",
+    context: { reason: "folder-state", ...folderStateRefused },
+  });
+  expect(await tree(world.base)).toEqual(before);
+  expect(service).toMatchObject({ restarts: 0, running: "1.0.0" });
+});
+
 test("supervised: a version whose Launchpad never reports healthy stays active — activation-unhealthy, nothing undone, repaired forward", async () => {
   world = await createWorld();
   await world.release("1.1.0");
