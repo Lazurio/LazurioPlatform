@@ -493,6 +493,55 @@ test("a pending Folder transaction is broken: exit 3, the tools still read", asy
   );
 });
 
+// A Folder rendered by a newer template, with an output this version does
+// not render, named like private content (#782, #787 review).
+const privateLikeKeys = [".agents/skills/examplePrivateValue/SKILL.md"];
+async function renderedByANewerTemplate(folder: string) {
+  const instructions = join(folder, ".lazurio", "instructions.json");
+  const recorded = JSON.parse(await readFile(instructions, "utf8"));
+  await writeFile(
+    instructions,
+    JSON.stringify({
+      ...recorded,
+      templateRevision: "base-instructions-999999",
+      outputs: {
+        ...recorded.outputs,
+        [privateLikeKeys[0] as string]: "c".repeat(64),
+      },
+    }),
+    { mode: 0o600 },
+  );
+}
+const refusalContext = {
+  condition: "unknown-output",
+  file: "instructions.json",
+  area: "agents-skills",
+  recorded: "base-instructions-999999",
+};
+
+test("an unreadable Folder state: Doctor names its condition, in JSON and in words, never a recorded key", async () => {
+  const world = await createWorld();
+  await renderedByANewerTemplate(world.folder);
+  const result = await doctor(world);
+  expect(result.code).toBe(exitBroken);
+  expect(find(result.json, "folder-state")).toEqual({
+    id: "folder-state",
+    outcome: "fail",
+    reason: "folder-state-unreadable",
+    context: {
+      ...refusalContext,
+      product: instructionTemplateRevision,
+      newer: true,
+    },
+  });
+  expectTierOne(result.stdout, world);
+  expectSameAnswer(result.human, result.json);
+  for (const key of [...privateLikeKeys, "examplePrivateValue"]) {
+    expect([key, result.stdout.includes(key)]).toEqual([key, false]);
+    expect([key, result.human.includes(key)]).toEqual([key, false]);
+  }
+});
+
 test("a Folder state without its lock is not given one: taking the lock would create it", async () => {
   const world = await createWorld();
   await rm(join(world.folder, ".lazurio", ".operation-lock"), {

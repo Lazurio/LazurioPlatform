@@ -589,7 +589,7 @@ test("supervised: a candidate that cannot read the Folder's state is refused by 
   const folderStateRefused = {
     condition: "unknown-output",
     file: "instructions.json",
-    field: ".agents/skills/ui-craft/SKILL.md",
+    area: "agents-skills",
     recorded: "base-instructions-92",
     product: "base-instructions-91",
     newer: true,

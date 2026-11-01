@@ -757,14 +757,16 @@ downloaded way in and is neither needed nor used here.
    A Folder state the candidate cannot read is named the same way:
    `reason: "folder-state"` with the enumerated `condition` (for example
    `unknown-output`, an output that version does not render), the state `file`,
-   the `field` or output it is about, the template revision the Folder records
-   (`recorded`), the candidate's (`product`) and `newer` when the Folder was
-   rendered by a newer template. Each value is kept only in a checked shape, a
-   state file's own name, a Folder-relative key or a template revision, so the
-   refusal never quotes other Folder content or a private path. `self-check`
-   prints it as `{"folderStateRefused": …}` and says it on stderr; `lazurio
-   update` adds it to its `Update failed` line, and Doctor and Recovery mode
-   carry it as the context of `folder-state-unreadable` (#782).
+   the `field` only when it is one of the product's own field or output names,
+   an unknown output's fixed `area` (`agents-skills`, `claude-skills`, `manual`,
+   `top-level`, `other`), the template revision the Folder records (`recorded`),
+   the candidate's (`product`) and `newer` when the Folder was rendered by a
+   newer template. A key read from the Folder is never carried, whatever its
+   form: it is the Folder's content. Every value is one the product defines,
+   inside Recovery's tier-1 rules. `self-check` prints it as
+   `{"folderStateRefused": …}` and says it on stderr; `lazurio update` adds it to
+   its `Update failed` line, and Doctor and Recovery mode carry it as the
+   context of `folder-state-unreadable` (#782).
 3. **Switch** `bin/lazurio` by one rename and make the directory durable: the
    commit. Then raise the high-water mark; a crash in between leaves the mark
    below the active version, which the floor already covers.

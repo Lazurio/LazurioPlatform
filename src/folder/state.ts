@@ -21,6 +21,7 @@ import {
 import { type FolderProfile, parseFolderProfile } from "./profile";
 import {
   FolderStateUnreadable,
+  folderOutputArea,
   ownDataValue,
   stateFields,
 } from "./state-fields";
@@ -208,12 +209,16 @@ export function parseOutputDigests(
       (error.condition === "unknown-field" ||
         error.condition === "missing-field")
     )
-      throw error.with({
-        condition:
-          error.condition === "unknown-field"
-            ? "unknown-output"
-            : "missing-output",
-      });
+      throw error.condition === "unknown-field"
+        ? error.with({
+            condition: "unknown-output",
+            area: folderOutputArea(
+              Reflect.ownKeys(input as object).find(
+                (key) => !(paths as readonly unknown[]).includes(key),
+              ),
+            ),
+          })
+        : error.with({ condition: "missing-output" });
     throw error;
   }
   const digests: Partial<Record<OutputPath, string>> = {};

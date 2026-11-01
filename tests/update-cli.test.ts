@@ -334,13 +334,13 @@ test.skipIf(process.platform === "win32")(
         folderStateRefused: {
           condition: "unknown-output",
           file: "instructions.json",
-          field: ".agents/skills/ui-craft/SKILL.md",
+          area: "agents-skills",
           recorded: "base-instructions-999999",
           product: instructionTemplateRevision,
           newer: true,
         },
       }),
-      stderr: `Self-check failed: the Folder's state cannot be read by this version: unknown-output (instructions.json .agents/skills/ui-craft/SKILL.md); the Folder was rendered by base-instructions-999999, this version renders ${instructionTemplateRevision}, an older one`,
+      stderr: `Self-check failed: the Folder's state cannot be read by this version: unknown-output (instructions.json, an output in .agents/skills/); the Folder was rendered by base-instructions-999999, this version renders ${instructionTemplateRevision}, an older one`,
     });
   },
 );

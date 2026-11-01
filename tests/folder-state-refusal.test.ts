@@ -31,8 +31,35 @@ const manifest = {
     outputPaths.map((path) => [path, "a".repeat(64)]),
   ),
 };
+const preferences = {
+  schemaVersion: 2,
+  revision: 1,
+  preset: { name: "local", version: 1, selection: "derived" },
+  machine: null,
+  profile: {
+    os: "linux",
+    access: "local",
+    purpose: "human",
+    locale: "cs",
+    detail: "concise",
+    coordination: "direct",
+  },
+  customInstructions: "",
+};
 const newer = "base-instructions-999999";
 const unknownOutput = ".agents/skills/ui-craft/SKILL.md";
+
+// Keys a malformed or foreign state could carry: none of them may leave.
+const privateKeys = [
+  "examplePrivateValue",
+  "privateTokenOfAlena0123456789",
+  ".agents/skills/sk-live-51H8exampleSecret/SKILL.md",
+  "manual/alena-novakova-salary.md",
+  "/home/someone/secret.md",
+  "../AGENTS.md",
+  "line\nbreak",
+  "\u001b[31mred",
+];
 
 const refusalOf = (read: () => unknown) => {
   try {
@@ -43,7 +70,7 @@ const refusalOf = (read: () => unknown) => {
   throw new Error("expected a refusal");
 };
 
-test("an output this version does not render is named, with the template that rendered it", () => {
+test("an output this version does not render is said by its area, with the template that rendered it", () => {
   const refusal = refusalOf(() =>
     parseInstructionManifest({
       ...manifest,
@@ -51,9 +78,10 @@ test("an output this version does not render is named, with the template that re
       outputs: { ...manifest.outputs, [unknownOutput]: "b".repeat(64) },
     }),
   );
+  // The recorded path is the Folder's content: only its fixed area is said.
   expect(refusal).toEqual({
     condition: "unknown-output",
-    field: unknownOutput,
+    area: "agents-skills",
     recorded: newer,
     product: instructionTemplateRevision,
     newer: true,
@@ -61,9 +89,23 @@ test("an output this version does not render is named, with the template that re
   expect(
     describeFolderStateRefusal({ ...refusal, file: "instructions.json" }),
   ).toBe(
-    `unknown-output (instructions.json ${unknownOutput}); the Folder was rendered by ${newer}, this version renders ${instructionTemplateRevision}, an older one`,
+    `unknown-output (instructions.json, an output in .agents/skills/); the Folder was rendered by ${newer}, this version renders ${instructionTemplateRevision}, an older one`,
   );
-  // An output this version renders that is not recorded.
+  for (const [path, area] of [
+    [".claude/skills/x/SKILL.md", "claude-skills"],
+    ["manual/x.md", "manual"],
+    ["CLAUDE.md", "top-level"],
+    ["elsewhere/x.md", "other"],
+  ])
+    expect(
+      refusalOf(() =>
+        parseInstructionManifest({
+          ...manifest,
+          outputs: { ...manifest.outputs, [path as string]: "b".repeat(64) },
+        }),
+      ).area,
+    ).toBe(area as never);
+  // An output this version renders that is not recorded: its own name.
   const { "manual/roles.md": _, ...missing } = manifest.outputs;
   expect(
     refusalOf(() =>
@@ -75,7 +117,6 @@ test("an output this version does not render is named, with the template that re
     recorded: "base-instructions-3",
     product: instructionTemplateRevision,
   });
-  // An unknown schema and a field of another version are named too.
   expect(
     refusalOf(() =>
       parseInstructionManifest({ ...manifest, schemaVersion: 9 }),
@@ -83,80 +124,70 @@ test("an output this version does not render is named, with the template that re
   ).toMatchObject({ condition: "unsupported-schema", field: "schemaVersion" });
   expect(
     refusalOf(() =>
-      parseFolderPreferences({
-        schemaVersion: 2,
-        revision: 1,
-        preset: { name: "local", version: 1, selection: "derived" },
-        machine: null,
-        profile: {
-          os: "linux",
-          access: "local",
-          purpose: "human",
-          locale: "cs",
-          detail: "concise",
-          coordination: "direct",
-        },
-        customInstructions: "",
-        authority: "admin",
-      }),
+      parseInstructionManifest({ ...manifest, templateRevision: "" }),
     ),
-  ).toMatchObject({ condition: "unknown-field", field: "authority" });
+  ).toMatchObject({ condition: "invalid", field: "templateRevision" });
+  // A field of another version: the condition, never its name.
+  expect(
+    refusalOf(() => parseFolderPreferences({ ...preferences, authority: 1 })),
+  ).toEqual({
+    condition: "unknown-field",
+    product: instructionTemplateRevision,
+  });
 });
 
-test("a refusal never quotes what is not a Folder-relative name or a template revision", () => {
-  for (const key of [
-    "/home/someone/secret.md",
-    "../AGENTS.md",
-    "manual/../../x",
-    "line\nbreak",
-    "\u001b[31mred",
-    "x".repeat(129),
-  ]) {
-    const refusal = refusalOf(() =>
-      parseInstructionManifest({
-        ...manifest,
-        templateRevision: "not a revision, but content",
-        outputs: { ...manifest.outputs, [key]: "a".repeat(64) },
-      }),
-    );
-    expect(refusal).toEqual({
-      condition: "unknown-output",
-      product: instructionTemplateRevision,
-    });
+test("a refusal never carries a key read from the Folder, only the product's own names", () => {
+  for (const key of privateKeys) {
+    const refusals = [
+      refusalOf(() =>
+        parseInstructionManifest({
+          ...manifest,
+          templateRevision: "not a revision, but content",
+          outputs: { ...manifest.outputs, [key]: "a".repeat(64) },
+        }),
+      ),
+      refusalOf(() => parseInstructionManifest({ ...manifest, [key]: 1 })),
+      refusalOf(() => parseFolderPreferences({ ...preferences, [key]: key })),
+    ];
+    for (const refusal of refusals) {
+      const said = `${JSON.stringify(refusal)}\n${describeFolderStateRefusal(refusal)}`;
+      expect([key, said.includes(key)]).toEqual([key, false]);
+      expect(refusal.field).toBeUndefined();
+    }
+    expect(refusals.map((refusal) => refusal.condition)).toEqual([
+      "unknown-output",
+      "unknown-field",
+      "unknown-field",
+    ]);
   }
   // An error that is not a refusal says only that the state is invalid.
   expect(folderStateRefusal(new Error("/home/someone: quoted"))).toEqual({
     condition: "invalid",
     product: instructionTemplateRevision,
   });
-  // Another process's refusal is read back in the same shapes only.
-  expect(
-    parseFolderStateRefusal({
-      condition: "unknown-output",
-      file: "instructions.json",
-      field: unknownOutput,
-      recorded: "base-instructions-92",
-      product: "base-instructions-91",
-      newer: true,
-    }),
-  ).toEqual({
-    condition: "unknown-output",
+  // Another process's refusal is read back with this version's rules only.
+  const known = {
+    condition: "missing-output" as const,
     file: "instructions.json",
-    field: unknownOutput,
+    field: "manual/roles.md",
+    area: "manual" as const,
     recorded: "base-instructions-92",
     product: "base-instructions-91",
-    newer: true,
-  });
-  expect(
-    parseFolderStateRefusal({
-      condition: "unknown-output",
-      file: "/etc/passwd",
-      field: "/etc/passwd",
-      recorded: "anything",
-      product: "base-instructions-91",
-      extra: "dropped",
-    }),
-  ).toEqual({ condition: "unknown-output", product: "base-instructions-91" });
+    newer: true as const,
+  };
+  expect(parseFolderStateRefusal(known)).toEqual(known);
+  for (const key of privateKeys)
+    expect(
+      parseFolderStateRefusal({
+        condition: "unknown-output",
+        file: key,
+        field: key,
+        area: key,
+        recorded: key,
+        product: "base-instructions-91",
+        [key]: key,
+      }),
+    ).toEqual({ condition: "unknown-output", product: "base-instructions-91" });
   for (const input of [
     null,
     [],
@@ -175,19 +206,21 @@ test("lazurio update names the Folder state the candidate could not read, not on
     folderStateRefused: {
       condition: "unknown-output",
       file: "instructions.json",
-      field: unknownOutput,
+      area: "agents-skills",
       recorded: "base-instructions-92",
       product: "base-instructions-91",
       newer: true,
     },
   };
-  const failure = await requireSelfCheck({
-    executable: "/candidate",
-    expected: { version: "1.1.0", target: "linux-x64" },
-    base: "/base",
-    folder: "/folder",
-    run: async () => ({ exitCode: 1, stdout: JSON.stringify(said) }),
-  }).catch((error: unknown) => error);
+  const check = (stdout: string) =>
+    requireSelfCheck({
+      executable: "/candidate",
+      expected: { version: "1.1.0", target: "linux-x64" },
+      base: "/base",
+      folder: "/folder",
+      run: async () => ({ exitCode: 1, stdout }),
+    }).catch((error: unknown) => error);
+  const failure = await check(JSON.stringify(said));
   expect(failure).toBeInstanceOf(UpdateFailure);
   expect((failure as UpdateFailure).failure.code).toBe("self-check-failed");
   expect((failure as UpdateFailure).failure.context).toEqual({
@@ -195,21 +228,14 @@ test("lazurio update names the Folder state the candidate could not read, not on
     ...said.folderStateRefused,
   });
   // Without a refusal it stays the exit, as before.
-  const plain = await requireSelfCheck({
-    executable: "/candidate",
-    expected: { version: "1.1.0", target: "linux-x64" },
-    base: "/base",
-    folder: "/folder",
-    run: async () => ({ exitCode: 1, stdout: "" }),
-  }).catch((error: unknown) => error);
-  expect((plain as UpdateFailure).failure.context).toEqual({
+  expect(((await check("")) as UpdateFailure).failure.context).toEqual({
     reason: "exit",
     exitCode: 1,
   });
 });
 
 test.skipIf(process.platform === "win32")(
-  "Doctor and Recovery mode see the same named condition as the self-check",
+  "observeFolder carries the refusal as the context of folder-state-unreadable",
   async () => {
     const root = await realpath(
       await mkdtemp(join(tmpdir(), "state-refusal-")),
@@ -217,12 +243,9 @@ test.skipIf(process.platform === "win32")(
     try {
       const folder = join(root, "Lazurio");
       await initializeFolder(folder, {
+        ...preferences.profile,
         os: executionOs(process.platform),
-        access: "local",
-        purpose: "human",
         locale: "en",
-        detail: "concise",
-        coordination: "direct",
       });
       const instructions = join(folder, ".lazurio", "instructions.json");
       const recorded = JSON.parse(await readFile(instructions, "utf8"));
@@ -245,7 +268,7 @@ test.skipIf(process.platform === "win32")(
         context: {
           condition: "unknown-output",
           file: "instructions.json",
-          field: unknownOutput,
+          area: "agents-skills",
           recorded: newer,
           product: instructionTemplateRevision,
           newer: true,

@@ -15,21 +15,52 @@ export const folderStateConditions = [
 ] as const;
 export type FolderStateCondition = (typeof folderStateConditions)[number];
 
+/** Where an output this version does not render lies: a fixed area, never
+ * the recorded path, which is content of the Folder (#787 review). */
+export const folderOutputAreas = [
+  "agents-skills",
+  "claude-skills",
+  "manual",
+  "top-level",
+  "other",
+] as const;
+export type FolderOutputArea = (typeof folderOutputAreas)[number];
+
+/** Where in the Folder each named area is, for a person. */
+export const folderOutputAreaPaths: Readonly<
+  Record<Exclude<FolderOutputArea, "top-level" | "other">, string>
+> = Object.freeze({
+  "agents-skills": ".agents/skills/",
+  "claude-skills": ".claude/skills/",
+  manual: "manual/",
+});
+
+export function folderOutputArea(key: unknown): FolderOutputArea {
+  if (typeof key !== "string") return "other";
+  for (const [area, path] of Object.entries(folderOutputAreaPaths))
+    if (key.startsWith(path)) return area as FolderOutputArea;
+  return key.includes("/") ? "other" : "top-level";
+}
+
 /** A state document this version cannot read, with what a person needs to
- * see why: the condition, the document and the one field or output it is
- * about. `field` is the key as recorded, kept only when it has the shape of
- * a Folder-relative name, so it never quotes arbitrary content. */
+ * see why: the condition, the document, and the field or output it is about
+ * when that is one of the product's own names. A key read from the Folder
+ * (an unknown field or output) is never carried: its name is Folder content
+ * and could be anything. An unknown output carries only its fixed area. */
 export class FolderStateUnreadable extends Error {
   readonly condition: FolderStateCondition;
   readonly file: string | undefined;
+  /** One of the expected keys the parser was given, never a recorded one. */
   readonly field: string | undefined;
+  readonly area: FolderOutputArea | undefined;
   /** The manifest's recorded template revision, unvalidated. */
   readonly templateRevision: unknown;
   constructor(
     condition: FolderStateCondition,
     details: Readonly<{
       file?: string | undefined;
-      field?: unknown;
+      field?: string | undefined;
+      area?: FolderOutputArea | undefined;
       templateRevision?: unknown;
     }> = {},
   ) {
@@ -42,7 +73,8 @@ export class FolderStateUnreadable extends Error {
     this.name = "FolderStateUnreadable";
     this.condition = condition;
     this.file = details.file;
-    this.field = printableStateKey(details.field);
+    this.field = details.field;
+    this.area = details.area;
     this.templateRevision = details.templateRevision;
   }
   /** The same condition, now knowing more about where it is. */
@@ -50,25 +82,17 @@ export class FolderStateUnreadable extends Error {
     details: Readonly<{
       condition?: FolderStateCondition;
       file?: string;
+      area?: FolderOutputArea;
       templateRevision?: unknown;
     }>,
   ): FolderStateUnreadable {
     return new FolderStateUnreadable(details.condition ?? this.condition, {
       file: this.file ?? details.file,
       field: this.field,
+      area: this.area ?? details.area,
       templateRevision: this.templateRevision ?? details.templateRevision,
     });
   }
-}
-
-/** A recorded key that may be shown: letters, digits and `._/-`, relative,
- * without `..`, at most 128 characters. Anything else is not shown. */
-export function printableStateKey(key: unknown): string | undefined {
-  return typeof key === "string" &&
-    /^[A-Za-z0-9._][A-Za-z0-9._/-]{0,127}$/.test(key) &&
-    !key.split("/").includes("..")
-    ? key
-    : undefined;
 }
 
 // Exact-key, data-only field extraction shared by every Folder state parser.
@@ -83,8 +107,8 @@ export function stateFields(
   const unknown = ownKeys.find(
     (key) => typeof key !== "string" || !keys.includes(key),
   );
-  if (unknown !== undefined)
-    throw new FolderStateUnreadable("unknown-field", { field: unknown });
+  // Its name is the Folder's content, not the product's: never carried.
+  if (unknown !== undefined) throw new FolderStateUnreadable("unknown-field");
   const missing = keys.find((key) => !ownKeys.includes(key));
   if (missing !== undefined)
     throw new FolderStateUnreadable("missing-field", { field: missing });
