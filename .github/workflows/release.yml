@@ -61,9 +61,10 @@ jobs:
             echo "prerelease=$prerelease"
           } >> "$GITHUB_OUTPUT"
 
-  # The tagged source is checked exactly as main's required checks check it
-  # (check.yml): the static checks on a runner of their own and the tests in
-  # the same two time-balanced shards. The whole suite on one runner carried
+  # The tagged source is checked as check.yml's Linux jobs check main: the
+  # static checks and the Delegace tests on a runner of their own, and the
+  # tests in the same two time-balanced shards. (The macOS check of main is
+  # not repeated here; the candidates' macOS journeys run in qualify.yml.) The whole suite on one runner carried
   # twice the files of a CI runner under the same four workers, and the known
   # timing flakes failed there more often than on main (#762).
   static:
@@ -80,6 +81,13 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
       - run: bun install --frozen-lockfile
       - run: bun run check:static
+      # As check.yml: Buddy's delegation service, Delegace
+      # (src/buddy/delegace), is Python with the standard library only; its
+      # contract tests run against fake openmausbot, hermes, t3 and ssh.
+      - name: Delegation service (Delegace) tests
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python3 -m unittest src/buddy/delegace/test_delegace.py
 
   check:
     name: Check the tagged source (${{ matrix.shard }}/2)
