@@ -1130,6 +1130,8 @@ const en = {
   startIntro: "{done} of {total} steps done.",
   startReady: "The Environment is ready.",
   startNotHere: "There is nothing to set up here.",
+  startServicesAi:
+    "The AI here comes from the Organization's AI pool and is not set up yet, so until then the chat and the bots cannot answer.",
   startDemoGroup: "Try it",
   demoAppsText: "The apps of this Organization's modules.",
   startDemoModuleTitle: "A module",
@@ -3199,6 +3201,8 @@ const cs: Record<MessageKey, string> = {
   startIntro: "Hotovo {done} ze {total} kroků.",
   startReady: "Prostředí je připravené.",
   startNotHere: "Tady není co nastavovat.",
+  startServicesAi:
+    "AI sem přijde z AI poolu Organizace a zatím nastavená není, takže chat a boty tu do té doby neodpovídají.",
   startDemoGroup: "Vyzkoušejte",
   demoAppsText: "Aplikace modulů této Organizace.",
   startDemoModuleTitle: "Modul",
