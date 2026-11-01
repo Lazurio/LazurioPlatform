@@ -1430,7 +1430,6 @@ test("agents ask people through the harness's question tool, and the handoff's c
             // user does something is a question too.
             "Stejně polož i žádost, aby uživatel něco udělal (zadal ověřovací kód, přihlásil se, něco potvrdil nebo zkontroloval)",
             "s odkazem, kódem a do kdy platí",
-            "Otázka v T3 Code i v Codex Desktopu vyskočí jako upozornění, text ve zprávě ne.",
             "Nabídni 2–4 volby, doporučenou první s označením „(Doporučeno)“, a kontext napiš do zprávy nad otázku.",
             "Nejdřív udělej všechno, co na odpovědi nezávisí",
             "Volba Publikace, kterou uživatel v nástroji udělá, je jeho výslovný pokyn k Publikaci v aktuálním threadu, stejně jako „Publikuj“.",
@@ -1441,7 +1440,6 @@ test("agents ask people through the harness's question tool, and the handoff's c
             "ask through your harness's question tool (Claude Code `AskUserQuestion`, Codex `request_user_input`, Hermes `clarify`), not only in the text of a message",
             "Ask the same way when you need the user to do something (enter a verification code, sign in, confirm or check something)",
             "with the link, the code and until when it is valid",
-            "A question pops up as a notification in T3 Code and in Codex Desktop; text in a message does not.",
             "Offer 2–4 options, the recommended one first marked “(Recommended)”, and write the context in the message above the question.",
             "First do everything that does not depend on the answer",
             "A choice of Publication the user makes in the tool is their explicit instruction to Publish in the current thread, just like “Publish”.",
@@ -1449,6 +1447,18 @@ test("agents ask people through the harness's question tool, and the handoff's c
             "When you run as a subagent, a Lazurio MausBot bot or an automated reviewer, there is no user in your session: do not use the tool, and pass the question in your output to whoever gave you the work",
           ])
         expect(rule).toContain(part);
+      // The notification detail is in the manual's safe habits; it left
+      // AGENTS.md for its budget (base-instructions-97).
+      const popup = cs
+        ? "v T3 Code i v Codex Desktopu otázka vyskočí jako upozornění, text ve zprávě ne"
+        : "in T3 Code and in Codex Desktop a question pops up as a notification, text in a message does not";
+      expect([
+        ...where,
+        outputs["AGENTS.md"].includes(
+          cs ? "vyskočí jako upozornění" : "pops up as a notification",
+        ),
+        outputs["manual/working-here.md"].includes(popup),
+      ]).toEqual([...where, false, true]);
       // The handoff block is text and holds no question any more.
       const workingHere = outputs["manual/working-here.md"];
       const opening = "```text\n## Handoff\n";
@@ -2361,6 +2371,111 @@ test("threads do not coordinate, the Environment's network is never switched, an
 // they must be: in `manual/lazurio.md` on every Environment, and in AGENTS.md
 // and `manual/this-machine.md` where the user's own sign-ins are used or the
 // visitors' section renders (try-01).
+// The root's pull-request rules that hold for agents in every Environment
+// (root decisions 0222 and 0178, the root's manual/pull-request-handoff.md
+// and its public-repository boundary; Lazurio/LazurioPlatform#757): the Ready
+// line names the browser check and the assignee, the manual says them in full
+// with the assignment's mandate and a fresh approval, no generated text asks
+// for a `/lazurio publish` comment, and the user is never sent to a terminal.
+test("every pull request has an assignee and a browser check before Ready, an assignment carries the mandate, and public repositories name no customer (Lazurio/LazurioPlatform#757)", () => {
+  const environments = [
+    ...journeys,
+    {
+      preset: "hosted-organization-team",
+      machine: bindings.teamBrowser,
+      os: "linux",
+    },
+    {
+      preset: "hosted-organization-steward",
+      machine: bindings.automated,
+      os: "linux",
+    },
+    {
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationPublic,
+      os: "linux",
+    },
+  ] as const;
+  for (const environment of environments)
+    for (const locale of ["cs", "en"] as const) {
+      const cs = locale === "cs";
+      const outputs = renderOutputs({
+        preset: environment.preset,
+        machine: environment.machine,
+        profile: presetProfile(environment.preset, environment.os, { locale }),
+      });
+      const agents = outputs["AGENTS.md"];
+      const working = outputs["manual/working-here.md"];
+      const where = [environment.preset, environment.machine?.name, locale];
+      const isPublic =
+        githubIdentity(environment.preset, environment.machine) === "none";
+      const ready = cs
+        ? "- Když jsi hotový, ověř v prohlížeči, co lidé uvidí, přepni pull request na Ready s assignee, který ho dotáhne do `main`, a požádej uživatele o kontrolu a souhlas s Publikací."
+        : "- When you're done, check in a browser what people will see, switch the pull request to Ready with an assignee who takes it to `main`, and ask the user to review it and allow Publication.";
+      expect([...where, agents.split("\n").includes(ready)]).toEqual([
+        ...where,
+        !isPublic,
+      ]);
+      const publicRepository = cs
+        ? "ve veřejném repozitáři (`Lazurio/*`) nejmenuj zákaznickou Organizaci, její moduly ani Mašiny"
+        : "a public repository (`Lazurio/*`) never names a customer Organization, its modules or Machines";
+      const manual = cs
+        ? [
+            "Změnu, se kterou se lidé potkají (stránka, přihlášení, nasazená aplikace), před Ready sám otevři v prohlížeči",
+            "vlastní účet nezakládej, jinak požádej uživatele o jedno přihlášení",
+            "patří do handoffu pod „Ověřeno“ (root decision 0178)",
+            "Každý pull request má assignee, který ho dotáhne do `main`",
+            "Pull request bez assignee je nedotažený a nemerguje se; žádost o review je jen kontrola (root decision 0222).",
+            "jeho `commit.oid` se rovná SHA headu a review přišlo až po tomto commitu.",
+            "- **Veřejné repozitáře.** Repozitáře produktu (`Lazurio/*`) jsou veřejné",
+            "- **Žádný terminál.** Nikdy uživatele nežádej, aby otevřel terminál nebo do něj kopíroval příkazy",
+          ]
+        : [
+            "Before Ready, open a change people will meet (a page, a sign-in, a deployed application) in a browser yourself",
+            "never create one of your own, otherwise ask the user for one sign-in",
+            "goes under “Verified” in the handoff (root decision 0178)",
+            "Every pull request has an assignee who takes it to `main`",
+            "A pull request without an assignee is unfinished and is not merged; a review request is only a check (root decision 0222).",
+            "its `commit.oid` equals the head SHA and it was submitted after that commit.",
+            "- **Public repositories.** The product's repositories (`Lazurio/*`) are public",
+            "- **No terminal.** Never ask the user to open a terminal or paste commands into one",
+          ];
+      for (const part of manual)
+        expect([...where, part, working.includes(part)]).toEqual([
+          ...where,
+          part,
+          true,
+        ]);
+      // On a public Environment nothing is published or filed from here.
+      if (!isPublic)
+        expect([...where, agents.includes(publicRepository)]).toEqual([
+          ...where,
+          true,
+        ]);
+      // The assignment carries the mandate: no generated text asks for a
+      // `/lazurio publish` comment; the handover point says it is not needed.
+      const handover = cs
+        ? "přiřazení od uživatele s právem zápisu je pro assignee pokynem pull request dotáhnout včetně merge, který repozitář dovolí; další „Publikuj“ ani komentář `/lazurio publish` není potřeba"
+        : "an assignment by a user with write access is the assignee's instruction to finish the pull request, including the merge the repository allows; no further “Publish” or `/lazurio publish` comment is needed";
+      expect([...where, agents.includes("/lazurio publish")]).toEqual([
+        ...where,
+        false,
+      ]);
+      for (const [path, text] of Object.entries(outputs))
+        expect([
+          ...where,
+          path,
+          text.split("/lazurio publish").length - 1,
+        ]).toEqual([
+          ...where,
+          path,
+          path === "manual/working-here.md" && working.includes(handover)
+            ? 1
+            : 0,
+        ]);
+    }
+});
+
 test("every statement that the Lazurio account holds entry also names the existing path until the move", () => {
   const environments = [
     ...journeys,

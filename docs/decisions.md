@@ -2975,6 +2975,74 @@ line or names the root's coordinator.
 Not proven: that agents follow the rules (generated text is not proof of behavior). Environments get the
 text through the next released Platform update and the normal Folder refresh.
 
+**Addendum of 2026-11-01, the root's pull-request rules reach every Environment (root decisions 0222
+and 0178, the root's `manual/pull-request-handoff.md` and its public-repository boundary;
+Lazurio/LazurioPlatform#757, the High items 1–4).** Matěj, the Organization Admin, 2026-10-31:
+„Myslím si, že bychom se měli zaměřit na podobné věci, které jsou takhle nadefinované v Lazurio Rootu
+a které by vlastně měly být nadefinované pod LazurioPlatform, aby se to propsalo do Lazurio Folderu.“
+
+- **Every pull request has an assignee who takes it to `main`** (root 0222). In `AGENTS.md` it is in
+  the Ready line of the Publication block. The manual's pull-request lifecycle says it in full:
+  - the assignee is the user, the Organization's persona or another eligible Kolega the user names;
+  - a pull request without an assignee is unfinished and is not merged;
+  - a review request is only a check.
+
+  This replaces the manual's "the GitHub user whose verification you are asking for".
+- **The assignment carries the mandate** (the root's `manual/pull-request-handoff.md`). An assignment
+  by a user with write access is the assignee's instruction to finish the pull request, including
+  the merge the repository allows. No further "Publish" or `/lazurio publish` comment is needed, and
+  removing the assignment ends the mandate.
+  - Before, the manual's handover point said an assignment "replaces no Publication instruction".
+  - The persona line of the Henry Environment's `AGENTS.md` and the bot team's work paragraph still
+    asked for a `/lazurio publish` comment, which the root dropped.
+  - Both now say only that the persona publishes a pull request a user with write access assigned
+    to it. That is a restriction, not a statement of what the intake reacts to.
+- **A browser check before Ready** (root 0178). The Ready line says it in a few words. The lifecycle
+  says it in full:
+  - the agent opens a change people will meet in a browser itself, and the page renders and its
+    main path works;
+  - it signs in with a test account the user or the Organization named, never one of its own,
+    otherwise it asks the user for one sign-in;
+  - after a deployment whoever publishes checks it the same way;
+  - the result, or that the check is missing, goes under "Verified" in the handoff.
+- **Public repositories name no customer** (the root's boundary). The product's repositories
+  (`Lazurio/*`) are public, so their commits, pull requests, issues and comments never name a customer
+  Organization, its modules or Machines, and never carry a specific Organization's content. It is a
+  clause of the issues line in `AGENTS.md` (not on a public Environment) and its own point in the
+  manual's Git and GitHub.
+- **A fresh approval.** The manual's exact-head merge also requires that the approving review was
+  submitted after the head's commit.
+- **Never a terminal for the user** (root `AGENTS.md`, before work). It is a point of the manual's
+  safe habits on every preset.
+
+`AGENTS.md` stays within its budget (32 KiB with the longest voice, F67's addendum). The
+question-tool line gives up two things:
+- its sentence that a question pops up as a notification only through the tool, now the manual's
+  safe habit next to the terminal one;
+- the aside "the parent agent or Buddy", since "whoever gave you the work" covers both. Buddy's layer
+  takes the same shorter line.
+
+The tightest composition (a Team Environment with the Environment browser, English) had 14 bytes left
+at `base-instructions-96`; it has 21 now. Template revision `base-instructions-97`.
+
+Unchanged:
+- the rest of the Publication block in the Owner's words;
+- a Team Environment's named publisher;
+- a public Environment, which publishes and files nothing;
+- every behavior of the product: only generated text changes.
+
+`tests/folder-manual.test.ts` checks, on every preset, a Team Environment with the browser, the Henry
+Environment and a public Environment in both locales:
+- the Ready line once in `AGENTS.md`, not on a public Environment;
+- the public-repository clause in `AGENTS.md`;
+- the manual's assignee, browser-check, fresh-approval, public-repository and terminal points;
+- that `/lazurio publish` appears only in the handover sentence that says it is not needed.
+
+Not proven: that agents follow the rules (generated text is not proof of behavior), and whether
+Lazurio MausBot's intake reacts to an assignment without the old comment (the persona's handover
+through assignment is the root's contract; the intake is MausBot's). Environments get the text through
+the next released Platform update and the normal Folder refresh.
+
 ### Proposal of 2026-10-29: the person's own instructions for agents, and a person's own entries in a hosted Folder (for Matěj's decision; not decided, not implemented)
 
 On 2026-10-29 Matěj raised two questions.
