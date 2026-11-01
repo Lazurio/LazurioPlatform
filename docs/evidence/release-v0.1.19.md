@@ -4,12 +4,14 @@ Evidence for [recovery mode G.3](../recovery-mode.md#g3-canary-stage-every-machi
 and [the release cycle](../release-cycle.md#qualification-and-the-canary).
 
 The candidate `v0.1.19-rc.2` (source `e4862401582c7d3547127c8bc595da6e6b5788ff`) ran on every Environment of the
-pilot Organization, LazurioExampleOrganization, and on one personal VM. One recorded smoke test as the pilot
-Organization's test accounts, its Owner and a member, then gave the green light at `2026-11-01T03:34:50Z`. The
-scope of this candidate's stage is Matěj's decision of 2026-11-01 in root decision 0166's register
-(HumanAndMachines/Lazurio#695): the public Environment for visitors is out of it, and the Prostředí služeb is
-checked by its services, without an agent reading there. The record carries the four Machines read directly. This is the first candidate under root decision 0166's addendum of 2026-10-31: the 8-hour
-window is replaced by that smoke test, and the record is `lazurio.canary.v2` (#752). The final tag `v0.1.19` is to
+pilot Organization, LazurioExampleOrganization, and on one personal VM. In the stage from `2026-11-01T08:53:54Z` to
+`09:11:52Z` every Machine in its scope was read at both edges, and one recorded smoke test as the pilot
+Organization's test accounts, its Owner and a member, passed between the readings; the green light ends it. The
+scope is Matěj's decision of 2026-11-01 in root decision 0166's register (HumanAndMachines/Lazurio#695): the public
+Environment for visitors is out of it, and the Prostředí služeb is checked by what belongs to it, first its AI pool
+(the CLI Proxy API), through Machines' readback of its services. The record carries the four Machines read
+directly. This is the first candidate under root decision 0166's addendum of 2026-10-31: the 8-hour window is
+replaced by the smoke test, and the record is `lazurio.canary.v2` (#752). The final tag `v0.1.19` is to
 carry the same product source and to differ from the candidate only under `qualification/` and `docs/evidence/`. The
 final tag and its release do not exist yet; they follow the merge of the pull request that adds this file.
 
@@ -96,31 +98,46 @@ Folder's `folder-init` and `folder-refresh`, which then answered `already-adopte
 
 ## The stage
 
-- **Start:** `2026-11-01T03:27:57Z`, when the last Machine ran the candidate: the end of revision B's apply, whose
-  readback passed the release and Launchpad checks of every work VM. The personal VM had run it since 02:22:18Z.
-- **The smoke test, 03:29:15–03:34:50Z**, by one thread, before it 0 rollout runs in progress or queued and no lane
-  marker held:
-  - **as the Owner test account, 03:29:15–03:32:14Z: 8 of 8 passed:**
-    1. sign-in with GitHub password and TOTP, then the Lazurio account at its Work Environment's Launchpad;
-    2. Apps: 9 tiles, the same as before the round (nothing missing, added or newly unavailable);
-    3. the chat answered in 27 s;
-    4. Buddy on the Owner's Personal Environment replied in 17 s;
-    5. two Organization modules, the knowledge base and the planning app, opened with HTTP 200 and their own headings;
-    6. `lazurio update` reported `0.1.19-rc.2` up to date;
-    7. its thread archived, nothing left in the sidebar;
-    8. after sign-out a protected page asked for sign-in again.
-  - **as the member test account, 03:32:26–03:34:50Z: 7 of 7 passed** (Apps 8 tiles as before, chat in 29 s, the
-    update, cleanup and sign-out); this account has no Buddy, so that step was skipped.
-  - **G.3 of #749** on both Work Environments and on the personal VM: `0.1.19-rc.2` (`e4862401`) everywhere, the
-    Folder at `base-instructions-97` with `lazurio doctor` `template-revision` ok, no Guest Module declared (no
-    `guest-module` check, no `guests` in `lazurio organization list --json`), and the Folder manual's Guest Module
-    paragraph present on the Work Environments, absent on the personal VM by its preset.
-  - **Doctor:** on the personal VM no new warning against the reading before the round (one fewer:
-    `machine-binding: handover-changed`). The Work Environments had no reading before the move to compare with; their
-    warnings are tools recommended but missing, modules without an app, a module the member does not see and the
-    Codex app server's version, none about the change.
-- **End:** `2026-11-01T03:34:50Z`, the green light. The result: green.
-- **Recovery issues: none** (searched at 2026-11-01T03:38:50Z and again at 08:40:43Z, every issue state):
+**A first stage, 03:27:57–03:34:50Z, does not count.** Its smoke test passed (the Owner 8 of 8, the member 7 of 7),
+but its Machines were read only after its green light (03:41–03:44Z) and not at its start. So it was repeated with a
+reading at each edge; nothing was deployed in between.
+
+**The repeated stage, 2026-11-01, by one thread, read-only except the smoke test:**
+
+1. **Quiet check, 08:50:12Z:** 0 rollout runs in progress or queued, and no lane marker held.
+2. **R1, 08:50:12–08:53:54Z**, on every Machine in the record (see [Per Machine](#per-machine)). **Start:**
+   `2026-11-01T08:53:54Z`, the end of R1, the first reading that observed every Machine in scope healthy on the
+   candidate. The last Machine had got it at 03:27:57Z.
+3. **The Prostředí služeb, at the start:** a read-only Plan of its lane (run 41290779466), readback observed at
+   08:57:03Z, before the smoke test began.
+4. **The smoke test, 08:57:29–09:03:06Z:**
+   - **as the Owner test account, 08:57:32–09:00:28Z: 8 of 8 passed:**
+     1. sign-in with GitHub password and TOTP, then the Lazurio account at its Work Environment's Launchpad;
+     2. Apps: 9 tiles, the same as before the round (nothing missing, added or newly unavailable);
+     3. the chat answered in 29 s;
+     4. Buddy on the Owner's Personal Environment replied in 17 s;
+     5. two Organization modules, the knowledge base and the planning app, opened with HTTP 200 and their own
+        headings;
+     6. `lazurio update` reported `0.1.19-rc.2` up to date;
+     7. its thread archived, nothing left in the sidebar;
+     8. after sign-out a protected page asked for sign-in again.
+   - **as the member test account, 09:00:38–09:03:06Z: 7 of 7 passed** (Apps 8 tiles as before, the chat, the
+     update, cleanup and sign-out); this account has no Buddy, so that step was skipped.
+   - **G.3 of #749** on both Work Environments and on the personal VM: `0.1.19-rc.2` (`e4862401`) everywhere, the
+     Folder at `base-instructions-97` with `lazurio doctor` `template-revision` ok, no Guest Module declared (no
+     `guest-module` check, no `guests` in `lazurio organization list --json`), and the Folder manual's Guest Module
+     paragraph present on the Work Environments, absent on the personal VM by its preset.
+   - **Doctor:** on the personal VM no new warning against the reading before the round (one fewer:
+     `machine-binding: handover-changed`). The Work Environments had no reading before the move to compare with; their
+     9 warnings each, the same as in the first stage, are tools recommended but missing, modules without an app, a
+     module the member does not see and the Codex app server's version, none about the change.
+5. **R2, 09:03:25–09:06:46Z**, the same reading on every Machine in the record.
+6. **The Prostředí služeb, at the end:** a read-only Plan of its lane (run 41291771491), readback observed at
+   09:11:14Z.
+7. **End:** `2026-11-01T09:11:52Z`, the green light, given only after R2 and the second readback passed. The result:
+   green.
+
+- **Recovery issues: none** (searched at 2026-11-01T03:38:50Z, 08:40:43Z and, after the green light, 09:14:10Z, every issue state):
   `label:recovery "0.1.19-rc.2"` and the `v0.1.19-rc.2` variant: 0. Issues that mention the candidate, none of them a
   Recovery issue: #759 (the move, fixed in it), #763 and #771 (how to read two Environments after the move).
 
@@ -132,40 +149,45 @@ public Environment for visitors, to which no test account is admitted. Matěj de
 candidate only:
 - the public Environment for visitors is out of the stage's scope ("try-01 je veřejná mašina, kvuli ní nemusíme
   blokovat release");
-- the Prostředí služeb is checked by what belongs to it, its services, and a Codex sign-in or an agent reading there is
-  not a condition ("v tomhletom prostředí služeb je potřeba testovat věci, které patří do prostředí služeb … si
-  nemyslím, že je to podmínka, aby to blokovalo release").
+- the Prostředí služeb is checked by what belongs to it, first its signed-in CLI Proxy API, the Organization's AI pool
+  ("V prostředí služeb mě hlavně zajímá, aby fungovalo CLI Proxy API, které je přihlášené"), through Machines'
+  readback of its services at the start and the end of the window; a Codex sign-in or an agent reading there is not a
+  condition.
 
 So the record lists the four Machines read directly, and nothing in it rests on a readback.
 
-**The four Machines in the record**, read right after the green light, 03:41–03:44Z, read-only, by the thread that
-ran the smoke test: the personal VM over the operator path, three work VMs through the chat of their own
-Environment, as the test accounts. On each it ran `lazurio recover --json`, `lazurio update status --json`, the
-Launchpad unit's state and its journal since 02:06Z, the start of Ring 0.
-- `recover` answered `healthy`, all five checks `ok` (`update-state-invalid`, `folder-state`, `self-check-failed`,
-  `launchpad-unit`, `launchpad-health` with `0.1.19-rc.2`), no issue and no repair prompt.
-- `update status` answered active `0.1.19-rc.2`, and the Launchpad unit was active with `NRestarts` 0.
-- **Since 02:06Z** each journal shows exactly one stop and start of the Launchpad, at that Machine's own apply, and
-  no Recovery line. Recovery mode is chosen only when the Launchpad starts, and the Launchpad that answered `healthy`
-  at 03:41–03:44Z had run since before the start of the stage (03:27:57Z). So it was healthy at the start and at the
-  end, with no Recovery mode in between.
+**The four Machines in the record**, read in R1 and R2: the personal VM over the operator path, three work VMs
+through the chat of their own Environment, as the test accounts. Each reading ran `lazurio recover --json`, `lazurio
+update status --json`, the Launchpad unit's state and its journal since 02:06Z, the start of Ring 0.
+- **At both edges** `recover` answered `healthy`, all five checks `ok` (`update-state-invalid`, `folder-state`,
+  `self-check-failed`, `launchpad-unit`, `launchpad-health` with `0.1.19-rc.2`), no issue and no repair prompt, and
+  `update status` answered active `0.1.19-rc.2`.
+- **No restart in the stage:** the Launchpad unit's `NRestarts` (0), `ActiveEnterTimestamp` and the journal's start
+  and stop lines are the same in R1 and R2: one stop and start each, at that Machine's own apply, and no Recovery line.
+  The smoke test's `lazurio update` restarted nothing.
 
-| Machine | Kind | `active` at end | `recover` start / end | Launchpad `NRestarts` at end | Read |
-|---|---|---|---|---|---|
-| `00910e1abf66fb61` | work | 0.1.19-rc.2 | healthy / healthy | 0 | 03:43:31Z, its chat |
-| `06d5c433c545e38d` | work | 0.1.19-rc.2 | healthy / healthy | 0 | 03:41:54Z, its chat |
-| `d94d6e912281c8e6` | work | 0.1.19-rc.2 | healthy / healthy | 0 | 03:41:51Z, its chat |
-| `11e08b191f0fc044` | personal | 0.1.19-rc.2 | healthy / healthy | 0 | 03:41:03Z, operator path |
+| Machine | Kind | R1 | R2 | `recover` R1 / R2 | `active` R1 / R2 | Launchpad `NRestarts`, active since |
+|---|---|---|---|---|---|---|
+| `00910e1abf66fb61` | work | 08:52:42Z | 09:05:38Z | healthy / healthy | 0.1.19-rc.2 / 0.1.19-rc.2 | 0, 02:22:20Z |
+| `06d5c433c545e38d` | work | 08:51:00Z | 09:04:00Z | healthy / healthy | 0.1.19-rc.2 / 0.1.19-rc.2 | 0, 02:36:54Z |
+| `d94d6e912281c8e6` | work | 08:50:57Z | 09:03:57Z | healthy / healthy | 0.1.19-rc.2 / 0.1.19-rc.2 | 0, 03:21:08Z |
+| `11e08b191f0fc044` | personal | 08:50:25Z | 09:03:30Z | healthy / healthy | 0.1.19-rc.2 / 0.1.19-rc.2 | 0, 02:18:36Z |
 
-**The Prostředí služeb, checked by its services.** Machines' readback of its guest, every check of it passing, twice:
-- at 03:27:57Z, the start of the stage: revision B's post-apply readback (push run 41267677019), 31 of 31;
-- at 03:59:10Z, after the green light: a read-only Plan of the lane (CI run 41271081108, "Plan for information", from
-  a README-only Draft in the Organization's Deployment Repo that was never merged), with no apply and no Permit.
+**The Prostředí služeb, checked by its services.** Each readback is a read-only Plan of its lane, from a README-only
+Draft in the Organization's Deployment Repo that was never merged: no apply and no Permit.
 
-They include `release` (the guest's receipt matches the declaration that pins `0.1.19-rc.2`), `launchpad-platform`
-(the installer's Launchpad unit active and enabled, its health socket answering `200` with a version; a Launchpad in
-Recovery mode answers `503`), `resident-config`, `platform` and `lazurio-folder`. There is no `recover`, `update
-status` or unit reading of it, and by the decision above none is required for this candidate.
+| | Start (run 41290779466, observed 08:57:03Z) | End (run 41291771491, observed 09:11:14Z) |
+|---|---|---|
+| `ai-pool-members`, `ai-pool-roster` (the AI pool, its CLI Proxy API) | pass | pass |
+| the pool's accounts by state | 2 `ok`, 0 failed | 2 `ok`, 0 failed |
+| `ai-pool` of each of the three work VMs (token, files, catalog and authenticated access from the VM) | pass | pass |
+| `release` (receipt of the declaration that pins `0.1.19-rc.2`) | pass | pass |
+| `launchpad-platform` (the installer's Launchpad unit active, its health socket answering `200`; `503` in Recovery mode) | pass | pass |
+| `resident-config` | pass | pass |
 
-**The public Environment for visitors** is outside the scope. For information only, the same two readbacks passed
-every check of it except `ai-ready`, which stays unknown until user acceptance.
+Not proven: which provider the smoke test's chats used; their records name only the model. On the lane only the
+`ai-ready` checks of the work VMs do not pass; they stay unknown until user acceptance. GitHub lists the start run's
+creation at 09:54:15Z, after it had finished; the observation time above is the readback's own.
+
+**The public Environment for visitors** is outside the scope. For information only, the readbacks of the first stage
+(03:27:57Z and 03:59:10Z) passed every check of it except `ai-ready`.
