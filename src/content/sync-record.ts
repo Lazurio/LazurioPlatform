@@ -21,6 +21,9 @@ export const syncBlockedReasons = [
 export type SyncBlockedReason = (typeof syncBlockedReasons)[number];
 
 export type SyncResult =
+  /** A declared repository that was not here, cloned by this run (decision
+   * F9's addendum of 2026-11-01). */
+  | "materialized"
   | "fast-forwarded"
   | "current"
   | "blocked"
@@ -50,7 +53,8 @@ export type SyncEntry = Readonly<{
   /** When this answer was given (ISO 8601). */
   at: string;
   /** Since when the repository gives this same answer without interruption,
-   * for every answer but `current`, `fast-forwarded` and `absent`. */
+   * for every answer but `current`, `fast-forwarded`, `materialized` and
+   * an `absent` without a reason. */
   since?: string;
 }>;
 
@@ -80,6 +84,7 @@ export function syncRecordFile(lockDirectory: string, folder: string) {
 }
 
 const results: readonly SyncResult[] = [
+  "materialized",
   "fast-forwarded",
   "current",
   "blocked",
@@ -131,8 +136,13 @@ export async function readSyncRecord(
 
 const keyOf = (entry: SyncEntry) =>
   `${entry.organization.toLowerCase()}\0${entry.root}\0${entry.path}`;
-const lasting = (result: SyncResult) =>
-  result !== "current" && result !== "fast-forwarded" && result !== "absent";
+// A quiet `absent` with a reason (no access yet) keeps its `since` too, so
+// one can tell how long a declared repository has stayed unreadable.
+const lasting = (entry: SyncEntry) =>
+  entry.result !== "current" &&
+  entry.result !== "fast-forwarded" &&
+  entry.result !== "materialized" &&
+  (entry.result !== "absent" || entry.reason !== undefined);
 
 /** Which recorded entries a run's answers replace: all of them, those of
  * the Organizations it ran for, or only the repositories it answered (a run
@@ -153,7 +163,7 @@ export async function recordSync(
   const before = new Map(previous.map((entry) => [keyOf(entry), entry]));
   const answered = entries.map((entry) => {
     const last = before.get(keyOf(entry));
-    if (!lasting(entry.result)) return entry;
+    if (!lasting(entry)) return entry;
     const since =
       last !== undefined &&
       last.result === entry.result &&

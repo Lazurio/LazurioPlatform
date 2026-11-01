@@ -1210,7 +1210,7 @@ export type UpdateJobLine =
       /** Absent for the content part as a whole. */
       root?: string;
       path?: string;
-      step?: "checking" | "fetching" | "fast-forwarding";
+      step?: "checking" | "fetching" | "fast-forwarding" | "cloning";
       result?: string;
       reason?: string;
       to?: string;
@@ -1475,7 +1475,9 @@ export function updateView(
       if (where === "root") {
         const finding =
           line.step === undefined &&
-          !["current", "fast-forwarded", "absent"].includes(line.result ?? "");
+          !["current", "fast-forwarded", "materialized", "absent"].includes(
+            line.result ?? "",
+          );
         const directory = line.root.split("/").at(-1) ?? "";
         const group = groups.find((item) => item.directory === directory);
         if (finding)
@@ -1511,7 +1513,10 @@ export function updateView(
       });
     const building = module.builds.find((line) => line.step === "building");
     const fetching = module.content.find(
-      (line) => line.step === "fetching" || line.step === "fast-forwarding",
+      (line) =>
+        line.step === "fetching" ||
+        line.step === "fast-forwarding" ||
+        line.step === "cloning",
     );
     const finding =
       module.content.find(
@@ -1523,7 +1528,8 @@ export function updateView(
       ) ?? null;
     const buildFailed = module.builds.find((line) => line.result === "failed");
     const moved = module.content.find(
-      (line) => line.result === "fast-forwarded",
+      (line) =>
+        line.result === "fast-forwarded" || line.result === "materialized",
     );
     const built = module.builds.find((line) => line.result === "built");
     if (building !== undefined)

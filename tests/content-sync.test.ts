@@ -15,6 +15,8 @@ import { processContentGit } from "../src/content/git";
 import type { ContentHost } from "../src/content/host";
 import { tryContentLock } from "../src/content/lock";
 import {
+  cloneAnswer,
+  cloneIdentity,
   readSyncRecord,
   type SyncEntry,
   type SyncHost,
@@ -651,7 +653,7 @@ posixTest(
 );
 
 posixTest(
-  "the root first: its children come from its new declaration (present ones synchronized, absent ones never cloned), and a blocked root stops its Organization",
+  "the root first: its children come from its new declaration (present ones synchronized, an absent one this identity cannot read quietly absent), and a blocked root stops its Organization",
   async () => {
     world = await createWorld();
     const fixture = await organization(world);
@@ -702,7 +704,7 @@ posixTest(
       ".": "fast-forwarded",
       "workspace/web": "current",
       "workspace/fresh": "fast-forwarded",
-      "workspace/later": "absent",
+      "workspace/later": "absent:repository-denied",
       "mission-control": "current",
     });
     expect(await head(fixture.at("workspace/fresh"))).toBe(fresh);
@@ -1032,3 +1034,190 @@ posixTest(
   },
   60_000,
 );
+
+// Decision F9's addendum of 2026-11-01 (DEV-6694 M8): a declared module, a
+// guest Module among them, or its data mount that is not here yet is
+// cloned by the next synchronization once this Environment's identity can
+// read it; without access it stays quietly absent.
+
+const exists = (path: string) =>
+  lstat(path).then(
+    () => true,
+    () => false,
+  );
+
+posixTest(
+  "a declared module becomes present at the next synchronization once it is readable; without access it stays quietly absent, and losing access never removes it",
+  async () => {
+    world = await createWorld();
+    const current = world;
+    const fixture = await organization(current, {
+      extraSlots: [slot("workspace/later", "Alpha/later")],
+    });
+    const later = await remoteRepository(current, "Alpha/later", (d) =>
+      writeModule(d, "alpha", { id: "later" }),
+    );
+    // No grant yet: quietly absent with its reason, no doctor warning even a
+    // day later, nothing at the place, every other repository as before.
+    const denied = await ran(fixture);
+    expect(byPath(denied.entries)).toMatchObject({
+      "workspace/web": "current",
+      "workspace/later": "absent:repository-denied",
+    });
+    expect(await exists(fixture.at("workspace/later"))).toBe(false);
+    const recorded = denied.entries.find(
+      (entry) => entry.path === "workspace/later",
+    );
+    expect(recorded?.since).toBe(recorded?.at);
+    expect(
+      syncFindings(denied.entries, new Date(Date.now() + 2 * 86_400_000)),
+    ).toEqual([]);
+
+    // GitHub grants it: the next run clones it on main, by installation's
+    // own no-replace publish, and names the commit it brought.
+    const granted: Fixture = {
+      ...fixture,
+      host: {
+        ...fixture.host,
+        github: stubGitHub(current, {
+          repositories: { "Alpha/later": {} },
+        }).github,
+      },
+    };
+    const cloned = await ran(granted);
+    const entry = cloned.entries.find(
+      (item) => item.path === "workspace/later",
+    );
+    expect(entry).toMatchObject({ kind: "module", result: "materialized" });
+    expect(await head(fixture.at("workspace/later"))).toBe(
+      await ok(later, "rev-parse", "main"),
+    );
+    expect(entry?.to).toBe(await head(fixture.at("workspace/later")));
+    expect(entry?.since).toBeUndefined();
+    expect(
+      (await readdir(fixture.at("workspace"))).filter((name) =>
+        name.startsWith("."),
+      ),
+    ).toEqual([]);
+    // From then on it is kept current like any checkout.
+    expect(byPath((await ran(granted)).entries)["workspace/later"]).toBe(
+      "current",
+    );
+
+    // Access lost (the remote no longer answers this identity): the
+    // checkout stays exactly as it is.
+    const before = await head(fixture.at("workspace/later"));
+    await rm(later, { recursive: true, force: true });
+    const lost = await ran(fixture);
+    expect(byPath(lost.entries)["workspace/later"]).not.toBe("current");
+    expect(await head(fixture.at("workspace/later"))).toBe(before);
+  },
+  60_000,
+);
+
+posixTest(
+  "a restricted slot is never cloned by a synchronization, and a data mount only below its module, in the same run",
+  async () => {
+    world = await createWorld();
+    const current = world;
+    const fixture = await organization(current, {
+      extraSlots: [
+        slot("workspace/secret", "Alpha/secret", {
+          default_access: "restricted",
+        }),
+        slot("workspace/plans", "Alpha/plans"),
+        {
+          path: "workspace/plans/db",
+          slug: "plans-data",
+          materialization: "repository_db_mount",
+          git: { url: "git@github.com:Alpha/plans-data.git", branch: "v3" },
+        },
+        slot("workspace/closed", "Alpha/closed"),
+        {
+          path: "workspace/closed/db",
+          slug: "closed-data",
+          materialization: "repository_db_mount",
+          git: { url: "git@github.com:Alpha/closed-data.git", branch: "v3" },
+        },
+      ],
+    });
+    for (const name of ["secret", "plans", "closed"])
+      await remoteRepository(current, `Alpha/${name}`, async (d) => {
+        await writeModule(d, "alpha", { id: name });
+        await writeFile(join(d, ".gitignore"), "db/\n");
+      });
+    for (const name of ["plans-data", "closed-data"])
+      await remoteRepository(
+        current,
+        `Alpha/${name}`,
+        (d) => writeFile(join(d, "data.json"), "{}\n"),
+        "v3",
+      );
+    const host: SyncHost = {
+      ...fixture.host,
+      github: stubGitHub(current, {
+        repositories: {
+          "Alpha/secret": {},
+          "Alpha/plans": {},
+          "Alpha/plans-data": {},
+          // Its data is readable, the module is not.
+          "Alpha/closed-data": {},
+        },
+      }).github,
+    };
+    const run = await ran({ ...fixture, host });
+    expect(byPath(run.entries)).toMatchObject({
+      "workspace/secret": "absent",
+      "workspace/plans": "materialized",
+      "workspace/plans/db": "materialized",
+      "workspace/closed": "absent:repository-denied",
+      "workspace/closed/db": "absent",
+    });
+    expect(await exists(fixture.at("workspace/secret"))).toBe(false);
+    expect(await exists(fixture.at("workspace/closed/db"))).toBe(false);
+    expect(
+      await readFile(fixture.at("workspace/plans/db/.git/HEAD"), "utf8"),
+    ).toBe("ref: refs/heads/v3\n");
+  },
+  60_000,
+);
+
+test("who clones: the Environment's own GitHub, anonymous Git on a public Environment, nobody on a Team Environment", () => {
+  const { github } = stubGitHub({
+    root: "",
+    remotes: "",
+    home: "",
+    gitEnv: {},
+    lockDirectory: "",
+  } as unknown as Parameters<typeof stubGitHub>[0]);
+  expect(cloneIdentity("account", github)).toBe(github);
+  expect(cloneIdentity("anonymous", github)).toBe("anonymous");
+  // A Team Environment's content is prepared by the hosting (broker).
+  expect(cloneIdentity("configured", github)).toBeNull();
+  // A personal Environment holds no Organization at all (root 0153).
+  expect(syncScope("hosted-personal", bindings.personal).organizations).toBe(
+    "none",
+  );
+});
+
+test("what an attempted clone answers: no access is quiet, a public Environment's private repository too", () => {
+  expect(
+    cloneAnswer({ result: "denied", reason: "repository-denied" }, false),
+  ).toEqual({ result: "absent", reason: "repository-denied" });
+  expect(cloneAnswer({ result: "present" }, false)).toEqual({
+    result: "current",
+  });
+  expect(
+    cloneAnswer({ result: "unavailable", reason: "github-unavailable" }, false),
+  ).toEqual({ result: "unavailable", reason: "remote-unavailable" });
+  expect(
+    cloneAnswer({ result: "blocked", reason: "destination-occupied" }, false),
+  ).toEqual({ result: "blocked", reason: "unexpected-checkout" });
+  // Out of disk or a broken clone is a finding, never half a checkout.
+  expect(
+    cloneAnswer({ result: "failed", reason: "clone-failed" }, false),
+  ).toEqual({ result: "failed", reason: "clone-failed" });
+  expect(
+    cloneAnswer({ result: "failed", reason: "clone-failed" }, true),
+  ).toEqual({ result: "absent", reason: "clone-failed" });
+});

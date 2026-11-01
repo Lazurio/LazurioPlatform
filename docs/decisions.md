@@ -1045,6 +1045,66 @@ the price of a build that is ready when someone opens it. Offline, the first pin
 for the registry up to the fetch bound where the network drops packets instead of refusing
 them; everything after it in the run answers from what is on the disk.
 
+### Addendum of 2026-11-01: a synchronization clones a declared module once it is readable
+
+**Decided by the Organization Admin on 2026-11-01 for plan DEV-6694 (milestone M8);
+implemented in this revision.** Until now a synchronization never cloned anything: a
+declared module this Environment did not have stayed `absent` until someone ran an
+installation, so a person who gained access to a module, or to a guest Module of another
+Organization (F67), did not get it. The Admin asked for a Lazurio mechanism instead: "Ve
+chvíli, kdy mají uživatelé k těmhle repozitářům přístup, ať se jim naklonují stejně jako
+moduly vlastní organizace. … Hádám, že asi Lazurio update … aby se jim moduly naklonovaly,
+když dostanou přístup k nějakým jiným modulům." Asked whether `lazurio update`, the hourly
+synchronization or both, he answered "Ano, update i hodinová sync". A personal Environment
+still holds no Organization's repository (root decision 0153).
+
+1. **What is cloned.** In every run of `syncContent` (the Launchpad's hourly round,
+   `lazurio organization sync`, `lazurio update`, Aktualizovat), a declared workspace module,
+   a guest Module, a root-level application and a declared data mount that is `absent`
+   (nothing at the place, or an empty directory for a data mount) is cloned when this
+   Environment's identity can read it. The clone is installation's own
+   `provideRepository`: GitHub asked once for the repository, a clone into a temporary
+   sibling on its branch (`main`, a data mount its declared one), verified and published
+   with a no-replace rename; nothing present is entered or changed. The answer is the new
+   result `materialized`, with `to`, the commit it was cloned at. Modules run before data
+   mounts, so a data mount is cloned in the same run as its module and never below one that
+   is not a checkout.
+2. **What is not.** A restricted slot (or one below it) stays absent: only an Admin's
+   explicit installation brings it, as before. Production Space, `infra` and the
+   Personalspace are never synchronized. A Team Environment, whose content the hosting
+   prepares through the broker, clones nothing in a synchronization (`cloneIdentity`). The
+   Open of one module synchronizes only that module, which is there.
+3. **No access is quiet.** A repository this identity cannot read stays `absent` with the
+   reason `repository-denied`, not `denied`: the doctor never warns about it, the record
+   keeps its `since`, and the next round asks GitHub once more, one request per absent
+   repository and round. On a public Environment, where anonymous Git cannot tell a
+   private repository from a failed clone, a failed clone is `absent` with `clone-failed`
+   too (`cloneAnswer`). GitHub not answering is `unavailable`; a clone that fails otherwise
+   (a full disk, a broken transfer) is `failed` and leaves nothing but the temporary
+   sibling, which the next materialization of the same destination removes.
+4. **Losing access removes nothing.** A present checkout is kept as it is whatever GitHub
+   answers; its synchronization reports the remote's refusal as before.
+5. **One lock, one record.** The run already holds the Folder's content lock, so it never
+   overlaps an installation. `materialized` is a settled answer: `lazurio organization sync`
+   exits 0 with it, `lazurio update` lists it as cloned and builds after it like a
+   fast-forward, and Nová karta shows the module as fetched.
+6. **Agents.** The Folder's `manual/working-here.md` says that a guest Module, or any other
+   Module of the Organization, is cloned by itself at the next hourly synchronization or
+   `lazurio update` once access exists. Template revision `base-instructions-101`.
+
+Contract: `tests/content-sync.test.ts` (a module granted later is cloned at the next run on
+`main` with its commit and no leftovers, then kept current; without a grant it is quietly
+absent with `since` and no finding a day later; a lost remote leaves the checkout; a
+restricted slot is never cloned; a data mount is cloned below its module in the same run
+and not below a module this identity cannot read; who clones on each kind of Environment;
+what each failed attempt answers) and `tests/guest-modules.test.ts` (a guest without a
+grant is quietly absent). The Root CLI on a computer follows under root decision 0219.
+
+Risks: an Environment shared by several people clones what its identity can read, as an
+installation does. A very large repository is cloned within the round's time like any
+clone, and holds that round for as long. Each hour asks GitHub once per absent declared
+repository, which stays far below GitHub's limits for an Organization's manifest.
+
 ## F10 — Workspace presets and typed owner requests
 
 **Accepted direction (2026-09-19); amended and accepted by Matěj 2026-09-22;

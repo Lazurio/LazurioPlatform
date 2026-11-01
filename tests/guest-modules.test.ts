@@ -1024,7 +1024,9 @@ posixTest(
       "workspace/HomeOrg_GEN3/knowledgebase": "fast-forwarded",
       "workspace/HomeOrg_GEN3/mission-control": "current",
       "workspace/HomeOrg_GEN3/mission-control/db": "fast-forwarded",
-      "workspace/HomeOrg_GEN3/private-notes": "absent",
+      // Still no grant: quietly absent, never denied (F9's addendum of
+      // 2026-11-01).
+      "workspace/HomeOrg_GEN3/private-notes": "absent:repository-denied",
     });
     expect(
       run.entries.find(
