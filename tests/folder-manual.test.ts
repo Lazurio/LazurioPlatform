@@ -2544,3 +2544,64 @@ test("every statement that the Lazurio account holds entry also names the existi
       ]).toEqual([...where, true, named, named]);
     }
 });
+
+// What Lazurio already has (plan LZD-0002, task 6): before an agent builds
+// something, the lazurio page lists the mechanisms Lazurio already offers,
+// how each is used and where to read more, on every preset and in both
+// languages; the section on building and the new-module skill point to it.
+test("the lazurio page lists what Lazurio already has, and building and new modules point to it", () => {
+  const items = {
+    cs: [
+      "## Co už Lazurio má",
+      "- **Aplikace, nástroj, přehled nebo web:** modul.",
+      "- **Data modulu:** repository-db.",
+      "`LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` (decision 0176)",
+      "`LAZURIO_RUNTIME_SECRET_<NAME>` (decision F46)",
+      "- **Kdo smí aplikaci otevřít:** brána Environmentu.",
+      "`node ~/.local/share/lazurio/mausbot/current/cli.js routine … --port 4102`",
+      "- **Plány, úkoly a priority:** Mission Control Organizace",
+      "- **Znalosti, návody a rozhodnutí:** Knowledgebase Organizace.",
+      "- **Vzhled rozhraní:** Design System Organizace, pokud ho má",
+      "- **Pošta, kalendář, chat, CRM:** Integrace.",
+      "rejstřík rozhodnutí (`docs/decision-register.md`",
+    ],
+    en: [
+      "## What Lazurio already has",
+      "- **An app, tool, overview or website:** a module.",
+      "- **A module's data:** repository-db.",
+      "`LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` (decision 0176)",
+      "`LAZURIO_RUNTIME_SECRET_<NAME>` (decision F46)",
+      "- **Who may open an app:** the Environment's gateway.",
+      "`node ~/.local/share/lazurio/mausbot/current/cli.js routine … --port 4102`",
+      "- **Plans, tasks and priorities:** the Organization's Mission Control",
+      "- **Knowledge, how-tos and decisions:** the Organization's Knowledgebase.",
+      "- **The look of an interface:** the Organization's Design System, where it has one",
+      "- **Mail, calendar, chat, CRM:** Integrations.",
+      "the decision register (`docs/decision-register.md`",
+    ],
+  } as const;
+  const pointer = {
+    cs: "Co Lazurio už má a jak se to použije, je v oddílu Co už Lazurio má v `manual/lazurio.md`.",
+    en: "What Lazurio already has and how to use it is in What Lazurio already has in `manual/lazurio.md`.",
+  } as const;
+  const skill = {
+    cs: "- **Co Lazurio už má, nestav.** Než volbu uděláš, projdi oddíl Co už Lazurio má v `manual/lazurio.md`.",
+    en: "- **Do not build what Lazurio already has.** Before you choose, go through What Lazurio already has in `manual/lazurio.md`.",
+  } as const;
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      for (const item of items[locale])
+        expect(outputs["manual/lazurio.md"]).toContain(item);
+      expect(outputs["manual/working-here.md"].includes(pointer[locale])).toBe(
+        journey.preset !== "hosted-personal",
+      );
+      expect(outputs[".agents/skills/new-module/SKILL.md"]).toContain(
+        skill[locale],
+      );
+    }
+});
