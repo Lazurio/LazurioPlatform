@@ -22572,10 +22572,14 @@ cannot read.
    Organization, read here only; changes belong to its home Organization; GitHub decides
    who can read it. Then its count, as every section. Nothing else in the head
    (`catalogGroupEntry`, `appsSections`, `appsSectionHead`).
-2. **Only guests checked out here.** A guest this Environment's identity cannot read is
-   never cloned, so it is not listed, the same rule as an absent module (F32's addendum of
-   2026-10-15); a home without one checked out has no section. The Admin still sees every
-   declaration in the manifest, `lazurio organization list` and the doctor.
+2. **Only guests checked out here and readable.** A guest this Environment's identity
+   cannot read is never cloned, so it is not listed, the same rule as an absent module
+   (F32's addendum of 2026-10-15). A guest whose access was lost keeps its checkout, so the
+   Launchpad's catalog marks it `revoked` when the last synchronization recorded GitHub's
+   refusal (`denied`) for it, and Apps hides it until a synchronization reads it again
+   (`withGuestAccess`; the page asks GitHub nothing itself). A home without a shown guest
+   has no section. The Admin still sees every declaration in the manifest,
+   `lazurio organization list` and the doctor.
 3. **A tile like a module's, read-only** (`guestTile`): its stone and its slot id, as GitHub
    names the repository, and the org-agnostic sentence of its stone; its own
    `lazurio.module.json` stays unread (point 5). A click never opens, starts or prepares

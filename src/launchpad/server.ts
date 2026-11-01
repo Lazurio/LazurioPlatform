@@ -150,6 +150,7 @@ import { launchpadBoot, vaultInAppsOf, withBoot } from "./boot-document";
 import { createBuddyRoutes } from "./buddy-routes";
 import { telegramPairingLine } from "./buddy-view";
 import { createCatalogReading, organizationsOnly } from "./catalog-reading";
+import { withGuestAccess } from "./catalog-view";
 import {
   asksForBuddy,
   chatPairingPath,
@@ -2480,7 +2481,18 @@ export async function startLaunchpad(
           // Personalspace group follows the last decision whose it is and
           // never waits for GitHub (#186).
           stateFields(input, []);
-          return response(await catalog.read());
+          // A guest whose access was lost stays checked out; the last
+          // synchronization's answer hides it in Apps (F67's addendum of
+          // 2026-11-01). Without a record nothing is marked.
+          const read = await catalog.read();
+          return response(
+            syncHost === undefined
+              ? read
+              : withGuestAccess(
+                  read,
+                  await readSyncRecord(syncHost.lockDirectory, folder),
+                ),
+          );
         }
         if (url.pathname === "/api/profile") {
           stateFields(input, []);
