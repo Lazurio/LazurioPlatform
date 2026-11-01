@@ -4,6 +4,7 @@ import type {
 } from "../modules/runtime-secrets";
 import type {
   Catalog,
+  CatalogGuestModule,
   CatalogModule,
   CatalogOrganization,
   CatalogRepository,
@@ -389,6 +390,16 @@ export type CatalogSection =
       kind: "productionspace";
       title: string;
       repositories: readonly CatalogRepositoryEntry[];
+    }>
+  /** The guest Modules of one home Organization (decision F67's addendum of
+   * 2026-11-01): titled with the home Organization's GitHub login, after
+   * Productionspace, one section per home in declaration order, only those
+   * checked out here. A guest this Environment's identity cannot read is
+   * never cloned, so it is never shown, as a module that is absent. */
+  | Readonly<{
+      kind: "guest";
+      title: string;
+      guests: readonly CatalogGuestModule[];
     }>;
 export type CatalogSectionKind = CatalogSection["kind"];
 
@@ -472,6 +483,12 @@ export function catalogGroupEntry(
       ? copy.catalogCheckedOut
       : copy.catalogNotCheckedOut,
   }));
+  const homes = new Map<string, CatalogGuestModule[]>();
+  for (const guest of organization.guests ?? []) {
+    if (!guest.checkedOut) continue;
+    const key = guest.homeOrganization.toLowerCase();
+    homes.set(key, [...(homes.get(key) ?? []), guest]);
+  }
   const sections =
     organization === catalog.personalspace
       ? null
@@ -495,6 +512,11 @@ export function catalogGroupEntry(
                   repositories,
                 },
               ]),
+          ...[...homes.values()].map((guests) => ({
+            kind: "guest" as const,
+            title: guests[0]?.homeOrganization ?? "",
+            guests,
+          })),
         ];
   return {
     organization,
@@ -673,6 +695,24 @@ function isRepository(value: unknown): value is CatalogRepository {
         entry.services.every(isCatalogService)))
   );
 }
+// A guest Module as the catalog lists it (decision F67 point 5).
+function isGuest(value: unknown): value is CatalogGuestModule {
+  if (!value || typeof value !== "object") return false;
+  const entry = value as Record<string, unknown>;
+  return (
+    text(entry.organization) &&
+    text(entry.module) &&
+    text(entry.path) &&
+    text(entry.homeOrganization) &&
+    /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(
+      entry.homeOrganization,
+    ) &&
+    entry.guest === true &&
+    typeof entry.checkedOut === "boolean" &&
+    (entry.url === null ||
+      (text(entry.url) && entry.url.startsWith("https://github.com/")))
+  );
+}
 function isOrganization(value: unknown): value is CatalogOrganization {
   if (!value || typeof value !== "object") return false;
   const entry = value as Record<string, unknown>;
@@ -702,6 +742,8 @@ function isOrganization(value: unknown): value is CatalogOrganization {
     entry.modules.every(isModule) &&
     Array.isArray(entry.repositories) &&
     entry.repositories.every(isRepository) &&
+    (entry.guests === undefined ||
+      (Array.isArray(entry.guests) && entry.guests.every(isGuest))) &&
     (entry.workspaceTabs === undefined ||
       (Array.isArray(entry.workspaceTabs) &&
         entry.workspaceTabs.length <= 12 &&

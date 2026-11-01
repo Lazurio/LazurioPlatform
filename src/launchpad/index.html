@@ -377,6 +377,9 @@ main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-w
 .section-head { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid var(--lz-accent); }
 .section-pill { padding: 5px 12px; border-radius: 7px 7px 0 0; background: var(--lz-accent); color: var(--lz-on-accent); font-size: 14px; font-weight: var(--lz-weight-akce); line-height: normal; }
 .section-count { color: var(--muted-fg); font-size: 13px; }
+/* A guest section's "hostující" (decision F67's addendum of 2026-11-01): a
+   quiet badge on the rule beside the flag, its explanation in the tooltip. */
+.section-badge { padding: 1px 7px; border-radius: 999px; background: var(--hover); color: var(--muted-fg); font-size: 11px; font-weight: 600; cursor: help; }
 /* An Organization's own Workspace tabs (decision F32's addenda of 2026-10-16
    and 2026-10-19, prototypes-lazurio#73): the segmented switch of the column
    head's Chat · Apps · Automate (src/shell/styles.ts, `nav.switch` and
