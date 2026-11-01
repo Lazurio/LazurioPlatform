@@ -394,8 +394,9 @@ export type CatalogSection =
   /** The guest Modules of one home Organization (decision F67's addendum of
    * 2026-11-01): titled with the home Organization's GitHub login, after
    * Productionspace, one section per home in declaration order, only those
-   * checked out here. A guest this Environment's identity cannot read is
-   * never cloned, so it is never shown, as a module that is absent. */
+   * checked out here and readable. A guest this Environment's identity
+   * cannot read is never cloned, and one whose access was lost (`revoked`,
+   * from the last synchronization) is hidden though its checkout stays. */
   | Readonly<{
       kind: "guest";
       title: string;
@@ -485,7 +486,7 @@ export function catalogGroupEntry(
   }));
   const homes = new Map<string, CatalogGuestModule[]>();
   for (const guest of organization.guests ?? []) {
-    if (!guest.checkedOut) continue;
+    if (!guest.checkedOut || guest.revoked === true) continue;
     const key = guest.homeOrganization.toLowerCase();
     homes.set(key, [...(homes.get(key) ?? []), guest]);
   }
@@ -709,6 +710,7 @@ function isGuest(value: unknown): value is CatalogGuestModule {
     ) &&
     entry.guest === true &&
     typeof entry.checkedOut === "boolean" &&
+    (entry.revoked === undefined || entry.revoked === true) &&
     (entry.url === null ||
       (text(entry.url) && entry.url.startsWith("https://github.com/")))
   );
@@ -797,4 +799,41 @@ export function parseCatalog(input: unknown): Catalog | null {
       isServicesGroup(value.serverServices))
     ? (value as Catalog)
     : null;
+}
+
+/** The catalog with each guest whose last synchronization GitHub refused
+ * marked `revoked` (decision F67's addendum of 2026-11-01): a guest stays
+ * checked out after its access is lost, and Apps must not show it. Only a
+ * present checkout's `denied` counts; the next synchronization that reads it
+ * again clears the mark. Reads nothing itself. */
+export function withGuestAccess(
+  catalog: Catalog,
+  record:
+    | readonly Readonly<{
+        organization: string;
+        root: string;
+        path: string;
+        result: string;
+      }>[]
+    | null,
+): Catalog {
+  if (record === null) return catalog;
+  const denied = new Set(
+    record
+      .filter((entry) => entry.result === "denied")
+      .map((entry) => `${entry.root}\0${entry.path}`),
+  );
+  if (denied.size === 0) return catalog;
+  const mark = (organization: CatalogOrganization): CatalogOrganization =>
+    organization.guests === undefined
+      ? organization
+      : {
+          ...organization,
+          guests: organization.guests.map((guest) =>
+            denied.has(`organizations/${organization.directory}\0${guest.path}`)
+              ? { ...guest, revoked: true as const }
+              : guest,
+          ),
+        };
+  return { ...catalog, organizations: catalog.organizations.map(mark) };
 }
