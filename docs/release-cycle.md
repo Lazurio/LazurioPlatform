@@ -170,7 +170,7 @@ workflow of its own, not a job of `release.yml`: `release.yml` is the trust entr
 point of every installed client and stays the publishing path only, a qualification
 can be repeated without touching a release, and it needs no right beyond reading.
 For every qualified target — `linux-x64` on `ubuntu-24.04`, `darwin-arm64` on
-`macos-15` — each journey runs on a fresh runner of its own. The job checks out the
+`macos-14` — each journey runs on a fresh runner of its own. The job checks out the
 candidate's tag, downloads that tag's **published** assets (executable,
 `manifest.json`, `lazurio.sigstore.json`, `install.sh`) and verifies them first
 (`scripts/qualify/journeys.ts verify`: the digest in the manifest, `gh attestation

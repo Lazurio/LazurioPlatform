@@ -211,12 +211,9 @@ information page is reached only from its tile's menu.
   [below](#vault-apps--trezor); only where the Environment has a vault), Oblíbené (the
   favourites, pinned) and, at its bottom, the Marketplace. There is no module list (its
   rows led to technical details and confused users) and no search.
-- **Marketplace.** The entry is in the Apps column of every Environment. It opens the
-  curated pilot catalog, Šablony aplikací with the one offer Presentations, its
-  detail and the dialog "Přidat do Organizace", which hands a brief to the agent and
-  installs nothing itself (`marketplace.ts`, `marketplace-panel.ts`; [the curated
-  pilot](marketplace.md#the-curated-pilot-in-the-launchpad-plan-dev-6593)). The rest of
-  the [marketplace](marketplace.md) remains future direction.
+- **Marketplace.** The entry is in the Apps column of every Environment. For now it
+  says "již brzy" (coming soon) and opens a placeholder page; it is not the
+  [future marketplace](marketplace.md).
 - **Favourites.** Set from a module's "⋯" menu ("Přidat do oblíbených" / "Odebrat z
   oblíbených"). They are pinned in the column, where a favourite opens its app
   directly. On the home a starred module comes first in its section, in the column's

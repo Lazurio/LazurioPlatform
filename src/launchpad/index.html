@@ -15,7 +15,7 @@
   var section = "";
   if (path === "/files" || path.indexOf("/files/") === 0) frame = "files";
   else if (trimmed === "/integrations" || trimmed.indexOf("/integrations/") === 0) frame = "integrations";
-  else if (trimmed === "/marketplace" || trimmed.indexOf("/marketplace/") === 0) frame = "marketplace";
+  else if (trimmed === "/marketplace") frame = "marketplace";
   else if (trimmed === "/vault" || trimmed.indexOf("/vault/") === 0 || trimmed === "/settings/vault" || trimmed === "/settings/vault/requests" || trimmed.indexOf("/settings/vault/requests/") === 0) frame = "vault";
   else if (trimmed === "/settings" || trimmed.indexOf("/settings/") === 0) {
     frame = "settings";
@@ -219,6 +219,7 @@ button.menu-item { width: 100%; border: 0; background: transparent; font-weight:
 .menu-mark .icon { width: 15px; height: 15px; }
 .menu-external { margin-left: auto; width: 13px; height: 13px; color: var(--lz-ink-faint); opacity: 0; }
 .menu-item:hover .menu-external { opacity: 1; }
+.menu-soon { margin-left: auto; padding: 1px 7px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-pill); color: var(--muted-fg); font-size: 11.5px; font-weight: 400; }
 .update { display: grid; gap: 0.35rem; padding: 0.625rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--card); font-size: 12px; }
 .update #update-pill { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem; color: var(--fg); }
 .update #update-pill button { margin-left: auto; }
@@ -449,55 +450,8 @@ button.tile { height: auto; justify-content: flex-start; white-space: normal; bo
 .toast-region { position: fixed; z-index: 60; bottom: 28px; left: 50%; transform: translateX(-50%); }
 .toast { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border: 1px solid var(--line-strong); border-radius: var(--lz-radius-md); background: var(--lz-surface); color: var(--fg); font-size: 14px; white-space: nowrap; }
 .market-head { display: flex; align-items: center; gap: 14px; }
-/* The Marketplace's catalog, an offer's detail and its dialog (plan
-   DEV-6593): an offer looks like the module it becomes in Apps, its stone
-   and name, and shows the real app. */
-.market-view { display: flex; flex-direction: column; gap: 28px; }
-.market-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 16px; }
-.market-card { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--lz-gray-100); border-radius: var(--lz-radius-md); background: var(--card); color: var(--fg); text-decoration: none; transition: border-color 120ms ease; }
-.market-card:hover, .market-card:focus-visible { border-color: var(--lz-ink); }
-.market-card:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--bg), 0 0 0 3px var(--lz-accent); }
-.market-card-shot { display: block; aspect-ratio: 16 / 10; overflow: hidden; border-bottom: 1px solid var(--lz-gray-100); background: var(--lz-paper); }
-.market-card-shot img { display: block; width: 150%; max-width: none; height: auto; border: 0; border-radius: 0; aspect-ratio: auto; }
-.market-card-body { display: flex; align-items: center; gap: 14px; padding: 14px 18px 16px; }
-.market-card-body .tile-body { flex: 1; }
-.market-stone { display: block; flex: none; width: 44px; height: 44px; }
-.market-detail-head { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 20px; }
-.market-detail-head .market-stone { width: 64px; height: 64px; }
-.market-detail-title { display: grid; gap: 4px; flex: 1 1 12rem; min-width: 0; }
-.market-detail-title .apps-title { margin: 0; }
-.market-summary { color: var(--muted-fg); font-size: 15px; line-height: 1.5; }
-.market-add { height: 38px; padding: 0 18px; font-size: 14px; }
-.market-shots { display: grid; gap: 12px; }
-.market-thumbs { display: flex; flex-wrap: wrap; gap: 10px; }
-button.market-thumb { width: 120px; height: auto; padding: 0; border: 0; border-radius: var(--lz-radius-sm); background: transparent; box-shadow: none; opacity: 0.6; transition: opacity 120ms ease; }
-button.market-thumb:hover { opacity: 1; background: transparent; }
-button.market-thumb[aria-pressed="true"] { opacity: 1; }
-button.market-thumb .market-shot { border-radius: var(--lz-radius-sm); }
-button.market-thumb[aria-pressed="true"] .market-shot { border-color: var(--lz-ink); }
-button.market-thumb:focus-visible { outline: 2px solid var(--lz-accent); outline-offset: 2px; }
-.market-shot { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; border: 1px solid var(--lz-gray-100); border-radius: var(--lz-radius-md); background: var(--lz-paper); }
-.market-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 24px 32px; margin: 8px 0 0; padding: 0; list-style: none; }
-.market-features li { display: grid; align-content: start; gap: 6px; }
-.market-features h2 { font-size: 15px; font-weight: var(--lz-weight-akce); }
-.market-features p { max-width: 40ch; color: var(--muted-fg); font-size: 14px; line-height: 1.6; }
-dialog.market-dialog { width: min(34rem, calc(100vw - 2rem)); }
-.market-dialog-body { display: grid; gap: 20px; margin-top: 16px; }
-.market-field { display: grid; gap: 6px; }
-.market-field label, .market-seeds legend { font-size: 14px; font-weight: var(--lz-weight-akce); }
-.market-field select { width: 100%; }
-.market-seeds { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0; padding: 0; border: 0; }
-.market-seeds legend { grid-column: 1 / -1; margin-bottom: 6px; padding: 0; }
-dialog.market-dialog label, dialog.market-dialog .dialog-head h2 { margin-bottom: 0; }
-.market-seed { position: relative; display: grid; align-content: start; gap: 2px; padding: 12px 14px; border: 1px solid var(--lz-gray-100); border-radius: var(--lz-radius-sm); font-size: 14px; cursor: pointer; transition: border-color 120ms ease; }
-.market-seed:hover { border-color: var(--lz-line); }
-.market-seed:has(input:checked) { border-color: var(--lz-ink); background: var(--lz-paper); }
-.market-seed:has(input:focus-visible) { outline: 2px solid var(--lz-accent); outline-offset: 2px; }
-.market-seed input { position: absolute; opacity: 0; pointer-events: none; }
-.market-what { color: var(--muted-fg); font-size: 14px; line-height: 1.55; }
-dialog.market-dialog .dialog-foot { justify-content: flex-end; }
-dialog.market-dialog .dialog-foot [role="status"] { flex: 1 1 100%; margin: 0; text-align: left; }
-dialog.market-dialog .dialog-foot [role="status"]:empty { display: none; }
+.market-icon { display: grid; width: 52px; height: 52px; place-items: center; border-radius: var(--lz-radius-md); background: var(--lz-gray-100); color: var(--fg); }
+.market-icon .icon { width: 26px; height: 26px; }
 .empty { padding: 28px; border: 1px dashed var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-paper); color: var(--muted-fg); font-size: 14px; text-align: center; }
 
 /* The module overview: back, head, then the cards of Settings. */
@@ -1700,7 +1654,7 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <p id="update-error" hidden></p>
 <p id="update-state-invalid" hidden></p>
 </section>
-<ul class="menu" data-view="catalog files integrations vault marketplace"><li><a class="menu-item" href="/marketplace" id="marketplace-open" data-route><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg><span class="menu-name" data-message="appsMarketplace">Marketplace</span></a></li></ul>
+<ul class="menu" data-view="catalog files integrations vault marketplace"><li><a class="menu-item" href="/marketplace" id="marketplace-open" data-route><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg><span class="menu-name" data-message="appsMarketplace">Marketplace</span><span class="menu-soon" data-message="appsSoon">coming soon</span></a></li></ul>
 <ul class="menu" data-view="settings"><li><a class="menu-item" href="/" id="settings-back" data-route><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg><span class="menu-name" data-message="settingsBack">Back</span></a></li></ul>
 </div>
 <!-- The column's right edge drags it wider or narrower (layout.ts). -->
@@ -1752,14 +1706,8 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <!-- The Marketplace (decision F36 addendum of 2026-10-04): where modules
      will be added to the Environment; for now it says only that it is
      coming (F36's addendum of 2026-10-16). -->
-<!-- The Marketplace (plan DEV-6593): marketplace-panel.ts draws the catalog,
-     an offer's detail and the form "Přidat do Organizace" into the body; the
-     first paint shows the catalog's head. The pictures are real screens of
-     the template's synthetic example (docs/marketplace.md), bundled here and
-     cloned by the panel. -->
 <main id="view-marketplace" class="container" data-view="marketplace">
-<div id="market-body"><div class="market-view"><header class="market-head"><h1 class="apps-title" data-page-heading tabindex="-1" data-message="appsMarketplace">Marketplace</h1></header></div></div>
-<div id="market-pictures" hidden><img data-picture="presentations-gallery" src="./images/marketplace-presentations-gallery.webp" width="1200" height="750" alt="" loading="lazy" decoding="async"><img data-picture="presentations-slide" src="./images/marketplace-presentations-slide.webp" width="1200" height="750" alt="" loading="lazy" decoding="async"></div>
+<header class="market-head"><span class="market-icon"><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg></span><div><h1 class="apps-title" data-page-heading tabindex="-1" data-message="appsMarketplace">Marketplace</h1><p class="module-meta" data-message="appsMarketplaceSoon">Coming soon</p></div></header>
 </main>
 
 <!-- Integrace (decision F42): the apps and services connected to this
@@ -2148,13 +2096,6 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <p id="integrations-confirm-text"></p>
 <p id="integrations-confirm-status" role="status" aria-live="polite"></p>
 <div class="dialog-foot"><button type="button" class="destructive" id="integrations-confirm-ok"></button><button type="button" id="integrations-confirm-cancel" data-message="integrationsCancel">Cancel</button></div>
-</dialog>
-<!-- The Marketplace's "Přidat do Organizace" (plan DEV-6593):
-     marketplace-panel.ts draws the form into its body. -->
-<dialog id="market-dialog" class="market-dialog" aria-labelledby="market-dialog-title">
-<div class="dialog-head"><h2 id="market-dialog-title" tabindex="-1"></h2><button type="button" class="dialog-x" id="market-dialog-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg></button></div>
-<div class="market-dialog-body" id="market-dialog-body"></div>
-<div class="dialog-foot"><p id="market-dialog-status" role="status" aria-live="polite"></p><button type="button" id="market-dialog-cancel"></button><button type="button" class="primary" id="market-dialog-ok"></button></div>
 </dialog>
 <!-- The shell's guide (decision F56): where Buddy, or without him the
      neutral guide of Lazurio, explains this page in place when a "?" asks

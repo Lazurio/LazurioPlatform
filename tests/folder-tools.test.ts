@@ -736,7 +736,7 @@ test("a profile change and a handover refresh carry the enabled tools forward", 
 });
 
 test("a Folder rendered by an older template revision is upgraded by a tools change", async () => {
-  expect(instructionTemplateRevision).toBe("base-instructions-92");
+  expect(instructionTemplateRevision).toBe("base-instructions-91");
   const { preferences, manifest } = await planned();
   const older = {
     ...manifest,
@@ -759,7 +759,7 @@ test("a Folder rendered by an older template revision is upgraded by a tools cha
       recorded,
     );
     if (upgrade.kind !== "profile-change") throw new Error("Expected upgrade");
-    expect(upgrade.manifest.templateRevision).toBe("base-instructions-92");
+    expect(upgrade.manifest.templateRevision).toBe("base-instructions-91");
     expect(upgrade.previous).toEqual(older.outputs);
     expect(enabledTools(upgrade.preferences)).toEqual(tools);
     expect(upgrade.files).toEqual(

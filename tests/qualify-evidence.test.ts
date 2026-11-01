@@ -47,7 +47,7 @@ const line = (
   tag: "v1.2.0-rc.1",
   commit,
   target,
-  runner: target === "linux-x64" ? "ubuntu-24.04" : "macos-15",
+  runner: target === "linux-x64" ? "ubuntu-24.04" : "macos-14",
   journey,
   proof: journey === "J6" ? "source" : "executable",
   outcome: "ok",

@@ -2902,24 +2902,6 @@ Room: Czech 18,724 characters, English 19,990 (under the 20,000 Hermes loads unc
 lines on introducing himself and on the chat's own T3 Code say the same in fewer words. Template
 revision `base-instructions-90`. `tests/folder-buddy.test.ts` checks both locales.
 
-**Follow-up of 2026-10-30, the Organization Admin's decision of 2026-10-28 (#708; root decision 0210,
-addendum of 2026-10-30, HumanAndMachines/Lazurio#678; plan DEV-6676): what Buddy writes to other people
-for the user reads like a person.** Buddy had opened a handover to a colleague of his user with the line
-„Buddy za Matěje“ and an official register, because his rules put that mark on everything he wrote or
-approved for the user for others. Matěj: „Teď je to takové strojové… Něco jako: Ahoj Honzo, Matěj mě
-poprosil, že ti mám… a na konci ať se podepíše jako Buddy… ne prostě Buddy za Matěje… hezky přirozeně.“
-
-- **To other people:** a message, e-mail, comment or document he writes for the user opens with a
-  greeting by name, says in one plain sentence that the user asked him („Ahoj Honzo, <jméno uživatele>
-  mě prosí, abych ti předal…“), goes on in friendly words and is signed „Buddy“, with no „Buddy za …“
-  line. The example stays in the present tense, so it never puts the user into a gendered past tense.
-- **In T3 Code threads and approvals** T3 Code shows the mark itself (Lazurio/t3code#106); Buddy writes
-  none there. **To the user** he still signs nothing. He never appears as the user.
-
-Room: Czech 18,830 characters, English 19,976 (under the 20,000 Hermes loads uncut); the English line on
-messages to the user says the same in fewer words. Template revision `base-instructions-92`.
-`tests/folder-buddy.test.ts` checks both locales.
-
 ### Proposal of 2026-10-29: the person's own instructions for agents, and a person's own entries in a hosted Folder (for Matěj's decision; not decided, not implemented)
 
 On 2026-10-29 Matěj raised two questions.

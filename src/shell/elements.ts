@@ -16,7 +16,6 @@ import {
   type ShellSignedOut,
   shellSchema,
 } from "./contract";
-import { createDocumentReads, readShellDocumentJson } from "./document-read";
 import { installShellFonts } from "./fonts";
 import {
   createGuide,
@@ -97,8 +96,7 @@ import {
 //
 // Data: the `lazurio.shell.v1` document. A host that has it calls
 // `provideShell`; otherwise the elements read `/.lazurio/shell.json` on
-// their own origin (the forks), in one bounded cycle that retries transient
-// failures (document-read.ts). A host that provides it marks
+// their own origin once (the forks). A host that provides it marks
 // `<html data-lazurio-shell="host">` so nothing is fetched twice. Alongside
 // it the elements draw the person's account merged in (merge.ts, F37): this
 // Environment as its document says, and the other spaces and Environments
@@ -289,37 +287,56 @@ function requestDocument(): void {
   )
     return;
   requested = true;
-  readDocument();
+  fetch("/.lazurio/shell.json", {
+    credentials: "same-origin",
+    cache: "no-store",
+  })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((value: unknown) => {
+      const shell = parseShell(value);
+      if (shell !== null) provideShell(shell);
+    })
+    .catch(() => undefined);
 }
 
-// One bounded read of the page's document (document-read.ts): transient
-// failures retry within it, so a Launchpad that restarts as the page loads
-// no longer leaves the rail an empty column. One read at a time; a request
-// during a read is one more read after it, never lost.
-const documentReads = createDocumentReads(async () => {
-  const shell = parseShell(await readShellDocumentJson());
-  // Drawn again only when it says something else.
-  if (shell !== null && JSON.stringify(shell) !== JSON.stringify(state.local()))
-    provideShell(shell);
-});
-const readDocument = (): void => documentReads.request();
-
 // The page's document again when the page is shown again (F36's addendum of
-// 2026-10-18): on `visibilitychange` to visible, on `focus`, on `pageshow`
-// from the back-forward cache and on `online`, never by a timer, so a change
-// of the Environment's theme (or of what it lacks) reaches a page without a
-// reload, and a page whose first read failed draws its rail. Only where the
-// elements read the document themselves and after their first read; none
-// within `rereadGapMs` of the last, since the events come together.
+// 2026-10-18): on `visibilitychange` to visible and on `focus`, never by a
+// timer, so a change of the Environment's theme (or of what it lacks)
+// reaches a page without a reload. Only where the elements read the
+// document themselves and after their first read; one read at a time, and
+// none within `rereadGapMs` of the last, since both events come together.
 const rereadGapMs = 1_000;
+let rereading = false;
 let rereadAt = Number.NEGATIVE_INFINITY;
 function rereadDocument(): void {
-  if (!requested || document.documentElement.dataset.lazurioShell === "host")
+  if (
+    !requested ||
+    rereading ||
+    document.documentElement.dataset.lazurioShell === "host"
+  )
     return;
   const now = Date.now();
   if (now - rereadAt < rereadGapMs) return;
+  rereading = true;
   rereadAt = now;
-  readDocument();
+  fetch("/.lazurio/shell.json", {
+    credentials: "same-origin",
+    cache: "no-store",
+  })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((value: unknown) => {
+      const shell = parseShell(value);
+      // Drawn again only when it says something else.
+      if (
+        shell !== null &&
+        JSON.stringify(shell) !== JSON.stringify(state.local())
+      )
+        provideShell(shell);
+    })
+    .catch(() => undefined)
+    .finally(() => {
+      rereading = false;
+    });
 }
 
 // The page's events that bring the theme (and the document) again: the
@@ -335,10 +352,6 @@ function watchEnvironmentTheme(): void {
     if (!document.hidden) rereadDocument();
   });
   window.addEventListener("focus", () => rereadDocument());
-  window.addEventListener("pageshow", (event) => {
-    if (event.persisted) rereadDocument();
-  });
-  window.addEventListener("online", () => rereadDocument());
 }
 
 // Where you last were in each space, in this browser: a click on a space in
