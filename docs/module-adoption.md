@@ -997,10 +997,12 @@ with the existing verified `organizationForgeBinding` / `repositoryForgeBinding`
 wire fields of the Organization manifest's schema, first inspected in the Root's
 `lazurio/lazurio.organization.v1.schema.json` at the same clean legacy commit cited
 below. The adapter copies no schema source. Since 2026-11-01 this repository is the
-contract's authority: the [organization contract](organization-contract.md) and its
-readers; its JSON Schema is still to be written here (#799). Both stable decimal IDs
-and current locators must agree; unverified bindings, user-owned repositories,
-replacement IDs, renamed/transferred locators and missing identities do not match.
+contract's authority: the [organization contract](organization-contract.md), its
+readers and its JSON Schema `src/organizations/lazurio.organization.v1.schema.json`,
+whose `organizationForgeBinding` and `repositoryForgeBinding` definitions state these
+wire fields. Both stable decimal IDs and current locators must agree; unverified
+bindings, user-owned repositories, replacement IDs, renamed/transferred locators and
+missing identities do not match.
 Case-only locator differences are accepted. This reads no local manifest and grants
 no permission: filesystem custody, manifest integrity and operation policy remain
 separate. It neither upgrades unverified records nor rewrites a manifest after rename.
@@ -1380,8 +1382,9 @@ including optional exact team forge binding;
 the older runtime's shape check only verifies that teams is an array. Malformed team
 entries accepted by that weaker runtime are intentionally not silently adopted.
 
-Tests cover frozen-copy preservation, unverified optional roots and 44 malformed or
-conflicting variants. This parser verifies declaration shape and cross-field rules,
+Tests cover frozen-copy preservation, unverified optional roots and the accepted and
+malformed or conflicting variants of `tests/fixtures/organization-manifests.ts`, which
+the schema test shares. This parser verifies declaration shape and cross-field rules,
 not the correctness of the declared projection hash, agreement with modules inventory,
 legacy semantic equivalence, provider facts or operation permission. Those remain
 separate steps before a lifecycle consumer can use the Organization. No document is

@@ -20,21 +20,22 @@ apply it.
   (`src/organizations/organization-settings.ts`) is the only reader of `settings`;
   `src/organizations/root-resolution.ts` resolves an Organization root's
   compatibility state. The readers are the contract as it is enforced.
-- **A JSON Schema of `lazurio.organization.v1`** is to be written anew in this
+- **The JSON Schema of `lazurio.organization.v1`** is
+  `src/organizations/lazurio.organization.v1.schema.json`, written in this
   repository from this document and the readers. Decision 0225 rules out copying
-  the GEN3 Root's schema, which is under another licence. Until it exists, the
-  readers are the only machine-checked form of the contract (#799).
-- **A change of the contract** changes this document and the readers in one pull
-  request of this repository, and the schema once it exists.
+  the GEN3 Root's schema, which is under another licence. [The schema](#the-schema)
+  below says what it covers and what only the readers check;
+  `tests/organization-schema.test.ts` holds the schema and the readers together.
+- **A change of the contract** changes this document, the readers and the schema
+  in one pull request of this repository.
 - **Consumers follow this repository.** The Lazurio Root (GEN3) is a consumer: its
   Core validates Organization manifests on a person's computer against its own
-  `lazurio/lazurio.organization.v1.schema.json` until it can pin the schema
-  written here by this repository's commit and its SHA-256. It never extends the
-  contract on its own.
-- **Known gaps.** The GEN3 Root's schema does not define
+  `lazurio/lazurio.organization.v1.schema.json` until it pins the schema of this
+  repository by commit and SHA-256. It never extends the contract on its own.
+- **Known gaps.** The GEN3 Root's own schema does not define
   `settings.workspace.tabs`, which `organizationSettings` reads ([F32](decisions.md#f32--teams-are-not-a-presentation-axis-of-the-launchpad-an-environment-is-one-workspace),
   addendum of 2026-10-16): a manifest with tabs fails that schema while this
-  repository applies them.
+  repository's readers and schema accept them.
 
 ## What the readers check
 
@@ -116,10 +117,11 @@ validated as the authored manifest and never a second schema:
 
 Decision 0194 adds the optional, closed `settings` section of
 `lazurio.organization.json`; the reader `organizationSettings` defines its
-tree. Its settings are `integrations.composio.allowed`,
-`integrations.chatgpt_apps.allowed`, `integrations.microsoft365` (`tenant_id`,
-`client_id`, `apps`, `callbacks`), the Dashboard's own `access_requests.enabled`,
-and `workspace.tabs`, which only the reader knows yet (see the known gaps above).
+tree and the schema's `$defs.organizationSettings` states it. Its settings are
+`integrations.composio.allowed`, `integrations.chatgpt_apps.allowed`,
+`integrations.microsoft365` (`tenant_id`, `client_id`, `apps`, `callbacks`),
+the Dashboard's own `access_requests.enabled`, and `workspace.tabs`, which the
+GEN3 Root's schema lacks (see the known gaps above).
 
 - `parseCanonicalOrganization` accepts the section and keeps it as authored but
   never judges it. `organizationSettings` (`src/organizations/organization-settings.ts`)
@@ -144,12 +146,67 @@ and `workspace.tabs`, which only the reader knows yet (see the known gaps above)
   it like every other leaf, so writing it never withholds the rest, and then drops
   it from `values`: it has no key and is never applied or reported. The Dashboard
   never delivers it, so only a root read from Git holds it (F45).
-- A new setting is one leaf of `organizationSettings`, and of the schema once it
-  exists, added in one pull request; the GEN3 Root's Core reads it once it
-  follows that commit.
+- A new setting is one leaf of `organizationSettings` and one of the schema's
+  `$defs.organizationSettings`, added in one pull request; the GEN3 Root's Core
+  reads it once it follows that commit.
 - Readers first: older releases reject a manifest with the section as an unknown
   field. An Organization adds it only after the release with this reader runs on
   all of its Environments.
+
+## The schema
+
+`src/organizations/lazurio.organization.v1.schema.json` states the contract as
+JSON Schema 2020-12 under the `$id`
+`https://lazurio.io/schemas/lazurio.organization.v1.schema.json` and compiles in
+Ajv's strict mode. `tests/organization-schema.test.ts` binds it to the readers on
+synthetic fixtures it shares with the tests of `parseCanonicalOrganization` and
+`organizationSettings` (`tests/fixtures/organization-manifests.ts`): every
+manifest the readers accept passes the schema, and every manifest they refuse
+fails it unless the test lists it as checked only by the readers, with the
+reason.
+
+- **What it covers:** every field the readers read. That is `schema_version`,
+  `kind`, the `organization` identity with its `forge_binding` and `metadata`,
+  `root_repository`, `manifests`, `extensions.legacy`,
+  `compatibility.legacy_projection`, `module_port_pool`, `governance`, `teams`,
+  `layers`, `task_sources`, `doctor`, and `settings` as
+  `$defs.organizationSettings`, `workspace.tabs` included.
+- **Closed where the readers are closed:** the top level, the identity, both
+  bindings, `manifests`, `extensions`, `compatibility`, the port pool, a Team's
+  `forge_binding` and every level of `settings` refuse an unknown key. Where the
+  readers keep Organization-owned data as authored, the schema is open:
+  `metadata`, `extensions.legacy`, `governance`, `doctor`, `layers`,
+  `task_sources` and a Team's other fields. `metadata` and `extensions.legacy`
+  still refuse the names the legacy projection writes itself.
+- **Binding states are schema rules:** a verified binding carries its ID and an
+  unverified one none, and the owner and the root share one state, so a verified
+  Organization declares a verified root.
+- **Only the readers check** these rules, which JSON Schema cannot express: it
+  compares no two values, reads no other document or file, never sees the JSON
+  text and counts the length of a string in code points.
+  - the owner in `root_repository.locator` is the Organization's login, ignoring
+    letter case;
+  - `module_port_pool.start` does not exceed `end`;
+  - two Workspace tabs never share a name (in NFC, ignoring letter case), and a
+    module is in one tab at most;
+  - a tab name has at most 40 UTF-16 code units: a name of 21 to 40 characters
+    outside the Basic Multilingual Plane, such as emoji, passes only the schema;
+  - the declared projection digest is the digest of the projection of this
+    manifest and its inventory;
+  - `modules.manifest.json` exists, is well formed and names the same
+    Organization, and `company.gen3.json`, while it exists, is this manifest's
+    projection;
+  - the JSON text names no member twice and holds no number beyond a double
+    (`1e400` parses to Infinity);
+  - the file rules of decision F23 above: a regular file of at most 1 MiB owned
+    by the user.
+- **A malformed `settings` section** fails the schema, while the Platform keeps
+  the Organization usable and applies none of the section (see Organization
+  settings above). A consumer that keeps this tolerance validates the manifest
+  without `settings` and the section on its own against
+  `#/$defs/organizationSettings`.
+- **Consumers pin it** by this repository's commit and the file's SHA-256; the
+  GEN3 Root is to do so in its own pull request.
 
 ## Exit from transition-only admission
 
@@ -220,4 +277,6 @@ later commits up to `66e437f7` added only `settings.integrations.microsoft365`,
 `settings.integrations.chatgpt_apps` and `settings.access_requests`, which this
 repository already read. The `settings` section was first defined in the Root's
 Core (HumanAndMachines/Lazurio#512). Since 2026-11-01 LazurioPlatform is the
-contract's authority.
+contract's authority. The schema `src/organizations/lazurio.organization.v1.schema.json`
+was written from this document and the readers in `src/organizations/` (#799);
+the GEN3 Root's schema was neither opened nor copied for it (decision 0225).
