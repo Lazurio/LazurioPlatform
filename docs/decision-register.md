@@ -38,7 +38,7 @@ on, and only the operational details stay internal.
 
 ## Recording a decision
 
-A new decision takes the next free number, **0225**, by a pull request to this
+A new decision takes the next free number, **0227**, by a pull request to this
 file. Check `main` again before the merge, because a parallel pull request may
 take the same number, and fix a collision by renumbering before the merge. An
 amendment is folded into the entry with its date. An internal decision gets a
@@ -989,12 +989,12 @@ Agents never switch, sign out or stop an Environment's own network, and they rea
 
 Threads do not coordinate with each other: each takes its own request through with its own worktree (one per pull request), pull request, verification and assignee, messages another thread only when its user explicitly asks, and puts whatever needs an order or depends on other work into the main roadmap in the Organization's Mission Control, kept by whoever holds the Organization's queue (usually its Henry). Every text an agent writes on GitHub ends with `Agent: environment <UUID> · T3 thread <UUID>` (a MausBot bot writes `bot <UUID>`), which names no Environment and therefore also fits public repositories. The rest of the decision, on the coordinator of Lazurio's own development, is internal to the LazurioDevelopment Organization.
 
-### 0219 — The Lazurio Root and the Lazurio Folder converge on the Folder's mechanisms; GEN3 and GEN4 are orientation terms
+### 0219 — The Lazurio Root and the Lazurio Folder converge on the Folder's mechanisms
 
-- **Status:** decided, not yet deployed · **Applies to:** GEN3 and GEN4 · **Decided:** 2026-10-28
-- **Related:** 0144, 0161, 0217, F14, F67
+- **Status:** decided, not yet deployed · **Applies to:** GEN3 and GEN4 · **Decided:** 2026-10-28 (amended by 0225 on 2026-11-01)
+- **Related:** 0144, 0161, 0217, 0225, F14, F67
 
-The Lazurio Root (the root repository with its CLI on a person's computer) and the Lazurio Folder (the folder the Platform manages in an Environment) work on the same mechanisms, with the Folder as the reference: someone who has Lazurio both on a computer and in an Environment gets the same behaviour in both, and agents on the computer know how to reach the Environment and work with its Folder. GEN3 is an orientation term for the Lazurio Root on a computer with `<login>_GEN3` Organizations and GEN4 for an Environment with a Lazurio Folder; they are not names of products, folders or repositories, nor a separate architecture layer, and repository names and the Organization layout do not change. Differences are measured on real consumers, each convergence step is a pull request in the owning repository with a contract on the consumer, and mechanisms are not duplicated: what the Folder can do, the Root adopts instead of building its own variant.
+The Lazurio Root (the root repository with its CLI on a person's computer) and the Lazurio Folder (the folder the Platform manages in an Environment) work on the same mechanisms, with the Folder as the reference: someone who has Lazurio both on a computer and in an Environment gets the same behaviour in both, and agents on the computer know how to reach the Environment and work with its Folder. GEN3 designates the Lazurio Root on a computer with `<login>_GEN3` Organizations and GEN4 Lazurio Platform with its Folder and Environments; since 0225 these are official designations in texts, not names of folders or repositories, nor a separate architecture layer, and repository names and the Organization layout do not change. Differences are measured on real consumers, each convergence step is a pull request in the owning repository with a contract on the consumer, and mechanisms are not duplicated: what the Folder can do, the Root adopts instead of building its own variant.
 
 ### 0220 — AI Employee (working name)
 
@@ -1030,3 +1030,16 @@ Each Task Agent thread has for itself everything its work needs: a worktree per 
 
 A Conglomerate is one tailnet of befriended Organizations; each Organization has its own server with only its own Environments, and a Personal Environment is a node of exactly one Conglomerate. In a person's personal context the data of the Organizations they belong to may meet, so Buddy may compose results from them for that person; in an Organization's context data never mix, and nothing moves from a Personal Environment into another Organization. Each edge runs one way, and none is granted merely as the reverse of another: a Personal Environment reaches the Work Environments assigned to its Owner in every Organization of the Conglomerate; a Work Environment reaches its person's Team Environments in the same Organization (a Personal Environment gets there in two `ssh` steps through its own Work Environment, never directly and without forwarding its key); an Admin's Work Environment reaches every other Environment of their Organization; an approved device reaches its person's Environments; and an Environment reaches a specific computer only when that computer's Owner switches it on. These edges are derived automatically from facts people with authority set (assignments, Team membership, the live Admin role, approved devices, a device Owner's consent) by the service on the Conglomerate Host that already approves devices. It delivers the source Environment's key to the target account, accepted only from the source's address and never forwarded, and gives the source its targets with host keys pinned from the Organization's records, never trusted on first use; a changed host key stops the connection until the records confirm it, and no edge forwards the agent or ports. After a fact is removed, new connections fail within five minutes, while sessions already running may finish; no supervision of running sessions is built. Git holds only the exceptions no rule derives, by reviewed pull request. Agents use only the routes Lazurio gives an Environment and say so when a route is missing. A Personal Environment without a tailnet (Product 1, 0207) has none of these routes. Replaces 0158 and 0182 point 3.
 
+### 0225 — GEN3 and GEN4 are official designations; GEN3 stays maintained and transitional
+
+- **Status:** in force · **Applies to:** GEN3 and GEN4 · **Decided:** 2026-11-01
+- **Related:** 0164, 0171, 0219, 0226
+
+GEN3 is the official designation of the Lazurio Root, the root repository with its CLI and Organizations on a person's computer, and GEN4 of Lazurio Platform with its Folder and Environments. The designations hold in texts (documentation, agent instructions, Knowledgebases); repositories and folders are not renamed, and the `_GEN3` suffix of Organization repositories stays because both generations use it. GEN3 stays maintained because customers work on it every day: fixes and security go on, but new norms are written only in GEN4, and GEN3 links to them instead of keeping its own copy. Shared contracts belong to Lazurio Platform, among them the Organization manifest contract with its schema and the Module Standard, written anew there under its licence, and GEN3 pins them. Customers move to GEN4 by the one-way migration of 0164. Amends 0219, whose orientation terms become official designations.
+
+### 0226 — One decision register for both generations; a decision's home follows its audience
+
+- **Status:** in force · **Applies to:** GEN3 and GEN4 · **Decided:** 2026-11-01
+- **Related:** 0219, 0221, 0225
+
+Lazurio's decisions keep one series of numbers for GEN3 and GEN4, and only this register in Lazurio Platform allocates them. A public decision, one that defines how Lazurio works for people, agents and administrators, has its full condensed text here, without quotations or internal details. A decision about the development and operation of Lazurio is internal to the LazurioDevelopment Organization, and a product or business decision to HumanAndMachine-ai; each keeps one line here and its full text in that Organization's Knowledgebase. What a public text cites must be findable publicly, so the entry of a cited internal decision carries the general norm the public text relies on. The Lazurio Root's register stays as GEN3's record of the rows up to 0224 and points here.
