@@ -10,17 +10,11 @@ import { parseMachineBinding } from "../src/folder/machine-binding";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
 import { publicEntry } from "../src/launchpad/chat";
-import {
-  mausbotHref,
-  mausbotPairLink,
-  parseEntryAnswer,
-} from "../src/launchpad/chat-view";
+import { mausbotHref, parseEntryAnswer } from "../src/launchpad/chat-view";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
 import {
-  issueMausbotLink,
   mausbotPairing,
   mausbotPairingPath,
-  mausbotPairUrl,
   mintMausbotPairing,
 } from "../src/launchpad/mausbot";
 import { startLaunchpad } from "../src/launchpad/server";
@@ -44,7 +38,10 @@ import { freePort } from "./fixtures/ports";
 
 // Lazurio MausBot from the Platform Launchpad (DEV-6632): the handover's
 // optional `entry.mausbot`, its binding projection, the pairing call against
-// OpenMausBot's `POST /api/auth/pairing` on loopback, the route and the page.
+// OpenMausBot's `POST /api/auth/pairing` on loopback, MausBot's self-pairing
+// route and the page. Since the addendum of 2026-10-31 to the decision of
+// 2026-10-17 the Launchpad's click mints nothing and follows the plain
+// origin.
 
 const host = "workspace.example.lazurio.io";
 const mausbotOrigin = `https://mausbot.${host}`;
@@ -175,7 +172,7 @@ function fakeMausbot(
   };
 }
 
-test("the pairing call: OpenMausBot's own API on loopback, and the code only in the fragment of /pair", async () => {
+test("the pairing call: OpenMausBot's own API on loopback, and the code alone", async () => {
   const fake = fakeMausbot(() =>
     Response.json({
       id: "p1",
@@ -186,14 +183,8 @@ test("the pairing call: OpenMausBot's own API on loopback, and the code only in 
     }),
   );
   try {
-    const link = await issueMausbotLink(fake.entry);
-    expect(link).toEqual({
-      kind: "mausbot-link",
-      url: `${mausbotOrigin}/pair#code=${code}`,
-    });
-    expect(mausbotPairUrl(mausbotOrigin, code)).toBe(
-      `${mausbotOrigin}/pair#code=${code}`,
-    );
+    const link = await mintMausbotPairing(fake.entry);
+    expect(link).toEqual({ kind: "mausbot-pairing", code });
     expect(fake.seen).toHaveLength(1);
     const [request] = fake.seen;
     expect(request?.method).toBe("POST");
@@ -238,7 +229,7 @@ test("a refused, malformed or slow pairing answers one reason, never the code", 
   for (const [name, answer] of Object.entries(failures)) {
     const fake = fakeMausbot(answer);
     try {
-      const link = await issueMausbotLink(fake.entry);
+      const link = await mintMausbotPairing(fake.entry);
       expect([name, link]).toEqual([
         name,
         { kind: "blocked", reason: "mausbot-pairing-failed" },
@@ -257,7 +248,7 @@ test("a refused, malformed or slow pairing answers one reason, never the code", 
   );
   try {
     const started = Date.now();
-    expect(await issueMausbotLink(slow.entry, 100)).toEqual({
+    expect(await mintMausbotPairing(slow.entry, 100)).toEqual({
       kind: "blocked",
       reason: "mausbot-unreachable",
     });
@@ -268,7 +259,7 @@ test("a refused, malformed or slow pairing answers one reason, never the code", 
   // Nothing listens on the port.
   const gone = fakeMausbot(() => new Response(""));
   gone.stop();
-  expect(await issueMausbotLink(gone.entry)).toEqual({
+  expect(await mintMausbotPairing(gone.entry)).toEqual({
     kind: "blocked",
     reason: "mausbot-unreachable",
   });
@@ -276,7 +267,7 @@ test("a refused, malformed or slow pairing answers one reason, never the code", 
   // No MausBot recorded: nothing is called.
   const without = bindings.organizationEntry.entry;
   if (without === undefined) throw new Error("The fixture has an entry");
-  expect(await issueMausbotLink(without)).toEqual({
+  expect(await mintMausbotPairing(without)).toEqual({
     kind: "blocked",
     reason: "mausbot-pairing-failed",
   });
@@ -344,8 +335,10 @@ async function hostedLaunchpad(mausbotPort: number | null) {
   };
   return {
     entry: () => fetch(`${base}/api/entry`, { headers: valid }),
-    pair: (headers: Record<string, string> = sameOrigin) =>
-      fetch(`${base}/api/mausbot/pair`, {
+    // A POST the page's own way, to `path`: the click's former pairing
+    // route, or any other.
+    post: (path: string, headers: Record<string, string> = sameOrigin) =>
+      fetch(`${base}${path}`, {
         method: "POST",
         headers,
         body: "{}",
@@ -366,7 +359,7 @@ async function hostedLaunchpad(mausbotPort: number | null) {
 }
 
 test.skipIf(process.platform === "win32")(
-  "hosted: /api/entry names MausBot's origin and POST /api/mausbot/pair answers a pairing link, behind the gateway's admission",
+  "hosted: /api/entry names MausBot's origin, and the Launchpad's click mints nothing: POST /api/mausbot/pair answers as any unknown route does",
   async () => {
     let paired = 0;
     const server = Bun.serve({
@@ -385,24 +378,26 @@ test.skipIf(process.platform === "win32")(
       expect(entry.entry.mausbotOrigin).toBe(mausbotOrigin);
       // The loopback port stays on the server.
       expect(JSON.stringify(entry)).not.toContain(String(port));
+      // The Automate entry: the recorded origin as it is.
       expect(mausbotHref(parseEntryAnswer(entry))).toBe(mausbotOrigin);
-      // A state-changing request needs the same-origin proof.
-      expect((await hosted.pair(hosted.valid)).status).toBe(401);
+      // The click's former route is gone, with or without the same-origin
+      // proof: what any unknown route answers, and MausBot is never asked.
+      for (const headers of [undefined, hosted.valid]) {
+        const removed = await hosted.post("/api/mausbot/pair", headers);
+        const unknown = await hosted.post("/api/mausbot/unknown", headers);
+        const removedText = await removed.text();
+        expect([removed.status, removedText]).toEqual([
+          unknown.status,
+          await unknown.text(),
+        ]);
+        expect(removedText).not.toContain(code);
+      }
+      const removed = await hosted.post("/api/mausbot/pair");
+      expect([removed.status, await removed.json()]).toEqual([
+        404,
+        { error: "not-found" },
+      ]);
       expect(paired).toBe(0);
-      const answer = await hosted.pair();
-      const body = await answer.json();
-      expect([answer.status, body]).toEqual([
-        200,
-        { kind: "mausbot-link", url: `${mausbotOrigin}/pair#code=${code}` },
-      ]);
-      expect(mausbotPairLink(body, mausbotOrigin)).toBe(body.url);
-      expect(paired).toBe(1);
-      server.stop(true);
-      const refused = await hosted.pair();
-      expect([refused.status, await refused.json()]).toEqual([
-        409,
-        { kind: "blocked", reason: "mausbot-unreachable" },
-      ]);
     } finally {
       server.stop(true);
       await hosted.close();
@@ -418,7 +413,7 @@ test.skipIf(process.platform === "win32")(
       const entry = await (await hosted.entry()).json();
       expect(Object.keys(entry.entry)).not.toContain("mausbotOrigin");
       expect(mausbotHref(parseEntryAnswer(entry))).toBeNull();
-      const answer = await hosted.pair();
+      const answer = await hosted.post("/api/mausbot/pair");
       expect([answer.status, await answer.json()]).toEqual([
         404,
         { error: "not-found" },
@@ -435,7 +430,7 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
-test("the page shows MausBot only for a recorded origin, and accepts a pairing link only on it", () => {
+test("the page shows MausBot only for a recorded origin, and its Automate entry is that origin as it is", () => {
   const entry = {
     launchpadOrigin: `https://launchpad.${host}`,
     t3codeOrigin: `https://t3code.${host}`,
@@ -458,34 +453,6 @@ test("the page shows MausBot only for a recorded origin, and accepts a pairing l
     ).toBeNull();
   expect(mausbotHref(null)).toBeNull();
 
-  const link = `${mausbotOrigin}/pair#code=${code}`;
-  expect(
-    mausbotPairLink({ kind: "mausbot-link", url: link }, mausbotOrigin),
-  ).toBe(link);
-  for (const url of [
-    `https://mausbot.other.lazurio.io/pair#code=${code}`,
-    `${mausbotOrigin}/pair?code=${code}`,
-    `${mausbotOrigin}/pair?x=1#code=${code}`,
-    `${mausbotOrigin}/other#code=${code}`,
-    `${mausbotOrigin}/pair#token=${code}`,
-    `${mausbotOrigin}/pair#code=abcd`,
-    `${mausbotOrigin}/pair`,
-    `https://user@mausbot.${host}/pair#code=${code}`,
-  ])
-    expect([
-      url,
-      mausbotPairLink({ kind: "mausbot-link", url }, mausbotOrigin),
-    ]).toEqual([url, null]);
-  // A Chat answer is not a MausBot answer.
-  expect(
-    mausbotPairLink({ kind: "chat-link", url: link }, mausbotOrigin),
-  ).toBeNull();
-  expect(
-    mausbotPairLink(
-      { kind: "blocked", reason: "mausbot-unreachable" },
-      mausbotOrigin,
-    ),
-  ).toBeNull();
   // The server's projection: the origin only, never the loopback port.
   const recorded = binding(handover()).entry ?? null;
   expect(publicEntry(recorded)).toEqual(withMausbot);
@@ -545,7 +512,7 @@ function countingMausbot() {
   return { state, port, stop: () => server.stop(true) };
 }
 
-test("the self-pairing and the click mint through one call: the code alone, or the click's reason", async () => {
+test("the self-pairing mints through one call: the code alone, or the reason", async () => {
   const fake = countingMausbot();
   try {
     const entry =
@@ -554,11 +521,7 @@ test("the self-pairing and the click mint through one call: the code alone, or t
       kind: "mausbot-pairing",
       code,
     });
-    expect(await issueMausbotLink(entry)).toEqual({
-      kind: "mausbot-link",
-      url: mausbotPairUrl(mausbotOrigin, code),
-    });
-    expect(fake.state.minted).toBe(2);
+    expect(fake.state.minted).toBe(1);
     fake.state.mode = "refuse";
     const refused = await mintMausbotPairing(entry);
     expect(refused).toEqual({
@@ -578,7 +541,7 @@ test("the self-pairing and the click mint through one call: the code alone, or t
 });
 
 test.skipIf(process.platform === "win32")(
-  "hosted: MausBot's own fetch gets its pairing, exactly the JSON and no-store, and the click still pairs through the same call",
+  "hosted: MausBot's own fetch gets its pairing, exactly the JSON and no-store, and the Launchpad's click no longer mints one",
   async () => {
     const fake = countingMausbot();
     const hosted = await hostedLaunchpad(fake.port);
@@ -594,15 +557,15 @@ test.skipIf(process.platform === "win32")(
         `{"kind":"mausbot-pairing","code":"${code}"}`,
       );
       expect(fake.state.minted).toBe(1);
-      // The Launchpad's click is unchanged: a link with the code in its
-      // fragment, minted by the same call.
-      const clicked = await hosted.pair();
+      // The Launchpad's click no longer mints: its former route is gone,
+      // and MausBot is not asked again.
+      const clicked = await hosted.post("/api/mausbot/pair");
       expect([clicked.status, await clicked.json()]).toEqual([
-        200,
-        { kind: "mausbot-link", url: `${mausbotOrigin}/pair#code=${code}` },
+        404,
+        { error: "not-found" },
       ]);
-      expect(fake.state.minted).toBe(2);
-      // A refused pairing: the click's reason, never the code.
+      expect(fake.state.minted).toBe(1);
+      // A refused pairing: the reason, never the code.
       fake.state.mode = "refuse";
       const failed = await hosted.selfPair();
       const failedText = await failed.text();

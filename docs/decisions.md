@@ -9479,7 +9479,9 @@ when T3 Code began to pair itself (the decision of 2026-10-17,
    only the session cookie, so Machines does not change.
 4. **The click stays.** Automate's click still pairs on the way: older MausBot builds
    need it, and with the fork's change a paired browser passes straight through it. It
-   can go once every Environment's MausBot pairs itself, as Chat's can.
+   can go once every Environment's MausBot pairs itself, as Chat's can. *(Ended by the
+   [addendum of 2026-10-31](#f36-addendum-of-2026-10-31-the-click-into-chat-and-automate-no-longer-pairs):
+   the click no longer pairs.)*
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -9491,6 +9493,54 @@ when T3 Code began to pair itself (the decision of 2026-10-17,
 route and Automate behaves as before. Verified by `tests/launchpad-mausbot.test.ts` and
 `tests/launchpad-recovery-page.test.ts`; a real gateway and a real Lazurio MausBot were
 not exercised in this change.
+
+### F36 addendum of 2026-10-31: the click into Chat and Automate no longer pairs
+
+**Decided by Matěj (Organization Admin) on 2026-10-31.** A click from the Launchpad into
+T3 Code took long: the page asked the Launchpad for a pairing, followed the link with
+the token, T3 Code paired the browser, and the whole page flashed three times. Once
+every Environment runs a T3 Code and a MausBot that pair themselves, the click stops
+pairing, for the speed of loading and switching. This ends point 4 of the addendum of
+2026-10-22 ("the click stays") and the click's pairing on the way that the decision of
+2026-10-17 ([Chat entry](launchpad-development.md#chat-entry)) kept for older T3 Code
+builds; the self-pairings themselves stay as they are.
+
+1. **The click follows the plain origin.** Chat's and Automate's links (the switch's
+   tabs, the personal space's starts, Začínáme) are `t3codeOrigin` and `mausbotOrigin`
+   as recorded, and a click follows them as a link does. The page asks the Launchpad for
+   nothing on the way. A browser without a session is paired by the app itself
+   (`GET /.lazurio/chat/pairing`, `GET /.lazurio/mausbot/pairing`); one with a session
+   opens at once.
+2. **The prompt hand-off.** "+ Nový modul" opens `t3codeOrigin` with only
+   `#lazurio-prompt=<id>&lazurio-org=<login>` in the fragment, no token. The T3 Code
+   fork keeps the link in the tab across its own pairing and reload
+   (`captureLazurioPromptLink`).
+3. **The routes go.** `POST /api/chat/pair` and `POST /api/mausbot/pair` are removed and
+   answer as every unknown route does (`404`). The self-pairing routes, their minting
+   (`mintChatPairing`, `mintMausbotPairing`), Buddy's origin and the operator or
+   standard pairing are unchanged. `lazurio chat link` prints the plain T3 Code origin
+   and mints nothing (`pairing: false`, reason `t3-pairs-itself`; `--plain` is accepted
+   and changes nothing; the exit codes and the `--json` keys stay).
+4. **The version floor.** T3 Code pairs itself from `0.1.0-lazurio.3` (Lazurio/t3code#84)
+   and MausBot from `0.1.115-lazurio.7` (DEV-6673 M2). Below that, a click lands on the
+   app's own pairing page (T3 Code's, or MausBot's empty form) and the user has to pair
+   by hand. A Platform release with this change must therefore not reach an Environment
+   whose T3 Code or MausBot is below its floor: the release's rollout rules carry both
+   versions, and lanes still on older pins move T3 Code, MausBot and the Platform
+   together.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the click's pairing (until now) | Harmless for a paired browser in function, but a round trip and the app's pairing page on every switch, the slowness the Admin reported |
+| Pair only when the app says it has no session | Needs a question to the other origin before the navigation, a second mechanism for what the app already does itself |
+| Follow the plain origin, the app pairs itself (selected) | One way of pairing for every way in; nothing on the way; needs the version floor in the rollout |
+
+**Honest limits.** Verified by `tests/launchpad-app-click.test.ts` (a real page in
+headless Chrome: a plain click on Chat and on Automate lands on the plain origin and no
+pairing route is asked), `tests/launchpad-chat.test.ts`, `tests/launchpad-mausbot.test.ts`
+and `tests/chat-link-cli.test.ts`. A real gateway, a real T3 Code and a real MausBot were
+not exercised in this change. Machines' qualification item for `lazurio chat link`
+still expects a pairing link and follows in Machines.
 
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 

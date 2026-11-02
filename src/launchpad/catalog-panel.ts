@@ -1181,8 +1181,9 @@ export function createCatalogPanel(
   // 2026-10-13, #359): after the personal space's modules, a quiet title,
   // never a third section pill, over one tile per start. Each is only a link
   // into the app that owns it. Chat and Automate are the switch's own
-  // links: a plain click announces `lazurio-app` as their tab does, so the
-  // page pairs the browser on the way (ui.ts); Integrace and Soubory move
+  // links: a plain click announces `lazurio-app` as their tab does and
+  // follows the plain origin, where the app pairs the browser itself
+  // (ui.ts); Integrace and Soubory move
   // within the page as the column's items do. A start whose app does not run
   // here is no link: muted, it says why in the switch's words.
   function startsSection(

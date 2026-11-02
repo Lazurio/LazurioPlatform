@@ -894,12 +894,15 @@ thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
   an Organization the Folder does not bind to that login, any other query and every
   failure get the same `404 {"error": "not-found"}`: the answer never says more than the
   tile already showed. Any method but GET: 405.
-- **The link.** The page never puts the text in a link. It opens Chat in a new tab
-  through the pairing (`POST /api/chat/pair`) and adds
-  `lazurio-prompt=<id>&lazurio-org=<login>` to the pairing link's fragment, after the
-  token (`chatPromptHref` in `chat-view.ts`); without a pairing, to Chat's plain origin.
-  A fragment never reaches a server or a log, and a T3 Code without the hand-off ignores
-  both parameters.
+- **The link.** The page never puts the text in a link. It opens Chat in a new tab on
+  its plain origin with only `#lazurio-prompt=<id>&lazurio-org=<login>` in the fragment
+  (`chatPromptHref` in `chat-view.ts`) and no pairing token; it asks the server for
+  nothing on the way (the [addendum of 2026-10-31](decisions.md#f36-addendum-of-2026-10-31-the-click-into-chat-and-automate-no-longer-pairs)).
+  The fork takes the link off the address at boot and keeps the id and the login in the
+  tab's `sessionStorage`, so the prompt survives T3 Code's own pairing and its reload
+  (`captureLazurioPromptLink`, Lazurio/t3code `apps/web/src/lazurio/promptDraft.ts`); a
+  browser with a session opens the draft at once. A fragment never reaches a server or a
+  log, and a T3 Code without the hand-off ignores both parameters.
 - **Hand-off or clipboard.** The Launchpad hands the prompt over by link only where this
   Environment's Chat takes it. `GET /api/chat/prompt-handoff` answers
   `{"kind": "chat-prompt-handoff", "accepted": true|false}`: the server asks the T3 Code
@@ -2129,18 +2132,33 @@ way it enters:
   Connections, on Environments reached over the tailnet. A public lane has no native
   path; that is intended for now.
 
-**What the resident does, and what is kept.** The resident's button is hidden until
+**The click no longer pairs (addendum of 2026-10-31,
+[F36](decisions.md#f36-addendum-of-2026-10-31-the-click-into-chat-and-automate-no-longer-pairs)).**
+The Launchpad's click used to mint a pairing on the way, `POST /api/chat/pair`, and
+follow `<t3codeOrigin>/pair#token=…`: a round trip to the Launchpad and T3 Code's own
+pairing page before the app, so the switch took long and the page flashed three times
+(the Organization Admin's report). Every T3
+Code an Environment runs now pairs itself (`v0.1.0-lazurio.3` and later), so the click
+follows the plain `t3codeOrigin`: an unpaired browser is paired by T3 Code through
+`GET /.lazurio/chat/pairing`, a paired one (a session lasts 365 days) opens at once. The
+route `POST /api/chat/pair` is gone. A T3 Code older than `0.1.0-lazurio.3` would show
+its own pairing page instead, so this Platform must not reach an Environment below that
+floor.
+
+**What the resident did, and what is left.** The resident's button is hidden until
 `GET /api/chat` says Chat is configured (only behind a gateway); a click posts
 `/api/chat/pair`, the server runs T3's own `auth pairing create --base-dir ~/.t3 --ttl
 60s --label launchpad-chat --json`, reads `credential` from its output and answers
 `<T3 origin>/pair#token=<credential>`, and the page follows it in the same tab. No thread
-is created and no Organization, module or worktree is passed: T3 Code opens at its home,
-paired. All of that is kept, with two changes of source: T3 Code's origin is the recorded
-entry's `t3codeOrigin` (never the resident unit's `LAZURIO_T3CODE_URL`, never composed),
-and the program is the T3 launcher `t3` on this Launchpad's PATH (Machines DEV-6624's
-`~/.local/bin/t3`, the parity design) instead of the unit's
-`LAZURIO_T3CODE_PAIRING_COMMAND`. Its environment is exactly `HOME` and `PATH`; the
-output is never passed on, logged or put in an error, and nothing is recorded.
+is created and no Organization, module or worktree is passed: T3 Code opens at its home.
+The Platform kept that click until the addendum of 2026-10-31; what is left of it is the
+minting, now only for T3 Code's own request, with two changes of source: T3 Code's
+origin is the recorded entry's `t3codeOrigin` (never the resident unit's
+`LAZURIO_T3CODE_URL`, never composed), and the program is the T3 launcher `t3` on this
+Launchpad's PATH (Machines DEV-6624's `~/.local/bin/t3`, the parity design) instead of
+the unit's `LAZURIO_T3CODE_PAIRING_COMMAND`. Its environment is exactly `HOME` and
+`PATH`; the output is never passed on, logged or put in an error, and nothing is
+recorded.
 
 Since the decision of 2026-10-17 the call is chosen and labelled as described above. The
 launcher is first asked `t3 lazurio capabilities`, through the reader the provider
@@ -2148,7 +2166,7 @@ refresh uses (`t3Offers` in `src/tools/ai-services.ts`); on a public Environment
 not asked. Only `operatorPairing: true` selects `t3 lazurio pairing`; anything else, a
 T3 Code without the command included, selects `t3 auth pairing create`. Both take
 `--base-dir ~/.t3 --ttl 60s --label "Lazurio · <username>"`, with only `Lazurio` where
-the admission names no Lazurio username and for `lazurio chat link`. The standard call
+the admission names no Lazurio username. The standard call
 adds `--json`; `t3 lazurio pairing` always prints the same JSON and takes no `--json`,
 which T3's CLI would refuse as a flag it does not know (Lazurio/t3code#84). Before the
 standard call the launcher is asked `t3 --version`: from T3 Code v0.1.0 on, which takes
@@ -2157,8 +2175,8 @@ T3's default set; an older T3 Code refuses the flag and pairs as before; with no
 to read nobody is paired (`t3-pairing-failed`). The
 username counts only by its own rule, so the label stays short plain text. The answer
 (`id`, `credential`, `label`, `scopes`, `expiresAt`) is read for `credential` and
-`expiresAt`, and nothing else of it is passed on. One function mints for the click, the
-self-pairing and the CLI: `mintChatPairing` in `src/launchpad/chat.ts`.
+`expiresAt`, and nothing else of it is passed on. One function mints, for the
+self-pairing only: `mintChatPairing` in `src/launchpad/chat.ts`.
 
 **Routes.** Behind the admission every other route has (the gateway's session cookie
 hosted, the fragment token locally):
@@ -2166,39 +2184,36 @@ hosted, the fragment token locally):
 | Route | Answer |
 |---|---|
 | `GET /api/entry` | `{kind: "entry", entry: {launchpadOrigin, t3codeOrigin, moduleOriginTemplate, mausbotOrigin?, browserOrigin?} \| null}`: the recorded entry's public parts, read-only (`browserOrigin` offers [the right panel](#the-right-panel-the-environment-browser)); the auth endpoint, cookie name and port stay on the server. `null` on a workstation. Any other method: 405. Recovery mode answers it too. |
-| `POST /api/chat/pair` (body `{}`) | `{kind: "chat-link", url}` with `url` = `<t3codeOrigin>/pair#token=…`; `409 {kind: "blocked", reason}` with `t3-launcher-missing` (no `t3` on PATH, nothing run) or `t3-pairing-failed` (a non-zero exit, a timeout of 15 s, output that is not JSON, a credential of another shape or no readable `expiresAt`); `404` on a workstation. Same-origin rule of every state-changing request. Not in Recovery mode (its typed refusal). |
-| `GET /.lazurio/chat/pairing` | T3 Code's self-pairing (decision of 2026-10-17): `200` with exactly `{"kind":"chat-pairing","credential":"…","expiresAt":"…"}` and `Cache-Control: no-store`, minted for the admitted user as the click's pairing is. Only a page's own script fetch: `Sec-Fetch-Site: same-origin`, `Sec-Fetch-Mode` `cors` or `same-origin`, and neither `Sec-Purpose` nor `Purpose` naming a prefetch or prerender. Anything else, `403 {error: "not-allowed"}` with nothing run: a navigation (a bookmark, a link, a typed address), a subresource, a speculative load, another site, a request without Fetch Metadata. `409 {kind: "blocked", reason}` as above; on Buddy's origin the same answers for his own T3 Code, and `409` with `buddy-t3-missing` (no unit of his T3 Code, a unit of another shape or its runtime missing, nothing run); a query: 400; any method but GET, HEAD included (it mints nothing): 405; `404` on a workstation. Recovery mode answers it with its plain page and mints nothing. |
+| `POST /api/chat/pair` | Removed by the addendum of 2026-10-31: answered as every unknown route is, `404 {error: "not-found"}` behind the same-origin rule of every state-changing request (`401` without it, Recovery mode's typed refusal in Recovery mode). Nothing runs. |
+| `GET /.lazurio/chat/pairing` | T3 Code's self-pairing (decision of 2026-10-17): `200` with exactly `{"kind":"chat-pairing","credential":"…","expiresAt":"…"}` and `Cache-Control: no-store`, minted for the admitted user as described above. Only a page's own script fetch: `Sec-Fetch-Site: same-origin`, `Sec-Fetch-Mode` `cors` or `same-origin`, and neither `Sec-Purpose` nor `Purpose` naming a prefetch or prerender. Anything else, `403 {error: "not-allowed"}` with nothing run: a navigation (a bookmark, a link, a typed address), a subresource, a speculative load, another site, a request without Fetch Metadata. `409 {kind: "blocked", reason}` with `t3-launcher-missing` (no `t3` on PATH, nothing run) or `t3-pairing-failed` (a non-zero exit, a timeout of 15 s, output that is not JSON, a credential of another shape or no readable `expiresAt`); on Buddy's origin the same answers for his own T3 Code, and `409` with `buddy-t3-missing` (no unit of his T3 Code, a unit of another shape or its runtime missing, nothing run); a query: 400; any method but GET, HEAD included (it mints nothing): 405; `404` on a workstation. Recovery mode answers it with its plain page and mints nothing. |
 | `GET /api/chat/prompt-handoff` | `{kind: "chat-prompt-handoff", accepted}`: whether Chat on this Environment takes a prepared prompt by link ([prompt hand-off](#prompt-hand-off-to-chat)); `accepted: false` on a workstation without running anything. Any other method: 405. |
 
 **CLI.** `lazurio chat link [--folder <absolute Folder>] [--plain] [--json]`
 (`src/launchpad/chat-cli.ts`) is the same entry for an agent in a terminal: it reads the
 Folder's recorded entry as the Launchpad start does (`readStartState`, without the lock,
 so it writes nothing), found as for `lazurio doctor` (`--folder`, the supervised unit's,
-or on a hosted Machine the declared operator's), and answers from the same
-`issueChatLink` with the same tools environment (`toolsEnvironmentOf`, this process's
-`PATH` and `HOME`), through `chatLinkAnswer` in `src/launchpad/chat.ts`. With a pairing
-the link `<t3codeOrigin>/pair#token=…` alone is on stdout, for the user's browser;
-without one, on `t3-launcher-missing`, `t3-pairing-failed` or with `--plain`
-(`plain-requested`), stdout carries the plain `t3codeOrigin`, where a T3 Code that
-pairs itself asks this Launchpad and an older one asks the browser to pair, and stderr
-one sentence naming the reason, in the Folder's language.
-Without a recorded entry (`not-hosted`) there is no link: exit 10 and the sentence on
-stderr. `--json` prints `{kind: "chat-link", url, pairing, reason?}` (`url: null` when
-not hosted). Stderr never carries the token. Exit status: 0 a link (paired or plain), 10
-not hosted, 2 usage, 1 the Folder could not be read (its enumerated start refusal, never
-a path). The generated manual tells agents on a hosted Machine to hand this link to the
-user, never a localhost one (base-instructions-13).
+or on a hosted Machine the declared operator's), and answers through `chatLinkAnswer` in
+`src/launchpad/chat.ts`. Since the addendum of 2026-10-31 it prints the plain
+`t3codeOrigin`, the link the Chat entry follows, and mints nothing: T3 Code pairs the
+user's browser itself, and a browser with a session opens it at once. stdout carries the
+link alone and stderr one sentence (`t3-pairs-itself`), in the Folder's language.
+`--plain` is accepted for compatibility and changes nothing. Without a recorded entry
+(`not-hosted`) there is no link: exit 10 and the sentence on stderr. `--json` prints
+`{kind: "chat-link", url, pairing: false, reason}` (`url: null` when not hosted); the
+keys are those of the minting answer, `pairing` is now always `false`. The reasons
+`plain-requested`, `t3-launcher-missing` and `t3-pairing-failed` are retired and never
+reused. Exit status: 0 a link, 10 not hosted, 2 usage, 1 the Folder could not be read
+(its enumerated start refusal, never a path). The generated manual tells agents on a
+hosted Machine to hand this link to the user, never a localhost one
+(base-instructions-13).
 
 **Page.** `src/launchpad/chat-view.ts` (pure, tested) accepts the entry only in the
-recorded shapes and a pairing link only on the recorded T3 Code origin, path `/pair`, no
-query, a `token` fragment. The Chat link's `href` is `t3codeOrigin` itself, so a modified
-click (a new tab) opens T3 Code as a link does. A plain click asks for a pairing link and
-follows it in this tab, as the resident did; when there is none (no launcher, a refused
-call) it follows the plain origin, where T3 Code asks for its pairing itself and, since
-the same minting fails there too, shows its own pairing page. The click keeps pairing on
-the way although T3 Code now pairs itself: that is harmless, and older T3 Code builds
-without the self-pairing need it. It can go once every Environment's T3 Code pairs
-itself. Without an entry (a workstation) the entry is absent, as the resident's button:
+recorded shapes. The Chat link's `href` is `t3codeOrigin` itself, and a click, plain or
+modified, follows it as a link does: the page asks the server for nothing on the way
+(the addendum of 2026-10-31). T3 Code pairs an unpaired browser itself; where it cannot
+(no launcher, a refused call) it shows its own pairing page. The click's pairing on the
+way went with that addendum; until then it paired for T3 Code builds older than the
+self-pairing. Without an entry (a workstation) the entry is absent, as the resident's button:
 T3 Code runs wherever the user runs it (launchpad-parity D). The **Recovery page**
 (Settings → Recovery, and Recovery mode) shows **Open T3 Code** next to **Copy the
 prompt** when there is a prompt and an entry: the same origin, a plain link in a new tab
@@ -2210,10 +2225,11 @@ stands on the module page as on every route.
 **Deviations from the resident.** The launcher comes from PATH, not from the unit's
 environment; without it Chat stays visible and opens the plain origin instead of hiding
 (the resident's button was either configured or hidden; here the entry decides whether
-there is a T3 Code, the launcher only whether the browser is paired on the way). A
+there is a T3 Code, the launcher only whether T3 Code can pair the browser). A
 refused pairing answers 409 with a reason instead of 502 with the resident's
 `t3_pairing_*` codes, as every blocked Platform answer. `lazurio chat link` came in a
-follow-up of the slice (above).
+follow-up of the slice (above). Since the addendum of 2026-10-31 the click itself no
+longer pairs, as the resident's did.
 
 **Verification 2026-09-28.** `tests/launchpad-chat.test.ts`: a hosted Folder from the
 handover fixture behind a fake auth endpoint (`/api/entry` 401 without the cookie, the
@@ -2269,17 +2285,30 @@ gateway, a real T3 Code with the fork's self-pairing and a real browser were **n
 exercised, and neither was how long the two `t3` calls take on an Environment against
 the client's five seconds.
 
+**Verification 2026-10-31 (the click without a pairing).** `tests/launchpad-app-click.test.ts`
+drives the hosted Launchpad in headless Chrome behind a loopback stand-in for the gateway
+that records every request; the apps' origins are answered inside the browser. A plain
+click on Chat and on Automate lands on exactly `<origin>/` and sends no request but reads
+to the Launchpad, no pairing route in the whole visit. With the page's old click restored
+it fails, listing `POST /api/chat/pair`. `tests/launchpad-chat.test.ts` and
+`tests/launchpad-mausbot.test.ts`: `POST /api/chat/pair` and `POST /api/mausbot/pair`
+answer byte for byte what an unknown sibling route answers, with and without the
+same-origin proof, and run or ask nothing; the self-pairings mint as before, the
+standard call's exact arguments now asserted on T3 Code's own request; the prompt link
+is the plain origin with exactly the two fragment parameters. `tests/chat-link-cli.test.ts`:
+the plain origin with and without `--plain`, even with a launcher that would pair, which
+is never run. A real gateway, a real T3 Code and a real MausBot were **not** exercised.
+
 ## Lazurio MausBot entry
 
 DEV-6632 (decision 0169). On a Machine that runs Lazurio MausBot, the Environment's
 bot-team app (Lazurio's fork of OpenMausBot), the sidebar shows **Lazurio MausBot** next
-to Chat and enters it the same way: the Launchpad runs as the same Machine user as
-MausBot, mints a one-time pairing code and opens MausBot's pairing form with that code
-already filled in, so the user never types or copies a code. OpenMausBot's `/pair`
-page only prefills the code from the fragment: one **Connect** click pairs the browser
-and lands in the app. A browser that is already paired sees "This browser is already
-connected" with **Open the app** instead, and the minted code expires unused after about
-five minutes. The old resident Launchpad has no such entry; this one replaces it there.
+to Chat and enters it the same way: a click follows `mausbotOrigin`, and MausBot pairs
+an unpaired browser itself (below), so the user never types or copies a code. Until the
+addendum of 2026-10-31 the click minted a one-time code and opened MausBot's `/pair`
+form with it filled in, where a paired browser saw "This browser is already connected"
+on every click. The old resident Launchpad has no such entry; this one replaces it
+there.
 
 **MausBot pairs itself (addendum of 2026-10-22,
 [F36](decisions.md#f36-addendum-of-2026-10-22-automate-pairs-itself-as-chat-does)).**
@@ -2293,9 +2322,14 @@ the code itself. A paired browser goes straight into the app. The gateway forwar
 request as it forwards every `/.lazurio/*` read of MausBot's origin, behind the same
 admission ([hosted entry](hosted-entry.md#the-t3-code-link-chat)); Machines does not
 change. The route has the chat self-pairing's guards and mints through the same function
-as the click, `mintMausbotPairing` in `src/launchpad/mausbot.ts`. The click's pairing
-stays: older MausBot builds need it, and a paired browser passes straight through it. It
-can go once every Environment's MausBot pairs itself.
+as the click did, `mintMausbotPairing` in `src/launchpad/mausbot.ts`.
+
+**The click no longer pairs (addendum of 2026-10-31,
+[F36](decisions.md#f36-addendum-of-2026-10-31-the-click-into-chat-and-automate-no-longer-pairs)).**
+Every MausBot an Environment runs now pairs itself (`v0.1.115-lazurio.7` and later), so
+Automate's click follows the plain `mausbotOrigin` and `POST /api/mausbot/pair` is gone.
+A MausBot older than `0.1.115-lazurio.7` would show its own empty pairing form instead,
+so this Platform must not reach an Environment below that floor.
 In the [target shell](#target-shell) it is **Automate** in the switch, and we call the
 app MausBot: the fork keeps OpenMausBot's upstream look and branding until upstream's
 stable releases.
@@ -2310,25 +2344,22 @@ not decide it; the handover does.
 http://127.0.0.1:<mausbotListenPort>/api/auth/pairing` with `{"label": "launchpad"}`.
 A loopback request without forwarded headers or `Origin` is OpenMausBot's owner, exactly
 what `openmausbot pair` on the Machine does; the external origin is never called. A 200
-with `code` of the pairing shape (`XXXX-XXXX-XXXX`, single use, about five minutes) answers
-`<mausbotOrigin>/pair#code=<code>`, OpenMausBot's own pairing link. The code is never
-logged, never in an error and never in a query; the other values of OpenMausBot's answer
-(its credential, invite) are not read or passed on, and nothing is recorded. A server
-that treats loopback as a service (`OMB_LOOPBACK_TRUST=service`, a hosted OpenMausBot
-workspace) refuses with 403; that is `mausbot-pairing-failed`, and the page opens the
-plain origin, where MausBot asks for a code.
+with `code` of the pairing shape (`XXXX-XXXX-XXXX`, single use, about five minutes) is
+answered to MausBot's own request. The code is never logged, never in an error and never
+in a URL; the other values of OpenMausBot's answer (its credential, invite) are not read
+or passed on, and nothing is recorded. A server that treats loopback as a service
+(`OMB_LOOPBACK_TRUST=service`, a hosted OpenMausBot workspace) refuses with 403; that is
+`mausbot-pairing-failed`, and MausBot shows its own form, where it asks for a code.
 
 | Route | Answer |
 |---|---|
 | `GET /api/entry` | as for Chat, plus `mausbotOrigin` only when recorded; the loopback port stays on the server |
-| `POST /api/mausbot/pair` (body `{}`) | `{kind: "mausbot-link", url}` with `url` = `<mausbotOrigin>/pair#code=…`; `409 {kind: "blocked", reason}` with `mausbot-unreachable` (no answer on the loopback port within 10 s) or `mausbot-pairing-failed` (any status but 200, a redirect, an answer that is not JSON or a code of another shape); `404` without a recorded MausBot (a workstation, or a Machine without it). Same-origin rule of every state-changing request. Not in Recovery mode (its typed refusal). |
-| `GET /.lazurio/mausbot/pairing` | MausBot's self-pairing (addendum of 2026-10-22): `200` with exactly `{"kind":"mausbot-pairing","code":"XXXX-XXXX-XXXX"}` and `Cache-Control: no-store`, minted as the click's code is. Only a page's own script fetch, the rule of `GET /.lazurio/chat/pairing` (`isOwnScriptFetch`); anything else, `403 {error: "not-allowed"}` with nothing minted. `409 {kind: "blocked", reason}` as above; a query: 400; any method but GET, HEAD included (it mints nothing): 405; `404` without a recorded MausBot. Recovery mode answers it with its plain page and mints nothing. |
+| `POST /api/mausbot/pair` | Removed by the addendum of 2026-10-31: answered as every unknown route is, `404 {error: "not-found"}` behind the same-origin rule of every state-changing request. MausBot is not asked. |
+| `GET /.lazurio/mausbot/pairing` | MausBot's self-pairing (addendum of 2026-10-22): `200` with exactly `{"kind":"mausbot-pairing","code":"XXXX-XXXX-XXXX"}` and `Cache-Control: no-store`, minted as described above. Only a page's own script fetch, the rule of `GET /.lazurio/chat/pairing` (`isOwnScriptFetch`); anything else, `403 {error: "not-allowed"}` with nothing minted. `409 {kind: "blocked", reason}` with `mausbot-unreachable` (no answer on the loopback port within 10 s) or `mausbot-pairing-failed` (any status but 200, a redirect, an answer that is not JSON or a code of another shape); a query: 400; any method but GET, HEAD included (it mints nothing): 405; `404` without a recorded MausBot. Recovery mode answers it with its plain page and mints nothing. |
 
-**Page.** `mausbotHref` and `mausbotPairLink` in `src/launchpad/chat-view.ts` accept the
-origin only in the recorded shape and a pairing link only on it, path `/pair`, no query, a
-`code` fragment. The link's `href` is `mausbotOrigin` itself; a plain click asks for a
-pairing link and follows it in this tab, to the pairing form with the code filled in, or
-the plain origin when there is none, as Chat does. There is no CLI of its own yet.
+**Page.** `mausbotHref` in `src/launchpad/chat-view.ts` accepts the origin only in the
+recorded shape. The link's `href` is `mausbotOrigin` itself, and a click follows it as a
+link does, with nothing asked on the way, as Chat does. There is no CLI of its own yet.
 
 **Verification.** `tests/launchpad-mausbot.test.ts`: the handover member on both branches
 and its refusals, the binding projection (both fields or neither, an older entry byte for
@@ -2336,7 +2367,7 @@ byte), the pairing call against a fake OpenMausBot on loopback (the exact reques
 `Host`, no `Origin` or forwarded headers; 403, 500, a redirect, non-JSON, `null`, no
 code, a code of another shape, a slow answer, nothing listening; the code absent from
 every refusal), the hosted routes behind the admission, the self-pairing (its exact answer
-and `no-store`, the click minting through the same call, every request that is not a
+and `no-store`, the removed click route asking MausBot nothing, every request that is not a
 page's own fetch refused with nothing minted, the method, query and 404 refusals, both
 blocked reasons with the code absent), and the page's parsers and markup. The Recovery
 mode test (`tests/launchpad-recovery-page.test.ts`) asks the self-pairing too.
