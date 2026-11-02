@@ -9963,6 +9963,12 @@ panel of every app.
    outside the Folder and the install base and is never copied. Every thread, agent
    and bot shares it. Wiping it is the hand-over's manual step before a Work
    Environment passes to another person.
+   *Addendum of 2026-11-01: superseded by decision 0191's amendment of 2026-10-26. A
+   Work Environment is never handed over to another person; after the export period it
+   is removed and a new one is created, so there is no hand-over and no wiping step
+   ([environment-browser.md](environment-browser.md),
+   [environment-access.md](environment-access.md)). The sentence above stays as the
+   record of the original decision.*
 3. **A window per thread: `lazurio browser window`.** agent-browser binds a pinned
    session to one tab but opens it in the most recently used window, and Chrome does
    not paint a background tab: on 2026-10-05 a screenshot of a background tab on a
@@ -15677,6 +15683,26 @@ The view's hub and its page both read it, so the page's button never opens what 
 not have offered. A fork's view that hands a page off takes the same rule. The vectors' file is
 `hand-off.json` (C18); the module's exported names gain the two. The hub's message
 `{t: "hand-off", url}` belongs to the view's own protocol (`people/protocol.ts`), not to C8.
+
+**Addendum 2026-11-01: the table of contracts lives in this repository.** Point 2 (Times:
+"listed in the root table"), point 7 ("One table"), point 8 (phase 1: "the root table"),
+step 2 and point 5 of the second addendum of 2026-10-14 put the table of contracts into
+the Lazurio Root's `manual/environment-browser.md`. Since 2026-11-01
+[The Environment browser](environment-browser.md) in this repository holds it, with the
+host application's contract and the rules for updating the forks; where the text above
+says "the root table", "the root `manual/environment-browser.md`" or "the root
+manual's", read that document. The Root's `manual/environment-browser.md` stays the GEN3
+record and is no authority for the Platform or the forks. The text above stays as
+decided.
+
+1. **The rows.** C1 to C18, C18 being the hand-off of the addendum of 2026-10-18. Each
+   row names its holder, the module's exports and the Platform files that enforce it, and
+   the vector file and the suites that test it, checked against `main` at `a2927744`.
+2. **The releases.** For point 7's first releases of each addition a consumer depends on,
+   the document lists the Platform's, read from this repository's release tags. A fork's
+   own releases and the Platform release each one requires stay in that fork's runbook.
+3. **Nothing else changes.** The module, its vectors, the artifact and doctor stay as
+   they are.
 
 ## F51 — Managed Chat starts in the Folder; Platform owns the model recommendation
 
