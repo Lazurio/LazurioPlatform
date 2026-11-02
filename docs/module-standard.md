@@ -442,17 +442,22 @@ the slug in capitals with `-` as `_`. A sibling that is there but has no App, an
 unreadable declaration or no HTTP(S) entrypoint gets no variable; whether the
 sibling runs is not asked (`src/modules/sibling-origins.ts`). The rules:
 
-- The App reads the address only from this variable, once at start, and checks
-  that it is an exact loopback origin (`http` or `https`, host `127.0.0.1`,
-  `localhost` or `[::1]`, a port, no path); otherwise it exits 2 naming the
-  variable.
+- The App reads the address only from this variable, once at start.
+  - **Absent:** the sibling has no usable entrypoint, or a Launchpad that does not
+    pass the variable runs the App (an older release). The App keeps running and
+    reports the sibling unavailable to its user ([F26](decisions.md#f26--a-started-application-gets-the-runtime-environment-of-the-replaced-launchpad)
+    point 9); it never guesses a port.
+  - **Present but not an exact loopback origin** (`http` or `https`, host
+    `127.0.0.1`, `localhost` or `[::1]`, a port, no path): the App exits 2
+    naming the variable.
 - The address is for the App's server only. The App never gives it to the
   browser: no link, redirect, page data or CORS header. The browser calls the
   App, and the App calls the sibling (for example a proxy `/api/<sibling>/*`).
 - A stopped or failing sibling refuses the call. The App answers its caller with
   a typed error (for example 503 "the sibling does not run in this Environment"),
-  does not retry in a loop and never starts the sibling. Without the variable the
-  App answers "the sibling's address was not passed" and never guesses a port.
+  does not retry in a loop and never starts the sibling. Without the variable it
+  answers that the sibling is unavailable ("the sibling's address was not
+  passed").
 - The call reaches the sibling directly on the Environment, without the gateway
   and without a signed-in user. When the sibling accepts writes only from its own
   origin, the caller sends `Origin` equal to the address. Who triggered the call

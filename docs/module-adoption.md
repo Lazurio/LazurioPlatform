@@ -996,8 +996,9 @@ node ID, login and Organization `databaseId`. `compareGitHubBindings` compares t
 with the existing verified `organizationForgeBinding` / `repositoryForgeBinding`
 wire fields of the Organization manifest's schema, first inspected in the Root's
 `lazurio/lazurio.organization.v1.schema.json` at the same clean legacy commit cited
-below. The adapter copies no schema source; since 2026-11-01 the schema itself is in this
-repository ([organization contract](organization-contract.md)). Both stable decimal IDs
+below. The adapter copies no schema source. Since 2026-11-01 this repository is the
+contract's authority: the [organization contract](organization-contract.md) and its
+readers; its JSON Schema is still to be written here (#799). Both stable decimal IDs
 and current locators must agree; unverified bindings, user-owned repositories,
 replacement IDs, renamed/transferred locators and missing identities do not match.
 Case-only locator differences are accepted. This reads no local manifest and grants
