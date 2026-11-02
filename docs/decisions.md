@@ -3260,6 +3260,47 @@ has 1,045 bytes left (with the skills of #790), and the budget test #755 asked f
 every pinned composition with an 8,192-byte voice under 32 KiB) still guards it.
 `base-instructions-103`.
 
+**Addendum 2026-11-02, decided by Matěj (Organization Admin, plan LZD-0002 of the
+LazurioDevelopment Organization, #757 Medium and Low items): the remaining agent rules of
+the Lazurio Root, each in one place.** Every rule was checked against the
+rendered Folder of all five presets in both languages, and only what was missing is added,
+cited by the public register:
+
+- **`working-here.md`.** Git and GitHub: an approval counts only when it was submitted
+  after the head's last commit (its `submittedAt` later than that commit's
+  `committedDate`), a conservative rule of this project that asserts nothing about how
+  GitHub carries reviews over, and the skill `henry-review` says the same; every branch
+  rewrite checks the commits it drops
+  (the fork's rule now points to it); a fork's release tag is never used again. Worktree
+  discipline: someone else's pull request is reviewed in a detached checkout of its exact
+  head. A Release follows the user's explicit instruction or a standing mandate a decision
+  records, as a merge does under 0103. Architecture responsibility: 0132's two sentences
+  (check a new name against the decisions and `ARCHITECTURE.md`; expert judgement never
+  takes over the user's business, access or Publication authority) and the Root
+  `ARCHITECTURE.md`'s check of a new proposal, with Environment for Machine. Knowledge:
+  when in doubt, copy nothing. The Module Standard: module data (0196) and the Python
+  service the skill `new-module` offers (`python-uv`), also in the skill
+  `module-standard`, which points to the full standard as well. Integrations: no new ChatGPT or claude.ai connector (0162) and a
+  stuck procedure fixed at its source. Secrets: a secret only by its structure. The
+  Module Standard's summary points to its full text, `docs/module-standard.md`, and its
+  stop rule follows it: a clean exit 0 on `SIGTERM`, killed after 5 seconds on Linux
+  and 1 second on macOS, where the Folder said ten seconds. The
+  delegator, not the Kolega, holds the QA gate of a subagent. The sections on the plan and
+  the tests and on restructuring (0173) render on a personal Remote Environment too, where
+  personal modules are built, without the Organization's Mission Control.
+- **`lazurio.md`.** Who decides access: an Organization may switch to public DNS (0213),
+  and the workshop names say so. The glossary's GEN3 row no longer names the Module
+  Standard as GEN3-only (0225).
+- **`AGENTS.md`.** The formal address line gains imperatives in the plural and no past
+  tense that fixes a gender (0199): a custom voice replaces the default voice that said
+  it. The tightest composition has 979 bytes left.
+
+Left out: the Root's precedence of sources (0040 holds for GEN3 only), the Root's order
+for a new connection (it puts MCP before the tool and adds paths that are no Integration's
+under 0162), the Server services' integration service (0209 is not deployed and nothing
+lists such a service yet) and the Design System's Read grant (a rule of the Organization
+template, with no Lazurio decision). `base-instructions-104`.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered

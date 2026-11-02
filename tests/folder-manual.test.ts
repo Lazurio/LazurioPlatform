@@ -22,6 +22,7 @@ import {
   buddyLayerPaths,
   buddyRulesPath,
   manualPaths,
+  type OutputPath,
   outputFile,
   outputPaths,
 } from "../src/folder/outputs";
@@ -2633,5 +2634,229 @@ test("the lazurio page lists what Lazurio already has, and building and new modu
       expect(outputs[".agents/skills/new-module/SKILL.md"]).toContain(
         skill[locale],
       );
+    }
+});
+
+// The remaining agent rules of the Lazurio Root's inventory
+// (Lazurio/LazurioPlatform#757, Medium and Low; decision F14's addendum of
+// 2026-11-02, base-instructions-104): each in one place, on the presets it
+// holds for, in both languages, and none of them in AGENTS.md except the
+// formal address, which stays there under a custom voice too.
+test("the remaining rules of the Root's inventory each have one place in the manual or a skill, in both languages (Lazurio/LazurioPlatform#757)", () => {
+  type Rule = {
+    path: OutputPath;
+    on: (preset: string) => boolean;
+    cs: string;
+    en: string;
+  };
+  const every = () => true;
+  const building = (preset: string) => preset !== "hosted-personal";
+  const vault = (preset: string) => preset !== "local";
+  const working = "manual/working-here.md";
+  const rules: readonly Rule[] = [
+    {
+      // Fresh approval (root manual/pull-request-handoff.md).
+      path: working,
+      on: every,
+      cs: "starší schválení se podle pravidla projektu nepočítá, ani když nese `commit.oid` headu.",
+      en: "by this project's rule an earlier approval does not count, even when it carries the head's `commit.oid`.",
+    },
+    {
+      // Decision 0132, its two missing sentences.
+      path: working,
+      on: every,
+      cs: "Nový název nebo pojem nejdřív ověř v rozhodnutích a `ARCHITECTURE.md` (Pravidla hry jsou veřejná v `manual/lazurio.md`). Konkrétní rozpor otevřeně pojmenuj, ale odborný úsudek nikdy nepoužívej k převzetí obchodní, přístupové ani publikační pravomoci uživatele.",
+      en: "Check a new name or concept against the decisions and `ARCHITECTURE.md` first (The rules of the game are public in `manual/lazurio.md`). Name a concrete conflict openly, but never use expert judgement to take over the user's business, access or Publication authority.",
+    },
+    {
+      // The check of a new proposal (the root's ARCHITECTURE.md).
+      path: working,
+      on: every,
+      cs: "Nový návrh musí jednoduše odpovědět: kdo je Owner, který Environment tvoří společnou bezpečnostní hranici,",
+      en: "A new proposal must answer simply: who is the Owner, which Environment is the shared security boundary,",
+    },
+    {
+      path: working,
+      on: every,
+      cs: "Potřebují-li odpovědi další skryté autority, registry nebo identity, návrh ještě není dost jednoduchý.",
+      en: "When the answers need further hidden authorities, registries or identities, the proposal is not simple enough yet.",
+    },
+    {
+      // Decision 0162: no new ChatGPT or claude.ai connector.
+      path: working,
+      on: every,
+      cs: "ani nový konektor ChatGPT nebo claude.ai nikdy (decision 0162).",
+      en: "or a new ChatGPT or claude.ai connector (decision 0162).",
+    },
+    {
+      // A review of someone else's pull request.
+      path: working,
+      on: every,
+      cs: "- Review cizího pull requestu, ve kterém nic neměníš, dělej v odpojeném checkoutu jeho přesného headu: `git fetch origin pull/<číslo>/head` a `git worktree add --detach .worktrees/review/<repo>-pr-<číslo> <sha headu>`. Po verdiktu ho smaž (`git worktree remove`).",
+      en: "- Review someone else's pull request in which you change nothing in a detached checkout of its exact head: `git fetch origin pull/<number>/head` and `git worktree add --detach .worktrees/review/<repo>-pr-<number> <head sha>`. Remove it after your verdict (`git worktree remove`).",
+    },
+    {
+      // A secret only by its structure.
+      path: working,
+      on: every,
+      cs: "- **Strukturu, nikdy hodnotu.** Když tajemství ukazuješ nebo ověřuješ, uveď jen jeho strukturu: jméno a `id` položky, jména polí a jestli je hodnota vyplněná.",
+      en: "- **Structure, never the value.** When you show or check a secret, give only its structure: the item's name and `id`, the names of its fields and whether a value is set.",
+    },
+    {
+      path: working,
+      on: vault,
+      cs: "(`bw list items`, `bw get item`, `bw create item`), pošli rovnou do příkazu, který hodnotu potřebuje, nebo přes filtr, který nechá jen takové klíče (u `bw list items`: `jq '[.[] | {id, name}]'`), nikdy do svého výstupu.",
+      en: "(`bw list items`, `bw get item`, `bw create item`) goes straight into the command that needs the value or through a filter that keeps only such keys (for `bw list items`: `jq '[.[] | {id, name}]'`), never into your output.",
+    },
+    {
+      // Decision 0196, with the Module Standard.
+      path: working,
+      on: building,
+      cs: "- **Data modulu (decision 0196).** K datům modulu dosáhne Environment, ne člověk:",
+      en: "- **Module data (decision 0196).** The Environment reaches a module's data, not a person:",
+    },
+    {
+      path: working,
+      on: building,
+      cs: "takže modul s omezenými právy má vždy serverovou část a prohlížeč se k jeho úložišti nedostane.",
+      en: "so a module with restricted rights always has a server part and the browser never reaches its store.",
+    },
+    {
+      // Decision 0213, where access is decided.
+      path: "manual/lazurio.md",
+      on: every,
+      cs: "Organizace může své Environmenty přepnout z tailnetu na veřejné DNS (decision 0213, zčásti nasazené): lidé pak vstupují z internetu jen branou každého Environmentu, s Lazurio účtem, členstvím a grantem místo schváleného zařízení, a ze svých zařízení dostanou jen webové rozhraní (Launchpad, chat, Lazurio MausBot, Buddy), ne SSH, desktopové T3 Code ani trezor.",
+      en: "An Organization may switch its Environments from the tailnet to public DNS (decision 0213, partly deployed): people then enter from the internet, only through each Environment's gateway, with the Lazurio account, membership and a grant in place of an approved device, and from their devices they get only the web interface (the Launchpad, chat, Lazurio MausBot, Buddy), no SSH, desktop T3 Code or vault.",
+    },
+    {
+      path: "manual/lazurio.md",
+      on: every,
+      cs: "obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné z tailnetu, s veřejným DNS i z internetu (Kdo rozhoduje o přístupu výše);",
+      en: "serves `<app>.<vm>.<org>.lazurio.io` reachable from the tailnet, with public DNS also from the internet (Who decides access above);",
+    },
+    {
+      // Every rewrite of a branch, not only a fork's.
+      path: working,
+      on: every,
+      cs: "- **Před přepsáním branche** (rebase, reset nebo force push) ověř každý commit, který přepsání zahodí: `git log --oneline <nová>..<stará>` je vypíše",
+      en: "- **Before you rewrite a branch** (a rebase, a reset or a force push), check every commit the rewrite drops: `git log --oneline <new>..<old>` lists them",
+    },
+    {
+      // A Release under a standing mandate a decision records.
+      path: working,
+      on: every,
+      cs: "a ty jen na výslovný pokyn uživatele nebo podle stálého mandátu, který pro vymezený rozsah zapsalo rozhodnutí.",
+      en: "and you only on the user's explicit instruction or under a standing mandate that a decision records for a defined scope.",
+    },
+    {
+      // When in doubt, copy nothing.
+      path: working,
+      on: every,
+      cs: "V pochybnosti obsah nekopíruj: zapiš jen issue v jeho scope nebo odkaz na místo, kde je.",
+      en: "When in doubt, copy no content: file only an issue in its scope or a pointer to where it lives.",
+    },
+    {
+      // A fork's release tag.
+      path: working,
+      on: every,
+      cs: "a každý publikovaný stav má neměnný release tag, který se nikdy nepoužije znovu.",
+      en: "and every published state has an immutable release tag that is never used again.",
+    },
+    {
+      // A stuck procedure of an Integration.
+      path: working,
+      on: every,
+      cs: "- **Zaseknutý nebo zastaralý postup** Integrace oprav u jeho zdroje, ne poznámkou v chatu:",
+      en: "- **A stuck or outdated procedure** of an Integration is fixed at its source, not with a note in chat:",
+    },
+    {
+      // The plan and the tests, and the refactor, also where personal
+      // modules are built.
+      path: working,
+      on: every,
+      cs: "## Plán a testy drží záměr",
+      en: "## The plan and the tests hold the intent",
+    },
+    {
+      path: working,
+      on: every,
+      cs: "## Přestavbu dělá agent (decision 0173)",
+      en: "## A restructuring is done by an agent (decision 0173)",
+    },
+    {
+      // A Python service against the Module Standard.
+      path: working,
+      on: building,
+      cs: "Služba v Pythonu (stack `python-uv`) má stejný `package.json` s `runtime: uv` v `lazurio.preparation`",
+      en: "A Python service (the stack `python-uv`) has the same `package.json` with `runtime: uv` in `lazurio.preparation`",
+    },
+    {
+      path: ".agents/skills/module-standard/SKILL.md",
+      on: every,
+      cs: "Služba v Pythonu (stack `python-uv`) má v `lazurio.preparation` navíc `runtime: uv` a `uv_version`",
+      en: "A Python service (the stack `python-uv`) adds `runtime: uv` and `uv_version` to `lazurio.preparation`",
+    },
+    {
+      // A subagent's report is not proof.
+      path: working,
+      on: every,
+      cs: "Když práci deleguješ na subagenta nebo jiného agenta, jeho vlastní hlášení není důkaz: QA gate drží ten, kdo delegoval, a výsledek ověří sám.",
+      en: "When you delegate to a subagent or another agent, its own report is not proof: whoever delegated holds the QA gate and checks the result.",
+    },
+  ];
+  const formal = {
+    cs: "- Uživatele oslovuj formálně, vykej jim (vy, váš, vám malým písmenem, výzvy v množném čísle, bez minulého času, který by určil rod); pravidla psaná pro agenty zůstávají v ty.",
+    en: "- Address users formally; in Czech that is vykání (vy, váš, vám in lowercase, imperatives in the plural, no past tense that would fix a gender), while rules written for agents keep ty.",
+  } as const;
+  const environments = [
+    ...journeys,
+    {
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationPublic,
+      os: "linux",
+    },
+  ] as const;
+  for (const environment of environments)
+    for (const locale of ["cs", "en"] as const) {
+      const composition = {
+        preset: environment.preset,
+        machine: environment.machine,
+        profile: presetProfile(environment.preset, environment.os, { locale }),
+      };
+      const outputs = renderOutputs(composition);
+      const where = [environment.preset, environment.machine?.name, locale];
+      for (const rule of rules) {
+        const text = rule[locale];
+        expect([
+          ...where,
+          rule.path,
+          text,
+          outputs[rule.path].includes(text),
+        ]).toEqual([...where, rule.path, text, rule.on(environment.preset)]);
+        expect([...where, text, outputs["AGENTS.md"].includes(text)]).toEqual([
+          ...where,
+          text,
+          false,
+        ]);
+      }
+      // The formal address keeps its plural and its gender rule in AGENTS.md
+      // with the default voice and with a custom one.
+      const custom = renderOutputs({
+        ...composition,
+        agentVoice: { overrides: { [locale]: "Piš krátce." } },
+      });
+      for (const agents of [outputs["AGENTS.md"], custom["AGENTS.md"]])
+        expect([...where, agents.split("\n").includes(formal[locale])]).toEqual(
+          [...where, true],
+        );
+      // Only the hosted-personal plan has no Organization's Mission Control.
+      const plan =
+        locale === "cs"
+          ? "Plán v Mission Controlu Organizace drží obrys výsledku"
+          : "The plan in the Organization's Mission Control holds the outline";
+      expect([...where, outputs[working].includes(plan)]).toEqual([
+        ...where,
+        environment.preset !== "hosted-personal",
+      ]);
     }
 });
