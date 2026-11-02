@@ -291,9 +291,23 @@ export async function syncContent(
               if (outcome.result !== "absent") return outcome;
               if (child.parent !== undefined && !verified.has(child.parent))
                 return { result: "absent" };
-              return cloneAbsent(context, directory, child, () =>
+              const cloned = await cloneAbsent(context, directory, child, () =>
                 progress("cloning", ""),
               );
+              // A checkout that appeared meanwhile (another run, a person)
+              // is answered by the full check of a present one: its
+              // identity, primary checkout, own state and remote; never
+              // taken as verified on its origin alone (review of #793).
+              return cloned === "appeared"
+                ? syncCheckout(
+                    context,
+                    join(directory, child.path),
+                    (repository) =>
+                      sameRepository(repository, child.repository),
+                    child.branch,
+                    progress,
+                  )
+                : cloned;
             }),
         );
         for (const entry of answered)
@@ -598,7 +612,7 @@ async function cloneAbsent(
   root: string,
   child: SyncChild,
   cloning: () => void,
-): Promise<Outcome> {
+): Promise<Outcome | "appeared"> {
   if (context.clone === null || child.restricted) return { result: "absent" };
   cloning();
   let outcome: ProvideOutcome;
@@ -615,6 +629,7 @@ async function cloneAbsent(
   } catch {
     return { result: "failed", reason: "operation-failed" };
   }
+  if (outcome.result === "present") return "appeared";
   if (outcome.result !== "materialized")
     return cloneAnswer(outcome, context.clone === "anonymous");
   // The commit it was cloned at, as a fast-forward names its `to`.

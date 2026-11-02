@@ -1078,6 +1078,9 @@ still holds no Organization's repository (root decision 0153).
    moved, cloned, or ahead or diverged); never below another repository's checkout, a
    linked worktree, a module this identity cannot read, or one blocked by its own state
    (changes, another branch, a detached HEAD, an operation), whose remote was not asked.
+   A checkout that appears at the place while the run clones it is answered by the full
+   check of a present checkout (identity, primary checkout, own state, remote), never
+   taken as verified on its origin alone.
 2. **What is not.** A restricted slot (or one below it) stays absent: only an Admin's
    explicit installation brings it, as before. Production Space, `infra` and the
    Personalspace are never synchronized. A Team Environment, public or not, whose content

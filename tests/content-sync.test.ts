@@ -1358,3 +1358,75 @@ posixTest(
   },
   60_000,
 );
+
+posixTest(
+  "a checkout that appears while its module is cloned gets the full check of a present one, and no data mount is cloned below it unverified",
+  async () => {
+    world = await createWorld();
+    const current = world;
+    const fixture = await organization(current, {
+      extraSlots: [
+        slot("workspace/plans", "Alpha/plans"),
+        {
+          path: "workspace/plans/db",
+          slug: "plans-data",
+          materialization: "repository_db_mount",
+          git: { url: "git@github.com:Alpha/plans-data.git", branch: "v3" },
+        },
+      ],
+    });
+    const plans = await remoteRepository(current, "Alpha/plans", async (d) => {
+      await writeModule(d, "alpha", { id: "plans" });
+      await writeFile(join(d, ".gitignore"), "db/\n");
+    });
+    await remoteRepository(
+      current,
+      "Alpha/plans-data",
+      (d) => writeFile(join(d, "data.json"), "{}\n"),
+      "v3",
+    );
+    const host: SyncHost = {
+      ...fixture.host,
+      github: stubGitHub(current, {
+        repositories: { "Alpha/plans": {}, "Alpha/plans-data": {} },
+      }).github,
+    };
+    // While the run is about to clone the module, someone else puts a dirty
+    // checkout of it there, and its remote stops answering this identity.
+    let placed = false;
+    const run = await syncContent(fixture.folder, host, {
+      onProgress: (progress) => {
+        if (
+          placed ||
+          progress.path !== "workspace/plans" ||
+          progress.step !== "cloning"
+        )
+          return;
+        placed = true;
+        const clone = Bun.spawnSync(
+          [
+            "git",
+            "clone",
+            "--quiet",
+            "git@github.com:Alpha/plans.git",
+            fixture.at("workspace/plans"),
+          ],
+          { env: { ...process.env, ...current.gitEnv } },
+        );
+        if (clone.exitCode !== 0) throw new Error(clone.stderr.toString());
+        Bun.spawnSync(["sh", "-c", `echo local > notes.txt`], {
+          cwd: fixture.at("workspace/plans"),
+        });
+        Bun.spawnSync(["mv", plans, `${plans}.aside`]);
+      },
+    });
+    if (run.kind !== "content-sync") throw new Error(run.kind);
+    expect(placed).toBe(true);
+    expect(byPath(run.entries)).toMatchObject({
+      "workspace/plans": "blocked:dirty",
+      "workspace/plans/db": "absent",
+    });
+    expect(await exists(fixture.at("workspace/plans/db"))).toBe(false);
+  },
+  60_000,
+);
