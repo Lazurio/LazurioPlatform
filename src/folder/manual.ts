@@ -295,20 +295,20 @@ const lazurio: readonly Text[] = [
     "- **A module's data:** repository-db. A data repository is mounted in the module as `db/`, and the user publishes data changes in the app's draft card. A database comes only with real use (the skill `new-module`, step 3).",
   ),
   t(
-    "- **Data nebo API jiného modulu:** deklarace v `lazurio.runtime.required_module_slots`. Aplikace pak čte jeho `db/` jako `../<slug>/` a jeho API volá jen na adrese z `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` (decision 0176).",
-    "- **Another module's data or API:** a declaration in `lazurio.runtime.required_module_slots`. The app then reads its `db/` as `../<slug>/` and calls its API only at the address in `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` (decision 0176).",
+    "- **Data nebo API jiného modulu:** deklarace v `lazurio.runtime.required_module_slots`. Pro jeho data deklaruj datový mount `workspace/<slug>/db` a čti je v `../<slug>/db/`, nikdy jeho kód ani manifesty. Pro jeho API deklaruj slot modulu `workspace/<slug>` a volej ho jen na adrese z `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` (decision 0176).",
+    "- **Another module's data or API:** a declaration in `lazurio.runtime.required_module_slots`. For its data, declare the data mount `workspace/<slug>/db` and read it at `../<slug>/db/`, never its code or manifests. For its API, declare the module slot `workspace/<slug>` and call it only at the address in `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` (decision 0176).",
   ),
   t(
     "- **Klíč nebo heslo pro modul:** tajné údaje běhu. Aplikace deklaruje jméno v `lazurio.runtime.secrets`, Lazurio ho před každým startem přečte z trezoru Environmentu a předá jako `LAZURIO_RUNTIME_SECRET_<NAME>` (decision F46). Soubor `.env` ani secret v Gitu nepoužívej. Tvoje vlastní secrets jsou v trezoru (`lazurio vault status`, oddíl Tajné údaje v `manual/working-here.md`).",
     "- **A key or password for a module:** runtime secrets. The app declares the name in `lazurio.runtime.secrets`; Lazurio reads it from the Environment's vault before every start and passes it as `LAZURIO_RUNTIME_SECRET_<NAME>` (decision F46). Never use a `.env` file or a secret in Git. Your own secrets are in the vault (`lazurio vault status`, Secrets in `manual/working-here.md`).",
   ),
   t(
-    "- **Kdo smí aplikaci otevřít:** brána Environmentu. Pouští lidi do Lazuria i do každé aplikace modulu na jejím vlastním hostname (`runtime.url`, decision 0146). Vlastní přihlášení před aplikaci nestav.",
-    "- **Who may open an app:** the Environment's gateway. It admits people to Lazurio and to each module's app at the app's own hostname (`runtime.url`, decision 0146). Do not put a sign-in of your own in front of an app.",
+    "- **Kdo smí aplikaci otevřít:** na Remote Environmentu brána Environmentu. Pouští lidi do Lazuria i do každé aplikace modulu na jejím vlastním hostname (`runtime.url`, decision 0146), takže vlastní přihlášení před aplikaci nestav. Na vlastním počítači uživatele je `runtime.url` adresa na loopbacku a žádná brána před ní nestojí.",
+    "- **Who may open an app:** on a Remote Environment, the Environment's gateway. It admits people to Lazurio and to each module's app at the app's own hostname (`runtime.url`, decision 0146), so do not put a sign-in of your own in front of an app. On the user's own computer `runtime.url` is a loopback address with no gateway in front of it.",
   ),
   t(
-    "- **Statický web nebo sestavená aplikace:** `build_output` v `lazurio.runtime`. Lazurio každý commit sestaví jednou a servíruje sestavení (decision F58); které sestavení běží, říká `lazurio module status --json`.",
-    "- **A static website or a built app:** `build_output` in `lazurio.runtime`. Lazurio builds each commit once and serves the build (decision F58); `lazurio module status --json` says which build runs.",
+    "- **Statický web nebo sestavená aplikace:** `build_output` v `lazurio.runtime`. Lazurio sestaví každý klíč sestavení jednou a servíruje ho. Klíčem je commit modulu, a když aplikace čte data nebo deklarované sousedy, i jejich commity, takže nové sestavení spustí i změna dat (decision F58). Které sestavení běží, říká `lazurio module status <Org>/<modul> --json`.",
+    "- **A static website or a built app:** `build_output` in `lazurio.runtime`. Lazurio builds each build key once and serves that build. The key is the module's commit and, when the app reads data or declared siblings, their commits too, so a change of data also triggers a new build (decision F58). `lazurio module status <Org>/<module> --json` says which build runs.",
   ),
   t(
     "- **Práce podle plánu nebo na zavolání jiné aplikace:** automatizace Lazurio MausBotu na Remote Environmentu, v Lazuriu pro uživatele Automate. Rutina spouští práci bota podle plánu, webhook ji spustí, když jiná aplikace zavolá jeho adresu. Zakládáš je na pokyn uživatele příkazem `node ~/.local/share/lazurio/mausbot/current/cli.js routine … --port 4102` a `… webhook … --port 4102` (`docs/headless-cli.md` ve veřejném `Lazurio/OpenMausBot`). Stálá automatizovaná práce Organizace patří do jejího Prostředí Henry (decision 0169). Vlastní plánovač, cron ani dotazovací smyčku pro to nestav.",
