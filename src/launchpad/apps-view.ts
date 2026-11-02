@@ -21,6 +21,7 @@ import {
   type CatalogSectionKind,
   catalogSelection,
   catalogTree,
+  guestRoute,
   moduleRoute,
   repositoryRoute,
   servicePages,
@@ -416,10 +417,18 @@ export function appsTiles(
 }
 
 /** A guest Module's tile: its slot id as GitHub names the repository, the
- * org-agnostic sentence of its stone, and a click that says it is read here
- * and opened in its home Organization. Its own `lazurio.module.json` stays
- * unread (decision F67 point 5). */
-export function guestTile(guest: CatalogGuestModule, copy: Copy): AppsTile {
+ * org-agnostic sentence of its stone, and a click that opens its read-only
+ * overview (decision F67's addendum of 2026-11-01). Its own
+ * `lazurio.module.json` stays unread (decision F67 point 5). */
+/** A guest Module's stone and one line, from its slot id alone: the
+ * org-agnostic sentence of its stone. */
+export function guestLook(
+  guest: CatalogGuestModule,
+  copy: Copy,
+): Readonly<{
+  stone: Readonly<{ key: StoneKey; src: string; accent: string }>;
+  description: string;
+}> {
   const stone = stoneOf(
     semanticAppIconKey({
       module: guest.module,
@@ -430,22 +439,35 @@ export function guestTile(guest: CatalogGuestModule, copy: Copy): AppsTile {
   );
   const key = descriptionKeys[stone.key];
   return {
-    kind: "guest",
-    key: `g:${guest.homeOrganization.toLowerCase()}/${guest.module}`,
-    guest,
-    name: guest.module,
+    stone,
     description:
       key === undefined
         ? copy.appsDescriptionDefault.replace("{module}", guest.module)
         : copy[key],
+  };
+}
+
+export function guestTile(
+  catalog: Catalog,
+  organization: CatalogOrganization,
+  guest: CatalogGuestModule,
+  copy: Copy,
+): AppsTile {
+  const route = guestRoute(catalog, organization, guest);
+  const { stone, description } = guestLook(guest, copy);
+  return {
+    kind: "guest",
+    key: `g:${guest.homeOrganization.toLowerCase()}/${guest.module}`,
+    guest,
+    name: guest.module,
+    description,
     stone,
-    action: {
-      kind: "say",
-      text: copy.appsSayGuest
-        .replace("{name}", guest.module)
-        .replaceAll("{home}", guest.homeOrganization),
-    },
-    info: guest.url,
+    // Its overview, a route of this page; never an app.
+    action:
+      route === null
+        ? { kind: "say", text: copy.appsGuestApp }
+        : { kind: "route", href: route },
+    info: route,
     favorite: false,
   };
 }
@@ -538,7 +560,9 @@ export function appsSections(
             title: section.title,
             badge: { text: copy.appsGuestBadge, hint: copy.appsGuestHint },
             count: count(section.guests.length, "modules"),
-            tiles: section.guests.map((guest) => guestTile(guest, copy)),
+            tiles: section.guests.map((guest) =>
+              guestTile(catalog, group.organization, guest, copy),
+            ),
             tabs: null,
           }
         : section.kind === "workspace"

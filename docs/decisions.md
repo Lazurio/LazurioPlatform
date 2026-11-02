@@ -22833,15 +22833,28 @@ cannot read.
    has no section. The Admin still sees every declaration in the manifest,
    `lazurio organization list` and the doctor.
 3. **A tile like a module's, read-only** (`guestTile`): its stone and its slot id, as GitHub
-   names the repository, and the org-agnostic sentence of its stone; its own
-   `lazurio.module.json` stays unread (point 5). A click never opens, starts or prepares
-   anything: it says that the Module is read here and that its app opens in the home
-   Organization. Its "⋯" menu leads to its GitHub page; it has no favourite, which belongs
-   to the Organization's own tiles. The page refuses a catalog whose guest list is not the
+   names the repository, and the org-agnostic sentence of its stone (`guestLook`); its own
+   `lazurio.module.json` stays unread (point 5). It has no favourite, which belongs to the
+   Organization's own tiles. The page refuses a catalog whose guest list is not the
    catalog's shape (`parseCatalog`).
+4. **Its overview** (the Admin's choice of 2026-11-01, "Přidat přehled"): a click opens
+   `/o/<org>/guest/<home>/<module>`, never an app; the "⋯" menu offers it as "Informace o
+   modulu" and the repository as "Otevřít na GitHubu". The page shows the stone, the slot
+   id with the badge, the home Organization, the one explanation, and its facts
+   (`guestFacts`): its state with what the person can do (cloned and read by agents; not
+   here yet, cloned by the next synchronization once readable, ask an Admin of the home
+   Organization; access lost, the checkout stays and is not kept current), the home
+   Organization, the folder, that its app opens in its home, and its GitHub page. Every
+   declared guest has its overview, also one not shown in Apps. Nothing on it starts,
+   prepares or changes anything.
+5. **No state "access granted, not cloned yet".** The prototype showed such a muted tile.
+   The Launchpad learns of access only from a synchronization, which then clones the
+   Module in the same run (F9's addendum of 2026-11-01), so showing the state would mean
+   asking GitHub on every visit of Apps. The Admin accepted leaving it out with the
+   overview above.
 
-This replaces the first sentence of **Not covered** above. A guest's overview page in the
-Launchpad and its name from its home's manifest stay out of scope.
+This replaces the first sentence of **Not covered** above. A guest's name from its home's
+manifest stays out of scope.
 
 ## F68 — Only the installed product acts on the declared operator's Folder
 

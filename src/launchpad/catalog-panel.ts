@@ -2,6 +2,7 @@ import { launchpadStrip } from "../browser/contract/pure";
 import type { ModuleAnswer, ModuleBlocked } from "../modules/module-operations";
 import type {
   Catalog,
+  CatalogGuestModule,
   CatalogModule,
   CatalogOrganization,
   CatalogRepository,
@@ -28,6 +29,7 @@ import {
   appsSectionHead,
   appsSpaceOf,
   favoriteTiles,
+  guestLook,
   moduleAccessTarget,
   moduleDescription,
   moduleName,
@@ -44,6 +46,7 @@ import {
   type CatalogStatus,
   catalogSelection,
   catalogStatus,
+  guestFacts,
   moduleFacts,
   organizationName,
   organizationRoute,
@@ -715,15 +718,24 @@ export function createCatalogPanel(
       }
       info.setAttribute("role", "menuitem");
       info.append(
-        svg(item.kind === "guest" ? "external" : "info"),
-        item.kind === "module"
+        svg("info"),
+        item.kind === "module" || item.kind === "guest"
           ? copy.appsInfoModule
-          : item.kind === "guest"
-            ? copy.appsInfoGuest
-            : copy.appsInfoRepository,
+          : copy.appsInfoRepository,
       );
       info.addEventListener("click", close);
       list.append(info);
+    }
+    // A guest Module's repository on GitHub, beside its overview.
+    if (item.kind === "guest" && item.guest.url !== null) {
+      const github = element("a", "tile-menu-item");
+      github.href = item.guest.url;
+      github.target = "_blank";
+      github.rel = "noopener noreferrer";
+      github.setAttribute("role", "menuitem");
+      github.append(svg("external"), copy.appsInfoGuest);
+      github.addEventListener("click", close);
+      list.append(github);
     }
     // Whether the menu could ever offer it (a module, a Dashboard page),
     // before any Steward answer.
@@ -1447,6 +1459,64 @@ export function createCatalogPanel(
     ];
   }
 
+  // A guest Module's overview (decision F67's addendum of 2026-11-01): what
+  // the tile leaves out, read-only. Its stone, its slot id and its home
+  // Organization with the badge, the one explanation, then its state with
+  // what the person can do, its home, folder, GitHub page and that its app
+  // opens in its home. Nothing here starts, prepares or changes anything.
+  function guestView(
+    value: Catalog,
+    scope: CatalogGroupEntry | null,
+    guest: CatalogGuestModule,
+  ): Node[] {
+    const copy = options.copy();
+    const back = routeLink(scopeRoute(value, scope), "back");
+    back.append(svg("chevron-left"), copy.appsAll);
+    const look = guestLook(guest, copy);
+    const top = element("div", "module-head");
+    const heading = element("h1", "module-title", guest.module);
+    heading.tabIndex = -1;
+    heading.dataset.pageHeading = "";
+    const badge = element("span", "section-badge", copy.appsGuestBadge);
+    badge.title = copy.appsGuestHint;
+    heading.append(" ", badge);
+    const text = element("div", "module-head-text");
+    text.append(
+      heading,
+      element(
+        "p",
+        "module-meta",
+        `${look.description} · ${guest.homeOrganization}`,
+      ),
+    );
+    top.style.setProperty("--stone-accent", look.stone.accent);
+    top.append(stoneImage(look.stone.src, 64, "tile-stone"), text);
+    const about = factsCard(guestFacts(guest, copy));
+    if (guest.url !== null) {
+      const row = element("div", "row");
+      const main = element("div", "row-main");
+      const detail = element("dd");
+      const link = element(
+        "a",
+        "",
+        guest.url.replace(/^https:\/\/github\.com\//, ""),
+      );
+      link.href = guest.url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      detail.append(link);
+      main.append(element("dt", "", copy.appsRepositoryGithub), detail);
+      row.append(main);
+      about.append(row);
+    }
+    return [
+      back,
+      top,
+      element("p", "module-meta", copy.appsGuestHint),
+      group(copy.appsInfoModule, about),
+    ];
+  }
+
   // The request path of one module: the name that selects exactly its
   // Organization, as its route uses, and the module id, each URL-encoded.
   function modulePathOf(
@@ -1655,7 +1725,8 @@ export function createCatalogPanel(
       route.view !== "home" &&
       route.view !== "organization" &&
       route.view !== "module" &&
-      route.view !== "repository"
+      route.view !== "repository" &&
+      route.view !== "guest"
     )
       return;
     if (selection.kind === "missing") {
@@ -1682,7 +1753,9 @@ export function createCatalogPanel(
     if (selection.kind !== "module") lifecycle = null;
     // A module's and a service repository's page draw their own head.
     const ownPage =
-      selection.kind === "module" || selection.kind === "repository";
+      selection.kind === "module" ||
+      selection.kind === "repository" ||
+      selection.kind === "guest";
     head.hidden = ownPage;
     if (!ownPage) drawHead(scope);
     body.replaceChildren(
@@ -1692,7 +1765,9 @@ export function createCatalogPanel(
           ? moduleView(catalog, scope, selection.organization, selection.module)
           : selection.kind === "repository"
             ? repositoryView(catalog, scope, selection.repository)
-            : appsHome(catalog, scope)),
+            : selection.kind === "guest"
+              ? guestView(catalog, scope, selection.guest)
+              : appsHome(catalog, scope)),
     );
     if (tabFocused) focusTab();
     const action = body.querySelector<HTMLButtonElement>(

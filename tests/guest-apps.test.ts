@@ -12,10 +12,13 @@ import { executionOs } from "../src/folder/platform";
 import { appsSectionHead, appsSections } from "../src/launchpad/apps-view";
 import {
   catalogGroupEntry,
+  catalogSelection,
+  guestFacts,
   parseCatalog,
   withGuestAccess,
 } from "../src/launchpad/catalog-view";
 import { messages } from "../src/launchpad/messages";
+import { pageRoute, routePath, routeTitle } from "../src/launchpad/routes";
 import type {
   Catalog,
   CatalogGuestModule,
@@ -154,6 +157,7 @@ test("Apps draws a guest like a module, read-only, with its home on the flag and
               tile.description,
               tile.stone.key,
               tile.info,
+              tile.guest.url,
               tile.favorite,
             ]
           : null,
@@ -163,6 +167,7 @@ test("Apps draws a guest like a module, read-only, with its home on the flag and
         "knowledgebase",
         copy.appsDescriptionBook,
         "book",
+        "/o/hostorg/guest/HomeOrg/knowledgebase",
         "https://github.com/HomeOrg/knowledgebase",
         false,
       ],
@@ -170,18 +175,14 @@ test("Apps draws a guest like a module, read-only, with its home on the flag and
         "mission-control",
         copy.appsDescriptionControl,
         "control",
+        "/o/hostorg/guest/HomeOrg/mission-control",
         "https://github.com/HomeOrg/mission-control",
         false,
       ],
     ]);
-    // A click never opens or starts anything: it says where the app lives.
-    for (const tile of section.tiles) {
-      expect(tile.action.kind).toBe("say");
-      if (tile.action.kind === "say") {
-        expect(tile.action.text).toContain("HomeOrg");
-        expect(tile.action.text).not.toContain("{");
-      }
-    }
+    // A click opens its read-only overview, never an app.
+    for (const tile of section.tiles)
+      expect(tile.action).toEqual({ kind: "route", href: tile.info ?? "" });
   }
   expect(cs.appsGuestBadge).toBe("hostující");
 });
@@ -290,4 +291,70 @@ test("a guest whose access was lost stays checked out but leaves Apps, and comes
   } finally {
     await rm(parent, { recursive: true, force: true });
   }
+});
+
+test("a guest's overview has its own address and says its state and what the person can do", () => {
+  for (const path of [
+    "/o/hostorg/guest/HomeOrg/knowledgebase",
+    "/o/hostorg/guest/HomeOrg/knowledgebase/",
+  ])
+    expect(pageRoute(path)).toEqual({
+      view: "guest",
+      organization: "hostorg",
+      home: "HomeOrg",
+      module: "knowledgebase",
+    });
+  expect(
+    routePath({
+      view: "guest",
+      organization: "hostorg",
+      home: "HomeOrg",
+      module: "knowledgebase",
+    }),
+  ).toBe("/o/hostorg/guest/HomeOrg/knowledgebase");
+  // A module named "guest" keeps its own page.
+  expect(pageRoute("/o/hostorg/guest")).toEqual({
+    view: "module",
+    organization: "hostorg",
+    module: "guest",
+  });
+  const organization = host([
+    guest("knowledgebase", "HomeOrg"),
+    guest("mission-control", "HomeOrg", false),
+    { ...guest("notes", "HomeOrg"), revoked: true },
+  ]);
+  const value = catalogOf(organization);
+  const select = (home: string, module: string) =>
+    catalogSelection(value, {
+      view: "guest",
+      organization: "hostorg",
+      home,
+      module,
+    });
+  // Letter case of the home ignored; an undeclared one is missing.
+  expect(select("homeorg", "knowledgebase")).toMatchObject({
+    kind: "guest",
+    guest: { module: "knowledgebase" },
+  });
+  expect(select("HomeOrg", "nothing")).toEqual({ kind: "missing" });
+  expect(select("OtherOrg", "knowledgebase")).toEqual({ kind: "missing" });
+  const state = (module: string) =>
+    guestFacts(
+      (organization.guests ?? []).find((item) => item.module === module) ??
+        guest(module, "HomeOrg"),
+      cs,
+    )[0]?.[1];
+  expect(state("knowledgebase")).toBe(cs.appsGuestCloned);
+  expect(state("mission-control")).toBe(
+    cs.appsGuestAbsent.replace("{home}", "HomeOrg"),
+  );
+  expect(state("notes")).toBe(cs.appsGuestRevoked.replace("{home}", "HomeOrg"));
+  for (const [, line] of guestFacts(guest("x", "HomeOrg"), en))
+    expect(String(line)).not.toContain("{");
+  expect(
+    routeTitle(
+      { view: "guest", organization: "hostorg", home: "HomeOrg", module: "kb" },
+      cs,
+    ).heading,
+  ).toBe("kb");
 });

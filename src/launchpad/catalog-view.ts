@@ -24,6 +24,7 @@ import {
 } from "../organizations/server-services";
 import type { MessageKey } from "./messages";
 import {
+  guestPath,
   modulePath,
   organizationPath,
   type PageRoute,
@@ -243,6 +244,39 @@ export function repositoryRoute(
     : repositoryPath(key, repository.slug);
 }
 
+/** A guest Module's overview (F67's addendum of 2026-11-01), or null for an
+ * Organization without a slug. */
+export function guestRoute(
+  catalog: Catalog,
+  organization: CatalogOrganization,
+  guest: CatalogGuestModule,
+): string | null {
+  const key = catalogOrganizationKey(catalog, organization);
+  return key === null
+    ? null
+    : guestPath(key, guest.homeOrganization, guest.module);
+}
+
+/** What a guest Module's overview says of it, in words. */
+export function guestFacts(
+  guest: CatalogGuestModule,
+  copy: Copy,
+): readonly CatalogFact[] {
+  return [
+    [
+      copy.appsGuestState,
+      guest.revoked === true
+        ? copy.appsGuestRevoked.replace("{home}", guest.homeOrganization)
+        : guest.checkedOut
+          ? copy.appsGuestCloned
+          : copy.appsGuestAbsent.replace("{home}", guest.homeOrganization),
+    ],
+    [copy.appsGuestHome, guest.homeOrganization],
+    [copy.catalogDirectory, guest.path],
+    [copy.catalogApps, copy.appsGuestApp],
+  ];
+}
+
 /** The services of a repository that have a page, in their order. */
 export const servicePages = (
   repository: CatalogRepository,
@@ -307,6 +341,12 @@ export function catalogSelection(
       organization: CatalogOrganization;
       repository: CatalogRepository;
     }>
+  /** A guest Module's overview (F67's addendum of 2026-11-01). */
+  | Readonly<{
+      kind: "guest";
+      organization: CatalogOrganization;
+      guest: CatalogGuestModule;
+    }>
   | Readonly<{
       kind: "ambiguous";
       candidates: readonly CatalogOrganization[];
@@ -326,6 +366,18 @@ export function catalogSelection(
   const { organization } = selection;
   if (route.view === "organization")
     return { kind: "organization", organization };
+  if (route.view === "guest") {
+    // Any declared guest has its overview, also one not here (it says why);
+    // the home's login and the slot id as the catalog names them.
+    const guest = (organization.guests ?? []).find(
+      (entry) =>
+        entry.homeOrganization.toLowerCase() === route.home.toLowerCase() &&
+        entry.module === route.module,
+    );
+    return guest === undefined
+      ? { kind: "missing" }
+      : { kind: "guest", organization, guest };
+  }
   if (route.view === "repository") {
     // Only a repository with a service has a page, and only one entry of
     // that slug may be it.

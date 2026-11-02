@@ -55,6 +55,7 @@ test("a path names the view and the settings section; the canonical path is one"
     // A service repository's page and a service's link (root decision
     // 0209 point 6).
     "/o/:organization/productionspace/:repository",
+    "/o/:organization/guest/:home/:module",
     "/service/:id",
     "/files",
     "/files/*",
