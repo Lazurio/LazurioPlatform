@@ -65,7 +65,9 @@ function binding(input: unknown, repository: boolean) {
   return value;
 }
 
-// Existing canonical wire schema plus root-binding cross-field invariants.
+// The canonical wire contract, as ./lazurio.organization.v1.schema.json states
+// it, plus what a schema cannot state: the root's owner is the Organization's
+// login and the port pool is in order (tests/organization-schema.test.ts).
 // This does not resolve legacy documents, validate the projection hash or grant access.
 // The optional `settings` section is kept as authored; read it only through
 // `organizationSettings` (./organization-settings), never directly.
