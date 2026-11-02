@@ -9963,6 +9963,12 @@ panel of every app.
    outside the Folder and the install base and is never copied. Every thread, agent
    and bot shares it. Wiping it is the hand-over's manual step before a Work
    Environment passes to another person.
+   *Addendum of 2026-11-01: superseded by decision 0191's amendment of 2026-10-26. A
+   Work Environment is never handed over to another person; after the export period it
+   is removed and a new one is created, so there is no hand-over and no wiping step
+   ([environment-browser.md](environment-browser.md),
+   [environment-access.md](environment-access.md)). The sentence above stays as the
+   record of the original decision.*
 3. **A window per thread: `lazurio browser window`.** agent-browser binds a pinned
    session to one tab but opens it in the most recently used window, and Chrome does
    not paint a background tab: on 2026-10-05 a screenshot of a background tab on a
