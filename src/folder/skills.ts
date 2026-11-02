@@ -608,6 +608,8 @@ const henryReview: readonly Text[] = [
 // start only after the merge, because `lazurio module start` runs the
 // primary checkout on `main`. No Platform command checks conformance yet
 // (#423); the agent goes through the list itself.
+// A Python service (`python-uv`, which the skill new-module offers) holds the
+// same standard with uv in its preparation (Lazurio/LazurioPlatform#757).
 const moduleStandardDescription = t(
   "Použij, když měníš, převádíš nebo kontroluješ existující modul: co modul drží, aby ho Lazurio spustilo bez výjimek (manifesty, jeden proces, port a adresy z proměnných, tajné údaje z trezoru, sousední moduly, sestavená verze, health), v jakém pořadí odchylky opravit a jak to ověřit. Odchylku opravuješ v modulu, nikdy obcházením Lazuria. Nový modul zakládá skill new-module.",
   "Use when you change, convert or check an existing module: what a module holds so that Lazurio runs it without exceptions (manifests, one process, port and addresses from variables, secrets from the vault, sibling modules, the built version, health), in which order to fix deviations and how to verify it. Fix a deviation in the module, never by working around Lazurio. A new module is founded by the skill new-module.",
@@ -625,8 +627,8 @@ const moduleStandard: readonly Text[] = [
     "- **Manifest.** `lazurio.module.json` at the root: an `id` equal to the slot in the Organization's manifest, a port lease from the Organization's pool, `apps` and `default_app`.",
   ),
   t(
-    "- **Aplikace** v `app/v<N>/`, nejvýš dvě generace (výchozí a jedna předchozí nebo kandidátní). Její `package.json` má přesný `packageManager` (Bun), commitnutý `bun.lock`, skripty `dev`, `check` a `test`, deklaraci běhu `lazurio.runtime` (listenery a health) a případně přípravu `lazurio.preparation` (`owner_package`, `prepare_script`, `check_script`). TypeScript strict a Biome.",
-    "- **The app** in `app/v<N>/`, at most two generations (the default and one earlier or candidate). Its `package.json` has an exact `packageManager` (Bun), a committed `bun.lock`, the scripts `dev`, `check` and `test`, the run declaration `lazurio.runtime` (listeners and health) and, where needed, the preparation `lazurio.preparation` (`owner_package`, `prepare_script`, `check_script`). TypeScript strict and Biome.",
+    "- **Aplikace** v `app/v<N>/`, nejvýš dvě generace (výchozí a jedna předchozí nebo kandidátní). Její `package.json` má přesný `packageManager` (Bun), commitnutý `bun.lock`, skripty `dev`, `check` a `test`, deklaraci běhu `lazurio.runtime` (listenery a health) a případně přípravu `lazurio.preparation` (`owner_package`, `prepare_script`, `check_script`). TypeScript strict a Biome. Služba v Pythonu (stack `python-uv`) má v `lazurio.preparation` navíc `runtime: uv` a `uv_version`, vedle `package.json` ještě `pyproject.toml` se shodnou tabulkou `[tool.lazurio]`, commitnutý `uv.lock` místo `bun.lock` a ruff a strict pyright místo TypeScriptu a Biome; tahle Platforma ji zatím nespouští.",
+    "- **The app** in `app/v<N>/`, at most two generations (the default and one earlier or candidate). Its `package.json` has an exact `packageManager` (Bun), a committed `bun.lock`, the scripts `dev`, `check` and `test`, the run declaration `lazurio.runtime` (listeners and health) and, where needed, the preparation `lazurio.preparation` (`owner_package`, `prepare_script`, `check_script`). TypeScript strict and Biome. A Python service (the stack `python-uv`) adds `runtime: uv` and `uv_version` to `lazurio.preparation`, and has beside `package.json` a `pyproject.toml` with the same `[tool.lazurio]` table, a committed `uv.lock` in place of `bun.lock`, and ruff and strict pyright in place of TypeScript and Biome; this Platform does not start it yet.",
   ),
   t(
     "- **Jeden proces.** `dev` spustí jeden dlouhoběžící server a nic jiného. Build, data a migrace patří do `prepare_script` (nikdy do npm lifecycle jmen jako `prepare`, která `bun install` spouští sám), jen čtecí kontrola do `check_script`. Na start cestě žádné `concurrently`, `&&`, `npx` ani `VAR=…`.",
@@ -671,8 +673,8 @@ const moduleStandard: readonly Text[] = [
     "3. Rewrite a port lease outside the Organization's pool to a free port of the pool, and give the old → new mapping in the pull request.",
   ),
   t(
-    "4. Ověř ve worktree se změnou: `bun install --frozen-lockfile`, `bun run check` a `bun test` v každé aplikaci, u sestavené verze i `bun run build`. Spuštění přes Platformu (`lazurio module start`) bere modul z primárního checkoutu na `main`, ne z tvého worktree, a může jen převzít už běžící aplikaci; před merge proto změnu neověří. V pull requestu ho uveď jako neověřené a ověř ho až po merge.",
-    "4. Verify in the worktree with the change: `bun install --frozen-lockfile`, `bun run check` and `bun test` in every app, and `bun run build` for the built version. A start through the Platform (`lazurio module start`) takes the module from the primary checkout on `main`, not from your worktree, and may only take over an app that is already running; so it does not verify the change before the merge. Say in the pull request that it is unverified and check it after the merge.",
+    "4. Ověř ve worktree se změnou: `bun install --frozen-lockfile`, `bun run check` a `bun test` v každé aplikaci (u služby v Pythonu `uv sync --frozen`, `bun run check` a `bun run test` podle jejího `README.md`), u sestavené verze i `bun run build`. Spuštění přes Platformu (`lazurio module start`) bere modul z primárního checkoutu na `main`, ne z tvého worktree, a může jen převzít už běžící aplikaci; před merge proto změnu neověří. V pull requestu ho uveď jako neověřené a ověř ho až po merge.",
+    "4. Verify in the worktree with the change: `bun install --frozen-lockfile`, `bun run check` and `bun test` in every app (for a Python service `uv sync --frozen`, `bun run check` and `bun run test` as its `README.md` says), and `bun run build` for the built version. A start through the Platform (`lazurio module start`) takes the module from the primary checkout on `main`, not from your worktree, and may only take over an app that is already running; so it does not verify the change before the merge. Say in the pull request that it is unverified and check it after the merge.",
   ),
   t(
     "5. Pull request modulu říká, co před převodem nesedělo a co se záměrně nemění (chování aplikace). Změna Organizace jde samostatným pull requestem do jejího kořene a oba se navzájem odkazují.",
@@ -690,8 +692,8 @@ const moduleStandard: readonly Text[] = [
     "- Every item of the list fits, or the pull request names what could not be verified and why.",
   ),
   t(
-    "- `bun run check` a `bun test` projdou v každé aplikaci.",
-    "- `bun run check` and `bun test` pass in every app.",
+    "- `bun run check` a `bun test` (u služby v Pythonu `bun run test`) projdou v každé aplikaci.",
+    "- `bun run check` and `bun test` (for a Python service `bun run test`) pass in every app.",
   ),
   t(
     "- Po merge: checkout modulu musí merge obsahovat (`git -C <checkout> merge-base --is-ancestor <merge commit> HEAD`; čistý checkout napřed `git pull --ff-only`). U sestavené aplikace `lazurio module status <Org>/<modul> --json` musí hlásit zdravou aplikaci, v níž `build.served.key` je `build.current.key`, `build.current.commit` je `HEAD` checkoutu, `build.current.dirty` je `false` a `build.building` i `build.failure` jsou `null`; `runtime.url` pak odpoví 200. Sestavení z checkoutu s neuloženými změnami nese commit `HEAD`, ale ty změny ho mohou vracet, proto bez `dirty: false` kontrola neprošla. Vývojovou verzi status k commitu nepřiřadí: ověříš ji jen tehdy, když neběžela a sám ji spustíš `lazurio module start <Org>/<modul> --json` z čistého checkoutu (`git -C <checkout> status --porcelain` nic nevypíše), který zůstane čistý i při ověření. Co z toho status ani checkout neukáže, uveď jako neověřené. Cizí běžící aplikaci kvůli ověření nerestartuj ani nezastavuj; když ověření bez toho nejde, uveď kontrolu přes Platformu jako neověřenou. Zastav jen aplikaci, kterou jsi sám spustil, vždy s celým cílem `lazurio module stop <Org>/<modul>`; na macOS v Launchpadu (CLI odpoví `launchpad-required`).",

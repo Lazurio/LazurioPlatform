@@ -3260,6 +3260,40 @@ has 1,045 bytes left (with the skills of #790), and the budget test #755 asked f
 every pinned composition with an 8,192-byte voice under 32 KiB) still guards it.
 `base-instructions-103`.
 
+**Addendum 2026-11-02, proposed with #757 (its Medium and Low items): the remaining agent
+rules of the Lazurio Root, each in one place.** Every rule was checked against the
+rendered Folder of all five presets in both languages, and only what was missing is added,
+cited by the public register:
+
+- **`working-here.md`.** Git and GitHub: an approval GitHub carried over to a new head by
+  a rebase or a merge of the base branch does not count (its `submittedAt` is older than
+  the last commit's `committedDate`); every branch rewrite checks the commits it drops
+  (the fork's rule now points to it); a fork's release tag is never used again. Worktree
+  discipline: someone else's pull request is reviewed in a detached checkout of its exact
+  head. A Release follows the user's explicit instruction or a standing mandate a decision
+  records, as a merge does under 0103. Architecture responsibility: 0132's two sentences
+  (check a new name against the decisions and `ARCHITECTURE.md`; expert judgement never
+  takes over the user's business, access or Publication authority) and the Root
+  `ARCHITECTURE.md`'s check of a new proposal, with Environment for Machine. Knowledge:
+  when in doubt, copy nothing. The Module Standard: module data (0196) and the Python
+  service the skill `new-module` offers (`python-uv`), also in the skill
+  `module-standard`. Integrations: no new ChatGPT or claude.ai connector (0162) and a
+  stuck procedure fixed at its source. Secrets: a secret only by its structure. The
+  delegator, not the Kolega, holds the QA gate of a subagent. The sections on the plan and
+  the tests and on restructuring (0173) render on a personal Remote Environment too, where
+  personal modules are built, without the Organization's Mission Control.
+- **`lazurio.md`.** Who decides access: an Organization may switch to public DNS (0213),
+  and the workshop names say so.
+- **`AGENTS.md`.** The formal address line gains imperatives in the plural and no past
+  tense that fixes a gender (0199): a custom voice replaces the default voice that said
+  it. The tightest composition has 979 bytes left.
+
+Left out: the Root's precedence of sources (0040 holds for GEN3 only), the Root's order
+for a new connection (it puts MCP before the tool and adds paths that are no Integration's
+under 0162), the Server services' integration service (0209 is not deployed and nothing
+lists such a service yet) and the Design System's Read grant (a rule of the Organization
+template, with no Lazurio decision). `base-instructions-104`.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
