@@ -52,6 +52,16 @@ export type PageRoute =
       organization: string;
       repository: string;
     }>
+  /** A guest Module's overview (decision F67's addendum of 2026-11-01):
+   * `/o/<org>/guest/<home>/<module>`, `<home>` its home Organization's
+   * GitHub login and `<module>` its slot id, both as the catalog names
+   * them. Read-only: it never starts anything. */
+  | Readonly<{
+      view: "guest";
+      organization: string;
+      home: string;
+      module: string;
+    }>
   /** A section of Settings. */
   | Readonly<{ view: "settings"; section: SettingsSection }>
   /** Trezor, the way into the Environment's own vault (root decision 0198
@@ -126,6 +136,7 @@ export const pagePaths: readonly string[] = [
   "/o/:organization",
   "/o/:organization/:module",
   "/o/:organization/productionspace/:repository",
+  "/o/:organization/guest/:home/:module",
   // A service's page, opened in the Environment browser and dropped from
   // the address (`serviceRequest`).
   "/service/:id",
@@ -163,6 +174,15 @@ export function repositoryPath(
   repository: string,
 ): string {
   return `${organizationPath(organization)}/productionspace/${encodeURIComponent(repository)}`;
+}
+
+/** A guest Module's overview (decision F67's addendum of 2026-11-01). */
+export function guestPath(
+  organization: string,
+  home: string,
+  module: string,
+): string {
+  return `${organizationPath(organization)}/guest/${encodeURIComponent(home)}/${encodeURIComponent(module)}`;
 }
 
 /** The link of a service's page (root decision 0209 point 6, decision F32's
@@ -291,6 +311,12 @@ export function pageRoute(pathname: string): PageRoute {
         : null;
     if (organization !== null && repository !== null)
       return { view: "repository", organization, repository };
+    // A guest Module's overview (F67's addendum of 2026-11-01).
+    const home =
+      parts.length === 4 && parts[1] === "guest" ? segment(parts[2]) : null;
+    const guest = home === null ? null : segment(parts[3]);
+    if (organization !== null && home !== null && guest !== null)
+      return { view: "guest", organization, home, module: guest };
     if (organization === null || parts.length > 2) return { view: "home" };
     if (parts.length === 1) return { view: "organization", organization };
     return module === null
@@ -332,6 +358,8 @@ export function routePath(route: PageRoute): string {
     return modulePath(route.organization, route.module);
   if (route.view === "repository")
     return repositoryPath(route.organization, route.repository);
+  if (route.view === "guest")
+    return guestPath(route.organization, route.home, route.module);
   if (route.view === "files") return filesUrlPath(route.path);
   if (route.view === "integrations")
     return route.form !== undefined
@@ -389,6 +417,11 @@ export function routeTitle(
       document: `${route.repository} · ${organization} — ${copy.title}`,
     };
   }
+  if (route.view === "guest")
+    return {
+      heading: route.module,
+      document: `${route.module} · ${route.home} — ${copy.title}`,
+    };
   if (route.view === "marketplace") {
     const offer =
       route.offer === undefined

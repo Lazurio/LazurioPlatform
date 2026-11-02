@@ -22757,8 +22757,8 @@ Organization keeps it, and nothing else changes.
    the host, like its productionspace repositories, in `guests`
    (`{organization, module, path, homeOrganization, guest: true, checkedOut, url}`),
    present only when the Organization declares one; `lazurio organization list` and
-   `lazurio module list` print them, with `--json` whole. The Launchpad's page does not
-   draw them yet.
+   `lazurio module list` print them, with `--json` whole. The Launchpad's page draws
+   those checked out here (addendum of 2026-11-01 below).
 6. **"The" Knowledgebase and Mission Control** of an Organization stay its own root and
    workspace slots: a guest is never a module of the catalog, so nothing that looks a
    module up by slug finds it, and module creation ignores guest slots when it checks
@@ -22805,6 +22805,59 @@ project as Core projects it, but a Core that later reads the guest database path
 nested database by path alone would then project differently and set the host to
 `conflict` here: both implementations must change that rule together. `AGENTS.md` has a
 few bytes left within its budget after this sentence.
+
+### Addendum of 2026-11-01: Apps draws guest Modules, only those this Environment can read
+
+**Decided by the Organization Admin on 2026-11-01 for plan DEV-6694 (milestone M7), after
+reviewing the prototype; implemented in this revision.** The Admin asked that guest
+Modules show in the Launchpad so that people see how they work, keeping to GitHub's
+naming ("Možná bych se držel toho, jak to mají na GitHubu, co se týče názvosloví … potřebujeme
+propsat i do UI, aby potom lidi věděli, že to takhle funguje"). On the prototype he asked
+for tiles exactly like the Organization's own, no explanatory text or links in the section
+head, and chose to hide guest Modules without access, as GitHub hides repositories a person
+cannot read.
+
+1. **One section per home Organization**, after the host's Workspace and Productionspace,
+   in declaration order; its flag is the home Organization's GitHub login as the slot
+   declares it (letter case ignored when grouping), followed by a quiet badge (Czech
+   "hostující", English "guest") whose tooltip is the one explanation: a Module of another
+   Organization, read here only; changes belong to its home Organization; GitHub decides
+   who can read it. Then its count, as every section. Nothing else in the head
+   (`catalogGroupEntry`, `appsSections`, `appsSectionHead`).
+2. **Only guests checked out here and readable.** A guest this Environment's identity
+   cannot read is never cloned, so it is not listed, the same rule as an absent module
+   (F32's addendum of 2026-10-15). A guest whose access was lost keeps its checkout, so the
+   Launchpad's catalog marks it `revoked` while GitHub's last answer for its remote was a
+   refusal (`withGuestAccess`; the page asks GitHub nothing itself). The record keeps that
+   refusal through runs that never read the remote: a later answer blocked by the
+   checkout's own state, unavailable or failed carries `unreadable`, and a run whose root
+   stopped the Organization keeps the guest's last `denied`. Only a run that reads the
+   remote (current, moved, ahead, diverged) clears it. A home without a shown guest
+   has no section. The Admin still sees every declaration in the manifest,
+   `lazurio organization list` and the doctor.
+3. **A tile like a module's, read-only** (`guestTile`): its stone and its slot id, as GitHub
+   names the repository, and the org-agnostic sentence of its stone (`guestLook`); its own
+   `lazurio.module.json` stays unread (point 5). It has no favourite, which belongs to the
+   Organization's own tiles. The page refuses a catalog whose guest list is not the
+   catalog's shape (`parseCatalog`).
+4. **Its overview** (the Admin's choice of 2026-11-01, "Přidat přehled"): a click opens
+   `/o/<org>/guest/<home>/<module>`, never an app; the "⋯" menu offers it as "Informace o
+   modulu" and the repository as "Otevřít na GitHubu". The page shows the stone, the slot
+   id with the badge, the home Organization, the one explanation, and its facts
+   (`guestFacts`): its state with what the person can do (cloned and read by agents; not
+   here yet, cloned by the next synchronization once readable, ask an Admin of the home
+   Organization; access lost, the checkout stays and is not kept current), the home
+   Organization, the folder, that its app opens in its home, and its GitHub page. Every
+   declared guest has its overview, also one not shown in Apps. Nothing on it starts,
+   prepares or changes anything.
+5. **No state "access granted, not cloned yet".** The prototype showed such a muted tile.
+   The Launchpad learns of access only from a synchronization, which then clones the
+   Module in the same run (F9's addendum of 2026-11-01), so showing the state would mean
+   asking GitHub on every visit of Apps. The Admin accepted leaving it out with the
+   overview above.
+
+This replaces the first sentence of **Not covered** above. A guest's name from its home's
+manifest stays out of scope.
 
 ## F68 — Only the installed product acts on the declared operator's Folder
 

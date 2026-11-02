@@ -515,6 +515,18 @@ const en = {
   appsSayNoApp: "The module {name} has no app yet.",
   appsSayCannotStart: "The app of the module {name} cannot start right now.",
   appsSayRepository: "The repository {name} has no app.",
+  appsGuestState: "State",
+  appsGuestCloned: "Cloned here; agents in {this} read it as context.",
+  appsGuestRevoked:
+    "GitHub no longer lets {this} read it. The checkout stays but is not kept up to date; ask an Admin of {home} for access.",
+  appsGuestAbsent:
+    "Not here yet. Once {this} can read it on GitHub, Lazurio clones it at the next synchronization; ask an Admin of {home} for access.",
+  appsGuestHome: "Home Organization",
+  appsGuestApp: "Not started here. Open its app in its home Organization.",
+  appsGuestBadge: "guest",
+  appsGuestHint:
+    "A Module of another Organization, read here only. Changes belong to its home Organization, and GitHub decides who can read it.",
+  appsInfoGuest: "Open on GitHub",
   appsMore: "More options for {name}",
   appsFavorites: "Favourites",
   appsFavoritesLoading: "Loading favourites…",
@@ -2618,6 +2630,19 @@ const cs: Record<MessageKey, string> = {
   appsSayNoApp: "Modul {name} zatím nemá aplikaci.",
   appsSayCannotStart: "Aplikace modulu {name} teď nejde spustit.",
   appsSayRepository: "Repozitář {name} nemá aplikaci.",
+  appsGuestState: "Stav",
+  appsGuestCloned: "Naklonováno; agenti v {tomto} ho čtou jako kontext.",
+  appsGuestRevoked:
+    "GitHub už {tomuto} čtení nedovoluje. Checkout zůstává, ale neaktualizuje se; o přístup požádejte Admina Organizace {home}.",
+  appsGuestAbsent:
+    "Zatím tu není. Jakmile ho {toto} smí na GitHubu číst, Lazurio ho naklonuje při další synchronizaci; o přístup požádejte Admina Organizace {home}.",
+  appsGuestHome: "Domovská Organizace",
+  appsGuestApp:
+    "Tady se nespouští. Aplikaci otevřete v jeho domovské Organizaci.",
+  appsGuestBadge: "hostující",
+  appsGuestHint:
+    "Modul jiné Organizace, tady jen ke čtení. Změny patří do jeho domovské Organizace a přístup k němu určuje GitHub.",
+  appsInfoGuest: "Otevřít na GitHubu",
   appsMore: "Další volby pro {name}",
   appsFavorites: "Oblíbené",
   appsFavoritesLoading: "Načítání oblíbených…",

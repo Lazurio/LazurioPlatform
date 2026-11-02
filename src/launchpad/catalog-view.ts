@@ -4,6 +4,7 @@ import type {
 } from "../modules/runtime-secrets";
 import type {
   Catalog,
+  CatalogGuestModule,
   CatalogModule,
   CatalogOrganization,
   CatalogRepository,
@@ -23,6 +24,7 @@ import {
 } from "../organizations/server-services";
 import type { MessageKey } from "./messages";
 import {
+  guestPath,
   modulePath,
   organizationPath,
   type PageRoute,
@@ -242,6 +244,39 @@ export function repositoryRoute(
     : repositoryPath(key, repository.slug);
 }
 
+/** A guest Module's overview (F67's addendum of 2026-11-01), or null for an
+ * Organization without a slug. */
+export function guestRoute(
+  catalog: Catalog,
+  organization: CatalogOrganization,
+  guest: CatalogGuestModule,
+): string | null {
+  const key = catalogOrganizationKey(catalog, organization);
+  return key === null
+    ? null
+    : guestPath(key, guest.homeOrganization, guest.module);
+}
+
+/** What a guest Module's overview says of it, in words. */
+export function guestFacts(
+  guest: CatalogGuestModule,
+  copy: Copy,
+): readonly CatalogFact[] {
+  return [
+    [
+      copy.appsGuestState,
+      guest.revoked === true
+        ? copy.appsGuestRevoked.replace("{home}", guest.homeOrganization)
+        : guest.checkedOut
+          ? copy.appsGuestCloned
+          : copy.appsGuestAbsent.replace("{home}", guest.homeOrganization),
+    ],
+    [copy.appsGuestHome, guest.homeOrganization],
+    [copy.catalogDirectory, guest.path],
+    [copy.catalogApps, copy.appsGuestApp],
+  ];
+}
+
 /** The services of a repository that have a page, in their order. */
 export const servicePages = (
   repository: CatalogRepository,
@@ -306,6 +341,12 @@ export function catalogSelection(
       organization: CatalogOrganization;
       repository: CatalogRepository;
     }>
+  /** A guest Module's overview (F67's addendum of 2026-11-01). */
+  | Readonly<{
+      kind: "guest";
+      organization: CatalogOrganization;
+      guest: CatalogGuestModule;
+    }>
   | Readonly<{
       kind: "ambiguous";
       candidates: readonly CatalogOrganization[];
@@ -325,6 +366,18 @@ export function catalogSelection(
   const { organization } = selection;
   if (route.view === "organization")
     return { kind: "organization", organization };
+  if (route.view === "guest") {
+    // Any declared guest has its overview, also one not here (it says why);
+    // the home's login and the slot id as the catalog names them.
+    const guest = (organization.guests ?? []).find(
+      (entry) =>
+        entry.homeOrganization.toLowerCase() === route.home.toLowerCase() &&
+        entry.module === route.module,
+    );
+    return guest === undefined
+      ? { kind: "missing" }
+      : { kind: "guest", organization, guest };
+  }
   if (route.view === "repository") {
     // Only a repository with a service has a page, and only one entry of
     // that slug may be it.
@@ -389,6 +442,17 @@ export type CatalogSection =
       kind: "productionspace";
       title: string;
       repositories: readonly CatalogRepositoryEntry[];
+    }>
+  /** The guest Modules of one home Organization (decision F67's addendum of
+   * 2026-11-01): titled with the home Organization's GitHub login, after
+   * Productionspace, one section per home in declaration order, only those
+   * checked out here and readable. A guest this Environment's identity
+   * cannot read is never cloned, and one whose access was lost (`revoked`,
+   * from the last synchronization) is hidden though its checkout stays. */
+  | Readonly<{
+      kind: "guest";
+      title: string;
+      guests: readonly CatalogGuestModule[];
     }>;
 export type CatalogSectionKind = CatalogSection["kind"];
 
@@ -472,6 +536,12 @@ export function catalogGroupEntry(
       ? copy.catalogCheckedOut
       : copy.catalogNotCheckedOut,
   }));
+  const homes = new Map<string, CatalogGuestModule[]>();
+  for (const guest of organization.guests ?? []) {
+    if (!guest.checkedOut || guest.revoked === true) continue;
+    const key = guest.homeOrganization.toLowerCase();
+    homes.set(key, [...(homes.get(key) ?? []), guest]);
+  }
   const sections =
     organization === catalog.personalspace
       ? null
@@ -495,6 +565,11 @@ export function catalogGroupEntry(
                   repositories,
                 },
               ]),
+          ...[...homes.values()].map((guests) => ({
+            kind: "guest" as const,
+            title: guests[0]?.homeOrganization ?? "",
+            guests,
+          })),
         ];
   return {
     organization,
@@ -673,6 +748,25 @@ function isRepository(value: unknown): value is CatalogRepository {
         entry.services.every(isCatalogService)))
   );
 }
+// A guest Module as the catalog lists it (decision F67 point 5).
+function isGuest(value: unknown): value is CatalogGuestModule {
+  if (!value || typeof value !== "object") return false;
+  const entry = value as Record<string, unknown>;
+  return (
+    text(entry.organization) &&
+    text(entry.module) &&
+    text(entry.path) &&
+    text(entry.homeOrganization) &&
+    /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(
+      entry.homeOrganization,
+    ) &&
+    entry.guest === true &&
+    typeof entry.checkedOut === "boolean" &&
+    (entry.revoked === undefined || entry.revoked === true) &&
+    (entry.url === null ||
+      (text(entry.url) && entry.url.startsWith("https://github.com/")))
+  );
+}
 function isOrganization(value: unknown): value is CatalogOrganization {
   if (!value || typeof value !== "object") return false;
   const entry = value as Record<string, unknown>;
@@ -702,6 +796,8 @@ function isOrganization(value: unknown): value is CatalogOrganization {
     entry.modules.every(isModule) &&
     Array.isArray(entry.repositories) &&
     entry.repositories.every(isRepository) &&
+    (entry.guests === undefined ||
+      (Array.isArray(entry.guests) && entry.guests.every(isGuest))) &&
     (entry.workspaceTabs === undefined ||
       (Array.isArray(entry.workspaceTabs) &&
         entry.workspaceTabs.length <= 12 &&
@@ -755,4 +851,45 @@ export function parseCatalog(input: unknown): Catalog | null {
       isServicesGroup(value.serverServices))
     ? (value as Catalog)
     : null;
+}
+
+/** The catalog with each guest whose remote GitHub refused at its last
+ * read marked `revoked` (decision F67's addendum of 2026-11-01): a guest
+ * stays checked out after its access is lost, and Apps must not show it.
+ * The refusal stands through runs that never read the remote (a blocked
+ * root, a checkout blocked by its own state, GitHub not answering) until a
+ * synchronization reads it again. Reads nothing itself. */
+export function withGuestAccess(
+  catalog: Catalog,
+  record:
+    | readonly Readonly<{
+        organization: string;
+        root: string;
+        path: string;
+        result: string;
+        unreadable?: true;
+      }>[]
+    | null,
+): Catalog {
+  if (record === null) return catalog;
+  // GitHub's last answer was a refusal: `denied`, or a later answer that
+  // never read the remote (`unreadable`); a run that reads it clears both.
+  const denied = new Set(
+    record
+      .filter((entry) => entry.result === "denied" || entry.unreadable === true)
+      .map((entry) => `${entry.root}\0${entry.path}`),
+  );
+  if (denied.size === 0) return catalog;
+  const mark = (organization: CatalogOrganization): CatalogOrganization =>
+    organization.guests === undefined
+      ? organization
+      : {
+          ...organization,
+          guests: organization.guests.map((guest) =>
+            denied.has(`organizations/${organization.directory}\0${guest.path}`)
+              ? { ...guest, revoked: true as const }
+              : guest,
+          ),
+        };
+  return { ...catalog, organizations: catalog.organizations.map(mark) };
 }

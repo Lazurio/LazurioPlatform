@@ -1,13 +1,29 @@
 import { afterEach, expect, test } from "bun:test";
-import { lstat, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import {
+  lstat,
+  mkdtemp,
+  readFile,
+  realpath,
+  rename,
+  rm,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { declaredChildren, installContent } from "../src/content/install";
 import { dataMountOf } from "../src/content/provide";
-import { type SyncEntry, syncContent } from "../src/content/sync";
+import {
+  readSyncRecord,
+  type SyncEntry,
+  syncContent,
+} from "../src/content/sync";
 import { catalogChecks } from "../src/doctor/doctor";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
+import {
+  catalogGroupEntry,
+  withGuestAccess,
+} from "../src/launchpad/catalog-view";
+import { messages } from "../src/launchpad/messages";
 import { inspectCanonicalInventory } from "../src/organizations/canonical-inventory";
 import { readFolderCatalog } from "../src/organizations/catalog";
 import { runCatalogCommand } from "../src/organizations/cli";
@@ -1039,4 +1055,78 @@ posixTest(
       ),
     ).toMatchObject({ kind: "data", branch: "v3", to: data });
   },
+);
+
+posixTest(
+  "Apps hides a guest from GitHub's refusal until a synchronization reads its remote again, through a stopped root and a blocked checkout",
+  async () => {
+    world = await createWorld();
+    const current = world;
+    await remoteRepository(current, "HostOrg/HostOrg_GEN3", async (d) => {
+      await writeOrganizationRoot(d, {
+        slug: "hostorg",
+        forge: "HostOrg",
+        slots: [guestKnowledgebase],
+        root: "HostOrg/HostOrg_GEN3",
+      });
+      await writeFile(join(d, ".gitignore"), "workspace/\n");
+    });
+    const bare = await remoteRepository(current, "HomeOrg/knowledgebase", (d) =>
+      writeModule(d, "homeorg", { id: "knowledgebase", apps: false }),
+    );
+    const folder = await presetFolder(current, "local");
+    const { github } = stubGitHub(current, {
+      repositories: {
+        "HostOrg/HostOrg_GEN3": {},
+        "HomeOrg/knowledgebase": {},
+      },
+    });
+    const host = contentHost(current, github);
+    const installed = await installContent(
+      folder,
+      {
+        items: [{ kind: "organization", login: "HostOrg" }],
+        roots: { HostOrg: "HostOrg/HostOrg_GEN3" },
+      },
+      () => {},
+      host,
+    );
+    if (installed.kind !== "content-install") throw new Error(installed.kind);
+    const root = join(folder, "organizations", "HostOrg_GEN3");
+    const guestDirectory = join(root, "workspace/HomeOrg_GEN3/knowledgebase");
+    const copy = messages("cs");
+    // What Apps shows after each run, from the real catalog and record.
+    const shown = async () => {
+      await syncContent(folder, host, {});
+      const catalog = withGuestAccess(
+        await readFolderCatalog(folder),
+        await readSyncRecord(host.lockDirectory, folder),
+      );
+      const organization = catalog.organizations[0];
+      if (organization === undefined) throw new Error("no Organization");
+      expect(organization.guests?.[0]?.checkedOut).toBe(true);
+      return (
+        catalogGroupEntry(catalog, organization, copy).sections?.some(
+          (section) => section.kind === "guest",
+        ) ?? false
+      );
+    };
+    expect(await shown()).toBe(true);
+    // GitHub refuses the identity: hidden, the checkout stays.
+    const aside = `${bare}.aside`;
+    await rename(bare, aside);
+    expect(await shown()).toBe(false);
+    // A dirty root stops the Organization; the guest is not answered.
+    await writeFile(join(root, "notes.txt"), "local\n");
+    expect(await shown()).toBe(false);
+    await rm(join(root, "notes.txt"));
+    // The guest's own changes block it before its remote is asked.
+    await writeFile(join(guestDirectory, "notes.txt"), "local\n");
+    expect(await shown()).toBe(false);
+    await rm(join(guestDirectory, "notes.txt"));
+    // Access back and read: shown again.
+    await rename(aside, bare);
+    expect(await shown()).toBe(true);
+  },
+  90_000,
 );
