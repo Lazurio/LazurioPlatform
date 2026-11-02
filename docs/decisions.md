@@ -19597,6 +19597,11 @@ app it now does, in the background and bounded. Its conformance check should war
 an app with `build_script` and without `build_output` (or, later, `start_script`), as
 root decision 0195 point 19 asks; that check lives in the root repository.
 
+*Addendum of 2026-11-01: the Module Standard is this repository's
+[module-standard.md](module-standard.md), whose text says that the Platform builds the
+built version; the paragraph above stays as the record of 2026-10-20. See
+[addendum (3) of 2026-11-01](#f58-addendum-3-of-2026-11-01-the-module-standard-lives-in-this-repository).*
+
 | Alternative | Assessment |
 | --- | --- |
 | Keep the development server | Today: 290–373 MiB and 5–10 s to healthy per app; rejected by the decision |
@@ -19832,6 +19837,10 @@ does not know it yet: a Module can declare it only after a Platform release that
 key runs on every Environment (a released Platform refuses unknown runtime keys), and the
 root conformance (`RUNTIME_KEYS`, `validateBuiltVersion`) changes in the same window.
 
+*Addendum of 2026-11-01: [module-standard.md](module-standard.md#app-with-its-own-server-start_script)
+describes `start_script`; see
+[addendum (3) of 2026-11-01](#f58-addendum-3-of-2026-11-01-the-module-standard-lives-in-this-repository).*
+
 | Alternative | Assessment |
 | --- | --- |
 | No restart after a pull; the new key at the next start (variant A′ of the shaping) | No gap, but an older commit while in use; deviates from root decision 0195 point 19; not chosen |
@@ -19883,6 +19892,35 @@ and kept the process; a module pull restarted it with the gap above. The templat
 declaration then is `start_script: "dev"` (its `dev` already is its one Bun server),
 `build_script: "prepare:app"` (the Vite build only), `build_output: "dist"`, and its server
 reads `LAZURIO_RUNTIME_BUILD_OUTPUT ?? ./dist`.
+
+### F58 addendum (3) of 2026-11-01: the Module Standard lives in this repository
+
+**Decided by Matěj (Organization Admin) on 2026-11-01 in decision 0225, which gives the
+shared contracts, the Module Standard among them, to this repository.** Since then the
+Lazurio Module Standard (decision 0171) has its full text in this repository,
+[module-standard.md](module-standard.md), written anew and its authority; the Lazurio
+Root (GEN3) converges on it (decision 0219). What this decision named a required upstream
+amendment of the Root's standard is settled there. No behavior changes.
+
+1. **The Platform builds.** The standard says that the Platform builds the built version of
+   an App with `build_output` or `start_script`, in the background, one build at a time and
+   bounded, and that this is the only build it runs for an App
+   ([the built version from `main`](module-standard.md#the-built-version-from-main),
+   [what the Platform does not do](module-standard.md#what-the-platform-does-not-do)). The
+   Root's text carried the same exception at commit `66e437f7`.
+2. **`start_script`** (addendum (2) above) is part of the standard
+   ([an App with its own server](module-standard.md#app-with-its-own-server-start_script)).
+   The Root's `lazurio module setup` reads it at `66e437f7` (`MS-03`, `MS-05`).
+3. **An App without a built version.** The standard requires every App to declare
+   `build_output` or `start_script` (decision 0212). An App with neither still runs its
+   development script from `main`, and `lazurio module build` answers `not-static`. No check
+   warns about it: this repository has no conformance command yet (#423), and the Root's
+   `lazurio module setup` has no such check at `66e437f7`. The warning that the paragraph
+   *Required upstream amendment* asked for belongs to this repository's conformance
+   command.
+
+The paragraph *Required upstream amendment* and the sentence on the root Module Standard in
+addendum (2) stay as the record of 2026-10-20 and 2026-10-21.
 
 ## F59 — Computer Use on a Remote Environment: the Cua Driver's daemon on the screen, one MCP server `computer` for every agent
 
