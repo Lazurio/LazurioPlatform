@@ -3260,8 +3260,9 @@ has 1,045 bytes left (with the skills of #790), and the budget test #755 asked f
 every pinned composition with an 8,192-byte voice under 32 KiB) still guards it.
 `base-instructions-103`.
 
-**Addendum 2026-11-02, proposed with #757 (its Medium and Low items): the remaining agent
-rules of the Lazurio Root, each in one place.** Every rule was checked against the
+**Addendum 2026-11-02, decided by Matěj (Organization Admin, plan LZD-0002 of the
+LazurioDevelopment Organization, #757 Medium and Low items): the remaining agent rules of
+the Lazurio Root, each in one place.** Every rule was checked against the
 rendered Folder of all five presets in both languages, and only what was missing is added,
 cited by the public register:
 
@@ -3277,13 +3278,17 @@ cited by the public register:
   `ARCHITECTURE.md`'s check of a new proposal, with Environment for Machine. Knowledge:
   when in doubt, copy nothing. The Module Standard: module data (0196) and the Python
   service the skill `new-module` offers (`python-uv`), also in the skill
-  `module-standard`. Integrations: no new ChatGPT or claude.ai connector (0162) and a
+  `module-standard`, which points to the full standard as well. Integrations: no new ChatGPT or claude.ai connector (0162) and a
   stuck procedure fixed at its source. Secrets: a secret only by its structure. The
+  Module Standard's summary points to its full text, `docs/module-standard.md`, and its
+  stop rule follows it: a clean exit 0 on `SIGTERM`, killed after 5 seconds on Linux
+  and 1 second on macOS, where the Folder said ten seconds. The
   delegator, not the Kolega, holds the QA gate of a subagent. The sections on the plan and
   the tests and on restructuring (0173) render on a personal Remote Environment too, where
   personal modules are built, without the Organization's Mission Control.
 - **`lazurio.md`.** Who decides access: an Organization may switch to public DNS (0213),
-  and the workshop names say so.
+  and the workshop names say so. The glossary's GEN3 row no longer names the Module
+  Standard as GEN3-only (0225).
 - **`AGENTS.md`.** The formal address line gains imperatives in the plural and no past
   tense that fixes a gender (0199): a custom voice replaces the default voice that said
   it. The tightest composition has 979 bytes left.

@@ -1065,8 +1065,8 @@ const glossary: readonly Text[] = [
     "| GEN4 | The current generation of Lazurio: Lazurio Platform with the Lazurio Folder and Environments. This Folder is GEN4; new rules and mechanisms come in GEN4. An official designation in texts; nothing is named so. |",
   ),
   t(
-    "| GEN3 | Předchozí generace: Lazurio Root, repozitář s CLI a Organizacemi na počítači uživatele. Zůstává udržovaná pro zákazníky, kteří na ní pracují. Sdílené normy se z ní postupně přesouvají do GEN4; dokud přesun není hotový, je část z nich, třeba plné znění Module Standardu, jen v GEN3. Repozitáře Organizací nesou v názvu `_GEN3` v obou generacích. |",
-    "| GEN3 | The previous generation: the Lazurio Root, a repository with the CLI and Organizations on the user's computer. It stays maintained for customers who work on it. Its shared norms move to GEN4 step by step; until that is done, some of them, the full Module Standard for one, exist only in GEN3. Organization repositories carry `_GEN3` in their names in both generations. |",
+    "| GEN3 | Předchozí generace: Lazurio Root, repozitář s CLI a Organizacemi na počítači uživatele. Zůstává udržovaná pro zákazníky, kteří na ní pracují. Sdílené normy se z ní postupně přesouvají do GEN4; Module Standard a kontrakt Organizace už platí v `Lazurio/LazurioPlatform` (decision 0225), a co se nepřesunulo, je zatím jen v GEN3. Repozitáře Organizací nesou v názvu `_GEN3` v obou generacích. |",
+    "| GEN3 | The previous generation: the Lazurio Root, a repository with the CLI and Organizations on the user's computer. It stays maintained for customers who work on it. Its shared norms move to GEN4 step by step; the Module Standard and the Organization contract already hold in `Lazurio/LazurioPlatform` (decision 0225), and what has not moved exists only in GEN3 for now. Organization repositories carry `_GEN3` in their names in both generations. |",
   ),
   t(
     "| Lazurio Environment (Environment) | Prostředí, ve kterém se s Lazuriem pracuje: zvolený preset a profil, Folder a všechny nástroje a přihlášení, které jsou na něm dostupné (decision 0144). Česky ten Environment, na tomto Environmentu. |",
@@ -1624,6 +1624,10 @@ function building(preset: PresetName): readonly Text[] {
       "## Modules and the Lazurio Module Standard (decision 0171)",
     ),
     t(
+      "- Plné znění Lazurio Module Standardu je `docs/module-standard.md` v `Lazurio/LazurioPlatform` (decision 0225); tento oddíl je jeho souhrn a existující modul proti němu kontroluje skill `module-standard`.",
+      "- The full Lazurio Module Standard is `docs/module-standard.md` in `Lazurio/LazurioPlatform` (decision 0225); this section summarizes it, and the skill `module-standard` checks an existing module against it.",
+    ),
+    t(
       "- Workspace modul je samostatný repozitář v `workspace/<module>/` s vlastním `AGENTS.md`; aplikace na úrovni Organizace (Mission Control, design system) jsou také moduly. Jeden modul = jeden worktree = jeden PR.",
       "- A workspace module is a repository of its own at `workspace/<module>/` with its own `AGENTS.md`; Organization-level applications (Mission Control, the design system) are modules too. One module = one worktree = one PR.",
     ),
@@ -1645,8 +1649,8 @@ function building(preset: PresetName): readonly Text[] {
       "- `dev` starts exactly one long-running server. Build, data and migrations belong in the declared preparation (`lazurio.preparation`), not in npm lifecycle scripts.",
     ),
     t(
-      "- Host a port bere aplikace jen z `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` a `_PORT`: žádné `.env`, `PORT` ani pevně zapsaný port. Health odpovídá 200 přímo, na SIGTERM proces skončí do deseti sekund a loguje na stdout.",
-      "- The application takes its host and port only from `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` and `_PORT`: no `.env`, no `PORT`, no hard-coded port. Health answers 200 directly, the process exits within ten seconds of SIGTERM and logs to stdout.",
+      "- Host a port bere aplikace jen z `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` a `_PORT`: žádné `.env`, `PORT` ani pevně zapsaný port. Health odpovídá 200 přímo a aplikace loguje na stdout. Na SIGTERM skončí čistě s kódem 0; co ještě běží, Lazurio ukončí na Linuxu po 5 sekundách a na macOS po 1 sekundě.",
+      "- The application takes its host and port only from `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` and `_PORT`: no `.env`, no `PORT`, no hard-coded port. Health answers 200 directly, and the application logs to stdout. On SIGTERM it ends cleanly with exit code 0; Lazurio kills what still runs after 5 seconds on Linux and after 1 second on macOS.",
     ),
     t(
       "- Modul nic neimportuje mimo svůj repozitář; sdílený kód bere jako verzovanou závislost.",
