@@ -982,7 +982,7 @@ test("where the entry names Buddy's origin, agents open his chat for the user be
       "Když ho chce a běžíš v ChatGPT Desktopu, otevři mu přesnou adresu v integrovaném prohlížeči ChatGPT Desktopu v panelu vedle chatu; v jiném klientovi mu pošli odkaz.",
       "Přihlašuje se do něj uživatel sám.",
       "V prohlížeči Environmentu ho nikdy neotevírej, ani přes `preview_open`.",
-      "Chat otevíráš jen uživateli: nic do něj nepiš a nic v něm nedělej, s Buddym dál nekomunikuješ (root decision 0210).",
+      "Chat otevíráš jen uživateli: nic do něj nepiš a nic v něm nedělej, s Buddym dál nekomunikuješ (decision 0210).",
       "Chce-li uživatel Buddymu něco říct, otevři mu chat a napíše mu sám.",
     ],
     en: [
@@ -993,7 +993,7 @@ test("where the entry names Buddy's origin, agents open his chat for the user be
       "When they want it and you run in ChatGPT Desktop, open the exact address for them in ChatGPT Desktop's built-in browser in the panel beside the chat; in another client, send them the link.",
       "The user signs in to it themselves.",
       "Never open it in the Environment browser, not even with `preview_open`.",
-      "You open the chat only for the user: write nothing in it and do nothing in it, and you still do not communicate with Buddy (root decision 0210).",
+      "You open the chat only for the user: write nothing in it and do nothing in it, and you still do not communicate with Buddy (decision 0210).",
       "When the user wants to tell Buddy something, open the chat for them and they write to him themselves.",
     ],
   } as const;
@@ -1146,13 +1146,26 @@ test("an update the Operator asks for updates the tools and pulls every module; 
       });
       const cs = locale === "cs";
       const agents = outputs["AGENTS.md"];
+      const troubleshooting = outputs["manual/troubleshooting.md"];
+      // AGENTS.md keeps the rule: the request is the consent, and the steps
+      // are in the manual (#758).
       expect(agents).toContain(
+        cs
+          ? "jeho žádost o aktualizaci (třeba „Aktualizuj“) je souhlas pro Lazurio"
+          : "their request to update (for example „Aktualizuj“) is that consent for Lazurio",
+      );
+      expect(agents).toContain(
+        cs
+          ? "Postup a co pak uživateli říct je v `manual/troubleshooting.md`"
+          : "The procedure and what to tell the user afterwards are in `manual/troubleshooting.md`",
+      );
+      expect(troubleshooting).toContain(
         cs
           ? "Když tě uživatel požádá o aktualizaci (třeba „Aktualizuj“), je to souhlas: spusť `lazurio update`"
           : "When the user asks for an update (for example „Aktualizuj“), that is the consent: run `lazurio update`",
       );
       expect(
-        agents.includes(
+        troubleshooting.includes(
           cs
             ? "a hlavně stáhni změny všech Organizací a modulů"
             : "and above all pull the changes of every Organization and module",
@@ -1161,8 +1174,8 @@ test("an update the Operator asks for updates the tools and pulls every module; 
       expect(
         agents.includes(
           cs
-            ? "Lazurio (Launchpad) se jim na chvíli restartuje"
-            : "Lazurio (the Launchpad) restarts for them for a moment",
+            ? "všem jeho uživatelům na chvíli restartuje Lazurio (Launchpad)"
+            : "an update restarts Lazurio (the Launchpad) for all its users for a moment",
         ),
       ).toBe(journey.preset === "hosted-organization-team");
       for (const text of Object.values(outputs))
@@ -1373,8 +1386,8 @@ test("missing rights are escalated on every preset; only the Team hands every pu
       expect(
         outputs["AGENTS.md"].includes(
           locale === "cs"
-            ? "Na týmovém Environmentu dopadne aktualizace na všechny jeho uživatele"
-            : "On a Team Environment an update affects all its users",
+            ? "Na týmovém Environmentu se aktualizací všem jeho uživatelům na chvíli restartuje Lazurio (Launchpad)"
+            : "On a Team Environment an update restarts Lazurio (the Launchpad) for all its users for a moment",
         ),
       ).toBe(journey.preset === "hosted-organization-team");
     }
@@ -1423,35 +1436,48 @@ test("agents ask people through the harness's question tool, and the handoff's c
           ? "- Začni výsledkem a vysvětluj stručně."
           : "- Lead with the outcome and explain concisely.",
       ]);
+      // AGENTS.md keeps the rule in its short form (#758); the request that
+      // the user does something, its details and the fallback without a tool
+      // are in the manual's safe habits.
       for (const part of cs
         ? [
-            "zeptej se nástrojem svého harnessu na otázky (Claude Code `AskUserQuestion`, Codex `request_user_input`, Hermes `clarify`), ne jen textem ve zprávě",
-            // Root decision 0211, addendum of 2026-10-24: a request that the
-            // user does something is a question too.
-            "Stejně polož i žádost, aby uživatel něco udělal (zadal ověřovací kód, přihlásil se, něco potvrdil nebo zkontroloval)",
-            "s odkazem, kódem a do kdy platí",
-            "Nabídni 2–4 volby, doporučenou první s označením „(Doporučeno)“, a kontext napiš do zprávy nad otázku.",
-            "Nejdřív udělej všechno, co na odpovědi nezávisí",
-            "Volba Publikace, kterou uživatel v nástroji udělá, je jeho výslovný pokyn k Publikaci v aktuálním threadu, stejně jako „Publikuj“.",
-            "Nemá-li harness nástroj na otázky nebo ho v aktuálním režimu nenabízí, zeptej se textem s očíslovanými volbami a napiš, že čekáš na odpověď",
-            "Běžíš-li jako subagent, bot Lazurio MausBotu nebo automatický reviewer, uživatele v relaci nemáš: nástroj nepoužij a otázku předej ve svém výstupu tomu, kdo ti práci zadal",
+            "si vyžádej nástrojem svého harnessu na otázky (Claude Code `AskUserQuestion`, Codex `request_user_input`, Hermes `clarify`), nikdy jen textem ve zprávě",
+            "(ověřovací kód, přihlášení, potvrzení)",
+            "2–4 volby, doporučenou první s označením „(Doporučeno)“, kontext ve zprávě nad otázkou.",
+            "Nejdřív udělej, co na odpovědi nezávisí",
+            "Volba Publikace v nástroji je výslovný pokyn k Publikaci v aktuálním threadu, stejně jako „Publikuj“.",
+            "Bez nástroje na otázky se zeptej textem s očíslovanými volbami a napiš, co do té doby stojí.",
+            "Jako subagent, bot Lazurio MausBotu nebo automatický reviewer uživatele v relaci nemáš: nástroj nepoužij a otázku předej ve svém výstupu tomu, kdo ti práci zadal",
+            "Otázky v `manual/working-here.md`",
           ]
         : [
-            "ask through your harness's question tool (Claude Code `AskUserQuestion`, Codex `request_user_input`, Hermes `clarify`), not only in the text of a message",
-            "Ask the same way when you need the user to do something (enter a verification code, sign in, confirm or check something)",
-            "with the link, the code and until when it is valid",
-            "Offer 2–4 options, the recommended one first marked “(Recommended)”, and write the context in the message above the question.",
-            "First do everything that does not depend on the answer",
-            "A choice of Publication the user makes in the tool is their explicit instruction to Publish in the current thread, just like “Publish”.",
-            "When the harness has no question tool or does not offer it in the current mode, ask in text with numbered options and say that you are waiting for the answer",
-            "When you run as a subagent, a Lazurio MausBot bot or an automated reviewer, there is no user in your session: do not use the tool, and pass the question in your output to whoever gave you the work",
+            "through your harness's question tool (Claude Code `AskUserQuestion`, Codex `request_user_input`, Hermes `clarify`), never only in a message",
+            "(a verification code, a sign-in, a confirmation)",
+            "2–4 options, the recommended one first marked “(Recommended)”, the context in the message above.",
+            "First do what does not depend on the answer",
+            "A Publication choice made in the tool is an explicit instruction to Publish in the current thread, just like “Publish”.",
+            "Without a question tool, ask in text with numbered options and say what is on hold.",
+            "As a subagent, a Lazurio MausBot bot or an automated reviewer there is no user in your session: do not use the tool, and pass the question in your output to whoever gave you the work",
+            "Questions in `manual/working-here.md`",
           ])
         expect(rule).toContain(part);
+      for (const part of cs
+        ? [
+            "Stejně polož i žádost, aby uživatel něco udělal (zadal ověřovací kód, přihlásil se, něco potvrdil nebo zkontroloval)",
+            "s odkazem, kódem a do kdy platí, a volbami se nech říct, jak to dopadlo („Hotovo“, „Nejde to“)",
+            "Nemá-li harness nástroj na otázky nebo ho v aktuálním režimu nenabízí, zeptej se textem s očíslovanými volbami a napiš, že čekáš na odpověď",
+          ]
+        : [
+            "Ask the same way when you need the user to do something (enter a verification code, sign in, confirm or check something)",
+            "with the link, the code and until when it is valid, and let the options say how it went (“Done”, “It does not work”)",
+            "When the harness has no question tool or does not offer it in the current mode, ask in text with numbered options and say that you are waiting for the answer",
+          ])
+        expect(outputs["manual/working-here.md"]).toContain(part);
       // The notification detail is in the manual's safe habits; it left
       // AGENTS.md for its budget (base-instructions-98).
       const popup = cs
-        ? "v T3 Code i v Codex Desktopu otázka vyskočí jako upozornění, text ve zprávě ne"
-        : "in T3 Code and in Codex Desktop a question pops up as a notification, text in a message does not";
+        ? "v T3 Code i v Codex Desktopu otázka vyskočí jako upozornění, kdežto otázka v textu zprávy zapadne"
+        : "in T3 Code and in Codex Desktop a question pops up as a notification, while a question in the text of a message gets missed";
       expect([
         ...where,
         outputs["AGENTS.md"].includes(
@@ -2278,8 +2304,8 @@ test("threads do not coordinate, the Environment's network is never switched, an
         agents.includes(`${before}\n${threadsRule[locale]}\n`),
         working.includes(
           locale === "cs"
-            ? "## Vlákna se mezi sebou nekoordinují (root rozhodnutí 0218, dodatky 2026-10-31)"
-            : "## Threads do not coordinate with each other (root decision 0218, addenda 2026-10-31)",
+            ? "## Vlákna se mezi sebou nekoordinují (rozhodnutí 0218, dodatky 2026-10-31)"
+            : "## Threads do not coordinate with each other (decision 0218, addenda 2026-10-31)",
         ),
         working.includes(
           locale === "cs"
@@ -2418,14 +2444,14 @@ test("every pull request has an assignee and a browser check before Ready, an as
       ]);
       const publicRepository = cs
         ? "ve veřejném repozitáři (`Lazurio/*`) nejmenuj zákaznickou Organizaci, její moduly ani Prostředí"
-        : "a public repository (`Lazurio/*`) never names a customer Organization, its modules or Environments";
+        : "in a public repository (`Lazurio/*`) never name a customer Organization, its modules or Environments";
       const manual = cs
         ? [
             "Změnu, se kterou se lidé potkají (stránka, přihlášení, nasazená aplikace), před Ready sám otevři v prohlížeči",
             "vlastní účet nezakládej, jinak požádej uživatele o jedno přihlášení",
-            "patří do handoffu pod „Ověřeno“ (root decision 0178)",
+            "patří do handoffu pod „Ověřeno“ (decision 0178)",
             "Každý pull request má assignee, který ho dotáhne do `main`",
-            "Pull request bez assignee je nedotažený a nemerguje se; žádost o review je jen kontrola (root decision 0222).",
+            "Pull request bez assignee je nedotažený a nemerguje se; žádost o review je jen kontrola (decision 0222).",
             "jeho `commit.oid` se rovná SHA headu a review přišlo až po tomto commitu.",
             "- **Veřejné repozitáře.** Repozitáře produktu (`Lazurio/*`) jsou veřejné",
             "- **Žádný terminál.** Nikdy uživatele nežádej, aby otevřel terminál nebo do něj kopíroval příkazy",
@@ -2440,9 +2466,9 @@ test("every pull request has an assignee and a browser check before Ready, an as
         : [
             "Before Ready, open a change people will meet (a page, a sign-in, a deployed application) in a browser yourself",
             "never create one of your own, otherwise ask the user for one sign-in",
-            "goes under “Verified” in the handoff (root decision 0178)",
+            "goes under “Verified” in the handoff (decision 0178)",
             "Every pull request has an assignee who takes it to `main`",
-            "A pull request without an assignee is unfinished and is not merged; a review request is only a check (root decision 0222).",
+            "A pull request without an assignee is unfinished and is not merged; a review request is only a check (decision 0222).",
             "its `commit.oid` equals the head SHA and it was submitted after that commit.",
             "- **Public repositories.** The product's repositories (`Lazurio/*`) are public",
             "- **No terminal.** Never ask the user to open a terminal or paste commands into one",

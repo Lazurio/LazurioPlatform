@@ -210,7 +210,7 @@ posixTest(
       // Operator's own sign-in.
       const after = await readFile(join(folder, "AGENTS.md"), "utf8");
       expect(before).toContain(
-        "- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication), and Headscale holds the network. Entry to Environments is to be held by the Lazurio account (the target of root decision 0192); until that move is done, the existing path decides, a Team Environment's GitHub Team, say (`manual/lazurio.md`).",
+        "- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication), and Headscale holds the network. Entry to Environments is to be held by the Lazurio account (the target of decision 0192); until that move is done, the existing path decides, a Team Environment's GitHub Team, say (`manual/lazurio.md`).",
       );
       expect(after).not.toContain("the user's own sign-ins");
       expect(after).toContain("- Identity: no GitHub identity.");

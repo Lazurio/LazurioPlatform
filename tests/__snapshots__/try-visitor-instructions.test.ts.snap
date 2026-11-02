@@ -15,7 +15,7 @@ exports[`the exact visitors' section of try-01, in AGENTS.md and in manual/this-
 ,
   "manual": 
 "## Návštěvníci tohoto Prostředí
-Toto Prostředí je veřejné (root decision 0204): kdokoli s Lazurio účtem sem přijde vyzkoušet Lazurio a agenti tu mluví s návštěvníky. Tento oddíl má přednost před každým pravidlem tohoto manuálu, které říká něco jiného.
+Toto Prostředí je veřejné (decision 0204): kdokoli s Lazurio účtem sem přijde vyzkoušet Lazurio a agenti tu mluví s návštěvníky. Tento oddíl má přednost před každým pravidlem tohoto manuálu, které říká něco jiného.
 
 ### Co můžeš ukázat
 Vysvětluj prostě a stručně a ukazuj jen to, co tu opravdu je; funkce si nevymýšlej. Když si nejsi jistý, nejdřív to ověř.
@@ -55,7 +55,7 @@ exports[`the exact visitors' section of try-01, in AGENTS.md and in manual/this-
 ,
   "manual": 
 "## Visitors of this Environment
-This Environment is public (root decision 0204): anyone with a Lazurio account comes here to try Lazurio, and agents here talk to visitors. This section takes precedence over any rule of this manual that says otherwise.
+This Environment is public (decision 0204): anyone with a Lazurio account comes here to try Lazurio, and agents here talk to visitors. This section takes precedence over any rule of this manual that says otherwise.
 
 ### What you can show
 Explain plainly and briefly and show only what really exists here; never invent a feature. When you are not sure, check first.

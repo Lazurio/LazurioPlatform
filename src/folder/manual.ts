@@ -130,8 +130,8 @@ const lazurio: readonly Text[] = [
   // entry, Headscale for the network. True before the move to the account's
   // grants is complete and after it.
   t(
-    "- **Každý přístup má svou autoritu.** O zdrojovém kódu rozhoduje GitHub: kdo smí do repozitáře zapisovat, schvalovat review a Publikovat, určují živá práva na GitHubu (granty na repozitáře, Teamy a branch rules). Vstup do Environmentů a jejich aplikací drží Lazurio účet, členství v Organizaci a konkrétní grant, a síť Headscale, do které zařízení pustí až jeho schválení (root decision 0192); kde přechod na tyto granty ještě není hotový, rozhoduje o vstupu dosavadní cesta, třeba GitHub Team týmového Environmentu. Žádné druhé, vymyšlené ACL neexistuje a samotný název role nic neautorizuje; rozhoduje živá odpověď té autority. Pravidla rostou s Organizací: mladý modul může mít `main` vědomě otevřenou i Builderovi, zamčenou `main` merguje ten, komu to branch rules dovolí, typicky Steward nebo Admin (decisions 0102/0103).",
-    "- **Every access has its own authority.** GitHub decides on source code: live GitHub rights (repository grants, Teams and branch rules) decide who may write to a repository, approve a review and Publish. Entry to Environments and their applications is held by the Lazurio account, membership in the Organization and the exact grant, and the network by Headscale, which lets a device in only once it is approved (root decision 0192); where the move to these grants is not done yet, the existing path decides entry, a Team Environment's GitHub Team, say. There is no second, invented ACL, and the name of a role authorizes nothing; that authority's live answer does. Rules grow with the Organization: a young module may keep `main` open to a Builder, a locked `main` is merged by whoever the branch rules allow, typically a Steward or an Admin (decisions 0102/0103).",
+    "- **Každý přístup má svou autoritu.** O zdrojovém kódu rozhoduje GitHub: kdo smí do repozitáře zapisovat, schvalovat review a Publikovat, určují živá práva na GitHubu (granty na repozitáře, Teamy a branch rules). Vstup do Environmentů a jejich aplikací drží Lazurio účet, členství v Organizaci a konkrétní grant, a síť Headscale, do které zařízení pustí až jeho schválení (decision 0192); kde přechod na tyto granty ještě není hotový, rozhoduje o vstupu dosavadní cesta, třeba GitHub Team týmového Environmentu. Žádné druhé, vymyšlené ACL neexistuje a samotný název role nic neautorizuje; rozhoduje živá odpověď té autority. Pravidla rostou s Organizací: mladý modul může mít `main` vědomě otevřenou i Builderovi, zamčenou `main` merguje ten, komu to branch rules dovolí, typicky Steward nebo Admin (decisions 0102/0103).",
+    "- **Every access has its own authority.** GitHub decides on source code: live GitHub rights (repository grants, Teams and branch rules) decide who may write to a repository, approve a review and Publish. Entry to Environments and their applications is held by the Lazurio account, membership in the Organization and the exact grant, and the network by Headscale, which lets a device in only once it is approved (decision 0192); where the move to these grants is not done yet, the existing path decides entry, a Team Environment's GitHub Team, say. There is no second, invented ACL, and the name of a role authorizes nothing; that authority's live answer does. Rules grow with the Organization: a young module may keep `main` open to a Builder, a locked `main` is merged by whoever the branch rules allow, typically a Steward or an Admin (decisions 0102/0103).",
   ),
   t(
     "- **Environment je hranice, ne druh hardwaru.** Technicky běží na **Machine**: fyzické zařízení, virtuální server nebo providerem izolovaný hostovaný pracovní prostor, který tvoří jednu sdílenou runtime, bezpečnostní a recovery hranici se známým Ownerem. Proces, modul, worktree, unixový účet ani kontejner takovou hranicí samy nejsou. Hostovaný Team workspace je Remote Environment Teamu na tenantní vrstvě; host, na kterém běží, zůstává vyšší doménou kompromitace a obnovy. Vždy pojmenuj konkrétní Environment, jeho Ownera a případnou vyšší hranici providera nebo provozovatele. Uživatelům říkej Environment, hostovanému Remote Environment; **Machine** zůstává pojmem architektury, identifikátorů a příkazů.",
@@ -156,8 +156,8 @@ const lazurio: readonly Text[] = [
   blank,
   t("## Kdo rozhoduje o přístupu", "## Who decides access"),
   t(
-    "Přístup k repozitářům, review a Publikaci kódu určuje GitHub. Kdo vstoupí do Environmentu a do jeho aplikací, drží Lazurio účet: členství v Organizaci a grant k Environmentu nebo aplikaci (root decision 0192); dokud přechod na tyto granty není hotový, může o vstupu rozhodovat i dosavadní cesta, třeba GitHub Team týmového Environmentu. Síťový dosah určuje Headscale (Tailscale) nebo jiná schválená přístupová vrstva. Vlastnictví infrastruktury a cestu obnovy drží provider, na kterém Environment běží. Environment ani agent si z toho nic nekopírují do vlastního ACL a nevedou žádný registr Environmentů; lokální checkout nikdy nedokazuje přístup.",
-    "GitHub decides repository access, review and the Publication of code. Who enters an Environment and its applications is held by the Lazurio account: membership in the Organization and the grant to the Environment or application (root decision 0192); until the move to these grants is done, the existing path may still decide entry, a Team Environment's GitHub Team, say. Headscale (Tailscale) or another approved access layer decides network reach. The provider the Environment runs on holds infrastructure ownership and the recovery path. Neither the Environment nor an agent copies any of this into an ACL of its own or keeps a registry of Environments; a local checkout never proves access.",
+    "Přístup k repozitářům, review a Publikaci kódu určuje GitHub. Kdo vstoupí do Environmentu a do jeho aplikací, drží Lazurio účet: členství v Organizaci a grant k Environmentu nebo aplikaci (decision 0192); dokud přechod na tyto granty není hotový, může o vstupu rozhodovat i dosavadní cesta, třeba GitHub Team týmového Environmentu. Síťový dosah určuje Headscale (Tailscale) nebo jiná schválená přístupová vrstva. Vlastnictví infrastruktury a cestu obnovy drží provider, na kterém Environment běží. Environment ani agent si z toho nic nekopírují do vlastního ACL a nevedou žádný registr Environmentů; lokální checkout nikdy nedokazuje přístup.",
+    "GitHub decides repository access, review and the Publication of code. Who enters an Environment and its applications is held by the Lazurio account: membership in the Organization and the grant to the Environment or application (decision 0192); until the move to these grants is done, the existing path may still decide entry, a Team Environment's GitHub Team, say. Headscale (Tailscale) or another approved access layer decides network reach. The provider the Environment runs on holds infrastructure ownership and the recovery path. Neither the Environment nor an agent copies any of this into an ACL of its own or keeps a registry of Environments; a local checkout never proves access.",
   ),
   blank,
   t(
@@ -536,8 +536,8 @@ const safeHabits: readonly Text[] = [
   // decision 0211, addendum of 2026-10-24; the sentence left AGENTS.md for
   // its budget), and the user is never asked to work in a terminal.
   t(
-    "- **Otázky.** Ptej se nástrojem svého harnessu na otázky: v T3 Code i v Codex Desktopu otázka vyskočí jako upozornění, text ve zprávě ne (decision 0211).",
-    "- **Questions.** Ask through your harness's question tool: in T3 Code and in Codex Desktop a question pops up as a notification, text in a message does not (decision 0211).",
+    "- **Otázky.** Ptej se nástrojem svého harnessu na otázky: v T3 Code i v Codex Desktopu otázka vyskočí jako upozornění, kdežto otázka v textu zprávy zapadne a vlákno stojí, i když vypadá, že pracuje (decision 0211). Stejně polož i žádost, aby uživatel něco udělal (zadal ověřovací kód, přihlásil se, něco potvrdil nebo zkontroloval): do otázky napiš, co přesně udělat, s odkazem, kódem a do kdy platí, a volbami se nech říct, jak to dopadlo („Hotovo“, „Nejde to“). Nemá-li harness nástroj na otázky nebo ho v aktuálním režimu nenabízí, zeptej se textem s očíslovanými volbami a napiš, že čekáš na odpověď a co do té doby stojí.",
+    "- **Questions.** Ask through your harness's question tool: in T3 Code and in Codex Desktop a question pops up as a notification, while a question in the text of a message gets missed and the thread stalls while it looks busy (decision 0211). Ask the same way when you need the user to do something (enter a verification code, sign in, confirm or check something): write in the question exactly what to do, with the link, the code and until when it is valid, and let the options say how it went (“Done”, “It does not work”). When the harness has no question tool or does not offer it in the current mode, ask in text with numbered options and say that you are waiting for the answer and what is on hold until then.",
   ),
   t(
     "- **Žádný terminál.** Nikdy uživatele nežádej, aby otevřel terminál nebo do něj kopíroval příkazy: co je potřeba, spusť sám, nebo mu řekni, kde to udělá v aplikaci (Launchpad, Nastavení).",
@@ -666,8 +666,8 @@ function workingHere(
     // one, else a normal pull request that says it is in progress.
     t("## Bez ptaní smíš", "## Without asking you may"),
     t(
-      "Zakládat worktrees, průběžně commitovat a pushovat do PR branche a otevírat pull requesty. Práce nikdy nezůstává jen lokálně. Životní cyklus pull requestu: od prvního pushe je rozpracovaná práce vidět jako GitHub Draft PR (`gh pr create --draft`), kde ho plán GitHubu pro repozitář dovoluje. Kde ne (například soukromý repozitář na GitHub Free, kde GitHub Draft PR odmítne), otevři běžný pull request a v jeho popisu napiš, že je rozpracovaný. Jakmile je práce hotová a ověřená, označíš ji sám jako připravenou ke kontrole: Draft PR přepneš na Ready for review (`gh pr ready`), u běžného pull requestu to napíšeš do jeho popisu. Změnu, se kterou se lidé potkají (stránka, přihlášení, nasazená aplikace), před Ready sám otevři v prohlížeči: stránka se vykreslí a hlavní cesta funguje. Přihlas se testovacím účtem, který určil uživatel nebo Organizace; vlastní účet nezakládej, jinak požádej uživatele o jedno přihlášení. Po nasazení totéž ověří ten, kdo publikuje, a výsledek, nebo že ověření chybí, patří do handoffu pod „Ověřeno“ (root decision 0178). Každý pull request má assignee, který ho dotáhne do `main`: uživatele, personu Organizace nebo jiného oprávněného Kolegu, kterého uživatel určí. Pull request bez assignee je nedotažený a nemerguje se; žádost o review je jen kontrola (root decision 0222). Ready není Publikace, říká jen „připraveno ke kontrole“. Hotová práce nikdy nezůstává označená jako rozpracovaná a vzdálená branch bez pull requestu není handoff.",
-      "Create worktrees, commit and push to the PR branch continuously, and open pull requests. Work never stays only local. The pull-request lifecycle: from the first push the work in progress is visible as a GitHub Draft PR (`gh pr create --draft`) where the repository's GitHub plan allows one. Where it does not (a private repository on GitHub Free, say, where GitHub refuses a Draft PR), open a normal pull request and say in its description that it is in progress. Once the work is finished and verified, you mark it ready for review yourself: a Draft PR you switch to Ready for review (`gh pr ready`), and for a normal pull request you say so in its description. Before Ready, open a change people will meet (a page, a sign-in, a deployed application) in a browser yourself: the page renders and its main path works. Sign in with a test account the user or the Organization named; never create one of your own, otherwise ask the user for one sign-in. After a deployment whoever publishes checks it the same way, and the result, or that the check is missing, goes under “Verified” in the handoff (root decision 0178). Every pull request has an assignee who takes it to `main`: the user, the Organization's persona or another eligible Kolega the user names. A pull request without an assignee is unfinished and is not merged; a review request is only a check (root decision 0222). Ready is not Publication; it only says “ready to be checked”. Finished work never stays marked as in progress, and a remote branch without a pull request is not a handoff.",
+      "Zakládat worktrees, průběžně commitovat a pushovat do PR branche a otevírat pull requesty. Práce nikdy nezůstává jen lokálně. Životní cyklus pull requestu: od prvního pushe je rozpracovaná práce vidět jako GitHub Draft PR (`gh pr create --draft`), kde ho plán GitHubu pro repozitář dovoluje. Kde ne (například soukromý repozitář na GitHub Free, kde GitHub Draft PR odmítne), otevři běžný pull request a v jeho popisu napiš, že je rozpracovaný. Jakmile je práce hotová a ověřená, označíš ji sám jako připravenou ke kontrole: Draft PR přepneš na Ready for review (`gh pr ready`), u běžného pull requestu to napíšeš do jeho popisu. Změnu, se kterou se lidé potkají (stránka, přihlášení, nasazená aplikace), před Ready sám otevři v prohlížeči: stránka se vykreslí a hlavní cesta funguje. Přihlas se testovacím účtem, který určil uživatel nebo Organizace; vlastní účet nezakládej, jinak požádej uživatele o jedno přihlášení. Po nasazení totéž ověří ten, kdo publikuje, a výsledek, nebo že ověření chybí, patří do handoffu pod „Ověřeno“ (decision 0178). Každý pull request má assignee, který ho dotáhne do `main`: uživatele, personu Organizace nebo jiného oprávněného Kolegu, kterého uživatel určí. Pull request bez assignee je nedotažený a nemerguje se; žádost o review je jen kontrola (decision 0222). Ready není Publikace, říká jen „připraveno ke kontrole“. Hotová práce nikdy nezůstává označená jako rozpracovaná a vzdálená branch bez pull requestu není handoff.",
+      "Create worktrees, commit and push to the PR branch continuously, and open pull requests. Work never stays only local. The pull-request lifecycle: from the first push the work in progress is visible as a GitHub Draft PR (`gh pr create --draft`) where the repository's GitHub plan allows one. Where it does not (a private repository on GitHub Free, say, where GitHub refuses a Draft PR), open a normal pull request and say in its description that it is in progress. Once the work is finished and verified, you mark it ready for review yourself: a Draft PR you switch to Ready for review (`gh pr ready`), and for a normal pull request you say so in its description. Before Ready, open a change people will meet (a page, a sign-in, a deployed application) in a browser yourself: the page renders and its main path works. Sign in with a test account the user or the Organization named; never create one of your own, otherwise ask the user for one sign-in. After a deployment whoever publishes checks it the same way, and the result, or that the check is missing, goes under “Verified” in the handoff (decision 0178). Every pull request has an assignee who takes it to `main`: the user, the Organization's persona or another eligible Kolega the user names. A pull request without an assignee is unfinished and is not merged; a review request is only a check (decision 0222). Ready is not Publication; it only says “ready to be checked”. Finished work never stays marked as in progress, and a remote branch without a pull request is not a handoff.",
     ),
     blank,
     t(
@@ -718,8 +718,8 @@ function workingHere(
       : [
           blank,
           t(
-            "## Vlákna se mezi sebou nekoordinují (root rozhodnutí 0218, dodatky 2026-10-31)",
-            "## Threads do not coordinate with each other (root decision 0218, addenda 2026-10-31)",
+            "## Vlákna se mezi sebou nekoordinují (rozhodnutí 0218, dodatky 2026-10-31)",
+            "## Threads do not coordinate with each other (decision 0218, addenda 2026-10-31)",
           ),
           t(
             "Každé vlákno jde svůj požadavek samo: má vlastní worktree, pull request, ověření a assignee. Jiným vláknům zprávy neposíláš, pokud si přímou koordinaci výslovně nepřeje uživatel. Co potřebuje pořadí nebo návaznost, zapíšeš do hlavní roadmapy v Mission Controlu Organizace. Vede ji ten, kdo v Organizaci drží frontu (pořadí review, merge, vydání, nasazení a migrací): kdo to je, říká `AGENTS.md` Organizace, obvykle její Henry, persona Organizace v Prostředí s automatizacemi; Organizace bez Henryho drží frontu sama. Na GitHubu u konkrétní práce zůstává závislost issue nebo pull requestu a komentář s @zmínkou toho, kdo má další krok; tím jde pull request i podržet. Štítek pozdržení se nepoužívá. Pořadí tak drží roadmapa a GitHub, ne konverzace mezi agenty. Delegace tvé vlastní práce na tvé subagenty koordinací není.",
@@ -727,8 +727,8 @@ function workingHere(
           ),
           blank,
           t(
-            "## Podpis agenta na GitHubu (root rozhodnutí 0218)",
-            "## The agent's signature on GitHub (root decision 0218)",
+            "## Podpis agenta na GitHubu (rozhodnutí 0218)",
+            "## The agent's signature on GitHub (decision 0218)",
           ),
           t(
             "Každý text, který na GitHubu napíšeš (popis pull requestu, komentář, review, issue), ukončíš řádkem `Agent: environment <UUID> · T3 thread <UUID>`. Bot Lazurio MausBotu místo vlákna uvede `bot <UUID>`. Podle podpisu lidé i ostatní agenti dohledají, odkud text přišel. Jméno Prostředí v něm není, takže se hodí i do veřejných repozitářů. V T3 Code najdeš UUID Prostředí jako `environmentId` z nástroje `t3_environment_read` a UUID vlákna jako `currentThreadId` z `t3_thread_list`. Když některé UUID zjistit nejde, napiš místo něj `unknown`; nevymýšlej ho. Text pro `gh` předávej souborem (`--body-file`) a podpis dej na jeho konec. Existující podpis neměň.",
@@ -1146,8 +1146,8 @@ const glossary: readonly Text[] = [
     "| Team Remote Environment (Hosted Team Workspace) | An Organization-owned shared Remote Environment of a Team with one OS account; preset `hosted-organization-team`. |",
   ),
   t(
-    "| Environment Henry | Obyčejný pracovní Environment Organizace s nastavenými automatizacemi, žádný zvláštní druh (root rozhodnutí 0170, dodatek 2026-10-19): pracuje v něm tým botů persony s jedním odpovědným uživatelem (decision 0169); preset `hosted-organization-steward`, třeba `henry-01`. |",
-    "| Henry Environment | An ordinary work Environment of an Organization with automations set up, no kind of its own (root decision 0170, addendum 2026-10-19): the persona's bot team works in it, with one responsible user (decision 0169); preset `hosted-organization-steward`, for example `henry-01`. |",
+    "| Environment Henry | Obyčejný pracovní Environment Organizace s nastavenými automatizacemi, žádný zvláštní druh (rozhodnutí 0170, dodatek 2026-10-19): pracuje v něm tým botů persony s jedním odpovědným uživatelem (decision 0169); preset `hosted-organization-steward`, třeba `henry-01`. |",
+    "| Henry Environment | An ordinary work Environment of an Organization with automations set up, no kind of its own (decision 0170, addendum 2026-10-19): the persona's bot team works in it, with one responsible user (decision 0169); preset `hosted-organization-steward`, for example `henry-01`. |",
   ),
   t(
     "| Zóna (zone) | Osobní nebo pracovní strana Environmentů a klientů jednoho uživatele; určuje, kdo smí na koho (decision 0155). |",
@@ -1250,6 +1250,23 @@ const toolUpdates: Text = t(
   "- Novější verzi nástroje uživatele (Codex, Claude Code, `gh`, Node, npm, Bun a další) mu nabídni, jakmile ji zjistíš, třeba z hlášky nástroje nebo z jeho oficiálního releasu. Aktualizuj ji až s jeho souhlasem v tomhle threadu: `lazurio tools update <nástroj>` spustí oficiální updater nebo instalátor právě toho jednoho nástroje; kde žádný není, vypíše jen oficiální zdroj. Co je nainstalované, ukáže `lazurio tools status`; chybějící nástroj nahlas i s jeho oficiálním zdrojem (decision 0161). Nikdy nástroj nedowngraduj a nepřepisuj instalaci, kterou si uživatel udělal sám.",
   "- Offer the user a newer version of one of their tools (Codex, Claude Code, `gh`, Node, npm, Bun and the rest) as soon as you find one, for example from the tool's own notice or its official release. Update it only with their consent in this thread: `lazurio tools update <tool>` runs the official updater or installer of exactly that one tool; where there is none, it prints only the official source. `lazurio tools status` shows what is installed; report a missing tool with its official source (decision 0161). Never downgrade a tool or overwrite an installation the user made themselves.",
 );
+
+// The user's request to update („Aktualizuj“) is the consent to update
+// everything: Lazurio, the tools with a newer version and, where the
+// Environment carries Organizations, every checkout (root decision 0161,
+// decision F17). The full steps moved here from AGENTS.md's update line
+// (#758); a personal Remote Environment mounts no Organization.
+function updateRequest(preset: PresetName): Text {
+  return preset === "hosted-personal"
+    ? t(
+        "- Když tě uživatel požádá o aktualizaci (třeba „Aktualizuj“), je to souhlas: spusť `lazurio update` a aktualizuj nástroje s novější verzí (`lazurio tools update <nástroj>`); pak mu stručně řekni, co se změnilo.",
+        "- When the user asks for an update (for example „Aktualizuj“), that is the consent: run `lazurio update` and update the tools that have a newer version (`lazurio tools update <tool>`); then tell them briefly what changed.",
+      )
+    : t(
+        "- Když tě uživatel požádá o aktualizaci (třeba „Aktualizuj“), je to souhlas: spusť `lazurio update`, aktualizuj nástroje s novější verzí (`lazurio tools update <nástroj>`) a hlavně stáhni změny všech Organizací a modulů (`git pull --ff-only` v každém čistém checkoutu, rozjetý srovnej bez ztráty práce, chybějící moduly z manifestu naklonuj podle oddílu Aktuální checkouty Organizací a modulů); pak mu stručně řekni, co se změnilo.",
+        "- When the user asks for an update (for example „Aktualizuj“), that is the consent: run `lazurio update`, update the tools that have a newer version (`lazurio tools update <tool>`) and above all pull the changes of every Organization and module (`git pull --ff-only` in each clean checkout, bring a diverged one back without losing work, clone the manifest's missing modules as the section Current checkouts of Organizations and modules describes); then tell them briefly what changed.",
+      );
+}
 
 // Keeping the checkouts current until content synchronization exists
 // (decisions F9 and F17 addendum 2026-10-02): the agent pulls clean checkouts
@@ -1412,6 +1429,7 @@ function productUpdate(preset: PresetName): readonly Text[] {
         "- `lazurio install` is the rollout's path: it installs or repairs Lazurio from a staged file. For an update use `lazurio update`.",
       ),
       toolUpdates,
+      updateRequest(preset),
       t(
         "- `lazurio` je na PATH jako `~/.local/bin/lazurio`. Když ho shell nenajde (neinteraktivní `ssh host 'příkaz'` nečte `~/.profile`), spusť ho celou cestou; když chybí i ten link, `~/.local/share/lazurio/bin/lazurio`.",
         "- `lazurio` is on PATH as `~/.local/bin/lazurio`. When the shell does not find it (a non-interactive `ssh host 'command'` does not read `~/.profile`), run it by its full path; when that link is missing too, `~/.local/share/lazurio/bin/lazurio`.",
@@ -1456,6 +1474,7 @@ function productUpdate(preset: PresetName): readonly Text[] {
       "- The Launchpad **pill** shows `idle`, `checking`, `available`, `downloading`, `activating`, and failures that return to `available` with the error and a retry. One click runs the same `lazurio update`.",
     ),
     toolUpdates,
+    updateRequest(preset),
     blank,
     ...toolLayout,
     blank,
@@ -1956,8 +1975,8 @@ function troubleshooting(preset: PresetName): readonly Text[] {
 // What a public Environment changes of its preset's meaning (root decision
 // 0204, decision F55's addendum of 2026-10-17), whatever the preset.
 const publicMeaning: Text = t(
-  "Tento Environment je ale veřejný (root decision 0204): sdílí ho jeho návštěvníci a nemá žádnou identitu GitHubu, ani brokerovanou, ani osobní. Veřejné repozitáře Organizace čte anonymně a nic se odsud nepublikuje.",
-  "This Environment, though, is public (root decision 0204): its visitors share it and it has no GitHub identity, neither a brokered nor a personal one. It reads the Organization's public repositories anonymously and nothing is published from here.",
+  "Tento Environment je ale veřejný (decision 0204): sdílí ho jeho návštěvníci a nemá žádnou identitu GitHubu, ani brokerovanou, ani osobní. Veřejné repozitáře Organizace čte anonymně a nic se odsud nepublikuje.",
+  "This Environment, though, is public (decision 0204): its visitors share it and it has no GitHub identity, neither a brokered nor a personal one. It reads the Organization's public repositories anonymously and nothing is published from here.",
 );
 
 // The visitors' section of a public Environment in its full form (plan
@@ -1975,8 +1994,8 @@ export function visitorsChapter(
     blank,
     t(`## ${visitorsHeading.cs}`, `## ${visitorsHeading.en}`),
     t(
-      "Toto Prostředí je veřejné (root decision 0204): kdokoli s Lazurio účtem sem přijde vyzkoušet Lazurio a agenti tu mluví s návštěvníky. Tento oddíl má přednost před každým pravidlem tohoto manuálu, které říká něco jiného.",
-      "This Environment is public (root decision 0204): anyone with a Lazurio account comes here to try Lazurio, and agents here talk to visitors. This section takes precedence over any rule of this manual that says otherwise.",
+      "Toto Prostředí je veřejné (decision 0204): kdokoli s Lazurio účtem sem přijde vyzkoušet Lazurio a agenti tu mluví s návštěvníky. Tento oddíl má přednost před každým pravidlem tohoto manuálu, které říká něco jiného.",
+      "This Environment is public (decision 0204): anyone with a Lazurio account comes here to try Lazurio, and agents here talk to visitors. This section takes precedence over any rule of this manual that says otherwise.",
     ),
     blank,
     t("### Co můžeš ukázat", "### What you can show"),
@@ -2030,8 +2049,8 @@ export function visitorsChapter(
 // Služby serveru (root decision 0209), which takes it for its GitHub identity
 // and Publication: who enters it, who the Operator is and how people name it.
 const servicesMeaning: Text = t(
-  "Jde ale o Služby serveru (root decision 0209): do tohoto Environmentu vstupují jen Owneři a Admini Organizace, ne členové Teamu, a uživatelem je ten z nich, kdo je právě připojený. Běží tu služby, které server poskytuje svým Environmentům, a agenti tu jednají za Admina, který spravuje jejich klíče. Brokerovaná identita, sdílení a Publikace jmenovaným uživatelem platí jako u týmového Environmentu; uživatelům je to ale Pracovní Prostředí jménem Služby serveru, nikdy Týmové.",
-  "This, though, is Server services (root decision 0209): only the Organization's Owners and Admins enter this Environment, not the Team's members, and the user is whichever of them is connected. The services the server provides to its Environments run here, and agents here act for the Admin who manages their keys. The brokered identity, sharing and Publication by a named user hold as for a Team Environment; to users, though, it is the Work Environment named Server services, never a Team one.",
+  "Jde ale o Služby serveru (decision 0209): do tohoto Environmentu vstupují jen Owneři a Admini Organizace, ne členové Teamu, a uživatelem je ten z nich, kdo je právě připojený. Běží tu služby, které server poskytuje svým Environmentům, a agenti tu jednají za Admina, který spravuje jejich klíče. Brokerovaná identita, sdílení a Publikace jmenovaným uživatelem platí jako u týmového Environmentu; uživatelům je to ale Pracovní Prostředí jménem Služby serveru, nikdy Týmové.",
+  "This, though, is Server services (decision 0209): only the Organization's Owners and Admins enter this Environment, not the Team's members, and the user is whichever of them is connected. The services the server provides to its Environments run here, and agents here act for the Admin who manages their keys. The brokered identity, sharing and Publication by a named user hold as for a Team Environment; to users, though, it is the Work Environment named Server services, never a Team one.",
 );
 
 const presetMeaning: Readonly<Record<PresetName, Text>> = {
@@ -2126,8 +2145,8 @@ function zoneOfThisMachine(
   // 0209 points 3 and 4).
   if (preset === "hosted-organization-team" && isServerServices(machine))
     return t(
-      `Tenhle Environment (Služby serveru, root decision 0209) je v pracovní zóně Organizace \`${organization}\`. Vstupují do něj jen Owneři a Admini Organizace. Environmenty na stejném serveru dosáhnou jen na ty jeho služby, které jim povolí Deployment Repo Organizace, a to po vnitřní síti serveru, ne přes tailnet.`,
-      `This Environment (Server services, root decision 0209) is in the work zone of Organization \`${organization}\`. Only the Organization's Owners and Admins enter it. Environments on the same server reach only those of its services that the Organization's Deployment Repo grants them, over the server's internal network, not the tailnet.`,
+      `Tenhle Environment (Služby serveru, decision 0209) je v pracovní zóně Organizace \`${organization}\`. Vstupují do něj jen Owneři a Admini Organizace. Environmenty na stejném serveru dosáhnou jen na ty jeho služby, které jim povolí Deployment Repo Organizace, a to po vnitřní síti serveru, ne přes tailnet.`,
+      `This Environment (Server services, decision 0209) is in the work zone of Organization \`${organization}\`. Only the Organization's Owners and Admins enter it. Environments on the same server reach only those of its services that the Organization's Deployment Repo grants them, over the server's internal network, not the tailnet.`,
     );
   switch (preset) {
     case "local":
@@ -2206,8 +2225,8 @@ function boundaries(
     // is named only where the handover records this Environment's tailnet
     // identity.
     t(
-      `- Síť: síť tohoto Environmentu je jedna pro všechna vlákna a relace tady${machine?.network ? "; jeho Tailscale spravuje Lazurio Machines" : ""}. Nikdy ji nepřepínej, neodhlašuj, nepřesměrovávej na jiný login server ani nevypínej: odřízl bys tím všechny ostatní. Do jiného tailnetu choď jen cestou, kterou Environment nabízí, třeba přes socket schváleného headless klienta (oddíl Přidání počítače do tailnetu níže) nebo přes vlastní síťový prostor toho tailnetu, který volíš u každého příkazu; když žádnou nenabízí, řekni to uživateli (root rozhodnutí 0217, dodatek 2026-10-31).`,
-      `- Network: this Environment's network is one for every thread and session here${machine?.network ? ", and Lazurio Machines manages its Tailscale" : ""}. Never switch it, sign it out, point it at another login server or stop it: you would cut everyone else off. Reach another tailnet only the way the Environment offers, such as an approved headless client's socket (the section Adding a computer to a tailnet below) or that tailnet's own network space chosen for each command; when it offers none, tell the user (root decision 0217, addendum 2026-10-31).`,
+      `- Síť: síť tohoto Environmentu je jedna pro všechna vlákna a relace tady${machine?.network ? "; jeho Tailscale spravuje Lazurio Machines" : ""}. Nikdy ji nepřepínej, neodhlašuj, nepřesměrovávej na jiný login server ani nevypínej: odřízl bys tím všechny ostatní. Do jiného tailnetu choď jen cestou, kterou Environment nabízí, třeba přes socket schváleného headless klienta (oddíl Přidání počítače do tailnetu níže) nebo přes vlastní síťový prostor toho tailnetu, který volíš u každého příkazu; když žádnou nenabízí, řekni to uživateli (rozhodnutí 0217, dodatek 2026-10-31).`,
+      `- Network: this Environment's network is one for every thread and session here${machine?.network ? ", and Lazurio Machines manages its Tailscale" : ""}. Never switch it, sign it out, point it at another login server or stop it: you would cut everyone else off. Reach another tailnet only the way the Environment offers, such as an approved headless client's socket (the section Adding a computer to a tailnet below) or that tailnet's own network space chosen for each command; when it offers none, tell the user (decision 0217, addendum 2026-10-31).`,
     ),
   ];
 }

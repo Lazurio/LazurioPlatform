@@ -3234,6 +3234,32 @@ and Organization manifest migration stay GEN3, and `admin-pr-sweep`,
 move to the development Organization, not to every Folder. If #585 (`ui-craft`) merges
 first with schema 4, this change takes schema 5, and the other way round.
 
+**Addendum 2026-11-02, decided by Matěj (Organization Admin, plan LZD-0002 of the
+LazurioDevelopment Organization, #758): one home per rule, a first pass.** The generated
+`AGENTS.md` had 6 bytes left in its tightest composition (a Team Environment, English, an
+8 KiB custom voice), so no further rule fit. `AGENTS.md` now keeps the short, testable form
+of a rule and points to the manual for its procedure and its reasons; no rule is dropped:
+
+- **Questions to the user.** The rule, its options, the Publication choice, the fallback
+  without a question tool and the subagent's hand-off stay. Why a question in a message
+  fails, and how to ask the user to do something (the link, the code, until when, the
+  options that say how it went), are under Safe habits → Questions in
+  `manual/working-here.md`.
+- **The update request.** That „Aktualizuj“ is the consent stays. The steps (tools,
+  every checkout, missing modules, the report) are a bullet of the update section of
+  `manual/troubleshooting.md`.
+- **Open questions.** Filing without asking, the clean-up before filing, the public
+  repository clause and the limits of the mandate stay. When to stop and that an issue is
+  not a plan stay in the manual's section on open questions.
+
+Generated text cites a decision by its number in the public register
+(`docs/decision-register.md`): "root decision 0207" becomes "decision 0207", since one
+register in this repository allocates the numbers of GEN3 and GEN4. `AGENTS.md` drops the
+addendum dates of its citations; the manual keeps them. Afterwards the tightest composition
+has 1,045 bytes left (with the skills of #790), and the budget test #755 asked for (`tests/folder-template-revision.test.ts`,
+every pinned composition with an 8,192-byte voice under 32 KiB) still guards it.
+`base-instructions-103`.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered

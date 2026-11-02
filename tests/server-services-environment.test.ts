@@ -495,7 +495,7 @@ test("the generated Folder tells agents who enters Služby serveru, that the Tea
   const czech = render(servicesBinding, "cs");
   const agents = czech["AGENTS.md"];
   expect(agents).toContain(
-    "- Přiřazení: Služby serveru (root decision 0209). Vstupují sem jen Owneři a Admini Organizace",
+    "- Přiřazení: Služby serveru (decision 0209). Vstupují sem jen Owneři a Admini Organizace",
   );
   expect(agents).toContain(
     "uživatelům je to ale Pracovní Prostředí jménem Služby serveru, nikdy Týmové.",
@@ -508,22 +508,22 @@ test("the generated Folder tells agents who enters Služby serveru, that the Tea
   expect(agents).toContain("Komu mám říct, aby tyhle změny publikoval?");
   expect(agents).toContain("brokerovaná identita Organizace");
   const manual = czech["manual/this-machine.md"];
-  expect(manual).toContain("Jde ale o Služby serveru (root decision 0209)");
+  expect(manual).toContain("Jde ale o Služby serveru (decision 0209)");
   expect(manual).toContain(
-    "Tenhle Environment (Služby serveru, root decision 0209) je v pracovní zóně Organizace `example`.",
+    "Tenhle Environment (Služby serveru, decision 0209) je v pracovní zóně Organizace `example`.",
   );
   expect(manual).not.toContain(
     "Příchozí spojení přijímá jen od členů živého GitHub Teamu, ke kterému je svázaný",
   );
   const english = render(servicesBinding, "en");
   expect(english["AGENTS.md"]).toContain(
-    "- Assignment: Server services (root decision 0209).",
+    "- Assignment: Server services (decision 0209).",
   );
   expect(english["AGENTS.md"]).toContain(
     "- User: whichever Owner or Admin of the Organization is connected now.",
   );
   expect(english["manual/this-machine.md"]).toContain(
-    "This, though, is Server services (root decision 0209)",
+    "This, though, is Server services (decision 0209)",
   );
   // A Team Environment's Folder says none of it.
   const teamFolder = render(bindings.assignedTeam, "cs");
