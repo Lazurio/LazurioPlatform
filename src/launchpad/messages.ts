@@ -516,8 +516,7 @@ const en = {
   appsSayCannotStart: "The app of the module {name} cannot start right now.",
   appsSayRepository: "The repository {name} has no app.",
   appsGuestState: "State",
-  appsGuestCloned:
-    "Cloned here; agents in {this} read it as context.",
+  appsGuestCloned: "Cloned here; agents in {this} read it as context.",
   appsGuestRevoked:
     "GitHub no longer lets {this} read it. The checkout stays but is not kept up to date; ask an Admin of {home} for access.",
   appsGuestAbsent:
@@ -2632,8 +2631,7 @@ const cs: Record<MessageKey, string> = {
   appsSayCannotStart: "Aplikace modulu {name} teď nejde spustit.",
   appsSayRepository: "Repozitář {name} nemá aplikaci.",
   appsGuestState: "Stav",
-  appsGuestCloned:
-    "Naklonováno; agenti v {tomto} ho čtou jako kontext.",
+  appsGuestCloned: "Naklonováno; agenti v {tomto} ho čtou jako kontext.",
   appsGuestRevoked:
     "GitHub už {tomuto} čtení nedovoluje. Checkout zůstává, ale neaktualizuje se; o přístup požádejte Admina Organizace {home}.",
   appsGuestAbsent:
