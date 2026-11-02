@@ -344,7 +344,10 @@ test("preferences accept the optional tools key and keep it absent when nothing 
     }),
   ).toThrow();
   // The optional key needs no new schema version (decision F18).
-  expect(folderStateSchemas).toEqual({ preferences: [2, 3], manifest: [2, 3] });
+  expect(folderStateSchemas).toEqual({
+    preferences: [2, 3],
+    manifest: [2, 3, 4],
+  });
 });
 
 async function planned(preferencesInput: unknown = stored) {
@@ -358,7 +361,7 @@ async function planned(preferencesInput: unknown = stored) {
   return {
     preferences,
     manifest: {
-      schemaVersion: 3,
+      schemaVersion: 4,
       preferenceRevision: preferences.revision,
       templateRevision: preview.templateRevision,
       outputs,

@@ -24,7 +24,7 @@ import { requireSelfCheck } from "../src/update/self-check";
 // template with an output this version does not render (#782: a branch's
 // build wrote `ui-craft` into a live Folder, and no release could read it).
 const manifest = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   preferenceRevision: 1,
   templateRevision: "base-instructions-3",
   outputs: Object.fromEntries(
