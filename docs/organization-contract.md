@@ -1,22 +1,47 @@
-# Organization contract authority and convergence
+# Organization contract
 
-The maintained Lazurio Core contract is authoritative, not a new Platform schema:
+An Organization is described by its manifest family: `lazurio.organization.json`
+(the Organization manifest), `modules.manifest.json` (its repository slots) and
+the `lazurio.module.json` of each Module ([Module Standard](module-standard.md)).
+The family was accepted by decisions
+[0026](decision-register.md#0026--canonical-organization-layout-and-its-single-manifest-authority),
+[0031](decision-register.md#0031--organization-mounts-are-nested-repositories-classified-by-one-resolver)
+and [0042](decision-register.md#0042--the-launchpad-discovers-organization-mounts-by-itself);
+decision [0145](decision-register.md#0145--the-organization-manifest-compatibility-window-ends)
+ends the compatibility window of the legacy `company.gen3.json`. This repository
+is the contract's authority (decision 0225): this document and the readers that
+apply it.
 
-- [Manifest family](https://github.com/HumanAndMachines/Lazurio/blob/b037a9f0691afea39efc722aede3a44125bf1d38/manual/lazurio-manifest-family.md), accepted by decisions 0026, 0031 and 0042.
-- [Authored schema](https://github.com/HumanAndMachines/Lazurio/blob/b037a9f0691afea39efc722aede3a44125bf1d38/lazurio/lazurio.organization.v1.schema.json), SHA256 `4f14f1a1fec950b39fd0fddb1b13f1c41874c99b836d1029f2ee9f91ff5c6292`.
+## Who holds the contract
 
-Platform must consume this same versioned contract. The current independently
-authored `canonical-manifest.ts` parser is not an exact vendored schema or a complete
-Core resolver. Before real Organization adoption, pin the upstream schema with
-provenance and its applicable license/notices and verify conformance. Do not copy
-legacy source under Platform's license or create another schema authority.
+- **Readers in this repository:** `parseCanonicalOrganization`
+  (`src/organizations/canonical-manifest.ts`) checks the authored document and its
+  cross-field rules; `organizationSettings`
+  (`src/organizations/organization-settings.ts`) is the only reader of `settings`;
+  `src/organizations/root-resolution.ts` resolves an Organization root's
+  compatibility state. The readers are the contract as it is enforced.
+- **A JSON Schema of `lazurio.organization.v1`** is to be written anew in this
+  repository from this document and the readers. Decision 0225 rules out copying
+  the GEN3 Root's schema, which is under another licence. Until it exists, the
+  readers are the only machine-checked form of the contract (#799).
+- **A change of the contract** changes this document and the readers in one pull
+  request of this repository, and the schema once it exists.
+- **Consumers follow this repository.** The Lazurio Root (GEN3) is a consumer: its
+  Core validates Organization manifests on a person's computer against its own
+  `lazurio/lazurio.organization.v1.schema.json` until it can pin the schema
+  written here by this repository's commit and its SHA-256. It never extends the
+  contract on its own.
+- **Known gaps.** The GEN3 Root's schema does not define
+  `settings.workspace.tabs`, which `organizationSettings` reads ([F32](decisions.md#f32--teams-are-not-a-presentation-axis-of-the-launchpad-an-environment-is-one-workspace),
+  addendum of 2026-10-16): a manifest with tabs fails that schema while this
+  repository applies them.
 
-## Current correspondence and gaps
+## What the readers check
 
-`organization.forge_binding`, optional `root_repository`, metadata, inventory pointer,
-extensions and compatibility projection fields are upstream wire fields. They are
-not invented Platform fields. Verified Organization/repository IDs remain a complete
-pair; owner and binding state must match and the compatibility branch remains `main`.
+`organization.forge_binding`, the optional `root_repository`, metadata, the
+inventory pointer, extensions and the compatibility projection are fields of the
+manifest. Verified Organization and repository IDs remain a complete pair; owner and
+binding state must match and the compatibility branch remains `main`.
 The root repository is never trusted by name: a name is only a candidate, accepted
 after the repository declares itself the root, that is, after its own
 `lazurio.organization.json` binds the Organization's login and names exactly that
@@ -34,11 +59,11 @@ Templates remain valid authored declarations for inspection/conversion preview, 
 CLI and Launchpad use that same boundary. A filename or declared app cannot turn a
 template into an actionable Organization.
 
-Upstream resolves legacy, transition, projection drift, conflict, current and missing
-states through one Core owner. Its normalized resource and resolution envelope are
-not the authored schema. Until Platform consumes that resolver envelope directly
-(pinned provenance and conformance), `src/organizations/root-resolution.ts` is an
-interim implementation of the same compatibility-state table, not a second schema:
+An Organization root is in one of the compatibility states of decision 0145:
+`legacy`, `transition`, `projection_drift`, `conflict`, `current` or `missing`.
+`src/organizations/root-resolution.ts` resolves them in GEN4, and the Root's Core
+resolves the same table in GEN3. A resolution's result is a read model, never
+validated as the authored manifest and never a second schema:
 
 - Canonical-first: `lazurio.organization.json` is the only authority. The deprecated
   `company.gen3.json` is consulted only as the generated compatibility projection for
@@ -50,7 +75,7 @@ interim implementation of the same compatibility-state table, not a second schem
   pure conversion to the same projection is `projection_drift`; every other
   divergence, an unreadable or malformed document, a stale declared digest or a
   missing inventory is `conflict`. This recognizes drift only where parity is
-  proven and is stricter than upstream, never looser.
+  proven and is stricter than the Root's Core, never looser.
 - Execution admission (`resolveOrganizationApplication`, hence Launchpad/CLI
   `prepare`, `clean-prepare` and `start`, and `executable` in the Folder catalog)
   asks one rule, `isExecutableOrganizationState` in
@@ -64,7 +89,7 @@ interim implementation of the same compatibility-state table, not a second schem
   Variant A stays one line away for the record and tests cover both variants. Under either variant `legacy`, `projection_drift`,
   `conflict`, `missing`, a template and an unresolvable root refuse before
   descendant inspection, the owner lock, preparation, script start or any write.
-  Every present document is normalized with the upstream issue codes (slot path
+  Every present document is normalized with the contract's issue codes (slot path
   grammar and scope, `module_port_pool` range, legacy identity and schema) before
   any state is assigned.
 - Discovery stays inspection-only: `applications-observed` carries the resolution
@@ -89,21 +114,22 @@ interim implementation of the same compatibility-state table, not a second schem
 
 ## Organization settings
 
-Upstream decision 0194 adds the optional, closed `settings` section of
-`lazurio.organization.json`; its first setting is
-`settings.integrations.composio.allowed`. Platform consumes it exactly as Lazurio
-Core defines it ([contract, schema `$defs.organizationSettings` and Core tests](https://github.com/HumanAndMachines/Lazurio/pull/512),
-merged; the authored schema pinned at the top of this page carries the section).
+Decision 0194 adds the optional, closed `settings` section of
+`lazurio.organization.json`; the reader `organizationSettings` defines its
+tree. Its settings are `integrations.composio.allowed`,
+`integrations.chatgpt_apps.allowed`, `integrations.microsoft365` (`tenant_id`,
+`client_id`, `apps`, `callbacks`), the Dashboard's own `access_requests.enabled`,
+and `workspace.tabs`, which only the reader knows yet (see the known gaps above).
 
 - `parseCanonicalOrganization` accepts the section and keeps it as authored but
   never judges it. `organizationSettings` (`src/organizations/organization-settings.ts`)
   is its only reader: `absent`, `valid` (exactly the declared keys, plus the
   effective value of every known key) or `invalid` (nothing applies; every issue
-  carries Core's code and JSON Pointer).
+  carries the contract's code and JSON Pointer).
 - A malformed section never turns the Organization into a `conflict`: the
   projection and its hash, the root state, execution admission and the root
-  declaration used by content synchronization ignore it, as in Core. Every other
-  unknown top-level field still refuses the manifest.
+  declaration used by content synchronization ignore it, as the Root's Core does.
+  Every other unknown top-level field still refuses the manifest.
 - An absent value is not governed by the Organization and the Environment
   decides; a present value governs every work Environment of the Organization;
   personal Environments ignore it. Applying a setting and reporting each item is
@@ -113,11 +139,14 @@ merged; the authored schema pinned at the top of this page carries the section).
   records what it applies in the Folder. `deliveredSettings` reads the Dashboard's
   answer by the same contract, keeping a key this release does not know apart, by
   its key only, to be reported `unsupported`.
-- `access_requests` (`{ enabled: boolean }`, root decision 0204, addendum of
+- `access_requests` (`{ enabled: boolean }`, decision 0204, addendum of
   2026-10-17 afternoon, point b) is the Dashboard's own setting. The reader checks
   it like every other leaf, so writing it never withholds the rest, and then drops
   it from `values`: it has no key and is never applied or reported. The Dashboard
   never delivers it, so only a root read from Git holds it (F45).
+- A new setting is one leaf of `organizationSettings`, and of the schema once it
+  exists, added in one pull request; the GEN3 Root's Core reads it once it
+  follows that commit.
 - Readers first: older releases reject a manifest with the section as an unknown
   field. An Organization adds it only after the release with this reader runs on
   all of its Environments.
@@ -129,35 +158,36 @@ decision F22 point 1): the transition-only gate is retired and this section is a
 historical record.** Admission runs variant B (see the execution admission bullet
 above): a parity-valid `transition` root and a canonical-only `current` root both
 execute; `legacy`, `projection_drift`, `conflict`, `missing`, a template and an
-unresolvable root refuse. No upstream identity continuity proof is awaited: no owner
-of such a proof was named, and a canonical-only Organization would otherwise lose its
-applications when the Platform Launchpad replaces the resident one. Nothing falls back
-to the deprecated projection, no second schema and no local finalization marker exist.
-Variant A stays one line away in `src/organizations/root-resolution.ts` for the
-record, covered by tests.
+unresolvable root refuse. No identity continuity proof from the Root's Core is
+awaited: no owner of such a proof was named, and a canonical-only Organization would
+otherwise lose its applications when the Platform Launchpad replaces the resident one.
+Nothing falls back to the deprecated projection, no second schema and no local
+finalization marker exist. Variant A stays one line away in
+`src/organizations/root-resolution.ts` for the record, covered by tests.
 
 *Historical, as [decision F12](decisions.md#f12--canonical-only-organizations-and-a-deliberately-narrow-first-delivery)
 was accepted on 2026-09-19 and superseded on 2026-09-28; nothing below is a pending
 condition.* Canonical-only Organizations were stated as the target normal case:
-upstream decision 0145 deprecates the legacy projection and makes `current` the end
+decision 0145 deprecates the legacy projection and makes `current` the end
 state of every Organization. Admitting only parity-valid `transition` roots was then an
-**interim gate** tied to upstream finalization readiness, not a product requirement
+**interim gate** tied to the Root's finalization readiness, not a product requirement
 that an Organization keep a deprecated file, since requiring the projection forever
 would have institutionalized migration machinery and made every new Organization
 start in a migration state.
 
 The exit criterion F12 stated was that `current` roots would become executable once
-upstream accepted a trusted, live-verifiable identity continuity proof: evidence the
-consumer could check at the operation boundary that a canonical-only root is the same
-Organization that passed the finalization gate, without consulting the removed
-projection and without trusting a locally stored claim alone. Meanwhile F12 excluded a
-fallback to the projection, a second schema, a locally invented finalization marker
-and admission from a digest that only proves the projection's content. The 2026-09-28
-decision replaced that criterion rather than meeting it; the exclusions still hold.
+the Root's Core, then the contract's owner, accepted a trusted, live-verifiable
+identity continuity proof: evidence the consumer could check at the operation
+boundary that a canonical-only root is the same Organization that passed the
+finalization gate, without consulting the removed projection and without trusting a
+locally stored claim alone. Meanwhile F12 excluded a fallback to the projection, a
+second schema, a locally invented finalization marker and admission from a digest
+that only proves the projection's content. The 2026-09-28 decision replaced that
+criterion rather than meeting it; the exclusions still hold.
 
-## Relation to the upstream contract
+## The legacy projection
 
-The compatibility projection follows Core's materializable-repository boundary:
+The compatibility projection follows the materializable-repository boundary:
 slots without repository coordinates stay in the authored inventory but are absent
 from legacy `modules`; Productionspace entries carry no `teams`, `workspace` or
 `workspaces` alias. This behavior is checked against
@@ -167,11 +197,27 @@ The regression proves a valid projection is executable and a stale declared hash
 still refuses. It does not rewrite declarations or claim complete resolver
 convergence.
 
-The upstream contract already makes `lazurio.organization.json` canonical during a
-parity-valid transition, with the legacy file a generated projection, not a second
-authority. Removal waits for the separate reader/update/finalization gate and an
+The contract makes `lazurio.organization.json` canonical during a parity-valid
+transition, with the legacy file a generated projection, not a second authority.
+Removal waits for the separate reader, update and finalization gate of decision
+0145 (in GEN3 the Root's `lazurio migrate organization-manifest --finalize`) and an
 authorized per-Organization change. A later decision to finish the rollout does not
 waive those existing gates. Real Organization materialization remains blocked on
 consumer convergence and its owning rollout, not on inventing another filename or
 schema; its future operation is [content synchronization](content-sync.md). No real
 conversion, cloning or legacy removal occurs in this increment.
+
+## Provenance
+
+This document was written anew from the description of the manifest family in the
+GEN3 Root (`HumanAndMachines/Lazurio`, `manual/lazurio-manifest-family.md` and
+`lazurio/lazurio.organization.v1.schema.json` at commit `66e437f7`); no file was
+copied (decision 0225). Before 2026-11-01 this page named the Root's Core as the
+contract's owner and pinned its schema at commit
+`b037a9f0691afea39efc722aede3a44125bf1d38` (SHA-256
+`4f14f1a1fec950b39fd0fddb1b13f1c41874c99b836d1029f2ee9f91ff5c6292`). The Root's
+later commits up to `66e437f7` added only `settings.integrations.microsoft365`,
+`settings.integrations.chatgpt_apps` and `settings.access_requests`, which this
+repository already read. The `settings` section was first defined in the Root's
+Core (HumanAndMachines/Lazurio#512). Since 2026-11-01 LazurioPlatform is the
+contract's authority.

@@ -8,6 +8,14 @@ same day. Q7 was not put to him and was implemented as recommended (the field is
 dropped). The analysis below is kept as written; what is implemented, and what is
 not, is the state paragraph of F21.
 
+**Note of 2026-11-01.** Since 2026-11-01 numbered decisions are cited from this
+repository's [decision register](decision-register.md), and the rules an agent
+follows are the generated Folder's. On that day the citations of the Lazurio Root
+that state a rule in force (C.3, E.2 and E.3) were redirected to the register and
+the Folder; nothing else in the analysis changed. The Root's
+`manual/decision-register.md` lines that A.2 and I list are where those GEN3
+records stood on 2026-09-28, and amending them is GEN3 work.
+
 ## Recommendation
 
 1. **Remove program rollback.** `lazurio update rollback`, `--auto`,
@@ -214,7 +222,8 @@ the next Open after repair. "Start a repair agent":
   fork carries it, the button opens the new thread directly (slice 7).
 - **Workstation.** The same copy action into the user's agent app. Codex
   and Claude Code accept an initial prompt (`codex "<prompt>"`, `claude "<prompt>"`),
-  but the product does not ask a user to open a terminal (root `AGENTS.md`).
+  but the product does not ask a user to open a terminal (the Folder's
+  `manual/working-here.md`, Safe habits).
   Copying the prompt is enough for now (Q3, decided 2026-09-28); revisit when T3 Code
   can start a thread from outside.
 
@@ -327,8 +336,8 @@ issue it lacks:
    structured fields; in the tail, a run equal to a known product commit or artifact
    digest is kept.
 3. **A residual check that fails closed.** If any known private value survives,
-   `--issue-body` (or `--attachment`) refuses and the agent hands the body to the user (root
-   `manual/github-issues.md:75-78`).
+   `--issue-body` (or `--attachment`) refuses and the agent hands the body to the user
+   (decision 0163; the Folder's `manual/working-here.md`, Open questions).
 4. **Journal-sized bounds.** 80 lines and 8 KB for the tail; the body under 6 KB so it
    fits a prefilled issue link.
 
@@ -338,13 +347,14 @@ body; it is also part of J6.
 
 ### E.3 Who approves, what leaves the Machine (Q4, decided)
 
-Root decision 0163 lets the agent file an issue after a duplicate check and
-sanitization without asking (`manual/decision-register.md:99`,
-`manual/github-issues.md:55-60`). The user sees what leaves: the page shows the
+Decision 0163 ([decision register](decision-register.md)) lets the agent file an
+issue after a duplicate check and sanitization without asking (the Folder's
+`manual/working-here.md`, Open questions). The user sees what leaves: the page shows the
 exact sanitized bundle, and the agent shows the body in the chat in the turn it sends
 it. Closing and prioritizing stay with the user. The product's public repository
-is `Lazurio/LazurioPlatform` (Issues enabled); the root routing table
-(`manual/github-issues.md:16`) needs a row for it.
+is `Lazurio/LazurioPlatform` (Issues enabled); the Folder's routing names it for
+Lazurio itself (`manual/lazurio.md`, Who is responsible for what), and the GEN3
+Root's routing table (`manual/github-issues.md:16`) does not yet.
 
 **Decision, 2026-09-28, taken on Matěj's delegation: variant (a), narrowed.**
 The automatic issue goes to the public product repository and carries only the

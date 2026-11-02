@@ -9997,6 +9997,12 @@ panel of every app.
    outside the Folder and the install base and is never copied. Every thread, agent
    and bot shares it. Wiping it is the hand-over's manual step before a Work
    Environment passes to another person.
+   *Addendum of 2026-11-01: superseded by decision 0191's amendment of 2026-10-26. A
+   Work Environment is never handed over to another person; after the export period it
+   is removed and a new one is created, so there is no hand-over and no wiping step
+   ([environment-browser.md](environment-browser.md),
+   [environment-access.md](environment-access.md)). The sentence above stays as the
+   record of the original decision.*
 3. **A window per thread: `lazurio browser window`.** agent-browser binds a pinned
    session to one tab but opens it in the most recently used window, and Chrome does
    not paint a background tab: on 2026-10-05 a screenshot of a background tab on a
@@ -15712,6 +15718,26 @@ not have offered. A fork's view that hands a page off takes the same rule. The v
 `hand-off.json` (C18); the module's exported names gain the two. The hub's message
 `{t: "hand-off", url}` belongs to the view's own protocol (`people/protocol.ts`), not to C8.
 
+**Addendum 2026-11-01: the table of contracts lives in this repository.** Point 2 (Times:
+"listed in the root table"), point 7 ("One table"), point 8 (phase 1: "the root table"),
+step 2 and point 5 of the second addendum of 2026-10-14 put the table of contracts into
+the Lazurio Root's `manual/environment-browser.md`. Since 2026-11-01
+[The Environment browser](environment-browser.md) in this repository holds it, with the
+host application's contract and the rules for updating the forks; where the text above
+says "the root table", "the root `manual/environment-browser.md`" or "the root
+manual's", read that document. The Root's `manual/environment-browser.md` stays the GEN3
+record and is no authority for the Platform or the forks. The text above stays as
+decided.
+
+1. **The rows.** C1 to C18, C18 being the hand-off of the addendum of 2026-10-18. Each
+   row names its holder, the module's exports and the Platform files that enforce it, and
+   the vector file and the suites that test it, checked against `main` at `a2927744`.
+2. **The releases.** For point 7's first releases of each addition a consumer depends on,
+   the document lists the Platform's, read from this repository's release tags. A fork's
+   own releases and the Platform release each one requires stay in that fork's runbook.
+3. **Nothing else changes.** The module, its vectors, the artifact and doctor stay as
+   they are.
+
 ## F51 — Managed Chat starts in the Folder; Platform owns the model recommendation
 
 A new hosted Chat must already have its Lazurio project. The Folder is the
@@ -19605,6 +19631,11 @@ app it now does, in the background and bounded. Its conformance check should war
 an app with `build_script` and without `build_output` (or, later, `start_script`), as
 root decision 0195 point 19 asks; that check lives in the root repository.
 
+*Addendum of 2026-11-01: the Module Standard is this repository's
+[module-standard.md](module-standard.md), whose text says that the Platform builds the
+built version; the paragraph above stays as the record of 2026-10-20. See
+[addendum (3) of 2026-11-01](#f58-addendum-3-of-2026-11-01-the-module-standard-lives-in-this-repository).*
+
 | Alternative | Assessment |
 | --- | --- |
 | Keep the development server | Today: 290–373 MiB and 5–10 s to healthy per app; rejected by the decision |
@@ -19840,6 +19871,10 @@ does not know it yet: a Module can declare it only after a Platform release that
 key runs on every Environment (a released Platform refuses unknown runtime keys), and the
 root conformance (`RUNTIME_KEYS`, `validateBuiltVersion`) changes in the same window.
 
+*Addendum of 2026-11-01: [module-standard.md](module-standard.md#app-with-its-own-server-start_script)
+describes `start_script`; see
+[addendum (3) of 2026-11-01](#f58-addendum-3-of-2026-11-01-the-module-standard-lives-in-this-repository).*
+
 | Alternative | Assessment |
 | --- | --- |
 | No restart after a pull; the new key at the next start (variant A′ of the shaping) | No gap, but an older commit while in use; deviates from root decision 0195 point 19; not chosen |
@@ -19891,6 +19926,35 @@ and kept the process; a module pull restarted it with the gap above. The templat
 declaration then is `start_script: "dev"` (its `dev` already is its one Bun server),
 `build_script: "prepare:app"` (the Vite build only), `build_output: "dist"`, and its server
 reads `LAZURIO_RUNTIME_BUILD_OUTPUT ?? ./dist`.
+
+### F58 addendum (3) of 2026-11-01: the Module Standard lives in this repository
+
+**Decided by Matěj (Organization Admin) on 2026-11-01 in decision 0225, which gives the
+shared contracts, the Module Standard among them, to this repository.** Since then the
+Lazurio Module Standard (decision 0171) has its full text in this repository,
+[module-standard.md](module-standard.md), written anew and its authority; the Lazurio
+Root (GEN3) converges on it (decision 0219). What this decision named a required upstream
+amendment of the Root's standard is settled there. No behavior changes.
+
+1. **The Platform builds.** The standard says that the Platform builds the built version of
+   an App with `build_output` or `start_script`, in the background, one build at a time and
+   bounded, and that this is the only build it runs for an App
+   ([the built version from `main`](module-standard.md#the-built-version-from-main),
+   [what the Platform does not do](module-standard.md#what-the-platform-does-not-do)). The
+   Root's text carried the same exception at commit `66e437f7`.
+2. **`start_script`** (addendum (2) above) is part of the standard
+   ([an App with its own server](module-standard.md#app-with-its-own-server-start_script)).
+   The Root's `lazurio module setup` reads it at `66e437f7` (`MS-03`, `MS-05`).
+3. **An App without a built version.** The standard requires every App to declare
+   `build_output` or `start_script` (decision 0212). An App with neither still runs its
+   development script from `main`, and `lazurio module build` answers `not-static`. No check
+   warns about it: this repository has no conformance command yet (#423), and the Root's
+   `lazurio module setup` has no such check at `66e437f7`. The warning that the paragraph
+   *Required upstream amendment* asked for belongs to this repository's conformance
+   command.
+
+The paragraph *Required upstream amendment* and the sentence on the root Module Standard in
+addendum (2) stay as the record of 2026-10-20 and 2026-10-21.
 
 ## F59 — Computer Use on a Remote Environment: the Cua Driver's daemon on the screen, one MCP server `computer` for every agent
 

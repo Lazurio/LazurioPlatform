@@ -395,9 +395,9 @@ leaves registry and Git dependencies as they are, but copies local `file:` depen
 again and runs the app package's own lifecycle scripts such as `postinstall`, so such a
 hook runs on every start), then the check. A check that passes ends the step: the application starts
 and prepare_script does not run. A check that exits non-zero is followed by the declared
-prepare_script and the check again, as the Lazurio Module Standard (root
-`manual/module-standard.md` ch. 3 and 10) requires; the application starts only when that
-check passes. The install comes first because the check verifies the module's own
+prepare_script and the check again, as the
+[Lazurio Module Standard](module-standard.md#the-preparation-lazuriopreparation) requires;
+the application starts only when that check passes. The install comes first because the check verifies the module's own
 preparation, while whether the installed tree matches the lockfile is the Platform's
 question: a check that passed on a tree installed for an earlier lockfile started an
 application that crashed on a dependency an update had added. The step that failed is
@@ -560,8 +560,10 @@ It keeps missing legacy `apps` distinct from explicit `apps: []`. The pure
 application selector refuses to guess an app for a missing declaration and only
 selects the declared default or an explicitly requested declared package.
 
-The reader follows the published schema's conservative package-path character set;
-the older JavaScript validator is more permissive for path characters. Unsupported
+The reader follows the conservative package-path character set of the Root's published
+schema at that commit; the older JavaScript validator is more permissive for path
+characters. Since 2026-11-01 the contract this reader implements is the
+[Module Standard](module-standard.md#the-module-manifest-lazuriomodulejson). Unsupported
 legacy spellings must be reported, not normalized or silently renamed. Newline/NUL,
 accessor-valued objects and sparse/executable arrays are refused. Parsed snapshots
 do not grant provider rights, prove filesystem custody or authorize taking a port.
@@ -868,19 +870,25 @@ which a written, enabled unit becomes necessary. It will be an explicit opt-in.
   beyond the authorized module directory (named worktrees) is not part of the unit.
   Two live owners are serialized by the coordination lock; that is unit-tested, not
   yet natively qualified under load.
-- Upstream decision 0137 is **not amended yet** (below).
+- Decision 0137 is amended by decision 0167 (below, addendum of 2026-11-01).
 
 **Unchanged.** Bounded preparation subprocesses (frozen install, declared preparation
 and check scripts) keep the existing guarded-process ownership: they are short,
 deadline-bound and must die with their operation.
 
-**Upstream.** This changes the session semantics of upstream decision 0137, under
-which hosted applications live in the current Launchpad session. It is a [required
-upstream amendment](decisions.md#required-amendments-before-production-implementation)
-and **remains open**: this repository implements the accepted direction, it does not
-amend the upstream record. The rest of 0137 is preserved: nothing starts at cold
-start; health, catalog and background browser requests are not an Open; production
-accepts only a reproducible Build and uses neither the Launchpad nor worktrees.
+**Decision 0137.** This changes the session semantics of decision 0137, under which
+hosted applications live in the current Launchpad session. The rest of 0137 is
+preserved: nothing starts at cold start; health, catalog and background browser
+requests are not an Open; production accepts only a reproducible Build and uses neither
+the Launchpad nor worktrees.
+
+*Addendum of 2026-11-01:* decision 0167 amends 0137, as the
+[decision register](decision-register.md#0137--lifecycle-of-applications-started-by-the-launchpad)
+records: in the Platform's Launchpad, modules on Linux are services of the operating
+system that survive a Launchpad restart, and on macOS they stay bound to the session.
+Until 2026-11-01 this paragraph called the change a required amendment that remained
+open; the table of [required amendments](decisions.md#required-amendments-before-production-implementation)
+keeps that record.
 
 **What this does not mean.** It does not authorize installing units on any real
 Machine, does not make applications production deployments, does not make a service
@@ -986,8 +994,11 @@ roster, IAM, credential store or provider binding model is introduced.
 The observation additionally reads repository `databaseId` and the owner's type,
 node ID, login and Organization `databaseId`. `compareGitHubBindings` compares these
 with the existing verified `organizationForgeBinding` / `repositoryForgeBinding`
-wire fields from `lazurio/lazurio.organization.v1.schema.json` at the same clean
-legacy commit cited below. No schema source was copied. Both stable decimal IDs
+wire fields of the Organization manifest's schema, first inspected in the Root's
+`lazurio/lazurio.organization.v1.schema.json` at the same clean legacy commit cited
+below. The adapter copies no schema source. Since 2026-11-01 this repository is the
+contract's authority: the [organization contract](organization-contract.md) and its
+readers; its JSON Schema is still to be written here (#799). Both stable decimal IDs
 and current locators must agree; unverified bindings, user-owned repositories,
 replacement IDs, renamed/transferred locators and missing identities do not match.
 Case-only locator differences are accepted. This reads no local manifest and grants
@@ -1041,7 +1052,8 @@ user-owned repositories and missing/unsafe numeric IDs.
 `src/modules/runtime.ts` adds a new TypeScript reader for `lazurio.runtime.v1`,
 observed in `lazurio/schemas/lazurio-runtime.schema.json` and
 `lazurio/core/runtime-contract-lib.mjs` at the same legacy commit above (clean files).
-No legacy source is embedded. The pure runtime plan binds an explicitly declared
+No legacy source is embedded. Since 2026-11-01 the declaration's contract is the
+[Module Standard](module-standard.md#the-run-declaration-lazurioruntime). The pure runtime plan binds an explicitly declared
 package to matching company/module identity, an existing own package script, and
 the module's leases. Host/port values come only from that module, not app overrides.
 
@@ -1318,7 +1330,7 @@ and `organization-activation-lib.mjs` at the legacy commit above. That historica
 resolution is reference material for a controlled one-time conversion, where legacy-only,
 transition, projection drift and conflicts may need inspection. It is not the target
 runtime contract: normal application discovery reads the canonical document and
-resolves the root through the interim compatibility-state table in
+resolves the root through the compatibility-state table in
 `root-resolution.ts` (see `organization-contract.md`); it refuses missing/invalid
 canonical state and never adopts legacy state, while a malformed, stale or
 conflicting legacy projection fails closed instead of being ignored. Conversion
@@ -1363,7 +1375,8 @@ IDs remain required, and this bounded schema still accepts only the declared `ma
 branch. The old name restriction in the legacy runtime is not a target rule.
 Unverified absent/null roots remain
 representable, without adopting the still-pending owner-local project contract.
-Team fields follow the published schema, including optional exact team forge binding;
+Team fields follow the schema ([organization contract](organization-contract.md)),
+including optional exact team forge binding;
 the older runtime's shape check only verifies that teams is an array. Malformed team
 entries accepted by that weaker runtime are intentionally not silently adopted.
 
@@ -1401,11 +1414,12 @@ public tests are independent fixtures. No real Organization files were enumerate
 
 ### Canonical Organization / inventory declaration binding
 
-**Experimental preview, not canonical adoption:** the existing Core manifest-family
-contract already defines canonical `lazurio.organization.json` and a temporary
-generated `company.gen3.json` projection. Platform still needs consumer convergence
-and a qualified owning rollout/finalization plan; it must not invent another schema.
-See [authority, provenance and current gaps](organization-contract.md). Decision 0144
+**Experimental preview, not canonical adoption:** the manifest-family contract defines
+canonical `lazurio.organization.json` and a temporary generated `company.gen3.json`
+projection. Conversion still needs a qualified owning rollout and finalization plan;
+nothing here invents another schema. See the
+[organization contract](organization-contract.md) for its schema, provenance and current
+gaps. Decision 0144
 settles the Machines/Environment boundary, not completion of this migration.
 Do not silently convert real Organizations or count this preview as Organization
 materialization for the hosted pilot. Template roots are excluded from application
