@@ -544,15 +544,17 @@ export function cloneIdentity(
 }
 
 /** Whether an answer verified a primary checkout of the declared repository
- * whose remote this identity reads: current, moved or cloned, or left as it
- * is for a reason found only after the identity and worktree checks (its
- * changes, branch or history). Never `unexpected-checkout`, a refusal of
- * the remote or a failure. */
+ * AND that this identity read its remote in this run: current, moved or
+ * cloned, or `ahead` / `diverged`, which are known only after the remote's
+ * answer. A checkout blocked by its own state (changes, another branch, a
+ * detached HEAD, an operation) was never asked of the remote, so its access
+ * is unknown and no data mount is cloned below it (review of #793). */
 const verifiedCheckout = (entry: SyncEntry) =>
   entry.result === "current" ||
   entry.result === "fast-forwarded" ||
   entry.result === "materialized" ||
-  (entry.result === "blocked" && entry.reason !== "unexpected-checkout");
+  (entry.result === "blocked" &&
+    (entry.reason === "ahead" || entry.reason === "diverged"));
 
 /** A synchronization's answer for an absent repository it tried to clone:
  * no access is a quiet `absent` with

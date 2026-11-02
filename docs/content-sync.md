@@ -256,7 +256,8 @@ about a minute:
 nothing at the place (for a data mount, nothing or an empty directory) is cloned by
 installation's `provideRepository` when the slot is not restricted, the Environment is not
 a Team Environment (public or not) and, for a data mount, this run verified its module's
-primary checkout of the declared repository: GitHub is asked once,
+primary checkout of the declared repository and read its remote (not one blocked by its
+own state): GitHub is asked once,
 the clone goes to a temporary sibling on the declared branch and is published by a
 no-replace rename. `materialized` with `to` when it is; `absent` with `repository-denied`
 when this identity cannot read it, quietly (no doctor finding, `since` kept), and asked

@@ -1074,9 +1074,10 @@ still holds no Organization's repository (root decision 0153).
    with a no-replace rename; nothing present is entered or changed. The answer is the new
    result `materialized`, with `to`, the commit it was cloned at. Modules run before data
    mounts, so a data mount is cloned in the same run as its module, and only below its
-   module's primary checkout of the declared repository that this run verified (current,
-   moved, cloned, or blocked only for its changes, branch or history); never below another
-   repository's checkout, a linked worktree or a module this identity cannot read.
+   module's primary checkout of the declared repository whose remote this run read (current,
+   moved, cloned, or ahead or diverged); never below another repository's checkout, a
+   linked worktree, a module this identity cannot read, or one blocked by its own state
+   (changes, another branch, a detached HEAD, an operation), whose remote was not asked.
 2. **What is not.** A restricted slot (or one below it) stays absent: only an Admin's
    explicit installation brings it, as before. Production Space, `infra` and the
    Personalspace are never synchronized. A Team Environment, public or not, whose content
@@ -1107,7 +1108,8 @@ Contract: `tests/content-sync.test.ts` (a module granted later is cloned at the 
 absent with `since` and no finding a day later; a lost remote leaves the checkout; a
 restricted slot is never cloned; a data mount is cloned below its module in the same run
 and not below a module this identity cannot read, another repository's checkout or a
-linked worktree; who clones on each kind of Environment, a public Team one among them;
+linked worktree or a module blocked by its own changes; who clones on each kind of
+Environment, a public Team one among them;
 what each failed attempt answers) and `tests/guest-modules.test.ts` (a guest without a
 grant is quietly absent). The Root CLI on a computer follows under root decision 0219.
 

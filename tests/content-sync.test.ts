@@ -1310,3 +1310,51 @@ posixTest(
   },
   60_000,
 );
+
+posixTest(
+  "a data mount is never cloned below a module blocked by its own state, whose remote this run did not read",
+  async () => {
+    world = await createWorld();
+    const current = world;
+    const fixture = await organization(current, {
+      modules: ["plans"],
+      extraSlots: [
+        {
+          path: "workspace/plans/db",
+          slug: "plans-data",
+          materialization: "repository_db_mount",
+          git: { url: "git@github.com:Alpha/plans-data.git", branch: "v3" },
+        },
+      ],
+    });
+    await remoteRepository(
+      current,
+      "Alpha/plans-data",
+      (d) => writeFile(join(d, "data.json"), "{}\n"),
+      "v3",
+    );
+    // The module has local changes: its remote is never asked, so whether
+    // this identity may read it is unknown.
+    await writeFile(fixture.at("workspace/plans/notes.txt"), "local\n");
+    const host: SyncHost = {
+      ...fixture.host,
+      github: stubGitHub(current, {
+        repositories: { "Alpha/plans-data": {} },
+      }).github,
+    };
+    const run = await ran({ ...fixture, host });
+    expect(byPath(run.entries)).toMatchObject({
+      "workspace/plans": "blocked:dirty",
+      "workspace/plans/db": "absent",
+    });
+    expect(await exists(fixture.at("workspace/plans/db"))).toBe(false);
+    // Clean again: its remote is read, and the data mount follows.
+    await rm(fixture.at("workspace/plans/notes.txt"));
+    const clean = await ran({ ...fixture, host });
+    expect(byPath(clean.entries)).toMatchObject({
+      "workspace/plans": "current",
+      "workspace/plans/db": "materialized",
+    });
+  },
+  60_000,
+);
