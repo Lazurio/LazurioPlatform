@@ -3266,9 +3266,11 @@ the Lazurio Root, each in one place.** Every rule was checked against the
 rendered Folder of all five presets in both languages, and only what was missing is added,
 cited by the public register:
 
-- **`working-here.md`.** Git and GitHub: an approval GitHub carried over to a new head by
-  a rebase or a merge of the base branch does not count (its `submittedAt` is older than
-  the last commit's `committedDate`); every branch rewrite checks the commits it drops
+- **`working-here.md`.** Git and GitHub: an approval counts only when it was submitted
+  after the head's last commit (its `submittedAt` later than that commit's
+  `committedDate`), a conservative rule of this project that asserts nothing about how
+  GitHub carries reviews over, and the skill `henry-review` says the same; every branch
+  rewrite checks the commits it drops
   (the fork's rule now points to it); a fork's release tag is never used again. Worktree
   discipline: someone else's pull request is reviewed in a detached checkout of its exact
   head. A Release follows the user's explicit instruction or a standing mandate a decision

@@ -583,8 +583,8 @@ const henryReview: readonly Text[] = [
   blank,
   t("## Ověření", "## Verification"),
   t(
-    "- **Verdikt** platí, jen když review od loginu persony má `commit_id` rovné aktuálnímu headu a je odeslané po posledním commitu. Schválení, které GitHub přenesl po rebase nebo po merge base větve, se nepočítá: `gh pr view <n> --json headRefOid,reviews,commits`.",
-    "- **A verdict** counts only when the review from the persona's login has a `commit_id` equal to the current head and was submitted after the last commit. An approval GitHub carried over after a rebase or a merge of the base branch does not count: `gh pr view <n> --json headRefOid,reviews,commits`.",
+    "- **Verdikt** platí, jen když review od loginu persony má `commit_id` rovné aktuálnímu headu a je odeslané po posledním commitu; starší schválení se podle pravidla projektu nepočítá, ani když nese `commit_id` headu: `gh pr view <n> --json headRefOid,reviews,commits`.",
+    "- **A verdict** counts only when the review from the persona's login has a `commit_id` equal to the current head and was submitted after the last commit; by this project's rule an earlier approval does not count, even when it carries the head's `commit_id`: `gh pr view <n> --json headRefOid,reviews,commits`.",
   ),
   t(
     "- **Dotažení** je hotové, až je pull request mergnutý, nebo předaný dalšímu jmenovanému assignee se stavem a dalším krokem. Komentář ani schválení samo nestačí.",

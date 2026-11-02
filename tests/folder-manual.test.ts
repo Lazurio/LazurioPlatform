@@ -2658,8 +2658,8 @@ test("the remaining rules of the Root's inventory each have one place in the man
       // Fresh approval (root manual/pull-request-handoff.md).
       path: working,
       on: every,
-      cs: "Schválení, které GitHub po rebase nebo po merge base větve přenesl na nový head, nese `commit.oid` nového headu, ale jeho `submittedAt` je starší než `committedDate` posledního commitu, a proto se nepočítá.",
-      en: "An approval GitHub carried over to the new head after a rebase or a merge of the base branch carries the new head's `commit.oid`, but its `submittedAt` is older than the last commit's `committedDate`, so it does not count.",
+      cs: "starší schválení se podle pravidla projektu nepočítá, ani když nese `commit.oid` headu.",
+      en: "by this project's rule an earlier approval does not count, even when it carries the head's `commit.oid`.",
     },
     {
       // Decision 0132, its two missing sentences.
