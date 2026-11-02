@@ -280,10 +280,85 @@ const lazurio: readonly Text[] = [
     "When you are unsure whether it is Lazurio or a module, the place of the code that has to change decides: in the module's repository it is the module's, in the product it is Lazurio's. Still unclear? File the issue where the problem shows, say why you are unsure, and tell the user.",
   ),
   blank,
+  t("## Co už Lazurio má", "## What Lazurio already has"),
+  t(
+    "Než něco postavíš, podívej se sem. Když potřeba sedí na některý z těchto mechanismů, použij ho a vedle něj nestav vlastní. Když nestačí, je to podle tabulky výše věc Lazuria: zapiš issue do `Lazurio/LazurioPlatform` a řekni to uživateli. U položek, které platí jen na Remote Environmentu nebo jen v Organizaci, to stojí přímo u nich.",
+    "Before you build something, look here. When a need fits one of these mechanisms, use it and build no parallel one of your own. When it falls short, it is Lazurio's part as the table above says: file an issue in `Lazurio/LazurioPlatform` and tell the user. An item that holds only on a Remote Environment or only in an Organization says so.",
+  ),
+  blank,
+  t(
+    "- **Aplikace, nástroj, přehled nebo web:** modul. Je to samostatný repozitář ve `workspace/<module>/` (v Osobním Prostředí v Personalspace). Zakládá ho jen `lazurio module create` přes skill `new-module`, spouští ho `lazurio module` a uživatel ho otevírá z Apps v Lazuriu. Existující modul proti Lazurio Module Standard kontroluje skill `module-standard` (decision 0171).",
+    "- **An app, tool, overview or website:** a module. It is a repository of its own under `workspace/<module>/` (on a Personal Environment in the Personalspace). Only `lazurio module create` founds it, through the skill `new-module`; `lazurio module` runs it, and the user opens it from Apps in Lazurio. The skill `module-standard` checks an existing module against the Lazurio Module Standard (decision 0171).",
+  ),
+  t(
+    "- **Data modulu:** repository-db. Datový repozitář je v modulu připojený jako `db/` a uživatel změny dat publikuje v kartě konceptu v aplikaci. Databáze přijde až s opravdovým používáním (skill `new-module`, krok 3).",
+    "- **A module's data:** repository-db. A data repository is mounted in the module as `db/`, and the user publishes data changes in the app's draft card. A database comes only with real use (the skill `new-module`, step 3).",
+  ),
+  t(
+    "- **Data nebo API jiného modulu:** deklarace v `lazurio.runtime.required_module_slots`. Pro jeho data deklaruj datový mount `workspace/<slug>/db` a čti je v `../<slug>/db/`, nikdy jeho kód ani manifesty. Pro jeho API deklaruj slot modulu `workspace/<slug>` a volej ho jen na adrese z `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` (decision 0176).",
+    "- **Another module's data or API:** a declaration in `lazurio.runtime.required_module_slots`. For its data, declare the data mount `workspace/<slug>/db` and read it at `../<slug>/db/`, never its code or manifests. For its API, declare the module slot `workspace/<slug>` and call it only at the address in `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` (decision 0176).",
+  ),
+  t(
+    "- **Klíč nebo heslo pro modul:** tajné údaje běhu. Aplikace deklaruje jméno v `lazurio.runtime.secrets`, Lazurio ho před každým startem přečte z trezoru Environmentu a předá jako `LAZURIO_RUNTIME_SECRET_<NAME>` (decision F46). Soubor `.env` ani secret v Gitu nepoužívej. Tvoje vlastní secrets jsou v trezoru (`lazurio vault status`, oddíl Tajné údaje v `manual/working-here.md`).",
+    "- **A key or password for a module:** runtime secrets. The app declares the name in `lazurio.runtime.secrets`; Lazurio reads it from the Environment's vault before every start and passes it as `LAZURIO_RUNTIME_SECRET_<NAME>` (decision F46). Never use a `.env` file or a secret in Git. Your own secrets are in the vault (`lazurio vault status`, Secrets in `manual/working-here.md`).",
+  ),
+  t(
+    "- **Kdo smí aplikaci otevřít:** na Remote Environmentu brána Environmentu. Pouští lidi do Lazuria i do každé aplikace modulu na jejím vlastním hostname (`runtime.url`, decision 0146), takže vlastní přihlášení před aplikaci nestav. Na vlastním počítači uživatele je `runtime.url` adresa na loopbacku a žádná brána před ní nestojí.",
+    "- **Who may open an app:** on a Remote Environment, the Environment's gateway. It admits people to Lazurio and to each module's app at the app's own hostname (`runtime.url`, decision 0146), so do not put a sign-in of your own in front of an app. On the user's own computer `runtime.url` is a loopback address with no gateway in front of it.",
+  ),
+  t(
+    "- **Statický web nebo sestavená aplikace:** `build_output` v `lazurio.runtime`. Lazurio sestaví každý klíč sestavení jednou a servíruje ho. Klíčem je commit modulu, a když aplikace čte data nebo deklarované sousedy, i jejich commity, takže nové sestavení spustí i změna dat (decision F58). Které sestavení běží, říká `lazurio module status <Org>/<modul> --json`.",
+    "- **A static website or a built app:** `build_output` in `lazurio.runtime`. Lazurio builds each build key once and serves that build. The key is the module's commit and, when the app reads data or declared siblings, their commits too, so a change of data also triggers a new build (decision F58). `lazurio module status <Org>/<module> --json` says which build runs.",
+  ),
+  t(
+    "- **Práce podle plánu nebo na zavolání jiné aplikace:** automatizace Lazurio MausBotu na Remote Environmentu, v Lazuriu pro uživatele Automate. Rutina spouští práci bota podle plánu, webhook ji spustí, když jiná aplikace zavolá jeho adresu. Zakládáš je na pokyn uživatele příkazem `node ~/.local/share/lazurio/mausbot/current/cli.js routine … --port 4102` a `… webhook … --port 4102` (`docs/headless-cli.md` ve veřejném `Lazurio/OpenMausBot`). Stálá automatizovaná práce Organizace patří do jejího Prostředí Henry (decision 0169). Vlastní plánovač, cron ani dotazovací smyčku pro to nestav.",
+    "- **Work on a schedule or when another app calls:** automations of Lazurio MausBot on a Remote Environment, Automate in Lazurio for users. A routine runs a bot's task on a schedule; a webhook starts it when another app calls its address. Set them up on the user's instruction with `node ~/.local/share/lazurio/mausbot/current/cli.js routine … --port 4102` and `… webhook … --port 4102` (`docs/headless-cli.md` in the public `Lazurio/OpenMausBot`). An Organization's standing automated work belongs in its Henry Environment (decision 0169). Build no scheduler, cron job or polling loop of your own for it.",
+  ),
+  t(
+    "- **Plány, úkoly a priority:** Mission Control Organizace, s plány a hlavní roadmapou. Kde leží a kdo do něj zapisuje, říká `AGENTS.md` Organizace.",
+    "- **Plans, tasks and priorities:** the Organization's Mission Control, with its plans and the main roadmap. The Organization's `AGENTS.md` says where it lives and who writes to it.",
+  ),
+  t(
+    "- **Znalosti, návody a rozhodnutí:** Knowledgebase Organizace. Otevřený technický problém do ní nepatří, jde do GitHub Issue (oddíl Poznatky patří tam, kde je najdou ostatní v `manual/working-here.md`).",
+    "- **Knowledge, how-tos and decisions:** the Organization's Knowledgebase. An open technical problem does not belong there; it goes to a GitHub Issue (Knowledge belongs where others find it in `manual/working-here.md`).",
+  ),
+  t(
+    "- **Vzhled rozhraní:** Design System Organizace, pokud ho má (`design-system` v kořeni Organizace). Jeho CSS tokeny a assety jsou zdrojem pro rozhraní Organizace.",
+    "- **The look of an interface:** the Organization's Design System, where it has one (`design-system` at the Organization's root). Its CSS tokens and assets are the source for the Organization's interfaces.",
+  ),
+  t(
+    "- **Pošta, kalendář, chat, CRM:** Integrace. Co je připojené, vypíše `lazurio integrations list --json`; každá aplikace má jednu cestu a připojuje ji uživatel sám na její kartě (oddíl Integrace v `manual/working-here.md`, decision 0162).",
+    "- **Mail, calendar, chat, CRM:** Integrations. `lazurio integrations list --json` lists what is connected; each app has one path, and the user connects it on its card (Integrations in `manual/working-here.md`, decision 0162).",
+  ),
+  t(
+    "- **Webové stránky a programy na obrazovce:** prohlížeč Environmentu na Remote Environmentu (`lazurio browser window`, decision 0191) a MCP nástroj `computer` (decision F59).",
+    "- **Web pages and programs on the screen:** the Environment browser on a Remote Environment (`lazurio browser window`, decision 0191) and the MCP tool `computer` (decision F59).",
+  ),
+  t(
+    "- **Soubory pro uživatele a od něj:** složka Documents (`AGENTS.md`); jak soubor uživateli předáš, říká `manual/this-machine.md`.",
+    "- **Files for and from the user:** the Documents folder (`AGENTS.md`); `manual/this-machine.md` says how to hand a file to the user.",
+  ),
+  t(
+    "- **Spojení s uživatelem:** vlákno, ve kterém s tebou pracuje (T3 Code, v Lazuriu jako Chat, nebo Lazurio MausBot), a nástroj na otázky (decision 0211). Vlastní kanál pro upozornění nestav.",
+    "- **Reaching the user:** the thread they work with you in (T3 Code, in Lazurio as Chat, or Lazurio MausBot) and the question tool (decision 0211). Build no notification channel of your own.",
+  ),
+  t(
+    "- **Místo, kde lidé aplikace otevírají:** Launchpad, pro uživatele Lazurio, s Apps, Soubory, Integracemi a Nastavením. Modul se v něm objeví podle manifestu Organizace nebo Personalspace, ne přes vlastní spouštěč.",
+    "- **The place where people open apps:** the Launchpad, Lazurio for users, with Apps, Files, Integrations and Settings. A module appears there from the manifest of its Organization or Personalspace, not through a launcher of your own.",
+  ),
+  t(
+    "- **Aktuální verze a checkouty:** `lazurio update` a vlastní průchod Lazuria. Ten stáhne čisté checkouty a sestavené aplikace sestaví znovu (decision F58). Vlastní cron ani smyčku s `git pull` nestav.",
+    "- **Current versions and checkouts:** `lazurio update` and Lazurio's own sweep, which pulls the clean checkouts and rebuilds the built apps (decision F58). Build no cron job or `git pull` loop of your own.",
+  ),
+  t(
+    "- **Review pull requestu v Organizaci s personou:** její Henry na GitHubu (skill `henry-review`).",
+    "- **A pull request's review in an Organization with a persona:** its Henry, on GitHub (the skill `henry-review`).",
+  ),
+  blank,
   t("## Pravidla hry jsou veřejná", "## The rules of the game are public"),
   t(
-    "Lazurio je source-available: principy, rozhodnutí a pravidla, podle kterých funguje, jsou veřejné, aby se jimi mohli řídit agenti i lidé. Kód, `ARCHITECTURE.md` a rozhodnutí (`docs/decisions.md`) jsou ve veřejném repozitáři `Lazurio/LazurioPlatform`. Když nevíš, proč pravidlo platí nebo kdo za věc odpovídá, dočti si to tam, než začneš odhadovat.",
-    "Lazurio is source-available: the principles, decisions and rules it works by are public so that agents and people can play by them. The code, `ARCHITECTURE.md` and the decisions (`docs/decisions.md`) are in the public `Lazurio/LazurioPlatform` repository. When you do not know why a rule holds or who is responsible for something, read it there before you guess.",
+    "Lazurio je source-available: principy, rozhodnutí a pravidla, podle kterých funguje, jsou veřejné, aby se jimi mohli řídit agenti i lidé. Kód, `ARCHITECTURE.md`, rejstřík rozhodnutí (`docs/decision-register.md`, čtyřmístná čísla jako decision 0171) a rozhodnutí implementace Platformy (`docs/decisions.md`, čísla F1 a dál) jsou ve veřejném repozitáři `Lazurio/LazurioPlatform`. U rozhodnutí, které je interní věcí jedné Organizace, nese rejstřík jen číslo, název a stav, a obecnou normu tam, kde se o ni opírá veřejný text. Když nevíš, proč pravidlo platí nebo kdo za věc odpovídá, dočti si to tam, než začneš odhadovat.",
+    "Lazurio is source-available: the principles, decisions and rules it works by are public so that agents and people can play by them. The code, `ARCHITECTURE.md`, the decision register (`docs/decision-register.md`, four-digit numbers such as decision 0171) and the Platform's implementation decisions (`docs/decisions.md`, numbers F1 and up) are in the public `Lazurio/LazurioPlatform` repository. For a decision internal to one Organization, the register holds only its number, title and status, and the general norm where public text relies on it. When you do not know why a rule holds or who is responsible for something, read it there before you guess.",
   ),
 ];
 
@@ -1439,8 +1514,8 @@ function building(preset: PresetName): readonly Text[] {
   return [
     t("## Než postavíš něco nového", "## Before you build something new"),
     t(
-      "Nejdřív najdi mechanismus Lazuria, který věc už řeší: manifest Organizace, Module Standard, `lazurio module`, nástroje a Integrace Environmentu, Mission Control nebo Knowledgebase. Paralelní řešení vedle nich nestav: vlastní instalaci Lazuria, vlastní integraci, spouštěč, registr ani druhý zdroj pravdy. Když mechanismus chybí nebo nestačí, zapiš issue do repozitáře, který ho vlastní, a navrhni uživateli řešení.",
-      "First find the Lazurio mechanism that already covers it: the Organization manifest, the Module Standard, `lazurio module`, the Environment's tools and Integrations, Mission Control or the Knowledgebase. Do not build a parallel solution next to them: your own installation of Lazurio, your own integration, launcher, registry or second source of truth. When a mechanism is missing or falls short, file an issue in the repository that owns it and propose a solution to the user.",
+      "Nejdřív najdi mechanismus Lazuria, který věc už řeší: manifest Organizace, Module Standard, `lazurio module`, nástroje a Integrace Environmentu, Mission Control nebo Knowledgebase. Paralelní řešení vedle nich nestav: vlastní instalaci Lazuria, vlastní integraci, spouštěč, registr ani druhý zdroj pravdy. Když mechanismus chybí nebo nestačí, zapiš issue do repozitáře, který ho vlastní, a navrhni uživateli řešení. Co Lazurio už má a jak se to použije, je v oddílu Co už Lazurio má v `manual/lazurio.md`.",
+      "First find the Lazurio mechanism that already covers it: the Organization manifest, the Module Standard, `lazurio module`, the Environment's tools and Integrations, Mission Control or the Knowledgebase. Do not build a parallel solution next to them: your own installation of Lazurio, your own integration, launcher, registry or second source of truth. When a mechanism is missing or falls short, file an issue in the repository that owns it and propose a solution to the user. What Lazurio already has and how to use it is in What Lazurio already has in `manual/lazurio.md`.",
     ),
     blank,
     t("## Organizace a její manifest", "## The Organization and its manifest"),
