@@ -397,8 +397,8 @@ test("the generated rule tells agents to say Prostředí in Czech and Environmen
     expect(rule).toContain("Remote Environment");
     expect(rule).toContain("Prostředí na serveru");
     expect(rule).toContain("Lazurio");
-    expect(rule).toContain("0170");
-    expect(rule).toContain("2026-10-15");
+    // Cited by its number in the public register (#758).
+    expect(rule).toContain(locale === "cs" ? "rozhodnutí 0170" : "decision 0170");
   }
 });
 
