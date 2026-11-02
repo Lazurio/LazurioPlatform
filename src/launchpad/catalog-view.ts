@@ -853,11 +853,12 @@ export function parseCatalog(input: unknown): Catalog | null {
     : null;
 }
 
-/** The catalog with each guest whose last synchronization GitHub refused
- * marked `revoked` (decision F67's addendum of 2026-11-01): a guest stays
- * checked out after its access is lost, and Apps must not show it. Only a
- * present checkout's `denied` counts; the next synchronization that reads it
- * again clears the mark. Reads nothing itself. */
+/** The catalog with each guest whose remote GitHub refused at its last
+ * read marked `revoked` (decision F67's addendum of 2026-11-01): a guest
+ * stays checked out after its access is lost, and Apps must not show it.
+ * The refusal stands through runs that never read the remote (a blocked
+ * root, a checkout blocked by its own state, GitHub not answering) until a
+ * synchronization reads it again. Reads nothing itself. */
 export function withGuestAccess(
   catalog: Catalog,
   record:
@@ -866,13 +867,16 @@ export function withGuestAccess(
         root: string;
         path: string;
         result: string;
+        unreadable?: true;
       }>[]
     | null,
 ): Catalog {
   if (record === null) return catalog;
+  // GitHub's last answer was a refusal: `denied`, or a later answer that
+  // never read the remote (`unreadable`); a run that reads it clears both.
   const denied = new Set(
     record
-      .filter((entry) => entry.result === "denied")
+      .filter((entry) => entry.result === "denied" || entry.unreadable === true)
       .map((entry) => `${entry.root}\0${entry.path}`),
   );
   if (denied.size === 0) return catalog;

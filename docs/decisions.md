@@ -22827,9 +22827,12 @@ cannot read.
 2. **Only guests checked out here and readable.** A guest this Environment's identity
    cannot read is never cloned, so it is not listed, the same rule as an absent module
    (F32's addendum of 2026-10-15). A guest whose access was lost keeps its checkout, so the
-   Launchpad's catalog marks it `revoked` when the last synchronization recorded GitHub's
-   refusal (`denied`) for it, and Apps hides it until a synchronization reads it again
-   (`withGuestAccess`; the page asks GitHub nothing itself). A home without a shown guest
+   Launchpad's catalog marks it `revoked` while GitHub's last answer for its remote was a
+   refusal (`withGuestAccess`; the page asks GitHub nothing itself). The record keeps that
+   refusal through runs that never read the remote: a later answer blocked by the
+   checkout's own state, unavailable or failed carries `unreadable`, and a run whose root
+   stopped the Organization keeps the guest's last `denied`. Only a run that reads the
+   remote (current, moved, ahead, diverged) clears it. A home without a shown guest
    has no section. The Admin still sees every declaration in the manifest,
    `lazurio organization list` and the doctor.
 3. **A tile like a module's, read-only** (`guestTile`): its stone and its slot id, as GitHub
