@@ -3189,6 +3189,51 @@ On 2026-10-29 Matěj raised two questions.
 3. **#653's existing drift.** Where a hand-added section can be proven (the rest matches the recorded digest), the repair offers to move exactly that text into the new field, instead of only discarding it.
 4. **The Lazurio Root on a workstation** gets the same mechanism under root decision 0219 (plan DEV-6693).
 
+**Addendum 2026-11-01, decided by Matěj (Organization Admin, plan LZD-0002 of the
+LazurioDevelopment Organization): two more Folder skills from the Lazurio Root,
+`henry-review` and `module-standard`; manifest schema 4.** The Lazurio Root (GEN3) carries
+two agent procedures every Organization's Environment needs and the Folder lacks:
+asking the Organization's persona for a review or handing it a pull request, and
+converting or checking an existing module against the Module Standard. A context
+benchmark in three simulated Environments (an Organization's development, its product
+and business, and a customer with only the Platform) found that Folder agents know the
+Module Standard only by its seven-line summary: nothing about a module's secrets from
+the vault, sibling modules or the built version from `main`, although this Platform
+reads all of them. Matěj asked for the Root's skills to be read, kept where they serve
+the Platform and rewritten short, in Lazurio's voice, without the Root's mechanics.
+
+What changes:
+
+- **The skill `henry-review`**: the asking side of the persona's contract that
+  `this-machine.md`'s bot team chapter states for the persona (F31 and the 0218 addenda):
+  the login from the Organization's `AGENTS.md`, a Ready pull request with green checks,
+  one reviewer request through GitHub and no second way, the handover by assignment only
+  on the user's instruction, a verdict only on the exact head with an approval submitted
+  after the last commit, and what to check when no review arrives.
+- **The skill `module-standard`**: what a module holds (manifest, app generations, one
+  process, port and addresses from the listener variables, secrets declared by name and
+  read from `LAZURIO_RUNTIME_SECRET_<NAME>`, siblings declared in `required_module_slots`
+  (a sibling's API origin is passed only for a declared `workspace/<slug>`),
+  the built version by `build_script`/`build_output` or `start_script`, sleeping, CI
+  minutes), the order of a conversion, its verification in the changed worktree, and the
+  Platform start only after the merge, since `lazurio module start` runs the primary
+  checkout on `main` and may take over a running app (stopping only what the agent
+  started, with the full target; the Launchpad on macOS). No command checks conformance
+  yet (#423); the skill says so.
+- **Pointers, not AGENTS.md lines.** `working-here.md` names both skills where the
+  module rules and the handover already are; AGENTS.md stays within its budget (#755).
+  The glossary gains GEN3 and GEN4 (the Lazurio Root and the Lazurio Platform with its
+  Folder), official designations in texts since 2026-11-01.
+- **Manifest schema 4** records every output; schema 3, the Folder with `new-module`
+  only, stays readable, and the next change creates the two skills where they are absent,
+  the same way schema 3 brought the first skill to schema 2 Folders.
+
+Not changed: no Root command or path enters the Folder, the Root's `lazurio module setup`
+and Organization manifest migration stay GEN3, and `admin-pr-sweep`,
+`worktree-development-discipline` and `lazurio-workstation-install` stay in the Root or
+move to the development Organization, not to every Folder. If #585 (`ui-craft`) merges
+first with schema 4, this change takes schema 5, and the other way round.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
