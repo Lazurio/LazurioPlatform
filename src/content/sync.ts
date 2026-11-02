@@ -10,6 +10,7 @@ import { type ContentHost, readFolderKind } from "./host";
 import { declaredChildren } from "./install";
 import { tryContentLock } from "./lock";
 import { contentScope, sameRepository } from "./model";
+import { type ProvideOutcome, provideRepository } from "./provide";
 import {
   recordSync,
   type SyncBlockedReason,
@@ -38,7 +39,10 @@ export {
 // the commit the fetch brought. A checkout changes only when its tracked and
 // untracked files are clean, it is on the expected branch and no operation
 // is under way; anything else is reported and left as it is. Never a stash,
-// a switch, a reset, a merge, a clone, a hook or a preparation. Worktrees,
+// a switch, a reset, a merge, a hook or a preparation. The one clone is of a
+// declared module or data mount that is not here yet and that this identity
+// can now read, by installation's own `provideRepository` (`cloneAbsent`,
+// decision F9's addendum of 2026-11-01). Worktrees,
 // Production Space repositories, `infra` and the Personalspace are never
 // touched. The Launchpad runs it at its start and then every hour
 // (`contentSyncEveryMs`) within its build sweep
@@ -79,7 +83,7 @@ export type SyncProgress = Readonly<{
   path: string;
   kind: SyncEntry["kind"];
   branch: string;
-  step: "checking" | "fetching" | "fast-forwarding" | "done";
+  step: "checking" | "fetching" | "fast-forwarding" | "cloning" | "done";
   /** `fetching` and `fast-forwarding`: the commit the remote's branch
    * names, the one the checkout is to move to. */
   to?: string;
@@ -152,9 +156,11 @@ export async function syncContent(
   request: SyncRequest = {},
 ): Promise<SyncRun> {
   let scope: Scope;
+  let preset: PresetName;
   try {
     const kind = await readFolderKind(folder);
     scope = syncScope(kind.preset, kind.machine);
+    preset = kind.preset;
   } catch {
     return { kind: "not-allowed", reason: "folder-unreadable" };
   }
@@ -183,6 +189,11 @@ export async function syncContent(
     let helper: Promise<string | undefined> | undefined;
     const context: RunContext = {
       git: host.git,
+      // Who clones a declared module that is not here yet (decision F9's
+      // addendum of 2026-11-01): this Environment's own GitHub, or anonymous
+      // Git on a public Environment; a Team Environment, whose content the
+      // hosting prepares, clones nothing here.
+      clone: cloneIdentity(scope.remote, preset, host.github),
       timeoutMs: request.timeoutMs ?? syncTimeoutMs,
       remote: (repository) => {
         if (scope.remote === "anonymous")
@@ -260,22 +271,49 @@ export async function syncContent(
       const children = (await childrenOf(directory)).filter((child) =>
         wanted(child.path),
       );
-      entries.push(
-        ...(await pool(
-          children,
+      // Modules first, then the data mounts: a data mount is cloned only
+      // below its declared module whose primary checkout this run verified
+      // (an answer that got past the identity and worktree checks).
+      const verified = new Set<string>();
+      for (const pass of ["module", "data"] as const) {
+        const answered = await pool(
+          children.filter((child) => child.kind === pass),
           request.concurrency ?? syncConcurrency,
           (child) =>
-            one(child.path, child.kind, child.branch, (progress) =>
-              syncCheckout(
+            one(child.path, child.kind, child.branch, async (progress) => {
+              const outcome = await syncCheckout(
                 context,
                 join(directory, child.path),
                 (repository) => sameRepository(repository, child.repository),
                 child.branch,
                 progress,
-              ),
-            ),
-        )),
-      );
+              );
+              if (outcome.result !== "absent") return outcome;
+              if (child.parent !== undefined && !verified.has(child.parent))
+                return { result: "absent" };
+              const cloned = await cloneAbsent(context, directory, child, () =>
+                progress("cloning", ""),
+              );
+              // A checkout that appeared meanwhile (another run, a person)
+              // is answered by the full check of a present one: its
+              // identity, primary checkout, own state and remote; never
+              // taken as verified on its origin alone (review of #793).
+              return cloned === "appeared"
+                ? syncCheckout(
+                    context,
+                    join(directory, child.path),
+                    (repository) =>
+                      sameRepository(repository, child.repository),
+                    child.branch,
+                    progress,
+                  )
+                : cloned;
+            }),
+        );
+        for (const entry of answered)
+          if (verifiedCheckout(entry)) verified.add(entry.path);
+        entries.push(...answered);
+      }
     }
     const organizations = held.map((entry) => entry.forgeLogin as string);
     const recorded = await recordSync(
@@ -302,11 +340,13 @@ export async function syncContent(
 
 type RunContext = Readonly<{
   git: ContentGit;
+  /** Who clones an absent declared module: null, nobody. */
+  clone: Parameters<typeof provideRepository>[0]["github"] | null;
   timeoutMs: number;
   remote: (repository: string) => Promise<SyncRemote>;
 }>;
 
-type CheckoutStep = "fetching" | "fast-forwarding";
+type CheckoutStep = "fetching" | "fast-forwarding" | "cloning";
 
 type Outcome = Readonly<{
   result: SyncResult;
@@ -320,6 +360,11 @@ type SyncChild = Readonly<{
   repository: string;
   kind: "module" | "data";
   branch: string;
+  /** Restricted (Admin-only), itself or below such a slot: kept current
+   * when present, never cloned by a synchronization. */
+  restricted: boolean;
+  /** A data mount's module. */
+  parent?: string;
 }>;
 
 /** The modules and data mounts the root declares now: workspace modules
@@ -341,6 +386,11 @@ async function childrenOf(root: string): Promise<SyncChild[]> {
       documents.canonical.value,
       documents.modules.value,
     );
+    const restricted = new Set(
+      declaredChildren(inventory, "exclude")
+        .filter((child) => child.excluded === "excluded_by_role_scope")
+        .map((child) => child.path),
+    );
     return declaredChildren(inventory, "include").flatMap((child) =>
       child.kind === "module" &&
       child.excluded === undefined &&
@@ -351,6 +401,10 @@ async function childrenOf(root: string): Promise<SyncChild[]> {
               repository: child.repository,
               kind: child.data === undefined ? "module" : "data",
               branch: child.data?.branch ?? "main",
+              restricted: restricted.has(child.path),
+              ...(child.data === undefined
+                ? {}
+                : { parent: child.data.parent }),
             } as const),
           ]
         : [],
@@ -483,6 +537,108 @@ async function syncCheckout(
   } catch {
     return { result: "failed", reason: "operation-failed" };
   }
+}
+
+/** Who clones a declared module that is not here yet (decision F9's
+ * addendum of 2026-11-01): this Environment's own GitHub, or anonymous Git
+ * on a public Environment. A Team Environment, public or not, whose content
+ * the hosting prepares, clones nothing here (null), and neither does an
+ * Environment that reads through git's configured helper. */
+export function cloneIdentity(
+  remote: Scope["remote"],
+  preset: PresetName,
+  github: SyncHost["github"],
+): RunContext["clone"] {
+  if (preset === "hosted-organization-team") return null;
+  return remote === "account"
+    ? github
+    : remote === "anonymous"
+      ? "anonymous"
+      : null;
+}
+
+/** Whether an answer verified a primary checkout of the declared repository
+ * AND that this identity read its remote in this run: current, moved or
+ * cloned, or `ahead` / `diverged`, which are known only after the remote's
+ * answer. A checkout blocked by its own state (changes, another branch, a
+ * detached HEAD, an operation) was never asked of the remote, so its access
+ * is unknown and no data mount is cloned below it (review of #793). */
+const verifiedCheckout = (entry: SyncEntry) =>
+  entry.result === "current" ||
+  entry.result === "fast-forwarded" ||
+  entry.result === "materialized" ||
+  (entry.result === "blocked" &&
+    (entry.reason === "ahead" || entry.reason === "diverged"));
+
+/** A synchronization's answer for an absent repository it tried to clone:
+ * no access is a quiet `absent` with
+ * its reason, never `denied`; a destination that is suddenly there was
+ * published meanwhile (`current`) or is something else (`blocked`). On a
+ * public Environment anonymous Git cannot tell a private repository from a
+ * failed clone, so that stays quietly absent too. */
+export function cloneAnswer(
+  outcome: ProvideOutcome,
+  anonymous: boolean,
+): Readonly<{ result: SyncResult; reason?: string }> {
+  switch (outcome.result) {
+    case "materialized":
+      return { result: "materialized" };
+    case "present":
+      return { result: "current" };
+    case "denied":
+      return { result: "absent", reason: "repository-denied" };
+    case "unavailable":
+      return { result: "unavailable", reason: "remote-unavailable" };
+    case "blocked":
+      return { result: "blocked", reason: "unexpected-checkout" };
+    default:
+      return anonymous && outcome.reason === "clone-failed"
+        ? { result: "absent", reason: "clone-failed" }
+        : { result: "failed", reason: outcome.reason };
+  }
+}
+
+/** A declared module (a guest Module among them) or data mount that is not
+ * here yet, cloned when this Environment's identity can read it (decision
+ * F9's addendum of 2026-11-01, DEV-6694 M8), by installation's own
+ * `provideRepository`: GitHub is asked once, the clone goes to a temporary
+ * sibling and is published with a no-replace rename, nothing present is
+ * touched. Without access the repository stays `absent`, quietly, with the
+ * reason; a restricted slot, a Team Environment and a data mount whose
+ * module is not a checkout are never cloned here. The run already holds the
+ * content lock. */
+async function cloneAbsent(
+  context: RunContext,
+  root: string,
+  child: SyncChild,
+  cloning: () => void,
+): Promise<Outcome | "appeared"> {
+  if (context.clone === null || child.restricted) return { result: "absent" };
+  cloning();
+  let outcome: ProvideOutcome;
+  try {
+    outcome = await provideRepository({
+      root,
+      path: child.path,
+      repository: child.repository,
+      branch: child.kind === "data" ? child.branch : undefined,
+      fillEmptyDirectory: child.kind === "data",
+      git: context.git,
+      github: context.clone,
+    });
+  } catch {
+    return { result: "failed", reason: "operation-failed" };
+  }
+  if (outcome.result === "present") return "appeared";
+  if (outcome.result !== "materialized")
+    return cloneAnswer(outcome, context.clone === "anonymous");
+  // The commit it was cloned at, as a fast-forward names its `to`.
+  const cloned = await context.git
+    .inspect(join(root, child.path))
+    .catch(() => null);
+  return cloned?.kind === "checkout"
+    ? { result: "materialized", to: cloned.commit }
+    : { result: "materialized" };
 }
 
 /** `work` over `items`, at most `limit` at once, answers in their order. */

@@ -213,7 +213,9 @@ async function runSyncCommand(
   }
   if (!json) for (const entry of run.entries) write(humanSync(entry));
   const settled = run.entries.every((entry) =>
-    ["current", "fast-forwarded", "absent"].includes(entry.result),
+    ["current", "fast-forwarded", "materialized", "absent"].includes(
+      entry.result,
+    ),
   );
   print(
     run,
