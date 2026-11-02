@@ -126,7 +126,9 @@ export type UpdateNetwork = Readonly<{ registryUnavailable: boolean }>;
 export type UpdateStep =
   | (Readonly<{ part: "content" }> &
       Omit<SyncProgress, "entry" | "step"> &
-      Readonly<{ step: "checking" | "fetching" | "fast-forwarding" }>)
+      Readonly<{
+        step: "checking" | "fetching" | "fast-forwarding" | "cloning";
+      }>)
   | Readonly<{ part: "tools"; packageManager: string; step: "fetching" }>
   | (Readonly<{ part: "build" }> & BuiltProgress)
   | Readonly<{ part: "product"; step: "checking" }>;
@@ -249,7 +251,10 @@ export async function updateEverything(
     else if (run.kind === "content-sync")
       for (const entry of run.entries) {
         set({ part: "content", ...entry });
-        if (entry.kind === "module" && entry.result === "fast-forwarded")
+        if (
+          entry.kind === "module" &&
+          (entry.result === "fast-forwarded" || entry.result === "materialized")
+        )
           moved.push(
             Object.freeze({
               organization: entry.organization,
@@ -444,6 +449,8 @@ export function everythingText(items: readonly UpdateItem[]): string[] {
       lines.push(
         `${where(entry)} (${entry.branch}): fast-forwarded ${short(entry.from)}..${short(entry.to)}`,
       );
+    else if (entry.result === "materialized")
+      lines.push(`${where(entry)} (${entry.branch}): cloned, newly readable`);
     else if (entry.result !== "current" && entry.result !== "absent")
       lines.push(
         `${where(entry)} (${entry.branch}): ${entry.result}${entry.reason === undefined ? "" : ` ${entry.reason}`}, left as it is`,
@@ -453,12 +460,17 @@ export function everythingText(items: readonly UpdateItem[]): string[] {
     const moved = entries.filter(
       (entry) => entry.result === "fast-forwarded",
     ).length;
+    const cloned = entries.filter(
+      (entry) => entry.result === "materialized",
+    ).length;
     const left = entries.filter(
       (entry) =>
-        !["current", "fast-forwarded", "absent"].includes(entry.result),
+        !["current", "fast-forwarded", "materialized", "absent"].includes(
+          entry.result,
+        ),
     ).length;
     lines.push(
-      `Content: ${entries.length} repositories checked, ${moved} fast-forwarded, ${left} left as they are.`,
+      `Content: ${entries.length} repositories checked, ${moved} fast-forwarded,${cloned === 0 ? "" : ` ${cloned} cloned,`} ${left} left as they are.`,
     );
   }
   for (const item of items) {
