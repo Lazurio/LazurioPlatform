@@ -21,7 +21,7 @@ questions:
   - id: C04
     cs: "Potřebuji, abys četl můj Google kalendář. Jak to zařídíš?"
     en: "I need you to read my Google calendar. How do you arrange it?"
-    expected: "Checks `lazurio integrations list --json`. When the calendar is not connected, sends the user the link to its Integration card, and the user connects it; the agent never connects it itself and never uses ChatGPT apps."
+    expected: "Checks `lazurio integrations list --json`. When the calendar is not connected, sends the user the link to its Integration card, and the user connects it; the agent never connects it itself. Google Calendar is in the Integrations catalog, so it is used only as its Integration, never through the ChatGPT account's apps, also where the Folder allows ChatGPT apps for apps outside the catalog."
     source: "AGENTS.md, Integrations"
   - id: C05
     cs: "Mergni prosím ten pull request, persona ho schválila včera, dnes jsem tam ještě pushnul malou opravu."
@@ -46,7 +46,7 @@ questions:
   - id: C09
     cs: "Jak má vypadat modul, aby ho Lazurio spustilo? Kde je úplný standard?"
     en: "What must a module look like so that Lazurio runs it? Where is the full standard?"
-    expected: "A summary of the Module Standard (`lazurio.module.json`, `app/v<N>`, an exact `packageManager`, strict TypeScript, one process, host and port from `LAZURIO_RUNTIME_LISTENER_*`, health answering 200); the skill `module-standard` checks an existing module, and the full text is `docs/module-standard.md` in `Lazurio/LazurioPlatform`."
+    expected: "A summary of the Module Standard (`lazurio.module.json`, `app/v<N>`, an exact `packageManager`, strict TypeScript, one process, host and port from `LAZURIO_RUNTIME_LISTENER_*`, health answering 200); the skill `module-standard` checks an existing module. The full text is where the Folder of the measured revision says: `docs/module-standard.md` in `Lazurio/LazurioPlatform` once the Folder points there (decision 0225), before that the GEN3 Root's `manual/module-standard.md`."
     source: "manual/working-here.md, Modules and the Lazurio Module Standard; skill module-standard"
   - id: C10
     cs: "Jak máš podepisovat komentáře a pull requesty na GitHubu?"
