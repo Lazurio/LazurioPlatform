@@ -15678,6 +15678,26 @@ not have offered. A fork's view that hands a page off takes the same rule. The v
 `hand-off.json` (C18); the module's exported names gain the two. The hub's message
 `{t: "hand-off", url}` belongs to the view's own protocol (`people/protocol.ts`), not to C8.
 
+**Addendum 2026-11-01: the table of contracts lives in this repository.** Point 2 (Times:
+"listed in the root table"), point 7 ("One table"), point 8 (phase 1: "the root table"),
+step 2 and point 5 of the second addendum of 2026-10-14 put the table of contracts into
+the Lazurio Root's `manual/environment-browser.md`. Since 2026-11-01
+[The Environment browser](environment-browser.md) in this repository holds it, with the
+host application's contract and the rules for updating the forks; where the text above
+says "the root table", "the root `manual/environment-browser.md`" or "the root
+manual's", read that document. The Root's `manual/environment-browser.md` stays the GEN3
+record and is no authority for the Platform or the forks. The text above stays as
+decided.
+
+1. **The rows.** C1 to C18, C18 being the hand-off of the addendum of 2026-10-18. Each
+   row names its holder, the module's exports and the Platform files that enforce it, and
+   the vector file and the suites that test it, checked against `main` at `a2927744`.
+2. **The releases.** For point 7's first releases of each addition a consumer depends on,
+   the document lists the Platform's, read from this repository's release tags. A fork's
+   own releases and the Platform release each one requires stay in that fork's runbook.
+3. **Nothing else changes.** The module, its vectors, the artifact and doctor stay as
+   they are.
+
 ## F51 — Managed Chat starts in the Folder; Platform owns the model recommendation
 
 A new hosted Chat must already have its Lazurio project. The Folder is the
