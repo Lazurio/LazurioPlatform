@@ -200,7 +200,11 @@ import {
   type IntegrationsSeams,
 } from "./integrations-routes";
 import { BodyTooLarge, readJsonBody } from "./json-body";
-import { adoptionOf } from "./marketplace";
+import { isAdoptionPromptId } from "./marketplace";
+import {
+  createMarketplaceRegistry,
+  type MarketplaceRegistry,
+} from "./marketplace-registry";
 import {
   issueMausbotLink,
   mausbotPairingPath,
@@ -764,6 +768,18 @@ export async function startLaunchpad(
   // operator's Codex daemon, its unit and its configuration. Trusted
   // composition, never HTTP input; tests supply a fake control socket.
   connectionsHost?: ConnectionsHost | undefined,
+  // Where the Marketplace's offers come from (plan DEV-6593,
+  // marketplace-registry.ts): the registry on GitHub for an installed
+  // Launchpad, which keeps its last index in the install base; any other
+  // shows the copy built into this release and never asks. Trusted
+  // composition, never HTTP input; tests supply their own.
+  marketplace: MarketplaceRegistry = createMarketplaceRegistry({
+    fetch: installed === undefined ? null : (url, init) => fetch(url, init),
+    cacheFile:
+      installed === undefined
+        ? null
+        : join(installed.base, "marketplace", "registry.json"),
+  }),
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -1856,12 +1872,15 @@ export async function startLaunchpad(
         const login = url.searchParams.get("org");
         const keys = [...url.searchParams.keys()];
         if (keys.some((key) => key !== "org")) return notFound();
-        if (adoptionOf(id) !== null) {
-          // A Marketplace adoption (plan DEV-6593): for an Organization of
-          // this Folder bound to the link's login, only while its offer's
-          // release is recorded (prompts.ts `adoptionDocument`).
+        if (isAdoptionPromptId(id)) {
+          // A Marketplace adoption (plan DEV-6593): an offer and seed of the
+          // catalog the page showed, while the Launchpad still serves it,
+          // for an Organization of this Folder bound to the link's login,
+          // only while its offer's release is recorded (prompts.ts
+          // `adoptionDocument`).
           if (login === null || keys.length !== 1) return notFound();
           try {
+            await marketplace.read();
             const organization = promptOrganization(
               organizationsOnly(await catalog.read()),
               login,
@@ -1871,10 +1890,12 @@ export async function startLaunchpad(
               readFolderState(state),
             );
             const document = adoptionDocument(
+              marketplace.catalogs(),
               id,
               folder,
               organization,
               folderMessages(current.preferences),
+              current.preferences.profile.locale === "cs" ? "cs" : "en",
             );
             return document === null ? notFound() : response(document);
           } catch {
@@ -2534,6 +2555,16 @@ export async function startLaunchpad(
             )
               catalog.forget();
           }
+        }
+        if (url.pathname === "/api/marketplace") {
+          // The Marketplace's offers (plan DEV-6593): the registry read at
+          // one commit, or the copy built into this release, and which of
+          // the two it is, with whether the registry is being asked right
+          // now (the open page then reads again once that question is
+          // over). Nothing is written but the registry's kept index.
+          stateFields(input, []);
+          const offers = await marketplace.read();
+          return response({ ...offers, checking: marketplace.checking() });
         }
         if (url.pathname === "/api/catalog") {
           // The Launchpad home (launchpad-parity B1): the Organizations and
