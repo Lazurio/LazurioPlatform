@@ -1,5 +1,5 @@
-import { lstat, readlink } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { lstat, readlink, realpath } from "node:fs/promises";
+import { basename, dirname, join, resolve } from "node:path";
 
 // The control socket of the operator's Codex app-server daemon (decision
 // F29), the one place Settings → Connections talks to Codex's remote control
@@ -48,17 +48,22 @@ export type ControlRpc = Readonly<{
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
 
-/** The socket a path names, following links (the daemon's path is a link
- * to a socket under `/tmp`) with `lstat` and `readlink` only. `realpath`
- * cannot be used: on macOS it fails on a socket with EOPNOTSUPP, so every
- * Connections page there read `no-daemon`. */
+/** The socket a path names, following links as the system does (the
+ * daemon's path is a link to a socket under `/tmp`). `realpath` of the socket
+ * itself cannot be used: on macOS it fails on a socket with EOPNOTSUPP, so
+ * every Connections page there read `no-daemon`. So each hop resolves only
+ * its parent directory with `realpath`, which works there, and reads the link
+ * with `readlink`: a relative target with `..` is taken from the physical
+ * parent, as the system takes it, never collapsed lexically. */
 async function socketTarget(path: string): Promise<string> {
   let current = path;
   for (let hops = 0; hops <= 40; hops++) {
+    const parent = await realpath(dirname(current));
+    current = join(parent, basename(current));
     const info = await lstat(current);
     if (info.isSocket()) return current;
     if (!info.isSymbolicLink()) throw new Error("not a socket");
-    current = resolve(dirname(current), await readlink(current));
+    current = resolve(parent, await readlink(current));
   }
   throw new Error("too many links");
 }

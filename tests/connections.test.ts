@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+  mkdir,
   mkdtemp,
   readFile,
   rm,
@@ -387,7 +388,7 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
-  "the daemon's path is a link to the socket: followed without realpath, which fails on a socket on macOS",
+  "the daemon's path is a link to the socket: followed as the system does, without realpath of the socket, which fails on macOS",
   async () => {
     const parent = await mkdtemp(join(tmpdir(), "connections-link-"));
     const fake = await fakeDaemon(parent);
@@ -399,7 +400,22 @@ test.skipIf(!posix)(
       await symlink("control.sock", relative);
       const chained = join(parent, "chained.sock");
       await symlink(absolute, chained);
-      for (const path of [fake.path, absolute, relative, chained]) {
+      // A relative target with `..` behind a linked parent: `..` is taken
+      // from the physical parent (here `parent`), not from `alias`'s.
+      await mkdir(join(parent, "actual", "dir"), { recursive: true });
+      await symlink(join(parent, "actual", "dir"), join(parent, "alias"));
+      await symlink(
+        "../../control.sock",
+        join(parent, "actual", "dir", "up.sock"),
+      );
+      const behindLinkedParent = join(parent, "alias", "up.sock");
+      for (const path of [
+        fake.path,
+        absolute,
+        relative,
+        chained,
+        behindLinkedParent,
+      ]) {
         const rpc = await openControlSocket(path, { timeoutMs: 2_000 });
         expect(await rpc.call("remoteControl/status/read", {})).toMatchObject({
           status: "connected",
