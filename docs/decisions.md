@@ -19511,6 +19511,46 @@ them to this task) stay, because they serve the agents' windows nobody watches.
   `tests/environment-browser-view.test.ts` (the order and its exclusions, the hysteresis and
   the cool-down, an agent that comes while a pressure sleep is pending, the kept grace).
 
+**Addendum of 2026-11-03: a link to a tab that ended opens it again (Matěj's report of the
+same day).** The links agents send into chats name tabs, `…/t/<id>`, and people click them
+days later. By then the tab has ended long ago: nothing held it (its agent's daemon idled out
+after an hour), or the browser or the Environment restarted, which also drops every tombstone.
+The view then said only "This tab no longer exists": in T3 Code's right panel the tab flashed
+and closed, and alone it offered a new blank tab instead of the page.
+- **The hub remembers every tab's last address by its id:** its web address, title, icon and
+  opener, never its content, whenever they change (`remember`), written soon after into
+  `${XDG_STATE_HOME:-~/.local/state}/lazurio/browser/remembered-tabs.json`, owner-only. It is
+  state, not runtime, so it outlasts a restart of the browser and a reboot, as the links do. A
+  record goes 30 days after the tab was last seen, and past 2000 records the least recently
+  seen go (`src/browser/people/remembered.ts`). A tab that still exists, awake or asleep,
+  counts as seen: the hub marks it seen again every hour on its beat, and on the same beat
+  lets go of records past their 30 days, whether anything else changed or not; a link past
+  them no longer opens. The writer and the reader keep one rule (`rememberedTabOf`): an address
+  longer than 2048 characters is not remembered at all, never cut, and the text is bounded at
+  16 MiB, past which the least recently seen are left out, so what is written is read back.
+  The browser's own history already holds as much; a Work Environment is never handed to
+  another person (0191).
+- **Viewing an id that ended, but is remembered, opens it again under that id:** the hub makes
+  it a tab that sleeps, with the reason `ended` (C11), and wakes it as any other (`reopenable`,
+  then `wake` and `adopt`). From then it is an ordinary tab with F47's graces, and its link
+  works again the next time. Probudit (`wake` on loopback) does the same, so the Launchpad and
+  agents can open it without a viewer. Only while the hub knows every page (`ready`), so a tab
+  that has not been reported yet is never opened twice.
+- **What stays as it was:** an id the hub never saw, or forgot, still answers `closed`. Links
+  sent before this release are not remembered. A tab closed for everyone opens again too when
+  someone follows a link to it: following the link is the person's choice. An agent bound to
+  the ended window still gets `tab_gone` and opens a new window (point 5 of the follow-ups
+  above).
+
+**Where it is (addendum of 2026-11-03).** `src/browser/people/remembered.ts` (the records,
+their file and their bounds); `src/browser/people/hub.ts` (`remember`, `reopenable`,
+`canWake`, `sweepRemembered` on the holds' beat, the records read at the first connection in
+`sameBrowser` and written by `writeRemembered`); `src/browser/people/service.ts` (`wake` for a remembered id);
+`src/browser/people/serve.ts` (the file); `src/browser/contract/platform.ts` (`ended`). Tests:
+`tests/environment-browser-view.test.ts` (a link after a restart of the browser, Probudit, an
+address past the bound, the 30 days of a tab that exists and of one that ended) and
+`tests/environment-browser-sleep.test.ts` (the records, their bounds and their size).
+
 ## F58 — A static app starts from `main` as its build: each commit built once outside the checkout, served by the Platform, rebuilt after a pull
 
 **Decided by Matěj on 2026-10-20 (root decision 0195, addendum of 2026-10-20, point

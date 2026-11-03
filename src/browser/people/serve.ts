@@ -24,6 +24,7 @@ import {
 import { browserCdpPort, browserScreenSize } from "../units";
 import { sweepCookies } from "./cookies";
 import { pressureSource } from "./pressure";
+import { rememberedPath } from "./remembered";
 import { loopbackBrowser, startViewService } from "./service";
 
 /** `lazurio browser serve --port <port> --origin <origin>`: the people's view
@@ -138,6 +139,10 @@ export async function runViewService(
   // the list of live tabs: owner-only, gone at a reboot with the tabs.
   const sleepFile =
     liveTabs === undefined ? undefined : join(dirname(liveTabs), "sleep.json");
+  // The last address of every tab by its id (F57's addendum of 2026-11-03):
+  // state, not runtime, because the links that name the tabs outlast a
+  // reboot.
+  const rememberedFile = rememberedPath(env);
   const service = startViewService({
     origin: options.origin,
     port: options.port,
@@ -170,6 +175,9 @@ export async function runViewService(
               write: (text) => replaceOwnerFile(sleepFile, text),
             },
           }),
+      ...(rememberedFile === undefined
+        ? {}
+        : { remembered: ownerFileStore(rememberedFile) }),
       // The pressure rule (decision F57 point 6) reads Linux's PSI and
       // meminfo; elsewhere there is nothing to read and the rule is off.
       ...(process.platform === "linux"
@@ -189,4 +197,20 @@ export async function runViewService(
   });
   await service.stop();
   return 0;
+}
+
+/** One owner-only file the hub reads and replaces whole: null while it does
+ * not exist. */
+function ownerFileStore(path: string) {
+  return {
+    read: async () => {
+      try {
+        return await readFile(path, "utf8");
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+        throw error;
+      }
+    },
+    write: (text: string) => replaceOwnerFile(path, text),
+  };
 }
