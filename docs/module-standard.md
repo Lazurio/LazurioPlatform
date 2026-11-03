@@ -634,9 +634,19 @@ commit and push, a Publication.
 
 An App is written in strict TypeScript: no `.js`, `.mjs` or `.cjs` sources, and
 framework configuration in TypeScript (`vite.config.ts`, `astro.config.ts`).
-`bun run check` runs the type check, Biome and the tests (`bun test`), and in an
-App with data the validation of its data as well; the Module's CI runs it on
-every pull request.
+`bun run check` runs the type check, Biome and the tests (`bun test`); the
+Module's CI runs it on every pull request. In an App with data it also runs
+`bun run validate:data`: every record the Module's own repository carries
+(`seed/` in the App, laid out like `db/data/`, a directory per collection and a
+document `<id>.yaml` in repository-db's envelope) is checked against the Zod
+schemas of `src/domain/collections.ts`, and a record that does not match, a
+wrong envelope or a collection without a schema fails the check. The records in
+`db/` are a repository of their own, which the Module's CI does not check out:
+the App hands the same schemas to repository-db as its parsers, and
+`bun run validate:db` checks them the same way before a publication.
+`lazurio module create --data` writes the schemas (no collection yet), the
+validation with its test and the empty `seed/`
+([F69](decisions.md#f69--stack-profiles-the-exact-tools-a-module-is-built-with-changed-only-by-a-generation-transition-or-a-profile-release), point 7).
 
 Each App is built with the exact tools of its [stack profile](stack-profiles.md)
 (decision
@@ -664,8 +674,8 @@ it exits 0. It does not grow into a framework.
 
 ## App generations
 
-- The generation number names the App's data layer in every Module, not its
-  quality (decision
+- The generation number names the App's data layer, not its quality, in every
+  generation created from now on (decision
   [F69](decisions.md#f69--stack-profiles-the-exact-tools-a-module-is-built-with-changed-only-by-a-generation-transition-or-a-profile-release),
   point 8): `app/v1` and `app/v2` have no data of their own, `app/v3` keeps its
   records in repository-db, `app/v4` in a Dolt database (a Dolt outside the
@@ -673,6 +683,13 @@ it exits 0. It does not grow into a framework.
   Module starts in `app/v1`, or in `app/v3` with `--data`; moving to the next
   data layer is a new generation beside the old one
   ([stack profiles](stack-profiles.md#how-a-profile-changes)).
+- An existing Module whose App with data lives in `app/v1` or `app/v2`
+  (created before this rule, for example by F52's addendum of 2026-10-14)
+  conforms as it is and is not renamed: a rename would move its code outside a
+  planned step. It moves at its next planned generation transition, which
+  creates the generation of its data layer beside the old one (`app/v3` for
+  repository-db, `app/v4` for Dolt); the old directory goes once it is no
+  longer kept for a return.
 - A Module keeps at most two App generations: the default one and one more,
   either the previous one kept for a return or a newer candidate that is not the
   default yet. Switching `default_app` to the candidate is the decision of the
@@ -814,7 +831,7 @@ of the Platform is an issue in this repository, without Organization content.
 | `MS-10` | repository-db and `@lazurio/module-kit` are pinned to released tags | Rule only. `lazurio module create` writes released tags (`src/modules/scaffold.ts`) |
 | `MS-11` | No absolute paths of a computer, no symlinks created at start, no `modules/` layout | A Module, its App directories and its required slots are never read through a symlink: `src/folder/owned-directory.ts`. The rest: rule only |
 | `MS-12` | `apps[]` matches the directories; at most two App generations | Only declared Apps start and a Module without `apps` does not (`explicit-apps-required`, `src/modules/manifest.ts`); overlapping App directories under the default preparation are refused (`preparation-applications-overlap`, `src/modules/preparation-binding.ts`). Undeclared packages and the number of generations: rule only |
-| `MS-13` | The `check` and `test` scripts exist; `check` runs the tests and the Module's CI runs `check` | Rule only. `lazurio module create` writes both (`tests/module-scaffold.test.ts`) |
+| `MS-13` | The `check` and `test` scripts exist; `check` runs the tests, in an App with data `validate:data` as well, and the Module's CI runs `check` | Rule only. `lazurio module create` writes them, with `--data` the validation of the data too (`tests/module-scaffold.test.ts`) |
 | `MS-14` | CI saves minutes: a workflow with a Windows or macOS job runs only for `pull_request` with non-empty `paths` and on `workflow_dispatch` | Rule only |
 
 ## GEN3

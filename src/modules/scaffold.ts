@@ -164,12 +164,18 @@ export function stackProfileUrl(profile: StackProfile): string {
 /** The layer a personal module gets last, over its stack's layers. */
 export const personalLayer = "_personal";
 
+/** The layer a module with data (`--data`) gets over its stack's: the Zod
+ * schemas of its collections, the validation of its data that `check` runs
+ * (`validate:data`) and its test, and the empty `seed/`. */
+export const dataLayer = "_data";
+
 /** Every template layer directory under `src/modules/templates/`. */
 export const moduleScaffoldLayers: readonly string[] = Object.freeze([
   ...new Set([
     ...Object.values(stacks).flatMap(
       (stack): readonly string[] => stack.layers,
     ),
+    dataLayer,
     personalLayer,
   ]),
 ]);
@@ -489,7 +495,11 @@ export function planModuleScaffold(
   };
 
   const files = new Map<string, ScaffoldFile>();
-  const layers = personal ? [...spec.layers, personalLayer] : spec.layers;
+  const layers = [
+    ...spec.layers,
+    ...(data ? [dataLayer] : []),
+    ...(personal ? [personalLayer] : []),
+  ];
   for (const layer of layers) {
     const entries = input.templates.layers[layer];
     if (!Array.isArray(entries))
@@ -598,11 +608,12 @@ export function planModuleScaffold(
   });
 }
 
-/** What `--data` changes in a module's files: its app depends on the one
- * released repository-db and on Zod (profile `app-data`), its Git ignores the
- * data mount `db/` (a repository of its own), and its AGENTS.md says where
- * the data lives, how it is published and that Zod is the one source of its
- * shape. */
+/** What `--data` changes in a module's files besides the layer `_data`: its
+ * app depends on the one released repository-db and on Zod (profile
+ * `app-data`), its `check` validates the data (`validate:data`), its Git
+ * ignores the data mount `db/` (a repository of its own), and its AGENTS.md
+ * says where the data lives, how it is published, that Zod is the one source
+ * of its shape and how the data is validated. */
 function withData(
   files: Map<string, ScaffoldFile>,
   slug: string,
@@ -617,7 +628,22 @@ function withData(
       `The stack has no ${appPackage} to depend on repository-db.`,
     );
   const pkg = JSON.parse(app.content) as {
+    scripts?: Record<string, string>;
     dependencies?: Record<string, string>;
+  };
+  const scripts = pkg.scripts ?? {};
+  if (scripts.check === undefined)
+    throw new ModuleScaffoldError(
+      "template_invalid",
+      `The stack's ${appPackage} has no check script to validate the data.`,
+    );
+  // The records this repository carries are checked in CI; db/ is a
+  // repository of its own that CI does not check out.
+  pkg.scripts = {
+    ...scripts,
+    check: `${scripts.check} && bun run validate:data`,
+    "validate:data": "bun run src/validate-data.ts seed",
+    "validate:db": "bun run src/validate-data.ts ../../db/data",
   };
   const dependencies = { ...(pkg.dependencies ?? {}) };
   dependencies["@lazurio/repository-db"] = engine;
@@ -654,6 +680,12 @@ Tvar záznamů popisují jen schémata Zodu: typy se z nich odvozují
 (\`z.infer\`) a JSON Schema se z nich generuje, ručně psané typy dat ani
 druhé schéma se nepíšou (profil \`app-data\`,
 ${stackProfileUrl("app-data")}).
+
+Každá kolekce má schéma v \`${appDirectory}/src/domain/collections.ts\` dřív
+než první záznam a App předává stejná schémata repository-db jako parsery.
+\`bun run check\` ověří záznamy, které nese tento repozitář
+(\`${appDirectory}/seed/\`, rozložené jako \`db/data/\`); záznamy v \`db/\`
+CI nevidí, proto je před Publikací ověř \`bun run validate:db\`.
 `,
     });
 }

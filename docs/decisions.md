@@ -23086,7 +23086,14 @@ templates and generated Modules refer to.
    - `--data` depends on repository-db v3.2.6 (it was 3.2.0) and on Zod 4.6.7, and
      changes four files instead of three: the Module's `README.md` names the profile
      `app-data`, and its `AGENTS.md` says that Zod is the one source of the data's
-     shape.
+     shape and how the data is validated.
+   - `--data` also adds the layer `_data`: `src/domain/collections.ts` (each
+     collection's `schemaVersion` and Zod schema, none yet), `src/validate-data.ts`
+     with its test and an empty `seed/`, and `check` runs `validate:data` over
+     `seed/`; `validate:db` checks `db/` the same way before a publication.
+     Added on the review of #821: the data validation that `check` requires has to
+     be one the generated Module can run in its CI, which checks out only the
+     Module, never its data repository.
    - Every stack's `README.md` names its profile and release and links its section.
 
 8. **The App generation names the data layer in every Module** (Matěj, 2026-11-03,
@@ -23097,9 +23104,11 @@ templates and generated Modules refer to.
    id `<organization>-<module>-v3` follow); without `--data` it stays `app/v1`. This
    amends F52's addendum of 2026-10-14, which wrote an App with data to `app/v1`. An
    `astro` or `astro-starlight` Module with data keeps the tools of `content` with
-   the data layer of `app-data`, in `app/v3` too. Existing Modules with data in
-   `app/v1` are not moved: their next generation transition is a new `app/v<N+1>`
-   beside the old one, as for every Module.
+   the data layer of `app-data`, in `app/v3` too. The rule holds for every
+   generation created from now on. Existing Modules with data in `app/v1` or
+   `app/v2` conform as they are and are not renamed:
+   their next planned generation transition creates the generation of their data
+   layer (`app/v3` or `app/v4`) beside the old one, as for every Module.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -23126,5 +23135,9 @@ three static stacks, `bun run build` passed in each. TypeScript 7.0.2 ran under 
 repository-db 3.2.6's `DocumentParser`. That run changed three things in the
 templates: Biome 2.6's `"preset": "recommended"`, its Markdown formatter turned off
 after it rewrote a Starlight page's frontmatter, and `"types": ["bun"]` for
-TypeScript 6 in the Astro `tsconfig.json`. Not verified: `app-database`, macOS and
-Windows.
+TypeScript 6 in the Astro `tsconfig.json`. After the review of #821 (2026-11-03,
+Linux x64, Bun 1.4.3), the plans of the four Bun stacks with `--data` were written
+out again: `bun install` and `bun run check` passed in each (`validate:data` over
+the empty `seed/`), `bun run build` passed for `vite-react` and `astro`, a planted
+record of a collection without a schema failed `validate:data`, and `validate:db`
+without `db/` failed. Not verified: `app-database`, macOS and Windows.

@@ -1076,24 +1076,58 @@ describe("planModuleScaffold with data (--data)", () => {
     const before = JSON.parse(
       atGeneration(file(without, "app/v1/package.json")),
     );
+    // check validates the data the repository carries (seed/); validate:db
+    // checks db/, which CI does not check out.
+    expect(pkg.scripts.check).toBe(
+      `${before.scripts.check} && bun run validate:data`,
+    );
+    expect(pkg.scripts["validate:data"]).toBe(
+      "bun run src/validate-data.ts seed",
+    );
+    expect(pkg.scripts["validate:db"]).toBe(
+      "bun run src/validate-data.ts ../../db/data",
+    );
     delete pkg.dependencies["@lazurio/repository-db"];
     delete pkg.dependencies.zod;
+    delete pkg.scripts["validate:data"];
+    delete pkg.scripts["validate:db"];
+    pkg.scripts.check = before.scripts.check;
     expect(pkg).toEqual(before);
     expect(file(result, ".gitignore")).toBe(
       `${file(without, ".gitignore")}/db/\n`,
     );
     expect(file(result, "AGENTS.md")).toStartWith(file(without, "AGENTS.md"));
     expect(file(result, "AGENTS.md")).toContain("`portal-data`");
-    // Beside the generation, only those four files differ: the README names
-    // the profile app-data.
+    expect(file(result, "AGENTS.md")).toContain("bun run validate:db");
+    // Beside the generation, the layer _data adds the schemas of the
+    // collections, the validation of the data and its test, and seed/; of the
+    // other files only those four differ: the README names the profile
+    // app-data.
     const moved = without.files.map((entry) => ({
       path: atGeneration(entry.path),
       content: atGeneration(entry.content),
     }));
+    const added = [
+      "app/v3/seed/.gitkeep",
+      "app/v3/src/domain/collections.ts",
+      "app/v3/src/validate-data.ts",
+      "app/v3/tests/data.test.ts",
+    ];
     expect(result.files.map((entry) => entry.path)).toEqual(
-      moved.map((entry) => entry.path),
+      [...moved.map((entry) => entry.path), ...added].sort(),
     );
+    for (const path of added)
+      expect(file(result, path)).toBe(
+        moduleTemplates.layers._data?.find(
+          (entry) =>
+            `app/v3/${entry.path
+              .slice("app/v1/".length)
+              .replace("dot-", ".")
+              .replace(/\.tmpl$/, "")}` === path,
+        )?.content ?? "",
+      );
     const changed = result.files
+      .filter((entry) => !added.includes(entry.path))
       .filter(
         (entry) =>
           moved.find((other) => other.path === entry.path)?.content !==

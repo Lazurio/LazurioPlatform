@@ -35,6 +35,12 @@ server (for an Organization with several servers) is a different connection
 setting of `app/v4`, not a generation `app/v5`: the code, the schemas and the
 migrations are the same.
 
+The rule holds for every generation created from now on. An existing Module
+whose App with data lives in `app/v1` or `app/v2` keeps it there and is not
+renamed; at its next planned generation transition it gets the generation of
+its data layer, `app/v3` or `app/v4`, beside the old one
+([Module Standard](module-standard.md#app-generations)).
+
 `lazurio module create` therefore writes a Module without data to `app/v1`
 and a Module with data (`--data`) to `app/v3`, with the data layer of
 `app-data` (repository-db and Zod): a `vite-react` or `bun-service` Module
@@ -75,8 +81,12 @@ Rules of every profile:
   page in the verification below. Turning either on is a candidate for a later
   release.
 - `bun run check` is the one gate: the type check, Biome and the tests, and in
-  `app-data` and `app-database` the validation of the data as well. CI runs
-  `bun run check` and nothing else beside the install.
+  `app-data` and `app-database` `bun run validate:data`, which checks the
+  records the Module's repository carries (`seed/`) against its Zod schemas
+  ([Module Standard](module-standard.md#stacks-and-quality)). CI runs
+  `bun run check` and nothing else beside the install. CI does not check out
+  `db/`; its records are checked by `bun run validate:db` before a
+  publication, and by the same schemas as the engine's parsers.
 
 ## content
 
@@ -139,10 +149,13 @@ Applications whose records live in repository-db. Generation `app/v3`. It is
 | Server | `Bun.serve` and module-kit | All access to the data runs in the App's server; the interface talks only to the Module's own HTTP API. |
 
 No hand-written data types and no second schema: JSON Schema is a generated
-output (`bun run schema:export`), and `check` verifies that it is current.
-`lazurio module create --data` writes the dependencies and says this in the
-Module's `AGENTS.md`; it writes no schema, store or `schema:export` yet, so
-the first ones are the Module's own.
+output (`bun run schema:export`), and once a Module has it, `check` verifies
+that it is current. `lazurio module create --data` writes the dependencies,
+`src/domain/collections.ts` (the collections and their Zod schemas, none yet),
+`src/validate-data.ts` with its test `tests/data.test.ts`, the empty `seed/`
+and the scripts `validate:data` (part of `check`) and `validate:db`, and says
+this in the Module's `AGENTS.md`. It writes no store or `schema:export` yet;
+those are the Module's own.
 
 The structure that makes the transition to `app/v4` a planned step and not a
 rewrite:
@@ -150,6 +163,8 @@ rewrite:
 ```text
 app/v3/src/
   domain/                  # Zod schemas and pure domain logic; knows no storage
+    collections.ts         # each collection's schemaVersion and record schema
+  validate-data.ts         # validate:data (seed/, part of check) and validate:db (db/)
   data/
     store.ts               # the storage port: typed collections, revisions, draft status, publish
     repository-db-store.ts # its implementation over @lazurio/repository-db

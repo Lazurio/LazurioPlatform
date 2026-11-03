@@ -43,8 +43,10 @@ retires (root decision 0171's addendum of 2026-10-13, point 3).
 ## Layers
 
 A module's files are the layers overlaid in order: `_common`, then `_bun`
-(stacks with a Bun app), then the stack's own directory, and for a personal
-module `_personal` last; a later layer wins over the same path. The stacks are
+(stacks with a Bun app), then the stack's own directory, then `_data` for a
+module with data (`--data`: the Zod schemas of its collections, the validation
+of its data that `check` runs, its test and the empty `seed/`), and for a
+personal module `_personal` last; a later layer wins over the same path. The stacks are
 `vite-react`, `astro`, `astro-starlight`, `bun-service`, `python-uv` and
 `none`. `lazurio.module.json` is no template: the plan writes it from the lease
 and the stack.
