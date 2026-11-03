@@ -2289,8 +2289,9 @@ the client's five seconds.
 **Verification 2026-10-31 (the click without a pairing).** `tests/launchpad-app-click.test.ts`
 drives the hosted Launchpad in headless Chrome behind a loopback stand-in for the gateway
 that records every request; the apps' origins are answered inside the browser. A plain
-click on Chat and on Automate lands on exactly `<origin>/` and sends no request but reads
-to the Launchpad, no pairing route in the whole visit. With the page's old click restored
+click on Chat and on Automate lands on exactly `<origin>/`; after the click the Launchpad
+gets no request under `/api/chat/` or `/api/mausbot/`, and no pairing route is asked in the
+whole visit. Other requests of the page (its own background reads) are not asserted. With the page's old click restored
 it fails, listing `POST /api/chat/pair`. `tests/launchpad-chat.test.ts` and
 `tests/launchpad-mausbot.test.ts`: `POST /api/chat/pair` and `POST /api/mausbot/pair`
 answer byte for byte what an unknown sibling route answers, with and without the
