@@ -15,7 +15,9 @@ and until a registry was read from the copy of its `index.json` built into the
 release (`src/launchpad/marketplace-index.json`). Everything below is what the pilot
 does today; the rest of this document stays future direction.
 
-- **One record per offer, in the registry.** An offer names its public source
+- **One record per offer, in the registry.** An offer has an id of at most 32
+  characters (a slug), so that its adoption prompt id stays within the 64 characters
+  of a prompt Chat takes by link. It names its public source
   repository, publisher, SPDX license, its stone, `pricing` (only `free`), its words
   in Czech and English (one line, up to four features, the dialog's starts) and its
   releases, newest first. A release names `version`, tag `v<version>`, what it is
@@ -74,11 +76,17 @@ does today; the rest of this document stays future direction.
   another. Teams are not listed on the page (decision F32).
 - **Hand-over, not installation.** "Pokračovat v Chatu" hands the brief to Chat
   exactly as "+ Nový modul" does: by link where Chat takes a prepared prompt, else
-  through the clipboard. The prompt `marketplace-<offer>-<empty|sample>` is served by
-  `GET /.lazurio/prompts/<id>?org=<login>` to anyone admitted, for an offer and start
-  of the catalog the Launchpad shows (so only for a release with a recorded commit)
-  and an Organization of the Folder bound to that login; every other case is the same
-  404. The brief names the exact release, the Organization and
+  through the clipboard. The prompt `marketplace-<offer>-<empty|sample>-<release>`,
+  `<release>` the first 12 characters of the offered release's commit, is served by
+  `GET /.lazurio/prompts/<id>?org=<login>` to anyone admitted, for an offer, start and
+  release of the catalog the Launchpad shows (so only for a release with a recorded
+  commit) and an Organization of the Folder bound to that login; every other case is
+  the same 404. The id names the release the page showed, so a registry that moved
+  on in the meantime never hands Chat a brief of another release. Before handing
+  over, "Pokračovat v Chatu" reads the offers again: the same release goes on; a
+  newer one is drawn on the page and the dialog says so, and the person continues
+  again; an offer no longer listed closes the dialog and the page says it is not in
+  the Marketplace. The brief names the exact release, the Organization and
   the start, and tells the agent to follow the release's `docs/adoption.md`: check live
   rights, name collision and compatibility, show the plan, create the module with
   `lazurio module create --stack <release stack>`, adding `--data` for a release of
@@ -128,18 +136,25 @@ contribution guide and the template contract live there (`schemas/offer.v1.schem
    uses it.
 4. **Kept, never stale for long, never in the way.** The index read is kept with its
    commit in the install base (`<base>/marketplace/registry.json`, a disposable cache
-   like `update/last-check.json`) and shown at once after a restart. An open
+   like `update/last-check.json`) and shown at once after a restart. A read of the
    Marketplace (`POST /api/marketplace`) and an adoption prompt ask the registry again
-   when the last question is an hour old; only while nothing was ever read from the
-   registry does the answer wait for that question, otherwise it never waits for the
-   network. Offline, rate-limited, private or refused: the kept index, else the
-   built-in copy.
-5. **The built-in copy** is the registry's `index.json` at the release's build,
+   when the last question is an hour old, and five minutes after a question that
+   failed; only while nothing was ever read from the registry does the answer wait for
+   that question, otherwise it never waits for the network and says `checking: true`
+   while the question runs. Offline, rate-limited, private or refused: the kept index,
+   else the built-in copy.
+5. **The open page follows** (`src/launchpad/marketplace-refresh.ts`). The page reads
+   the offers each time it is entered or becomes visible again, every five minutes
+   while it stays open, 30 s after a failed read, and 12 s after an answer with
+   `checking: true`, past the question's 10 s. So the outcome of the hourly question
+   reaches a page that is open, or was opened on the kept index while it ran, and a
+   failed first read does not leave the built-in copy for good.
+6. **The built-in copy** is the registry's `index.json` at the release's build,
    copied into `src/launchpad/marketplace-index.json` by a reviewed change; it must
    parse (an unreadable copy fails the module's load and the tests). A Launchpad that
    is not an installed one (a source checkout, the tests) never asks the registry and
    shows this copy.
-6. **Nothing more is trusted.** A listing grants nothing: whatever an index says, the
+7. **Nothing more is trusted.** A listing grants nothing: whatever an index says, the
    offer is a brief the agent checks against the release itself (live rights, the
    tag's commit, the release's `docs/adoption.md`), and the prompt route still serves
    it only for an Organization of this Folder and an offer the catalog shows, which

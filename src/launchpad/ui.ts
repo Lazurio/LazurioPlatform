@@ -79,8 +79,8 @@ import {
   type MachineView,
   presetChoice,
 } from "./machine-view";
-import type { MarketplaceCatalog } from "./marketplace";
 import { createMarketplacePanel } from "./marketplace-panel";
+import type { MarketplaceAnswer } from "./marketplace-refresh";
 import { type MessageKey, messages } from "./messages";
 import { moduleCopy } from "./module-view";
 import { createHelpVideo } from "./page-help";
@@ -1411,7 +1411,7 @@ const marketplace = createMarketplacePanel({
   route: () => shell.route(),
   load: async () => {
     const { value, ok } = await post("/api/marketplace", {});
-    return ok ? (value as MarketplaceCatalog) : null;
+    return ok ? (value as MarketplaceAnswer) : null;
   },
   changed: () => {
     if (framed) shell.relabel();

@@ -11,9 +11,14 @@ import {
   type MarketplaceLocale,
   type MarketplaceOffer,
   offerById,
+  recheckOffer,
   screenshotUrl,
   seedsOf,
 } from "./marketplace";
+import {
+  createMarketplaceRefresh,
+  type MarketplaceAnswer,
+} from "./marketplace-refresh";
 import type { MessageKey } from "./messages";
 import type { PageRoute } from "./routes";
 
@@ -31,15 +36,18 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // creates nothing itself. Only offers with a published release are in the
 // catalog (marketplace.ts), so every one can be added. The offers are the
 // Launchpad's answer (`POST /api/marketplace`: the registry at one commit, or
-// the built-in copy), read when the page first opens; until then the
-// built-in copy. Every value is drawn with textContent.
+// the built-in copy), read each time the page is entered and again while it
+// stays open (marketplace-refresh.ts); until the first answer the built-in
+// copy. "Pokračovat v Chatu" reads them once more and hands over only the
+// release the page showed: a changed release is shown first and asked
+// again. Every value is drawn with textContent.
 export function createMarketplacePanel(
   options: Readonly<{
     copy: () => Copy;
     locale: () => MarketplaceLocale;
     route: () => PageRoute;
     /** The Launchpad's offers, or null when they could not be read. */
-    load: () => Promise<MarketplaceCatalog | null>;
+    load: () => Promise<MarketplaceAnswer | null>;
     /** The offers changed: titles that name one are drawn again. */
     changed: () => void;
     /** This Folder's catalog, or null until it is read. */
@@ -73,24 +81,27 @@ export function createMarketplacePanel(
   let shown: string | null = null;
   // The offers shown: the built-in copy until the Launchpad's answer.
   let offers: MarketplaceCatalog = builtInMarketplace;
+  // Whether a read ended at all, so that "not found" and "no templates"
+  // are said only then.
   let loaded = false;
-  let loading = false;
-
-  function load() {
-    if (loaded || loading) return;
-    loading = true;
-    void options
-      .load()
-      .catch(() => null)
-      .then((read) => {
-        loading = false;
-        loaded = true;
-        if (read !== null) offers = read;
-        if (adding !== null) adding = offerById(offers, adding.id) ?? adding;
-        render();
-        options.changed();
-      });
-  }
+  const refresh = createMarketplaceRefresh({
+    load: options.load,
+    answered: (read, changed) => {
+      const first = !loaded;
+      loaded = true;
+      if (read === null || !changed) {
+        if (first) render();
+        return;
+      }
+      offers = read;
+      if (adding !== null) adding = offerById(offers, adding.id) ?? adding;
+      render();
+      options.changed();
+    },
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refresh.wake();
+  });
 
   const element = <K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -173,9 +184,10 @@ export function createMarketplacePanel(
   function render(route: PageRoute = options.route()) {
     if (route.view !== "marketplace") {
       if (dialog.open) dialog.close();
+      refresh.leave();
       return;
     }
-    load();
+    refresh.enter();
     const offer =
       route.offer === undefined ? null : offerById(offers, route.offer);
     // Another offer, or back on the catalog: the dialog closes.
@@ -338,19 +350,53 @@ export function createMarketplacePanel(
   for (const button of [dialogClose, dialogCancel])
     button.addEventListener("click", () => dialog.close());
   dialogOk.addEventListener("click", () => {
-    const offer = adding;
-    const chosen = chosenTarget();
-    if (offer === null || chosen === null || busy) return;
-    const text = adoptionPrompt(
-      offer,
-      seed,
-      { name: organizationName(chosen), login: chosen.forgeLogin },
-      options.copy(),
-      options.locale(),
-    );
-    if (text === null) return;
+    const displayed = adding;
+    if (displayed === null || chosenTarget() === null || busy) return;
     busy = true;
-    drawDialog(offer);
+    said = null;
+    drawDialog(displayed);
+    // The offers read once more: only the release the page showed is
+    // handed over. Another release is drawn first and asked again; an offer
+    // no longer offered closes the dialog and the page says it is gone.
+    // When the read fails, the shown release goes: its prompt id names it,
+    // so the prompt route never answers with another.
+    void refresh.read().then((read) => {
+      const check =
+        read === null
+          ? { kind: "same" as const, offer: displayed }
+          : recheckOffer(displayed, read);
+      if (check.kind !== "same") {
+        busy = false;
+        if (check.kind === "changed") {
+          adding = check.offer;
+          said = fill(options.copy().marketChanged, {
+            title: check.offer.title,
+          });
+        }
+        render();
+        return;
+      }
+      handOver(check.offer);
+    });
+  });
+
+  function handOver(offer: MarketplaceOffer) {
+    const chosen = chosenTarget();
+    const text =
+      chosen === null
+        ? null
+        : adoptionPrompt(
+            offer,
+            seed,
+            { name: organizationName(chosen), login: chosen.forgeLogin },
+            options.copy(),
+            options.locale(),
+          );
+    if (chosen === null || text === null) {
+      busy = false;
+      if (dialog.open) drawDialog(offer);
+      return;
+    }
     void options
       .handOver({
         id: adoptionPromptId(offer, seed),
@@ -375,7 +421,7 @@ export function createMarketplacePanel(
         );
         if (dialog.open) drawDialog(offer);
       });
-  });
+  }
 
   /** The chosen Organization, the first one until a person picks. */
   function chosenTarget() {

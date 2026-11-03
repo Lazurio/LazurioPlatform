@@ -201,9 +201,10 @@ export function personalModuleDocument(
   });
 }
 
-/** The document of a Marketplace adoption (`marketplace-<offer>-<seed>`,
+/** The document of a Marketplace adoption (`marketplace-<offer>-<seed>-<release>`,
  * plan DEV-6593) for one Organization of the Folder bound to a GitHub login,
- * or null: an id no offer and seed of the catalog the Launchpad shows make,
+ * or null: an id no offer, seed and release of the catalog the Launchpad
+ * shows make (so also once the registry offers another release),
  * or an offer whose release has no recorded commit yet. Anyone admitted to
  * this Launchpad may get it, as anyone may open the Marketplace: the brief
  * says nothing the page did not show, and grants nothing. The agent checks

@@ -17,6 +17,7 @@ import {
 } from "../src/launchpad/chat";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
 import {
+  type MarketplaceCatalog,
   type MarketplaceOffer,
   parseMarketplaceIndex,
 } from "../src/launchpad/marketplace";
@@ -416,40 +417,50 @@ posixTest(
           : offer,
       ),
     }) as readonly MarketplaceOffer[];
-    const catalog = {
+    let catalog: MarketplaceCatalog = {
       source: "registry" as const,
       commit: "f".repeat(40),
       offers,
     };
     let reads = 0;
+    let checking = false;
     const registry: MarketplaceRegistry = {
       current: () => catalog,
       read: async () => {
         reads += 1;
         return catalog;
       },
+      checking: () => checking,
     };
+    const release = commit.slice(0, 12);
     const hosted = await hostedLaunchpad(true, "0.0.45-lazurio.2", registry);
     try {
       const { base, valid } = hosted;
       for (const seed of ["empty", "sample"]) {
         const answer = await fetch(
-          `${base}/.lazurio/prompts/marketplace-presentations-${seed}?org=example-org`,
+          `${base}/.lazurio/prompts/marketplace-presentations-${seed}-${release}?org=example-org`,
           { headers: valid },
         );
         expect(answer.status).toBe(200);
         const document = (await answer.json()) as { id: string; text: string };
-        expect(document.id).toBe(`marketplace-presentations-${seed}`);
+        expect(document.id).toBe(
+          `marketplace-presentations-${seed}-${release}`,
+        );
         expect(document.text).toContain(commit);
         expect(document.text).toContain("LazurioTemplates/presentations");
       }
       // Mission Control has no published release, so it is not shown and
-      // its prompt is the same 404.
-      const pending = await fetch(
-        `${base}/.lazurio/prompts/marketplace-mission-control-empty?org=example-org`,
-        { headers: valid },
-      );
-      expect(pending.status).toBe(404);
+      // its prompt is the same 404; so is an id without its release.
+      for (const id of [
+        `marketplace-mission-control-empty-${release}`,
+        "marketplace-presentations-empty",
+      ]) {
+        const pending = await fetch(
+          `${base}/.lazurio/prompts/${id}?org=example-org`,
+          { headers: valid },
+        );
+        expect(pending.status).toBe(404);
+      }
       const read = await fetch(`${base}/api/marketplace`, {
         method: "POST",
         headers: {
@@ -471,8 +482,51 @@ posixTest(
       expect(
         answer.offers.map((offer) => [offer.id, offer.release.commit]),
       ).toEqual([["presentations", commit]]);
-      // Each answer asks the registry for what the page shows now.
+      expect((answer as { checking?: unknown }).checking).toBe(false);
+      // Each answer asks the registry for what the page shows now; an id
+      // without a release is no adoption's and asks nothing.
       expect(reads).toBe(4);
+
+      // The registry offers a newer release after the page showed this one
+      // and before Chat fetched the brief: the shown release's id is the
+      // same 404, never a brief of a release the person did not choose, and
+      // the new release's id is served.
+      const newer = "fedcba9876543210fedcba9876543210fedcba98";
+      catalog = {
+        source: "registry",
+        commit: "e".repeat(40),
+        offers: offers.map((offer) => ({
+          ...offer,
+          release: { ...offer.release, commit: newer },
+          releases: [{ ...offer.release, commit: newer, version: "9.0.0" }],
+        })),
+      };
+      checking = true;
+      const stale = await fetch(
+        `${base}/.lazurio/prompts/marketplace-presentations-empty-${release}?org=example-org`,
+        { headers: valid },
+      );
+      expect(stale.status).toBe(404);
+      const fresh = await fetch(
+        `${base}/.lazurio/prompts/marketplace-presentations-empty-${newer.slice(0, 12)}?org=example-org`,
+        { headers: valid },
+      );
+      expect(fresh.status).toBe(200);
+      expect(((await fresh.json()) as { text: string }).text).toContain(newer);
+      // While the registry is being asked, the page is told so.
+      const during = await fetch(`${base}/api/marketplace`, {
+        method: "POST",
+        headers: {
+          ...valid,
+          origin: hosted.entry.externalOrigin,
+          "sec-fetch-site": "same-origin",
+          "content-type": "application/json",
+        },
+        body: "{}",
+      });
+      expect(((await during.json()) as { checking: boolean }).checking).toBe(
+        true,
+      );
     } finally {
       await hosted.close();
     }

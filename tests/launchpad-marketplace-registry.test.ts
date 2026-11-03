@@ -8,6 +8,7 @@ import {
   createMarketplaceRegistry,
   type RegistryFetch,
   registryInterval,
+  registryRetry,
   registrySource,
 } from "../src/launchpad/marketplace-registry";
 
@@ -179,4 +180,47 @@ test("an index larger than a mebibyte is refused before it is parsed", async () 
     cacheFile: null,
   });
   expect(await registry.read()).toBe(builtInMarketplace);
+});
+
+test("a failed question is asked again a retry later, and checking says while one is under way", async () => {
+  const asked: string[] = [];
+  const state: {
+    main: string;
+    indexes: Record<string, unknown>;
+    status?: number;
+  } = { main: head, indexes: { [head]: index() }, status: 503 };
+  let clock = 1_000;
+  let release: () => void = () => {};
+  let hold = false;
+  const answering = github(state, asked);
+  const registry = createMarketplaceRegistry({
+    fetch: async (url, init) => {
+      if (hold) await new Promise<void>((resolve) => (release = resolve));
+      return answering(url, init);
+    },
+    cacheFile: null,
+    now: () => clock,
+  });
+  // GitHub refuses: the built-in copy, and nothing more within the retry.
+  expect(await registry.read()).toBe(builtInMarketplace);
+  expect(asked).toHaveLength(1);
+  clock += registryRetry - 1;
+  await registry.read();
+  expect(asked).toHaveLength(1);
+  // A retry later it is asked again, not only an interval later.
+  delete state.status;
+  clock += 1;
+  expect((await registry.read()).commit).toBe(head);
+  expect(asked).toHaveLength(3);
+  expect(registry.checking()).toBe(false);
+  // An interval later the question runs in the background; checking says so
+  // until it is over.
+  hold = true;
+  clock += registryInterval;
+  expect((await registry.read()).commit).toBe(head);
+  expect(registry.checking()).toBe(true);
+  hold = false;
+  release();
+  await settled();
+  expect(registry.checking()).toBe(false);
 });

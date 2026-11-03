@@ -2496,9 +2496,12 @@ export async function startLaunchpad(
         if (url.pathname === "/api/marketplace") {
           // The Marketplace's offers (plan DEV-6593): the registry read at
           // one commit, or the copy built into this release, and which of
-          // the two it is. Nothing is written but the registry's kept index.
+          // the two it is, with whether the registry is being asked right
+          // now (the open page then reads again once that question is
+          // over). Nothing is written but the registry's kept index.
           stateFields(input, []);
-          return response(await marketplace.read());
+          const offers = await marketplace.read();
+          return response({ ...offers, checking: marketplace.checking() });
         }
         if (url.pathname === "/api/catalog") {
           // The Launchpad home (launchpad-parity B1): the Organizations and

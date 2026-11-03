@@ -95,6 +95,11 @@ export type MarketplaceCatalog = Readonly<{
 }>;
 
 const slug = /^[a-z0-9][a-z0-9-]{0,63}$/;
+/** An offer's id: a slug of at most `offerIdLength` characters, so that its
+ * longest adoption prompt id (`adoptionPromptId`) stays within the 64 of a
+ * prompt id Chat takes (`promptIdLength`, chat-view.ts). */
+export const offerIdLength = 32;
+const offerId = new RegExp(`^[a-z0-9][a-z0-9-]{0,${offerIdLength - 1}}$`);
 const repository = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/;
 const login = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/;
 const spdx = /^[A-Za-z0-9][A-Za-z0-9.+-]{0,63}$/;
@@ -253,7 +258,7 @@ function offer(value: unknown): ReadOffer | null {
   const source = fields.repository;
   if (
     typeof id !== "string" ||
-    !slug.test(id) ||
+    !offerId.test(id) ||
     !text(title, 60) ||
     typeof module !== "string" ||
     !slug.test(module) ||
@@ -394,16 +399,26 @@ export const releaseUrl = (entry: MarketplaceOffer): string =>
 export const screenshotUrl = (entry: MarketplaceOffer, path: string): string =>
   `https://raw.githubusercontent.com/${entry.repository}/${entry.release.commit}/${path}`;
 
-/** The prompt id of an adoption (prompts.ts): one per offer and seed, as a
- * link carries only an id and the Organization's login. */
-export type AdoptionPromptId = `marketplace-${string}-${AdoptionSeed}`;
+/** How much of the offered release's commit an adoption prompt id carries:
+ * enough to tell its releases apart, short enough for Chat's 64. */
+export const promptReleaseLength = 12;
+
+/** The prompt id of an adoption (prompts.ts): one per offer, seed and
+ * offered release, as a link carries only an id and the Organization's
+ * login. The release is the one the page showed: once the registry offers
+ * another, the prompt route answers 404 for this id instead of a brief of a
+ * release the person did not choose. At most 64 characters (`offerIdLength`). */
+export type AdoptionPromptId =
+  `marketplace-${string}-${AdoptionSeed}-${string}`;
 
 export const adoptionPromptId = (
   entry: MarketplaceOffer,
   chosen: AdoptionSeed,
-): AdoptionPromptId => `marketplace-${entry.id}-${chosen}`;
+): AdoptionPromptId =>
+  `marketplace-${entry.id}-${chosen}-${entry.release.commit.slice(0, promptReleaseLength)}`;
 
-/** The offer and seed of an adoption prompt id in a catalog, or null. */
+/** The offer and seed of an adoption prompt id in a catalog, or null: also
+ * when the catalog now offers another release of that offer. */
 export function adoptionOf(
   catalog: MarketplaceCatalog,
   id: string,
@@ -417,7 +432,28 @@ export function adoptionOf(
 
 /** Whether an id has the shape of an adoption's, whichever catalog. */
 export const isAdoptionPromptId = (id: string): boolean =>
-  /^marketplace-[a-z0-9][a-z0-9-]*-(empty|sample)$/.test(id);
+  new RegExp(
+    `^marketplace-[a-z0-9][a-z0-9-]{0,${offerIdLength - 1}}-(empty|sample)-[0-9a-f]{${promptReleaseLength}}$`,
+  ).test(id);
+
+/** The offer a person chose, checked against the offers read again just
+ * before "Pokračovat v Chatu": still offered at the same release (`same`,
+ * with the offer as read now), offered at another release (`changed`), or
+ * no longer offered (`gone`). Only `same` is handed over; the page shows the
+ * other two first. */
+export function recheckOffer(
+  chosen: MarketplaceOffer,
+  catalog: MarketplaceCatalog,
+):
+  | Readonly<{ kind: "same" | "changed"; offer: MarketplaceOffer }>
+  | Readonly<{ kind: "gone" }> {
+  const now = offerById(catalog, chosen.id);
+  if (now === null) return { kind: "gone" };
+  return now.release.commit === chosen.release.commit &&
+    now.release.version === chosen.release.version
+    ? { kind: "same", offer: now }
+    : { kind: "changed", offer: now };
+}
 
 /** Whether a release's App keeps data of its own: the generation names the
  * data layer, so from `app/v3` on (repository-db in v3, Dolt in v4). */

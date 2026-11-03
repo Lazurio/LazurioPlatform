@@ -28,6 +28,9 @@ export const registrySource = Object.freeze({
 
 /** How often an open Marketplace asks the registry again. */
 export const registryInterval = 60 * 60 * 1000;
+/** How soon a question that failed (offline, rate-limited, refused) is
+ * asked again, instead of an interval later. */
+export const registryRetry = 5 * 60 * 1000;
 const requestTimeoutMs = 10_000;
 const maxIndexBytes = 1024 * 1024;
 
@@ -47,6 +50,9 @@ export type MarketplaceRegistry = Readonly<{
    * While nothing was ever read from the registry the answer waits for
    * that question; otherwise it never waits for the network. */
   read: () => Promise<MarketplaceCatalog>;
+  /** Whether a question to the registry is under way: its answer can change
+   * the catalog within the question's 10 s, so an open page reads again. */
+  checking: () => boolean;
 }>;
 
 const api = (path: string) =>
@@ -116,27 +122,32 @@ export function createMarketplaceRegistry(
     } catch {}
   }
 
-  async function ask(fetcher: RegistryFetch) {
+  /** Whether the registry answered: `main` unchanged, or its index read. */
+  async function ask(fetcher: RegistryFetch): Promise<boolean> {
     const signal = AbortSignal.timeout(requestTimeoutMs);
     try {
       const head = await fetcher(api(`/commits/${registrySource.branch}`), {
         headers: headers("application/vnd.github.sha"),
         signal,
       });
-      if (!head.ok) return;
+      if (!head.ok) return false;
       const commit = (await body(head, 100)).trim();
-      if (!/^[0-9a-f]{40}$/.test(commit) || commit === catalog.commit) return;
+      if (!/^[0-9a-f]{40}$/.test(commit)) return false;
+      if (commit === catalog.commit) return true;
       const file = await fetcher(api(`/contents/index.json?ref=${commit}`), {
         headers: headers("application/vnd.github.raw+json"),
         signal,
       });
-      if (!file.ok) return;
+      if (!file.ok) return false;
       const index: unknown = JSON.parse(await body(file, maxIndexBytes));
       const read = catalogOf(commit, index);
-      if (read === null) return;
+      if (read === null) return false;
       catalog = read;
       await keep(commit, index);
-    } catch {}
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function refresh(): Promise<void> {
@@ -145,9 +156,14 @@ export function createMarketplaceRegistry(
     if (asking !== null) return asking;
     if (now() - asked < registryInterval) return Promise.resolve();
     asked = now();
-    asking = ask(fetcher).finally(() => {
-      asking = null;
-    });
+    asking = ask(fetcher)
+      .then((answered) => {
+        // A failed question is asked again a retry later, not an hour.
+        if (!answered) asked = now() - registryInterval + registryRetry;
+      })
+      .finally(() => {
+        asking = null;
+      });
     return asking;
   }
 
@@ -159,5 +175,6 @@ export function createMarketplaceRegistry(
       if (catalog.source === "built-in") await question;
       return catalog;
     },
+    checking: () => asking !== null,
   });
 }

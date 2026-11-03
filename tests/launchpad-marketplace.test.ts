@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { chatPromptHref, promptIdLength } from "../src/launchpad/chat-view";
 import {
   adoptionOf,
   adoptionPrompt,
@@ -9,7 +10,10 @@ import {
   type MarketplaceCatalog,
   type MarketplaceOffer,
   offerById,
+  offerIdLength,
   parseMarketplaceIndex,
+  promptReleaseLength,
+  recheckOffer,
   releaseUrl,
   screenshotUrl,
   seedsOf,
@@ -267,10 +271,11 @@ test("an offer without a published release has no card, no detail and no prompt"
   };
   expect(catalog.offers.map((offer) => offer.id)).toEqual(["presentations"]);
   expect(offerById(catalog, "mission-control")).toBeNull();
+  const release = commit.slice(0, promptReleaseLength);
   for (const [source, id] of [
-    [builtInMarketplace, "marketplace-presentations-empty"],
-    [catalog, "marketplace-mission-control-empty"],
-    [catalog, "marketplace-design-system-sample"],
+    [builtInMarketplace, `marketplace-presentations-empty-${release}`],
+    [catalog, `marketplace-mission-control-empty-${release}`],
+    [catalog, `marketplace-design-system-sample-${release}`],
   ] as const)
     expect(
       adoptionDocument(source, id, "/home/x/Lazurio", example, cs, "cs"),
@@ -278,7 +283,7 @@ test("an offer without a published release has no card, no detail and no prompt"
   expect(
     adoptionDocument(
       catalog,
-      "marketplace-presentations-empty",
+      `marketplace-presentations-empty-${release}`,
       "/home/x/Lazurio",
       example,
       cs,
@@ -353,7 +358,7 @@ test("the brief names the exact release, the Organization, the start and the bou
   expect(
     adoptionDocument(
       catalogOf(released),
-      "marketplace-presentations-sample",
+      adoptionPromptId(released, "sample"),
       "/home/x/Lazurio",
       example,
       en,
@@ -362,22 +367,24 @@ test("the brief names the exact release, the Organization, the start and the bou
   ).toContain(commit);
 });
 
-test("an adoption's prompt id carries the offer and the seed of the catalog, and nothing else is one", () => {
+test("an adoption's prompt id carries the offer, the seed and the offered release, and nothing else is one", () => {
   const catalog = catalogOf(released);
+  const release = commit.slice(0, promptReleaseLength);
   expect(adoptionPromptId(released, "empty")).toBe(
-    "marketplace-presentations-empty",
+    `marketplace-presentations-empty-${release}`,
   );
-  expect(adoptionOf(catalog, "marketplace-presentations-sample")?.seed).toBe(
-    "sample",
-  );
-  expect(adoptionOf(catalog, "marketplace-presentations-empty")?.offer.id).toBe(
-    "presentations",
-  );
+  expect(
+    adoptionOf(catalog, `marketplace-presentations-sample-${release}`)?.seed,
+  ).toBe("sample");
+  expect(
+    adoptionOf(catalog, `marketplace-presentations-empty-${release}`)?.offer.id,
+  ).toBe("presentations");
   for (const id of [
-    "marketplace-presentations",
-    "marketplace-presentations-other",
-    "marketplace-other-empty",
-    "marketplace-mission-control-empty",
+    "marketplace-presentations-empty",
+    `marketplace-presentations-other-${release}`,
+    `marketplace-other-empty-${release}`,
+    `marketplace-presentations-empty-${"9".repeat(promptReleaseLength)}`,
+    `marketplace-presentations-empty-${commit}`,
     "new-module",
     "",
   ])
@@ -389,14 +396,80 @@ test("an adoption's prompt id carries the offer and the seed of the catalog, and
   };
   expect(seedsOf(bare)).toEqual(["empty"]);
   expect(
-    adoptionOf(catalogOf(bare), "marketplace-presentations-sample"),
+    adoptionOf(catalogOf(bare), `marketplace-presentations-sample-${release}`),
   ).toBeNull();
   expect(
     adoptionPrompt(bare, "sample", { name: "A", login: "a" }, cs, "cs"),
   ).toBeNull();
-  expect(isAdoptionPromptId("marketplace-notes-empty")).toBe(true);
+  expect(isAdoptionPromptId(`marketplace-notes-empty-${release}`)).toBe(true);
+  expect(isAdoptionPromptId("marketplace-notes-empty")).toBe(false);
   expect(isAdoptionPromptId("marketplace-notes")).toBe(false);
   expect(isAdoptionPromptId("new-module")).toBe(false);
+});
+
+test("an offer id is at most 32 characters, so its longest prompt id is Chat's 64 and goes by link", () => {
+  const longest = "a".repeat(offerIdLength);
+  const read = parseMarketplaceIndex(
+    indexWith("presentations", {
+      id: longest,
+      releases: [releaseWith({ commit })],
+    }),
+  );
+  const offer = read?.find((entry) => entry.id === longest);
+  expect(offer).toBeDefined();
+  const id = adoptionPromptId(offer as MarketplaceOffer, "sample");
+  expect(id).toHaveLength(promptIdLength);
+  expect(isAdoptionPromptId(id)).toBe(true);
+  expect(
+    chatPromptHref("https://chat.example.test/", "https://chat.example.test", {
+      id,
+      organization: "Example-Org",
+    }),
+  ).toContain(`lazurio-prompt=${id}`);
+  // One character more refuses the whole index.
+  expect(
+    parseMarketplaceIndex(
+      indexWith("presentations", {
+        id: `${longest}a`,
+        releases: [releaseWith({ commit })],
+      }),
+    ),
+  ).toBeNull();
+  // Every offer of the built-in copy fits.
+  for (const entry of builtInIndex.offers)
+    expect(entry.id.length).toBeLessThanOrEqual(offerIdLength);
+});
+
+test("before the hand-over the chosen offer is checked again: the same release goes, another one or none is shown first", () => {
+  const shownCatalog = catalogOf(released);
+  expect(recheckOffer(released, shownCatalog)).toEqual({
+    kind: "same",
+    offer: released,
+  });
+  // The registry moved on to another release of it while the page was open.
+  const newer = "fedcba9876543210fedcba9876543210fedcba98";
+  const moved = parseMarketplaceIndex(
+    indexWith("presentations", {
+      releases: [
+        releaseWith({ version: "0.2.0", tag: "v0.2.0", commit: newer }),
+        releaseWith({ commit }),
+      ],
+    }),
+  ) as readonly MarketplaceOffer[];
+  const changed = recheckOffer(released, catalogOf(...moved));
+  expect(changed.kind).toBe("changed");
+  if (changed.kind !== "changed") throw new Error("not changed");
+  expect(changed.offer.release.commit).toBe(newer);
+  // The id the page would have sent names the old release, so the catalog
+  // read now answers no prompt for it, while the new one does.
+  const old = adoptionPromptId(released, "empty");
+  expect(adoptionOf(catalogOf(...moved), old)).toBeNull();
+  expect(
+    adoptionOf(catalogOf(...moved), adoptionPromptId(changed.offer, "empty"))
+      ?.offer.release.commit,
+  ).toBe(newer);
+  // Withdrawn from the registry.
+  expect(recheckOffer(released, catalogOf())).toEqual({ kind: "gone" });
 });
 
 test("the Marketplace's routes: its catalog and an offer's detail, one frame", () => {
