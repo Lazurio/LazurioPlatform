@@ -373,9 +373,11 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
         // Only Trezor waits, while its vault's state is not read;
         // Nástroje, while its tools are not read; Začínáme, where it has
         // no basics to explain (a public demo, a Team or Automated
-        // Environment) or the profile is not read; and Nastavení → Buddy,
-        // where the Environment has no Buddy (decision F65).
+        // Environment) or the profile is not read; Nastavení → Buddy,
+        // where the Environment has no Buddy (decision F65); and
+        // Připojení, whose motion graphic is its explanation (F71).
         const waiting: Readonly<Record<string, boolean>> = {
+          "Nastavení connections": true,
           Trezor: facts.vault.vault === null,
           "Nastavení tools": facts.tools === null,
           "Nastavení start": facts.start !== "basics",
@@ -441,6 +443,8 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
     "settings-communication",
     "settings-machine",
     "settings-tools",
+    // Připojení explains itself by its motion graphic (decision F71).
+    null,
     "settings-ssh",
     "settings-recovery",
     // Nastavení → Buddy only with Buddy (decision F65).
@@ -454,6 +458,7 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
     "settings-communication-team",
     "settings-machine",
     "settings-tools-team",
+    null,
     "settings-ssh-team",
     "settings-recovery",
     null,

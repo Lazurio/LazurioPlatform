@@ -428,13 +428,16 @@ export async function planFolderChange(
   // except an assigned peer's host keys (root decision 0192, addendum of
   // 2026-10-26), which only the person's SSH config outside the Folder carries
   // (src/ssh-access/environments.ts), so a change of only those is recorded
-  // here too, never left behind the handover.
+  // here too, never left behind the handover. So is the home access
+  // service's origin (decision F70), which only the machine commands act on.
   if (
     preview.plan.kind === "unchanged" &&
     JSON.stringify(nextVoice) === JSON.stringify(current.agentVoice) &&
     JSON.stringify(machine?.entry) === JSON.stringify(current.machine?.entry) &&
     JSON.stringify(machine?.relationships) ===
       JSON.stringify(current.machine?.relationships) &&
+    JSON.stringify(machine?.accessService) ===
+      JSON.stringify(current.machine?.accessService) &&
     JSON.stringify(tools) === JSON.stringify(enabledTools(current)) &&
     JSON.stringify(notes) === JSON.stringify(toolNotes(current)) &&
     JSON.stringify(settings) ===

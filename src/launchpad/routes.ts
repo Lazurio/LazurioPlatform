@@ -24,6 +24,7 @@ export const settingsSections = [
   "communication",
   "machine",
   "tools",
+  "connections",
   "ssh",
   "recovery",
   "buddy",
@@ -384,7 +385,8 @@ export const sectionLabels: Readonly<Record<SettingsSection, MessageKey>> = {
   communication: "voiceTitle",
   machine: "machineTitle",
   tools: "toolsTitle",
-  ssh: "sshTitle",
+  connections: "connectionsTitle",
+  ssh: "computerTitle",
   recovery: "recoveryTitle",
   buddy: "buddyTitle",
 };

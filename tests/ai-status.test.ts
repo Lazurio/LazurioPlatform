@@ -369,6 +369,17 @@ test("the probe keeps an answer a minute, asks once at a time and forgets on req
   expect(later).not.toBe(first);
   probe.forget();
   expect(await probe.state()).not.toBe(later);
+  // A reading asked after forget() never joins one asked before it (review
+  // of #827): the older one may predate a sign-in that just ended.
+  now = 200_000;
+  const before = probe.state();
+  probe.forget();
+  const after = probe.state();
+  const [old, fresh] = await Promise.all([before, after]);
+  expect(fresh).not.toBe(old);
+  // The newer one is kept, never the older one that ended beside it.
+  now = 201_000;
+  expect(await probe.state()).toBe(fresh);
 });
 
 posixTest(

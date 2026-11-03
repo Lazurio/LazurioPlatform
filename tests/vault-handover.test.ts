@@ -46,8 +46,10 @@ test("the vendored schema is Machines #500's: the member with a work and a perso
   // (tests/shell-buddy.test.ts), and then to Machines #948 (v0.12.211), which
   // adds only a peer's `environment`, `access` and `ssh.host_keys`
   // (tests/assigned-peer-handover.test.ts).
+  // Then to Machines #1051, which adds only `access_service`
+  // (tests/access-service-handover.test.ts).
   expect(provenance.source_pull_request).toBe(
-    "https://github.com/HumanAndMachine-ai/Machines/pull/948",
+    "https://github.com/HumanAndMachine-ai/Machines/pull/1051",
   );
   const defs = (
     schema as unknown as {

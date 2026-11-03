@@ -23141,3 +23141,430 @@ out again: `bun install` and `bun run check` passed in each (`validate:data` ove
 the empty `seed/`), `bun run build` passed for `vite-react` and `astro`, a planted
 record of a collection without a schema failed `validate:data`, and `validate:db`
 without `db/` failed. Not verified: `app-database`, macOS and Windows.
+
+## F70 — A source Environment's routes come from its home access service: its own key, registered; targets pinned and with their deadline
+
+**Proposed 2026-11-03 (root decision 0224, plan DEV-6687 M7 step 4; Lazurio/LazurioPlatform#766).
+Implemented, and since the amendment of 2026-11-03 below this Platform reads the
+handover member (HumanAndMachine-ai/Machines#1040, merged as Machines#1051). No handover
+carries it yet: Machines writes it only once its release gate
+`PLATFORM_HANDOVER_ACCESS_SERVICE_MINIMUM` names a Platform release with this reader,
+and that gate is still unset, so until then nothing changes on any Environment.** Root decision 0224 derives every SSH access
+between the Environments of a Conglomerate from facts, in one service on the Conglomerate
+Host (`lazurio-access-service`, Machines `workloads/conglomerate-host/ACCESS-SERVICE.md`):
+Pracovní přístup (a personal Environment to its owner's Work Environments), Team via Work
+(a Work Environment to the Team Environments of its person's Teams) and Správcovský
+přístup (an Admin's Work Environment to every other Environment of the Organization). The
+service knows its caller by the tailnet source address; there are no tokens on guests. Its
+two calls for a source are `PUT /v1/source-key` and `GET /v1/targets`. Until now the
+Platform wrote a personal Environment's SSH config only from the handover's assigned
+peers (F10's amendment of 2026-10-28), which no handover carries (#766): Buddy had no
+managed route anywhere.
+
+1. **Where the service is.** Only the handover says it: an optional member naming the
+   home access service's origin (`http://<host's tailnet name>:<port>`), proposed in
+   HumanAndMachine-ai/Machines#1040 from the home host the lane already reads through
+   `conglomerate_host_record`. `accessServiceOf` answers it. Until the amendment of
+   2026-11-03 below it answered null for every Machine; now it reads the member as
+   Machines#1051 defines it. Which Machines carry the member is Machines' release gate
+   `PLATFORM_HANDOVER_ACCESS_SERVICE_MINIMUM`, still unset, so today `accessServiceOf`
+   still answers null on every Machine. Nothing derives the origin from a name, the
+   Headscale URL or a peer;
+   an origin that is not exactly `http://`, a tailnet DNS name (no address literal) and
+   a port is never asked.
+2. **The source key.** Every source Environment, personal or Work, has one key
+   `~/.ssh/lazurio-environment-ed25519`. The Platform creates it with `ssh-keygen` inside
+   the Environment when neither file exists, derives a lost `.pub` with `ssh-keygen -y`,
+   and otherwise keeps what is there. It never reads the private part into an answer,
+   copies or exports it, and refuses, changing nothing: a link or another account's file,
+   a private key others may read, a `.pub` without its private key, and a pair that does
+   not match or is not ed25519 (`src/ssh-access/source-key.ts`).
+3. **Registration.** Each synchronization sends `PUT /v1/source-key` with only the line
+   `ssh-ed25519 <blob>`. The service answers `changed: false` for the same key, so this
+   repeats without effect and a re-enrolled Environment registers by itself. Its named
+   refusals (`source-key-forbidden`, `source-key-taken`) are reported as they are.
+4. **Targets.** `GET /v1/targets` is taken only exactly as `machines.access-targets.v1`
+   shapes it: closed objects, an Environment id once, a tailnet host name, an account, one
+   `ssh-ed25519` host key and `valid_until` as an RFC 3339 UTC second; anything else is no
+   answer. The answer is read chunk by chunk up to 1 MiB within the request's 10 s and
+   cancelled past it, so an oversized or endless answer costs no more. A target whose
+   deadline has passed is dropped. The answer replaces the routes:
+   one `Host <environment id>` block each in `~/.ssh/config.d/lazurio-environments.conf`
+   with `HostName`, `User`, `HostKeyAlias`, the managed `UserKnownHostsFile`,
+   `StrictHostKeyChecking yes`, `IdentityFile ~/.ssh/lazurio-environment-ed25519`,
+   `IdentitiesOnly yes`, `ForwardAgent no`, `ProxyJump none` and
+   `ClearAllForwardings yes`, and the deadline as a comment; the host key pinned in
+   `~/.ssh/known_hosts_lazurio_environments`. The `Include` at the top of `~/.ssh/config`
+   makes these values win over the person's own `Host *` or a hand-written block of the
+   same name, which stay byte for byte. A changed host key from the service replaces the
+   pin (the service reads it from the target lane's readback); nothing learns a key from a
+   connection, and the person's own `known_hosts` is never written.
+5. **Without an answer** (unreachable, 403 not recognized, 503 unavailable, malformed)
+   nothing is added: the recorded routes stay until their own deadline and then go. A
+   route without a deadline (written from the handover) is not the service's and goes at
+   once. So a route ends here within its deadline plus one synchronization whatever
+   fails, as the target's own `AuthorizedKeysCommand` ends it.
+6. **When it runs.** `machine folder-init` and `folder-refresh` synchronize once where
+   the handover declares the service, on any Machine, and report `environmentRoutes`
+   (`sourceKey`, `registration`, `targets`, `ssh`); otherwise a personal Machine keeps
+   its assigned peers as before (`environmentSsh`). The Launchpad of the supervised base
+   of a hosted operator (where it sets Executor up) synchronizes once it listens and then
+   every 60 seconds, one at a time, never a reason for its start to fail: the service
+   re-derives every minute and a deadline is at most 210 s after its facts were read.
+   That is a write outside `machine folder-*`, from the installed base only (F68's open
+   question on SSH files).
+7. **What it is not.** The Platform derives no access: the network rule and the target's
+   key line hold it, and the config opens nothing they do not. No second list of
+   permissions, no token, no `accept-new`, no forwarding.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Find the service by the host's tag in `tailscale status --json` | Depends on Headscale exposing peer tags to untagged nodes; makes the network map a configuration source; rejected |
+| Derive the origin from `network.headscale_server_url` | The public Headscale name is not the host's tailnet name; a derivation from a name; rejected |
+| Keep the last answer while the service is down, without deadlines | A revoked route would stay in the config after the target refuses it; the doctor could not tell old from current; rejected |
+| Mirror the answer and record each deadline in its block (selected) | One more comment line per block; the files churn once a minute while the service answers |
+| Register the key once and remember it | A state file of its own, and a re-enrolled Environment would not register again until it is cleared; rejected |
+| Keep the handover's assigned peers beside the service's targets | Two sources for one alias; the contract makes `/v1/targets` the source (Machines ACCESS-SERVICE.md, Migration); rejected |
+
+Tests: `tests/access-service-routes.test.ts` (the answer's shape and every malformed form,
+each outcome of both calls, the key's creation and refusals with the real `ssh-keygen`,
+synchronization, the service unreachable or refusing, expired routes, a host key change,
+the person's own `Host` blocks and file, the commands' answers) and
+`tests/environment-ssh.test.ts` (the block's bytes). Not proven: a real service on a real
+host; that is the Ring 0 proof of ACCESS-SERVICE.md once the switch and the handover
+member exist.
+
+**Amendment 2026-11-03: the handover member (HumanAndMachine-ai/Machines#1040).** Point 1's
+member is `access_service: {"origin": "http://<host node>.<MagicDNS domain>:8444"}`,
+optional and closed on both branches of `lazurio.machine.v1`. Machines builds the origin
+from the home host overlay's reviewed node name and MagicDNS domain, exactly as the
+service names a target's host, and writes it only while that host switches the service
+on, only for a Machine its service would recognize as a caller and only for a pinned
+Platform at or above its gate. The vendored schema takes it byte for byte from the
+merge commit of the Machines pull request that adds it (#1051), pinned in
+`schema-provenance.json` as F10's amendment of 2026-10-19 did. The
+Platform:
+
+1. **Reads the origin exactly**: `http://`, a tailnet DNS name of at least three labels
+   whose last label is not numeric, and port 8444 (the service's one port), nothing
+   else. The schema, the projection and the binding's parser all hold it to that
+   rule, so an origin of another form refuses the handover and is never asked.
+2. **Records it** in the binding as `accessService`, a declaration and not identity. A
+   refresh records a change of only this member, though the Folder renders nothing of
+   it, and recovery evidence withholds the host's name.
+3. **Uses it** through `accessServiceOf`, which until now answered null for every
+   Machine: points 2 to 6 above then run on the Machines that carry it. Everything
+   else of this decision is unchanged; without the member the Platform behaves exactly
+   as before.
+4. **Follows the live handover** in the Launchpad: every minute it reads the
+   declaration again (`runEnvironmentRoutes`), so a member added after start is used at
+   the next tick, a replaced origin replaces the old one, and a removed one is never
+   asked again.
+5. **Writes only for the declaration that is still current.** Every writer of the
+   routes (the Launchpad's tick, `machine folder-init` and `folder-refresh`) asks the
+   service without holding anything, then writes under one routes lock, a kernel
+   `flock` on `~/.local/state/lazurio/environment-routes.lock` (fixed under the home,
+   never moved by `XDG_STATE_HOME`, so both processes share it). Under the lock it
+   reads the live handover again and writes only when it declares exactly what the
+   writer acted on: the same origin, or, without a service, the same routes of its
+   own (a personal Machine's assigned peers, each with its host, account and host
+   keys, in the same order; none on any other Machine). Otherwise, and when the
+   handover cannot be read there, it writes nothing and reports
+   `ssh: {"kind": "superseded"}`. So an answer that arrives after the handover changed,
+   or a refresh of an older handover whose peers were since removed or changed, never
+   replaces what a writer of the newer declaration wrote, whichever of the two
+   finished first; the newer one writes at its own commit or, for the service, at the
+   next tick.
+6. **No service route outlives its deadline.** When the live handover declares no
+   service, or cannot be read, the Launchpad's tick still runs under the lock: it drops
+   every recorded route whose deadline has passed and adds nothing. A route without a
+   deadline (a personal Machine's assigned peers from the handover) stays, and the
+   Platform's own files that cannot be read back are removed, since nothing shows
+   their deadlines. When nothing has expired no file is touched. `folder-init` and
+   `folder-refresh` of a binding without the member write its routes exactly: a
+   personal Machine's assigned peers as before (they replace the service's routes) and
+   on any other Machine none, so the removed service's routes go at once. A route of
+   the service therefore ends within its deadline plus one minute after the
+   declaration is removed or the handover becomes unreadable, on both kinds of
+   Machine, as point 5 above bounds it while the service is declared. The Launchpad
+   keeps no routes (does nothing) only on a base that is not the supervised base of a
+   hosted operator *and* has neither of the Platform's two route files. A missing or
+   unreadable handover makes the hosted-operator check itself fail, so a base that
+   cannot show it is hosted but still has those files is a base that was hosted: its
+   tick only lets expired routes go, as for an unreadable handover.
+
+Tests: `tests/environment-routes-loop.test.ts` (added, replaced and removed
+declarations, one synchronization at a time, failures and stop; an old answer held
+while the declaration changes or is removed and a newer writer writes, which then
+writes nothing; a refresh of an older handover held while a newer one removed or
+changed the assigned peers, which then writes nothing; expiry without a declaration and
+with an unreadable handover on a personal and a work Machine, with assigned peers kept;
+`routesAtStart` driving the loop on real files with a missing handover, on a base whose
+hosted-operator check fails and on one where only the handover read fails, and doing
+nothing on a base without route files; one lock for both writers),
+`tests/access-service-handover.test.ts` (the pin, the member on both kinds,
+every refused form, the stored binding, the commands asking the declared origin, the
+withheld name) and `tests/folder-refresh.test.ts` (a refresh of only the member). Not
+proven: a real handover from a Machines release, until Machines sets the gate.
+
+## F71 — Phone through ChatGPT: Settings → Connections pairs the ChatGPT app with the Codex app-server's remote control
+
+**Proposed 2026-11-03 (root decision 0215; Lazurio/LazurioPlatform#657, #720).
+Implemented in the same pull request; accepted only when the owner accepts it.** The
+phone test settled the QR code the same day (see *Implementation* below). The
+interface follows the clickable prototype
+(HumanAndMachine-ai/prototypes-lazurio#106, stacked on #102), reworked on 2026-11-03
+to the structure of point 1: less text and a motion graphic per way. The page keeps
+each graphic as one element, so the final one replaces it whole.
+
+Delivery starts on the owner's own personal Environment and reaches other people's
+Environments only after that.
+
+The person opens Settings → Connections → Ovládat toto Prostředí → Telefon, clicks
+one button and gets a QR code and a short code. A motion graphic shows what to do on the phone: open ChatGPT, then
+Codex, then add a computer, then scan or type the code. Nobody types a command.
+
+**What was verified on 2026-11-03.** The test ran on a personal Environment with
+Codex app-server 0.166.0 running as F29's daemon with `--remote-control`. Nothing
+was restarted. The daemon's control socket
+(`$CODEX_HOME/app-server-control/app-server-control.sock`, a link to a socket under
+`/tmp`, WebSocket framing) answers the experimental methods once `initialize`
+declares `capabilities.experimentalApi`:
+
+| Need | Method | Result |
+|---|---|---|
+| Is pairing available | `remoteControl/status/read` | `connected`, the server name, an `environmentId` |
+| Make a code | `remoteControl/pairing/start {manualCode: true}` | `pairingCode` (78 digits), `manualPairingCode` (`XXXX-XXXX`), `environmentId`, `expiresAt` (Unix seconds, about 10 min) |
+| Has the phone taken it | `remoteControl/pairing/status {pairingCode}` | `claimed: false` while waiting; `claimed: true` not yet observed with a phone |
+| Paired devices | `remoteControl/client/list {environmentId}` | a phone paired earlier: display name, `deviceType`, `platform`, OS, model, app version, `lastSeenAt` |
+| Remove access | `remoteControl/client/revoke {environmentId, clientId}` | not tried |
+
+The methods and types are in `openai/codex` at tag `rust-v0.166.0`:
+`app-server-protocol/src/protocol/common.rs` and `protocol/v2/remote_control.rs`.
+
+1. **Place and structure (the owner's review of 2026-11-03).** A new Settings
+   section `connections` (Připojení) takes the place of `ssh` in the menu. It is
+   built from what the person wants to do and from where, not from the technology.
+   SSH and the ChatGPT pairing are both ways to control the same Environment, so
+   they are never two topics side by side.
+   - **Ovládat toto Prostředí** is the one topic. Under it are the ways, by the
+     device the person holds. Each way has one sentence, one button and its own
+     motion graphic. It offers the route that works in this Environment, so the
+     person never chooses a technology.
+     - **Telefon.** With the person's own ChatGPT sign-in in Codex, this is
+       *Spárovat telefon*: the pairing of this decision, with the prerequisites
+       line and the paired phones with *Odebrat přístup*. On the Organization's AI
+       (AI pool), pairing by code does not work. There the route is the ChatGPT
+       app over SSH with a password, and until it exists without a terminal the
+       card says only that it is coming (*připravujeme*).
+     - **Počítač.** ChatGPT Desktop over SSH with a key: F49's page, unchanged in
+       behaviour, at `/settings/ssh`. Its title is Počítač, it links back to
+       Připojení, and the SSH config and `known_hosts` blocks are folded under
+       *Pokročilé: ruční nastavení SSH*. It is offered on an Environment on a
+       server, not where Lazurio runs on the person's own computer.
+     - The browser (Launchpad, Chat) is not listed, because the person is in it.
+   - **Agenti ve vašem počítači** is the other direction. The Environment's agents
+     work in a connected workstation, for example Windows with AutoCAD over SSH
+     (prototype #102). It is a topic of its own and is not built here.
+   - **Ovládat jiná Prostředí** follows 0192's addendum. It is not built here.
+
+   The panel follows the existing `connections-panel.ts` / `connections-view.ts` /
+   `connections-routes.ts` split, like `ssh-*`. The dialog's sequence is
+   `connections-flow.ts`, which has no DOM.
+2. **Reading the state.** `GET /api/connections` reads the status and the client
+   list and answers one of these states:
+   - `ready`;
+   - `no-remote-control`: the daemon is not `connected`, or the methods are missing;
+   - `organization-ai`: Codex runs on Organization-provided AI without the person's
+     ChatGPT sign-in;
+   - `team`;
+   - `no-chatgpt`.
+
+   It also answers the devices (name, form, platform, last seen). It never answers
+   a code.
+3. **Pairing.** `POST /api/connections/pair` calls `remoteControl/pairing/start`.
+   It keeps `pairingCode` only in memory under a 32-hex session handle, as the tool
+   sign-in does (`src/tools/login.ts`). It answers the manual code, `expiresAt` and
+   the QR code drawn by the existing `qrSvg(qrMatrix(payload))` (`src/tools/qr.ts`).
+   The QR payload is one function, `pairingQrPayload` (settled by the phone test,
+   see *Implementation*).
+
+   **One live code (Pablo's review of 2026-11-03).** Codex 0.166 cannot end a code
+   it gave. The codes live at ChatGPT until a phone takes them or they expire
+   (`expiresAt`, about 10 min), and the protocol has no method that withdraws one.
+   Lazurio therefore never makes a second code while one is valid:
+   - while the pending code is valid and not taken, every *Spárovat telefon* answers
+     that same code and its time left, from any admitted page;
+   - closing the dialog ends nothing on the server; the page drops the code from
+     view and drops any answer that arrives after the close;
+   - a new code is asked for only once the old one has expired or a phone took it,
+     and only then does the dialog offer *Nový kód*;
+   - starts are serialized: requests that arrive while one start runs share its
+     answer, so the one live code and the limit hold under concurrency;
+   - there is no cancel route;
+   - exposure counts codes that left Lazurio: only a code shown to a page can be
+     scanned or typed. A code whose answer never reached Lazurio (a timeout, a
+     closed socket, an answer that does not parse) was seen by nobody;
+   - a **ledger** keeps the rule across a restart of the Launchpad, without any
+     code, in `${XDG_STATE_HOME:-~/.local/state}/lazurio/connections/pairing.json`
+     (0600, replaced whole by an atomic rename). It holds the times of the starts
+     and until when a shown code may be valid (`outstandingUntil`). The start is
+     written before Codex is asked, so the limit counts it. **A code reaches a
+     page only after the ledger holds its end**; when that write fails, or the
+     process stops before it, the code is never shown (`storage-failed`). A code
+     whose named life is longer than an hour (`longestLifeMs`; Codex 0.166 gives
+     about 10 minutes) is not shown, and one without a named end is covered for an
+     hour. The bound ends early only when a phone takes the code; when the dialog's
+     handle runs out first (ten minutes without a named end), the bound stays until
+     its own end;
+   - a process that holds no code (after a restart) makes none while
+     `outstandingUntil` lies ahead. *Spárovat telefon* then answers
+     `code-outstanding` with `until`, and the dialog says when a new code can be
+     made. A ledger that cannot be read counts as a code shown now with an hour's
+     life;
+   - every change of this state and every ledger write runs in one queue: a start,
+     a poll that settles a code, and the reading of a restarted process never
+     interleave, so an older write never replaces a newer one.
+
+   The remaining exposure is therefore at most one shown code, for at most its
+   `expiresAt` (at most an hour), shown only to pages admitted under 0192, across
+   restarts of the Launchpad. A phone that takes it
+   appears in the paired list, where *Odebrat přístup* removes it.
+4. **Waiting.** `POST /api/connections/pair/poll {session}` calls
+   `remoteControl/pairing/status` every 2 s through the existing visible-page poll.
+   - On `claimed: true` the server drops the code and refreshes the device list, and
+     the dialog says *Telefon je spárovaný*.
+   - At `expiresAt` the handle ends and the dialog offers *Nový kód*.
+5. **Removing access.** `POST /api/connections/revoke {clientId}` calls
+   `remoteControl/client/revoke` after the person confirms in place. The person can
+   also remove the device in the ChatGPT app.
+6. **Security.**
+   - Every route is behind the same admission as all `/api/*`: hosted trust (gateway
+     session, same origin, Sec-Fetch-Site) or the local bearer token. Mutating routes
+     take only JSON `POST`.
+   - The code is made inside the Environment, so only someone who already enters it
+     under 0192 can pair (0215). Team Environments are refused. Public-DNS mode keeps
+     pairing, because it needs no SSH.
+   - Codes (`pairingCode`, `manualPairingCode`), QR payloads and session handles are
+     never written to a log, the journal, a file, the Folder or an error. The journal
+     records only `pair-started` (`ok`, `no-answer`, `invalid-answer`, `too-long`,
+     `not-shown`), `paired`,
+     `expired`, `shown-again`, `revoked` and the ledger's `unreadable` or
+     `write-failed`, with the client's platform.
+   - Answers carry `cache-control: no-store`.
+   - An Environment has at most one live code (point 3) and at most five codes in
+     10 minutes, counted under the serialized start and kept by the ledger across
+     restarts.
+7. **When the daemon has no remote control.** Remote control is a persisted daemon
+   preference.
+   - F29's convergence runs `codex app-server daemon enable-remote-control`, which is
+     idempotent and answers `alreadyEnabled`.
+   - When the status is still not `connected` (seen on 2026-10-26 until a restart),
+     the page says pairing is not available now. It offers *Restartovat Codex* with
+     the warning that running chats end, and only after a confirmation it calls
+     `restartCodexAppServer`.
+   - A doctor check `codex-remote-control` reports the status, without codes.
+   - Without the methods (an older Codex) the page falls back as 0215 says: SSH only
+     where SSH into the Environment is allowed.
+8. **Trust (#720).** A phone cannot answer Codex's trust prompt. The Platform writes
+   `[projects."<Folder>"] trust_level = "trusted"` and the same entry for the owner's
+   home. It follows the pattern of `src/tools/codex-apps.ts`: marked lines, an atomic
+   write, the person's own entries kept, nothing removed. On the tested Environment
+   the Folder entry exists and the home entry does not.
+9. **Tests.**
+   - Unit tests run against a fake control socket. They cover each state, the
+     handle's life, expiry, that a second start answers the live code, concurrent
+     starts, and that no code reaches a log or an error.
+   - Acceptance runs on a real Environment with a phone:
+     - A1: the QR code pairs.
+     - A2: the short code pairs.
+     - A3: *Telefon je spárovaný* appears within 5 s of the phone's confirmation.
+     - A4: the device appears in the list.
+     - A5: *Odebrat přístup* removes the Environment from the app.
+     - A6: a chat started from the phone in the Folder gets past the trust check.
+     - A7: remote control is `connected` again after a reboot through F29.
+     - A8: a search of the journal and logs finds no code.
+
+**Implementation (2026-11-03).** What the code does, where it differs from the
+points above:
+
+- **QR payload.** `pairingQrPayload` is
+  `https://chatgpt.com/codex/pair?pairing_code=<pairingCode>`. The ChatGPT app on
+  Android (1.2026.293) accepted it on 2026-11-03 through its own scanner in Codex →
+  add a computer. The system camera and iOS are untested, so the dialog says "V
+  aplikaci ChatGPT otevřete Codex → Přidat počítač a naskenujte kód." and keeps the
+  short code with *Kopírovat* as the fallback. It does not promise that the camera
+  opens the app.
+- **Place.** Settings → Připojení (`connections`) replaces SSH in the menu, with
+  no tabs: one group *Ovládat toto Prostředí* with the cards *Telefon* and
+  *Počítač* (point 1). *Počítač* leads to F49's page at `/settings/ssh`, unchanged
+  in behaviour; its title is Počítač, it links back to Připojení, and its SSH
+  config and `known_hosts` sit under *Pokročilé*. The menu marks Připojení on both
+  pages. Začínáme gets an optional row *Telefon přes ChatGPT* where pairing is
+  offered.
+- **Ways not built yet, and how the page shows them.**
+  - Telefon over SSH with a password, for the Organization's AI: the Telefon card
+    says *Pro Prostředí s AI Organizace telefon připravujeme.* and offers nothing.
+    The person on that Environment otherwise sees an empty way and would look for
+    it, so one line says it is coming. Today an agent sets the password
+    (Lazurio/LazurioPlatform#266).
+  - Počítač in one click (the prototype's six steps with the key confirmed in the
+    browser): not shown. Today's Počítač works, and a second route for the same
+    device would only make the person choose.
+  - Agenti ve vašem počítači and Ovládat jiná Prostředí: not shown. Nothing on the
+    page could act on them yet.
+- **Code.**
+  - `src/connections/control-socket.ts` is the client. It speaks WebSocket over the
+    Unix socket and keeps no error message from Codex, only the JSON-RPC code.
+  - `src/connections/pairing.ts` holds the states, the one live code, the serialized
+    start with the limit of five codes in ten minutes, polling, removing access and
+    the restart (which keeps the live code, since a restart does not end it).
+  - `src/connections/codex-trust.ts` writes the trust entries.
+  - `src/launchpad/connections-routes.ts` holds the routes, and the panel and view
+    are `connections-panel.ts` and `connections-view.ts`.
+  - Each operation opens its own connection to the socket. A pending code is kept by
+    the daemon, not by the connection.
+- **Routes.** `POST …/restart` takes `{confirm: true}` and refuses where remote
+  control works, where Codex lacks the methods, and where the unit is not Lazurio's.
+- **Turning remote control on.** Remote control is turned on by the daemon's own
+  `remoteControl/enable` (persisted), at the first *Spárovat telefon*. F29's
+  convergence does not run `enable-remote-control`. A daemon that is off therefore
+  reads as `ready`.
+- **States.**
+  - `organization-ai` is Codex's `account/read` answering
+    `requiresOpenaiAuth: false`. It shows the *připravujeme* line and no sign-in.
+  - `no-chatgpt` is signed out, or signed in with an API key. It shows "Nejdřív se
+    přihlaste svým účtem ChatGPT." with *Přihlásit se*.
+- **Not built yet.** The doctor check `codex-remote-control`.
+- **Acceptance so far.**
+  - The unit tests run against a fake daemon. They cover each state, the handle's
+    life, expiry, the live code answered again, concurrent starts sharing one
+    code, the start limit, removing access, the restart's
+    conditions, the trust text, the routes' admission, and that no code reaches an
+    answer, an error or the journal.
+  - On the owner's personal Environment, on 2026-11-03 and without a restart, the
+    branch's Launchpad read the real state and device list. It made a code and
+    showed the QR code, the short code and the time left. (That run predates the
+    one-live-code rule: it still had a cancel, which ended only Lazurio's handle.)
+  - `tests/connections-flow.test.ts` covers the dialog: an answer that arrives after
+    the close is dropped and starts no poll, a newer open wins over an older answer,
+    and expiry and pairing end the poll.
+  - A1–A8 with a phone remain the owner's.
+
+**Open questions.**
+
+1. *(Settled 2026-11-03: the URL, through the app's own scanner; see Implementation.)*
+   What the ChatGPT app scans. OpenAI documents a QR code that "opens ChatGPT" on the
+   phone, shown by the desktop app. The candidate payload is
+   `https://chatgpt.com/codex/pair?pairing_code=<pairingCode>`, as one public
+   third-party tool (`ulissescomonian/codex-remote`) builds it. Its alternative is
+   the bare `pairingCode`. Both are to be tested with the phone camera and inside the
+   app.
+2. The exact labels in the ChatGPT app on Android and iOS (Codex, add a computer),
+   for the motion graphic's steps 2 and 3.
+3. What `client/revoke` does on the phone's side.
+4. Whether `pairing/start` without a ChatGPT sign-in, or with a Business workspace
+   that forbids Remote Control, fails with a distinguishable error, so the page can
+   name the reason.
+5. The API is experimental. A Codex update can change it, so the Platform checks the
+   methods at runtime and qualifies each new Codex release on one Environment first.

@@ -125,13 +125,21 @@ Environments derives from assignments, approved devices and live Admin roles
   records confirm it; and no edge forwards the agent or ports, so no path
   leads back from a Work Environment into a Personal one.
 
-The Platform's part is the source side of a Personal Environment's edges:
-`src/ssh-access/environments.ts` writes one `Host` block per Work Environment
-that the Machine binding lists as assigned (Machines writes that list), with
-the host keys pinned (`StrictHostKeyChecking yes`), the Personal Environment's
-one key (`IdentitiesOnly yes`) and `ForwardAgent no`; without assigned peers it
-writes nothing. The network grants, the keys accepted on the targets and the
-Conglomerate Host's service belong to Machines and Headscale.
+The Platform's part is the source side of the edges
+([decision F70](decisions.md#f70--a-source-environments-routes-come-from-its-home-access-service-its-own-key-registered-targets-pinned-and-with-their-deadline)).
+Every source Environment has one key, `~/.ssh/lazurio-environment-ed25519`, created inside
+it and never copied out. Where the handover declares the home Conglomerate Host's access
+service, the Platform registers the key's public part there (`PUT /v1/source-key`) and
+writes one `Host <environment id>` block per target the service answers
+(`GET /v1/targets`) in `~/.ssh/config.d/lazurio-environments.conf`, with the host key
+pinned (`StrictHostKeyChecking yes`), the one key (`IdentitiesOnly yes`), no agent or port
+forwarding and no jump host, and drops a route when its `valid_until` passes; without an
+answer it adds nothing. Without that member a personal Environment's routes are the Work
+Environments the Machine binding lists as assigned, as before. The member is
+`access_service: {origin}`, exactly `http://<host's tailnet name>:8444`, which Machines
+writes from the home host only while that host switches the service on
+(HumanAndMachine-ai/Machines#1040, [machine handover](machine-handover.md#the-home-access-service-decision-f70)). The network grants, the keys accepted on the
+targets and the service itself belong to Machines and Headscale.
 
 Auth owns membership, assignments and grants. Dashboard manages that
 canonical authority; Machines/infra own technical deployment and derived

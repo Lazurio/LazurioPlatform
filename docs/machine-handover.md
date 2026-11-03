@@ -11,6 +11,12 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`. The pin is
+Machines pull request **#1051** (HumanAndMachine-ai/Machines#1040, decision F70), which
+adds only the optional member `access_service` on both branches
+([below](#the-home-access-service-decision-f70)) to the schema of v0.12.211 and
+changes nothing else, taken byte for byte from its merge commit
+`100be6ada01c5bb9371548be631afb9308cd72ad` (SHA-256
+`8a1d0734913e7064572b9fa4a6ef0c4070688f26a6975b68538d9e9187e81589`). Before it, the pin was
 Machines **v0.12.211** (tag commit `a8726744ba1e5d9cf28f3045782e85a1f77564f6`, which
 carries the merge of pull request **#948**, `44e9002e5f6e03d0b85227b4c5d360a13d97e68d`;
 SHA-256 `ca5cdb767888826fe028e589ea120628a6d830552256cc0d141c0681e038addc`; root
@@ -769,6 +775,38 @@ vault in its user's own Bitwarden, which the user connects in Apps → Vault
 identity and is not recorded in the Folder's binding: the vault reads the live
 handover at every operation. Recovery evidence withholds the account, the name and
 the vault's host (`<vault-account>`, `<vault-name>`, `<hostname-n>`).
+
+## The home access service (decision F70)
+
+Where the home Conglomerate Host's access service answers (root decision 0224) is
+only ever the handover's to say. Machines writes it on both branches, from the home
+host the lane already reads, only while that host switches the service on and its
+service would recognize this Machine as a caller, and only for a pinned Platform at
+or above its gate (`PLATFORM_HANDOVER_ACCESS_SERVICE_MINIMUM`, unset until a Platform
+release with this reader exists):
+
+```json
+"access_service": { "origin": "http://example-conglomerate-host.tailnet.example.invalid:8444" }
+```
+
+The reader takes exactly `http://`, a tailnet DNS name of at least three labels whose
+last label is not numeric (never an address literal) and port 8444; anything else,
+or any other member, refuses the handover, and the binding's parser holds a recorded
+binding to the same rule. The binding records it as `accessService` after `entry`;
+absent stays absent, so a binding without it records the bytes it always did. It is
+a declaration, not identity (`machineIdentity` ignores it). `accessServiceOf` answers
+it, and the machine commands and the Launchpad of the supervised base then take the
+Environment's routes from the service (F70 points 2 to 6); without it, a personal
+Machine keeps the assigned peers and nothing calls a service. Every writer of the
+routes writes under one lock and only while the live handover still declares what it
+acted on (the same origin, or without the member the same assigned peers), so a
+late answer of an origin the handover no longer declares, or a refresh of an older
+handover's peers, writes nothing; without the member, or with a handover the
+Launchpad cannot read (also a missing one, on a base that still has the route
+files), only routes whose deadline has passed go, and a refresh without it writes
+the binding's own routes (F70's amendment of 2026-11-03, points 5 and 6). A refresh records a
+change of only this member, though the Folder renders nothing of it, and recovery
+evidence withholds the host's name (`<hostname-n>`).
 
 ## Delivery by the Machines role (agreed 2026-09-23, Machines #199, v0.12.70)
 

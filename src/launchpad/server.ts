@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { realpath } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Server } from "bun";
 import {
@@ -27,6 +28,11 @@ import { createBuddySignIn } from "../buddy/sign-in";
 import { buddyStatus, readBuddyFacts } from "../buddy/status";
 import { type BotChecker, createBuddyTelegram } from "../buddy/telegram";
 import { createTelegramRestart } from "../buddy/telegram-restart";
+import { processConnectionsHost } from "../connections/host";
+import {
+  type ConnectionsHost,
+  createConnections,
+} from "../connections/pairing";
 import { createPersonalspaceHolder } from "../content/holder";
 import {
   type ContentHost,
@@ -93,6 +99,13 @@ import { readOrganizationApplications } from "../organizations/read-applications
 import type { RecoveryResult } from "../recover/recover";
 import { newTabPagePath } from "../shell/new-tab-protocol";
 import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
+import {
+  expireRoutes,
+  liveRoutesSource,
+  type RoutesDeclaration,
+  runEnvironmentRoutes,
+  syncEnvironmentRoutes,
+} from "../ssh-access/routes";
 import { shellThemeOf } from "../theme/palettes";
 import {
   fileThemeStore,
@@ -131,7 +144,7 @@ import {
 } from "../tools/overview";
 import { qrMatrix, qrSvg } from "../tools/qr";
 import { createSshProofs } from "../tools/ssh-key";
-import { resolveOnPath } from "../tools/status";
+import { resolveOnPath, runTool } from "../tools/status";
 import type { GithubAction } from "../tools/team-github";
 import { toolsUpdate } from "../tools/update";
 import {
@@ -161,6 +174,7 @@ import {
   mintChatPairing,
   publicEntry,
 } from "./chat";
+import { createConnectionsRoutes } from "./connections-routes";
 import { createContentRoutes } from "./content-routes";
 import { prepareContext } from "./content-view";
 import { createExecutorRoutes, isExecutorJob } from "./executor-routes";
@@ -421,6 +435,7 @@ const bootWithinMs = 500;
  * Environment was assigned to someone else, so its Správci leave the vault
  * (F53's addendum of 2026-10-14). */
 const vaultAudienceEveryMs = 5 * 60_000;
+const routesEveryMs = 60_000;
 
 /** The tailnet control server the Machine handover names (decision F41);
  * none where there is no readable handover, as on a workstation. */
@@ -664,6 +679,11 @@ export async function startLaunchpad(
      * ChatGPT's apps (decision F42's addendum of 2026-10-27): exactly where
      * it sets Executor up (`executorAtStart`). Absent: it never does. */
     codexAppsAtStart?: (() => Promise<boolean>) | undefined;
+    /** What this Launchpad finds for the Environment's routes on each tick
+     * (root decision 0224; `routesAtStart`): `off` where it keeps none, else
+     * the live handover's declaration; thrown when the handover cannot be
+     * read. Absent: it never keeps them. */
+    routesAtStart?: (() => Promise<RoutesDeclaration>) | undefined;
   }>,
   hostedOptions: HostedOptions = {},
   // Where the tools screen reads its live facts: this process's PATH and
@@ -740,6 +760,10 @@ export async function startLaunchpad(
   // operator's Codex and Claude Code. Trusted composition, never HTTP
   // input; tests supply answers.
   ai: AiProbe = createAiProbe(toolsEnvironment),
+  // Where Settings → Connections pairs a phone (decision F71): the
+  // operator's Codex daemon, its unit and its configuration. Trusted
+  // composition, never HTTP input; tests supply a fake control socket.
+  connectionsHost?: ConnectionsHost | undefined,
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -1264,6 +1288,33 @@ export async function startLaunchpad(
     },
     headers,
     journal: (line) => console.log(JSON.stringify(line)),
+  });
+  // Settings → Connections → Telefon přes ChatGPT (decision F71): the
+  // Codex daemon's remote control, one pending pairing in this process's
+  // memory; journaled without any code.
+  const connections = createConnections(
+    connectionsHost ??
+      processConnectionsHost({
+        env: process.env,
+        platform: process.platform,
+        run: toolsEnvironment.run,
+        ai,
+        kind: async () => {
+          const current = await withFolderReadLock(state, () =>
+            readFolderState(state),
+          );
+          const preset = current.preferences.preset.name;
+          return Object.hasOwn(presetKinds, preset)
+            ? environmentKind(preset as PresetName, current.preferences.machine)
+            : null;
+        },
+        folder: () => realpath(folder),
+      }),
+    { journal: (line) => console.log(JSON.stringify(line)) },
+  );
+  const connectionRoutes = createConnectionsRoutes({
+    connections: () => connections,
+    headers,
   });
   // The Environment's theme (root decision 0208): one record of this Folder
   // in the install base, which `lazurio theme` changes too; a development run
@@ -2324,6 +2375,17 @@ export async function startLaunchpad(
           return response({ error: "operation-failed" }, 500);
         }
       }
+      if (connectionRoutes.handles(url.pathname)) {
+        if (closing) return response({ error: "closing" }, 503);
+        // A pairing may turn remote control on and wait for it; a restart
+        // waits for Codex to start again.
+        server.timeout(request, 60);
+        try {
+          return await connectionRoutes.handle(request, url);
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
       if (ssh.handles(url.pathname)) {
         if (closing) return response({ error: "closing" }, 503);
         try {
@@ -3194,6 +3256,42 @@ export async function startLaunchpad(
       lookAtAudience();
       audienceTimer = setInterval(lookAtAudience, vaultAudienceEveryMs);
     })().catch(() => undefined);
+  // The Environment's routes (root decision 0224): where the handover
+  // declares the home access service, one synchronization once the
+  // Launchpad listens and then every minute, one at a time, never awaited
+  // and never a reason for the start to fail. The service re-derives every
+  // minute and a target's deadline is at most 210 s after its facts were
+  // read, so a route stays while the service confirms it and goes within
+  // one minute after its deadline when it does not.
+  // Every tick reads the live handover again (review of #833), so a
+  // declaration added, replaced or removed after start takes effect within a
+  // minute and an old origin is never asked again; without a declaration,
+  // with a handover it cannot read, or on a base that cannot show it is
+  // hosted but has route files, a tick only lets expired routes go, and
+  // whatever it writes it writes under the routes lock for the declaration
+  // still current (`runEnvironmentRoutes`, decision F70's amendment of
+  // 2026-11-03).
+  const routesAtStart = installed?.routesAtStart;
+  let stopRoutes: (() => void) | undefined;
+  if (routesAtStart !== undefined) {
+    const location = { home: homedir(), uid: process.getuid?.() };
+    stopRoutes = runEnvironmentRoutes(
+      async () => (closing ? { kind: "off" } : routesAtStart()),
+      (service) =>
+        syncEnvironmentRoutes(location, service, {
+          run: runTool,
+          now: Date.now,
+          current: liveRoutesSource(),
+        }),
+      () => expireRoutes(location, Date.now),
+      {
+        everyMs: routesEveryMs,
+        setInterval: (tick, ms) => setInterval(tick, ms),
+        clearInterval: (handle) =>
+          clearInterval(handle as ReturnType<typeof setInterval>),
+      },
+    );
+  }
   let closePending: ReturnType<
     ReturnType<typeof createApplicationLifecycle>["close"]
   > | null = null;
@@ -3222,6 +3320,7 @@ export async function startLaunchpad(
     close() {
       closing = true;
       clearInterval(audienceTimer);
+      stopRoutes?.();
       catalog.close();
       buddyPersona.close();
       buddyTelegramRestart.close();
