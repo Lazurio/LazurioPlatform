@@ -5,6 +5,7 @@ import {
   aiSignInPlace,
   createAiSignIn,
   createReadingOrder,
+  takeAiReading,
 } from "../src/launchpad/ai-sign-in";
 
 // Začínáme's AI sign-in in the page (root decision 0201 points 3-6, F19's
@@ -639,4 +640,32 @@ test("an older reading that ends after a newer one is not taken (review of #827)
   const fifth = order.ask();
   expect(order.take(fourth)).toBe(true);
   expect(order.take(fifth)).toBe(true);
+});
+
+test("a fresh reading overtaken by a plain one still settles the not installed (review of #827)", async () => {
+  const signIn = createAiSignIn({
+    post: async () => ({
+      value: { kind: "failed", tool: "claude", reason: "not-installed" },
+      ok: false,
+    }),
+    showView: () => undefined,
+    changed: () => undefined,
+    readAi: () => undefined,
+  });
+  await signIn.start("claude");
+  const order = createReadingOrder();
+  const installed = {
+    state: "missing",
+    providers: [{ provider: "claude", state: "signed-out" }],
+  } as const;
+  // Claude Code installed, then "Zkontrolovat znovu" (fresh) and, while it
+  // runs, a return to Začínáme (a plain reading).
+  const fresh = { n: order.ask(), since: signIn.mark() };
+  const plain = { n: order.ask(), since: null };
+  // The plain one answers first and is shown; it settles nothing.
+  expect(takeAiReading(order, signIn, plain, installed)).toBe(true);
+  expect(signIn.state()).toMatchObject({ reason: "not-installed" });
+  // The fresh one answers last: not shown, but it settles the failure.
+  expect(takeAiReading(order, signIn, fresh, installed)).toBe(false);
+  expect(signIn.state()).toEqual({ kind: "idle" });
 });

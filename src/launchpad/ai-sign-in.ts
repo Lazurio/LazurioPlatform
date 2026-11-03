@@ -301,6 +301,26 @@ export function createReadingOrder() {
   };
 }
 
+/**
+ * What one answer of a reading does, apart from drawing it: a fresh reading
+ * (`since` from the sign-in's mark()) settles the sign-in whatever the order
+ * of answers, because settle() is guarded by the state it began under; only
+ * the reading shown follows the order. Returns whether the answer is the
+ * one to show.
+ */
+export function takeAiReading(
+  order: ReturnType<typeof createReadingOrder>,
+  signIn: Readonly<{
+    settle: (reading: AiReading | null, since: number) => void;
+  }>,
+  asked: Readonly<{ n: number; since: number | null }>,
+  reading: AiReading | null,
+): boolean {
+  const shown = order.take(asked.n);
+  if (asked.since !== null) signIn.settle(reading, asked.since);
+  return shown;
+}
+
 export function createAiSignIn(
   options: Readonly<{
     post: Transport;

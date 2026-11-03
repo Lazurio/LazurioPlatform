@@ -22,6 +22,7 @@ import {
   aiSignInPlace,
   createAiSignIn,
   createReadingOrder,
+  takeAiReading,
 } from "./ai-sign-in";
 import { personalHolderOf, pluralKey } from "./apps-view";
 import { bootElementId, parseBoot } from "./boot";
@@ -626,12 +627,12 @@ async function readAi(fresh = false) {
     read = ok ? parseAiAnswer(value) : null;
   } catch {}
   aiRead = true;
-  // An older reading that ends after a newer one changes nothing.
-  if (!aiReadings.take(mine)) return;
+  // A fresh answer settles the sign-in in any order (a CLI it finds can
+  // sign in again, unless the state changed while it ran); the reading shown
+  // is only ever the newest asked one that answered.
+  const shown = takeAiReading(aiReadings, aiSignIn, { n: mine, since }, read);
+  if (!shown) return;
   if (read !== null || aiReading === null) aiReading = read;
-  // Asked now: a CLI it finds can sign in again, unless the sign-in state
-  // changed while it was under way.
-  if (since !== null) aiSignIn.settle(read, since);
   content.render();
   startByItself();
   firstRun();
