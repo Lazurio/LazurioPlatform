@@ -23031,9 +23031,11 @@ Open questions for the decision:
 ## F70 — A source Environment's routes come from its home access service: its own key, registered; targets pinned and with their deadline
 
 **Proposed 2026-11-03 (root decision 0224, plan DEV-6687 M7 step 4; Lazurio/LazurioPlatform#766).
-Implemented behind a handover member that no handover carries yet
-(HumanAndMachine-ai/Machines#1040), so nothing changes on any Environment until Machines
-writes it and this Platform vendors it.** Root decision 0224 derives every SSH access
+Implemented, and since the amendment of 2026-11-03 below this Platform reads the
+handover member (HumanAndMachine-ai/Machines#1040, merged as Machines#1051). No handover
+carries it yet: Machines writes it only once its release gate
+`PLATFORM_HANDOVER_ACCESS_SERVICE_MINIMUM` names a Platform release with this reader,
+and that gate is still unset, so until then nothing changes on any Environment.** Root decision 0224 derives every SSH access
 between the Environments of a Conglomerate from facts, in one service on the Conglomerate
 Host (`lazurio-access-service`, Machines `workloads/conglomerate-host/ACCESS-SERVICE.md`):
 Pracovní přístup (a personal Environment to its owner's Work Environments), Team via Work
@@ -23048,11 +23050,12 @@ managed route anywhere.
 1. **Where the service is.** Only the handover says it: an optional member naming the
    home access service's origin (`http://<host's tailnet name>:<port>`), proposed in
    HumanAndMachine-ai/Machines#1040 from the home host the lane already reads through
-   `conglomerate_host_record`. `accessServiceOf` answers it: until the amendment of
-   2026-11-03 below it answered null for every Machine; now it reads the member Machines
-   writes (Machines#1051), which Machines renders only once its release gate
-   `PLATFORM_HANDOVER_ACCESS_SERVICE_MINIMUM` names a Platform release that reads it (still
-   unset). Nothing derives the origin from a name, the Headscale URL or a peer;
+   `conglomerate_host_record`. `accessServiceOf` answers it. Until the amendment of
+   2026-11-03 below it answered null for every Machine; now it reads the member as
+   Machines#1051 defines it. Which Machines carry the member is Machines' release gate
+   `PLATFORM_HANDOVER_ACCESS_SERVICE_MINIMUM`, still unset, so today `accessServiceOf`
+   still answers null on every Machine. Nothing derives the origin from a name, the
+   Headscale URL or a peer;
    an origin that is not exactly `http://`, a tailnet DNS name (no address literal) and
    a port is never asked.
 2. **The source key.** Every source Environment, personal or Work, has one key
@@ -23142,12 +23145,37 @@ Platform:
 4. **Follows the live handover** in the Launchpad: every minute it reads the
    declaration again (`runEnvironmentRoutes`), so a member added after start is used at
    the next tick, a replaced origin replaces the old one, and a removed one is never
-   asked again; without a declaration the loop touches no file, so the Folder refresh
-   that recorded the removal writes the handover's routes and no late answer of the old
-   service overwrites them.
+   asked again.
+5. **Writes only for the declaration that is still current.** Every writer of the
+   routes (the Launchpad's tick, `machine folder-init` and `folder-refresh`) asks the
+   service without holding anything, then writes under one routes lock, a kernel
+   `flock` on `~/.local/state/lazurio/environment-routes.lock` (fixed under the home,
+   never moved by `XDG_STATE_HOME`, so both processes share it). Under the lock it
+   reads the live handover again and writes only when it declares exactly what the
+   writer acted on: the same origin, or for a personal Machine's assigned peers still
+   no service. Otherwise, and when the handover cannot be read there, it writes
+   nothing and reports `ssh: {"kind": "superseded"}`. So an answer that arrives after
+   the handover changed never replaces what a writer of the newer declaration wrote,
+   whichever of the two finished first; the newer one writes at its own commit or at
+   the next tick.
+6. **No service route outlives its deadline.** When the live handover declares no
+   service, or cannot be read, the Launchpad's tick still runs under the lock: it drops
+   every recorded route whose deadline has passed and adds nothing. A route without a
+   deadline (a personal Machine's assigned peers from the handover) stays, and the
+   Platform's own files that cannot be read back are removed, since nothing shows
+   their deadlines. When nothing has expired no file is touched. `folder-init` and
+   `folder-refresh` of a binding without the member write its routes exactly: a
+   personal Machine's assigned peers as before (they replace the service's routes) and
+   on any other Machine none, so the removed service's routes go at once. A route of
+   the service therefore ends within its deadline plus one minute after the
+   declaration is removed or the handover becomes unreadable, on both kinds of
+   Machine, as point 5 above bounds it while the service is declared.
 
 Tests: `tests/environment-routes-loop.test.ts` (added, replaced and removed
-declarations, one synchronization at a time, failures and stop),
+declarations, one synchronization at a time, failures and stop; an old answer held
+while the declaration changes or is removed and a newer writer writes, which then
+writes nothing; expiry without a declaration and with an unreadable handover on a
+personal and a work Machine, with assigned peers kept; one lock for both writers),
 `tests/access-service-handover.test.ts` (the pin, the member on both kinds,
 every refused form, the stored binding, the commands asking the declared origin, the
 withheld name) and `tests/folder-refresh.test.ts` (a refresh of only the member). Not

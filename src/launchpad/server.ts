@@ -93,9 +93,11 @@ import { selectCatalogOrganization } from "../organizations/catalog-selection";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import type { RecoveryResult } from "../recover/recover";
 import { newTabPagePath } from "../shell/new-tab-protocol";
-import type { AccessServiceLocation } from "../ssh-access/access-service";
 import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
 import {
+  expireRoutes,
+  liveAccessService,
+  type RoutesDeclaration,
   runEnvironmentRoutes,
   syncEnvironmentRoutes,
 } from "../ssh-access/routes";
@@ -671,10 +673,11 @@ export async function startLaunchpad(
      * ChatGPT's apps (decision F42's addendum of 2026-10-27): exactly where
      * it sets Executor up (`executorAtStart`). Absent: it never does. */
     codexAppsAtStart?: (() => Promise<boolean>) | undefined;
-    /** Where this Environment's home access service answers, when this
-     * Launchpad keeps its routes in step with it (root decision 0224;
-     * `routesAtStart`); null or absent: it never does. */
-    routesAtStart?: (() => Promise<AccessServiceLocation | null>) | undefined;
+    /** What this Launchpad finds for the Environment's routes on each tick
+     * (root decision 0224; `routesAtStart`): `off` where it keeps none, else
+     * the live handover's declaration; thrown when the handover cannot be
+     * read. Absent: it never keeps them. */
+    routesAtStart?: (() => Promise<RoutesDeclaration>) | undefined;
   }>,
   hostedOptions: HostedOptions = {},
   // Where the tools screen reads its live facts: this process's PATH and
@@ -3214,18 +3217,24 @@ export async function startLaunchpad(
   // one minute after its deadline when it does not.
   // Every tick reads the live handover again (review of #833), so a
   // declaration added, replaced or removed after start takes effect within a
-  // minute and an old origin is never asked again (`runEnvironmentRoutes`).
+  // minute and an old origin is never asked again; without a declaration, or
+  // with a handover it cannot read, a tick only lets expired routes go, and
+  // whatever it writes it writes under the routes lock for the declaration
+  // still current (`runEnvironmentRoutes`, decision F70's amendment of
+  // 2026-11-03).
   const routesAtStart = installed?.routesAtStart;
   let stopRoutes: (() => void) | undefined;
   if (routesAtStart !== undefined) {
     const location = { home: homedir(), uid: process.getuid?.() };
     stopRoutes = runEnvironmentRoutes(
-      async () => (closing ? null : routesAtStart()),
+      async () => (closing ? { kind: "off" } : routesAtStart()),
       (service) =>
         syncEnvironmentRoutes(location, service, {
           run: runTool,
           now: Date.now,
+          current: liveAccessService,
         }),
+      () => expireRoutes(location, Date.now),
       {
         everyMs: routesEveryMs,
         setInterval: (tick, ms) => setInterval(tick, ms),

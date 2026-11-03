@@ -38,8 +38,6 @@ import {
 } from "../folder/state-error";
 import { FolderStateUnreadable } from "../folder/state-fields";
 import { LaunchpadStartRefused } from "../launchpad/start-check";
-import { machineBinding } from "../machine/binding";
-import { readMachineContext } from "../machine/context";
 import { hostedOperatorFolder } from "../machine/operator";
 import {
   createModuleOperations,
@@ -48,9 +46,9 @@ import {
 } from "../modules/module-operations";
 import type { PersonalspaceHolderRead } from "../organizations/personalspace";
 import {
-  type AccessServiceLocation,
-  accessServiceOf,
-} from "../ssh-access/access-service";
+  liveAccessService,
+  type RoutesDeclaration,
+} from "../ssh-access/routes";
 import { runTool } from "../tools/status";
 import {
   type AttestationVerifier,
@@ -356,20 +354,21 @@ export const executorAtStart =
  * itself then decides whether it needs a setup. */
 export const vaultAtStart = executorAtStart;
 
-/** Where the Launchpad of this base keeps the Environment's routes in step
- * with its home access service (root decision 0224): exactly where it sets
- * Executor up, and only when the live handover declares the service
- * (`accessServiceOf`). Null otherwise, and for a handover it cannot read. */
+/** What the Launchpad of this base finds for the Environment's routes on
+ * each tick (root decision 0224, decision F70's amendment of 2026-11-03):
+ * `off` where it does not set Executor up (it keeps no routes there),
+ * otherwise what the live handover declares (`liveAccessService`). A
+ * handover it cannot read throws, and the tick then only lets expired routes
+ * go. */
 export const routesAtStart =
   (context: CliContext, base: string) =>
-  async (): Promise<AccessServiceLocation | null> => {
-    if (!(await executorAtStart(context, base)())) return null;
-    try {
-      const { context: handover, digest } = await readMachineContext();
-      return accessServiceOf(machineBinding(handover, digest));
-    } catch {
-      return null;
-    }
+  async (): Promise<RoutesDeclaration> => {
+    if (!(await executorAtStart(context, base)().catch(() => false)))
+      return { kind: "off" };
+    const service = await liveAccessService();
+    return service === null
+      ? { kind: "undeclared" }
+      : { kind: "declared", service };
   };
 
 export async function updateEnvironment(

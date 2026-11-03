@@ -68,6 +68,10 @@ const exists = (path: string) =>
 const service = {
   origin: "http://conglomerate-host.tailnet.example.invalid:8444",
 };
+// The live handover keeps declaring `service` (the commit guard of decision
+// F70's amendment, point 5; its transitions are in
+// environment-routes-loop.test.ts).
+const still = async () => service;
 const now = Date.parse("2026-11-03T12:00:00Z");
 const keyA =
   "AAAAC3NzaC1lZDI1NTE5AAAAIOosFYFA3vTPDE3z8629wlmF0Qecl1enPwpEjCjOsnfj";
@@ -364,7 +368,12 @@ test("one synchronization registers the key, writes the service's targets pinned
     "/v1/source-key": receipt,
     "/v1/targets": { status: 200, body: answer(target()) },
   });
-  const seams = { run: runTool, now: () => now, fetch: fake.fetchImpl };
+  const seams = {
+    run: runTool,
+    current: still,
+    now: () => now,
+    fetch: fake.fetchImpl,
+  };
   const first = await syncEnvironmentRoutes(
     { home: path, uid },
     service,
@@ -449,6 +458,7 @@ test("without a valid answer nothing is added: the recorded routes stay until th
     const fake = fakeService({ "/v1/source-key": route, "/v1/targets": route });
     const result = await syncEnvironmentRoutes(location, service, {
       run: runTool,
+      current: still,
       now: () => now,
       fetch: fake.fetchImpl,
     });
@@ -463,6 +473,7 @@ test("without a valid answer nothing is added: the recorded routes stay until th
     // A minute after the last deadline, nothing is left.
     const later = await syncEnvironmentRoutes(location, service, {
       run: runTool,
+      current: still,
       now: () => Date.parse("2026-11-03T12:04:30Z"),
       fetch: fake.fetchImpl,
     });
@@ -476,6 +487,7 @@ test("without a valid answer nothing is added: the recorded routes stay until th
   await writeEnvironmentSsh({ home: path, uid }, bindings.personalAssigned);
   const result = await syncEnvironmentRoutes({ home: path, uid }, service, {
     run: runTool,
+    current: still,
     now: () => now,
     fetch: fakeService({}).fetchImpl,
   });
@@ -490,6 +502,7 @@ test("a host key the service changes replaces the pin, and nothing ever learns a
   const sync = (hostKey: string) =>
     syncEnvironmentRoutes({ home: path, uid }, service, {
       run: runTool,
+      current: still,
       now: () => now,
       fetch: fakeService({
         "/v1/source-key": receipt,
@@ -522,7 +535,12 @@ test("the person's own Host blocks stay byte for byte below the Include, and the
     "/v1/source-key": receipt,
     "/v1/targets": { status: 200, body: answer(target()) },
   });
-  const seams = { run: runTool, now: () => now, fetch: fake.fetchImpl };
+  const seams = {
+    run: runTool,
+    current: still,
+    now: () => now,
+    fetch: fake.fetchImpl,
+  };
   expect(
     (await syncEnvironmentRoutes({ home: path, uid }, service, seams)).ssh,
   ).toEqual({ kind: "written", environments: ["alice.example"] });
@@ -565,7 +583,12 @@ test("the machine commands synchronize with a declared service on any Machine an
     "/v1/source-key": receipt,
     "/v1/targets": { status: 200, body: answer(target()) },
   });
-  const seams = { run: runTool, now: () => now, fetch: fake.fetchImpl };
+  const seams = {
+    run: runTool,
+    current: still,
+    now: () => now,
+    fetch: fake.fetchImpl,
+  };
   for (const machine of [bindings.organization, bindings.personal]) {
     const result = await withEnvironmentSsh(
       { kind: "refreshed", revision: 2 },

@@ -160,7 +160,14 @@ test("the machine commands ask the declared origin itself, and without the membe
       { status: 200 },
     );
   };
-  const seams = { run: runTool, now: () => now, fetch: fetchImpl };
+  // The live handover declares what each binding declares (decision F70's
+  // amendment, point 5).
+  const seams = {
+    run: runTool,
+    now: () => now,
+    fetch: fetchImpl,
+    current: async () => ({ origin }),
+  };
   for (const document of [organization, personal] as Json[]) {
     const home = await mkdtemp(join(tmpdir(), "lazurio-access-handover-"));
     homes.push(home);
@@ -192,7 +199,7 @@ test("the machine commands ask the declared origin itself, and without the membe
     binding(personal),
     { home, uid },
     undefined,
-    seams,
+    { ...seams, current: async () => null },
   );
   expect(calls).toEqual([]);
   expect(kept).not.toHaveProperty("environmentRoutes");

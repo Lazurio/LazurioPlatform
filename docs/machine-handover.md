@@ -14,8 +14,9 @@ JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`. The pin
 Machines pull request **#1051** (HumanAndMachine-ai/Machines#1040, decision F70), which
 adds only the optional member `access_service` on both branches
 ([below](#the-home-access-service-decision-f70)) to the schema of v0.12.211 and
-changes nothing else; until it merges, `schema-provenance.json` says `pending` and
-names the head it was copied from. Before it, the pin was
+changes nothing else, taken byte for byte from its merge commit
+`100be6ada01c5bb9371548be631afb9308cd72ad` (SHA-256
+`8a1d0734913e7064572b9fa4a6ef0c4070688f26a6975b68538d9e9187e81589`). Before it, the pin was
 Machines **v0.12.211** (tag commit `a8726744ba1e5d9cf28f3045782e85a1f77564f6`, which
 carries the merge of pull request **#948**, `44e9002e5f6e03d0b85227b4c5d360a13d97e68d`;
 SHA-256 `ca5cdb767888826fe028e589ea120628a6d830552256cc0d141c0681e038addc`; root
@@ -796,7 +797,12 @@ absent stays absent, so a binding without it records the bytes it always did. It
 a declaration, not identity (`machineIdentity` ignores it). `accessServiceOf` answers
 it, and the machine commands and the Launchpad of the supervised base then take the
 Environment's routes from the service (F70 points 2 to 6); without it, a personal
-Machine keeps the assigned peers and nothing calls a service. A refresh records a
+Machine keeps the assigned peers and nothing calls a service. Every writer of the
+routes writes under one lock and only while the live handover still declares what it
+acted on, so a late answer of an origin the handover no longer declares writes
+nothing; without the member, or with a handover the Launchpad cannot read, only
+routes whose deadline has passed go, and a refresh without it writes the binding's
+own routes (F70's amendment of 2026-11-03, points 5 and 6). A refresh records a
 change of only this member, though the Folder renders nothing of it, and recovery
 evidence withholds the host's name (`<hostname-n>`).
 

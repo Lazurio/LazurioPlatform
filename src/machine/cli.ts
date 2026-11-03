@@ -22,10 +22,16 @@ import {
 } from "../ssh-access/access-service";
 import {
   type EnvironmentSshLocation,
-  type EnvironmentSshResult,
+  writeEnvironmentRoutes,
   writeEnvironmentSsh,
 } from "../ssh-access/environments";
-import { type RoutesSeams, syncEnvironmentRoutes } from "../ssh-access/routes";
+import {
+  commitRoutes,
+  liveAccessService,
+  type RoutesSeams,
+  type RoutesWrite,
+  syncEnvironmentRoutes,
+} from "../ssh-access/routes";
 import { runTool } from "../tools/status";
 import { machineBinding } from "./binding";
 import {
@@ -239,10 +245,13 @@ export async function runMachineCommand(
     return {
       code,
       result: {
-        ...(await withEnvironmentSsh(result, machine, {
-          home: operator.homedir,
-          uid: operator.uid,
-        })),
+        ...(await withEnvironmentSsh(
+          result,
+          machine,
+          { home: operator.homedir, uid: operator.uid },
+          undefined,
+          { run: runTool, now: Date.now, current: liveAccessService },
+        )),
         machineContextDigest: observed.digest,
       },
     };
@@ -435,13 +444,24 @@ export async function refreshMachineFolderAndLaunchpad(
 //   0224, `accessServiceOf`), on any Machine: one synchronization with it
 //   (`syncEnvironmentRoutes`: the source key, its registration, the
 //   targets), reported as `environmentRoutes`.
-// - Otherwise, on a personal Machine only: its assigned peers (root decision
-//   0192, addendum of 2026-10-26), reported as `environmentSsh`.
+// - Otherwise the binding's own routes, exactly (decision F70, amendment of
+//   2026-11-03, point 6): a personal Machine's assigned peers (root decision
+//   0192, addendum of 2026-10-26), and on any other Machine none, so the
+//   routes of a service whose declaration was removed go at once. Reported
+//   as `environmentSsh`; on a Machine other than a personal one only when
+//   there was something to remove or say.
+//
+// Either writes only under the routes lock and only while the live handover
+// still declares what this binding declares (`commitRoutes`, point 5): a
+// handover rewritten meanwhile is `superseded`, and its own refresh or the
+// Launchpad's next tick writes its routes.
 const recordsThisBinding: ReadonlySet<string> = new Set([
   "initialized",
   "refreshed",
   "unchanged",
 ]);
+const supersededText =
+  "The handover changed while this Environment's routes were being written; nothing was written, and the next refresh or the Launchpad's next minute writes the current ones.";
 export async function withEnvironmentSsh<
   Result extends Readonly<{ kind: string }>,
 >(
@@ -449,7 +469,7 @@ export async function withEnvironmentSsh<
   machine: MachineBinding,
   location: EnvironmentSshLocation,
   service: AccessServiceLocation | null = accessServiceOf(machine),
-  seams: RoutesSeams = { run: runTool, now: Date.now },
+  seams: RoutesSeams,
 ) {
   if (!recordsThisBinding.has(result.kind)) return result;
   if (service !== null) {
@@ -458,27 +478,37 @@ export async function withEnvironmentSsh<
       service,
       seams,
     );
-    if (environmentRoutes.targets !== "answered")
+    if (environmentRoutes.ssh.kind === "superseded")
+      console.error(supersededText);
+    else if (environmentRoutes.targets !== "answered")
       console.error(
         `The access service did not give this Environment its routes (${environmentRoutes.targets}); no route was added, and the recorded ones end at their deadline.`,
       );
     return { ...result, environmentRoutes };
   }
-  if (machine.kind !== "personal-vm") return result;
-  let environmentSsh: EnvironmentSshResult | { kind: "failed" };
-  try {
-    environmentSsh = await writeEnvironmentSsh(location, machine);
-  } catch {
-    environmentSsh = { kind: "failed" };
-  }
+  const personal = machine.kind === "personal-vm";
+  const environmentSsh: RoutesWrite = await commitRoutes(
+    location,
+    null,
+    seams.current,
+    () =>
+      personal
+        ? writeEnvironmentSsh(location, machine)
+        : writeEnvironmentRoutes(location, []),
+  );
+  if (!personal && environmentSsh.kind === "none") return result;
+  const routes = personal
+    ? "The SSH config for the assigned Work Environments"
+    : "The SSH config of this Environment's routes";
   if (environmentSsh.kind === "blocked")
     console.error(
-      `The SSH config for the assigned Work Environments was not written: ${environmentSsh.path} is ${environmentSsh.reason === "file-foreign" ? "not Lazurio's file" : "not a plain file or directory of this account"}. Nothing was changed; move it away and refresh again.`,
+      `${routes} was not written: ${environmentSsh.path} is ${environmentSsh.reason === "file-foreign" ? "not Lazurio's file" : "not a plain file or directory of this account"}. Nothing was changed; move it away and refresh again.`,
     );
   else if (environmentSsh.kind === "failed")
     console.error(
-      "The SSH config for the assigned Work Environments could not be written; the Folder itself is unaffected.",
+      `${routes} could not be written; the Folder itself is unaffected.`,
     );
+  else if (environmentSsh.kind === "superseded") console.error(supersededText);
   return { ...result, environmentSsh };
 }
 
