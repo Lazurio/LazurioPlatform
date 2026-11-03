@@ -52,14 +52,12 @@ const unassigned = {
   ssh: without(link, "host_keys"),
 };
 
-test("the vendored schema is Machines #948's: a peer's environment, access and ssh.host_keys, only together", () => {
-  // Released as v0.12.211 (the tag's commit carries #948's merge 44e9002e).
+test("the vendored schema carries Machines #948's: a peer's environment, access and ssh.host_keys, only together", () => {
+  // Released as v0.12.211 (the tag's commit carries #948's merge 44e9002e);
+  // re-pinned since to Machines #1051, which adds only `access_service`
+  // (tests/access-service-handover.test.ts).
   expect(provenance.source_pull_request).toBe(
-    "https://github.com/HumanAndMachine-ai/Machines/pull/948",
-  );
-  expect(provenance.source_tag).toBe("v0.12.211");
-  expect(provenance.source_sha256).toBe(
-    "ca5cdb767888826fe028e589ea120628a6d830552256cc0d141c0681e038addc",
+    "https://github.com/HumanAndMachine-ai/Machines/pull/1051",
   );
   const item = (
     schema as unknown as {
