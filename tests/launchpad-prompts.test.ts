@@ -16,6 +16,11 @@ import {
   t3Version,
 } from "../src/launchpad/chat";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
+import {
+  builtInMarketplace,
+  type MarketplaceOffer,
+} from "../src/launchpad/marketplace";
+import type { MarketplaceRegistry } from "../src/launchpad/marketplace-registry";
 import { messages } from "../src/launchpad/messages";
 import {
   type BoundOrganization,
@@ -296,7 +301,11 @@ posixTest(
 // Organization `example` bound to the GitHub login `Example-Org`. Its `gh`
 // answers the membership question as `owner` says and its `t3` prints
 // `version`; both are recorded.
-async function hostedLaunchpad(owner: boolean, version: string) {
+async function hostedLaunchpad(
+  owner: boolean,
+  version: string,
+  marketplace?: MarketplaceRegistry,
+) {
   const parent = await realpath(
     await mkdtemp(join(tmpdir(), "launchpad-prompts-")),
   );
@@ -354,6 +363,21 @@ async function hostedLaunchpad(owner: boolean, version: string) {
     undefined,
     { fetcher },
     { path: bin, home, platform: process.platform, run },
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    marketplace,
   );
   const base = `http://127.0.0.1:${entry.listenPort}`;
   const host = new URL(entry.externalOrigin).host;
@@ -370,6 +394,89 @@ async function hostedLaunchpad(owner: boolean, version: string) {
     },
   };
 }
+
+posixTest(
+  "hosted: a Marketplace adoption follows the offers the registry gives, and /api/marketplace answers them",
+  async () => {
+    // The registry's index at one commit, where Presentations' release is
+    // published (plan DEV-6593, marketplace-registry.ts).
+    const commit = "0123456789abcdef0123456789abcdef01234567";
+    const offers = builtInMarketplace.offers.map(
+      (offer): MarketplaceOffer =>
+        offer.id === "presentations"
+          ? {
+              ...offer,
+              release: { ...offer.release, commit },
+              releases: [{ ...offer.release, commit }],
+            }
+          : offer,
+    );
+    const catalog = {
+      source: "registry" as const,
+      commit: "f".repeat(40),
+      offers,
+    };
+    let reads = 0;
+    const registry: MarketplaceRegistry = {
+      current: () => catalog,
+      read: async () => {
+        reads += 1;
+        return catalog;
+      },
+    };
+    const hosted = await hostedLaunchpad(true, "0.0.45-lazurio.2", registry);
+    try {
+      const { base, valid } = hosted;
+      for (const seed of ["empty", "sample"]) {
+        const answer = await fetch(
+          `${base}/.lazurio/prompts/marketplace-presentations-${seed}?org=example-org`,
+          { headers: valid },
+        );
+        expect(answer.status).toBe(200);
+        const document = (await answer.json()) as { id: string; text: string };
+        expect(document.id).toBe(`marketplace-presentations-${seed}`);
+        expect(document.text).toContain(commit);
+        expect(document.text).toContain(
+          "LazurioExampleOrganization/presentations",
+        );
+      }
+      // Mission Control has no published release: the same 404.
+      const pending = await fetch(
+        `${base}/.lazurio/prompts/marketplace-mission-control-empty?org=example-org`,
+        { headers: valid },
+      );
+      expect(pending.status).toBe(404);
+      const read = await fetch(`${base}/api/marketplace`, {
+        method: "POST",
+        headers: {
+          ...valid,
+          origin: hosted.entry.externalOrigin,
+          "sec-fetch-site": "same-origin",
+          "content-type": "application/json",
+        },
+        body: "{}",
+      });
+      expect(read.status).toBe(200);
+      const answer = (await read.json()) as {
+        source: string;
+        commit: string;
+        offers: { id: string; release: { commit: string | null } }[];
+      };
+      expect(answer.source).toBe("registry");
+      expect(answer.commit).toBe("f".repeat(40));
+      expect(
+        answer.offers.map((offer) => [offer.id, offer.release.commit]),
+      ).toEqual([
+        ["mission-control", null],
+        ["presentations", commit],
+      ]);
+      // Each answer asks the registry for what the page shows now.
+      expect(reads).toBe(4);
+    } finally {
+      await hosted.close();
+    }
+  },
+);
 
 posixTest(
   "hosted: the prompt for the Organization's Owner, behind the gateway's admission, never cached",

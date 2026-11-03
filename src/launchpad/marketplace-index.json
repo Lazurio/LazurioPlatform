@@ -1,0 +1,170 @@
+{
+  "schemaVersion": "lazurio.marketplace.index.v1",
+  "offers": [
+    {
+      "schemaVersion": "lazurio.marketplace.offer.v1",
+      "id": "mission-control",
+      "section": "app-templates",
+      "title": "Mission Control",
+      "module": "mission-control",
+      "repository": "LazurioExampleOrganization/mission-control",
+      "publisher": "LazurioExampleOrganization",
+      "license": "MIT",
+      "generation": "app/v3",
+      "stack": "vite-react",
+      "bun": "1.4.2",
+      "stone": "control",
+      "pricing": "free",
+      "summary": {
+        "cs": "Plány, úkoly a roadmapy vaší Organizace na jednom místě.",
+        "en": "Your Organization's plans, tasks and roadmaps in one place."
+      },
+      "features": [
+        {
+          "title": {
+            "cs": "Plány a úkoly",
+            "en": "Plans and tasks"
+          },
+          "text": {
+            "cs": "Každý plán má svůj kód, cíl, rozsah a úkoly. Vidíte, co se právě dělá, kdo to vlastní a co na čem závisí.",
+            "en": "Every plan has its code, goal, scope and tasks. You see what is under way, who owns it and what depends on what."
+          }
+        },
+        {
+          "title": {
+            "cs": "Roadmapa",
+            "en": "Roadmap"
+          },
+          "text": {
+            "cs": "Plány seřazené podle priority a stavu, od nápadu po dokončení.",
+            "en": "Plans ordered by priority and status, from an idea to done."
+          }
+        },
+        {
+          "title": {
+            "cs": "Data ve vašem repozitáři",
+            "en": "Data in your repository"
+          },
+          "text": {
+            "cs": "Plány a úkoly leží v datovém repozitáři vaší Organizace. Agent je čte a zapisuje stejně jako vy.",
+            "en": "Plans and tasks live in your Organization's data repository. Your agent reads and writes them as you do."
+          }
+        }
+      ],
+      "seeds": {
+        "empty": {
+          "label": {
+            "cs": "Bez plánů",
+            "en": "No plans"
+          },
+          "brief": {
+            "cs": "prázdnými daty (ukázkové plány nepřenášej)",
+            "en": "empty data (do not carry the example plans over)"
+          }
+        },
+        "sample": {
+          "label": {
+            "cs": "S ukázkovými plány",
+            "en": "With example plans"
+          },
+          "brief": {
+            "cs": "ukázkovými plány z vydání",
+            "en": "the example plans from the release"
+          }
+        }
+      },
+      "screenshots": [],
+      "releases": [
+        {
+          "version": "0.1.0",
+          "tag": "v0.1.0",
+          "commit": null,
+          "artifactDigest": null
+        }
+      ]
+    },
+    {
+      "schemaVersion": "lazurio.marketplace.offer.v1",
+      "id": "presentations",
+      "section": "app-templates",
+      "title": "Presentations",
+      "module": "presentations",
+      "repository": "LazurioExampleOrganization/presentations",
+      "publisher": "LazurioExampleOrganization",
+      "movedFrom": "TemplatesRozjedeme-ai/Presentations",
+      "license": "MIT",
+      "generation": "app/v1",
+      "stack": "vite-react",
+      "bun": "1.4.2",
+      "stone": "presentation",
+      "pricing": "free",
+      "summary": {
+        "cs": "Knihovna prezentací, které tvoříte se svým agentem.",
+        "en": "A library of presentations you create with your agent."
+      },
+      "features": [
+        {
+          "title": {
+            "cs": "Knihovna",
+            "en": "Library"
+          },
+          "text": {
+            "cs": "Všechny prezentace na jednom místě, u každé náhled prvního slidu a podklady, ze kterých vznikla.",
+            "en": "Every presentation in one place, with a preview of its first slide and the sources it was built from."
+          }
+        },
+        {
+          "title": {
+            "cs": "Promítání a PDF",
+            "en": "Presenting and PDF"
+          },
+          "text": {
+            "cs": "Slidy promítáte v prohlížeči a listujete jimi šipkami. Do PDF je vytisknete ve formátu 16:9.",
+            "en": "Present the slides in the browser and move through them with the arrow keys. Print them to 16:9 PDF pages."
+          }
+        },
+        {
+          "title": {
+            "cs": "Tvorba s agentem",
+            "en": "Created with your agent"
+          },
+          "text": {
+            "cs": "Řekněte agentovi, komu je prezentace určená a z čeho má vycházet. Navrhne osnovu, připraví slidy z podkladů vaší Organizace a dá vám je ke kontrole.",
+            "en": "Tell the agent who the presentation is for and what it should draw on. It proposes an outline, drafts the slides from your Organization's sources and hands them to you for review."
+          }
+        }
+      ],
+      "seeds": {
+        "empty": {
+          "label": {
+            "cs": "Prázdnou knihovnou",
+            "en": "An empty library"
+          },
+          "brief": {
+            "cs": "prázdnou knihovnou (ukázkovou prezentaci nepřenášej)",
+            "en": "an empty library (do not carry the example presentation over)"
+          }
+        },
+        "sample": {
+          "label": {
+            "cs": "Ukázkovou prezentací",
+            "en": "An example presentation"
+          },
+          "brief": {
+            "cs": "ukázkovou prezentací z vydání",
+            "en": "the example presentation from the release"
+          }
+        }
+      },
+      "screenshots": [],
+      "releases": [
+        {
+          "version": "0.1.0",
+          "tag": "v0.1.0",
+          "commit": null,
+          "artifactDigest": null
+        }
+      ]
+    }
+  ]
+}

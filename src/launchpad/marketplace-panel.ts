@@ -7,15 +7,29 @@ import {
   adoptable,
   adoptionPrompt,
   adoptionPromptId,
-  adoptionSeeds,
+  builtInMarketplace,
+  type MarketplaceCatalog,
+  type MarketplaceLocale,
   type MarketplaceOffer,
-  marketplaceOffers,
   offerById,
+  screenshotUrl,
+  seedsOf,
 } from "./marketplace";
 import type { MessageKey } from "./messages";
 import type { PageRoute } from "./routes";
 
 type Copy = Readonly<Record<MessageKey, string>>;
+
+/** Screens this release bundles for an offer whose release has none to show
+ * yet (index.html `#market-pictures`), by offer id. */
+const bundledScreens: Readonly<
+  Record<string, readonly (readonly [string, MessageKey])[]>
+> = {
+  presentations: [
+    ["presentations-gallery", "marketScreensGallery"],
+    ["presentations-slide", "marketScreensSlide"],
+  ],
+};
 
 // The Marketplace page (plan DEV-6593, marketplace.ts): `/marketplace` is
 // Šablony aplikací with the card of each offer, `/marketplace/<offer>` its
@@ -27,12 +41,19 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // hands the exact brief to Chat as "+ Nový modul" does (ui.ts `handOver`),
 // where the agent shows the plan to approve before anything changes; it
 // creates nothing itself. While the offer's release has no recorded commit
-// the button is disabled and says why. Every value is drawn with
-// textContent.
+// the button is disabled and says why. The offers are the Launchpad's answer
+// (`POST /api/marketplace`: the registry at one commit, or the built-in
+// copy), read when the page first opens; until then the built-in copy. Every
+// value is drawn with textContent.
 export function createMarketplacePanel(
   options: Readonly<{
     copy: () => Copy;
+    locale: () => MarketplaceLocale;
     route: () => PageRoute;
+    /** The Launchpad's offers, or null when they could not be read. */
+    load: () => Promise<MarketplaceCatalog | null>;
+    /** The offers changed: titles that name one are drawn again. */
+    changed: () => void;
     /** This Folder's catalog, or null until it is read. */
     catalog: () => Catalog | null;
     handOver: (prompt: NewModulePrompt) => Promise<NewModuleOutcome>;
@@ -63,6 +84,26 @@ export function createMarketplacePanel(
   let busy = false;
   // The screen the detail shows large.
   let shown: string | null = null;
+  // The offers shown: the built-in copy until the Launchpad's answer.
+  let offers: MarketplaceCatalog = builtInMarketplace;
+  let loaded = false;
+  let loading = false;
+
+  function load() {
+    if (loaded || loading) return;
+    loading = true;
+    void options
+      .load()
+      .catch(() => null)
+      .then((read) => {
+        loading = false;
+        loaded = true;
+        if (read !== null) offers = read;
+        if (adding !== null) adding = offerById(offers, adding.id) ?? adding;
+        render();
+        options.changed();
+      });
+  }
 
   const element = <K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -96,6 +137,39 @@ export function createMarketplacePanel(
     image.alt = alt;
     image.className = "market-shot";
     return image;
+  };
+  const remote = (url: string, alt: string) => {
+    const image = element("img", "market-shot");
+    image.src = url;
+    image.alt = alt;
+    image.loading = "lazy";
+    image.decoding = "async";
+    image.referrerPolicy = "no-referrer";
+    return image;
+  };
+  /** An offer's screens, each a key, its image and its words: those of the
+   * offered release where it has a commit, else the bundled ones. */
+  const shotsOf = (offer: MarketplaceOffer) => {
+    const copy = options.copy();
+    const locale = options.locale();
+    const released = offer.screenshots.flatMap((shot) => {
+      const url = screenshotUrl(offer, shot.path);
+      return url === null
+        ? []
+        : [
+            {
+              key: shot.path,
+              alt: shot.alt[locale],
+              image: (alt: string) => remote(url, alt),
+            },
+          ];
+    });
+    if (released.length > 0) return released;
+    return (bundledScreens[offer.id] ?? []).map(([name, alt]) => ({
+      key: name,
+      alt: copy[alt],
+      image: (text: string) => picture(name, text),
+    }));
   };
   const stone = (offer: MarketplaceOffer, size: number) => {
     const image = element("img", "market-stone");
@@ -134,7 +208,9 @@ export function createMarketplacePanel(
       if (dialog.open) dialog.close();
       return;
     }
-    const offer = route.offer === undefined ? null : offerById(route.offer);
+    load();
+    const offer =
+      route.offer === undefined ? null : offerById(offers, route.offer);
     // Another offer, or back on the catalog: the dialog closes.
     if (adding !== null && adding.id !== offer?.id && dialog.open)
       dialog.close();
@@ -142,7 +218,7 @@ export function createMarketplacePanel(
       route.offer === undefined
         ? catalogView()
         : offer === null
-          ? missingView()
+          ? missingView(loaded)
           : offerView(offer),
     );
     if (adding !== null && dialog.open) drawDialog(adding);
@@ -160,27 +236,30 @@ export function createMarketplacePanel(
     title.id = "market-section-app-templates";
     sectionHead.append(title);
     const grid = element("div", "market-grid");
-    for (const offer of marketplaceOffers) grid.append(card(offer));
+    for (const offer of offers.offers) grid.append(card(offer));
     section.append(sectionHead, grid);
     view.append(head, section);
     return view;
   }
 
   function card(offer: MarketplaceOffer) {
-    const copy = options.copy();
     const link = element("a", "market-card");
     link.href = `/marketplace/${encodeURIComponent(offer.id)}`;
     link.dataset.route = "";
-    const shot = element("span", "market-card-shot");
-    shot.append(picture(`${offer.id}-gallery`, ""));
+    const first = shotsOf(offer)[0];
+    if (first !== undefined) {
+      const shot = element("span", "market-card-shot");
+      shot.append(first.image(""));
+      link.append(shot);
+    }
     const text = element("span", "market-card-body");
     const words = element("span", "tile-body");
     words.append(
       element("span", "tile-name", offer.title),
-      element("span", "tile-desc", copy[offer.copy.summary]),
+      element("span", "tile-desc", offer.summary[options.locale()]),
     );
     text.append(stone(offer, 44), words);
-    link.append(shot, text);
+    link.append(text);
     return link;
   }
 
@@ -192,26 +271,26 @@ export function createMarketplacePanel(
     return link;
   }
 
-  function missingView() {
+  /** An offer the catalog does not have; until the Launchpad's offers
+   * are read it may still come, so nothing is said yet. */
+  function missingView(known: boolean) {
     const copy = options.copy();
     const view = element("div", "market-view");
-    view.append(
-      back(),
-      heading(copy.appsMarketplace),
-      element("p", "empty", copy.marketNotFound),
-    );
+    view.append(back(), heading(copy.appsMarketplace));
+    if (known) view.append(element("p", "empty", copy.marketNotFound));
     return view;
   }
 
   function offerView(offer: MarketplaceOffer) {
     const copy = options.copy();
+    const locale = options.locale();
     const view = element("div", "market-view");
 
     const head = element("header", "market-detail-head");
     const title = element("div", "market-detail-title");
     title.append(
       heading(offer.title),
-      element("p", "market-summary", copy[offer.copy.summary]),
+      element("p", "market-summary", offer.summary[locale]),
     );
     const add = element("button", "primary market-add", copy.marketAdd);
     add.type = "button";
@@ -222,50 +301,51 @@ export function createMarketplacePanel(
     const shots = screens(offer);
 
     const features = element("ul", "market-features");
-    for (const feature of offer.copy.features) {
+    for (const feature of offer.features) {
       const item = element("li");
       item.append(
-        element("h2", undefined, copy[feature.title]),
-        element("p", undefined, copy[feature.text]),
+        element("h2", undefined, feature.title[locale]),
+        element("p", undefined, feature.text[locale]),
       );
       features.append(item);
     }
 
-    view.append(back(), head, shots, features);
+    view.append(back(), head);
+    if (shots !== null) view.append(shots);
+    view.append(features);
     return view;
   }
 
   /** The app's real screens: one large, the others as thumbnails that
    * show it instead. */
   function screens(offer: MarketplaceOffer) {
-    const copy = options.copy();
-    const all = [
-      [`${offer.id}-gallery`, copy.marketScreensGallery],
-      [`${offer.id}-slide`, copy.marketScreensSlide],
-    ] as const;
-    if (!all.some(([name]) => name === shown)) shown = all[0][0];
+    const all = shotsOf(offer);
+    const first = all[0];
+    if (first === undefined) return null;
+    if (!all.some((entry) => entry.key === shown)) shown = first.key;
     const view = element("div", "market-shots");
     const large = element("div", "market-shot-large");
-    const current = all.find(([name]) => name === shown) ?? all[0];
-    large.append(picture(current[0], current[1]));
+    const current = all.find((entry) => entry.key === shown) ?? first;
+    large.append(current.image(current.alt));
     const thumbs = element("div", "market-thumbs");
-    for (const [name, alt] of all) {
-      const button = element("button", "market-thumb");
-      button.type = "button";
-      button.setAttribute("aria-label", alt);
-      button.setAttribute("aria-pressed", String(name === shown));
-      button.append(picture(name, ""));
-      button.addEventListener("click", () => {
-        shown = name;
-        render();
-        document
-          .querySelector<HTMLButtonElement>(
-            `.market-thumb[aria-label="${CSS.escape(alt)}"]`,
-          )
-          ?.focus();
-      });
-      thumbs.append(button);
-    }
+    if (all.length > 1)
+      for (const { key: name, alt, image } of all) {
+        const button = element("button", "market-thumb");
+        button.type = "button";
+        button.setAttribute("aria-label", alt);
+        button.setAttribute("aria-pressed", String(name === shown));
+        button.append(image(""));
+        button.addEventListener("click", () => {
+          shown = name;
+          render();
+          document
+            .querySelector<HTMLButtonElement>(
+              `.market-thumb[aria-label="${CSS.escape(alt)}"]`,
+            )
+            ?.focus();
+        });
+        thumbs.append(button);
+      }
     view.append(large, thumbs);
     return view;
   }
@@ -296,6 +376,7 @@ export function createMarketplacePanel(
       seed,
       { name: organizationName(chosen), login: chosen.forgeLogin },
       options.copy(),
+      options.locale(),
     );
     if (text === null) return;
     busy = true;
@@ -372,9 +453,11 @@ export function createMarketplacePanel(
       field.append(label, select);
     }
 
+    const starts = seedsOf(offer);
+    if (!starts.includes(seed)) seed = "empty";
     const seeds = element("fieldset", "market-seeds");
     seeds.append(element("legend", undefined, copy.marketStart));
-    for (const value of adoptionSeeds) {
+    for (const value of starts) {
       const label = element("label", "market-seed");
       const input = element("input");
       input.type = "radio";
@@ -397,7 +480,9 @@ export function createMarketplacePanel(
         element(
           "span",
           undefined,
-          copy[value === "sample" ? "marketSeedSample" : "marketSeedEmpty"],
+          (value === "sample" ? offer.seeds.sample : offer.seeds.empty)?.label[
+            options.locale()
+          ] ?? "",
         ),
       );
       seeds.append(label);
@@ -409,7 +494,9 @@ export function createMarketplacePanel(
       "market-what",
       fill(copy.marketWhat, { title: offer.title, name }),
     );
-    const parts: HTMLElement[] = [field, seeds, what];
+    // An offer with one start has nothing to choose.
+    const parts: HTMLElement[] =
+      starts.length > 1 ? [field, seeds, what] : [field, what];
     if (chosen?.modules.some((module) => module.module === offer.module))
       parts.push(
         element(
@@ -429,5 +516,9 @@ export function createMarketplacePanel(
         : fill(copy.marketNotYet, { version: offer.release.version }));
   }
 
-  return { render };
+  return {
+    render,
+    /** An offer's title in the offers shown, by its id. */
+    title: (id: string) => offerById(offers, id)?.title,
+  };
 }

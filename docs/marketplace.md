@@ -8,19 +8,26 @@ extension capability in this foundation.
 ## The curated pilot in the Launchpad (plan DEV-6593)
 
 The Marketplace entry at the bottom of the Apps column in the
-[target shell](launchpad-development.md#target-shell) opens a catalog built into the
-product (`src/launchpad/marketplace.ts`): one section, Šablony aplikací (app
-templates), and one offer, Presentations. Everything below is what the pilot does
-today; the rest of this document stays future direction.
+[target shell](launchpad-development.md#target-shell) opens a catalog of one section,
+Šablony aplikací (app templates). Its offers come from the registry
+[`Lazurio/marketplace`](#the-registry-lazuriomarketplace), read at one exact commit,
+and until a registry was read from the copy of its `index.json` built into the
+release (`src/launchpad/marketplace-index.json`). Everything below is what the pilot
+does today; the rest of this document stays future direction.
 
-- **One record per offer.** The offer names its public source repository
-  (`TemplatesRozjedeme-ai/Presentations`, a clean repository that receives only the
-  reviewed tree; the private working repository is never published), publisher,
-  SPDX license (MIT, decided by the release owner on 2026-10-26), version `0.1.0` and
-  tag `v0.1.0`, plus two fields filled in only once the release is published: the full
-  `commit` the tag points to and the `artifactDigest` of its attested artifact. The
-  catalog holds no second copy of the source. A tag or a branch is not an immutable
-  identity.
+- **One record per offer, in the registry.** An offer names its public source
+  repository, publisher, SPDX license, the app generation `app/v<N>` of the offered
+  release, the scaffold's stack, the pinned Bun, its stone, `pricing` (only `free`),
+  its words in Czech and English (one line, up to four features, the dialog's starts)
+  and its releases, newest first: `version`, tag `v<version>`, the full `commit` the
+  tag points to and the `artifactDigest` of an attested artifact, the last two filled
+  in only once the release is published. The Launchpad offers the newest release whose
+  commit is recorded. The catalog holds no second copy of the source. A tag or a
+  branch is not an immutable identity.
+- **Today's offers.** Mission Control (`app/v3`) and Presentations (`app/v1`) of
+  `LazurioExampleOrganization`, both MIT and both announced, not published: release
+  0.1.0 has no commit. Presentations moves there from `TemplatesRozjedeme-ai` with a
+  clean history (decided 2026-11-03); the registry records `movedFrom`.
 - **It looks like the module it becomes.** An offer carries the stone its module
   shows in Apps (`presentation`, `shell/stones.ts`). The catalog's card is a real
   screen of the app, the stone, the name and one line, as a tile in Apps.
@@ -33,16 +40,19 @@ today; the rest of this document stays future direction.
   pass). The record still holds version, license and source for the brief and the
   agent. No price, pilot label, mention of the Environment or computer, install
   count, rating or other offer is shown; the price remains zero.
-- **Screens.** `src/launchpad/images/marketplace-presentations-{gallery,slide}.webp`
-  are browser screenshots at twice the pixel density of the template's release
-  branch running on loopback with its synthetic four-slide example ("Ukázková
-  Organizace · žádná skutečná firemní data"), scaled to 1600 px. They contain no
-  customer content, logos or photos. Replace them when a later release changes what
-  the app looks like.
+- **Screens.** The registry lists screens of the offered release: WebP files 1600 px
+  wide in the template's repository, shown from
+  `raw.githubusercontent.com/<repository>/<commit>/<path>`, so they are exactly the
+  release's. An offer whose release has no commit has no screens to show; the release
+  bundles `src/launchpad/images/marketplace-presentations-{gallery,slide}.webp` for
+  Presentations until its release lists its own (browser screenshots at twice the
+  pixel density of the template's synthetic four-slide example, "Ukázková Organizace
+  · žádná skutečná firemní data", scaled to 1600 px, without customer content, logos
+  or photos). An offer with neither shows its stone and words only.
 - **Přidat do Organizace.** A dialog names the target Organization, chosen only among
   this Folder's Organizations bound to a GitHub login (the address is never the
-  target's authority), and how the module starts (an empty library or the synthetic
-  example presentation), and says in one sentence what follows: the agent prepares a private
+  target's authority), and how the module starts (empty, or with the release's
+  invented example where the offer has one; the offer's own words), and says in one sentence what follows: the agent prepares a private
   module for that Organization with the person in Chat and shows the plan to approve
   before anything there changes. The plan itself (exact release, private repository,
   Teams chosen from the Organization's real list, the template's code run, a request
@@ -52,9 +62,10 @@ today; the rest of this document stays future direction.
 - **Hand-over, not installation.** "Pokračovat v Chatu" hands the brief to Chat
   exactly as "+ Nový modul" does: by link where Chat takes a prepared prompt, else
   through the clipboard. The prompt `marketplace-<offer>-<empty|sample>` is served by
-  `GET /.lazurio/prompts/<id>?org=<login>` to anyone admitted, for an Organization of
-  the Folder bound to that login, and only while the offer's commit is recorded; every
-  other case is the same 404. The brief names the exact release, the Organization and
+  `GET /.lazurio/prompts/<id>?org=<login>` to anyone admitted, for an offer and start
+  of the catalog the Launchpad shows, an Organization of the Folder bound to that
+  login, and only while the offer's commit is recorded; every other case is the same
+  404. The brief names the exact release, the Organization and
   the start, and tells the agent to follow the release's `docs/adoption.md`: check live
   rights, name collision and compatibility, show the plan, `lazurio module create`,
   merge the pinned commit so it stays an ancestor, prepare a PR, prepare a request
@@ -64,11 +75,87 @@ today; the rest of this document stays future direction.
 - **Not yet adoptable.** Until the release's commit is recorded, "Pokračovat v Chatu"
   is disabled with the reason ("Půjde to po vydání verze 0.1.0") and the prompt route
   answers 404. Recording the commit (and the digest) after the release is published
-  is a reviewed change of this record.
+  is a reviewed pull request of the registry; its merge reaches every installed
+  Launchpad within an hour of its next Marketplace read, without a Lazurio release.
 
 The pilot is complete only after the real consumer journey into another Organization
 and a verified update with local customizations (plan DEV-6593); this page is its
 entry, not that evidence.
+
+## The registry `Lazurio/marketplace`
+
+Decided by Matěj on 2026-11-03: the registry is one public repository with one record
+per template; adding a template is a pull request, CI checks its shape and source,
+and a curator's merge is the listing. Lazurio reads the registry at one exact commit
+instead of a record in its own code, so a new template needs no Lazurio release. The
+repository is private until Matěj publishes it; the record format, the validator, the
+contribution guide and the template contract live there (`schemas/offer.v1.schema.json`,
+`CONTRIBUTING.md`).
+
+### How the Launchpad reads it
+
+`src/launchpad/marketplace-registry.ts`, implemented 2026-11-03:
+
+1. **The source is pinned by identity.** The registry is named by its numeric GitHub
+   repository id (`registrySource`), so a rename, a transfer or a look-alike
+   repository cannot take its place. Requests go to
+   `api.github.com/repositories/<id>/…` anonymously; the registry is public.
+2. **One commit, then that commit's index.** A read asks which commit `main` is
+   (`application/vnd.github.sha`), and only when that moved fetches `index.json` of
+   exactly that commit (at most 1 MiB, 10 s for both). The index is the registry's
+   generated, deterministic file; git's content addressing and TLS make what arrives
+   that commit's bytes.
+3. **Parsed in full or refused.** `parseMarketplaceIndex` (`marketplace.ts`) reads
+   `lazurio.marketplace.index.v1` exactly: an unknown schema, field or value, a
+   duplicate id, a short commit, a repository outside its publisher, a screen outside
+   its repository or a price refuses the whole index and the Launchpad keeps what it
+   showed. Only an unknown stone is tolerated (the plain app stone). A field Lazurio
+   must understand first is a new schema version, landed here before the registry
+   uses it.
+4. **Kept, never stale for long, never in the way.** The index read is kept with its
+   commit in the install base (`<base>/marketplace/registry.json`, a disposable cache
+   like `update/last-check.json`) and shown at once after a restart. An open
+   Marketplace (`POST /api/marketplace`) and an adoption prompt ask the registry again
+   when the last question is an hour old; only while nothing was ever read from the
+   registry does the answer wait for that question, otherwise it never waits for the
+   network. Offline, rate-limited, private or refused: the kept index, else the
+   built-in copy.
+5. **The built-in copy** is the registry's `index.json` at the release's build,
+   copied into `src/launchpad/marketplace-index.json` by a reviewed change; it must
+   parse (an unreadable copy fails the module's load and the tests). A Launchpad that
+   is not an installed one (a source checkout, the tests) never asks the registry and
+   shows this copy.
+6. **Nothing more is trusted.** A listing grants nothing: whatever an index says, the
+   offer is a brief the agent checks against the release itself (live rights, the
+   tag's commit, the release's `docs/adoption.md`), and the prompt route still serves
+   it only for an Organization of this Folder and a recorded commit. No code from the
+   registry or a template runs in the Launchpad; every word is drawn as text.
+
+`GET`-like reads stay `POST {}` like `/api/catalog`, behind the same admission; a
+public Environment shows the Marketplace and reads the same way.
+
+### Why this way, and what was not chosen
+
+The Platform distributes two kinds of things today ([product update](update.md)):
+the product itself, an attested GitHub Release that only `lazurio update` activates,
+and content, the Organizations' repositories that the hourly round and
+`lazurio update` fast-forward. The Launchpad already asks GitHub in the background
+for the newest release. The registry is neither product nor an Organization's
+content, so the simplest safe path reuses the background question, not a new
+channel:
+
+| Alternative | Why not now |
+| --- | --- |
+| Keep the record in the product, or pin a registry commit in each release | Every template, release or commit fix would need a Lazurio release; the decision says it must not. Kept only as the built-in copy. |
+| Attested registry releases (a tag and `actions/attest` per change, verified with Sigstore as the product update is) | Strongest provenance, but every listing becomes a tag, a second Publication step after the merge, and the client a second verifier. Worth it once paid templates or third-party publishers depend on the listing; the index format does not change. |
+| Sync the registry as content into the Folder (`lazurio update`) | A new class of repository for the content core, a checkout per Environment and a Folder path that is not an Organization's; more moving parts for one small file. |
+| Load `index.json` from the browser | Every visitor's browser would ask GitHub, without the kept index or one parse in the server, and the prompt route would still need the server's copy. |
+
+Known limits: a force-push of `main` to an older commit is followed (the curator's
+branch protection prevents it once the repository is public); screens load from
+`raw.githubusercontent.com` in the person's browser, so a future Content Security
+Policy of the Launchpad must allow that origin or proxy the screens through the
+Launchpad; the artifact digest is carried but not verified yet.
 
 ## Direction
 

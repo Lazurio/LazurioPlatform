@@ -79,6 +79,7 @@ import {
   type MachineView,
   presetChoice,
 } from "./machine-view";
+import type { MarketplaceCatalog } from "./marketplace";
 import { createMarketplacePanel } from "./marketplace-panel";
 import { type MessageKey, messages } from "./messages";
 import { moduleCopy } from "./module-view";
@@ -1406,7 +1407,15 @@ const browser = createBrowserPanel({
 // form whose brief goes to Chat as "+ Nový modul"'s does.
 const marketplace = createMarketplacePanel({
   copy: () => copy,
+  locale: () => locale,
   route: () => shell.route(),
+  load: async () => {
+    const { value, ok } = await post("/api/marketplace", {});
+    return ok ? (value as MarketplaceCatalog) : null;
+  },
+  changed: () => {
+    if (framed) shell.relabel();
+  },
   catalog: () => catalog.current(),
   handOver: (prompt) => handOver(prompt),
 });
@@ -1417,6 +1426,7 @@ let framed = false;
 const shell = createShell({
   copy: () => copy,
   displayName: (organization) => catalog.displayName(organization),
+  offerTitle: (offer) => marketplace.title(offer),
   // A public Environment has no Integrace, and Trezor only with its vault
   // (decision F55, plan DEV-6668 slice 6).
   place: (route) =>
