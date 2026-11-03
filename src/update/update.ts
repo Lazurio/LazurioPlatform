@@ -9,7 +9,7 @@ import {
   type ExecutorReport,
   executorReportFailed,
 } from "../executor/converge";
-import { hostedFolderForeignEntries } from "../folder/foreign-entries";
+import { readHostedFolderForeignEntries } from "../folder/foreign-entries";
 import {
   type FolderRefresh,
   folderRefreshNeeded,
@@ -288,11 +288,12 @@ export const checkForUpdate = (
 
 /** Top-level entries of a hosted Folder that the Folder does not own
  * (decision F10's addendum of 2026-11-03): they no longer stop a refresh and
- * are reported instead. Present only when there is at least one. */
-export type FolderForeignEntries = Readonly<{
-  folder: string;
-  entries: readonly string[];
-}>;
+ * are reported instead. Present only when there is at least one, or when the
+ * top level could not be listed (`unreadable`), which is never reported as
+ * clean. */
+export type FolderForeignEntries =
+  | Readonly<{ folder: string; entries: readonly string[] }>
+  | Readonly<{ folder: string; unreadable: true }>;
 
 export type UpdateResult =
   | Readonly<{
@@ -355,10 +356,22 @@ async function foreignEntriesReport(
 ): Promise<{ folderForeignEntries?: FolderForeignEntries }> {
   const { folder } = environment;
   if (folder === undefined) return {};
-  const entries = await hostedFolderForeignEntries(folder);
-  return entries.length === 0
-    ? {}
-    : { folderForeignEntries: Object.freeze({ folder, entries }) };
+  const reading = await readHostedFolderForeignEntries(folder);
+  if (reading.kind === "unreadable")
+    return {
+      folderForeignEntries: Object.freeze({
+        folder,
+        unreadable: true as const,
+      }),
+    };
+  return reading.kind === "entries" && reading.entries.length > 0
+    ? {
+        folderForeignEntries: Object.freeze({
+          folder,
+          entries: reading.entries,
+        }),
+      }
+    : {};
 }
 
 /** The Folder's refresh after a successful run (decision F17's addendum of

@@ -305,8 +305,10 @@ transaction never reads, writes or moves it, in a hosted Folder as on a workstat
 because its outputs are owned paths only. Adoption and initialization recovery keep
 refusing it by name (`folder-foreign-entry` above). A hosted Folder reports such
 entries instead: `lazurio update` and `update status` add `folderForeignEntries`
-(the Folder and the names), and `lazurio doctor` warns with `folder-top-level`
-`foreign-entries`, because work products belong in `~/Documents/<task>/`.
+(the Folder and the names, or `unreadable` when the top level cannot be listed),
+and `lazurio doctor` warns with `folder-top-level` `foreign-entries` (or
+`top-level-unreadable`), because work products belong in `~/Documents/<task>/`.
+The reader moves only their own entry and tells the user about anyone else's.
 
 The Launchpad shows the refreshed binding on its next read; an open panel holding the
 old revision gets `stale-revision` on apply, as after any concurrent change. The

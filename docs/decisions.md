@@ -1400,10 +1400,14 @@ product no longer enforces it by stopping the Environment's updates:
   amendment above). Its outputs are owned paths only, so a foreign entry cannot collide with
   them; foreign content inside an owned directory (`manual/`) is still refused by path.
 - A hosted Folder reports such entries instead. `lazurio update` and `update status` add
-  `folderForeignEntries` (the Folder and the names) and one line saying where they belong.
-  `lazurio doctor` adds the check `folder-top-level`, `warn` with `foreign-entries`, how many
-  and the first plain name. A name that is not shown as itself is reported without its
-  text. A workstation Folder keeps the person's own files and reports nothing.
+  `folderForeignEntries` (the Folder and the names) and one line. The product cannot tell
+  whose an entry is, so the line leaves that to the reader: their own work moves to
+  `~/Documents/<task>/`, anyone else's stays and the user hears about it. `lazurio doctor`
+  adds the check `folder-top-level`, `warn` with `foreign-entries`, how many and the first
+  plain name. A name that is not shown as itself is reported without its text. A top level
+  that cannot be listed is unknown, never clean: `folderForeignEntries {folder, unreadable}`
+  and `warn top-level-unreadable` (Pablo's review of #817). A workstation Folder keeps the
+  person's own files and reports nothing.
 - Adoption (`machine folder-init`) and initialization recovery keep refusing a foreign entry
   by name: a new Folder holds only what its handover creates.
 - The Folder's manual tells an agent to move its own entry to `~/Documents/<task>/` and to

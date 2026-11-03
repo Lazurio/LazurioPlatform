@@ -22,7 +22,10 @@ import {
 } from "../executor/converge";
 import { type ExecutorHost, executorStatus } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
-import { foreignEntriesText } from "../folder/foreign-entries";
+import {
+  foreignEntriesText,
+  foreignEntriesUnreadableText,
+} from "../folder/foreign-entries";
 import {
   type FolderRefresh,
   folderRefreshText,
@@ -94,6 +97,7 @@ import {
 } from "./service-control";
 import {
   checkForUpdate,
+  type FolderForeignEntries,
   performUpdate,
   readStatus,
   type UpdateEnvironment,
@@ -1090,11 +1094,10 @@ function refreshLines(outcome: FolderRefreshOutcome | null): string[] {
 
 /** A hosted Folder's foreign top-level entries (decision F10's addendum of
  * 2026-11-03): one line naming them and where they belong. */
-function foreignLines(
-  value: Readonly<{ folder: string; entries: readonly string[] }> | undefined,
-): string[] {
-  return value === undefined
-    ? []
+function foreignLines(value: FolderForeignEntries | undefined): string[] {
+  if (value === undefined) return [];
+  return "unreadable" in value
+    ? [foreignEntriesUnreadableText(value.folder)]
     : [foreignEntriesText(value.folder, value.entries)];
 }
 

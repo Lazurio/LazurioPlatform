@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import {
   appendFile,
+  chmod,
   lstat,
   mkdir,
   mkdtemp,
@@ -16,7 +17,7 @@ import { join } from "node:path";
 import { applyPreparation } from "../src/folder/apply-preparation";
 import {
   foreignEntriesText,
-  hostedFolderForeignEntries,
+  readHostedFolderForeignEntries,
   unshownEntry,
 } from "../src/folder/foreign-entries";
 import {
@@ -544,18 +545,17 @@ test.skipIf(process.platform === "win32")(
     const { parent, folder } = await setup();
     try {
       await initializeMachineFolder(folder, before, noChoices);
-      expect(await hostedFolderForeignEntries(folder)).toEqual([]);
+      expect(await readHostedFolderForeignEntries(folder)).toEqual({
+        kind: "entries",
+        entries: [],
+      });
       await mkdir(join(folder, "drafts"));
       await writeFile(join(folder, "evil\u001b[2Jname"), "x");
       await writeFile(join(folder, "notes.txt"), "x");
-      expect(await hostedFolderForeignEntries(folder)).toEqual([
-        "drafts",
-        unshownEntry,
-        "notes.txt",
-      ]);
-      expect(foreignEntriesText(folder, ["drafts", "notes.txt"])).toContain(
-        "drafts, notes.txt",
-      );
+      expect(await readHostedFolderForeignEntries(folder)).toEqual({
+        kind: "entries",
+        entries: ["drafts", unshownEntry, "notes.txt"],
+      });
       // Nothing of it is read: the owned and tolerated names are not listed.
       expect(await foreignTopLevelEntries(folder)).not.toContain("AGENTS.md");
       expect(await foreignTopLevelEntries(folder)).not.toContain(
@@ -567,17 +567,48 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
-test("a Folder that cannot be read or has no binding reports no foreign entry", async () => {
+// Pablo's review of #817: a top level that cannot be listed is unknown, never
+// the answer of a clean Folder. Root reads any directory, so it is skipped.
+test.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+  "a hosted Folder whose top level cannot be listed is unreadable, not clean",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      await initializeMachineFolder(folder, before, noChoices);
+      // Traverse but no listing: the preferences are read, the names are not.
+      await chmod(folder, 0o300);
+      expect(await readHostedFolderForeignEntries(folder)).toEqual({
+        kind: "unreadable",
+      });
+    } finally {
+      await chmod(folder, 0o700);
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+test("a Folder whose state cannot be read is not judged by its top level", async () => {
   const parent = await mkdtemp(join(tmpdir(), "lazurio-foreign-"));
   try {
     await writeFile(join(parent, "stray"), "x");
-    expect(await hostedFolderForeignEntries(parent)).toEqual([]);
-    expect(await hostedFolderForeignEntries(join(parent, "missing"))).toEqual(
-      [],
-    );
+    for (const folder of [parent, join(parent, "missing")])
+      expect(await readHostedFolderForeignEntries(folder)).toEqual({
+        kind: "state-unreadable",
+      });
   } finally {
     await rm(parent, { recursive: true, force: true });
   }
+});
+
+test("the update line leaves the decision whose an entry is to the reader, for a mixed list too", () => {
+  const line = foreignEntriesText("/home/someone/Lazurio", [
+    "drafts",
+    "notes.txt",
+  ]);
+  expect(line).toContain("drafts, notes.txt");
+  expect(line).toContain("move there only what is your own");
+  expect(line).toContain("leave anyone else's where it is and tell the user");
+  expect(line).not.toMatch(/move (it|them) there/);
 });
 
 test.skipIf(process.platform === "win32")(

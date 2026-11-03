@@ -856,6 +856,20 @@ test.skipIf(process.platform === "win32")(
       context: { entries: 2, entry: "drafts" },
     });
     expectSameAnswer(foreign.human, foreign.json);
+    // A top level that cannot be listed is unknown, never `ok` (Pablo's
+    // review of #817); root lists any directory, so it is not tried there.
+    if (process.getuid?.() !== 0) {
+      await chmod(hosted.folder, 0o300);
+      try {
+        expect(find((await doctor(hosted)).json, "folder-top-level")).toEqual({
+          id: "folder-top-level",
+          outcome: "warn",
+          reason: "top-level-unreadable",
+        });
+      } finally {
+        await chmod(hosted.folder, 0o700);
+      }
+    }
     const workstation = await createWorld();
     await writeFile(join(workstation.folder, "notes.txt"), "the person's own");
     expect(find((await doctor(workstation)).json, "folder-top-level")).toEqual({

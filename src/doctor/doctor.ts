@@ -225,6 +225,7 @@ const ownReasons = [
   "revision-unknown",
   // Folder and Machine
   "foreign-entries",
+  "top-level-unreadable",
   "not-hosted",
   "binding-absent",
   "handover-unreadable",
@@ -567,8 +568,9 @@ function productChecks(
 /** A hosted Folder's top-level entries that the Folder does not own
  * (decision F10's addendum of 2026-11-03): they no longer stop a refresh,
  * so doctor names them and `warn`s, because work products belong in
- * `~/Documents/<task>/`. A workstation Folder keeps the person's own files
- * and is `ok`. */
+ * `~/Documents/<task>/`. A top level that cannot be listed `warn`s as
+ * unknown. A workstation Folder keeps the person's own files and is `ok`;
+ * a Folder whose state cannot be read is reported by `folder-state`. */
 function topLevelCheck(
   status: UpdateStatus | null,
   hasFolder: boolean,
@@ -576,14 +578,15 @@ function topLevelCheck(
   if (!hasFolder) return check("folder-top-level", "skipped", "no-folder");
   if (status === null) return check("folder-top-level", "skipped", "internal");
   const foreign = status.folderForeignEntries;
-  return foreign === undefined
-    ? check("folder-top-level", "ok")
-    : check("folder-top-level", "warn", "foreign-entries", {
-        entries: foreign.entries.length,
-        ...(foreign.entries[0] === undefined
-          ? {}
-          : { entry: foreign.entries[0] }),
-      });
+  if (foreign === undefined) return check("folder-top-level", "ok");
+  // A top level that could not be listed is unknown, never `ok` (Pablo's
+  // review of #817).
+  if ("unreadable" in foreign)
+    return check("folder-top-level", "warn", "top-level-unreadable");
+  return check("folder-top-level", "warn", "foreign-entries", {
+    entries: foreign.entries.length,
+    ...(foreign.entries[0] === undefined ? {} : { entry: foreign.entries[0] }),
+  });
 }
 
 type Handover = Awaited<ReturnType<RecoveryEnvironment["machineContext"]>>;
