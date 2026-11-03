@@ -4899,6 +4899,21 @@ terminal); `tests/launchpad-ai-sign-in.test.ts` (the routes, the code route, the
 step's states); `tests/tools.test.ts` (the probes on the CLIs' real answers). And in a
 browser (root decision 0178) with the fake CLIs, in Czech and English.
 
+**Addendum 2026-11-03 (Matěj): the Folder says where AI signs in.** An agent in
+ChatGPT Desktop told the user to sign Claude in at Settings → Tools, which by design
+offers no Codex or Claude (`docs/environment-tools.md`). The Folder named Tools as the
+place for sign-ins (the Launchpad's line and the gh line) and said nothing about AI, so
+the agent reasoned from gh. The Launchpad's lines in AGENTS.md and
+`manual/this-machine.md` now add one line after GitHub, on every Environment with
+Začínáme (a person's own sign-in or the persona's, `onboardingPresets`): ChatGPT and
+Claude sign in at Nastavení → Začínáme (`<origin>/settings/start`), step Připojit AI,
+with Přihlásit ChatGPT or Přihlásit Claude, on a connected step after Přihlásit jiný účet;
+Tools has no AI sign-in; where the step reports the Organization's AI there is none; the
+agent reads the state with `codex login status` and `claude auth status --json` and may
+start `lazurio tools login codex|claude`, which the user finishes in the Environment
+browser. A Team Environment, whose hosting prepares its AI (0188 point 3), gets no line.
+Nothing in the Launchpad changes. Template revision `base-instructions-107`.
+
 **Addendum 2026-10-19 (Matěj, plan DEV-6665, Lazurio/LazurioPlatform#515 and #516): GitHub
 is ready only when SSH works, and closing a sign-in window never breaks a sign-in.** In a
 real onboarding session on a hosted Environment on v0.1.9 a new person confirmed gh's
