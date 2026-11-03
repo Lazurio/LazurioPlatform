@@ -368,8 +368,8 @@ const organizationModuleRoute: readonly Text[] = [
 
 // How the app reaches its data, the same in both forms.
 const dataWiring: Text = t(
-  "Aplikaci pak napoj podle `app/v1/node_modules/@lazurio/repository-db/docs/app-contract.md`: jeden sync host, čtení i zápisy přes něj a karta konceptu, ve které uživatel změny dat Publikuje. Commit a push dat do `v3` je Publikace.",
-  "Then wire the app as `app/v1/node_modules/@lazurio/repository-db/docs/app-contract.md` says: one sync host, every read and write through it, and the draft card in which the user publishes data changes. Committing and pushing data to `v3` is Publication.",
+  "Aplikaci pak napoj podle `app/v3/node_modules/@lazurio/repository-db/docs/app-contract.md`: jeden sync host, čtení i zápisy přes něj a karta konceptu, ve které uživatel změny dat Publikuje. Commit a push dat do `v3` je Publikace.",
+  "Then wire the app as `app/v3/node_modules/@lazurio/repository-db/docs/app-contract.md` says: one sync host, every read and write through it, and the draft card in which the user publishes data changes. Committing and pushing data to `v3` is Publication.",
 );
 
 // Steps 5 to 7 for the personal Workspace: the confirmed run, the data
@@ -421,8 +421,8 @@ const personalModuleRest: readonly Text[] = [
     "- Add to the module's `AGENTS.md` what the module is for, for whom, and how to work with it: what its data means and what recurs in it. Write a recurring procedure down as a skill of the module in `.agents/skills/<name>/SKILL.md`.",
   ),
   t(
-    "- Spusť kontroly a testy, které uvádí `README.md` (u aplikace na Bunu v `app/v1`: `bun install --frozen-lockfile`, `bun run check` a `bun test`), a opravuj, dokud neprojdou.",
-    "- Run the checks and tests the `README.md` names (for a Bun app in `app/v1`: `bun install --frozen-lockfile`, `bun run check` and `bun test`) and fix until they pass.",
+    "- Spusť kontroly a testy, které uvádí `README.md` (u aplikace na Bunu v `app/v1`, s daty v `app/v3`: `bun install --frozen-lockfile`, `bun run check` a `bun test`), a opravuj, dokud neprojdou.",
+    "- Run the checks and tests the `README.md` names (for a Bun app in `app/v1`, with data in `app/v3`: `bun install --frozen-lockfile`, `bun run check` and `bun test`) and fix until they pass.",
   ),
   t(
     "- Než se zeptáš na Publikaci, ukaž uživateli první verzi běžící. `lazurio module start` spouští modul jen z jeho vlastního checkoutu, ne z worktree, takže ji z worktree spusť ručním startem z `README.md` na volném portu (ne na portu modulu) a otevři ji v prohlížeči; na Remote Environmentu v prohlížeči Environmentu, jehož záložku uživatel otevře odkazem (`manual/this-machine.md`). Ověř, že stránka ukazuje, co říká shrnutí, a po ukázce ruční start zastav. Modul `python-uv` ověř ručně podle jeho `README.md`; `none` nemá co spustit, ukaž uživateli obsah repozitáře.",

@@ -1004,7 +1004,13 @@ for (const path of ["AGENTS.md", "manual/roles.md"] as const)
     },
   );
 
-for (const revision of ["base-instructions-107", "custom-1"])
+// One revision past the current one, so the next template bump cannot turn
+// this downgrade test into an upgrade.
+const futureRevision = `base-instructions-${
+  Number(instructionTemplateRevision.replace("base-instructions-", "")) + 1
+}`;
+
+for (const revision of [futureRevision, "custom-1"])
   test.skipIf(process.platform === "win32")(
     `a Folder rendered by ${revision} is never downgraded or re-rendered`,
     async () => {

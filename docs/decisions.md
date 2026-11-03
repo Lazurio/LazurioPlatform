@@ -23028,6 +23028,120 @@ Open questions for the decision:
 - whether macOS and Windows, which have no handover today, need the rule now or with
   their hosted entry (docs/hosted-entry.md).
 
+## F69 — Stack profiles: the exact tools a Module is built with, changed only by a generation transition or a profile release
+
+**Decided by Matěj (Operator) on 2026-11-03 (plan DEV-6593, task-2026-11-03-941;
+the Marketplace template contract of the same day, point 7). Implemented for
+`lazurio module create`; the profile `app-database` has no template yet.** Templates
+of the Marketplace and every new Module get a stack chosen and justified in advance,
+so that their code never has to migrate outside a planned step. The research behind
+the choice (tools, versions checked in the npm registry and GitHub Releases on
+2026-11-03, alternatives) was presented to Matěj in the plan; he confirmed all four of
+its recommendations. The profiles, their exact pins and what they leave out are
+[stack-profiles.md](stack-profiles.md), the one public place the registry, the
+templates and generated Modules refer to.
+
+1. **Four profiles, one common base.** The base: Bun 1.4.4 as runtime, package
+   manager and test runner, Biome 2.6.4 for lint and format, `bun test`,
+   `@lazurio/module-kit` v0.2.0, exact versions only and a committed `bun.lock`.
+   `content` (Astro 7.4.5, Starlight 0.42.8, TypeScript 6.0.3) for the Astro
+   stacks; `app` (TypeScript 7.0.2, and for an interface Vite 8.3.5 with React
+   19.3.1) for `vite-react` and `bun-service`; `app-data` (`app` with repository-db
+   v3.2.6 and Zod 4.6.7, its data behind a storage port with a shared test suite)
+   for generation `app/v3`; `app-database` (`app-data` with Dolt through Kysely
+   0.29.8 and `mysql2` 3.24.6) for `app/v4`.
+2. **Vite+ not now; Biome stays.** Vite+ runs on Node only, while Lazurio runs every
+   App with its pinned Bun (`MS-05`, F62), and its formatter Oxfmt is at 0.x, so a
+   release could reformat every Module. It is reopened as a profile release once
+   Vite+ supports Bun as its runtime, Oxfmt is at 1.0 and Lazurio supports or
+   allows Node beside Bun.
+3. **Zod is the one source of the shape of a Module's data** from `app/v3` up. The
+   types come from it and the JSON Schema for repository-db and CI is generated from
+   it; no hand-written data types. The Platform's own contracts keep JSON Schema with
+   Ajv ([stack evidence](stack-evidence.md)).
+4. **TypeScript 7 for applications, TypeScript 6 for Astro.** `astro check` needs
+   TypeScript's API, which 7.0 does not have; `content` moves to 7 by a release once
+   Astro supports it.
+5. **No `app/v5`.** Dolt outside the server is another connection setting of
+   `app/v4`: the same code, schemas and migrations. How Lazurio gives an App that
+   connection without `.env` is open (#818).
+6. **Two kinds of change.** A generation transition changes the data layer (a new
+   `app/v<N+1>` beside the old one, the data moved by a script, `default_app`
+   switched by the Steward or the user). A profile release changes the tools within
+   a generation. Besides these, only a security patch changes a version. A release
+   is named `YYYY.MM`, a security patch inside it `YYYY.MM.P`; this one is `2026.11`.
+   Each release is decided by the Operator and recorded as an addendum of this
+   decision with what an existing Module has to change; `stack-profiles.md` keeps
+   the tables of earlier releases so that a reference `<profile>@<release>` keeps
+   resolving. A template adopts a release in a release of its own; a Module takes
+   it by its own pull request (merging the template's tag, or changing its pins),
+   never by an overwrite.
+7. **`lazurio module create` follows the current release** in the same pull request:
+   `stackProfilesRelease`, `scaffoldBunVersion` and the templates. This amends F52
+   and its addendum of 2026-10-14:
+   - A new Module pins the profiles' Bun, no longer this repository's own
+     `packageManager` (this repository stays on its pins).
+   - `check` runs the type check, Biome and the tests, and the Module's CI runs only
+     `check`; this sharpens `MS-13`.
+   - `--data` depends on repository-db v3.2.6 (it was 3.2.0) and on Zod 4.6.7, and
+     changes four files instead of three: the Module's `README.md` names the profile
+     `app-data`, and its `AGENTS.md` says that Zod is the one source of the data's
+     shape and how the data is validated.
+   - `--data` also adds the layer `_data`: `src/domain/collections.ts` (each
+     collection's `schemaVersion` and Zod schema, none yet), `src/validate-data.ts`
+     with its test and an empty `seed/`, and `check` runs `validate:data` over
+     `seed/`; `validate:db` checks `db/` the same way before a publication.
+     Added on the review of #821: the data validation that `check` requires has to
+     be one the generated Module can run in its CI, which checks out only the
+     Module, never its data repository.
+   - Every stack's `README.md` names its profile and release and links its section.
+
+8. **The App generation names the data layer in every Module** (Matěj, 2026-11-03,
+   closing #819), not only in Marketplace templates: `app/v1` and `app/v2` have no
+   data of their own, `app/v3` keeps its records in repository-db, `app/v4` in Dolt
+   (point 5). `lazurio module create --data` therefore writes the App to `app/v3`
+   (`apps`, `default_app`, the lockfile, the CI's working directory and the runtime
+   id `<organization>-<module>-v3` follow); without `--data` it stays `app/v1`. This
+   amends F52's addendum of 2026-10-14, which wrote an App with data to `app/v1`. An
+   `astro` or `astro-starlight` Module with data keeps the tools of `content` with
+   the data layer of `app-data`, in `app/v3` too. The rule holds for every
+   generation created from now on. Existing Modules with data in `app/v1` or
+   `app/v2` conform as they are and are not renamed:
+   their next planned generation transition creates the generation of their data
+   layer (`app/v3` or `app/v4`) beside the old one, as for every Module.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Vite+ 1.4 (`vp`) as the toolchain | Node-only runtime, Oxfmt 0.x, four minor releases in its first month; not now (point 2) |
+| Oxlint and Oxfmt instead of Biome | Faster and more rules, but two tools and a 0.x formatter; rejected for this release |
+| JSON Schema and Ajv as a Module's data source | Two truths or another type generator, and repository-db expects a Zod-style `parse()`; rejected for Modules (point 3) |
+| TypeScript 6.0.3 everywhere, 7 together later | Postpones a certain migration of every application; rejected (point 4) |
+| A directory `app/v5` for Dolt outside the server | Duplicates the code of `app/v4`; rejected (point 5) |
+| Pinned versions with no release mechanism | Pins age (the templates were two Astro major versions behind); rejected for dated releases (point 6) |
+| Drizzle, Prisma or `Bun.SQL` for Dolt | A breaking 1.0 ahead, a third schema, or open MySQL bugs; rejected for Kysely and `mysql2` |
+
+**Verification.** `tests/module-scaffold.test.ts`: every stack with a Bun app pins
+its profile's exact tools (no range anywhere, `@types/bun` equal to the Bun, Biome
+2.6.4, TypeScript and framework per profile), `check` runs the tests and CI no
+separate `bun test`, Biome's Markdown and YAML formatters are off, and the README
+links the profile; `--data` gives `app-data` with repository-db v3.2.6 and Zod, in
+`app/v3` for every Bun stack (manifest, package name, runtime id, preparation owner,
+lockfile, CI and README), and otherwise the same files as without data; the
+tree hashes of every stack's plan. On 2026-11-03 on Linux x64 with Bun 1.4.4, the
+plans of `vite-react`, `vite-react --data`, `astro`, `astro-starlight` and
+`bun-service` were written out, and `bun install`, `bun run check` and, for the
+three static stacks, `bun run build` passed in each. TypeScript 7.0.2 ran under Bun
+1.4.4 and reported a planted type error, and a Zod 4.6.7 schema type-checked as
+repository-db 3.2.6's `DocumentParser`. That run changed three things in the
+templates: Biome 2.6's `"preset": "recommended"`, its Markdown formatter turned off
+after it rewrote a Starlight page's frontmatter, and `"types": ["bun"]` for
+TypeScript 6 in the Astro `tsconfig.json`. After the review of #821 (2026-11-03,
+Linux x64, Bun 1.4.3), the plans of the four Bun stacks with `--data` were written
+out again: `bun install` and `bun run check` passed in each (`validate:data` over
+the empty `seed/`), `bun run build` passed for `vite-react` and `astro`, a planted
+record of a collection without a schema failed `validate:data`, and `validate:db`
+without `db/` failed. Not verified: `app-database`, macOS and Windows.
+
 ## F70 — A source Environment's routes come from its home access service: its own key, registered; targets pinned and with their deadline
 
 **Proposed 2026-11-03 (root decision 0224, plan DEV-6687 M7 step 4; Lazurio/LazurioPlatform#766).
