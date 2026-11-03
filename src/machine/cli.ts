@@ -5,7 +5,10 @@ import {
   initializeHandoverFolder,
 } from "../folder/initialize-folder";
 import { FolderOperationBusyError } from "../folder/lock";
-import type { MachineBinding } from "../folder/machine-binding";
+import {
+  assignedEnvironments,
+  type MachineBinding,
+} from "../folder/machine-binding";
 import { executionOs } from "../folder/platform";
 import {
   allowedPresets,
@@ -23,11 +26,10 @@ import {
 import {
   type EnvironmentSshLocation,
   writeEnvironmentRoutes,
-  writeEnvironmentSsh,
 } from "../ssh-access/environments";
 import {
   commitRoutes,
-  liveAccessService,
+  liveRoutesSource,
   type RoutesSeams,
   type RoutesWrite,
   syncEnvironmentRoutes,
@@ -250,7 +252,7 @@ export async function runMachineCommand(
           machine,
           { home: operator.homedir, uid: operator.uid },
           undefined,
-          { run: runTool, now: Date.now, current: liveAccessService },
+          { run: runTool, now: Date.now, current: liveRoutesSource() },
         )),
         machineContextDigest: observed.digest,
       },
@@ -487,14 +489,15 @@ export async function withEnvironmentSsh<
     return { ...result, environmentRoutes };
   }
   const personal = machine.kind === "personal-vm";
+  // The binding's own routes (a personal Machine's assigned peers, none on
+  // any other), written only while the live handover declares exactly these
+  // (`RoutesSource`, point 5).
+  const own = assignedEnvironments(machine);
   const environmentSsh: RoutesWrite = await commitRoutes(
     location,
-    null,
+    own,
     seams.current,
-    () =>
-      personal
-        ? writeEnvironmentSsh(location, machine)
-        : writeEnvironmentRoutes(location, []),
+    () => writeEnvironmentRoutes(location, own),
   );
   if (!personal && environmentSsh.kind === "none") return result;
   const routes = personal

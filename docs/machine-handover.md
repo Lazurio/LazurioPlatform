@@ -799,10 +799,12 @@ it, and the machine commands and the Launchpad of the supervised base then take 
 Environment's routes from the service (F70 points 2 to 6); without it, a personal
 Machine keeps the assigned peers and nothing calls a service. Every writer of the
 routes writes under one lock and only while the live handover still declares what it
-acted on, so a late answer of an origin the handover no longer declares writes
-nothing; without the member, or with a handover the Launchpad cannot read, only
-routes whose deadline has passed go, and a refresh without it writes the binding's
-own routes (F70's amendment of 2026-11-03, points 5 and 6). A refresh records a
+acted on (the same origin, or without the member the same assigned peers), so a
+late answer of an origin the handover no longer declares, or a refresh of an older
+handover's peers, writes nothing; without the member, or with a handover the
+Launchpad cannot read (also a missing one, on a base that still has the route
+files), only routes whose deadline has passed go, and a refresh without it writes
+the binding's own routes (F70's amendment of 2026-11-03, points 5 and 6). A refresh records a
 change of only this member, though the Folder renders nothing of it, and recovery
 evidence withholds the host's name (`<hostname-n>`).
 

@@ -96,7 +96,7 @@ import { newTabPagePath } from "../shell/new-tab-protocol";
 import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
 import {
   expireRoutes,
-  liveAccessService,
+  liveRoutesSource,
   type RoutesDeclaration,
   runEnvironmentRoutes,
   syncEnvironmentRoutes,
@@ -3217,8 +3217,9 @@ export async function startLaunchpad(
   // one minute after its deadline when it does not.
   // Every tick reads the live handover again (review of #833), so a
   // declaration added, replaced or removed after start takes effect within a
-  // minute and an old origin is never asked again; without a declaration, or
-  // with a handover it cannot read, a tick only lets expired routes go, and
+  // minute and an old origin is never asked again; without a declaration,
+  // with a handover it cannot read, or on a base that cannot show it is
+  // hosted but has route files, a tick only lets expired routes go, and
   // whatever it writes it writes under the routes lock for the declaration
   // still current (`runEnvironmentRoutes`, decision F70's amendment of
   // 2026-11-03).
@@ -3232,7 +3233,7 @@ export async function startLaunchpad(
         syncEnvironmentRoutes(location, service, {
           run: runTool,
           now: Date.now,
-          current: liveAccessService,
+          current: liveRoutesSource(),
         }),
       () => expireRoutes(location, Date.now),
       {

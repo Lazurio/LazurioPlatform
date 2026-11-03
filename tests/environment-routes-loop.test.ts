@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { assignedEnvironments } from "../src/folder/machine-binding";
 import { withEnvironmentSsh } from "../src/machine/cli";
+import { hostedOperatorFolder } from "../src/machine/operator";
 import { acquireFileLock } from "../src/platform/flock";
 import type {
   AccessServiceFetch,
@@ -25,13 +26,21 @@ import {
 } from "../src/ssh-access/environments";
 import {
   expireRoutes,
+  liveRoutesSource,
   type RoutesDeclaration,
+  type RoutesSource,
   routesLockPath,
+  routesSourceOf,
   runEnvironmentRoutes,
   syncEnvironmentRoutes,
 } from "../src/ssh-access/routes";
 import { runTool } from "../src/tools/status";
-import { bindings } from "./fixtures/machine-bindings";
+import { type CliContext, routesAtStart } from "../src/update/cli";
+import { embeddedIdentity } from "../src/update/identity";
+import { renderLaunchpadUnit } from "../src/update/install";
+import { launchpadUnit } from "../src/update/service-control";
+import { binding, bindings } from "./fixtures/machine-bindings";
+import assignedHandover from "./fixtures/machine-context-personal-assigned.json";
 
 // The Launchpad's live loop of the routes and its writers (root decision
 // 0224; decision F70, amendment of 2026-11-03, points 4 to 6; reviews of
@@ -262,7 +271,7 @@ function services(
 
 test("an old origin's answer that arrives after the handover moved to another origin writes nothing: the newer synchronization's routes stay", async () => {
   const location = await home();
-  let live: AccessServiceLocation | null = service(originA);
+  let live: RoutesSource = service(originA);
   const fake = services(
     {
       [originA]: [target("old.example", keyA, "2026-11-03T12:03:30Z")],
@@ -300,7 +309,7 @@ test("an answer held while the declaration is removed writes nothing: the refres
     await writeEnvironmentRoutes(location, [
       route("old.example", keyA, "2026-11-03T12:03:30Z"),
     ]);
-    let live: AccessServiceLocation | null = service(originA);
+    let live: RoutesSource = service(originA);
     const fake = services(
       { [originA]: [target("late.example", keyA, "2026-11-03T12:05:00Z")] },
       new Set([originA]),
@@ -315,7 +324,7 @@ test("an answer held while the declaration is removed writes nothing: the refres
     await fake.waitAsked(originA);
     // Machines removes the member and folder-refresh records the binding
     // without it.
-    live = null;
+    live = routesSourceOf(machine);
     const refreshed = await withEnvironmentSsh(
       { kind: "refreshed", revision: 2 },
       machine,
@@ -500,4 +509,270 @@ test("both writers take one lock: a write waits while another writer holds it, t
     kind: "written",
     environments: ["svc.example"],
   });
+});
+
+// Review of b1540ee8, point 2: a refresh of a personal Machine without the
+// service writes only the assigned peers the live handover still declares.
+// An older refresh that paused before the routes lock never overwrites what
+// a newer refresh wrote after the peers were removed or changed: those
+// routes have no deadline, so nothing would ever correct them.
+const [laptopPeer, assignedPeer] = assignedHandover.relationships
+  .peers as unknown as [Record<string, unknown>, Record<string, unknown>];
+const withPeers = (peers: readonly unknown[]) =>
+  binding({
+    ...assignedHandover,
+    relationships: { ...assignedHandover.relationships, peers },
+  });
+const assignedSsh = assignedPeer.ssh as Record<string, unknown>;
+const plain = (routes: readonly EnvironmentRoute[]) =>
+  routes.map(({ environment, host, user, hostKeys }) => ({
+    environment,
+    host,
+    user,
+    hostKeys,
+  }));
+const olderPeers = bindings.personalAssigned;
+const newerPeers = {
+  removed: withPeers([laptopPeer]),
+  changed: withPeers([
+    laptopPeer,
+    {
+      ...assignedPeer,
+      ssh: {
+        ...assignedSsh,
+        host_keys: [{ type: "ssh-ed25519", key: keyB }],
+      },
+    },
+  ]),
+};
+
+test("an older refresh without the service, held before the routes lock while a newer handover removes or changes the assigned peers, writes nothing: the newer refresh's peers stay", async () => {
+  expect(assignedEnvironments(olderPeers).length).toBe(1);
+  expect(assignedEnvironments(newerPeers.removed)).toEqual([]);
+  expect(assignedEnvironments(newerPeers.changed)[0]?.hostKeys).toEqual([
+    { type: "ssh-ed25519", key: keyB },
+  ]);
+  for (const [change, newer] of Object.entries(newerPeers)) {
+    for (const order of ["newer-first", "older-first"] as const) {
+      const location = await home();
+      // The older handover's peers, as its earlier refresh wrote them.
+      await writeEnvironmentSsh(location, olderPeers);
+      let live: RoutesSource = routesSourceOf(olderPeers);
+      const seams = {
+        run: runTool,
+        now: () => now,
+        current: async () => live,
+      };
+      await mkdir(dirname(routesLockPath(location.home)), { recursive: true });
+      const lock = await acquireFileLock(routesLockPath(location.home), {
+        timeoutMs: 1_000,
+      });
+      // The older refresh has recorded its binding and now waits for the
+      // routes lock.
+      let finished = false;
+      const older = withEnvironmentSsh(
+        { kind: "refreshed", revision: 2 },
+        olderPeers,
+        location,
+        undefined,
+        seams,
+      ).then((result) => {
+        finished = true;
+        return result;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(finished).toBe(false);
+      // Machines rewrites the handover.
+      live = routesSourceOf(newer);
+      let newerResult: unknown;
+      if (order === "newer-first") {
+        await lock.release();
+        // Whichever takes the lock first, the older one writes nothing.
+        const [olderResult, result] = await Promise.all([
+          older,
+          withEnvironmentSsh(
+            { kind: "refreshed", revision: 3 },
+            newer,
+            location,
+            undefined,
+            seams,
+          ),
+        ]);
+        expect(olderResult).toMatchObject({
+          environmentSsh: { kind: "superseded" },
+        });
+        newerResult = result;
+      } else {
+        await lock.release();
+        expect(await older).toMatchObject({
+          environmentSsh: { kind: "superseded" },
+        });
+        newerResult = await withEnvironmentSsh(
+          { kind: "refreshed", revision: 3 },
+          newer,
+          location,
+          undefined,
+          seams,
+        );
+      }
+      expect(newerResult).toMatchObject({
+        environmentSsh:
+          change === "removed"
+            ? { kind: "removed" }
+            : {
+                kind: "written",
+                environments: names(assignedEnvironments(newer)),
+              },
+      });
+      // The files hold exactly the newer handover's peers, and a late older
+      // refresh still writes nothing.
+      expect(plain(await recordedRoutes(location))).toEqual(
+        plain(assignedEnvironments(newer)),
+      );
+      expect(
+        await withEnvironmentSsh(
+          { kind: "refreshed", revision: 2 },
+          olderPeers,
+          location,
+          undefined,
+          seams,
+        ),
+      ).toMatchObject({ environmentSsh: { kind: "superseded" } });
+      expect(plain(await recordedRoutes(location))).toEqual(
+        plain(assignedEnvironments(newer)),
+      );
+    }
+  }
+});
+
+// Review of b1540ee8, point 1: the Launchpad's real `routesAtStart` drives
+// the loop. A missing handover fails the hosted-operator check itself
+// (`hostedOperatorFolder` finds no operator), so a base that still has the
+// Platform's route files is `unconfirmed` and its expired routes go; where
+// the check passes but the handover cannot be read, the read throws and they
+// go too; a base with no route files keeps none and does nothing.
+async function supervisedBase(location: { home: string }) {
+  const base = join(location.home, "base");
+  const folder = join(location.home, "Lazurio");
+  const config = join(location.home, ".config");
+  await mkdir(join(config, "systemd", "user"), { recursive: true });
+  await mkdir(folder, { recursive: true });
+  await writeFile(
+    join(config, "systemd", "user", launchpadUnit),
+    renderLaunchpadUnit(base, folder),
+  );
+  // A machine root without `/etc/lazurio/lazurio.machine.json`.
+  const missing = {
+    platform: "linux",
+    root: join(location.home, "machine-root"),
+    custodian: uid ?? 0,
+  };
+  const context = (
+    hostedFolder: () => Promise<string | undefined>,
+  ): CliContext => ({
+    identity: embeddedIdentity(),
+    platform: "linux",
+    env: { HOME: location.home, XDG_CONFIG_HOME: config },
+    executable: process.execPath,
+    run: async () => ({ exitCode: 0, stdout: "" }),
+    hostedFolder,
+  });
+  return { base, folder, missing, context };
+}
+
+async function oneTick(
+  read: () => Promise<RoutesDeclaration>,
+  location: { home: string; uid: number | undefined },
+) {
+  const seen: string[] = [];
+  let done: (() => void) | undefined;
+  const finished = new Promise<void>((resolve) => (done = resolve));
+  const stop = runEnvironmentRoutes(
+    async () => {
+      try {
+        const declaration = await read();
+        seen.push(declaration.kind);
+        if (declaration.kind === "off") setTimeout(() => done?.(), 20);
+        return declaration;
+      } catch (error) {
+        seen.push("thrown");
+        throw error;
+      }
+    },
+    async () => {
+      seen.push("synchronized");
+      done?.();
+    },
+    async () => {
+      seen.push(`expire:${(await expireRoutes(location, () => now)).kind}`);
+      done?.();
+    },
+    {
+      everyMs: 60_000,
+      setInterval: () => "handle",
+      clearInterval: () => undefined,
+    },
+  );
+  await finished;
+  stop();
+  return seen;
+}
+
+test("routesAtStart with a missing handover still lets the service's expired routes go through the loop, on a base whose hosted check fails and on one where only the handover read fails; without route files it does nothing", async () => {
+  // The hosted-operator check fails: no handover, so no operator.
+  const unhosted = await home();
+  const world = await supervisedBase(unhosted);
+  const noOperator = () =>
+    hostedOperatorFolder({
+      handover: world.missing,
+      operator: async () => {
+        throw new Error("never read without a handover");
+      },
+    });
+  expect(await noOperator()).toBeUndefined();
+  await writeEnvironmentRoutes(unhosted, [
+    route("passed.example", keyA, "2026-11-03T11:59:00Z"),
+    route("ahead.example", keyB, "2026-11-03T12:03:30Z"),
+  ]);
+  const read = routesAtStart(world.context(noOperator), world.base, {
+    location: unhosted,
+    read: liveRoutesSource(world.missing),
+  });
+  expect(await oneTick(read, unhosted)).toEqual([
+    "unconfirmed",
+    "expire:written",
+  ]);
+  expect(names(await recordedRoutes(unhosted))).toEqual(["ahead.example"]);
+
+  // The check passes (the operator's Folder is known), the handover itself
+  // is missing: the read throws and the tick only lets expired routes go.
+  const hosted = await home();
+  const hostedWorld = await supervisedBase(hosted);
+  await writeEnvironmentRoutes(hosted, [
+    route("passed.example", keyA, "2026-11-03T11:59:00Z"),
+  ]);
+  const hostedRead = routesAtStart(
+    hostedWorld.context(async () => hostedWorld.folder),
+    hostedWorld.base,
+    { location: hosted, read: liveRoutesSource(hostedWorld.missing) },
+  );
+  expect(await oneTick(hostedRead, hosted)).toEqual([
+    "thrown",
+    "expire:removed",
+  ]);
+  expect(await exists(confPath(hosted.home))).toBe(false);
+
+  // A base with no route files keeps none: `off`, nothing expires.
+  const clean = await home();
+  const cleanWorld = await supervisedBase(clean);
+  const cleanRead = routesAtStart(
+    cleanWorld.context(noOperator),
+    cleanWorld.base,
+    {
+      location: clean,
+      read: liveRoutesSource(cleanWorld.missing),
+    },
+  );
+  expect(await oneTick(cleanRead, clean)).toEqual(["off"]);
+  expect(await exists(join(clean.home, ".ssh"))).toBe(false);
 });

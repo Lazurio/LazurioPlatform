@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { constants } from "node:fs";
-import { mkdir, open, rename, rm } from "node:fs/promises";
+import { lstat, mkdir, open, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
   assignedEnvironments,
@@ -422,6 +422,30 @@ export async function recordedRoutes(
   location: EnvironmentSshLocation,
 ): Promise<readonly EnvironmentRoute[]> {
   return (await readRecordedRoutes(location)) ?? [];
+}
+
+/** Whether either of the Platform's two route files is at its path, in any
+ * form (decision F70, amendment of 2026-11-03, point 6): a base with one has
+ * kept routes, so its Launchpad keeps letting expired ones go even when it
+ * can no longer show that it is a hosted operator's. Anything that cannot be
+ * checked counts as there: expiry only ever removes what has expired. */
+export async function hasRouteFiles(
+  location: EnvironmentSshLocation,
+): Promise<boolean> {
+  const ssh = join(location.home, ".ssh");
+  for (const path of [
+    join(ssh, "config.d", "lazurio-environments.conf"),
+    join(ssh, "known_hosts_lazurio_environments"),
+  ]) {
+    try {
+      await lstat(path);
+      return true;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT" && code !== "ENOTDIR") return true;
+    }
+  }
+  return false;
 }
 
 // The recorded routes: empty when neither file is there, null when anything

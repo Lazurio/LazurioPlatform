@@ -23152,12 +23152,15 @@ Platform:
    `flock` on `~/.local/state/lazurio/environment-routes.lock` (fixed under the home,
    never moved by `XDG_STATE_HOME`, so both processes share it). Under the lock it
    reads the live handover again and writes only when it declares exactly what the
-   writer acted on: the same origin, or for a personal Machine's assigned peers still
-   no service. Otherwise, and when the handover cannot be read there, it writes
-   nothing and reports `ssh: {"kind": "superseded"}`. So an answer that arrives after
-   the handover changed never replaces what a writer of the newer declaration wrote,
-   whichever of the two finished first; the newer one writes at its own commit or at
-   the next tick.
+   writer acted on: the same origin, or, without a service, the same routes of its
+   own (a personal Machine's assigned peers, each with its host, account and host
+   keys, in the same order; none on any other Machine). Otherwise, and when the
+   handover cannot be read there, it writes nothing and reports
+   `ssh: {"kind": "superseded"}`. So an answer that arrives after the handover changed,
+   or a refresh of an older handover whose peers were since removed or changed, never
+   replaces what a writer of the newer declaration wrote, whichever of the two
+   finished first; the newer one writes at its own commit or, for the service, at the
+   next tick.
 6. **No service route outlives its deadline.** When the live handover declares no
    service, or cannot be read, the Launchpad's tick still runs under the lock: it drops
    every recorded route whose deadline has passed and adds nothing. A route without a
@@ -23169,13 +23172,22 @@ Platform:
    on any other Machine none, so the removed service's routes go at once. A route of
    the service therefore ends within its deadline plus one minute after the
    declaration is removed or the handover becomes unreadable, on both kinds of
-   Machine, as point 5 above bounds it while the service is declared.
+   Machine, as point 5 above bounds it while the service is declared. The Launchpad
+   keeps no routes (does nothing) only on a base that is not the supervised base of a
+   hosted operator *and* has neither of the Platform's two route files. A missing or
+   unreadable handover makes the hosted-operator check itself fail, so a base that
+   cannot show it is hosted but still has those files is a base that was hosted: its
+   tick only lets expired routes go, as for an unreadable handover.
 
 Tests: `tests/environment-routes-loop.test.ts` (added, replaced and removed
 declarations, one synchronization at a time, failures and stop; an old answer held
 while the declaration changes or is removed and a newer writer writes, which then
-writes nothing; expiry without a declaration and with an unreadable handover on a
-personal and a work Machine, with assigned peers kept; one lock for both writers),
+writes nothing; a refresh of an older handover held while a newer one removed or
+changed the assigned peers, which then writes nothing; expiry without a declaration and
+with an unreadable handover on a personal and a work Machine, with assigned peers kept;
+`routesAtStart` driving the loop on real files with a missing handover, on a base whose
+hosted-operator check fails and on one where only the handover read fails, and doing
+nothing on a base without route files; one lock for both writers),
 `tests/access-service-handover.test.ts` (the pin, the member on both kinds,
 every refused form, the stored binding, the commands asking the declared origin, the
 withheld name) and `tests/folder-refresh.test.ts` (a refresh of only the member). Not

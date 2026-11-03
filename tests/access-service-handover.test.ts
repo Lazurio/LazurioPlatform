@@ -19,6 +19,7 @@ import {
   type AccessServiceFetch,
   accessServiceOf,
 } from "../src/ssh-access/access-service";
+import { routesSourceOf } from "../src/ssh-access/routes";
 import { runTool } from "../src/tools/status";
 import { binding } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
@@ -199,7 +200,7 @@ test("the machine commands ask the declared origin itself, and without the membe
     binding(personal),
     { home, uid },
     undefined,
-    { ...seams, current: async () => null },
+    { ...seams, current: async () => routesSourceOf(binding(personal)) },
   );
   expect(calls).toEqual([]);
   expect(kept).not.toHaveProperty("environmentRoutes");
