@@ -345,7 +345,13 @@ test("a personal VM names reachable peers neutrally from the record and requires
 
   // No relationships in the handover: nothing is guessed.
   expect(section(render(bindings.personal))).toContain(
-    "The handover records no peer this Environment may reach over SSH; do not look for one, tell the user.",
+    "The handover records no other peer this Environment may reach over SSH; do not look for one beyond the managed routes, tell the user.",
+  );
+  // Managed routes are distinguished from the handover's peers: an
+  // Environment with one is assigned and used without confirmation, also
+  // when the handover lists no peer (review of #826).
+  expect(section(render(bindings.personal))).toContain(
+    "an Environment with a managed route is assigned to the user and you do not confirm it; use it even when the handover lists no such peer.",
   );
 
   // A work VM of a foreign zone, peers of an unknown zone and a client device
@@ -2324,7 +2330,10 @@ test("threads do not coordinate, the Environment's network is never switched, an
       // agent switched it (Pablo's review of #754).
       expect([
         ...where,
-        count(agents, networkLine(hosted)[locale]),
+        count(
+          agents,
+          networkLine(hosted, environment.preset === "hosted-personal")[locale],
+        ),
         count(agents, "`100.64.0.x`"),
         count(
           agents,

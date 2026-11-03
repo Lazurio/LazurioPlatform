@@ -1430,13 +1430,15 @@ export const threadsRule: Text = {
 // the manual's procedures before adding a computer to Headscale (device names
 // included, decision F14's addendum of 2026-10-23) or connecting the user's
 // laptop. The manual's boundaries and SSH rules say it in full.
-export function networkLine(hosted: boolean): Text {
+export function networkLine(hosted: boolean, personal = false): Text {
   return {
     cs: [
       "- Síť Environmentu nikdy nepřepínej, neodhlašuj ani nevypínej a do jiného tailnetu choď jen cestou, kterou Environment nabízí (rozhodnutí 0217).",
       ...(hosted
         ? [
-            "Do jiného Prostředí jen `ssh <id Prostředí> …` z `~/.ssh/config.d/lazurio-environments.conf`, který zapisuje Lazurio: ruční aliasy, `ProxyJump` (`-J`) ani přeposílání agenta (`-A`) nikdy, do Týmového Prostředí dvěma `ssh` přes vlastní Pracovní Prostředí a chybějící cestu nahlas uživateli, neobcházej ji (rozhodnutí 0224).",
+            personal
+              ? "Do jiného Prostředí jen `ssh <id Prostředí> …` z `~/.ssh/config.d/lazurio-environments.conf`, který zapisuje Lazurio: ruční aliasy, `ProxyJump` (`-J`) ani přeposílání agenta (`-A`) nikdy, do Týmového Prostředí dvěma `ssh` přes vlastní Pracovní Prostředí a chybějící cestu nahlas uživateli, neobcházej ji (rozhodnutí 0224)."
+              : "Do jiného Prostředí jen `ssh <id Prostředí> …` z `~/.ssh/config.d/lazurio-environments.conf`, který zapisuje Lazurio, a to přímo cestou, kterou tam najdeš: ruční aliasy, `ProxyJump` (`-J`) ani přeposílání agenta (`-A`) nikdy a chybějící cestu nahlas uživateli, neobcházej ji (rozhodnutí 0224).",
             "SSH na zařízení jen na jeho tailnet hostname s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu `100.64.0.x`.",
             "Než přidáš počítač do Headscale nebo připojíš laptop (přes SSH nebo promptem pro ChatGPT Desktop), přečti v `manual/this-machine.md` Přidání počítače do tailnetu a Připojení počítače a projektu v ChatGPT Desktopu.",
           ]
@@ -1448,7 +1450,9 @@ export function networkLine(hosted: boolean): Text {
       "- Never switch, sign out or stop the Environment's network; reach another tailnet only the way the Environment offers (decision 0217).",
       ...(hosted
         ? [
-            "Into another Environment only `ssh <environment id> …` from `~/.ssh/config.d/lazurio-environments.conf`, which Lazurio writes: never a hand-written alias, `ProxyJump` (`-J`) or agent forwarding (`-A`); into a Team Environment two `ssh` steps through your own Work Environment; a missing route you report to the user and never work around (decision 0224).",
+            personal
+              ? "Into another Environment only `ssh <environment id> …` from `~/.ssh/config.d/lazurio-environments.conf`, which Lazurio writes: never a hand-written alias, `ProxyJump` (`-J`) or agent forwarding (`-A`); into a Team Environment two `ssh` steps through your own Work Environment; a missing route you report to the user and never work around (decision 0224)."
+              : "Into another Environment only `ssh <environment id> …` from `~/.ssh/config.d/lazurio-environments.conf`, which Lazurio writes, directly along the route you find there: never a hand-written alias, `ProxyJump` (`-J`) or agent forwarding (`-A`); a missing route you report to the user and never work around (decision 0224).",
             "SSH to a device only by tailnet hostname, with a pinned host key and the active tailnet checked, never to a bare `100.64.0.x`.",
             "Before adding a computer to Headscale or connecting a laptop (SSH or a ChatGPT Desktop prompt), read Adding a computer to a tailnet and Connecting a computer and a ChatGPT Desktop project in `manual/this-machine.md`.",
           ]
@@ -1553,7 +1557,7 @@ export function renderInstructions(input: unknown): string {
       cs: `- Ověř systém Environmentu, na kterém pracuješ (${profile.os}); přístup ${profile.access} nemění identitu ani oprávnění. Pro připojené operace ověř živou identitu a práva; lokální checkout není důkaz oprávnění.`,
       en: `- Verify the OS of the Environment you work in (${profile.os}); ${profile.access} access changes neither identity nor permissions. Verify live identity and rights for connected operations; a local checkout is not proof of permission.`,
     }),
-    pick(networkLine(machine !== null)),
+    pick(networkLine(machine !== null, preset === "hosted-personal")),
     ...personalspaceRules.map(pick),
     ...(machine === null ? [] : hostedLines(pick, preset, machine)),
     ...contextRouting(preset).map(pick),

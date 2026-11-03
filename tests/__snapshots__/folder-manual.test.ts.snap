@@ -99,11 +99,12 @@ Another Environment is reached only by a route from the section above. These lin
 - Lazurio enforces nothing about what this Environment can reach: the Headscale policy of the Conglomerate Host does. This manual only repeats what the handover recorded; never infer a peer the handover does not list from names or addresses.
 
 ## From this personal Remote Environment
+Managed routes from \`~/.ssh/config.d/lazurio-environments.conf\` (section Routes between Environments) lead into the user's Work Environments. The service derives them from assignment and membership, so an Environment with a managed route is assigned to the user and you do not confirm it; use it even when the handover lists no such peer. The rules below concern the handover's other peers, for example devices.
 Peers this Environment may reach over SSH, exactly as the handover records them:
 - \`example-laptop\` (client device, personal zone): SSH both ways with \`example-laptop.tailnet.example.invalid\`; no HTTPS.
 - \`example-workspace\` (work Remote Environment, work zone, Organization \`example\`): SSH from here to \`example-workspace.tailnet.example.invalid\` as \`operator\`; HTTPS \`launchpad.example-workspace.example.lazurio.io\`.
 - Reachability is decided by Headscale and is neither identity nor mandate: the handover does not record whose a peer is. Before you work on a peer or operate a device, confirm with the user that it is theirs or assigned to them.
-- Organization work (code, repositories, runs) belongs in a work Remote Environment the user confirms is assigned to them, never in this Environment: connect over SSH and work there. Never clone an Organization repository into this personal Remote Environment.
+- Organization work (code, repositories, runs) belongs in a work Remote Environment assigned to the user, never in this Environment: connect over SSH and work there. A Work Environment with a managed route is assigned and you do not confirm it; any other the user must confirm is assigned to them. Never clone an Organization repository into this personal Remote Environment.
 - What needs the user's own device, for example the signed-in browser, is done over SSH on a device the user confirms is theirs.
 - No work Environment ever reaches this personal Remote Environment (decision 0155); do not open a way back.
 "
@@ -208,11 +209,12 @@ Do jiného Prostředí vede jen cesta z oddílu výše. Tyto řádky platí pro 
 - Kam tenhle Environment dosáhne, Lazurio nevynucuje: vynucuje to Headscale policy Conglomerate Hostu. Tenhle manuál jen opisuje, co zaznamenal handover; peer, který handover neuvádí, neodvozuj ze jmen ani z adres.
 
 ## Z tohohle osobního Remote Environmentu
+Do Pracovních Prostředí uživatele vedou spravované cesty z \`~/.ssh/config.d/lazurio-environments.conf\` (oddíl Cesty mezi Prostředími). Služba je odvozuje z přidělení a členství, takže Prostředí se spravovanou cestou je uživateli přidělené a nepotvrzuješ ho; použij ji, i když ji handover mezi peery neuvádí. Pravidla níž platí pro ostatní peery z handoveru, například zařízení.
 Peers, na které odsud smíš přes SSH, přesně jak je zaznamenal handover:
 - \`example-laptop\` (klientské zařízení, osobní zóna): SSH oběma směry s \`example-laptop.tailnet.example.invalid\`; bez HTTPS.
 - \`example-workspace\` (pracovní Remote Environment, pracovní zóna, Organizace \`example\`): SSH odsud na \`example-workspace.tailnet.example.invalid\` jako \`operator\`; HTTPS \`launchpad.example-workspace.example.lazurio.io\`.
 - Dosažitelnost rozhoduje Headscale a není to identita ani mandát: handover nezaznamenává, čí peer je. Než na peeru začneš pracovat nebo ovládat zařízení, potvrď s uživatelem, že je jeho nebo že je přiřazený jemu.
-- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment, který ti uživatel potvrdí jako přiřazený jemu, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Repozitář Organizace sem nikdy neklonuj.
+- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment přidělený uživateli, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Pracovní Prostředí se spravovanou cestou je přidělené a nepotvrzuješ ho; jiné ti uživatel musí potvrdit jako přiřazené jemu. Repozitář Organizace sem nikdy neklonuj.
 - Co potřebuje vlastní zařízení uživatele, například přihlášený prohlížeč, se dělá přes SSH na zařízení, které ti uživatel potvrdí jako své.
 - Žádný pracovní Environment na tenhle osobní Remote Environment nikdy nesmí (decision 0155); cestu zpět neotevírej.
 "
@@ -359,9 +361,10 @@ Another Environment is reached only by a route from the section above. These lin
 - Lazurio enforces nothing about what this Environment can reach: the Headscale policy of the Conglomerate Host does. This manual only repeats what the handover recorded; never infer a peer the handover does not list from names or addresses.
 
 ## From this personal Remote Environment
-The handover records no peer this Environment may reach over SSH; do not look for one, tell the user.
+Managed routes from \`~/.ssh/config.d/lazurio-environments.conf\` (section Routes between Environments) lead into the user's Work Environments. The service derives them from assignment and membership, so an Environment with a managed route is assigned to the user and you do not confirm it; use it even when the handover lists no such peer. The rules below concern the handover's other peers, for example devices.
+The handover records no other peer this Environment may reach over SSH; do not look for one beyond the managed routes, tell the user.
 - Reachability is decided by Headscale and is neither identity nor mandate: the handover does not record whose a peer is. Before you work on a peer or operate a device, confirm with the user that it is theirs or assigned to them.
-- Organization work (code, repositories, runs) belongs in a work Remote Environment the user confirms is assigned to them, never in this Environment: connect over SSH and work there. Never clone an Organization repository into this personal Remote Environment.
+- Organization work (code, repositories, runs) belongs in a work Remote Environment assigned to the user, never in this Environment: connect over SSH and work there. A Work Environment with a managed route is assigned and you do not confirm it; any other the user must confirm is assigned to them. Never clone an Organization repository into this personal Remote Environment.
 - What needs the user's own device, for example the signed-in browser, is done over SSH on a device the user confirms is theirs.
 - No work Environment ever reaches this personal Remote Environment (decision 0155); do not open a way back.
 "

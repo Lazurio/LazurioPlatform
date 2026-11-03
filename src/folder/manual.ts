@@ -2518,11 +2518,18 @@ function fromPersonalVm(
       "## Z tohohle osobního Remote Environmentu",
       "## From this personal Remote Environment",
     ),
+    // Managed routes come from the access service, not from the handover's
+    // peers (root decision 0224): they are listed and used as they are, and
+    // the rules below concern every other peer (review of #826).
+    t(
+      "Do Pracovních Prostředí uživatele vedou spravované cesty z `~/.ssh/config.d/lazurio-environments.conf` (oddíl Cesty mezi Prostředími). Služba je odvozuje z přidělení a členství, takže Prostředí se spravovanou cestou je uživateli přidělené a nepotvrzuješ ho; použij ji, i když ji handover mezi peery neuvádí. Pravidla níž platí pro ostatní peery z handoveru, například zařízení.",
+      "Managed routes from `~/.ssh/config.d/lazurio-environments.conf` (section Routes between Environments) lead into the user's Work Environments. The service derives them from assignment and membership, so an Environment with a managed route is assigned to the user and you do not confirm it; use it even when the handover lists no such peer. The rules below concern the handover's other peers, for example devices.",
+    ),
     ...(reachable.length === 0
       ? [
           t(
-            "Handover neuvádí žádný peer, na který odsud smíš přes SSH; žádný nehledej a řekni to uživateli.",
-            "The handover records no peer this Environment may reach over SSH; do not look for one, tell the user.",
+            "Handover neuvádí žádný další peer, na který odsud smíš přes SSH; jiný než spravované cesty nehledej a řekni to uživateli.",
+            "The handover records no other peer this Environment may reach over SSH; do not look for one beyond the managed routes, tell the user.",
           ),
         ]
       : [
@@ -2543,14 +2550,14 @@ function fromPersonalVm(
         ),
     assignedEnvironments(machine).length === 0
       ? t(
-          "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment, který ti uživatel potvrdí jako přiřazený jemu, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Repozitář Organizace sem nikdy neklonuj.",
-          "- Organization work (code, repositories, runs) belongs in a work Remote Environment the user confirms is assigned to them, never in this Environment: connect over SSH and work there. Never clone an Organization repository into this personal Remote Environment.",
+          "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment přidělený uživateli, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Pracovní Prostředí se spravovanou cestou je přidělené a nepotvrzuješ ho; jiné ti uživatel musí potvrdit jako přiřazené jemu. Repozitář Organizace sem nikdy neklonuj.",
+          "- Organization work (code, repositories, runs) belongs in a work Remote Environment assigned to the user, never in this Environment: connect over SSH and work there. A Work Environment with a managed route is assigned and you do not confirm it; any other the user must confirm is assigned to them. Never clone an Organization repository into this personal Remote Environment.",
         )
       : // An assigned Work Environment needs no confirmation (root decision
         // 0192, addendum of 2026-10-26); any other still does.
         t(
-          "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment přidělený uživateli, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Přidělená Pracovní Prostředí uvádí `AGENTS.md` (Z tohoto Osobního Prostředí) a jejich přidělení nepotvrzuješ; každé jiné ti uživatel musí potvrdit jako přiřazené jemu. Repozitář Organizace sem nikdy neklonuj.",
-          "- Organization work (code, repositories, runs) belongs in a work Remote Environment assigned to the user, never in this Environment: connect over SSH and work there. `AGENTS.md` lists the assigned Work Environments (From this Personal Environment), and you do not confirm their assignment; any other the user must confirm is assigned to them. Never clone an Organization repository into this personal Remote Environment.",
+          "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment přidělený uživateli, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Přidělená Pracovní Prostředí uvádí `AGENTS.md` (Z tohoto Osobního Prostředí) a spravované cesty; jejich přidělení nepotvrzuješ, každé jiné ti uživatel musí potvrdit jako přiřazené jemu. Repozitář Organizace sem nikdy neklonuj.",
+          "- Organization work (code, repositories, runs) belongs in a work Remote Environment assigned to the user, never in this Environment: connect over SSH and work there. `AGENTS.md` (From this Personal Environment) and the managed routes list the assigned Work Environments; you do not confirm their assignment, any other the user must confirm is assigned to them. Never clone an Organization repository into this personal Remote Environment.",
         ),
     t(
       "- Co potřebuje vlastní zařízení uživatele, například přihlášený prohlížeč, se dělá přes SSH na zařízení, které ti uživatel potvrdí jako své.",
