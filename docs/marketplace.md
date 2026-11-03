@@ -89,7 +89,10 @@ does today; the rest of this document stays future direction.
   (`keptFor`), and the built-in copy always. An older page's prompt is a 404. An offer
   that changes while its dialog is open is drawn again and the dialog says so before
   the person continues; one that is no longer listed closes the dialog and the page
-  says it is not in the Marketplace. The brief names the exact release, the Organization and
+  says it is not in the Marketplace. A hand-over says how it ended only in the dialog
+  that started it: one closed, opened on another offer or drawn again for a newer
+  version in the meantime keeps what it shows and says, so the next click hands over
+  the offer it shows. The brief names the exact release, the Organization and
   the start, and tells the agent to follow the release's `docs/adoption.md`: check live
   rights, name collision and compatibility, show the plan, create the module with
   `lazurio module create --stack <release stack>`, adding `--data` for a release of

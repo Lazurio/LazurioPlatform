@@ -42,7 +42,10 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // shows: its prompt id names that catalog, so Chat gets that offer field for
 // field even when the Launchpad has read a newer one since. An offer that
 // changes while its dialog is open is drawn again and the dialog says so.
-// Every value is drawn with textContent.
+// A hand-over says how it ended only in the dialog that started it: one
+// closed, opened on another offer or drawn again for a newer version of its
+// offer in the meantime keeps what it shows and says. Every value is drawn
+// with textContent.
 export function createMarketplacePanel(
   options: Readonly<{
     copy: () => Copy;
@@ -79,6 +82,10 @@ export function createMarketplacePanel(
   let seed: AdoptionSeed = "empty";
   let said: string | null = null;
   let busy = false;
+  // Each showing of the dialog has its own number: a new one when it opens,
+  // when it closes and when a read replaces the offer it shows with another
+  // version. A hand-over's outcome belongs to the showing that started it.
+  let showing = 0;
   // The screen the detail shows large.
   let shown: string | null = null;
   // The offers shown: the built-in copy until the Launchpad's answer.
@@ -98,12 +105,11 @@ export function createMarketplacePanel(
       offers = read;
       if (adding !== null) {
         const now = offerById(offers, adding.id);
-        if (
-          now !== null &&
-          dialog.open &&
-          JSON.stringify(now) !== JSON.stringify(adding)
-        )
-          said = fill(options.copy().marketChanged, { title: now.title });
+        if (now !== null && JSON.stringify(now) !== JSON.stringify(adding)) {
+          showing += 1;
+          if (dialog.open)
+            said = fill(options.copy().marketChanged, { title: now.title });
+        }
         adding = now ?? adding;
       }
       render();
@@ -350,12 +356,14 @@ export function createMarketplacePanel(
     }
     adding = offer;
     said = null;
+    showing += 1;
     drawDialog(offer);
     if (!dialog.open) dialog.showModal();
     dialogTitle.focus();
   }
 
   dialog.addEventListener("close", () => {
+    showing += 1;
     said = null;
   });
   for (const button of [dialogClose, dialogCancel])
@@ -379,6 +387,7 @@ export function createMarketplacePanel(
     );
     if (text === null) return;
     busy = true;
+    const started = showing;
     drawDialog(offer);
     void options
       .handOver({
@@ -392,17 +401,23 @@ export function createMarketplacePanel(
       )
       .then((outcome) => {
         busy = false;
-        const now = options.copy();
-        said = fill(
-          {
-            "handed-over": now.marketHandedOver,
-            copied: now.marketCopied,
-            failed: now.marketCopyFailed,
-            "needs-ai": now.appsNewModuleNeedsAi,
-          }[outcome],
-          { title: offer.title },
-        );
-        if (dialog.open) drawDialog(offer);
+        // Said only in the showing that handed over. Whatever the dialog
+        // shows now, the offer as this catalog has it, is drawn again with
+        // its own words, so that its button works again; it never goes back
+        // to the offer handed over.
+        if (showing === started) {
+          const now = options.copy();
+          said = fill(
+            {
+              "handed-over": now.marketHandedOver,
+              copied: now.marketCopied,
+              failed: now.marketCopyFailed,
+              "needs-ai": now.appsNewModuleNeedsAi,
+            }[outcome],
+            { title: offer.title },
+          );
+        }
+        if (dialog.open && adding !== null) drawDialog(adding);
       });
   });
 
