@@ -487,7 +487,7 @@ export async function refreshMachineFolderAndLaunchpad(
 // - Where the handover declares the home access service (root decision
 //   0224, `accessServiceOf`), on any Machine: one synchronization with it
 //   (`syncEnvironmentRoutes`: the source key, its registration, the
-//   targets) and a try of each route (`ssh -o BatchMode=yes <id> true`),
+//   targets) and a try of each route it wrote (`testRoutes`),
 //   reported as `environmentRoutes`.
 // - Otherwise the binding's own routes, exactly (decision F70, amendment of
 //   2026-11-03, point 6): a personal Machine's assigned peers (root decision

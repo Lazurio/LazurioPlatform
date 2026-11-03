@@ -45,8 +45,8 @@ export const doctorHelp = `doctor [--folder <absolute Folder>] [--sign-in] [--ro
   selection under the read lock, no write, no restart, no network; --sign-in
   also runs each installed tool's sign-in probe, which may contact its
   provider. --routes asks the home access service for this Environment's
-  routes to other Environments and tries each one with
-  ssh -o BatchMode=yes <id> true (access-service, environment-route; a
+  routes to other Environments, checks that ssh <id> resolves to each
+  one and tries it with true (access-service, environment-route; a
   route the service gives that is missing or unreached needs attention, a
   service that does not answer is reported as only that). --json prints {kind, verdict, locale, checks}; every check is
   {id, outcome ok|warn|fail|skipped, reason?, context?} of enumerated ids,

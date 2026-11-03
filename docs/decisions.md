@@ -23500,12 +23500,24 @@ Plan DEV-6687 M7 makes a missing route to an assigned Work Environment an incomp
 onboarding, and asks for every route's result with its time, never a prepared config
 presented as reachability (Lazurio/LazurioPlatform#766).
 
-1. **The try.** `ssh -o BatchMode=yes -o ConnectTimeout=10 -n -T <environment id> true`
-   through the managed config, at most four at a time and 20 s each; nothing runs on the
-   target but `true`. The cause comes from OpenSSH's own words: `host-key-mismatch`,
-   `login-refused`, `timeout`, `connection-refused`, `unresolved`,
-   `network-unreachable`, else `unknown`. A target that is off and a network that drops
-   packets both time out and are not told apart (`src/ssh-access/routes.ts`).
+1. **The try**, at most four at a time, in two steps bound to the exact route given (the
+   one the doctor compared or the one onboarding wrote), never to what the files hold a
+   moment later (`src/ssh-access/routes.ts`):
+   - *What `ssh <environment id>` would use now.* `ssh -G <environment id>` through the
+     account's own config must resolve to that route: its host and account on port 22,
+     pinned under its own alias in the managed known-hosts file, only this Environment's
+     key, no jump or proxy command. Anything else (the `Include` removed, another `Host`
+     for the same id first, a jump in front) is `not-configured` and nothing connects.
+   - *The connection.* `ssh -F none` with that route's values as options and its pinned
+     keys in a private known-hosts file written for this try alone, `BatchMode=yes`,
+     `ConnectTimeout=10`, no forwarding or connection sharing, 20 s at most, running
+     `true` and nothing else. A route replaced between the two steps or during the try
+     never lends its result to the replacement.
+
+   The cause comes from OpenSSH's own words: `host-key-mismatch`, `login-refused`,
+   `timeout`, `connection-refused`, `unresolved`, `network-unreachable`, else
+   `unknown`. A target that is off and a network that drops packets both time out and
+   are not told apart.
 2. **Onboarding.** `machine folder-init` and `folder-refresh`, which provision and
    refresh a hosted Environment, try each route right after the service answered and the
    config was written (not when the write was `superseded`, point 5 of the amendment
@@ -23536,8 +23548,10 @@ presented as reachability (Lazurio/LazurioPlatform#766).
 
 Not in this addendum: the line in Začínáme that shows these results to the person (it
 needs the Launchpad's onboarding view and a browser check, decision 0178) and the
-record of the last try between runs. Tests: `tests/environment-routes-doctor.test.ts`,
-`tests/access-service-routes.test.ts` (the commands' tries), `tests/doctor.test.ts`.
+record of the last try between runs. Tests: `tests/environment-routes-doctor.test.ts` (with the real `ssh -G`: a removed
+`Include`, another `Host` first, a jump, and a route replaced before and after `ssh -G`),
+`tests/access-service-routes.test.ts` (the commands' tries, and a route replaced between
+its write and its try), `tests/doctor.test.ts`.
 
 ## F71 — Phone through ChatGPT: Settings → Connections pairs the ChatGPT app with the Codex app-server's remote control
 

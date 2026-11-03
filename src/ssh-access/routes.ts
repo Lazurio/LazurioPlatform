@@ -1,4 +1,5 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
   assignedEnvironments,
@@ -25,8 +26,11 @@ import {
   type EnvironmentRoute,
   type EnvironmentSshLocation,
   type EnvironmentSshResult,
+  environmentKeyPath,
+  environmentsKnownHostsPath,
   expireEnvironmentRoutes,
   pruneEnvironmentRoutes,
+  renderEnvironmentsKnownHosts,
   writeEnvironmentRoutes,
 } from "./environments";
 import { ensureSourceKey, type SourceKeyResult } from "./source-key";
@@ -227,7 +231,9 @@ export async function syncEnvironmentRoutes(
   return {
     ...synced,
     tests: await testRoutes(
-      ssh.environments,
+      targets.targets.filter((route) =>
+        ssh.environments.includes(route.environment),
+      ),
       location.home,
       seams.run,
       seams.now,
@@ -237,13 +243,28 @@ export async function syncEnvironmentRoutes(
 
 // ---- Testing a route ---------------------------------------------------------
 
-// Each route is tried exactly as an agent uses it: `ssh <environment id> true`
-// through the managed config, non-interactive (`BatchMode=yes`, no password,
-// no question about a host key) and bounded in time. Nothing runs on the
-// target but `true`, and nothing is written there. The result names one cause
-// from OpenSSH's own words; what cannot be told apart (a target that is off
-// and a network that drops packets both time out) stays `timeout` or
-// `unknown`, never a guessed reason.
+// Each route is tried in two steps, both bound to the exact route given (the
+// one the doctor compared, or the one this synchronization wrote), never to
+// whatever the files hold a moment later:
+//
+// 1. What `ssh <environment id>` would use now: `ssh -G <id>` through the
+//    account's own config must resolve to that route's host and account,
+//    pinned under its own alias in the managed known-hosts file, with only
+//    this Environment's key, on port 22 and without a jump or proxy command.
+//    Anything else (the `Include` removed, another `Host` for the same id
+//    first) is `not-configured`, and nothing is connected.
+// 2. The connection itself, with that route's values on the command line
+//    and its pinned keys in a private known-hosts file written for this try
+//    alone (`-F none`, so no other config, connection sharing or forwarding
+//    takes part). A route the Launchpad replaces between the two steps or
+//    during the try therefore never lends its result to another route.
+//
+// Both steps are non-interactive (`BatchMode=yes`, no password, no question
+// about a host key) and bounded in time. Nothing runs on the target but
+// `true`, and nothing is written there. The result names one cause from
+// OpenSSH's own words; what cannot be told apart (a target that is off and
+// a network that drops packets both time out) stays `timeout` or `unknown`,
+// never a guessed reason.
 
 export const routeCauses = [
   "host-key-mismatch",
@@ -268,6 +289,7 @@ export type RouteTest =
 
 const connectTimeoutSeconds = 10;
 const testTimeoutMs = 20_000;
+const resolveTimeoutMs = 5_000;
 const testsAtOnce = 4;
 
 /** The cause of a failed `ssh` from its standard error. */
@@ -289,51 +311,141 @@ export function routeCause(stderr: string): RouteCause {
   return "unknown";
 }
 
+/** `ssh -G` output as option → values (a repeated option keeps every value,
+ * in order). */
+function effectiveOptions(stdout: string): Map<string, string[]> {
+  const options = new Map<string, string[]>();
+  for (const line of stdout.split("\n")) {
+    const space = line.indexOf(" ");
+    if (space <= 0) continue;
+    const name = line.slice(0, space).toLowerCase();
+    options.set(name, [...(options.get(name) ?? []), line.slice(space + 1)]);
+  }
+  return options;
+}
+
+const expandHome = (path: string, home: string) =>
+  path.startsWith("~/") ? join(home, path.slice(2)) : path;
+
+/** Whether `ssh <id>`, as the account's config resolves it, is this route
+ * exactly as the managed config writes it. */
+export function resolvesToRoute(
+  stdout: string,
+  route: EnvironmentRoute,
+  home: string,
+): boolean {
+  const options = effectiveOptions(stdout);
+  const only = (name: string, ...accepted: string[]) => {
+    const values = options.get(name);
+    return (
+      values !== undefined &&
+      values.length === 1 &&
+      accepted.includes(values[0] as string)
+    );
+  };
+  const path = (value: string) => [value, expandHome(value, home)];
+  const absent = (name: string) => {
+    const values = options.get(name);
+    return values === undefined || values.every((value) => value === "none");
+  };
+  return (
+    only("hostname", route.host) &&
+    only("user", route.user) &&
+    only("port", "22") &&
+    only("hostkeyalias", route.environment) &&
+    only("stricthostkeychecking", "true", "yes") &&
+    only("identitiesonly", "yes") &&
+    only("identityfile", ...path(environmentKeyPath)) &&
+    only("userknownhostsfile", ...path(environmentsKnownHostsPath)) &&
+    absent("proxyjump") &&
+    absent("proxycommand")
+  );
+}
+
 /** Tries every route, a few at a time, and answers each result with the time
  * it was observed. */
 export async function testRoutes(
-  environments: readonly string[],
+  routes: readonly EnvironmentRoute[],
   home: string,
   run: ToolRunner,
   now: () => number,
 ): Promise<readonly RouteTest[]> {
   const env = { HOME: home, PATH: process.env.PATH ?? "" };
-  const one = async (environment: string): Promise<RouteTest> => {
-    const result = await run(
-      [
-        "ssh",
-        "-o",
-        "BatchMode=yes",
-        "-o",
-        `ConnectTimeout=${connectTimeoutSeconds}`,
-        "-n",
-        "-T",
-        environment,
-        "true",
-      ],
-      testTimeoutMs,
-      env,
-    ).catch(() => "timeout" as const);
-    const at = new Date(Math.floor(now() / 1000) * 1000)
+  const observedAt = () =>
+    new Date(Math.floor(now() / 1000) * 1000)
       .toISOString()
       .replace(".000Z", "Z");
-    if (result === "timeout")
-      return { environment, result: "failed", cause: "timeout", at };
-    return result.exitCode === 0
-      ? { environment, result: "reached", at }
-      : {
+  const failed = (environment: string, cause: RouteCause): RouteTest => ({
+    environment,
+    result: "failed",
+    cause,
+    at: observedAt(),
+  });
+  const one = async (route: EnvironmentRoute): Promise<RouteTest> => {
+    const { environment } = route;
+    const resolved = await run(
+      ["ssh", "-G", environment],
+      resolveTimeoutMs,
+      env,
+    ).catch(() => "timeout" as const);
+    if (
+      resolved === "timeout" ||
+      resolved.exitCode !== 0 ||
+      !resolvesToRoute(resolved.stdout, route, home)
+    )
+      return failed(environment, "not-configured");
+    const directory = await mkdtemp(join(tmpdir(), "lazurio-route-"));
+    try {
+      const knownHosts = join(directory, "known_hosts");
+      await writeFile(knownHosts, renderEnvironmentsKnownHosts([route]), {
+        mode: 0o600,
+        flag: "wx",
+      });
+      const option = (value: string) => ["-o", value];
+      const result = await run(
+        [
+          "ssh",
+          "-F",
+          "none",
+          ...option("BatchMode=yes"),
+          ...option(`ConnectTimeout=${connectTimeoutSeconds}`),
+          ...option(`HostName=${route.host}`),
+          ...option(`User=${route.user}`),
+          ...option("Port=22"),
+          ...option(`HostKeyAlias=${environment}`),
+          ...option(`UserKnownHostsFile=${knownHosts}`),
+          ...option("GlobalKnownHostsFile=/dev/null"),
+          ...option("StrictHostKeyChecking=yes"),
+          ...option("UpdateHostKeys=no"),
+          ...option(`IdentityFile=${expandHome(environmentKeyPath, home)}`),
+          ...option("IdentitiesOnly=yes"),
+          ...option("ForwardAgent=no"),
+          ...option("ProxyJump=none"),
+          ...option("ClearAllForwardings=yes"),
+          ...option("ControlMaster=no"),
+          ...option("ControlPath=none"),
+          "-n",
+          "-T",
           environment,
-          result: "failed",
-          cause: routeCause(result.stderr),
-          at,
-        };
+          "true",
+        ],
+        testTimeoutMs,
+        env,
+      ).catch(() => "timeout" as const);
+      if (result === "timeout") return failed(environment, "timeout");
+      return result.exitCode === 0
+        ? { environment, result: "reached", at: observedAt() }
+        : failed(environment, routeCause(result.stderr));
+    } catch {
+      return failed(environment, "unknown");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   };
   const results: RouteTest[] = [];
-  for (let index = 0; index < environments.length; index += testsAtOnce)
+  for (let index = 0; index < routes.length; index += testsAtOnce)
     results.push(
-      ...(await Promise.all(
-        environments.slice(index, index + testsAtOnce).map(one),
-      )),
+      ...(await Promise.all(routes.slice(index, index + testsAtOnce).map(one))),
     );
   return results;
 }

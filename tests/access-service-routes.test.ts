@@ -32,6 +32,7 @@ import { syncEnvironmentRoutes } from "../src/ssh-access/routes";
 import { ensureSourceKey } from "../src/ssh-access/source-key";
 import { runTool } from "../src/tools/status";
 import { bindings } from "./fixtures/machine-bindings";
+import { routeSsh } from "./fixtures/route-ssh";
 
 // The source side of root decision 0224 (plan DEV-6687, M7 step 4): this
 // Environment's one key, its registration with the home access service
@@ -583,15 +584,11 @@ test("the machine commands synchronize with a declared service on any Machine an
     "/v1/source-key": receipt,
     "/v1/targets": { status: 200, body: answer(target()) },
   });
-  // ssh-keygen is real; the route's try is a fake ssh that reaches it.
-  const tried: string[] = [];
-  const run: typeof runTool = async (command, timeoutMs, env, options) => {
-    if (command[0] !== "ssh") return runTool(command, timeoutMs, env, options);
-    tried.push(command.join(" "));
-    return { exitCode: 0, stdout: "", stderr: "" };
-  };
+  // ssh-keygen is real, and so is `ssh -G`; the route's try is recorded
+  // and reaches it.
+  const ssh = routeSsh(path, { other: runTool });
   const seams = {
-    run,
+    run: ssh.run,
     current: still,
     now: () => now,
     fetch: fake.fetchImpl,
@@ -621,10 +618,11 @@ test("the machine commands synchronize with a declared service on any Machine an
     });
     expect(result).not.toHaveProperty("environmentSsh");
   }
-  expect(tried).toEqual([
-    "ssh -o BatchMode=yes -o ConnectTimeout=10 -n -T alice.example true",
-    "ssh -o BatchMode=yes -o ConnectTimeout=10 -n -T alice.example true",
-  ]);
+  expect(ssh.tried).toEqual(["alice.example", "alice.example"]);
+  for (const { command } of ssh.tries)
+    expect(command).toContain(
+      "HostName=example-alice-vm.tailnet.example.invalid",
+    );
   // A blocked or adopted answer still writes nothing and asks nothing.
   const quiet = fakeService({});
   expect<unknown>(
@@ -637,4 +635,60 @@ test("the machine commands synchronize with a declared service on any Machine an
     ),
   ).toEqual({ kind: "blocked" });
   expect(quiet.calls).toEqual([]);
+});
+
+test("a route replaced between its write and its try never lends its result to the replacement", async () => {
+  const path = await home();
+  const location = { home: path, uid };
+  const moved = {
+    environment: "alice.example",
+    host: "example-alice-new.tailnet.example.invalid",
+    user: "alice",
+    hostKeys: [{ type: "ssh-ed25519" as const, key: keyB }],
+  };
+  const replace = async () => {
+    await writeEnvironmentRoutes(location, [moved]);
+  };
+  const sync = (ssh: ReturnType<typeof routeSsh>) =>
+    syncEnvironmentRoutes(
+      location,
+      service,
+      {
+        run: ssh.run,
+        current: still,
+        now: () => now,
+        fetch: fakeService({
+          "/v1/source-key": receipt,
+          "/v1/targets": { status: 200, body: answer(target()) },
+        }).fetchImpl,
+      },
+      true,
+    );
+  // Replaced after ssh resolved it: the try is the route this
+  // synchronization wrote, with its own pinned key.
+  const after = routeSsh(path, { other: runTool, afterResolve: replace });
+  expect((await sync(after)).tests).toEqual([
+    {
+      environment: "alice.example",
+      result: "reached",
+      at: "2026-11-03T12:00:00Z",
+    },
+  ]);
+  expect(after.tries[0]?.command).toContain(
+    "HostName=example-alice-vm.tailnet.example.invalid",
+  );
+  expect(after.tries[0]?.knownHosts).toContain(keyA);
+  expect(after.tries[0]?.knownHosts).not.toContain(keyB);
+  // Replaced before ssh resolved it: ssh would take the replacement, so the
+  // route written is not configured, and nothing connects.
+  const before = routeSsh(path, { other: runTool, beforeResolve: replace });
+  expect((await sync(before)).tests).toEqual([
+    {
+      environment: "alice.example",
+      result: "failed",
+      cause: "not-configured",
+      at: "2026-11-03T12:00:00Z",
+    },
+  ]);
+  expect(before.tried).toEqual([]);
 });

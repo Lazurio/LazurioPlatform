@@ -311,7 +311,7 @@ const ownReasons = [
   // Routes between Environments (root decision 0224, F70): the service not
   // declared by the handover, not asked (no --routes), or its own failure
   // named as such; a route the service gives that is not configured here
-  // or that `ssh -o BatchMode=yes <id> true` does not reach (onboarding
+  // or that `ssh <id>` does not resolve to or reach (onboarding
   // incomplete); no route at all.
   "access-service-not-declared",
   "access-service-unreachable",
@@ -941,7 +941,7 @@ export type DoctorEnvironment = RecoveryEnvironment &
     /** Tests only: where Executor is read (F44); this process's otherwise. */
     executor?: ExecutorHost | undefined;
     /** Ask the access service for this Environment's targets and try each
-     * route with `ssh -o BatchMode=yes <id> true`: it contacts the service
+     * route (`testRoutes`, `ssh <id> true` bound to it): it contacts the service
      * and the targets, so only on an explicit request (F70). */
     routes?: boolean | undefined;
     /** Tests only: the access service, instead of the handover's. */
@@ -1084,7 +1084,8 @@ export type RouteObservation = Readonly<{
 
 /** Reads the route facts (F70): only the managed config and the handover
  * without `--routes`; with it, one `GET /v1/targets` and one try of each
- * expected route that is configured as expected. Never writes. */
+ * expected route that is configured as expected (`testRoutes`: what
+ * `ssh <id>` resolves to, then that exact route). Never writes. */
 export async function observeRoutes(
   input: RouteObservation,
 ): Promise<RouteFacts> {
@@ -1108,9 +1109,11 @@ export async function observeRoutes(
       : targets?.kind === "answered"
         ? targets.targets
         : [];
-  const toTry = expected
-    .filter((route) => routeStanding(route, configured) === "current")
-    .map((route) => route.environment);
+  // Each route is tried as the expected route it was compared as, so a
+  // replacement written meanwhile never lends it its result.
+  const toTry = expected.filter(
+    (route) => routeStanding(route, configured) === "current",
+  );
   const tests =
     tested && home !== undefined
       ? await testRoutes(toTry, home, input.run, input.now)

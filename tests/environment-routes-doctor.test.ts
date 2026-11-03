@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -14,15 +14,22 @@ import { assignedEnvironments } from "../src/folder/machine-binding";
 import type { AccessTarget } from "../src/ssh-access/access-service";
 import {
   type EnvironmentRoute,
+  includeLine,
+  renderEnvironmentsKnownHosts,
   writeEnvironmentRoutes,
 } from "../src/ssh-access/environments";
-import { routeCause, testRoutes } from "../src/ssh-access/routes";
-import type { ToolRunner } from "../src/tools/status";
+import {
+  type RouteTest,
+  routeCause,
+  testRoutes,
+} from "../src/ssh-access/routes";
 import { bindings } from "./fixtures/machine-bindings";
+import { routeSsh } from "./fixtures/route-ssh";
 
 // Onboarding and the doctor try every route of root decision 0224 (plan
-// DEV-6687 M7, decision F70's addendum): `ssh -o BatchMode=yes <id> true`
-// through the managed config, each result with its cause and time. While
+// DEV-6687 M7, decision F70's addendum): what `ssh <id>` resolves to must be
+// the route, then that exact route is tried with `true`, each result with
+// its cause and time. While
 // the access service answers, a route it gives that is missing or
 // unreached needs attention; while it does not answer, the doctor says
 // exactly that and blames nothing else. Synthetic Environment ids only.
@@ -65,57 +72,196 @@ test("a failed ssh is named by OpenSSH's own words, and what cannot be told apar
     expect([stderr, routeCause(stderr)]).toEqual([stderr, cause]);
 });
 
-test("each route is tried non-interactively and bounded, as an agent uses it, with the time it was observed", async () => {
-  const calls: (readonly string[])[] = [];
-  const answers: Record<string, Awaited<ReturnType<ToolRunner>>> = {
-    "a.example": { exitCode: 0, stdout: "", stderr: "" },
-    "b.example": {
-      exitCode: 255,
-      stdout: "",
-      stderr: "b@h: Permission denied (publickey).",
+test("each route is tried non-interactively and bounded, exactly as given, with the time it was observed", async () => {
+  const path = await home();
+  const routes = [
+    "a.example",
+    "b.example",
+    "c.example",
+    "d.example",
+    "e.example",
+  ].map((environment) => route(environment));
+  await writeEnvironmentRoutes({ home: path, uid }, routes);
+  const ssh = routeSsh(path, {
+    answers: {
+      "b.example": {
+        exitCode: 255,
+        stdout: "",
+        stderr: "b@h: Permission denied (publickey).",
+      },
+      "c.example": "timeout",
+      "d.example": {
+        exitCode: 255,
+        stdout: "",
+        stderr: "ssh: connect to host d port 22: Connection timed out",
+      },
+      "e.example": {
+        exitCode: 255,
+        stdout: "",
+        stderr: "Host key verification failed.",
+      },
     },
-    "c.example": "timeout",
-  };
-  const run: ToolRunner = async (command, timeoutMs, env) => {
-    calls.push(command);
-    expect(timeoutMs).toBeGreaterThan(10_000);
-    expect(env.HOME).toBe("/home/someone");
-    return answers[command.at(-2) as string] ?? "timeout";
-  };
-  const results = await testRoutes(
-    ["a.example", "b.example", "c.example", "d.example", "e.example"],
-    "/home/someone",
-    run,
-    now,
-  );
-  expect(results).toEqual([
+  });
+  expect(await testRoutes(routes, path, ssh.run, now)).toEqual([
     { environment: "a.example", result: "reached", at },
-    {
-      environment: "b.example",
-      result: "failed",
-      cause: "login-refused",
-      at,
-    },
+    { environment: "b.example", result: "failed", cause: "login-refused", at },
     { environment: "c.example", result: "failed", cause: "timeout", at },
     { environment: "d.example", result: "failed", cause: "timeout", at },
-    { environment: "e.example", result: "failed", cause: "timeout", at },
+    {
+      environment: "e.example",
+      result: "failed",
+      cause: "host-key-mismatch",
+      at,
+    },
   ]);
-  expect(calls[0]).toEqual([
+  expect(ssh.resolved).toEqual(routes.map((entry) => entry.environment));
+  // Four at a time, so the tries are recorded in any order.
+  const first = ssh.tries.find((entry) => entry.environment === "a.example");
+  const knownHosts = first?.command
+    .find((part) => part.startsWith("UserKnownHostsFile="))
+    ?.slice("UserKnownHostsFile=".length) as string;
+  expect(
+    first?.command.map((part) =>
+      part === `UserKnownHostsFile=${knownHosts}`
+        ? "UserKnownHostsFile=<this try's file>"
+        : part,
+    ),
+  ).toEqual([
     "ssh",
-    "-o",
-    "BatchMode=yes",
-    "-o",
-    "ConnectTimeout=10",
+    "-F",
+    "none",
+    ...[
+      "BatchMode=yes",
+      "ConnectTimeout=10",
+      `HostName=${routes[0]?.host}`,
+      "User=alice",
+      "Port=22",
+      "HostKeyAlias=a.example",
+      "UserKnownHostsFile=<this try's file>",
+      "GlobalKnownHostsFile=/dev/null",
+      "StrictHostKeyChecking=yes",
+      "UpdateHostKeys=no",
+      `IdentityFile=${path}/.ssh/lazurio-environment-ed25519`,
+      "IdentitiesOnly=yes",
+      "ForwardAgent=no",
+      "ProxyJump=none",
+      "ClearAllForwardings=yes",
+      "ControlMaster=no",
+      "ControlPath=none",
+    ].flatMap((option) => ["-o", option]),
     "-n",
     "-T",
     "a.example",
     "true",
   ]);
-  // Nothing in the command forwards, jumps or accepts a key.
-  for (const command of calls)
+  // Its own pinned keys only, in a file that is gone once it ended.
+  expect(first?.knownHosts).toBe(
+    renderEnvironmentsKnownHosts([routes[0] as EnvironmentRoute]),
+  );
+  expect(knownHosts.startsWith(path)).toBe(false);
+  expect(await readFile(knownHosts, "utf8").catch(() => null)).toBeNull();
+  // Nothing in a try forwards, jumps or accepts a key.
+  for (const { command } of ssh.tries)
     expect(command.join(" ")).not.toMatch(
-      /-A|-J|ProxyJump|ForwardAgent|StrictHostKeyChecking|accept-new/,
+      /-A |-J |ForwardAgent=yes|StrictHostKeyChecking=(no|accept-new)|accept-new/,
     );
+});
+
+test("a route that ssh would not take as given is not configured, and nothing connects", async () => {
+  const path = await home();
+  const a = route("a.example");
+  await writeEnvironmentRoutes({ home: path, uid }, [a]);
+  const config = join(path, ".ssh", "config");
+  const written = await readFile(config, "utf8");
+  expect(written).toContain(includeLine);
+  const ssh = routeSsh(path);
+  const notConfigured: RouteTest[] = [
+    {
+      environment: "a.example",
+      result: "failed",
+      cause: "not-configured",
+      at,
+    },
+  ];
+  expect(await testRoutes([a], path, ssh.run, now)).toEqual([
+    { environment: "a.example", result: "reached", at },
+  ]);
+  const other =
+    "Host a.example\n  HostName elsewhere.example.invalid\n  User alice\n";
+  for (const text of [
+    // The Include removed and another Host for the same id.
+    `${written.replace(`${includeLine}\n`, "")}\n${other}`,
+    // Another Host for the same id before the Include: it wins in OpenSSH.
+    `${other}${written}`,
+    // A jump in front of the route.
+    `Host a.example\n  ProxyJump jump.example.invalid\n${written}`,
+    // The Include removed and nothing else: ssh takes the bare name.
+    written.replace(`${includeLine}\n`, ""),
+  ]) {
+    await writeFile(config, text);
+    expect([text, await testRoutes([a], path, ssh.run, now)]).toEqual([
+      text,
+      notConfigured,
+    ]);
+  }
+  expect(ssh.tried).toEqual(["a.example"]);
+});
+
+test("a route replaced between its comparison and its try never lends its result to the replacement", async () => {
+  const path = await home();
+  const a = route("a.example");
+  const moved = route("a.example", {
+    host: "a-new.tailnet.example.invalid",
+    hostKeys: [{ type: "ssh-ed25519", key: keyB }],
+  });
+  const replace = async () => {
+    await writeEnvironmentRoutes({ home: path, uid }, [moved]);
+  };
+  // Replaced right after ssh resolved it: the try still goes to the route
+  // given, with its own pinned key and never the replacement's.
+  await writeEnvironmentRoutes({ home: path, uid }, [a]);
+  const after = routeSsh(path, { afterResolve: replace });
+  expect(await testRoutes([a], path, after.run, now)).toEqual([
+    { environment: "a.example", result: "reached", at },
+  ]);
+  expect(after.tries[0]?.command).toContain(`HostName=${a.host}`);
+  expect(after.tries[0]?.knownHosts).toBe(renderEnvironmentsKnownHosts([a]));
+  expect(after.tries[0]?.knownHosts).not.toContain(keyB);
+  // Replaced after the doctor compared it, before ssh resolved it: ssh would
+  // take the replacement, so the route compared is not configured.
+  await writeEnvironmentRoutes({ home: path, uid }, [a]);
+  const before = routeSsh(path, { beforeResolve: replace });
+  const facts = await observeRoutes({
+    home: path,
+    uid,
+    machine: bindings.personal,
+    service: { origin: "http://host.tailnet.example.invalid:8444" },
+    routes: true,
+    fetch: async () =>
+      new Response(
+        JSON.stringify({
+          schema_version: "machines.access-targets.v1",
+          targets: [
+            {
+              environment: "a.example",
+              host: a.host,
+              user: "alice",
+              host_key: `ssh-ed25519 ${keyA}`,
+              valid_until: "2026-11-03T12:03:30Z",
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    run: before.run,
+    now,
+  });
+  expect(rows(routeChecks(facts))).toEqual([
+    'access-service ok  {"routes":1}',
+    `environment-route warn route-unreached {"environment":"a.example","cause":"not-configured","at":"${at}"}`,
+  ]);
+  expect(before.resolved).toEqual(["a.example"]);
+  expect(before.tried).toEqual([]);
 });
 
 const keyA =
@@ -280,21 +426,13 @@ async function home() {
   return path;
 }
 const uid = process.getuid?.();
-const reachEverything = () => {
-  const tried: string[] = [];
-  const run: ToolRunner = async (command) => {
-    tried.push(command.at(-2) as string);
-    return { exitCode: 0, stdout: "", stderr: "" };
-  };
-  return { tried, run };
-};
 const bob = assignedEnvironments(
   bindings.personalAssigned,
 )[0] as EnvironmentRoute;
 
 test("without a declared service the doctor expects the handover's assignments: a missing file is an incomplete onboarding and an old route is never tried", async () => {
   const path = await home();
-  const ssh = reachEverything();
+  const ssh = routeSsh(path);
   const observe = (machine = bindings.personalAssigned) =>
     observeRoutes({
       home: path,
@@ -321,7 +459,7 @@ test("without a declared service the doctor expects the handover's assignments: 
   ]);
   expect(ssh.tried).toEqual([bob.environment]);
   // The assignment is gone: the route left in the file is not tried.
-  ssh.tried.length = 0;
+  ssh.tries.length = 0;
   expect(rows(routeChecks(await observe(bindings.personalRelated)))).toEqual([
     "access-service skipped access-service-not-declared {}",
   ]);
@@ -331,7 +469,7 @@ test("without a declared service the doctor expects the handover's assignments: 
 test("with a declared service the doctor compares the current target in full and never reports an old endpoint as reached", async () => {
   const path = await home();
   await writeEnvironmentRoutes({ home: path, uid }, [route("a.example")]);
-  const ssh = reachEverything();
+  const ssh = routeSsh(path);
   const moved = {
     environment: "a.example",
     host: "a-new.tailnet.example.invalid",

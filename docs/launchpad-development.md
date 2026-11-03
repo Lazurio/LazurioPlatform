@@ -1913,8 +1913,8 @@ is fetched (`update-available` is the
 last verified check on disk); nothing restarts. `--sign-in` additionally runs each
 installed tool's sign-in probe, which may contact its provider, exactly as `tools list
 --sign-in`. `--routes` additionally asks the home access service for this Environment's
-routes (`GET /v1/targets`, read only) and tries each route with `ssh -o BatchMode=yes
-<id> true` (checks `access-service` and `environment-route`, decision F70's addendum of
+routes (`GET /v1/targets`, read only), checks that `ssh <id>` resolves to each route
+and tries exactly that route with `true` (checks `access-service` and `environment-route`, decision F70's addendum of
 2026-11-03). The heavy reader is the active executable's `self-check`, one process, as in
 `recover`. A test snapshots the whole temporary tree (paths, modes, sizes, modification
 times, the SHA-256 of every file and the target of every link) before and after and finds
