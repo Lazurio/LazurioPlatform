@@ -289,9 +289,8 @@ export function isHostname(value: unknown): value is string {
   );
 }
 
-/** The one port the access service listens on (Machines
- * `workloads/conglomerate-host/access-service.ts` ACCESS_SERVICE_PORT). */
-export const accessServicePort = 8444;
+// 8444: the one port the access service listens on (Machines
+// `workloads/conglomerate-host/access-service.ts` ACCESS_SERVICE_PORT).
 const accessServiceOriginPattern = /^http:\/\/([a-z0-9.-]+):8444$/;
 /** The access service's origin by the wire schema's rule and nothing looser
  * (decision F70 point 1): exactly `http://`, a tailnet DNS name of at least
