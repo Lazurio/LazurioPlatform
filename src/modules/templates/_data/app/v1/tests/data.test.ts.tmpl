@@ -32,6 +32,24 @@ test("a record that matches its collection's schema passes", () => {
   );
 });
 
+test("a record whose id starts with a dot is checked too; only .gitkeep is left out", () => {
+  withData(
+    {
+      ".gitkeep": "",
+      "notes/.gitkeep": "",
+      "notes/.hidden.yaml": "schemaVersion: note.v1\nid: .hidden\nrecord:\n  title: ''\n",
+      ".drafts/x.yaml": "schemaVersion: note.v1\nid: x\nrecord: {}\n",
+    },
+    (root) => {
+      const { documents, problems } = validateDataDirectory(root, specs);
+      expect(documents).toBe(1);
+      expect(problems).toHaveLength(2);
+      expect(problems.join("\n")).toContain(".hidden.yaml");
+      expect(problems.join("\n")).toContain(".drafts: the collection has no schema");
+    },
+  );
+});
+
 test("a wrong record, envelope or collection fails", () => {
   withData(
     {

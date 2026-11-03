@@ -8,13 +8,18 @@
 //
 // A directory is laid out like db/data/: one subdirectory per collection, one
 // document <id>.yaml each, with the envelope of repository-db
-// (schemaVersion, id, record).
+// (schemaVersion, id, record). Every other entry is a problem, a name with a
+// leading dot too (`.hidden.yaml` is the record `.hidden`); only the empty
+// placeholder `.gitkeep` that keeps an empty directory in Git is left out.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { type CollectionSpec, collections } from "./domain/collections";
 
 export type DataCheck = Readonly<{ documents: number; problems: readonly string[] }>;
+
+/** The placeholder that keeps an empty directory in Git; no record. */
+const placeholder = ".gitkeep";
 
 export function validateDataDirectory(
   root: string,
@@ -25,7 +30,7 @@ export function validateDataDirectory(
   const problems: string[] = [];
   let documents = 0;
   for (const entry of readdirSync(root, { withFileTypes: true })) {
-    if (entry.name.startsWith(".")) continue;
+    if (entry.name === placeholder && entry.isFile()) continue;
     const directory = join(root, entry.name);
     if (!entry.isDirectory()) {
       problems.push(`${directory}: not a collection directory`);
@@ -37,7 +42,7 @@ export function validateDataDirectory(
       continue;
     }
     for (const file of readdirSync(directory)) {
-      if (file.startsWith(".")) continue;
+      if (file === placeholder) continue;
       const path = join(directory, file);
       documents += 1;
       if (!file.endsWith(".yaml")) {
