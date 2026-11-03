@@ -22,18 +22,30 @@ export const scaffoldLeaseId = "main";
 export const scaffoldListenerId = "app";
 export const scaffoldAppPackage = "app/v1/package.json";
 
-/** The Bun version a new module pins: this repository's own `packageManager`
- * (tests keep the two equal), as the root pinned its Core's. */
-export const scaffoldBunVersion = "1.4.2";
+/** The release of the stack profiles a new module is born in
+ * (`docs/stack-profiles.md`, decision F69). The templates' exact pins are this
+ * release's; changing one is a new release of the profiles, never a quiet
+ * bump. */
+export const stackProfilesRelease = "2026.11";
+
+/** The Bun version a new module pins: the common base of the stack profiles
+ * (`docs/stack-profiles.md`), not this repository's own toolchain. The
+ * module's `@types/bun` follows it. */
+export const scaffoldBunVersion = "1.4.4";
 
 /** The versions a new module pins besides Bun: the module kit, uv, and the
- * one released repository-db a module with data depends on (`--data`; root
- * `manual/module-standard.md`: one released tag, `MS-10`). */
+ * one released repository-db a module with data depends on (`--data`; the
+ * Module Standard: one released tag, `MS-10`), all from the stack profiles. */
 export const defaultScaffoldVersions = Object.freeze({
   moduleKit: "0.2.0",
   uv: "0.11.6",
-  repositoryDb: "3.2.0",
+  repositoryDb: "3.2.6",
 });
+
+/** The schema library of a module with data (`--data`): Zod is the one
+ * source of the shape of its records (profile `app-data`,
+ * `docs/stack-profiles.md`). */
+export const scaffoldZodVersion = "4.6.7";
 
 /** The data generation a new module's data repository starts on: its branch
  * (repository-db: a major generation is a Git branch). */
@@ -66,10 +78,15 @@ export const environmentPorts: readonly number[] = Object.freeze([
   443, 3773, 4102, 4103, 4174, 4180, 4789, 4848, 9222, 20_000,
 ]);
 
+/** The stack profiles (`docs/stack-profiles.md`): which exact tools a
+ * module of a kind is built with. A stack without TypeScript has none. */
+export type StackProfile = "content" | "app" | "app-data" | "app-database";
+
 type StackSpec = Readonly<{
   layers: readonly string[];
   toolchain: "bun" | "uv" | null;
   category: string;
+  profile: StackProfile | null;
 }>;
 
 const stacks = {
@@ -77,28 +94,38 @@ const stacks = {
     layers: ["_common", "_bun", "vite-react"],
     toolchain: "bun",
     category: "application",
+    profile: "app",
   },
   astro: {
     layers: ["_common", "_bun", "astro"],
     toolchain: "bun",
     category: "publishing",
+    profile: "content",
   },
   "astro-starlight": {
     layers: ["_common", "_bun", "astro-starlight"],
     toolchain: "bun",
     category: "knowledge",
+    profile: "content",
   },
   "bun-service": {
     layers: ["_common", "_bun", "bun-service"],
     toolchain: "bun",
     category: "engineering",
+    profile: "app",
   },
   "python-uv": {
     layers: ["_common", "python-uv"],
     toolchain: "uv",
     category: "engineering",
+    profile: null,
   },
-  none: { layers: ["_common", "none"], toolchain: null, category: "workspace" },
+  none: {
+    layers: ["_common", "none"],
+    toolchain: null,
+    category: "workspace",
+    profile: null,
+  },
 } as const satisfies Record<string, StackSpec>;
 
 export type ModuleStack = keyof typeof stacks;
@@ -106,6 +133,23 @@ export type ModuleStack = keyof typeof stacks;
 export const moduleScaffoldStacks = Object.freeze(
   Object.keys(stacks),
 ) as readonly ModuleStack[];
+
+/** The stack profile a new module of `stack` is born in: with data
+ * (`--data`), an app's profile is `app-data`, and a content stack keeps
+ * `content` with the data layer of `app-data` (repository-db and Zod). */
+export function moduleStackProfile(
+  stack: ModuleStack,
+  data = false,
+): StackProfile | null {
+  const profile: StackProfile | null = stacks[stack].profile;
+  return data && profile === "app" ? "app-data" : profile;
+}
+
+/** Where a stack profile is published: its section of
+ * `docs/stack-profiles.md` in this public repository. */
+export function stackProfileUrl(profile: StackProfile): string {
+  return `https://github.com/Lazurio/LazurioPlatform/blob/main/docs/stack-profiles.md#${profile}`;
+}
 
 /** The layer a personal module gets last, over its stack's layers. */
 export const personalLayer = "_personal";
@@ -391,6 +435,7 @@ export function planModuleScaffold(
         };
 
   const personal = owner.kind === "personal";
+  const profile = moduleStackProfile(stack, data);
   const values: Record<string, string> = {
     slug,
     display_name: displayName,
@@ -407,6 +452,9 @@ export function planModuleScaffold(
     bun_version: pinned.bun,
     module_kit_version: pinned.moduleKit,
     uv_version: pinned.uv,
+    stack_profile: profile ?? "",
+    stack_profile_release: stackProfilesRelease,
+    stack_profile_url: profile === null ? "" : stackProfileUrl(profile),
     // Wording of a module's own files that names whose it is (decision F52).
     owner_label: personal ? "osobního prostoru" : "Organizace",
     pool_label: personal ? "osobního poolu" : "poolu Organizace",
@@ -525,9 +573,10 @@ export function planModuleScaffold(
 }
 
 /** What `--data` changes in a module's files: its app depends on the one
- * released repository-db, its Git ignores the data mount `db/` (a repository
- * of its own), and its AGENTS.md says where the data lives and how it is
- * published. */
+ * released repository-db and on Zod (profile `app-data`), its Git ignores the
+ * data mount `db/` (a repository of its own), and its AGENTS.md says where
+ * the data lives, how it is published and that Zod is the one source of its
+ * shape. */
 function withData(
   files: Map<string, ScaffoldFile>,
   slug: string,
@@ -544,6 +593,7 @@ function withData(
   };
   const dependencies = { ...(pkg.dependencies ?? {}) };
   dependencies["@lazurio/repository-db"] = engine;
+  dependencies.zod = scaffoldZodVersion;
   pkg.dependencies = Object.fromEntries(
     Object.entries(dependencies).sort(([left], [right]) =>
       left < right ? -1 : left > right ? 1 : 0,
@@ -571,6 +621,11 @@ Modulu ignoruje. App k nim přistupuje přes \`@lazurio/repository-db\` (jedna
 vydaná verze v \`app/v1/package.json\`), nikdy přímo přes Git. Commit a push
 dat do \`v3\` je Publikace: dělá ji tlačítko „Publikovat změny“ nebo
 \`repository-db publish\` na pokyn uživatele.
+
+Tvar záznamů popisují jen schémata Zodu: typy se z nich odvozují
+(\`z.infer\`) a JSON Schema se z nich generuje, ručně psané typy dat ani
+druhé schéma se nepíšou (profil \`app-data\`,
+${stackProfileUrl("app-data")}).
 `,
     });
 }

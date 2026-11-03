@@ -121,10 +121,10 @@ new mapping there and shows the App starting on the new port after the merge.
   "name": "notes-app-v1",
   "private": true,
   "type": "module",
-  "packageManager": "bun@1.4.2",
+  "packageManager": "bun@1.4.4",
   "scripts": {
     "dev": "bun --no-env-file run src/server.ts",
-    "check": "bun run typecheck && bun run lint",
+    "check": "bun run typecheck && bun run lint && bun run test",
     "check:prepared": "bun run src/prepared.ts",
     "test": "bun test"
   },
@@ -135,9 +135,9 @@ new mapping there and shows the App starting on the new port after the merge.
 }
 ```
 
-The App's `package.json` carries the scripts `dev`, `check` (type check and
-Biome) and `test`, the run declaration `lazurio.runtime` and the preparation
-`lazurio.preparation`. The Platform reads an App only through `lazurio.runtime`;
+The App's `package.json` carries the scripts `dev`, `check` (type check, Biome
+and the tests) and `test`, the run declaration `lazurio.runtime` and the
+preparation `lazurio.preparation`. The Platform reads an App only through `lazurio.runtime`;
 an App that still declares the legacy `companyascode.app` is refused
 (`src/modules/read-application.ts`).
 
@@ -157,8 +157,9 @@ cannot have refuses the run with a reason named by the App's `package.json`:
 A `packageManager` that is not an exact Bun version is
 `preparation-package-manager-unsupported`.
 
-A new Module pins the Bun this repository pins in its own `package.json`
-(`scaffoldBunVersion`, `src/modules/scaffold.ts`). Another released version is
+A new Module pins the Bun of its [stack profile](stack-profiles.md), the same
+for every profile (`scaffoldBunVersion`, `src/modules/scaffold.ts`), not the Bun
+this repository builds with. Another released version is
 the Module author's deliberate choice in an ordinary pull request of the Module;
 every Environment that runs it fetches that version once. In an Organization with
 a Henry, Henry may converge the pins up to Lazurio's default version (decision
@@ -632,8 +633,17 @@ commit and push, a Publication.
 
 An App is written in strict TypeScript: no `.js`, `.mjs` or `.cjs` sources, and
 framework configuration in TypeScript (`vite.config.ts`, `astro.config.ts`).
-`bun run check` runs the type check and Biome; `bun test` runs the tests; the
-Module's CI runs both on every pull request.
+`bun run check` runs the type check, Biome and the tests (`bun test`), and in an
+App with data the validation of its data as well; the Module's CI runs it on
+every pull request.
+
+Each App is built with the exact tools of its [stack profile](stack-profiles.md)
+(decision
+[F69](decisions.md#f69--stack-profiles-the-exact-tools-a-module-is-built-with-changed-only-by-a-generation-transition-or-a-profile-release)):
+`content` for the Astro stacks, `app` for `vite-react` and `bun-service`,
+`app-data` with repository-db data and `app-database` with Dolt. Its tools change
+only by a transition to the next App generation or by a new release of its
+profile, which an existing Module takes in a pull request of its own.
 
 | App | Stack (`lazurio module create --stack`) |
 | --- | --- |
@@ -752,8 +762,8 @@ generations, health, the built version. The pull request says what did not fit
 before and what deliberately stays.
 
 Verification happens in the worktree with the change: `bun install
---frozen-lockfile`, `bun run check` and `bun test` in every App, and the build
-script of a built App. `lazurio module start` runs the primary checkout on
+--frozen-lockfile` and `bun run check` in every App, and the build script of a
+built App. `lazurio module start` runs the primary checkout on
 `main`, so a start through the Platform verifies the change only after the merge,
 from a checkout that contains it. A Module created from a Lazurio template keeps
 its lineage through merge commits (decision
@@ -794,7 +804,7 @@ of the Platform is an issue in this repository, without Organization content.
 | `MS-10` | repository-db and `@lazurio/module-kit` are pinned to released tags | Rule only. `lazurio module create` writes released tags (`src/modules/scaffold.ts`) |
 | `MS-11` | No absolute paths of a computer, no symlinks created at start, no `modules/` layout | A Module, its App directories and its required slots are never read through a symlink: `src/folder/owned-directory.ts`. The rest: rule only |
 | `MS-12` | `apps[]` matches the directories; at most two App generations | Only declared Apps start and a Module without `apps` does not (`explicit-apps-required`, `src/modules/manifest.ts`); overlapping App directories under the default preparation are refused (`preparation-applications-overlap`, `src/modules/preparation-binding.ts`). Undeclared packages and the number of generations: rule only |
-| `MS-13` | The `check` and `test` scripts exist; the Module's CI runs them | Rule only. `lazurio module create` writes both (`tests/module-scaffold.test.ts`) |
+| `MS-13` | The `check` and `test` scripts exist; `check` runs the tests and the Module's CI runs `check` | Rule only. `lazurio module create` writes both (`tests/module-scaffold.test.ts`) |
 | `MS-14` | CI saves minutes: a workflow with a Windows or macOS job runs only for `pull_request` with non-empty `paths` and on `workflow_dispatch` | Rule only |
 
 ## GEN3
@@ -834,8 +844,9 @@ and on this repository's
 [F52](decisions.md#f52--one-module-generator-in-the-platform-a-persons-own-modules-in-their-personalspace),
 [F53](decisions.md#f53--every-environment-owns-its-vault-its-own-organization-in-the-networks-vaultwarden-created-by-its-technical-account),
 [F58](decisions.md#f58--a-static-app-starts-from-main-as-its-build-each-commit-built-once-outside-the-checkout-served-by-the-platform-rebuilt-after-a-pull),
-[F62](decisions.md#f62--the-bun-an-app-pins-is-its-runtime-the-users-bun-when-it-is-that-version-else-the-runtime-cache-else-a-verified-fetch)
-and [F67](decisions.md#f67--guest-modules-another-organizations-module-in-the-hosts-workspace-kept-current-never-run).
+[F62](decisions.md#f62--the-bun-an-app-pins-is-its-runtime-the-users-bun-when-it-is-that-version-else-the-runtime-cache-else-a-verified-fetch),
+[F67](decisions.md#f67--guest-modules-another-organizations-module-in-the-hosts-workspace-kept-current-never-run)
+and [F69](decisions.md#f69--stack-profiles-the-exact-tools-a-module-is-built-with-changed-only-by-a-generation-transition-or-a-profile-release).
 
 ## Provenance
 

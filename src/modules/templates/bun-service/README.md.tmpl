@@ -13,15 +13,22 @@ a TypeScript strict, bez frameworku. Vznikl příkazem
   `src/server.ts` čte listener přes `@lazurio/module-kit`, odmítne cizí `Host`
   a na `SIGTERM` zavře spojení a skončí 0; `src/app.ts` drží obsluhu requestů.
 - `.github/workflows/check.yml` — CI: `bun install --frozen-lockfile`,
-  `bun run check`, `bun test`.
+  `bun run check` (typová kontrola, Biome a testy).
+
+## Stack
+
+Modul vznikl podle stack profilu
+[`{{stack_profile}}` {{stack_profile_release}}]({{stack_profile_url}}): přesné
+verze Bunu, TypeScriptu, Biome a frameworku v `app/v1/package.json` jsou jeho.
+Mění se jen řízeně: novým vydáním profilu, které Modul převezme vlastním PR,
+nebo přechodem na další generaci `app/v<N>`.
 
 ## Vývoj
 
 ```sh
 cd app/v1
 bun install --frozen-lockfile
-bun run check   # tsc --noEmit + biome
-bun test        # jednotkové testy a start kontrakt
+bun run check   # tsc --noEmit, biome, jednotkové testy a start kontrakt
 ```
 
 Start patří Launchpadu: `lazurio module start {{module_name}} --json`

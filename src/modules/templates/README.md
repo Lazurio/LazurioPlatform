@@ -27,6 +27,14 @@ Platform). Every file is the root's byte for byte, except:
   `vite-react` apps declare `build_output: "dist"` (`vite-react` also
   `static_fallback: "spa"`), and their `README.md` says that the Launchpad
   opens them from `main` as their build.
+- **The stack profiles** (decision F69, `docs/stack-profiles.md`, release
+  2026.11): every Bun app pins its profile's exact tools (`@types/bun` is
+  `{{bun_version}}`), `check` runs the tests too and CI runs only `check`,
+  `biome.json` uses the recommended preset and leaves Markdown and YAML
+  unformatted, the Astro `tsconfig.json` names `"types": ["bun"]` for
+  TypeScript 6, and each stack's `README.md` names its profile and links it.
+  A new release of the profiles changes these templates in its own pull
+  request.
 
 Since the Organization form moved here too (decision F52's addendum of
 2026-10-14), these are the only templates that change; the root's generator
@@ -65,6 +73,7 @@ section on the data to `AGENTS.md` (`withData` in `scaffold.ts`).
 | `python_package` | the slug with `_` for `-` | same |
 | `port` | the lease's port | same |
 | `bun_version`, `module_kit_version`, `uv_version` | the pinned versions | same |
+| `stack_profile`, `stack_profile_release`, `stack_profile_url` | the module's stack profile (`app-data` with `--data` for an app stack), the release of the profiles and the profile's section of `docs/stack-profiles.md`; empty for `python-uv` and `none` | same |
 | `owner_label` | `Organizace` | `osobního prostoru` |
 | `pool_label` | `poolu Organizace` | `osobního poolu` |
 | `module_name` | `<organization>/<slug>` | `personalspace/<slug>` |
@@ -76,8 +85,9 @@ or control characters).
 
 ## Standard
 
-Every app template must pass the Lazurio Module Standard once generated (root
-`manual/module-standard.md`); the port is never written into a template
+Every app template must pass the Lazurio Module Standard once generated
+(`docs/module-standard.md`), with the exact tools of its stack profile
+(`docs/stack-profiles.md`); the port is never written into a template
 (`MS-01`, chapter 4.2), the app reads it from its listener variables. Until
 `lazurio module setup` reaches the Platform (#423), `tests/module-scaffold.test.ts`
 checks what the Platform reads: the module manifest, each app's runtime and
