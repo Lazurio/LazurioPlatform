@@ -11,6 +11,7 @@ import type {
 } from "../contract/platform";
 import {
   type BootTime,
+  browserBounds,
   browserTimes,
   handOffAddress,
   navigableAddress,
@@ -33,6 +34,13 @@ import {
   type ViewSize,
   viewSizeLimits,
 } from "./protocol";
+import {
+  maxRemembered,
+  parseRemembered,
+  type RememberedTab,
+  rememberedText,
+  rememberTimes,
+} from "./remembered";
 import {
   activityScript,
   addressKey,
@@ -123,6 +131,13 @@ export type HubSeams = Readonly<{
    * that woke (decision F57, `SleepState`), so a restart of the view keeps
    * them; absent, they live as long as the service. */
   sleepState?: Readonly<{
+    read: () => Promise<string | null>;
+    write: (text: string) => Promise<void>;
+  }>;
+  /** Where the hub remembers the last address of every tab by its id, so a
+   * link to a tab that ended opens it again (F57's addendum of 2026-11-03,
+   * `RememberedTab`); absent, it remembers as long as the service runs. */
+  remembered?: Readonly<{
     read: () => Promise<string | null>;
     write: (text: string) => Promise<void>;
   }>;
@@ -510,6 +525,12 @@ export class BrowserHub {
    * caller waits for the first one's tab. */
   private readonly opening = new Map<string, Promise<string | null>>();
   private stateRead = false;
+  /** The last address of every tab by its id, least recently seen first
+   * (F57's addendum of 2026-11-03), and its writing. */
+  private readonly remembered = new Map<string, RememberedTab>();
+  private rememberSoon: ReturnType<typeof setTimeout> | null = null;
+  private remembering = false;
+  private rememberAgain = false;
   private sleepBusy = false;
   private persistSoon: ReturnType<typeof setTimeout> | null = null;
   private persisting = false;
@@ -615,6 +636,12 @@ export class BrowserHub {
     for (const sleeper of this.sleeping.values()) this.clearSleeper(sleeper);
     if (this.persistSoon !== null) clearTimeout(this.persistSoon);
     this.persistSoon = null;
+    if (this.rememberSoon !== null) {
+      // What changed since the last write is written now, not lost.
+      clearTimeout(this.rememberSoon);
+      this.rememberSoon = null;
+      void this.writeRemembered();
+    }
     for (const entry of this.closing.values())
       if (entry.timer !== null) clearTimeout(entry.timer);
     this.closing.clear();
@@ -909,11 +936,124 @@ export class BrowserHub {
     return this.resolve(id) !== undefined || this.sleeping.has(id);
   }
 
+  /** A tab of this id exists, or ended and is remembered, so Probudit opens
+   * it again (F57's addendum of 2026-11-03). */
+  canWake(id: string): boolean {
+    return this.hasTab(id) || (this.ready && this.remembered.has(id));
+  }
+
+  /** A tab that ended, remembered under this id, as a tab that sleeps: its
+   * tombstone, which a viewer or Probudit then wakes as any other (F57's
+   * addendum of 2026-11-03). Only while the hub knows every page, so a tab
+   * that merely has not been reported yet is never opened twice. Undefined
+   * for an id it does not remember. */
+  private reopenable(id: string): Sleeper | undefined {
+    if (!this.ready || this.resolve(id) !== undefined) return undefined;
+    const kept = this.remembered.get(id);
+    if (kept === undefined || this.closing.has(id)) return undefined;
+    const sleeper: Sleeper = {
+      record: {
+        id,
+        url: kept.url,
+        title: kept.title,
+        favicon: kept.favicon,
+        opener: kept.opener,
+        openedAt: kept.openedAt,
+        usedAt: kept.seenAt,
+        sleptAt: Date.now(),
+        reason: "ended",
+      },
+      falling: null,
+      fellFrom: null,
+      closeEpoch: this.holdsEpoch,
+      agentWakesUntil: 0,
+      viewers: new Set(),
+      waking: false,
+      wakeTimer: null,
+      state: "idle",
+      graceTimer: null,
+      grace: null,
+      kept: null,
+    };
+    this.sleeping.set(id, sleeper);
+    this.seams.log(`reopening ended tab ${id}`);
+    this.publishTabs();
+    this.persist();
+    return sleeper;
+  }
+
+  /** Remembers a tab's address, title and icon by its id, while it has an
+   * address the hub can open again (F57's addendum of 2026-11-03). Never
+   * the hub's own blank window. */
+  private remember(tab: Tab): void {
+    if (this.keeper(tab) || !sleepableAddress(tab.info.url)) return;
+    const before = this.remembered.get(tab.id);
+    const now = Date.now();
+    if (
+      before !== undefined &&
+      before.url === tab.info.url &&
+      before.title === tab.info.title &&
+      before.favicon === tab.info.favicon &&
+      now - before.seenAt < rememberTimes.writeAfterMs * 30
+    )
+      return;
+    this.remembered.delete(tab.id);
+    this.remembered.set(tab.id, {
+      id: tab.id,
+      url: tab.info.url,
+      title: tab.info.title.slice(0, browserBounds.titleLength),
+      favicon: tab.info.favicon,
+      opener: tab.opener,
+      openedAt: tab.openedAt,
+      seenAt: now,
+    });
+    for (const old of this.remembered.keys()) {
+      if (this.remembered.size <= maxRemembered) break;
+      this.remembered.delete(old);
+    }
+    this.writeRememberedSoon();
+  }
+
+  private writeRememberedSoon(): void {
+    if (this.seams.remembered === undefined || this.stopped) return;
+    if (this.rememberSoon !== null) return;
+    this.rememberSoon = setTimeout(() => {
+      this.rememberSoon = null;
+      void this.writeRemembered();
+    }, rememberTimes.writeAfterMs);
+  }
+
+  private async writeRemembered(): Promise<void> {
+    const store = this.seams.remembered;
+    if (store === undefined) return;
+    if (this.remembering) {
+      this.rememberAgain = true;
+      return;
+    }
+    this.remembering = true;
+    try {
+      const keepFrom = Date.now() - rememberTimes.keepMs;
+      for (const [id, kept] of this.remembered)
+        if (kept.seenAt < keepFrom) this.remembered.delete(id);
+      await store.write(rememberedText(this.remembered.values()));
+    } catch (error) {
+      this.seams.log(`writing the remembered tabs failed: ${String(error)}`);
+    } finally {
+      this.remembering = false;
+      if (this.rememberAgain) {
+        this.rememberAgain = false;
+        void this.writeRemembered();
+      }
+    }
+  }
+
   /** Adds a person's socket to a tab. False when there is no such page. A
    * tab that sleeps wakes for a shown viewer (decision F57); the socket
-   * waits for it. */
+   * waits for it. A tab that ended but is remembered becomes a tab that
+   * sleeps first, so its link opens its address again under its id (F57's
+   * addendum of 2026-11-03). */
   attach(id: string, viewer: Viewer): boolean {
-    const sleeper = this.sleeping.get(id);
+    const sleeper = this.sleeping.get(id) ?? this.reopenable(id);
     if (sleeper !== undefined && sleeper.falling === null) {
       this.waitFor(sleeper, viewer);
       const { record } = sleeper;
@@ -1476,6 +1616,7 @@ export class BrowserHub {
       const waking = this.sleeping.get(tabId);
       if (tabId !== targetId && waking !== undefined) this.adopt(waking, tab);
       else this.review(tab);
+      this.remember(tab);
     } else {
       // Chrome's target title is only the address (see metaScript): it is
       // taken with a new address, and the page's own title follows.
@@ -2590,7 +2731,7 @@ export class BrowserHub {
    * the browser did not open it. */
   async wakeTab(id: string): Promise<boolean> {
     if (this.resolve(id) !== undefined) return true;
-    const sleeper = this.sleeping.get(id);
+    const sleeper = this.sleeping.get(id) ?? this.reopenable(id);
     if (sleeper === undefined) return false;
     await this.wake(sleeper);
     // Another wake may be on its way already: wait for it as long.
@@ -3050,6 +3191,15 @@ export class BrowserHub {
   private async sameBrowser(browser: string | null): Promise<void> {
     if (!this.stateRead) {
       this.stateRead = true;
+      // The remembered tabs outlast a restart of the browser: read whatever
+      // browser this is (F57's addendum of 2026-11-03).
+      const remembered = await this.seams.remembered?.read().catch(() => null);
+      if (remembered) {
+        for (const kept of parseRemembered(remembered, Date.now()))
+          if (!this.remembered.has(kept.id)) this.remembered.set(kept.id, kept);
+        if (this.remembered.size > 0)
+          this.seams.log(`${this.remembered.size} remembered tab(s)`);
+      }
       const text = await this.seams.sleepState?.read().catch(() => null);
       const state = text ? parseSleepState(text) : null;
       if (state !== null && browser !== null && state.browser === browser) {
@@ -3281,6 +3431,7 @@ export class BrowserHub {
   }
 
   private queueInfo(tab: Tab): void {
+    this.remember(tab);
     if (tab.viewers.size === 0 || tab.infoTimer !== null) return;
     tab.infoTimer = setTimeout(() => {
       tab.infoTimer = null;

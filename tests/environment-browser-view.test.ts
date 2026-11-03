@@ -377,6 +377,8 @@ async function serve(
     sleepCloseMs?: number;
     wakeRetryMs?: number;
     sleepState?: HubSeams["sleepState"];
+    /** F57's addendum of 2026-11-03: where the hub remembers tabs. */
+    remembered?: HubSeams["remembered"];
     /** Decision F57 point 6: a pressure source and the rule's times. */
     pressure?: HubSeams["pressure"];
     pressureEveryMs?: number;
@@ -441,6 +443,9 @@ async function serve(
       ...(options.sleepState === undefined
         ? {}
         : { sleepState: options.sleepState }),
+      ...(options.remembered === undefined
+        ? {}
+        : { remembered: options.remembered }),
       ...(options.pressure === undefined
         ? {}
         : {
@@ -3637,4 +3642,77 @@ test("a tab nothing holds keeps F47's count through the pressure rule: asleep, i
     Math.max(before[0] as number, before[1] as number) - 10,
   );
   expect(closedTargets(browser)).toEqual([id(1)]);
+});
+
+// ---- Remembered tabs (F57's addendum of 2026-11-03) ----------------------------
+
+test("a link to a tab that ended opens its address again under the same id, after a restart of the browser too; an id never seen is still gone", async () => {
+  let written: string | null = null;
+  const remembered: HubSeams["remembered"] = {
+    read: async () => written,
+    write: async (text) => {
+      written = text;
+    },
+  };
+  const address = "https://example.com/report?x=1";
+  const browser = new FakeBrowser([tab(1, { url: address, title: "Report" })]);
+  browser.browserId = "browser-one";
+  await serve(browser, { remembered });
+  // The tab ends: nothing holds it, or its window closed.
+  browser.targets.delete(id(1));
+  browser.emit("Target.targetDestroyed", { targetId: id(1) });
+  await until(() => hubNow()?.hasTab(id(1)) === false);
+  await service?.stop();
+  service = undefined;
+  if (root) await rm(root, { recursive: true, force: true });
+  // Its address was written down before the service stopped.
+  expect(String(written)).toContain(address);
+  // A day later the browser restarted and the view with it.
+  browser.drop();
+  browser.browserId = "browser-two";
+  const again = await serve(browser, { remembered });
+  expect(hubNow()?.hasTab(id(1))).toBe(false);
+  const view = await person(again.base, id(1));
+  await until(() => view.of("info").length > 0);
+  expect(view.of("info")[0]).toMatchObject({
+    url: address,
+    title: "Report",
+    loading: true,
+  });
+  await until(() => opened(browser, address) !== undefined);
+  const reopened = opened(browser, address) as string;
+  await until(() => view.of("browser").some((m) => m.state === "connected"));
+  expect(view.of("closed")).toEqual([]);
+  // One tab, by the id its link names.
+  expect(
+    hubNow()
+      ?.list()
+      .map((facts) => facts.id),
+  ).toEqual([id(1)]);
+  expect(factsOf(1)?.sleeping).toBeUndefined();
+  await until(() => (again.writes.at(-1) ?? []).includes(id(1)));
+  expect(again.writes.at(-1)).toContain(reopened);
+  // An id the hub never saw stays gone, as before.
+  const stale = await person(again.base, id(77));
+  await stale.closed;
+  expect(stale.of("closed")).toEqual([{ t: "closed" }]);
+});
+
+test("Probudit opens a remembered tab that ended under its id; an id never seen is not found", async () => {
+  const address = "https://example.com/b";
+  const browser = new FakeBrowser([tab(2, { url: address })]);
+  const { base } = await serve(browser);
+  browser.targets.delete(id(2));
+  browser.emit("Target.targetDestroyed", { targetId: id(2) });
+  await until(() => hubNow()?.hasTab(id(2)) === false);
+  const woke = await loopback(base, `/.lazurio/tabs/${id(2)}/wake`, {
+    method: "POST",
+  });
+  expect(woke).toEqual({ status: 200, body: { awake: true } });
+  expect(opened(browser, address)).toBeDefined();
+  expect(hubNow()?.hasTab(id(2))).toBe(true);
+  const unknown = await loopback(base, `/.lazurio/tabs/${id(78)}/wake`, {
+    method: "POST",
+  });
+  expect(unknown.status).toBe(404);
 });
