@@ -15,9 +15,11 @@ import {
 // ACCESS-SERVICE.md, "PUT /v1/source-key"): `~/.ssh/lazurio-environment-ed25519`
 // and its `.pub`. Every SSH hop from this Environment to another uses it, one
 // key per source, never one per edge. The Platform creates it here with
-// `ssh-keygen` when it is missing, and only then; it never reads the private
-// part (only `ssh-keygen -y` does, inside the Environment), never copies,
-// exports or prints it, and never replaces a key that is there. What it
+// `ssh-keygen` when it is missing, and only then. It opens the private key
+// file only to check that it is a plain file of this account that nobody
+// else may read, and drops its bytes; the public line comes from
+// `ssh-keygen -y`, inside the Environment. It never copies, exports or
+// prints the private part, and never replaces a key that is there. What it
 // hands on is the public line `ssh-ed25519 <blob>`, without a comment.
 //
 // Refused, changing nothing: a link or another account's file at either
