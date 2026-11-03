@@ -23515,15 +23515,22 @@ presented as reachability (Lazurio/LazurioPlatform#766).
    `skipped` (`access-service-not-declared` or `routes-not-tested`) and the configured
    routes are counted, not tried. `lazurio doctor --routes` asks `GET /v1/targets` (read
    only) and tries each route, like `--sign-in` contacts providers only on request:
-   - the service answers: `access-service ok` with the number of routes, then one
-     `environment-route` per target: `ok` with the time, `warn route-unreached` with the
-     cause and time, or `warn route-not-configured` when the service gives a route this
-     Environment has not written. Either `warn` is the incomplete onboarding: the
-     verdict needs attention (exit 10), not `broken`, because the Environment itself
-     works and `lazurio recover` repairs nothing here;
+   - the routes this Environment should have are the service's targets when it answers,
+     else (no declared service) the handover's assigned Work Environments. Each is
+     compared in full with the route the managed config records under its id: host,
+     account and the set of pinned keys (not the deadline, which moves every minute).
+     Only a route recorded exactly as expected is tried; a configured route nobody
+     expects is never tried (review of #825);
+   - per expected route: `ok` with the time, `warn route-unreached` with the cause and
+     time, `warn route-not-configured` when the config has no route under that id (never
+     written, files missing or refused), or `warn route-outdated` when it has another one
+     (the service moved the host or rotated a key since the last synchronization; an old
+     endpoint that still answers is never reported as the current route). Each `warn` is
+     the incomplete onboarding: the verdict needs attention (exit 10), not `broken`,
+     because the Environment itself works and `lazurio recover` repairs nothing here;
    - the service does not answer: only `access-service warn access-service-<unreachable|
-     unavailable|not-recognized|malformed>`; no route, key or target is blamed;
-   - no declared service: the handover's assigned routes are tried as they are.
+     unavailable|not-recognized|malformed>`; no route, key or target is blamed and
+     nothing is tried.
    The rows name the Environment id, the cause and the time (`environment`, `cause`,
    `at` in the context allowlist), never a host name, path or message.
 

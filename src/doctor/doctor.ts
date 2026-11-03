@@ -20,7 +20,12 @@ import {
   executorStatus,
 } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
-import { isEnvironmentId, machineIdentity } from "../folder/machine-binding";
+import {
+  assignedEnvironments,
+  isEnvironmentId,
+  type MachineBinding,
+  machineIdentity,
+} from "../folder/machine-binding";
 import { githubIdentity, presetNames } from "../folder/presets";
 import {
   hostedEnvironment,
@@ -68,13 +73,17 @@ import {
 } from "../recover/observe";
 import { collectRecovery, type RecoveryEnvironment } from "../recover/recover";
 import {
+  type AccessServiceFetch,
   type AccessServiceLocation,
   accessServiceOf,
   askTargets,
   type TargetsAnswer,
   utcInstant,
 } from "../ssh-access/access-service";
-import { recordedRoutes } from "../ssh-access/environments";
+import {
+  type EnvironmentRoute,
+  recordedRoutes,
+} from "../ssh-access/environments";
 import { type RouteTest, routeCauses, testRoutes } from "../ssh-access/routes";
 import {
   type ActivatableTool,
@@ -90,7 +99,12 @@ import {
   observeCodexApps,
 } from "../tools/codex-apps";
 import { type ToolsEnvironment, toolsOverview } from "../tools/overview";
-import { type ToolSignIn, toolsSignIn, toolsStatus } from "../tools/status";
+import {
+  type ToolRunner,
+  type ToolSignIn,
+  toolsSignIn,
+  toolsStatus,
+} from "../tools/status";
 import {
   codexAppServerReasons,
   isCodexVersion,
@@ -307,6 +321,7 @@ const ownReasons = [
   "routes-not-tested",
   "route-not-configured",
   "route-unreached",
+  "route-outdated",
   "no-routes",
 ] as const;
 const catalogReasons: readonly (OrganizationReason | ModuleReason)[] = [
@@ -933,7 +948,7 @@ export type DoctorEnvironment = RecoveryEnvironment &
     accessService?: AccessServiceLocation | null | undefined;
   }>;
 
-/** What the route checks are made of (F70); read by `collectDoctor`. */
+/** What the route checks are made of (F70); read by `observeRoutes`. */
 export type RouteFacts = Readonly<{
   /** A hosted Environment with a readable handover. */
   hosted: boolean;
@@ -943,21 +958,65 @@ export type RouteFacts = Readonly<{
   tested: boolean;
   /** The service's answer, when it was asked. */
   targets: TargetsAnswer | null;
-  /** The Environment ids the managed config has now. */
-  configured: readonly string[];
+  /** The routes this Environment should have now: the service's targets
+   * when it answered, else (no declared service) the handover's assigned
+   * Work Environments; empty when neither is known. */
+  expected: readonly EnvironmentRoute[];
+  /** The routes the managed config records now, in full. */
+  configured: readonly EnvironmentRoute[];
   /** Each route tried, when `tested`. */
   tests: readonly RouteTest[];
 }>;
 
+// A configured route is the expected one only when everything an `ssh`
+// depends on is the same: host, account and the set of pinned keys. A route
+// written before the service moved a host or rotated a key may still
+// connect, to the old endpoint, and is not the current route.
+const sameRoute = (a: EnvironmentRoute, b: EnvironmentRoute) =>
+  a.host === b.host &&
+  a.user === b.user &&
+  a.hostKeys.length === b.hostKeys.length &&
+  a.hostKeys.every((key) =>
+    b.hostKeys.some(
+      (other) => other.type === key.type && other.key === key.key,
+    ),
+  );
+
+/** How each expected route stands in the managed config: the same route
+ * (to be tried), missing, or another route under the same id. */
+export function routeStanding(
+  expected: EnvironmentRoute,
+  configured: readonly EnvironmentRoute[],
+): "current" | "missing" | "outdated" {
+  const found = configured.find(
+    (route) => route.environment === expected.environment,
+  );
+  return found === undefined
+    ? "missing"
+    : sameRoute(found, expected)
+      ? "current"
+      : "outdated";
+}
+
 /** The routes between Environments, plainly: the service's own state, then
- * one check per route. A service that does not answer is reported as
- * exactly that and nothing else is blamed. While it answers, every route it
- * gives must be configured here and reached; one that is not needs
- * attention, as an incomplete onboarding does (never `fail`: the
- * Environment works, only that route does not). */
+ * one check per route this Environment should have. A service that does not
+ * answer is reported as exactly that and nothing else is blamed. Every
+ * expected route must be configured exactly as expected and reached; one
+ * that is missing, outdated or unreached needs attention, as an incomplete
+ * onboarding does (never `fail`: the Environment works, only that route does
+ * not). A configured route nobody expects is never tried. */
 export function routeChecks(facts: RouteFacts): DoctorCheck[] {
   if (!facts.hosted) return [check("access-service", "skipped", "not-hosted")];
-  const tried = (environment: string): DoctorCheck => {
+  const each = (expected: EnvironmentRoute): DoctorCheck => {
+    const environment = expected.environment;
+    const standing = routeStanding(expected, facts.configured);
+    if (standing !== "current")
+      return check(
+        "environment-route",
+        "warn",
+        standing === "missing" ? "route-not-configured" : "route-outdated",
+        { environment },
+      );
     const test = facts.tests.find((entry) => entry.environment === environment);
     if (test === undefined)
       return check("environment-route", "skipped", "routes-not-tested", {
@@ -974,100 +1033,94 @@ export function routeChecks(facts: RouteFacts): DoctorCheck[] {
           at: test.at,
         });
   };
+  const untested = (count: number) =>
+    count === 0
+      ? []
+      : [
+          check("environment-route", "skipped", "routes-not-tested", {
+            routes: count,
+          }),
+        ];
   if (!facts.declared)
     return [
       check("access-service", "skipped", "access-service-not-declared"),
       ...(facts.tested
-        ? facts.configured.map(tried)
-        : facts.configured.length === 0
-          ? []
-          : [
-              check("environment-route", "skipped", "routes-not-tested", {
-                routes: facts.configured.length,
-              }),
-            ]),
+        ? facts.expected.map(each)
+        : untested(facts.expected.length)),
     ];
   if (!facts.tested || facts.targets === null)
     return [
       check("access-service", "skipped", "routes-not-tested"),
-      ...(facts.configured.length === 0
-        ? []
-        : [
-            check("environment-route", "skipped", "routes-not-tested", {
-              routes: facts.configured.length,
-            }),
-          ]),
+      ...untested(facts.configured.length),
     ];
   if (facts.targets.kind !== "answered")
     return [
       check("access-service", "warn", `access-service-${facts.targets.kind}`),
     ];
-  const targets = facts.targets.targets;
   return [
-    check("access-service", "ok", undefined, { routes: targets.length }),
-    ...(targets.length === 0
+    check("access-service", "ok", undefined, {
+      routes: facts.expected.length,
+    }),
+    ...(facts.expected.length === 0
       ? [check("environment-route", "skipped", "no-routes")]
-      : targets.map(({ environment }) =>
-          facts.configured.includes(environment)
-            ? tried(environment)
-            : check("environment-route", "warn", "route-not-configured", {
-                environment,
-              }),
-        )),
+      : facts.expected.map(each)),
   ];
 }
 
-/** Reads the route facts (F70): only the managed config without
- * `--routes`; with it, one `GET /v1/targets` and one try per route. Never
- * writes. */
-async function observeRoutes(
-  environment: DoctorEnvironment,
-  handover: Awaited<ReturnType<DoctorEnvironment["machineContext"]>> | null,
+export type RouteObservation = Readonly<{
+  /** The operator's home; undefined: not hosted here. */
+  home: string | undefined;
+  uid: number | undefined;
+  /** The live handover's binding; null: none readable. */
+  machine: MachineBinding | null;
+  /** Tests only: the access service, instead of the handover's. */
+  service?: AccessServiceLocation | null | undefined;
+  /** `--routes`. */
+  routes: boolean;
+  fetch?: AccessServiceFetch | undefined;
+  run: ToolRunner;
+  now: () => number;
+}>;
+
+/** Reads the route facts (F70): only the managed config and the handover
+ * without `--routes`; with it, one `GET /v1/targets` and one try of each
+ * expected route that is configured as expected. Never writes. */
+export async function observeRoutes(
+  input: RouteObservation,
 ): Promise<RouteFacts> {
-  const home = environment.tools.home;
-  const hosted = handover !== null && home !== undefined;
-  const now = () => environment.now().getTime();
+  const { home, machine } = input;
+  const hosted = machine !== null && home !== undefined;
   const service =
-    environment.accessService !== undefined
-      ? environment.accessService
-      : handover === null
-        ? null
-        : accessServiceOf(machineBinding(handover.context, handover.digest));
+    input.service !== undefined ? input.service : accessServiceOf(machine);
   const configured =
     home === undefined || !hosted
       ? []
-      : (await recordedRoutes({ home, uid: process.getuid?.() })).map(
-          (route) => route.environment,
-        );
-  const tested = hosted && environment.routes === true;
-  const fetchImpl = environment.fetch;
+      : await recordedRoutes({ home, uid: input.uid });
+  const tested = hosted && input.routes;
   const targets =
     tested && service !== null
-      ? await askTargets(
-          service,
-          now,
-          fetchImpl === undefined
-            ? undefined
-            : (url, init) => fetchImpl(url, init),
-        )
+      ? await askTargets(service, input.now, input.fetch)
       : null;
-  const toTry =
-    targets?.kind === "answered"
-      ? targets.targets
-          .map((target) => target.environment)
-          .filter((id) => configured.includes(id))
-      : service === null
-        ? configured
+  const expected: readonly EnvironmentRoute[] = !hosted
+    ? []
+    : service === null
+      ? assignedEnvironments(machine)
+      : targets?.kind === "answered"
+        ? targets.targets
         : [];
+  const toTry = expected
+    .filter((route) => routeStanding(route, configured) === "current")
+    .map((route) => route.environment);
   const tests =
     tested && home !== undefined
-      ? await testRoutes(toTry, home, environment.tools.run, now)
+      ? await testRoutes(toTry, home, input.run, input.now)
       : [];
   return {
     hosted,
     declared: service !== null,
     tested,
     targets,
+    expected,
     configured,
     tests,
   };
@@ -1406,7 +1459,36 @@ export async function collectDoctor(
     ),
     check("computer-use", computer.outcome, computer.reason, computer.context),
     chatgptApps,
-    ...routeChecks(await observeRoutes(environment, handover)),
+    ...routeChecks(
+      await observeRoutes({
+        home: environment.tools.home,
+        uid: process.getuid?.(),
+        machine:
+          handover === null
+            ? null
+            : (() => {
+                try {
+                  return machineBinding(handover.context, handover.digest);
+                } catch {
+                  return null;
+                }
+              })(),
+        ...(environment.accessService === undefined
+          ? {}
+          : { service: environment.accessService }),
+        routes: environment.routes === true,
+        fetch:
+          environment.fetch === undefined
+            ? undefined
+            : (url, init) =>
+                (environment.fetch as NonNullable<DoctorEnvironment["fetch"]>)(
+                  url,
+                  init,
+                ),
+        run: environment.tools.run,
+        now: () => environment.now().getTime(),
+      }),
+    ),
   ];
   // Group order, stable within a group.
   const ordered = doctorGroups.flatMap((group) =>
