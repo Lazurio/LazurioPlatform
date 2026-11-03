@@ -19,9 +19,12 @@ does today; the rest of this document stays future direction.
   repository, publisher, SPDX license, its stone, `pricing` (only `free`), its words
   in Czech and English (one line, up to four features, the dialog's starts) and its
   releases, newest first. A release names `version`, tag `v<version>`, what it is
-  built on (the app generation `app/v<N>`, the scaffold's stack and the exact Bun,
-  because a generation transition or a release of the stack profile changes them;
-  decided 2026-11-03), the full `commit` the tag points to and the `artifactDigest`
+  built on (the app generation `app/v<N>`, which names the data layer: v1 and v2 no
+  data of their own, v3 repository-db, v4 Dolt; the
+  [stack profile](stack-profiles.md) release such as `app-data@2026.11`, one release
+  `YYYY.MM` for all four profiles; the scaffold's stack and the exact Bun, because a
+  generation transition or a release of the stack profile changes them; decided
+  2026-11-03), the full `commit` the tag points to and the `artifactDigest`
   of an attested artifact, the last two filled in only once the release is published.
   The Launchpad offers the newest release whose commit is recorded. The catalog holds
   no second copy of the source. A tag or a branch is not an immutable identity.
@@ -31,13 +34,14 @@ does today; the rest of this document stays future direction.
   Marketplace) and its prompt route answers 404. `parseMarketplaceIndex` still reads
   such an offer in full, so an invalid announcement refuses the index as any other
   error does.
-- **Today's offers.** Mission Control 4.0.0 (`app/v3`), Design System 1.0.0
-  (`app/v1`) and Presentations 0.1.0 (`app/v1`), all three of
-  `LazurioExampleOrganization`, MIT, on Bun 1.4.4. None is released yet, so the
-  Marketplace shows none of them and says there are no app templates yet. Mission
-  Control's only public source is `LazurioExampleOrganization/mission-control`.
-  Presentations moved there from `TemplatesRozjedeme-ai` with a clean history
-  (decided 2026-11-03).
+- **Today's offers.** Mission Control 4.0.0 (`app/v3`, `app-data@2026.11`), Design
+  System 1.0.0 (`app/v1`, `content@2026.11`) and Presentations 0.1.0 (`app/v1`,
+  `app@2026.11`), MIT, on Bun 1.4.4. None is released yet, so the Marketplace shows
+  none of them and says there are no app templates yet. Lazurio releases Mission
+  Control from its upstream `Lazurio/mission-control` (releases v3.0.0 to v3.1.0
+  before); `LazurioExampleOrganization` takes its releases over by merging their tags
+  and publishes Design System and Presentations. Presentations moved there from
+  `TemplatesRozjedeme-ai` with a clean history (decided 2026-11-03).
 - **It looks like the module it becomes.** An offer carries the stone its module
   shows in Apps (`presentation`, `shell/stones.ts`). The catalog's card is a real
   screen of the app, the stone, the name and one line, as a tile in Apps.
@@ -73,8 +77,10 @@ does today; the rest of this document stays future direction.
   and an Organization of the Folder bound to that login; every other case is the same
   404. The brief names the exact release, the Organization and
   the start, and tells the agent to follow the release's `docs/adoption.md`: check live
-  rights, name collision and compatibility, show the plan, `lazurio module create`,
-  merge the pinned commit so it stays an ancestor, prepare a PR, prepare a request
+  rights, name collision and compatibility, show the plan, create the module with
+  `lazurio module create --stack <release stack>`, adding `--data` for a release of
+  generation `app/v3` or later (derived from the generation, as the template's
+  `docs/adoption.md` says), merge the pinned commit so it stays an ancestor, prepare a PR, prepare a request
   where rights do not reach, merge or activate nothing without the person's explicit
   instruction. The dialog then says Chat opened with the brief ready, unsent. It never
   claims installation on a click.

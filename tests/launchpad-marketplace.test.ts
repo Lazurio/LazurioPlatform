@@ -4,6 +4,7 @@ import {
   adoptionPrompt,
   adoptionPromptId,
   builtInMarketplace,
+  createCommand,
   isAdoptionPromptId,
   type MarketplaceCatalog,
   type MarketplaceOffer,
@@ -81,6 +82,7 @@ const releaseWith = (fields: Record<string, unknown>) => ({
   version: "0.1.0",
   tag: "v0.1.0",
   generation: "app/v1",
+  stackProfile: "app@2026.11",
   stack: "vite-react",
   bun: "1.4.4",
   commit: null,
@@ -101,7 +103,7 @@ const example: BoundOrganization = {
   repositories: [],
 };
 
-test("the built-in copy is the registry's index: three templates of the example Organization, none released yet, so none shown", () => {
+test("the built-in copy is the registry's index: three templates, none released yet, so none shown", () => {
   expect(builtInMarketplace.source).toBe("built-in");
   expect(builtInMarketplace.commit).toBeNull();
   expect(builtInMarketplace.offers).toEqual([]);
@@ -119,6 +121,7 @@ test("the built-in copy is the registry's index: three templates of the example 
       offer.stone,
       offer.release.version,
       offer.release.generation,
+      offer.release.stackProfile,
       offer.release.stack,
       offer.release.bun,
       offer.screenshots.length,
@@ -131,17 +134,19 @@ test("the built-in copy is the registry's index: three templates of the example 
       "palette",
       "1.0.0",
       "app/v1",
+      "content@2026.11",
       "astro",
       "1.4.4",
       5,
     ],
     [
       "mission-control",
-      "LazurioExampleOrganization/mission-control",
+      "Lazurio/mission-control",
       "MIT",
       "control",
       "4.0.0",
       "app/v3",
+      "app-data@2026.11",
       "vite-react",
       "1.4.4",
       4,
@@ -153,13 +158,17 @@ test("the built-in copy is the registry's index: three templates of the example 
       "presentation",
       "0.1.0",
       "app/v1",
+      "app@2026.11",
       "vite-react",
       "1.4.4",
       4,
     ],
   ]);
-  // Mission Control has one public source.
-  expect(JSON.stringify(builtInIndex)).not.toContain("Lazurio/mission-control");
+  // Lazurio releases Mission Control from its upstream; the example
+  // Organization only takes the releases over.
+  expect(JSON.stringify(builtInIndex)).not.toContain(
+    "LazurioExampleOrganization/mission-control",
+  );
   expect(releaseUrl(released)).toBe(
     "https://github.com/LazurioExampleOrganization/presentations/releases/tag/v0.1.0",
   );
@@ -181,8 +190,19 @@ test("an index is read in full or refused: unknown schema, field or value, a dup
     indexWith("presentations", { section: "profiles" }),
     indexWith("presentations", { repository: "Other/presentations" }),
     indexWith("presentations", { id: "mission-control" }),
-    // The generation, the stack and the Bun are a release's, not the offer's.
+    // The generation, the stack profile, the stack and the Bun are a
+    // release's, not the offer's.
     indexWith("presentations", { generation: "app/v1" }),
+    indexWith("presentations", { stackProfile: "app@2026.11" }),
+    indexWith("presentations", {
+      releases: [releaseWith({ stackProfile: undefined })],
+    }),
+    indexWith("presentations", {
+      releases: [releaseWith({ stackProfile: "app" })],
+    }),
+    indexWith("presentations", {
+      releases: [releaseWith({ stackProfile: "vite-react@2026.11" })],
+    }),
     indexWith("presentations", { bun: "1.4.4" }),
     indexWith("presentations", { stack: "vite-react" }),
     indexWith("presentations", {
@@ -282,7 +302,8 @@ test("the brief names the exact release, the Organization, the start and the bou
       expect(text).toContain("MIT");
       expect(text).toContain("docs/adoption.md");
       expect(text).toContain("`lazurio module create --stack vite-react`");
-      expect(text).not.toContain("{stack}");
+      expect(text).not.toContain("--data");
+      expect(text).not.toContain("{create}");
       expect(text).toContain(
         (seed === "sample" ? released.seeds.sample : released.seeds.empty)
           ?.brief[locale] as string,
@@ -290,6 +311,33 @@ test("the brief names the exact release, the Organization, the start and the bou
       expect(text).not.toMatch(/\{[a-z]+\}/);
     }
   }
+  // A template with data of its own (generation app/v3 and later) is created
+  // with --data, as its docs/adoption.md says.
+  const missionControl = offerById(
+    catalogOf(...shown),
+    "mission-control",
+  ) as MarketplaceOffer;
+  for (const [copy, locale] of [
+    [cs, "cs"],
+    [en, "en"],
+  ] as const)
+    expect(
+      adoptionPrompt(
+        missionControl,
+        "empty",
+        { name: "A", login: "a" },
+        copy,
+        locale,
+      ),
+    ).toContain("`lazurio module create --stack vite-react --data`");
+  for (const [generation, command] of [
+    ["app/v1", "lazurio module create --stack vite-react"],
+    ["app/v2", "lazurio module create --stack vite-react"],
+    ["app/v3", "lazurio module create --stack vite-react --data"],
+    ["app/v4", "lazurio module create --stack vite-react --data"],
+    ["app/v10", "lazurio module create --stack vite-react --data"],
+  ] as const)
+    expect(createCommand({ ...released.release, generation })).toBe(command);
   expect(
     adoptionPrompt(released, "empty", { name: "A", login: "a" }, cs, "cs"),
   ).toContain("Nic nemerguj ani neaktivuj bez mého výslovného pokynu.");

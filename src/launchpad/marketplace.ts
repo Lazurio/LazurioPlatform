@@ -32,9 +32,11 @@ export const adoptionSeeds = ["empty", "sample"] as const;
 export type AdoptionSeed = (typeof adoptionSeeds)[number];
 
 /** One release of an offer and what it is built on: the app generation
- * `app/v<N>`, the stack the scaffold creates (`lazurio module create
- * --stack`) and the Bun it pins (`packageManager`), which a generation
- * transition or a release of the stack profile changes. `commit` is the full
+ * `app/v<N>`, which names the data layer, the stack profile release
+ * (`app-data@2026.11`, docs/stack-profiles.md), the stack the scaffold
+ * creates (`lazurio module create --stack`) and the Bun it pins
+ * (`packageManager`), which a generation transition or a release of the
+ * stack profile changes. `commit` is the full
  * commit the release tag points to and `artifactDigest` the digest of its
  * attested artifact: both are filled in only once the release is published.
  * A tag or a branch alone is not an immutable identity. */
@@ -42,6 +44,7 @@ export type MarketplaceRelease = Readonly<{
   version: string;
   tag: string;
   generation: string;
+  stackProfile: string;
   stack: string;
   bun: string;
   commit: string | null;
@@ -96,6 +99,8 @@ const repository = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/;
 const login = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/;
 const spdx = /^[A-Za-z0-9][A-Za-z0-9.+-]{0,63}$/;
 const generation = /^app\/v[1-9][0-9]{0,3}$/;
+const stackProfile =
+  /^(content|app|app-data|app-database)@\d{4}\.\d{2}(\.\d+)?$/;
 const exactVersion = /^(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})$/;
 const version =
   /^(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/;
@@ -147,6 +152,7 @@ function release(value: unknown): MarketplaceRelease | null {
     "version",
     "tag",
     "generation",
+    "stackProfile",
     "stack",
     "bun",
     "commit",
@@ -160,6 +166,8 @@ function release(value: unknown): MarketplaceRelease | null {
     fields.tag !== `v${fields.version}` ||
     typeof fields.generation !== "string" ||
     !generation.test(fields.generation) ||
+    typeof fields.stackProfile !== "string" ||
+    !stackProfile.test(fields.stackProfile) ||
     typeof stack !== "string" ||
     !slug.test(stack) ||
     typeof bun !== "string" ||
@@ -183,6 +191,7 @@ function release(value: unknown): MarketplaceRelease | null {
     version: fields.version,
     tag: fields.tag,
     generation: fields.generation,
+    stackProfile: fields.stackProfile,
     stack,
     bun,
     commit,
@@ -410,6 +419,17 @@ export function adoptionOf(
 export const isAdoptionPromptId = (id: string): boolean =>
   /^marketplace-[a-z0-9][a-z0-9-]*-(empty|sample)$/.test(id);
 
+/** Whether a release's App keeps data of its own: the generation names the
+ * data layer, so from `app/v3` on (repository-db in v3, Dolt in v4). */
+export const keepsData = (release: MarketplaceRelease): boolean =>
+  Number(release.generation.slice("app/v".length)) >= 3;
+
+/** The command the brief has the agent create the module with: the
+ * release's stack, and `--data` from generation `app/v3` on, as the
+ * template's own docs/adoption.md says. */
+export const createCommand = (release: MarketplaceRelease): string =>
+  `lazurio module create --stack ${release.stack}${keepsData(release) ? " --data" : ""}`;
+
 /** The brief "Přidat do Organizace" hands to the agent: the person's own
  * words (in Czech tykání, root decision 0199), the exact release and the
  * Organization, and the release's adoption guide, which holds the steps.
@@ -432,6 +452,6 @@ export function adoptionPrompt(
     .replaceAll("{commit}", entry.release.commit)
     .replaceAll("{license}", entry.license)
     .replaceAll("{module}", entry.module)
-    .replaceAll("{stack}", entry.release.stack)
+    .replaceAll("{create}", createCommand(entry.release))
     .replaceAll("{seed}", start.brief[locale]);
 }
