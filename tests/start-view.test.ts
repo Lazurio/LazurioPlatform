@@ -1126,7 +1126,7 @@ test("a CLI that is not installed: its sign-in is not offered, and a click that 
   for (const [copy, status] of [
     [
       cs,
-      "Claude v tomto Prostředí zatím není nainstalovaný, proto se tu přihlásit nedá.",
+      "Claude zatím není nainstalovaný v tomto Prostředí, proto se tu přihlásit nedá.",
     ],
     [
       en,
@@ -1161,7 +1161,7 @@ test("a CLI that is not installed: its sign-in is not offered, and a click that 
     aiSignIn: { kind: "failed", tool: "claude", reason: "not-installed" },
   });
   expect(connected?.steps[0]?.warning).toBe(
-    "Claude v tomto Prostředí zatím není nainstalovaný, proto se tu přihlásit nedá.",
+    "Claude zatím není nainstalovaný v tomto Prostředí, proto se tu přihlásit nedá.",
   );
   expect(connected?.ai).toEqual({ kind: "connected" });
 });
