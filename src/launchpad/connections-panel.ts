@@ -43,6 +43,9 @@ export function createConnectionsPanel(
   const restartConfirm = find<HTMLDivElement>("#phone-restart-confirm");
   const restartYes = find<HTMLButtonElement>("#phone-restart-yes");
   const restartCancel = find<HTMLButtonElement>("#phone-restart-cancel");
+  const card = find<HTMLDivElement>(".phone-card");
+  const how = find<HTMLButtonElement>("#phone-how");
+  const needs = find<HTMLParagraphElement>("#phone-needs");
   const devicesGroup = find<HTMLElement>("#phone-devices-group");
   const devicesList = find<HTMLUListElement>("#phone-devices");
   const again = find<HTMLButtonElement>("#connections-refresh");
@@ -68,6 +71,9 @@ export function createConnectionsPanel(
   let removing: string | null = null;
   let reading = 0;
   let section: string | null = null;
+  // The motion shows until a phone is paired, then folds under "Ukázat
+  // postup" (the prototype's rework of 2026-11-03); null follows that rule.
+  let showHow: boolean | null = null;
   // The open pairing: its session, when it ends, and its timers.
   let session: string | null = null;
   let expiresAt = 0;
@@ -200,6 +206,15 @@ export function createConnectionsPanel(
       ready && shown.devices.length > 0
         ? copy.phonePairAnother
         : copy.phonePair;
+    const paired = ready && shown.devices.length > 0;
+    pairButton.classList.toggle("primary", !paired);
+    needs.hidden = !ready || paired;
+    how.hidden = !paired;
+    const motion = showHow ?? !paired;
+    how.textContent = motion ? copy.phoneHideHow : copy.phoneHow;
+    how.setAttribute("aria-expanded", String(motion));
+    if (motion) delete card.dataset.folded;
+    else card.dataset.folded = "";
     signIn.hidden = shown === null || !offersSignIn(shown);
     restartButton.hidden =
       shown === null || !offersRestart(shown) || !restartConfirm.hidden;
@@ -401,6 +416,10 @@ export function createConnectionsPanel(
       },
       () => undefined,
     );
+  });
+  how.addEventListener("click", () => {
+    showHow = card.dataset.folded !== undefined;
+    render();
   });
   restartButton.addEventListener("click", () => {
     restartConfirm.hidden = false;

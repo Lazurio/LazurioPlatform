@@ -73,6 +73,8 @@ test("a path names the view and the settings section; the canonical path is one"
     "/settings/communication",
     "/settings/machine",
     "/settings/tools",
+    // Připojení, SSH its second tab (decision F71).
+    "/settings/connections",
     "/settings/ssh",
     "/settings/recovery",
     // Nastavení → Buddy (decision F65), drawn only with Buddy.

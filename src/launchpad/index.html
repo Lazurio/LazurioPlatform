@@ -619,20 +619,27 @@ pre:empty { display: none; }
 .phone-motion { display: grid; justify-items: center; gap: 10px; }
 .phone-motion-device { position: relative; width: 120px; height: 200px; border: 2px solid var(--lz-gray-300, #c9ccd3); border-radius: 22px; background: var(--lz-paper, #fff); overflow: hidden; }
 .phone-motion-step { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; opacity: 0; animation: phone-step 10s infinite; }
-.phone-motion-step[data-step="2"] { animation-delay: 2.5s; }
-.phone-motion-step[data-step="3"] { animation-delay: 5s; }
-.phone-motion-step[data-step="4"] { animation-delay: 7.5s; }
+.phone-motion-step[data-step="2"] { animation-delay: 2s; }
+.phone-motion-step[data-step="3"] { animation-delay: 4s; }
+.phone-motion-step[data-step="4"] { animation-delay: 6s; }
+.phone-motion-step[data-step="5"] { animation-delay: 8s; }
 .phone-motion-icon { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 14px; background: var(--lz-accent); color: #fff; font: 600 20px/1 var(--font-mono, monospace); }
 .phone-motion-icon .icon { width: 26px; height: 26px; }
 .phone-motion-scan { background: repeating-linear-gradient(90deg, var(--fg) 0 4px, #fff 4px 8px), #fff; border: 4px solid #fff; outline: 2px solid var(--lz-accent); }
 .phone-motion-label { color: var(--fg); font-size: 13px; font-weight: var(--lz-weight-akce); text-align: center; max-width: 100px; }
 .phone-motion-dots { display: flex; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .phone-motion-dots li { width: 6px; height: 6px; border-radius: 50%; background: var(--lz-gray-300, #c9ccd3); animation: phone-dot 10s infinite; }
-.phone-motion-dots li:nth-child(2) { animation-delay: 2.5s; }
-.phone-motion-dots li:nth-child(3) { animation-delay: 5s; }
-.phone-motion-dots li:nth-child(4) { animation-delay: 7.5s; }
-@keyframes phone-step { 0% { opacity: 0; transform: translateY(8px); } 4%, 22% { opacity: 1; transform: none; } 26%, 100% { opacity: 0; transform: translateY(-8px); } }
-@keyframes phone-dot { 0%, 25% { background: var(--lz-accent); } 26%, 100% { background: var(--lz-gray-300, #c9ccd3); } }
+.phone-motion-dots li:nth-child(2) { animation-delay: 2s; }
+.phone-motion-dots li:nth-child(3) { animation-delay: 4s; }
+.phone-motion-dots li:nth-child(4) { animation-delay: 6s; }
+.phone-motion-dots li:nth-child(5) { animation-delay: 8s; }
+@keyframes phone-step { 0% { opacity: 0; transform: translateY(8px); } 3%, 17% { opacity: 1; transform: none; } 20%, 100% { opacity: 0; transform: translateY(-8px); } }
+@keyframes phone-dot { 0%, 19% { background: var(--lz-accent); } 20%, 100% { background: var(--lz-gray-300, #c9ccd3); } }
+.phone-card[data-folded] { grid-template-columns: 1fr; }
+.phone-card[data-folded] .phone-motion { display: none; }
+.phone-needs { color: var(--muted-fg); font-size: 13px; }
+.link-button { padding: 0; border: 0; background: none; color: var(--link); font: inherit; font-size: 14px; cursor: pointer; }
+.link-button:hover { text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) {
   .phone-motion-device { width: auto; height: auto; border: 0; display: flex; gap: 8px; }
   .phone-motion-step { position: static; opacity: 1; animation: none; }
@@ -2067,19 +2074,21 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <div class="card phone-card">
 <div class="phone-motion" id="phone-motion" aria-hidden="true">
 <div class="phone-motion-device">
-<div class="phone-motion-step" data-step="1"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-openai"/></svg></span><span class="phone-motion-label">ChatGPT</span></div>
-<div class="phone-motion-step" data-step="2"><span class="phone-motion-icon phone-motion-codex">&lt;/&gt;</span><span class="phone-motion-label">Codex</span></div>
+<div class="phone-motion-step" data-step="1"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-openai"/></svg></span><span class="phone-motion-label" data-message="phoneMotionOpen">Open ChatGPT</span></div>
+<div class="phone-motion-step" data-step="2"><span class="phone-motion-icon phone-motion-codex">&lt;/&gt;</span><span class="phone-motion-label" data-message="phoneMotionCodex">Tap Codex</span></div>
 <div class="phone-motion-step" data-step="3"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-laptop"/></svg></span><span class="phone-motion-label" data-message="phoneMotionAdd">Add computer</span></div>
-<div class="phone-motion-step" data-step="4"><span class="phone-motion-icon phone-motion-scan"></span><span class="phone-motion-label" data-message="phoneMotionScan">Scan the code</span></div>
+<div class="phone-motion-step" data-step="4"><span class="phone-motion-icon phone-motion-scan"></span><span class="phone-motion-label" data-message="phoneMotionScan">Scan the QR code</span></div>
+<div class="phone-motion-step" data-step="5"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span><span class="phone-motion-label" data-message="phoneMotionDone">Done</span></div>
 </div>
-<ol class="phone-motion-dots"><li></li><li></li><li></li><li></li></ol>
+<ol class="phone-motion-dots"><li></li><li></li><li></li><li></li><li></li></ol>
 </div>
 <div class="phone-copy">
 <h2 id="phone-heading" data-message="phoneTitle">Phone through ChatGPT</h2>
-<p class="row-desc" data-message="phoneLead">Control the chats of this Environment from the ChatGPT app on your phone.</p>
+<p class="row-desc" data-message="phoneLead">Control the chats of this Environment from the ChatGPT app.</p>
 <p id="phone-state" class="callout" data-kind="warning" role="status" aria-live="polite" hidden></p>
 <div id="phone-restart-confirm" class="callout" data-kind="warning" role="alert" hidden><p data-message="phoneRestartWarning">A restart ends the chats running in Codex. Restart now?</p><div class="phone-actions"><button type="button" id="phone-restart-cancel" data-message="phoneCancel">Cancel</button><button type="button" class="primary" id="phone-restart-yes" data-message="phoneRestartYes">Restart</button></div></div>
-<div class="phone-actions"><button type="button" class="primary" id="phone-pair" data-message="phonePair" hidden>Pair a phone</button><a id="phone-sign-in" class="button" href="/settings/start" data-route data-message="phoneSignIn" hidden>Sign in</a><button type="button" id="phone-restart" data-message="phoneRestart" hidden>Restart Codex</button></div>
+<div class="phone-actions"><button type="button" class="primary" id="phone-pair" data-message="phonePair" hidden>Pair a phone</button><a id="phone-sign-in" class="button" href="/settings/start" data-route data-message="phoneSignIn" hidden>Sign in</a><button type="button" id="phone-restart" data-message="phoneRestart" hidden>Restart Codex</button><button type="button" class="link-button" id="phone-how" aria-controls="phone-motion" hidden>Show how</button></div>
+<p class="phone-needs" id="phone-needs" data-message="phoneNeeds" hidden>ChatGPT Plus or higher, the same account as Codex in this Environment.</p>
 </div>
 </div>
 </section>

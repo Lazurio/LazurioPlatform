@@ -23116,12 +23116,13 @@ member exist.
 
 ## F71 — Phone through ChatGPT: Settings → Connections pairs the ChatGPT app with the Codex app-server's remote control
 
-**Proposed 2026-11-03 (root decision 0215; Lazurio/LazurioPlatform#657, #720). Not
-implemented.** Two things gate the build:
-
-- the owner's approval of the interface in the clickable prototype
-  (HumanAndMachine-ai/prototypes-lazurio#106, stacked on #102);
-- a live test with a phone that settles what the QR code carries.
+**Proposed 2026-11-03 (root decision 0215; Lazurio/LazurioPlatform#657, #720).
+Implemented in the same pull request; accepted only when the owner accepts it.** The
+phone test settled the QR code the same day (see *Implementation* below). The
+interface follows the clickable prototype
+(HumanAndMachine-ai/prototypes-lazurio#106, stacked on #102), which is being reworked
+to less text and a motion graphic per tab; the page keeps the graphic as one element
+so the final one replaces it whole.
 
 Delivery starts on the owner's own personal Environment and reaches other people's
 Environments only after that.
@@ -23233,9 +23234,57 @@ The methods and types are in `openai/codex` at tag `rust-v0.166.0`:
      - A7: remote control is `connected` again after a reboot through F29.
      - A8: a search of the journal and logs finds no code.
 
+**Implementation (2026-11-03).** What the code does, where it differs from the
+points above:
+
+- **QR payload.** `pairingQrPayload` is
+  `https://chatgpt.com/codex/pair?pairing_code=<pairingCode>`. The ChatGPT app on
+  Android (1.2026.293) accepted it on 2026-11-03 through its own scanner in Codex →
+  add a computer. The system camera and iOS are untested, so the dialog says "V
+  aplikaci ChatGPT otevřete Codex → Přidat počítač a naskenujte kód." and keeps the
+  short code with *Kopírovat* as the fallback. It does not promise that the camera
+  opens the app.
+- **Place.** Settings → Připojení (`connections`) replaces SSH in the menu. It has
+  two tabs: *Ovládat toto Prostředí* and *SSH*. The SSH tab is F49's page, unchanged
+  and still at `/settings/ssh`. *Control other Environments* is not built here.
+  Začínáme gets an optional row *Telefon přes ChatGPT* where pairing is offered.
+- **Code.**
+  - `src/connections/control-socket.ts` is the client. It speaks WebSocket over the
+    Unix socket and keeps no error message from Codex, only the JSON-RPC code.
+  - `src/connections/pairing.ts` holds the states, the one pending pairing, the limit
+    of five codes in ten minutes, polling, removing access and the restart.
+  - `src/connections/codex-trust.ts` writes the trust entries.
+  - `src/launchpad/connections-routes.ts` holds the routes, and the panel and view
+    are `connections-panel.ts` and `connections-view.ts`.
+  - Each operation opens its own connection to the socket. A pending code is kept by
+    the daemon, not by the connection.
+- **Routes.** `POST …/restart` takes `{confirm: true}` and refuses where remote
+  control works, where Codex lacks the methods, and where the unit is not Lazurio's.
+- **Turning remote control on.** Remote control is turned on by the daemon's own
+  `remoteControl/enable` (persisted), at the first *Spárovat telefon*. F29's
+  convergence does not run `enable-remote-control`. A daemon that is off therefore
+  reads as `ready`.
+- **States.**
+  - `organization-ai` is Codex's `account/read` answering
+    `requiresOpenaiAuth: false`.
+  - `no-chatgpt` is signed out, or signed in with an API key.
+  - Both show "Nejdřív se přihlaste svým účtem ChatGPT." and no pairing.
+- **Not built yet.** The doctor check `codex-remote-control`.
+- **Acceptance so far.**
+  - The unit tests run against a fake daemon. They cover each state, the handle's
+    life, expiry, replacement, the start limit, removing access, the restart's
+    conditions, the trust text, the routes' admission, and that no code reaches an
+    answer, an error or the journal.
+  - On the owner's personal Environment, on 2026-11-03 and without a restart, the
+    branch's Launchpad read the real state and device list. It made a code and
+    showed the QR code, the short code and the time left. Closing the dialog dropped
+    the code. The journal held only `pair-started` and `cancelled`.
+  - A1–A8 with a phone remain the owner's.
+
 **Open questions.**
 
-1. What the ChatGPT app scans. OpenAI documents a QR code that "opens ChatGPT" on the
+1. *(Settled 2026-11-03: the URL, through the app's own scanner; see Implementation.)*
+   What the ChatGPT app scans. OpenAI documents a QR code that "opens ChatGPT" on the
    phone, shown by the desktop app. The candidate payload is
    `https://chatgpt.com/codex/pair?pairing_code=<pairingCode>`, as one public
    third-party tool (`ulissescomonian/codex-remote`) builds it. Its alternative is

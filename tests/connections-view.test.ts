@@ -35,7 +35,7 @@ test("the overview in its exact shape", () => {
     serverName: "alex-work",
     devices: [device],
     restart: false,
-  };
+  } as const;
   expect(parseConnectionsOverview(ready)).toEqual(ready);
   expect(parseConnectionsOverview({ ...ready, state: "other" })).toBeNull();
   expect(parseConnectionsOverview({ ...ready, devices: [{}] })).toBeNull();
