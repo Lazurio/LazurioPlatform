@@ -80,6 +80,8 @@ Host lazurio-bob.lazurioexampleorganization
   IdentityFile ~/.ssh/lazurio-environment-ed25519
   IdentitiesOnly yes
   ForwardAgent no
+  ProxyJump none
+  ClearAllForwardings yes
 `;
 const goldenKnownHosts = `${managedHeader}
 lazurio-bob.lazurioexampleorganization ssh-ed25519 ${hostKey}
