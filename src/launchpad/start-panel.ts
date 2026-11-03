@@ -456,8 +456,8 @@ export function createStartPanel(
 
   /** One row of a public Environment's Začínáme: its title, its sentence,
    * a state where it has one, and its button. Chat opens as the shell's own
-   * Chat entry does (the `lazurio-app` event pairs it); a route of this page
-   * moves within it. */
+   * Chat entry does (the `lazurio-app` event, then its plain origin); a
+   * route of this page moves within it. */
   function demoNode(row: DemoRow): HTMLElement {
     const node = element("div", "row");
     node.dataset.demo = row.id;

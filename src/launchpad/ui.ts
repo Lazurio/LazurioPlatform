@@ -32,10 +32,8 @@ import { createCatalogPanel, type NewModuleOutcome } from "./catalog-panel";
 import type { PublicEntry } from "./chat";
 import {
   chatHref,
-  chatPairLink,
   chatPromptHref,
   isNoEntry,
-  mausbotPairLink,
   type PromptLink,
   parseEntryAnswer,
   parsePromptHandoff,
@@ -194,8 +192,8 @@ const kindOf = (document: Shell | null): ShellEnvironmentKind | null =>
   document === null ? null : (currentEnvironment(document)?.kind ?? null);
 let copy = messages(locale, kindOf(boot?.shell ?? null));
 // The recorded entry's public parts (`GET /api/entry`); null on a workstation
-// and until read. The pairing of Chat and Automate, the tiles' module
-// origins and the Recovery page's T3 Code link.
+// and until read. The tiles' module origins, Chat's origin for
+// "+ Nový modul" and the Recovery page's T3 Code link.
 let entry: PublicEntry | null = boot?.entry ?? null;
 // Whether Chat on this Environment takes a prepared prompt by link
 // (`GET /api/chat/prompt-handoff`, Lazurio/t3code#35): read alongside the
@@ -1920,59 +1918,19 @@ controls.apply.addEventListener("click", async () => {
 });
 // Chat and Automate (launchpad-parity B8, DEV-6632) are tabs of the switch
 // at the top of the column (decision F36), plain links to the recorded
-// origins. A plain click on one first asks the server for a one-time pairing
-// link on that origin and follows it in this tab, as the resident did
-// (`R:launchpad/public/app.js:2257-2281`); when there is none (no T3
-// launcher, a failed call) it follows the plain origin, where the app itself
-// asks an unpaired browser to pair. Apps on this origin moves within the page.
-// Since the decision of 2026-10-17 T3 Code pairs an unpaired browser itself
-// (`GET /.lazurio/chat/pairing`); Chat's click still pairs on the way, which
-// is harmless and what older T3 Code builds need. It can go once every
-// Environment's T3 Code pairs itself. Since the addendum of 2026-10-22
-// MausBot pairs an unpaired browser the same way
-// (`GET /.lazurio/mausbot/pairing`); Automate's click still pairs on the way,
-// which a paired browser passes straight through and older MausBot builds
-// need. It can go once every Environment's MausBot pairs itself.
-const pairing: Readonly<
-  Record<
-    string,
-    Readonly<{
-      path: string;
-      origin: (entry: PublicEntry) => string | undefined;
-      accept: (value: unknown, origin: string) => string | null;
-    }>
-  >
-> = {
-  chat: {
-    path: "/api/chat/pair",
-    origin: (current) => current.t3codeOrigin,
-    accept: chatPairLink,
-  },
-  automate: {
-    path: "/api/mausbot/pair",
-    origin: (current) => current.mausbotOrigin,
-    accept: mausbotPairLink,
-  },
-};
-// The address to follow into Chat or Automate: a one-time pairing link on
-// its origin when the server mints one, otherwise the plain origin.
-async function pairedHref(app: string): Promise<string | null> {
-  const pair = Object.hasOwn(pairing, app) ? pairing[app] : undefined;
-  const plain =
-    entry === null || pair === undefined ? undefined : pair.origin(entry);
-  if (pair === undefined || plain === undefined) return null;
-  try {
-    const { value, ok } = await post(pair.path, {});
-    return (ok && pair.accept(value, plain)) || plain;
-  } catch {
-    return plain;
-  }
-}
+// origins, and a plain click follows the link as it is: the page asks the
+// server for nothing on the way. T3 Code and MausBot pair an unpaired
+// browser themselves (`GET /.lazurio/chat/pairing`, the decision of
+// 2026-10-17; `GET /.lazurio/mausbot/pairing`, its addendum of 2026-10-22),
+// and a browser with a session opens at once. The click's own pairing went
+// with the addendum of 2026-10-31: it cost a round trip and the app's
+// pairing page flashing by on every switch. Apps on this origin moves
+// within the page.
 // "+ Nový modul" (decision F36 addendum of 2026-10-04). Where this
 // Environment's Chat takes a prepared prompt by link (Lazurio/t3code#35,
-// the server asks its T3 Code for the version), Chat opens in a new tab
-// through the pairing with the prompt's id and the Organization in the
-// link's fragment, never the text: the fork fetches the text from its own
+// the server asks its T3 Code for the version), Chat opens in a new tab on
+// its plain origin with the prompt's id and the Organization in the link's
+// fragment, never the text, and pairs the browser itself on the way: the fork fetches the text from its own
 // origin and leaves it in a new thread's composer, not sent, and nothing is
 // copied. Otherwise, and when the tab cannot open, the prompt goes to the
 // clipboard (written first, while the page still has the focus) and Chat
@@ -1993,15 +1951,10 @@ async function handOver(
       ? null
       : { id: prompt.id, organization: prompt.organization };
   if (current !== null && chatTakesPrompts && link !== null) {
+    const href = chatPromptHref(current.t3codeOrigin, link);
+    if (href === null) return "failed";
     const tab = window.open("about:blank", "_blank");
     if (tab !== null) {
-      const next = await pairedHref("chat");
-      const href =
-        next === null ? null : chatPromptHref(next, current.t3codeOrigin, link);
-      if (href === null) {
-        tab.close();
-        return "failed";
-      }
       tab.opener = null;
       tab.location.href = href;
       return "handed-over";
@@ -2012,45 +1965,21 @@ async function handOver(
     () => false,
   );
   const tab = current === null ? null : window.open("about:blank", "_blank");
-  if (tab !== null) {
-    const next = await pairedHref("chat");
-    if (next === null) tab.close();
-    else {
-      tab.opener = null;
-      tab.location.href = next;
-    }
+  if (current !== null && tab !== null) {
+    tab.opener = null;
+    tab.location.href = current.t3codeOrigin;
   }
   return (await copying) ? "copied" : "failed";
 }
-let following = false;
 document.addEventListener("lazurio-app", (event) => {
   const detail = (event as CustomEvent<{ app?: unknown; href?: unknown }>)
     .detail;
   if (typeof detail?.href !== "string" || typeof detail.app !== "string")
     return;
   const target = new URL(detail.href, location.href);
-  if (target.origin === location.origin) {
-    event.preventDefault();
-    shell.navigate(target.pathname);
-    return;
-  }
-  const pair = Object.hasOwn(pairing, detail.app)
-    ? pairing[detail.app]
-    : undefined;
-  if (entry === null || pair === undefined || pair.origin(entry) === undefined)
-    return;
+  if (target.origin !== location.origin) return;
   event.preventDefault();
-  if (following) return;
-  following = true;
-  const { app, href } = detail;
-  void (async () => {
-    location.assign((await pairedHref(app)) ?? href);
-  })();
-});
-// Back from the app restores this page from the bfcache with the click that
-// navigated away still held.
-window.addEventListener("pageshow", () => {
-  following = false;
+  shell.navigate(target.pathname);
 });
 // The entry, and whether Chat takes a prepared prompt by link, read side by
 // side: the second is the server's own answer, no on a workstation.

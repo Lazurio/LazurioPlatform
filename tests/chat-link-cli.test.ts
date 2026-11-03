@@ -17,7 +17,7 @@ import {
 } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
-import { chatPairing, standardPairingScopes } from "../src/launchpad/chat";
+import { chatLinkReasons } from "../src/launchpad/chat";
 import {
   type ChatContext,
   exitNotHosted,
@@ -27,10 +27,12 @@ import { runTool, type ToolRunner } from "../src/tools/status";
 import { organizationWithEntry } from "./fixtures/machine-bindings";
 import { commitOf, target } from "./fixtures/update-world";
 
-// `lazurio chat link` (launchpad-parity B8's CLI, C.5 item 10): the pairing
-// link `POST /api/chat/pair` answers, from the same recorded entry and the
-// same `issueChatLink`. The T3 launcher is a fake on a private PATH; nothing
-// of this computer's `t3` can answer.
+// `lazurio chat link` (launchpad-parity B8's CLI, C.5 item 10): the plain T3
+// Code origin of the recorded entry, as the Launchpad's Chat entry follows
+// it. Since the addendum of 2026-10-31 to the decision of 2026-10-17 T3 Code
+// pairs the browser itself and the command mints nothing. The T3 launcher is
+// a fake on a private PATH that would pair; nothing of this computer's `t3`
+// can answer, and nothing may run it.
 
 const credential = "Pairing_Token-0123456789abcdef";
 const t3codeOrigin = "https://t3code.workspace.example.lazurio.io";
@@ -41,10 +43,10 @@ afterEach(async () => {
   root = undefined;
 });
 
-// A fake T3 launcher: `t3 --version` (a T3 Code that takes `--scope`),
-// `t3 lazurio capabilities` without the operator pairing, and `t3 auth
-// pairing create --json`, or a failing call whose stderr holds the
-// credential.
+// A fake T3 launcher that would pair: `t3 --version` (a T3 Code that takes
+// `--scope`), `t3 lazurio capabilities` without the operator pairing, and
+// `t3 auth pairing create --json`, or a failing call whose stderr holds the
+// credential. The command must run none of it.
 async function fakeLauncher(bin: string, mode: "ok" | "fail") {
   const script = join(bin, "t3");
   await writeFile(
@@ -127,136 +129,57 @@ async function tree(directory: string): Promise<Record<string, string>> {
 }
 
 test.skipIf(process.platform === "win32")(
-  "hosted: the pairing link of the recorded T3 Code origin, the resident's call, the token only in the link",
+  "hosted: the plain T3 Code origin, with or without --plain, even where the launcher would pair: nothing runs, nothing is written",
   async () => {
     const { home, bin, folder, runs, context } = await world("hosted");
     await fakeLauncher(bin, "ok");
     const before = await tree(home);
-    const human = await runChatCommand(["link", "--folder", folder], context);
-    const json = await runChatCommand(
-      ["link", "--folder", folder, "--json"],
-      context,
-    );
-    const url = `${t3codeOrigin}/pair#token=${credential}`;
-    expect(human.code).toBe(0);
-    expect(human.stdout).toBe(url);
-    expect(human.stderr).toBe(
-      "A one-time link, valid for 60 seconds: hand it to the user.",
-    );
-    expect(json.code).toBe(0);
-    expect(JSON.parse(json.stdout ?? "")).toEqual({
+    const answer = {
       kind: "chat-link",
-      url,
-      pairing: true,
-    });
-    expect(json.stderr).toBeUndefined();
-    // The same calls as POST /api/chat/pair: the launcher on PATH asked for
-    // its capabilities, then, without the operator pairing, for its version
-    // and the resident's call with the standard pairing's own scopes,
-    // labelled for nobody (a terminal names no person).
-    const capabilities = [join(bin, "t3"), "lazurio", "capabilities"];
-    const version = [join(bin, "t3"), "--version"];
-    const call = [
-      join(bin, "t3"),
-      "auth",
-      "pairing",
-      "create",
-      "--base-dir",
-      join(home, ".t3"),
-      "--ttl",
-      chatPairing.ttl,
-      "--label",
-      "Lazurio",
-      "--json",
-      ...standardPairingScopes.flatMap((scope) => ["--scope", scope]),
-    ];
-    expect(runs).toEqual([
-      capabilities,
-      version,
-      call,
-      capabilities,
-      version,
-      call,
-    ]);
-    expect(await tree(home)).toEqual(before);
-  },
-);
-
-test.skipIf(process.platform === "win32")(
-  "hosted: without the launcher, a failed call or --plain it is the plain origin with the reason",
-  async () => {
-    const { bin, folder, runs, context } = await world("hosted");
-    const missing = await runChatCommand(
-      ["link", "--folder", folder, "--json"],
-      context,
-    );
-    expect([missing.code, JSON.parse(missing.stdout ?? "")]).toEqual([
-      0,
-      {
-        kind: "chat-link",
-        url: t3codeOrigin,
-        pairing: false,
-        reason: "t3-launcher-missing",
-      },
-    ]);
-    const missingHuman = await runChatCommand(
-      ["link", "--folder", folder],
-      context,
-    );
-    expect(missingHuman).toEqual({
-      code: 0,
-      stdout: t3codeOrigin,
-      stderr:
-        "No pairing: the T3 launcher t3 is not on PATH. The plain link opens T3 Code, which asks the browser to pair.",
-    });
-    expect(runs).toEqual([]);
-
+      url: t3codeOrigin,
+      pairing: false,
+      reason: "t3-pairs-itself",
+    };
+    const stderr =
+      "The plain T3 Code link: T3 Code pairs the browser itself, and a browser that is already paired opens it at once.";
+    // `--plain` is accepted for compatibility and changes nothing.
+    for (const plain of [[], ["--plain"]]) {
+      const human = await runChatCommand(
+        ["link", ...plain, "--folder", folder],
+        context,
+      );
+      expect([plain, human]).toEqual([
+        plain,
+        { code: 0, stdout: t3codeOrigin, stderr },
+      ]);
+      const json = await runChatCommand(
+        ["link", ...plain, "--folder", folder, "--json"],
+        context,
+      );
+      expect([plain, json.code, JSON.parse(json.stdout ?? "")]).toEqual([
+        plain,
+        0,
+        answer,
+      ]);
+      expect(json.stderr).toBeUndefined();
+    }
+    // A launcher that would fail changes nothing either: it is never asked.
     await fakeLauncher(bin, "fail");
-    const failed = await runChatCommand(
+    const failing = await runChatCommand(
       ["link", "--folder", folder, "--json"],
       context,
     );
-    const failedHuman = await runChatCommand(
-      ["link", "--folder", folder],
-      context,
-    );
-    expect([failed.code, JSON.parse(failed.stdout ?? "")]).toEqual([
+    expect([failing.code, JSON.parse(failing.stdout ?? "")]).toEqual([
       0,
-      {
-        kind: "chat-link",
-        url: t3codeOrigin,
-        pairing: false,
-        reason: "t3-pairing-failed",
-      },
+      answer,
     ]);
-    expect([failedHuman.code, failedHuman.stdout]).toEqual([0, t3codeOrigin]);
-    // The call's output held the credential: it is in neither stream.
-    for (const output of [failed, failedHuman])
-      expect(JSON.stringify(output)).not.toContain(credential);
-    // Each asked for the capabilities and the version, then failed to pair.
-    expect(runs.length).toBe(6);
-
-    // --plain asks for the plain link: nothing is run.
-    await fakeLauncher(bin, "ok");
-    const plain = await runChatCommand(
-      ["link", "--plain", "--folder", folder, "--json"],
-      context,
+    expect(runs).toEqual([]);
+    expect(await readFile(join(bin, "t3.calls"), "utf8").catch(() => "")).toBe(
+      "",
     );
-    const plainHuman = await runChatCommand(
-      ["link", "--plain", "--folder", folder],
-      context,
-    );
-    expect([plain.code, JSON.parse(plain.stdout ?? "")]).toEqual([
-      0,
-      {
-        kind: "chat-link",
-        url: t3codeOrigin,
-        pairing: false,
-        reason: "plain-requested",
-      },
-    ]);
-    expect([plainHuman.code, plainHuman.stdout]).toEqual([0, t3codeOrigin]);
-    expect(runs.length).toBe(6);
+    expect(await tree(home)).toEqual(before);
+    // The reasons of the contract: the minting ones are retired.
+    expect([...chatLinkReasons]).toEqual(["t3-pairs-itself", "not-hosted"]);
   },
 );
 
@@ -348,18 +271,18 @@ test.skipIf(process.platform === "win32")(
       ]);
       return { code, stdout, stderr };
     };
-    const url = `${t3codeOrigin}/pair#token=${credential}`;
     const human = await cli("--folder", folder);
-    expect([human.code, human.stdout]).toEqual([0, `${url}\n`]);
+    expect([human.code, human.stdout]).toEqual([0, `${t3codeOrigin}\n`]);
     expect(human.stderr).not.toContain(credential);
     const json = await cli("--folder", folder, "--json");
     expect(json.code).toBe(0);
     expect(JSON.parse(json.stdout)).toEqual({
       kind: "chat-link",
-      url,
-      pairing: true,
+      url: t3codeOrigin,
+      pairing: false,
+      reason: "t3-pairs-itself",
     });
-    expect(json.stderr).not.toContain(credential);
+    expect(json.stderr).toBe("");
     const plain = await cli("--folder", folder, "--plain");
     expect([plain.code, plain.stdout]).toEqual([0, `${t3codeOrigin}\n`]);
     // The usage error of the real command line.

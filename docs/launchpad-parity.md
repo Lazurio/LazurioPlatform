@@ -739,14 +739,17 @@ from the user's computer (17). Every item has one expected answer.
    `https://<module>.<vm>.<org>.lazurio.io`; `lazurio module logs` shows lines.
 9. `systemctl --user restart lazurio-launchpad.service`, then `lazurio module status`
    → the same module running with the same invocation.
-10. `lazurio chat link --json` → a `…/pair#token=` URL on the T3 origin.
+10. `lazurio chat link --json` → the plain T3 origin, `pairing: false`, reason
+    `t3-pairs-itself` (until the [addendum of 2026-10-31](decisions.md#f36-addendum-of-2026-10-31-the-click-into-chat-and-automate-no-longer-pairs):
+    a `…/pair#token=` URL on the T3 origin).
 11. `https://launchpad.<vm>.<org>.lazurio.io/` after sign-in → the catalog with every
     Organization, each module once and no Team group (F32), in the two sections
     Workspace and Productionspace, no `infra` (F32 final addendum of 2026-10-03).
 12. Open a module from the catalog → it opens healthy on its own hostname.
 13. `lazurio module stop …`, then open the module's hostname cold → the starting page,
     then the module (`ensure`); a reload of a background tab does not start it.
-14. "Chat" → T3 Code opens paired; a new thread runs `lazurio --version`.
+14. "Chat" → T3 Code opens paired (since 2026-10-31 by its own self-pairing, the click
+    asks the Launchpad nothing); a new thread runs `lazurio --version`.
 15. The update pill takes the next patch; modules keep running; item 3 again.
 16. A repeated Machines apply changes nothing; modules keep running.
 17. A pull-request preview, where an agent on the user's own computer is
