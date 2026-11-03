@@ -1068,7 +1068,15 @@ The pipeline owns the minimum version (a pin is a minimum, F17's addendum of 202
   the lock). The Launchpad never shows a refresh, needed or blocked.
   `lazurio update status` (`folderRefresh {folder, recorded, product}`) and `lazurio
   doctor` (`folder-refresh`, `warn folder-refresh-needed`) keep reporting a Folder that
-  still needs one, for agents; reading only, no lock, no write.
+  still needs one, for agents; reading only, no lock, no write. A hosted Folder's
+  top-level entry it does not own no longer blocks the refresh (decision F10's addendum
+  of 2026-11-03); `lazurio update` and `update status` report such entries as
+  `folderForeignEntries {folder, entries}` with one line: the reader's own work moves to
+  `~/Documents/<task>/`, anyone else's stays and the user hears about it. `lazurio
+  doctor` reports them as `folder-top-level`, `warn foreign-entries`. A name not shown as
+  itself is reported without its text; a top level that cannot be listed is
+  `folderForeignEntries {folder, unreadable: true}` and `warn top-level-unreadable`, never
+  clean.
 - **Exit status.** `0` success or up to date, `10` update available (`--check`),
   `2` usage, `1` failure or busy. `--json` carries one stable error code from a
   short list (`network-unavailable`, `release-invalid`, `attestation-invalid`,

@@ -268,7 +268,6 @@ bumped. It prints one JSON object with `machineContextDigest`:
 | `{"kind":"blocked","reason":"folder-not-initialized",…}` | 2 | No Folder state: run `folder-init` first; nothing is created |
 | `{"kind":"blocked","reason":"drift","path":…}` / `"unsafe-path"` | 2 | An owned file was edited, removed or replaced by a link; it is named and never overwritten, nothing is written |
 | `{"kind":"blocked","reason":"folder-binding-changed",…}` / `"folder-state-unrecognized"` | 2 | Another Machine's handover, or pending/unrecognized state |
-| `{"kind":"blocked","reason":"folder-foreign-entry","entry":…}` | 2 | A top-level entry the Folder neither owns nor tolerates; refused by name before any journal is written |
 | `{"kind":"blocked","reason":"preset-derivation-changed"}` | 2 | The Folder's preset was derived and the handover's assignment now derives another one; take it with `lazurio machine folder-refresh --preset <derived preset>`. The profile change cannot: it plans against the recorded binding, which offers only the old preset |
 | `{"kind":"blocked","reason":"preset-not-allowed"}` | 2 | `--preset` is not the preset the current handover derives; nothing is written |
 | `{"kind":"blocked","reason":"template-upgrade-required"}` | 2 | The Folder was rendered by a newer (or unknown) template revision than this product renders; nothing is downgraded, see below |
@@ -300,16 +299,16 @@ activation does. Modules, T3 Code and Codex keep running. The answer then carrie
 An unchanged entry restarts nothing and adds nothing to the answer (decision F38,
 addendum 2026-10-06).
 
-Like adoption and initialization recovery, the shared update transaction re-checks
-the claimed boundary of a hosted Folder (`requireFolderBoundary`): before its journal
-is written, before every single replacement, and in `profile-resume` before anything
-is applied or archived. A foreign top-level entry
-that appears while a refresh or profile update is interrupted is refused by name
-(`profile-resume` exits 2 with `folder-foreign-entry`); the journal and every output
-stay exactly as the interruption left them, and the resume completes once the entry
-is gone. A workstation Folder (no handover binding) keeps its existing rule: the
-user's own top-level files beside the generated ones are preserved, never read
-or written.
+A top-level entry the Folder neither owns nor tolerates stops no refresh, profile
+update or `profile-resume` (decision F10's addendum of 2026-11-03): the shared
+transaction never reads, writes or moves it, in a hosted Folder as on a workstation,
+because its outputs are owned paths only. Adoption and initialization recovery keep
+refusing it by name (`folder-foreign-entry` above). A hosted Folder reports such
+entries instead: `lazurio update` and `update status` add `folderForeignEntries`
+(the Folder and the names, or `unreadable` when the top level cannot be listed),
+and `lazurio doctor` warns with `folder-top-level` `foreign-entries` (or
+`top-level-unreadable`), because work products belong in `~/Documents/<task>/`.
+The reader moves only their own entry and tells the user about anyone else's.
 
 The Launchpad shows the refreshed binding on its next read; an open panel holding the
 old revision gets `stale-revision` on apply, as after any concurrent change. The

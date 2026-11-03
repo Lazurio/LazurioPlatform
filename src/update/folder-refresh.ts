@@ -1,4 +1,5 @@
 import { neededRefresh } from "../folder/refresh-needed";
+import { shownAsItself } from "../folder/visible-text";
 import { layout } from "./layout";
 import {
   type ProcessResult,
@@ -66,20 +67,6 @@ export const failedRefresh = (reason: string): FolderRefreshOutcome =>
 // child printed.
 const code = /^[a-z][a-z0-9-]{0,63}$/;
 
-// A character that is not shown as itself: a C0 or C1 control (ESC starts a
-// terminal escape), DEL, or an invisible or bidirectional format character
-// that makes a path read differently than it is.
-const invisible = (point: number) =>
-  point < 0x20 ||
-  (point >= 0x7f && point <= 0x9f) ||
-  point === 0xad ||
-  point === 0x61c ||
-  point === 0x180e ||
-  (point >= 0x200b && point <= 0x200f) ||
-  (point >= 0x2028 && point <= 0x202e) ||
-  (point >= 0x2060 && point <= 0x206f) ||
-  point === 0xfeff;
-
 /** A path within the Folder or a top-level entry, as the refresh names it
  * (Pablo's review of #731): relative (no leading `/` or `\`, no drive or UNC
  * prefix), normalized (no empty, `.` or `..` segment, so it never points
@@ -90,7 +77,7 @@ const folderPath = (value: unknown): value is string =>
   value.length > 0 &&
   value.length <= 512 &&
   !/^[A-Za-z]:/.test(value) &&
-  ![...value].some((character) => invisible(character.codePointAt(0) ?? 0)) &&
+  shownAsItself(value) &&
   value
     .split(/[\\/]/)
     .every((segment) => segment !== "" && segment !== "." && segment !== "..");

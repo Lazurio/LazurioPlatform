@@ -8,7 +8,6 @@ import {
   planProfileChange,
   planToolsChange,
 } from "./change-profile";
-import { requireClaimedFolderBoundary } from "./handover-layout";
 import { inspectOutput } from "./inventory";
 import { withFolderOperationLock } from "./lock";
 import type { MachineBinding } from "./machine-binding";
@@ -184,10 +183,10 @@ export async function prepareFolderChangeLocked(
     inspectOutput(folder, path),
   );
   if (plan.kind !== "profile-change") return plan;
-  // Fail closed on a foreign top-level entry of a hosted Folder before the
-  // journal exists, so a refused change leaves nothing to recover. Activation
-  // and recovery check it again.
-  await requireClaimedFolderBoundary(folder, state.preferences.machine);
+  // A top-level entry the Folder does not own never stops a change, hosted
+  // or not: it is neither read nor written (decision F10's addendum of
+  // 2026-11-03), and a hosted Folder reports it through `lazurio update`,
+  // `update status` and `doctor`.
   const expectedRevision = plan.expectedRevision;
   // Every generated output is staged and replaced, changed or not: one
   // transaction with one fixed file list, whose identities are all recorded.

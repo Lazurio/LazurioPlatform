@@ -122,6 +122,10 @@ export const doctorCheckIds = [
   // Folder
   "folder-state",
   "machine-binding",
+  // A hosted Folder's top-level entries it does not own: reported, no
+  // longer a reason to stop a refresh (decision F10's addendum of
+  // 2026-11-03).
+  "folder-top-level",
   // tools
   "tool",
   "executor",
@@ -174,6 +178,7 @@ export const doctorGroupOf: Readonly<Record<DoctorCheckId, DoctorGroup>> =
     "template-revision": "product",
     "folder-state": "folder",
     "machine-binding": "folder",
+    "folder-top-level": "folder",
     tool: "tools",
     executor: "tools",
     "github-sign-in": "tools",
@@ -219,6 +224,8 @@ const ownReasons = [
   "folder-newer",
   "revision-unknown",
   // Folder and Machine
+  "foreign-entries",
+  "top-level-unreadable",
   "not-hosted",
   "binding-absent",
   "handover-unreadable",
@@ -402,6 +409,15 @@ export const doctorContextRules: Readonly<
     value.length <= 512 &&
     /^[A-Z][A-Z0-9_]*(,[A-Z][A-Z0-9_]*)*$/.test(value),
   secretReason: oneOf(runtimeSecretReasons),
+  // A hosted Folder's foreign top-level entries (decision F10's addendum of
+  // 2026-11-03): how many, and the first one's name when it is a plain name.
+  entries: count,
+  entry: (value: unknown) =>
+    typeof value === "string" &&
+    value.length <= 255 &&
+    value !== "." &&
+    value !== ".." &&
+    /^[A-Za-z0-9._@+-]+$/.test(value),
   // A refused file or directory of the operator's checkout (decision F23):
   // relative to its module or Organization (`.` for the directory itself), or
   // `~/…`; never absolute, never `..`.
@@ -547,6 +563,30 @@ function productChecks(
           ? check("template-revision", "warn", "folder-newer", revisions)
           : check("template-revision", "ok", undefined, revisions);
   return [version, available, refresh, template];
+}
+
+/** A hosted Folder's top-level entries that the Folder does not own
+ * (decision F10's addendum of 2026-11-03): they no longer stop a refresh,
+ * so doctor names them and `warn`s, because work products belong in
+ * `~/Documents/<task>/`. A top level that cannot be listed `warn`s as
+ * unknown. A workstation Folder keeps the person's own files and is `ok`;
+ * a Folder whose state cannot be read is reported by `folder-state`. */
+function topLevelCheck(
+  status: UpdateStatus | null,
+  hasFolder: boolean,
+): DoctorCheck {
+  if (!hasFolder) return check("folder-top-level", "skipped", "no-folder");
+  if (status === null) return check("folder-top-level", "skipped", "internal");
+  const foreign = status.folderForeignEntries;
+  if (foreign === undefined) return check("folder-top-level", "ok");
+  // A top level that could not be listed is unknown, never `ok` (Pablo's
+  // review of #817).
+  if ("unreadable" in foreign)
+    return check("folder-top-level", "warn", "top-level-unreadable");
+  return check("folder-top-level", "warn", "foreign-entries", {
+    entries: foreign.entries.length,
+    ...(foreign.entries[0] === undefined ? {} : { entry: foreign.entries[0] }),
+  });
 }
 
 type Handover = Awaited<ReturnType<RecoveryEnvironment["machineContext"]>>;
@@ -1134,6 +1174,7 @@ export async function collectDoctor(
         : { preset: facts.preset, machineKind: facts.machineKind },
     ),
     ...bindingChecks(observed, handover, hostedUnreadable),
+    topLevelCheck(status, folder !== undefined),
     // Executor has its own check (decision F44), not a tool row.
     ...tools
       .filter((tool) => tool.name !== executorToolName)
