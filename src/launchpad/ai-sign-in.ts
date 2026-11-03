@@ -289,7 +289,8 @@ export type AskedReading = Readonly<{ fresh: boolean; point: number }>;
  * dropped its older answer by then). Each answer is shown unless one at a
  * fresher point already is: an older fresh reading that ends last, and a
  * plain one that returns the kept answer while a fresh one runs, never hide
- * what a fresher reading found.
+ * what a fresher reading found. A reading without an answer (the request
+ * failed) moves nothing: it found nothing that could hide another.
  */
 export function createReadingOrder() {
   let asked = 0;
@@ -301,8 +302,10 @@ export function createReadingOrder() {
       asked += 1;
       return { fresh, point: fresh ? asked : freshAnswered };
     },
-    /** Its answer arrived: whether it is the one to show. */
-    take(reading: AskedReading): boolean {
+    /** Its answer arrived (`answered`: the request gave a reading):
+     * whether it is the one to show. */
+    take(reading: AskedReading, answered = true): boolean {
+      if (!answered) return false;
       if (reading.fresh) freshAnswered = Math.max(freshAnswered, reading.point);
       if (reading.point < shown) return false;
       shown = reading.point;
@@ -326,7 +329,7 @@ export function takeAiReading(
   asked: Readonly<{ reading: AskedReading; since: number | null }>,
   reading: AiReading | null,
 ): boolean {
-  const shown = order.take(asked.reading);
+  const shown = order.take(asked.reading, reading !== null);
   if (asked.since !== null) signIn.settle(reading, asked.since);
   return shown;
 }

@@ -652,6 +652,23 @@ test("the reading shown is the freshest that answered, whatever the order (revie
   order = createReadingOrder();
   expect(order.take(order.ask(false))).toBe(true);
   expect(order.take(order.ask(false))).toBe(true);
+  // Two "Zkontrolovat znovu": the second request fails first, the first
+  // finds the CLI and answers later. The failure moves nothing, so the
+  // answer is shown.
+  order = createReadingOrder();
+  const found = order.ask(true);
+  const failed = order.ask(true);
+  expect(order.take(failed, false)).toBe(false);
+  expect(order.take(found)).toBe(true);
+  // A failed fresh request does not stand for an answered one either: a
+  // plain reading asked after it may still be overtaken by a fresh answer.
+  order = createReadingOrder();
+  const lost = order.ask(true);
+  expect(order.take(lost, false)).toBe(false);
+  const after = order.ask(false);
+  const running = order.ask(true);
+  expect(order.take(running)).toBe(true);
+  expect(order.take(after)).toBe(false);
 });
 
 test("a fresh reading overtaken by a plain one still settles the not installed (review of #827)", async () => {
@@ -685,5 +702,32 @@ test("a fresh reading overtaken by a plain one still settles the not installed (
   // The fresh one answers last: it is shown over the kept answer and settles
   // the failure, so Claude's sign-in is offered again.
   expect(takeAiReading(order, signIn, fresh, installed)).toBe(true);
+  expect(signIn.state()).toEqual({ kind: "idle" });
+});
+
+test("a failed fresh request never hides the fresh answer that found the CLI (review of #827)", async () => {
+  const signIn = createAiSignIn({
+    post: async () => ({
+      value: { kind: "failed", tool: "claude", reason: "not-installed" },
+      ok: false,
+    }),
+    showView: () => undefined,
+    changed: () => undefined,
+    readAi: () => undefined,
+  });
+  await signIn.start("claude");
+  const order = createReadingOrder();
+  const found = { reading: order.ask(true), since: signIn.mark() };
+  const failed = { reading: order.ask(true), since: signIn.mark() };
+  // The second request fails first: not shown, nothing settled.
+  expect(takeAiReading(order, signIn, failed, null)).toBe(false);
+  expect(signIn.state()).toMatchObject({ reason: "not-installed" });
+  // The first finds Claude Code installed: shown, and the failure is gone.
+  expect(
+    takeAiReading(order, signIn, found, {
+      state: "missing",
+      providers: [{ provider: "claude", state: "signed-out" }],
+    }),
+  ).toBe(true);
   expect(signIn.state()).toEqual({ kind: "idle" });
 });

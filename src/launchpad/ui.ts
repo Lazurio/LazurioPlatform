@@ -636,7 +636,9 @@ async function readAi(fresh = false) {
     { reading: mine, since },
     read,
   );
-  if (!shown) return;
+  // A failed request shows nothing, except that a page with no reading yet
+  // says the AI could not be checked.
+  if (!shown && !(read === null && aiReading === null)) return;
   if (read !== null || aiReading === null) aiReading = read;
   content.render();
   startByItself();
