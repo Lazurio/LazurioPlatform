@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+  mkdir,
   mkdtemp,
   readFile,
   rm,
@@ -382,6 +383,66 @@ test.skipIf(!posix)(
       } finally {
         await s.close();
       }
+    }
+  },
+);
+
+test.skipIf(!posix)(
+  "the daemon's path is a link to the socket: followed as the system does, without realpath of the socket, which fails on macOS",
+  async () => {
+    const parent = await mkdtemp(join(tmpdir(), "connections-link-"));
+    const fake = await fakeDaemon(parent);
+    try {
+      // As Codex lays it out: app-server-control.sock, a link to the socket.
+      const absolute = join(parent, "absolute.sock");
+      await symlink(fake.path, absolute);
+      const relative = join(parent, "relative.sock");
+      await symlink("control.sock", relative);
+      const chained = join(parent, "chained.sock");
+      await symlink(absolute, chained);
+      // A relative target with `..` behind a linked parent: `..` is taken
+      // from the physical parent (here `parent`), not from `alias`'s.
+      await mkdir(join(parent, "actual", "dir"), { recursive: true });
+      await symlink(join(parent, "actual", "dir"), join(parent, "alias"));
+      await symlink(
+        "../../control.sock",
+        join(parent, "actual", "dir", "up.sock"),
+      );
+      const behindLinkedParent = join(parent, "alias", "up.sock");
+      // A `..` inside the target, after a linked directory: taken after
+      // `alias` is followed (to `parent`), as the system takes it.
+      const throughLinkedTarget = join(parent, "through.sock");
+      await symlink("alias/../../control.sock", throughLinkedTarget);
+      for (const path of [
+        fake.path,
+        absolute,
+        relative,
+        chained,
+        behindLinkedParent,
+        throughLinkedTarget,
+      ]) {
+        const rpc = await openControlSocket(path, { timeoutMs: 2_000 });
+        expect(await rpc.call("remoteControl/status/read", {})).toMatchObject({
+          status: "connected",
+        });
+        rpc.close();
+      }
+      const file = join(parent, "file");
+      await writeFile(file, "");
+      const dangling = join(parent, "dangling.sock");
+      await symlink(join(parent, "absent.sock"), dangling);
+      const loop = join(parent, "loop.sock");
+      await symlink(loop, loop);
+      for (const path of [file, dangling, loop]) {
+        const refused = await openControlSocket(path, { timeoutMs: 2_000 })
+          .then(() => null)
+          .catch((error: unknown) => error);
+        expect(refused).toBeInstanceOf(ControlSocketError);
+        expect((refused as ControlSocketError).reason).toBe("no-socket");
+      }
+    } finally {
+      fake.stop();
+      await rm(parent, { recursive: true, force: true });
     }
   },
 );
