@@ -426,6 +426,7 @@ test("a healthy Environment: ok, exit 0, every group, the same answer in both fo
     "environment-browser skipped no-user-manager",
     "computer-use skipped no-user-manager",
     "chatgpt-apps skipped not-hosted",
+    "access-service skipped not-hosted",
   ]);
   expect(find(result.json, "tool", "gh")).toEqual({
     id: "tool",
@@ -1015,7 +1016,7 @@ test("usage: options of this command only, once, an absolute Folder", async () =
     expect([args, output.code, output.stderr]).toEqual([
       args,
       2,
-      "Usage: doctor [--folder <absolute Folder>] [--sign-in] [--json]",
+      "Usage: doctor [--folder <absolute Folder>] [--sign-in] [--routes] [--json]",
     ]);
   }
 });

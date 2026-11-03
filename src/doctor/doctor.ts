@@ -20,7 +20,7 @@ import {
   executorStatus,
 } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
-import { machineIdentity } from "../folder/machine-binding";
+import { isEnvironmentId, machineIdentity } from "../folder/machine-binding";
 import { githubIdentity, presetNames } from "../folder/presets";
 import {
   hostedEnvironment,
@@ -67,6 +67,15 @@ import {
   observeFolder,
 } from "../recover/observe";
 import { collectRecovery, type RecoveryEnvironment } from "../recover/recover";
+import {
+  type AccessServiceLocation,
+  accessServiceOf,
+  askTargets,
+  type TargetsAnswer,
+  utcInstant,
+} from "../ssh-access/access-service";
+import { recordedRoutes } from "../ssh-access/environments";
+import { type RouteTest, routeCauses, testRoutes } from "../ssh-access/routes";
 import {
   type ActivatableTool,
   activatableTools,
@@ -155,6 +164,10 @@ export const doctorCheckIds = [
   // Whether the operator's Codex keeps the ChatGPT account's apps off where
   // they are not allowed (decision F42's addendum of 2026-10-27).
   "chatgpt-apps",
+  // The access service of root decision 0224 and each route it gives this
+  // Environment, tried with `--routes` (decision F70's addendum).
+  "access-service",
+  "environment-route",
 ] as const;
 export type DoctorCheckId = (typeof doctorCheckIds)[number];
 
@@ -196,6 +209,8 @@ export const doctorGroupOf: Readonly<Record<DoctorCheckId, DoctorGroup>> =
     "environment-browser": "machine",
     "computer-use": "machine",
     "chatgpt-apps": "machine",
+    "access-service": "machine",
+    "environment-route": "machine",
   });
 
 export type DoctorOutcome = "ok" | "warn" | "fail" | "skipped";
@@ -279,6 +294,20 @@ const ownReasons = [
   "leftover-token-variable",
   "leftover-git-helper",
   "leftover-ssh-key",
+  // Routes between Environments (root decision 0224, F70): the service not
+  // declared by the handover, not asked (no --routes), or its own failure
+  // named as such; a route the service gives that is not configured here
+  // or that `ssh -o BatchMode=yes <id> true` does not reach (onboarding
+  // incomplete); no route at all.
+  "access-service-not-declared",
+  "access-service-unreachable",
+  "access-service-unavailable",
+  "access-service-not-recognized",
+  "access-service-malformed",
+  "routes-not-tested",
+  "route-not-configured",
+  "route-unreached",
+  "no-routes",
 ] as const;
 const catalogReasons: readonly (OrganizationReason | ModuleReason)[] = [
   "canonical-documents-required",
@@ -396,6 +425,12 @@ export const doctorContextRules: Readonly<
   homeOrganization: isGithubLogin,
   module: (value: unknown) =>
     typeof value === "string" && namePattern.test(value),
+  // A route between Environments (F70): its Environment id, why a try
+  // failed, when it was tried, how many routes there are.
+  environment: isEnvironmentId,
+  cause: oneOf(routeCauses),
+  at: (value: unknown) => utcInstant(value) !== null,
+  routes: count,
   state: oneOf(organizationRootStates),
   preset: oneOf(presetNames),
   machineKind: oneOf(["workstation", "personal-vm", "workspace-vm"]),
@@ -890,7 +925,153 @@ export type DoctorEnvironment = RecoveryEnvironment &
     fetch?: ((url: string, init: RequestInit) => Promise<Response>) | undefined;
     /** Tests only: where Executor is read (F44); this process's otherwise. */
     executor?: ExecutorHost | undefined;
+    /** Ask the access service for this Environment's targets and try each
+     * route with `ssh -o BatchMode=yes <id> true`: it contacts the service
+     * and the targets, so only on an explicit request (F70). */
+    routes?: boolean | undefined;
+    /** Tests only: the access service, instead of the handover's. */
+    accessService?: AccessServiceLocation | null | undefined;
   }>;
+
+/** What the route checks are made of (F70); read by `collectDoctor`. */
+export type RouteFacts = Readonly<{
+  /** A hosted Environment with a readable handover. */
+  hosted: boolean;
+  /** The handover declares the home access service. */
+  declared: boolean;
+  /** `--routes`: the service was asked and the routes tried. */
+  tested: boolean;
+  /** The service's answer, when it was asked. */
+  targets: TargetsAnswer | null;
+  /** The Environment ids the managed config has now. */
+  configured: readonly string[];
+  /** Each route tried, when `tested`. */
+  tests: readonly RouteTest[];
+}>;
+
+/** The routes between Environments, plainly: the service's own state, then
+ * one check per route. A service that does not answer is reported as
+ * exactly that and nothing else is blamed. While it answers, every route it
+ * gives must be configured here and reached; one that is not needs
+ * attention, as an incomplete onboarding does (never `fail`: the
+ * Environment works, only that route does not). */
+export function routeChecks(facts: RouteFacts): DoctorCheck[] {
+  if (!facts.hosted) return [check("access-service", "skipped", "not-hosted")];
+  const tried = (environment: string): DoctorCheck => {
+    const test = facts.tests.find((entry) => entry.environment === environment);
+    if (test === undefined)
+      return check("environment-route", "skipped", "routes-not-tested", {
+        environment,
+      });
+    return test.result === "reached"
+      ? check("environment-route", "ok", undefined, {
+          environment,
+          at: test.at,
+        })
+      : check("environment-route", "warn", "route-unreached", {
+          environment,
+          cause: test.cause,
+          at: test.at,
+        });
+  };
+  if (!facts.declared)
+    return [
+      check("access-service", "skipped", "access-service-not-declared"),
+      ...(facts.tested
+        ? facts.configured.map(tried)
+        : facts.configured.length === 0
+          ? []
+          : [
+              check("environment-route", "skipped", "routes-not-tested", {
+                routes: facts.configured.length,
+              }),
+            ]),
+    ];
+  if (!facts.tested || facts.targets === null)
+    return [
+      check("access-service", "skipped", "routes-not-tested"),
+      ...(facts.configured.length === 0
+        ? []
+        : [
+            check("environment-route", "skipped", "routes-not-tested", {
+              routes: facts.configured.length,
+            }),
+          ]),
+    ];
+  if (facts.targets.kind !== "answered")
+    return [
+      check("access-service", "warn", `access-service-${facts.targets.kind}`),
+    ];
+  const targets = facts.targets.targets;
+  return [
+    check("access-service", "ok", undefined, { routes: targets.length }),
+    ...(targets.length === 0
+      ? [check("environment-route", "skipped", "no-routes")]
+      : targets.map(({ environment }) =>
+          facts.configured.includes(environment)
+            ? tried(environment)
+            : check("environment-route", "warn", "route-not-configured", {
+                environment,
+              }),
+        )),
+  ];
+}
+
+/** Reads the route facts (F70): only the managed config without
+ * `--routes`; with it, one `GET /v1/targets` and one try per route. Never
+ * writes. */
+async function observeRoutes(
+  environment: DoctorEnvironment,
+  handover: Awaited<ReturnType<DoctorEnvironment["machineContext"]>> | null,
+): Promise<RouteFacts> {
+  const home = environment.tools.home;
+  const hosted = handover !== null && home !== undefined;
+  const now = () => environment.now().getTime();
+  const service =
+    environment.accessService !== undefined
+      ? environment.accessService
+      : handover === null
+        ? null
+        : accessServiceOf(machineBinding(handover.context, handover.digest));
+  const configured =
+    home === undefined || !hosted
+      ? []
+      : (await recordedRoutes({ home, uid: process.getuid?.() })).map(
+          (route) => route.environment,
+        );
+  const tested = hosted && environment.routes === true;
+  const fetchImpl = environment.fetch;
+  const targets =
+    tested && service !== null
+      ? await askTargets(
+          service,
+          now,
+          fetchImpl === undefined
+            ? undefined
+            : (url, init) => fetchImpl(url, init),
+        )
+      : null;
+  const toTry =
+    targets?.kind === "answered"
+      ? targets.targets
+          .map((target) => target.environment)
+          .filter((id) => configured.includes(id))
+      : service === null
+        ? configured
+        : [];
+  const tests =
+    tested && home !== undefined
+      ? await testRoutes(toTry, home, environment.tools.run, now)
+      : [];
+  return {
+    hosted,
+    declared: service !== null,
+    tested,
+    targets,
+    configured,
+    tests,
+  };
+}
 
 /** Executor as `lazurio executor status` reads it (decision F44): `ok`
  * running, `warn` with its state otherwise, `skipped` where it is not
@@ -1225,6 +1406,7 @@ export async function collectDoctor(
     ),
     check("computer-use", computer.outcome, computer.reason, computer.context),
     chatgptApps,
+    ...routeChecks(await observeRoutes(environment, handover)),
   ];
   // Group order, stable within a group.
   const ordered = doctorGroups.flatMap((group) =>

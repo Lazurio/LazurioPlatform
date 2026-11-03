@@ -583,8 +583,15 @@ test("the machine commands synchronize with a declared service on any Machine an
     "/v1/source-key": receipt,
     "/v1/targets": { status: 200, body: answer(target()) },
   });
+  // ssh-keygen is real; the route's try is a fake ssh that reaches it.
+  const tried: string[] = [];
+  const run: typeof runTool = async (command, timeoutMs, env, options) => {
+    if (command[0] !== "ssh") return runTool(command, timeoutMs, env, options);
+    tried.push(command.join(" "));
+    return { exitCode: 0, stdout: "", stderr: "" };
+  };
   const seams = {
-    run: runTool,
+    run,
     current: still,
     now: () => now,
     fetch: fake.fetchImpl,
@@ -602,10 +609,22 @@ test("the machine commands synchronize with a declared service on any Machine an
       environmentRoutes: {
         targets: "answered",
         registration: { kind: "registered" },
+        // Onboarding tries each route it wrote.
+        tests: [
+          {
+            environment: "alice.example",
+            result: "reached",
+            at: "2026-11-03T12:00:00Z",
+          },
+        ],
       },
     });
     expect(result).not.toHaveProperty("environmentSsh");
   }
+  expect(tried).toEqual([
+    "ssh -o BatchMode=yes -o ConnectTimeout=10 -n -T alice.example true",
+    "ssh -o BatchMode=yes -o ConnectTimeout=10 -n -T alice.example true",
+  ]);
   // A blocked or adopted answer still writes nothing and asks nothing.
   const quiet = fakeService({});
   expect<unknown>(

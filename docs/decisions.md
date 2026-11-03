@@ -23494,6 +23494,44 @@ every refused form, the stored binding, the commands asking the declared origin,
 withheld name) and `tests/folder-refresh.test.ts` (a refresh of only the member). Not
 proven: a real handover from a Machines release, until Machines sets the gate.
 
+### F70 addendum of 2026-11-03: onboarding and the doctor try every route
+
+Plan DEV-6687 M7 makes a missing route to an assigned Work Environment an incomplete
+onboarding, and asks for every route's result with its time, never a prepared config
+presented as reachability (Lazurio/LazurioPlatform#766).
+
+1. **The try.** `ssh -o BatchMode=yes -o ConnectTimeout=10 -n -T <environment id> true`
+   through the managed config, at most four at a time and 20 s each; nothing runs on the
+   target but `true`. The cause comes from OpenSSH's own words: `host-key-mismatch`,
+   `login-refused`, `timeout`, `connection-refused`, `unresolved`,
+   `network-unreachable`, else `unknown`. A target that is off and a network that drops
+   packets both time out and are not told apart (`src/ssh-access/routes.ts`).
+2. **Onboarding.** `machine folder-init` and `folder-refresh`, which provision and
+   refresh a hosted Environment, try each route right after the service answered and the
+   config was written (not when the write was `superseded`, point 5 of the amendment
+   above), and report the results in `environmentRoutes.tests`. The
+   Launchpad's minute-by-minute synchronization does not try routes.
+3. **The doctor.** Without a flag it stays read-only and offline: `access-service` is
+   `skipped` (`access-service-not-declared` or `routes-not-tested`) and the configured
+   routes are counted, not tried. `lazurio doctor --routes` asks `GET /v1/targets` (read
+   only) and tries each route, like `--sign-in` contacts providers only on request:
+   - the service answers: `access-service ok` with the number of routes, then one
+     `environment-route` per target: `ok` with the time, `warn route-unreached` with the
+     cause and time, or `warn route-not-configured` when the service gives a route this
+     Environment has not written. Either `warn` is the incomplete onboarding: the
+     verdict needs attention (exit 10), not `broken`, because the Environment itself
+     works and `lazurio recover` repairs nothing here;
+   - the service does not answer: only `access-service warn access-service-<unreachable|
+     unavailable|not-recognized|malformed>`; no route, key or target is blamed;
+   - no declared service: the handover's assigned routes are tried as they are.
+   The rows name the Environment id, the cause and the time (`environment`, `cause`,
+   `at` in the context allowlist), never a host name, path or message.
+
+Not in this addendum: the line in Začínáme that shows these results to the person (it
+needs the Launchpad's onboarding view and a browser check, decision 0178) and the
+record of the last try between runs. Tests: `tests/environment-routes-doctor.test.ts`,
+`tests/access-service-routes.test.ts` (the commands' tries), `tests/doctor.test.ts`.
+
 ## F71 — Phone through ChatGPT: Settings → Connections pairs the ChatGPT app with the Codex app-server's remote control
 
 **Proposed 2026-11-03 (root decision 0215; Lazurio/LazurioPlatform#657, #720).

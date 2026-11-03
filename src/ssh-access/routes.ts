@@ -105,6 +105,9 @@ export type RoutesSync = Readonly<{
   registration: RegistrationAnswer | Readonly<{ kind: "skipped" }>;
   targets: TargetsAnswer["kind"];
   ssh: RoutesWrite;
+  /** With `test`, only after the service answered and the config was
+   * written: each route tried (onboarding, `machine folder-*`). */
+  tests?: readonly RouteTest[];
 }>;
 
 /** The one lock of every writer of the routes, the Launchpad's tick and
@@ -196,6 +199,7 @@ export async function syncEnvironmentRoutes(
   location: EnvironmentSshLocation,
   service: AccessServiceLocation,
   seams: RoutesSeams,
+  test = false,
 ): Promise<RoutesSync> {
   let sourceKey: RoutesSync["sourceKey"];
   try {
@@ -213,7 +217,125 @@ export async function syncEnvironmentRoutes(
       ? writeEnvironmentRoutes(location, targets.targets)
       : pruneEnvironmentRoutes(location, seams.now()),
   );
-  return { sourceKey, registration, targets: targets.kind, ssh };
+  const synced = { sourceKey, registration, targets: targets.kind, ssh };
+  if (
+    !test ||
+    targets.kind !== "answered" ||
+    (ssh.kind !== "written" && ssh.kind !== "unchanged")
+  )
+    return synced;
+  return {
+    ...synced,
+    tests: await testRoutes(
+      ssh.environments,
+      location.home,
+      seams.run,
+      seams.now,
+    ),
+  };
+}
+
+// ---- Testing a route ---------------------------------------------------------
+
+// Each route is tried exactly as an agent uses it: `ssh <environment id> true`
+// through the managed config, non-interactive (`BatchMode=yes`, no password,
+// no question about a host key) and bounded in time. Nothing runs on the
+// target but `true`, and nothing is written there. The result names one cause
+// from OpenSSH's own words; what cannot be told apart (a target that is off
+// and a network that drops packets both time out) stays `timeout` or
+// `unknown`, never a guessed reason.
+
+export const routeCauses = [
+  "host-key-mismatch",
+  "login-refused",
+  "timeout",
+  "connection-refused",
+  "unresolved",
+  "network-unreachable",
+  "not-configured",
+  "unknown",
+] as const;
+export type RouteCause = (typeof routeCauses)[number];
+
+export type RouteTest =
+  | Readonly<{ environment: string; result: "reached"; at: string }>
+  | Readonly<{
+      environment: string;
+      result: "failed";
+      cause: RouteCause;
+      at: string;
+    }>;
+
+const connectTimeoutSeconds = 10;
+const testTimeoutMs = 20_000;
+const testsAtOnce = 4;
+
+/** The cause of a failed `ssh` from its standard error. */
+export function routeCause(stderr: string): RouteCause {
+  if (
+    /REMOTE HOST IDENTIFICATION HAS CHANGED|Host key verification failed|No (?:ED25519 )?host key is known/i.test(
+      stderr,
+    )
+  )
+    return "host-key-mismatch";
+  if (/Permission denied/i.test(stderr)) return "login-refused";
+  if (/Connection timed out|Operation timed out|timed out/i.test(stderr))
+    return "timeout";
+  if (/Connection refused/i.test(stderr)) return "connection-refused";
+  if (/Could not resolve hostname|Name or service not known/i.test(stderr))
+    return "unresolved";
+  if (/No route to host|Network is unreachable/i.test(stderr))
+    return "network-unreachable";
+  return "unknown";
+}
+
+/** Tries every route, a few at a time, and answers each result with the time
+ * it was observed. */
+export async function testRoutes(
+  environments: readonly string[],
+  home: string,
+  run: ToolRunner,
+  now: () => number,
+): Promise<readonly RouteTest[]> {
+  const env = { HOME: home, PATH: process.env.PATH ?? "" };
+  const one = async (environment: string): Promise<RouteTest> => {
+    const result = await run(
+      [
+        "ssh",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        `ConnectTimeout=${connectTimeoutSeconds}`,
+        "-n",
+        "-T",
+        environment,
+        "true",
+      ],
+      testTimeoutMs,
+      env,
+    ).catch(() => "timeout" as const);
+    const at = new Date(Math.floor(now() / 1000) * 1000)
+      .toISOString()
+      .replace(".000Z", "Z");
+    if (result === "timeout")
+      return { environment, result: "failed", cause: "timeout", at };
+    return result.exitCode === 0
+      ? { environment, result: "reached", at }
+      : {
+          environment,
+          result: "failed",
+          cause: routeCause(result.stderr),
+          at,
+        };
+  };
+  const results: RouteTest[] = [];
+  for (let index = 0; index < environments.length; index += testsAtOnce)
+    results.push(
+      ...(await Promise.all(
+        environments.slice(index, index + testsAtOnce).map(one),
+      )),
+    );
+  return results;
 }
 
 /** What one tick of the Launchpad's loop finds: this base keeps no routes

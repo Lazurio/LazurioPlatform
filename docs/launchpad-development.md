@@ -1899,7 +1899,7 @@ and the readback of C.3 item 4. One core, `collectDoctor` in `src/doctor/doctor.
 the terminal surface is `src/doctor/cli.ts`. `lazurio recover` stays the
 broken-product path with its evidence, prompt and issue; doctor points to it.
 
-**CLI.** `lazurio doctor [--folder <absolute Folder>] [--sign-in] [--json]`. The Folder
+**CLI.** `lazurio doctor [--folder <absolute Folder>] [--sign-in] [--routes] [--json]`. The Folder
 is `--folder`, the supervised unit's, or on a hosted Machine the declared operator's
 (as for `lazurio update`). Exit status: 0 `ok`, 10 `attention` (a `warn`), 3 `broken`
 (a `fail`), 2 usage, 1 the command itself failed.
@@ -1912,7 +1912,10 @@ lock otherwise, since taking the lock of a state without one would create it; no
 is fetched (`update-available` is the
 last verified check on disk); nothing restarts. `--sign-in` additionally runs each
 installed tool's sign-in probe, which may contact its provider, exactly as `tools list
---sign-in`. The heavy reader is the active executable's `self-check`, one process, as in
+--sign-in`. `--routes` additionally asks the home access service for this Environment's
+routes (`GET /v1/targets`, read only) and tries each route with `ssh -o BatchMode=yes
+<id> true` (checks `access-service` and `environment-route`, decision F70's addendum of
+2026-11-03). The heavy reader is the active executable's `self-check`, one process, as in
 `recover`. A test snapshots the whole temporary tree (paths, modes, sizes, modification
 times, the SHA-256 of every file and the target of every link) before and after and finds
 it byte-identical. A tool's version is reported only as numeric segments
