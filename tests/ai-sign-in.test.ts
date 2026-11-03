@@ -572,17 +572,52 @@ test("the controller settles a not installed on the fresh reading after it (revi
     reason: "not-installed",
   });
   const before = changes.length;
-  // A reading that still says not installed changes nothing.
-  signIn.settle({
-    state: "missing",
-    providers: [{ provider: "claude", state: "not-installed" }],
-  });
-  expect(changes.length).toBe(before);
-  // Installed and read again: the step is drawn without the failure.
-  signIn.settle({
+  const installed = {
     state: "missing",
     providers: [{ provider: "claude", state: "signed-out" }],
-  });
+  } as const;
+  // A reading that still says not installed changes nothing.
+  signIn.settle(
+    {
+      state: "missing",
+      providers: [{ provider: "claude", state: "not-installed" }],
+    },
+    signIn.mark(),
+  );
+  expect(changes.length).toBe(before);
+  // Installed and read again after the failure: drawn without it.
+  signIn.settle(installed, signIn.mark());
   expect(signIn.state()).toEqual({ kind: "idle" });
   expect(changes.at(-1)).toBe("idle");
+});
+
+test("a reading begun before the failure never settles it (review of #827)", async () => {
+  const signIn = createAiSignIn({
+    post: async () => ({
+      value: { kind: "failed", tool: "claude", reason: "not-installed" },
+      ok: false,
+    }),
+    showView: () => undefined,
+    changed: () => undefined,
+    readAi: () => undefined,
+  });
+  // "Zkontrolovat znovu" starts a reading while Claude Code is there ...
+  const since = signIn.mark();
+  // ... the CLI goes, and a click finds it missing before the reading ends.
+  await signIn.start("claude");
+  const missing = {
+    kind: "failed",
+    tool: "claude",
+    reason: "not-installed",
+  } as const;
+  expect(signIn.state()).toEqual(missing);
+  // The older reading, which still saw it installed, leaves the failure.
+  signIn.settle(
+    {
+      state: "missing",
+      providers: [{ provider: "claude", state: "signed-out" }],
+    },
+    since,
+  );
+  expect(signIn.state()).toEqual(missing);
 });

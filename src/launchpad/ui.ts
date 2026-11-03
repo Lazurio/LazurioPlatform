@@ -611,6 +611,8 @@ function startByItself() {
   if (step.start) void content.start();
 }
 async function readAi(fresh = false) {
+  // A fresh reading may settle only the sign-in state it began under.
+  const since = fresh ? aiSignIn.mark() : null;
   let read: AiReading | null = null;
   try {
     const { value, ok } = await get(fresh ? "/api/ai?fresh=1" : "/api/ai");
@@ -618,8 +620,9 @@ async function readAi(fresh = false) {
   } catch {}
   aiRead = true;
   if (read !== null || aiReading === null) aiReading = read;
-  // Asked now, so after any click: a CLI it finds can sign in again.
-  if (fresh) aiSignIn.settle(read);
+  // Asked now: a CLI it finds can sign in again, unless the sign-in state
+  // changed while it was under way.
+  if (since !== null) aiSignIn.settle(read, since);
   content.render();
   startByItself();
   firstRun();

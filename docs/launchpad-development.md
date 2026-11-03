@@ -3195,7 +3195,9 @@ Organization's app, its basics are the Organization's, and it gets none of it.
      CLI not installed (`reason: "not-installed"`) instead says "{Claude|ChatGPT} zatím
      není nainstalovaný v tomto Prostředí, proto se tu přihlásit nedá." and offers the
      other sign-in, never "Zkusit znovu", until a fresh reading (`?fresh=1`, "Zkontrolovat
-     znovu") finds that CLI, which drops the failure (`aiSignInAfterReading`); a T3 Code that did not turn the provider on, said
+     znovu") begun after the failure, with nothing changed while it ran, finds that CLI,
+     which drops the failure (`aiSignInAfterReading`); after `forget()` the server never
+     answers a fresh reading with one it was already asking (`createAiProbe`); a T3 Code that did not turn the provider on, said
      beside the account; and without the Environment browser "Přihlášení tu teď nejde
      otevřít.", nothing started. Signed in, the page reads `GET /api/ai?fresh=1` at once;
   2. **GitHub**: "Připojeno jako @login", or "Nepřipojeno" with

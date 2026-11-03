@@ -293,6 +293,9 @@ export function createAiSignIn(
   const answerMs = options.answerMs ?? 45_000;
   const pollMs = options.pollMs ?? 2_000;
   let current: AiSignIn = idleAiSignIn;
+  // Counts every change of the state: a reading begun at one count may only
+  // settle the state it began under.
+  let changes = 0;
   let turn = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   // The view the panel was opened on, once per sign-in.
@@ -303,6 +306,7 @@ export function createAiSignIn(
 
   const set = (next: AiSignIn) => {
     current = next;
+    changes += 1;
     options.changed();
   };
   const ask = async (path: string, body: unknown) => {
@@ -440,10 +444,17 @@ export function createAiSignIn(
       set({ ...current, codeNote: answer.ok ? "sent" : "invalid" });
     },
 
-    /** A fresh reading of the AI arrived: a "not installed" it proves
-     * wrong is dropped (aiSignInAfterReading). Only for a reading asked
-     * after the failure; a kept one may predate the click. */
-    settle(reading: AiReading | null) {
+    /** Taken right before a fresh reading of the AI is asked for. */
+    mark(): number {
+      return changes;
+    },
+
+    /** That fresh reading arrived: a "not installed" it proves wrong is
+     * dropped (aiSignInAfterReading), but only when the state is the one
+     * the reading began under (`since`, from mark()). A failure that came
+     * while it was under way is newer than the reading and stays. */
+    settle(reading: AiReading | null, since: number) {
+      if (since !== changes) return;
       const next = aiSignInAfterReading(current, reading);
       if (next !== current) set(next);
     },
