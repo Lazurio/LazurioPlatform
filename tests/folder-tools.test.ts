@@ -346,7 +346,7 @@ test("preferences accept the optional tools key and keep it absent when nothing 
   // The optional key needs no new schema version (decision F18).
   expect(folderStateSchemas).toEqual({
     preferences: [2, 3],
-    manifest: [2, 3, 4],
+    manifest: [2, 3, 4, 5],
   });
 });
 
@@ -361,7 +361,7 @@ async function planned(preferencesInput: unknown = stored) {
   return {
     preferences,
     manifest: {
-      schemaVersion: 4,
+      schemaVersion: 5,
       preferenceRevision: preferences.revision,
       templateRevision: preview.templateRevision,
       outputs,
@@ -739,7 +739,7 @@ test("a profile change and a handover refresh carry the enabled tools forward", 
 });
 
 test("a Folder rendered by an older template revision is upgraded by a tools change", async () => {
-  expect(instructionTemplateRevision).toBe("base-instructions-107");
+  expect(instructionTemplateRevision).toBe("base-instructions-108");
   const { preferences, manifest } = await planned();
   const older = {
     ...manifest,
@@ -762,7 +762,7 @@ test("a Folder rendered by an older template revision is upgraded by a tools cha
       recorded,
     );
     if (upgrade.kind !== "profile-change") throw new Error("Expected upgrade");
-    expect(upgrade.manifest.templateRevision).toBe("base-instructions-107");
+    expect(upgrade.manifest.templateRevision).toBe("base-instructions-108");
     expect(upgrade.previous).toEqual(older.outputs);
     expect(enabledTools(upgrade.preferences)).toEqual(tools);
     expect(upgrade.files).toEqual(
