@@ -2403,14 +2403,48 @@ function botTeam(
   ];
 }
 
+// Routes into other Environments (root decision 0224, decision F70): the
+// access service on the Conglomerate Host derives them from facts and the
+// Platform writes them into the managed config; agents use only those, never
+// a hand-written alias, a jump host or a forwarded agent, reach a Team
+// Environment in two hops with each Environment's own key, and report a
+// missing route instead of working around it.
+const environmentRoutes: readonly Text[] = [
+  t(
+    "## Cesty do jiných Prostředí (rozhodnutí 0224)",
+    "## Routes into other Environments (decision 0224)",
+  ),
+  t(
+    "Kam odsud smíš, zapisuje Lazurio do `~/.ssh/config.d/lazurio-environments.conf`: jeden `Host <id Prostředí>` na cestu, s pinnutým klíčem hostitele a jediným klíčem tohoto Prostředí `~/.ssh/lazurio-environment-ed25519`. Cesty plynou z faktů, ne z ruční konfigurace: z Osobního Prostředí do Pracovních Prostředí uživatele ve všech Organizacích jeho Conglomerate, z Pracovního Prostředí do Týmových Prostředí Teamů uživatele a z Pracovního Prostředí Admina do všech ostatních Prostředí jeho Organizace. Seznam vypíše `grep '^Host ' ~/.ssh/config.d/lazurio-environments.conf`.",
+    "Lazurio writes where you may go from here into `~/.ssh/config.d/lazurio-environments.conf`: one `Host <environment id>` per route, with the host key pinned and this Environment's one key `~/.ssh/lazurio-environment-ed25519`. Routes follow from facts, not from hand-written configuration: from a Personal Environment into the user's Work Environments in every Organization of its Conglomerate, from a Work Environment into the Team Environments of the user's Teams, and from an Admin's Work Environment into every other Environment of their Organization. `grep '^Host ' ~/.ssh/config.d/lazurio-environments.conf` lists them.",
+  ),
+  t(
+    "- Připojuj se jen `ssh <id Prostředí> …`. Ruční alias v `~/.ssh/config`, adresu, `ProxyJump` (`-J`), přeposílání agenta (`-A`) ani portů nepoužívej, i kdyby fungovaly, a soubory, které Lazurio spravuje, neupravuj.",
+    "- Connect only with `ssh <environment id> …`. Never use a hand-written alias in `~/.ssh/config`, an address, `ProxyJump` (`-J`), agent forwarding (`-A`) or port forwarding, even if they would work, and never edit the files Lazurio manages.",
+  ),
+  t(
+    "- Do Týmového Prostředí z Osobního Prostředí vedou dva kroky: `ssh <id tvého Pracovního Prostředí>` a teprve v něm druhé `ssh <id Týmového Prostředí>` jeho vlastním klíčem, například `ssh <pracovní> 'ssh <týmové> …'`. Napřímo cesta nevede a klíč tohoto Prostředí se dál nepřeposílá. Stejně jdeš přes Pracovní Prostředí Admina do ostatních Prostředí jeho Organizace.",
+    "- From a Personal Environment into a Team Environment there are two steps: `ssh <your Work Environment's id>`, and only there a second `ssh <Team Environment id>` with that Environment's own key, for example `ssh <work> 'ssh <team> …'`. No route leads there directly, and this Environment's key is never forwarded. You go the same way through an Admin's Work Environment into the other Environments of their Organization.",
+  ),
+  t(
+    "- Když cesta chybí (Prostředí není v souboru, `ssh` odmítne přihlášení, vyprší, nebo nesedí klíč hostitele), jinou nehledej a neobcházej ji: řekni uživateli, kam se nedostaneš a co `ssh` odpovědělo. Stav všech cest i přístupové služby ukáže `lazurio doctor --routes`. Klíč hostitele nikdy nemaž ani znovu nepřijímej a `ssh-keyscan` nepoužívej; nový klíč přinese Lazurio, až ho potvrdí záznamy Organizace cíle.",
+    "- When a route is missing (the Environment is not in the file, `ssh` refuses the login, times out, or the host key does not match), never look for another one or work around it: tell the user where you cannot go and what `ssh` answered. `lazurio doctor --routes` shows every route and the access service. Never remove or accept a host key again and never use `ssh-keyscan`; Lazurio brings a new key once the target Organization's records confirm it.",
+  ),
+  t(
+    "- V cílovém Prostředí platí jeho `AGENTS.md`. Personalspace, osobní přihlášení ani paměť Buddyho tam nenos a zpět přines jen výsledek, který uživatel potřebuje.",
+    "- In the target Environment its own `AGENTS.md` applies. Never carry the Personalspace, personal sign-ins or Buddy's memory there, and bring back only the result the user needs.",
+  ),
+];
+
 // The rules for SSH from a hosted Machine to another one. Tailnet addresses
 // repeat across tailnets and one Tailscale profile is global to the Machine,
 // so identity comes from the peer's name and a pinned key, never from the
 // address or the first connection.
 const sshRules: readonly Text[] = [
+  t("## SSH na zařízení a další peery", "## SSH to devices and other peers"),
   t(
-    "## SSH na další Environmenty a zařízení",
-    "## SSH to other Environments and devices",
+    "Do jiného Prostředí vede jen cesta z oddílu výše. Tyto řádky platí pro zařízení a pro ostatní peery, které uvádí handover.",
+    "Another Environment is reached only by a route from the section above. These lines hold for devices and for the other peers the handover records.",
   ),
   t(
     "- Připojuj se jen na tailnet hostname peeru tak, jak ho uvádí handover (`ssh.host` u peerů výše), nikdy na holou tailnet adresu typu `100.64.0.x`: ty se opakují v každém tailnetu a v každém znamenají jiný peer.",
@@ -3044,6 +3078,7 @@ function thisMachine(source: InstructionSource): string {
             ),
           ]),
       ...(machine === null ? [] : deviceSsh(machine)),
+      ...(machine === null ? [] : [blank, ...environmentRoutes]),
       ...(machine === null ? [] : [blank, ...sshRules]),
       ...(preset === "hosted-personal"
         ? [blank, ...fromPersonalVm(machine, locale)]
