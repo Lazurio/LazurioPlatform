@@ -129,7 +129,7 @@ test("the built-in copy is the registry's index: three templates, none released 
   ).toEqual([
     [
       "design-system",
-      "LazurioExampleOrganization/design-system",
+      "LazurioTemplates/design-system",
       "MIT",
       "palette",
       "1.0.0",
@@ -141,7 +141,7 @@ test("the built-in copy is the registry's index: three templates, none released 
     ],
     [
       "mission-control",
-      "Lazurio/mission-control",
+      "LazurioTemplates/mission-control",
       "MIT",
       "control",
       "4.0.0",
@@ -153,7 +153,7 @@ test("the built-in copy is the registry's index: three templates, none released 
     ],
     [
       "presentations",
-      "LazurioExampleOrganization/presentations",
+      "LazurioTemplates/presentations",
       "MIT",
       "presentation",
       "0.1.0",
@@ -164,13 +164,18 @@ test("the built-in copy is the registry's index: three templates, none released 
       4,
     ],
   ]);
-  // Lazurio releases Mission Control from its upstream; the example
-  // Organization only takes the releases over.
+  // LazurioTemplates publishes every template; the example Organization is
+  // a subscriber that adopts them from the Marketplace like any other.
+  expect(builtInIndex.offers.map((offer) => offer.publisher)).toEqual([
+    "LazurioTemplates",
+    "LazurioTemplates",
+    "LazurioTemplates",
+  ]);
   expect(JSON.stringify(builtInIndex)).not.toContain(
-    "LazurioExampleOrganization/mission-control",
+    "LazurioExampleOrganization",
   );
   expect(releaseUrl(released)).toBe(
-    "https://github.com/LazurioExampleOrganization/presentations/releases/tag/v0.1.0",
+    "https://github.com/LazurioTemplates/presentations/releases/tag/v0.1.0",
   );
   expect(offerById(builtInMarketplace, "presentations")).toBeNull();
   expect(offerById(catalogOf(...shown), "other")).toBeNull();
@@ -248,7 +253,7 @@ test("only offers with a published release are shown; an unknown stone shows the
 
 test("screens come from the offered release's exact commit", () => {
   expect(screenshotUrl(released, "docs/a.webp")).toBe(
-    `https://raw.githubusercontent.com/LazurioExampleOrganization/presentations/${commit}/docs/a.webp`,
+    `https://raw.githubusercontent.com/LazurioTemplates/presentations/${commit}/docs/a.webp`,
   );
 });
 
@@ -297,7 +302,7 @@ test("the brief names the exact release, the Organization, the start and the bou
       ) as string;
       expect(text).toContain("Presentations");
       expect(text).toContain("Example Company (GitHub Example-Org)");
-      expect(text).toContain("LazurioExampleOrganization/presentations v0.1.0");
+      expect(text).toContain("LazurioTemplates/presentations v0.1.0");
       expect(text).toContain(commit);
       expect(text).toContain("MIT");
       expect(text).toContain("docs/adoption.md");

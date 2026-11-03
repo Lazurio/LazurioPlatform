@@ -37,11 +37,14 @@ does today; the rest of this document stays future direction.
 - **Today's offers.** Mission Control 4.0.0 (`app/v3`, `app-data@2026.11`), Design
   System 1.0.0 (`app/v1`, `content@2026.11`) and Presentations 0.1.0 (`app/v1`,
   `app@2026.11`), MIT, on Bun 1.4.4. None is released yet, so the Marketplace shows
-  none of them and says there are no app templates yet. Lazurio releases Mission
-  Control from its upstream `Lazurio/mission-control` (releases v3.0.0 to v3.1.0
-  before); `LazurioExampleOrganization` takes its releases over by merging their tags
-  and publishes Design System and Presentations. Presentations moved there from
-  `TemplatesRozjedeme-ai` with a clean history (decided 2026-11-03).
+  none of them and says there are no app templates yet. All three are published
+  by the GitHub Organization `LazurioTemplates` (decided 2026-11-03), from
+  `LazurioTemplates/mission-control` (moved from `Lazurio/mission-control`, releases
+  v3.0.0 to v3.1.0 before), `LazurioTemplates/design-system` and
+  `LazurioTemplates/presentations` (moved from `TemplatesRozjedeme-ai` with a clean
+  history). `LazurioExampleOrganization` is their first subscriber: it adopts them
+  from the Marketplace like any other Organization (by `docs/adoption.md` of each
+  template, updates by merging a newer tag), which tests adoption for real.
 - **It looks like the module it becomes.** An offer carries the stone its module
   shows in Apps (`presentation`, `shell/stones.ts`). The catalog's card is a real
   screen of the app, the stone, the name and one line, as a tile in Apps.

@@ -441,9 +441,7 @@ posixTest(
         const document = (await answer.json()) as { id: string; text: string };
         expect(document.id).toBe(`marketplace-presentations-${seed}`);
         expect(document.text).toContain(commit);
-        expect(document.text).toContain(
-          "LazurioExampleOrganization/presentations",
-        );
+        expect(document.text).toContain("LazurioTemplates/presentations");
       }
       // Mission Control has no published release, so it is not shown and
       // its prompt is the same 404.
