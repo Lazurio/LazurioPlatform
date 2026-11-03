@@ -154,18 +154,41 @@ const acmeMark = {
   initials: "AW",
 } as const;
 
+// A person's photo (F36's addendum of 2026-11-03): the GitHub account's.
+const janaPhoto = {
+  kind: "person",
+  name: "jana",
+  avatar: "https://github.com/jana.png?size=96",
+  initials: "JA",
+} as const;
+
 describe("one identity names an Environment", () => {
-  test("a work Environment: its Organization's mark and its kind's name; the person only when it is someone else's", () => {
+  test("a work Environment assigned to a person: their photo and name, its kind under it (F36's addendum of 2026-11-03)", () => {
     const shell = parsed(acmeDocument());
-    // Jana's own: the name says the kind, and nothing repeats it (0170
-    // addendum 2026-10-15); a colleague's shows below as "@petr".
+    // Without the person's name, their login.
     expect(environmentIdentity(shell, "vm-01.acme", cs)).toEqual({
       id: "vm-01.acme",
-      name: "Pracovní",
-      who: "",
-      glyph: acmeMark,
+      name: "jana",
+      who: "Pracovní Prostředí",
+      glyph: janaPhoto,
     });
-    expect(environmentIdentity(shell, "vm-01.acme", en)?.name).toBe("Work");
+    expect(environmentIdentity(shell, "vm-01.acme", en)?.who).toBe(
+      "Work Environment",
+    );
+    // With it, the name and its initials where the photo does not load.
+    const named = parsed(
+      acmeDocument({
+        environments: [
+          { ...acmeDocument().environments[0], assigneeName: "Jana Nováková" },
+        ],
+      }),
+    );
+    expect(environmentIdentity(named, "vm-01.acme", cs)).toEqual({
+      id: "vm-01.acme",
+      name: "Jana Nováková",
+      who: "Pracovní Prostředí",
+      glyph: { ...janaPhoto, name: "Jana Nováková", initials: "JN" },
+    });
   });
 
   test("a personal Environment: your initials, never an Organization", () => {
@@ -191,7 +214,7 @@ describe("one identity names an Environment", () => {
     expect(environmentIdentity(shell, "vm-02.acme", cs)).toEqual({
       id: "vm-02.acme",
       name: "Team Sales",
-      who: "Týmové",
+      who: "Týmové Prostředí",
       glyph: acmeMark,
     });
     expect(environmentIdentity(shell, "vm-03.acme", en)).toEqual({
@@ -199,7 +222,7 @@ describe("one identity names an Environment", () => {
       // An automated Environment is a work one (F28's addendum of
       // 2026-10-18).
       name: "Steward",
-      who: "Work",
+      who: "Work Environment",
       glyph: acmeMark,
     });
   });
@@ -242,21 +265,28 @@ describe("one identity names an Environment", () => {
   test("the person's account renames it through the merge, in its language only, and names Environments the page does not know", () => {
     const local = parsed(acmeDocument());
     const merged = mergeAccount(local, accountOf("cs"));
+    // A name of its own wins over the person's; the photo says whose it is,
+    // and the head says what it is, never the Dashboard's line.
     expect(environmentIdentity(merged, "vm-01.acme", cs)).toEqual({
       id: "vm-01.acme",
       name: "Prodej",
-      who: "Jana a Petr",
-      glyph: acmeMark,
+      who: "Pracovní Prostředí",
+      glyph: janaPhoto,
     });
     expect(environmentIdentity(merged, "vm-04.acme", cs)).toEqual({
       id: "vm-04.acme",
-      name: "Pracovní",
-      who: "přiřazeno @petr",
-      glyph: acmeMark,
+      name: "petr",
+      who: "Pracovní Prostředí",
+      glyph: {
+        kind: "person",
+        name: "petr",
+        avatar: "https://github.com/petr.png?size=96",
+        initials: "PE",
+      },
     });
-    // An account in another language keeps the kind's words.
+    // An account in another language keeps no name of its own.
     const other = mergeAccount(local, accountOf("en"));
-    expect(environmentIdentity(other, "vm-01.acme", cs)?.name).toBe("Pracovní");
+    expect(environmentIdentity(other, "vm-01.acme", cs)?.name).toBe("jana");
     // Without the account, the page does not know the other one.
     expect(environmentIdentity(local, "vm-04.acme", cs)).toBeNull();
   });
@@ -280,9 +310,9 @@ describe("one identity names an Environment", () => {
     const shell = parsed(acmeDocument());
     const identity = environmentIdentity(shell, "vm-01.acme", cs);
     expect(titleWithIdentity("Inbox (3)", identity)).toBe(
-      "Inbox (3) — Acme Works · Pracovní",
+      "Inbox (3) — jana · Pracovní Prostředí",
     );
-    expect(titleWithIdentity("", identity)).toBe("Acme Works · Pracovní");
+    expect(titleWithIdentity("", identity)).toBe("jana · Pracovní Prostředí");
     expect(titleWithIdentity("Inbox (3)", null)).toBe("Inbox (3)");
     expect(titleWithIdentity("", null)).toBe("");
   });
@@ -294,10 +324,13 @@ describe("one identity names an Environment", () => {
       if (found === null) throw new Error("listed");
       return found;
     };
-    expect(identityText(identity("vm-01.acme"))).toBe("Acme Works · Pracovní");
+    // A person's Environment: no Organization mark, the person instead.
+    expect(identityText(identity("vm-01.acme"))).toBe(
+      "jana · Pracovní Prostředí",
+    );
     expect(identityText(identity("jana"))).toBe("Osobní");
     expect(identityText(identity("vm-02.acme"))).toBe(
-      "Acme Works · Team Sales · Týmové",
+      "Acme Works · Team Sales · Týmové Prostředí",
     );
     // An Organization's Dashboard names it once.
     expect(
@@ -319,9 +352,12 @@ describe("<lazurio-environment>'s attributes", () => {
 
   test("`lang` picks the words, else the document's language", () => {
     const shell = parsed(acmeDocument());
-    // "Team Sales" already says Team in English; Czech adds Týmové.
-    expect(elementIdentity(shell, "vm-02.acme", "en")?.who).toBe("");
-    expect(elementIdentity(shell, "vm-02.acme", "de")?.who).toBe("Týmové");
+    expect(elementIdentity(shell, "vm-02.acme", "en")?.who).toBe(
+      "Team Environment",
+    );
+    expect(elementIdentity(shell, "vm-02.acme", "de")?.who).toBe(
+      "Týmové Prostředí",
+    );
   });
 
   test("`space` is the page's space as its column head reads it: on a workstation opened for one Organization both name it alike", () => {
@@ -375,9 +411,7 @@ describe("<lazurio-environment>'s attributes", () => {
       expect(elementIdentity(shell, value, null)).toBeNull();
     const dashboard = parsed(acmeDocument({ current: null }));
     expect(elementIdentity(dashboard, null, null)).toBeNull();
-    expect(elementIdentity(dashboard, "vm-01.acme", null)?.name).toBe(
-      "Pracovní",
-    );
+    expect(elementIdentity(dashboard, "vm-01.acme", null)?.name).toBe("jana");
   });
 });
 

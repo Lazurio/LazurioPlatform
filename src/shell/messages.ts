@@ -30,6 +30,14 @@ export type ShellCopy = Readonly<{
    * voice, "Druh Prostředí stačí"): Osobní, Pracovní or Týmové, and on your
    * own computer, which has no kind, Váš počítač. */
   kinds: Readonly<Record<ShellEnvironmentKind, string>>;
+  /** The kind as a label, under a name that does not say it: Osobní,
+   * Pracovní or Týmové Prostředí, Váš počítač (the column head and a Team's
+   * line in the switcher, F36's addendum of 2026-11-03). */
+  kindLabels: Readonly<Record<ShellEnvironmentKind, string>>;
+  /** The headings of an Organization's Environments in the switcher (F36's
+   * addendum of 2026-11-03): the people they are assigned to, the Teams,
+   * and the Organization's own (server services, automations). */
+  groups: Readonly<{ people: string; teams: string; organization: string }>;
   /** A work Environment assigned to someone other than the viewer. */
   assignedTo: string;
   /** An Environment known not to run. */
@@ -126,6 +134,8 @@ const en: ShellCopy = {
   signOut: "Sign out",
   names: byKind((kind) => kindShort(kind, "en")),
   kinds: byKind((kind) => kindShort(kind, "en")),
+  kindLabels: byKind((kind) => kindLabel(kind, "en")),
+  groups: { people: "People", teams: "Teams", organization: "Organization" },
   assignedTo: "assigned to {login}",
   offline: "offline",
   pick: "{name}, switch Environment",
@@ -187,6 +197,8 @@ const cs: ShellCopy = {
   signOut: "Odhlásit",
   names: byKind((kind) => kindShort(kind, "cs")),
   kinds: byKind((kind) => kindShort(kind, "cs")),
+  kindLabels: byKind((kind) => kindLabel(kind, "cs")),
+  groups: { people: "Lidé", teams: "Týmy", organization: "Organizace" },
   assignedTo: "přiřazeno {login}",
   offline: "offline",
   pick: "{name}, přepnout Prostředí",

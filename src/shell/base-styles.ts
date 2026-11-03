@@ -60,4 +60,6 @@ a, button, input { font: inherit; color: inherit; }
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .org-mark { display: grid; flex: none; place-items: center; overflow: hidden; border-radius: var(--lz-radius-sm); background: var(--shell-mark); box-shadow: inset 0 0 0 1px var(--shell-mark-line); color: var(--shell-mark-ink); font-weight: var(--lz-weight-akce); letter-spacing: 0.02em; }
 .org-mark img { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* A person's photo (F36's addendum of 2026-11-03): round. */
+.org-mark.person-mark { border-radius: 50%; }
 `;

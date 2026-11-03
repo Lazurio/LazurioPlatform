@@ -68,10 +68,17 @@ dialog.switcher-dialog::backdrop { background: rgb(0 0 0 / 25%); }
 .switcher-row { display: flex; width: 100%; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--lz-radius-sm); color: var(--shell-ink); line-height: normal; text-decoration: none; }
 .switcher-row:hover, .switcher-head:hover, .is-cursor { background: var(--shell-entry-hover); }
 .switcher-row[aria-current="page"], .switcher-head[aria-current="page"] { background: var(--shell-selected); }
-.switcher-glyph { display: grid; width: 20px; height: 20px; flex: none; place-items: center; color: var(--shell-ink-muted); font-size: 10px; font-weight: var(--lz-weight-akce); }
-.switcher-copy { display: flex; min-width: 0; align-items: baseline; gap: 8px; }
-.switcher-name { flex: none; font-size: 14px; font-weight: var(--lz-weight-akce); white-space: nowrap; }
-.switcher-who { min-width: 0; overflow: hidden; color: var(--shell-ink-muted); font-size: 13px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.switcher-glyph { display: grid; width: 24px; height: 24px; flex: none; place-items: center; color: var(--shell-ink-muted); font-size: 10px; font-weight: var(--lz-weight-akce); }
+/* A person's photo (F36's addendum of 2026-11-03): round, the size of the glyph. */
+.switcher-glyph .person-mark { width: 24px; height: 24px; font-size: 10px; }
+/* The name and, under it, whom it is for (F36's addendum of 2026-11-03):
+   neither is cut; a long one wraps. */
+.switcher-copy { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
+.switcher-name { font-size: 14px; font-weight: var(--lz-weight-akce); overflow-wrap: anywhere; }
+.switcher-who { color: var(--shell-ink-muted); font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+/* The headings of an Organization's Environments: Lidé, Týmy, Organizace. */
+.switcher-subtitle { padding: 10px 8px 2px; color: var(--shell-ink-muted); font-size: 11px; font-weight: var(--lz-weight-akce); letter-spacing: 0.02em; text-transform: uppercase; }
+.switcher-title + .switcher-subtitle, .switcher-head + .switcher-subtitle, .switcher-group > .switcher-subtitle:first-child { padding-top: 4px; }
 .switcher-check { display: inline-flex; flex: none; align-items: center; margin-left: auto; color: var(--shell-ink); }
 .switcher-empty { margin: 12px 0 0; padding: 6px 8px; color: var(--shell-ink-muted); font-size: 13px; line-height: 1.5; }
 .switcher-foot { display: flex; flex: none; align-items: center; gap: 14px; padding: 8px 14px; border-top: 1px solid var(--shell-line); color: var(--shell-ink-muted); font-size: 12px; line-height: normal; white-space: nowrap; }

@@ -639,14 +639,26 @@ test("several Organizations: a space's Environments, its last one remembered, th
   expect(
     one.map((section) => [section.space, section.title, section.head]),
   ).toEqual([["north", null, null]]);
+  // Under its headings (F36's addendum of 2026-11-03): People, your
+  // computer first, each person's work Environment by its person (their
+  // login, without their name), then Teams.
   expect(
     one[0]?.rows.map((row) => [row.id, row.name, row.who, row.current]),
   ).toEqual([
-    ["vm-0.north", "Team North", "", false],
-    ["vm-1.north", "Work", "assigned to @person-1", false],
-    ["vm-2.north", "Work", "assigned to @person-2", false],
-    ["vm-3.north", "Work", "assigned to @person-3", true],
     ["laptop", "Your computer", "", false],
+    ["vm-1.north", "person-1", "", false],
+    ["vm-2.north", "person-2", "", false],
+    ["vm-3.north", "person-3", "", true],
+    ["vm-0.north", "Team North", "Team Environment", false],
+  ]);
+  expect(
+    one[0]?.groups.map((group) => [
+      group.title,
+      group.rows.map((row) => row.id),
+    ]),
+  ).toEqual([
+    ["People", ["laptop", "vm-1.north", "vm-2.north", "vm-3.north"]],
+    ["Teams", ["vm-0.north"]],
   ]);
   // ⌘⇧E: every space, each Organization with its head; "All
   // Organizations" under the picker: every space by its title, no head. A

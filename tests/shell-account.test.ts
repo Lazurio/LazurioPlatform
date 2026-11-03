@@ -547,8 +547,9 @@ test("spaces without an Environment: the rail shows the Organization's avatar, s
       query: "",
     }).sections.map((section) => section.space),
   ).toEqual(["personal", "Example"]);
-  // The picker of this space: this Environment checked, the other named by
-  // the account's words.
+  // The picker of this space: this Environment checked; Ada's own work
+  // Environment named by her (F36's addendum of 2026-11-03), first under
+  // People, then the Team under Teams.
   const [picker] = switcherList(merged, en, {
     kind: "picker",
     here: "Example",
@@ -559,8 +560,17 @@ test("spaces without an Environment: the rail shows the Organization's avatar, s
   expect(
     picker?.rows.map((row) => [row.name, row.who, row.current, row.href]),
   ).toEqual([
-    ["Team Sales", "", true, "https://t3code.vm-01.example.lazurio.io/"],
-    ["Work", "", false, "https://t3code.vm-03.example.lazurio.io/"],
+    ["ada", "", false, "https://t3code.vm-03.example.lazurio.io/"],
+    [
+      "Team Sales",
+      "Team Environment",
+      true,
+      "https://t3code.vm-01.example.lazurio.io/",
+    ],
+  ]);
+  expect(picker?.groups.map((group) => group.title)).toEqual([
+    "People",
+    "Teams",
   ]);
 });
 

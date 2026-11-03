@@ -31,6 +31,7 @@ import {
   drawIdentity,
   environmentElement,
   organizationMark,
+  personMark,
 } from "./identity-element";
 import { createIdentityResponder } from "./identity-protocol";
 import { inKind } from "./kind-name";
@@ -54,6 +55,7 @@ import {
   columnHead,
   elementIdentity,
   hereOf,
+  identityText,
   initialsOf,
   personalSpace,
   type RailAccount,
@@ -62,6 +64,7 @@ import {
   railSpaces,
   type ShellApp,
   type SwitcherKind,
+  type SwitcherRow,
   type SwitcherSection,
   type SwitchTab,
   shellApps,
@@ -469,6 +472,10 @@ function checkMark(word: string): HTMLSpanElement {
   return mark;
 }
 
+// Ids of the switcher's group headings, unique within the page's shadow
+// roots.
+let switcherGroupIds = 0;
+
 /** The list of Environments, as a popover under the picker (the space you
  * are in, widened by "Všechny Organizace") or as the ⌘⇧E dialog (every
  * space), drawn from `switcherList` (F36's addendum of 2026-10-06): one line
@@ -624,6 +631,24 @@ class Switcher {
     link.addEventListener("click", () => this.options.close());
     return link;
   }
+  /** One row: its glyph (the person's photo, your initials or the kind's
+   * icon), its name and, under it, who it is for; the check where you
+   * are. */
+  private row(row: SwitcherRow): HTMLAnchorElement {
+    const link = this.track(this.host.link(row.href, "switcher-row"));
+    if (row.current) link.setAttribute("aria-current", "page");
+    const glyph = element("span", "switcher-glyph");
+    if (row.glyph.kind === "initials") glyph.textContent = row.glyph.text;
+    else if (row.glyph.kind === "person")
+      glyph.append(personMark(row.glyph.avatar, row.glyph.initials));
+    else glyph.append(icon(row.glyph.icon, 16));
+    const text = element("span", "switcher-copy");
+    text.append(element("span", "switcher-name", row.name));
+    if (row.who !== "") text.append(element("span", "switcher-who", row.who));
+    link.append(glyph, text);
+    if (row.current) link.append(checkMark(this.copy.here));
+    return link;
+  }
   private section(section: SwitcherSection): HTMLElement {
     const copy = this.copy;
     const group = element("div", "switcher-group");
@@ -645,18 +670,22 @@ class Switcher {
     }
     if (section.title !== null)
       group.append(element("div", "switcher-title", section.title));
-    for (const row of section.rows) {
-      const link = this.track(this.host.link(row.href, "switcher-row"));
-      if (row.current) link.setAttribute("aria-current", "page");
-      const glyph = element("span", "switcher-glyph");
-      if (row.glyph.kind === "initials") glyph.textContent = row.glyph.text;
-      else glyph.append(icon(row.glyph.icon, 16));
-      const text = element("span", "switcher-copy");
-      text.append(element("span", "switcher-name", row.name));
-      if (row.who !== "") text.append(element("span", "switcher-who", row.who));
-      link.append(glyph, text);
-      if (row.current) link.append(checkMark(copy.here));
-      group.append(link);
+    // An Organization's Environments under their headings (F36's addendum
+    // of 2026-11-03): each a group named by its heading, so a screen reader
+    // says "Lidé" or "Týmy" as it enters; the rows stay one list for the
+    // cursor and the keys.
+    for (const kind of section.groups) {
+      let place: HTMLElement = group;
+      if (kind.title !== null) {
+        const id = `switcher-group-${++switcherGroupIds}`;
+        const heading = element("div", "switcher-subtitle", kind.title);
+        heading.id = id;
+        place = element("div", "switcher-rows");
+        place.setAttribute("role", "group");
+        place.setAttribute("aria-labelledby", id);
+        group.append(heading, place);
+      }
+      for (const row of kind.rows) place.append(this.row(row));
     }
     if (section.empty !== null)
       group.append(element("p", "switcher-empty", section.empty));
@@ -1035,9 +1064,10 @@ export class LazurioColumnHead extends ShellElement {
     box.popover = "auto";
     box.style.top = `${rect.bottom + 6}px`;
     box.style.left = `${rect.left}px`;
-    // As wide as the picker, at least 280 px (the wireframe's compact
-    // picker), never past the window.
-    box.style.width = `${Math.min(Math.max(rect.width, 280), window.innerWidth - rect.left - 8)}px`;
+    // As wide as the picker, at least 320 px, so a person's name and whole
+    // login fit beside the photo (F36's addendum of 2026-11-03; a longer
+    // one wraps), never past the window.
+    box.style.width = `${Math.min(Math.max(rect.width, 320), window.innerWidth - rect.left - 8)}px`;
     box.addEventListener("toggle", (event) => {
       if ((event as ToggleEvent).newState === "closed") {
         close();
@@ -1119,6 +1149,9 @@ export class LazurioColumnHead extends ShellElement {
       "aria-label",
       fillShell(copy.pick, { name: model.picker.name }),
     );
+    // The whole identity on hover, where the column cuts the name or the
+    // kind under it ("Pracovní Prostředí", F36's addendum of 2026-11-03).
+    picker.title = identityText(model.picker);
     picker.append(...drawIdentity(model.picker), icon("chevron-down", 14));
     picker.addEventListener("click", () =>
       this.toggle(picker, shell, model.here),

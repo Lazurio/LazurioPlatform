@@ -10032,6 +10032,66 @@ in a Team and a public Environment. Those states were answered by the
 browser automation, since a preview is no installed Launchpad; the personal space's dialog was
 drawn from a stand-in catalog, since a preview holds no Personalspace.
 
+### F36 addendum of 2026-11-03: the switcher leads with whose an Environment is
+
+**Approved by Matěj (Owner, Organization Admin) on 2026-11-03.** An Admin or Owner with
+several Environments in one Organization saw a column of "Pracovní", each with
+"přiřazeno @login" beside it, and could not find a colleague's Environment at a glance.
+In the switcher the main word of a row is now whose the Environment is, and the kind
+moves into the heading of its group. This changes, for the switcher and the column head,
+the rule "Druh Prostředí stačí" of root decision 0170's addendum of 2026-10-15 (the line
+beside an Environment's name says only its kind); that root rule needs a follow-up
+addendum of its own, which this Platform decision does not make.
+
+1. **A person's work Environment is named by the person.** A work Environment with an
+   `assignee` shows that person's GitHub photo (round, their initials where it does not
+   load), their name in bold and their whole `@login` under it, never cut; a long one
+   wraps and the picker's list is at least 320 px wide. The person's name comes from the
+   new optional member `assigneeName` (point 4); without it the row shows the login
+   alone, not twice. A name of its own wins over the person's: an Admin's rename or the
+   person's own label from the Dashboard (`name`) is the main word, with the person's name
+   and login under it. The Dashboard's default name ("Pracovní", "Work") and a name that
+   only restates the login or the person's name never count as one
+   (`environmentOwner`). Under a person's name the switcher never shows the Dashboard's
+   "přiřazeno @login": the login is already there.
+2. **Headings carry the kind.** An Organization's Environments stand under **Lidé /
+   People** (work Environments assigned to a person, your computer, yours first), **Týmy
+   / Teams** (Team Environments, the Team's name over "Týmové Prostředí") and
+   **Organizace / Organization** (everything that belongs to no person: server services,
+   an Automated Environment; its name over the Dashboard's line of whom it is for, a
+   building or the bot as its glyph). Within a group the order is the document's, the
+   account's order. An empty group has no heading. Personal Environments and your
+   computer stay in the personal space without headings, as before.
+3. **The same headings in every list.** The picker, the picker widened by "Všechny
+   Organizace" and the jump (⌘⇧E) all list an Organization's Environments under them,
+   nested under the Organization's title or head. A row no longer says its kind, so a
+   list without the headings would lose it. Each group is `role="group"` labelled by
+   its heading; the rows stay one list for the keys, and the cursor starts as before on
+   the current Environment (now counted in the groups' order) or the first match. A
+   search also matches the person's login and name and the heading's word.
+4. **`assigneeName` in `lazurio.shell.v1` and `lazurio.account.v1`.** An additive,
+   optional member of an Environment entry, read by the one parser of both documents:
+   display text of at most 128 characters, kept only beside an `assignee`. Any other
+   value is left out rather than refusing the Environment, so a producer's slip never
+   costs the person their list. The merge takes it from the account like `name`, only
+   where the account names the same assignee, and keeps it in another language, since a
+   name has none. The Dashboard sends it as the assigned person's profile name; until it
+   does, rows show the login.
+5. **One identity, consistently.** `environmentIdentity`, which the column head, the
+   `<lazurio-environment>` element and the Environment browser's bar and title share,
+   follows the same rule: a person's work Environment shows the person's photo and name
+   with "Pracovní Prostředí" under it; every other Environment its name with its kind as
+   a label ("Týmové Prostředí"), left out where the name is the kind's own word. The
+   identity message (C9) gains the glyph kind `person` and the icon `building`; a view
+   of an older release does not read them and draws the identity its own server gave.
+   A person's Environment in words (a tab's title) now names the person rather than the
+   Organization.
+
+Tests: `tests/shell-picker-owners.test.ts` (the member in both documents, the merge, the
+owner rule, the groups and their order, the rows, search, the jump and the widened list,
+the column head, the glyphs on the wire), with the switcher and identity suites updated
+to the new naming.
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction

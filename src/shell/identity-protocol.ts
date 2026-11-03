@@ -56,9 +56,17 @@ const display = (value: unknown, max: number): value is string =>
     return code < 0x20 || code === 0x7f;
   });
 
-const glyphIcons: readonly string[] = ["laptop", "user", "users", "bot"];
+const glyphIcons: readonly string[] = [
+  "laptop",
+  "user",
+  "users",
+  "bot",
+  "building",
+];
 
-/** A glyph of these three kinds and their exact members, or null. */
+/** A glyph of these four kinds and their exact members, or null. A
+ * person's (F36's addendum of 2026-11-03) is the newest: a view of an older
+ * release does not read it and draws the identity its own server gave. */
 export function parseEnvironmentGlyph(value: unknown): EnvironmentGlyph | null {
   if (!isRecord(value)) return null;
   switch (value.kind) {
@@ -73,6 +81,17 @@ export function parseEnvironmentGlyph(value: unknown): EnvironmentGlyph | null {
             initials: value.initials,
           })
         : null;
+    case "person":
+      return display(value.name, 128) &&
+        (value.avatar === null || isShellUrl(value.avatar)) &&
+        display(value.initials, 8)
+        ? Object.freeze({
+            kind: "person",
+            name: value.name,
+            avatar: value.avatar as string | null,
+            initials: value.initials,
+          })
+        : null;
     case "initials":
       return display(value.text, 8)
         ? Object.freeze({ kind: "initials", text: value.text })
@@ -81,7 +100,12 @@ export function parseEnvironmentGlyph(value: unknown): EnvironmentGlyph | null {
       return typeof value.icon === "string" && glyphIcons.includes(value.icon)
         ? Object.freeze({
             kind: "icon",
-            icon: value.icon as "laptop" | "user" | "users" | "bot",
+            icon: value.icon as
+              | "laptop"
+              | "user"
+              | "users"
+              | "bot"
+              | "building",
           })
         : null;
     default:
