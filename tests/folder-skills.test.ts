@@ -34,6 +34,7 @@ import { renderOutputs } from "../src/folder/preview";
 import {
   instructionTemplateRevision,
   newModuleLine,
+  uiCraftLine,
 } from "../src/folder/render";
 import { retireIncompletePreparation } from "../src/folder/retire-preparation";
 import { renderSkills } from "../src/folder/skills";
@@ -69,6 +70,8 @@ const henryCodex = ".agents/skills/henry-review/SKILL.md" as const;
 const henryClaude = ".claude/skills/henry-review/SKILL.md" as const;
 const standardCodex = ".agents/skills/module-standard/SKILL.md" as const;
 const standardClaude = ".claude/skills/module-standard/SKILL.md" as const;
+const uiCraftCodex = ".agents/skills/ui-craft/SKILL.md" as const;
+const uiCraftClaude = ".claude/skills/ui-craft/SKILL.md" as const;
 
 function rendered(journey: (typeof journeys)[number], locale: "cs" | "en") {
   return renderOutputs({
@@ -97,19 +100,31 @@ test("the skills are outputs after the manual, one file per harness, and a manif
     henryClaude,
     standardCodex,
     standardClaude,
+    uiCraftCodex,
+    uiCraftClaude,
   ]);
   expect(outputPaths).toEqual(["AGENTS.md", ...manualPaths, ...skillPaths]);
   expect(manualPaths).not.toContain("manual/new-module.md" as never);
-  expect(manifestOutputPaths[4]).toEqual(outputPaths);
+  expect(manifestOutputPaths[5]).toEqual(outputPaths);
   expect(manifestOutputPaths[3]).toEqual([
     "AGENTS.md",
     ...manualPaths,
     codex,
     claude,
   ]);
+  expect(manifestOutputPaths[4]).toEqual([
+    "AGENTS.md",
+    ...manualPaths,
+    codex,
+    claude,
+    henryCodex,
+    henryClaude,
+    standardCodex,
+    standardClaude,
+  ]);
   expect(manifestOutputPaths[2]).toEqual(["AGENTS.md", ...manualPaths]);
-  expect(instructionManifestSchema).toBe(4);
-  expect(folderStateSchemas.manifest).toEqual([2, 3, 4]);
+  expect(instructionManifestSchema).toBe(5);
+  expect(folderStateSchemas.manifest).toEqual([2, 3, 4, 5]);
 });
 
 test("every Environment renders the skill new-module in its locale, the same bytes for Codex and Claude Code: what a module is, the interview first, the agent's technical choices, the plan and the route its preset allows", () => {
@@ -367,11 +382,11 @@ test("a manifest of schema 2 owns exactly AGENTS.md and the manual, schema 3 add
     ],
   ).toBe(digest);
   expect(
-    parseInstructionManifest(manifest(4, outputPaths)).outputs[standardClaude],
+    parseInstructionManifest(manifest(5, outputPaths)).outputs[uiCraftClaude],
   ).toBe(digest);
   // Each schema has one set: no skills in a schema 2 manifest, only
-  // new-module in a schema 3 manifest, every output in schema 4, and no
-  // other schema.
+  // new-module in a schema 3 manifest, no ui-craft in schema 4, every output
+  // in schema 5, and no other schema.
   expect(() => parseInstructionManifest(manifest(2, outputPaths))).toThrow();
   expect(() =>
     parseInstructionManifest(manifest(3, manifestOutputPaths[2])),
@@ -380,7 +395,11 @@ test("a manifest of schema 2 owns exactly AGENTS.md and the manual, schema 3 add
   expect(() =>
     parseInstructionManifest(manifest(4, manifestOutputPaths[3])),
   ).toThrow();
-  expect(() => parseInstructionManifest(manifest(5, outputPaths))).toThrow();
+  expect(() => parseInstructionManifest(manifest(4, outputPaths))).toThrow();
+  expect(() =>
+    parseInstructionManifest(manifest(5, manifestOutputPaths[4])),
+  ).toThrow();
+  expect(() => parseInstructionManifest(manifest(6, outputPaths))).toThrow();
 });
 
 // A personal Remote Environment's Folder, as in the refresh tests: hosted, so
@@ -418,7 +437,9 @@ async function renderedBeforeTheSkills(folder: string) {
     const content = `${(await readFile(join(folder, output), "utf8"))
       .replaceAll(instructionTemplateRevision, "base-instructions-50")
       .replaceAll(newModuleLine.cs, "")
-      .replaceAll(newModuleLine.en, "")}\nText of an earlier release.\n`;
+      .replaceAll(newModuleLine.en, "")
+      .replaceAll(uiCraftLine.cs, "")
+      .replaceAll(uiCraftLine.en, "")}\nText of an earlier release.\n`;
     await writeFile(join(folder, output), content);
     outputs[output] = createHash("sha256").update(content).digest("hex");
   }
@@ -457,7 +478,7 @@ async function expectCurrent(folder: string) {
   const manifest = JSON.parse(
     await readFile(join(folder, ".lazurio", "instructions.json"), "utf8"),
   );
-  expect(manifest.schemaVersion).toBe(4);
+  expect(manifest.schemaVersion).toBe(5);
   expect(manifest.templateRevision).toBe(instructionTemplateRevision);
   expect(Object.keys(manifest.outputs)).toEqual([...outputPaths]);
 }
@@ -474,11 +495,13 @@ test.skipIf(process.platform === "win32")(
         ".agents/skills/new-module",
         ".agents/skills/henry-review",
         ".agents/skills/module-standard",
+        ".agents/skills/ui-craft",
         ".claude",
         ".claude/skills",
         ".claude/skills/new-module",
         ".claude/skills/henry-review",
         ".claude/skills/module-standard",
+        ".claude/skills/ui-craft",
       ])
         expect((await lstat(join(folder, directory))).mode & 0o777).toBe(0o700);
     } finally {

@@ -28,6 +28,11 @@ import { createBuddySignIn } from "../buddy/sign-in";
 import { buddyStatus, readBuddyFacts } from "../buddy/status";
 import { type BotChecker, createBuddyTelegram } from "../buddy/telegram";
 import { createTelegramRestart } from "../buddy/telegram-restart";
+import { processConnectionsHost } from "../connections/host";
+import {
+  type ConnectionsHost,
+  createConnections,
+} from "../connections/pairing";
 import { createPersonalspaceHolder } from "../content/holder";
 import {
   type ContentHost,
@@ -169,6 +174,7 @@ import {
   mintChatPairing,
   publicEntry,
 } from "./chat";
+import { createConnectionsRoutes } from "./connections-routes";
 import { createContentRoutes } from "./content-routes";
 import { prepareContext } from "./content-view";
 import { createExecutorRoutes, isExecutorJob } from "./executor-routes";
@@ -194,7 +200,11 @@ import {
   type IntegrationsSeams,
 } from "./integrations-routes";
 import { BodyTooLarge, readJsonBody } from "./json-body";
-import { adoptionOf } from "./marketplace";
+import { isAdoptionPromptId } from "./marketplace";
+import {
+  createMarketplaceRegistry,
+  type MarketplaceRegistry,
+} from "./marketplace-registry";
 import {
   issueMausbotLink,
   mausbotPairingPath,
@@ -754,6 +764,22 @@ export async function startLaunchpad(
   // operator's Codex and Claude Code. Trusted composition, never HTTP
   // input; tests supply answers.
   ai: AiProbe = createAiProbe(toolsEnvironment),
+  // Where Settings → Connections pairs a phone (decision F71): the
+  // operator's Codex daemon, its unit and its configuration. Trusted
+  // composition, never HTTP input; tests supply a fake control socket.
+  connectionsHost?: ConnectionsHost | undefined,
+  // Where the Marketplace's offers come from (plan DEV-6593,
+  // marketplace-registry.ts): the registry on GitHub for an installed
+  // Launchpad, which keeps its last index in the install base; any other
+  // shows the copy built into this release and never asks. Trusted
+  // composition, never HTTP input; tests supply their own.
+  marketplace: MarketplaceRegistry = createMarketplaceRegistry({
+    fetch: installed === undefined ? null : (url, init) => fetch(url, init),
+    cacheFile:
+      installed === undefined
+        ? null
+        : join(installed.base, "marketplace", "registry.json"),
+  }),
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -1278,6 +1304,33 @@ export async function startLaunchpad(
     },
     headers,
     journal: (line) => console.log(JSON.stringify(line)),
+  });
+  // Settings → Connections → Telefon přes ChatGPT (decision F71): the
+  // Codex daemon's remote control, one pending pairing in this process's
+  // memory; journaled without any code.
+  const connections = createConnections(
+    connectionsHost ??
+      processConnectionsHost({
+        env: process.env,
+        platform: process.platform,
+        run: toolsEnvironment.run,
+        ai,
+        kind: async () => {
+          const current = await withFolderReadLock(state, () =>
+            readFolderState(state),
+          );
+          const preset = current.preferences.preset.name;
+          return Object.hasOwn(presetKinds, preset)
+            ? environmentKind(preset as PresetName, current.preferences.machine)
+            : null;
+        },
+        folder: () => realpath(folder),
+      }),
+    { journal: (line) => console.log(JSON.stringify(line)) },
+  );
+  const connectionRoutes = createConnectionsRoutes({
+    connections: () => connections,
+    headers,
   });
   // The Environment's theme (root decision 0208): one record of this Folder
   // in the install base, which `lazurio theme` changes too; a development run
@@ -1819,12 +1872,15 @@ export async function startLaunchpad(
         const login = url.searchParams.get("org");
         const keys = [...url.searchParams.keys()];
         if (keys.some((key) => key !== "org")) return notFound();
-        if (adoptionOf(id) !== null) {
-          // A Marketplace adoption (plan DEV-6593): for an Organization of
-          // this Folder bound to the link's login, only while its offer's
-          // release is recorded (prompts.ts `adoptionDocument`).
+        if (isAdoptionPromptId(id)) {
+          // A Marketplace adoption (plan DEV-6593): an offer and seed of the
+          // catalog the page showed, while the Launchpad still serves it,
+          // for an Organization of this Folder bound to the link's login,
+          // only while its offer's release is recorded (prompts.ts
+          // `adoptionDocument`).
           if (login === null || keys.length !== 1) return notFound();
           try {
+            await marketplace.read();
             const organization = promptOrganization(
               organizationsOnly(await catalog.read()),
               login,
@@ -1834,10 +1890,12 @@ export async function startLaunchpad(
               readFolderState(state),
             );
             const document = adoptionDocument(
+              marketplace.catalogs(),
               id,
               folder,
               organization,
               folderMessages(current.preferences),
+              current.preferences.profile.locale === "cs" ? "cs" : "en",
             );
             return document === null ? notFound() : response(document);
           } catch {
@@ -2338,6 +2396,17 @@ export async function startLaunchpad(
           return response({ error: "operation-failed" }, 500);
         }
       }
+      if (connectionRoutes.handles(url.pathname)) {
+        if (closing) return response({ error: "closing" }, 503);
+        // A pairing may turn remote control on and wait for it; a restart
+        // waits for Codex to start again.
+        server.timeout(request, 60);
+        try {
+          return await connectionRoutes.handle(request, url);
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
       if (ssh.handles(url.pathname)) {
         if (closing) return response({ error: "closing" }, 503);
         try {
@@ -2486,6 +2555,16 @@ export async function startLaunchpad(
             )
               catalog.forget();
           }
+        }
+        if (url.pathname === "/api/marketplace") {
+          // The Marketplace's offers (plan DEV-6593): the registry read at
+          // one commit, or the copy built into this release, and which of
+          // the two it is, with whether the registry is being asked right
+          // now (the open page then reads again once that question is
+          // over). Nothing is written but the registry's kept index.
+          stateFields(input, []);
+          const offers = await marketplace.read();
+          return response({ ...offers, checking: marketplace.checking() });
         }
         if (url.pathname === "/api/catalog") {
           // The Launchpad home (launchpad-parity B1): the Organizations and

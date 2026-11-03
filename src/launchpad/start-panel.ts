@@ -51,6 +51,9 @@ export function createStartPanel(
     composio: () => ComposioFact;
     /** Devices with a key added here, null when not known. */
     sshDevices: () => number | null;
+    /** Telefon přes ChatGPT as `/api/connections` last said; null hides
+     * its row. */
+    phone?: () => Readonly<{ ready: boolean; devices: number }> | null;
     /** The vault's row as Nastavení → Trezor says it; null hides it. */
     vault: () => StartVaultRow | null;
     /** Whether Nastavení → Trezor gives the steps for Bitwarden here
@@ -557,6 +560,7 @@ export function createStartPanel(
         preset: facts.preset,
         composio: options.composio(),
         sshDevices: options.sshDevices(),
+        phone: options.phone?.() ?? null,
         bitwarden: options.bitwarden(),
       },
       copy,

@@ -22,9 +22,10 @@ import { requireSelfCheck } from "../src/update/self-check";
 
 // A manifest of this version, then the same Folder rendered by a newer
 // template with an output this version does not render (#782: a branch's
-// build wrote `ui-craft` into a live Folder, and no release could read it).
+// build wrote `ui-craft` into a live Folder before any release knew it, and
+// no release could read it; here a name no release renders stands for it).
 const manifest = {
-  schemaVersion: 4,
+  schemaVersion: 5,
   preferenceRevision: 1,
   templateRevision: "base-instructions-3",
   outputs: Object.fromEntries(
@@ -47,7 +48,7 @@ const preferences = {
   customInstructions: "",
 };
 const newer = "base-instructions-999999";
-const unknownOutput = ".agents/skills/ui-craft/SKILL.md";
+const unknownOutput = ".agents/skills/from-a-branch/SKILL.md";
 
 // Keys a malformed or foreign state could carry: none of them may leave.
 const privateKeys = [

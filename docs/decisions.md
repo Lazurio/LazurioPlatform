@@ -3398,6 +3398,68 @@ under 0162), the Server services' integration service (0209 is not deployed and 
 lists such a service yet) and the Design System's Read grant (a rule of the Organization
 template, with no Lazurio decision). `base-instructions-104`.
 
+**Addendum 2026-10-21, proposed by Anna (to be decided by Matěj): a second Folder skill,
+`ui-craft`; manifest schema 5.** Agents build module apps and websites with no shared bar
+for the details people notice: an `ease-in` menu, a hover that stays stuck after a tap, a
+form field the phone zooms into, a heading that overflows on a narrow screen. Emil
+Kowalski's skills ([github.com/emilkowalski/skills](https://github.com/emilkowalski/skills)
+at `2d228630`, MIT) hold that bar for animation, mobile and edge cases, but as fifteen
+English skills that assume React and Framer Motion and recommend opacity, blur and shadow
+transitions that an Organization's design system may forbid (the Lazurio website does).
+Installed one by one, every Environment would compete for its own copy and drift from the
+upstream.
+
+What changes:
+
+- **The skill `ui-craft`**, in the Folder's locale, byte-identical for both harnesses: when
+  an agent builds, changes or reviews an interface, and before a pull request that changes
+  what people see. It opens with precedence: the module's and the Organization's
+  `AGENTS.md`, design system and tokens override every default; a missing value is proposed
+  to that design system, never invented in the page. Then seven steps, retold in Lazurio's
+  words from upstream rather than copied: whether it should move at all (frequency and
+  purpose; deleting is the first fix); curve and duration; smooth frames; motion and
+  controls for everyone; the phone; the worst realistic data (Czech compounds and plurals
+  included); checking in a browser at 390 and 1280 px, saying what needs a real phone, and
+  leaving matters of taste to the person. No library, framework or brand is named, so it
+  holds for every stack of the generator. The credit line names the upstream and its
+  licence; `docs/licensing.md` records why no copy of its notice is needed.
+- **Two pointers.** `AGENTS.md` gains one sentence at the end of `new-module`'s line, which
+  already names both skill folders, so an agent reaches the skill also where its harness does
+  not list the Folder's skills (started inside a module's own repository, F14 addendum of
+  2026-10-14); `new-module` names it in the first version of both routes. A line of its own
+  no longer fits: with the longest custom voice the generated `AGENTS.md` keeps under its
+  32 KiB budget only about 57 bytes of room. The precedence of the project's rules stays the
+  skill's first rule.
+- **No promise about the main thread.** The skill sends predetermined motion to CSS or the Web
+  Animations API, but says only that `transform` and `opacity` usually run off the main thread;
+  layout and paint properties animate on it, so smoothness under load is profiled, not
+  assumed. Likewise `transform` and `opacity` are only often composited without new layout or
+  paint, depending on the browser and the element (Pablo's reviews of #585).
+- **Durations without a contradiction.** Small elements (a press, a tooltip, a menu) stay
+  under 300 ms; a dialog or panel may take up to 500 ms; only explanatory motion goes beyond.
+- **Manifest schema 5.** A new skill is a new set of outputs. Planned as schema 4, this change
+  merged after #790 (`henry-review` and `module-standard`, addendum of 2026-11-01), so by that
+  addendum's order rule it takes schema 5: `manifestOutputPaths[4]` stays frozen at #790's set,
+  schema 5 owns every output, and this product reads 2 to 5 and writes 5. A Folder at schema 3
+  or 4 gains `ui-craft` by its next change, created only where nothing is at its paths
+  (`unowned-file` otherwise), as schema 2 gained the skills. Older binaries refuse schema 5 and
+  are repaired forward.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Install upstream's skills as they are | Current with upstream, but English only, React-specific, and contradicting design systems that forbid opacity or shadow motion; rejected |
+| One Lazurio skill per upstream skill | Narrow triggers, but a dozen descriptions competing in every harness and a dozen files to keep bilingual; rejected |
+| The bar in each module's `AGENTS.md` | Visible inside a module's repository, but copied into every module and stale in each; the module keeps only what is its own (the Lazurio website's `AGENTS.md` does) |
+| One generated skill with project precedence, schema 5 (selected) | One home, updated with the product, in the Folder's language |
+
+Template revision `base-instructions-108`. Verified by `tests/folder-ui-craft.test.ts`: the skill
+in both locales on every preset, identical for both harnesses, its description, the precedence
+before the first step, its key rules, the credit, the `AGENTS.md` sentence and `new-module`'s
+pointer, the qualified main-thread rule; the same lines in both languages; a schema 4 Folder gaining both files where nothing is
+there and refused by path where something is. `tests/folder-skills.test.ts` covers the schemas,
+initialization and every upgrade from schema 2 with both skills. Not proven: that agents in every
+harness load it by its description and follow it.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
@@ -23028,6 +23090,120 @@ Open questions for the decision:
 - whether macOS and Windows, which have no handover today, need the rule now or with
   their hosted entry (docs/hosted-entry.md).
 
+## F69 — Stack profiles: the exact tools a Module is built with, changed only by a generation transition or a profile release
+
+**Decided by Matěj (Operator) on 2026-11-03 (plan DEV-6593, task-2026-11-03-941;
+the Marketplace template contract of the same day, point 7). Implemented for
+`lazurio module create`; the profile `app-database` has no template yet.** Templates
+of the Marketplace and every new Module get a stack chosen and justified in advance,
+so that their code never has to migrate outside a planned step. The research behind
+the choice (tools, versions checked in the npm registry and GitHub Releases on
+2026-11-03, alternatives) was presented to Matěj in the plan; he confirmed all four of
+its recommendations. The profiles, their exact pins and what they leave out are
+[stack-profiles.md](stack-profiles.md), the one public place the registry, the
+templates and generated Modules refer to.
+
+1. **Four profiles, one common base.** The base: Bun 1.4.4 as runtime, package
+   manager and test runner, Biome 2.6.4 for lint and format, `bun test`,
+   `@lazurio/module-kit` v0.2.0, exact versions only and a committed `bun.lock`.
+   `content` (Astro 7.4.5, Starlight 0.42.8, TypeScript 6.0.3) for the Astro
+   stacks; `app` (TypeScript 7.0.2, and for an interface Vite 8.3.5 with React
+   19.3.1) for `vite-react` and `bun-service`; `app-data` (`app` with repository-db
+   v3.2.6 and Zod 4.6.7, its data behind a storage port with a shared test suite)
+   for generation `app/v3`; `app-database` (`app-data` with Dolt through Kysely
+   0.29.8 and `mysql2` 3.24.6) for `app/v4`.
+2. **Vite+ not now; Biome stays.** Vite+ runs on Node only, while Lazurio runs every
+   App with its pinned Bun (`MS-05`, F62), and its formatter Oxfmt is at 0.x, so a
+   release could reformat every Module. It is reopened as a profile release once
+   Vite+ supports Bun as its runtime, Oxfmt is at 1.0 and Lazurio supports or
+   allows Node beside Bun.
+3. **Zod is the one source of the shape of a Module's data** from `app/v3` up. The
+   types come from it and the JSON Schema for repository-db and CI is generated from
+   it; no hand-written data types. The Platform's own contracts keep JSON Schema with
+   Ajv ([stack evidence](stack-evidence.md)).
+4. **TypeScript 7 for applications, TypeScript 6 for Astro.** `astro check` needs
+   TypeScript's API, which 7.0 does not have; `content` moves to 7 by a release once
+   Astro supports it.
+5. **No `app/v5`.** Dolt outside the server is another connection setting of
+   `app/v4`: the same code, schemas and migrations. How Lazurio gives an App that
+   connection without `.env` is open (#818).
+6. **Two kinds of change.** A generation transition changes the data layer (a new
+   `app/v<N+1>` beside the old one, the data moved by a script, `default_app`
+   switched by the Steward or the user). A profile release changes the tools within
+   a generation. Besides these, only a security patch changes a version. A release
+   is named `YYYY.MM`, a security patch inside it `YYYY.MM.P`; this one is `2026.11`.
+   Each release is decided by the Operator and recorded as an addendum of this
+   decision with what an existing Module has to change; `stack-profiles.md` keeps
+   the tables of earlier releases so that a reference `<profile>@<release>` keeps
+   resolving. A template adopts a release in a release of its own; a Module takes
+   it by its own pull request (merging the template's tag, or changing its pins),
+   never by an overwrite.
+7. **`lazurio module create` follows the current release** in the same pull request:
+   `stackProfilesRelease`, `scaffoldBunVersion` and the templates. This amends F52
+   and its addendum of 2026-10-14:
+   - A new Module pins the profiles' Bun, no longer this repository's own
+     `packageManager` (this repository stays on its pins).
+   - `check` runs the type check, Biome and the tests, and the Module's CI runs only
+     `check`; this sharpens `MS-13`.
+   - `--data` depends on repository-db v3.2.6 (it was 3.2.0) and on Zod 4.6.7, and
+     changes four files instead of three: the Module's `README.md` names the profile
+     `app-data`, and its `AGENTS.md` says that Zod is the one source of the data's
+     shape and how the data is validated.
+   - `--data` also adds the layer `_data`: `src/domain/collections.ts` (each
+     collection's `schemaVersion` and Zod schema, none yet), `src/validate-data.ts`
+     with its test and an empty `seed/`, and `check` runs `validate:data` over
+     `seed/`; `validate:db` checks `db/` the same way before a publication.
+     Added on the review of #821: the data validation that `check` requires has to
+     be one the generated Module can run in its CI, which checks out only the
+     Module, never its data repository.
+   - Every stack's `README.md` names its profile and release and links its section.
+
+8. **The App generation names the data layer in every Module** (Matěj, 2026-11-03,
+   closing #819), not only in Marketplace templates: `app/v1` and `app/v2` have no
+   data of their own, `app/v3` keeps its records in repository-db, `app/v4` in Dolt
+   (point 5). `lazurio module create --data` therefore writes the App to `app/v3`
+   (`apps`, `default_app`, the lockfile, the CI's working directory and the runtime
+   id `<organization>-<module>-v3` follow); without `--data` it stays `app/v1`. This
+   amends F52's addendum of 2026-10-14, which wrote an App with data to `app/v1`. An
+   `astro` or `astro-starlight` Module with data keeps the tools of `content` with
+   the data layer of `app-data`, in `app/v3` too. The rule holds for every
+   generation created from now on. Existing Modules with data in `app/v1` or
+   `app/v2` conform as they are and are not renamed:
+   their next planned generation transition creates the generation of their data
+   layer (`app/v3` or `app/v4`) beside the old one, as for every Module.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Vite+ 1.4 (`vp`) as the toolchain | Node-only runtime, Oxfmt 0.x, four minor releases in its first month; not now (point 2) |
+| Oxlint and Oxfmt instead of Biome | Faster and more rules, but two tools and a 0.x formatter; rejected for this release |
+| JSON Schema and Ajv as a Module's data source | Two truths or another type generator, and repository-db expects a Zod-style `parse()`; rejected for Modules (point 3) |
+| TypeScript 6.0.3 everywhere, 7 together later | Postpones a certain migration of every application; rejected (point 4) |
+| A directory `app/v5` for Dolt outside the server | Duplicates the code of `app/v4`; rejected (point 5) |
+| Pinned versions with no release mechanism | Pins age (the templates were two Astro major versions behind); rejected for dated releases (point 6) |
+| Drizzle, Prisma or `Bun.SQL` for Dolt | A breaking 1.0 ahead, a third schema, or open MySQL bugs; rejected for Kysely and `mysql2` |
+
+**Verification.** `tests/module-scaffold.test.ts`: every stack with a Bun app pins
+its profile's exact tools (no range anywhere, `@types/bun` equal to the Bun, Biome
+2.6.4, TypeScript and framework per profile), `check` runs the tests and CI no
+separate `bun test`, Biome's Markdown and YAML formatters are off, and the README
+links the profile; `--data` gives `app-data` with repository-db v3.2.6 and Zod, in
+`app/v3` for every Bun stack (manifest, package name, runtime id, preparation owner,
+lockfile, CI and README), and otherwise the same files as without data; the
+tree hashes of every stack's plan. On 2026-11-03 on Linux x64 with Bun 1.4.4, the
+plans of `vite-react`, `vite-react --data`, `astro`, `astro-starlight` and
+`bun-service` were written out, and `bun install`, `bun run check` and, for the
+three static stacks, `bun run build` passed in each. TypeScript 7.0.2 ran under Bun
+1.4.4 and reported a planted type error, and a Zod 4.6.7 schema type-checked as
+repository-db 3.2.6's `DocumentParser`. That run changed three things in the
+templates: Biome 2.6's `"preset": "recommended"`, its Markdown formatter turned off
+after it rewrote a Starlight page's frontmatter, and `"types": ["bun"]` for
+TypeScript 6 in the Astro `tsconfig.json`. After the review of #821 (2026-11-03,
+Linux x64, Bun 1.4.3), the plans of the four Bun stacks with `--data` were written
+out again: `bun install` and `bun run check` passed in each (`validate:data` over
+the empty `seed/`), `bun run build` passed for `vite-react` and `astro`, a planted
+record of a collection without a schema failed `validate:data`, and `validate:db`
+without `db/` failed. Not verified: `app-database`, macOS and Windows.
+
 ## F70 — A source Environment's routes come from its home access service: its own key, registered; targets pinned and with their deadline
 
 **Proposed 2026-11-03 (root decision 0224, plan DEV-6687 M7 step 4; Lazurio/LazurioPlatform#766).
@@ -23192,3 +23368,265 @@ nothing on a base without route files; one lock for both writers),
 every refused form, the stored binding, the commands asking the declared origin, the
 withheld name) and `tests/folder-refresh.test.ts` (a refresh of only the member). Not
 proven: a real handover from a Machines release, until Machines sets the gate.
+
+## F71 — Phone through ChatGPT: Settings → Connections pairs the ChatGPT app with the Codex app-server's remote control
+
+**Proposed 2026-11-03 (root decision 0215; Lazurio/LazurioPlatform#657, #720).
+Implemented in the same pull request; accepted only when the owner accepts it.** The
+phone test settled the QR code the same day (see *Implementation* below). The
+interface follows the clickable prototype
+(HumanAndMachine-ai/prototypes-lazurio#106, stacked on #102), reworked on 2026-11-03
+to the structure of point 1: less text and a motion graphic per way. The page keeps
+each graphic as one element, so the final one replaces it whole.
+
+Delivery starts on the owner's own personal Environment and reaches other people's
+Environments only after that.
+
+The person opens Settings → Connections → Ovládat toto Prostředí → Telefon, clicks
+one button and gets a QR code and a short code. A motion graphic shows what to do on the phone: open ChatGPT, then
+Codex, then add a computer, then scan or type the code. Nobody types a command.
+
+**What was verified on 2026-11-03.** The test ran on a personal Environment with
+Codex app-server 0.166.0 running as F29's daemon with `--remote-control`. Nothing
+was restarted. The daemon's control socket
+(`$CODEX_HOME/app-server-control/app-server-control.sock`, a link to a socket under
+`/tmp`, WebSocket framing) answers the experimental methods once `initialize`
+declares `capabilities.experimentalApi`:
+
+| Need | Method | Result |
+|---|---|---|
+| Is pairing available | `remoteControl/status/read` | `connected`, the server name, an `environmentId` |
+| Make a code | `remoteControl/pairing/start {manualCode: true}` | `pairingCode` (78 digits), `manualPairingCode` (`XXXX-XXXX`), `environmentId`, `expiresAt` (Unix seconds, about 10 min) |
+| Has the phone taken it | `remoteControl/pairing/status {pairingCode}` | `claimed: false` while waiting; `claimed: true` not yet observed with a phone |
+| Paired devices | `remoteControl/client/list {environmentId}` | a phone paired earlier: display name, `deviceType`, `platform`, OS, model, app version, `lastSeenAt` |
+| Remove access | `remoteControl/client/revoke {environmentId, clientId}` | not tried |
+
+The methods and types are in `openai/codex` at tag `rust-v0.166.0`:
+`app-server-protocol/src/protocol/common.rs` and `protocol/v2/remote_control.rs`.
+
+1. **Place and structure (the owner's review of 2026-11-03).** A new Settings
+   section `connections` (Připojení) takes the place of `ssh` in the menu. It is
+   built from what the person wants to do and from where, not from the technology.
+   SSH and the ChatGPT pairing are both ways to control the same Environment, so
+   they are never two topics side by side.
+   - **Ovládat toto Prostředí** is the one topic. Under it are the ways, by the
+     device the person holds. Each way has one sentence, one button and its own
+     motion graphic. It offers the route that works in this Environment, so the
+     person never chooses a technology.
+     - **Telefon.** With the person's own ChatGPT sign-in in Codex, this is
+       *Spárovat telefon*: the pairing of this decision, with the prerequisites
+       line and the paired phones with *Odebrat přístup*. On the Organization's AI
+       (AI pool), pairing by code does not work. There the route is the ChatGPT
+       app over SSH with a password, and until it exists without a terminal the
+       card says only that it is coming (*připravujeme*).
+     - **Počítač.** ChatGPT Desktop over SSH with a key: F49's page, unchanged in
+       behaviour, at `/settings/ssh`. Its title is Počítač, it links back to
+       Připojení, and the SSH config and `known_hosts` blocks are folded under
+       *Pokročilé: ruční nastavení SSH*. It is offered on an Environment on a
+       server, not where Lazurio runs on the person's own computer.
+     - The browser (Launchpad, Chat) is not listed, because the person is in it.
+   - **Agenti ve vašem počítači** is the other direction. The Environment's agents
+     work in a connected workstation, for example Windows with AutoCAD over SSH
+     (prototype #102). It is a topic of its own and is not built here.
+   - **Ovládat jiná Prostředí** follows 0192's addendum. It is not built here.
+
+   The panel follows the existing `connections-panel.ts` / `connections-view.ts` /
+   `connections-routes.ts` split, like `ssh-*`. The dialog's sequence is
+   `connections-flow.ts`, which has no DOM.
+2. **Reading the state.** `GET /api/connections` reads the status and the client
+   list and answers one of these states:
+   - `ready`;
+   - `no-remote-control`: the daemon is not `connected`, or the methods are missing;
+   - `organization-ai`: Codex runs on Organization-provided AI without the person's
+     ChatGPT sign-in;
+   - `team`;
+   - `no-chatgpt`.
+
+   It also answers the devices (name, form, platform, last seen). It never answers
+   a code.
+3. **Pairing.** `POST /api/connections/pair` calls `remoteControl/pairing/start`.
+   It keeps `pairingCode` only in memory under a 32-hex session handle, as the tool
+   sign-in does (`src/tools/login.ts`). It answers the manual code, `expiresAt` and
+   the QR code drawn by the existing `qrSvg(qrMatrix(payload))` (`src/tools/qr.ts`).
+   The QR payload is one function, `pairingQrPayload` (settled by the phone test,
+   see *Implementation*).
+
+   **One live code (Pablo's review of 2026-11-03).** Codex 0.166 cannot end a code
+   it gave. The codes live at ChatGPT until a phone takes them or they expire
+   (`expiresAt`, about 10 min), and the protocol has no method that withdraws one.
+   Lazurio therefore never makes a second code while one is valid:
+   - while the pending code is valid and not taken, every *Spárovat telefon* answers
+     that same code and its time left, from any admitted page;
+   - closing the dialog ends nothing on the server; the page drops the code from
+     view and drops any answer that arrives after the close;
+   - a new code is asked for only once the old one has expired or a phone took it,
+     and only then does the dialog offer *Nový kód*;
+   - starts are serialized: requests that arrive while one start runs share its
+     answer, so the one live code and the limit hold under concurrency;
+   - there is no cancel route;
+   - exposure counts codes that left Lazurio: only a code shown to a page can be
+     scanned or typed. A code whose answer never reached Lazurio (a timeout, a
+     closed socket, an answer that does not parse) was seen by nobody;
+   - a **ledger** keeps the rule across a restart of the Launchpad, without any
+     code, in `${XDG_STATE_HOME:-~/.local/state}/lazurio/connections/pairing.json`
+     (0600, replaced whole by an atomic rename). It holds the times of the starts
+     and until when a shown code may be valid (`outstandingUntil`). The start is
+     written before Codex is asked, so the limit counts it. **A code reaches a
+     page only after the ledger holds its end**; when that write fails, or the
+     process stops before it, the code is never shown (`storage-failed`). A code
+     whose named life is longer than an hour (`longestLifeMs`; Codex 0.166 gives
+     about 10 minutes) is not shown, and one without a named end is covered for an
+     hour. The bound ends early only when a phone takes the code; when the dialog's
+     handle runs out first (ten minutes without a named end), the bound stays until
+     its own end;
+   - a process that holds no code (after a restart) makes none while
+     `outstandingUntil` lies ahead. *Spárovat telefon* then answers
+     `code-outstanding` with `until`, and the dialog says when a new code can be
+     made. A ledger that cannot be read counts as a code shown now with an hour's
+     life;
+   - every change of this state and every ledger write runs in one queue: a start,
+     a poll that settles a code, and the reading of a restarted process never
+     interleave, so an older write never replaces a newer one.
+
+   The remaining exposure is therefore at most one shown code, for at most its
+   `expiresAt` (at most an hour), shown only to pages admitted under 0192, across
+   restarts of the Launchpad. A phone that takes it
+   appears in the paired list, where *Odebrat přístup* removes it.
+4. **Waiting.** `POST /api/connections/pair/poll {session}` calls
+   `remoteControl/pairing/status` every 2 s through the existing visible-page poll.
+   - On `claimed: true` the server drops the code and refreshes the device list, and
+     the dialog says *Telefon je spárovaný*.
+   - At `expiresAt` the handle ends and the dialog offers *Nový kód*.
+5. **Removing access.** `POST /api/connections/revoke {clientId}` calls
+   `remoteControl/client/revoke` after the person confirms in place. The person can
+   also remove the device in the ChatGPT app.
+6. **Security.**
+   - Every route is behind the same admission as all `/api/*`: hosted trust (gateway
+     session, same origin, Sec-Fetch-Site) or the local bearer token. Mutating routes
+     take only JSON `POST`.
+   - The code is made inside the Environment, so only someone who already enters it
+     under 0192 can pair (0215). Team Environments are refused. Public-DNS mode keeps
+     pairing, because it needs no SSH.
+   - Codes (`pairingCode`, `manualPairingCode`), QR payloads and session handles are
+     never written to a log, the journal, a file, the Folder or an error. The journal
+     records only `pair-started` (`ok`, `no-answer`, `invalid-answer`, `too-long`,
+     `not-shown`), `paired`,
+     `expired`, `shown-again`, `revoked` and the ledger's `unreadable` or
+     `write-failed`, with the client's platform.
+   - Answers carry `cache-control: no-store`.
+   - An Environment has at most one live code (point 3) and at most five codes in
+     10 minutes, counted under the serialized start and kept by the ledger across
+     restarts.
+7. **When the daemon has no remote control.** Remote control is a persisted daemon
+   preference.
+   - F29's convergence runs `codex app-server daemon enable-remote-control`, which is
+     idempotent and answers `alreadyEnabled`.
+   - When the status is still not `connected` (seen on 2026-10-26 until a restart),
+     the page says pairing is not available now. It offers *Restartovat Codex* with
+     the warning that running chats end, and only after a confirmation it calls
+     `restartCodexAppServer`.
+   - A doctor check `codex-remote-control` reports the status, without codes.
+   - Without the methods (an older Codex) the page falls back as 0215 says: SSH only
+     where SSH into the Environment is allowed.
+8. **Trust (#720).** A phone cannot answer Codex's trust prompt. The Platform writes
+   `[projects."<Folder>"] trust_level = "trusted"` and the same entry for the owner's
+   home. It follows the pattern of `src/tools/codex-apps.ts`: marked lines, an atomic
+   write, the person's own entries kept, nothing removed. On the tested Environment
+   the Folder entry exists and the home entry does not.
+9. **Tests.**
+   - Unit tests run against a fake control socket. They cover each state, the
+     handle's life, expiry, that a second start answers the live code, concurrent
+     starts, and that no code reaches a log or an error.
+   - Acceptance runs on a real Environment with a phone:
+     - A1: the QR code pairs.
+     - A2: the short code pairs.
+     - A3: *Telefon je spárovaný* appears within 5 s of the phone's confirmation.
+     - A4: the device appears in the list.
+     - A5: *Odebrat přístup* removes the Environment from the app.
+     - A6: a chat started from the phone in the Folder gets past the trust check.
+     - A7: remote control is `connected` again after a reboot through F29.
+     - A8: a search of the journal and logs finds no code.
+
+**Implementation (2026-11-03).** What the code does, where it differs from the
+points above:
+
+- **QR payload.** `pairingQrPayload` is
+  `https://chatgpt.com/codex/pair?pairing_code=<pairingCode>`. The ChatGPT app on
+  Android (1.2026.293) accepted it on 2026-11-03 through its own scanner in Codex →
+  add a computer. The system camera and iOS are untested, so the dialog says "V
+  aplikaci ChatGPT otevřete Codex → Přidat počítač a naskenujte kód." and keeps the
+  short code with *Kopírovat* as the fallback. It does not promise that the camera
+  opens the app.
+- **Place.** Settings → Připojení (`connections`) replaces SSH in the menu, with
+  no tabs: one group *Ovládat toto Prostředí* with the cards *Telefon* and
+  *Počítač* (point 1). *Počítač* leads to F49's page at `/settings/ssh`, unchanged
+  in behaviour; its title is Počítač, it links back to Připojení, and its SSH
+  config and `known_hosts` sit under *Pokročilé*. The menu marks Připojení on both
+  pages. Začínáme gets an optional row *Telefon přes ChatGPT* where pairing is
+  offered.
+- **Ways not built yet, and how the page shows them.**
+  - Telefon over SSH with a password, for the Organization's AI: the Telefon card
+    says *Pro Prostředí s AI Organizace telefon připravujeme.* and offers nothing.
+    The person on that Environment otherwise sees an empty way and would look for
+    it, so one line says it is coming. Today an agent sets the password
+    (Lazurio/LazurioPlatform#266).
+  - Počítač in one click (the prototype's six steps with the key confirmed in the
+    browser): not shown. Today's Počítač works, and a second route for the same
+    device would only make the person choose.
+  - Agenti ve vašem počítači and Ovládat jiná Prostředí: not shown. Nothing on the
+    page could act on them yet.
+- **Code.**
+  - `src/connections/control-socket.ts` is the client. It speaks WebSocket over the
+    Unix socket and keeps no error message from Codex, only the JSON-RPC code.
+  - `src/connections/pairing.ts` holds the states, the one live code, the serialized
+    start with the limit of five codes in ten minutes, polling, removing access and
+    the restart (which keeps the live code, since a restart does not end it).
+  - `src/connections/codex-trust.ts` writes the trust entries.
+  - `src/launchpad/connections-routes.ts` holds the routes, and the panel and view
+    are `connections-panel.ts` and `connections-view.ts`.
+  - Each operation opens its own connection to the socket. A pending code is kept by
+    the daemon, not by the connection.
+- **Routes.** `POST …/restart` takes `{confirm: true}` and refuses where remote
+  control works, where Codex lacks the methods, and where the unit is not Lazurio's.
+- **Turning remote control on.** Remote control is turned on by the daemon's own
+  `remoteControl/enable` (persisted), at the first *Spárovat telefon*. F29's
+  convergence does not run `enable-remote-control`. A daemon that is off therefore
+  reads as `ready`.
+- **States.**
+  - `organization-ai` is Codex's `account/read` answering
+    `requiresOpenaiAuth: false`. It shows the *připravujeme* line and no sign-in.
+  - `no-chatgpt` is signed out, or signed in with an API key. It shows "Nejdřív se
+    přihlaste svým účtem ChatGPT." with *Přihlásit se*.
+- **Not built yet.** The doctor check `codex-remote-control`.
+- **Acceptance so far.**
+  - The unit tests run against a fake daemon. They cover each state, the handle's
+    life, expiry, the live code answered again, concurrent starts sharing one
+    code, the start limit, removing access, the restart's
+    conditions, the trust text, the routes' admission, and that no code reaches an
+    answer, an error or the journal.
+  - On the owner's personal Environment, on 2026-11-03 and without a restart, the
+    branch's Launchpad read the real state and device list. It made a code and
+    showed the QR code, the short code and the time left. (That run predates the
+    one-live-code rule: it still had a cancel, which ended only Lazurio's handle.)
+  - `tests/connections-flow.test.ts` covers the dialog: an answer that arrives after
+    the close is dropped and starts no poll, a newer open wins over an older answer,
+    and expiry and pairing end the poll.
+  - A1–A8 with a phone remain the owner's.
+
+**Open questions.**
+
+1. *(Settled 2026-11-03: the URL, through the app's own scanner; see Implementation.)*
+   What the ChatGPT app scans. OpenAI documents a QR code that "opens ChatGPT" on the
+   phone, shown by the desktop app. The candidate payload is
+   `https://chatgpt.com/codex/pair?pairing_code=<pairingCode>`, as one public
+   third-party tool (`ulissescomonian/codex-remote`) builds it. Its alternative is
+   the bare `pairingCode`. Both are to be tested with the phone camera and inside the
+   app.
+2. The exact labels in the ChatGPT app on Android and iOS (Codex, add a computer),
+   for the motion graphic's steps 2 and 3.
+3. What `client/revoke` does on the phone's side.
+4. Whether `pairing/start` without a ChatGPT sign-in, or with a Business workspace
+   that forbids Remote Control, fails with a distinguishable error, so the page can
+   name the reason.
+5. The API is experimental. A Codex update can change it, so the Platform checks the
+   methods at runtime and qualifies each new Codex release on one Environment first.

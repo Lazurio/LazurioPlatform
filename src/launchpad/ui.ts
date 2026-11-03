@@ -45,6 +45,8 @@ import {
   parseEntryAnswer,
   parsePromptHandoff,
 } from "./chat-view";
+import { createConnectionsPanel } from "./connections-panel";
+import { parseConnectionsOverview } from "./connections-view";
 import { type ContentTransport, createContentClient } from "./content-client";
 import { createContentPanel } from "./content-panel";
 import { prepareContext, preparePrompt } from "./content-view";
@@ -85,6 +87,7 @@ import {
   presetChoice,
 } from "./machine-view";
 import { createMarketplacePanel } from "./marketplace-panel";
+import type { MarketplaceAnswer } from "./marketplace-refresh";
 import { type MessageKey, messages } from "./messages";
 import { moduleCopy } from "./module-view";
 import { createHelpVideo } from "./page-help";
@@ -744,6 +747,8 @@ let vaultRow: StartVaultRow | null = null;
 let vaultBitwarden = false;
 let vaultPerson: VaultPagePerson | null = null;
 let sshDevices: number | null = null;
+// Telefon přes ChatGPT (decision F71) as Začínáme last read it.
+let phoneSummary: Readonly<{ ready: boolean; devices: number }> | null = null;
 // Composio's organization as Začínáme last read it (decision F42, note of
 // 2026-10-19), so that Composio signed in but not in the organization of the
 // Organization's name is not "Připojeno" there. Read each time Začínáme is
@@ -818,6 +823,7 @@ const startPanel = createStartPanel({
       : null,
   composio: () => composioFact(toolsOverview, composioOrganization.rule()),
   sshDevices: () => sshDevices,
+  phone: () => phoneSummary,
   vault: () => vaultRow,
   bitwarden: () => vaultBitwarden,
   reveal: () => vaultPage.revealBitwarden(),
@@ -975,14 +981,26 @@ async function readStartExtras() {
     vaultRow = null;
     vaultBitwarden = false;
     sshDevices = null;
+    phoneSummary = null;
     startPanel.render();
     return;
   }
   void composioOrganization.read(true);
-  const [vault, ssh] = await Promise.all([
+  const [vault, ssh, phone] = await Promise.all([
     get("/api/vault").catch(() => null),
     get("/api/ssh").catch(() => null),
+    get("/api/connections").catch(() => null),
   ]);
+  const phoneOverview = phone?.ok
+    ? parseConnectionsOverview(phone.value)
+    : null;
+  phoneSummary =
+    phoneOverview === null
+      ? null
+      : {
+          ready: phoneOverview.state === "ready",
+          devices: phoneOverview.devices.length,
+        };
   const model = vault?.ok ? parseVaultPage(vault.value) : null;
   const view = model === null ? null : vaultPageView(model, null, copy);
   vaultRow =
@@ -1343,6 +1361,15 @@ const ssh = createSshPanel({
   },
   origin: () => location.origin,
 });
+// Settings → Connections → Telefon přes ChatGPT (decision F71): read on
+// first view and after the pairing dialog closes.
+const connections = createConnectionsPanel({
+  get: (path) => get(path),
+  post: (path, body) => post(path, body),
+  copy: () => copy,
+  locale: () => locale,
+  computer: () => profileState !== null && profileState.preset !== "local",
+});
 // Apps → Vault, Apps → Trezor (root decision 0198 point 5, F53's addendum of
 // 2026-10-18): read on first view; the server adds the person the gateway
 // admitted to the vault.
@@ -1428,7 +1455,15 @@ const browser = createBrowserPanel({
 // form whose brief goes to Chat as "+ Nový modul"'s does.
 const marketplace = createMarketplacePanel({
   copy: () => copy,
+  locale: () => locale,
   route: () => shell.route(),
+  load: async () => {
+    const { value, ok } = await post("/api/marketplace", {});
+    return ok ? (value as MarketplaceAnswer) : null;
+  },
+  changed: () => {
+    if (framed) shell.relabel();
+  },
   catalog: () => catalog.current(),
   handOver: (prompt) => handOver(prompt),
 });
@@ -1439,6 +1474,7 @@ let framed = false;
 const shell = createShell({
   copy: () => copy,
   displayName: (organization) => catalog.displayName(organization),
+  offerTitle: (offer) => marketplace.title(offer),
   // A public Environment has no Integrace, and Trezor only with its vault
   // (decision F55, plan DEV-6668 slice 6).
   place: (route) =>
@@ -1471,6 +1507,12 @@ const shell = createShell({
       void recovery.refresh();
     if (route.view === "settings" && route.section === "ssh" && !ssh.loaded)
       void ssh.refresh();
+    if (
+      route.view === "settings" &&
+      route.section === "connections" &&
+      !connections.loaded
+    )
+      void connections.refresh();
     if (route.view === "vault" && !vaultPage.loaded) void vaultPage.refresh();
     vaultRequests.show(route);
     if (route.view === "vault") vaultOpen?.setAttribute("aria-current", "page");
@@ -1633,6 +1675,7 @@ function relabel() {
   if (framed) drawGuide(shell.route());
   recovery.render();
   ssh.render();
+  connections.render();
   theme.render();
   vaultPage.render();
   if (framed) marketplace.render();
@@ -1695,6 +1738,8 @@ async function load() {
   // content operation as a person's work Environment.
   if (!first) void content.refresh();
   renderUpdate();
+  // Připojení offers Počítač by the preset (decision F71).
+  connections.render();
   if (relabelled) {
     relabel();
     catalog.render();

@@ -318,7 +318,7 @@ test.skipIf(process.platform === "win32")(
         templateRevision: "base-instructions-999999",
         outputs: {
           ...recorded.outputs,
-          ".agents/skills/ui-craft/SKILL.md": "c".repeat(64),
+          ".agents/skills/from-a-branch/SKILL.md": "c".repeat(64),
         },
       }),
       { mode: 0o600 },
