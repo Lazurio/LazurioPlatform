@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { constants } from "node:fs";
-import { mkdir, open, rename, rm } from "node:fs/promises";
+import { lstat, mkdir, open, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
   assignedEnvironments,
@@ -421,6 +421,38 @@ export async function writeEnvironmentRoutes(
 export async function recordedRoutes(
   location: EnvironmentSshLocation,
 ): Promise<readonly EnvironmentRoute[]> {
+  return (await readRecordedRoutes(location)) ?? [];
+}
+
+/** Whether either of the Platform's two route files is at its path, in any
+ * form (decision F70, amendment of 2026-11-03, point 6): a base with one has
+ * kept routes, so its Launchpad keeps letting expired ones go even when it
+ * can no longer show that it is a hosted operator's. Anything that cannot be
+ * checked counts as there: expiry only ever removes what has expired. */
+export async function hasRouteFiles(
+  location: EnvironmentSshLocation,
+): Promise<boolean> {
+  const ssh = join(location.home, ".ssh");
+  for (const path of [
+    join(ssh, "config.d", "lazurio-environments.conf"),
+    join(ssh, "known_hosts_lazurio_environments"),
+  ]) {
+    try {
+      await lstat(path);
+      return true;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT" && code !== "ENOTDIR") return true;
+    }
+  }
+  return false;
+}
+
+// The recorded routes: empty when neither file is there, null when anything
+// is there that cannot be read back exactly as the Platform writes it.
+async function readRecordedRoutes(
+  location: EnvironmentSshLocation,
+): Promise<readonly EnvironmentRoute[] | null> {
   const ssh = join(location.home, ".ssh");
   let conf: Observed;
   let known: Observed;
@@ -434,15 +466,16 @@ export async function recordedRoutes(
       location.uid,
     );
   } catch {
-    return [];
+    return null;
   }
+  if (conf.kind === "missing" && known.kind === "missing") return [];
   if (
     conf.kind !== "file" ||
     known.kind !== "file" ||
     !isOurs(conf.bytes) ||
     !isOurs(known.bytes)
   )
-    return [];
+    return null;
   const keys = new Map<string, MachinePeerHostKey[]>();
   for (const line of known.bytes.toString("utf8").split("\n").slice(1)) {
     if (line === "") continue;
@@ -453,7 +486,7 @@ export async function recordedRoutes(
       key === undefined ||
       extra !== undefined
     )
-      return [];
+      return null;
     keys.set(alias, [...(keys.get(alias) ?? []), { type, key }]);
   }
   const routes: EnvironmentRoute[] = [];
@@ -467,7 +500,7 @@ export async function recordedRoutes(
         fields.set("validUntil", line.slice(validUntilMark.length));
       else {
         const match = /^ {2}([A-Za-z]+) (\S+)$/.exec(line);
-        if (match === null) return [];
+        if (match === null) return null;
         fields.set(match[1] as string, match[2] as string);
       }
     }
@@ -481,7 +514,7 @@ export async function recordedRoutes(
       user === undefined ||
       hostKeys === undefined
     )
-      return [];
+      return null;
     const validUntil = fields.get("validUntil");
     routes.push({
       environment,
@@ -494,7 +527,7 @@ export async function recordedRoutes(
   try {
     return checkedRoutes(routes);
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -511,4 +544,32 @@ export async function pruneEnvironmentRoutes(
     return until !== null && until > now;
   });
   return writeEnvironmentRoutes(location, kept);
+}
+
+/** Without a declared service (decision F70, amendment of 2026-11-03,
+ * point 6): drops the recorded routes whose deadline has passed and adds
+ * nothing. A route without a deadline (a personal Machine's assigned peers
+ * from the handover) stays; when nothing has expired no file is touched.
+ * The Platform's own files that cannot be read back are removed, since
+ * nothing shows their deadlines; a file of the person's is refused as
+ * always. */
+export async function expireEnvironmentRoutes(
+  location: EnvironmentSshLocation,
+  now: number,
+): Promise<EnvironmentSshResult> {
+  const recorded = await readRecordedRoutes(location);
+  if (recorded === null) return writeEnvironmentRoutes(location, []);
+  const kept = recorded.filter((route) => {
+    if (route.validUntil === undefined) return true;
+    const until = utcInstant(route.validUntil);
+    return until !== null && until > now;
+  });
+  if (kept.length < recorded.length)
+    return writeEnvironmentRoutes(location, kept);
+  return kept.length === 0
+    ? { kind: "none" }
+    : {
+        kind: "unchanged",
+        environments: kept.map((route) => route.environment),
+      };
 }

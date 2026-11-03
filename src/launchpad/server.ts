@@ -98,9 +98,14 @@ import { selectCatalogOrganization } from "../organizations/catalog-selection";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import type { RecoveryResult } from "../recover/recover";
 import { newTabPagePath } from "../shell/new-tab-protocol";
-import type { AccessServiceLocation } from "../ssh-access/access-service";
 import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
-import { syncEnvironmentRoutes } from "../ssh-access/routes";
+import {
+  expireRoutes,
+  liveRoutesSource,
+  type RoutesDeclaration,
+  runEnvironmentRoutes,
+  syncEnvironmentRoutes,
+} from "../ssh-access/routes";
 import { shellThemeOf } from "../theme/palettes";
 import {
   fileThemeStore,
@@ -674,10 +679,11 @@ export async function startLaunchpad(
      * ChatGPT's apps (decision F42's addendum of 2026-10-27): exactly where
      * it sets Executor up (`executorAtStart`). Absent: it never does. */
     codexAppsAtStart?: (() => Promise<boolean>) | undefined;
-    /** Where this Environment's home access service answers, when this
-     * Launchpad keeps its routes in step with it (root decision 0224;
-     * `routesAtStart`); null or absent: it never does. */
-    routesAtStart?: (() => Promise<AccessServiceLocation | null>) | undefined;
+    /** What this Launchpad finds for the Environment's routes on each tick
+     * (root decision 0224; `routesAtStart`): `off` where it keeps none, else
+     * the live handover's declaration; thrown when the handover cannot be
+     * read. Absent: it never keeps them. */
+    routesAtStart?: (() => Promise<RoutesDeclaration>) | undefined;
   }>,
   hostedOptions: HostedOptions = {},
   // Where the tools screen reads its live facts: this process's PATH and
@@ -3257,29 +3263,35 @@ export async function startLaunchpad(
   // minute and a target's deadline is at most 210 s after its facts were
   // read, so a route stays while the service confirms it and goes within
   // one minute after its deadline when it does not.
+  // Every tick reads the live handover again (review of #833), so a
+  // declaration added, replaced or removed after start takes effect within a
+  // minute and an old origin is never asked again; without a declaration,
+  // with a handover it cannot read, or on a base that cannot show it is
+  // hosted but has route files, a tick only lets expired routes go, and
+  // whatever it writes it writes under the routes lock for the declaration
+  // still current (`runEnvironmentRoutes`, decision F70's amendment of
+  // 2026-11-03).
   const routesAtStart = installed?.routesAtStart;
-  let routesTimer: ReturnType<typeof setInterval> | undefined;
-  let routing = false;
-  if (routesAtStart !== undefined)
-    void (async () => {
-      const service = await routesAtStart();
-      if (service === null || closing) return;
-      const location = { home: homedir(), uid: process.getuid?.() };
-      const synchronize = () => {
-        if (closing || routing) return;
-        routing = true;
-        void syncEnvironmentRoutes(location, service, {
+  let stopRoutes: (() => void) | undefined;
+  if (routesAtStart !== undefined) {
+    const location = { home: homedir(), uid: process.getuid?.() };
+    stopRoutes = runEnvironmentRoutes(
+      async () => (closing ? { kind: "off" } : routesAtStart()),
+      (service) =>
+        syncEnvironmentRoutes(location, service, {
           run: runTool,
           now: Date.now,
-        })
-          .catch(() => undefined)
-          .finally(() => {
-            routing = false;
-          });
-      };
-      synchronize();
-      routesTimer = setInterval(synchronize, routesEveryMs);
-    })().catch(() => undefined);
+          current: liveRoutesSource(),
+        }),
+      () => expireRoutes(location, Date.now),
+      {
+        everyMs: routesEveryMs,
+        setInterval: (tick, ms) => setInterval(tick, ms),
+        clearInterval: (handle) =>
+          clearInterval(handle as ReturnType<typeof setInterval>),
+      },
+    );
+  }
   let closePending: ReturnType<
     ReturnType<typeof createApplicationLifecycle>["close"]
   > | null = null;
@@ -3308,7 +3320,7 @@ export async function startLaunchpad(
     close() {
       closing = true;
       clearInterval(audienceTimer);
-      clearInterval(routesTimer);
+      stopRoutes?.();
       catalog.close();
       buddyPersona.close();
       buddyTelegramRestart.close();

@@ -1238,3 +1238,42 @@ for (const revision of ["base-instructions-17", "base-instructions-18"])
         }
       },
     );
+
+// The home access service's origin (decision F70) renders nothing in the
+// Folder; only the machine commands act on it. A handover that changes only
+// it is still recorded, both ways, never left behind.
+test.skipIf(process.platform === "win32")(
+  "a refresh records the access service's origin alone, both ways, and renders the same files",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      const plain = binding(personal);
+      const declared = binding({
+        ...personal,
+        access_service: {
+          origin:
+            "http://example-conglomerate-host.tailnet.example.invalid:8444",
+        },
+      });
+      await initializeMachineFolder(folder, plain, noChoices);
+      const files = (await pending(folder)).files;
+      for (const [machine, revision] of [
+        [declared, 2],
+        [plain, 3],
+      ] as const) {
+        expect(await refreshMachineFolder(folder, machine)).toEqual({
+          code: 0,
+          result: { kind: "refreshed", revision },
+        });
+        expect(await recordedMachine(folder)).toBe(JSON.stringify(machine));
+        expect((await pending(folder)).files).toEqual(files);
+      }
+      expect(await refreshMachineFolder(folder, plain)).toEqual({
+        code: 0,
+        result: { kind: "unchanged" },
+      });
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);

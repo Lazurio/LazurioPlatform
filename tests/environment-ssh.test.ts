@@ -18,7 +18,7 @@ import {
 } from "../src/folder/machine-binding";
 import { presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
-import { withEnvironmentSsh } from "../src/machine/cli";
+import { withEnvironmentSsh as withSsh } from "../src/machine/cli";
 import {
   includeLine,
   managedHeader,
@@ -26,6 +26,8 @@ import {
   renderEnvironmentsKnownHosts,
   writeEnvironmentSsh,
 } from "../src/ssh-access/environments";
+import { routesSourceOf } from "../src/ssh-access/routes";
+import { runTool } from "../src/tools/status";
 import { journeys } from "./fixtures/journeys";
 import { binding, bindings } from "./fixtures/machine-bindings";
 import handover from "./fixtures/machine-context-personal-assigned.json";
@@ -326,6 +328,18 @@ test("without assigned peers the Platform's two files go, the Include line and t
 test("the machine commands add the outcome only when the Folder records this binding (initialized, refreshed, unchanged) on a personal Machine, and keep the answer otherwise", async () => {
   const path = await home();
   const location = { home: path, uid };
+  // The live handover declares what each binding here declares: no service,
+  // and its own routes (decision F70's amendment of 2026-11-03, point 5).
+  const withEnvironmentSsh = <Result extends Readonly<{ kind: string }>>(
+    answer: Result,
+    machine: MachineBinding,
+    at: typeof location,
+  ) =>
+    withSsh(answer, machine, at, undefined, {
+      run: runTool,
+      now: Date.now,
+      current: async () => routesSourceOf(machine),
+    });
   // A blocked operation, an adopted Folder that may still record an older
   // handover, and any other Machine: the answer as it was, nothing written.
   const blocked = { kind: "blocked", reason: "drift", path: "AGENTS.md" };

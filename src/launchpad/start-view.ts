@@ -93,6 +93,11 @@ export type AiAction =
       kind: "choose";
       cancel: boolean;
       byCode: Readonly<{ hint: string }>;
+      /** The AI whose CLI is not installed here: its sign-in is left out,
+       * since it could only fail (ChatGPT's by code with Codex). Absent
+       * when both are there, and never both: then both are offered and a
+       * click says what is missing. */
+      notInstalled?: readonly AiProvider[];
     }>
   /** Connected: "Přihlásit jiný účet" opens the choice again. */
   | Readonly<{ kind: "connected" }>
@@ -176,6 +181,10 @@ function aiFailure(
       return copy.startAiNoBrowser;
     case "provider-unknown":
       return copy.startAiProviderUnknown;
+    case "not-installed":
+      return fill(copy.startAiNotInstalled, {
+        name: aiProviderName[signIn.tool],
+      });
     case "failed":
       return copy.startAiFailed;
   }
@@ -213,10 +222,22 @@ function aiStep(facts: StartFacts, copy: Copy): [StartStep, AiAction] {
   const place = facts.aiPlace ?? "own";
   const ready = facts.ai === "organization" || facts.ai === "connected";
   const mark: StartMark = ready ? "done" : "now";
+  // A CLI that is not installed cannot sign in: its button is left out,
+  // and so is the one whose click just said so.
+  const absent = (facts.aiReading?.providers ?? [])
+    .filter((reading) => reading.state === "not-installed")
+    .map((reading) => reading.provider);
+  if (
+    signIn.kind === "failed" &&
+    signIn.reason === "not-installed" &&
+    !absent.includes(signIn.tool)
+  )
+    absent.push(signIn.tool);
   const choose: AiAction = {
     kind: "choose",
     cancel: ready,
     byCode: { hint: copy.startAiByCodeSetting },
+    ...(absent.length === 1 ? { notInstalled: absent } : {}),
   };
   // A sign-in that did not finish starts again the way it started.
   const retry = (failed: Extract<AiSignIn, { kind: "failed" }>): AiAction => ({
@@ -307,7 +328,9 @@ function aiStep(facts: StartFacts, copy: Copy): [StartStep, AiAction] {
       },
       facts.aiChoosing === true
         ? choose
-        : signIn.kind === "failed" && signIn.reason !== "no-environment-browser"
+        : signIn.kind === "failed" &&
+            signIn.reason !== "no-environment-browser" &&
+            signIn.reason !== "not-installed"
           ? retry(signIn)
           : { kind: "connected" },
     ];
@@ -317,7 +340,9 @@ function aiStep(facts: StartFacts, copy: Copy): [StartStep, AiAction] {
       { ...base, mark: "failed", status: aiFailure(signIn, copy) },
       signIn.reason === "no-environment-browser"
         ? { kind: "none" }
-        : retry(signIn),
+        : signIn.reason === "not-installed"
+          ? choose
+          : retry(signIn),
     ];
   // Without the Environment browser the page could not return to the CLI.
   if (place === "none" && facts.ai !== "loading")

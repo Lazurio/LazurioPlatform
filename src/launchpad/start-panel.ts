@@ -280,10 +280,17 @@ export function createStartPanel(
         };
       case "choose": {
         const choices = element("div", "start-choices");
-        choices.append(
-          signInButton("codex", copy.startAiSignInChatgpt, true),
-          signInButton("claude", copy.startAiSignInClaude),
-        );
+        // Only the AI whose CLI is here: an absent one could only fail.
+        const here = (tool: AiProvider) =>
+          !(action.notInstalled ?? []).includes(tool);
+        if (here("codex"))
+          choices.append(
+            signInButton("codex", copy.startAiSignInChatgpt, true),
+          );
+        if (here("claude"))
+          choices.append(
+            signInButton("claude", copy.startAiSignInClaude, !here("codex")),
+          );
         if (action.cancel)
           choices.append(
             button(copy.startAiCancel, () => {
@@ -293,7 +300,9 @@ export function createStartPanel(
           );
         return {
           actions: [],
-          body: [choices, byCodeNode(action.byCode.hint, copy)],
+          body: here("codex")
+            ? [choices, byCodeNode(action.byCode.hint, copy)]
+            : [choices],
         };
       }
       case "by-code": {

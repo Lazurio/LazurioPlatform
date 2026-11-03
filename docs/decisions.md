@@ -23031,9 +23031,11 @@ Open questions for the decision:
 ## F70 — A source Environment's routes come from its home access service: its own key, registered; targets pinned and with their deadline
 
 **Proposed 2026-11-03 (root decision 0224, plan DEV-6687 M7 step 4; Lazurio/LazurioPlatform#766).
-Implemented behind a handover member that no handover carries yet
-(HumanAndMachine-ai/Machines#1040), so nothing changes on any Environment until Machines
-writes it and this Platform vendors it.** Root decision 0224 derives every SSH access
+Implemented, and since the amendment of 2026-11-03 below this Platform reads the
+handover member (HumanAndMachine-ai/Machines#1040, merged as Machines#1051). No handover
+carries it yet: Machines writes it only once its release gate
+`PLATFORM_HANDOVER_ACCESS_SERVICE_MINIMUM` names a Platform release with this reader,
+and that gate is still unset, so until then nothing changes on any Environment.** Root decision 0224 derives every SSH access
 between the Environments of a Conglomerate from facts, in one service on the Conglomerate
 Host (`lazurio-access-service`, Machines `workloads/conglomerate-host/ACCESS-SERVICE.md`):
 Pracovní přístup (a personal Environment to its owner's Work Environments), Team via Work
@@ -23048,8 +23050,12 @@ managed route anywhere.
 1. **Where the service is.** Only the handover says it: an optional member naming the
    home access service's origin (`http://<host's tailnet name>:<port>`), proposed in
    HumanAndMachine-ai/Machines#1040 from the home host the lane already reads through
-   `conglomerate_host_record`. `accessServiceOf` answers it, and today answers null for
-   every Machine. Nothing derives the origin from a name, the Headscale URL or a peer;
+   `conglomerate_host_record`. `accessServiceOf` answers it. Until the amendment of
+   2026-11-03 below it answered null for every Machine; now it reads the member as
+   Machines#1051 defines it. Which Machines carry the member is Machines' release gate
+   `PLATFORM_HANDOVER_ACCESS_SERVICE_MINIMUM`, still unset, so today `accessServiceOf`
+   still answers null on every Machine. Nothing derives the origin from a name, the
+   Headscale URL or a peer;
    an origin that is not exactly `http://`, a tailnet DNS name (no address literal) and
    a port is never asked.
 2. **The source key.** Every source Environment, personal or Work, has one key
@@ -23113,6 +23119,79 @@ the person's own `Host` blocks and file, the commands' answers) and
 `tests/environment-ssh.test.ts` (the block's bytes). Not proven: a real service on a real
 host; that is the Ring 0 proof of ACCESS-SERVICE.md once the switch and the handover
 member exist.
+
+**Amendment 2026-11-03: the handover member (HumanAndMachine-ai/Machines#1040).** Point 1's
+member is `access_service: {"origin": "http://<host node>.<MagicDNS domain>:8444"}`,
+optional and closed on both branches of `lazurio.machine.v1`. Machines builds the origin
+from the home host overlay's reviewed node name and MagicDNS domain, exactly as the
+service names a target's host, and writes it only while that host switches the service
+on, only for a Machine its service would recognize as a caller and only for a pinned
+Platform at or above its gate. The vendored schema takes it byte for byte from the
+merge commit of the Machines pull request that adds it (#1051), pinned in
+`schema-provenance.json` as F10's amendment of 2026-10-19 did. The
+Platform:
+
+1. **Reads the origin exactly**: `http://`, a tailnet DNS name of at least three labels
+   whose last label is not numeric, and port 8444 (the service's one port), nothing
+   else. The schema, the projection and the binding's parser all hold it to that
+   rule, so an origin of another form refuses the handover and is never asked.
+2. **Records it** in the binding as `accessService`, a declaration and not identity. A
+   refresh records a change of only this member, though the Folder renders nothing of
+   it, and recovery evidence withholds the host's name.
+3. **Uses it** through `accessServiceOf`, which until now answered null for every
+   Machine: points 2 to 6 above then run on the Machines that carry it. Everything
+   else of this decision is unchanged; without the member the Platform behaves exactly
+   as before.
+4. **Follows the live handover** in the Launchpad: every minute it reads the
+   declaration again (`runEnvironmentRoutes`), so a member added after start is used at
+   the next tick, a replaced origin replaces the old one, and a removed one is never
+   asked again.
+5. **Writes only for the declaration that is still current.** Every writer of the
+   routes (the Launchpad's tick, `machine folder-init` and `folder-refresh`) asks the
+   service without holding anything, then writes under one routes lock, a kernel
+   `flock` on `~/.local/state/lazurio/environment-routes.lock` (fixed under the home,
+   never moved by `XDG_STATE_HOME`, so both processes share it). Under the lock it
+   reads the live handover again and writes only when it declares exactly what the
+   writer acted on: the same origin, or, without a service, the same routes of its
+   own (a personal Machine's assigned peers, each with its host, account and host
+   keys, in the same order; none on any other Machine). Otherwise, and when the
+   handover cannot be read there, it writes nothing and reports
+   `ssh: {"kind": "superseded"}`. So an answer that arrives after the handover changed,
+   or a refresh of an older handover whose peers were since removed or changed, never
+   replaces what a writer of the newer declaration wrote, whichever of the two
+   finished first; the newer one writes at its own commit or, for the service, at the
+   next tick.
+6. **No service route outlives its deadline.** When the live handover declares no
+   service, or cannot be read, the Launchpad's tick still runs under the lock: it drops
+   every recorded route whose deadline has passed and adds nothing. A route without a
+   deadline (a personal Machine's assigned peers from the handover) stays, and the
+   Platform's own files that cannot be read back are removed, since nothing shows
+   their deadlines. When nothing has expired no file is touched. `folder-init` and
+   `folder-refresh` of a binding without the member write its routes exactly: a
+   personal Machine's assigned peers as before (they replace the service's routes) and
+   on any other Machine none, so the removed service's routes go at once. A route of
+   the service therefore ends within its deadline plus one minute after the
+   declaration is removed or the handover becomes unreadable, on both kinds of
+   Machine, as point 5 above bounds it while the service is declared. The Launchpad
+   keeps no routes (does nothing) only on a base that is not the supervised base of a
+   hosted operator *and* has neither of the Platform's two route files. A missing or
+   unreadable handover makes the hosted-operator check itself fail, so a base that
+   cannot show it is hosted but still has those files is a base that was hosted: its
+   tick only lets expired routes go, as for an unreadable handover.
+
+Tests: `tests/environment-routes-loop.test.ts` (added, replaced and removed
+declarations, one synchronization at a time, failures and stop; an old answer held
+while the declaration changes or is removed and a newer writer writes, which then
+writes nothing; a refresh of an older handover held while a newer one removed or
+changed the assigned peers, which then writes nothing; expiry without a declaration and
+with an unreadable handover on a personal and a work Machine, with assigned peers kept;
+`routesAtStart` driving the loop on real files with a missing handover, on a base whose
+hosted-operator check fails and on one where only the handover read fails, and doing
+nothing on a base without route files; one lock for both writers),
+`tests/access-service-handover.test.ts` (the pin, the member on both kinds,
+every refused form, the stored binding, the commands asking the declared origin, the
+withheld name) and `tests/folder-refresh.test.ts` (a refresh of only the member). Not
+proven: a real handover from a Machines release, until Machines sets the gate.
 
 ## F71 — Phone through ChatGPT: Settings → Connections pairs the ChatGPT app with the Codex app-server's remote control
 

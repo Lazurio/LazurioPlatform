@@ -2,7 +2,11 @@ import type {
   MachineBinding,
   MachinePeerHostKey,
 } from "../folder/machine-binding";
-import { isEnvironmentId, isHostname } from "../folder/machine-binding";
+import {
+  isAccessServiceOrigin,
+  isEnvironmentId,
+  isHostname,
+} from "../folder/machine-binding";
 
 // The source side of root decision 0224: the access service on the home
 // Conglomerate Host (`lazurio-access-service`, Machines
@@ -17,34 +21,29 @@ import { isEnvironmentId, isHostname } from "../folder/machine-binding";
 //
 // The service knows the caller by its tailnet source address; there is no
 // token. The Platform never derives where the service is from a name: the
-// handover has to say it (`accessServiceOf`), and until Machines writes that
-// member (HumanAndMachine-ai/Machines#1040) no Environment has one, so
-// nothing here runs outside the tests. Every answer is validated whole; one
-// that is not exactly the contract's shape counts as no answer (fails
-// closed).
+// handover has to say it (`access_service`, HumanAndMachine-ai/Machines#1040,
+// read by `accessServiceOf`), and Machines writes it only while the home host
+// switches the service on and for a Platform release that reads it. Every
+// answer is validated whole; one that is not exactly the contract's shape
+// counts as no answer (fails closed).
 
 /** Where this Environment's home access service answers: `http://`, a
  * tailnet DNS name and a port, from the handover only. */
 export type AccessServiceLocation = Readonly<{ origin: string }>;
 
-const originPattern = /^http:\/\/([a-z0-9.-]+):([0-9]{1,5})$/;
-export function isAccessServiceOrigin(value: unknown): value is string {
-  if (typeof value !== "string") return false;
-  const match = originPattern.exec(value);
-  if (match === null) return false;
-  const port = Number(match[2]);
-  return isTailnetName(match[1]) && port >= 1 && port <= 65535;
-}
+export { isAccessServiceOrigin };
 
-/** The access service of this Environment's home Conglomerate Host, as the
- * handover declares it. No handover member carries it yet
- * (HumanAndMachine-ai/Machines#1040), so this is null for every Machine:
- * the Environment keeps the handover's assigned peers and says that the
+/** The access service of this Environment's home Conglomerate Host, exactly
+ * as the handover's `access_service` declares it (decision F70 point 1):
+ * `http://`, a tailnet DNS name and port 8444, nothing else. Null without the
+ * member, and for an origin of any other form, which is never asked: the
+ * Environment then keeps the handover's assigned peers and says that the
  * service is not declared. It never composes an address from a name. */
 export function accessServiceOf(
-  _machine: MachineBinding | null | undefined,
+  machine: MachineBinding | null | undefined,
 ): AccessServiceLocation | null {
-  return null;
+  const origin = machine?.accessService?.origin;
+  return isAccessServiceOrigin(origin) ? Object.freeze({ origin }) : null;
 }
 
 /** One target of `GET /v1/targets`, checked. */

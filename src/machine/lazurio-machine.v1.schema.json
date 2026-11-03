@@ -48,6 +48,7 @@
         },
         "network": { "$ref": "#/$defs/network" },
         "relationships": { "allOf": [{ "$ref": "#/$defs/relationships" }, { "type": "object", "properties": { "zone": { "const": "work" } } }] },
+        "access_service": { "$ref": "#/$defs/access_service" },
         "entry": { "allOf": [{ "$ref": "#/$defs/entry" }, { "type": "object", "properties": { "buddy": false } }] },
         "vault": { "$ref": "#/$defs/vault_work" },
         "services": {
@@ -111,6 +112,7 @@
         },
         "network": { "$ref": "#/$defs/network" },
         "relationships": { "allOf": [{ "$ref": "#/$defs/relationships" }, { "type": "object", "properties": { "zone": { "const": "personal" } } }] },
+        "access_service": { "$ref": "#/$defs/access_service" },
         "entry": { "$ref": "#/$defs/entry" },
         "vault": { "$ref": "#/$defs/vault_personal" },
         "installed": { "$ref": "#/$defs/installed" },
@@ -355,6 +357,20 @@
             "external_origin": { "description": "Origin of Buddy on the gateway: https://buddy.<personal-dns-slug>.lazurio.io.", "type": "string", "maxLength": 57, "pattern": "^https://buddy\\.[a-z0-9]+(?:-[a-z0-9]+)*\\.lazurio\\.io$" },
             "listen_port": { "description": "Loopback port on 127.0.0.1 Buddy's T3 instance listens on, the one the gateway proxies to.", "type": "integer", "minimum": 1024, "maximum": 65535 }
           }
+        }
+      }
+    },
+    "access_service": {
+      "description": "Where this Environment's home Conglomerate Host runs its access service (root decision 0224; Machines workloads/conglomerate-host/ACCESS-SERVICE.md, docs/machine-identity.md#access-service): the source of its SSH config (GET /v1/targets) and of its key registration (PUT /v1/source-key). Present only while that host switches the service on and its service identifies this Machine as a caller, and only for a pinned LazurioPlatform that reads it; a reader vendoring an earlier schema refuses a document carrying it. It carries no token, key or address literal.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["origin"],
+      "properties": {
+        "origin": {
+          "description": "http://<host node name>.<MagicDNS domain>:8444, the host's tailnet DNS name exactly as the service renders a target's host, and its port. Plain HTTP inside the tailnet: the service knows its caller by the tailnet source address.",
+          "type": "string",
+          "maxLength": 265,
+          "pattern": "^http://(?=[^:]{1,253}:8444$)[a-z0-9]+(?:-[a-z0-9]+)*(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+\\.[a-z]{2,63}:8444$"
         }
       }
     },

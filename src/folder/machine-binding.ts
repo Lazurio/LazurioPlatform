@@ -235,6 +235,10 @@ export type MachineBinding = Readonly<{
   /** The hosted entry of this Machine (decision F16): finished URLs written by
    * Machines from the same rendering as the gateway; declaration, not identity. */
   entry?: MachineEntry;
+  /** Where the home Conglomerate Host's access service answers (decision F70,
+   * root 0224), exactly as the handover's `access_service` declares it;
+   * declaration, not identity. */
+  accessService?: Readonly<{ origin: string }>;
 }>;
 
 // Exactly the shapes the vendored lazurio.machine.v1 schema imposes on the
@@ -282,6 +286,24 @@ function isDnsLabel(value: unknown): value is string {
 export function isHostname(value: unknown): value is string {
   return (
     typeof value === "string" && value.length <= 253 && hostname.test(value)
+  );
+}
+
+// 8444: the one port the access service listens on (Machines
+// `workloads/conglomerate-host/access-service.ts` ACCESS_SERVICE_PORT).
+const accessServiceOriginPattern = /^http:\/\/([a-z0-9.-]+):8444$/;
+/** The access service's origin by the wire schema's rule and nothing looser
+ * (decision F70 point 1): exactly `http://`, a tailnet DNS name of at least
+ * three labels whose last label is not numeric (never an address literal),
+ * and port 8444; no user, path, query or other port. */
+export function isAccessServiceOrigin(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const name = accessServiceOriginPattern.exec(value)?.[1];
+  return (
+    name !== undefined &&
+    isHostname(name) &&
+    name.split(".").length >= 3 &&
+    /^[a-z]{2,63}$/.test(name.slice(name.lastIndexOf(".") + 1))
   );
 }
 function isGithubId(value: unknown): value is number {
@@ -573,10 +595,12 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
   if (input === null) return null;
   const withRelationships = ownDataValue(input, "relationships") !== undefined;
   const withEntry = ownDataValue(input, "entry") !== undefined;
+  const withAccessService = ownDataValue(input, "accessService") !== undefined;
   const value = stateFields(input, [
     ...keys,
     ...(withRelationships ? ["relationships" as const] : []),
     ...(withEntry ? ["entry" as const] : []),
+    ...(withAccessService ? ["accessService" as const] : []),
   ]);
   const tailnet =
     value.network === null
@@ -617,17 +641,30 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
   // Buddy's frame is served by the person's Osobní Prostředí alone.
   if (entry?.buddyOrigin !== undefined && !personalVm)
     throw new Error("Only a personal Machine binding routes Buddy's frame");
-  if (!withRelationships)
-    return Object.freeze(entry ? { ...binding, entry } : binding);
-  const related = relationships(value.relationships);
+  const accessService = withAccessService
+    ? parseAccessService(value.accessService)
+    : undefined;
+  const related = withRelationships
+    ? relationships(value.relationships)
+    : undefined;
   // The zone of the relationships is the zone of this Machine's branch.
-  if ((related.zone === "personal") !== personalVm)
+  if (related !== undefined && (related.zone === "personal") !== personalVm)
     throw new Error("Machine relationships zone mixes handover branches");
-  return Object.freeze(
-    entry
-      ? { ...binding, relationships: related, entry }
-      : { ...binding, relationships: related },
-  );
+  // Members in the handover's order; an absent one stays absent, so a binding
+  // recorded without it reads back with the same bytes.
+  return Object.freeze({
+    ...binding,
+    ...(related === undefined ? {} : { relationships: related }),
+    ...(entry === undefined ? {} : { entry }),
+    ...(accessService === undefined ? {} : { accessService }),
+  });
+}
+
+function parseAccessService(input: unknown): Readonly<{ origin: string }> {
+  const { origin } = stateFields(input, ["origin"]);
+  if (!isAccessServiceOrigin(origin))
+    throw new Error("Invalid Machine access service origin");
+  return Object.freeze({ origin });
 }
 
 // The part of a binding that names the Machine: kind, name, Owner (Organization
