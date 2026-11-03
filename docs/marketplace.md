@@ -16,18 +16,28 @@ release (`src/launchpad/marketplace-index.json`). Everything below is what the p
 does today; the rest of this document stays future direction.
 
 - **One record per offer, in the registry.** An offer names its public source
-  repository, publisher, SPDX license, the app generation `app/v<N>` of the offered
-  release, the scaffold's stack, the pinned Bun, its stone, `pricing` (only `free`),
-  its words in Czech and English (one line, up to four features, the dialog's starts)
-  and its releases, newest first: `version`, tag `v<version>`, the full `commit` the
-  tag points to and the `artifactDigest` of an attested artifact, the last two filled
-  in only once the release is published. The Launchpad offers the newest release whose
-  commit is recorded. The catalog holds no second copy of the source. A tag or a
-  branch is not an immutable identity.
-- **Today's offers.** Mission Control (`app/v3`) and Presentations (`app/v1`) of
-  `LazurioExampleOrganization`, both MIT and both announced, not published: release
-  0.1.0 has no commit. Presentations moves there from `TemplatesRozjedeme-ai` with a
-  clean history (decided 2026-11-03); the registry records `movedFrom`.
+  repository, publisher, SPDX license, its stone, `pricing` (only `free`), its words
+  in Czech and English (one line, up to four features, the dialog's starts) and its
+  releases, newest first. A release names `version`, tag `v<version>`, what it is
+  built on (the app generation `app/v<N>`, the scaffold's stack and the exact Bun,
+  because a generation transition or a release of the stack profile changes them;
+  decided 2026-11-03), the full `commit` the tag points to and the `artifactDigest`
+  of an attested artifact, the last two filled in only once the release is published.
+  The Launchpad offers the newest release whose commit is recorded. The catalog holds
+  no second copy of the source. A tag or a branch is not an immutable identity.
+- **Only released templates are shown** (decided 2026-11-03). An offer none of whose
+  releases has a commit is announced in the registry, but the Launchpad shows no card
+  and no detail for it (`/marketplace/<offer>` says the offer is not in the
+  Marketplace) and its prompt route answers 404. `parseMarketplaceIndex` still reads
+  such an offer in full, so an invalid announcement refuses the index as any other
+  error does.
+- **Today's offers.** Mission Control 4.0.0 (`app/v3`), Design System 1.0.0
+  (`app/v1`) and Presentations 0.1.0 (`app/v1`), all three of
+  `LazurioExampleOrganization`, MIT, on Bun 1.4.4. None is released yet, so the
+  Marketplace shows none of them and says there are no app templates yet. Mission
+  Control's only public source is `LazurioExampleOrganization/mission-control`.
+  Presentations moved there from `TemplatesRozjedeme-ai` with a clean history
+  (decided 2026-11-03).
 - **It looks like the module it becomes.** An offer carries the stone its module
   shows in Apps (`presentation`, `shell/stones.ts`). The catalog's card is a real
   screen of the app, the stone, the name and one line, as a tile in Apps.
@@ -41,14 +51,10 @@ does today; the rest of this document stays future direction.
   agent. No price, pilot label, mention of the Environment or computer, install
   count, rating or other offer is shown; the price remains zero.
 - **Screens.** The registry lists screens of the offered release: WebP files 1600 px
-  wide in the template's repository, shown from
+  wide in the template's repository, with invented content only, shown from
   `raw.githubusercontent.com/<repository>/<commit>/<path>`, so they are exactly the
-  release's. An offer whose release has no commit has no screens to show; the release
-  bundles `src/launchpad/images/marketplace-presentations-{gallery,slide}.webp` for
-  Presentations until its release lists its own (browser screenshots at twice the
-  pixel density of the template's synthetic four-slide example, "Ukázková Organizace
-  · žádná skutečná firemní data", scaled to 1600 px, without customer content, logos
-  or photos). An offer with neither shows its stone and words only.
+  release's. Lazurio bundles no screens of its own. An offer without screens shows
+  its stone and words only.
 - **Přidat do Organizace.** A dialog names the target Organization, chosen only among
   this Folder's Organizations bound to a GitHub login (the address is never the
   target's authority), and how the module starts (empty, or with the release's
@@ -63,8 +69,8 @@ does today; the rest of this document stays future direction.
   exactly as "+ Nový modul" does: by link where Chat takes a prepared prompt, else
   through the clipboard. The prompt `marketplace-<offer>-<empty|sample>` is served by
   `GET /.lazurio/prompts/<id>?org=<login>` to anyone admitted, for an offer and start
-  of the catalog the Launchpad shows, an Organization of the Folder bound to that
-  login, and only while the offer's commit is recorded; every other case is the same
+  of the catalog the Launchpad shows (so only for a release with a recorded commit)
+  and an Organization of the Folder bound to that login; every other case is the same
   404. The brief names the exact release, the Organization and
   the start, and tells the agent to follow the release's `docs/adoption.md`: check live
   rights, name collision and compatibility, show the plan, `lazurio module create`,
@@ -72,11 +78,10 @@ does today; the rest of this document stays future direction.
   where rights do not reach, merge or activate nothing without the person's explicit
   instruction. The dialog then says Chat opened with the brief ready, unsent. It never
   claims installation on a click.
-- **Not yet adoptable.** Until the release's commit is recorded, "Pokračovat v Chatu"
-  is disabled with the reason ("Půjde to po vydání verze 0.1.0") and the prompt route
-  answers 404. Recording the commit (and the digest) after the release is published
-  is a reviewed pull request of the registry; its merge reaches every installed
-  Launchpad within an hour of its next Marketplace read, without a Lazurio release.
+- **Listing a release.** Recording the commit (and the digest) after the release is
+  published is a reviewed pull request of the registry; its merge puts the offer in
+  every installed Launchpad within an hour of its next Marketplace read, without a
+  Lazurio release.
 
 The pilot is complete only after the real consumer journey into another Organization
 and a verified update with local customizations (plan DEV-6593); this page is its
@@ -128,7 +133,8 @@ contribution guide and the template contract live there (`schemas/offer.v1.schem
 6. **Nothing more is trusted.** A listing grants nothing: whatever an index says, the
    offer is a brief the agent checks against the release itself (live rights, the
    tag's commit, the release's `docs/adoption.md`), and the prompt route still serves
-   it only for an Organization of this Folder and a recorded commit. No code from the
+   it only for an Organization of this Folder and an offer the catalog shows, which
+   has a recorded commit. No code from the
    registry or a template runs in the Launchpad; every word is drawn as text.
 
 `GET`-like reads stay `POST {}` like `/api/catalog`, behind the same admission; a

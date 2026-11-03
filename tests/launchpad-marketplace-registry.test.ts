@@ -19,10 +19,20 @@ const head = "a".repeat(40);
 const next = "b".repeat(40);
 const api = `https://api.github.com/repositories/${registrySource.id}`;
 
+/** The built-in index with Presentations released under this title. */
 const index = (title = "Presentations") => ({
   ...builtInIndex,
   offers: builtInIndex.offers.map((offer) =>
-    offer.id === "presentations" ? { ...offer, title } : offer,
+    offer.id === "presentations"
+      ? {
+          ...offer,
+          title,
+          releases: offer.releases.map((release) => ({
+            ...release,
+            commit: "c".repeat(40),
+          })),
+        }
+      : offer,
   ),
 });
 
@@ -78,10 +88,8 @@ test("the registry is read at main's commit, kept, and read again only when main
     const first = await registry.read();
     expect(first.source).toBe("registry");
     expect(first.commit).toBe(head);
-    expect(first.offers.map((offer) => offer.id)).toEqual([
-      "mission-control",
-      "presentations",
-    ]);
+    // Only the released offer is shown.
+    expect(first.offers.map((offer) => offer.id)).toEqual(["presentations"]);
     expect(asked).toEqual([
       `${api}/commits/main`,
       `${api}/contents/index.json?ref=${head}`,

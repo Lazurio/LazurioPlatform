@@ -11,7 +11,8 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // its `index.json` built into this release (`marketplace-index.json`). No
 // service, account, price or install count. An offer names releases of a
 // public template repository; the catalog never holds a second copy of its
-// source. "Přidat do Organizace" adds nothing by itself: it hands an exact
+// source, and shows an offer only once a release of it has its exact commit
+// (decided 2026-11-03): an announced template is the registry's, not a card. "Přidat do Organizace" adds nothing by itself: it hands an exact
 // brief to the person's agent, who follows the release's own adoption guide
 // (the standard scaffold, a merge that keeps the template as an ancestor, a
 // PR, activation confirmed by a person). A listing is discovery information,
@@ -30,17 +31,26 @@ export type MarketplaceSection = (typeof marketplaceSections)[number];
 export const adoptionSeeds = ["empty", "sample"] as const;
 export type AdoptionSeed = (typeof adoptionSeeds)[number];
 
-/** One release of an offer. `commit` is the full commit the release tag
- * points to and `artifactDigest` the digest of its attested artifact: both
- * are filled in only once the release is published, and until a commit is
- * known the release cannot be adopted. A tag or a branch alone is not an
- * immutable identity. */
+/** One release of an offer and what it is built on: the app generation
+ * `app/v<N>`, the stack the scaffold creates (`lazurio module create
+ * --stack`) and the Bun it pins (`packageManager`), which a generation
+ * transition or a release of the stack profile changes. `commit` is the full
+ * commit the release tag points to and `artifactDigest` the digest of its
+ * attested artifact: both are filled in only once the release is published.
+ * A tag or a branch alone is not an immutable identity. */
 export type MarketplaceRelease = Readonly<{
   version: string;
   tag: string;
+  generation: string;
+  stack: string;
+  bun: string;
   commit: string | null;
   artifactDigest: string | null;
 }>;
+
+/** A release whose exact commit is recorded: the only kind offered. */
+export type PublishedRelease = MarketplaceRelease &
+  Readonly<{ commit: string }>;
 
 /** A start's words: the dialog's choice and the end of the brief's "Začni
  * s …" (in Czech the person's own words, tykání, root decision 0199). */
@@ -59,12 +69,6 @@ export type MarketplaceOffer = Readonly<{
   publisher: string;
   /** SPDX identifier of the module's license. */
   license: string;
-  /** The app generation of the offered release, `app/v<N>`. */
-  generation: string;
-  /** The stack the scaffold creates (`lazurio module create --stack`). */
-  stack: string;
-  /** The Bun the template pins (`packageManager`). */
-  bun: string;
   /** The stone the adopted module shows in Apps (shell/stones.ts); a key
    * this release does not know shows the plain app stone. */
   stone: StoneKey;
@@ -75,9 +79,8 @@ export type MarketplaceOffer = Readonly<{
   screenshots: readonly Readonly<{ path: string; alt: Localized }>[];
   /** Every release, newest first. */
   releases: readonly MarketplaceRelease[];
-  /** The release offered: the newest whose commit is recorded, or while
-   * none has one the newest, which cannot be adopted. */
-  release: MarketplaceRelease;
+  /** The release offered: the newest whose commit is recorded. */
+  release: PublishedRelease;
 }>;
 
 /** The offers the Launchpad shows and where they come from: a registry read
@@ -140,13 +143,27 @@ function seed(value: unknown): MarketplaceSeed | null {
 }
 
 function release(value: unknown): MarketplaceRelease | null {
-  const fields = exact(value, ["version", "tag", "commit", "artifactDigest"]);
+  const fields = exact(value, [
+    "version",
+    "tag",
+    "generation",
+    "stack",
+    "bun",
+    "commit",
+    "artifactDigest",
+  ]);
   if (fields === null) return null;
-  const { commit, artifactDigest } = fields;
+  const { stack, bun, commit, artifactDigest } = fields;
   if (
     typeof fields.version !== "string" ||
     !version.test(fields.version) ||
     fields.tag !== `v${fields.version}` ||
+    typeof fields.generation !== "string" ||
+    !generation.test(fields.generation) ||
+    typeof stack !== "string" ||
+    !slug.test(stack) ||
+    typeof bun !== "string" ||
+    !exactVersion.test(bun) ||
     !(
       commit === null ||
       (typeof commit === "string" && fullCommit.test(commit))
@@ -165,6 +182,9 @@ function release(value: unknown): MarketplaceRelease | null {
   return Object.freeze({
     version: fields.version,
     tag: fields.tag,
+    generation: fields.generation,
+    stack,
+    bun,
     commit,
     artifactDigest,
   });
@@ -179,9 +199,6 @@ const offerKeys = [
   "repository",
   "publisher",
   "license",
-  "generation",
-  "stack",
-  "bun",
   "stone",
   "pricing",
   "summary",
@@ -206,7 +223,15 @@ function list<T>(
   return Object.freeze(items);
 }
 
-function offer(value: unknown): MarketplaceOffer | null {
+/** An offer of the index as read: its id, and the offer once a release of
+ * it has its commit; while none has one it is announced, valid and not
+ * shown. Null when it is not a valid offer at all. */
+type ReadOffer = Readonly<{ id: string; offer: MarketplaceOffer | null }>;
+
+const published = (entry: MarketplaceRelease): entry is PublishedRelease =>
+  entry.commit !== null;
+
+function offer(value: unknown): ReadOffer | null {
   const fields = exact(value, offerKeys, ["movedFrom"]);
   if (
     fields === null ||
@@ -215,7 +240,7 @@ function offer(value: unknown): MarketplaceOffer | null {
     fields.pricing !== "free"
   )
     return null;
-  const { id, title, module, publisher, license, stack, bun, stone } = fields;
+  const { id, title, module, publisher, license, stone } = fields;
   const source = fields.repository;
   if (
     typeof id !== "string" ||
@@ -235,12 +260,6 @@ function offer(value: unknown): MarketplaceOffer | null {
     ) ||
     typeof license !== "string" ||
     !spdx.test(license) ||
-    typeof fields.generation !== "string" ||
-    !generation.test(fields.generation) ||
-    typeof stack !== "string" ||
-    !slug.test(stack) ||
-    typeof bun !== "string" ||
-    !exactVersion.test(bun) ||
     typeof stone !== "string" ||
     !slug.test(stone)
   )
@@ -276,7 +295,6 @@ function offer(value: unknown): MarketplaceOffer | null {
     6,
   );
   const releases = list(fields.releases, release, 100);
-  const first = releases?.[0];
   if (
     summary === null ||
     features === null ||
@@ -285,45 +303,50 @@ function offer(value: unknown): MarketplaceOffer | null {
     (seedFields?.sample !== undefined && sample === null) ||
     screenshots === null ||
     releases === null ||
-    first === undefined
+    releases.length === 0
   )
     return null;
+  const offered = releases.find(published);
+  if (offered === undefined) return Object.freeze({ id, offer: null });
   return Object.freeze({
     id,
-    section: "app-templates",
-    title,
-    module,
-    repository: source,
-    publisher,
-    license,
-    generation: fields.generation,
-    stack,
-    bun,
-    stone: (stoneKeys as readonly string[]).includes(stone)
-      ? (stone as StoneKey)
-      : "app",
-    summary,
-    features,
-    seeds: Object.freeze({ empty, sample }),
-    screenshots,
-    releases,
-    release: releases.find((entry) => entry.commit !== null) ?? first,
+    offer: Object.freeze({
+      id,
+      section: "app-templates",
+      title,
+      module,
+      repository: source,
+      publisher,
+      license,
+      stone: (stoneKeys as readonly string[]).includes(stone)
+        ? (stone as StoneKey)
+        : "app",
+      summary,
+      features,
+      seeds: Object.freeze({ empty, sample }),
+      screenshots,
+      releases,
+      release: offered,
+    }),
   });
 }
 
-/** The offers of a registry's `index.json` (`lazurio.marketplace.index.v1`),
- * or null. The index is read in full or refused: an unknown schema, field or
- * value, or an id used twice, refuses all of it, and the Launchpad keeps
- * what it showed before. */
+/** The offers the Launchpad shows from a registry's `index.json`
+ * (`lazurio.marketplace.index.v1`), or null. The index is read in full or
+ * refused: an unknown schema, field or value, or an id used twice, refuses
+ * all of it, and the Launchpad keeps what it showed before. Of a valid
+ * index only the offers with a published release are shown; an announced
+ * one is neither a card nor a detail nor a prompt. */
 export function parseMarketplaceIndex(
   value: unknown,
 ): readonly MarketplaceOffer[] | null {
   const index = exact(value, ["schemaVersion", "offers"]);
   if (index?.schemaVersion !== "lazurio.marketplace.index.v1") return null;
-  const offers = list(index.offers, offer, 200);
-  if (offers === null) return null;
-  const ids = new Set(offers.map((entry) => entry.id));
-  return ids.size === offers.length ? offers : null;
+  const read = list(index.offers, offer, 200);
+  if (read === null) return null;
+  const ids = new Set(read.map((entry) => entry.id));
+  if (ids.size !== read.length) return null;
+  return Object.freeze(read.flatMap((entry) => entry.offer ?? []));
 }
 
 const builtInOffers = parseMarketplaceIndex(builtInIndex);
@@ -344,11 +367,6 @@ export const offerById = (
 ): MarketplaceOffer | null =>
   catalog.offers.find((entry) => entry.id === id) ?? null;
 
-/** Whether an offer may be handed to an agent: only a release whose exact
- * commit is recorded. */
-export const adoptable = (entry: MarketplaceOffer): boolean =>
-  entry.release.commit !== null && fullCommit.test(entry.release.commit);
-
 /** The starts an offer has: empty always, then its example. */
 export const seedsOf = (entry: MarketplaceOffer): readonly AdoptionSeed[] =>
   entry.seeds.sample === null ? ["empty"] : adoptionSeeds;
@@ -363,14 +381,9 @@ export const releaseUrl = (entry: MarketplaceOffer): string =>
   `${sourceUrl(entry)}/releases/tag/${entry.release.tag}`;
 
 /** Where a screen of the offered release is: the template's repository at
- * its exact commit, or null while the release has none. */
-export const screenshotUrl = (
-  entry: MarketplaceOffer,
-  path: string,
-): string | null =>
-  entry.release.commit === null
-    ? null
-    : `https://raw.githubusercontent.com/${entry.repository}/${entry.release.commit}/${path}`;
+ * its exact commit. */
+export const screenshotUrl = (entry: MarketplaceOffer, path: string): string =>
+  `https://raw.githubusercontent.com/${entry.repository}/${entry.release.commit}/${path}`;
 
 /** The prompt id of an adoption (prompts.ts): one per offer and seed, as a
  * link carries only an id and the Organization's login. */
@@ -400,7 +413,7 @@ export const isAdoptionPromptId = (id: string): boolean =>
 /** The brief "Přidat do Organizace" hands to the agent: the person's own
  * words (in Czech tykání, root decision 0199), the exact release and the
  * Organization, and the release's adoption guide, which holds the steps.
- * Null while the offer cannot be adopted or has no such start. */
+ * Null when the offer has no such start. */
 export function adoptionPrompt(
   entry: MarketplaceOffer,
   chosen: AdoptionSeed,
@@ -409,8 +422,7 @@ export function adoptionPrompt(
   locale: MarketplaceLocale,
 ): string | null {
   const start = seedOf(entry, chosen);
-  if (!adoptable(entry) || entry.release.commit === null || start === null)
-    return null;
+  if (start === null) return null;
   return copy.marketAdoptPrompt
     .replaceAll("{title}", entry.title)
     .replaceAll("{name}", organization.name)
@@ -420,6 +432,6 @@ export function adoptionPrompt(
     .replaceAll("{commit}", entry.release.commit)
     .replaceAll("{license}", entry.license)
     .replaceAll("{module}", entry.module)
-    .replaceAll("{stack}", entry.stack)
+    .replaceAll("{stack}", entry.release.stack)
     .replaceAll("{seed}", start.brief[locale]);
 }

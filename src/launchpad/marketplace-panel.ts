@@ -4,7 +4,6 @@ import type { NewModuleOutcome, NewModulePrompt } from "./catalog-panel";
 import { organizationName } from "./catalog-view";
 import {
   type AdoptionSeed,
-  adoptable,
   adoptionPrompt,
   adoptionPromptId,
   builtInMarketplace,
@@ -20,17 +19,6 @@ import type { PageRoute } from "./routes";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
-/** Screens this release bundles for an offer whose release has none to show
- * yet (index.html `#market-pictures`), by offer id. */
-const bundledScreens: Readonly<
-  Record<string, readonly (readonly [string, MessageKey])[]>
-> = {
-  presentations: [
-    ["presentations-gallery", "marketScreensGallery"],
-    ["presentations-slide", "marketScreensSlide"],
-  ],
-};
-
 // The Marketplace page (plan DEV-6593, marketplace.ts): `/marketplace` is
 // Šablony aplikací with the card of each offer, `/marketplace/<offer>` its
 // detail: the stone and name its module will have in Apps, real screens of
@@ -40,11 +28,11 @@ const bundledScreens: Readonly<
 // module starts and one sentence on what follows. "Pokračovat v Chatu"
 // hands the exact brief to Chat as "+ Nový modul" does (ui.ts `handOver`),
 // where the agent shows the plan to approve before anything changes; it
-// creates nothing itself. While the offer's release has no recorded commit
-// the button is disabled and says why. The offers are the Launchpad's answer
-// (`POST /api/marketplace`: the registry at one commit, or the built-in
-// copy), read when the page first opens; until then the built-in copy. Every
-// value is drawn with textContent.
+// creates nothing itself. Only offers with a published release are in the
+// catalog (marketplace.ts), so every one can be added. The offers are the
+// Launchpad's answer (`POST /api/marketplace`: the registry at one commit, or
+// the built-in copy), read when the page first opens; until then the
+// built-in copy. Every value is drawn with textContent.
 export function createMarketplacePanel(
   options: Readonly<{
     copy: () => Copy;
@@ -65,7 +53,6 @@ export function createMarketplacePanel(
     return element;
   };
   const body = find<HTMLDivElement>("#market-body");
-  const pictures = find<HTMLDivElement>("#market-pictures");
   const dialog = find<HTMLDialogElement>("#market-dialog");
   const dialogTitle = find<HTMLHeadingElement>("#market-dialog-title");
   const dialogBody = find<HTMLDivElement>("#market-dialog-body");
@@ -129,15 +116,6 @@ export function createMarketplacePanel(
       (result, [key, value]) => result.replaceAll(`{${key}}`, value),
       text,
     );
-  const picture = (name: string, alt: string) => {
-    const source = pictures.querySelector<HTMLImageElement>(
-      `img[data-picture="${name}"]`,
-    );
-    const image = (source?.cloneNode() ?? element("img")) as HTMLImageElement;
-    image.alt = alt;
-    image.className = "market-shot";
-    return image;
-  };
   const remote = (url: string, alt: string) => {
     const image = element("img", "market-shot");
     image.src = url;
@@ -148,28 +126,17 @@ export function createMarketplacePanel(
     return image;
   };
   /** An offer's screens, each a key, its image and its words: those of the
-   * offered release where it has a commit, else the bundled ones. */
+   * offered release, from its exact commit. */
   const shotsOf = (offer: MarketplaceOffer) => {
-    const copy = options.copy();
     const locale = options.locale();
-    const released = offer.screenshots.flatMap((shot) => {
+    return offer.screenshots.map((shot) => {
       const url = screenshotUrl(offer, shot.path);
-      return url === null
-        ? []
-        : [
-            {
-              key: shot.path,
-              alt: shot.alt[locale],
-              image: (alt: string) => remote(url, alt),
-            },
-          ];
+      return {
+        key: shot.path,
+        alt: shot.alt[locale],
+        image: (alt: string) => remote(url, alt),
+      };
     });
-    if (released.length > 0) return released;
-    return (bundledScreens[offer.id] ?? []).map(([name, alt]) => ({
-      key: name,
-      alt: copy[alt],
-      image: (text: string) => picture(name, text),
-    }));
   };
   const stone = (offer: MarketplaceOffer, size: number) => {
     const image = element("img", "market-stone");
@@ -238,6 +205,9 @@ export function createMarketplacePanel(
     const grid = element("div", "market-grid");
     for (const offer of offers.offers) grid.append(card(offer));
     section.append(sectionHead, grid);
+    // No published template yet: said once the Launchpad's offers are read.
+    if (offers.offers.length === 0 && loaded)
+      section.append(element("p", "empty", copy.marketEmpty));
     view.append(head, section);
     return view;
   }
@@ -507,13 +477,8 @@ export function createMarketplacePanel(
       );
     dialogBody.replaceChildren(...parts);
 
-    const ready = adoptable(offer);
-    dialogOk.disabled = !ready || chosen === null || busy;
-    dialogStatus.textContent =
-      said ??
-      (ready
-        ? ""
-        : fill(copy.marketNotYet, { version: offer.release.version }));
+    dialogOk.disabled = chosen === null || busy;
+    dialogStatus.textContent = said ?? "";
   }
 
   return {

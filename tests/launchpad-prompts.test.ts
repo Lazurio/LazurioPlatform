@@ -17,9 +17,10 @@ import {
 } from "../src/launchpad/chat";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
 import {
-  builtInMarketplace,
   type MarketplaceOffer,
+  parseMarketplaceIndex,
 } from "../src/launchpad/marketplace";
+import builtInIndex from "../src/launchpad/marketplace-index.json";
 import type { MarketplaceRegistry } from "../src/launchpad/marketplace-registry";
 import { messages } from "../src/launchpad/messages";
 import {
@@ -401,16 +402,20 @@ posixTest(
     // The registry's index at one commit, where Presentations' release is
     // published (plan DEV-6593, marketplace-registry.ts).
     const commit = "0123456789abcdef0123456789abcdef01234567";
-    const offers = builtInMarketplace.offers.map(
-      (offer): MarketplaceOffer =>
+    const offers = parseMarketplaceIndex({
+      ...builtInIndex,
+      offers: builtInIndex.offers.map((offer) =>
         offer.id === "presentations"
           ? {
               ...offer,
-              release: { ...offer.release, commit },
-              releases: [{ ...offer.release, commit }],
+              releases: offer.releases.map((release) => ({
+                ...release,
+                commit,
+              })),
             }
           : offer,
-    );
+      ),
+    }) as readonly MarketplaceOffer[];
     const catalog = {
       source: "registry" as const,
       commit: "f".repeat(40),
@@ -440,7 +445,8 @@ posixTest(
           "LazurioExampleOrganization/presentations",
         );
       }
-      // Mission Control has no published release: the same 404.
+      // Mission Control has no published release, so it is not shown and
+      // its prompt is the same 404.
       const pending = await fetch(
         `${base}/.lazurio/prompts/marketplace-mission-control-empty?org=example-org`,
         { headers: valid },
@@ -466,10 +472,7 @@ posixTest(
       expect(answer.commit).toBe("f".repeat(40));
       expect(
         answer.offers.map((offer) => [offer.id, offer.release.commit]),
-      ).toEqual([
-        ["mission-control", null],
-        ["presentations", commit],
-      ]);
+      ).toEqual([["presentations", commit]]);
       // Each answer asks the registry for what the page shows now.
       expect(reads).toBe(4);
     } finally {

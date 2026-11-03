@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
 import {
-  adoptable,
   adoptionOf,
   adoptionPrompt,
   adoptionPromptId,
@@ -30,28 +29,33 @@ import {
 } from "../src/launchpad/routes";
 
 // The Marketplace (plan DEV-6593): one section, offers read from the
-// registry's index at one commit (or the copy built into this release), an
-// exact release, and "Přidat do Organizace" that hands a brief to the agent
-// only once the release's commit is recorded.
+// registry's index at one commit (or the copy built into this release), and
+// only those with a published release: an exact commit, which "Přidat do
+// Organizace" hands to the agent in a brief.
 
 const cs = messages("cs");
 const en = messages("en");
 const commit = "0123456789abcdef0123456789abcdef01234567";
 
-const presentations = offerById(
-  builtInMarketplace,
-  "presentations",
-) as MarketplaceOffer;
+/** The built-in index with these offers' newest release published at
+ * `commit` (all of them when none is named). */
+const publishedIndex = (...ids: string[]) => ({
+  ...builtInIndex,
+  offers: builtInIndex.offers.map((offer) =>
+    ids.length > 0 && !ids.includes(offer.id)
+      ? offer
+      : {
+          ...offer,
+          releases: offer.releases.map((release, i) =>
+            i === 0 ? { ...release, commit } : release,
+          ),
+        },
+  ),
+});
 
-const released: MarketplaceOffer = {
-  ...presentations,
-  release: {
-    version: "0.1.0",
-    tag: "v0.1.0",
-    commit,
-    artifactDigest: null,
-  },
-};
+const shown = parseMarketplaceIndex(
+  publishedIndex(),
+) as readonly MarketplaceOffer[];
 
 const catalogOf = (...offers: MarketplaceOffer[]): MarketplaceCatalog => ({
   source: "registry",
@@ -59,12 +63,29 @@ const catalogOf = (...offers: MarketplaceOffer[]): MarketplaceCatalog => ({
   offers,
 });
 
+const released = offerById(
+  catalogOf(...shown),
+  "presentations",
+) as MarketplaceOffer;
+
 /** The built-in index with one offer's fields replaced. */
 const indexWith = (id: string, fields: Record<string, unknown>) => ({
   ...builtInIndex,
   offers: builtInIndex.offers.map((offer) =>
     offer.id === id ? { ...offer, ...fields } : offer,
   ),
+});
+
+/** A release of the index with some fields replaced. */
+const releaseWith = (fields: Record<string, unknown>) => ({
+  version: "0.1.0",
+  tag: "v0.1.0",
+  generation: "app/v1",
+  stack: "vite-react",
+  bun: "1.4.4",
+  commit: null,
+  artifactDigest: null,
+  ...fields,
 });
 
 const example: BoundOrganization = {
@@ -80,40 +101,76 @@ const example: BoundOrganization = {
   repositories: [],
 };
 
-test("the built-in catalog is the registry's index: Mission Control and Presentations of the example Organization, MIT, each release 0.1.0 announced", () => {
+test("the built-in copy is the registry's index: three templates of the example Organization, none released yet, so none shown", () => {
   expect(builtInMarketplace.source).toBe("built-in");
   expect(builtInMarketplace.commit).toBeNull();
+  expect(builtInMarketplace.offers).toEqual([]);
+  expect(builtInIndex.offers.map((offer) => offer.id)).toEqual([
+    "design-system",
+    "mission-control",
+    "presentations",
+  ]);
+  // Once released, each offers its release and what it is built on.
   expect(
-    builtInMarketplace.offers.map((offer) => [
+    shown.map((offer) => [
       offer.id,
-      offer.section,
-      offer.generation,
+      offer.repository,
+      offer.license,
       offer.stone,
+      offer.release.version,
+      offer.release.generation,
+      offer.release.stack,
+      offer.release.bun,
+      offer.screenshots.length,
     ]),
   ).toEqual([
-    ["mission-control", "app-templates", "app/v3", "control"],
-    ["presentations", "app-templates", "app/v1", "presentation"],
+    [
+      "design-system",
+      "LazurioExampleOrganization/design-system",
+      "MIT",
+      "palette",
+      "1.0.0",
+      "app/v1",
+      "astro",
+      "1.4.4",
+      5,
+    ],
+    [
+      "mission-control",
+      "LazurioExampleOrganization/mission-control",
+      "MIT",
+      "control",
+      "4.0.0",
+      "app/v3",
+      "vite-react",
+      "1.4.4",
+      4,
+    ],
+    [
+      "presentations",
+      "LazurioExampleOrganization/presentations",
+      "MIT",
+      "presentation",
+      "0.1.0",
+      "app/v1",
+      "vite-react",
+      "1.4.4",
+      4,
+    ],
   ]);
-  expect(presentations.repository).toBe(
-    "LazurioExampleOrganization/presentations",
-  );
-  expect(presentations.publisher).toBe("LazurioExampleOrganization");
-  expect(presentations.license).toBe("MIT");
-  expect(presentations.release).toEqual({
-    version: "0.1.0",
-    tag: "v0.1.0",
-    commit: null,
-    artifactDigest: null,
-  });
-  expect(releaseUrl(presentations)).toBe(
+  // Mission Control has one public source.
+  expect(JSON.stringify(builtInIndex)).not.toContain("Lazurio/mission-control");
+  expect(releaseUrl(released)).toBe(
     "https://github.com/LazurioExampleOrganization/presentations/releases/tag/v0.1.0",
   );
-  expect(offerById(builtInMarketplace, "other")).toBeNull();
-  expect(offerById(builtInMarketplace, "__proto__")).toBeNull();
+  expect(offerById(builtInMarketplace, "presentations")).toBeNull();
+  expect(offerById(catalogOf(...shown), "other")).toBeNull();
+  expect(offerById(catalogOf(...shown), "__proto__")).toBeNull();
 });
 
 test("an index is read in full or refused: unknown schema, field or value, a duplicate id, a short commit, a price", () => {
-  expect(parseMarketplaceIndex(builtInIndex)).toHaveLength(2);
+  expect(parseMarketplaceIndex(builtInIndex)).toEqual([]);
+  expect(parseMarketplaceIndex(publishedIndex())).toHaveLength(3);
   for (const index of [
     null,
     [],
@@ -124,27 +181,24 @@ test("an index is read in full or refused: unknown schema, field or value, a dup
     indexWith("presentations", { section: "profiles" }),
     indexWith("presentations", { repository: "Other/presentations" }),
     indexWith("presentations", { id: "mission-control" }),
-    indexWith("presentations", { generation: "v1" }),
-    indexWith("presentations", { summary: { cs: "Jen česky" } }),
+    // The generation, the stack and the Bun are a release's, not the offer's.
+    indexWith("presentations", { generation: "app/v1" }),
+    indexWith("presentations", { bun: "1.4.4" }),
+    indexWith("presentations", { stack: "vite-react" }),
     indexWith("presentations", {
-      releases: [
-        {
-          version: "0.1.0",
-          tag: "v0.1.0",
-          commit: "abc",
-          artifactDigest: null,
-        },
-      ],
+      releases: [releaseWith({ generation: "v1" })],
+    }),
+    indexWith("presentations", { releases: [releaseWith({ bun: "1.4" })] }),
+    indexWith("presentations", {
+      releases: [releaseWith({ stack: "Vite React" })],
     }),
     indexWith("presentations", {
-      releases: [
-        {
-          version: "0.1.0",
-          tag: "v0.1.0",
-          commit: null,
-          artifactDigest: `sha256:${"a".repeat(64)}`,
-        },
-      ],
+      releases: [releaseWith({ generation: undefined })],
+    }),
+    indexWith("presentations", { summary: { cs: "Jen česky" } }),
+    indexWith("presentations", { releases: [releaseWith({ commit: "abc" })] }),
+    indexWith("presentations", {
+      releases: [releaseWith({ artifactDigest: `sha256:${"a".repeat(64)}` })],
     }),
     indexWith("presentations", {
       screenshots: [{ path: "../x.webp", alt: { cs: "x", en: "x" } }],
@@ -154,61 +208,58 @@ test("an index is read in full or refused: unknown schema, field or value, a dup
     expect(parseMarketplaceIndex(index)).toBeNull();
 });
 
-test("an unknown stone shows the plain app stone, and the offered release is the newest with a commit", () => {
+test("only offers with a published release are shown; an unknown stone shows the app stone; the offered release is the newest with a commit", () => {
   const offers = parseMarketplaceIndex(
     indexWith("presentations", {
       stone: "rocket",
       releases: [
-        { version: "0.2.0", tag: "v0.2.0", commit: null, artifactDigest: null },
-        { version: "0.1.0", tag: "v0.1.0", commit, artifactDigest: null },
+        releaseWith({ version: "0.2.0", tag: "v0.2.0", bun: "1.4.5" }),
+        releaseWith({ commit }),
       ],
     }),
   ) as readonly MarketplaceOffer[];
-  const offer = offers.find((entry) => entry.id === "presentations");
+  expect(offers.map((entry) => entry.id)).toEqual(["presentations"]);
+  const offer = offers[0];
   expect(offer?.stone).toBe("app");
   expect(offer?.release.version).toBe("0.1.0");
+  expect(offer?.release.bun).toBe("1.4.4");
   expect(offer?.releases).toHaveLength(2);
-  expect(offer !== undefined && adoptable(offer)).toBe(true);
 });
 
-test("screens come from the offered release's exact commit, none while it has none", () => {
-  expect(screenshotUrl(presentations, "docs/a.webp")).toBeNull();
+test("screens come from the offered release's exact commit", () => {
   expect(screenshotUrl(released, "docs/a.webp")).toBe(
     `https://raw.githubusercontent.com/LazurioExampleOrganization/presentations/${commit}/docs/a.webp`,
   );
 });
 
-test("until its release's exact commit is recorded the offer cannot be adopted, and no brief or prompt exists", () => {
-  expect(presentations.release.commit).toBeNull();
-  expect(adoptable(presentations)).toBe(false);
-  expect(
-    adoptionPrompt(
-      presentations,
-      "empty",
-      { name: "Example", login: "x" },
-      cs,
-      "cs",
-    ),
-  ).toBeNull();
+test("an offer without a published release has no card, no detail and no prompt", () => {
+  const catalog: MarketplaceCatalog = {
+    source: "registry",
+    commit: "f".repeat(40),
+    offers: parseMarketplaceIndex(
+      publishedIndex("presentations"),
+    ) as readonly MarketplaceOffer[],
+  };
+  expect(catalog.offers.map((offer) => offer.id)).toEqual(["presentations"]);
+  expect(offerById(catalog, "mission-control")).toBeNull();
+  for (const [source, id] of [
+    [builtInMarketplace, "marketplace-presentations-empty"],
+    [catalog, "marketplace-mission-control-empty"],
+    [catalog, "marketplace-design-system-sample"],
+  ] as const)
+    expect(
+      adoptionDocument(source, id, "/home/x/Lazurio", example, cs, "cs"),
+    ).toBeNull();
   expect(
     adoptionDocument(
-      builtInMarketplace,
+      catalog,
       "marketplace-presentations-empty",
       "/home/x/Lazurio",
       example,
       cs,
       "cs",
-    ),
-  ).toBeNull();
-  // A tag, a short or a malformed commit is no exact release.
-  for (const value of ["v0.1.0", "0123456", "G".repeat(40), ""])
-    expect(
-      adoptable({
-        ...released,
-        release: { ...released.release, commit: value },
-      }),
-    ).toBe(false);
-  expect(adoptable(released)).toBe(true);
+    )?.text,
+  ).toContain(commit);
 });
 
 test("the brief names the exact release, the Organization, the start and the boundaries, in both languages", () => {
@@ -231,6 +282,7 @@ test("the brief names the exact release, the Organization, the start and the bou
       expect(text).toContain("MIT");
       expect(text).toContain("docs/adoption.md");
       expect(text).toContain("`lazurio module create --stack vite-react`");
+      expect(text).not.toContain("{stack}");
       expect(text).toContain(
         (seed === "sample" ? released.seeds.sample : released.seeds.empty)
           ?.brief[locale] as string,
@@ -317,14 +369,22 @@ test("the Marketplace's routes: its catalog and an offer's detail, one frame", (
       routeFrame(pageRoute(path)),
     ]);
   expect(
-    routeTitle({ view: "marketplace", offer: "presentations" }, cs),
+    routeTitle(
+      { view: "marketplace", offer: "presentations" },
+      cs,
+      undefined,
+      (offer) => offerById(catalogOf(...shown), offer)?.title,
+    ),
   ).toEqual({
     heading: "Presentations",
     document: "Presentations · Marketplace — Lazurio",
   });
-  expect(
-    routeTitle({ view: "marketplace", offer: "unknown" }, cs).heading,
-  ).toBe("Marketplace");
+  // An offer the page does not show (unknown, or not released in the
+  // built-in copy) is titled Marketplace.
+  for (const offer of ["unknown", "presentations"])
+    expect(routeTitle({ view: "marketplace", offer }, cs).heading).toBe(
+      "Marketplace",
+    );
   // An offer only the registry has is titled by the offers the page shows.
   expect(
     routeTitle(
@@ -336,8 +396,8 @@ test("the Marketplace's routes: its catalog and an offer's detail, one frame", (
   ).toBe("Notes");
 });
 
-test("the built-in offers' words say no price, no pilot, no Environment or computer, no rating and no install on a click", () => {
-  for (const offer of builtInMarketplace.offers) {
+test("the registry's offers' words say no price, no pilot, no Environment or computer, no rating and no install on a click", () => {
+  for (const offer of shown) {
     const words = [
       offer.summary,
       ...offer.features.flatMap((feature) => [feature.title, feature.text]),
