@@ -23121,8 +23121,8 @@ from the home host overlay's reviewed node name and MagicDNS domain, exactly as 
 service names a target's host, and writes it only while that host switches the service
 on, only for a Machine its service would recognize as a caller and only for a pinned
 Platform at or above its gate. The vendored schema takes it byte for byte from the
-Machines pull request that adds it (#1051), with `pending` in `schema-provenance.json`
-until it merges and the pin moves there, as F10's amendment of 2026-10-19 did. The
+merge commit of the Machines pull request that adds it (#1051), pinned in
+`schema-provenance.json` as F10's amendment of 2026-10-19 did. The
 Platform:
 
 1. **Reads the origin exactly**: `http://`, a tailnet DNS name of at least three labels

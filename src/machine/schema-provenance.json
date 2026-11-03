@@ -3,11 +3,10 @@
   "source_version": null,
   "source_tag": null,
   "source_pull_request": "https://github.com/HumanAndMachine-ai/Machines/pull/1051",
-  "source_commit": "b3aa193f0a39c177a43bc9124b1b499e1860292b",
+  "source_commit": "100be6ada01c5bb9371548be631afb9308cd72ad",
   "source_path": "workloads/workspace-vm/lazurio-machine.v1.schema.json",
   "source_sha256": "8a1d0734913e7064572b9fa4a6ef0c4070688f26a6975b68538d9e9187e81589",
   "sha256": "8a1d0734913e7064572b9fa4a6ef0c4070688f26a6975b68538d9e9187e81589",
   "publication_authorization": "https://github.com/HumanAndMachine-ai/Machines/pull/124#issuecomment-5688845105",
-  "pin_update": "https://github.com/HumanAndMachine-ai/Machines/pull/1051",
-  "pending": "Vendored byte for byte from the head of the open Machines pull request #1051 (HumanAndMachine-ai/Machines#1040), which adds only the optional member `access_service` {origin} to v0.12.211's schema. Re-pin to its merge commit before this Platform merges; a digest other than this one is a new re-pin."
+  "pin_update": "https://github.com/HumanAndMachine-ai/Machines/pull/1051"
 }
