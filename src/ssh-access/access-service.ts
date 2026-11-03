@@ -189,6 +189,38 @@ export function parseTargets(
   return Object.freeze(targets);
 }
 
+// The body of an answer, read chunk by chunk and never past `limit` bytes:
+// past it the stream is cancelled at once and the answer is null, so an
+// oversized or endless answer costs at most the limit (and the request's
+// time bound), never the whole stream.
+async function readBounded(
+  response: Response,
+  limit: number,
+): Promise<Uint8Array | null> {
+  const stream = response.body;
+  if (stream === null) return new Uint8Array();
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    length += value.byteLength;
+    if (length > limit) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
 type Exchange =
   | Readonly<{ kind: "unreachable" }>
   | Readonly<{ kind: "answer"; status: number; body: unknown }>;
@@ -220,8 +252,8 @@ async function exchange(
   }
   let text: string;
   try {
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.length > maxAnswerBytes)
+    const bytes = await readBounded(response, maxAnswerBytes);
+    if (bytes === null)
       return { kind: "answer", status: response.status, body: undefined };
     text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {

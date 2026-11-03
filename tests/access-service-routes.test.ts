@@ -217,6 +217,38 @@ test("asking for targets names each outcome by itself: answered, not recognized,
   expect(fake.calls).toEqual([]);
 });
 
+test("an oversized or endless answer is cut at its limit and cancelled, never read whole", async () => {
+  // An answer that would go on for ever: 64 KiB chunks until cancelled.
+  let produced = 0;
+  let cancelled = false;
+  const endless = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      produced += 64 * 1024;
+      controller.enqueue(new Uint8Array(64 * 1024).fill(0x20));
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+  const fetchImpl: AccessServiceFetch = async () =>
+    new Response(endless, { status: 200 });
+  expect(await askTargets(service, () => now, fetchImpl)).toEqual({
+    kind: "malformed",
+  });
+  expect(cancelled).toBe(true);
+  // Read up to the limit and no more than a few chunks past it.
+  expect(produced).toBeLessThanOrEqual(1024 * 1024 + 4 * 64 * 1024);
+  // An answer just under the limit is still read and judged.
+  const padded = JSON.stringify(answer(target())).padEnd(1024 * 1024 - 1, " ");
+  expect(
+    await askTargets(
+      service,
+      () => now,
+      async () => new Response(padded, { status: 200 }),
+    ),
+  ).toMatchObject({ kind: "answered" });
+});
+
 test("registration sends only the public line and reads the receipt or the named refusal", async () => {
   const line = `ssh-ed25519 ${keyA}`;
   const register = (route: { status: number; body?: unknown } | null) => {

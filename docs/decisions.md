@@ -23066,7 +23066,9 @@ managed route anywhere.
 4. **Targets.** `GET /v1/targets` is taken only exactly as `machines.access-targets.v1`
    shapes it: closed objects, an Environment id once, a tailnet host name, an account, one
    `ssh-ed25519` host key and `valid_until` as an RFC 3339 UTC second; anything else is no
-   answer. A target whose deadline has passed is dropped. The answer replaces the routes:
+   answer. The answer is read chunk by chunk up to 1 MiB within the request's 10 s and
+   cancelled past it, so an oversized or endless answer costs no more. A target whose
+   deadline has passed is dropped. The answer replaces the routes:
    one `Host <environment id>` block each in `~/.ssh/config.d/lazurio-environments.conf`
    with `HostName`, `User`, `HostKeyAlias`, the managed `UserKnownHostsFile`,
    `StrictHostKeyChecking yes`, `IdentityFile ~/.ssh/lazurio-environment-ed25519`,
