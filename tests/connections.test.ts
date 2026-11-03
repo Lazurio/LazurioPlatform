@@ -387,6 +387,46 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
+  "the daemon's path is a link to the socket: followed without realpath, which fails on a socket on macOS",
+  async () => {
+    const parent = await mkdtemp(join(tmpdir(), "connections-link-"));
+    const fake = await fakeDaemon(parent);
+    try {
+      // As Codex lays it out: app-server-control.sock, a link to the socket.
+      const absolute = join(parent, "absolute.sock");
+      await symlink(fake.path, absolute);
+      const relative = join(parent, "relative.sock");
+      await symlink("control.sock", relative);
+      const chained = join(parent, "chained.sock");
+      await symlink(absolute, chained);
+      for (const path of [fake.path, absolute, relative, chained]) {
+        const rpc = await openControlSocket(path, { timeoutMs: 2_000 });
+        expect(await rpc.call("remoteControl/status/read", {})).toMatchObject({
+          status: "connected",
+        });
+        rpc.close();
+      }
+      const file = join(parent, "file");
+      await writeFile(file, "");
+      const dangling = join(parent, "dangling.sock");
+      await symlink(join(parent, "absent.sock"), dangling);
+      const loop = join(parent, "loop.sock");
+      await symlink(loop, loop);
+      for (const path of [file, dangling, loop]) {
+        const refused = await openControlSocket(path, { timeoutMs: 2_000 })
+          .then(() => null)
+          .catch((error: unknown) => error);
+        expect(refused).toBeInstanceOf(ControlSocketError);
+        expect((refused as ControlSocketError).reason).toBe("no-socket");
+      }
+    } finally {
+      fake.stop();
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(!posix)(
   "no daemon, an older Codex, remote control still connecting",
   async () => {
     const none = await setup({ socket: "/nonexistent/control.sock" });

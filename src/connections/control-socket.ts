@@ -1,5 +1,5 @@
-import { lstat, realpath } from "node:fs/promises";
-import { join } from "node:path";
+import { lstat, readlink } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 
 // The control socket of the operator's Codex app-server daemon (decision
 // F29), the one place Settings → Connections talks to Codex's remote control
@@ -48,6 +48,21 @@ export type ControlRpc = Readonly<{
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
 
+/** The socket a path names, following links (the daemon's path is a link
+ * to a socket under `/tmp`) with `lstat` and `readlink` only. `realpath`
+ * cannot be used: on macOS it fails on a socket with EOPNOTSUPP, so every
+ * Connections page there read `no-daemon`. */
+async function socketTarget(path: string): Promise<string> {
+  let current = path;
+  for (let hops = 0; hops <= 40; hops++) {
+    const info = await lstat(current);
+    if (info.isSocket()) return current;
+    if (!info.isSymbolicLink()) throw new Error("not a socket");
+    current = resolve(dirname(current), await readlink(current));
+  }
+  throw new Error("too many links");
+}
+
 /** Opens the socket and initializes the conversation; every question is
  * bounded by `timeoutMs`. */
 export async function openControlSocket(
@@ -57,8 +72,7 @@ export async function openControlSocket(
   const timeoutMs = options.timeoutMs ?? 10_000;
   let target: string;
   try {
-    target = await realpath(path);
-    if (!(await lstat(target)).isSocket()) throw new Error("not a socket");
+    target = await socketTarget(path);
   } catch {
     throw new ControlSocketError("no-socket");
   }
