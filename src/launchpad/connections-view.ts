@@ -134,6 +134,10 @@ export function parsePoll(value: unknown): PairingPoll | null {
   return null;
 }
 
+/** When a new code can be made, from a `code-outstanding` refusal. */
+export const refusalUntil = (value: unknown): number | null =>
+  isRecord(value) && value.kind === "blocked" ? time(value.until) : null;
+
 /** The refusal's reason of a blocked answer, or null. */
 export const refusalOf = (value: unknown): string | null =>
   isRecord(value) &&

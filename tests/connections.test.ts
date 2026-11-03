@@ -1,5 +1,12 @@
 import { expect, test } from "bun:test";
-import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -11,11 +18,15 @@ import {
   ControlSocketError,
   openControlSocket,
 } from "../src/connections/control-socket";
+import { fileLedger, pairingLedgerPath } from "../src/connections/ledger";
 import {
   type ConnectionsHost,
   createConnections,
   maxStarts,
+  type PairingLedger,
+  type PairingLedgerStore,
   pairingQrPayload,
+  uncertainLifeMs,
 } from "../src/connections/pairing";
 import { createConnectionsRoutes } from "../src/launchpad/connections-routes";
 import type { AiReading } from "../src/tools/ai";
@@ -44,7 +55,29 @@ type Daemon = {
   devices: Json[];
   calls: { method: string; params: unknown }[];
   errorMessages: boolean;
+  loseAnswer: boolean;
 };
+
+/** A ledger in memory, as a file would keep it across a restart. */
+function memoryLedger(failWrites = false) {
+  let kept: unknown = null;
+  const writes: PairingLedger[] = [];
+  const store: PairingLedgerStore = {
+    read: async () => (kept === null ? null : structuredClone(kept)),
+    write: async (ledger) => {
+      if (failWrites) throw new Error("disk full");
+      writes.push(ledger);
+      kept = structuredClone(ledger);
+    },
+  };
+  return {
+    store,
+    writes,
+    set: (value: unknown) => {
+      kept = value;
+    },
+  };
+}
 
 async function fakeDaemon(parent: string) {
   const path = join(parent, "control.sock");
@@ -66,6 +99,7 @@ async function fakeDaemon(parent: string) {
     ],
     calls: [],
     errorMessages: false,
+    loseAnswer: false,
   };
   let pairings = 0;
   const server = Bun.serve({
@@ -115,6 +149,8 @@ async function fakeDaemon(parent: string) {
             return reply(status());
           case "remoteControl/pairing/start":
             pairings += 1;
+            // The code is made, but its answer never arrives.
+            if (daemon.loseAnswer) return socket.close();
             return reply({
               pairingCode: code,
               manualPairingCode: manual,
@@ -180,6 +216,7 @@ async function setup(
     ai: AiReading;
     restartable: boolean;
     socket: string;
+    ledger: PairingLedgerStore;
   }> = {},
 ) {
   const parent = await mkdtemp(join(tmpdir(), "connections-"));
@@ -203,21 +240,27 @@ async function setup(
       trusts.push(clock);
       return { kind: "unchanged" };
     },
+    ...(options.ledger === undefined ? {} : { ledger: options.ledger }),
     now: () => clock,
     wait: async () => undefined,
   };
-  const connections = createConnections(host, {
-    journal: (entry) => journal.push({ ...entry }),
-  });
+  const make = () =>
+    createConnections(host, {
+      journal: (entry) => journal.push({ ...entry }),
+    });
+  const connections = make();
   return {
     ...fake,
     connections,
+    /** Another Launchpad process over the same daemon and ledger. */
+    restarted: make,
     journal,
     restarts,
     trusts,
     advance: (ms: number) => {
       clock += ms;
     },
+    now: () => clock,
     async close() {
       fake.stop();
       await rm(parent, { recursive: true, force: true });
@@ -526,6 +569,140 @@ test.skipIf(!posix)(
     }
   },
 );
+
+test.skipIf(!posix)(
+  "a restart of the Launchpad: the live code and the limit survive, no code is written",
+  async () => {
+    const ledger = memoryLedger();
+    const s = await setup({ ledger: ledger.store });
+    try {
+      const first = await s.connections.start();
+      if (first.kind !== "pairing") throw new Error("not started");
+      // Written before Codex was asked, then with the code's own end.
+      expect(ledger.writes.length).toBe(2);
+      expect(ledger.writes.at(-1)?.outstandingUntil).toBe(first.expiresAt);
+      expectNoSecrets([ledger.writes], first.session);
+      // A new process holds no code, so it makes none while the old may live.
+      const after = s.restarted();
+      expect(await after.start()).toEqual({
+        kind: "blocked",
+        reason: "code-outstanding",
+        until: first.expiresAt,
+      });
+      expect(s.pairings()).toBe(1);
+      s.advance(first.expiresAt - Date.now() + 60_000);
+      expect((await after.start()).kind).toBe("pairing");
+      expect(s.pairings()).toBe(2);
+      // The limit counts the starts the ledger kept, whichever process.
+      const at = s.now();
+      ledger.set({
+        version: 1,
+        starts: Array.from({ length: maxStarts }, () => at),
+        outstandingUntil: null,
+      });
+      expect(await s.restarted().start()).toEqual({
+        kind: "blocked",
+        reason: "too-many-starts",
+      });
+      expect(s.pairings()).toBe(2);
+    } finally {
+      await s.close();
+    }
+  },
+);
+
+test.skipIf(!posix)(
+  "an answer lost after Codex was asked: the code counts as live, no retry makes another",
+  async () => {
+    const ledger = memoryLedger();
+    const s = await setup({ ledger: ledger.store });
+    try {
+      s.daemon.loseAnswer = true;
+      const lost = await s.connections.start();
+      expect(lost).toMatchObject({
+        kind: "blocked",
+        reason: "code-outstanding",
+      });
+      const until = (lost as { until: number }).until;
+      expect(until - Date.now()).toBeGreaterThan(uncertainLifeMs - 60_000);
+      expect(s.pairings()).toBe(1);
+      s.daemon.loseAnswer = false;
+      expect(await s.connections.start()).toEqual({
+        kind: "blocked",
+        reason: "code-outstanding",
+        until,
+      });
+      expect(await s.restarted().start()).toEqual({
+        kind: "blocked",
+        reason: "code-outstanding",
+        until,
+      });
+      expect(s.pairings()).toBe(1);
+      expect(s.journal.map((line) => line.outcome)).toContain("answer-lost");
+      s.advance(uncertainLifeMs + 1);
+      expect((await s.connections.start()).kind).toBe("pairing");
+      expect(s.pairings()).toBe(2);
+    } finally {
+      await s.close();
+    }
+  },
+);
+
+test.skipIf(!posix)(
+  "a ledger that cannot be read counts as a live code; one that cannot be written asks Codex nothing",
+  async () => {
+    const broken = memoryLedger();
+    broken.set({ version: 1, starts: "x", outstandingUntil: null });
+    const s = await setup({ ledger: broken.store });
+    try {
+      expect(await s.connections.start()).toMatchObject({
+        kind: "blocked",
+        reason: "code-outstanding",
+      });
+      expect(s.pairings()).toBe(0);
+    } finally {
+      await s.close();
+    }
+    const full = memoryLedger(true);
+    const t = await setup({ ledger: full.store });
+    try {
+      expect(await t.connections.start()).toEqual({
+        kind: "blocked",
+        reason: "storage-failed",
+      });
+      expect(t.pairings()).toBe(0);
+    } finally {
+      await t.close();
+    }
+  },
+);
+
+test.skipIf(!posix)("the ledger file: 0600, whole, never a code", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "connections-ledger-"));
+  try {
+    expect(pairingLedgerPath("/home/alex", {})).toBe(
+      "/home/alex/.local/state/lazurio/connections/pairing.json",
+    );
+    expect(pairingLedgerPath("/home/alex", { XDG_STATE_HOME: "rel" })).toBe(
+      "/home/alex/.local/state/lazurio/connections/pairing.json",
+    );
+    const path = pairingLedgerPath(parent, { XDG_STATE_HOME: parent });
+    const store = fileLedger(path);
+    expect(await store.read()).toBeNull();
+    const ledger: PairingLedger = {
+      version: 1,
+      starts: [1_762_000_000_000],
+      outstandingUntil: 1_762_000_600_000,
+    };
+    await store.write(ledger);
+    expect(await store.read()).toEqual(ledger);
+    expect((await stat(path)).mode & 0o777).toBe(0o600);
+    await writeFile(path, "{not json");
+    expect(await store.read()).toBe("unreadable");
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
 
 test.skipIf(!posix)(
   "Codex's error naming the code never reaches an answer or an error",

@@ -13,7 +13,9 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 //                                      one once it expired or a phone took
 //                                      it (Codex cannot end a code, so there
 //                                      is no cancel); the manual code, its
-//                                      QR and a session
+//                                      QR and a session; `code-outstanding`
+//                                      with `until` while a code Lazurio no
+//                                      longer holds may be valid
 //   POST /api/connections/pair/poll    {session}: waiting, paired, expired
 //                                      or gone
 //   POST /api/connections/revoke       {clientId}: after the person
@@ -39,6 +41,8 @@ const refusalStatus: Readonly<Record<string, number>> = {
   "no-chatgpt": 409,
   "no-remote-control": 409,
   "too-many-starts": 429,
+  "code-outstanding": 409,
+  "storage-failed": 500,
   "unknown-device": 404,
   "restart-not-needed": 409,
   "restart-not-managed": 409,

@@ -2101,6 +2101,8 @@ const en = {
   phoneRestartYes: "Restart",
   phoneRestarting: "Restarting Codex…",
   phoneTooMany: "Too many codes in a row. Try again in a few minutes.",
+  phoneOutstanding:
+    "A code made earlier may still be valid. A new one can be made at {time}.",
   phoneFailed: "That did not work. Try again.",
   startPhoneTitle: "Phone through ChatGPT",
   startPhoneText: "Control the chats from the ChatGPT app on your phone.",
@@ -4172,6 +4174,8 @@ const cs: Record<MessageKey, string> = {
   phoneRestartYes: "Restartovat",
   phoneRestarting: "Restartuji Codex…",
   phoneTooMany: "Kódů bylo za sebou moc. Zkuste to za pár minut.",
+  phoneOutstanding:
+    "Dřív vytvořený kód může ještě platit. Nový půjde vytvořit v {time}.",
   phoneFailed: "Nepodařilo se. Zkuste to znovu.",
   startPhoneTitle: "Telefon přes ChatGPT",
   startPhoneText: "Ovládejte chaty z aplikace ChatGPT v telefonu.",

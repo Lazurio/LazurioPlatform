@@ -132,6 +132,16 @@ test("expiry ends the code; a refusal says why", async () => {
   expect(h.views.at(-1)).toEqual({
     kind: "refused",
     tooMany: true,
+    until: null,
+    overview: null,
+  });
+  const outstanding = h.flow.start();
+  h.answer({ kind: "blocked", reason: "code-outstanding", until: later });
+  await outstanding;
+  expect(h.views.at(-1)).toEqual({
+    kind: "refused",
+    tooMany: false,
+    until: later,
     overview: null,
   });
   expect(h.requests.filter((path) => path.endsWith("/cancel"))).toEqual([]);

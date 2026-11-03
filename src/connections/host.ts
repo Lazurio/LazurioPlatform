@@ -8,6 +8,7 @@ import {
 } from "../update/codex-app-server";
 import { convergeCodexTrust } from "./codex-trust";
 import { codexControlSocketPath, openControlSocket } from "./control-socket";
+import { fileLedger, pairingLedgerPath } from "./ledger";
 import type { ConnectionsHost } from "./pairing";
 
 /** This process's Connections host: the operator's Codex (its home, its
@@ -47,5 +48,6 @@ export function processConnectionsHost(
       if (directory === null) return { kind: "refused" };
       return convergeCodexTrust(directory, [await input.folder(), home]);
     },
+    ledger: fileLedger(pairingLedgerPath(home, input.env)),
   });
 }

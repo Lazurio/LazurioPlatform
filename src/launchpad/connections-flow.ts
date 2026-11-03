@@ -4,6 +4,7 @@ import {
   parsePairing,
   parsePoll,
   refusalOf,
+  refusalUntil,
 } from "./connections-view";
 
 type Answer = Promise<{ value: unknown; ok: boolean }>;
@@ -29,6 +30,8 @@ export type PairingView =
   | Readonly<{
       kind: "refused";
       tooMany: boolean;
+      /** A code made earlier may be valid: a new one can be made then. */
+      until: number | null;
       overview: ConnectionsOverview | null;
     }>;
 
@@ -96,7 +99,12 @@ export function createPairingFlow(
       answer = await options.post("/api/connections/pair", {});
     } catch {
       if (mine === attempt)
-        options.show({ kind: "refused", tooMany: false, overview: null });
+        options.show({
+          kind: "refused",
+          tooMany: false,
+          until: null,
+          overview: null,
+        });
       return;
     }
     // Closed or started again while the server answered.
@@ -107,6 +115,10 @@ export function createPairingFlow(
       options.show({
         kind: "refused",
         tooMany: refusalOf(answer.value) === "too-many-starts",
+        until:
+          refusalOf(answer.value) === "code-outstanding"
+            ? refusalUntil(answer.value)
+            : null,
         overview: parseConnectionsOverview(value?.overview),
       });
       return;

@@ -286,9 +286,17 @@ export function createConnectionsPanel(
         clearCode();
         pairing.hidden = true;
         newCode.hidden = false;
-        dialogStatus.textContent = view.tooMany
-          ? copy.phoneTooMany
-          : copy.phoneFailed;
+        dialogStatus.textContent =
+          view.until !== null
+            ? copy.phoneOutstanding.replace(
+                "{time}",
+                new Intl.DateTimeFormat(options.locale(), {
+                  timeStyle: "short",
+                }).format(new Date(view.until)),
+              )
+            : view.tooMany
+              ? copy.phoneTooMany
+              : copy.phoneFailed;
         if (view.overview !== null) overview = view.overview;
         break;
     }
