@@ -26,7 +26,6 @@ import {
   type PairingLedger,
   type PairingLedgerStore,
   pairingQrPayload,
-  uncertainLifeMs,
 } from "../src/connections/pairing";
 import { createConnectionsRoutes } from "../src/launchpad/connections-routes";
 import type { AiReading } from "../src/tools/ai";
@@ -56,16 +55,26 @@ type Daemon = {
   calls: { method: string; params: unknown }[];
   errorMessages: boolean;
   loseAnswer: boolean;
+  /** The life Codex names for a code, in seconds. */
+  lifeSeconds: number;
 };
 
-/** A ledger in memory, as a file would keep it across a restart. */
-function memoryLedger(failWrites = false) {
+/** A ledger in memory, as a file would keep it across a restart: writes
+ * from the `failFrom`-th (1-based) fail, and `hold` makes the next write
+ * wait until it is released. */
+function memoryLedger(failFrom = Number.POSITIVE_INFINITY) {
   let kept: unknown = null;
+  let count = 0;
+  let held: Promise<void> | null = null;
   const writes: PairingLedger[] = [];
   const store: PairingLedgerStore = {
     read: async () => (kept === null ? null : structuredClone(kept)),
     write: async (ledger) => {
-      if (failWrites) throw new Error("disk full");
+      count += 1;
+      if (count >= failFrom) throw new Error("disk full");
+      const waiting = held;
+      held = null;
+      if (waiting !== null) await waiting;
       writes.push(ledger);
       kept = structuredClone(ledger);
     },
@@ -73,8 +82,17 @@ function memoryLedger(failWrites = false) {
   return {
     store,
     writes,
+    kept: () => kept as PairingLedger | null,
     set: (value: unknown) => {
       kept = value;
+    },
+    /** The next write waits; answers its release. */
+    hold: () => {
+      let release = () => {};
+      held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return release;
     },
   };
 }
@@ -100,6 +118,7 @@ async function fakeDaemon(parent: string) {
     calls: [],
     errorMessages: false,
     loseAnswer: false,
+    lifeSeconds: 600,
   };
   let pairings = 0;
   const server = Bun.serve({
@@ -155,7 +174,7 @@ async function fakeDaemon(parent: string) {
               pairingCode: code,
               manualPairingCode: manual,
               environmentId: "env-1",
-              expiresAt: Math.floor(Date.now() / 1000) + 600,
+              expiresAt: Math.floor(Date.now() / 1000) + daemon.lifeSeconds,
             });
           case "remoteControl/pairing/status":
             if (daemon.errorMessages)
@@ -612,35 +631,109 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
-  "an answer lost after Codex was asked: the code counts as live, no retry makes another",
+  "an answer lost after Codex was asked: nothing was shown, the start counts",
   async () => {
     const ledger = memoryLedger();
     const s = await setup({ ledger: ledger.store });
     try {
       s.daemon.loseAnswer = true;
-      const lost = await s.connections.start();
-      expect(lost).toMatchObject({
+      expect(await s.connections.start()).toMatchObject({
         kind: "blocked",
-        reason: "code-outstanding",
+        reason: "no-remote-control",
       });
-      const until = (lost as { until: number }).until;
-      expect(until - Date.now()).toBeGreaterThan(uncertainLifeMs - 60_000);
       expect(s.pairings()).toBe(1);
+      // Counted before Codex was asked; no code reached a page, none is live.
+      expect(ledger.kept()).toEqual({
+        version: 1,
+        starts: [s.now()],
+        outstandingUntil: null,
+      });
+      expect(s.journal.map((line) => line.outcome)).toContain("no-answer");
       s.daemon.loseAnswer = false;
+      expect((await s.connections.start()).kind).toBe("pairing");
+    } finally {
+      await s.close();
+    }
+  },
+);
+
+test.skipIf(!posix)(
+  "a code is shown only once the ledger holds its end, for every life Lazurio accepts",
+  async () => {
+    // An hour, the longest life shown: the write of its end fails.
+    const failing = memoryLedger(2);
+    const s = await setup({ ledger: failing.store });
+    try {
+      s.daemon.lifeSeconds = 60 * 60;
       expect(await s.connections.start()).toEqual({
         kind: "blocked",
-        reason: "code-outstanding",
-        until,
+        reason: "storage-failed",
       });
+      expect(s.connections.pending()).toBe(false);
+      expect(s.journal.map((line) => line.outcome)).toContain("not-shown");
+    } finally {
+      await s.close();
+    }
+    // The same hour written: a restart 16 minutes later makes no second code.
+    const ledger = memoryLedger();
+    const t = await setup({ ledger: ledger.store });
+    try {
+      t.daemon.lifeSeconds = 60 * 60;
+      const first = await t.connections.start();
+      if (first.kind !== "pairing") throw new Error("not started");
+      expect(ledger.kept()?.outstandingUntil).toBe(first.expiresAt);
+      t.advance(16 * 60_000);
+      expect(await t.restarted().start()).toEqual({
+        kind: "blocked",
+        reason: "code-outstanding",
+        until: first.expiresAt,
+      });
+      expect(t.pairings()).toBe(1);
+      // A life longer than an hour is never shown.
+      const u = t.restarted();
+      t.advance(60 * 60_000);
+      // Two hours from the test's clock (the fake names real time).
+      t.daemon.lifeSeconds =
+        Math.ceil((t.now() - Date.now()) / 1000) + 2 * 60 * 60;
+      expect(await u.start()).toMatchObject({
+        kind: "blocked",
+        reason: "no-remote-control",
+      });
+      expect(ledger.kept()?.outstandingUntil).toBeNull();
+    } finally {
+      await t.close();
+    }
+  },
+);
+
+test.skipIf(!posix)(
+  "a poll, a start and a restart overlapping: an older write never replaces a newer one",
+  async () => {
+    const ledger = memoryLedger();
+    const s = await setup({ ledger: ledger.store });
+    try {
+      const first = await s.connections.start();
+      if (first.kind !== "pairing") throw new Error("not started");
+      // The phone takes the code; the poll's cleared ledger is slow to write.
+      s.daemon.claimed = true;
+      const release = ledger.hold();
+      const polled = s.connections.poll(first.session);
+      const started = s.connections.start();
+      await Bun.sleep(50);
+      // The start waits for the poll: Codex was not asked again yet.
+      expect(s.pairings()).toBe(1);
+      release();
+      expect((await polled).kind).toBe("paired");
+      const second = await started;
+      if (second.kind !== "pairing") throw new Error("not started");
+      expect(s.pairings()).toBe(2);
+      // The ledger keeps the second code's end, so a restart makes no third.
+      expect(ledger.kept()?.outstandingUntil).toBe(second.expiresAt);
       expect(await s.restarted().start()).toEqual({
         kind: "blocked",
         reason: "code-outstanding",
-        until,
+        until: second.expiresAt,
       });
-      expect(s.pairings()).toBe(1);
-      expect(s.journal.map((line) => line.outcome)).toContain("answer-lost");
-      s.advance(uncertainLifeMs + 1);
-      expect((await s.connections.start()).kind).toBe("pairing");
       expect(s.pairings()).toBe(2);
     } finally {
       await s.close();
@@ -663,7 +756,7 @@ test.skipIf(!posix)(
     } finally {
       await s.close();
     }
-    const full = memoryLedger(true);
+    const full = memoryLedger(1);
     const t = await setup({ ledger: full.store });
     try {
       expect(await t.connections.start()).toEqual({

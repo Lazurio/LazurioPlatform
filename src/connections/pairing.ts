@@ -25,16 +25,25 @@ import { type ControlRpc, ControlSocketError } from "./control-socket";
 // while one start runs share its answer, so the one live code and the limit
 // of `maxStarts` in `startWindowMs` hold under concurrency.
 //
+// Exposure is about codes that left Lazurio: only a code shown to a page can
+// be scanned or typed by a phone. A code Codex made whose answer never
+// reached Lazurio (a timeout, a closed socket, an answer that does not parse)
+// was seen by nobody, and nobody can present it.
+//
 // The ledger (`ConnectionsHost.ledger`, a file under the person's state
-// directory) carries both across a restart of the Launchpad, without any
-// code: the times of the starts and until when a code may still be valid
-// (`outstandingUntil`). It is written before Codex is asked for a code, so a
-// code whose answer was lost (a timeout, a closed socket, an answer that does
-// not parse) is counted as live for `uncertainLifeMs`. While a code may be
-// live and Lazurio no longer holds it, a start is refused with
-// `code-outstanding` and the time a new code can be made. A ledger that
-// cannot be read counts as a code live from now; one that cannot be written
-// refuses the start before Codex is asked.
+// directory) carries the rule across a restart of the Launchpad, without any
+// code: the times of the starts and until when a code that was shown may be
+// valid (`outstandingUntil`). A code reaches a page only after the ledger
+// holds its end; when that write fails, or the process stops before it, the
+// code is never shown. The start is written before Codex is asked, so the
+// limit counts it. A process that holds no code (after a restart) makes none
+// while `outstandingUntil` lies ahead: it answers `code-outstanding` with the
+// time a new code can be made. A ledger that cannot be read counts as a code
+// shown now with the longest life Lazurio accepts.
+//
+// Every change of this state and every ledger write runs in one queue
+// (`exclusive`): a start, a poll that settles a code and a restart's reading
+// never interleave, so an older write never replaces a newer one.
 
 /** What the Connections page can offer here:
  * - `ready`: pairing works (remote control is connected, or off and turned
@@ -161,11 +170,10 @@ export const pairingQrPayload = (pairingCode: string) =>
 
 /** A pairing's life when Codex names none we can trust. */
 const defaultLifeMs = 10 * 60_000;
-/** How long a code whose answer was lost, or a ledger that cannot be read,
- * counts as live: Codex 0.166 gives codes about 10 minutes. */
-export const uncertainLifeMs = 15 * 60_000;
-/** The longest life of a code Codex names that Lazurio believes. */
-const longestLifeMs = 60 * 60_000;
+/** The longest life of a code Codex names that Lazurio shows (Codex 0.166
+ * gives about 10 minutes); a ledger that cannot be read counts as a code
+ * shown now with this life. A code named longer is not shown. */
+export const longestLifeMs = 60 * 60_000;
 /** At most this many new codes in `startWindowMs`. */
 export const maxStarts = 5;
 export const startWindowMs = 10 * 60_000;
@@ -269,6 +277,13 @@ export function createConnections(
   const store = host.ledger;
   // The start that runs now; a request meanwhile shares its answer.
   let starting: Promise<PairingStarted | Blocked> | null = null;
+  // The one queue of every change of the pairing state and its ledger.
+  let tail: Promise<unknown> = Promise.resolve();
+  function exclusive<T>(work: () => Promise<T>): Promise<T> {
+    const run = tail.then(work, work);
+    tail = run.catch(() => undefined);
+    return run;
+  }
 
   async function withSocket<T>(use: (rpc: ControlRpc) => Promise<T>) {
     const rpc = await host.connect();
@@ -290,7 +305,7 @@ export function createConnections(
       try {
         value = await store.read();
       } catch {
-        outstandingUntil = now() + uncertainLifeMs;
+        outstandingUntil = now() + longestLifeMs;
         journal({ operation: "ledger", outcome: "unreadable" });
         return;
       }
@@ -302,7 +317,7 @@ export function createConnections(
         !value.starts.every(ledgerTime) ||
         !(value.outstandingUntil === null || ledgerTime(value.outstandingUntil))
       ) {
-        outstandingUntil = now() + uncertainLifeMs;
+        outstandingUntil = now() + longestLifeMs;
         journal({ operation: "ledger", outcome: "unreadable" });
         return;
       }
@@ -467,7 +482,7 @@ export function createConnections(
   /** Spárovat telefon: the code still valid, or a new one. One at a time. */
   function start(): Promise<PairingStarted | Blocked> {
     if (starting === null)
-      starting = begin().finally(() => {
+      starting = exclusive(begin).finally(() => {
         starting = null;
       });
     return starting;
@@ -505,8 +520,6 @@ export function createConnections(
     if (starts.length >= maxStarts)
       return { kind: "blocked", reason: "too-many-starts" };
     await host.trust().catch(() => undefined);
-    // Whether Codex was asked for a code: from then on a code may exist.
-    let asked = false;
     let answer: Readonly<{ result: unknown; known: ReadonlySet<string> }>;
     try {
       const reached = await withSocket(async (rpc) => {
@@ -517,16 +530,12 @@ export function createConnections(
             (device) => device.clientId,
           ),
         );
-        // Written ahead: the start counts and its code is live before Codex
-        // is asked, so a restart or a lost answer cannot hide it.
+        // The start counts before Codex is asked, across restarts.
         starts.push(at);
-        outstandingUntil = at + uncertainLifeMs;
         if (!(await save())) {
           starts.pop();
-          outstandingUntil = null;
           return "storage-failed" as const;
         }
-        asked = true;
         return {
           result: await rpc.call("remoteControl/pairing/start", {
             manualCode: true,
@@ -544,10 +553,8 @@ export function createConnections(
         };
       answer = reached;
     } catch {
-      if (asked) {
-        journal({ operation: "pair-started", outcome: "answer-lost" });
-        return lost();
-      }
+      // Lost before or after Codex made a code: none reached a page.
+      journal({ operation: "pair-started", outcome: "no-answer" });
       return {
         kind: "blocked",
         reason: "no-remote-control",
@@ -561,7 +568,11 @@ export function createConnections(
       !/^[A-Za-z0-9_-]{8,512}$/.test(result.pairingCode)
     ) {
       journal({ operation: "pair-started", outcome: "invalid-answer" });
-      return lost();
+      return {
+        kind: "blocked",
+        reason: "no-remote-control",
+        overview: await overview(),
+      };
     }
     const manualCode =
       typeof result.manualPairingCode === "string" &&
@@ -571,10 +582,24 @@ export function createConnections(
         ? result.manualPairingCode
         : null;
     const named = millis(result.expiresAt);
-    const expiresAt =
-      named !== null && named > at && named - at <= longestLifeMs
-        ? named
-        : at + defaultLifeMs;
+    if (named !== null && named - at > longestLifeMs) {
+      // A life longer than Lazurio covers: the code is not shown.
+      journal({ operation: "pair-started", outcome: "too-long" });
+      return {
+        kind: "blocked",
+        reason: "no-remote-control",
+        overview: await overview(),
+      };
+    }
+    const expiresAt = named !== null && named > at ? named : at + defaultLifeMs;
+    // The ledger holds the code's end before any page sees the code; a code
+    // Codex names no end for is covered for the longest life.
+    outstandingUntil = named !== null ? expiresAt : at + longestLifeMs;
+    if (!(await save())) {
+      outstandingUntil = null;
+      journal({ operation: "pair-started", outcome: "not-shown" });
+      return { kind: "blocked", reason: "storage-failed" };
+    }
     pending = {
       session: randomBytes(16).toString("hex"),
       code: result.pairingCode,
@@ -582,23 +607,16 @@ export function createConnections(
       expiresAt,
       known: answer.known,
     };
-    // The code's own end, as Codex named it.
-    outstandingUntil = expiresAt;
-    await save();
     journal({ operation: "pair-started", outcome: "ok" });
     return shown(pending);
   }
 
-  /** Codex was asked and may have made a code Lazurio does not hold. */
-  function lost(): Blocked {
-    return {
-      kind: "blocked",
-      reason: "code-outstanding",
-      until: outstandingUntil ?? now() + uncertainLifeMs,
-    };
+  /** The page's poll, in the queue: it may settle the code. */
+  function poll(session: string): Promise<PairingPoll> {
+    return exclusive(() => pollNow(session));
   }
 
-  async function poll(session: string): Promise<PairingPoll> {
+  async function pollNow(session: string): Promise<PairingPoll> {
     const current = pending;
     if (current === null || current.session !== session)
       return { kind: "gone" };

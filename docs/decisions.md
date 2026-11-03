@@ -23288,25 +23288,31 @@ The methods and types are in `openai/codex` at tag `rust-v0.166.0`:
    - starts are serialized: requests that arrive while one start runs share its
      answer, so the one live code and the limit hold under concurrency;
    - there is no cancel route;
-   - a **ledger** keeps this across a restart of the Launchpad, without any code:
-     the times of the starts and until when a code may be valid
-     (`outstandingUntil`), in
-     `${XDG_STATE_HOME:-~/.local/state}/lazurio/connections/pairing.json` (0600,
-     replaced whole by an atomic rename). It is written **before** Codex is asked
-     for a code. A process that holds no code (after a restart) makes none while
-     `outstandingUntil` lies ahead, and the start limit counts the ledger's starts;
-   - a code whose answer was lost after Codex was asked (a timeout, a closed
-     socket, an answer that does not parse) counts as live for 15 minutes
-     (`uncertainLifeMs`; Codex 0.166 gives about 10). A ledger that cannot be read
-     counts the same from now. One that cannot be written refuses the start before
-     Codex is asked (`storage-failed`);
-   - while a code Lazurio no longer holds may be live, *Spárovat telefon* answers
+   - exposure counts codes that left Lazurio: only a code shown to a page can be
+     scanned or typed. A code whose answer never reached Lazurio (a timeout, a
+     closed socket, an answer that does not parse) was seen by nobody;
+   - a **ledger** keeps the rule across a restart of the Launchpad, without any
+     code, in `${XDG_STATE_HOME:-~/.local/state}/lazurio/connections/pairing.json`
+     (0600, replaced whole by an atomic rename). It holds the times of the starts
+     and until when a shown code may be valid (`outstandingUntil`). The start is
+     written before Codex is asked, so the limit counts it. **A code reaches a
+     page only after the ledger holds its end**; when that write fails, or the
+     process stops before it, the code is never shown (`storage-failed`). A code
+     whose named life is longer than an hour (`longestLifeMs`; Codex 0.166 gives
+     about 10 minutes) is not shown, and one without a named end is covered for an
+     hour;
+   - a process that holds no code (after a restart) makes none while
+     `outstandingUntil` lies ahead. *Spárovat telefon* then answers
      `code-outstanding` with `until`, and the dialog says when a new code can be
-     made.
+     made. A ledger that cannot be read counts as a code shown now with an hour's
+     life;
+   - every change of this state and every ledger write runs in one queue: a start,
+     a poll that settles a code, and the reading of a restarted process never
+     interleave, so an older write never replaces a newer one.
 
-   The remaining exposure is therefore at most one code, for at most its
-   `expiresAt` (or 15 minutes when its answer was lost), shown only to pages
-   admitted under 0192, across restarts of the Launchpad. A phone that takes it
+   The remaining exposure is therefore at most one shown code, for at most its
+   `expiresAt` (at most an hour), shown only to pages admitted under 0192, across
+   restarts of the Launchpad. A phone that takes it
    appears in the paired list, where *Odebrat přístup* removes it.
 4. **Waiting.** `POST /api/connections/pair/poll {session}` calls
    `remoteControl/pairing/status` every 2 s through the existing visible-page poll.
@@ -23325,7 +23331,8 @@ The methods and types are in `openai/codex` at tag `rust-v0.166.0`:
      pairing, because it needs no SSH.
    - Codes (`pairingCode`, `manualPairingCode`), QR payloads and session handles are
      never written to a log, the journal, a file, the Folder or an error. The journal
-     records only `pair-started` (`ok`, `answer-lost`, `invalid-answer`), `paired`,
+     records only `pair-started` (`ok`, `no-answer`, `invalid-answer`, `too-long`,
+     `not-shown`), `paired`,
      `expired`, `shown-again`, `revoked` and the ledger's `unreadable` or
      `write-failed`, with the client's platform.
    - Answers carry `cache-control: no-store`.
