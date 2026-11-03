@@ -122,7 +122,7 @@ const receipt = {
   },
 };
 
-test("no handover declares the access service yet, so no Environment derives one from a name", () => {
+test("a handover without access_service declares no service, so no Environment derives one from a name", () => {
   for (const machine of [
     bindings.personal,
     bindings.personalAssigned,

@@ -194,6 +194,8 @@ export function bindingValues(binding: MachineBinding | null): PrivateValue[] {
         ? undefined
         : hostOf(binding.entry.authCheckUrl),
     ),
+    // The home Conglomerate Host's tailnet name (decision F70).
+    ...value("hostname", hostOf(binding.accessService?.origin ?? "")),
   ];
 }
 
@@ -223,7 +225,16 @@ function handoverAssigneeValues(
  * that failed. */
 export function contextValues(context: MachineContext | null): PrivateValue[] {
   if (context === null) return [];
-  const { machine, owner, operator, host, network, installed, vault } = context;
+  const {
+    machine,
+    owner,
+    operator,
+    host,
+    network,
+    installed,
+    vault,
+    access_service: accessService,
+  } = context;
   return [
     ...value("machine", machine.id),
     ...value("machine", machine.name),
@@ -261,6 +272,8 @@ export function contextValues(context: MachineContext | null): PrivateValue[] {
     ...value("vault-account", vault?.account),
     ...value("vault-name", vault?.name),
     ...value("hostname", hostOf(vault?.server_url ?? "")),
+    // The home Conglomerate Host's tailnet name (decision F70).
+    ...value("hostname", hostOf(accessService?.origin ?? "")),
   ];
 }
 

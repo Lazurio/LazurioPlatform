@@ -135,8 +135,10 @@ writes one `Host <environment id>` block per target the service answers
 pinned (`StrictHostKeyChecking yes`), the one key (`IdentitiesOnly yes`), no agent or port
 forwarding and no jump host, and drops a route when its `valid_until` passes; without an
 answer it adds nothing. Without that member a personal Environment's routes are the Work
-Environments the Machine binding lists as assigned, as before; no handover carries the
-member yet (HumanAndMachine-ai/Machines#1040). The network grants, the keys accepted on the
+Environments the Machine binding lists as assigned, as before. The member is
+`access_service: {origin}`, exactly `http://<host's tailnet name>:8444`, which Machines
+writes from the home host only while that host switches the service on
+(HumanAndMachine-ai/Machines#1040, [machine handover](machine-handover.md#the-home-access-service-decision-f70)). The network grants, the keys accepted on the
 targets and the service itself belong to Machines and Headscale.
 
 Auth owns membership, assignments and grants. Dashboard manages that

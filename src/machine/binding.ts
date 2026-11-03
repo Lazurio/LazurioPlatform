@@ -1,4 +1,5 @@
 import {
+  isAccessServiceOrigin,
   type MachineAssignment,
   type MachineBinding,
   type MachineEntry,
@@ -130,6 +131,15 @@ function entry(input: HandoverEntry): MachineEntry {
   }
 }
 
+// The origin exactly as the handover declares it (decision F70 point 1). The
+// schema already holds it to that form; the binding's own rule is checked
+// again so a projection that would not read back refuses the handover.
+function accessService(origin: string): Readonly<{ origin: string }> {
+  if (!isAccessServiceOrigin(origin))
+    throw new MachineContextError("machine-context-invalid");
+  return Object.freeze({ origin });
+}
+
 // The projection of a validated handover that the Folder records and renders.
 // Paths, release inventory and custody repositories stay in the handover file;
 // the binding keeps what identifies the Machine, whose it is, how it is
@@ -151,6 +161,9 @@ export function machineBinding(
       ? {}
       : { relationships: relationships(context.relationships) }),
     ...(context.entry === undefined ? {} : { entry: entry(context.entry) }),
+    ...(context.access_service === undefined
+      ? {}
+      : { accessService: accessService(context.access_service.origin) }),
   };
   if (isPersonal(context))
     return Object.freeze({

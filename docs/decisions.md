@@ -23113,3 +23113,31 @@ the person's own `Host` blocks and file, the commands' answers) and
 `tests/environment-ssh.test.ts` (the block's bytes). Not proven: a real service on a real
 host; that is the Ring 0 proof of ACCESS-SERVICE.md once the switch and the handover
 member exist.
+
+**Amendment 2026-11-03: the handover member (HumanAndMachine-ai/Machines#1040).** Point 1's
+member is `access_service: {"origin": "http://<host node>.<MagicDNS domain>:8444"}`,
+optional and closed on both branches of `lazurio.machine.v1`. Machines builds the origin
+from the home host overlay's reviewed node name and MagicDNS domain, exactly as the
+service names a target's host, and writes it only while that host switches the service
+on, only for a Machine its service would recognize as a caller and only for a pinned
+Platform at or above its gate. The vendored schema takes it byte for byte from the
+Machines pull request that adds it (#1051), with `pending` in `schema-provenance.json`
+until it merges and the pin moves there, as F10's amendment of 2026-10-19 did. The
+Platform:
+
+1. **Reads the origin exactly**: `http://`, a tailnet DNS name of at least three labels
+   whose last label is not numeric, and port 8444 (the service's one port), nothing
+   else. The schema, the projection and the binding's parser all hold it to that
+   rule, so an origin of another form refuses the handover and is never asked.
+2. **Records it** in the binding as `accessService`, a declaration and not identity. A
+   refresh records a change of only this member, though the Folder renders nothing of
+   it, and recovery evidence withholds the host's name.
+3. **Uses it** through `accessServiceOf`, which until now answered null for every
+   Machine: points 2 to 6 above then run on the Machines that carry it. Everything
+   else of this decision is unchanged; without the member the Platform behaves exactly
+   as before.
+
+Tests: `tests/access-service-handover.test.ts` (the pin, the member on both kinds,
+every refused form, the stored binding, the commands asking the declared origin, the
+withheld name) and `tests/folder-refresh.test.ts` (a refresh of only the member). Not
+proven: a real handover from a Machines release, until Machines sets the gate.
