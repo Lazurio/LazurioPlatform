@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { realpath } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Server } from "bun";
 import {
@@ -92,7 +93,9 @@ import { selectCatalogOrganization } from "../organizations/catalog-selection";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import type { RecoveryResult } from "../recover/recover";
 import { newTabPagePath } from "../shell/new-tab-protocol";
+import type { AccessServiceLocation } from "../ssh-access/access-service";
 import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
+import { syncEnvironmentRoutes } from "../ssh-access/routes";
 import { shellThemeOf } from "../theme/palettes";
 import {
   fileThemeStore,
@@ -131,7 +134,7 @@ import {
 } from "../tools/overview";
 import { qrMatrix, qrSvg } from "../tools/qr";
 import { createSshProofs } from "../tools/ssh-key";
-import { resolveOnPath } from "../tools/status";
+import { resolveOnPath, runTool } from "../tools/status";
 import type { GithubAction } from "../tools/team-github";
 import { toolsUpdate } from "../tools/update";
 import {
@@ -421,6 +424,7 @@ const bootWithinMs = 500;
  * Environment was assigned to someone else, so its Správci leave the vault
  * (F53's addendum of 2026-10-14). */
 const vaultAudienceEveryMs = 5 * 60_000;
+const routesEveryMs = 60_000;
 
 /** The tailnet control server the Machine handover names (decision F41);
  * none where there is no readable handover, as on a workstation. */
@@ -664,6 +668,10 @@ export async function startLaunchpad(
      * ChatGPT's apps (decision F42's addendum of 2026-10-27): exactly where
      * it sets Executor up (`executorAtStart`). Absent: it never does. */
     codexAppsAtStart?: (() => Promise<boolean>) | undefined;
+    /** Where this Environment's home access service answers, when this
+     * Launchpad keeps its routes in step with it (root decision 0224;
+     * `routesAtStart`); null or absent: it never does. */
+    routesAtStart?: (() => Promise<AccessServiceLocation | null>) | undefined;
   }>,
   hostedOptions: HostedOptions = {},
   // Where the tools screen reads its live facts: this process's PATH and
@@ -3194,6 +3202,36 @@ export async function startLaunchpad(
       lookAtAudience();
       audienceTimer = setInterval(lookAtAudience, vaultAudienceEveryMs);
     })().catch(() => undefined);
+  // The Environment's routes (root decision 0224): where the handover
+  // declares the home access service, one synchronization once the
+  // Launchpad listens and then every minute, one at a time, never awaited
+  // and never a reason for the start to fail. The service re-derives every
+  // minute and a target's deadline is at most 210 s after its facts were
+  // read, so a route stays while the service confirms it and goes within
+  // one minute after its deadline when it does not.
+  const routesAtStart = installed?.routesAtStart;
+  let routesTimer: ReturnType<typeof setInterval> | undefined;
+  let routing = false;
+  if (routesAtStart !== undefined)
+    void (async () => {
+      const service = await routesAtStart();
+      if (service === null || closing) return;
+      const location = { home: homedir(), uid: process.getuid?.() };
+      const synchronize = () => {
+        if (closing || routing) return;
+        routing = true;
+        void syncEnvironmentRoutes(location, service, {
+          run: runTool,
+          now: Date.now,
+        })
+          .catch(() => undefined)
+          .finally(() => {
+            routing = false;
+          });
+      };
+      synchronize();
+      routesTimer = setInterval(synchronize, routesEveryMs);
+    })().catch(() => undefined);
   let closePending: ReturnType<
     ReturnType<typeof createApplicationLifecycle>["close"]
   > | null = null;
@@ -3222,6 +3260,7 @@ export async function startLaunchpad(
     close() {
       closing = true;
       clearInterval(audienceTimer);
+      clearInterval(routesTimer);
       catalog.close();
       buddyPersona.close();
       buddyTelegramRestart.close();

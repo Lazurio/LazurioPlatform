@@ -23027,3 +23027,89 @@ Open questions for the decision:
   `machine folder-*`, and so fall under the same rule;
 - whether macOS and Windows, which have no handover today, need the rule now or with
   their hosted entry (docs/hosted-entry.md).
+
+## F70 — A source Environment's routes come from its home access service: its own key, registered; targets pinned and with their deadline
+
+**Proposed 2026-11-03 (root decision 0224, plan DEV-6687 M7 step 4; Lazurio/LazurioPlatform#766).
+Implemented behind a handover member that no handover carries yet
+(HumanAndMachine-ai/Machines#1040), so nothing changes on any Environment until Machines
+writes it and this Platform vendors it.** Root decision 0224 derives every SSH access
+between the Environments of a Conglomerate from facts, in one service on the Conglomerate
+Host (`lazurio-access-service`, Machines `workloads/conglomerate-host/ACCESS-SERVICE.md`):
+Pracovní přístup (a personal Environment to its owner's Work Environments), Team via Work
+(a Work Environment to the Team Environments of its person's Teams) and Správcovský
+přístup (an Admin's Work Environment to every other Environment of the Organization). The
+service knows its caller by the tailnet source address; there are no tokens on guests. Its
+two calls for a source are `PUT /v1/source-key` and `GET /v1/targets`. Until now the
+Platform wrote a personal Environment's SSH config only from the handover's assigned
+peers (F10's amendment of 2026-10-28), which no handover carries (#766): Buddy had no
+managed route anywhere.
+
+1. **Where the service is.** Only the handover says it: an optional member naming the
+   home access service's origin (`http://<host's tailnet name>:<port>`), proposed in
+   HumanAndMachine-ai/Machines#1040 from the home host the lane already reads through
+   `conglomerate_host_record`. `accessServiceOf` answers it, and today answers null for
+   every Machine. Nothing derives the origin from a name, the Headscale URL or a peer;
+   an origin that is not exactly `http://`, a tailnet DNS name (no address literal) and
+   a port is never asked.
+2. **The source key.** Every source Environment, personal or Work, has one key
+   `~/.ssh/lazurio-environment-ed25519`. The Platform creates it with `ssh-keygen` inside
+   the Environment when neither file exists, derives a lost `.pub` with `ssh-keygen -y`,
+   and otherwise keeps what is there. It never reads the private part into an answer,
+   copies or exports it, and refuses, changing nothing: a link or another account's file,
+   a private key others may read, a `.pub` without its private key, and a pair that does
+   not match or is not ed25519 (`src/ssh-access/source-key.ts`).
+3. **Registration.** Each synchronization sends `PUT /v1/source-key` with only the line
+   `ssh-ed25519 <blob>`. The service answers `changed: false` for the same key, so this
+   repeats without effect and a re-enrolled Environment registers by itself. Its named
+   refusals (`source-key-forbidden`, `source-key-taken`) are reported as they are.
+4. **Targets.** `GET /v1/targets` is taken only exactly as `machines.access-targets.v1`
+   shapes it: closed objects, an Environment id once, a tailnet host name, an account, one
+   `ssh-ed25519` host key and `valid_until` as an RFC 3339 UTC second; anything else is no
+   answer. The answer is read chunk by chunk up to 1 MiB within the request's 10 s and
+   cancelled past it, so an oversized or endless answer costs no more. A target whose
+   deadline has passed is dropped. The answer replaces the routes:
+   one `Host <environment id>` block each in `~/.ssh/config.d/lazurio-environments.conf`
+   with `HostName`, `User`, `HostKeyAlias`, the managed `UserKnownHostsFile`,
+   `StrictHostKeyChecking yes`, `IdentityFile ~/.ssh/lazurio-environment-ed25519`,
+   `IdentitiesOnly yes`, `ForwardAgent no`, `ProxyJump none` and
+   `ClearAllForwardings yes`, and the deadline as a comment; the host key pinned in
+   `~/.ssh/known_hosts_lazurio_environments`. The `Include` at the top of `~/.ssh/config`
+   makes these values win over the person's own `Host *` or a hand-written block of the
+   same name, which stay byte for byte. A changed host key from the service replaces the
+   pin (the service reads it from the target lane's readback); nothing learns a key from a
+   connection, and the person's own `known_hosts` is never written.
+5. **Without an answer** (unreachable, 403 not recognized, 503 unavailable, malformed)
+   nothing is added: the recorded routes stay until their own deadline and then go. A
+   route without a deadline (written from the handover) is not the service's and goes at
+   once. So a route ends here within its deadline plus one synchronization whatever
+   fails, as the target's own `AuthorizedKeysCommand` ends it.
+6. **When it runs.** `machine folder-init` and `folder-refresh` synchronize once where
+   the handover declares the service, on any Machine, and report `environmentRoutes`
+   (`sourceKey`, `registration`, `targets`, `ssh`); otherwise a personal Machine keeps
+   its assigned peers as before (`environmentSsh`). The Launchpad of the supervised base
+   of a hosted operator (where it sets Executor up) synchronizes once it listens and then
+   every 60 seconds, one at a time, never a reason for its start to fail: the service
+   re-derives every minute and a deadline is at most 210 s after its facts were read.
+   That is a write outside `machine folder-*`, from the installed base only (F68's open
+   question on SSH files).
+7. **What it is not.** The Platform derives no access: the network rule and the target's
+   key line hold it, and the config opens nothing they do not. No second list of
+   permissions, no token, no `accept-new`, no forwarding.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Find the service by the host's tag in `tailscale status --json` | Depends on Headscale exposing peer tags to untagged nodes; makes the network map a configuration source; rejected |
+| Derive the origin from `network.headscale_server_url` | The public Headscale name is not the host's tailnet name; a derivation from a name; rejected |
+| Keep the last answer while the service is down, without deadlines | A revoked route would stay in the config after the target refuses it; the doctor could not tell old from current; rejected |
+| Mirror the answer and record each deadline in its block (selected) | One more comment line per block; the files churn once a minute while the service answers |
+| Register the key once and remember it | A state file of its own, and a re-enrolled Environment would not register again until it is cleared; rejected |
+| Keep the handover's assigned peers beside the service's targets | Two sources for one alias; the contract makes `/v1/targets` the source (Machines ACCESS-SERVICE.md, Migration); rejected |
+
+Tests: `tests/access-service-routes.test.ts` (the answer's shape and every malformed form,
+each outcome of both calls, the key's creation and refusals with the real `ssh-keygen`,
+synchronization, the service unreachable or refusing, expired routes, a host key change,
+the person's own `Host` blocks and file, the commands' answers) and
+`tests/environment-ssh.test.ts` (the block's bytes). Not proven: a real service on a real
+host; that is the Ring 0 proof of ACCESS-SERVICE.md once the switch and the handover
+member exist.

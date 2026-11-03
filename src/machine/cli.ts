@@ -17,10 +17,16 @@ import {
 } from "../folder/presets";
 import { refreshFolder } from "../folder/update-profile";
 import {
+  type AccessServiceLocation,
+  accessServiceOf,
+} from "../ssh-access/access-service";
+import {
   type EnvironmentSshLocation,
   type EnvironmentSshResult,
   writeEnvironmentSsh,
 } from "../ssh-access/environments";
+import { type RoutesSeams, syncEnvironmentRoutes } from "../ssh-access/routes";
+import { runTool } from "../tools/status";
 import { machineBinding } from "./binding";
 import {
   bindMachineOperator,
@@ -419,13 +425,18 @@ export async function refreshMachineFolderAndLaunchpad(
 
 // When the Folder records exactly this handover's binding (folder-init that
 // initialized it, folder-refresh that recorded it or found it the same), the
-// person's SSH config on a personal Machine follows its assigned peers (root
-// decision 0192, addendum of 2026-10-26; src/ssh-access/environments.ts), and
-// the answer says how in `environmentSsh`. "already-adopted" may record an
-// older handover until the refresh that follows it, and a blocked operation
-// wrote nothing: neither writes here, and nor does any other Machine. Neither
-// a refusal nor a failure of this step changes the exit code: the Folder is
-// what it is, and the files are the person's to fix.
+// person's SSH config follows the routes of this Environment, and the answer
+// says how. "already-adopted" may record an older handover until the
+// refresh that follows it, and a blocked operation wrote nothing: neither
+// writes here. Neither a refusal nor a failure of this step changes the exit
+// code: the Folder is what it is, and the files are the person's to fix.
+//
+// - Where the handover declares the home access service (root decision
+//   0224, `accessServiceOf`), on any Machine: one synchronization with it
+//   (`syncEnvironmentRoutes`: the source key, its registration, the
+//   targets), reported as `environmentRoutes`.
+// - Otherwise, on a personal Machine only: its assigned peers (root decision
+//   0192, addendum of 2026-10-26), reported as `environmentSsh`.
 const recordsThisBinding: ReadonlySet<string> = new Set([
   "initialized",
   "refreshed",
@@ -433,9 +444,27 @@ const recordsThisBinding: ReadonlySet<string> = new Set([
 ]);
 export async function withEnvironmentSsh<
   Result extends Readonly<{ kind: string }>,
->(result: Result, machine: MachineBinding, location: EnvironmentSshLocation) {
-  if (machine.kind !== "personal-vm" || !recordsThisBinding.has(result.kind))
-    return result;
+>(
+  result: Result,
+  machine: MachineBinding,
+  location: EnvironmentSshLocation,
+  service: AccessServiceLocation | null = accessServiceOf(machine),
+  seams: RoutesSeams = { run: runTool, now: Date.now },
+) {
+  if (!recordsThisBinding.has(result.kind)) return result;
+  if (service !== null) {
+    const environmentRoutes = await syncEnvironmentRoutes(
+      location,
+      service,
+      seams,
+    );
+    if (environmentRoutes.targets !== "answered")
+      console.error(
+        `The access service did not give this Environment its routes (${environmentRoutes.targets}); no route was added, and the recorded ones end at their deadline.`,
+      );
+    return { ...result, environmentRoutes };
+  }
+  if (machine.kind !== "personal-vm") return result;
   let environmentSsh: EnvironmentSshResult | { kind: "failed" };
   try {
     environmentSsh = await writeEnvironmentSsh(location, machine);

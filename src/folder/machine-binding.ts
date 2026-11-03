@@ -279,7 +279,7 @@ function isMachineName(kind: unknown, value: unknown): value is string {
 function isDnsLabel(value: unknown): value is string {
   return typeof value === "string" && dnsLabel.test(value);
 }
-function isHostname(value: unknown): value is string {
+export function isHostname(value: unknown): value is string {
   return (
     typeof value === "string" && value.length <= 253 && hostname.test(value)
   );
@@ -290,7 +290,7 @@ function isGithubId(value: unknown): value is number {
 function isGithubLogin(value: unknown): value is string {
   return isSlug(value) && value.length <= 39;
 }
-function isEnvironmentId(value: unknown): value is string {
+export function isEnvironmentId(value: unknown): value is string {
   return (
     typeof value === "string" && value.length <= 96 && environmentId.test(value)
   );

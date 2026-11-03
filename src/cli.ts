@@ -105,6 +105,7 @@ import {
   installBase,
   noticeAfterCommand,
   processContext,
+  routesAtStart,
   runInstallCommand,
   runUpdateCommand,
   selfCheckCommand,
@@ -147,6 +148,9 @@ async function installedLaunchpad(explicitBase: string, folder: string) {
     }),
     executorAtStart: executorAtStart(context, base),
     vaultAtStart: vaultAtStart(context, base),
+    // The Environment's routes from its home access service (root decision
+    // 0224), where the handover declares it.
+    routesAtStart: routesAtStart(context, base),
     // ChatGPT's apps in the operator's Codex (decision F42's addendum of
     // 2026-10-27): exactly where it sets Executor up.
     codexAppsAtStart: executorAtStart(context, base),
