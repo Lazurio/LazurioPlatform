@@ -1388,6 +1388,29 @@ Authority:
 - Princip: Mašina je VM a host je hranice nad ní (ARCHITECTURE).
 - Matěj rozhodnutí ráno potvrdí. Když nebude souhlasit, opravíme dopředu.
 
+**Addendum 2026-11-03 (#772): a foreign top-level entry no longer stops a hosted Folder's
+change.** On a maintainers' station another agent's work product at the Folder's top level
+(`drafts/`) stopped every refresh for two days, and the station's agents kept an old
+instruction revision while `doctor` said only `folder-refresh-needed`. The rule that work
+products belong in `~/Documents/<task>/` stays, in the Folder and in the GEN3 Root. The
+product no longer enforces it by stopping the Environment's updates:
+- The shared transaction (a profile update, `machine folder-refresh`, a tools or settings
+  change, `profile-resume`) neither reads, writes, moves nor refuses a top-level entry the
+  Folder does not own, in a hosted Folder as on a workstation (amends the 2026-09-23
+  amendment above). Its outputs are owned paths only, so a foreign entry cannot collide with
+  them; foreign content inside an owned directory (`manual/`) is still refused by path.
+- A hosted Folder reports such entries instead. `lazurio update` and `update status` add
+  `folderForeignEntries` (the Folder and the names) and one line saying where they belong.
+  `lazurio doctor` adds the check `folder-top-level`, `warn` with `foreign-entries`, how many
+  and the first plain name. A name that is not shown as itself is reported without its
+  text. A workstation Folder keeps the person's own files and reports nothing.
+- Adoption (`machine folder-init`) and initialization recovery keep refusing a foreign entry
+  by name: a new Folder holds only what its handover creates.
+- The Folder's manual tells an agent to move its own entry to `~/Documents/<task>/` and to
+  leave anyone else's in place and tell the user (template revision `base-instructions-106`).
+
+Authority: Matěj 2026-11-03 in the question tool, „Neblokovat, jen ohlásit (Doporučeno)“.
+
 ## F11 — Hosted admission is not identity
 
 **Accepted direction (2026-09-19), not implemented.** The hosted gateway authenticates.

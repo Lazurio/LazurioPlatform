@@ -401,6 +401,7 @@ test("a healthy Environment: ok, exit 0, every group, the same answer in both fo
     "template-revision ok",
     "folder-state ok",
     "machine-binding skipped not-hosted",
+    "folder-top-level ok",
     "tool gh ok",
     "tool composio ok",
     // The Environment vault is offered in a Remote Environment on Linux
@@ -832,6 +833,37 @@ test("the Personalspace's modules are never named or counted (launchpad-parity B
   expectTierOne(result.stdout, world);
   expectSameAnswer(result.human, result.json);
 });
+
+test.skipIf(process.platform === "win32")(
+  "hosted: a top-level entry the Folder does not own is reported, a workstation's own files are not",
+  async () => {
+    // Decision F10's addendum of 2026-11-03: such an entry no longer stops a
+    // refresh, so doctor names it instead.
+    const hosted = await createWorld({ hosted: true });
+    const clean = await doctor(hosted);
+    expect(find(clean.json, "folder-top-level")).toEqual({
+      id: "folder-top-level",
+      outcome: "ok",
+    });
+    await mkdir(join(hosted.folder, "drafts"));
+    await writeFile(join(hosted.folder, "poznámky.txt"), "not Lazurio's");
+    const foreign = await doctor(hosted);
+    expect(foreign.code).toBe(exitAttention);
+    expect(find(foreign.json, "folder-top-level")).toEqual({
+      id: "folder-top-level",
+      outcome: "warn",
+      reason: "foreign-entries",
+      context: { entries: 2, entry: "drafts" },
+    });
+    expectSameAnswer(foreign.human, foreign.json);
+    const workstation = await createWorld();
+    await writeFile(join(workstation.folder, "notes.txt"), "the person's own");
+    expect(find((await doctor(workstation)).json, "folder-top-level")).toEqual({
+      id: "folder-top-level",
+      outcome: "ok",
+    });
+  },
+);
 
 test.skipIf(process.platform === "win32")(
   "hosted: the recorded binding against the live handover, by reason only",

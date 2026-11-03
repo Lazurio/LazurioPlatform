@@ -13,9 +13,16 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runCli } from "../src/cli";
 import { applyPreparation } from "../src/folder/apply-preparation";
-import { FolderAdoptionError } from "../src/folder/handover-layout";
+import {
+  foreignEntriesText,
+  hostedFolderForeignEntries,
+  unshownEntry,
+} from "../src/folder/foreign-entries";
+import {
+  FolderAdoptionError,
+  foreignTopLevelEntries,
+} from "../src/folder/handover-layout";
 import { outputPaths } from "../src/folder/outputs";
 import { renderOutputs } from "../src/folder/preview";
 import { instructionTemplateRevision } from "../src/folder/render";
@@ -333,20 +340,10 @@ async function pending(folder: string) {
   );
   return { files, journal };
 }
-async function foreignEntry(run: Promise<unknown>) {
-  try {
-    await run;
-  } catch (error) {
-    if (error instanceof FolderAdoptionError)
-      return { code: error.code, entry: error.entry };
-    throw error;
-  }
-  throw new Error("Expected a Folder boundary refusal");
-}
 
 for (const stop of ["prepared", "applied"] as const)
   test.skipIf(process.platform === "win32")(
-    `a refresh interrupted after ${stop} refuses a foreign top-level entry on resume, then completes by profile-resume`,
+    `a refresh interrupted after ${stop} resumes past a foreign top-level entry and leaves it as it was`,
     async () => {
       const { parent, folder } = await setup();
       try {
@@ -358,22 +355,16 @@ for (const stop of ["prepared", "applied"] as const)
         ).rejects.toThrow("interrupted");
         const interrupted = await pending(folder);
         expect(interrupted.journal).not.toBeNull();
-        // A foreign entry that appeared after the interruption: recovery is
-        // refused by name before any replacement or archive, nothing moves.
+        // A foreign entry that appeared after the interruption (decision F10's
+        // addendum of 2026-11-03): recovery neither stops on it nor touches it.
         await writeFile(join(folder, "foreign-root"), "not ours");
-        expect(await foreignEntry(resumeProfileUpdate(folder, 2))).toEqual({
-          code: "foreign-entry",
-          entry: "foreign-root",
-        });
-        expect(await pending(folder)).toEqual(interrupted);
-        expect(await readFile(join(folder, "foreign-root"), "utf8")).toBe(
-          "not ours",
-        );
-        await rm(join(folder, "foreign-root"));
         expect(await resumeProfileUpdate(folder, 2)).toEqual({
           kind: "recovered",
           revision: 2,
         });
+        expect(await readFile(join(folder, "foreign-root"), "utf8")).toBe(
+          "not ours",
+        );
         expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
           workVmLine.en,
         );
@@ -548,7 +539,49 @@ for (const stop of ["prepared", "applied"] as const)
   );
 
 test.skipIf(process.platform === "win32")(
-  "a partly applied refresh re-checks the boundary before the next replacement",
+  "a hosted Folder names its foreign top-level entries for update and doctor, a name not shown as itself without its text",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      await initializeMachineFolder(folder, before, noChoices);
+      expect(await hostedFolderForeignEntries(folder)).toEqual([]);
+      await mkdir(join(folder, "drafts"));
+      await writeFile(join(folder, "evil\u001b[2Jname"), "x");
+      await writeFile(join(folder, "notes.txt"), "x");
+      expect(await hostedFolderForeignEntries(folder)).toEqual([
+        "drafts",
+        unshownEntry,
+        "notes.txt",
+      ]);
+      expect(foreignEntriesText(folder, ["drafts", "notes.txt"])).toContain(
+        "drafts, notes.txt",
+      );
+      // Nothing of it is read: the owned and tolerated names are not listed.
+      expect(await foreignTopLevelEntries(folder)).not.toContain("AGENTS.md");
+      expect(await foreignTopLevelEntries(folder)).not.toContain(
+        "organizations",
+      );
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+test("a Folder that cannot be read or has no binding reports no foreign entry", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "lazurio-foreign-"));
+  try {
+    await writeFile(join(parent, "stray"), "x");
+    expect(await hostedFolderForeignEntries(parent)).toEqual([]);
+    expect(await hostedFolderForeignEntries(join(parent, "missing"))).toEqual(
+      [],
+    );
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test.skipIf(process.platform === "win32")(
+  "a partly applied refresh completes past a foreign top-level entry that appeared meanwhile",
   async () => {
     const { parent, folder } = await setup();
     try {
@@ -571,18 +604,10 @@ test.skipIf(process.platform === "win32")(
       expect(partial.files["manual/this-machine.md"]).not.toContain(
         "example-work",
       );
-      // … and a foreign entry stops every later replacement, by name.
+      // … and a foreign entry that appears now stops no later replacement
+      // (decision F10's addendum of 2026-11-03); it stays as it is.
       await mkdir(join(folder, "foreign-root"));
-      expect(await foreignEntry(applyPreparation(folder))).toEqual({
-        code: "foreign-entry",
-        entry: "foreign-root",
-      });
-      expect(await foreignEntry(resumeProfileUpdate(folder, 2))).toEqual({
-        code: "foreign-entry",
-        entry: "foreign-root",
-      });
-      expect(await pending(folder)).toEqual(partial);
-      await rm(join(folder, "foreign-root"), { recursive: true });
+      await writeFile(join(folder, "foreign-root", "notes.txt"), "not ours");
       expect(await resumeProfileUpdate(folder, 2)).toEqual({
         kind: "recovered",
         revision: 2,
@@ -590,6 +615,9 @@ test.skipIf(process.platform === "win32")(
       expect(
         await readFile(join(folder, "manual", "this-machine.md"), "utf8"),
       ).toContain(workVmLine.en);
+      expect(
+        await readFile(join(folder, "foreign-root", "notes.txt"), "utf8"),
+      ).toBe("not ours");
     } finally {
       await rm(parent, { recursive: true, force: true });
     }
@@ -597,72 +625,54 @@ test.skipIf(process.platform === "win32")(
 );
 
 test.skipIf(process.platform === "win32")(
-  "the shared transaction refuses a foreign top-level entry for a profile update too, before any journal, and on its resume",
+  "a foreign top-level entry stops neither a profile update nor a refresh, before or after the journal, and stays byte for byte",
   async () => {
     const { parent, folder } = await setup();
     try {
       await initializeMachineFolder(folder, before, noChoices);
       const profile = (await preferences(folder)).profile;
-      const settled = await snapshot(folder);
       await writeFile(join(folder, "notes.txt"), "not ours");
-      // Before preparation: refused, no journal is created.
-      for (const run of [
-        () =>
-          updateProfile(folder, 1, { profile: { ...profile, locale: "cs" } }),
-        () => refreshFolder(folder, after),
-      ])
-        expect(await foreignEntry(run())).toEqual({
-          code: "foreign-entry",
-          entry: "notes.txt",
-        });
-      expect(await snapshot(folder)).toEqual(settled);
-      await rm(join(folder, "notes.txt"));
+      // Before preparation (decision F10's addendum of 2026-11-03): the change
+      // goes through and the entry is left exactly as it was.
+      expect(
+        await updateProfile(folder, 1, {
+          profile: { ...profile, locale: "cs" },
+        }),
+      ).toMatchObject({ kind: "updated" });
+      expect((await preferences(folder)).profile.locale).toBe("cs");
+      expect(await readFile(join(folder, "notes.txt"), "utf8")).toBe(
+        "not ours",
+      );
+      expect(await refreshMachineFolder(folder, after)).toMatchObject({
+        code: 0,
+      });
+      expect(await readFile(join(folder, "notes.txt"), "utf8")).toBe(
+        "not ours",
+      );
       // After preparation: the resume of an interrupted profile update too.
+      const revision = (await preferences(folder)).revision;
       await expect(
         updateProfile(
           folder,
-          1,
-          { profile: { ...profile, locale: "cs" } },
+          revision,
+          { profile: { ...profile, locale: "en" } },
           async (step) => {
             if (step === "prepared") throw new Error("interrupted");
           },
         ),
       ).rejects.toThrow("interrupted");
-      const interrupted = await pending(folder);
-      await writeFile(join(folder, "notes.txt"), "not ours");
-      expect(await foreignEntry(resumeProfileUpdate(folder, 2))).toEqual({
-        code: "foreign-entry",
-        entry: "notes.txt",
-      });
-      // The CLI reports it as a named refusal (exit 2), not an operation failure.
-      const printed: string[] = [];
-      const log = console.log;
-      console.log = (line: string) => void printed.push(line);
-      try {
-        expect(
-          await runCli([
-            "profile-resume",
-            "--folder",
-            folder,
-            "--target-revision",
-            "2",
-          ]),
-        ).toBe(2);
-      } finally {
-        console.log = log;
-      }
-      expect(JSON.parse(printed[0] ?? "null")).toMatchObject({
-        kind: "blocked",
-        reason: "folder-foreign-entry",
-        entry: "notes.txt",
-      });
-      expect(await pending(folder)).toEqual(interrupted);
-      await rm(join(folder, "notes.txt"));
-      expect(await resumeProfileUpdate(folder, 2)).toEqual({
+      await writeFile(join(folder, "notes-2.txt"), "not ours either");
+      expect(await resumeProfileUpdate(folder, revision + 1)).toEqual({
         kind: "recovered",
-        revision: 2,
+        revision: revision + 1,
       });
-      expect((await preferences(folder)).profile.locale).toBe("cs");
+      expect((await preferences(folder)).profile.locale).toBe("en");
+      expect(await readFile(join(folder, "notes.txt"), "utf8")).toBe(
+        "not ours",
+      );
+      expect(await readFile(join(folder, "notes-2.txt"), "utf8")).toBe(
+        "not ours either",
+      );
     } finally {
       await rm(parent, { recursive: true, force: true });
     }
@@ -963,7 +973,7 @@ for (const path of ["AGENTS.md", "manual/roles.md"] as const)
     },
   );
 
-for (const revision of ["base-instructions-106", "custom-1"])
+for (const revision of ["base-instructions-107", "custom-1"])
   test.skipIf(process.platform === "win32")(
     `a Folder rendered by ${revision} is never downgraded or re-rendered`,
     async () => {

@@ -1,6 +1,5 @@
 import { lstat, opendir, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { MachineBinding } from "./machine-binding";
 import { inspectOwnedDirectory } from "./owned-directory";
 import { stateFields } from "./state-fields";
 
@@ -180,17 +179,22 @@ export async function requireFolderBoundary(folder: string, claimed = false) {
   return entries;
 }
 
-// The boundary of a Folder with state, for the update transaction and its
-// recovery. A hosted Folder (adopted from a handover) owns exactly its claimed
-// top level, so a foreign entry fails closed by name, as in adoption and
-// initialization recovery. A workstation Folder (no binding) keeps the
-// Operator's own top-level files beside the generated ones; they are never
-// read or written, and the update preserves them.
-export async function requireClaimedFolderBoundary(
+// The top-level entries of a Folder with state that it neither owns nor
+// tolerates, sorted: names only, nothing below them is listed. The change
+// transaction and its recovery never read, write or move them, on a
+// workstation and, since decision F10's addendum of 2026-11-03, in a hosted
+// Folder too, where they no longer stop a refresh. A hosted Folder reports
+// them instead (`lazurio update`, `update status`, `doctor`), because work
+// products belong in `~/Documents/<task>/`. Adoption and initialization
+// recovery keep refusing them by name: a new Folder holds only what its
+// handover creates.
+export async function foreignTopLevelEntries(
   folder: string,
-  machine: MachineBinding | null,
-) {
-  if (machine !== null) await requireFolderBoundary(folder, true);
+): Promise<readonly string[]> {
+  const known: readonly string[] = [...tolerated, ...owned];
+  return Object.freeze(
+    (await readdir(folder)).filter((entry) => !known.includes(entry)).sort(),
+  );
 }
 
 // Adoption rule. Work directories may be non-empty and are never traversed,

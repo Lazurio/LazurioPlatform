@@ -599,11 +599,11 @@ it replaces owned instructions/preferences/manifest and archives the transaction
 In an installed Environment the Folder is the user's ~/Lazurio; the change is applied
 only after the preview and only at the expected revision.
 It refuses missing/unrecognized state, edits and pending recovery; it does not initialize a Folder.
-In a Remote Environment's Folder (adopted from its handover) a top-level entry other than
-organizations/, personalspace/, the two legacy launchpad files and the owned AGENTS.md,
-manual/ and .lazurio/ is refused by name (exit 2, folder-foreign-entry) before
-preparation, before every replacement and in profile-resume; the journal stays for a
-later resume. A workstation Folder keeps your own top-level files untouched.
+A top-level entry the Folder does not own (anything but organizations/, personalspace/,
+the two legacy launchpad files and the owned AGENTS.md, manual/, .agents/, .claude/ and
+.lazurio/) is never read, written or moved, and it stops no change, on a workstation and
+in a Remote Environment's Folder alike. In a Remote Environment lazurio update, update
+status and doctor name it, because work products belong in ~/Documents/<task>/.
 In a Remote Environment, machine folder-refresh re-renders the same owned files from the
 current handover through this same transaction, keeping the recorded profile.
 tools enable|disable <tool> --folder <Folder> --expected-revision <n> records which

@@ -22,6 +22,7 @@ import {
 } from "../executor/converge";
 import { type ExecutorHost, executorStatus } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
+import { foreignEntriesText } from "../folder/foreign-entries";
 import {
   type FolderRefresh,
   folderRefreshText,
@@ -996,6 +997,7 @@ export async function runUpdateCommand(
                 ? [`state-invalid: ${status.stateInvalid}`]
                 : []),
               ...refresh(status.folderRefresh),
+              ...foreignLines(status.folderForeignEntries),
             ].join("\n")
           : "",
       );
@@ -1086,6 +1088,16 @@ function refreshLines(outcome: FolderRefreshOutcome | null): string[] {
   ];
 }
 
+/** A hosted Folder's foreign top-level entries (decision F10's addendum of
+ * 2026-11-03): one line naming them and where they belong. */
+function foreignLines(
+  value: Readonly<{ folder: string; entries: readonly string[] }> | undefined,
+): string[] {
+  return value === undefined
+    ? []
+    : [foreignEntriesText(value.folder, value.entries)];
+}
+
 /** The product's own lines after `lazurio update`. */
 function productText(result: UpdateResult): string {
   return result.kind === "updated"
@@ -1096,6 +1108,7 @@ function productText(result: UpdateResult): string {
             : ""
         }`,
         ...refreshLines(result.folderRefresh),
+        ...foreignLines(result.folderForeignEntries),
         ...codexFinding(result.codexAppServer),
         ...browserFinding(result.environmentBrowser),
         ...computerUseFinding(result.computerUse),
@@ -1105,6 +1118,7 @@ function productText(result: UpdateResult): string {
       ? [
           `Lazurio ${result.running} is up to date.`,
           ...refreshLines(result.folderRefresh),
+          ...foreignLines(result.folderForeignEntries),
           ...codexFinding(result.codexAppServer),
           ...browserFinding(result.environmentBrowser),
           ...computerUseFinding(result.computerUse),

@@ -1448,8 +1448,8 @@ function productUpdate(preset: PresetName): readonly Text[] {
       ),
       doctor,
       t(
-        "- `lazurio update` po aktualizaci sám obnoví generované soubory Folderu (`AGENTS.md`, `manual/`, skilly), když je vykreslila starší verze, a obnoví je i tehdy, když je Lazurio už aktuální. Nic dalšího kvůli tomu nespouštíš a uživatele o obnovu nežádáš. Zablokovaná obnova aktualizaci nezruší: odpověď ji pojmenuje (`folderRefresh` v `--json`, třeba `blocked` s `drift` a cestou souboru) a `lazurio update status` i `lazurio doctor` ji dál hlásí jako potřebnou. Upravený generovaný soubor se nikdy nepřepíše: se souhlasem uživatele přesuň jeho úpravu tam, kam patří (pravidlo o „Zapamatuj si“ v `AGENTS.md`), a pak spusť `lazurio machine folder-refresh`. Při `folder-busy` nic nedělej, další aktualizace obnovu zopakuje.",
-        "- After an update, `lazurio update` itself refreshes the Folder's generated files (`AGENTS.md`, `manual/`, the skills) when an older version rendered them, and also when Lazurio is already current. You run nothing else for it and never ask the user to refresh anything. A blocked refresh does not undo the update: its answer names it (`folderRefresh` in `--json`, for example `blocked` with `drift` and the file's path), and `lazurio update status` and `lazurio doctor` keep reporting it as needed. An edited generated file is never overwritten: with the user's consent move their change to where it belongs (the rule on “remember this” in `AGENTS.md`), then run `lazurio machine folder-refresh`. On `folder-busy` do nothing; the next update refreshes it.",
+        "- `lazurio update` po aktualizaci sám obnoví generované soubory Folderu (`AGENTS.md`, `manual/`, skilly), když je vykreslila starší verze, a obnoví je i tehdy, když je Lazurio už aktuální. Nic dalšího kvůli tomu nespouštíš a uživatele o obnovu nežádáš. Zablokovaná obnova aktualizaci nezruší: odpověď ji pojmenuje (`folderRefresh` v `--json`, třeba `blocked` s `drift` a cestou souboru) a `lazurio update status` i `lazurio doctor` ji dál hlásí jako potřebnou. Upravený generovaný soubor se nikdy nepřepíše: se souhlasem uživatele přesuň jeho úpravu tam, kam patří (pravidlo o „Zapamatuj si“ v `AGENTS.md`), a pak spusť `lazurio machine folder-refresh`. Při `folder-busy` nic nedělej, další aktualizace obnovu zopakuje. Cizí položku na nejvyšší úrovni Folderu (například tam uložený výstup) obnova nechá být a nezastaví se na ní; odpověď ji vyjmenuje (`folderForeignEntries`) a `lazurio doctor` ji hlásí jako `folder-top-level` s `foreign-entries`. Je-li tvoje, přesuň ji do `~/Documents/<úkol>/`; cizí nech být a řekni o ní uživateli.",
+        "- After an update, `lazurio update` itself refreshes the Folder's generated files (`AGENTS.md`, `manual/`, the skills) when an older version rendered them, and also when Lazurio is already current. You run nothing else for it and never ask the user to refresh anything. A blocked refresh does not undo the update: its answer names it (`folderRefresh` in `--json`, for example `blocked` with `drift` and the file's path), and `lazurio update status` and `lazurio doctor` keep reporting it as needed. An edited generated file is never overwritten: with the user's consent move their change to where it belongs (the rule on “remember this” in `AGENTS.md`), then run `lazurio machine folder-refresh`. On `folder-busy` do nothing; the next update refreshes it. A top-level entry the Folder does not own (for example a work product saved there) is left as it is and does not stop the refresh; the answer names it (`folderForeignEntries`) and `lazurio doctor` reports it as `folder-top-level` with `foreign-entries`. If it is yours, move it to `~/Documents/<task>/`; leave anyone else's where it is and tell the user about it.",
       ),
       t(
         "- Cesta zpět neexistuje: Lazurio se nikdy nevrací na dřívější verzi. Nová verze se před přepnutím sama ověří; když neprojde, odstraní se a nic se nezmění. Oprava jde jen dopředu, novějším releasem; nikdy nekopíruj starší binárku a verzi nesnižuj.",
@@ -2007,10 +2007,6 @@ function troubleshooting(preset: PresetName): readonly Text[] {
       "- `stale-revision`: the Folder changed since the panel loaded; reload.",
     ),
     t(
-      "- `folder-foreign-entry`: na nejvyšší úrovni Folderu leží položka, kterou Folder nevlastní, například tam uložený výstup. Na Remote Environmentu blokuje každou změnu i refresh; přesuň ji pryč, výstupy patří do `~/Documents/`.",
-      "- `folder-foreign-entry`: the Folder's top level holds an entry the Folder does not own, for example a work product saved there. In a Remote Environment it blocks every change and every refresh; move it out, work products belong in `~/Documents/`.",
-    ),
-    t(
       "- `preset-not-allowed`, `preset-composition`: preset je mimo to, co handover povoluje, nebo s ním nesouhlasí pevné osy.",
       "- `preset-not-allowed`, `preset-composition`: the preset is outside what the handover allows, or the fixed axes disagree with it.",
     ),
@@ -2026,6 +2022,10 @@ function troubleshooting(preset: PresetName): readonly Text[] {
     t(
       "- `drift` s `path`: pojmenovaný generovaný soubor byl upraven nebo smazán (viz níže). `unowned-file`, `unsafe-path`: cestu Folder nevlastní nebo je to link.",
       "- `drift` with `path`: the named generated file was edited or removed (see below). `unowned-file`, `unsafe-path`: the path is not owned by the Folder or is a link.",
+    ),
+    t(
+      "Položka na nejvyšší úrovni Folderu, kterou Folder nevlastní (například tam uložený výstup), změnu ani refresh nezastaví: Folder ji nečte a nemění. `lazurio update`, `lazurio update status` i `lazurio doctor` ji ale vyjmenují, protože výstupy patří do `~/Documents/<úkol>/`. Je-li tvoje, přesuň ji tam; cizí nech být a řekni o ní uživateli.",
+      "A top-level entry the Folder does not own (for example a work product saved there) stops no change and no refresh: the Folder neither reads nor changes it. `lazurio update`, `lazurio update status` and `lazurio doctor` name it, though, because work products belong in `~/Documents/<task>/`. If it is yours, move it there; leave anyone else's where it is and tell the user about it.",
     ),
     t(
       "Rozpracovaná `.lazurio/transaction` blokuje každou změnu, dokud se nedokončí nebo neodloží; nic se nesmaže automaticky.",
