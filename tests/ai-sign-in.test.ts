@@ -4,6 +4,7 @@ import {
   aiSignInAnswer,
   aiSignInPlace,
   createAiSignIn,
+  createReadingOrder,
 } from "../src/launchpad/ai-sign-in";
 
 // Začínáme's AI sign-in in the page (root decision 0201 points 3-6, F19's
@@ -620,4 +621,22 @@ test("a reading begun before the failure never settles it (review of #827)", asy
     since,
   );
   expect(signIn.state()).toEqual(missing);
+});
+
+test("an older reading that ends after a newer one is not taken (review of #827)", () => {
+  const order = createReadingOrder();
+  // The first "Zkontrolovat znovu" finds Claude missing but waits for Codex;
+  // the second, after the install, finds it and ends first.
+  const first = order.ask();
+  const second = order.ask();
+  expect(order.take(second)).toBe(true);
+  // The first ends last: its not installed is not brought back.
+  expect(order.take(first)).toBe(false);
+  // In order, each is taken; a reading asked later is taken again.
+  const third = order.ask();
+  expect(order.take(third)).toBe(true);
+  const fourth = order.ask();
+  const fifth = order.ask();
+  expect(order.take(fourth)).toBe(true);
+  expect(order.take(fifth)).toBe(true);
 });

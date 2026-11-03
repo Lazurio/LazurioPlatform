@@ -18,7 +18,11 @@ import { environmentName, switchTabs } from "../shell/view";
 import { type AiReading, parseAiAnswer } from "../tools/ai";
 import type { ToolsOverview } from "../tools/overview";
 import { accountWriter, readAccount } from "./account";
-import { aiSignInPlace, createAiSignIn } from "./ai-sign-in";
+import {
+  aiSignInPlace,
+  createAiSignIn,
+  createReadingOrder,
+} from "./ai-sign-in";
 import { personalHolderOf, pluralKey } from "./apps-view";
 import { bootElementId, parseBoot } from "./boot";
 import { createBrowserPanel } from "./browser-panel";
@@ -477,6 +481,8 @@ let contentSeen: ReturnType<typeof content.fact>["state"] = "loading";
 // before the first answer.
 let aiReading: AiReading | null = null;
 let aiRead = false;
+// Readings run side by side; only the newest asked one that answered counts.
+const aiReadings = createReadingOrder();
 const aiFact = (): AiFact =>
   aiReading === null ? (aiRead ? "unknown" : "loading") : aiReading.state;
 // The start of the content by itself (0201 point 3, `autoStartStep`): what
@@ -611,6 +617,7 @@ function startByItself() {
   if (step.start) void content.start();
 }
 async function readAi(fresh = false) {
+  const mine = aiReadings.ask();
   // A fresh reading may settle only the sign-in state it began under.
   const since = fresh ? aiSignIn.mark() : null;
   let read: AiReading | null = null;
@@ -619,6 +626,8 @@ async function readAi(fresh = false) {
     read = ok ? parseAiAnswer(value) : null;
   } catch {}
   aiRead = true;
+  // An older reading that ends after a newer one changes nothing.
+  if (!aiReadings.take(mine)) return;
   if (read !== null || aiReading === null) aiReading = read;
   // Asked now: a CLI it finds can sign in again, unless the sign-in state
   // changed while it was under way.

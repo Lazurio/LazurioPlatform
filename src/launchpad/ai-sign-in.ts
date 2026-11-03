@@ -276,6 +276,31 @@ export function aiSignInAfterReading(
     : signIn;
 }
 
+/**
+ * The order of the page's readings of the AI: each is numbered when it is
+ * asked, and an answer is taken only while no reading asked after it has
+ * been taken. Readings run side by side (each "Zkontrolovat znovu" asks the
+ * CLIs anew), so an older one that ends last never brings back what a newer
+ * one already corrected (review of #827).
+ */
+export function createReadingOrder() {
+  let asked = 0;
+  let taken = 0;
+  return {
+    /** The number of a reading about to be asked. */
+    ask(): number {
+      asked += 1;
+      return asked;
+    },
+    /** Whether the answer of reading `n` may be taken; takes it if so. */
+    take(n: number): boolean {
+      if (n < taken) return false;
+      taken = n;
+      return true;
+    },
+  };
+}
+
 export function createAiSignIn(
   options: Readonly<{
     post: Transport;
