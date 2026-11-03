@@ -1175,6 +1175,8 @@ const en = {
   startAiNoAnswer:
     "Lazurio did not answer about the sign-in. Please try again.",
   startAiProviderUnknown: "The sign-in did not start. Please try again.",
+  startAiNotInstalled:
+    "{name} is not installed {in this} yet, so it cannot sign in here.",
   startAiBrowserFailed:
     "The Environment browser did not open the sign-in page. Please try again.",
   startAiNoBrowser: "The sign-in cannot open here right now.",
@@ -3256,6 +3258,8 @@ const cs: Record<MessageKey, string> = {
   startAiNoAnswer:
     "Lazurio na přihlášení neodpovědělo. Zkuste to prosím znovu.",
   startAiProviderUnknown: "Přihlášení se nespustilo. Zkuste to prosím znovu.",
+  startAiNotInstalled:
+    "{name} zatím není nainstalovaný {v tomto}, proto se tu přihlásit nedá.",
   startAiBrowserFailed:
     "Prohlížeč Prostředí přihlašovací stránku neotevřel. Zkuste to prosím znovu.",
   startAiNoBrowser: "Přihlášení tu teď nejde otevřít.",
