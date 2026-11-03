@@ -53,7 +53,17 @@ export type MarketplaceRegistry = Readonly<{
   /** Whether a question to the registry is under way: its answer can change
    * the catalog within the question's 10 s, so an open page reads again. */
   checking: () => boolean;
+  /** The catalogs an adoption prompt may name: the current one, those it
+   * replaced within `keptFor`, and the built-in copy. A page that showed a
+   * catalog just before the registry moved still hands over exactly what
+   * it showed; an older page's prompt is a 404. */
+  catalogs: () => readonly MarketplaceCatalog[];
 }>;
+
+/** How long a replaced catalog still answers the prompts of a page that
+ * showed it: as long as an open page may go without reading again. */
+export const keptFor = registryInterval;
+const keptAtMost = 4;
 
 const api = (path: string) =>
   `https://api.github.com/repositories/${registrySource.id}${path}`;
@@ -94,6 +104,13 @@ export function createMarketplaceRegistry(
 ): MarketplaceRegistry {
   const now = options.now ?? Date.now;
   let catalog: MarketplaceCatalog = builtInMarketplace;
+  // The catalogs replaced, newest first, with when they were.
+  let replaced: { catalog: MarketplaceCatalog; at: number }[] = [];
+  const show = (next: MarketplaceCatalog) => {
+    if (catalog !== builtInMarketplace)
+      replaced = [{ catalog, at: now() }, ...replaced].slice(0, keptAtMost);
+    catalog = next;
+  };
   let asked = Number.NEGATIVE_INFINITY;
   let asking: Promise<void> | null = null;
 
@@ -142,7 +159,7 @@ export function createMarketplaceRegistry(
       const index: unknown = JSON.parse(await body(file, maxIndexBytes));
       const read = catalogOf(commit, index);
       if (read === null) return false;
-      catalog = read;
+      show(read);
       await keep(commit, index);
       return true;
     } catch {
@@ -176,5 +193,12 @@ export function createMarketplaceRegistry(
       return catalog;
     },
     checking: () => asking !== null,
+    catalogs: () => [
+      catalog,
+      ...replaced
+        .filter((entry) => now() - entry.at < keptFor)
+        .map((entry) => entry.catalog),
+      ...(catalog === builtInMarketplace ? [] : [builtInMarketplace]),
+    ],
   });
 }

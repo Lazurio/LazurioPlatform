@@ -602,7 +602,7 @@ const en = {
     "Chat opened in a new tab with the brief ready. Send it when you are ready.",
   marketCopied: "The brief is in your clipboard. Paste it into a new chat.",
   marketChanged:
-    "{title} has a new release in the meantime, shown on this page now. Check it and continue again.",
+    "{title} changed in the meantime; this page shows it as it is now. Check it before you continue.",
   marketCopyFailed:
     "The brief could not be handed over. Open Chat and ask the agent to add {title} from the Marketplace.",
   marketAdoptPrompt:
@@ -2759,7 +2759,7 @@ const cs: Record<MessageKey, string> = {
     "Chat se otevřel v nové záložce s připraveným zadáním. Odešlete ho, až budete chtít.",
   marketCopied: "Zadání je ve schránce. Vložte ho do nového vlákna v Chatu.",
   marketChanged:
-    "{title} má mezitím nové vydání a stránka už ukazuje to nové. Zkontrolujte ho a pokračujte znovu.",
+    "{title} se mezitím změnila a stránka ji už ukazuje v nové podobě. Než budete pokračovat, zkontrolujte ji.",
   marketCopyFailed:
     "Zadání se nepodařilo předat. Otevřete Chat a požádejte agenta, ať přidá {title} z Marketplace.",
   // In Czech the person's own words to the agent, so tykání (0199).

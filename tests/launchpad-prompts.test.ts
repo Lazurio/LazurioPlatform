@@ -432,8 +432,11 @@ posixTest(
         return catalog;
       },
       checking: () => checking,
+      catalogs: () => served,
     };
-    const release = commit.slice(0, 12);
+    // The catalogs the prompt route serves (marketplace-registry.ts).
+    let served: readonly MarketplaceCatalog[] = [catalog];
+    const release = "f".repeat(12);
     const hosted = await hostedLaunchpad(true, "0.0.45-lazurio.2", registry);
     try {
       const { base, valid } = hosted;
@@ -451,7 +454,7 @@ posixTest(
         expect(document.text).toContain("LazurioTemplates/presentations");
       }
       // Mission Control has no published release, so it is not shown and
-      // its prompt is the same 404; so is an id without its release.
+      // its prompt is the same 404; so is an id without its catalog.
       for (const id of [
         `marketplace-mission-control-empty-${release}`,
         "marketplace-presentations-empty",
@@ -488,11 +491,12 @@ posixTest(
       // without a release is no adoption's and asks nothing.
       expect(reads).toBe(4);
 
-      // The registry offers a newer release after the page showed this one
-      // and before Chat fetched the brief: the shown release's id is the
-      // same 404, never a brief of a release the person did not choose, and
-      // the new release's id is served.
+      // The registry moves to a newer catalog after the page showed this one
+      // and before Chat fetched the brief. While the Launchpad still serves
+      // the catalog shown, its id gets exactly that catalog's brief, never
+      // the newer release; the newer catalog's id gets the newer one.
       const newer = "fedcba9876543210fedcba9876543210fedcba98";
+      const shown = catalog;
       catalog = {
         source: "registry",
         commit: "e".repeat(40),
@@ -502,18 +506,29 @@ posixTest(
           releases: [{ ...offer.release, commit: newer, version: "9.0.0" }],
         })),
       };
+      served = [catalog, shown];
       checking = true;
+      const kept = await fetch(
+        `${base}/.lazurio/prompts/marketplace-presentations-empty-${release}?org=example-org`,
+        { headers: valid },
+      );
+      expect(kept.status).toBe(200);
+      const keptText = ((await kept.json()) as { text: string }).text;
+      expect(keptText).toContain(commit);
+      expect(keptText).not.toContain(newer);
+      const fresh = await fetch(
+        `${base}/.lazurio/prompts/marketplace-presentations-empty-${"e".repeat(12)}?org=example-org`,
+        { headers: valid },
+      );
+      expect(fresh.status).toBe(200);
+      expect(((await fresh.json()) as { text: string }).text).toContain(newer);
+      // Once the catalog shown is no longer served, its id is the same 404.
+      served = [catalog];
       const stale = await fetch(
         `${base}/.lazurio/prompts/marketplace-presentations-empty-${release}?org=example-org`,
         { headers: valid },
       );
       expect(stale.status).toBe(404);
-      const fresh = await fetch(
-        `${base}/.lazurio/prompts/marketplace-presentations-empty-${newer.slice(0, 12)}?org=example-org`,
-        { headers: valid },
-      );
-      expect(fresh.status).toBe(200);
-      expect(((await fresh.json()) as { text: string }).text).toContain(newer);
       // While the registry is being asked, the page is told so.
       const during = await fetch(`${base}/api/marketplace`, {
         method: "POST",

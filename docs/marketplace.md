@@ -76,17 +76,20 @@ does today; the rest of this document stays future direction.
   another. Teams are not listed on the page (decision F32).
 - **Hand-over, not installation.** "Pokračovat v Chatu" hands the brief to Chat
   exactly as "+ Nový modul" does: by link where Chat takes a prepared prompt, else
-  through the clipboard. The prompt `marketplace-<offer>-<empty|sample>-<release>`,
-  `<release>` the first 12 characters of the offered release's commit, is served by
-  `GET /.lazurio/prompts/<id>?org=<login>` to anyone admitted, for an offer, start and
-  release of the catalog the Launchpad shows (so only for a release with a recorded
-  commit) and an Organization of the Folder bound to that login; every other case is
-  the same 404. The id names the release the page showed, so a registry that moved
-  on in the meantime never hands Chat a brief of another release. Before handing
-  over, "Pokračovat v Chatu" reads the offers again: the same release goes on; a
-  newer one is drawn on the page and the dialog says so, and the person continues
-  again; an offer no longer listed closes the dialog and the page says it is not in
-  the Marketplace. The brief names the exact release, the Organization and
+  through the clipboard, at once within the click (Chat's tab and the clipboard need
+  it, so nothing is read over the network first). The prompt
+  `marketplace-<offer>-<empty|sample>-<catalog>`, `<catalog>` the first 12 characters
+  of the registry commit the page shows (`builtin` for the built-in copy), is served by
+  `GET /.lazurio/prompts/<id>?org=<login>` to anyone admitted, for an offer and start
+  of a catalog the Launchpad still serves and an Organization of the Folder bound to
+  that login; every other case is the same 404. The registry's commit fixes every
+  field of every offer, so Chat gets the offer the page showed field for field, even
+  when the Launchpad has read a newer catalog since: a catalog it replaced still
+  answers prompts for an hour, as long as an open page may go without reading again
+  (`keptFor`), and the built-in copy always. An older page's prompt is a 404. An offer
+  that changes while its dialog is open is drawn again and the dialog says so before
+  the person continues; one that is no longer listed closes the dialog and the page
+  says it is not in the Marketplace. The brief names the exact release, the Organization and
   the start, and tells the agent to follow the release's `docs/adoption.md`: check live
   rights, name collision and compatibility, show the plan, create the module with
   `lazurio module create --stack <release stack>`, adding `--data` for a release of

@@ -6,6 +6,7 @@ import { builtInMarketplace } from "../src/launchpad/marketplace";
 import builtInIndex from "../src/launchpad/marketplace-index.json";
 import {
   createMarketplaceRegistry,
+  keptFor,
   type RegistryFetch,
   registryInterval,
   registryRetry,
@@ -223,4 +224,35 @@ test("a failed question is asked again a retry later, and checking says while on
   release();
   await settled();
   expect(registry.checking()).toBe(false);
+});
+
+test("a replaced catalog is still served to prompts for an hour, the built-in copy always", async () => {
+  const state = {
+    main: head,
+    indexes: { [head]: index(), [next]: index("Slides") } as Record<
+      string,
+      unknown
+    >,
+  };
+  let clock = 1_000;
+  const registry = createMarketplaceRegistry({
+    fetch: github(state, []),
+    cacheFile: null,
+    now: () => clock,
+  });
+  const commits = () => registry.catalogs().map((catalog) => catalog.commit);
+  expect(commits()).toEqual([null]);
+  await registry.read();
+  // The built-in copy was only waited for, so it is not kept as replaced.
+  expect(commits()).toEqual([head, null]);
+  state.main = next;
+  clock += registryInterval;
+  await registry.read();
+  await settled();
+  expect(commits()).toEqual([next, head, null]);
+  // An hour after it was replaced, the old catalog answers no prompt.
+  clock += keptFor - 1;
+  expect(commits()).toEqual([next, head, null]);
+  clock += 1;
+  expect(commits()).toEqual([next, null]);
 });

@@ -1874,12 +1874,13 @@ export async function startLaunchpad(
         if (keys.some((key) => key !== "org")) return notFound();
         if (isAdoptionPromptId(id)) {
           // A Marketplace adoption (plan DEV-6593): an offer and seed of the
-          // catalog the Marketplace shows, for an Organization of this
-          // Folder bound to the link's login, only while its offer's release
-          // is recorded (prompts.ts `adoptionDocument`).
+          // catalog the page showed, while the Launchpad still serves it,
+          // for an Organization of this Folder bound to the link's login,
+          // only while its offer's release is recorded (prompts.ts
+          // `adoptionDocument`).
           if (login === null || keys.length !== 1) return notFound();
           try {
-            const offers = await marketplace.read();
+            await marketplace.read();
             const organization = promptOrganization(
               organizationsOnly(await catalog.read()),
               login,
@@ -1889,7 +1890,7 @@ export async function startLaunchpad(
               readFolderState(state),
             );
             const document = adoptionDocument(
-              offers,
+              marketplace.catalogs(),
               id,
               folder,
               organization,

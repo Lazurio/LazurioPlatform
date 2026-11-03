@@ -11,7 +11,6 @@ import {
   type MarketplaceLocale,
   type MarketplaceOffer,
   offerById,
-  recheckOffer,
   screenshotUrl,
   seedsOf,
 } from "./marketplace";
@@ -38,9 +37,12 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // Launchpad's answer (`POST /api/marketplace`: the registry at one commit, or
 // the built-in copy), read each time the page is entered and again while it
 // stays open (marketplace-refresh.ts); until the first answer the built-in
-// copy. "Pokračovat v Chatu" reads them once more and hands over only the
-// release the page showed: a changed release is shown first and asked
-// again. Every value is drawn with textContent.
+// copy. "Pokračovat v Chatu" hands over at once, still within the click
+// (Chat's tab and the clipboard need it), the offer of the catalog the page
+// shows: its prompt id names that catalog, so Chat gets that offer field for
+// field even when the Launchpad has read a newer one since. An offer that
+// changes while its dialog is open is drawn again and the dialog says so.
+// Every value is drawn with textContent.
 export function createMarketplacePanel(
   options: Readonly<{
     copy: () => Copy;
@@ -94,7 +96,16 @@ export function createMarketplacePanel(
         return;
       }
       offers = read;
-      if (adding !== null) adding = offerById(offers, adding.id) ?? adding;
+      if (adding !== null) {
+        const now = offerById(offers, adding.id);
+        if (
+          now !== null &&
+          dialog.open &&
+          JSON.stringify(now) !== JSON.stringify(adding)
+        )
+          said = fill(options.copy().marketChanged, { title: now.title });
+        adding = now ?? adding;
+      }
       render();
       options.changed();
     },
@@ -350,56 +361,28 @@ export function createMarketplacePanel(
   for (const button of [dialogClose, dialogCancel])
     button.addEventListener("click", () => dialog.close());
   dialogOk.addEventListener("click", () => {
-    const displayed = adding;
-    if (displayed === null || chosenTarget() === null || busy) return;
-    busy = true;
-    said = null;
-    drawDialog(displayed);
-    // The offers read once more: only the release the page showed is
-    // handed over. Another release is drawn first and asked again; an offer
-    // no longer offered closes the dialog and the page says it is gone.
-    // When the read fails, the shown release goes: its prompt id names it,
-    // so the prompt route never answers with another.
-    void refresh.read().then((read) => {
-      const check =
-        read === null
-          ? { kind: "same" as const, offer: displayed }
-          : recheckOffer(displayed, read);
-      if (check.kind !== "same") {
-        busy = false;
-        if (check.kind === "changed") {
-          adding = check.offer;
-          said = fill(options.copy().marketChanged, {
-            title: check.offer.title,
-          });
-        }
-        render();
-        return;
-      }
-      handOver(check.offer);
-    });
-  });
-
-  function handOver(offer: MarketplaceOffer) {
     const chosen = chosenTarget();
-    const text =
-      chosen === null
-        ? null
-        : adoptionPrompt(
-            offer,
-            seed,
-            { name: organizationName(chosen), login: chosen.forgeLogin },
-            options.copy(),
-            options.locale(),
-          );
-    if (chosen === null || text === null) {
-      busy = false;
-      if (dialog.open) drawDialog(offer);
+    // The offer as the catalog the page shows has it now; gone from it, the
+    // page is drawn again and the dialog closes.
+    const offer = adding === null ? null : offerById(offers, adding.id);
+    if (adding !== null && offer === null) {
+      render();
       return;
     }
+    if (offer === null || chosen === null || busy) return;
+    const text = adoptionPrompt(
+      offer,
+      seed,
+      { name: organizationName(chosen), login: chosen.forgeLogin },
+      options.copy(),
+      options.locale(),
+    );
+    if (text === null) return;
+    busy = true;
+    drawDialog(offer);
     void options
       .handOver({
-        id: adoptionPromptId(offer, seed),
+        id: adoptionPromptId(offers, offer, seed),
         organization: chosen.forgeLogin,
         text,
       })
@@ -421,7 +404,7 @@ export function createMarketplacePanel(
         );
         if (dialog.open) drawDialog(offer);
       });
-  }
+  });
 
   /** The chosen Organization, the first one until a person picks. */
   function chosenTarget() {
