@@ -208,7 +208,8 @@ test("Settings no longer list Trezor, and nothing on the page leads to its old a
     "communication",
     "machine",
     "tools",
-    "ssh",
+    // Připojení, whose second tab is SSH (decision F71).
+    "connections",
     "recovery",
     // Nastavení → Buddy, drawn only with Buddy (decision F65).
     "buddy",

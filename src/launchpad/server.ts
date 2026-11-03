@@ -28,6 +28,11 @@ import { createBuddySignIn } from "../buddy/sign-in";
 import { buddyStatus, readBuddyFacts } from "../buddy/status";
 import { type BotChecker, createBuddyTelegram } from "../buddy/telegram";
 import { createTelegramRestart } from "../buddy/telegram-restart";
+import { processConnectionsHost } from "../connections/host";
+import {
+  type ConnectionsHost,
+  createConnections,
+} from "../connections/pairing";
 import { createPersonalspaceHolder } from "../content/holder";
 import {
   type ContentHost,
@@ -169,6 +174,7 @@ import {
   mintChatPairing,
   publicEntry,
 } from "./chat";
+import { createConnectionsRoutes } from "./connections-routes";
 import { createContentRoutes } from "./content-routes";
 import { prepareContext } from "./content-view";
 import { createExecutorRoutes, isExecutorJob } from "./executor-routes";
@@ -754,6 +760,10 @@ export async function startLaunchpad(
   // operator's Codex and Claude Code. Trusted composition, never HTTP
   // input; tests supply answers.
   ai: AiProbe = createAiProbe(toolsEnvironment),
+  // Where Settings → Connections pairs a phone (decision F71): the
+  // operator's Codex daemon, its unit and its configuration. Trusted
+  // composition, never HTTP input; tests supply a fake control socket.
+  connectionsHost?: ConnectionsHost | undefined,
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -1278,6 +1288,33 @@ export async function startLaunchpad(
     },
     headers,
     journal: (line) => console.log(JSON.stringify(line)),
+  });
+  // Settings → Connections → Telefon přes ChatGPT (decision F71): the
+  // Codex daemon's remote control, one pending pairing in this process's
+  // memory; journaled without any code.
+  const connections = createConnections(
+    connectionsHost ??
+      processConnectionsHost({
+        env: process.env,
+        platform: process.platform,
+        run: toolsEnvironment.run,
+        ai,
+        kind: async () => {
+          const current = await withFolderReadLock(state, () =>
+            readFolderState(state),
+          );
+          const preset = current.preferences.preset.name;
+          return Object.hasOwn(presetKinds, preset)
+            ? environmentKind(preset as PresetName, current.preferences.machine)
+            : null;
+        },
+        folder: () => realpath(folder),
+      }),
+    { journal: (line) => console.log(JSON.stringify(line)) },
+  );
+  const connectionRoutes = createConnectionsRoutes({
+    connections: () => connections,
+    headers,
   });
   // The Environment's theme (root decision 0208): one record of this Folder
   // in the install base, which `lazurio theme` changes too; a development run
@@ -2334,6 +2371,17 @@ export async function startLaunchpad(
           return await integrations.handle(request, url, (seconds) =>
             server.timeout(request, seconds),
           );
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
+      if (connectionRoutes.handles(url.pathname)) {
+        if (closing) return response({ error: "closing" }, 503);
+        // A pairing may turn remote control on and wait for it; a restart
+        // waits for Codex to start again.
+        server.timeout(request, 60);
+        try {
+          return await connectionRoutes.handle(request, url);
         } catch {
           return response({ error: "operation-failed" }, 500);
         }

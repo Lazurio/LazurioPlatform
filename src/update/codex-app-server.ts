@@ -223,6 +223,28 @@ export async function restartCodexAppServer(
   });
 }
 
+/** Whether Codex's daemon runs under Lazurio's own unit here (its marker on
+ * the first line), the one a restart may touch. */
+export async function codexAppServerManaged(
+  input: Readonly<{
+    platform: string;
+    env: Readonly<Record<string, string | undefined>>;
+  }>,
+): Promise<boolean> {
+  const directory = userUnitDirectory(input.env);
+  if (
+    input.platform !== "linux" ||
+    !input.env.XDG_RUNTIME_DIR ||
+    directory === undefined
+  )
+    return false;
+  const text = await readFile(
+    join(directory, codexAppServerUnit),
+    "utf8",
+  ).catch(() => undefined);
+  return text?.startsWith(unitMarker) === true;
+}
+
 // ---- Observation, for `lazurio doctor` --------------------------------------
 
 /** How the Codex daemon of this Environment is, in doctor's terms: `ok`,
