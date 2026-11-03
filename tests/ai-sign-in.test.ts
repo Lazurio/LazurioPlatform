@@ -624,22 +624,34 @@ test("a reading begun before the failure never settles it (review of #827)", asy
   expect(signIn.state()).toEqual(missing);
 });
 
-test("an older reading that ends after a newer one is not taken (review of #827)", () => {
-  const order = createReadingOrder();
-  // The first "Zkontrolovat znovu" finds Claude missing but waits for Codex;
-  // the second, after the install, finds it and ends first.
-  const first = order.ask();
-  const second = order.ask();
+test("the reading shown is the freshest that answered, whatever the order (review of #827)", () => {
+  // Two "Zkontrolovat znovu": the first finds Claude missing but waits for
+  // Codex, the second (after the install) ends first.
+  let order = createReadingOrder();
+  const first = order.ask(true);
+  const second = order.ask(true);
   expect(order.take(second)).toBe(true);
-  // The first ends last: its not installed is not brought back.
   expect(order.take(first)).toBe(false);
-  // In order, each is taken; a reading asked later is taken again.
-  const third = order.ask();
-  expect(order.take(third)).toBe(true);
-  const fourth = order.ask();
-  const fifth = order.ask();
-  expect(order.take(fourth)).toBe(true);
-  expect(order.take(fifth)).toBe(true);
+  // A plain reading asked while a fresh one runs may get the server's kept
+  // answer: shown while nothing fresher is, never over the fresh one, in
+  // either order of answers.
+  order = createReadingOrder();
+  let fresh = order.ask(true);
+  let plain = order.ask(false);
+  expect(order.take(plain)).toBe(true);
+  expect(order.take(fresh)).toBe(true);
+  order = createReadingOrder();
+  fresh = order.ask(true);
+  plain = order.ask(false);
+  expect(order.take(fresh)).toBe(true);
+  expect(order.take(plain)).toBe(false);
+  // A plain reading asked after the fresh one answered gets at least its
+  // data, and is shown.
+  expect(order.take(order.ask(false))).toBe(true);
+  // Plain readings alone, as on the first load: each is shown.
+  order = createReadingOrder();
+  expect(order.take(order.ask(false))).toBe(true);
+  expect(order.take(order.ask(false))).toBe(true);
 });
 
 test("a fresh reading overtaken by a plain one still settles the not installed (review of #827)", async () => {
@@ -660,12 +672,18 @@ test("a fresh reading overtaken by a plain one still settles the not installed (
   } as const;
   // Claude Code installed, then "Zkontrolovat znovu" (fresh) and, while it
   // runs, a return to Začínáme (a plain reading).
-  const fresh = { n: order.ask(), since: signIn.mark() };
-  const plain = { n: order.ask(), since: null };
-  // The plain one answers first and is shown; it settles nothing.
-  expect(takeAiReading(order, signIn, plain, installed)).toBe(true);
+  const fresh = { reading: order.ask(true), since: signIn.mark() };
+  const plain = { reading: order.ask(false), since: null };
+  // The plain one answers first with the server's kept answer, from before
+  // the install: shown for now, and it settles nothing.
+  const kept = {
+    state: "missing",
+    providers: [{ provider: "claude", state: "not-installed" }],
+  } as const;
+  expect(takeAiReading(order, signIn, plain, kept)).toBe(true);
   expect(signIn.state()).toMatchObject({ reason: "not-installed" });
-  // The fresh one answers last: not shown, but it settles the failure.
-  expect(takeAiReading(order, signIn, fresh, installed)).toBe(false);
+  // The fresh one answers last: it is shown over the kept answer and settles
+  // the failure, so Claude's sign-in is offered again.
+  expect(takeAiReading(order, signIn, fresh, installed)).toBe(true);
   expect(signIn.state()).toEqual({ kind: "idle" });
 });

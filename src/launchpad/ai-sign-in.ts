@@ -276,26 +276,36 @@ export function aiSignInAfterReading(
     : signIn;
 }
 
+/** A reading of the AI as the order knows it (createReadingOrder). */
+export type AskedReading = Readonly<{ fresh: boolean; point: number }>;
+
 /**
- * The order of the page's readings of the AI: each is numbered when it is
- * asked, and an answer is taken only while no reading asked after it has
- * been taken. Readings run side by side (each "Zkontrolovat znovu" asks the
- * CLIs anew), so an older one that ends last never brings back what a newer
- * one already corrected (review of #827).
+ * Which answer of the page's readings of the AI is shown, by how fresh its
+ * data is, not by when it was asked or answered (review of #827). Readings
+ * run side by side. A fresh one (`?fresh=1`) makes the server drop its kept
+ * answer and ask the CLIs, so its data is at least as new as its own ask. A
+ * plain one may get the server's kept answer, so its data is only as new as
+ * the last fresh reading that had answered when it was asked (the server had
+ * dropped its older answer by then). Each answer is shown unless one at a
+ * fresher point already is: an older fresh reading that ends last, and a
+ * plain one that returns the kept answer while a fresh one runs, never hide
+ * what a fresher reading found.
  */
 export function createReadingOrder() {
   let asked = 0;
-  let taken = 0;
+  let freshAnswered = 0;
+  let shown = 0;
   return {
-    /** The number of a reading about to be asked. */
-    ask(): number {
+    /** A reading about to be asked, fresh or plain. */
+    ask(fresh: boolean): AskedReading {
       asked += 1;
-      return asked;
+      return { fresh, point: fresh ? asked : freshAnswered };
     },
-    /** Whether the answer of reading `n` may be taken; takes it if so. */
-    take(n: number): boolean {
-      if (n < taken) return false;
-      taken = n;
+    /** Its answer arrived: whether it is the one to show. */
+    take(reading: AskedReading): boolean {
+      if (reading.fresh) freshAnswered = Math.max(freshAnswered, reading.point);
+      if (reading.point < shown) return false;
+      shown = reading.point;
       return true;
     },
   };
@@ -304,19 +314,19 @@ export function createReadingOrder() {
 /**
  * What one answer of a reading does, apart from drawing it: a fresh reading
  * (`since` from the sign-in's mark()) settles the sign-in whatever the order
- * of answers, because settle() is guarded by the state it began under; only
- * the reading shown follows the order. Returns whether the answer is the
- * one to show.
+ * of answers, because settle() is guarded by the state it began under; the
+ * reading shown follows createReadingOrder. Returns whether the answer is
+ * the one to show.
  */
 export function takeAiReading(
   order: ReturnType<typeof createReadingOrder>,
   signIn: Readonly<{
     settle: (reading: AiReading | null, since: number) => void;
   }>,
-  asked: Readonly<{ n: number; since: number | null }>,
+  asked: Readonly<{ reading: AskedReading; since: number | null }>,
   reading: AiReading | null,
 ): boolean {
-  const shown = order.take(asked.n);
+  const shown = order.take(asked.reading);
   if (asked.since !== null) signIn.settle(reading, asked.since);
   return shown;
 }

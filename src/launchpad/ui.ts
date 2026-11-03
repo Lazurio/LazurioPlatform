@@ -482,7 +482,7 @@ let contentSeen: ReturnType<typeof content.fact>["state"] = "loading";
 // before the first answer.
 let aiReading: AiReading | null = null;
 let aiRead = false;
-// Readings run side by side; only the newest asked one that answered counts.
+// Readings run side by side; the one shown is the freshest that answered.
 const aiReadings = createReadingOrder();
 const aiFact = (): AiFact =>
   aiReading === null ? (aiRead ? "unknown" : "loading") : aiReading.state;
@@ -618,7 +618,7 @@ function startByItself() {
   if (step.start) void content.start();
 }
 async function readAi(fresh = false) {
-  const mine = aiReadings.ask();
+  const mine = aiReadings.ask(fresh);
   // A fresh reading may settle only the sign-in state it began under.
   const since = fresh ? aiSignIn.mark() : null;
   let read: AiReading | null = null;
@@ -629,8 +629,13 @@ async function readAi(fresh = false) {
   aiRead = true;
   // A fresh answer settles the sign-in in any order (a CLI it finds can
   // sign in again, unless the state changed while it ran); the reading shown
-  // is only ever the newest asked one that answered.
-  const shown = takeAiReading(aiReadings, aiSignIn, { n: mine, since }, read);
+  // is the freshest that answered (createReadingOrder).
+  const shown = takeAiReading(
+    aiReadings,
+    aiSignIn,
+    { reading: mine, since },
+    read,
+  );
   if (!shown) return;
   if (read !== null || aiReading === null) aiReading = read;
   content.render();
