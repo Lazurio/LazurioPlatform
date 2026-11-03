@@ -37,12 +37,16 @@ import { type ComposioEnvironment, runComposio } from "./composio-source";
  * organization; on a computer the person's own choice. An Organization's
  * Environment whose Organization's name cannot be read is `unverified`:
  * nothing is guessed, and Composio does not write there (Pablo's review of
- * #372). */
+ * #372). Its `reason` says why: `absent` where the owning Organization is
+ * not in the Folder at all (its root not cloned yet, as while the person
+ * is not in its Team on GitHub), `unreadable` where it may be there but
+ * cannot be told (a reading that failed, an Organization that cannot be
+ * read, two that answer the owner, a name without a letter or digit). */
 export type ComposioOrganizationRule =
   | Readonly<{ kind: "named"; name: string }>
   | Readonly<{ kind: "default" }>
   | Readonly<{ kind: "chosen" }>
-  | Readonly<{ kind: "unverified" }>;
+  | Readonly<{ kind: "unverified"; reason: "absent" | "unreadable" }>;
 type NamedRule = Extract<ComposioOrganizationRule, { kind: "named" }>;
 type DefaultRule = Extract<ComposioOrganizationRule, { kind: "default" }>;
 /** A rule the Launchpad brings current: by the name, or the default. */
@@ -183,26 +187,31 @@ const waitMs = (ms: number) =>
  * Organization of the Folder could not be read and may be the owner. Two
  * readable Organizations that both answer the owner stay ambiguous whatever
  * a third says, and the Folder's Organizations all read leave nothing to
- * wait for. */
+ * wait for. `absent`: the Folder's Organizations all read and none of them
+ * is the owner. */
 async function ownerName(
   folder: string,
   owner: string,
   readCatalog: (folder: string) => Promise<Catalog>,
-): Promise<Readonly<{ name: string }> | Readonly<{ again: boolean }>> {
+): Promise<
+  Readonly<{ name: string }> | Readonly<{ again: boolean; absent: boolean }>
+> {
   let catalog: Catalog;
   try {
     catalog = await readCatalog(folder);
   } catch {
-    return { again: true };
+    return { again: true, absent: false };
   }
   const selection = selectOwnerOrganization(catalog, owner);
   const name =
     selection.kind === "found" ? selection.organization.displayName : null;
   if (typeof name === "string" && organizationKey(name) !== "") return { name };
+  const unreadable = catalog.organizations.some(
+    (entry) => entry.organization === null,
+  );
   return {
-    again:
-      selection.kind !== "ambiguous" &&
-      catalog.organizations.some((entry) => entry.organization === null),
+    again: selection.kind !== "ambiguous" && unreadable,
+    absent: selection.kind === "missing" && !unreadable,
   };
 }
 
@@ -226,7 +235,9 @@ async function ownerName(
  * Folder while the owner was not found, is read again after
  * `ownerRereadMs`, at most `ownerRereads` times (decision F42, addendum of
  * 2026-10-27): an Organization's root being fast-forwarded is not an
- * Organization whose name cannot be read. Only then `unverified`. */
+ * Organization whose name cannot be read. Only then `unverified`, and
+ * `absent` only where every Organization of the Folder was read and none
+ * is the owner. */
 export async function composioOrganizationRule(
   folder: string,
   machine: MachineBinding | null,
@@ -244,7 +255,11 @@ export async function composioOrganizationRule(
       readCatalog,
     );
     if ("name" in found) return { kind: "named", name: found.name };
-    if (!found.again || reread >= ownerRereads) return { kind: "unverified" };
+    if (!found.again || reread >= ownerRereads)
+      return {
+        kind: "unverified",
+        reason: found.absent ? "absent" : "unreadable",
+      };
     await wait(ownerRereadMs);
   }
 }

@@ -138,6 +138,7 @@ import {
   type SignInPage,
 } from "../tools/login";
 import {
+  type ComposioHeld,
   type ToolsEnvironment,
   toolsEnvironmentOf,
   toolsOverview,
@@ -952,6 +953,28 @@ export async function startLaunchpad(
   // A setup goes on after its answer: its end drops the reading again.
   const forgetToolsAfter = (ended: Promise<void>) =>
     void ended.catch(() => undefined).then(() => toolsReading.forget());
+  // Composio's sign-in waits for its organization (decision F42): on an
+  // Organization's Environment whose Composio organization cannot be told,
+  // the Organization's root not in the Folder yet (its person not in its
+  // Team on GitHub) or its name unreadable, `composio login` lands in
+  // whatever organization the CLI selects, the person's own, and
+  // "Používají agenti" follows the sign-in there. So no sign-in starts, and
+  // Settings → Nástroje and Začínáme say why instead of offering it; once
+  // the Organization is here the sign-in is offered, and the organization
+  // of its name made current, as before. Undefined wherever the rule
+  // decides the organization (asked live, as Integrace ask it).
+  const composioHeld = async (): Promise<ComposioHeld | undefined> => {
+    const { preferences } = await withFolderReadLock(state, () =>
+      readFolderState(state),
+    );
+    const rule =
+      integrationSeams?.composioOrganization ??
+      (await composioOrganizationRule(folder, preferences.machine));
+    if (rule.kind !== "unverified") return undefined;
+    return rule.reason === "absent"
+      ? "organization-absent"
+      : "organization-unreadable";
+  };
   // "Používají agenti" follows a sign-in this Launchpad completed (Matěj
   // 2026-10-04, F19's addendum of 2026-10-28, #682): this process turns it
   // on in its Folder as the sign-in ends, at the current revision, whichever
@@ -2690,8 +2713,19 @@ export async function startLaunchpad(
             setup.forget();
             personalspace.forget();
           }
+          // Composio's row says why its sign-in waits (`composioHeld`).
+          const held = overview.tools.some((tool) => tool.name === "composio")
+            ? await composioHeld()
+            : undefined;
           return response({
             ...overview,
+            ...(held === undefined
+              ? {}
+              : {
+                  tools: overview.tools.map((tool) =>
+                    tool.name === "composio" ? { ...tool, held } : tool,
+                  ),
+                }),
             ...(reading.stale ? { stale: true } : {}),
             ...(settings === null
               ? {}
@@ -2795,14 +2829,19 @@ export async function startLaunchpad(
                 personal: preferences.preset.name === "hosted-personal",
               });
             // An Organization's name that cannot be read is said, never
-            // guessed, and nothing is switched.
+            // guessed, and nothing is switched; an Organization not in the
+            // Folder yet is said as such (`absent`).
             if (rule.kind === "unverified") {
               const listed = await logins.composioOrganizations();
               return response(
                 listed.kind === "composio-organizations"
                   ? {
                       ...listed,
-                      organization: { name: null, state: "unverified" },
+                      organization: {
+                        name: null,
+                        state: "unverified",
+                        ...(rule.reason === "absent" ? { absent: true } : {}),
+                      },
                     }
                   : listed,
               );
@@ -3039,6 +3078,22 @@ export async function startLaunchpad(
               value.sshKey === true ? "ssh-key" : "login",
             );
             if (refusal !== undefined) return response(refusal, 409);
+            // Composio without its organization (`composioHeld`): refused
+            // before anything runs, journaled with its reason only.
+            if (tool === "composio") {
+              const held = await composioHeld();
+              if (held !== undefined) {
+                console.log(
+                  JSON.stringify({
+                    scope: "tools-login",
+                    tool,
+                    event: "refused",
+                    reason: held,
+                  }),
+                );
+                return response({ kind: "blocked", reason: held, tool }, 409);
+              }
+            }
             server.timeout(request, 60);
             const started = await logins.start(tool, {
               ...(typeof value.phone === "string"

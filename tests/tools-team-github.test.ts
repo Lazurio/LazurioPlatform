@@ -59,6 +59,7 @@ import {
   teamGithubLogoutText,
   teamGithubText,
 } from "../src/tools/team-github";
+import { writeOrganization } from "./fixtures/catalog-folder";
 import { fakeLoginTools, realSshKeygen } from "./fixtures/fake-login-tools";
 import { bindings } from "./fixtures/machine-bindings";
 
@@ -650,7 +651,15 @@ test.skipIf(!posix)(
       const out = await call("/api/tools/logout", { tool: "gh" });
       expect(out.status).toBe(200);
       expect(out.body).toMatchObject({ kind: "logged-out", tool: "gh" });
-      // composio is not gh: its sign-in starts on a Team Environment.
+      // composio is not gh: its sign-in starts on a Team Environment, once
+      // its Organization is in the Folder (without it Composio's sign-in
+      // waits, composio-organization-absent.test.ts).
+      await writeOrganization(team.folder, "example", {
+        slug: "example",
+        state: "current",
+        modules: [],
+        displayName: "Příklad",
+      });
       const composio = await call("/api/tools/login/start", {
         tool: "composio",
       });

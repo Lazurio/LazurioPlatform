@@ -25,6 +25,7 @@ import {
   currentNotes,
   ghCodeText,
   gitIdentityNote,
+  heldLine,
   installOutcome,
   type LoginFlowState,
   type LoginPhase,
@@ -1556,6 +1557,10 @@ export function createToolsPanel(
     const organization = organizationView(tool, copy);
     for (const line of [organization.line, organization.kept])
       if (line !== null) text.append(element("p", "tool-organization", line));
+    // Composio whose organization cannot be told yet: why it offers no
+    // sign-in, and what comes first (decision F42).
+    const waits = heldLine(tool, copy);
+    if (waits !== null) text.append(element("p", "tool-organization", waits));
 
     const agent = button(
       copy.toolsAgentAction,

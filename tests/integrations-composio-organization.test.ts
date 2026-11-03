@@ -315,9 +315,10 @@ test("the rule: an Organization's Environment by its Organization's name, unveri
   const folder = join(await parent(), "Lazurio");
   await mkdir(folder, { recursive: true, mode: 0o700 });
   // No Organization of that slug in the Folder: unverified, never the
-  // person's choice and never a guess (Pablo's review of #372).
+  // person's choice and never a guess (Pablo's review of #372); `absent`,
+  // as the Organization's root is not here at all.
   expect(await composioOrganizationRule(folder, bindings.organization)).toEqual(
-    { kind: "unverified" },
+    { kind: "unverified", reason: "absent" },
   );
   await writeOrganization(folder, "example", {
     slug: "example",
@@ -419,7 +420,10 @@ test("the rule takes the owning Organization that Organization settings select (
       modules: [],
       displayName: directory,
     });
-  expect(await agree(twinLogins)).toEqual({ kind: "unverified" });
+  expect(await agree(twinLogins)).toEqual({
+    kind: "unverified",
+    reason: "unreadable",
+  });
 
   const twice = join(await parent(), "Lazurio");
   await mkdir(twice, { recursive: true, mode: 0o700 });
@@ -433,7 +437,10 @@ test("the rule takes the owning Organization that Organization settings select (
       modules: [],
       displayName: directory,
     });
-  expect(await agree(twice)).toEqual({ kind: "unverified" });
+  expect(await agree(twice)).toEqual({
+    kind: "unverified",
+    reason: "unreadable",
+  });
 });
 
 const gmail = {
@@ -449,7 +456,7 @@ async function launchpad(
   rule:
     | { kind: "named"; name: string }
     | { kind: "default" }
-    | { kind: "unverified" }
+    | { kind: "unverified"; reason: "absent" | "unreadable" }
     | null,
 ) {
   const directory = await parent();
