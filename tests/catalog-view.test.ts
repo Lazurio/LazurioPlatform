@@ -335,15 +335,17 @@ test("an Organization has two sections, Workspace with every module in catalog o
                       section.title,
                       section.modules.map((entry) => entry.module.module),
                     ]
-                  : [
-                      section.kind,
-                      section.title,
-                      section.repositories.map((entry) => [
-                        entry.repository.slug,
-                        entry.checkout,
-                        entry.repository.url,
-                      ]),
-                    ],
+                  : section.kind === "guest"
+                    ? [section.kind, section.title, []]
+                    : [
+                        section.kind,
+                        section.title,
+                        section.repositories.map((entry) => [
+                          entry.repository.slug,
+                          entry.checkout,
+                          entry.repository.url,
+                        ]),
+                      ],
               ),
             ],
       ),

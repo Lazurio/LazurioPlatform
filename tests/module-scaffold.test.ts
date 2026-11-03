@@ -262,6 +262,28 @@ describe("planModuleScaffold, the Organization form", () => {
       "lazurio module setup <cesta k Modulu> --root <Lazurio root> --json",
     );
   });
+
+  test("a guest Module of another Organization never takes a slug of the host's own (DEV-6694)", () => {
+    const guest = {
+      path: "workspace/HomeOrg_GEN3/knowledgebase",
+      slug: "knowledgebase",
+      home_organization: "HomeOrg",
+    };
+    expect(
+      plan({ slug: "knowledgebase", existingSlots: [guest] }).modulePath,
+    ).toBe("workspace/knowledgebase");
+    expectCode(
+      () =>
+        plan({
+          slug: "knowledgebase",
+          existingSlots: [
+            guest,
+            { path: "workspace/knowledgebase", slug: "knowledgebase" },
+          ],
+        }),
+      "slot_exists",
+    );
+  });
 });
 
 describe("planModuleScaffold, every stack", () => {

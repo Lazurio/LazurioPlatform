@@ -55,6 +55,7 @@ test("a path names the view and the settings section; the canonical path is one"
     // A service repository's page and a service's link (root decision
     // 0209 point 6).
     "/o/:organization/productionspace/:repository",
+    "/o/:organization/guest/:home/:module",
     "/service/:id",
     "/files",
     "/files/*",
@@ -72,6 +73,8 @@ test("a path names the view and the settings section; the canonical path is one"
     "/settings/communication",
     "/settings/machine",
     "/settings/tools",
+    // Připojení, SSH its second tab (decision F71).
+    "/settings/connections",
     "/settings/ssh",
     "/settings/recovery",
     // Nastavení → Buddy (decision F65), drawn only with Buddy.
@@ -214,7 +217,8 @@ test("the heading and document title follow the route in both languages", () => 
         .heading,
     ).toBe(english);
   }
-  // SSH from your devices (decision F49).
+  // SSH from your devices (decision F49) is Počítač, a way of Připojení
+  // (decision F71): its address stays.
   expect(pageRoute("/settings/ssh")).toEqual({
     view: "settings",
     section: "ssh",
@@ -222,20 +226,22 @@ test("the heading and document title follow the route in both languages", () => 
   expect(
     routeTitle({ view: "settings", section: "ssh" }, messages("en")),
   ).toEqual({
-    heading: "SSH from your devices",
-    document: "SSH from your devices · Settings — Lazurio Launchpad",
+    heading: "Computer",
+    document: "Computer · Settings — Lazurio Launchpad",
   });
   expect(
     routeTitle({ view: "settings", section: "ssh" }, messages("cs")).heading,
-  ).toBe("SSH ze zařízení");
-  // Settings keep their order without Trezor: SSH follows the tools, and
-  // Nastavení → Buddy comes last (decision F65), shown only with Buddy.
+  ).toBe("Počítač");
+  // Settings keep their order without Trezor: Připojení follows the tools
+  // with Počítač (SSH) as one of its ways (decision F71), and Nastavení → Buddy comes last
+  // (decision F65), shown only with Buddy.
   expect(settingsSections).toEqual([
     "start",
     "general",
     "communication",
     "machine",
     "tools",
+    "connections",
     "ssh",
     "recovery",
     "buddy",

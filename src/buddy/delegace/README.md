@@ -175,8 +175,8 @@ into the Personal Environment.
   `~/Documents/buddy/<id>/` as an absolute path (on another Environment, that
   Environment's home). A bot works with the Lazurio Folder as its working
   directory, so a bare folder name in a brief would land at the Folder's top
-  level and block the Environment's updates (`folder-foreign-entry`). Into
-  `~/Lazurio` a bot writes only inside its worktree.
+  level, where every update reports it as a foreign entry
+  (`folder-top-level`). Into `~/Lazurio` a bot writes only inside its worktree.
 - `PTÁ SE` keeps watching only after `delegace potvrd <id> --hlidej-dal`.
 
 The command keeps its Czech subcommands (`zadej`, `vysledek`, `potvrd`,

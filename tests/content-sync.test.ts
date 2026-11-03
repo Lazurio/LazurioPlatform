@@ -15,6 +15,8 @@ import { processContentGit } from "../src/content/git";
 import type { ContentHost } from "../src/content/host";
 import { tryContentLock } from "../src/content/lock";
 import {
+  cloneAnswer,
+  cloneIdentity,
   readSyncRecord,
   type SyncEntry,
   type SyncHost,
@@ -24,6 +26,8 @@ import {
   syncScope,
 } from "../src/content/sync";
 import { syncChecks } from "../src/doctor/doctor";
+import type { MachineBinding } from "../src/folder/machine-binding";
+import type { PresetName } from "../src/folder/presets";
 import { messages } from "../src/launchpad/messages";
 import { moduleStatusView } from "../src/launchpad/module-view";
 import type { ModuleAnswer } from "../src/modules/module-operations";
@@ -651,7 +655,7 @@ posixTest(
 );
 
 posixTest(
-  "the root first: its children come from its new declaration (present ones synchronized, absent ones never cloned), and a blocked root stops its Organization",
+  "the root first: its children come from its new declaration (present ones synchronized, an absent one this identity cannot read quietly absent), and a blocked root stops its Organization",
   async () => {
     world = await createWorld();
     const fixture = await organization(world);
@@ -702,7 +706,7 @@ posixTest(
       ".": "fast-forwarded",
       "workspace/web": "current",
       "workspace/fresh": "fast-forwarded",
-      "workspace/later": "absent",
+      "workspace/later": "absent:repository-denied",
       "mission-control": "current",
     });
     expect(await head(fixture.at("workspace/fresh"))).toBe(fresh);
@@ -1029,6 +1033,400 @@ posixTest(
     expect((await command("Other")).code).toBe(1);
     // Usage.
     await expect(command("Alpha", "--role", "builder")).rejects.toThrow();
+  },
+  60_000,
+);
+
+// Decision F9's addendum of 2026-11-01 (DEV-6694 M8): a declared module, a
+// guest Module among them, or its data mount that is not here yet is
+// cloned by the next synchronization once this Environment's identity can
+// read it; without access it stays quietly absent.
+
+const exists = (path: string) =>
+  lstat(path).then(
+    () => true,
+    () => false,
+  );
+
+posixTest(
+  "a declared module becomes present at the next synchronization once it is readable; without access it stays quietly absent, and losing access never removes it",
+  async () => {
+    world = await createWorld();
+    const current = world;
+    const fixture = await organization(current, {
+      extraSlots: [slot("workspace/later", "Alpha/later")],
+    });
+    const later = await remoteRepository(current, "Alpha/later", (d) =>
+      writeModule(d, "alpha", { id: "later" }),
+    );
+    // No grant yet: quietly absent with its reason, no doctor warning even a
+    // day later, nothing at the place, every other repository as before.
+    const denied = await ran(fixture);
+    expect(byPath(denied.entries)).toMatchObject({
+      "workspace/web": "current",
+      "workspace/later": "absent:repository-denied",
+    });
+    expect(await exists(fixture.at("workspace/later"))).toBe(false);
+    const recorded = denied.entries.find(
+      (entry) => entry.path === "workspace/later",
+    );
+    expect(recorded?.since).toBe(recorded?.at);
+    expect(
+      syncFindings(denied.entries, new Date(Date.now() + 2 * 86_400_000)),
+    ).toEqual([]);
+
+    // GitHub grants it: the next run clones it on main, by installation's
+    // own no-replace publish, and names the commit it brought.
+    const granted: Fixture = {
+      ...fixture,
+      host: {
+        ...fixture.host,
+        github: stubGitHub(current, {
+          repositories: { "Alpha/later": {} },
+        }).github,
+      },
+    };
+    const cloned = await ran(granted);
+    const entry = cloned.entries.find(
+      (item) => item.path === "workspace/later",
+    );
+    expect(entry).toMatchObject({ kind: "module", result: "materialized" });
+    expect(await head(fixture.at("workspace/later"))).toBe(
+      await ok(later, "rev-parse", "main"),
+    );
+    expect(entry?.to).toBe(await head(fixture.at("workspace/later")));
+    expect(entry?.since).toBeUndefined();
+    expect(
+      (await readdir(fixture.at("workspace"))).filter((name) =>
+        name.startsWith("."),
+      ),
+    ).toEqual([]);
+    // From then on it is kept current like any checkout.
+    expect(byPath((await ran(granted)).entries)["workspace/later"]).toBe(
+      "current",
+    );
+
+    // Access lost (the remote no longer answers this identity): the
+    // checkout stays exactly as it is.
+    const before = await head(fixture.at("workspace/later"));
+    await rm(later, { recursive: true, force: true });
+    const lost = await ran(fixture);
+    expect(byPath(lost.entries)["workspace/later"]).not.toBe("current");
+    expect(await head(fixture.at("workspace/later"))).toBe(before);
+  },
+  60_000,
+);
+
+posixTest(
+  "a restricted slot is never cloned by a synchronization, and a data mount only below its module, in the same run",
+  async () => {
+    world = await createWorld();
+    const current = world;
+    const fixture = await organization(current, {
+      extraSlots: [
+        slot("workspace/secret", "Alpha/secret", {
+          default_access: "restricted",
+        }),
+        slot("workspace/plans", "Alpha/plans"),
+        {
+          path: "workspace/plans/db",
+          slug: "plans-data",
+          materialization: "repository_db_mount",
+          git: { url: "git@github.com:Alpha/plans-data.git", branch: "v3" },
+        },
+        slot("workspace/closed", "Alpha/closed"),
+        {
+          path: "workspace/closed/db",
+          slug: "closed-data",
+          materialization: "repository_db_mount",
+          git: { url: "git@github.com:Alpha/closed-data.git", branch: "v3" },
+        },
+      ],
+    });
+    for (const name of ["secret", "plans", "closed"])
+      await remoteRepository(current, `Alpha/${name}`, async (d) => {
+        await writeModule(d, "alpha", { id: name });
+        await writeFile(join(d, ".gitignore"), "db/\n");
+      });
+    for (const name of ["plans-data", "closed-data"])
+      await remoteRepository(
+        current,
+        `Alpha/${name}`,
+        (d) => writeFile(join(d, "data.json"), "{}\n"),
+        "v3",
+      );
+    const host: SyncHost = {
+      ...fixture.host,
+      github: stubGitHub(current, {
+        repositories: {
+          "Alpha/secret": {},
+          "Alpha/plans": {},
+          "Alpha/plans-data": {},
+          // Its data is readable, the module is not.
+          "Alpha/closed-data": {},
+        },
+      }).github,
+    };
+    const run = await ran({ ...fixture, host });
+    expect(byPath(run.entries)).toMatchObject({
+      "workspace/secret": "absent",
+      "workspace/plans": "materialized",
+      "workspace/plans/db": "materialized",
+      "workspace/closed": "absent:repository-denied",
+      "workspace/closed/db": "absent",
+    });
+    expect(await exists(fixture.at("workspace/secret"))).toBe(false);
+    expect(await exists(fixture.at("workspace/closed/db"))).toBe(false);
+    expect(
+      await readFile(fixture.at("workspace/plans/db/.git/HEAD"), "utf8"),
+    ).toBe("ref: refs/heads/v3\n");
+  },
+  60_000,
+);
+
+test("who clones: the Environment's own GitHub, anonymous Git on a public Environment, nobody on a Team Environment", () => {
+  const { github } = stubGitHub({
+    root: "",
+    remotes: "",
+    home: "",
+    gitEnv: {},
+    lockDirectory: "",
+  } as unknown as Parameters<typeof stubGitHub>[0]);
+  const identity = (preset: PresetName, machine: MachineBinding | null) =>
+    cloneIdentity(syncScope(preset, machine).remote, preset, github);
+  expect(identity("local", null)).toBe(github);
+  expect(identity("hosted-organization-personal", bindings.organization)).toBe(
+    github,
+  );
+  expect(
+    identity("hosted-organization-personal", bindings.organizationPublic),
+  ).toBe("anonymous");
+  // A Team Environment's content is prepared by the hosting (broker), also
+  // a public one, whose remote is read anonymously.
+  expect(
+    identity("hosted-organization-team", bindings.assignedTeam),
+  ).toBeNull();
+  expect(
+    syncScope("hosted-organization-team", bindings.teamPublic).remote,
+  ).toBe("anonymous");
+  expect(identity("hosted-organization-team", bindings.teamPublic)).toBeNull();
+  // A personal Environment holds no Organization at all (root 0153).
+  expect(syncScope("hosted-personal", bindings.personal).organizations).toBe(
+    "none",
+  );
+});
+
+test("what an attempted clone answers: no access is quiet, a public Environment's private repository too", () => {
+  expect(
+    cloneAnswer({ result: "denied", reason: "repository-denied" }, false),
+  ).toEqual({ result: "absent", reason: "repository-denied" });
+  expect(cloneAnswer({ result: "present" }, false)).toEqual({
+    result: "current",
+  });
+  expect(
+    cloneAnswer({ result: "unavailable", reason: "github-unavailable" }, false),
+  ).toEqual({ result: "unavailable", reason: "remote-unavailable" });
+  expect(
+    cloneAnswer({ result: "blocked", reason: "destination-occupied" }, false),
+  ).toEqual({ result: "blocked", reason: "unexpected-checkout" });
+  // Out of disk or a broken clone is a finding, never half a checkout.
+  expect(
+    cloneAnswer({ result: "failed", reason: "clone-failed" }, false),
+  ).toEqual({ result: "failed", reason: "clone-failed" });
+  expect(
+    cloneAnswer({ result: "failed", reason: "clone-failed" }, true),
+  ).toEqual({ result: "absent", reason: "clone-failed" });
+});
+
+posixTest(
+  "a data mount is never cloned below a checkout that is not its module's verified primary one",
+  async () => {
+    world = await createWorld();
+    const current = world;
+    const fixture = await organization(current, {
+      extraSlots: [
+        slot("workspace/linked", "Alpha/linked"),
+        {
+          path: "workspace/linked/db",
+          slug: "linked-data",
+          materialization: "repository_db_mount",
+          git: { url: "git@github.com:Alpha/linked-data.git", branch: "v3" },
+        },
+      ],
+    });
+    await remoteRepository(current, "Alpha/other", (d) =>
+      writeFile(join(d, "README.md"), "other\n"),
+    );
+    for (const name of ["linked"])
+      await remoteRepository(current, `Alpha/${name}`, async (d) => {
+        await writeModule(d, "alpha", { id: name });
+        await writeFile(join(d, ".gitignore"), "db/\n");
+      });
+    await remoteRepository(
+      current,
+      "Alpha/linked-data",
+      (d) => writeFile(join(d, "data.json"), "{}\n"),
+      "v3",
+    );
+    // mission-control now points at another repository and has no db.
+    await ok(
+      fixture.at("mission-control"),
+      "remote",
+      "set-url",
+      "origin",
+      "git@github.com:Alpha/other.git",
+    );
+    await rm(fixture.at("mission-control/db"), {
+      recursive: true,
+      force: true,
+    });
+    // workspace/linked is a linked worktree of web, not a primary checkout.
+    await ok(
+      fixture.at("workspace/web"),
+      "worktree",
+      "add",
+      "--quiet",
+      "--detach",
+      fixture.at("workspace/linked"),
+    );
+    const host: SyncHost = {
+      ...fixture.host,
+      github: stubGitHub(current, {
+        repositories: {
+          "Alpha/mission-control-data": {},
+          "Alpha/linked-data": {},
+        },
+      }).github,
+    };
+    const run = await ran({ ...fixture, host });
+    expect(byPath(run.entries)).toMatchObject({
+      "mission-control": "blocked:unexpected-checkout",
+      "mission-control/db": "absent",
+      "workspace/linked": "blocked:unexpected-checkout",
+      "workspace/linked/db": "absent",
+    });
+    expect(await exists(fixture.at("mission-control/db"))).toBe(false);
+    expect(await exists(fixture.at("workspace/linked/db"))).toBe(false);
+  },
+  60_000,
+);
+
+posixTest(
+  "a data mount is never cloned below a module blocked by its own state, whose remote this run did not read",
+  async () => {
+    world = await createWorld();
+    const current = world;
+    const fixture = await organization(current, {
+      modules: ["plans"],
+      extraSlots: [
+        {
+          path: "workspace/plans/db",
+          slug: "plans-data",
+          materialization: "repository_db_mount",
+          git: { url: "git@github.com:Alpha/plans-data.git", branch: "v3" },
+        },
+      ],
+    });
+    await remoteRepository(
+      current,
+      "Alpha/plans-data",
+      (d) => writeFile(join(d, "data.json"), "{}\n"),
+      "v3",
+    );
+    // The module has local changes: its remote is never asked, so whether
+    // this identity may read it is unknown.
+    await writeFile(fixture.at("workspace/plans/notes.txt"), "local\n");
+    const host: SyncHost = {
+      ...fixture.host,
+      github: stubGitHub(current, {
+        repositories: { "Alpha/plans-data": {} },
+      }).github,
+    };
+    const run = await ran({ ...fixture, host });
+    expect(byPath(run.entries)).toMatchObject({
+      "workspace/plans": "blocked:dirty",
+      "workspace/plans/db": "absent",
+    });
+    expect(await exists(fixture.at("workspace/plans/db"))).toBe(false);
+    // Clean again: its remote is read, and the data mount follows.
+    await rm(fixture.at("workspace/plans/notes.txt"));
+    const clean = await ran({ ...fixture, host });
+    expect(byPath(clean.entries)).toMatchObject({
+      "workspace/plans": "current",
+      "workspace/plans/db": "materialized",
+    });
+  },
+  60_000,
+);
+
+posixTest(
+  "a checkout that appears while its module is cloned gets the full check of a present one, and no data mount is cloned below it unverified",
+  async () => {
+    world = await createWorld();
+    const current = world;
+    const fixture = await organization(current, {
+      extraSlots: [
+        slot("workspace/plans", "Alpha/plans"),
+        {
+          path: "workspace/plans/db",
+          slug: "plans-data",
+          materialization: "repository_db_mount",
+          git: { url: "git@github.com:Alpha/plans-data.git", branch: "v3" },
+        },
+      ],
+    });
+    const plans = await remoteRepository(current, "Alpha/plans", async (d) => {
+      await writeModule(d, "alpha", { id: "plans" });
+      await writeFile(join(d, ".gitignore"), "db/\n");
+    });
+    await remoteRepository(
+      current,
+      "Alpha/plans-data",
+      (d) => writeFile(join(d, "data.json"), "{}\n"),
+      "v3",
+    );
+    const host: SyncHost = {
+      ...fixture.host,
+      github: stubGitHub(current, {
+        repositories: { "Alpha/plans": {}, "Alpha/plans-data": {} },
+      }).github,
+    };
+    // While the run is about to clone the module, someone else puts a dirty
+    // checkout of it there, and its remote stops answering this identity.
+    let placed = false;
+    const run = await syncContent(fixture.folder, host, {
+      onProgress: (progress) => {
+        if (
+          placed ||
+          progress.path !== "workspace/plans" ||
+          progress.step !== "cloning"
+        )
+          return;
+        placed = true;
+        const clone = Bun.spawnSync(
+          [
+            "git",
+            "clone",
+            "--quiet",
+            "git@github.com:Alpha/plans.git",
+            fixture.at("workspace/plans"),
+          ],
+          { env: { ...process.env, ...current.gitEnv } },
+        );
+        if (clone.exitCode !== 0) throw new Error(clone.stderr.toString());
+        Bun.spawnSync(["sh", "-c", `echo local > notes.txt`], {
+          cwd: fixture.at("workspace/plans"),
+        });
+        Bun.spawnSync(["mv", plans, `${plans}.aside`]);
+      },
+    });
+    if (run.kind !== "content-sync") throw new Error(run.kind);
+    expect(placed).toBe(true);
+    expect(byPath(run.entries)).toMatchObject({
+      "workspace/plans": "blocked:dirty",
+      "workspace/plans/db": "absent",
+    });
+    expect(await exists(fixture.at("workspace/plans/db"))).toBe(false);
   },
   60_000,
 );

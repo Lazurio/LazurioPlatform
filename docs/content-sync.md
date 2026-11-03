@@ -12,7 +12,9 @@ runs, and `lazurio organization sync` runs the same core explicitly ([Synchroniz
 Declared data mounts are included when clean. `lazurio organization install`,
 `lazurio personalspace install` and the Launchpad's `/api/content*` routes materialize
 absent repositories as described in [Installation](#installation--implemented-2026-10-04);
-synchronization never does. This document is the contract for both operations and for
+since [F9's addendum of 2026-11-01](decisions.md#addendum-of-2026-11-01-a-synchronization-clones-a-declared-module-once-it-is-readable)
+synchronization also clones a declared module or data mount that is absent once this
+Environment's identity can read it ([Synchronization](#synchronization--implemented-2026-10-24)). This document is the contract for both operations and for
 their separation from product update. See
 [decision F9](decisions.md#f9--update-lazurio-and-synchronize-content-are-separate-operations).
 
@@ -62,8 +64,10 @@ Agent invokes `lazurio organization sync`, and, since [F9's second amendment](de
   `src/content/open-sync.ts`).
 
 Nothing else synchronizes: no first render, status request, health check, login,
-`lazurio update --version` or installation fetches anything, and no caller materializes
-an absent repository, which stays the explicit installation. Read-only inspection (the doctor, a module's page) reports the
+`lazurio update --version` or installation fetches anything. Of an absent repository,
+only a readable, not restricted workspace module, root-level application or data mount is
+cloned by a synchronization (*amended on 2026-11-01*, [F9's addendum](decisions.md#addendum-of-2026-11-01-a-synchronization-clones-a-declared-module-once-it-is-readable));
+everything else stays the explicit installation. Read-only inspection (the doctor, a module's page) reports the
 last recorded answer; it fetches nothing.
 
 ## Hierarchy
@@ -186,7 +190,9 @@ be converted to a build anyway.
 Each repository returns exactly one of `materialized`, `fast-forwarded`, `current`,
 `blocked` (dirty, wrong-branch, diverged, detached, operation in progress, occupied
 destination), `denied`, `unavailable` or `failed`, with locale-neutral reason codes.
-Synchronization adds `absent` (declared, not in the Folder, never cloned by it) and
+Synchronization adds `absent` (declared, not in the Folder and not cloned by it: this
+identity cannot read it, `repository-denied`, or it is restricted, below a module that is
+not here, or on a Team Environment) and
 answers `blocked` with `dirty`, `wrong-branch`, `ahead`, `diverged`, `detached`,
 `operation-in-progress` or `unexpected-checkout`.
 CLI and Launchpad invoke the same use case and return equivalent results.
@@ -216,6 +222,9 @@ fast-forwarded stops its Organization. Then, from the root's declaration as it i
 that, its workspace modules and root-level applications (`mission-control`,
 `design-system`) on `main` and their declared data mounts on their declared branch,
 those with a GitHub remote, four at a time. A child's answer never stops its siblings.
+*Amended on 2026-10-31 ([F67](decisions.md#f67--guest-modules-another-organizations-module-in-the-hosts-workspace-kept-current-never-run)):*
+a guest Module of another Organization (`workspace/<Home>_GEN3/<module>`) and its data
+mount are workspace children like any other, through the same identity and rules.
 
 **Per repository** (`syncCheckout`), never interactive (`GIT_TERMINAL_PROMPT=0`, no
 askpass, SSH with `BatchMode=yes` added to the person's own SSH command) and bounded to
@@ -243,6 +252,17 @@ about a minute:
    `from` and `to`. A fetch that shows divergence leaves only the remote-tracking ref
    moved.
 
+**An absent repository** (*amended on 2026-11-01*, [F9's addendum](decisions.md#addendum-of-2026-11-01-a-synchronization-clones-a-declared-module-once-it-is-readable)):
+nothing at the place (for a data mount, nothing or an empty directory) is cloned by
+installation's `provideRepository` when the slot is not restricted, the Environment is not
+a Team Environment (public or not) and, for a data mount, this run verified its module's
+primary checkout of the declared repository and read its remote (not one blocked by its
+own state): GitHub is asked once,
+the clone goes to a temporary sibling on the declared branch and is published by a
+no-replace rename. `materialized` with `to` when it is; `absent` with `repository-denied`
+when this identity cannot read it, quietly (no doctor finding, `since` kept), and asked
+again at the next round. Modules run before data mounts, so both arrive in one run.
+
 GitHub refusing the identity (`repository-denied`), the network or GitHub not answering
 in time (`remote-unavailable`), a missing branch (`remote-branch-missing`) and any other
 failure leave the checkout as it is.
@@ -265,7 +285,7 @@ detached).
 **The surfaces.** `lazurio organization sync [<github-login>] [--folder <Folder>]
 [--json]`: one line per repository, then the result (with `--json` one line
 `{kind: "content-sync", at, organizations, entries}`); exit 0 when every repository is
-current, fast-forwarded or absent, 1 otherwise (also `content-busy` and an Organization
+current, fast-forwarded, materialized or absent, 1 otherwise (also `content-busy` and an Organization
 the Folder does not hold, `organization-missing`), 2 usage or not on this Environment.
 The Launchpad runs it only when installed (`launchpad --base`), with that base's
 content lock, at its first sweep and then at the first sweep an hour
@@ -368,7 +388,11 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
    its module (B7, amended 2026-10-17): materialized on its declared `git.branch`
    (often `v3`) by the same function as the modules when the module is materialized or
    present in this install, `excluded` when it is not; an empty directory at its place
-   counts as absent. A present checkout is reported as for any child (`present`, or
+   counts as absent. A guest Module of another Organization
+   (`workspace/<Home>_GEN3/<module>` with `home_organization`, decision F67) and its data
+   mount (`…/<module>/db`) are children like a workspace module and its mount, cloned
+   with this Environment's identity; a repository it cannot read is `denied` for that
+   slot alone. A guest is never prepared. A present checkout is reported as for any child (`present`, or
    `blocked` for another repository) and never changed. `infra` and a database slot
    declared otherwise are left out (`excluded`). The role scope comes first: a restricted (Admin-only,
    `default_access` `restricted` or `private`) slot and every slot below it are in

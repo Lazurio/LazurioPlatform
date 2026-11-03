@@ -469,12 +469,14 @@ const record = (value: unknown): Readonly<Record<string, unknown>> =>
     : {};
 
 // The declared children content installation materializes (decision F33,
-// 1.1 point 4): workspace modules, the root-level applications
-// (`mission-control`, `design-system`), the Production Space repositories
-// and the declared data mount of a module (`materialization:
-// "repository_db_mount"` at `mission-control/db` or `workspace/<module>/db`,
-// launchpad-parity B7), on its declared branch and only below a module that
-// is there after the same install. `infra` and a database slot declared
+// 1.1 point 4): workspace modules, guest Modules of another Organization
+// (`workspace/<Home>_GEN3/<module>`, DEV-6694) as any workspace module, the
+// root-level applications (`mission-control`, `design-system`), the
+// Production Space repositories and the declared data mount of a module
+// (`materialization: "repository_db_mount"` at `mission-control/db`,
+// `workspace/<module>/db` or a guest's `…/<module>/db`, launchpad-parity
+// B7), on its declared branch and only below a module that is there after
+// the same install. `infra` and a database slot declared
 // otherwise are left out. The role scope comes first, as the resident applies it
 // (`R:lazurio/runtime/lazurio-update-lib.mjs`, restricted slot policy): a
 // restricted (Admin-only) slot and every slot below one are in scope only for
@@ -527,12 +529,14 @@ export function declaredChildren(
       slot.scope === "productionspace" ? "productionspace" : "module";
     const access = boundary(slot.path);
     const mount = dataMountOf(declaration);
-    // Only the data mount of a module: a workspace module or a root-level
-    // application directly above it.
+    // Only the data mount of a module: a workspace module, a guest Module
+    // (whose path names its home) or a root-level application directly
+    // above it.
     const data =
       mount !== null &&
       (rootApplicationPaths.has(mount.parent) ||
-        /^workspace\/[^/]+$/.test(mount.parent))
+        /^workspace\/[^/]+$/.test(mount.parent) ||
+        slot.home !== undefined)
         ? Object.freeze({ parent: mount.parent, branch: mount.branch })
         : undefined;
     children.push(

@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { type PresetName, presetNames } from "../folder/presets";
-import { readStateJson } from "../folder/read-state";
+import { readStateDocument } from "../folder/read-state";
 import {
   instructionTemplateRevision,
   isTemplateRevision,
@@ -11,6 +11,7 @@ import {
   parseFolderPreferences,
   parseInstructionManifest,
 } from "../folder/state";
+import { folderStateRefusal } from "../folder/state-error";
 import { type ErrorContext, UpdateFailure } from "../update/errors";
 import { isProductVersion, type ProductIdentity } from "../update/identity";
 import { layout, versionExecutable } from "../update/layout";
@@ -99,14 +100,25 @@ export async function observeFolder(
   let preferences: FolderPreferences;
   let manifest: ReturnType<typeof parseInstructionManifest>;
   try {
-    preferences = parseFolderPreferences(
-      await readStateJson(state, "preferences.json"),
+    preferences = await readStateDocument(
+      state,
+      "preferences.json",
+      parseFolderPreferences,
     );
-    manifest = parseInstructionManifest(
-      await readStateJson(state, "instructions.json"),
+    manifest = await readStateDocument(
+      state,
+      "instructions.json",
+      parseInstructionManifest,
     );
-  } catch {
-    return none(failed("folder-state", "folder-state-unreadable"));
+  } catch (error) {
+    // Which document, what about it and which template wrote it (#782).
+    return none(
+      failed(
+        "folder-state",
+        "folder-state-unreadable",
+        folderStateRefusal(error),
+      ),
+    );
   }
   const facts: FolderFacts = Object.freeze({
     preset: oneOf(presetNames, preferences.preset.name),

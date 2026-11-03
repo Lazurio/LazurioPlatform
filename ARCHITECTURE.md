@@ -75,7 +75,7 @@ identity schema. Identity and Owner/Team names do not grant access. See the
 entrypoint and protected empty-layout initialization. Existing residents remain
 until their Platform replacement is qualified; current rollouts do not wait for it.
 
-This boundary is accepted in [canonical decision 0144](https://github.com/HumanAndMachines/Lazurio/blob/main/manual/decision-register.md).
+This boundary is accepted in decision 0144 of the [decision register](docs/decision-register.md).
 Machines delivers the Machine online with its handover identity and selected installed
 Platform release. The local `lazurio` CLI and the user own Environment setup and
 updates afterwards; Machines is not a second Organization/module reconciler.

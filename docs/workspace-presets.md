@@ -271,8 +271,8 @@ above applies.
 
 | | Where it comes from | Launchpad |
 | --- | --- | --- |
-| Machine identity: kind, name, Owner (a user or Organization + Team), tailnet node, host | The handover, recorded at adoption as part of the **Machine binding**; immutable | Shown only |
-| Assignment and relationships when the handover carries them, handover digest | The current handover; `machine folder-refresh` re-records them in the binding | Shown only |
+| Machine identity: kind, name, Owner (a user or Organization + Team), tailnet node | The handover, recorded at adoption as part of the **Machine binding**; immutable | Shown only |
+| Host (where the Machine runs, decision F10's addendum of 2026-11-01), assignment and relationships when the handover carries them, handover digest | The current handover; `machine folder-refresh` re-records them in the binding | Shown only |
 | Preset | Derived, confirmed or explicitly chosen among the selectable presets; a recorded one stays valid within the allow-list | Changeable through the ordinary preview → apply profile change, to the recorded preset or a selectable one; fixed on a public Environment (the Try overlay) |
 | Communication axes `locale`, `detail`, `coordination` | Preset defaults, then the user | Changeable through the same flow |
 | Fixed axes `access`, `purpose` | The preset's composition | Not controls; a request whose fixed axes disagree with the preset is a blocked plan |

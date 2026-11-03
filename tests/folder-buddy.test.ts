@@ -233,7 +233,7 @@ test(".hermes.md carries Buddy's role about the user: coordinator, bots, threads
     "Hermes, gbrain ani služby Prostředí sám neaktualizuješ, nezastavuješ ani nerestartuješ: jejich verze spravuje Lazurio.",
     "Do gbrainu neukládáš tajné údaje ani přechodný stav úkolu jako trvalou pravdu.",
     "„Hotovo“ hlásíš, jen když je to ověřené. Hlášení bota o sobě samém není důkaz.",
-    "„Buddy za <jméno uživatele ve 4. pádě>“",
+    "píšeš jako člověk člověku",
     "Neimplementuješ sám",
     "`~/Lazurio`",
     "`~/Lazurio/.agents/buddy/`",
@@ -258,25 +258,55 @@ test(".hermes.md carries Buddy's role about the user: coordinator, bots, threads
   ])
     expect(en).toContain(phrase);
   // Lazurio/LazurioPlatform#612: in his own chat Buddy speaks only his own
-  // words: no commands in his greeting, no mark under his messages; the mark
-  // goes only into what he writes for the user for others, and T3 Code from
-  // 0.1.1-lazurio.2 shows it there itself.
+  // words: no commands in his greeting, no mark under his messages. #708: what
+  // he writes to other people for the user reads like a person and carries no
+  // mark either; T3 Code shows the mark in threads and approvals itself.
   for (const phrase of [
     "Příkazy (třeba `/help`)",
     "Svoje zprávy uživateli nepodepisuješ",
-    "za uživatele napíšeš nebo schválíš pro jiné",
-    "T3 Code od verze 0.1.1-lazurio.2 ukazuje stopu",
+    "Co za uživatele píšeš jiným lidem",
+    "ve vláknech T3 Code a u schválení ukazuje stopu T3 Code sám",
   ])
     expect(cs).toContain(phrase);
   for (const phrase of [
     "commands (`/help`), tools, settings, models or Hermes only when the user asks",
-    "You never sign your messages to the user",
-    "for the user for others",
-    "T3 Code from version 0.1.1-lazurio.2 shows the mark itself",
+    "Your messages to the user carry no signature and no “Buddy za …” mark.",
+    "To other people you write for the user like a person",
+    "in T3 Code threads and approvals T3 Code shows that mark itself",
   ])
     expect(en).toContain(phrase);
   expect(cs).not.toContain("dokud T3 Code neukazuje stopu sám");
   expect(en).not.toContain("until T3 Code shows the mark itself");
+});
+
+test(".hermes.md: a message to another person for the user reads like one person to another, signed „Buddy“, never with a „Buddy za“ line (#708), in both locales", () => {
+  // The Organization Admin's decision of 2026-10-28 (Lazurio/LazurioPlatform#708):
+  // a greeting by name, one plain sentence that the user asked Buddy, friendly
+  // words, the signature „Buddy“. The example keeps the user out of a gendered
+  // past tense, as the persona asks.
+  const cs = scriptLayer("cs")[buddyRulesPath];
+  const en = scriptLayer("en")[buddyRulesPath];
+  for (const phrase of [
+    "píšeš jako člověk člověku",
+    "pozdrav se jménem",
+    "<jméno uživatele> mě prosí",
+    "na konci podpis „Buddy“",
+    "Řádek „Buddy za …“ do nich nepatří",
+  ])
+    expect(cs).toContain(phrase);
+  for (const phrase of [
+    "like a person",
+    "a greeting by name",
+    "<the user's name> asked me to",
+    "signed “Buddy”",
+    "no “Buddy za …” line",
+  ])
+    expect(en).toContain(phrase);
+  expect(cs).not.toContain(
+    "nese stopu „Buddy za <jméno uživatele ve 4. pádě>“",
+  );
+  expect(en).not.toContain("carries the mark “Buddy za <the user's name>”");
+  expect(cs).not.toContain("mě poprosil");
 });
 
 test(".hermes.md says how Buddy works with gbrain, in both locales, and no file the other agents read carries it: they use gbrain only on the user's explicit word", () => {

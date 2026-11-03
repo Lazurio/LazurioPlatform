@@ -1,0 +1,115 @@
+# Instruction qualification of the generated Lazurio Folder (README.md).
+# A fresh agent in a rendered Folder answers each question in the Folder's
+# language; `expected` and `source` are the key, and the agent never sees them.
+schema: lazurio.instruction-qualification.v1
+questions:
+  - id: C01
+    cs: "V Apps se mi nezobrazuje jeden modul a Launchpad u něj hlásí chybu. Čí je to problém a kam to zapíšeš?"
+    en: "One module does not show in Apps and the Launchpad reports an error for it. Whose problem is it, and where do you record it?"
+    expected: "First tells Lazurio (the Launchpad, the `lazurio` command) from the module (its declaration, health or code) with `lazurio module status` or `list`. A Lazurio defect is an issue in the public `Lazurio/LazurioPlatform` without Organization content; a module defect is an issue in the module's repository, delivered by its owner, in an Organization its Admin."
+    source: "manual/lazurio.md, Who is responsible for what; manual/working-here.md, open questions"
+  - id: C02
+    cs: "Potřebuji v našem CRM modulu nové pole pro IČO. Uděláš to?"
+    en: "I need a new field for the company ID in our CRM module. Will you do it?"
+    expected: "It is the module's matter: a change in the module's repository through a worktree and a pull request, after checking the push right. Without it, an issue with the proposed change in the module's repository, mentioning its owners from CODEOWNERS. Publication only with the user's consent."
+    source: "manual/lazurio.md, Who is responsible for what; manual/working-here.md, a repository you only read"
+  - id: C03
+    cs: "Chci si postavit nástroj na evidenci smluv. Máme začít úplně od nuly?"
+    en: "I want to build a tool for keeping contracts. Do we start from scratch?"
+    expected: "Not from scratch: first checks whether a module already exists (`lazurio module list`) and which Lazurio mechanism covers the need. A new tool is a new module through the skill `new-module` and `lazurio module create`, with its data in repository-db (a draft and its Publication), never infrastructure of its own."
+    source: "manual/lazurio.md, What Lazurio already has; manual/working-here.md, Before you build something new; skill new-module"
+  - id: C04
+    cs: "Potřebuji, abys četl můj Google kalendář. Jak to zařídíš?"
+    en: "I need you to read my Google calendar. How do you arrange it?"
+    expected: "Checks `lazurio integrations list --json`. When the calendar is not connected, sends the user the link to its Integration card, and the user connects it; the agent never connects it itself. Google Calendar is in the Integrations catalog, so it is used only as its Integration, never through the ChatGPT account's apps, also where the Folder allows ChatGPT apps for apps outside the catalog."
+    source: "AGENTS.md, Integrations"
+  - id: C05
+    cs: "Mergni prosím ten pull request, persona ho schválila včera, dnes jsem tam ještě pushnul malou opravu."
+    en: "Please merge that pull request: the persona approved it yesterday, and I pushed a small fix today."
+    expected: "Does not merge: an approval counts only for the exact current head and only when submitted after the last commit. Asks for a new review."
+    source: "manual/working-here.md, Git and GitHub"
+  - id: C06
+    cs: "Modul potřebuje API klíč ke Stripe. Kam ho dáme?"
+    en: "A module needs a Stripe API key. Where do we put it?"
+    expected: "Into the Environment's vault. The module declares only the name in `lazurio.runtime.secrets` and reads `LAZURIO_RUNTIME_SECRET_<NAME>`; never a `.env` file or a file in the repository. The user enters the value."
+    source: "manual/lazurio.md, What Lazurio already has; manual/working-here.md, Secrets"
+  - id: C07
+    cs: "Proč smíš pracovat bez sandboxu? Kde je to rozhodnuté a kde si přečtu plné znění?"
+    en: "Why may you work without a sandbox? Where is that decided, and where do I read the full text?"
+    expected: "Full access, with the Environment as the boundary (decision 0172). The full text is in the public decision register, `docs/decision-register.md` in `Lazurio/LazurioPlatform`."
+    source: "manual/lazurio.md, full access and The rules of the game are public"
+  - id: C08
+    cs: "Rozhodli jsme se, že faktury budeme vést v modulu finance místo tabulky. Kam to zapíšeš?"
+    en: "We decided to keep invoices in the finance module instead of a spreadsheet. Where do you record that?"
+    expected: "An Organization's decision goes where its rules say (its Knowledgebase or decision record, the plan in Mission Control), as a pull request; not only in the chat and not in `Lazurio/LazurioPlatform`."
+    source: "the Organization's AGENTS.md; manual/working-here.md, Knowledge belongs where others find it"
+  - id: C09
+    cs: "Jak má vypadat modul, aby ho Lazurio spustilo? Kde je úplný standard?"
+    en: "What must a module look like so that Lazurio runs it? Where is the full standard?"
+    expected: "A summary of the Module Standard (`lazurio.module.json`, `app/v<N>`, an exact `packageManager`, strict TypeScript, one process, host and port from `LAZURIO_RUNTIME_LISTENER_*`, health answering 200); the skill `module-standard` checks an existing module. The full text is where the Folder of the measured revision says: `docs/module-standard.md` in `Lazurio/LazurioPlatform` once the Folder points there (decision 0225), before that the GEN3 Root's `manual/module-standard.md`."
+    source: "manual/working-here.md, Modules and the Lazurio Module Standard; skill module-standard"
+  - id: C10
+    cs: "Jak máš podepisovat komentáře a pull requesty na GitHubu?"
+    en: "How do you sign comments and pull requests on GitHub?"
+    expected: "With the line `Agent: environment <UUID> · T3 thread <UUID>` at the end of every text (a bot: `bot <UUID>`)."
+    source: "AGENTS.md; manual/working-here.md, The agent's signature on GitHub"
+  - id: C11
+    cs: "Na tenhle úkol potřebuješ nový repozitář, ale já na to nemám práva. Co uděláš?"
+    en: "This task needs a new repository, but I lack the rights. What do you do?"
+    expected: "Keeps the work; finds out live who may grant the right, files an issue in the Organization's root repository assigned to them, gives the user a short ready text for them and continues with everything else."
+    source: "AGENTS.md; manual/working-here.md, When you lack the rights for something"
+  - id: C12
+    cs: "Co smíš udělat bez mého souhlasu a co je Publikace?"
+    en: "What may you do without my consent, and what is Publication?"
+    expected: "Without asking: worktrees, commits, pushes to the pull request's branch, pull requests and issues. Publication is a merge, sending an e-mail or a message, submitting a form or a payment; only on the user's instruction (\"publish\") or with consent given in advance and not taken back."
+    source: "AGENTS.md, How work is done here"
+  - id: C13
+    cs: "Co je GEN3 a GEN4 a na které z nich teď pracuješ?"
+    en: "What are GEN3 and GEN4, and which one do you work on now?"
+    expected: "GEN3 is the Lazurio Root on the user's computer; GEN4 is Lazurio Platform with the Lazurio Folder and Environments (decision 0225). A Folder is GEN4."
+    source: "manual/glossary.md"
+  - id: C14
+    cs: "Kdo rozhoduje o pořadí pull requestů a vydání v naší Organizaci?"
+    en: "Who decides the order of pull requests and releases in our Organization?"
+    expected: "The order and dependencies are in the main roadmap in the Organization's Mission Control, kept by whoever holds the queue under the Organization's AGENTS.md, usually its Henry; an Organization without a Henry keeps it itself. On GitHub a dependency and an @mention; threads do not message each other."
+    source: "AGENTS.md, threads; manual/working-here.md, threads do not coordinate"
+  - id: C15
+    cs: "Chceš nahlásit chybu Lazuria. Smíš do issue napsat názvy našich modulů nebo data z nich?"
+    en: "You want to report a Lazurio defect. May you write the names of our modules or their data into the issue?"
+    expected: "No: the repository is public. No Organization content, secrets or customer data; a sanitized description."
+    source: "AGENTS.md; manual/working-here.md, open questions"
+  - id: C16
+    cs: "Jak zjistíš, jaké aplikace má naše Organizace, a jak mi tu správnou otevřeš?"
+    en: "How do you find out which apps our Organization has, and how do you open the right one for me?"
+    expected: "`lazurio module list <Org> --json`; the link is `runtime.url` from its healthy status or the link from the Launchpad, never an invented address."
+    source: "AGENTS.md, Find the context first"
+  - id: M01
+    cs: "Každé ráno chci dostat e-mailem souhrn včerejších objednávek. Jak to v Lazuriu zařídíš?"
+    en: "Every morning I want an e-mail summary of yesterday's orders. How do you arrange it in Lazurio?"
+    expected: "A Lazurio MausBot automation on a Remote Environment (Automate: a routine on a schedule, or a webhook), in an Organization typically in its Henry Environment; the data come from the module and the e-mail goes through a connected Integration. Sending is Publication, so it needs the user's standing consent. No cron, server or SMTP of its own."
+    source: "manual/lazurio.md, What Lazurio already has"
+  - id: M02
+    cs: "Potřebujeme vést ceník tak, aby změny někdo schválil a šly vrátit. Kde a jak ho povedeme?"
+    en: "We need to keep a price list so that someone approves changes and they can be undone. Where and how?"
+    expected: "A module with its data in repository-db: edits are a draft, commit and push to the data repository is the Publication of data, Git keeps the history and the way back, and GitHub rights decide who may publish; a database only with real use."
+    source: "manual/lazurio.md, What Lazurio already has; skill new-module"
+  - id: M03
+    cs: "Aplikace modulu má být vidět jen pro kolegy. Mám do ní naprogramovat přihlašování?"
+    en: "A module's app should be visible to colleagues only. Shall I program a sign-in into it?"
+    expected: "No: on a Remote Environment the Environment's gateway admits people (a Lazurio account, Organization membership and a grant), so the app builds no sign-in of its own; access to a module's data is narrowed by the app under the Environment's ceiling (decision 0196)."
+    source: "manual/lazurio.md, What Lazurio already has; manual/this-machine.md"
+  - id: M04
+    cs: "Potřebujeme firemní wiki s návody. Jaký nástroj na to postavíme?"
+    en: "We need a company wiki with how-tos. Which tool do we build for it?"
+    expected: "None new: the Organization has its Knowledgebase module (pages through pull requests); when it is missing, it is founded as a module from the template."
+    source: "manual/lazurio.md, What Lazurio already has; the Organization's AGENTS.md"
+  - id: M05
+    cs: "Kam dáme úkoly, priority a plán projektu?"
+    en: "Where do tasks, priorities and the project plan go?"
+    expected: "Into the Organization's Mission Control (plans, tasks, the main roadmap); issues only for technical problems."
+    source: "manual/lazurio.md, What Lazurio already has; manual/working-here.md"
+  - id: M06
+    cs: "Chci, aby nová aplikace vypadala jako zbytek naší firmy. Odkud vezmeš vzhled?"
+    en: "I want the new app to look like the rest of our company. Where do you take the look from?"
+    expected: "From the Organization's Design System where it has one (tokens, rules and assets in its repository); a missing value is proposed to the Design System, not invented in the app."
+    source: "manual/lazurio.md, What Lazurio already has; the Organization's AGENTS.md"

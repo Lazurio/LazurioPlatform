@@ -401,6 +401,7 @@ test("a healthy Environment: ok, exit 0, every group, the same answer in both fo
     "template-revision ok",
     "folder-state ok",
     "machine-binding skipped not-hosted",
+    "folder-top-level ok",
     "tool gh ok",
     "tool composio ok",
     // The Environment vault is offered in a Remote Environment on Linux
@@ -491,6 +492,55 @@ test("a pending Folder transaction is broken: exit 3, the tools still read", asy
   expect(result.human.split("\n")[0]).toBe(
     "Lazurio doctor: broken; lazurio recover prepares the repair.",
   );
+});
+
+// A Folder rendered by a newer template, with an output this version does
+// not render, named like private content (#782, #787 review).
+const privateLikeKeys = [".agents/skills/examplePrivateValue/SKILL.md"];
+async function renderedByANewerTemplate(folder: string) {
+  const instructions = join(folder, ".lazurio", "instructions.json");
+  const recorded = JSON.parse(await readFile(instructions, "utf8"));
+  await writeFile(
+    instructions,
+    JSON.stringify({
+      ...recorded,
+      templateRevision: "base-instructions-999999",
+      outputs: {
+        ...recorded.outputs,
+        [privateLikeKeys[0] as string]: "c".repeat(64),
+      },
+    }),
+    { mode: 0o600 },
+  );
+}
+const refusalContext = {
+  condition: "unknown-output",
+  file: "instructions.json",
+  area: "agents-skills",
+  recorded: "base-instructions-999999",
+};
+
+test("an unreadable Folder state: Doctor names its condition, in JSON and in words, never a recorded key", async () => {
+  const world = await createWorld();
+  await renderedByANewerTemplate(world.folder);
+  const result = await doctor(world);
+  expect(result.code).toBe(exitBroken);
+  expect(find(result.json, "folder-state")).toEqual({
+    id: "folder-state",
+    outcome: "fail",
+    reason: "folder-state-unreadable",
+    context: {
+      ...refusalContext,
+      product: instructionTemplateRevision,
+      newer: true,
+    },
+  });
+  expectTierOne(result.stdout, world);
+  expectSameAnswer(result.human, result.json);
+  for (const key of [...privateLikeKeys, "examplePrivateValue"]) {
+    expect([key, result.stdout.includes(key)]).toEqual([key, false]);
+    expect([key, result.human.includes(key)]).toEqual([key, false]);
+  }
 });
 
 test("a Folder state without its lock is not given one: taking the lock would create it", async () => {
@@ -783,6 +833,51 @@ test("the Personalspace's modules are never named or counted (launchpad-parity B
   expectTierOne(result.stdout, world);
   expectSameAnswer(result.human, result.json);
 });
+
+test.skipIf(process.platform === "win32")(
+  "hosted: a top-level entry the Folder does not own is reported, a workstation's own files are not",
+  async () => {
+    // Decision F10's addendum of 2026-11-03: such an entry no longer stops a
+    // refresh, so doctor names it instead.
+    const hosted = await createWorld({ hosted: true });
+    const clean = await doctor(hosted);
+    expect(find(clean.json, "folder-top-level")).toEqual({
+      id: "folder-top-level",
+      outcome: "ok",
+    });
+    await mkdir(join(hosted.folder, "drafts"));
+    await writeFile(join(hosted.folder, "poznámky.txt"), "not Lazurio's");
+    const foreign = await doctor(hosted);
+    expect(foreign.code).toBe(exitAttention);
+    expect(find(foreign.json, "folder-top-level")).toEqual({
+      id: "folder-top-level",
+      outcome: "warn",
+      reason: "foreign-entries",
+      context: { entries: 2, entry: "drafts" },
+    });
+    expectSameAnswer(foreign.human, foreign.json);
+    // A top level that cannot be listed is unknown, never `ok` (Pablo's
+    // review of #817); root lists any directory, so it is not tried there.
+    if (process.getuid?.() !== 0) {
+      await chmod(hosted.folder, 0o300);
+      try {
+        expect(find((await doctor(hosted)).json, "folder-top-level")).toEqual({
+          id: "folder-top-level",
+          outcome: "warn",
+          reason: "top-level-unreadable",
+        });
+      } finally {
+        await chmod(hosted.folder, 0o700);
+      }
+    }
+    const workstation = await createWorld();
+    await writeFile(join(workstation.folder, "notes.txt"), "the person's own");
+    expect(find((await doctor(workstation)).json, "folder-top-level")).toEqual({
+      id: "folder-top-level",
+      outcome: "ok",
+    });
+  },
+);
 
 test.skipIf(process.platform === "win32")(
   "hosted: the recorded binding against the live handover, by reason only",

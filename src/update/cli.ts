@@ -1,4 +1,5 @@
 import { lstat, mkdtemp, rm } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { handoverBrowserEntry } from "../browser/entry";
@@ -23,10 +24,20 @@ import {
 import { type ExecutorHost, executorStatus } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
 import {
+  foreignEntriesText,
+  foreignEntriesUnreadableText,
+} from "../folder/foreign-entries";
+import {
   type FolderRefresh,
   folderRefreshText,
   shellWord,
 } from "../folder/refresh-needed";
+import {
+  describeFolderStateRefusal,
+  folderStateRefusal,
+  parseFolderStateRefusal,
+} from "../folder/state-error";
+import { FolderStateUnreadable } from "../folder/state-fields";
 import { LaunchpadStartRefused } from "../launchpad/start-check";
 import { hostedOperatorFolder } from "../machine/operator";
 import {
@@ -35,6 +46,16 @@ import {
   processModuleHost,
 } from "../modules/module-operations";
 import type { PersonalspaceHolderRead } from "../organizations/personalspace";
+import type { AccessServiceLocation } from "../ssh-access/access-service";
+import {
+  type EnvironmentSshLocation,
+  hasRouteFiles,
+} from "../ssh-access/environments";
+import {
+  liveRoutesSource,
+  type ReadRoutesSource,
+  type RoutesDeclaration,
+} from "../ssh-access/routes";
 import { runTool } from "../tools/status";
 import {
   type AttestationVerifier,
@@ -87,6 +108,7 @@ import {
 } from "./service-control";
 import {
   checkForUpdate,
+  type FolderForeignEntries,
   performUpdate,
   readStatus,
   type UpdateEnvironment,
@@ -339,6 +361,39 @@ export const executorAtStart =
  * itself then decides whether it needs a setup. */
 export const vaultAtStart = executorAtStart;
 
+/** What the Launchpad of this base finds for the Environment's routes on
+ * each tick (root decision 0224, decision F70's amendment of 2026-11-03,
+ * point 6): where it sets Executor up, what the live handover declares
+ * (`liveRoutesSource`), and a handover it cannot read throws, so the tick
+ * only lets expired routes go. Where it does not, `off` (it keeps no routes
+ * there) unless the Platform's route files are there: a missing or unreadable
+ * handover makes the hosted-operator check itself fail, and such a base was
+ * a hosted operator's, so it is `unconfirmed` and its tick still lets expired
+ * routes go. */
+export const routesAtStart =
+  (
+    context: CliContext,
+    base: string,
+    seams: Readonly<{
+      location?: EnvironmentSshLocation;
+      read?: ReadRoutesSource;
+    }> = {},
+  ) =>
+  async (): Promise<RoutesDeclaration> => {
+    const location = seams.location ?? {
+      home: homedir(),
+      uid: process.getuid?.(),
+    };
+    if (!(await executorAtStart(context, base)().catch(() => false)))
+      return (await hasRouteFiles(location))
+        ? { kind: "unconfirmed" }
+        : { kind: "off" };
+    const source = await (seams.read ?? liveRoutesSource())();
+    return Array.isArray(source)
+      ? { kind: "undeclared" }
+      : { kind: "declared", service: source as AccessServiceLocation };
+  };
+
 export async function updateEnvironment(
   context: CliContext,
   base: string,
@@ -475,10 +530,15 @@ function render(result: Result, json: boolean, human: string): CommandOutput {
   // The one context value a person needs: which state a person must look at.
   // What the other parts of `lazurio update` did stays on stdout.
   const path = error.context.path;
+  // A candidate that could not read the Folder's state says what about it.
+  const folderState =
+    error.context.reason === "folder-state"
+      ? parseFolderStateRefusal(error.context)
+      : undefined;
   return Object.freeze({
     code,
     ...(human === "" ? {} : { stdout: human }),
-    stderr: `Update failed: ${error.code}${path === undefined ? "" : ` (${path})`}`,
+    stderr: `Update failed: ${error.code}${path === undefined ? "" : ` (${path})`}${folderState === undefined ? "" : `: the new version cannot read the Folder's state: ${describeFolderStateRefusal(folderState)}`}`,
   });
 }
 
@@ -535,8 +595,19 @@ export async function selfCheckCommand(
       ),
     });
   } catch (error) {
-    // No reason is printed: it could quote Folder content or a private path.
-    // A refused Launchpad probe names only its enumerated condition.
+    // No error message is printed: it could quote Folder content or a
+    // private path. A refused Launchpad probe names only its enumerated
+    // condition. A Folder state this version cannot read names its document,
+    // its condition, the field or output it is about and the template
+    // revisions, each in a checked shape (#782).
+    if (error instanceof FolderStateUnreadable) {
+      const refusal = folderStateRefusal(error);
+      return Object.freeze({
+        code: exitFailure,
+        stdout: JSON.stringify({ folderStateRefused: refusal }),
+        stderr: `Self-check failed: the Folder's state cannot be read by this version: ${describeFolderStateRefusal(refusal)}`,
+      });
+    }
     return Object.freeze({
       code: exitFailure,
       ...(error instanceof LaunchpadStartRefused
@@ -974,6 +1045,7 @@ export async function runUpdateCommand(
                 ? [`state-invalid: ${status.stateInvalid}`]
                 : []),
               ...refresh(status.folderRefresh),
+              ...foreignLines(status.folderForeignEntries),
             ].join("\n")
           : "",
       );
@@ -1064,6 +1136,15 @@ function refreshLines(outcome: FolderRefreshOutcome | null): string[] {
   ];
 }
 
+/** A hosted Folder's foreign top-level entries (decision F10's addendum of
+ * 2026-11-03): one line naming them and where they belong. */
+function foreignLines(value: FolderForeignEntries | undefined): string[] {
+  if (value === undefined) return [];
+  return "unreadable" in value
+    ? [foreignEntriesUnreadableText(value.folder)]
+    : [foreignEntriesText(value.folder, value.entries)];
+}
+
 /** The product's own lines after `lazurio update`. */
 function productText(result: UpdateResult): string {
   return result.kind === "updated"
@@ -1074,6 +1155,7 @@ function productText(result: UpdateResult): string {
             : ""
         }`,
         ...refreshLines(result.folderRefresh),
+        ...foreignLines(result.folderForeignEntries),
         ...codexFinding(result.codexAppServer),
         ...browserFinding(result.environmentBrowser),
         ...computerUseFinding(result.computerUse),
@@ -1083,6 +1165,7 @@ function productText(result: UpdateResult): string {
       ? [
           `Lazurio ${result.running} is up to date.`,
           ...refreshLines(result.folderRefresh),
+          ...foreignLines(result.folderForeignEntries),
           ...codexFinding(result.codexAppServer),
           ...browserFinding(result.environmentBrowser),
           ...computerUseFinding(result.computerUse),

@@ -33,7 +33,7 @@ export const qualificationSchema = "lazurio.qualification.v1";
 export const journeys = ["J1", "J2", "J3", "J4", "J5", "J6"] as const;
 export type Journey = (typeof journeys)[number];
 
-/** The targets qualified on runners of their own: `ubuntu-24.04`, `macos-14`. */
+/** The targets qualified on runners of their own: `ubuntu-24.04`, `macos-15`. */
 export const qualifiedTargets = ["linux-x64", "darwin-arm64"] as const;
 
 /** `executable`: the journey ran the candidate's release executable.

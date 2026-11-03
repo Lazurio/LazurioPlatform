@@ -138,10 +138,10 @@ test("ui-craft's durations do not contradict each other: a dialog may take up to
   expect(cs).toContain("proto smějí mít až 500 ms");
 });
 
-test("a Folder of schema 3 gains ui-craft where nothing is there and is refused where something is", () => {
+test("a Folder of schema 4 gains ui-craft where nothing is there and is refused where something is", () => {
   const digest = "b".repeat(64);
   const previous = Object.fromEntries(
-    manifestOutputPaths[3].map((path) => [path, digest]),
+    manifestOutputPaths[4].map((path) => [path, digest]),
   );
   const desired = Object.fromEntries(
     outputPaths.map((path) => [path, digest]),

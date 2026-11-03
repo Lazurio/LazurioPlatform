@@ -133,7 +133,8 @@ export function checkDetail(check: FailedCheck): string {
   const { context } = check;
   // A refused Launchpad probe or start carries both a reason and the
   // refusal; two refusals are two faults, so both name the fingerprint.
-  const detail = [context.reason, context.refusal]
+  // An unreadable Folder state's condition is part of the fault too (#782).
+  const detail = [context.reason, context.refusal, context.condition]
     .filter((value) => value !== undefined)
     .map(String)
     .join("/");

@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, mkdir, open, readdir, rename } from "node:fs/promises";
 import { join } from "node:path";
-import { requireClaimedFolderBoundary } from "./handover-layout";
 import { withFolderOperationLock } from "./lock";
 import {
   ensureOutputDirectories,
@@ -91,11 +90,9 @@ export async function applyPreparationLocked(
       await syncDirectory(transaction);
       continue;
     }
-    // The claimed Folder boundary, re-checked before every replacement as
-    // initialization recovery does: time may have passed since preparation
-    // (an interrupted update or refresh resumed later), and a foreign
-    // top-level entry is refused by name with the journal left in place.
-    await requireClaimedFolderBoundary(folder, current.machine);
+    // A top-level entry the Folder does not own is never read, written or
+    // moved here, and it does not stop a replacement (decision F10's
+    // addendum of 2026-11-03): the outputs are owned paths only.
     // A skill's directories are created by the rename that first writes into
     // them (an upgrade from manifest schema 2); existing ones are checked.
     if (isOutputPath(item.name))
@@ -340,10 +337,8 @@ export async function resumePreparationLocked(
   );
   if (current.revision !== targetRevision)
     throw new Error("Recovery target revision mismatch");
-  // Recovery never proceeds past a foreign top-level entry of a hosted Folder,
-  // whatever step the interruption left: refused by name, journal and outputs
-  // left in place. Activation checks it again before every replacement.
-  await requireClaimedFolderBoundary(folder, current.machine);
+  // A top-level entry the Folder does not own does not stop recovery either:
+  // it is left exactly as it is (decision F10's addendum of 2026-11-03).
   if (pending) await applyPreparationLocked(folder, assertHeld);
   await finalizePreparationLocked(folder, targetRevision, assertHeld);
   return { kind: "recovered" as const, revision: targetRevision };

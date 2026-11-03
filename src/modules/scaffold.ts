@@ -935,10 +935,23 @@ function normalizePool(pool: PortPool | null): PortPool | null {
   return { start: pool.start, end: pool.end };
 }
 
+// A guest Module of another Organization (DEV-6694) is named in its home
+// Organization: its slug never takes one of the host's own, and its path
+// (`workspace/<Home>_GEN3/…`) is never a new module's.
 function assertSlotFree(slug: string, slots: readonly unknown[]) {
   const wanted = slug.toLowerCase();
   for (const item of Array.isArray(slots) ? slots : []) {
-    const slot = item as { path?: unknown; slug?: unknown } | null;
+    const slot = item as {
+      path?: unknown;
+      slug?: unknown;
+      home_organization?: unknown;
+    } | null;
+    if (
+      typeof slot === "object" &&
+      slot !== null &&
+      Object.hasOwn(slot, "home_organization")
+    )
+      continue;
     const path = typeof slot?.path === "string" ? slot.path : "";
     const names = [slot?.slug, posix.basename(path), path === "" ? null : path]
       .filter((name): name is string => typeof name === "string" && name !== "")

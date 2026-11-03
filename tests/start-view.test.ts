@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { aiSignInAfterReading } from "../src/launchpad/ai-sign-in";
 import type { ContentItem, ContentList } from "../src/launchpad/content-client";
 import type { ContentFact } from "../src/launchpad/content-view";
 import { messages } from "../src/launchpad/messages";
@@ -1084,4 +1085,98 @@ test("a GitHub sign-in that runs shows as running, its window closed or not, and
       en,
     )?.steps[1]?.status,
   ).toBe("Waiting for your confirmation.");
+});
+
+test("a CLI that is not installed: its sign-in is not offered, and a click that finds it missing says so instead of a failure to retry", () => {
+  const view = (overrides: Partial<StartFacts>, copy = cs) =>
+    startView(facts(overrides), copy);
+  const reading = (claude: "not-installed" | "signed-out") => ({
+    state: "missing" as const,
+    providers: [
+      { provider: "codex" as const, state: "signed-out" as const },
+      { provider: "claude" as const, state: claude },
+    ],
+  });
+  // Codex here, Claude Code not installed: only ChatGPT, with its code.
+  expect(view({ aiReading: reading("not-installed") })?.ai).toEqual({
+    kind: "choose",
+    cancel: false,
+    byCode: { hint: byCodeHint },
+    notInstalled: ["claude"],
+  });
+  // Both installed: both, as before.
+  expect(view({ aiReading: reading("signed-out") })?.ai).toEqual({
+    kind: "choose",
+    cancel: false,
+    byCode: { hint: byCodeHint },
+  });
+  // Neither installed: both stay, and a click says which one is missing.
+  expect(
+    view({
+      aiReading: {
+        state: "missing",
+        providers: [
+          { provider: "codex", state: "not-installed" },
+          { provider: "claude", state: "not-installed" },
+        ],
+      },
+    })?.ai,
+  ).not.toHaveProperty("notInstalled");
+  // The click found Claude missing before the reading said so: the step
+  // names it, offers ChatGPT and never "Zkusit znovu".
+  for (const [copy, status] of [
+    [
+      cs,
+      "Claude zatím není nainstalovaný v tomto Prostředí, proto se tu přihlásit nedá.",
+    ],
+    [
+      en,
+      "Claude is not installed in this Environment yet, so it cannot sign in here.",
+    ],
+  ] as const) {
+    const failed = view(
+      {
+        aiReading: reading("signed-out"),
+        aiSignIn: { kind: "failed", tool: "claude", reason: "not-installed" },
+      },
+      copy,
+    );
+    expect(failed?.steps[0]).toMatchObject({ mark: "failed", status });
+    expect(failed?.ai).toEqual({
+      kind: "choose",
+      cancel: false,
+      byCode: { hint: copy.startAiByCodeSetting },
+      notInstalled: ["claude"],
+    });
+  }
+  // Connected with ChatGPT: the line under the account, no retry.
+  const connected = view({
+    ai: "connected",
+    aiReading: {
+      state: "connected",
+      providers: [
+        { provider: "codex", state: "signed-in", method: "chatgpt" },
+        { provider: "claude", state: "not-installed" },
+      ],
+    },
+    aiSignIn: { kind: "failed", tool: "claude", reason: "not-installed" },
+  });
+  expect(connected?.steps[0]?.warning).toBe(
+    "Claude zatím není nainstalovaný v tomto Prostředí, proto se tu přihlásit nedá.",
+  );
+  expect(connected?.ai).toEqual({ kind: "connected" });
+  // Installed afterwards and "Zkontrolovat znovu": the fresh reading settles
+  // the failure (aiSignInAfterReading), and the step offers both again,
+  // nothing said, as for any Environment with both CLIs.
+  const settled = aiSignInAfterReading(
+    { kind: "failed", tool: "claude", reason: "not-installed" },
+    reading("signed-out"),
+  );
+  const again = view({ aiReading: reading("signed-out"), aiSignIn: settled });
+  expect(again?.steps[0]).toMatchObject({ mark: "now", status: null });
+  expect(again?.ai).toEqual({
+    kind: "choose",
+    cancel: false,
+    byCode: { hint: byCodeHint },
+  });
 });

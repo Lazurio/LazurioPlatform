@@ -199,7 +199,8 @@ async function provideAbsent(
 /** A declared repository database mount (`materialization:
  * "repository_db_mount"`) and the module it belongs to: the slot directly
  * above it (`workspace/<module>` for `workspace/<module>/db`,
- * `mission-control` for `mission-control/db`). Null for any other
+ * `mission-control` for `mission-control/db`, a guest Module's
+ * `workspace/<Home>_GEN3/<module>` for its `…/db`). Null for any other
  * declaration, and for a planned one. */
 export type DataMount = Readonly<{
   path: string;
@@ -220,12 +221,14 @@ export function dataMountOf(declaration: unknown): DataMount | null {
   )
     return null;
   const slot = declaration as Readonly<Record<string, unknown>>;
+  const place = classifyRepositorySlotPath(slot.path, slot.home_organization);
   if (
     slot.materialization !== "repository_db_mount" ||
     slot.status === "planned_slot" ||
-    typeof slot.path !== "string" ||
-    classifyRepositorySlotPath(slot.path) === null ||
-    !slot.path.endsWith("/db")
+    place === null ||
+    !place.path.endsWith("/db") ||
+    // A guest Module named `db` is no database of the folder above it.
+    (place.home !== undefined && !place.nestedDatabase)
   )
     return null;
   const git =
@@ -236,8 +239,8 @@ export function dataMountOf(declaration: unknown): DataMount | null {
       : {};
   const remote = git.url ?? slot.repo ?? slot.repository;
   return Object.freeze({
-    path: slot.path,
-    parent: slot.path.slice(0, -"/db".length),
+    path: place.path,
+    parent: place.path.slice(0, -"/db".length),
     repository:
       typeof remote === "string" ? githubRemoteCoordinate(remote.trim()) : null,
     branch: typeof git.branch === "string" ? git.branch : "main",

@@ -18,7 +18,12 @@ import { environmentName, switchTabs } from "../shell/view";
 import { type AiReading, parseAiAnswer } from "../tools/ai";
 import type { ToolsOverview } from "../tools/overview";
 import { accountWriter, readAccount } from "./account";
-import { aiSignInPlace, createAiSignIn } from "./ai-sign-in";
+import {
+  aiSignInPlace,
+  createAiSignIn,
+  createReadingOrder,
+  takeAiReading,
+} from "./ai-sign-in";
 import { personalHolderOf, pluralKey } from "./apps-view";
 import { bootElementId, parseBoot } from "./boot";
 import { createBrowserPanel } from "./browser-panel";
@@ -40,6 +45,8 @@ import {
   parseEntryAnswer,
   parsePromptHandoff,
 } from "./chat-view";
+import { createConnectionsPanel } from "./connections-panel";
+import { parseConnectionsOverview } from "./connections-view";
 import { type ContentTransport, createContentClient } from "./content-client";
 import { createContentPanel } from "./content-panel";
 import { prepareContext, preparePrompt } from "./content-view";
@@ -477,6 +484,8 @@ let contentSeen: ReturnType<typeof content.fact>["state"] = "loading";
 // before the first answer.
 let aiReading: AiReading | null = null;
 let aiRead = false;
+// Readings run side by side; the one shown is the freshest that answered.
+const aiReadings = createReadingOrder();
 const aiFact = (): AiFact =>
   aiReading === null ? (aiRead ? "unknown" : "loading") : aiReading.state;
 // The start of the content by itself (0201 point 3, `autoStartStep`): what
@@ -611,12 +620,27 @@ function startByItself() {
   if (step.start) void content.start();
 }
 async function readAi(fresh = false) {
+  const mine = aiReadings.ask(fresh);
+  // A fresh reading may settle only the sign-in state it began under.
+  const since = fresh ? aiSignIn.mark() : null;
   let read: AiReading | null = null;
   try {
     const { value, ok } = await get(fresh ? "/api/ai?fresh=1" : "/api/ai");
     read = ok ? parseAiAnswer(value) : null;
   } catch {}
   aiRead = true;
+  // A fresh answer settles the sign-in in any order (a CLI it finds can
+  // sign in again, unless the state changed while it ran); the reading shown
+  // is the freshest that answered (createReadingOrder).
+  const shown = takeAiReading(
+    aiReadings,
+    aiSignIn,
+    { reading: mine, since },
+    read,
+  );
+  // A failed request shows nothing, except that a page with no reading yet
+  // says the AI could not be checked.
+  if (!shown && !(read === null && aiReading === null)) return;
   if (read !== null || aiReading === null) aiReading = read;
   content.render();
   startByItself();
@@ -722,6 +746,8 @@ let vaultRow: StartVaultRow | null = null;
 let vaultBitwarden = false;
 let vaultPerson: VaultPagePerson | null = null;
 let sshDevices: number | null = null;
+// Telefon přes ChatGPT (decision F71) as Začínáme last read it.
+let phoneSummary: Readonly<{ ready: boolean; devices: number }> | null = null;
 // Composio's organization as Začínáme last read it (decision F42, note of
 // 2026-10-19), so that Composio signed in but not in the organization of the
 // Organization's name is not "Připojeno" there. Read each time Začínáme is
@@ -796,6 +822,7 @@ const startPanel = createStartPanel({
       : null,
   composio: () => composioFact(toolsOverview, composioOrganization.rule()),
   sshDevices: () => sshDevices,
+  phone: () => phoneSummary,
   vault: () => vaultRow,
   bitwarden: () => vaultBitwarden,
   reveal: () => vaultPage.revealBitwarden(),
@@ -953,14 +980,26 @@ async function readStartExtras() {
     vaultRow = null;
     vaultBitwarden = false;
     sshDevices = null;
+    phoneSummary = null;
     startPanel.render();
     return;
   }
   void composioOrganization.read(true);
-  const [vault, ssh] = await Promise.all([
+  const [vault, ssh, phone] = await Promise.all([
     get("/api/vault").catch(() => null),
     get("/api/ssh").catch(() => null),
+    get("/api/connections").catch(() => null),
   ]);
+  const phoneOverview = phone?.ok
+    ? parseConnectionsOverview(phone.value)
+    : null;
+  phoneSummary =
+    phoneOverview === null
+      ? null
+      : {
+          ready: phoneOverview.state === "ready",
+          devices: phoneOverview.devices.length,
+        };
   const model = vault?.ok ? parseVaultPage(vault.value) : null;
   const view = model === null ? null : vaultPageView(model, null, copy);
   vaultRow =
@@ -1321,6 +1360,15 @@ const ssh = createSshPanel({
   },
   origin: () => location.origin,
 });
+// Settings → Connections → Telefon přes ChatGPT (decision F71): read on
+// first view and after the pairing dialog closes.
+const connections = createConnectionsPanel({
+  get: (path) => get(path),
+  post: (path, body) => post(path, body),
+  copy: () => copy,
+  locale: () => locale,
+  computer: () => profileState !== null && profileState.preset !== "local",
+});
 // Apps → Vault, Apps → Trezor (root decision 0198 point 5, F53's addendum of
 // 2026-10-18): read on first view; the server adds the person the gateway
 // admitted to the vault.
@@ -1449,6 +1497,12 @@ const shell = createShell({
       void recovery.refresh();
     if (route.view === "settings" && route.section === "ssh" && !ssh.loaded)
       void ssh.refresh();
+    if (
+      route.view === "settings" &&
+      route.section === "connections" &&
+      !connections.loaded
+    )
+      void connections.refresh();
     if (route.view === "vault" && !vaultPage.loaded) void vaultPage.refresh();
     vaultRequests.show(route);
     if (route.view === "vault") vaultOpen?.setAttribute("aria-current", "page");
@@ -1611,6 +1665,7 @@ function relabel() {
   if (framed) drawGuide(shell.route());
   recovery.render();
   ssh.render();
+  connections.render();
   theme.render();
   vaultPage.render();
   if (framed) marketplace.render();
@@ -1673,6 +1728,8 @@ async function load() {
   // content operation as a person's work Environment.
   if (!first) void content.refresh();
   renderUpdate();
+  // Připojení offers Počítač by the preset (decision F71).
+  connections.render();
   if (relabelled) {
     relabel();
     catalog.render();

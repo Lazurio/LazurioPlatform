@@ -105,8 +105,10 @@ test("the vendored schema carries Machines #560's entry.audience, exactly the co
   // and then to Machines #948 (v0.12.211), which adds only a peer's
   // `environment`, `access` and `ssh.host_keys`
   // (tests/assigned-peer-handover.test.ts).
+  // Then to Machines #1051, which adds only `access_service`
+  // (tests/access-service-handover.test.ts).
   expect(provenance.source_pull_request).toBe(
-    "https://github.com/HumanAndMachine-ai/Machines/pull/948",
+    "https://github.com/HumanAndMachine-ai/Machines/pull/1051",
   );
   const audience = (
     schema as unknown as {
@@ -210,7 +212,7 @@ posixTest(
       // Operator's own sign-in.
       const after = await readFile(join(folder, "AGENTS.md"), "utf8");
       expect(before).toContain(
-        "- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication), and Headscale holds the network. Entry to Environments is to be held by the Lazurio account (the target of root decision 0192); until that move is done, the existing path decides, a Team Environment's GitHub Team, say (`manual/lazurio.md`).",
+        "- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication), and Headscale holds the network. Entry to Environments is to be held by the Lazurio account (the target of decision 0192); until that move is done, the existing path decides, a Team Environment's GitHub Team, say (`manual/lazurio.md`).",
       );
       expect(after).not.toContain("the user's own sign-ins");
       expect(after).toContain("- Identity: no GitHub identity.");

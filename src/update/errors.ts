@@ -85,6 +85,9 @@ export const updateErrorReasons = [
   // the candidate's Launchpad probe (self-check.ts, docs/update.md "Activation")
   "launchpad-refused",
   "launchpad",
+  // the candidate could not read the Folder's state; the context names the
+  // document, the condition and the template revisions (#782)
+  "folder-state",
 ] as const;
 export type UpdateErrorReason = (typeof updateErrorReasons)[number];
 

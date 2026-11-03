@@ -1939,6 +1939,7 @@ characters escaped), Czech or English by the Folder's locale.
 | product | `template-revision` | `observeFolder` facts | `warn folder-newer` (a newer product rendered it), `warn revision-unknown`; an older one is `folder-refresh` |
 | Folder | `folder-state` | `collectRecovery` Folder state; preset and Machine kind from `observeFolder` | `fail folder-state-pending`, `-absent`, `-unrecognized`, `-unreadable` |
 | Folder | `machine-binding` | recorded `preferences.machine` vs `machineBinding` of the live handover | `warn machine-identity-changed`, `warn handover-changed` (digest; `machine folder-refresh`), `warn binding-absent`, `warn handover-unreadable`; `skipped not-hosted` |
+| Folder | `folder-top-level` | `readStatus.folderForeignEntries`: the names of a hosted Folder's top level it does not own ([F10's addendum of 2026-11-03](decisions.md#f10--workspace-presets-and-typed-owner-requests)) | `warn foreign-entries` with how many and the first plain name; `warn top-level-unreadable` when the top level cannot be listed; `ok` on a workstation, whose own files are the person's |
 | tools | `tool` | `toolsOverview` (tiers, enabled), else `toolsStatus` over the catalog | required missing `fail required-missing`; `warn recommended-missing`, `warn enabled-missing`, `warn version-unreadable`; `skipped not-enabled`; `skipped not-offered` for a missing tool Lazurio does not offer in this Environment (`toolOffered`: bitwarden outside a Remote Environment on Linux, decisions F43 and F53; gogcli in a work Environment, F44); Executor is not a tool row but its own check; `signIn`/`ssh` ids with `--sign-in`, and with it `warn ssh-not-linked` for a signed-in gh whose SSH proof failed where the Environment signs in as its user (F19's addendum of 2026-10-19) |
 | tools | `executor` | `executorStatus` ([F44](decisions.md#f44--executor-in-every-remote-environment-installed-run-and-connected-to-the-agents-by-lazurio)): the entry and its marker, `systemctl --user show` of `sh.executor.daemon.service` and its drop-in, `GET 127.0.0.1:4789/api/health`, `codex mcp get executor --json` and `~/.claude.json`; never `fail`, never in `recover` | `ok` running with the installed agents connected (context `toolVersion`, `executorService`, `codexMcp`, `claudeMcp`); `warn executor-not-installed`, `executor-outdated`, `executor-conflict`, `executor-not-running`, `executor-incomplete` (the next step is `lazurio executor setup`, or Settings → Tools → executor); `skipped not-offered` (a computer, not the operator), `skipped handover-unreadable` |
 | organizations | `catalog` | `readFolderCatalog` | counts of the Organizations and their modules only: the Personalspace group is never counted or named; `warn catalog-unreadable` |
@@ -3167,7 +3168,10 @@ Organization's app, its basics are the Organization's, and it gets none of it.
   title alone does not say what it is for (F36's addendum of 2026-10-16):
   1. **Připojit AI** (`ai-sign-in.ts` holds the sign-in in the page): "Zajišťuje vaše
      Organizace." (done, nothing runs); otherwise only the title and "Přihlásit ChatGPT"
-     and "Přihlásit Claude", each with its mark before its name (OpenAI's Blossom from
+     and "Přihlásit Claude" (only the one whose CLI is installed when the reading says
+     the other is not, with "Přihlásit kódem" only beside ChatGPT's; both while neither is
+     installed, so that a click says which one is missing; F36's addendum of 2026-10-16
+     describes the two choices of an Environment with both CLIs), each with its mark before its name (OpenAI's Blossom from
      its brand kit, the sprite's `i-openai`, in OpenAI's white or black only; Claude's
      simple-icons mark, `i-claude`; [licensing](licensing.md#bundled-third-party-assets)),
      nothing said before them (where the AI could not be checked, that line); beneath
@@ -3185,9 +3189,15 @@ Organization's app, its basics are the Organization's, and it gets none of it.
      prohlížeče." (a workstation, whose CLI opens the computer's browser), with
      "Otevřít přihlášení" and "Zrušit", and for Claude's code page one field for its
      code (`POST /api/tools/login/code`); "Připojeno: ChatGPT, <e-mail>; Claude,
-     <e-mail>" with "Přihlásit jiný účet", which offers both again; a sign-in that did
-     not finish ("Přihlášení se nepovedlo…", expired, the Environment browser did not
-     open it) with "Zkusit znovu"; a T3 Code that did not turn the provider on, said
+     <e-mail>" with "Přihlásit jiný účet", which offers both again (except a CLI that is
+     not installed); a sign-in that did not finish ("Přihlášení se nepovedlo…", expired,
+     the Environment browser did not open it) with "Zkusit znovu"; a click that finds its
+     CLI not installed (`reason: "not-installed"`) instead says "{Claude|ChatGPT} zatím
+     není nainstalovaný v tomto Prostředí, proto se tu přihlásit nedá." and offers the
+     other sign-in, never "Zkusit znovu", until a fresh reading (`?fresh=1`, "Zkontrolovat
+     znovu") begun after the failure, with nothing changed while it ran, finds that CLI,
+     which drops the failure (`aiSignInAfterReading`); after `forget()` the server never
+     answers a fresh reading with one it was already asking (`createAiProbe`); a T3 Code that did not turn the provider on, said
      beside the account; and without the Environment browser "Přihlášení tu teď nejde
      otevřít.", nothing started. Signed in, the page reads `GET /api/ai?fresh=1` at once;
   2. **GitHub**: "Připojeno jako @login", or "Nepřipojeno" with

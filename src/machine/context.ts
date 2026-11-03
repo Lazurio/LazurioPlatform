@@ -133,6 +133,12 @@ export type MachineEntry = Readonly<{
 // Optional and closed on both branches: Machines writes it only for a
 // Platform release that reads it, because a reader vendoring an earlier
 // schema refuses the whole document (as for `entry` and its members).
+// Where this Environment's home Conglomerate Host runs its access service
+// (root decision 0224, decision F70; HumanAndMachine-ai/Machines#1040):
+// `http://<host node>.<MagicDNS domain>:8444`. Optional and closed on both
+// branches, written only while that host switches the service on and for a
+// Platform release that reads it.
+export type MachineAccessService = Readonly<{ origin: string }>;
 export type MachineVault = Readonly<{
   server_url: string;
   account: string;
@@ -171,6 +177,7 @@ export type OrganizationWorkspaceContext = Readonly<{
   }>;
   network?: MachineNetwork;
   relationships?: MachineRelationships<"work">;
+  access_service?: MachineAccessService;
   entry?: MachineEntry;
   vault?: MachineVault;
   services?: readonly MachineService[];
@@ -199,6 +206,7 @@ export type PersonalMachineContext = Readonly<{
   }>;
   network: MachineNetwork;
   relationships?: MachineRelationships<"personal">;
+  access_service?: MachineAccessService;
   entry?: MachineEntry;
   vault?: MachineVault;
   installed: MachineInstalled;
@@ -219,7 +227,9 @@ export class MachineContextError extends Error {
       | "machine-context-custody"
       | "machine-platform-unsupported"
       | "machine-operator-mismatch"
-      | "machine-operator-unavailable",
+      | "machine-operator-unavailable"
+      // decision F68: this process is not the installed product
+      | "machine-not-installed-product",
   ) {
     super(code);
   }

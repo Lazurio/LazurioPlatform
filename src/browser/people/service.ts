@@ -371,9 +371,10 @@ export function startViewService(options: ViewServiceOptions): ViewService {
               : json({ error: outcome.reason }, 409);
         }
         case "wake":
-          // Probudit (decision F57).
+          // Probudit (decision F57), and a tab that ended but is remembered
+          // opens again under its id (F57's addendum of 2026-11-03).
           if (!hub.ready) return json({ error: "browser-unreachable" }, 503);
-          if (!hub.hasTab(decision.targetId))
+          if (!hub.canWake(decision.targetId))
             return json({ error: "not-found" }, 404);
           return (await hub.wakeTab(decision.targetId))
             ? json({ awake: true })

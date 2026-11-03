@@ -195,9 +195,9 @@ top-level navigation), and the Launchpad hands the return to Executor's callback
 A server that refuses that address (some register only loopback addresses, RFC
 8252) or offers only a client ID metadata document (whose addresses are loopback)
 returns to Executor's callback on localhost, so the user signs in where that
-address is the Environment's own: in the Environment browser on a Remote
-Environment (the Launchpad opens the authorization URL there and shows its view in
-the right panel) and in their own browser on their computer. A Remote Environment
+address is the Environment's own: in the [Environment browser](environment-browser.md)
+on a Remote Environment (the Launchpad opens the authorization URL there and shows
+its view in the right panel) and in their own browser on their computer. A Remote Environment
 without the Environment browser cannot finish such a sign-in, and says so.
 Connections are created with owner `org`: the Environment is one boundary.
 
@@ -259,7 +259,7 @@ own, has no approval step.
   the agent's, and Lazurio does not change Executor's policy: the Folder tells
   agents to accept such a pause only for a Draft or for a Publication the
   user explicitly approved, and to decline it otherwise
-  (`manual/working-here.md`, Integrace). Making Executor ask the user instead
+  (the Folder's `manual/working-here.md`, Integrace). Making Executor ask the user instead
   (elicitation mode `browser` or `native`) would be a change of F44's agent
   registration (`src/executor/agents.ts`) and is not made here.
 
@@ -736,8 +736,9 @@ them well. So the page leads there:
 Decision F42, addendum (c) of 2026-10-14; root decision 0162, addendum of
 2026-10-14; plan DEV-6626 task 685. The Organization registers one single-tenant
 app in its own Microsoft tenant, a public client without a secret, and consents to
-its delegated Graph permissions once for everyone (the Admin's runbook is the root's
-`manual/integrations/microsoft-365.md`). Users then connect their Microsoft
+its delegated Graph permissions once for everyone (what the Platform needs of that
+app is this section: the tenant, the client, the delegated scopes of the table below
+and the callbacks). Users then connect their Microsoft
 accounts directly through their Environment's Executor; their tokens stay there.
 
 The rules, in one breath: "Připojit" (or "Přidat účet") is one Microsoft sign-in,
@@ -802,7 +803,7 @@ Lazurio's side by itself.
   Otherwise it returns to Executor's callback on localhost
   (`http://localhost:4789/api/oauth/callback`; the Admin registers
   `http://localhost/api/oauth/callback` once, Entra ignores a localhost address's
-  port but matches its path) in the Environment browser. That browser is the
+  port but matches its path) in the [Environment browser](environment-browser.md). That browser is the
   agents' too, so once such a sign-in ends (connected or not) the Launchpad clears
   Microsoft's sign-in origins there (`login.microsoftonline.com`,
   `login.microsoft.com`, `login.live.com`; CDP `Storage.clearDataForOrigin`); the
@@ -1041,16 +1042,16 @@ OpenAI's brand terms with the Organization Admin's approval of 2026-10-16
 
 ## The Folder
 
-AGENTS.md has a section Integrace after Tools: what an Integrace is, its three
+The generated Folder's AGENTS.md has a section Integrace after Tools: what an Integrace is, its three
 paths, `lazurio integrations list --json`, the order tool → Executor → Composio,
 never connecting one (the card's link where the Launchpad has an address, the page
 named on a workstation), and a custom MCP server only on the user's explicit
-instruction and always into Executor. `manual/working-here.md` has the chapter
+instruction and always into Executor. The Folder's `manual/working-here.md` has the chapter
 Integrace (with Executor's approvals, the IT consent of company apps and, on an
 Organization's Environment, how agents use the Microsoft 365 Integrace `m365`:
 several accounts possible, ask which when unclear, drafts only, folders by item id
 with paging, readback with `webLink`),
-`manual/this-machine.md` points from its tools to it, and the Launchpad routing of
+the Folder's `manual/this-machine.md` points from its tools to it, and the Launchpad routing of
 hosted Environments names the Integrace page instead of Composio's procedure. The
 texts it retires: `composio link` for agents, "send the link the command returns",
 "no cloud connector other than Composio", MCP servers set up per harness

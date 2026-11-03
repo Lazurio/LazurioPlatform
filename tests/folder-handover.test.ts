@@ -275,21 +275,48 @@ test.skipIf(process.platform === "win32")(
         await initializeHandoverFolder(folder, sources.organization),
       ).toEqual(initialized("organization"));
       const state = await snapshot(join(folder, ".lazurio"));
-      // Another Machine (a Team, another host) is refused …
+      // Another Machine (a Team, another name) is refused …
       expect(
         await refusal(initializeHandoverFolder(folder, sources.team)),
       ).toEqual({ code: "binding-changed", entry: ".lazurio" });
+      // Another kind, name, Owner or tailnet node is another Machine (#759).
+      for (const another of [
+        { ...bindings.organization, name: "another-vm" },
+        {
+          ...bindings.organization,
+          owner: {
+            ...organizationOwner(bindings.organization),
+            organization: "another-organization",
+          },
+        },
+        {
+          ...bindings.organization,
+          network: { headscaleHostname: "another-node" },
+        },
+      ])
+        expect(
+          await refusal(
+            initializeHandoverFolder(folder, {
+              ...sources.organization,
+              machine: another,
+            }),
+          ),
+        ).toEqual({ code: "binding-changed", entry: ".lazurio" });
+      // … while the same Machine moved to another host (a server move, #759)
+      // stays adopted: the host is where it runs, not which Machine it is.
       expect(
-        await refusal(
-          initializeHandoverFolder(folder, {
-            ...sources.organization,
-            machine: {
-              ...bindings.organization,
-              host: { ...bindings.organization.host, id: "another-host" },
-            },
-          }),
-        ),
-      ).toEqual({ code: "binding-changed", entry: ".lazurio" });
+        await initializeHandoverFolder(folder, {
+          ...sources.organization,
+          machine: {
+            ...bindings.organization,
+            host: { ...bindings.organization.host, id: "another-host" },
+          },
+        }),
+      ).toEqual({
+        kind: "already-adopted",
+        revision: 1,
+        preset: initialized("organization").preset,
+      });
       // … while the same Machine re-applied by Machines (new document digest,
       // a declared assignment, derived relationships) stays adopted as it is.
       expect(

@@ -45,6 +45,30 @@ test("every generated Folder teaches context discovery before choosing an app or
       expect(manual).toContain(
         locale === "cs" ? "obchodní záznam" : "business record",
       );
+      // Guest Modules of another Organization (DEV-6694): pointed to from
+      // AGENTS.md, taught in general terms by the manual, wherever an
+      // Organization can be.
+      const guests =
+        locale === "cs"
+          ? "Moduly jiné Organizace: `manual/working-here.md`."
+          : "Another Organization's Modules: `manual/working-here.md`.";
+      if (journey.preset === "hosted-personal") {
+        expect(routing).not.toContain(guests);
+        expect(manual).not.toContain("workspace/<Org>_GEN3/");
+      } else {
+        expect(routing).toContain(guests);
+        for (const text of [
+          "`workspace/<Org>_GEN3/<",
+          "home_organization",
+          "homeOrganization",
+          "README.md",
+          "AGENTS.md",
+          locale === "cs" ? "domovské Organizace" : "home Organization",
+          locale === "cs" ? "nespouští" : "never starts",
+          locale === "cs" ? "pull request" : "pull request",
+        ])
+          expect(manual).toContain(text);
+      }
       if (journey.preset === "hosted-personal") {
         expect(routing).toContain("personalspace");
         expect(routing).not.toContain("lazurio organization list");

@@ -42,7 +42,7 @@ export function inspectCanonicalInventory(
   )
     throw new Error("Organization inventory identity conflict");
   const declarations = array(modules.module_slots);
-  const inventory = inspectRepositorySlots(declarations);
+  const inventory = inspectRepositorySlots(declarations, owner);
   const warnings: string[] = [];
   if (company !== expectedCompany) warnings.push("company-case-drift");
   if (owner !== expectedOwner) warnings.push("forge-locator-case-drift");

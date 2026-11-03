@@ -754,6 +754,19 @@ downloaded way in and is neither needed nor used here.
    socket, answers its own health once and exits. A failure removes the candidate
    and ends here with `self-check-failed` (a refused probe names its condition:
    `reason: "launchpad-refused"`, `refusal: <check>`); nothing was switched.
+   A Folder state the candidate cannot read is named the same way:
+   `reason: "folder-state"` with the enumerated `condition` (for example
+   `unknown-output`, an output that version does not render), the state `file`,
+   the `field` only when it is one of the product's own field or output names,
+   an unknown output's fixed `area` (`agents-skills`, `claude-skills`, `manual`,
+   `top-level`, `other`), the template revision the Folder records (`recorded`),
+   the candidate's (`product`) and `newer` when the Folder was rendered by a
+   newer template. A key read from the Folder is never carried, whatever its
+   form: it is the Folder's content. Every value is one the product defines,
+   inside Recovery's tier-1 rules. `self-check` prints it as
+   `{"folderStateRefused": …}` and says it on stderr; `lazurio update` adds it to
+   its `Update failed` line, and Doctor and Recovery mode carry it as the
+   context of `folder-state-unreadable` (#782).
 3. **Switch** `bin/lazurio` by one rename and make the directory durable: the
    commit. Then raise the high-water mark; a crash in between leaves the mark
    below the active version, which the floor already covers.
@@ -1055,7 +1068,15 @@ The pipeline owns the minimum version (a pin is a minimum, F17's addendum of 202
   the lock). The Launchpad never shows a refresh, needed or blocked.
   `lazurio update status` (`folderRefresh {folder, recorded, product}`) and `lazurio
   doctor` (`folder-refresh`, `warn folder-refresh-needed`) keep reporting a Folder that
-  still needs one, for agents; reading only, no lock, no write.
+  still needs one, for agents; reading only, no lock, no write. A hosted Folder's
+  top-level entry it does not own no longer blocks the refresh (decision F10's addendum
+  of 2026-11-03); `lazurio update` and `update status` report such entries as
+  `folderForeignEntries {folder, entries}` with one line: the reader's own work moves to
+  `~/Documents/<task>/`, anyone else's stays and the user hears about it. `lazurio
+  doctor` reports them as `folder-top-level`, `warn foreign-entries`. A name not shown as
+  itself is reported without its text; a top level that cannot be listed is
+  `folderForeignEntries {folder, unreadable: true}` and `warn top-level-unreadable`, never
+  clean.
 - **Exit status.** `0` success or up to date, `10` update available (`--check`),
   `2` usage, `1` failure or busy. `--json` carries one stable error code from a
   short list (`network-unavailable`, `release-invalid`, `attestation-invalid`,

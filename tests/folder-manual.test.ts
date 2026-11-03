@@ -22,6 +22,7 @@ import {
   buddyLayerPaths,
   buddyRulesPath,
   manualPaths,
+  type OutputPath,
   outputFile,
   outputPaths,
 } from "../src/folder/outputs";
@@ -35,9 +36,11 @@ import { renderOutputs } from "../src/folder/preview";
 import {
   buddyChatRouting,
   buddyPublicationRules,
+  networkLine,
   ownSignInIdentity,
   publicationRules,
   questionTool,
+  threadsRule,
   visitorsOf,
 } from "../src/folder/render";
 import { resumeInitialization } from "../src/folder/resume-initialization";
@@ -980,7 +983,7 @@ test("where the entry names Buddy's origin, agents open his chat for the user be
       "Když ho chce a běžíš v ChatGPT Desktopu, otevři mu přesnou adresu v integrovaném prohlížeči ChatGPT Desktopu v panelu vedle chatu; v jiném klientovi mu pošli odkaz.",
       "Přihlašuje se do něj uživatel sám.",
       "V prohlížeči Environmentu ho nikdy neotevírej, ani přes `preview_open`.",
-      "Chat otevíráš jen uživateli: nic do něj nepiš a nic v něm nedělej, s Buddym dál nekomunikuješ (root decision 0210).",
+      "Chat otevíráš jen uživateli: nic do něj nepiš a nic v něm nedělej, s Buddym dál nekomunikuješ (decision 0210).",
       "Chce-li uživatel Buddymu něco říct, otevři mu chat a napíše mu sám.",
     ],
     en: [
@@ -991,7 +994,7 @@ test("where the entry names Buddy's origin, agents open his chat for the user be
       "When they want it and you run in ChatGPT Desktop, open the exact address for them in ChatGPT Desktop's built-in browser in the panel beside the chat; in another client, send them the link.",
       "The user signs in to it themselves.",
       "Never open it in the Environment browser, not even with `preview_open`.",
-      "You open the chat only for the user: write nothing in it and do nothing in it, and you still do not communicate with Buddy (root decision 0210).",
+      "You open the chat only for the user: write nothing in it and do nothing in it, and you still do not communicate with Buddy (decision 0210).",
       "When the user wants to tell Buddy something, open the chat for them and they write to him themselves.",
     ],
   } as const;
@@ -1144,13 +1147,26 @@ test("an update the Operator asks for updates the tools and pulls every module; 
       });
       const cs = locale === "cs";
       const agents = outputs["AGENTS.md"];
+      const troubleshooting = outputs["manual/troubleshooting.md"];
+      // AGENTS.md keeps the rule: the request is the consent, and the steps
+      // are in the manual (#758).
       expect(agents).toContain(
+        cs
+          ? "jeho žádost o aktualizaci (třeba „Aktualizuj“) je souhlas pro Lazurio"
+          : "their request to update (for example „Aktualizuj“) is that consent for Lazurio",
+      );
+      expect(agents).toContain(
+        cs
+          ? "Postup a co pak uživateli říct je v `manual/troubleshooting.md`"
+          : "The procedure and what to tell the user afterwards are in `manual/troubleshooting.md`",
+      );
+      expect(troubleshooting).toContain(
         cs
           ? "Když tě uživatel požádá o aktualizaci (třeba „Aktualizuj“), je to souhlas: spusť `lazurio update`"
           : "When the user asks for an update (for example „Aktualizuj“), that is the consent: run `lazurio update`",
       );
       expect(
-        agents.includes(
+        troubleshooting.includes(
           cs
             ? "a hlavně stáhni změny všech Organizací a modulů"
             : "and above all pull the changes of every Organization and module",
@@ -1159,8 +1175,8 @@ test("an update the Operator asks for updates the tools and pulls every module; 
       expect(
         agents.includes(
           cs
-            ? "Lazurio (Launchpad) se jim na chvíli restartuje"
-            : "Lazurio (the Launchpad) restarts for them for a moment",
+            ? "všem jeho uživatelům na chvíli restartuje Lazurio (Launchpad)"
+            : "an update restarts Lazurio (the Launchpad) for all its users for a moment",
         ),
       ).toBe(journey.preset === "hosted-organization-team");
       for (const text of Object.values(outputs))
@@ -1371,8 +1387,8 @@ test("missing rights are escalated on every preset; only the Team hands every pu
       expect(
         outputs["AGENTS.md"].includes(
           locale === "cs"
-            ? "Na týmovém Environmentu dopadne aktualizace na všechny jeho uživatele"
-            : "On a Team Environment an update affects all its users",
+            ? "Na týmovém Environmentu se aktualizací všem jeho uživatelům na chvíli restartuje Lazurio (Launchpad)"
+            : "On a Team Environment an update restarts Lazurio (the Launchpad) for all its users for a moment",
         ),
       ).toBe(journey.preset === "hosted-organization-team");
     }
@@ -1421,32 +1437,55 @@ test("agents ask people through the harness's question tool, and the handoff's c
           ? "- Začni výsledkem a vysvětluj stručně."
           : "- Lead with the outcome and explain concisely.",
       ]);
+      // AGENTS.md keeps the rule in its short form (#758); the request that
+      // the user does something, its details and the fallback without a tool
+      // are in the manual's safe habits.
       for (const part of cs
         ? [
-            "zeptej se nástrojem svého harnessu na otázky (Claude Code `AskUserQuestion`, Codex `request_user_input`, Hermes `clarify`), ne jen textem ve zprávě",
-            // Root decision 0211, addendum of 2026-10-24: a request that the
-            // user does something is a question too.
-            "Stejně polož i žádost, aby uživatel něco udělal (zadal ověřovací kód, přihlásil se, něco potvrdil nebo zkontroloval)",
-            "s odkazem, kódem a do kdy platí",
-            "Otázka v T3 Code i v Codex Desktopu vyskočí jako upozornění, text ve zprávě ne.",
-            "Nabídni 2–4 volby, doporučenou první s označením „(Doporučeno)“, a kontext napiš do zprávy nad otázku.",
-            "Nejdřív udělej všechno, co na odpovědi nezávisí",
-            "Volba Publikace, kterou uživatel v nástroji udělá, je jeho výslovný pokyn k Publikaci v aktuálním threadu, stejně jako „Publikuj“.",
-            "Nemá-li harness nástroj na otázky nebo ho v aktuálním režimu nenabízí, zeptej se textem s očíslovanými volbami a napiš, že čekáš na odpověď",
-            "Běžíš-li jako subagent, bot Lazurio MausBotu nebo automatický reviewer, uživatele v relaci nemáš: nástroj nepoužij a otázku předej ve svém výstupu tomu, kdo ti práci zadal",
+            "si vyžádej nástrojem svého harnessu na otázky (Claude Code `AskUserQuestion`, Codex `request_user_input`, Hermes `clarify`), nikdy jen textem ve zprávě",
+            "(ověřovací kód, přihlášení, potvrzení)",
+            "2–4 volby, doporučenou první s označením „(Doporučeno)“, kontext ve zprávě nad otázkou.",
+            "Nejdřív udělej, co na odpovědi nezávisí",
+            "Volba Publikace v nástroji je výslovný pokyn k Publikaci v aktuálním threadu, stejně jako „Publikuj“.",
+            "Bez nástroje na otázky se zeptej textem s očíslovanými volbami a napiš, co do té doby stojí.",
+            "Jako subagent, bot Lazurio MausBotu nebo automatický reviewer uživatele v relaci nemáš: nástroj nepoužij a otázku předej ve svém výstupu tomu, kdo ti práci zadal",
+            "Otázky v `manual/working-here.md`",
           ]
         : [
-            "ask through your harness's question tool (Claude Code `AskUserQuestion`, Codex `request_user_input`, Hermes `clarify`), not only in the text of a message",
-            "Ask the same way when you need the user to do something (enter a verification code, sign in, confirm or check something)",
-            "with the link, the code and until when it is valid",
-            "A question pops up as a notification in T3 Code and in Codex Desktop; text in a message does not.",
-            "Offer 2–4 options, the recommended one first marked “(Recommended)”, and write the context in the message above the question.",
-            "First do everything that does not depend on the answer",
-            "A choice of Publication the user makes in the tool is their explicit instruction to Publish in the current thread, just like “Publish”.",
-            "When the harness has no question tool or does not offer it in the current mode, ask in text with numbered options and say that you are waiting for the answer",
-            "When you run as a subagent, a Lazurio MausBot bot or an automated reviewer, there is no user in your session: do not use the tool, and pass the question in your output to whoever gave you the work",
+            "through your harness's question tool (Claude Code `AskUserQuestion`, Codex `request_user_input`, Hermes `clarify`), never only in a message",
+            "(a verification code, a sign-in, a confirmation)",
+            "2–4 options, the recommended one first marked “(Recommended)”, the context in the message above.",
+            "First do what does not depend on the answer",
+            "A Publication choice made in the tool is an explicit instruction to Publish in the current thread, just like “Publish”.",
+            "Without a question tool, ask in text with numbered options and say what is on hold.",
+            "As a subagent, a Lazurio MausBot bot or an automated reviewer there is no user in your session: do not use the tool, and pass the question in your output to whoever gave you the work",
+            "Questions in `manual/working-here.md`",
           ])
         expect(rule).toContain(part);
+      for (const part of cs
+        ? [
+            "Stejně polož i žádost, aby uživatel něco udělal (zadal ověřovací kód, přihlásil se, něco potvrdil nebo zkontroloval)",
+            "s odkazem, kódem a do kdy platí, a volbami se nech říct, jak to dopadlo („Hotovo“, „Nejde to“)",
+            "Nemá-li harness nástroj na otázky nebo ho v aktuálním režimu nenabízí, zeptej se textem s očíslovanými volbami a napiš, že čekáš na odpověď",
+          ]
+        : [
+            "Ask the same way when you need the user to do something (enter a verification code, sign in, confirm or check something)",
+            "with the link, the code and until when it is valid, and let the options say how it went (“Done”, “It does not work”)",
+            "When the harness has no question tool or does not offer it in the current mode, ask in text with numbered options and say that you are waiting for the answer",
+          ])
+        expect(outputs["manual/working-here.md"]).toContain(part);
+      // The notification detail is in the manual's safe habits; it left
+      // AGENTS.md for its budget (base-instructions-98).
+      const popup = cs
+        ? "v T3 Code i v Codex Desktopu otázka vyskočí jako upozornění, kdežto otázka v textu zprávy zapadne"
+        : "in T3 Code and in Codex Desktop a question pops up as a notification, while a question in the text of a message gets missed";
+      expect([
+        ...where,
+        outputs["AGENTS.md"].includes(
+          cs ? "vyskočí jako upozornění" : "pops up as a notification",
+        ),
+        outputs["manual/working-here.md"].includes(popup),
+      ]).toEqual([...where, false, true]);
       // The handoff block is text and holds no question any more.
       const workingHere = outputs["manual/working-here.md"];
       const opening = "```text\n## Handoff\n";
@@ -2199,6 +2238,157 @@ test("Publication is one block in the Owner's words in AGENTS.md, the manual and
     }
 });
 
+// The root's agent rules of 2026-10-31 in every Environment: threads do not
+// coordinate with each other (root decision 0218, addendum of 2026-10-31), an
+// agent never switches the Environment's own network (root decision 0217,
+// addendum of 2026-10-31), and one worktree belongs to one pull request, a
+// plan may own several (0218's addendum, point 2). The network line takes the
+// place of the Headscale, laptop and SSH lines it absorbs; who keeps the
+// order on GitHub is the Organization's, so no generated text names the
+// root's coordinator.
+test("threads do not coordinate, the Environment's network is never switched, and a worktree belongs to one pull request (root addenda of 2026-10-31)", () => {
+  const environments = [
+    ...journeys,
+    {
+      preset: "hosted-organization-team",
+      machine: bindings.teamBrowser,
+      os: "linux",
+    },
+    {
+      preset: "hosted-organization-team",
+      machine: bindings.teamPublic,
+      os: "linux",
+    },
+    {
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationPublic,
+      os: "linux",
+    },
+    { preset: "hosted-organization-team", machine: tryBinding(), os: "linux" },
+  ] as const;
+  const retired = [
+    "Při přidávání počítače do Headscale nejdřív čti",
+    "When adding a computer to Headscale, first read",
+    "ani aktivní tailnet sám neměň",
+    "or switch its active tailnet yourself",
+    "Profil Tailscale sám nepřepínej",
+    "Never switch the Tailscale profile yourself",
+  ];
+  const count = (text: string, part: string) => text.split(part).length - 1;
+  for (const environment of environments)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: environment.preset,
+        machine: environment.machine,
+        profile: presetProfile(environment.preset, environment.os, { locale }),
+      });
+      const agents = outputs["AGENTS.md"];
+      const working = outputs["manual/working-here.md"];
+      const machine = outputs["manual/this-machine.md"];
+      const hosted = environment.machine !== null;
+      const isPublic =
+        githubIdentity(environment.preset, environment.machine) === "none";
+      const where = [environment.preset, environment.machine?.name, locale];
+      // Threads: once in AGENTS.md right after the Publication block (after
+      // a Team Environment's named publisher), and in full in the manual;
+      // neither on a public Environment, which has nothing on GitHub.
+      const block = publicationRules.map((line) => line[locale]).join("\n");
+      const before =
+        environment.preset === "hosted-organization-team"
+          ? locale === "cs"
+            ? "„Komu mám říct, aby tyhle změny publikoval?“ a tomu uživateli předej pull request."
+            : "“Whom should I ask to publish these changes?” and hand that user the pull request."
+          : block;
+      expect([
+        ...where,
+        count(agents, threadsRule[locale]),
+        agents.includes(`${before}\n${threadsRule[locale]}\n`),
+        working.includes(
+          locale === "cs"
+            ? "## Vlákna se mezi sebou nekoordinují (rozhodnutí 0218, dodatky 2026-10-31)"
+            : "## Threads do not coordinate with each other (decision 0218, addenda 2026-10-31)",
+        ),
+        working.includes(
+          locale === "cs"
+            ? "Delegace tvé vlastní práce na tvé subagenty koordinací není."
+            : "Delegating your own work to your subagents is not coordination.",
+        ),
+      ]).toEqual([...where, isPublic ? 0 : 1, !isPublic, !isPublic, !isPublic]);
+      // The network: one line in AGENTS.md on every Environment, public ones
+      // included, with SSH and the laptop only where the Environment is
+      // hosted; in full among the manual's boundaries, which name Lazurio
+      // Machines only where the handover records the tailnet identity.
+      const recordedTailnet = (environment.machine?.network ?? null) !== null;
+      // SSH to another Environment only after checking the active tailnet:
+      // the Environment's network may sit on the wrong tailnet even if no
+      // agent switched it (Pablo's review of #754).
+      expect([
+        ...where,
+        count(agents, networkLine(hosted)[locale]),
+        count(agents, "`100.64.0.x`"),
+        count(
+          agents,
+          locale === "cs"
+            ? "s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu"
+            : "with a pinned host key and the active tailnet checked, never to a bare",
+        ),
+        machine.includes(
+          locale === "cs"
+            ? "- Síť: síť tohoto Environmentu je jedna pro všechna vlákna a relace tady"
+            : "- Network: this Environment's network is one for every thread and session here",
+        ),
+        machine.includes(
+          locale === "cs"
+            ? "Nikdy ji nepřepínej, neodhlašuj, nepřesměrovávej na jiný login server ani nevypínej"
+            : "Never switch it, sign it out, point it at another login server or stop it",
+        ),
+        machine.includes(
+          locale === "cs"
+            ? "; jeho Tailscale spravuje Lazurio Machines."
+            : ", and Lazurio Machines manages its Tailscale.",
+        ),
+      ]).toEqual([
+        ...where,
+        1,
+        hosted ? 1 : 0,
+        hosted ? 1 : 0,
+        true,
+        true,
+        recordedTailnet,
+      ]);
+      // One worktree per pull request, several per plan, each cleaned up
+      // with its own pull request.
+      for (const sentence of locale === "cs"
+        ? [
+            "Jeden worktree je jedna branch a jeden pull request; plán jich smí mít několik, každý s vlastním `<slug>`.",
+            "Rozhoduje jeho pull request, ne plán: worktree mergnutého PR ukliď hned, i když plán dál běží v jiných worktrees.",
+          ]
+        : [
+            "One worktree is one branch and one pull request; a plan may own several, each with its own `<slug>`.",
+            "Its pull request decides, not the plan: clean up the worktree of a merged PR right away, even while the plan goes on in other worktrees.",
+          ])
+        expect([...where, sentence, working.includes(sentence)]).toEqual([
+          ...where,
+          sentence,
+          true,
+        ]);
+      for (const [path, text] of Object.entries(outputs)) {
+        expect([...where, path, text.includes("Pablo")]).toEqual([
+          ...where,
+          path,
+          false,
+        ]);
+        for (const sentence of retired)
+          expect([...where, path, sentence, text.includes(sentence)]).toEqual([
+            ...where,
+            path,
+            sentence,
+            false,
+          ]);
+      }
+    }
+});
+
 // That the Lazurio account holds entry to Environments is root decision 0192's
 // target, not today's gate everywhere: until the move to the account's grants
 // is done, the existing path still decides, a Team Environment's GitHub Team
@@ -2208,6 +2398,123 @@ test("Publication is one block in the Owner's words in AGENTS.md, the manual and
 // they must be: in `manual/lazurio.md` on every Environment, and in AGENTS.md
 // and `manual/this-machine.md` where the user's own sign-ins are used or the
 // visitors' section renders (try-01).
+// The root's pull-request rules that hold for agents in every Environment
+// (root decisions 0222 and 0178, the root's manual/pull-request-handoff.md
+// and its public-repository boundary; Lazurio/LazurioPlatform#757): the Ready
+// line names the browser check and the assignee, the manual says them in full
+// with the assignment's mandate and a fresh approval, no generated text asks
+// for a `/lazurio publish` comment, and the user is never sent to a terminal.
+test("every pull request has an assignee and a browser check before Ready, an assignment carries the mandate, and public repositories name no customer (Lazurio/LazurioPlatform#757)", () => {
+  const environments = [
+    ...journeys,
+    {
+      preset: "hosted-organization-team",
+      machine: bindings.teamBrowser,
+      os: "linux",
+    },
+    {
+      preset: "hosted-organization-steward",
+      machine: bindings.automated,
+      os: "linux",
+    },
+    {
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationPublic,
+      os: "linux",
+    },
+  ] as const;
+  for (const environment of environments)
+    for (const locale of ["cs", "en"] as const) {
+      const cs = locale === "cs";
+      const outputs = renderOutputs({
+        preset: environment.preset,
+        machine: environment.machine,
+        profile: presetProfile(environment.preset, environment.os, { locale }),
+      });
+      const agents = outputs["AGENTS.md"];
+      const working = outputs["manual/working-here.md"];
+      const where = [environment.preset, environment.machine?.name, locale];
+      const isPublic =
+        githubIdentity(environment.preset, environment.machine) === "none";
+      const ready = cs
+        ? "- Když jsi hotový, ověř v prohlížeči, co lidé uvidí, přepni pull request na Ready s assignee, který ho dotáhne do `main`, a požádej uživatele o kontrolu a souhlas s Publikací."
+        : "- When you're done, check in a browser what people will see, switch the pull request to Ready with an assignee who takes it to `main`, and ask the user to review it and allow Publication.";
+      expect([...where, agents.split("\n").includes(ready)]).toEqual([
+        ...where,
+        !isPublic,
+      ]);
+      const publicRepository = cs
+        ? "ve veřejném repozitáři (`Lazurio/*`) nejmenuj zákaznickou Organizaci, její moduly ani Prostředí"
+        : "in a public repository (`Lazurio/*`) never name a customer Organization, its modules or Environments";
+      const manual = cs
+        ? [
+            "Změnu, se kterou se lidé potkají (stránka, přihlášení, nasazená aplikace), před Ready sám otevři v prohlížeči",
+            "vlastní účet nezakládej, jinak požádej uživatele o jedno přihlášení",
+            "patří do handoffu pod „Ověřeno“ (decision 0178)",
+            "Každý pull request má assignee, který ho dotáhne do `main`",
+            "Pull request bez assignee je nedotažený a nemerguje se; žádost o review je jen kontrola (decision 0222).",
+            "jeho `commit.oid` se rovná SHA headu a review přišlo až po tomto commitu.",
+            "- **Veřejné repozitáře.** Repozitáře produktu (`Lazurio/*`) jsou veřejné",
+            "- **Žádný terminál.** Nikdy uživatele nežádej, aby otevřel terminál nebo do něj kopíroval příkazy",
+            // The handover's limits (root manual/pull-request-handoff.md;
+            // Pablo's review of #761).
+            "jen když platí všechno: pull request je v Ready; ověřil jsi skutečnou GitHub událost přiřazení",
+            "podle pravidel repozitáře smí tuto Publikaci předat (role Triage ani samopřiřazení nestačí)",
+            "nejde o přiřazení z doby, než toto pravidlo dorazilo do Folderu, které se samo souhlasem nestane",
+            "když původ přiřazení nebo živá práva nejde doložit, je to viditelný blokátor, ne odhad",
+            "Přiřazení nikdy nepokrývá Release, apply infrastruktury (ani ten, který by merge spustil), změnu přístupů, secrets ani jinou operaci mimo dotažení pull requestu",
+          ]
+        : [
+            "Before Ready, open a change people will meet (a page, a sign-in, a deployed application) in a browser yourself",
+            "never create one of your own, otherwise ask the user for one sign-in",
+            "goes under “Verified” in the handoff (decision 0178)",
+            "Every pull request has an assignee who takes it to `main`",
+            "A pull request without an assignee is unfinished and is not merged; a review request is only a check (decision 0222).",
+            "its `commit.oid` equals the head SHA and it was submitted after that commit.",
+            "- **Public repositories.** The product's repositories (`Lazurio/*`) are public",
+            "- **No terminal.** Never ask the user to open a terminal or paste commands into one",
+            "only when all of this holds: the pull request is Ready; you verified the actual GitHub assignment event",
+            "may hand over this Publication under the repository's rules (Triage or a self-assignment is not enough)",
+            "it is not an assignment from before this rule reached the Folder, which never becomes consent by itself",
+            "when the assignment's origin or the live rights cannot be shown, that is a visible blocker, not a guess",
+            "An assignment never covers a Release, an infrastructure apply (not even one the merge would start), access changes, secrets or any other operation beyond finishing the pull request",
+          ];
+      for (const part of manual)
+        expect([...where, part, working.includes(part)]).toEqual([
+          ...where,
+          part,
+          true,
+        ]);
+      // On a public Environment nothing is published or filed from here.
+      if (!isPublic)
+        expect([...where, agents.includes(publicRepository)]).toEqual([
+          ...where,
+          true,
+        ]);
+      // The assignment carries the mandate: no generated text asks for a
+      // `/lazurio publish` comment; the handover point says it is not needed.
+      const handover = cs
+        ? "Pak další „Publikuj“ ani komentář `/lazurio publish` není potřeba."
+        : "Then no further “Publish” or `/lazurio publish` comment is needed.";
+      expect([...where, agents.includes("/lazurio publish")]).toEqual([
+        ...where,
+        false,
+      ]);
+      for (const [path, text] of Object.entries(outputs))
+        expect([
+          ...where,
+          path,
+          text.split("/lazurio publish").length - 1,
+        ]).toEqual([
+          ...where,
+          path,
+          path === "manual/working-here.md" && working.includes(handover)
+            ? 1
+            : 0,
+        ]);
+    }
+});
+
 test("every statement that the Lazurio account holds entry also names the existing path until the move", () => {
   const environments = [
     ...journeys,
@@ -2262,5 +2569,294 @@ test("every statement that the Lazurio account holds entry also names the existi
         statements(outputs["AGENTS.md"]).length > 0,
         statements(outputs["manual/this-machine.md"]).length > 0,
       ]).toEqual([...where, true, named, named]);
+    }
+});
+
+// What Lazurio already has (plan LZD-0002, task 6): before an agent builds
+// something, the lazurio page lists the mechanisms Lazurio already offers,
+// how each is used and where to read more, on every preset and in both
+// languages; the section on building and the new-module skill point to it.
+test("the lazurio page lists what Lazurio already has, and building and new modules point to it", () => {
+  const items = {
+    cs: [
+      "## Co už Lazurio má",
+      "- **Aplikace, nástroj, přehled nebo web:** modul.",
+      "- **Data modulu:** repository-db.",
+      "`LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` (decision 0176)",
+      "datový mount `workspace/<slug>/db` a čti je v `../<slug>/db/`",
+      "`lazurio module status <Org>/<modul> --json`",
+      "`LAZURIO_RUNTIME_SECRET_<NAME>` (decision F46)",
+      "- **Kdo smí aplikaci otevřít:** na Remote Environmentu brána Environmentu.",
+      "`node ~/.local/share/lazurio/mausbot/current/cli.js routine … --port 4102`",
+      "- **Plány, úkoly a priority:** Mission Control Organizace",
+      "- **Znalosti, návody a rozhodnutí:** Knowledgebase Organizace.",
+      "- **Vzhled rozhraní:** Design System Organizace, pokud ho má",
+      "- **Pošta, kalendář, chat, CRM:** Integrace.",
+      "rejstřík rozhodnutí (`docs/decision-register.md`",
+    ],
+    en: [
+      "## What Lazurio already has",
+      "- **An app, tool, overview or website:** a module.",
+      "- **A module's data:** repository-db.",
+      "`LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` (decision 0176)",
+      "the data mount `workspace/<slug>/db` and read it at `../<slug>/db/`",
+      "`lazurio module status <Org>/<module> --json`",
+      "`LAZURIO_RUNTIME_SECRET_<NAME>` (decision F46)",
+      "- **Who may open an app:** on a Remote Environment, the Environment's gateway.",
+      "`node ~/.local/share/lazurio/mausbot/current/cli.js routine … --port 4102`",
+      "- **Plans, tasks and priorities:** the Organization's Mission Control",
+      "- **Knowledge, how-tos and decisions:** the Organization's Knowledgebase.",
+      "- **The look of an interface:** the Organization's Design System, where it has one",
+      "- **Mail, calendar, chat, CRM:** Integrations.",
+      "the decision register (`docs/decision-register.md`",
+    ],
+  } as const;
+  const pointer = {
+    cs: "Co Lazurio už má a jak se to použije, je v oddílu Co už Lazurio má v `manual/lazurio.md`.",
+    en: "What Lazurio already has and how to use it is in What Lazurio already has in `manual/lazurio.md`.",
+  } as const;
+  const skill = {
+    cs: "- **Co Lazurio už má, nestav.** Než volbu uděláš, projdi oddíl Co už Lazurio má v `manual/lazurio.md`.",
+    en: "- **Do not build what Lazurio already has.** Before you choose, go through What Lazurio already has in `manual/lazurio.md`.",
+  } as const;
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: journey.preset,
+        machine: journey.machine,
+        profile: presetProfile(journey.preset, journey.os, { locale }),
+      });
+      for (const item of items[locale])
+        expect(outputs["manual/lazurio.md"]).toContain(item);
+      expect(outputs["manual/working-here.md"].includes(pointer[locale])).toBe(
+        journey.preset !== "hosted-personal",
+      );
+      expect(outputs[".agents/skills/new-module/SKILL.md"]).toContain(
+        skill[locale],
+      );
+    }
+});
+
+// The remaining agent rules of the Lazurio Root's inventory
+// (Lazurio/LazurioPlatform#757, Medium and Low; decision F14's addendum of
+// 2026-11-02, base-instructions-104): each in one place, on the presets it
+// holds for, in both languages, and none of them in AGENTS.md except the
+// formal address, which stays there under a custom voice too.
+test("the remaining rules of the Root's inventory each have one place in the manual or a skill, in both languages (Lazurio/LazurioPlatform#757)", () => {
+  type Rule = {
+    path: OutputPath;
+    on: (preset: string) => boolean;
+    cs: string;
+    en: string;
+  };
+  const every = () => true;
+  const building = (preset: string) => preset !== "hosted-personal";
+  const vault = (preset: string) => preset !== "local";
+  const working = "manual/working-here.md";
+  const rules: readonly Rule[] = [
+    {
+      // Fresh approval (root manual/pull-request-handoff.md).
+      path: working,
+      on: every,
+      cs: "starší schválení se podle pravidla projektu nepočítá, ani když nese `commit.oid` headu.",
+      en: "by this project's rule an earlier approval does not count, even when it carries the head's `commit.oid`.",
+    },
+    {
+      // Decision 0132, its two missing sentences.
+      path: working,
+      on: every,
+      cs: "Nový název nebo pojem nejdřív ověř v rozhodnutích a `ARCHITECTURE.md` (Pravidla hry jsou veřejná v `manual/lazurio.md`). Konkrétní rozpor otevřeně pojmenuj, ale odborný úsudek nikdy nepoužívej k převzetí obchodní, přístupové ani publikační pravomoci uživatele.",
+      en: "Check a new name or concept against the decisions and `ARCHITECTURE.md` first (The rules of the game are public in `manual/lazurio.md`). Name a concrete conflict openly, but never use expert judgement to take over the user's business, access or Publication authority.",
+    },
+    {
+      // The check of a new proposal (the root's ARCHITECTURE.md).
+      path: working,
+      on: every,
+      cs: "Nový návrh musí jednoduše odpovědět: kdo je Owner, který Environment tvoří společnou bezpečnostní hranici,",
+      en: "A new proposal must answer simply: who is the Owner, which Environment is the shared security boundary,",
+    },
+    {
+      path: working,
+      on: every,
+      cs: "Potřebují-li odpovědi další skryté autority, registry nebo identity, návrh ještě není dost jednoduchý.",
+      en: "When the answers need further hidden authorities, registries or identities, the proposal is not simple enough yet.",
+    },
+    {
+      // Decision 0162: no new ChatGPT or claude.ai connector.
+      path: working,
+      on: every,
+      cs: "ani nový konektor ChatGPT nebo claude.ai nikdy (decision 0162).",
+      en: "or a new ChatGPT or claude.ai connector (decision 0162).",
+    },
+    {
+      // A review of someone else's pull request.
+      path: working,
+      on: every,
+      cs: "- Review cizího pull requestu, ve kterém nic neměníš, dělej v odpojeném checkoutu jeho přesného headu: `git fetch origin pull/<číslo>/head` a `git worktree add --detach .worktrees/review/<repo>-pr-<číslo> <sha headu>`. Po verdiktu ho smaž (`git worktree remove`).",
+      en: "- Review someone else's pull request in which you change nothing in a detached checkout of its exact head: `git fetch origin pull/<number>/head` and `git worktree add --detach .worktrees/review/<repo>-pr-<number> <head sha>`. Remove it after your verdict (`git worktree remove`).",
+    },
+    {
+      // A secret only by its structure.
+      path: working,
+      on: every,
+      cs: "- **Strukturu, nikdy hodnotu.** Když tajemství ukazuješ nebo ověřuješ, uveď jen jeho strukturu: jméno a `id` položky, jména polí a jestli je hodnota vyplněná.",
+      en: "- **Structure, never the value.** When you show or check a secret, give only its structure: the item's name and `id`, the names of its fields and whether a value is set.",
+    },
+    {
+      path: working,
+      on: vault,
+      cs: "(`bw list items`, `bw get item`, `bw create item`), pošli rovnou do příkazu, který hodnotu potřebuje, nebo přes filtr, který nechá jen takové klíče (u `bw list items`: `jq '[.[] | {id, name}]'`), nikdy do svého výstupu.",
+      en: "(`bw list items`, `bw get item`, `bw create item`) goes straight into the command that needs the value or through a filter that keeps only such keys (for `bw list items`: `jq '[.[] | {id, name}]'`), never into your output.",
+    },
+    {
+      // Decision 0196, with the Module Standard.
+      path: working,
+      on: building,
+      cs: "- **Data modulu (decision 0196).** K datům modulu dosáhne Environment, ne člověk:",
+      en: "- **Module data (decision 0196).** The Environment reaches a module's data, not a person:",
+    },
+    {
+      path: working,
+      on: building,
+      cs: "takže modul s omezenými právy má vždy serverovou část a prohlížeč se k jeho úložišti nedostane.",
+      en: "so a module with restricted rights always has a server part and the browser never reaches its store.",
+    },
+    {
+      // Decision 0213, where access is decided.
+      path: "manual/lazurio.md",
+      on: every,
+      cs: "Organizace může své Environmenty přepnout z tailnetu na veřejné DNS (decision 0213, zčásti nasazené): lidé pak vstupují z internetu jen branou každého Environmentu, s Lazurio účtem, členstvím a grantem místo schváleného zařízení, a ze svých zařízení dostanou jen webové rozhraní (Launchpad, chat, Lazurio MausBot, Buddy), ne SSH, desktopové T3 Code ani trezor.",
+      en: "An Organization may switch its Environments from the tailnet to public DNS (decision 0213, partly deployed): people then enter from the internet, only through each Environment's gateway, with the Lazurio account, membership and a grant in place of an approved device, and from their devices they get only the web interface (the Launchpad, chat, Lazurio MausBot, Buddy), no SSH, desktop T3 Code or vault.",
+    },
+    {
+      path: "manual/lazurio.md",
+      on: every,
+      cs: "obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné z tailnetu, s veřejným DNS i z internetu (Kdo rozhoduje o přístupu výše);",
+      en: "serves `<app>.<vm>.<org>.lazurio.io` reachable from the tailnet, with public DNS also from the internet (Who decides access above);",
+    },
+    {
+      // Every rewrite of a branch, not only a fork's.
+      path: working,
+      on: every,
+      cs: "- **Před přepsáním branche** (rebase, reset nebo force push) ověř každý commit, který přepsání zahodí: `git log --oneline <nová>..<stará>` je vypíše",
+      en: "- **Before you rewrite a branch** (a rebase, a reset or a force push), check every commit the rewrite drops: `git log --oneline <new>..<old>` lists them",
+    },
+    {
+      // A Release under a standing mandate a decision records.
+      path: working,
+      on: every,
+      cs: "a ty jen na výslovný pokyn uživatele nebo podle stálého mandátu, který pro vymezený rozsah zapsalo rozhodnutí.",
+      en: "and you only on the user's explicit instruction or under a standing mandate that a decision records for a defined scope.",
+    },
+    {
+      // When in doubt, copy nothing.
+      path: working,
+      on: every,
+      cs: "V pochybnosti obsah nekopíruj: zapiš jen issue v jeho scope nebo odkaz na místo, kde je.",
+      en: "When in doubt, copy no content: file only an issue in its scope or a pointer to where it lives.",
+    },
+    {
+      // A fork's release tag.
+      path: working,
+      on: every,
+      cs: "a každý publikovaný stav má neměnný release tag, který se nikdy nepoužije znovu.",
+      en: "and every published state has an immutable release tag that is never used again.",
+    },
+    {
+      // A stuck procedure of an Integration.
+      path: working,
+      on: every,
+      cs: "- **Zaseknutý nebo zastaralý postup** Integrace oprav u jeho zdroje, ne poznámkou v chatu:",
+      en: "- **A stuck or outdated procedure** of an Integration is fixed at its source, not with a note in chat:",
+    },
+    {
+      // The plan and the tests, and the refactor, also where personal
+      // modules are built.
+      path: working,
+      on: every,
+      cs: "## Plán a testy drží záměr",
+      en: "## The plan and the tests hold the intent",
+    },
+    {
+      path: working,
+      on: every,
+      cs: "## Přestavbu dělá agent (decision 0173)",
+      en: "## A restructuring is done by an agent (decision 0173)",
+    },
+    {
+      // A Python service against the Module Standard.
+      path: working,
+      on: building,
+      cs: "Služba v Pythonu (stack `python-uv`) má stejný `package.json` s `runtime: uv` v `lazurio.preparation`",
+      en: "A Python service (the stack `python-uv`) has the same `package.json` with `runtime: uv` in `lazurio.preparation`",
+    },
+    {
+      path: ".agents/skills/module-standard/SKILL.md",
+      on: every,
+      cs: "Služba v Pythonu (stack `python-uv`) má v `lazurio.preparation` navíc `runtime: uv` a `uv_version`",
+      en: "A Python service (the stack `python-uv`) adds `runtime: uv` and `uv_version` to `lazurio.preparation`",
+    },
+    {
+      // A subagent's report is not proof.
+      path: working,
+      on: every,
+      cs: "Když práci deleguješ na subagenta nebo jiného agenta, jeho vlastní hlášení není důkaz: QA gate drží ten, kdo delegoval, a výsledek ověří sám.",
+      en: "When you delegate to a subagent or another agent, its own report is not proof: whoever delegated holds the QA gate and checks the result.",
+    },
+  ];
+  const formal = {
+    cs: "- Uživatele oslovuj formálně, vykej jim (vy, váš, vám malým písmenem, výzvy v množném čísle, bez minulého času, který by určil rod); pravidla psaná pro agenty zůstávají v ty.",
+    en: "- Address users formally; in Czech that is vykání (vy, váš, vám in lowercase, imperatives in the plural, no past tense that would fix a gender), while rules written for agents keep ty.",
+  } as const;
+  const environments = [
+    ...journeys,
+    {
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationPublic,
+      os: "linux",
+    },
+  ] as const;
+  for (const environment of environments)
+    for (const locale of ["cs", "en"] as const) {
+      const composition = {
+        preset: environment.preset,
+        machine: environment.machine,
+        profile: presetProfile(environment.preset, environment.os, { locale }),
+      };
+      const outputs = renderOutputs(composition);
+      const where = [environment.preset, environment.machine?.name, locale];
+      for (const rule of rules) {
+        const text = rule[locale];
+        expect([
+          ...where,
+          rule.path,
+          text,
+          outputs[rule.path].includes(text),
+        ]).toEqual([...where, rule.path, text, rule.on(environment.preset)]);
+        expect([...where, text, outputs["AGENTS.md"].includes(text)]).toEqual([
+          ...where,
+          text,
+          false,
+        ]);
+      }
+      // The formal address keeps its plural and its gender rule in AGENTS.md
+      // with the default voice and with a custom one.
+      const custom = renderOutputs({
+        ...composition,
+        agentVoice: { overrides: { [locale]: "Piš krátce." } },
+      });
+      for (const agents of [outputs["AGENTS.md"], custom["AGENTS.md"]])
+        expect([...where, agents.split("\n").includes(formal[locale])]).toEqual(
+          [...where, true],
+        );
+      // Only the hosted-personal plan has no Organization's Mission Control.
+      const plan =
+        locale === "cs"
+          ? "Plán v Mission Controlu Organizace drží obrys výsledku"
+          : "The plan in the Organization's Mission Control holds the outline";
+      expect([...where, outputs[working].includes(plan)]).toEqual([
+        ...where,
+        environment.preset !== "hosted-personal",
+      ]);
     }
 });
