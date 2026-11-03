@@ -379,6 +379,7 @@ async function hostedLaunchpad(
     undefined,
     undefined,
     undefined,
+    undefined,
     marketplace,
   );
   const base = `http://127.0.0.1:${entry.listenPort}`;

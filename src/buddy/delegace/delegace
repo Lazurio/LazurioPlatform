@@ -72,8 +72,8 @@ PREAMBLE_VLAKNO = (
     "a nahlas, jak skončilo."
 )
 # A bot works with the Lazurio Folder as its working directory, so a bare name
-# in a brief lands at the Folder's top level, and a stray entry there blocks the
-# Environment's updates (`folder-foreign-entry`). Every task gets its own folder.
+# in a brief lands at the Folder's top level, where every update reports it as a
+# foreign entry (`folder-top-level`). Every task gets its own folder.
 PREAMBLE_VYSTUPY = (
     "Soubory s výstupem, třeba protokol, podklad nebo export, ukládej do {vystupy}, "
     "pokud zadání neurčí jinou složku v ~/Documents/; cestu vždy zapiš absolutně. "

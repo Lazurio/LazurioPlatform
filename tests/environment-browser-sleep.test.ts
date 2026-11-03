@@ -20,6 +20,15 @@ import {
 } from "../src/browser/people/pressure";
 import { parseClientMessage } from "../src/browser/people/protocol";
 import {
+  maxRemembered,
+  maxRememberedText,
+  parseRemembered,
+  type RememberedTab,
+  rememberedPath,
+  rememberedText,
+  rememberTimes,
+} from "../src/browser/people/remembered";
+import {
   addressKey,
   parseSleepState,
   quietSince,
@@ -640,4 +649,88 @@ test("the source reads the higher PSI of the browser and the Environment and the
   expect(await environmentOnly()).toEqual({ some: 4, available: 0.5 });
   expect(alone).toHaveLength(1);
   expect(alone[0]).toContain("cgroup is unknown");
+});
+
+// ---- Remembered tabs (F57's addendum of 2026-11-03) ----------------------------
+
+test("remembered tabs: kept 30 days and at most 2000, the later of one id counts, only web addresses, and they live in state, not runtime", () => {
+  expect(rememberTimes.keepMs).toBe(30 * 24 * 60 * 60_000);
+  expect(maxRemembered).toBe(2_000);
+  const now = 100 * 24 * 60 * 60_000;
+  const kept = (
+    n: number,
+    seenAt: number,
+    url = `https://example.com/${n}`,
+  ) => ({
+    id: id(n),
+    url,
+    title: `Tab ${n}`,
+    favicon: "https://example.com/favicon.ico",
+    opener: { kind: "agent", session: "codex-1" },
+    openedAt: 1,
+    seenAt,
+  });
+  const text = rememberedText([
+    kept(1, now - 1_000) as RememberedTab,
+    kept(2, now - rememberTimes.keepMs - 1) as RememberedTab,
+    kept(3, now - 5_000, "about:blank") as RememberedTab,
+    kept(1, now - 2_000, "https://example.com/older") as RememberedTab,
+    kept(4, now - 3_000) as RememberedTab,
+  ]);
+  const read = parseRemembered(text, now);
+  expect(read.map((tab) => tab.id)).toEqual([id(4), id(1)]);
+  expect(read[1]?.url).toBe("https://example.com/1");
+  expect(read[1]?.opener).toEqual({ kind: "agent", session: "codex-1" });
+  expect(parseRemembered("not json", now)).toEqual([]);
+  expect(parseRemembered(`{"schema":"other","tabs":[]}`, now)).toEqual([]);
+  const many = rememberedText(
+    Array.from({ length: maxRemembered + 5 }, (_, n) =>
+      kept(n + 1, now - 10_000 + n),
+    ) as RememberedTab[],
+  );
+  const trimmed = parseRemembered(many, now);
+  expect(trimmed.length).toBe(maxRemembered);
+  expect(trimmed[0]?.id).toBe(id(6));
+  expect(rememberedPath({ HOME: "/home/a" })).toBe(
+    "/home/a/.local/state/lazurio/browser/remembered-tabs.json",
+  );
+  expect(rememberedPath({ HOME: "/home/a", XDG_STATE_HOME: "/s" })).toBe(
+    "/s/lazurio/browser/remembered-tabs.json",
+  );
+  expect(rememberedPath({ HOME: "/home/a", XDG_STATE_HOME: "rel" })).toBe(
+    "/home/a/.local/state/lazurio/browser/remembered-tabs.json",
+  );
+  expect(rememberedPath({})).toBeUndefined();
+});
+
+test("remembered tabs: what is written is read back, at the longest addresses too; past the size the least recently seen are left out, never all; an address past the bound is not written", () => {
+  const now = 10 * 24 * 60 * 60_000;
+  const big = (n: number) =>
+    ({
+      id: id(n),
+      url: `https://example.com/${n}?${"q".repeat(2_000)}`.slice(0, 2_048),
+      title: `"${"t".repeat(498)}"`,
+      favicon: `https://example.com/${"i".repeat(2_000)}`.slice(0, 2_048),
+      opener: { kind: "agent", session: "codex-1" },
+      openedAt: 1,
+      seenAt: now - 100_000 + n,
+    }) as RememberedTab;
+  const all = Array.from({ length: maxRemembered }, (_, n) => big(n + 1));
+  const text = rememberedText(all);
+  expect(text.length).toBeLessThanOrEqual(maxRememberedText);
+  expect(parseRemembered(text, now).length).toBe(maxRemembered);
+  // A smaller bound: the newest that fit are written, and read back.
+  const small = rememberedText(all, 50_000);
+  expect(small.length).toBeLessThanOrEqual(50_000);
+  const read = parseRemembered(small, now);
+  expect(read.length).toBeGreaterThan(0);
+  expect(read.at(-1)?.id).toBe(id(maxRemembered));
+  expect(read[0]?.id).toBe(id(maxRemembered - read.length + 1));
+  // An address past the bound is not written at all.
+  const long = {
+    ...big(1),
+    url: `https://example.com/?q=${"a".repeat(2_060)}`,
+  } as RememberedTab;
+  expect(rememberedText([long])).not.toContain("a".repeat(2_060));
+  expect(parseRemembered(rememberedText([long]), now)).toEqual([]);
 });

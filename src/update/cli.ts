@@ -1,4 +1,5 @@
 import { lstat, mkdtemp, rm } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { handoverBrowserEntry } from "../browser/entry";
@@ -23,6 +24,10 @@ import {
 import { type ExecutorHost, executorStatus } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
 import {
+  foreignEntriesText,
+  foreignEntriesUnreadableText,
+} from "../folder/foreign-entries";
+import {
   type FolderRefresh,
   folderRefreshText,
   shellWord,
@@ -41,6 +46,16 @@ import {
   processModuleHost,
 } from "../modules/module-operations";
 import type { PersonalspaceHolderRead } from "../organizations/personalspace";
+import type { AccessServiceLocation } from "../ssh-access/access-service";
+import {
+  type EnvironmentSshLocation,
+  hasRouteFiles,
+} from "../ssh-access/environments";
+import {
+  liveRoutesSource,
+  type ReadRoutesSource,
+  type RoutesDeclaration,
+} from "../ssh-access/routes";
 import { runTool } from "../tools/status";
 import {
   type AttestationVerifier,
@@ -93,6 +108,7 @@ import {
 } from "./service-control";
 import {
   checkForUpdate,
+  type FolderForeignEntries,
   performUpdate,
   readStatus,
   type UpdateEnvironment,
@@ -344,6 +360,39 @@ export const executorAtStart =
  * (`executorAtStart`), a supervised base for the hosted operator; the vault
  * itself then decides whether it needs a setup. */
 export const vaultAtStart = executorAtStart;
+
+/** What the Launchpad of this base finds for the Environment's routes on
+ * each tick (root decision 0224, decision F70's amendment of 2026-11-03,
+ * point 6): where it sets Executor up, what the live handover declares
+ * (`liveRoutesSource`), and a handover it cannot read throws, so the tick
+ * only lets expired routes go. Where it does not, `off` (it keeps no routes
+ * there) unless the Platform's route files are there: a missing or unreadable
+ * handover makes the hosted-operator check itself fail, and such a base was
+ * a hosted operator's, so it is `unconfirmed` and its tick still lets expired
+ * routes go. */
+export const routesAtStart =
+  (
+    context: CliContext,
+    base: string,
+    seams: Readonly<{
+      location?: EnvironmentSshLocation;
+      read?: ReadRoutesSource;
+    }> = {},
+  ) =>
+  async (): Promise<RoutesDeclaration> => {
+    const location = seams.location ?? {
+      home: homedir(),
+      uid: process.getuid?.(),
+    };
+    if (!(await executorAtStart(context, base)().catch(() => false)))
+      return (await hasRouteFiles(location))
+        ? { kind: "unconfirmed" }
+        : { kind: "off" };
+    const source = await (seams.read ?? liveRoutesSource())();
+    return Array.isArray(source)
+      ? { kind: "undeclared" }
+      : { kind: "declared", service: source as AccessServiceLocation };
+  };
 
 export async function updateEnvironment(
   context: CliContext,
@@ -996,6 +1045,7 @@ export async function runUpdateCommand(
                 ? [`state-invalid: ${status.stateInvalid}`]
                 : []),
               ...refresh(status.folderRefresh),
+              ...foreignLines(status.folderForeignEntries),
             ].join("\n")
           : "",
       );
@@ -1086,6 +1136,15 @@ function refreshLines(outcome: FolderRefreshOutcome | null): string[] {
   ];
 }
 
+/** A hosted Folder's foreign top-level entries (decision F10's addendum of
+ * 2026-11-03): one line naming them and where they belong. */
+function foreignLines(value: FolderForeignEntries | undefined): string[] {
+  if (value === undefined) return [];
+  return "unreadable" in value
+    ? [foreignEntriesUnreadableText(value.folder)]
+    : [foreignEntriesText(value.folder, value.entries)];
+}
+
 /** The product's own lines after `lazurio update`. */
 function productText(result: UpdateResult): string {
   return result.kind === "updated"
@@ -1096,6 +1155,7 @@ function productText(result: UpdateResult): string {
             : ""
         }`,
         ...refreshLines(result.folderRefresh),
+        ...foreignLines(result.folderForeignEntries),
         ...codexFinding(result.codexAppServer),
         ...browserFinding(result.environmentBrowser),
         ...computerUseFinding(result.computerUse),
@@ -1105,6 +1165,7 @@ function productText(result: UpdateResult): string {
       ? [
           `Lazurio ${result.running} is up to date.`,
           ...refreshLines(result.folderRefresh),
+          ...foreignLines(result.folderForeignEntries),
           ...codexFinding(result.codexAppServer),
           ...browserFinding(result.environmentBrowser),
           ...computerUseFinding(result.computerUse),

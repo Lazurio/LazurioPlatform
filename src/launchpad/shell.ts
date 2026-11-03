@@ -106,7 +106,10 @@ export function createShell(
     for (const action of actions)
       action.hidden = action.dataset.sectionAction !== (section ?? frame);
     for (const link of navLinks)
-      if (link.dataset.section === section)
+      if (
+        link.dataset.section === section ||
+        (link.dataset.section === "connections" && section === "ssh")
+      )
         link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     // A module, and a service repository's page, sit under their

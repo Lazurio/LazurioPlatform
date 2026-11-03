@@ -161,7 +161,12 @@ export type SleepState = Readonly<{
 
 export const sleepStateSchema = "lazurio.browser-sleep.v1";
 
-const sleepReasons: readonly SleepReason[] = ["idle", "pressure", "asked"];
+const sleepReasons: readonly SleepReason[] = [
+  "idle",
+  "pressure",
+  "asked",
+  "ended",
+];
 
 export function sleepStateText(state: SleepState): string {
   return `${JSON.stringify({

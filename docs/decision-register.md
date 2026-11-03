@@ -38,7 +38,7 @@ on, and only the operational details stay internal.
 
 ## Recording a decision
 
-A new decision takes the next free number, **0227**, by a pull request to this
+A new decision takes the next free number, **0228**, by a pull request to this
 file. Check `main` again before the merge, because a parallel pull request may
 take the same number, and fix a collision by renumbering before the merge. An
 amendment is folded into the entry with its date. An internal decision gets a
@@ -1043,3 +1043,10 @@ GEN3 is the official designation of the Lazurio Root, the root repository with i
 - **Related:** 0219, 0221, 0225
 
 Lazurio's decisions keep one series of numbers for GEN3 and GEN4, and only this register in Lazurio Platform allocates them. A public decision, one that defines how Lazurio works for people, agents and administrators, has its full condensed text here, without quotations or internal details. A decision about the development and operation of Lazurio is internal to the LazurioDevelopment Organization, and a product or business decision to HumanAndMachine-ai; each keeps one line here and its full text in that Organization's Knowledgebase. What a public text cites must be findable publicly, so the entry of a cited internal decision carries the general norm the public text relies on. The Lazurio Root's register stays as GEN3's record of the rows up to 0224 and points here.
+
+### 0227 — A new Environment is handed over at the newest released versions
+
+- **Status:** decided, implementation in progress · **Applies to:** GEN4 · **Decided:** 2026-11-03
+- **Related:** 0144, 0161, 0204, 0205, 0212
+
+A new Environment, including every Environment created while a new Organization is installed, reaches its person with the newest stable release of everything Lazurio installs on it: Lazurio itself, T3 Code, Lazurio MausBot, the Machines release and the tools of its catalog (Codex, Claude Code, `gh`, Node, npm, Bun and the others). Stable means a published release that is not a draft, a release candidate, a preview or another prerelease; candidates stay with the reference Organization (0204). An apply installs exactly the versions an Environment's declaration pins (0205), so freshness comes through the pins: the first declaration of an Environment takes them from the newest stable releases, never from another Environment or Organization, and names the newest Machines release. Before the handover the installer compares the declaration and the versions actually running in the Environment with the newest stable releases, and an Environment that is behind is not handed over unless the installer defers a named component with its reason in the pull request. Choosing the newest versions before the first handover, and moving the Environment to newer ones until then, is part of producing it and needs no consent of its future user, because nobody uses it yet; it touches nothing a person put there. From the handover on, 0161 holds unchanged: Lazurio updates itself with `lazurio update`, the user's tools change only on the user's instruction, and the hosting pin is a minimum that moves only by a reviewed pull request. Every Machines release keeps its tool catalog current: it qualifies the newest stable version of each tool or records why it defers it.

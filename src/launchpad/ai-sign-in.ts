@@ -1,5 +1,6 @@
 import {
   type AiProvider,
+  type AiReading,
   type AiServices,
   codexDeviceCode,
   codexDevicePage,
@@ -38,7 +39,10 @@ export type AiSignInFailure =
   | "no-answer"
   | "browser-unavailable"
   | "no-environment-browser"
-  | "provider-unknown";
+  | "provider-unknown"
+  /** The CLI is not on this Environment's PATH: signing in again cannot
+   * help, so the step says it and offers the other AI. */
+  | "not-installed";
 
 export type AiSignIn =
   | Readonly<{ kind: "idle" }>
@@ -215,7 +219,8 @@ export function aiSignInAnswer(
         tool,
         reason:
           value.reason === "browser-unavailable" ||
-          value.reason === "provider-unknown"
+          value.reason === "provider-unknown" ||
+          value.reason === "not-installed"
             ? value.reason
             : "failed",
         ...mode,
@@ -243,6 +248,92 @@ type Transport = (
 
 /** The page's AI sign-in: one at a time, held through its session handle;
  * starting another replaces it on the server too. */
+/**
+ * A click's "not installed" holds only until a fresh reading of the AI, asked
+ * after it ("Zkontrolovat znovu", `GET /api/ai?fresh=1`), finds that CLI:
+ * installed since, it can sign in, so the failure is gone and the step offers
+ * its sign-in again. A reading that does not name the CLI, says it is still
+ * not installed or could not tell (`unknown`) keeps the failure, and so does
+ * every other state.
+ */
+export function aiSignInAfterReading(
+  signIn: AiSignIn,
+  reading: AiReading | null,
+): AiSignIn {
+  if (
+    signIn.kind !== "failed" ||
+    signIn.reason !== "not-installed" ||
+    reading === null
+  )
+    return signIn;
+  const found = reading.providers.find(
+    (provider) => provider.provider === signIn.tool,
+  );
+  return found !== undefined &&
+    found.state !== "not-installed" &&
+    found.state !== "unknown"
+    ? idleAiSignIn
+    : signIn;
+}
+
+/** A reading of the AI as the order knows it (createReadingOrder). */
+export type AskedReading = Readonly<{ fresh: boolean; point: number }>;
+
+/**
+ * Which answer of the page's readings of the AI is shown, by how fresh its
+ * data is, not by when it was asked or answered (review of #827). Readings
+ * run side by side. A fresh one (`?fresh=1`) makes the server drop its kept
+ * answer and ask the CLIs, so its data is at least as new as its own ask. A
+ * plain one may get the server's kept answer, so its data is only as new as
+ * the last fresh reading that had answered when it was asked (the server had
+ * dropped its older answer by then). Each answer is shown unless one at a
+ * fresher point already is: an older fresh reading that ends last, and a
+ * plain one that returns the kept answer while a fresh one runs, never hide
+ * what a fresher reading found. A reading without an answer (the request
+ * failed) moves nothing: it found nothing that could hide another.
+ */
+export function createReadingOrder() {
+  let asked = 0;
+  let freshAnswered = 0;
+  let shown = 0;
+  return {
+    /** A reading about to be asked, fresh or plain. */
+    ask(fresh: boolean): AskedReading {
+      asked += 1;
+      return { fresh, point: fresh ? asked : freshAnswered };
+    },
+    /** Its answer arrived (`answered`: the request gave a reading):
+     * whether it is the one to show. */
+    take(reading: AskedReading, answered = true): boolean {
+      if (!answered) return false;
+      if (reading.fresh) freshAnswered = Math.max(freshAnswered, reading.point);
+      if (reading.point < shown) return false;
+      shown = reading.point;
+      return true;
+    },
+  };
+}
+
+/**
+ * What one answer of a reading does, apart from drawing it: a fresh reading
+ * (`since` from the sign-in's mark()) settles the sign-in whatever the order
+ * of answers, because settle() is guarded by the state it began under; the
+ * reading shown follows createReadingOrder. Returns whether the answer is
+ * the one to show.
+ */
+export function takeAiReading(
+  order: ReturnType<typeof createReadingOrder>,
+  signIn: Readonly<{
+    settle: (reading: AiReading | null, since: number) => void;
+  }>,
+  asked: Readonly<{ reading: AskedReading; since: number | null }>,
+  reading: AiReading | null,
+): boolean {
+  const shown = order.take(asked.reading, reading !== null);
+  if (asked.since !== null) signIn.settle(reading, asked.since);
+  return shown;
+}
+
 export function createAiSignIn(
   options: Readonly<{
     post: Transport;
@@ -260,6 +351,9 @@ export function createAiSignIn(
   const answerMs = options.answerMs ?? 45_000;
   const pollMs = options.pollMs ?? 2_000;
   let current: AiSignIn = idleAiSignIn;
+  // Counts every change of the state: a reading begun at one count may only
+  // settle the state it began under.
+  let changes = 0;
   let turn = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   // The view the panel was opened on, once per sign-in.
@@ -270,6 +364,7 @@ export function createAiSignIn(
 
   const set = (next: AiSignIn) => {
     current = next;
+    changes += 1;
     options.changed();
   };
   const ask = async (path: string, body: unknown) => {
@@ -405,6 +500,21 @@ export function createAiSignIn(
         .catch(() => ({ value: null, ok: false }));
       if (mine !== turn || current.kind !== "waiting") return;
       set({ ...current, codeNote: answer.ok ? "sent" : "invalid" });
+    },
+
+    /** Taken right before a fresh reading of the AI is asked for. */
+    mark(): number {
+      return changes;
+    },
+
+    /** That fresh reading arrived: a "not installed" it proves wrong is
+     * dropped (aiSignInAfterReading), but only when the state is the one
+     * the reading began under (`since`, from mark()). A failure that came
+     * while it was under way is newer than the reading and stays. */
+    settle(reading: AiReading | null, since: number) {
+      if (since !== changes) return;
+      const next = aiSignInAfterReading(current, reading);
+      if (next !== current) set(next);
     },
 
     /** The page goes: nothing more is asked. */
