@@ -10085,7 +10085,10 @@ addendum of its own, which this Platform decision does not make.
    identity message (C9) gains the glyph kind `person` and the icon `building`; a view
    of an older release does not read them and draws the identity its own server gave.
    A person's Environment in words (a tab's title) now names the person rather than the
-   Organization.
+   Organization. So that a name of about twenty characters and "Pracovní Prostředí" fit
+   the 264 px column, the picker's glyph box is its 24 px mark and its gaps are 8 px; a
+   longer name wraps to a second line and is cut only after it, with the whole identity
+   in the button's title.
 
 Tests: `tests/shell-picker-owners.test.ts` (the member in both documents, the merge, the
 owner rule, the groups and their order, the rows, search, the jump and the widened list,

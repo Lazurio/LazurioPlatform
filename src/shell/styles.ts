@@ -167,6 +167,13 @@ ${identityCss}
 .pick:hover { background: var(--shell-hover); }
 .pick[aria-expanded="true"] { background: var(--shell-selected); }
 /* Its glyph, name and who line: the identity's drawing (above). */
+/* So a person's name of about twenty characters and "Pracovní Prostředí"
+   under it fit the 264 px column (F36's addendum of 2026-11-03): the glyph's
+   box is its 24 px mark, the gaps are 8 px, and a longer name wraps to a
+   second line before it is cut; the button's title holds the whole of it. */
+.pick { gap: var(--lz-space-8); padding-inline: var(--lz-space-8) var(--lz-space-4); }
+.pick .identity-glyph { width: var(--lz-space-24); height: var(--lz-space-24); }
+.pick .identity-name { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.25; overflow-wrap: anywhere; white-space: normal; }
 .pick > svg { flex: none; color: var(--shell-ink-muted); transition: transform 0.15s; }
 .pick[aria-expanded="true"] > svg { transform: rotate(180deg); }
 /* The gear (lz-button--quiet lz-button--icon): a square of the grid's
