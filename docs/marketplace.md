@@ -38,8 +38,9 @@ does today; the rest of this document stays future direction.
   error does.
 - **Today's offers.** Mission Control 4.0.0 (`app/v3`, `app-data@2026.11`), Design
   System 1.0.0 (`app/v1`, `content@2026.11`) and Presentations 0.1.0 (`app/v1`,
-  `app@2026.11`), MIT, on Bun 1.4.4. None is released yet, so the Marketplace shows
-  none of them and says there are no app templates yet. All three are published
+  `app@2026.11`), MIT, on Bun 1.4.4. Each is released at the commit its tag points to,
+  so the Marketplace shows all three; with none released it says there are no app
+  templates yet. All three are published
   by the GitHub Organization `LazurioTemplates` (decided 2026-11-03), from
   `LazurioTemplates/mission-control` (moved from `Lazurio/mission-control`, releases
   v3.0.0 to v3.1.0 before), `LazurioTemplates/design-system` and
@@ -116,7 +117,7 @@ Decided by Matěj on 2026-11-03: the registry is one public repository with one 
 per template; adding a template is a pull request, CI checks its shape and source,
 and a curator's merge is the listing. Lazurio reads the registry at one exact commit
 instead of a record in its own code, so a new template needs no Lazurio release. The
-repository is private until Matěj publishes it; the record format, the validator, the
+repository is public; the record format, the validator, the
 contribution guide and the template contract live there (`schemas/offer.v1.schema.json`,
 `CONTRIBUTING.md`).
 
@@ -157,9 +158,12 @@ contribution guide and the template contract live there (`schemas/offer.v1.schem
    failed first read does not leave the built-in copy for good.
 6. **The built-in copy** is the registry's `index.json` at the release's build,
    copied into `src/launchpad/marketplace-index.json` by a reviewed change; it must
-   parse (an unreadable copy fails the module's load and the tests). A Launchpad that
-   is not an installed one (a source checkout, the tests) never asks the registry and
-   shows this copy.
+   parse (an unreadable copy fails the module's load and the tests). Today's copy is
+   `index.json` of registry commit `bc5839d` (2026-11-03), with all three templates
+   released. The behavior tests read a fixture index of their own
+   (`tests/fixtures/marketplace-index-unreleased.json`), so a refresh of the copy
+   leaves them alone. A Launchpad that is not an installed one (a source checkout,
+   the tests) never asks the registry and shows this copy.
 7. **Nothing more is trusted.** A listing grants nothing: whatever an index says, the
    offer is a brief the agent checks against the release itself (live rights, the
    tag's commit, the release's `docs/adoption.md`), and the prompt route still serves

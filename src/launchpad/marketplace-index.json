@@ -115,7 +115,7 @@
           "stackProfile": "content@2026.11",
           "stack": "astro",
           "bun": "1.4.4",
-          "commit": null,
+          "commit": "fc64dc06b563587b215481c9d54b41f0d045aba8",
           "artifactDigest": null
         }
       ]
@@ -237,7 +237,7 @@
           "stackProfile": "app-data@2026.11",
           "stack": "vite-react",
           "bun": "1.4.4",
-          "commit": null,
+          "commit": "8d29a8deaa03694be4358dcf293c19945d302d3e",
           "artifactDigest": null
         }
       ]
@@ -349,7 +349,7 @@
           "stackProfile": "app@2026.11",
           "stack": "vite-react",
           "bun": "1.4.4",
-          "commit": null,
+          "commit": "4b023772fbe45c2209b6eb1ff44009239ed1ac99",
           "artifactDigest": null
         }
       ]

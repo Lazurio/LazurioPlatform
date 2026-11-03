@@ -10,13 +10,13 @@ import {
   offerById,
   parseMarketplaceIndex,
 } from "../src/launchpad/marketplace";
-import builtInIndex from "../src/launchpad/marketplace-index.json";
 import { createMarketplacePanel } from "../src/launchpad/marketplace-panel";
 import type { MarketplaceAnswer } from "../src/launchpad/marketplace-refresh";
 import { messages } from "../src/launchpad/messages";
 import type { PageRoute } from "../src/launchpad/routes";
 import type { Catalog } from "../src/organizations/catalog";
 import { FakeNode } from "./fixtures/fake-dialog-dom";
+import unreleasedIndex from "./fixtures/marketplace-index-unreleased.json";
 
 // The dialog of "Přidat do Organizace" while "Pokračovat v Chatu" waits for
 // Chat (plan DEV-6593, marketplace-panel.ts): the hand-over's outcome is said
@@ -33,10 +33,10 @@ afterEach(() => {
 const en = messages("en");
 const commit = "0123456789abcdef0123456789abcdef01234567";
 
-/** Every offer of the built-in index, its newest release published. */
+/** Every offer of the fixture index, its newest release published. */
 const published = parseMarketplaceIndex({
-  ...builtInIndex,
-  offers: builtInIndex.offers.map((offer) => ({
+  ...unreleasedIndex,
+  offers: unreleasedIndex.offers.map((offer) => ({
     ...offer,
     releases: offer.releases.map((release, i) =>
       i === 0 ? { ...release, commit } : release,

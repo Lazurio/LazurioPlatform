@@ -32,21 +32,27 @@ import {
   routePath,
   routeTitle,
 } from "../src/launchpad/routes";
+import unreleasedIndex from "./fixtures/marketplace-index-unreleased.json";
 
 // The Marketplace (plan DEV-6593): one section, offers read from the
 // registry's index at one commit (or the copy built into this release), and
 // only those with a published release: an exact commit, which "Přidat do
-// Organizace" hands to the agent in a brief.
+// Organizace" hands to the agent in a brief. Its behavior is tested on an
+// index of the registry's shape in which no template is released yet
+// (tests/fixtures/marketplace-index-unreleased.json). The copy built into
+// this release is tested only as what it is, the registry's index read in
+// full, and for its offers' words, so refreshing it leaves the behavior
+// tests alone.
 
 const cs = messages("cs");
 const en = messages("en");
 const commit = "0123456789abcdef0123456789abcdef01234567";
 
-/** The built-in index with these offers' newest release published at
+/** The fixture index with these offers' newest release published at
  * `commit` (all of them when none is named). */
 const publishedIndex = (...ids: string[]) => ({
-  ...builtInIndex,
-  offers: builtInIndex.offers.map((offer) =>
+  ...unreleasedIndex,
+  offers: unreleasedIndex.offers.map((offer) =>
     ids.length > 0 && !ids.includes(offer.id)
       ? offer
       : {
@@ -68,15 +74,22 @@ const catalogOf = (...offers: MarketplaceOffer[]): MarketplaceCatalog => ({
   offers,
 });
 
+/** A copy built into a release in which no template is released yet. */
+const unreleasedBuiltIn: MarketplaceCatalog = {
+  source: "built-in",
+  commit: null,
+  offers: parseMarketplaceIndex(unreleasedIndex) as readonly MarketplaceOffer[],
+};
+
 const released = offerById(
   catalogOf(...shown),
   "presentations",
 ) as MarketplaceOffer;
 
-/** The built-in index with one offer's fields replaced. */
+/** The fixture index with one offer's fields replaced. */
 const indexWith = (id: string, fields: Record<string, unknown>) => ({
-  ...builtInIndex,
-  offers: builtInIndex.offers.map((offer) =>
+  ...unreleasedIndex,
+  offers: unreleasedIndex.offers.map((offer) =>
     offer.id === id ? { ...offer, ...fields } : offer,
   ),
 });
@@ -107,16 +120,41 @@ const example: BoundOrganization = {
   repositories: [],
 };
 
-test("the built-in copy is the registry's index: three templates, none released yet, so none shown", () => {
+test("the built-in copy is the registry's index, read in full: its three templates are released, so all three are shown at their commits", () => {
   expect(builtInMarketplace.source).toBe("built-in");
   expect(builtInMarketplace.commit).toBeNull();
-  expect(builtInMarketplace.offers).toEqual([]);
   expect(builtInIndex.offers.map((offer) => offer.id)).toEqual([
     "design-system",
     "mission-control",
     "presentations",
   ]);
-  // Once released, each offers its release and what it is built on.
+  // Every template of the copy is read and shown; none is left out.
+  expect(builtInMarketplace.offers.map((offer) => offer.id)).toEqual(
+    builtInIndex.offers.map((offer) => offer.id),
+  );
+  for (const offer of builtInMarketplace.offers) {
+    // Each at a release the copy records, with its full commit and the
+    // stack profile it is built on.
+    const recorded: readonly unknown[] =
+      builtInIndex.offers.find((entry) => entry.id === offer.id)?.releases ??
+      [];
+    expect(recorded).toContainEqual(offer.release);
+    expect(offer.release.commit).toMatch(/^[0-9a-f]{40}$/);
+    expect(offer.release.stackProfile).toMatch(/^[a-z][a-z-]*@\d{4}\.\d{2}$/);
+  }
+  // LazurioTemplates publishes every template; the example Organization is
+  // a subscriber that adopts them from the Marketplace like any other.
+  expect(builtInMarketplace.offers.map((offer) => offer.publisher)).toEqual([
+    "LazurioTemplates",
+    "LazurioTemplates",
+    "LazurioTemplates",
+  ]);
+  expect(JSON.stringify(builtInIndex)).not.toContain(
+    "LazurioExampleOrganization",
+  );
+});
+
+test("the fixture's templates once released: each offers its release and what it is built on", () => {
   expect(
     shown.map((offer) => [
       offer.id,
@@ -168,32 +206,22 @@ test("the built-in copy is the registry's index: three templates, none released 
       4,
     ],
   ]);
-  // LazurioTemplates publishes every template; the example Organization is
-  // a subscriber that adopts them from the Marketplace like any other.
-  expect(builtInIndex.offers.map((offer) => offer.publisher)).toEqual([
-    "LazurioTemplates",
-    "LazurioTemplates",
-    "LazurioTemplates",
-  ]);
-  expect(JSON.stringify(builtInIndex)).not.toContain(
-    "LazurioExampleOrganization",
-  );
   expect(releaseUrl(released)).toBe(
     "https://github.com/LazurioTemplates/presentations/releases/tag/v0.1.0",
   );
-  expect(offerById(builtInMarketplace, "presentations")).toBeNull();
+  expect(offerById(unreleasedBuiltIn, "presentations")).toBeNull();
   expect(offerById(catalogOf(...shown), "other")).toBeNull();
   expect(offerById(catalogOf(...shown), "__proto__")).toBeNull();
 });
 
 test("an index is read in full or refused: unknown schema, field or value, a duplicate id, a short commit, a price", () => {
-  expect(parseMarketplaceIndex(builtInIndex)).toEqual([]);
+  expect(parseMarketplaceIndex(unreleasedIndex)).toEqual([]);
   expect(parseMarketplaceIndex(publishedIndex())).toHaveLength(3);
   for (const index of [
     null,
     [],
-    { ...builtInIndex, schemaVersion: "lazurio.marketplace.index.v2" },
-    { ...builtInIndex, extra: true },
+    { ...unreleasedIndex, schemaVersion: "lazurio.marketplace.index.v2" },
+    { ...unreleasedIndex, extra: true },
     indexWith("presentations", { installs: 12 }),
     indexWith("presentations", { pricing: "paid" }),
     indexWith("presentations", { section: "profiles" }),
@@ -273,7 +301,7 @@ test("an offer without a published release has no card, no detail and no prompt"
   expect(offerById(catalog, "mission-control")).toBeNull();
   const key = catalogKey(catalog);
   for (const [source, id] of [
-    [builtInMarketplace, "marketplace-presentations-empty-builtin"],
+    [unreleasedBuiltIn, "marketplace-presentations-empty-builtin"],
     [catalog, `marketplace-mission-control-empty-${key}`],
     [catalog, `marketplace-design-system-sample-${key}`],
   ] as const)
@@ -529,12 +557,20 @@ test("the Marketplace's routes: its catalog and an offer's detail, one frame", (
     heading: "Presentations",
     document: "Presentations · Marketplace — Lazurio",
   });
-  // An offer the page does not show (unknown, or not released in the
-  // built-in copy) is titled Marketplace.
+  // An offer the page does not show (unknown, or not released) is titled
+  // Marketplace.
+  expect(
+    routeTitle({ view: "marketplace", offer: "unknown" }, cs).heading,
+  ).toBe("Marketplace");
   for (const offer of ["unknown", "presentations"])
-    expect(routeTitle({ view: "marketplace", offer }, cs).heading).toBe(
-      "Marketplace",
-    );
+    expect(
+      routeTitle(
+        { view: "marketplace", offer },
+        cs,
+        undefined,
+        (id) => offerById(unreleasedBuiltIn, id)?.title,
+      ).heading,
+    ).toBe("Marketplace");
   // An offer only the registry has is titled by the offers the page shows.
   expect(
     routeTitle(
@@ -547,7 +583,8 @@ test("the Marketplace's routes: its catalog and an offer's detail, one frame", (
 });
 
 test("the registry's offers' words say no price, no pilot, no Environment or computer, no rating and no install on a click", () => {
-  for (const offer of shown) {
+  // The registry's words as this release carries them.
+  for (const offer of builtInMarketplace.offers) {
     const words = [
       offer.summary,
       ...offer.features.flatMap((feature) => [feature.title, feature.text]),
