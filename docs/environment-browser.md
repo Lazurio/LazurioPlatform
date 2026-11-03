@@ -161,8 +161,9 @@ agent-browser bindings and its viewers (F47 points 4 to 6, decision 0195):
   whose steps 1 and 2 are implemented). A tab an agent works with never sleeps, and a
   tab a T3 Code thread holds counts as an agent's (F57 point 3).
 - **A link outlives its tab.** The hub remembers every tab's last web address, title and icon
-  by its id for 30 days, at most 2000 tabs, across restarts of the browser and the
-  Environment (`src/browser/people/remembered.ts`). Viewing a link to a tab that ended, or
+  by its id for 30 days after it was last seen (a tab that still exists counts as seen), at
+  most 2000 tabs, across restarts of the browser and the Environment; an address longer than
+  2048 characters is not remembered (`src/browser/people/remembered.ts`). Viewing a link to a tab that ended, or
   Probudit, opens that address again under the same id, as for a tab that sleeps (reason
   `ended`); an id the hub does not remember still answers `closed` (F57's addendum of
   2026-11-03).

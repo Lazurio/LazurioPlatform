@@ -19522,8 +19522,14 @@ and closed, and alone it offered a new blank tab instead of the page.
   `${XDG_STATE_HOME:-~/.local/state}/lazurio/browser/remembered-tabs.json`, owner-only. It is
   state, not runtime, so it outlasts a restart of the browser and a reboot, as the links do. A
   record goes 30 days after the tab was last seen, and past 2000 records the least recently
-  seen go (`src/browser/people/remembered.ts`). The browser's own history already holds as
-  much; a Work Environment is never handed to another person (0191).
+  seen go (`src/browser/people/remembered.ts`). A tab that still exists, awake or asleep,
+  counts as seen: the hub marks it seen again every hour on its beat, and on the same beat
+  lets go of records past their 30 days, whether anything else changed or not; a link past
+  them no longer opens. The writer and the reader keep one rule (`rememberedTabOf`): an address
+  longer than 2048 characters is not remembered at all, never cut, and the text is bounded at
+  16 MiB, past which the least recently seen are left out, so what is written is read back.
+  The browser's own history already holds as much; a Work Environment is never handed to
+  another person (0191).
 - **Viewing an id that ended, but is remembered, opens it again under that id:** the hub makes
   it a tab that sleeps, with the reason `ended` (C11), and wakes it as any other (`reopenable`,
   then `wake` and `adopt`). From then it is an ordinary tab with F47's graces, and its link
@@ -19538,11 +19544,12 @@ and closed, and alone it offered a new blank tab instead of the page.
 
 **Where it is (addendum of 2026-11-03).** `src/browser/people/remembered.ts` (the records,
 their file and their bounds); `src/browser/people/hub.ts` (`remember`, `reopenable`,
-`canWake`, the records read at the first connection in `sameBrowser` and written by
-`writeRemembered`); `src/browser/people/service.ts` (`wake` for a remembered id);
+`canWake`, `sweepRemembered` on the holds' beat, the records read at the first connection in
+`sameBrowser` and written by `writeRemembered`); `src/browser/people/service.ts` (`wake` for a remembered id);
 `src/browser/people/serve.ts` (the file); `src/browser/contract/platform.ts` (`ended`). Tests:
-`tests/environment-browser-view.test.ts` (a link after a restart of the browser, Probudit) and
-`tests/environment-browser-sleep.test.ts` (the records).
+`tests/environment-browser-view.test.ts` (a link after a restart of the browser, Probudit, an
+address past the bound, the 30 days of a tab that exists and of one that ended) and
+`tests/environment-browser-sleep.test.ts` (the records, their bounds and their size).
 
 ## F58 — A static app starts from `main` as its build: each commit built once outside the checkout, served by the Platform, rebuilt after a pull
 

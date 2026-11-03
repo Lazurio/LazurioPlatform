@@ -21,6 +21,7 @@ import {
 import { parseClientMessage } from "../src/browser/people/protocol";
 import {
   maxRemembered,
+  maxRememberedText,
   parseRemembered,
   type RememberedTab,
   rememberedPath,
@@ -700,4 +701,36 @@ test("remembered tabs: kept 30 days and at most 2000, the later of one id counts
     "/home/a/.local/state/lazurio/browser/remembered-tabs.json",
   );
   expect(rememberedPath({})).toBeUndefined();
+});
+
+test("remembered tabs: what is written is read back, at the longest addresses too; past the size the least recently seen are left out, never all; an address past the bound is not written", () => {
+  const now = 10 * 24 * 60 * 60_000;
+  const big = (n: number) =>
+    ({
+      id: id(n),
+      url: `https://example.com/${n}?${"q".repeat(2_000)}`.slice(0, 2_048),
+      title: `"${"t".repeat(498)}"`,
+      favicon: `https://example.com/${"i".repeat(2_000)}`.slice(0, 2_048),
+      opener: { kind: "agent", session: "codex-1" },
+      openedAt: 1,
+      seenAt: now - 100_000 + n,
+    }) as RememberedTab;
+  const all = Array.from({ length: maxRemembered }, (_, n) => big(n + 1));
+  const text = rememberedText(all);
+  expect(text.length).toBeLessThanOrEqual(maxRememberedText);
+  expect(parseRemembered(text, now).length).toBe(maxRemembered);
+  // A smaller bound: the newest that fit are written, and read back.
+  const small = rememberedText(all, 50_000);
+  expect(small.length).toBeLessThanOrEqual(50_000);
+  const read = parseRemembered(small, now);
+  expect(read.length).toBeGreaterThan(0);
+  expect(read.at(-1)?.id).toBe(id(maxRemembered));
+  expect(read[0]?.id).toBe(id(maxRemembered - read.length + 1));
+  // An address past the bound is not written at all.
+  const long = {
+    ...big(1),
+    url: `https://example.com/?q=${"a".repeat(2_060)}`,
+  } as RememberedTab;
+  expect(rememberedText([long])).not.toContain("a".repeat(2_060));
+  expect(parseRemembered(rememberedText([long]), now)).toEqual([]);
 });

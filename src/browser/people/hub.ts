@@ -38,6 +38,7 @@ import {
   maxRemembered,
   parseRemembered,
   type RememberedTab,
+  rememberedTabOf,
   rememberedText,
   rememberTimes,
 } from "./remembered";
@@ -141,6 +142,11 @@ export type HubSeams = Readonly<{
     read: () => Promise<string | null>;
     write: (text: string) => Promise<void>;
   }>;
+  /** Overridable for tests: how long a record of a tab that no longer
+   * exists is kept, and how often a tab that exists is marked seen again
+   * (`rememberTimes`). */
+  rememberKeepMs?: number;
+  rememberRefreshMs?: number;
   /** Overridable for tests: decision F57's times (`sleepTimes`). */
   idleSleepMs?: number;
   sleepCloseMs?: number;
@@ -550,6 +556,8 @@ export class BrowserHub {
   private readonly frameWindow: number;
   private readonly stallMs: number;
   private readonly idleSleepMs: number;
+  private readonly rememberKeepMs: number;
+  private readonly rememberRefreshMs: number;
   private readonly sleepCloseMs: number;
   private readonly wakeRetryMs: number;
   private readonly pressureEveryMs: number;
@@ -566,6 +574,8 @@ export class BrowserHub {
     this.frameWindow = seams.frameWindow ?? frameWindow;
     this.stallMs = seams.stallMs ?? stallMs;
     this.idleSleepMs = seams.idleSleepMs ?? sleepTimes.idleMs;
+    this.rememberKeepMs = seams.rememberKeepMs ?? rememberTimes.keepMs;
+    this.rememberRefreshMs = seams.rememberRefreshMs ?? rememberTimes.refreshMs;
     this.sleepCloseMs = seams.sleepCloseMs ?? sleepTimes.closeWaitMs;
     this.wakeRetryMs = seams.wakeRetryMs ?? sleepTimes.wakeRetryMs;
     this.pressureEveryMs = seams.pressureEveryMs ?? pressureTimes.readEveryMs;
@@ -603,6 +613,9 @@ export class BrowserHub {
       this.watcher?.retry();
       void this.refreshHolds().then(() => this.sleepIdle());
       this.publishTabs();
+      // The remembered tabs' 30 days run whether anything changes or not
+      // (F57's addendum of 2026-11-03).
+      if (this.sweepRemembered(Date.now())) this.writeRememberedSoon();
     }, this.holdsEveryMs);
     // The pressure rule reads its signals on a beat of its own (decision F57
     // point 6), only where there is a source of them.
@@ -951,6 +964,12 @@ export class BrowserHub {
     if (!this.ready || this.resolve(id) !== undefined) return undefined;
     const kept = this.remembered.get(id);
     if (kept === undefined || this.closing.has(id)) return undefined;
+    if (Date.now() - kept.seenAt > this.rememberKeepMs) {
+      // Past its 30 days, even if the beat has not let it go yet.
+      this.remembered.delete(id);
+      this.writeRememberedSoon();
+      return undefined;
+    }
     const sleeper: Sleeper = {
       record: {
         id,
@@ -987,18 +1006,11 @@ export class BrowserHub {
    * the hub's own blank window. */
   private remember(tab: Tab): void {
     if (this.keeper(tab) || !sleepableAddress(tab.info.url)) return;
-    const before = this.remembered.get(tab.id);
     const now = Date.now();
-    if (
-      before !== undefined &&
-      before.url === tab.info.url &&
-      before.title === tab.info.title &&
-      before.favicon === tab.info.favicon &&
-      now - before.seenAt < rememberTimes.writeAfterMs * 30
-    )
-      return;
-    this.remembered.delete(tab.id);
-    this.remembered.set(tab.id, {
+    // Only a record the reader takes back after a restart; an address past
+    // the bound is not remembered, and an older address of the same tab is
+    // no longer its page.
+    const record = rememberedTabOf({
       id: tab.id,
       url: tab.info.url,
       title: tab.info.title.slice(0, browserBounds.titleLength),
@@ -1007,11 +1019,51 @@ export class BrowserHub {
       openedAt: tab.openedAt,
       seenAt: now,
     });
+    const before = this.remembered.get(tab.id);
+    if (record === null) {
+      if (before !== undefined) {
+        this.remembered.delete(tab.id);
+        this.writeRememberedSoon();
+      }
+      return;
+    }
+    if (
+      before !== undefined &&
+      before.url === record.url &&
+      before.title === record.title &&
+      before.favicon === record.favicon &&
+      now - before.seenAt < this.rememberRefreshMs
+    )
+      return;
+    this.remembered.delete(tab.id);
+    this.remembered.set(tab.id, record);
     for (const old of this.remembered.keys()) {
       if (this.remembered.size <= maxRemembered) break;
       this.remembered.delete(old);
     }
     this.writeRememberedSoon();
+  }
+
+  /** The remembered tabs' clock (F57's addendum of 2026-11-03): a tab that
+   * exists, awake or asleep, is seen now, at most every `refreshMs` so its
+   * record is not written on every beat; a record of a tab that no longer
+   * exists goes once it is older than `keepMs`. True when a record changed. */
+  private sweepRemembered(now: number): boolean {
+    let changed = false;
+    for (const [id, kept] of [...this.remembered]) {
+      const exists = this.resolve(id) !== undefined || this.sleeping.has(id);
+      if (exists) {
+        if (now - kept.seenAt >= this.rememberRefreshMs) {
+          this.remembered.delete(id);
+          this.remembered.set(id, { ...kept, seenAt: now });
+          changed = true;
+        }
+      } else if (now - kept.seenAt > this.rememberKeepMs) {
+        this.remembered.delete(id);
+        changed = true;
+      }
+    }
+    return changed;
   }
 
   private writeRememberedSoon(): void {
@@ -1032,9 +1084,7 @@ export class BrowserHub {
     }
     this.remembering = true;
     try {
-      const keepFrom = Date.now() - rememberTimes.keepMs;
-      for (const [id, kept] of this.remembered)
-        if (kept.seenAt < keepFrom) this.remembered.delete(id);
+      this.sweepRemembered(Date.now());
       await store.write(rememberedText(this.remembered.values()));
     } catch (error) {
       this.seams.log(`writing the remembered tabs failed: ${String(error)}`);
@@ -3195,7 +3245,11 @@ export class BrowserHub {
       // browser this is (F57's addendum of 2026-11-03).
       const remembered = await this.seams.remembered?.read().catch(() => null);
       if (remembered) {
-        for (const kept of parseRemembered(remembered, Date.now()))
+        for (const kept of parseRemembered(
+          remembered,
+          Date.now(),
+          this.rememberKeepMs,
+        ))
           if (!this.remembered.has(kept.id)) this.remembered.set(kept.id, kept);
         if (this.remembered.size > 0)
           this.seams.log(`${this.remembered.size} remembered tab(s)`);
