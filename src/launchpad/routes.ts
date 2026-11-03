@@ -386,7 +386,7 @@ export const sectionLabels: Readonly<Record<SettingsSection, MessageKey>> = {
   machine: "machineTitle",
   tools: "toolsTitle",
   connections: "connectionsTitle",
-  ssh: "sshTitle",
+  ssh: "computerTitle",
   recovery: "recoveryTitle",
   buddy: "buddyTitle",
 };

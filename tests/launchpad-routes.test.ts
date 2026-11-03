@@ -217,7 +217,8 @@ test("the heading and document title follow the route in both languages", () => 
         .heading,
     ).toBe(english);
   }
-  // SSH from your devices (decision F49).
+  // SSH from your devices (decision F49) is Počítač, a way of Připojení
+  // (decision F71): its address stays.
   expect(pageRoute("/settings/ssh")).toEqual({
     view: "settings",
     section: "ssh",
@@ -225,14 +226,14 @@ test("the heading and document title follow the route in both languages", () => 
   expect(
     routeTitle({ view: "settings", section: "ssh" }, messages("en")),
   ).toEqual({
-    heading: "SSH from your devices",
-    document: "SSH from your devices · Settings — Lazurio Launchpad",
+    heading: "Computer",
+    document: "Computer · Settings — Lazurio Launchpad",
   });
   expect(
     routeTitle({ view: "settings", section: "ssh" }, messages("cs")).heading,
-  ).toBe("SSH ze zařízení");
+  ).toBe("Počítač");
   // Settings keep their order without Trezor: Připojení follows the tools
-  // with SSH as its tab (decision F71), and Nastavení → Buddy comes last
+  // with Počítač (SSH) as one of its ways (decision F71), and Nastavení → Buddy comes last
   // (decision F65), shown only with Buddy.
   expect(settingsSections).toEqual([
     "start",

@@ -13,8 +13,17 @@ import { type ControlRpc, ControlSocketError } from "./control-socket";
 // session handle exist only in this process's memory, under one pending
 // pairing; they are answered to the admitted page that asked for them and
 // never written to a log, the journal, a file or an error. The journal names
-// only what happened (`pair-started`, `paired`, `expired`, `cancelled`,
+// only what happened (`pair-started`, `paired`, `expired`, `shown-again`,
 // `revoked`, …) and a device's platform.
+//
+// Codex (0.166) cannot end a code it gave: the codes live at ChatGPT until
+// a phone takes them or they expire, and the protocol has no method that
+// withdraws one. So Lazurio never has two live codes: while the code pending
+// is valid, every Spárovat telefon answers that same code again, closing the
+// dialog ends nothing, and a new code is asked for only once the old one has
+// expired or a phone took it. Starts are serialized: requests that arrive
+// while one start runs share its answer, so the one live code and the limit
+// of `maxStarts` in `startWindowMs` hold under concurrency.
 
 /** What the Connections page can offer here:
  * - `ready`: pairing works (remote control is connected, or off and turned
@@ -198,6 +207,7 @@ function parseStatus(result: unknown): Status | null {
 type Pending = {
   session: string;
   code: string;
+  manualCode: string | null;
   expiresAt: number;
   known: ReadonlySet<string>;
 };
@@ -216,6 +226,8 @@ export function createConnections(
     options.journal?.({ scope: "connections", ...entry });
   let pending: Pending | null = null;
   const starts: number[] = [];
+  // The start that runs now; a request meanwhile shares its answer.
+  let starting: Promise<PairingStarted | Blocked> | null = null;
 
   async function withSocket<T>(use: (rpc: ControlRpc) => Promise<T>) {
     const rpc = await host.connect();
@@ -328,19 +340,57 @@ export function createConnections(
     return status;
   }
 
-  async function start(): Promise<PairingStarted | Blocked> {
+  const shown = (current: Pending): PairingStarted =>
+    Object.freeze({
+      kind: "pairing",
+      session: current.session,
+      manualCode: current.manualCode,
+      expiresAt: current.expiresAt,
+      qrSvg: qrSvg(qrMatrix(pairingQrPayload(current.code))),
+    });
+
+  /** Whether a phone has taken the code; null when Codex did not answer. */
+  async function claimed(current: Pending): Promise<boolean | null> {
+    try {
+      return await withSocket(async (rpc) => {
+        const answer = await rpc.call("remoteControl/pairing/status", {
+          pairingCode: current.code,
+        });
+        return isRecord(answer) && answer.claimed === true;
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  /** Spárovat telefon: the code still valid, or a new one. One at a time. */
+  function start(): Promise<PairingStarted | Blocked> {
+    if (starting === null)
+      starting = begin().finally(() => {
+        starting = null;
+      });
+    return starting;
+  }
+
+  async function begin(): Promise<PairingStarted | Blocked> {
     const blocked = await gate();
     if (blocked !== null) return { kind: "blocked", reason: blocked };
     const at = now();
+    const current = pending;
+    if (current !== null && at < current.expiresAt) {
+      // Still valid at ChatGPT: shown again, unless a phone took it.
+      if ((await claimed(current)) !== true) {
+        journal({ operation: "pair", outcome: "shown-again" });
+        return shown(current);
+      }
+      journal({ operation: "pair", outcome: "paired" });
+    } else if (current !== null)
+      journal({ operation: "pair", outcome: "expired" });
+    pending = null;
     while (starts.length > 0 && at - (starts[0] as number) > startWindowMs)
       starts.shift();
     if (starts.length >= maxStarts)
       return { kind: "blocked", reason: "too-many-starts" };
-    // A new code replaces the one pending: one pairing at a time.
-    if (pending !== null) {
-      pending = null;
-      journal({ operation: "pair", outcome: "replaced" });
-    }
     await host.trust().catch(() => undefined);
     let answer: Readonly<{ result: unknown; known: ReadonlySet<string> }>;
     try {
@@ -399,21 +449,15 @@ export function createConnections(
       named !== null && named > at && named - at <= 60 * 60_000
         ? named
         : at + defaultLifeMs;
-    const session = randomBytes(16).toString("hex");
     pending = {
-      session,
+      session: randomBytes(16).toString("hex"),
       code: result.pairingCode,
+      manualCode,
       expiresAt,
       known: answer.known,
     };
     journal({ operation: "pair-started", outcome: "ok" });
-    return Object.freeze({
-      kind: "pairing",
-      session,
-      manualCode,
-      expiresAt,
-      qrSvg: qrSvg(qrMatrix(pairingQrPayload(result.pairingCode))),
-    });
+    return shown(pending);
   }
 
   async function poll(session: string): Promise<PairingPoll> {
@@ -425,21 +469,12 @@ export function createConnections(
       journal({ operation: "pair", outcome: "expired" });
       return { kind: "expired" };
     }
-    let claimed = false;
-    try {
-      claimed = await withSocket(async (rpc) => {
-        const answer = await rpc.call("remoteControl/pairing/status", {
-          pairingCode: current.code,
-        });
-        return isRecord(answer) && answer.claimed === true;
-      });
-    } catch {
-      // Not answered now: the page asks again.
-      return { kind: "waiting", expiresAt: current.expiresAt };
-    }
-    // Replaced or cancelled while Codex was asked.
+    const taken = await claimed(current);
+    // Taken through another start while Codex was asked.
     if (pending !== current) return { kind: "gone" };
-    if (!claimed) return { kind: "waiting", expiresAt: current.expiresAt };
+    // Not answered now (null): the page asks again.
+    if (taken !== true)
+      return { kind: "waiting", expiresAt: current.expiresAt };
     pending = null;
     let devices: readonly PairedDevice[] = [];
     try {
@@ -455,14 +490,6 @@ export function createConnections(
       ...(fresh?.platform ? { platform: fresh.platform } : {}),
     });
     return { kind: "paired", devices };
-  }
-
-  function cancel(session: string): Readonly<{ kind: "cancelled" | "gone" }> {
-    if (pending === null || pending.session !== session)
-      return { kind: "gone" };
-    pending = null;
-    journal({ operation: "pair", outcome: "cancelled" });
-    return { kind: "cancelled" };
   }
 
   async function revoke(
@@ -514,7 +541,7 @@ export function createConnections(
         reason: "restart-not-managed",
         overview: before,
       };
-    pending = null;
+    // The code pending stays: a restart does not end it at ChatGPT.
     const result = await host
       .restart()
       .catch((): CodexAppServerRestart => ({ state: "failed" }));
@@ -544,7 +571,6 @@ export function createConnections(
     overview,
     start,
     poll,
-    cancel,
     revoke,
     restart,
     /** Whether a pairing is pending (tests). */

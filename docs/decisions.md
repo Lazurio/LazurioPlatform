@@ -23120,15 +23120,15 @@ member exist.
 Implemented in the same pull request; accepted only when the owner accepts it.** The
 phone test settled the QR code the same day (see *Implementation* below). The
 interface follows the clickable prototype
-(HumanAndMachine-ai/prototypes-lazurio#106, stacked on #102), which is being reworked
-to less text and a motion graphic per tab; the page keeps the graphic as one element
-so the final one replaces it whole.
+(HumanAndMachine-ai/prototypes-lazurio#106, stacked on #102), reworked on 2026-11-03
+to the structure of point 1: less text and a motion graphic per way. The page keeps
+each graphic as one element, so the final one replaces it whole.
 
 Delivery starts on the owner's own personal Environment and reaches other people's
 Environments only after that.
 
-The person opens Settings → Connections, clicks one button and gets a QR code and
-a short code. A motion graphic shows what to do on the phone: open ChatGPT, then
+The person opens Settings → Connections → Ovládat toto Prostředí → Telefon, clicks
+one button and gets a QR code and a short code. A motion graphic shows what to do on the phone: open ChatGPT, then
 Codex, then add a computer, then scan or type the code. Nobody types a command.
 
 **What was verified on 2026-11-03.** The test ran on a personal Environment with
@@ -23149,20 +23149,35 @@ declares `capabilities.experimentalApi`:
 The methods and types are in `openai/codex` at tag `rust-v0.166.0`:
 `app-server-protocol/src/protocol/common.rs` and `protocol/v2/remote_control.rs`.
 
-1. **Place.** A new Settings section `connections` takes the place of `ssh` in
-   `routes.ts` and `index.html`. It has three tabs, as 0215 says.
-   - **Control this Environment** holds the block *Telefon přes ChatGPT*:
-     - the prerequisites (the ChatGPT app; the same ChatGPT account as Codex here;
-       a Plus, Pro, Business or Enterprise plan; on a work account, Remote Control
-       allowed by the workspace admin);
-     - *Spárovat telefon*;
-     - the motion graphic;
-     - the paired devices with *Odebrat přístup*.
-   - **Control other Environments** follows 0192's addendum.
-   - **SSH** is today's F49 page, unchanged and never offered first.
+1. **Place and structure (the owner's review of 2026-11-03).** A new Settings
+   section `connections` (Připojení) takes the place of `ssh` in the menu. It is
+   built from what the person wants to do and from where, not from the technology.
+   SSH and the ChatGPT pairing are both ways to control the same Environment, so
+   they are never two topics side by side.
+   - **Ovládat toto Prostředí** is the one topic. Under it are the ways, by the
+     device the person holds. Each way has one sentence, one button and its own
+     motion graphic. It offers the route that works in this Environment, so the
+     person never chooses a technology.
+     - **Telefon.** With the person's own ChatGPT sign-in in Codex, this is
+       *Spárovat telefon*: the pairing of this decision, with the prerequisites
+       line and the paired phones with *Odebrat přístup*. On the Organization's AI
+       (AI pool), pairing by code does not work. There the route is the ChatGPT
+       app over SSH with a password, and until it exists without a terminal the
+       card says only that it is coming (*připravujeme*).
+     - **Počítač.** ChatGPT Desktop over SSH with a key: F49's page, unchanged in
+       behaviour, at `/settings/ssh`. Its title is Počítač, it links back to
+       Připojení, and the SSH config and `known_hosts` blocks are folded under
+       *Pokročilé: ruční nastavení SSH*. It is offered on an Environment on a
+       server, not where Lazurio runs on the person's own computer.
+     - The browser (Launchpad, Chat) is not listed, because the person is in it.
+   - **Agenti ve vašem počítači** is the other direction. The Environment's agents
+     work in a connected workstation, for example Windows with AutoCAD over SSH
+     (prototype #102). It is a topic of its own and is not built here.
+   - **Ovládat jiná Prostředí** follows 0192's addendum. It is not built here.
 
    The panel follows the existing `connections-panel.ts` / `connections-view.ts` /
-   `connections-routes.ts` split, like `ssh-*`.
+   `connections-routes.ts` split, like `ssh-*`. The dialog's sequence is
+   `connections-flow.ts`, which has no DOM.
 2. **Reading the state.** `GET /api/connections` reads the status and the client
    list and answers one of these states:
    - `ready`;
@@ -23178,15 +23193,31 @@ The methods and types are in `openai/codex` at tag `rust-v0.166.0`:
    It keeps `pairingCode` only in memory under a 32-hex session handle, as the tool
    sign-in does (`src/tools/login.ts`). It answers the manual code, `expiresAt` and
    the QR code drawn by the existing `qrSvg(qrMatrix(payload))` (`src/tools/qr.ts`).
-   The QR payload is one function, `pairingQrPayload`. Its content waits for the
-   phone test (open question 1). Until that test passes, the dialog leads with the
-   short code. *Nový kód* starts a new pairing and drops the old handle.
+   The QR payload is one function, `pairingQrPayload` (settled by the phone test,
+   see *Implementation*).
+
+   **One live code (Pablo's review of 2026-11-03).** Codex 0.166 cannot end a code
+   it gave. The codes live at ChatGPT until a phone takes them or they expire
+   (`expiresAt`, about 10 min), and the protocol has no method that withdraws one.
+   Lazurio therefore never makes a second code while one is valid:
+   - while the pending code is valid and not taken, every *Spárovat telefon* answers
+     that same code and its time left, from any admitted page;
+   - closing the dialog ends nothing on the server; the page drops the code from
+     view and drops any answer that arrives after the close;
+   - a new code is asked for only once the old one has expired or a phone took it,
+     and only then does the dialog offer *Nový kód*;
+   - starts are serialized: requests that arrive while one start runs share its
+     answer, so the one live code and the limit hold under concurrency;
+   - there is no cancel route.
+
+   The remaining exposure is therefore exactly one code, for at most its
+   `expiresAt`, shown only to pages admitted under 0192. A phone that takes it
+   appears in the paired list, where *Odebrat přístup* removes it.
 4. **Waiting.** `POST /api/connections/pair/poll {session}` calls
    `remoteControl/pairing/status` every 2 s through the existing visible-page poll.
    - On `claimed: true` the server drops the code and refreshes the device list, and
      the dialog says *Telefon je spárovaný*.
    - At `expiresAt` the handle ends and the dialog offers *Nový kód*.
-   - `…/pair/cancel` ends it early.
 5. **Removing access.** `POST /api/connections/revoke {clientId}` calls
    `remoteControl/client/revoke` after the person confirms in place. The person can
    also remove the device in the ChatGPT app.
@@ -23199,11 +23230,11 @@ The methods and types are in `openai/codex` at tag `rust-v0.166.0`:
      pairing, because it needs no SSH.
    - Codes (`pairingCode`, `manualPairingCode`), QR payloads and session handles are
      never written to a log, the journal, a file, the Folder or an error. The journal
-     records only `pair-started`, `paired`, `expired`, `cancelled` and `revoked`, with
-     the client's platform.
+     records only `pair-started`, `paired`, `expired`, `shown-again` and `revoked`,
+     with the client's platform.
    - Answers carry `cache-control: no-store`.
-   - An Environment has at most one pending pairing and at most five starts in
-     10 minutes.
+   - An Environment has at most one live code (point 3) and at most five codes in
+     10 minutes, counted under the serialized start.
 7. **When the daemon has no remote control.** Remote control is a persisted daemon
    preference.
    - F29's convergence runs `codex app-server daemon enable-remote-control`, which is
@@ -23222,8 +23253,8 @@ The methods and types are in `openai/codex` at tag `rust-v0.166.0`:
    the Folder entry exists and the home entry does not.
 9. **Tests.**
    - Unit tests run against a fake control socket. They cover each state, the
-     handle's life, expiry, the refusal of a second pending pairing, and that no code
-     reaches a log or an error.
+     handle's life, expiry, that a second start answers the live code, concurrent
+     starts, and that no code reaches a log or an error.
    - Acceptance runs on a real Environment with a phone:
      - A1: the QR code pairs.
      - A2: the short code pairs.
@@ -23244,15 +23275,30 @@ points above:
   aplikaci ChatGPT otevřete Codex → Přidat počítač a naskenujte kód." and keeps the
   short code with *Kopírovat* as the fallback. It does not promise that the camera
   opens the app.
-- **Place.** Settings → Připojení (`connections`) replaces SSH in the menu. It has
-  two tabs: *Ovládat toto Prostředí* and *SSH*. The SSH tab is F49's page, unchanged
-  and still at `/settings/ssh`. *Control other Environments* is not built here.
-  Začínáme gets an optional row *Telefon přes ChatGPT* where pairing is offered.
+- **Place.** Settings → Připojení (`connections`) replaces SSH in the menu, with
+  no tabs: one group *Ovládat toto Prostředí* with the cards *Telefon* and
+  *Počítač* (point 1). *Počítač* leads to F49's page at `/settings/ssh`, unchanged
+  in behaviour; its title is Počítač, it links back to Připojení, and its SSH
+  config and `known_hosts` sit under *Pokročilé*. The menu marks Připojení on both
+  pages. Začínáme gets an optional row *Telefon přes ChatGPT* where pairing is
+  offered.
+- **Ways not built yet, and how the page shows them.**
+  - Telefon over SSH with a password, for the Organization's AI: the Telefon card
+    says *Pro Prostředí s AI Organizace telefon připravujeme.* and offers nothing.
+    The person on that Environment otherwise sees an empty way and would look for
+    it, so one line says it is coming. Today an agent sets the password
+    (Lazurio/LazurioPlatform#266).
+  - Počítač in one click (the prototype's six steps with the key confirmed in the
+    browser): not shown. Today's Počítač works, and a second route for the same
+    device would only make the person choose.
+  - Agenti ve vašem počítači and Ovládat jiná Prostředí: not shown. Nothing on the
+    page could act on them yet.
 - **Code.**
   - `src/connections/control-socket.ts` is the client. It speaks WebSocket over the
     Unix socket and keeps no error message from Codex, only the JSON-RPC code.
-  - `src/connections/pairing.ts` holds the states, the one pending pairing, the limit
-    of five codes in ten minutes, polling, removing access and the restart.
+  - `src/connections/pairing.ts` holds the states, the one live code, the serialized
+    start with the limit of five codes in ten minutes, polling, removing access and
+    the restart (which keeps the live code, since a restart does not end it).
   - `src/connections/codex-trust.ts` writes the trust entries.
   - `src/launchpad/connections-routes.ts` holds the routes, and the panel and view
     are `connections-panel.ts` and `connections-view.ts`.
@@ -23266,19 +23312,23 @@ points above:
   reads as `ready`.
 - **States.**
   - `organization-ai` is Codex's `account/read` answering
-    `requiresOpenaiAuth: false`.
-  - `no-chatgpt` is signed out, or signed in with an API key.
-  - Both show "Nejdřív se přihlaste svým účtem ChatGPT." and no pairing.
+    `requiresOpenaiAuth: false`. It shows the *připravujeme* line and no sign-in.
+  - `no-chatgpt` is signed out, or signed in with an API key. It shows "Nejdřív se
+    přihlaste svým účtem ChatGPT." with *Přihlásit se*.
 - **Not built yet.** The doctor check `codex-remote-control`.
 - **Acceptance so far.**
   - The unit tests run against a fake daemon. They cover each state, the handle's
-    life, expiry, replacement, the start limit, removing access, the restart's
+    life, expiry, the live code answered again, concurrent starts sharing one
+    code, the start limit, removing access, the restart's
     conditions, the trust text, the routes' admission, and that no code reaches an
     answer, an error or the journal.
   - On the owner's personal Environment, on 2026-11-03 and without a restart, the
     branch's Launchpad read the real state and device list. It made a code and
-    showed the QR code, the short code and the time left. Closing the dialog dropped
-    the code. The journal held only `pair-started` and `cancelled`.
+    showed the QR code, the short code and the time left. (That run predates the
+    one-live-code rule: it still had a cancel, which ended only Lazurio's handle.)
+  - `tests/connections-flow.test.ts` covers the dialog: an answer that arrives after
+    the close is dropped and starts no poll, a newer open wins over an older answer,
+    and expiry and pairing end the poll.
   - A1–A8 with a phone remain the owner's.
 
 **Open questions.**

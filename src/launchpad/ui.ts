@@ -1345,6 +1345,7 @@ const connections = createConnectionsPanel({
   post: (path, body) => post(path, body),
   copy: () => copy,
   locale: () => locale,
+  computer: () => profileState !== null && profileState.preset !== "local",
 });
 // Apps → Vault, Apps → Trezor (root decision 0198 point 5, F53's addendum of
 // 2026-10-18): read on first view; the server adds the person the gateway
@@ -1474,7 +1475,6 @@ const shell = createShell({
       void recovery.refresh();
     if (route.view === "settings" && route.section === "ssh" && !ssh.loaded)
       void ssh.refresh();
-    connections.show(route.view === "settings" ? route.section : null);
     if (
       route.view === "settings" &&
       route.section === "connections" &&
@@ -1706,6 +1706,8 @@ async function load() {
   // content operation as a person's work Environment.
   if (!first) void content.refresh();
   renderUpdate();
+  // Připojení offers Počítač by the preset (decision F71).
+  connections.render();
   if (relabelled) {
     relabel();
     catalog.render();

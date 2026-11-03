@@ -1,13 +1,11 @@
 import type { ConnectionsOverview, PairedDevice } from "../connections/pairing";
+import { createPairingFlow, type PairingView } from "./connections-flow";
 import {
   deviceDetail,
   deviceName,
   offersRestart,
   offersSignIn,
   parseConnectionsOverview,
-  parsePairing,
-  parsePoll,
-  refusalOf,
   remaining,
   stateMessage,
 } from "./connections-view";
@@ -17,17 +15,23 @@ import { pollWhileVisible } from "./visible-poll";
 type Copy = Readonly<Record<MessageKey, string>>;
 type Answer = Promise<{ value: unknown; ok: boolean }>;
 
-// Settings → Connections → Telefon přes ChatGPT (decision F71): one
-// sentence, one button, the motion graphic, and the dialog with the QR code
-// the ChatGPT app's own scanner reads, the short code, the time left, a new
-// code and "Telefon je spárovaný". Every server value is drawn as text; the
-// code lives only in the open dialog and is dropped when it closes.
+// Settings → Connections (decision F71): Ovládat toto Prostředí with its
+// ways by device. Telefon: one sentence, one button, the motion graphic,
+// and the dialog with the QR code the ChatGPT app's own scanner reads, the
+// short code, the time left, a new code once it expired and "Telefon je
+// spárovaný" (the sequence in connections-flow.ts). Počítač: one sentence
+// and the way to today's F49 page, where SSH into this Environment exists.
+// Every server value is drawn as text; the page drops the code when the
+// dialog closes.
 export function createConnectionsPanel(
   options: Readonly<{
     get: (path: string) => Answer;
     post: (path: string, body: unknown) => Answer;
     copy: () => Copy;
     locale: () => string;
+    /** Whether Počítač is offered: an Environment on a server, not the
+     * person's own computer. */
+    computer: () => boolean;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -35,7 +39,6 @@ export function createConnectionsPanel(
     if (!element) throw new Error("Missing Connections UI");
     return element;
   };
-  const tabs = [...document.querySelectorAll<HTMLElement>(".connections-tabs")];
   const state = find<HTMLParagraphElement>("#phone-state");
   const pairButton = find<HTMLButtonElement>("#phone-pair");
   const signIn = find<HTMLAnchorElement>("#phone-sign-in");
@@ -43,7 +46,8 @@ export function createConnectionsPanel(
   const restartConfirm = find<HTMLDivElement>("#phone-restart-confirm");
   const restartYes = find<HTMLButtonElement>("#phone-restart-yes");
   const restartCancel = find<HTMLButtonElement>("#phone-restart-cancel");
-  const card = find<HTMLDivElement>(".phone-card");
+  const card = find<HTMLDivElement>("#phone-card");
+  const computerCard = find<HTMLDivElement>("#computer-card");
   const how = find<HTMLButtonElement>("#phone-how");
   const needs = find<HTMLParagraphElement>("#phone-needs");
   const devicesGroup = find<HTMLElement>("#phone-devices-group");
@@ -70,16 +74,16 @@ export function createConnectionsPanel(
   let confirming: string | null = null;
   let removing: string | null = null;
   let reading = 0;
-  let section: string | null = null;
   // The motion shows until a phone is paired, then folds under "Ukázat
   // postup" (the prototype's rework of 2026-11-03); null follows that rule.
   let showHow: boolean | null = null;
-  // The open pairing: its session, when it ends, and its timers.
-  let session: string | null = null;
-  let expiresAt = 0;
-  let stopPoll: (() => void) | null = null;
+  // The countdown of the code shown.
   let tick: ReturnType<typeof setInterval> | null = null;
-  let starting = false;
+  const flow = createPairingFlow({
+    post: options.post,
+    poll: (step, ms) => pollWhileVisible(step, ms),
+    show: (view) => showPairing(view),
+  });
 
   const element = <K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -170,13 +174,7 @@ export function createConnectionsPanel(
 
   function render() {
     const copy = options.copy();
-    for (const nav of tabs) {
-      nav.setAttribute("aria-label", copy.connectionsTabsLabel);
-      for (const link of nav.querySelectorAll<HTMLAnchorElement>("a"))
-        if (link.dataset.connectionsTab === section)
-          link.setAttribute("aria-current", "page");
-        else link.removeAttribute("aria-current");
-    }
+    computerCard.hidden = !options.computer();
     qr.alt = copy.phoneQrAlt;
     again.disabled = loading;
     const shown = overview;
@@ -201,7 +199,7 @@ export function createConnectionsPanel(
       note === "phoneRemoved" && busy === null ? "info" : "warning";
     const ready = shown?.state === "ready";
     pairButton.hidden = !ready;
-    pairButton.disabled = busy !== null || starting;
+    pairButton.disabled = busy !== null;
     pairButton.textContent =
       ready && shown.devices.length > 0
         ? copy.phonePairAnother
@@ -210,7 +208,8 @@ export function createConnectionsPanel(
     pairButton.classList.toggle("primary", !paired);
     needs.hidden = !ready || paired;
     how.hidden = !paired;
-    const motion = showHow ?? !paired;
+    // No steps to show where the phone cannot pair here.
+    const motion = ready && (showHow ?? !paired);
     how.textContent = motion ? copy.phoneHideHow : copy.phoneHow;
     how.setAttribute("aria-expanded", String(motion));
     if (motion) delete card.dataset.folded;
@@ -222,128 +221,85 @@ export function createConnectionsPanel(
     renderDevices(copy, shown?.devices ?? []);
   }
 
-  function stopTimers() {
-    stopPoll?.();
-    stopPoll = null;
+  function stopTick() {
     if (tick !== null) clearInterval(tick);
     tick = null;
   }
 
   function showCountdown() {
-    const copy = options.copy();
-    const left = expiresAt - Date.now();
-    if (left <= 0) {
-      expire();
+    const at = flow.expiresAt();
+    if (at === 0) return;
+    if (Date.now() >= at) {
+      flow.tick();
       return;
     }
-    countdown.textContent = copy.phoneCountdown.replace(
-      "{time}",
-      remaining(expiresAt, Date.now()),
-    );
+    countdown.textContent = options
+      .copy()
+      .phoneCountdown.replace("{time}", remaining(at, Date.now()));
   }
 
-  function expire() {
-    stopTimers();
-    session = null;
-    qrFrame.dataset.expired = "";
-    code.textContent = "";
-    countdown.textContent = options.copy().phoneExpired;
-  }
-
-  /** Drops the code from the page and ends the pairing on the server. */
-  function forget() {
-    stopTimers();
-    const ending = session;
-    session = null;
+  /** Drops the code from the page. */
+  function clearCode() {
+    stopTick();
     qr.removeAttribute("src");
     code.textContent = "";
     countdown.textContent = "";
-    if (ending !== null)
-      void options
-        .post("/api/connections/pair/cancel", { session: ending })
-        .catch(() => undefined);
   }
 
-  async function start() {
+  function showPairing(view: PairingView) {
     const copy = options.copy();
-    if (starting) return;
-    starting = true;
-    forget();
-    pairing.hidden = false;
-    done.hidden = true;
-    newCode.hidden = false;
-    newCode.disabled = true;
-    delete qrFrame.dataset.expired;
-    dialogStatus.textContent = copy.phoneLoading;
+    switch (view.kind) {
+      case "loading":
+        clearCode();
+        pairing.hidden = false;
+        done.hidden = true;
+        newCode.hidden = true;
+        delete qrFrame.dataset.expired;
+        dialogStatus.textContent = copy.phoneLoading;
+        break;
+      case "code":
+        stopTick();
+        qr.src = view.qrSource;
+        code.textContent = view.manualCode ?? "";
+        codeCopy.hidden = view.manualCode === null;
+        dialogStatus.textContent = "";
+        showCountdown();
+        tick = setInterval(showCountdown, 1_000);
+        break;
+      case "expired":
+        stopTick();
+        qrFrame.dataset.expired = "";
+        code.textContent = "";
+        countdown.textContent = copy.phoneExpired;
+        newCode.hidden = false;
+        break;
+      case "paired":
+        clearCode();
+        pairing.hidden = true;
+        done.hidden = false;
+        newCode.hidden = true;
+        dialogStatus.textContent = "";
+        if (overview !== null)
+          overview = Object.freeze({ ...overview, devices: view.devices });
+        break;
+      case "refused":
+        clearCode();
+        pairing.hidden = true;
+        newCode.hidden = false;
+        dialogStatus.textContent = view.tooMany
+          ? copy.phoneTooMany
+          : copy.phoneFailed;
+        if (view.overview !== null) overview = view.overview;
+        break;
+    }
+    render();
+    if (view.kind === "paired") ok.focus();
+  }
+
+  function open() {
     if (!dialog.open && typeof dialog.showModal === "function")
       dialog.showModal();
-    render();
-    try {
-      const { value, ok: answered } = await options.post(
-        "/api/connections/pair",
-        {},
-      );
-      const started = answered ? parsePairing(value) : null;
-      if (started === null) {
-        const reason = refusalOf(value);
-        dialogStatus.textContent =
-          reason === "too-many-starts" ? copy.phoneTooMany : copy.phoneFailed;
-        const blocked = parseConnectionsOverview(
-          (value as { overview?: unknown } | null)?.overview,
-        );
-        if (blocked !== null) overview = blocked;
-        pairing.hidden = true;
-        return;
-      }
-      session = started.session;
-      expiresAt = started.expiresAt;
-      qr.src = started.qrSource;
-      code.textContent = started.manualCode ?? "";
-      codeCopy.hidden = started.manualCode === null;
-      dialogStatus.textContent = "";
-      showCountdown();
-      tick = setInterval(showCountdown, 1_000);
-      const mine = started.session;
-      stopPoll = pollWhileVisible(() => poll(mine), 2_000);
-    } catch {
-      dialogStatus.textContent = copy.phoneFailed;
-      pairing.hidden = true;
-    } finally {
-      starting = false;
-      newCode.disabled = false;
-      render();
-    }
-  }
-
-  async function poll(mine: string) {
-    if (session !== mine) return;
-    const { value, ok: answered } = await options.post(
-      "/api/connections/pair/poll",
-      { session: mine },
-    );
-    if (session !== mine) return;
-    const result = answered ? parsePoll(value) : null;
-    if (result === null) return;
-    if (result.kind === "waiting") {
-      expiresAt = result.expiresAt;
-      return;
-    }
-    if (result.kind === "paired") {
-      stopTimers();
-      session = null;
-      qr.removeAttribute("src");
-      code.textContent = "";
-      pairing.hidden = true;
-      done.hidden = false;
-      newCode.hidden = true;
-      dialogStatus.textContent = "";
-      if (overview !== null)
-        overview = Object.freeze({ ...overview, devices: result.devices });
-      render();
-      ok.focus();
-      return;
-    }
-    expire();
+    void flow.start();
   }
 
   async function revoke(clientId: string) {
@@ -394,17 +350,19 @@ export function createConnectionsPanel(
 
   pairButton.addEventListener("click", () => {
     note = null;
-    void start();
+    open();
   });
-  newCode.addEventListener("click", () => void start());
+  newCode.addEventListener("click", () => void flow.start());
   const close = () => {
-    forget();
+    flow.close();
+    clearCode();
     if (dialog.open) dialog.close();
   };
   ok.addEventListener("click", close);
   dialogClose.addEventListener("click", close);
   dialog.addEventListener("close", () => {
-    forget();
+    flow.close();
+    clearCode();
     void refresh();
   });
   codeCopy.addEventListener("click", () => {
@@ -439,11 +397,6 @@ export function createConnectionsPanel(
   return {
     refresh,
     render,
-    /** The settings section shown now: the tabs mark theirs. */
-    show(current: string | null) {
-      section = current;
-      render();
-    },
     get loaded() {
       return overview !== null || loading;
     },

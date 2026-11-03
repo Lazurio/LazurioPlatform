@@ -9,11 +9,13 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 //
 //   GET  /api/connections              the state and the paired devices;
 //                                      never a code
-//   POST /api/connections/pair         {}: a new code (the one pending ends);
-//                                      the manual code, its QR and a session
+//   POST /api/connections/pair         {}: the code still valid, or a new
+//                                      one once it expired or a phone took
+//                                      it (Codex cannot end a code, so there
+//                                      is no cancel); the manual code, its
+//                                      QR and a session
 //   POST /api/connections/pair/poll    {session}: waiting, paired, expired
 //                                      or gone
-//   POST /api/connections/pair/cancel  {session}
 //   POST /api/connections/revoke       {clientId}: after the person
 //                                      confirmed in place
 //   POST /api/connections/restart      {confirm: true}: restarts Codex where
@@ -27,7 +29,6 @@ export const connectionsRoutePaths = Object.freeze({
   read: "/api/connections",
   pair: "/api/connections/pair",
   poll: "/api/connections/pair/poll",
-  cancel: "/api/connections/pair/cancel",
   revoke: "/api/connections/revoke",
   restart: "/api/connections/restart",
 });
@@ -97,17 +98,12 @@ export function createConnectionsRoutes(
           if (value instanceof Response) return value;
           return answer(await connections.start());
         }
-        case connectionsRoutePaths.poll:
-        case connectionsRoutePaths.cancel: {
+        case connectionsRoutePaths.poll: {
           const value = await body(request, ["session"]);
           if (value instanceof Response) return value;
           if (!isSession(value.session))
             return response({ error: "invalid-session" }, 400);
-          return response(
-            url.pathname === connectionsRoutePaths.poll
-              ? await connections.poll(value.session)
-              : connections.cancel(value.session),
-          );
+          return response(await connections.poll(value.session));
         }
         case connectionsRoutePaths.revoke: {
           const value = await body(request, ["clientId"]);

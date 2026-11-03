@@ -604,20 +604,29 @@ pre:empty { display: none; }
    <pre> in the ink of the text, kept whole (no height limit), with its copy
    button under it; the fields of "Add a device" stack. */
 /* Settings → Connections (decision F71). */
-.connections-tabs { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--card); width: max-content; max-width: 100%; overflow-x: auto; }
-.connections-tabs a { padding: 6px 12px; border-radius: calc(var(--radius-control) - 2px); color: var(--muted-fg); font-size: 14px; text-decoration: none; white-space: nowrap; }
-.connections-tabs a[aria-current="page"] { background: color-mix(in oklab, var(--lz-accent) 12%, transparent); color: var(--fg); font-weight: var(--lz-weight-akce); }
+#section-connections > .group { display: grid; gap: 12px; }
+.connections-devices { display: grid; gap: 6px; }
+.connections-devices[hidden] { display: none; }
+.connections-devices-head { padding: 0 4px; color: var(--muted-fg); font-size: 13px; font-weight: var(--lz-weight-akce); }
+.connections-back { display: inline-flex; gap: 4px; align-items: center; width: max-content; color: var(--muted-fg); font-size: 14px; text-decoration: none; }
+.connections-back:hover { color: var(--fg); }
+.connections-back .icon { width: 16px; height: 16px; }
+details.ssh-advanced { display: grid; gap: 12px; }
+details.ssh-advanced > summary { color: var(--muted-fg); font-size: 14px; cursor: pointer; }
+details.ssh-advanced[open] > summary { color: var(--fg); }
 .phone-card { display: grid; grid-template-columns: 180px 1fr; gap: 20px; align-items: center; padding: 18px; }
 .phone-card > * + * { border-top: 0; }
 @container (max-width: 520px) { .phone-card { grid-template-columns: 1fr; } }
 .phone-copy { display: grid; gap: 10px; align-content: center; }
-.phone-copy h2 { color: var(--fg); font-size: 17px; font-weight: var(--lz-weight-akce); }
+.phone-copy h3 { color: var(--fg); font-size: 17px; font-weight: var(--lz-weight-akce); }
+.phone-card[hidden] { display: none; }
 .phone-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .phone-actions:not(:has(> :not([hidden]))) { display: none; }
 #phone-restart-confirm { display: grid; gap: 8px; }
 #phone-restart-confirm[hidden] { display: none; }
 .phone-motion { display: grid; justify-items: center; gap: 10px; }
 .phone-motion-device { position: relative; width: 120px; height: 200px; border: 2px solid var(--lz-gray-300, #c9ccd3); border-radius: 22px; background: var(--lz-paper, #fff); overflow: hidden; }
+.phone-motion-device[data-device="computer"] { width: 172px; height: 112px; border-width: 2px 2px 6px; border-radius: 10px 10px 4px 4px; }
 .phone-motion-step { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; opacity: 0; animation: phone-step 10s infinite; }
 .phone-motion-step[data-step="2"] { animation-delay: 2s; }
 .phone-motion-step[data-step="3"] { animation-delay: 4s; }
@@ -2059,21 +2068,20 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
      ssh-panel.ts. The blocks an agent reads are each one <pre> with a
      `data-ssh-block` (`prompt`, `config`, `known-hosts`) whose text is
      exactly what is written. -->
-<!-- Settings → Connections (decision F71, root decision 0215): the tab
-     "Control this Environment" holds Telefon přes ChatGPT, the pairing of
-     the ChatGPT app with this Environment's Codex, drawn by
-     connections-panel.ts; SSH is the next tab, today's F49 page. The motion
-     graphic (#phone-motion) is one element, replaced whole when the
-     prototype's final graphic arrives. -->
+<!-- Settings → Connections (decision F71, root decision 0215, Matěj
+     2026-11-03): one topic, Ovládat toto Prostředí, and under it the ways by
+     the device the person holds: Telefon (the ChatGPT app paired with this
+     Environment's Codex, drawn by connections-panel.ts) and Počítač
+     (ChatGPT Desktop over SSH with a key, today's F49 page at
+     /settings/ssh). The page picks the route that works here; SSH is how
+     Počítač works, never a topic of its own. Each way has its own motion
+     graphic (#phone-motion, #computer-motion), one element each. -->
 <section id="section-connections" data-section="connections" aria-labelledby="page-heading">
-<nav class="connections-tabs" aria-label="Connections">
-<a href="/settings/connections" data-route data-connections-tab="connections" data-message="connectionsTabThis">Control this Environment</a>
-<a href="/settings/ssh" data-route data-connections-tab="ssh" data-message="connectionsTabSsh">SSH</a>
-</nav>
-<section class="group" aria-labelledby="phone-heading">
-<div class="card phone-card">
+<section class="group" aria-labelledby="control-heading">
+<div class="group-head"><h2 id="control-heading" data-message="connectionsControl">Control this Environment</h2></div>
+<div class="card phone-card" id="phone-card">
 <div class="phone-motion" id="phone-motion" aria-hidden="true">
-<div class="phone-motion-device">
+<div class="phone-motion-device" data-device="phone">
 <div class="phone-motion-step" data-step="1"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-openai"/></svg></span><span class="phone-motion-label" data-message="phoneMotionOpen">Open ChatGPT</span></div>
 <div class="phone-motion-step" data-step="2"><span class="phone-motion-icon phone-motion-codex">&lt;/&gt;</span><span class="phone-motion-label" data-message="phoneMotionCodex">Tap Codex</span></div>
 <div class="phone-motion-step" data-step="3"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-laptop"/></svg></span><span class="phone-motion-label" data-message="phoneMotionAdd">Add computer</span></div>
@@ -2083,7 +2091,7 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <ol class="phone-motion-dots"><li></li><li></li><li></li><li></li><li></li></ol>
 </div>
 <div class="phone-copy">
-<h2 id="phone-heading" data-message="phoneTitle">Phone through ChatGPT</h2>
+<h3 id="phone-heading" data-message="phoneTitle">Phone</h3>
 <p class="row-desc" data-message="phoneLead">Control the chats of this Environment from the ChatGPT app.</p>
 <p id="phone-state" class="callout" data-kind="warning" role="status" aria-live="polite" hidden></p>
 <div id="phone-restart-confirm" class="callout" data-kind="warning" role="alert" hidden><p data-message="phoneRestartWarning">A restart ends the chats running in Codex. Restart now?</p><div class="phone-actions"><button type="button" id="phone-restart-cancel" data-message="phoneCancel">Cancel</button><button type="button" class="primary" id="phone-restart-yes" data-message="phoneRestartYes">Restart</button></div></div>
@@ -2091,17 +2099,31 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <p class="phone-needs" id="phone-needs" data-message="phoneNeeds" hidden>ChatGPT Plus or higher, the same account as Codex in this Environment.</p>
 </div>
 </div>
-</section>
-<section class="group" id="phone-devices-group" aria-labelledby="phone-devices-heading" hidden>
-<div class="group-head"><h2 id="phone-devices-heading" data-message="phoneDevices">Paired phones</h2></div>
-<ul class="card" id="phone-devices"></ul>
+<div id="phone-devices-group" class="connections-devices" hidden>
+<h3 id="phone-devices-heading" class="connections-devices-head" data-message="phoneDevices">Paired phones</h3>
+<ul class="card" id="phone-devices" aria-labelledby="phone-devices-heading"></ul>
+</div>
+<div class="card phone-card" id="computer-card" hidden>
+<div class="phone-motion" id="computer-motion" aria-hidden="true">
+<div class="phone-motion-device" data-device="computer">
+<div class="phone-motion-step" data-step="1"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg></span><span class="phone-motion-label" data-message="computerMotionCopy">Copy the prompt</span></div>
+<div class="phone-motion-step" data-step="2"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-openai"/></svg></span><span class="phone-motion-label" data-message="computerMotionOpen">Open ChatGPT Desktop</span></div>
+<div class="phone-motion-step" data-step="3"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-bot"/></svg></span><span class="phone-motion-label" data-message="computerMotionPaste">Paste it to the agent</span></div>
+<div class="phone-motion-step" data-step="4"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></span><span class="phone-motion-label" data-message="computerMotionAdd">Click Add to Codex</span></div>
+<div class="phone-motion-step" data-step="5"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span><span class="phone-motion-label" data-message="phoneMotionDone">Done</span></div>
+</div>
+<ol class="phone-motion-dots"><li></li><li></li><li></li><li></li><li></li></ol>
+</div>
+<div class="phone-copy">
+<h3 id="computer-heading" data-message="computerTitle">Computer</h3>
+<p class="row-desc" data-message="computerLead">Control this Environment from ChatGPT Desktop on your computer.</p>
+<div class="phone-actions"><a id="computer-connect" class="button primary" href="/settings/ssh" data-route data-message="computerConnect">Connect a computer</a></div>
+</div>
+</div>
 </section>
 </section>
 <section id="section-ssh" data-section="ssh" aria-labelledby="page-heading">
-<nav class="connections-tabs" aria-label="Connections">
-<a href="/settings/connections" data-route data-connections-tab="connections" data-message="connectionsTabThis">Control this Environment</a>
-<a href="/settings/ssh" data-route data-connections-tab="ssh" data-message="connectionsTabSsh">SSH</a>
-</nav>
+<a class="connections-back" href="/settings/connections" data-route><svg class="icon" aria-hidden="true"><use href="#i-chevron-left"/></svg><span data-message="connectionsTitle">Connections</span></a>
 <div class="section-head-text">
 <p id="ssh-unsupported" class="callout" role="note" hidden data-message="sshUnsupported">SSH from your devices is available in Environments on Linux and macOS.</p>
 </div>
@@ -2132,8 +2154,10 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <p id="ssh-added" class="callout" role="status" aria-live="polite" hidden></p>
 <div class="card" id="ssh-computer-ready" hidden>
 <div class="row"><div><a id="ssh-codex" data-message="sshCodexLink" hidden>Add Environment to Codex</a><p id="ssh-project-path" class="row-desc"></p></div></div>
+<details class="row ssh-advanced"><summary data-message="sshAdvanced">Advanced: manual SSH setup</summary>
 <div class="row ssh-block-row"><div class="ssh-block-head"><p class="row-title" data-message="sshConfigLabel">SSH config</p><p class="row-desc" data-message="sshConfigNote">Add to ~/.ssh/config</p></div><pre id="ssh-config" class="ssh-block" data-ssh-block="config"></pre><div class="ssh-block-actions"><span class="row-status" data-copy-status role="status" aria-live="polite"></span><button type="button" data-copy="ssh-config"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span data-message="sshCopy">Copy</span></button></div></div>
 <div class="row ssh-block-row"><div class="ssh-block-head"><p class="row-title" data-message="sshKnownHostsLabel">known_hosts</p><p class="row-desc" data-message="sshKnownHostsNote">Add to ~/.ssh/known_hosts_lazurio</p></div><pre id="ssh-known-hosts" class="ssh-block" data-ssh-block="known-hosts"></pre><div class="ssh-block-actions"><span class="row-status" data-copy-status role="status" aria-live="polite"></span><button type="button" data-copy="ssh-known-hosts"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span data-message="sshCopy">Copy</span></button></div></div>
+</details>
 </div>
 <div id="ssh-computer-missing" class="callout" data-kind="warning" role="note" hidden></div>
 <p class="group-note" data-message="sshNetworkNote">Adding a key does not give this device network access by itself. If SSH fails, give your agent the exact error. If the device is not allowed on the network yet, the network administrator can allow it.</p>
@@ -2216,8 +2240,10 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <div class="dialog-foot"><span id="tools-prompt-status" role="status" aria-live="polite"></span><button type="button" id="tools-prompt-close" data-message="toolsClose">Close</button><button type="button" id="tools-prompt-copy" class="primary" data-message="toolsCopy">Copy prompt</button></div>
 </dialog>
 <!-- Spárovat telefon (decision F71): the QR code the ChatGPT app's own
-     scanner reads, the short code, the time left, a new code and the moment
-     the phone took it. No code is kept once the dialog closes. -->
+     scanner reads, the short code, the time left, a new code once it
+     expired, and the moment the phone took it. The page drops the code when
+     the dialog closes; Codex cannot end it, so it stays valid at ChatGPT
+     until it expires and the next open shows the same code. -->
 <dialog id="phone-dialog" class="phone-dialog" aria-labelledby="phone-dialog-title">
 <div class="dialog-head"><h2 id="phone-dialog-title" tabindex="-1" data-message="phonePair">Pair a phone</h2><button type="button" class="dialog-x" id="phone-dialog-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="sr-only" data-message="toolsClose">Close</span></button></div>
 <div id="phone-dialog-pairing" class="phone-pairing">

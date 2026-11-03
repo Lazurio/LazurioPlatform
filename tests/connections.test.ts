@@ -441,28 +441,41 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
-  "one pending pairing, its expiry, cancel and the start limit",
+  "one live code: shown again until it expires or a phone takes it, and the start limit",
   async () => {
     const s = await setup();
     try {
       const first = await s.connections.start();
-      const second = await s.connections.start();
-      if (first.kind !== "pairing" || second.kind !== "pairing")
+      const again = await s.connections.start();
+      if (first.kind !== "pairing" || again.kind !== "pairing")
         throw new Error("not started");
-      expect(await s.connections.poll(first.session)).toEqual({ kind: "gone" });
-      expect(s.connections.cancel(second.session)).toEqual({
-        kind: "cancelled",
+      // Codex cannot end a code: the same one comes back, no second is made.
+      expect(again).toEqual(first);
+      expect(s.pairings()).toBe(1);
+      expect(await s.connections.poll(first.session)).toMatchObject({
+        kind: "waiting",
+      });
+      s.advance(11 * 60_000);
+      expect(await s.connections.poll(first.session)).toEqual({
+        kind: "expired",
       });
       expect(s.connections.pending()).toBe(false);
       const third = await s.connections.start();
       if (third.kind !== "pairing") throw new Error("not started");
-      s.advance(11 * 60_000);
-      expect(await s.connections.poll(third.session)).toEqual({
-        kind: "expired",
-      });
+      expect(third.session).not.toBe(first.session);
+      expect(s.pairings()).toBe(2);
+      // A code a phone took, seen at the next start, makes room for one more.
+      s.daemon.claimed = true;
+      const fourth = await s.connections.start();
+      if (fourth.kind !== "pairing") throw new Error("not started");
+      expect(fourth.session).not.toBe(third.session);
+      expect(await s.connections.poll(third.session)).toEqual({ kind: "gone" });
       // Five codes in ten minutes, then a refusal until the window moves.
-      for (let turn = 0; turn < maxStarts; turn++)
+      while (s.pairings() < maxStarts + 1) {
+        s.daemon.claimed = true;
         expect((await s.connections.start()).kind).toBe("pairing");
+      }
+      s.daemon.claimed = true;
       expect(await s.connections.start()).toEqual({
         kind: "blocked",
         reason: "too-many-starts",
@@ -470,6 +483,44 @@ test.skipIf(!posix)(
       s.advance(10 * 60_000 + 1);
       expect((await s.connections.start()).kind).toBe("pairing");
       expectNoSecrets([s.journal], third.session);
+    } finally {
+      await s.close();
+    }
+  },
+);
+
+test.skipIf(!posix)(
+  "concurrent starts share one: one code at Codex, the limit holds",
+  async () => {
+    const s = await setup();
+    const burst = () =>
+      Promise.all(Array.from({ length: 8 }, () => s.connections.start()));
+    try {
+      const all = await burst();
+      expect(s.pairings()).toBe(1);
+      expect(
+        new Set(
+          all.map((answer) =>
+            answer.kind === "pairing" ? answer.session : answer.kind,
+          ),
+        ).size,
+      ).toBe(1);
+      // Bursts after a phone took each code: one new code each.
+      while (s.pairings() < maxStarts) {
+        s.daemon.claimed = true;
+        await burst();
+      }
+      expect(s.pairings()).toBe(maxStarts);
+      s.daemon.claimed = true;
+      const refused = await burst();
+      expect(
+        refused.every(
+          (answer) =>
+            answer.kind === "blocked" && answer.reason === "too-many-starts",
+        ),
+      ).toBe(true);
+      expect(s.pairings()).toBe(maxStarts);
+      expect(s.connections.pending()).toBe(false);
     } finally {
       await s.close();
     }
@@ -636,13 +687,18 @@ test.skipIf(!posix)(
       expect(again).not.toContain(code);
       expect(again).not.toContain(manual);
       expect(again).not.toContain(String(started.session));
+      // No cancel: Codex cannot end a code, so the same one is answered.
       expect(
-        await (
+        (
           await post("/api/connections/pair/cancel", {
             session: started.session,
           })
-        ).json(),
-      ).toEqual({ kind: "cancelled" });
+        ).status,
+      ).toBe(404);
+      expect(
+        ((await (await post("/api/connections/pair", {})).json()) as Json)
+          .session,
+      ).toBe(started.session);
     } finally {
       await s.close();
     }

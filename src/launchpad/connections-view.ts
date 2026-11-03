@@ -173,9 +173,11 @@ export const offersRestart = (overview: ConnectionsOverview): boolean =>
   overview.reason !== "unsupported" &&
   overview.restart;
 
-/** Whether the card sends the person to sign in to ChatGPT. */
+/** Whether the card sends the person to sign in to ChatGPT: only where
+ * Codex has no sign-in. On the Organization's AI the phone's route is SSH
+ * with a password, not ready yet: the card says so and offers nothing. */
 export const offersSignIn = (overview: ConnectionsOverview): boolean =>
-  overview.state === "no-chatgpt" || overview.state === "organization-ai";
+  overview.state === "no-chatgpt";
 
 /** A device's name as the page shows it. */
 export function deviceName(device: PairedDevice): string {

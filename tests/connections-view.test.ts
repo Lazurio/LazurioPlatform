@@ -69,9 +69,10 @@ test("each state's words, sign-in and restart", () => {
     "Nejdřív se přihlaste svým účtem ChatGPT.",
   );
   expect(offersSignIn(of("no-chatgpt"))).toBe(true);
-  expect(offersSignIn(of("organization-ai"))).toBe(true);
-  expect(cs[stateMessage(of("organization-ai")) ?? "phoneTitle"]).toStartWith(
-    "Nejdřív se přihlaste svým účtem ChatGPT.",
+  // The Organization's AI: the phone's route there is coming, no sign-in.
+  expect(offersSignIn(of("organization-ai"))).toBe(false);
+  expect(cs[stateMessage(of("organization-ai")) ?? "phoneTitle"]).toBe(
+    "Pro Prostředí s AI Organizace telefon připravujeme.",
   );
   expect(stateMessage(of("team"))).toBe("phoneStateTeam");
   expect(offersRestart(of("team"))).toBe(false);
@@ -89,7 +90,10 @@ test("each state's words, sign-in and restart", () => {
   expect(stateMessage(of("no-remote-control", { reason: "unsupported" }))).toBe(
     "phoneStateUnsupported",
   );
-  expect(cs.connectionsTabThis).toBe("Ovládat toto Osobní Prostředí");
+  expect(cs.connectionsControl).toBe("Ovládat toto Osobní Prostředí");
+  expect(cs.computerLead).toBe(
+    "Z ChatGPT Desktopu na svém počítači ovládáte toto Osobní Prostředí.",
+  );
   expect(cs.phoneHint).toBe(
     "V aplikaci ChatGPT otevřete Codex → Přidat počítač a naskenujte kód.",
   );
