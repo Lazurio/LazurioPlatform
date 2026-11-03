@@ -9,6 +9,7 @@ import {
   type ExecutorReport,
   executorReportFailed,
 } from "../executor/converge";
+import { readHostedFolderForeignEntries } from "../folder/foreign-entries";
 import {
   type FolderRefresh,
   folderRefreshNeeded,
@@ -285,6 +286,15 @@ export const checkForUpdate = (
     });
   });
 
+/** Top-level entries of a hosted Folder that the Folder does not own
+ * (decision F10's addendum of 2026-11-03): they no longer stop a refresh and
+ * are reported instead. Present only when there is at least one, or when the
+ * top level could not be listed (`unreadable`), which is never reported as
+ * clean. */
+export type FolderForeignEntries =
+  | Readonly<{ folder: string; entries: readonly string[] }>
+  | Readonly<{ folder: string; unreadable: true }>;
+
 export type UpdateResult =
   | Readonly<{
       kind: "up-to-date";
@@ -293,6 +303,7 @@ export type UpdateResult =
       /** The Folder's refresh this run performed; null when none was
        * needed (decision F17's addendum of 2026-10-30). */
       folderRefresh: FolderRefreshOutcome | null;
+      folderForeignEntries?: FolderForeignEntries;
       /** Supervised base only: the Codex app-server unit (decision F29). */
       codexAppServer?: CodexAppServer;
       /** Supervised base only: the Environment browser's units (F38). */
@@ -311,6 +322,7 @@ export type UpdateResult =
       /** The Folder's refresh by `to` after the switch; null when none was
        * needed or `to` does not say which template revision it renders. */
       folderRefresh: FolderRefreshOutcome | null;
+      folderForeignEntries?: FolderForeignEntries;
       codexAppServer?: CodexAppServer;
       environmentBrowser?: EnvironmentBrowser;
       computerUse?: ComputerUse;
@@ -336,6 +348,31 @@ const runningRevision = async (
   (await readSelector(environment.base)) === environment.identity.version
     ? instructionTemplateRevision
     : null;
+
+/** The report of a hosted Folder's foreign top-level entries, spread into a
+ * result: nothing when no Folder is known or it holds none. */
+async function foreignEntriesReport(
+  environment: Pick<UpdateEnvironment, "folder">,
+): Promise<{ folderForeignEntries?: FolderForeignEntries }> {
+  const { folder } = environment;
+  if (folder === undefined) return {};
+  const reading = await readHostedFolderForeignEntries(folder);
+  if (reading.kind === "unreadable")
+    return {
+      folderForeignEntries: Object.freeze({
+        folder,
+        unreadable: true as const,
+      }),
+    };
+  return reading.kind === "entries" && reading.entries.length > 0
+    ? {
+        folderForeignEntries: Object.freeze({
+          folder,
+          entries: reading.entries,
+        }),
+      }
+    : {};
+}
 
 /** The Folder's refresh after a successful run (decision F17's addendum of
  * 2026-10-30): when a Folder is known, the active product says which
@@ -465,6 +502,7 @@ const updateOnce = (
             environment,
             await runningRevision(environment),
           ),
+          ...(await foreignEntriesReport(environment)),
         });
       const artifact = manifest.targets[identity.target];
       if (!artifact) throw new UpdateFailure("internal");
@@ -525,6 +563,7 @@ const updateOnce = (
         // After the switch, by the version it activated: never a reason to
         // undo it.
         folderRefresh: await refreshAfter(environment, productRevision),
+        ...(await foreignEntriesReport(environment)),
       });
     });
   });
@@ -552,6 +591,9 @@ export type UpdateStatus = Readonly<{
    * still needed, because none ran yet or the last one was blocked. For
    * agents; the Launchpad never shows it. */
   folderRefresh: FolderRefresh | null;
+  /** A hosted Folder's foreign top-level entries, which no longer stop a
+   * refresh (decision F10's addendum of 2026-11-03); absent when none. */
+  folderForeignEntries?: FolderForeignEntries;
 }>;
 
 /** `lazurio update status`: computed from the paths when asked; no network,
@@ -605,5 +647,6 @@ export async function readStatus(
       environment,
       active === identity.version ? instructionTemplateRevision : null,
     ),
+    ...(await foreignEntriesReport(environment)),
   });
 }

@@ -1388,6 +1388,33 @@ Authority:
 - Princip: Mašina je VM a host je hranice nad ní (ARCHITECTURE).
 - Matěj rozhodnutí ráno potvrdí. Když nebude souhlasit, opravíme dopředu.
 
+**Addendum 2026-11-03 (#772): a foreign top-level entry no longer stops a hosted Folder's
+change.** On a maintainers' station another agent's work product at the Folder's top level
+(`drafts/`) stopped every refresh for two days, and the station's agents kept an old
+instruction revision while `doctor` said only `folder-refresh-needed`. The rule that work
+products belong in `~/Documents/<task>/` stays, in the Folder and in the GEN3 Root. The
+product no longer enforces it by stopping the Environment's updates:
+- The shared transaction (a profile update, `machine folder-refresh`, a tools or settings
+  change, `profile-resume`) neither reads, writes, moves nor refuses a top-level entry the
+  Folder does not own, in a hosted Folder as on a workstation (amends the 2026-09-23
+  amendment above). Its outputs are owned paths only, so a foreign entry cannot collide with
+  them; foreign content inside an owned directory (`manual/`) is still refused by path.
+- A hosted Folder reports such entries instead. `lazurio update` and `update status` add
+  `folderForeignEntries` (the Folder and the names) and one line. The product cannot tell
+  whose an entry is, so the line leaves that to the reader: their own work moves to
+  `~/Documents/<task>/`, anyone else's stays and the user hears about it. `lazurio doctor`
+  adds the check `folder-top-level`, `warn` with `foreign-entries`, how many and the first
+  plain name. A name that is not shown as itself is reported without its text. A top level
+  that cannot be listed is unknown, never clean: `folderForeignEntries {folder, unreadable}`
+  and `warn top-level-unreadable` (Pablo's review of #817). A workstation Folder keeps the
+  person's own files and reports nothing.
+- Adoption (`machine folder-init`) and initialization recovery keep refusing a foreign entry
+  by name: a new Folder holds only what its handover creates.
+- The Folder's manual tells an agent to move its own entry to `~/Documents/<task>/` and to
+  leave anyone else's in place and tell the user (template revision `base-instructions-106`).
+
+Authority: Matěj 2026-11-03 in the question tool, „Neblokovat, jen ohlásit (Doporučeno)“.
+
 ## F11 — Hosted admission is not identity
 
 **Accepted direction (2026-09-19), not implemented.** The hosted gateway authenticates.
@@ -19510,6 +19537,46 @@ them to this task) stay, because they serve the agents' windows nobody watches.
   the hub with a fake pressure source and the scripted DevTools peer in
   `tests/environment-browser-view.test.ts` (the order and its exclusions, the hysteresis and
   the cool-down, an agent that comes while a pressure sleep is pending, the kept grace).
+
+**Addendum of 2026-11-03: a link to a tab that ended opens it again (Matěj's report of the
+same day).** The links agents send into chats name tabs, `…/t/<id>`, and people click them
+days later. By then the tab has ended long ago: nothing held it (its agent's daemon idled out
+after an hour), or the browser or the Environment restarted, which also drops every tombstone.
+The view then said only "This tab no longer exists": in T3 Code's right panel the tab flashed
+and closed, and alone it offered a new blank tab instead of the page.
+- **The hub remembers every tab's last address by its id:** its web address, title, icon and
+  opener, never its content, whenever they change (`remember`), written soon after into
+  `${XDG_STATE_HOME:-~/.local/state}/lazurio/browser/remembered-tabs.json`, owner-only. It is
+  state, not runtime, so it outlasts a restart of the browser and a reboot, as the links do. A
+  record goes 30 days after the tab was last seen, and past 2000 records the least recently
+  seen go (`src/browser/people/remembered.ts`). A tab that still exists, awake or asleep,
+  counts as seen: the hub marks it seen again every hour on its beat, and on the same beat
+  lets go of records past their 30 days, whether anything else changed or not; a link past
+  them no longer opens. The writer and the reader keep one rule (`rememberedTabOf`): an address
+  longer than 2048 characters is not remembered at all, never cut, and the text is bounded at
+  16 MiB, past which the least recently seen are left out, so what is written is read back.
+  The browser's own history already holds as much; a Work Environment is never handed to
+  another person (0191).
+- **Viewing an id that ended, but is remembered, opens it again under that id:** the hub makes
+  it a tab that sleeps, with the reason `ended` (C11), and wakes it as any other (`reopenable`,
+  then `wake` and `adopt`). From then it is an ordinary tab with F47's graces, and its link
+  works again the next time. Probudit (`wake` on loopback) does the same, so the Launchpad and
+  agents can open it without a viewer. Only while the hub knows every page (`ready`), so a tab
+  that has not been reported yet is never opened twice.
+- **What stays as it was:** an id the hub never saw, or forgot, still answers `closed`. Links
+  sent before this release are not remembered. A tab closed for everyone opens again too when
+  someone follows a link to it: following the link is the person's choice. An agent bound to
+  the ended window still gets `tab_gone` and opens a new window (point 5 of the follow-ups
+  above).
+
+**Where it is (addendum of 2026-11-03).** `src/browser/people/remembered.ts` (the records,
+their file and their bounds); `src/browser/people/hub.ts` (`remember`, `reopenable`,
+`canWake`, `sweepRemembered` on the holds' beat, the records read at the first connection in
+`sameBrowser` and written by `writeRemembered`); `src/browser/people/service.ts` (`wake` for a remembered id);
+`src/browser/people/serve.ts` (the file); `src/browser/contract/platform.ts` (`ended`). Tests:
+`tests/environment-browser-view.test.ts` (a link after a restart of the browser, Probudit, an
+address past the bound, the 30 days of a tab that exists and of one that ended) and
+`tests/environment-browser-sleep.test.ts` (the records, their bounds and their size).
 
 ## F58 — A static app starts from `main` as its build: each commit built once outside the checkout, served by the Platform, rebuilt after a pull
 

@@ -98,8 +98,7 @@ modules, T3 Code and Codex keep running. The answer then adds "launchpad":
 restarted, restart-failed or not-supervised (no installer unit of this base
 starts this Folder; the Launchpad takes the entry at its next start). Blocked with
 exit 2, nothing written: folder-not-initialized (run folder-init first),
-folder-binding-changed, folder-state-unrecognized, folder-foreign-entry (a
-top-level entry the Folder does not own or tolerate), drift or unsafe-path with
+folder-binding-changed, folder-state-unrecognized, drift or unsafe-path with
 the edited path (owned files are never overwritten), preset-derivation-changed
 (the assignment now derives another preset: take it with folder-refresh
 --preset <the derived preset>), preset-not-allowed (--preset is not the
