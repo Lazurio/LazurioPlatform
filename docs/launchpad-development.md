@@ -3168,7 +3168,10 @@ Organization's app, its basics are the Organization's, and it gets none of it.
   title alone does not say what it is for (F36's addendum of 2026-10-16):
   1. **Připojit AI** (`ai-sign-in.ts` holds the sign-in in the page): "Zajišťuje vaše
      Organizace." (done, nothing runs); otherwise only the title and "Přihlásit ChatGPT"
-     and "Přihlásit Claude", each with its mark before its name (OpenAI's Blossom from
+     and "Přihlásit Claude" (only the one whose CLI is installed when the reading says
+     the other is not, with "Přihlásit kódem" only beside ChatGPT's; both while neither is
+     installed, so that a click says which one is missing; F36's addendum of 2026-10-16
+     describes the two choices of an Environment with both CLIs), each with its mark before its name (OpenAI's Blossom from
      its brand kit, the sprite's `i-openai`, in OpenAI's white or black only; Claude's
      simple-icons mark, `i-claude`; [licensing](licensing.md#bundled-third-party-assets)),
      nothing said before them (where the AI could not be checked, that line); beneath
@@ -3186,9 +3189,13 @@ Organization's app, its basics are the Organization's, and it gets none of it.
      prohlížeče." (a workstation, whose CLI opens the computer's browser), with
      "Otevřít přihlášení" and "Zrušit", and for Claude's code page one field for its
      code (`POST /api/tools/login/code`); "Připojeno: ChatGPT, <e-mail>; Claude,
-     <e-mail>" with "Přihlásit jiný účet", which offers both again; a sign-in that did
-     not finish ("Přihlášení se nepovedlo…", expired, the Environment browser did not
-     open it) with "Zkusit znovu"; a T3 Code that did not turn the provider on, said
+     <e-mail>" with "Přihlásit jiný účet", which offers both again (except a CLI that is
+     not installed); a sign-in that did not finish ("Přihlášení se nepovedlo…", expired,
+     the Environment browser did not open it) with "Zkusit znovu"; a click that finds its
+     CLI not installed (`reason: "not-installed"`) instead says "{Claude|ChatGPT} zatím
+     není nainstalovaný v tomto Prostředí, proto se tu přihlásit nedá." and offers the
+     other sign-in, never "Zkusit znovu", until a fresh reading (`?fresh=1`, "Zkontrolovat
+     znovu") finds that CLI, which drops the failure (`aiSignInAfterReading`); a T3 Code that did not turn the provider on, said
      beside the account; and without the Environment browser "Přihlášení tu teď nejde
      otevřít.", nothing started. Signed in, the page reads `GET /api/ai?fresh=1` at once;
   2. **GitHub**: "Připojeno jako @login", or "Nepřipojeno" with

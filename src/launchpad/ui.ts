@@ -618,6 +618,8 @@ async function readAi(fresh = false) {
   } catch {}
   aiRead = true;
   if (read !== null || aiReading === null) aiReading = read;
+  // Asked now, so after any click: a CLI it finds can sign in again.
+  if (fresh) aiSignIn.settle(read);
   content.render();
   startByItself();
   firstRun();

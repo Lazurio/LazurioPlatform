@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+  aiSignInAfterReading,
   aiSignInAnswer,
   aiSignInPlace,
   createAiSignIn,
@@ -512,4 +513,76 @@ test("Přihlásit kódem: the start asks for the code, the step shows it until t
   await claude.start("claude", { byCode: true });
   expect(claude.state()).toEqual({ kind: "idle" });
   expect(none.requests).toEqual([]);
+});
+
+test("a fresh reading that finds the CLI drops the click's not installed, and nothing else (review of #827)", () => {
+  const missing = {
+    kind: "failed",
+    tool: "claude",
+    reason: "not-installed",
+  } as const;
+  const reading = (
+    claude: "not-installed" | "signed-out" | "signed-in" | "unknown" | null,
+  ) => ({
+    state: "missing" as const,
+    providers: [
+      { provider: "codex" as const, state: "signed-out" as const },
+      ...(claude === null
+        ? []
+        : [{ provider: "claude" as const, state: claude }]),
+    ],
+  });
+  // Installed since the click: signed out or in, the sign-in is offered again.
+  expect(aiSignInAfterReading(missing, reading("signed-out"))).toEqual({
+    kind: "idle",
+  });
+  expect(aiSignInAfterReading(missing, reading("signed-in"))).toEqual({
+    kind: "idle",
+  });
+  // Still missing, not known, not named or not read: the failure stays.
+  for (const kept of [
+    reading("not-installed"),
+    reading("unknown"),
+    reading(null),
+    null,
+  ])
+    expect(aiSignInAfterReading(missing, kept)).toBe(missing);
+  // Any other failure or state is not the reading's to change.
+  const failed = { kind: "failed", tool: "claude", reason: "failed" } as const;
+  expect(aiSignInAfterReading(failed, reading("signed-out"))).toBe(failed);
+  const idle = { kind: "idle" } as const;
+  expect(aiSignInAfterReading(idle, reading("signed-out"))).toBe(idle);
+});
+
+test("the controller settles a not installed on the fresh reading after it (review of #827)", async () => {
+  const changes: string[] = [];
+  const signIn = createAiSignIn({
+    post: async () => ({
+      value: { kind: "failed", tool: "claude", reason: "not-installed" },
+      ok: false,
+    }),
+    showView: () => undefined,
+    changed: () => changes.push(signIn.state().kind),
+    readAi: () => undefined,
+  });
+  await signIn.start("claude");
+  expect(signIn.state()).toEqual({
+    kind: "failed",
+    tool: "claude",
+    reason: "not-installed",
+  });
+  const before = changes.length;
+  // A reading that still says not installed changes nothing.
+  signIn.settle({
+    state: "missing",
+    providers: [{ provider: "claude", state: "not-installed" }],
+  });
+  expect(changes.length).toBe(before);
+  // Installed and read again: the step is drawn without the failure.
+  signIn.settle({
+    state: "missing",
+    providers: [{ provider: "claude", state: "signed-out" }],
+  });
+  expect(signIn.state()).toEqual({ kind: "idle" });
+  expect(changes.at(-1)).toBe("idle");
 });

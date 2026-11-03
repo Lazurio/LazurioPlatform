@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { aiSignInAfterReading } from "../src/launchpad/ai-sign-in";
 import type { ContentItem, ContentList } from "../src/launchpad/content-client";
 import type { ContentFact } from "../src/launchpad/content-view";
 import { messages } from "../src/launchpad/messages";
@@ -1164,4 +1165,18 @@ test("a CLI that is not installed: its sign-in is not offered, and a click that 
     "Claude zatím není nainstalovaný v tomto Prostředí, proto se tu přihlásit nedá.",
   );
   expect(connected?.ai).toEqual({ kind: "connected" });
+  // Installed afterwards and "Zkontrolovat znovu": the fresh reading settles
+  // the failure (aiSignInAfterReading), and the step offers both again,
+  // nothing said, as for any Environment with both CLIs.
+  const settled = aiSignInAfterReading(
+    { kind: "failed", tool: "claude", reason: "not-installed" },
+    reading("signed-out"),
+  );
+  const again = view({ aiReading: reading("signed-out"), aiSignIn: settled });
+  expect(again?.steps[0]).toMatchObject({ mark: "now", status: null });
+  expect(again?.ai).toEqual({
+    kind: "choose",
+    cancel: false,
+    byCode: { hint: byCodeHint },
+  });
 });

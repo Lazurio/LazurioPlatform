@@ -1,5 +1,6 @@
 import {
   type AiProvider,
+  type AiReading,
   type AiServices,
   codexDeviceCode,
   codexDevicePage,
@@ -247,6 +248,34 @@ type Transport = (
 
 /** The page's AI sign-in: one at a time, held through its session handle;
  * starting another replaces it on the server too. */
+/**
+ * A click's "not installed" holds only until a fresh reading of the AI, asked
+ * after it ("Zkontrolovat znovu", `GET /api/ai?fresh=1`), finds that CLI:
+ * installed since, it can sign in, so the failure is gone and the step offers
+ * its sign-in again. A reading that does not name the CLI, says it is still
+ * not installed or could not tell (`unknown`) keeps the failure, and so does
+ * every other state.
+ */
+export function aiSignInAfterReading(
+  signIn: AiSignIn,
+  reading: AiReading | null,
+): AiSignIn {
+  if (
+    signIn.kind !== "failed" ||
+    signIn.reason !== "not-installed" ||
+    reading === null
+  )
+    return signIn;
+  const found = reading.providers.find(
+    (provider) => provider.provider === signIn.tool,
+  );
+  return found !== undefined &&
+    found.state !== "not-installed" &&
+    found.state !== "unknown"
+    ? idleAiSignIn
+    : signIn;
+}
+
 export function createAiSignIn(
   options: Readonly<{
     post: Transport;
@@ -409,6 +438,14 @@ export function createAiSignIn(
         .catch(() => ({ value: null, ok: false }));
       if (mine !== turn || current.kind !== "waiting") return;
       set({ ...current, codeNote: answer.ok ? "sent" : "invalid" });
+    },
+
+    /** A fresh reading of the AI arrived: a "not installed" it proves
+     * wrong is dropped (aiSignInAfterReading). Only for a reading asked
+     * after the failure; a kept one may predate the click. */
+    settle(reading: AiReading | null) {
+      const next = aiSignInAfterReading(current, reading);
+      if (next !== current) set(next);
     },
 
     /** The page goes: nothing more is asked. */
