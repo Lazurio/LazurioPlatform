@@ -27,6 +27,14 @@ Platform). Every file is the root's byte for byte, except:
   `vite-react` apps declare `build_output: "dist"` (`vite-react` also
   `static_fallback: "spa"`), and their `README.md` says that the Launchpad
   opens them from `main` as their build.
+- **The stack profiles** (decision F69, `docs/stack-profiles.md`, release
+  2026.11): every Bun app pins its profile's exact tools (`@types/bun` is
+  `{{bun_version}}`), `check` runs the tests too and CI runs only `check`,
+  `biome.json` uses the recommended preset and leaves Markdown and YAML
+  unformatted, the Astro `tsconfig.json` names `"types": ["bun"]` for
+  TypeScript 6, and each stack's `README.md` names its profile and links it.
+  A new release of the profiles changes these templates in its own pull
+  request.
 
 Since the Organization form moved here too (decision F52's addendum of
 2026-10-14), these are the only templates that change; the root's generator
@@ -35,8 +43,10 @@ retires (root decision 0171's addendum of 2026-10-13, point 3).
 ## Layers
 
 A module's files are the layers overlaid in order: `_common`, then `_bun`
-(stacks with a Bun app), then the stack's own directory, and for a personal
-module `_personal` last; a later layer wins over the same path. The stacks are
+(stacks with a Bun app), then the stack's own directory, then `_data` for a
+module with data (`--data`: the Zod schemas of its collections, the validation
+of its data that `check` runs, its test and the empty `seed/`), and for a
+personal module `_personal` last; a later layer wins over the same path. The stacks are
 `vite-react`, `astro`, `astro-starlight`, `bun-service`, `python-uv` and
 `none`. `lazurio.module.json` is no template: the plan writes it from the lease
 and the stack.
@@ -47,8 +57,14 @@ A path segment that starts with `dot-` is written with a dot (`dot-gitignore`
 → `.gitignore`, `dot-github/` → `.github/`) and the trailing `.tmpl` is dropped
 (`AGENTS.md.tmpl` → `AGENTS.md`).
 
+The templates keep the App's files under `app/v1/`; the plan writes them to
+the App's generation, `app/v1/` without data and `app/v3/` with data
+(`scaffoldAppDirectory`: the generation names the data layer, F69 point 8).
+Content names the App's directory only by the placeholders `app_directory` and
+`app_generation`.
+
 A module with data (`--data`) is no template either: the plan adds the
-repository-db dependency to `app/v1/package.json`, `/db/` to `.gitignore` and a
+repository-db dependency to `app/v3/package.json`, `/db/` to `.gitignore` and a
 section on the data to `AGENTS.md` (`withData` in `scaffold.ts`).
 
 ## Placeholders
@@ -61,10 +77,12 @@ section on the data to `AGENTS.md` (`withData` in `scaffold.ts`).
 | `organization` | the Organization's slug | the user's GitHub login |
 | `github_org` | the Organization's GitHub login | the user's GitHub login |
 | `listener_id`, `listener_env_prefix` | `app`, `LAZURIO_RUNTIME_LISTENER_APP` | same |
-| `runtime_id` | `<organization>-<slug>-v1`, lowercase | `personalspace-<slug>-v1` |
+| `runtime_id` | `<organization>-<slug>-<app_generation>`, lowercase | `personalspace-<slug>-<app_generation>` |
+| `app_directory`, `app_generation` | `app/v1` and `v1`; with `--data` `app/v3` and `v3` | same |
 | `python_package` | the slug with `_` for `-` | same |
 | `port` | the lease's port | same |
 | `bun_version`, `module_kit_version`, `uv_version` | the pinned versions | same |
+| `stack_profile`, `stack_profile_release`, `stack_profile_url` | the module's stack profile (`app-data` with `--data` for an app stack), the release of the profiles and the profile's section of `docs/stack-profiles.md`; empty for `python-uv` and `none` | same |
 | `owner_label` | `Organizace` | `osobního prostoru` |
 | `pool_label` | `poolu Organizace` | `osobního poolu` |
 | `module_name` | `<organization>/<slug>` | `personalspace/<slug>` |
@@ -76,8 +94,9 @@ or control characters).
 
 ## Standard
 
-Every app template must pass the Lazurio Module Standard once generated (root
-`manual/module-standard.md`); the port is never written into a template
+Every app template must pass the Lazurio Module Standard once generated
+(`docs/module-standard.md`), with the exact tools of its stack profile
+(`docs/stack-profiles.md`); the port is never written into a template
 (`MS-01`, chapter 4.2), the app reads it from its listener variables. Until
 `lazurio module setup` reaches the Platform (#423), `tests/module-scaffold.test.ts`
 checks what the Platform reads: the module manifest, each app's runtime and

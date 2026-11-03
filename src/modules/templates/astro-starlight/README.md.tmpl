@@ -9,20 +9,27 @@ Standard.
 
 - `lazurio.module.json` — identita Modulu, lease `main` z {{pool_label}},
   `apps[]` a `default_app`.
-- `app/v1/` — App; `package.json` nese `lazurio.runtime` (listener
+- `{{app_directory}}/` — App; `package.json` nese `lazurio.runtime` (listener
   `{{listener_id}}`, health `/`) a `lazurio.preparation`; stránky žijí
   v `src/content/docs/`, navigace v `sidebar` v `astro.config.ts`.
 - `.github/workflows/check.yml` — CI: `bun install --frozen-lockfile`,
-  `bun run check`, `bun test`.
+  `bun run check` (typová kontrola, Biome a testy).
+
+## Stack
+
+Modul vznikl podle stack profilu
+[`{{stack_profile}}` {{stack_profile_release}}]({{stack_profile_url}}): přesné
+verze Bunu, TypeScriptu, Biome a frameworku v `{{app_directory}}/package.json` jsou jeho.
+Mění se jen řízeně: novým vydáním profilu, které Modul převezme vlastním PR,
+nebo přechodem na další generaci `app/v<N>`.
 
 ## Vývoj
 
 ```sh
-cd app/v1
+cd {{app_directory}}
 bun install --frozen-lockfile
 bun run prepare:app   # astro sync (typy obsahu)
-bun run check         # astro check + biome
-bun test              # obsah a start kontrakt
+bun run check         # astro check, biome, obsah a start kontrakt
 ```
 
 Start patří Launchpadu: `lazurio module start {{module_name}} --json`

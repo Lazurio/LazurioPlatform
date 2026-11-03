@@ -585,15 +585,12 @@ const en = {
   marketAppTemplates: "App templates",
   marketBack: "Marketplace",
   marketNotFound: "This offer is not in the Marketplace.",
-  marketScreensGallery: "The library with an example presentation",
-  marketScreensSlide: "A slide of the example presentation",
+  marketEmpty: "No app templates yet.",
   marketAdd: "Add to Organization",
   marketAddTitle: "Add {title} to an Organization",
   marketTarget: "Organization",
   marketTargetNone: "No Organization here is connected to GitHub yet.",
   marketStart: "Start with",
-  marketSeedEmpty: "An empty library",
-  marketSeedSample: "An example presentation",
   marketWhat:
     "In Chat, the agent prepares a private {title} module for {name} with you. Before anything there changes, it shows you the plan to approve.",
   marketTaken:
@@ -601,28 +598,15 @@ const en = {
   marketHandOver: "Continue in Chat",
   marketCancel: "Cancel",
   marketClose: "Close",
-  marketNotYet: "Available once version {version} is released.",
   marketHandedOver:
     "Chat opened in a new tab with the brief ready. Send it when you are ready.",
   marketCopied: "The brief is in your clipboard. Paste it into a new chat.",
+  marketChanged:
+    "{title} changed in the meantime; this page shows it as it is now. Check it before you continue.",
   marketCopyFailed:
     "The brief could not be handed over. Open Chat and ask the agent to add {title} from the Marketplace.",
-  marketSeedEmptyBrief:
-    "an empty library (do not carry the example presentation over)",
-  marketSeedSampleBrief: "the example presentation from the release",
-  marketPresentationsSummary:
-    "A library of presentations you create with your agent.",
-  marketPresentationsLibrary: "Library",
-  marketPresentationsLibraryText:
-    "Every presentation in one place, with a preview of its first slide and the sources it was built from.",
-  marketPresentationsPlayback: "Presenting and PDF",
-  marketPresentationsPlaybackText:
-    "Present the slides in the browser and move through them with the arrow keys. Print them to 16:9 PDF pages.",
-  marketPresentationsAgent: "Created with your agent",
-  marketPresentationsAgentText:
-    "Tell the agent who the presentation is for and what it should draw on. It proposes an outline, drafts the slides from your Organization's sources and hands them to you for review.",
   marketAdoptPrompt:
-    "I want to add the app template {title} from the Lazurio Marketplace to my Organization {name} (GitHub {login}).\nRelease: {repository} {tag}, commit {commit}, license {license}. Start with {seed}.\n\nFollow docs/adoption.md of exactly that commit. First check my live rights in the Organization, whether the name {module} is free and the compatibility, and show me the plan to confirm. Create the module with `lazurio module create --stack {stack}` as a private repository, merge the pinned commit so it stays an ancestor and prepare everything as a pull request. Choose the Teams with me from the Organization's real list. Where my rights do not reach, prepare an exact request for whoever has them and work around nothing. Merge or activate nothing without my explicit instruction.",
+    "I want to add the app template {title} from the Lazurio Marketplace to my Organization {name} (GitHub {login}).\nRelease: {repository} {tag}, commit {commit}, license {license}. Start with {seed}.\n\nFollow docs/adoption.md of exactly that commit. First check my live rights in the Organization, whether the name {module} is free and the compatibility, and show me the plan to confirm. Create the module with `{create}` as a private repository, merge the pinned commit so it stays an ancestor and prepare everything as a pull request. Choose the Teams with me from the Organization's real list. Where my rights do not reach, prepare an exact request for whoever has them and work around nothing. Merge or activate nothing without my explicit instruction.",
   title: "Lazurio Launchpad",
   homeTitle: "Launchpad",
   catalogBreadcrumb: "Where you are in the Launchpad",
@@ -2758,15 +2742,12 @@ const cs: Record<MessageKey, string> = {
   marketAppTemplates: "Šablony aplikací",
   marketBack: "Marketplace",
   marketNotFound: "Tato nabídka v Marketplace není.",
-  marketScreensGallery: "Knihovna s ukázkovou prezentací",
-  marketScreensSlide: "Slide ukázkové prezentace",
+  marketEmpty: "Zatím tu nejsou žádné šablony aplikací.",
   marketAdd: "Přidat do Organizace",
   marketAddTitle: "Přidat {title} do Organizace",
   marketTarget: "Organizace",
   marketTargetNone: "Žádná Organizace tady zatím není propojená s GitHubem.",
   marketStart: "Začít s",
-  marketSeedEmpty: "Prázdnou knihovnou",
-  marketSeedSample: "Ukázkovou prezentací",
   marketWhat:
     "Agent s vámi v Chatu připraví soukromý modul {title} pro Organizaci {name}. Než se v ní cokoli změní, ukáže vám plán ke schválení.",
   marketTaken:
@@ -2774,28 +2755,16 @@ const cs: Record<MessageKey, string> = {
   marketHandOver: "Pokračovat v Chatu",
   marketCancel: "Zrušit",
   marketClose: "Zavřít",
-  marketNotYet: "Půjde to po vydání verze {version}.",
   marketHandedOver:
     "Chat se otevřel v nové záložce s připraveným zadáním. Odešlete ho, až budete chtít.",
   marketCopied: "Zadání je ve schránce. Vložte ho do nového vlákna v Chatu.",
+  marketChanged:
+    "{title} se mezitím změnila a stránka ji už ukazuje v nové podobě. Než budete pokračovat, zkontrolujte ji.",
   marketCopyFailed:
     "Zadání se nepodařilo předat. Otevřete Chat a požádejte agenta, ať přidá {title} z Marketplace.",
-  marketSeedEmptyBrief: "prázdnou knihovnou (ukázkovou prezentaci nepřenášej)",
-  marketSeedSampleBrief: "ukázkovou prezentací z vydání",
-  marketPresentationsSummary:
-    "Knihovna prezentací, které tvoříte se svým agentem.",
-  marketPresentationsLibrary: "Knihovna",
-  marketPresentationsLibraryText:
-    "Všechny prezentace na jednom místě, u každé náhled prvního slidu a podklady, ze kterých vznikla.",
-  marketPresentationsPlayback: "Promítání a PDF",
-  marketPresentationsPlaybackText:
-    "Slidy promítáte v prohlížeči a listujete jimi šipkami. Do PDF je vytisknete ve formátu 16:9.",
-  marketPresentationsAgent: "Tvorba s agentem",
-  marketPresentationsAgentText:
-    "Řekněte agentovi, komu je prezentace určená a z čeho má vycházet. Navrhne osnovu, připraví slidy z podkladů vaší Organizace a dá vám je ke kontrole.",
   // In Czech the person's own words to the agent, so tykání (0199).
   marketAdoptPrompt:
-    "Chci přidat šablonu aplikace {title} z Marketplace Lazuria do své Organizace {name} (GitHub {login}).\nVydání: {repository} {tag}, commit {commit}, licence {license}. Začni s {seed}.\n\nPostupuj podle docs/adoption.md přesně z tohoto commitu. Nejdřív živě ověř moje práva v Organizaci, jestli je název {module} volný a kompatibilitu, a ukaž mi plán k potvrzení. Modul založ příkazem `lazurio module create --stack {stack}` jako soukromý repozitář, připnutý commit slouč tak, aby zůstal předkem, a všechno připrav jako pull request. Teamy se mnou vyber ze skutečného seznamu Organizace. Kde moje práva nestačí, připrav přesnou žádost pro toho, kdo je má, a nic neobcházej. Nic nemerguj ani neaktivuj bez mého výslovného pokynu.",
+    "Chci přidat šablonu aplikace {title} z Marketplace Lazuria do své Organizace {name} (GitHub {login}).\nVydání: {repository} {tag}, commit {commit}, licence {license}. Začni s {seed}.\n\nPostupuj podle docs/adoption.md přesně z tohoto commitu. Nejdřív živě ověř moje práva v Organizaci, jestli je název {module} volný a kompatibilitu, a ukaž mi plán k potvrzení. Modul založ příkazem `{create}` jako soukromý repozitář, připnutý commit slouč tak, aby zůstal předkem, a všechno připrav jako pull request. Teamy se mnou vyber ze skutečného seznamu Organizace. Kde moje práva nestačí, připrav přesnou žádost pro toho, kdo je má, a nic neobcházej. Nic nemerguj ani neaktivuj bez mého výslovného pokynu.",
   title: "Lazurio",
   homeTitle: "Apps",
   catalogBreadcrumb: "Kde v Lazuriu jste",

@@ -121,10 +121,10 @@ new mapping there and shows the App starting on the new port after the merge.
   "name": "notes-app-v1",
   "private": true,
   "type": "module",
-  "packageManager": "bun@1.4.2",
+  "packageManager": "bun@1.4.4",
   "scripts": {
     "dev": "bun --no-env-file run src/server.ts",
-    "check": "bun run typecheck && bun run lint",
+    "check": "bun run typecheck && bun run lint && bun run test",
     "check:prepared": "bun run src/prepared.ts",
     "test": "bun test"
   },
@@ -135,9 +135,9 @@ new mapping there and shows the App starting on the new port after the merge.
 }
 ```
 
-The App's `package.json` carries the scripts `dev`, `check` (type check and
-Biome) and `test`, the run declaration `lazurio.runtime` and the preparation
-`lazurio.preparation`. The Platform reads an App only through `lazurio.runtime`;
+The App's `package.json` carries the scripts `dev`, `check` (type check, Biome
+and the tests) and `test`, the run declaration `lazurio.runtime` and the
+preparation `lazurio.preparation`. The Platform reads an App only through `lazurio.runtime`;
 an App that still declares the legacy `companyascode.app` is refused
 (`src/modules/read-application.ts`).
 
@@ -157,8 +157,9 @@ cannot have refuses the run with a reason named by the App's `package.json`:
 A `packageManager` that is not an exact Bun version is
 `preparation-package-manager-unsupported`.
 
-A new Module pins the Bun this repository pins in its own `package.json`
-(`scaffoldBunVersion`, `src/modules/scaffold.ts`). Another released version is
+A new Module pins the Bun of its [stack profile](stack-profiles.md), the same
+for every profile (`scaffoldBunVersion`, `src/modules/scaffold.ts`), not the Bun
+this repository builds with. Another released version is
 the Module author's deliberate choice in an ordinary pull request of the Module;
 every Environment that runs it fetches that version once. In an Organization with
 a Henry, Henry may converge the pins up to Lazurio's default version (decision
@@ -193,7 +194,7 @@ a conformant App always pins one.
 | Field | Rule |
 | --- | --- |
 | `schema_version` | `lazurio.runtime.v1` |
-| `id` | the App's id, `^[a-z0-9]+(-[a-z0-9]+)*$`; a new Module gets `<organization>-<module>-v1` in lowercase, a personal one `personalspace-<module>-v1` |
+| `id` | the App's id, `^[a-z0-9]+(-[a-z0-9]+)*$`; a new Module gets `<organization>-<module>-v<N>` for its App generation in lowercase (`-v1`, with `--data` `-v3`), a personal one `personalspace-<module>-v<N>` |
 | `title` | the App's name |
 | `company`, `module` | equal to `company` and `id` of `lazurio.module.json` |
 | `surface` | `internal`, `manual`, `admin` or `public-preview` |
@@ -623,7 +624,8 @@ released version, `github:Lazurio/repository-db#v3.x.y`, never on a branch's
 commit, and its data repository `<owner>/<module>-data` is checked out on its
 generation branch (`v3`) as the Module's `db/`, declared in the Organization as
 the slot `workspace/<module>/db` with `materialization: "repository_db_mount"`.
-`lazurio module create --data` sets this up ([F52, addendum of 2026-10-14](decisions.md#f52-addendum-of-2026-10-14-a-new-modules-data-starts-in-repository-db---data)).
+`lazurio module create --data` sets this up, with the App in `app/v3` ([F52, addendum of 2026-10-14](decisions.md#f52-addendum-of-2026-10-14-a-new-modules-data-starts-in-repository-db---data);
+[F69](decisions.md#f69--stack-profiles-the-exact-tools-a-module-is-built-with-changed-only-by-a-generation-transition-or-a-profile-release), point 8).
 Generated read models in `generated/` are derived and never edited by hand. A
 user's edit is an unpublished change in the data checkout; publishing it is one
 commit and push, a Publication.
@@ -632,8 +634,27 @@ commit and push, a Publication.
 
 An App is written in strict TypeScript: no `.js`, `.mjs` or `.cjs` sources, and
 framework configuration in TypeScript (`vite.config.ts`, `astro.config.ts`).
-`bun run check` runs the type check and Biome; `bun test` runs the tests; the
-Module's CI runs both on every pull request.
+`bun run check` runs the type check, Biome and the tests (`bun test`); the
+Module's CI runs it on every pull request. In an App with data it also runs
+`bun run validate:data`: every record the Module's own repository carries
+(`seed/` in the App, laid out like `db/data/`, a directory per collection and a
+document `<id>.yaml` in repository-db's envelope) is checked against the Zod
+schemas of `src/domain/collections.ts`, and a record that does not match, a
+wrong envelope or a collection without a schema fails the check. The records in
+`db/` are a repository of their own, which the Module's CI does not check out:
+the App hands the same schemas to repository-db as its parsers, and
+`bun run validate:db` checks them the same way before a publication.
+`lazurio module create --data` writes the schemas (no collection yet), the
+validation with its test and the empty `seed/`
+([F69](decisions.md#f69--stack-profiles-the-exact-tools-a-module-is-built-with-changed-only-by-a-generation-transition-or-a-profile-release), point 7).
+
+Each App is built with the exact tools of its [stack profile](stack-profiles.md)
+(decision
+[F69](decisions.md#f69--stack-profiles-the-exact-tools-a-module-is-built-with-changed-only-by-a-generation-transition-or-a-profile-release)):
+`content` for the Astro stacks, `app` for `vite-react` and `bun-service`,
+`app-data` with repository-db data and `app-database` with Dolt. Its tools change
+only by a transition to the next App generation or by a new release of its
+profile, which an existing Module takes in a pull request of its own.
 
 | App | Stack (`lazurio module create --stack`) |
 | --- | --- |
@@ -653,6 +674,22 @@ it exits 0. It does not grow into a framework.
 
 ## App generations
 
+- The generation number names the App's data layer, not its quality, in every
+  generation created from now on (decision
+  [F69](decisions.md#f69--stack-profiles-the-exact-tools-a-module-is-built-with-changed-only-by-a-generation-transition-or-a-profile-release),
+  point 8): `app/v1` and `app/v2` have no data of their own, `app/v3` keeps its
+  records in repository-db, `app/v4` in a Dolt database (a Dolt outside the
+  server is a connection setting of `app/v4`; there is no `app/v5`). A new
+  Module starts in `app/v1`, or in `app/v3` with `--data`; moving to the next
+  data layer is a new generation beside the old one
+  ([stack profiles](stack-profiles.md#how-a-profile-changes)).
+- An existing Module whose App with data lives in `app/v1` or `app/v2`
+  (created before this rule, for example by F52's addendum of 2026-10-14)
+  conforms as it is and is not renamed: a rename would move its code outside a
+  planned step. It moves at its next planned generation transition, which
+  creates the generation of its data layer beside the old one (`app/v3` for
+  repository-db, `app/v4` for Dolt); the old directory goes once it is no
+  longer kept for a return.
 - A Module keeps at most two App generations: the default one and one more,
   either the previous one kept for a return or a newer candidate that is not the
   default yet. Switching `default_app` to the candidate is the decision of the
@@ -715,9 +752,9 @@ lazurio module create personalspace/<module> --stack <stack> [--name <name>] [--
 - The Module gets a lease from a free port of the pool derived from its slug, or
   `--port N`; the slug is lowercase kebab-case, at most 50 characters, and not one
   of the names Lazurio or the gateway keep for themselves.
-- `--data` starts the Module's data in repository-db.
-- The plan is the standard: `lazurio.module.json`, `app/v1/` with the stack's
-  template, `lazurio.runtime`, `lazurio.preparation`, the lockfile, a strict
+- `--data` starts the Module's data in repository-db and its App in `app/v3`.
+- The plan is the standard: `lazurio.module.json`, `app/v1/` (`app/v3/` with
+  `--data`) with the stack's template, `lazurio.runtime`, `lazurio.preparation`, the lockfile, a strict
   `tsconfig.json`, Biome, `check` and `test`, `README.md`, `AGENTS.md` and the CI
   workflow. A Module outside the standard is non-conformant from its first
   commit.
@@ -752,8 +789,8 @@ generations, health, the built version. The pull request says what did not fit
 before and what deliberately stays.
 
 Verification happens in the worktree with the change: `bun install
---frozen-lockfile`, `bun run check` and `bun test` in every App, and the build
-script of a built App. `lazurio module start` runs the primary checkout on
+--frozen-lockfile` and `bun run check` in every App, and the build script of a
+built App. `lazurio module start` runs the primary checkout on
 `main`, so a start through the Platform verifies the change only after the merge,
 from a checkout that contains it. A Module created from a Lazurio template keeps
 its lineage through merge commits (decision
@@ -794,7 +831,7 @@ of the Platform is an issue in this repository, without Organization content.
 | `MS-10` | repository-db and `@lazurio/module-kit` are pinned to released tags | Rule only. `lazurio module create` writes released tags (`src/modules/scaffold.ts`) |
 | `MS-11` | No absolute paths of a computer, no symlinks created at start, no `modules/` layout | A Module, its App directories and its required slots are never read through a symlink: `src/folder/owned-directory.ts`. The rest: rule only |
 | `MS-12` | `apps[]` matches the directories; at most two App generations | Only declared Apps start and a Module without `apps` does not (`explicit-apps-required`, `src/modules/manifest.ts`); overlapping App directories under the default preparation are refused (`preparation-applications-overlap`, `src/modules/preparation-binding.ts`). Undeclared packages and the number of generations: rule only |
-| `MS-13` | The `check` and `test` scripts exist; the Module's CI runs them | Rule only. `lazurio module create` writes both (`tests/module-scaffold.test.ts`) |
+| `MS-13` | The `check` and `test` scripts exist; `check` runs the tests, in an App with data `validate:data` as well, and the Module's CI runs `check` | Rule only. `lazurio module create` writes them, with `--data` the validation of the data too (`tests/module-scaffold.test.ts`) |
 | `MS-14` | CI saves minutes: a workflow with a Windows or macOS job runs only for `pull_request` with non-empty `paths` and on `workflow_dispatch` | Rule only |
 
 ## GEN3
@@ -834,8 +871,9 @@ and on this repository's
 [F52](decisions.md#f52--one-module-generator-in-the-platform-a-persons-own-modules-in-their-personalspace),
 [F53](decisions.md#f53--every-environment-owns-its-vault-its-own-organization-in-the-networks-vaultwarden-created-by-its-technical-account),
 [F58](decisions.md#f58--a-static-app-starts-from-main-as-its-build-each-commit-built-once-outside-the-checkout-served-by-the-platform-rebuilt-after-a-pull),
-[F62](decisions.md#f62--the-bun-an-app-pins-is-its-runtime-the-users-bun-when-it-is-that-version-else-the-runtime-cache-else-a-verified-fetch)
-and [F67](decisions.md#f67--guest-modules-another-organizations-module-in-the-hosts-workspace-kept-current-never-run).
+[F62](decisions.md#f62--the-bun-an-app-pins-is-its-runtime-the-users-bun-when-it-is-that-version-else-the-runtime-cache-else-a-verified-fetch),
+[F67](decisions.md#f67--guest-modules-another-organizations-module-in-the-hosts-workspace-kept-current-never-run)
+and [F69](decisions.md#f69--stack-profiles-the-exact-tools-a-module-is-built-with-changed-only-by-a-generation-transition-or-a-profile-release).
 
 ## Provenance
 
