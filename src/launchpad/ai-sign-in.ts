@@ -38,7 +38,10 @@ export type AiSignInFailure =
   | "no-answer"
   | "browser-unavailable"
   | "no-environment-browser"
-  | "provider-unknown";
+  | "provider-unknown"
+  /** The CLI is not on this Environment's PATH: signing in again cannot
+   * help, so the step says it and offers the other AI. */
+  | "not-installed";
 
 export type AiSignIn =
   | Readonly<{ kind: "idle" }>
@@ -215,7 +218,8 @@ export function aiSignInAnswer(
         tool,
         reason:
           value.reason === "browser-unavailable" ||
-          value.reason === "provider-unknown"
+          value.reason === "provider-unknown" ||
+          value.reason === "not-installed"
             ? value.reason
             : "failed",
         ...mode,

@@ -116,6 +116,14 @@ test("each answer of the login routes, only in its known shape", () => {
       reason: "provider-unknown",
     }),
   ).toEqual({ kind: "failed", tool: "codex", reason: "provider-unknown" });
+  // The CLI is not on PATH: kept, so the step says it, not "try again".
+  expect(
+    aiSignInAnswer("claude", {
+      kind: "failed",
+      tool: "claude",
+      reason: "not-installed",
+    }),
+  ).toEqual({ kind: "failed", tool: "claude", reason: "not-installed" });
   expect(
     aiSignInAnswer("codex", {
       kind: "failed",
