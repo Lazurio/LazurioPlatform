@@ -1,8 +1,8 @@
 {
   "schema": "lazurio.canary.v2",
   "candidate": "v0.1.20-rc.3",
-  "start": "2026-11-03T23:28:00Z",
-  "end": "2026-11-03T23:32:47Z",
+  "start": "2026-11-03T23:46:44Z",
+  "end": "2026-11-03T23:50:37Z",
   "machines": [
     {
       "machine": "4cb47f16810a7edb",

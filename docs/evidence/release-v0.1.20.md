@@ -5,9 +5,10 @@ and [the release cycle](../release-cycle.md#qualification-and-the-canary).
 
 The candidate `v0.1.20-rc.3` (source `a995da2cad17527ed2a8c4ae52788289862bf03e`) ran on every Environment of the
 pilot Organization, LazurioExampleOrganization, that its test accounts can enter, and on one personal VM. In the
-stage from `2026-11-03T23:28:00Z` to `23:32:47Z` every Machine in its scope was read at both edges through its own
-Launchpad, and one recorded smoke test as the pilot Organization's test accounts, its Owner and a member, passed
-between the readings; the green light ends it. The record is `lazurio.canary.v2` (#752). The final tag `v0.1.20` is
+stage from `2026-11-03T23:46:44Z` to `23:50:37Z` every Machine in its scope was read at both edges, a Folder refresh
+and a Launchpad restart ran on one of them, and one recorded smoke test as the pilot Organization's test accounts,
+its Owner and a member, passed between the readings: sign-in, the Launchpad and its Apps, modules started and opened,
+the chat, Settings → Připojení; the green light ends it. The record is `lazurio.canary.v2` (#752). The final tag `v0.1.20` is
 to carry the candidate's product source and to differ from it only under `qualification/` and `docs/evidence/`. The
 final tag and its release do not exist yet; they follow the merge of the pull request that adds this file.
 
@@ -75,49 +76,65 @@ exactly this record and this file, so the same source holds.
   (22:37:39Z). The Codex app-server daemon was not restarted: its processes kept their start times of 2026-10-28 and
   2026-10-29.
 - **Out of scope:** the public Environment for visitors (try-01). No test account is admitted there (its Launchpad
-  answers a sign-in redirect), as for v0.1.19. Matěj decided on 2026-11-03, while the candidate was rc.2, that it stays out of v0.1.20's
-  stage; whether that holds for rc.3 is put to him with this pull request. It got the same candidate in the same
+  answers a sign-in redirect), as for v0.1.19. Matěj decided on 2026-11-03 that it stays out of v0.1.20's stage;
+  the decision is recorded as decision 0166's addendum of 2026-11-03 (#850). It got the same candidate in the same
   apply.
 
 ## The stage
 
-By one thread, read-only except the smoke test:
+**A first stage, 23:28:00–23:32:47Z, does not count.** Its readings and smoke test passed (R1 and R2 healthy on
+every Machine, the standard suite 17 of 17, Settings → Připojení 4 of 4), but its smoke test opened no module and no
+chat, and no Folder refresh or Launchpad restart ran within it; G.3 asks for both. The review of #849 refused it, so
+the stage was repeated; nothing was deployed in between.
 
-1. **R1, 23:27:07–23:28:00Z.** Every Machine in the record read through its own Launchpad as the test accounts
+**The repeated stage, by one thread, read-only except the smoke test and the real work:**
+
+1. **Quiet check, 23:45:42Z:** no rollout run in progress in the pilot Organization's Deployment Repo.
+2. **R1, 23:45:51–23:46:44Z.** Every Machine in the record read through its own Launchpad as the test accounts
    (`/api/recovery`, the use case of `lazurio recover --json`, and `/api/update/status`); the personal VM with
-   `lazurio recover --json` and `lazurio update status --json`. **Start:** `2026-11-03T23:28:00Z`, the end of R1. The
-   last Machine had got the candidate at 23:26:07Z.
-2. **The smoke test, 23:28:10–23:31:26Z:**
+   `lazurio recover --json` and `lazurio update status --json`. **Start:** `2026-11-03T23:46:44Z`, the end of R1.
+   The last Machine had got the candidate at 23:26:07Z.
+3. **Real work on the personal VM:** `lazurio machine folder-refresh` at 23:46:47Z re-rendered the Folder from the
+   handover (`unchanged`), and a deliberate `systemctl --user restart` of the Launchpad at 23:46:48Z; the unit came
+   back healthy on the candidate with `NRestarts` 0. The Codex app-server daemon kept its start times.
+4. **The smoke test, 23:47:03–23:49:39Z:**
    - **the standard suite as the Owner and the member** (skill `lazurio-example-smoke-test`, `suite both`),
-     23:28:10–23:29:02Z: **17 of 17 required steps passed**, 2 optional INCONCLUSIVE (Bob's personal VM, whose name
-     does not resolve from the station, not in this record): GitHub and Lazurio sign-in, session, the listed
-     Environments, each own and listed Environment opened (`/.lazurio/shell.json` names it), the member refused
-     with 403 at each of the Owner's Environments, sign-out proven, GitHub sign-out, and a new sign-in asks again;
-   - **Settings → Připojení (F71) on every Environment in scope**, 23:30:36–23:31:26Z, 4 of 4 passed: the page and
-     `/api/connections` agree, and the page says the state of its kind with no pairing and no Codex restart offered:
-     the Owner's and the member's Work Environments `organization-ai` ("Coming soon for Environments on the
-     Organization's AI."), the Team Environment `team`, the Prostředí služeb `no-chatgpt`. On the personal VM the
-     Codex daemon's `remoteControl/status/read` answered `connected` with a server name, the state in which the page
-     offers pairing without a restart.
-3. **R2, 23:31:46–23:32:39Z**, the same readings.
-4. **End:** `2026-11-03T23:32:47Z`, the green light, after R2 and the Recovery issue search. The result: green.
+     23:47:03–23:47:59Z: **17 of 17 required steps passed**, 2 optional INCONCLUSIVE (the Owner test account's
+     personal VM, whose name does not resolve from the station; not in this record): GitHub and Lazurio sign-in,
+     session, the listed Environments, each own and listed Environment opened (`/.lazurio/shell.json` names it),
+     the member refused with 403 at each of the Owner's Environments, sign-out proven, GitHub sign-out, and a new
+     sign-in asks again;
+   - **the main path as the Owner and the member**, 23:47:59–23:49:39Z: **19 of 19 required steps passed**:
+     - the Launchpad's Apps on each Work Environment: 9 module tiles for the Owner, 8 for the member, the same as
+       for v0.1.19; runnable Knowledgebase, Design system and Mission Control;
+     - modules started and opened from their tiles: Knowledgebase on both Work Environments (HTTP 200 on the
+       module's own origin, its own heading, about 5 s) and Design system on the Owner's (about 4 s);
+     - the chat on both Work Environments answered a random sum correctly (3 s and 5 s);
+     - **Settings → Připojení (F71)** on every Environment in scope: the page and `/api/connections` agree, and the
+       page says the state of its kind with no pairing and no Codex restart offered: both Work Environments
+       `organization-ai` ("Coming soon for Environments on the Organization's AI."), the Team Environment `team`,
+       the Prostředí služeb `no-chatgpt`. On the personal VM the Codex daemon's `remoteControl/status/read`
+       answered `connected` with a server name, the state in which the page offers pairing without a restart.
+5. **R2, 23:49:46–23:50:37Z**, the same readings.
+6. **End:** `2026-11-03T23:50:37Z`, the green light, after R2 and the Recovery issue search. The result: green.
 
-- **Recovery issues: none** (searched at 23:32:47Z): `label:recovery "0.1.20-rc.3"`, the `v0.1.20-rc.3` variant
-  and every issue naming `0.1.20-rc.3`: 0.
+- **Recovery issues: none** (searched at 23:32:47Z and 23:50:37Z): `label:recovery "0.1.20-rc.3"`, the
+  `v0.1.20-rc.3` variant and every issue naming `0.1.20-rc.3`: 0.
 
 ### Per Machine
 
 At both edges `recover` answered `healthy`, all five checks `ok` (`update-state-invalid`, `folder-state`,
 `self-check-failed`, `launchpad-unit`, `launchpad-health` with `0.1.20-rc.3`), and `update status` answered
-running and active `0.1.20-rc.3`. The Launchpad unit's `NRestarts` was 0 at both edges.
+running and active `0.1.20-rc.3`. The Launchpad unit's `NRestarts` was 0 at both edges everywhere; the personal VM's
+Launchpad restarted once in the stage, deliberately (step 3), which does not count as a restart of the unit.
 
 | Machine | Kind | R1 | R2 | `recover` R1 / R2 | `active` R1 / R2 |
 |---|---|---|---|---|---|
-| `4cb47f16810a7edb` | work | 23:27:21Z | 23:32:01Z | healthy / healthy | 0.1.20-rc.3 / 0.1.20-rc.3 |
-| `7d3f2189170e39ea` | work | 23:27:25Z | 23:32:04Z | healthy / healthy | 0.1.20-rc.3 / 0.1.20-rc.3 |
-| `9289bc065828421b` | work | 23:27:46Z | 23:32:25Z | healthy / healthy | 0.1.20-rc.3 / 0.1.20-rc.3 |
-| `c04fe553256c9e52` | work | 23:27:50Z | 23:32:28Z | healthy / healthy | 0.1.20-rc.3 / 0.1.20-rc.3 |
-| `a6afa18b46790817` | personal | 23:27:07Z | 23:31:46Z | healthy / healthy | 0.1.20-rc.3 / 0.1.20-rc.3 |
+| `4cb47f16810a7edb` | work | 23:46:04Z | 23:49:58Z | healthy / healthy | 0.1.20-rc.3 / 0.1.20-rc.3 |
+| `7d3f2189170e39ea` | work | 23:46:07Z | 23:50:01Z | healthy / healthy | 0.1.20-rc.3 / 0.1.20-rc.3 |
+| `9289bc065828421b` | work | 23:46:29Z | 23:50:20Z | healthy / healthy | 0.1.20-rc.3 / 0.1.20-rc.3 |
+| `c04fe553256c9e52` | work | 23:46:33Z | 23:50:23Z | healthy / healthy | 0.1.20-rc.3 / 0.1.20-rc.3 |
+| `a6afa18b46790817` | personal | 23:45:51Z | 23:49:46Z | healthy / healthy | 0.1.20-rc.3 / 0.1.20-rc.3 |
 
 The Team Environment is listed as `work`: the record's kinds are `work` and `personal`.
 
@@ -127,4 +144,4 @@ The Team Environment is listed as `work`: the record's kinds are `work` and `per
   (Organization AI, Team, no ChatGPT sign-in), and an agent cannot open the personal VM's Launchpad: the
   Environment browser refuses Lazurio pages by design. The dialog (QR of the verified URL, the short code, time
   left, closing drops the code) is covered by `tests/connections.test.ts`, which passes on Linux and macOS.
-- Which AI provider the Environments' chats use; the smoke test does not open a chat.
+- Which AI provider the chats used; the test checked only that they answered correctly.
