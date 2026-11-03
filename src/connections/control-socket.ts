@@ -1,5 +1,5 @@
-import { lstat, realpath } from "node:fs/promises";
-import { join } from "node:path";
+import { lstat, readlink } from "node:fs/promises";
+import { dirname, isAbsolute, join } from "node:path";
 
 // The control socket of the operator's Codex app-server daemon (decision
 // F29), the one place Settings → Connections talks to Codex's remote control
@@ -48,6 +48,47 @@ export type ControlRpc = Readonly<{
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
 
+/** The socket a path names, resolved as the system resolves it (the
+ * daemon's path is a link to a socket under `/tmp`), with `lstat` and
+ * `readlink` only. `realpath` cannot be used: on macOS it fails on a socket
+ * with EOPNOTSUPP, so every Connections page there read `no-daemon`, and
+ * Bun's `realpath` collapses `..` lexically before it follows a link. So the
+ * path is walked one component at a time from the root: a link is replaced
+ * by its target in place, and `..` goes to the parent of the directory
+ * reached so far, which is physical, never of the text. */
+async function socketTarget(path: string): Promise<string> {
+  const components = (text: string) =>
+    text.split("/").filter((part) => part !== "" && part !== ".");
+  if (!isAbsolute(path)) throw new Error("not absolute");
+  let reached = "/";
+  let rest = components(path);
+  let links = 0;
+  while (rest.length > 0) {
+    const [part, ...after] = rest as [string, ...string[]];
+    rest = after;
+    if (part === "..") {
+      reached = dirname(reached);
+      continue;
+    }
+    const next = join(reached, part);
+    const info = await lstat(next);
+    if (info.isSymbolicLink()) {
+      if (++links > 40) throw new Error("too many links");
+      const target = await readlink(next);
+      if (isAbsolute(target)) reached = "/";
+      rest = [...components(target), ...rest];
+      continue;
+    }
+    if (rest.length === 0) {
+      if (info.isSocket()) return next;
+      break;
+    }
+    if (!info.isDirectory()) break;
+    reached = next;
+  }
+  throw new Error("not a socket");
+}
+
 /** Opens the socket and initializes the conversation; every question is
  * bounded by `timeoutMs`. */
 export async function openControlSocket(
@@ -57,8 +98,7 @@ export async function openControlSocket(
   const timeoutMs = options.timeoutMs ?? 10_000;
   let target: string;
   try {
-    target = await realpath(path);
-    if (!(await lstat(target)).isSocket()) throw new Error("not a socket");
+    target = await socketTarget(path);
   } catch {
     throw new ControlSocketError("no-socket");
   }
