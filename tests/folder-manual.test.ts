@@ -36,6 +36,7 @@ import { renderOutputs } from "../src/folder/preview";
 import {
   buddyChatRouting,
   buddyPublicationRules,
+  launchpadRouting,
   networkLine,
   ownSignInIdentity,
   publicationRules,
@@ -1026,15 +1027,16 @@ test("where the entry names Buddy's origin, agents open his chat for the user be
           const [line = ""] = naming;
           for (const sentence of contract[locale])
             expect(line).toContain(sentence);
-          // Right after the Launchpad's lines: the Launchpad, then its
-          // GitHub line on the person's own sign-in.
+          // Right after the Launchpad's lines: the Launchpad, its GitHub
+          // line on the person's own sign-in, then where AI signs in.
           const at = lines.indexOf(line);
-          expect(lines[at - 2]).toStartWith(
+          expect(lines[at - 3]).toStartWith(
             locale === "cs"
               ? "- Launchpad tohohle Environmentu (uživatelům mu říkej Lazurio;"
               : "- This Environment's Launchpad (call it Lazurio towards users;",
           );
-          expect(lines[at - 1]).toStartWith("- GitHub: ");
+          expect(lines[at - 2]).toStartWith("- GitHub: ");
+          expect(lines[at - 1]).toStartWith("- AI (");
         }
         expect(outputs["AGENTS.md"]).toContain(noChannel[locale]);
         // His origin names his chat and nothing else: no other file of the
@@ -2859,4 +2861,36 @@ test("the remaining rules of the Root's inventory each have one place in the man
         environment.preset !== "hosted-personal",
       ]);
     }
+});
+
+// Where ChatGPT and Claude sign in (root decision 0201, F19's addendum of
+// 2026-10-15): an agent that read only the gh line sent the user to Tools,
+// which has no AI sign-in (2026-11-03). Every Environment with Začínáme says
+// it; a Team Environment, whose hosting prepares its AI, does not.
+test("the Launchpad's lines say AI signs in at Začínáme, never Tools, where the Environment has Začínáme", () => {
+  const origin = "https://launchpad.example.lazurio.io";
+  for (const identity of ["own-sign-in", "persona-account"] as const) {
+    const lines = launchpadRouting(
+      "hosted-organization-personal",
+      origin,
+      identity,
+    );
+    const ai = lines.find((line) => line.cs.startsWith("- AI ("));
+    expect(ai?.cs).toContain(
+      `Nastavení → Začínáme \`${origin}/settings/start\``,
+    );
+    expect(ai?.cs).toContain("Přihlásit Claude");
+    expect(ai?.cs).toContain("Nástroje přihlášení k AI nenabízejí");
+    expect(ai?.en).toContain(
+      `Settings → Začínáme \`${origin}/settings/start\``,
+    );
+    expect(ai?.en).toContain("Tools offers no AI sign-in");
+    expect(lines.at(-1)).toBe(ai);
+  }
+  for (const identity of ["brokered-organization", "none"] as const)
+    expect(
+      launchpadRouting("hosted-organization-team", origin, identity).some(
+        (line) => line.cs.startsWith("- AI (") || line.en.startsWith("- AI ("),
+      ),
+    ).toBe(false);
 });
