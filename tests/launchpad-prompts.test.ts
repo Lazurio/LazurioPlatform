@@ -21,7 +21,6 @@ import {
   type MarketplaceOffer,
   parseMarketplaceIndex,
 } from "../src/launchpad/marketplace";
-import builtInIndex from "../src/launchpad/marketplace-index.json";
 import type { MarketplaceRegistry } from "../src/launchpad/marketplace-registry";
 import { messages } from "../src/launchpad/messages";
 import {
@@ -57,6 +56,7 @@ import {
   organizationWithEntry,
   personalWithEntry,
 } from "./fixtures/machine-bindings";
+import unreleasedIndex from "./fixtures/marketplace-index-unreleased.json";
 import { freePort } from "./fixtures/ports";
 
 // "+ Nový modul" opens Chat with a prepared prompt (Lazurio/t3code#35): the
@@ -401,12 +401,13 @@ async function hostedLaunchpad(
 posixTest(
   "hosted: a Marketplace adoption follows the offers the registry gives, and /api/marketplace answers them",
   async () => {
-    // The registry's index at one commit, where Presentations' release is
-    // published (plan DEV-6593, marketplace-registry.ts).
+    // The registry's index at one commit, where only Presentations' release
+    // is published: the fixture index, which has none, with that release
+    // (plan DEV-6593, marketplace-registry.ts).
     const commit = "0123456789abcdef0123456789abcdef01234567";
     const offers = parseMarketplaceIndex({
-      ...builtInIndex,
-      offers: builtInIndex.offers.map((offer) =>
+      ...unreleasedIndex,
+      offers: unreleasedIndex.offers.map((offer) =>
         offer.id === "presentations"
           ? {
               ...offer,

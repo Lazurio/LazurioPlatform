@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
 import type { MarketplaceCatalog } from "../src/launchpad/marketplace";
-import builtInIndex from "../src/launchpad/marketplace-index.json";
 import {
   createMarketplaceRefresh,
   type MarketplaceAnswer,
@@ -15,6 +14,7 @@ import {
   registryInterval,
   registrySource,
 } from "../src/launchpad/marketplace-registry";
+import unreleasedIndex from "./fixtures/marketplace-index-unreleased.json";
 
 // The open Marketplace page (plan DEV-6593, marketplace-refresh.ts): read
 // on every visit, again while open, a failure retried, and once more after
@@ -117,9 +117,11 @@ test("a registry change reaches a page that stays open, through the Launchpad's 
   const head = "a".repeat(40);
   const next = "b".repeat(40);
   const api = `https://api.github.com/repositories/${registrySource.id}`;
+  // The fixture index, where no template is released, with Presentations
+  // released under this title.
   const released = (title: string) => ({
-    ...builtInIndex,
-    offers: builtInIndex.offers.map((offer) =>
+    ...unreleasedIndex,
+    offers: unreleasedIndex.offers.map((offer) =>
       offer.id === "presentations"
         ? {
             ...offer,

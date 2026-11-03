@@ -3,7 +3,6 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { builtInMarketplace } from "../src/launchpad/marketplace";
-import builtInIndex from "../src/launchpad/marketplace-index.json";
 import {
   createMarketplaceRegistry,
   keptFor,
@@ -12,6 +11,7 @@ import {
   registryRetry,
   registrySource,
 } from "../src/launchpad/marketplace-registry";
+import unreleasedIndex from "./fixtures/marketplace-index-unreleased.json";
 
 // The registry the Marketplace reads (plan DEV-6593): `main`'s commit, the
 // index of exactly that commit, kept across restarts; anything else leaves
@@ -21,10 +21,11 @@ const head = "a".repeat(40);
 const next = "b".repeat(40);
 const api = `https://api.github.com/repositories/${registrySource.id}`;
 
-/** The built-in index with Presentations released under this title. */
+/** The fixture index, where no template is released, with Presentations
+ * released under this title. */
 const index = (title = "Presentations") => ({
-  ...builtInIndex,
-  offers: builtInIndex.offers.map((offer) =>
+  ...unreleasedIndex,
+  offers: unreleasedIndex.offers.map((offer) =>
     offer.id === "presentations"
       ? {
           ...offer,
