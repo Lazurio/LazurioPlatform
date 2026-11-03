@@ -409,12 +409,17 @@ test.skipIf(!posix)(
         join(parent, "actual", "dir", "up.sock"),
       );
       const behindLinkedParent = join(parent, "alias", "up.sock");
+      // A `..` inside the target, after a linked directory: taken after
+      // `alias` is followed (to `parent`), as the system takes it.
+      const throughLinkedTarget = join(parent, "through.sock");
+      await symlink("alias/../../control.sock", throughLinkedTarget);
       for (const path of [
         fake.path,
         absolute,
         relative,
         chained,
         behindLinkedParent,
+        throughLinkedTarget,
       ]) {
         const rpc = await openControlSocket(path, { timeoutMs: 2_000 });
         expect(await rpc.call("remoteControl/status/read", {})).toMatchObject({
