@@ -95,7 +95,10 @@ import type { RecoveryResult } from "../recover/recover";
 import { newTabPagePath } from "../shell/new-tab-protocol";
 import type { AccessServiceLocation } from "../ssh-access/access-service";
 import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
-import { syncEnvironmentRoutes } from "../ssh-access/routes";
+import {
+  runEnvironmentRoutes,
+  syncEnvironmentRoutes,
+} from "../ssh-access/routes";
 import { shellThemeOf } from "../theme/palettes";
 import {
   fileThemeStore,
@@ -3209,29 +3212,28 @@ export async function startLaunchpad(
   // minute and a target's deadline is at most 210 s after its facts were
   // read, so a route stays while the service confirms it and goes within
   // one minute after its deadline when it does not.
+  // Every tick reads the live handover again (review of #833), so a
+  // declaration added, replaced or removed after start takes effect within a
+  // minute and an old origin is never asked again (`runEnvironmentRoutes`).
   const routesAtStart = installed?.routesAtStart;
-  let routesTimer: ReturnType<typeof setInterval> | undefined;
-  let routing = false;
-  if (routesAtStart !== undefined)
-    void (async () => {
-      const service = await routesAtStart();
-      if (service === null || closing) return;
-      const location = { home: homedir(), uid: process.getuid?.() };
-      const synchronize = () => {
-        if (closing || routing) return;
-        routing = true;
-        void syncEnvironmentRoutes(location, service, {
+  let stopRoutes: (() => void) | undefined;
+  if (routesAtStart !== undefined) {
+    const location = { home: homedir(), uid: process.getuid?.() };
+    stopRoutes = runEnvironmentRoutes(
+      async () => (closing ? null : routesAtStart()),
+      (service) =>
+        syncEnvironmentRoutes(location, service, {
           run: runTool,
           now: Date.now,
-        })
-          .catch(() => undefined)
-          .finally(() => {
-            routing = false;
-          });
-      };
-      synchronize();
-      routesTimer = setInterval(synchronize, routesEveryMs);
-    })().catch(() => undefined);
+        }),
+      {
+        everyMs: routesEveryMs,
+        setInterval: (tick, ms) => setInterval(tick, ms),
+        clearInterval: (handle) =>
+          clearInterval(handle as ReturnType<typeof setInterval>),
+      },
+    );
+  }
   let closePending: ReturnType<
     ReturnType<typeof createApplicationLifecycle>["close"]
   > | null = null;
@@ -3260,7 +3262,7 @@ export async function startLaunchpad(
     close() {
       closing = true;
       clearInterval(audienceTimer);
-      clearInterval(routesTimer);
+      stopRoutes?.();
       catalog.close();
       buddyPersona.close();
       buddyTelegramRestart.close();

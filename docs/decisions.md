@@ -23048,8 +23048,11 @@ managed route anywhere.
 1. **Where the service is.** Only the handover says it: an optional member naming the
    home access service's origin (`http://<host's tailnet name>:<port>`), proposed in
    HumanAndMachine-ai/Machines#1040 from the home host the lane already reads through
-   `conglomerate_host_record`. `accessServiceOf` answers it, and today answers null for
-   every Machine. Nothing derives the origin from a name, the Headscale URL or a peer;
+   `conglomerate_host_record`. `accessServiceOf` answers it: until the amendment of
+   2026-11-03 below it answered null for every Machine; now it reads the member Machines
+   writes (Machines#1051), which Machines renders only once its release gate
+   `PLATFORM_HANDOVER_ACCESS_SERVICE_MINIMUM` names a Platform release that reads it (still
+   unset). Nothing derives the origin from a name, the Headscale URL or a peer;
    an origin that is not exactly `http://`, a tailnet DNS name (no address literal) and
    a port is never asked.
 2. **The source key.** Every source Environment, personal or Work, has one key
@@ -23136,8 +23139,16 @@ Platform:
    Machine: points 2 to 6 above then run on the Machines that carry it. Everything
    else of this decision is unchanged; without the member the Platform behaves exactly
    as before.
+4. **Follows the live handover** in the Launchpad: every minute it reads the
+   declaration again (`runEnvironmentRoutes`), so a member added after start is used at
+   the next tick, a replaced origin replaces the old one, and a removed one is never
+   asked again; without a declaration the loop touches no file, so the Folder refresh
+   that recorded the removal writes the handover's routes and no late answer of the old
+   service overwrites them.
 
-Tests: `tests/access-service-handover.test.ts` (the pin, the member on both kinds,
+Tests: `tests/environment-routes-loop.test.ts` (added, replaced and removed
+declarations, one synchronization at a time, failures and stop),
+`tests/access-service-handover.test.ts` (the pin, the member on both kinds,
 every refused form, the stored binding, the commands asking the declared origin, the
 withheld name) and `tests/folder-refresh.test.ts` (a refresh of only the member). Not
 proven: a real handover from a Machines release, until Machines sets the gate.

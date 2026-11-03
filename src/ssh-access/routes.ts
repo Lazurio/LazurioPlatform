@@ -76,3 +76,43 @@ export async function syncEnvironmentRoutes(
   }
   return { sourceKey, registration, targets: targets.kind, ssh };
 }
+
+/** The live loop of the routes (review of #833): every tick reads the
+ * current handover's declaration again, so a service declared after start
+ * is used from the next tick, a replaced origin replaces the old one and a
+ * removed declaration stops every call to the old origin. Without a
+ * declaration the loop touches no file: the Folder refresh that recorded
+ * the removal writes the handover's routes itself, and a late write of the
+ * old service must never overwrite it. One synchronization at a time, never
+ * awaited, never a reason for its caller to fail. Returns its stop. */
+export function runEnvironmentRoutes(
+  read: () => Promise<AccessServiceLocation | null>,
+  synchronize: (service: AccessServiceLocation) => Promise<unknown>,
+  timer: Readonly<{
+    everyMs: number;
+    setInterval: (tick: () => void, ms: number) => unknown;
+    clearInterval: (handle: unknown) => void;
+  }>,
+): () => void {
+  let stopped = false;
+  let running = false;
+  const tick = () => {
+    if (stopped || running) return;
+    running = true;
+    void (async () => {
+      const service = await read();
+      if (stopped || service === null) return;
+      await synchronize(service);
+    })()
+      .catch(() => undefined)
+      .finally(() => {
+        running = false;
+      });
+  };
+  tick();
+  const handle = timer.setInterval(tick, timer.everyMs);
+  return () => {
+    stopped = true;
+    timer.clearInterval(handle);
+  };
+}
