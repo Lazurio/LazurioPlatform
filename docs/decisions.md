@@ -23089,9 +23089,17 @@ templates and generated Modules refer to.
      shape.
    - Every stack's `README.md` names its profile and release and links its section.
 
-   It still writes an App with data to `app/v1`, while the profiles put repository-db
-   data in `app/v3`. Which the generation number means for a generated Module is
-   open (#819).
+8. **The App generation names the data layer in every Module** (Matěj, 2026-11-03,
+   closing #819), not only in Marketplace templates: `app/v1` and `app/v2` have no
+   data of their own, `app/v3` keeps its records in repository-db, `app/v4` in Dolt
+   (point 5). `lazurio module create --data` therefore writes the App to `app/v3`
+   (`apps`, `default_app`, the lockfile, the CI's working directory and the runtime
+   id `<organization>-<module>-v3` follow); without `--data` it stays `app/v1`. This
+   amends F52's addendum of 2026-10-14, which wrote an App with data to `app/v1`. An
+   `astro` or `astro-starlight` Module with data keeps the tools of `content` with
+   the data layer of `app-data`, in `app/v3` too. Existing Modules with data in
+   `app/v1` are not moved: their next generation transition is a new `app/v<N+1>`
+   beside the old one, as for every Module.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -23107,7 +23115,9 @@ templates and generated Modules refer to.
 its profile's exact tools (no range anywhere, `@types/bun` equal to the Bun, Biome
 2.6.4, TypeScript and framework per profile), `check` runs the tests and CI no
 separate `bun test`, Biome's Markdown and YAML formatters are off, and the README
-links the profile; `--data` gives `app-data` with repository-db v3.2.6 and Zod; the
+links the profile; `--data` gives `app-data` with repository-db v3.2.6 and Zod, in
+`app/v3` for every Bun stack (manifest, package name, runtime id, preparation owner,
+lockfile, CI and README), and otherwise the same files as without data; the
 tree hashes of every stack's plan. On 2026-11-03 on Linux x64 with Bun 1.4.4, the
 plans of `vite-react`, `vite-react --data`, `astro`, `astro-starlight` and
 `bun-service` were written out, and `bun install`, `bun run check` and, for the

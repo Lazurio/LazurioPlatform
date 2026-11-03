@@ -105,6 +105,13 @@ function expectCode(run: () => unknown, code: string) {
   return error as ModuleScaffoldError;
 }
 
+/** A text of a module without data as it reads in generation app/v3. */
+const atGeneration = (text: string): string =>
+  text
+    .replaceAll("app/v1", "app/v3")
+    .replaceAll("-app-v1", "-app-v3")
+    .replaceAll("-portal-v1", "-portal-v3");
+
 function file(result: ModuleScaffoldPlan, path: string): string {
   const entry = result.files.find((item) => item.path === path);
   if (!entry) throw new Error(`${path} is not in the plan`);
@@ -883,7 +890,7 @@ describe("a new module and its stack profile", () => {
     expect(moduleStackProfile("bun-service", true)).toBe("app-data");
     expect(moduleStackProfile("astro", true)).toBe("content");
     const result = plan({ data: true });
-    const pkg = JSON.parse(file(result, "app/v1/package.json"));
+    const pkg = JSON.parse(file(result, "app/v3/package.json"));
     expect(pkg.dependencies.zod).toBe(scaffoldZodVersion);
     expect(pkg.dependencies["@lazurio/repository-db"]).toBe(
       "github:Lazurio/repository-db#v3.2.6",
@@ -1003,12 +1010,59 @@ describe("the Platform reads a generated personal module", () => {
 });
 
 describe("planModuleScaffold with data (--data)", () => {
+  test("the App is born in app/v3, the generation of repository-db data (#819); without data in app/v1", () => {
+    for (const stack of [
+      "vite-react",
+      "astro",
+      "astro-starlight",
+      "bun-service",
+    ]) {
+      const without = plan({ stack });
+      const result = plan({ stack, data: true });
+      expect([without.appDirectory, result.appDirectory], stack).toEqual([
+        "app/v1",
+        "app/v3",
+      ]);
+      expect(
+        result.files.filter((entry) => entry.path.startsWith("app/v1/")),
+        stack,
+      ).toEqual([]);
+      expect(result.generatedByInstall).toEqual(["app/v3/bun.lock"]);
+      expect(JSON.parse(file(result, "lazurio.module.json"))).toMatchObject({
+        apps: ["app/v3/package.json"],
+        default_app: "app/v3/package.json",
+      });
+      const pkg = JSON.parse(file(result, "app/v3/package.json"));
+      expect(pkg.name).toBe("portal-app-v3");
+      expect(pkg.lazurio.runtime.id).toBe("acme-portal-v3");
+      expect(pkg.lazurio.preparation.owner_package).toBe("app/v3/package.json");
+      expect(file(result, ".github/workflows/check.yml")).toContain(
+        "working-directory: app/v3",
+      );
+      expect(file(result, "README.md")).toContain("cd app/v3");
+      expect(file(result, "README.md")).not.toContain("app/v1");
+      expect(file(result, "AGENTS.md")).toContain("`app/v3/package.json`");
+      // The Module Standard reads it as any module.
+      const manifest = parseModuleManifest(
+        JSON.parse(file(result, "lazurio.module.json")),
+      );
+      expect(manifest.default_app, stack).toBe("app/v3/package.json");
+      expect(parseAppRuntime(pkg.lazurio.runtime).id, stack).toBe(
+        "acme-portal-v3",
+      );
+    }
+    const personalData = personal({ data: true });
+    expect(
+      JSON.parse(file(personalData, "app/v3/package.json")).lazurio.runtime.id,
+    ).toBe("personalspace-notes-v3");
+  });
+
   test("the app depends on one released repository-db, Git ignores db/, and the data slot is a repository-db mount", () => {
     const without = plan({ teams: ["web"] });
     const result = plan({ teams: ["web"], data: true });
     expect(without.data).toBeNull();
     expect(result.treeHash).not.toBe(without.treeHash);
-    const pkg = JSON.parse(file(result, "app/v1/package.json"));
+    const pkg = JSON.parse(file(result, "app/v3/package.json"));
     expect(pkg.dependencies["@lazurio/repository-db"]).toBe(
       `github:Lazurio/repository-db#v${defaultScaffoldVersions.repositoryDb}`,
     );
@@ -1017,7 +1071,11 @@ describe("planModuleScaffold with data (--data)", () => {
       Object.keys(pkg.dependencies).sort(),
     );
     expect(pkg.dependencies.zod).toBe(scaffoldZodVersion);
-    const before = JSON.parse(file(without, "app/v1/package.json"));
+    // Beside the generation (directory, package name, runtime id) and the
+    // dependencies, the App's package is the one without data.
+    const before = JSON.parse(
+      atGeneration(file(without, "app/v1/package.json")),
+    );
     delete pkg.dependencies["@lazurio/repository-db"];
     delete pkg.dependencies.zod;
     expect(pkg).toEqual(before);
@@ -1026,11 +1084,19 @@ describe("planModuleScaffold with data (--data)", () => {
     );
     expect(file(result, "AGENTS.md")).toStartWith(file(without, "AGENTS.md"));
     expect(file(result, "AGENTS.md")).toContain("`portal-data`");
-    // Only those four files differ: the README names the profile app-data.
+    // Beside the generation, only those four files differ: the README names
+    // the profile app-data.
+    const moved = without.files.map((entry) => ({
+      path: atGeneration(entry.path),
+      content: atGeneration(entry.content),
+    }));
+    expect(result.files.map((entry) => entry.path)).toEqual(
+      moved.map((entry) => entry.path),
+    );
     const changed = result.files
       .filter(
         (entry) =>
-          without.files.find((other) => other.path === entry.path)?.content !==
+          moved.find((other) => other.path === entry.path)?.content !==
           entry.content,
       )
       .map((entry) => entry.path)
@@ -1039,7 +1105,7 @@ describe("planModuleScaffold with data (--data)", () => {
       ".gitignore",
       "AGENTS.md",
       "README.md",
-      "app/v1/package.json",
+      "app/v3/package.json",
     ]);
     expect(result.data).toEqual({
       repository: "portal-data",

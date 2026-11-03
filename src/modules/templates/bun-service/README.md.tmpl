@@ -8,7 +8,7 @@ a TypeScript strict, bez frameworku. Vznikl příkazem
 
 - `lazurio.module.json` — identita Modulu, lease `main` z {{pool_label}},
   `apps[]` a `default_app`.
-- `app/v1/` — App; `package.json` nese `lazurio.runtime` (listener
+- `{{app_directory}}/` — App; `package.json` nese `lazurio.runtime` (listener
   `{{listener_id}}`, health `/healthz`) a `lazurio.preparation`.
   `src/server.ts` čte listener přes `@lazurio/module-kit`, odmítne cizí `Host`
   a na `SIGTERM` zavře spojení a skončí 0; `src/app.ts` drží obsluhu requestů.
@@ -19,14 +19,14 @@ a TypeScript strict, bez frameworku. Vznikl příkazem
 
 Modul vznikl podle stack profilu
 [`{{stack_profile}}` {{stack_profile_release}}]({{stack_profile_url}}): přesné
-verze Bunu, TypeScriptu, Biome a frameworku v `app/v1/package.json` jsou jeho.
+verze Bunu, TypeScriptu, Biome a frameworku v `{{app_directory}}/package.json` jsou jeho.
 Mění se jen řízeně: novým vydáním profilu, které Modul převezme vlastním PR,
 nebo přechodem na další generaci `app/v<N>`.
 
 ## Vývoj
 
 ```sh
-cd app/v1
+cd {{app_directory}}
 bun install --frozen-lockfile
 bun run check   # tsc --noEmit, biome, jednotkové testy a start kontrakt
 ```

@@ -55,8 +55,14 @@ A path segment that starts with `dot-` is written with a dot (`dot-gitignore`
 → `.gitignore`, `dot-github/` → `.github/`) and the trailing `.tmpl` is dropped
 (`AGENTS.md.tmpl` → `AGENTS.md`).
 
+The templates keep the App's files under `app/v1/`; the plan writes them to
+the App's generation, `app/v1/` without data and `app/v3/` with data
+(`scaffoldAppDirectory`: the generation names the data layer, F69 point 8).
+Content names the App's directory only by the placeholders `app_directory` and
+`app_generation`.
+
 A module with data (`--data`) is no template either: the plan adds the
-repository-db dependency to `app/v1/package.json`, `/db/` to `.gitignore` and a
+repository-db dependency to `app/v3/package.json`, `/db/` to `.gitignore` and a
 section on the data to `AGENTS.md` (`withData` in `scaffold.ts`).
 
 ## Placeholders
@@ -69,7 +75,8 @@ section on the data to `AGENTS.md` (`withData` in `scaffold.ts`).
 | `organization` | the Organization's slug | the user's GitHub login |
 | `github_org` | the Organization's GitHub login | the user's GitHub login |
 | `listener_id`, `listener_env_prefix` | `app`, `LAZURIO_RUNTIME_LISTENER_APP` | same |
-| `runtime_id` | `<organization>-<slug>-v1`, lowercase | `personalspace-<slug>-v1` |
+| `runtime_id` | `<organization>-<slug>-<app_generation>`, lowercase | `personalspace-<slug>-<app_generation>` |
+| `app_directory`, `app_generation` | `app/v1` and `v1`; with `--data` `app/v3` and `v3` | same |
 | `python_package` | the slug with `_` for `-` | same |
 | `port` | the lease's port | same |
 | `bun_version`, `module_kit_version`, `uv_version` | the pinned versions | same |

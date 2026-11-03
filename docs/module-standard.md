@@ -194,7 +194,7 @@ a conformant App always pins one.
 | Field | Rule |
 | --- | --- |
 | `schema_version` | `lazurio.runtime.v1` |
-| `id` | the App's id, `^[a-z0-9]+(-[a-z0-9]+)*$`; a new Module gets `<organization>-<module>-v1` in lowercase, a personal one `personalspace-<module>-v1` |
+| `id` | the App's id, `^[a-z0-9]+(-[a-z0-9]+)*$`; a new Module gets `<organization>-<module>-v<N>` for its App generation in lowercase (`-v1`, with `--data` `-v3`), a personal one `personalspace-<module>-v<N>` |
 | `title` | the App's name |
 | `company`, `module` | equal to `company` and `id` of `lazurio.module.json` |
 | `surface` | `internal`, `manual`, `admin` or `public-preview` |
@@ -624,7 +624,8 @@ released version, `github:Lazurio/repository-db#v3.x.y`, never on a branch's
 commit, and its data repository `<owner>/<module>-data` is checked out on its
 generation branch (`v3`) as the Module's `db/`, declared in the Organization as
 the slot `workspace/<module>/db` with `materialization: "repository_db_mount"`.
-`lazurio module create --data` sets this up ([F52, addendum of 2026-10-14](decisions.md#f52-addendum-of-2026-10-14-a-new-modules-data-starts-in-repository-db---data)).
+`lazurio module create --data` sets this up, with the App in `app/v3` ([F52, addendum of 2026-10-14](decisions.md#f52-addendum-of-2026-10-14-a-new-modules-data-starts-in-repository-db---data);
+[F69](decisions.md#f69--stack-profiles-the-exact-tools-a-module-is-built-with-changed-only-by-a-generation-transition-or-a-profile-release), point 8).
 Generated read models in `generated/` are derived and never edited by hand. A
 user's edit is an unpublished change in the data checkout; publishing it is one
 commit and push, a Publication.
@@ -663,6 +664,15 @@ it exits 0. It does not grow into a framework.
 
 ## App generations
 
+- The generation number names the App's data layer in every Module, not its
+  quality (decision
+  [F69](decisions.md#f69--stack-profiles-the-exact-tools-a-module-is-built-with-changed-only-by-a-generation-transition-or-a-profile-release),
+  point 8): `app/v1` and `app/v2` have no data of their own, `app/v3` keeps its
+  records in repository-db, `app/v4` in a Dolt database (a Dolt outside the
+  server is a connection setting of `app/v4`; there is no `app/v5`). A new
+  Module starts in `app/v1`, or in `app/v3` with `--data`; moving to the next
+  data layer is a new generation beside the old one
+  ([stack profiles](stack-profiles.md#how-a-profile-changes)).
 - A Module keeps at most two App generations: the default one and one more,
   either the previous one kept for a return or a newer candidate that is not the
   default yet. Switching `default_app` to the candidate is the decision of the
@@ -725,9 +735,9 @@ lazurio module create personalspace/<module> --stack <stack> [--name <name>] [--
 - The Module gets a lease from a free port of the pool derived from its slug, or
   `--port N`; the slug is lowercase kebab-case, at most 50 characters, and not one
   of the names Lazurio or the gateway keep for themselves.
-- `--data` starts the Module's data in repository-db.
-- The plan is the standard: `lazurio.module.json`, `app/v1/` with the stack's
-  template, `lazurio.runtime`, `lazurio.preparation`, the lockfile, a strict
+- `--data` starts the Module's data in repository-db and its App in `app/v3`.
+- The plan is the standard: `lazurio.module.json`, `app/v1/` (`app/v3/` with
+  `--data`) with the stack's template, `lazurio.runtime`, `lazurio.preparation`, the lockfile, a strict
   `tsconfig.json`, Biome, `check` and `test`, `README.md`, `AGENTS.md` and the CI
   workflow. A Module outside the standard is non-conformant from its first
   commit.

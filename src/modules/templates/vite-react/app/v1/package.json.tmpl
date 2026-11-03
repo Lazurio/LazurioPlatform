@@ -1,5 +1,5 @@
 {
-  "name": "{{slug}}-app-v1",
+  "name": "{{slug}}-app-{{app_generation}}",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -58,7 +58,7 @@
     },
     "preparation": {
       "schema_version": "lazurio.preparation.v1",
-      "owner_package": "app/v1/package.json",
+      "owner_package": "{{app_directory}}/package.json",
       "check_script": "check:prepared"
     }
   }

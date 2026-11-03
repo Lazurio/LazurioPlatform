@@ -22,25 +22,27 @@ resolved by changing the standard.
 
 | Profile | For | App generations | `lazurio module create --stack` |
 | --- | --- | --- | --- |
-| [`content`](#content) | Websites, design systems, documentation, knowledge bases | `app/v1`, `app/v2` | `astro`, `astro-starlight` |
+| [`content`](#content) | Websites, design systems, documentation, knowledge bases | `app/v1`, `app/v2`; `app/v3` with data | `astro`, `astro-starlight` (with `--data` in `app/v3`) |
 | [`app`](#app) | Applications and services without data of their own | `app/v1`, `app/v2` | `vite-react`, `bun-service` |
 | [`app-data`](#app-data) | Applications with their records in repository-db | `app/v3` | `vite-react --data`, `bun-service --data` |
 | [`app-database`](#app-database) | Applications with their records in a Dolt database | `app/v4` | none yet |
 
-In a template, the App generation names its data layer, not its quality:
-`app/v1` and `app/v2` have no data of their own, `app/v3` keeps its records in
-repository-db, and `app/v4` in Dolt. A Dolt database outside the server (for an
-Organization with several servers) is a different connection setting of
-`app/v4`, not a generation `app/v5`: the code, the schemas and the migrations
-are the same.
+In every Module, a template or one `lazurio module create` generates, the App
+generation names its data layer, not its quality (Matěj, 2026-11-03; F69,
+point 8): `app/v1` and `app/v2` have no data of their own, `app/v3` keeps its
+records in repository-db, and `app/v4` in Dolt. A Dolt database outside the
+server (for an Organization with several servers) is a different connection
+setting of `app/v4`, not a generation `app/v5`: the code, the schemas and the
+migrations are the same.
 
-`lazurio module create --data` gives a Module the data layer of `app-data`
-(repository-db and Zod): a `vite-react` or `bun-service` Module with data is
-born in `app-data`, and an `astro` or `astro-starlight` Module with data stays
-in `content` with that data layer. The scaffold still writes such a Module's
-App to `app/v1`, not `app/v3`; which of the two the generation number means
-for a generated Module is open
-([#819](https://github.com/Lazurio/LazurioPlatform/issues/819)).
+`lazurio module create` therefore writes a Module without data to `app/v1`
+and a Module with data (`--data`) to `app/v3`, with the data layer of
+`app-data` (repository-db and Zod): a `vite-react` or `bun-service` Module
+with data is born in `app-data`, and an `astro` or `astro-starlight` Module
+with data stays in `content` with that data layer. Its manifest declares
+`app/v3/package.json` as its only App and `default_app`, and its runtime id is
+`<organization>-<module>-v3`
+([Module Standard](module-standard.md#app-generations)).
 
 `python-uv` and `none` are outside the profiles: the first has no TypeScript,
 the second no App. This repository's own toolchain is not a profile either; it
@@ -79,7 +81,9 @@ Rules of every profile:
 ## content
 
 Websites, design systems, documentation and knowledge bases, built statically
-(`build_output: "dist"`). Generations `app/v1` and `app/v2`.
+(`build_output: "dist"`). Generations `app/v1` and `app/v2`; a content Module
+with data (`--data`) is in `app/v3` with the data layer of
+[`app-data`](#app-data).
 
 | Tool | Exact pin | Why |
 | --- | --- | --- |
@@ -283,7 +287,9 @@ release.
 - A release is named by the year and month of its decision, `YYYY.MM`. One
   release covers all four profiles; it may change only some of them, and the
   others carry over unchanged. A security patch inside a release is
-  `YYYY.MM.P` (`2026.11.1`) and changes patch versions only.
+  `YYYY.MM.P` (`2026.11.1`) and changes patch versions only. The Marketplace
+  registry records the release each template release is built on as
+  `stackProfile` (`app-data@2026.11`).
 - A release is decided by the Operator and recorded as an addendum of F69,
   with the reason for each change and what an existing Module has to change.
   This page then shows the new release; the tables of every earlier release

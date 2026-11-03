@@ -20,7 +20,17 @@ import { personalspaceName } from "../organizations/personalspace";
 
 export const scaffoldLeaseId = "main";
 export const scaffoldListenerId = "app";
-export const scaffoldAppPackage = "app/v1/package.json";
+
+/** The App directory a new module is born in. The App generation names the
+ * data layer for every module (Matěj, 2026-11-03; decision F69, point 8):
+ * `app/v1` has no data of its own, `app/v3` keeps its records in
+ * repository-db (`--data`). The templates are written under `app/v1/`; the
+ * plan writes them to this directory. */
+export const scaffoldAppDirectory = (data: boolean): "app/v1" | "app/v3" =>
+  data ? "app/v3" : "app/v1";
+
+/** Where the templates keep the App's files. */
+const templateAppDirectory = "app/v1";
 
 /** The release of the stack profiles a new module is born in
  * (`docs/stack-profiles.md`, decision F69). The templates' exact pins are this
@@ -369,6 +379,9 @@ export type ModuleScaffoldPlan = Readonly<{
   displayName: string;
   modulePath: string;
   files: readonly ScaffoldFile[];
+  /** The App's directory (`app/v1`, or `app/v3` with data); null for a
+   * module without an App. */
+  appDirectory: string | null;
   /** The lockfile the install writes (`bun install`, `uv lock`), which a
    * pure plan cannot. */
   generatedByInstall: readonly string[];
@@ -436,6 +449,9 @@ export function planModuleScaffold(
 
   const personal = owner.kind === "personal";
   const profile = moduleStackProfile(stack, data);
+  const appDirectory = scaffoldAppDirectory(data);
+  const appPackage = `${appDirectory}/package.json`;
+  const generation = appDirectory.slice("app/".length);
   const values: Record<string, string> = {
     slug,
     display_name: displayName,
@@ -446,7 +462,13 @@ export function planModuleScaffold(
     listener_env_prefix: `LAZURIO_RUNTIME_LISTENER_${scaffoldListenerId.toUpperCase().replaceAll("-", "_")}`,
     // A personal app's runtime id names no person: the catalog shows it
     // (`display.id`), and no output names a personal module's owner.
-    runtime_id: runtimeId(personal ? personalspaceName : owner.name, slug),
+    runtime_id: runtimeId(
+      personal ? personalspaceName : owner.name,
+      slug,
+      generation,
+    ),
+    app_directory: appDirectory,
+    app_generation: generation,
     python_package: slug.replaceAll("-", "_"),
     port: lease ? String(lease.port) : "",
     bun_version: pinned.bun,
@@ -477,9 +499,12 @@ export function planModuleScaffold(
       );
     for (const entry of entries as readonly TemplateFile[]) {
       const source = String(entry?.path ?? "");
-      const path = templateTargetPath(
+      const target = templateTargetPath(
         substitute(source, values, `${layer}: path ${source}`),
       );
+      const path = target.startsWith(`${templateAppDirectory}/`)
+        ? `${appDirectory}${target.slice(templateAppDirectory.length)}`
+        : target;
       assertRelativePath(path, `${layer}/${source}`);
       const content = substitute(
         String(entry?.content ?? ""),
@@ -495,10 +520,10 @@ export function planModuleScaffold(
   }
   files.set("lazurio.module.json", {
     path: "lazurio.module.json",
-    content: `${JSON.stringify(moduleManifest(owner.name, slug, lease), null, 2)}\n`,
+    content: `${JSON.stringify(moduleManifest(owner.name, slug, lease, appPackage), null, 2)}\n`,
   });
   const engine = `github:Lazurio/repository-db#v${pinned.repositoryDb ?? defaultScaffoldVersions.repositoryDb}`;
-  if (data) withData(files, slug, engine);
+  if (data) withData(files, slug, engine, appDirectory);
   const sorted = [...files.values()].sort((left, right) =>
     left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
   );
@@ -513,10 +538,10 @@ export function planModuleScaffold(
       );
     }
   }
-  if (lease !== null && !files.has(scaffoldAppPackage))
+  if (lease !== null && !files.has(appPackage))
     throw new ModuleScaffoldError(
       "template_invalid",
-      `The stack ${stack} has no ${scaffoldAppPackage}.`,
+      `The stack ${stack} has no ${appPackage}.`,
     );
 
   const warnings: string[] = [];
@@ -533,11 +558,12 @@ export function planModuleScaffold(
     displayName,
     modulePath: `workspace/${slug}`,
     files: Object.freeze(sorted),
+    appDirectory: lease === null ? null : appDirectory,
     generatedByInstall: Object.freeze(
       spec.toolchain === "bun"
-        ? ["app/v1/bun.lock"]
+        ? [`${appDirectory}/bun.lock`]
         : spec.toolchain === "uv"
-          ? ["app/v1/uv.lock"]
+          ? [`${appDirectory}/uv.lock`]
           : [],
     ),
     toolchain: spec.toolchain,
@@ -581,12 +607,14 @@ function withData(
   files: Map<string, ScaffoldFile>,
   slug: string,
   engine: string,
+  appDirectory: string,
 ) {
-  const app = files.get(scaffoldAppPackage);
+  const appPackage = `${appDirectory}/package.json`;
+  const app = files.get(appPackage);
   if (app === undefined)
     throw new ModuleScaffoldError(
       "template_invalid",
-      `The stack has no ${scaffoldAppPackage} to depend on repository-db.`,
+      `The stack has no ${appPackage} to depend on repository-db.`,
     );
   const pkg = JSON.parse(app.content) as {
     dependencies?: Record<string, string>;
@@ -599,7 +627,7 @@ function withData(
       left < right ? -1 : left > right ? 1 : 0,
     ),
   );
-  files.set(scaffoldAppPackage, {
+  files.set(appPackage, {
     ...app,
     content: `${JSON.stringify(pkg, null, 2)}\n`,
   });
@@ -618,7 +646,7 @@ function withData(
 Data Modulu žijí v repository-db: složka \`db/\` je samostatný repozitář
 \`${slug}-data\` (větev \`v3\`, kanonické YAML v \`db/data/\`), který Git tohoto
 Modulu ignoruje. App k nim přistupuje přes \`@lazurio/repository-db\` (jedna
-vydaná verze v \`app/v1/package.json\`), nikdy přímo přes Git. Commit a push
+vydaná verze v \`${appPackage}\`), nikdy přímo přes Git. Commit a push
 dat do \`v3\` je Publikace: dělá ji tlačítko „Publikovat změny“ nebo
 \`repository-db publish\` na pokyn uživatele.
 
@@ -1072,11 +1100,11 @@ function choosePort(
   );
 }
 
-function runtimeId(owner: string, slug: string): string {
+function runtimeId(owner: string, slug: string, generation: string): string {
   const id = `${owner
     .toLowerCase()
     .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")}-${slug}-v1`;
+    .replace(/^-|-$/g, "")}-${slug}-${generation}`;
   if (!runtimeIdPattern.test(id))
     throw new ModuleScaffoldError(
       "invalid_owner",
@@ -1089,6 +1117,7 @@ function moduleManifest(
   owner: string,
   slug: string,
   lease: ScaffoldLease | null,
+  appPackage: string,
 ) {
   return lease
     ? {
@@ -1097,8 +1126,8 @@ function moduleManifest(
         company: owner,
         tcp_port_policy: { mode: "single" },
         port_leases: [lease],
-        apps: [scaffoldAppPackage],
-        default_app: scaffoldAppPackage,
+        apps: [appPackage],
+        default_app: appPackage,
       }
     : {
         schema_version: "lazurio.module.v1",
