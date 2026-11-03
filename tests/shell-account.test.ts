@@ -878,7 +878,9 @@ test("an account-side ambiguous slug never lends its last Environment to the loc
 });
 
 // Mixed languages (Pablo's review of #166): the Dashboard words `name` and
-// `who` by the browser's language, the elements speak the profile's.
+// `who` by the request's `Accept-Language`, the elements speak the profile's.
+// The page asks in the profile's language since F37's addendum of 2026-11-03
+// (shell-account-language.test.ts); this guard stays for every other answer.
 
 test("the account in another language: every Environment is named as without the account, in the local language; the structure stays", () => {
   const cs = shellMessages("cs");
@@ -1067,18 +1069,21 @@ afterEach(() => {
   globalThis.fetch = realFetch;
 });
 
-test("one recovery cycle per page load: simultaneous readers share retries and the answer", async () => {
+test("one recovery cycle per page load: simultaneous readers share retries and the answer, asked in the first reader's language", async () => {
   let requests = 0;
-  globalThis.fetch = (async () => {
+  const languages: (string | null)[] = [];
+  globalThis.fetch = (async (_path: string, init: RequestInit) => {
     requests += 1;
+    languages.push(new Headers(init.headers).get("accept-language"));
     return answer(requests === 1 ? 503 : 200, accountDocument());
   }) as unknown as typeof fetch;
-  const first = pageAccountJson();
+  const first = pageAccountJson("cs");
   const second = pageAccountJson();
   expect(second).toBe(first);
   expect(parseShellAccount(await first)).not.toBeNull();
-  await pageAccountJson();
+  await pageAccountJson("en");
   expect(requests).toBe(2);
+  expect(languages).toEqual(["cs", "cs"]);
 });
 
 // The remembered account (Matěj 2026-10-05: the rail took seconds to appear):

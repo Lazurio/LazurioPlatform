@@ -501,7 +501,10 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     the account's place, and local ones the account lacks follow. A Dashboard slug
     that two local Organizations (or two of the account's) reduce to is ambiguous:
     the local entries stay as they are and the account's Organization, its
-    Environments and its last Environment there are left out. The account's `name`
+    Environments and its last Environment there are left out. The page asks for the
+    account in the local document's language (`Accept-Language: cs` or `en`, F37's
+    addendum of 2026-11-03), since the Dashboard words `name` and `who` by that
+    header. The account's `name`
     and `who` are shown only when its `locale` is the local document's; otherwise
     every Environment is named from its label or kind in the local language, and the
     structure (ids, apps, spaces, last Environments) stays. The `operator`

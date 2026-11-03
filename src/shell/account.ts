@@ -1,4 +1,4 @@
-import { parseShellAccount, type ShellAccount } from "./contract";
+import { parseShellAccount, type Shell, type ShellAccount } from "./contract";
 
 // The person's account as the shell reads it (F37 and its addendum of
 // 2026-10-04): `GET /.lazurio/account/environments` on the page's own
@@ -26,6 +26,20 @@ type Debug = (message: string) => void;
 
 const debug: Debug = (message) => console.debug(message);
 
+/** The language the account is asked in: the Environment's (`locale` of its
+ * shell document). */
+export type AccountLanguage = Shell["locale"];
+
+/** The headers of the account read: JSON, and the Environment's language
+ * where it is known, so the Dashboard words `name` and `who` in the language
+ * the elements speak; without it, the browser's own `Accept-Language`. */
+export const accountReadHeaders = (
+  language: AccountLanguage | null,
+): Record<string, string> =>
+  language === null
+    ? { Accept: "application/json" }
+    : { Accept: "application/json", "Accept-Language": language };
+
 /** Where this origin keeps the last account document its operator read, so
  * the rail draws the person's spaces at once on the next page load and the
  * fresh answer replaces them when it arrives (Matěj 2026-10-05: the rail took
@@ -39,7 +53,12 @@ const debug: Debug = (message) => console.debug(message);
  * relay (`404`) removes it; a slow or failed answer keeps it, and so does a
  * `401` that re-enters the Environment, for the page that signs in again.
  * It holds only the members `parseShellAccount` reads, never anything else
- * the answer carried, so never a token. */
+ * the answer carried, so never a token. It keeps the answer's `locale` with
+ * them: an account remembered in another language than the document's (one
+ * read before F37's addendum of 2026-11-03, or after the profile's language
+ * changed) draws its structure at once, its Environments named as without
+ * its words, until the fresh answer in the document's language names them
+ * (merge.ts). */
 export const accountCacheKey = "lazurio.account.v1";
 
 export type Store = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -184,7 +203,8 @@ export const sessionRefused = (
  * rail remains usable throughout. A terminal result logs the failure once.
  * A `401` re-enters the Environment through `reentry` and keeps the
  * remembered account for the page that signs in again; where the tab
- * already re-entered within the guard, it is final like a `403`. */
+ * already re-entered within the guard, it is final like a `403`. Asked in
+ * `language` where it is given (`accountReadHeaders`). */
 export async function readAccountJson(
   fetcher: Fetch = fetch,
   timeoutMs = accountDocumentReadMs,
@@ -192,6 +212,7 @@ export async function readAccountJson(
   store: Store | null = browserStore(),
   retryDelaysMs: readonly number[] = accountRetryDelaysMs,
   reentry: Reentry = pageReentry(),
+  language: AccountLanguage | null = null,
 ): Promise<unknown> {
   let reason = "unreachable";
   for (let attempt = 0; ; attempt += 1) {
@@ -203,7 +224,7 @@ export async function readAccountJson(
         credentials: "same-origin",
         cache: "no-store",
         redirect: "error",
-        headers: { Accept: "application/json" },
+        headers: accountReadHeaders(language),
         signal: controller.signal,
       });
       if (response.ok) return (await response.json()) as unknown;
@@ -255,9 +276,24 @@ export async function readShellAccount(
 
 let pageRead: Promise<unknown> | null = null;
 
-/** The account document's JSON of this page: read on the first call, the
- * same answer for every later one (one shared bounded cycle per page load). */
-export function pageAccountJson(): Promise<unknown> {
-  pageRead ??= readAccountJson();
+/** The account document's JSON of this page: read on the first call, in
+ * the `language` it names (the Environment's, `accountReadHeaders`), the
+ * same answer for every later one whatever it names (one shared bounded
+ * cycle per page load). The page's readers pass the same language, the
+ * `locale` of its shell document: the elements wait for that document before
+ * they read (state.ts), and the Launchpad's Apps passes its boot document's,
+ * the same Folder's language. */
+export function pageAccountJson(
+  language: AccountLanguage | null = null,
+): Promise<unknown> {
+  pageRead ??= readAccountJson(
+    fetch,
+    accountDocumentReadMs,
+    debug,
+    browserStore(),
+    accountRetryDelaysMs,
+    pageReentry(),
+    language,
+  );
   return pageRead;
 }

@@ -10294,6 +10294,51 @@ the read, no tab memory, a framed page, the poll's redirect counting as a
 refusal, one guard per tab). Installed consumers receive it only through a qualified
 Platform release and the pins of their Machines lanes.
 
+### Addendum 2026-11-03 — the account is asked in the Environment's language
+
+The Dashboard words an account Environment's `name` and `who` by the request's
+`Accept-Language`. The shell sent only the browser's own header, which is the language
+of the browser's interface, while the elements speak the profile's `locale`. Where the
+two differed (a browser in English on a Czech Environment), the merge dropped the
+account's words as another language's and the switcher named other Environments only
+by their kind: an Organization's server services showed as a bare "Pracovní", while
+their own Launchpad, which labels itself, named them correctly.
+
+1. **The read asks in the page's document's language.** `readAccountJson` sends
+   `Accept-Language: cs` or `en`, the `locale` of the page's own shell document
+   (`accountReadHeaders`). The Environment gateway's relay passes the header, and the
+   native relay admits both values.
+2. **The elements wait for that document.** The read starts once it is requested and
+   the page's document (a person's or the signed-out one) names its language. The
+   account is drawn only merged into that document, so the wait delays nothing that
+   could be drawn sooner. A host that hands its document over before the elements
+   connect (the Launchpad's boot document) reads at once; a fork that lets the
+   elements read `/.lazurio/shell.json` reads the account right after it. It is still
+   one read per page, and a host that provides the account reads nothing.
+3. **Apps asks in the same language.** The page shares one read
+   (`pageAccountJson(language)`, the first reader's language wins). The Launchpad's
+   Apps passes its boot document's `locale`, the same Folder's language as the shell
+   document's, so whichever reader asks first, the rail's words come in that
+   language. A workstation's page has no boot document and no relay and asks without
+   it.
+4. **`<html lang>` is not the source.** A fork's page declares its own app's language,
+   not the Environment's; only the shell document carries the profile's `locale` on
+   every page.
+5. **The language guard stays.** The merge still shows `name` and `who` only when the
+   account's `locale` is the document's. It now covers what remains: an account this
+   origin remembered in another language (one kept before this addendum, or before the
+   profile's language changed), a reader without the language, or a profile changed
+   while the page was open. Such a remembered account still draws its structure at
+   once, its Environments named by label or kind, and the fresh answer in the
+   document's language then names them and replaces it; nothing is discarded for its
+   language.
+
+Tests: `tests/shell-account-language.test.ts` (the header, the read waiting for the
+document and asking in its language, the signed-out document, a host reading nothing,
+a remembered account in another language replaced by the fresh one, Apps sharing the
+read) and the page read's shared language in `tests/shell-account.test.ts`. Installed
+consumers receive it only through a qualified Platform release.
+
 ## F38 — The Environment browser of a Remote Environment: one Chromium, a window per thread, a view behind the gateway
 
 **Decided by Matěj 2026-10-05 (plan DEV-6646, root decision 0191); implemented in this

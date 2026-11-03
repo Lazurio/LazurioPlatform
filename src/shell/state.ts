@@ -1,4 +1,5 @@
 import {
+  type AccountLanguage,
   cachedAccountFor,
   readShellAccount,
   rememberAccount,
@@ -42,6 +43,15 @@ import type { ShellApp } from "./view";
 //   `provideAccount` (null: none). The elements then never request the
 //   account, never read or write the remembered one (`lazurio.account.v1`
 //   in `localStorage`) and never report a last Environment.
+//
+// On this origin the read waits for the page's document, a person's or the
+// signed-out one, and asks in its language (F37's addendum of 2026-11-03):
+// the Dashboard words `name` and `who` by `Accept-Language`, and only an
+// answer in the document's language names the Environments (merge.ts). The
+// account is drawn only merged into that document, so the wait delays
+// nothing that could be drawn sooner; where the host hands the document over
+// before the elements connect (the Launchpad's boot document), the read
+// starts at once.
 
 /** Who provides the person's account on a page. */
 export type AccountSource = "host" | "origin";
@@ -56,8 +66,9 @@ export type ShellStateOptions = Readonly<{
   /** Asked once, when first needed (the elements read the document's
    * marker as they connect), and kept for the page's life. */
   source: () => AccountSource;
-  /** The account document's JSON of this page (`pageAccountJson`). */
-  read: () => Promise<unknown>;
+  /** The account document's JSON of this page (`pageAccountJson`), asked
+   * in the language of the page's document. */
+  read: (language: AccountLanguage) => Promise<unknown>;
   /** The report of the last Environment (`reportLast`). */
   report: (shell: Shell, app: ShellApp | null, space: string | null) => void;
   /** This origin's memory of the account; the browser's when absent. */
@@ -126,6 +137,7 @@ export function createShellState(options: ShellStateOptions) {
   }
 
   let requested = false;
+  let reading = false;
 
   /** What this page's account read on its own origin answered: still
    * `pending`, an `account`, or `none` (no relay yet, which is `404` on
@@ -144,6 +156,41 @@ export function createShellState(options: ShellStateOptions) {
     pendingReport = null;
     if (asked === null || freshRead !== "account" || drawn === null) return;
     options.report(drawn, asked.app, asked.space);
+  }
+
+  /** The page's one read on this origin, once requested and once the
+   * page's document names its language; never on a host's page. */
+  function startRead(): void {
+    if (!requested || reading) return;
+    const language = (signedOut ?? local)?.locale;
+    if (language === undefined || sourceNow() === "host") return;
+    reading = true;
+    void readShellAccount(() => options.read(language), log).then((read) => {
+      if (read !== null) {
+        fresh = read;
+        account = read;
+        // The elements report as they redraw; while the read still counts
+        // as pending their reports join the queue, so the first one asked
+        // with an app is the one sent, once.
+        redraw();
+        freshRead = "account";
+        flushReport();
+        return;
+      }
+      freshRead = "none";
+      pendingReport = null;
+      // Without a fresh answer, the remembered one stays only while this
+      // origin still keeps it: a final refusal removed it, and a `401`
+      // that re-enters the Environment kept it, so the rail does not
+      // shrink while the page reloads (F37's addendum of 2026-10-12).
+      const next =
+        local === null
+          ? null
+          : cachedAccountFor(local.operator.login, options.store);
+      if (next === account) return;
+      account = next;
+      redraw();
+    });
   }
 
   return {
@@ -181,6 +228,7 @@ export function createShellState(options: ShellStateOptions) {
         options.theme?.(shell);
       }
       redraw();
+      startRead();
     },
     /** The host's account (parsed by `parseShellAccount`; null: none), only
      * on a page marked `<html data-lazurio-account="host">`. Elsewhere the
@@ -201,33 +249,7 @@ export function createShellState(options: ShellStateOptions) {
     requestAccount(): void {
       if (requested) return;
       requested = true;
-      if (sourceNow() === "host") return;
-      void readShellAccount(options.read, log).then((read) => {
-        if (read !== null) {
-          fresh = read;
-          account = read;
-          // The elements report as they redraw; while the read still counts
-          // as pending their reports join the queue, so the first one asked
-          // with an app is the one sent, once.
-          redraw();
-          freshRead = "account";
-          flushReport();
-          return;
-        }
-        freshRead = "none";
-        pendingReport = null;
-        // Without a fresh answer, the remembered one stays only while this
-        // origin still keeps it: a final refusal removed it, and a `401`
-        // that re-enters the Environment kept it, so the rail does not
-        // shrink while the page reloads (F37's addendum of 2026-10-12).
-        const next =
-          local === null
-            ? null
-            : cachedAccountFor(local.operator.login, options.store);
-        if (next === account) return;
-        account = next;
-        redraw();
-      });
+      startRead();
     },
     /** The report of the last Environment for an element that names its
      * app; never on a host's page (no `PUT /.lazurio/account/last`), and
