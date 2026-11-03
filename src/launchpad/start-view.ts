@@ -509,7 +509,7 @@ export function startCount(facts: TourFacts): string | null {
  * where its button leads (a Settings path, or Trezor in Apps) or what it
  * opens. */
 export type OptionalRow = Readonly<{
-  id: "composio" | "ssh" | "bitwarden" | "codex";
+  id: "composio" | "phone" | "ssh" | "bitwarden" | "codex";
   title: string;
   /** What it gives, at the choice: no step of Začínáme's "?" says it. */
   text: string;
@@ -538,6 +538,9 @@ export function optionalRows(
     composio: ComposioFact;
     sshDevices: number | null;
     bitwarden: boolean;
+    /** Telefon přes ChatGPT (decision F71): shown only where pairing is
+     * offered, with how many phones are paired; absent or null hides it. */
+    phone?: Readonly<{ ready: boolean; devices: number }> | null;
   }>,
   copy: Copy,
 ): readonly OptionalRow[] {
@@ -568,6 +571,14 @@ export function optionalRows(
             },
     });
   const remote = input.preset !== "local";
+  if (input.phone?.ready === true)
+    rows.push({
+      id: "phone",
+      title: copy.startPhoneTitle,
+      text: copy.startPhoneText,
+      status: input.phone.devices > 0 ? copy.startSet : copy.startNotSet,
+      action: { label: copy.startPhoneAction, to: "/settings/connections" },
+    });
   if (remote)
     rows.push({
       id: "ssh",

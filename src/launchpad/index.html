@@ -20,7 +20,7 @@
   else if (trimmed === "/settings" || trimmed.indexOf("/settings/") === 0) {
     frame = "settings";
     section = trimmed.slice("/settings/".length);
-    if (["start", "general", "communication", "machine", "tools", "ssh", "recovery"].indexOf(section) < 0) section = "general";
+    if (["start", "general", "communication", "machine", "tools", "connections", "ssh", "recovery"].indexOf(section) < 0) section = "general";
   }
   root.setAttribute("data-frame", frame);
   if (section) root.setAttribute("data-section", section);
@@ -154,6 +154,7 @@ html:not([data-section="communication"]) #view-settings > [data-section="communi
 html:not([data-section="general"]) #view-settings > [data-section="general"],
 html:not([data-section="machine"]) #view-settings > [data-section="machine"],
 html:not([data-section="tools"]) #view-settings > [data-section="tools"],
+html:not([data-section="connections"]) #view-settings > [data-section="connections"],
 html:not([data-section="ssh"]) #view-settings > [data-section="ssh"],
 html:not([data-section="recovery"]) #view-settings > [data-section="recovery"],
 html:not([data-section="buddy"]) #view-settings > [data-section="buddy"],
@@ -162,6 +163,7 @@ html:not([data-frame="vault"]) [data-section-action="vault"],
 html:not([data-section="start"]) [data-section-action="start"],
 html:not([data-section="general"]) [data-section-action="general"],
 html:not([data-section="tools"]) [data-section-action="tools"],
+html:not([data-section="connections"]) [data-section-action="connections"],
 html:not([data-section="ssh"]) [data-section-action="ssh"],
 html:not([data-section="recovery"]) [data-section-action="recovery"] { display: none !important; }
 /* The places of the shell elements before their script defines them: the
@@ -601,6 +603,54 @@ pre:empty { display: none; }
 /* SSH from your devices (decision F49): each block an agent reads is one
    <pre> in the ink of the text, kept whole (no height limit), with its copy
    button under it; the fields of "Add a device" stack. */
+/* Settings → Connections (decision F71). */
+.connections-tabs { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--card); width: max-content; max-width: 100%; overflow-x: auto; }
+.connections-tabs a { padding: 6px 12px; border-radius: calc(var(--radius-control) - 2px); color: var(--muted-fg); font-size: 14px; text-decoration: none; white-space: nowrap; }
+.connections-tabs a[aria-current="page"] { background: color-mix(in oklab, var(--lz-accent) 12%, transparent); color: var(--fg); font-weight: var(--lz-weight-akce); }
+.phone-card { display: grid; grid-template-columns: 180px 1fr; gap: 20px; align-items: center; padding: 18px; }
+.phone-card > * + * { border-top: 0; }
+@container (max-width: 520px) { .phone-card { grid-template-columns: 1fr; } }
+.phone-copy { display: grid; gap: 10px; align-content: center; }
+.phone-copy h2 { color: var(--fg); font-size: 17px; font-weight: var(--lz-weight-akce); }
+.phone-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.phone-actions:not(:has(> :not([hidden]))) { display: none; }
+#phone-restart-confirm { display: grid; gap: 8px; }
+#phone-restart-confirm[hidden] { display: none; }
+.phone-motion { display: grid; justify-items: center; gap: 10px; }
+.phone-motion-device { position: relative; width: 120px; height: 200px; border: 2px solid var(--lz-gray-300, #c9ccd3); border-radius: 22px; background: var(--lz-paper, #fff); overflow: hidden; }
+.phone-motion-step { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; opacity: 0; animation: phone-step 10s infinite; }
+.phone-motion-step[data-step="2"] { animation-delay: 2.5s; }
+.phone-motion-step[data-step="3"] { animation-delay: 5s; }
+.phone-motion-step[data-step="4"] { animation-delay: 7.5s; }
+.phone-motion-icon { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 14px; background: var(--lz-accent); color: #fff; font: 600 20px/1 var(--font-mono, monospace); }
+.phone-motion-icon .icon { width: 26px; height: 26px; }
+.phone-motion-scan { background: repeating-linear-gradient(90deg, var(--fg) 0 4px, #fff 4px 8px), #fff; border: 4px solid #fff; outline: 2px solid var(--lz-accent); }
+.phone-motion-label { color: var(--fg); font-size: 13px; font-weight: var(--lz-weight-akce); text-align: center; max-width: 100px; }
+.phone-motion-dots { display: flex; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.phone-motion-dots li { width: 6px; height: 6px; border-radius: 50%; background: var(--lz-gray-300, #c9ccd3); animation: phone-dot 10s infinite; }
+.phone-motion-dots li:nth-child(2) { animation-delay: 2.5s; }
+.phone-motion-dots li:nth-child(3) { animation-delay: 5s; }
+.phone-motion-dots li:nth-child(4) { animation-delay: 7.5s; }
+@keyframes phone-step { 0% { opacity: 0; transform: translateY(8px); } 4%, 22% { opacity: 1; transform: none; } 26%, 100% { opacity: 0; transform: translateY(-8px); } }
+@keyframes phone-dot { 0%, 25% { background: var(--lz-accent); } 26%, 100% { background: var(--lz-gray-300, #c9ccd3); } }
+@media (prefers-reduced-motion: reduce) {
+  .phone-motion-device { width: auto; height: auto; border: 0; display: flex; gap: 8px; }
+  .phone-motion-step { position: static; opacity: 1; animation: none; }
+  .phone-motion-icon { width: 36px; height: 36px; font-size: 14px; }
+  .phone-motion-dots { display: none; }
+}
+#phone-devices li { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; justify-content: space-between; padding: 12px 16px; }
+#phone-devices .phone-device-actions { display: flex; gap: 0.5rem; align-items: center; }
+dialog.phone-dialog { width: min(26rem, calc(100vw - 2rem)); }
+.phone-pairing { display: grid; justify-items: center; gap: 12px; text-align: center; }
+.phone-qr-frame { padding: 8px; border: 1px solid var(--lz-line); border-radius: var(--radius-control); background: #fff; transition: opacity 0.2s; }
+.phone-qr-frame[data-expired] { opacity: 0.15; }
+.phone-qr { display: block; width: min(280px, 70vw); height: auto; aspect-ratio: 1; image-rendering: pixelated; }
+.phone-code-row { display: flex; gap: 0.5rem; align-items: center; }
+.phone-code { font: 600 22px/1.2 var(--font-mono, monospace); letter-spacing: 0.08em; color: var(--fg); }
+.phone-done { display: grid; justify-items: center; gap: 8px; padding: 24px 0; color: var(--fg); font-size: 17px; font-weight: var(--lz-weight-akce); }
+.phone-done .icon { width: 40px; height: 40px; color: var(--success-fg, var(--lz-accent)); }
+dialog.phone-dialog .dialog-foot { justify-content: flex-end; }
 .ssh-block-row { display: grid; gap: 0.5rem; }
 .ssh-block-head { display: grid; gap: 2px; }
 pre.ssh-block { max-height: none; color: var(--fg); font-size: 12.5px; line-height: 1.5; }
@@ -1686,7 +1736,7 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <li><a class="menu-item" href="/settings/communication" data-section="communication" data-route><svg class="icon" aria-hidden="true"><use href="#i-general"/></svg><span class="menu-name" data-message="voiceTitle">Agent communication</span></a></li>
 <li><a class="menu-item" href="/settings/machine" data-section="machine" data-route><svg class="icon" aria-hidden="true"><use href="#i-machine"/></svg><span class="menu-name" data-message="machineTitle">This Environment</span></a></li>
 <li><a class="menu-item" href="/settings/tools" data-section="tools" data-route><svg class="icon" aria-hidden="true"><use href="#i-tools"/></svg><span class="menu-name" data-message="toolsTitle">Tools</span></a></li>
-<li><a class="menu-item" href="/settings/ssh" data-section="ssh" data-route><svg class="icon" aria-hidden="true"><use href="#i-terminal"/></svg><span class="menu-name" data-message="sshTitle">SSH from your devices</span></a></li>
+<li><a class="menu-item" href="/settings/connections" data-section="connections" data-route><svg class="icon" aria-hidden="true"><use href="#i-laptop"/></svg><span class="menu-name" data-message="connectionsTitle">Connections</span></a></li>
 <li><a class="menu-item" href="/settings/recovery" data-section="recovery" data-route><svg class="icon" aria-hidden="true"><use href="#i-recovery"/></svg><span class="menu-name" data-message="recoveryTitle">Recovery</span></a></li>
 <li id="buddy-nav" hidden><a class="menu-item" href="/settings/buddy" data-section="buddy" data-route><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span class="menu-name" data-message="buddyTitle">Buddy</span></a></li>
 </ul>
@@ -1736,6 +1786,7 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <button type="button" class="ghost" id="reload" data-section-action="general"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="reload">Reload profile</span></button>
 <button type="button" class="ghost" id="tools-refresh" data-section-action="tools"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="toolsRefresh">Refresh status</span></button>
 <button type="button" class="ghost" id="vault-page-refresh" data-section-action="vault"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="toolsRefresh">Refresh status</span></button>
+<button type="button" class="ghost" id="connections-refresh" data-section-action="connections"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="sshRefresh">Refresh</span></button>
 <button type="button" class="ghost" id="ssh-refresh" data-section-action="ssh"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="sshRefresh">Refresh</span></button>
 <button type="button" class="ghost" id="recovery-refresh" data-section-action="recovery"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="recoveryAgain">Check again</span></button>
 </div>
@@ -2001,7 +2052,47 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
      ssh-panel.ts. The blocks an agent reads are each one <pre> with a
      `data-ssh-block` (`prompt`, `config`, `known-hosts`) whose text is
      exactly what is written. -->
+<!-- Settings → Connections (decision F71, root decision 0215): the tab
+     "Control this Environment" holds Telefon přes ChatGPT, the pairing of
+     the ChatGPT app with this Environment's Codex, drawn by
+     connections-panel.ts; SSH is the next tab, today's F49 page. The motion
+     graphic (#phone-motion) is one element, replaced whole when the
+     prototype's final graphic arrives. -->
+<section id="section-connections" data-section="connections" aria-labelledby="page-heading">
+<nav class="connections-tabs" aria-label="Connections">
+<a href="/settings/connections" data-route data-connections-tab="connections" data-message="connectionsTabThis">Control this Environment</a>
+<a href="/settings/ssh" data-route data-connections-tab="ssh" data-message="connectionsTabSsh">SSH</a>
+</nav>
+<section class="group" aria-labelledby="phone-heading">
+<div class="card phone-card">
+<div class="phone-motion" id="phone-motion" aria-hidden="true">
+<div class="phone-motion-device">
+<div class="phone-motion-step" data-step="1"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-openai"/></svg></span><span class="phone-motion-label">ChatGPT</span></div>
+<div class="phone-motion-step" data-step="2"><span class="phone-motion-icon phone-motion-codex">&lt;/&gt;</span><span class="phone-motion-label">Codex</span></div>
+<div class="phone-motion-step" data-step="3"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-laptop"/></svg></span><span class="phone-motion-label" data-message="phoneMotionAdd">Add computer</span></div>
+<div class="phone-motion-step" data-step="4"><span class="phone-motion-icon phone-motion-scan"></span><span class="phone-motion-label" data-message="phoneMotionScan">Scan the code</span></div>
+</div>
+<ol class="phone-motion-dots"><li></li><li></li><li></li><li></li></ol>
+</div>
+<div class="phone-copy">
+<h2 id="phone-heading" data-message="phoneTitle">Phone through ChatGPT</h2>
+<p class="row-desc" data-message="phoneLead">Control the chats of this Environment from the ChatGPT app on your phone.</p>
+<p id="phone-state" class="callout" data-kind="warning" role="status" aria-live="polite" hidden></p>
+<div id="phone-restart-confirm" class="callout" data-kind="warning" role="alert" hidden><p data-message="phoneRestartWarning">A restart ends the chats running in Codex. Restart now?</p><div class="phone-actions"><button type="button" id="phone-restart-cancel" data-message="phoneCancel">Cancel</button><button type="button" class="primary" id="phone-restart-yes" data-message="phoneRestartYes">Restart</button></div></div>
+<div class="phone-actions"><button type="button" class="primary" id="phone-pair" data-message="phonePair" hidden>Pair a phone</button><a id="phone-sign-in" class="button" href="/settings/start" data-route data-message="phoneSignIn" hidden>Sign in</a><button type="button" id="phone-restart" data-message="phoneRestart" hidden>Restart Codex</button></div>
+</div>
+</div>
+</section>
+<section class="group" id="phone-devices-group" aria-labelledby="phone-devices-heading" hidden>
+<div class="group-head"><h2 id="phone-devices-heading" data-message="phoneDevices">Paired phones</h2></div>
+<ul class="card" id="phone-devices"></ul>
+</section>
+</section>
 <section id="section-ssh" data-section="ssh" aria-labelledby="page-heading">
+<nav class="connections-tabs" aria-label="Connections">
+<a href="/settings/connections" data-route data-connections-tab="connections" data-message="connectionsTabThis">Control this Environment</a>
+<a href="/settings/ssh" data-route data-connections-tab="ssh" data-message="connectionsTabSsh">SSH</a>
+</nav>
 <div class="section-head-text">
 <p id="ssh-unsupported" class="callout" role="note" hidden data-message="sshUnsupported">SSH from your devices is available in Environments on Linux and macOS.</p>
 </div>
@@ -2114,6 +2205,21 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <label><span data-message="toolsPromptLabel">Prepared prompt</span>
 <textarea id="tools-prompt-text" readonly rows="14" spellcheck="false"></textarea></label>
 <div class="dialog-foot"><span id="tools-prompt-status" role="status" aria-live="polite"></span><button type="button" id="tools-prompt-close" data-message="toolsClose">Close</button><button type="button" id="tools-prompt-copy" class="primary" data-message="toolsCopy">Copy prompt</button></div>
+</dialog>
+<!-- Spárovat telefon (decision F71): the QR code the ChatGPT app's own
+     scanner reads, the short code, the time left, a new code and the moment
+     the phone took it. No code is kept once the dialog closes. -->
+<dialog id="phone-dialog" class="phone-dialog" aria-labelledby="phone-dialog-title">
+<div class="dialog-head"><h2 id="phone-dialog-title" tabindex="-1" data-message="phonePair">Pair a phone</h2><button type="button" class="dialog-x" id="phone-dialog-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="sr-only" data-message="toolsClose">Close</span></button></div>
+<div id="phone-dialog-pairing" class="phone-pairing">
+<p data-message="phoneHint">In the ChatGPT app, open Codex → Add computer and scan the code.</p>
+<div class="phone-qr-frame"><img id="phone-qr" class="phone-qr" width="280" height="280" alt=""></div>
+<div class="phone-code-row"><code id="phone-code" class="phone-code"></code><button type="button" id="phone-code-copy"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span data-message="phoneCopy">Copy</span></button></div>
+<p id="phone-countdown" class="row-desc" role="timer" aria-live="off"></p>
+</div>
+<div id="phone-dialog-done" class="phone-done" hidden><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><p data-message="phonePaired">Your phone is paired</p></div>
+<p id="phone-dialog-status" class="row-status" role="status" aria-live="polite"></p>
+<div class="dialog-foot"><button type="button" id="phone-new" data-message="phoneNewCode">New code</button><button type="button" class="primary" id="phone-dialog-ok" data-message="phoneDone">Done</button></div>
 </dialog>
 <dialog id="tools-login" aria-labelledby="tools-login-title" aria-describedby="tools-login-status">
 <div class="dialog-head"><h2 id="tools-login-title" tabindex="-1"></h2><button type="button" class="dialog-x" id="tools-login-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="sr-only" data-message="toolsClose">Close</span></button></div>

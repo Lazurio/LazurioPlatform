@@ -1,0 +1,441 @@
+import type { ConnectionsOverview, PairedDevice } from "../connections/pairing";
+import {
+  deviceDetail,
+  deviceName,
+  offersRestart,
+  offersSignIn,
+  parseConnectionsOverview,
+  parsePairing,
+  parsePoll,
+  refusalOf,
+  remaining,
+  stateMessage,
+} from "./connections-view";
+import type { MessageKey } from "./messages";
+import { pollWhileVisible } from "./visible-poll";
+
+type Copy = Readonly<Record<MessageKey, string>>;
+type Answer = Promise<{ value: unknown; ok: boolean }>;
+
+// Settings → Connections → Telefon přes ChatGPT (decision F71): one
+// sentence, one button, the motion graphic, and the dialog with the QR code
+// the ChatGPT app's own scanner reads, the short code, the time left, a new
+// code and "Telefon je spárovaný". Every server value is drawn as text; the
+// code lives only in the open dialog and is dropped when it closes.
+export function createConnectionsPanel(
+  options: Readonly<{
+    get: (path: string) => Answer;
+    post: (path: string, body: unknown) => Answer;
+    copy: () => Copy;
+    locale: () => string;
+  }>,
+) {
+  const find = <T extends HTMLElement>(selector: string): T => {
+    const element = document.querySelector<T>(selector);
+    if (!element) throw new Error("Missing Connections UI");
+    return element;
+  };
+  const tabs = [...document.querySelectorAll<HTMLElement>(".connections-tabs")];
+  const state = find<HTMLParagraphElement>("#phone-state");
+  const pairButton = find<HTMLButtonElement>("#phone-pair");
+  const signIn = find<HTMLAnchorElement>("#phone-sign-in");
+  const restartButton = find<HTMLButtonElement>("#phone-restart");
+  const restartConfirm = find<HTMLDivElement>("#phone-restart-confirm");
+  const restartYes = find<HTMLButtonElement>("#phone-restart-yes");
+  const restartCancel = find<HTMLButtonElement>("#phone-restart-cancel");
+  const devicesGroup = find<HTMLElement>("#phone-devices-group");
+  const devicesList = find<HTMLUListElement>("#phone-devices");
+  const again = find<HTMLButtonElement>("#connections-refresh");
+  const dialog = find<HTMLDialogElement>("#phone-dialog");
+  const dialogClose = find<HTMLButtonElement>("#phone-dialog-close");
+  const pairing = find<HTMLDivElement>("#phone-dialog-pairing");
+  const qrFrame = find<HTMLDivElement>(".phone-qr-frame");
+  const qr = find<HTMLImageElement>("#phone-qr");
+  const code = find<HTMLElement>("#phone-code");
+  const codeCopy = find<HTMLButtonElement>("#phone-code-copy");
+  const countdown = find<HTMLParagraphElement>("#phone-countdown");
+  const done = find<HTMLDivElement>("#phone-dialog-done");
+  const dialogStatus = find<HTMLParagraphElement>("#phone-dialog-status");
+  const newCode = find<HTMLButtonElement>("#phone-new");
+  const ok = find<HTMLButtonElement>("#phone-dialog-ok");
+
+  let overview: ConnectionsOverview | null = null;
+  let loading = false;
+  let failed = false;
+  let busy: "restart" | null = null;
+  let note: MessageKey | null = null;
+  let confirming: string | null = null;
+  let removing: string | null = null;
+  let reading = 0;
+  let section: string | null = null;
+  // The open pairing: its session, when it ends, and its timers.
+  let session: string | null = null;
+  let expiresAt = 0;
+  let stopPoll: (() => void) | null = null;
+  let tick: ReturnType<typeof setInterval> | null = null;
+  let starting = false;
+
+  const element = <K extends keyof HTMLElementTagNameMap>(
+    tag: K,
+    className = "",
+    content?: string,
+  ) => {
+    const created = document.createElement(tag);
+    if (className) created.className = className;
+    if (content !== undefined) created.textContent = content;
+    return created;
+  };
+  const button = (label: string, className: string, action: () => void) => {
+    const node = element("button", className, label);
+    node.type = "button";
+    node.addEventListener("click", action);
+    return node;
+  };
+
+  async function refresh(): Promise<void> {
+    const turn = ++reading;
+    loading = true;
+    render();
+    let read: ConnectionsOverview | null = null;
+    try {
+      const { value, ok: answered } = await options.get("/api/connections");
+      read = answered ? parseConnectionsOverview(value) : null;
+    } catch {
+      read = null;
+    }
+    if (turn !== reading) return;
+    loading = false;
+    failed = read === null;
+    if (read !== null) overview = read;
+    render();
+  }
+
+  function renderDevices(copy: Copy, devices: readonly PairedDevice[]) {
+    devicesGroup.hidden = devices.length === 0;
+    const format = new Intl.DateTimeFormat(options.locale(), {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+    devicesList.replaceChildren(
+      ...devices.map((device) => {
+        const item = element("li");
+        const main = element("div", "row-copy");
+        main.append(element("p", "row-title", deviceName(device)));
+        const details = [
+          deviceDetail(device),
+          device.lastSeenAt === null
+            ? ""
+            : copy.phoneLastSeen.replace(
+                "{time}",
+                format.format(new Date(device.lastSeenAt)),
+              ),
+        ].filter((part) => part !== "");
+        if (details.length > 0)
+          main.append(element("p", "row-desc", details.join(" · ")));
+        const actions = element("div", "phone-device-actions");
+        if (confirming === device.clientId) {
+          actions.append(
+            element(
+              "span",
+              "row-status",
+              copy.phoneRemoveQuestion.replace("{name}", deviceName(device)),
+            ),
+            button(copy.phoneCancel, "", () => {
+              confirming = null;
+              render();
+            }),
+            button(copy.phoneRemoveYes, "primary", () => {
+              void revoke(device.clientId);
+            }),
+          );
+        } else {
+          const remove = button(copy.phoneRemove, "", () => {
+            confirming = device.clientId;
+            render();
+          });
+          remove.disabled = removing !== null;
+          actions.append(remove);
+        }
+        item.append(main, actions);
+        return item;
+      }),
+    );
+  }
+
+  function render() {
+    const copy = options.copy();
+    for (const nav of tabs) {
+      nav.setAttribute("aria-label", copy.connectionsTabsLabel);
+      for (const link of nav.querySelectorAll<HTMLAnchorElement>("a"))
+        if (link.dataset.connectionsTab === section)
+          link.setAttribute("aria-current", "page");
+        else link.removeAttribute("aria-current");
+    }
+    qr.alt = copy.phoneQrAlt;
+    again.disabled = loading;
+    const shown = overview;
+    const message: string | null =
+      busy === "restart"
+        ? copy.phoneRestarting
+        : note !== null
+          ? copy[note]
+          : shown === null
+            ? loading
+              ? copy.phoneLoading
+              : failed
+                ? copy.phoneFailed
+                : null
+            : (() => {
+                const key = stateMessage(shown);
+                return key === null ? null : copy[key];
+              })();
+    state.textContent = message ?? "";
+    state.hidden = message === null;
+    state.dataset.kind =
+      note === "phoneRemoved" && busy === null ? "info" : "warning";
+    const ready = shown?.state === "ready";
+    pairButton.hidden = !ready;
+    pairButton.disabled = busy !== null || starting;
+    pairButton.textContent =
+      ready && shown.devices.length > 0
+        ? copy.phonePairAnother
+        : copy.phonePair;
+    signIn.hidden = shown === null || !offersSignIn(shown);
+    restartButton.hidden =
+      shown === null || !offersRestart(shown) || !restartConfirm.hidden;
+    restartButton.disabled = busy !== null;
+    renderDevices(copy, shown?.devices ?? []);
+  }
+
+  function stopTimers() {
+    stopPoll?.();
+    stopPoll = null;
+    if (tick !== null) clearInterval(tick);
+    tick = null;
+  }
+
+  function showCountdown() {
+    const copy = options.copy();
+    const left = expiresAt - Date.now();
+    if (left <= 0) {
+      expire();
+      return;
+    }
+    countdown.textContent = copy.phoneCountdown.replace(
+      "{time}",
+      remaining(expiresAt, Date.now()),
+    );
+  }
+
+  function expire() {
+    stopTimers();
+    session = null;
+    qrFrame.dataset.expired = "";
+    code.textContent = "";
+    countdown.textContent = options.copy().phoneExpired;
+  }
+
+  /** Drops the code from the page and ends the pairing on the server. */
+  function forget() {
+    stopTimers();
+    const ending = session;
+    session = null;
+    qr.removeAttribute("src");
+    code.textContent = "";
+    countdown.textContent = "";
+    if (ending !== null)
+      void options
+        .post("/api/connections/pair/cancel", { session: ending })
+        .catch(() => undefined);
+  }
+
+  async function start() {
+    const copy = options.copy();
+    if (starting) return;
+    starting = true;
+    forget();
+    pairing.hidden = false;
+    done.hidden = true;
+    newCode.hidden = false;
+    newCode.disabled = true;
+    delete qrFrame.dataset.expired;
+    dialogStatus.textContent = copy.phoneLoading;
+    if (!dialog.open && typeof dialog.showModal === "function")
+      dialog.showModal();
+    render();
+    try {
+      const { value, ok: answered } = await options.post(
+        "/api/connections/pair",
+        {},
+      );
+      const started = answered ? parsePairing(value) : null;
+      if (started === null) {
+        const reason = refusalOf(value);
+        dialogStatus.textContent =
+          reason === "too-many-starts" ? copy.phoneTooMany : copy.phoneFailed;
+        const blocked = parseConnectionsOverview(
+          (value as { overview?: unknown } | null)?.overview,
+        );
+        if (blocked !== null) overview = blocked;
+        pairing.hidden = true;
+        return;
+      }
+      session = started.session;
+      expiresAt = started.expiresAt;
+      qr.src = started.qrSource;
+      code.textContent = started.manualCode ?? "";
+      codeCopy.hidden = started.manualCode === null;
+      dialogStatus.textContent = "";
+      showCountdown();
+      tick = setInterval(showCountdown, 1_000);
+      const mine = started.session;
+      stopPoll = pollWhileVisible(() => poll(mine), 2_000);
+    } catch {
+      dialogStatus.textContent = copy.phoneFailed;
+      pairing.hidden = true;
+    } finally {
+      starting = false;
+      newCode.disabled = false;
+      render();
+    }
+  }
+
+  async function poll(mine: string) {
+    if (session !== mine) return;
+    const { value, ok: answered } = await options.post(
+      "/api/connections/pair/poll",
+      { session: mine },
+    );
+    if (session !== mine) return;
+    const result = answered ? parsePoll(value) : null;
+    if (result === null) return;
+    if (result.kind === "waiting") {
+      expiresAt = result.expiresAt;
+      return;
+    }
+    if (result.kind === "paired") {
+      stopTimers();
+      session = null;
+      qr.removeAttribute("src");
+      code.textContent = "";
+      pairing.hidden = true;
+      done.hidden = false;
+      newCode.hidden = true;
+      dialogStatus.textContent = "";
+      if (overview !== null)
+        overview = Object.freeze({ ...overview, devices: result.devices });
+      render();
+      ok.focus();
+      return;
+    }
+    expire();
+  }
+
+  async function revoke(clientId: string) {
+    removing = clientId;
+    confirming = null;
+    note = null;
+    render();
+    try {
+      const { value, ok: answered } = await options.post(
+        "/api/connections/revoke",
+        { clientId },
+      );
+      const read = parseConnectionsOverview(
+        answered ? value : (value as { overview?: unknown } | null)?.overview,
+      );
+      if (read !== null) overview = read;
+      note = answered ? "phoneRemoved" : "phoneFailed";
+    } catch {
+      note = "phoneFailed";
+    } finally {
+      removing = null;
+      render();
+    }
+  }
+
+  async function restart() {
+    restartConfirm.hidden = true;
+    busy = "restart";
+    note = null;
+    render();
+    try {
+      const { value, ok: answered } = await options.post(
+        "/api/connections/restart",
+        { confirm: true },
+      );
+      const read = parseConnectionsOverview(
+        answered ? value : (value as { overview?: unknown } | null)?.overview,
+      );
+      if (read !== null) overview = read;
+      if (!answered) note = "phoneFailed";
+    } catch {
+      note = "phoneFailed";
+    } finally {
+      busy = null;
+      render();
+    }
+  }
+
+  pairButton.addEventListener("click", () => {
+    note = null;
+    void start();
+  });
+  newCode.addEventListener("click", () => void start());
+  const close = () => {
+    forget();
+    if (dialog.open) dialog.close();
+  };
+  ok.addEventListener("click", close);
+  dialogClose.addEventListener("click", close);
+  dialog.addEventListener("close", () => {
+    forget();
+    void refresh();
+  });
+  codeCopy.addEventListener("click", () => {
+    const text = code.textContent ?? "";
+    if (text === "") return;
+    void navigator.clipboard.writeText(text).then(
+      () => {
+        dialogStatus.textContent = options.copy().phoneCopied;
+      },
+      () => undefined,
+    );
+  });
+  restartButton.addEventListener("click", () => {
+    restartConfirm.hidden = false;
+    render();
+    restartCancel.focus();
+  });
+  restartCancel.addEventListener("click", () => {
+    restartConfirm.hidden = true;
+    render();
+  });
+  restartYes.addEventListener("click", () => void restart());
+  again.addEventListener("click", () => {
+    note = null;
+    void refresh();
+  });
+
+  return {
+    refresh,
+    render,
+    /** The settings section shown now: the tabs mark theirs. */
+    show(current: string | null) {
+      section = current;
+      render();
+    },
+    get loaded() {
+      return overview !== null || loading;
+    },
+    /** For Začínáme: whether pairing is offered, and how many phones. */
+    summary(): Readonly<{ ready: boolean; devices: number }> | null {
+      return overview === null
+        ? null
+        : {
+            ready: overview.state === "ready",
+            devices: overview.devices.length,
+          };
+    },
+  };
+}

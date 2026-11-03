@@ -570,6 +570,8 @@ export function pageGuide(
           const guide = toolsGuide(copy, team, facts.tools);
           return plays(guide.id, [guide]);
         }
+        case "connections":
+          return none;
         case "ssh": {
           const guide = devicesGuide(copy, team);
           return plays(guide.id, [guide]);

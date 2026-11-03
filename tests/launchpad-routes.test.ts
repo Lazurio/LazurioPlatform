@@ -229,14 +229,16 @@ test("the heading and document title follow the route in both languages", () => 
   expect(
     routeTitle({ view: "settings", section: "ssh" }, messages("cs")).heading,
   ).toBe("SSH ze zařízení");
-  // Settings keep their order without Trezor: SSH follows the tools, and
-  // Nastavení → Buddy comes last (decision F65), shown only with Buddy.
+  // Settings keep their order without Trezor: Připojení follows the tools
+  // with SSH as its tab (decision F71), and Nastavení → Buddy comes last
+  // (decision F65), shown only with Buddy.
   expect(settingsSections).toEqual([
     "start",
     "general",
     "communication",
     "machine",
     "tools",
+    "connections",
     "ssh",
     "recovery",
     "buddy",
