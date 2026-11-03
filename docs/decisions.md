@@ -23300,7 +23300,9 @@ The methods and types are in `openai/codex` at tag `rust-v0.166.0`:
      process stops before it, the code is never shown (`storage-failed`). A code
      whose named life is longer than an hour (`longestLifeMs`; Codex 0.166 gives
      about 10 minutes) is not shown, and one without a named end is covered for an
-     hour;
+     hour. The bound ends early only when a phone takes the code; when the dialog's
+     handle runs out first (ten minutes without a named end), the bound stays until
+     its own end;
    - a process that holds no code (after a restart) makes none while
      `outstandingUntil` lies ahead. *Spárovat telefon* then answers
      `code-outstanding` with `until`, and the dialog says when a new code can be

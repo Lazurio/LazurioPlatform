@@ -347,10 +347,13 @@ export function createConnections(
     }
   }
 
-  /** The code Lazurio held is over (taken or expired). */
-  async function settle() {
+  /** The code Lazurio held is over. Only a phone taking it ends the
+   * ledger's bound early; at the handle's own end the bound stays until it
+   * runs out (it is longer where Codex named no end). */
+  async function settle(taken: boolean) {
     pending = null;
-    outstandingUntil = null;
+    if (taken || (outstandingUntil !== null && now() >= outstandingUntil))
+      outstandingUntil = null;
     await save();
   }
 
@@ -501,10 +504,10 @@ export function createConnections(
         return shown(current);
       }
       journal({ operation: "pair", outcome: "paired" });
-      await settle();
+      await settle(true);
     } else if (current !== null) {
       journal({ operation: "pair", outcome: "expired" });
-      await settle();
+      await settle(false);
     }
     // A code Lazurio no longer holds (made before a restart, or its answer
     // lost) may still be valid: no second one until it has run out.
@@ -622,7 +625,7 @@ export function createConnections(
       return { kind: "gone" };
     if (now() >= current.expiresAt) {
       journal({ operation: "pair", outcome: "expired" });
-      await settle();
+      await settle(false);
       return { kind: "expired" };
     }
     const taken = await claimed(current);
@@ -631,7 +634,7 @@ export function createConnections(
     // Not answered now (null): the page asks again.
     if (taken !== true)
       return { kind: "waiting", expiresAt: current.expiresAt };
-    await settle();
+    await settle(true);
     let devices: readonly PairedDevice[] = [];
     try {
       devices = await withSocket(async (rpc) => {

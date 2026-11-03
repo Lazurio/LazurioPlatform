@@ -55,8 +55,8 @@ type Daemon = {
   calls: { method: string; params: unknown }[];
   errorMessages: boolean;
   loseAnswer: boolean;
-  /** The life Codex names for a code, in seconds. */
-  lifeSeconds: number;
+  /** The life Codex names for a code, in seconds; null names none. */
+  lifeSeconds: number | null;
 };
 
 /** A ledger in memory, as a file would keep it across a restart: writes
@@ -174,7 +174,12 @@ async function fakeDaemon(parent: string) {
               pairingCode: code,
               manualPairingCode: manual,
               environmentId: "env-1",
-              expiresAt: Math.floor(Date.now() / 1000) + daemon.lifeSeconds,
+              ...(daemon.lifeSeconds === null
+                ? {}
+                : {
+                    expiresAt:
+                      Math.floor(Date.now() / 1000) + daemon.lifeSeconds,
+                  }),
             });
           case "remoteControl/pairing/status":
             if (daemon.errorMessages)
@@ -702,6 +707,60 @@ test.skipIf(!posix)(
       expect(ledger.kept()?.outstandingUntil).toBeNull();
     } finally {
       await t.close();
+    }
+  },
+);
+
+test.skipIf(!posix)(
+  "a code without a named end: its hour holds past the handle's ten minutes, by poll, start and restart",
+  async () => {
+    const ledger = memoryLedger();
+    const s = await setup({ ledger: ledger.store });
+    try {
+      s.daemon.lifeSeconds = null;
+      const first = await s.connections.start();
+      if (first.kind !== "pairing") throw new Error("not started");
+      const hour = s.now() + 60 * 60_000;
+      expect(first.expiresAt).toBe(s.now() + 10 * 60_000);
+      expect(ledger.kept()?.outstandingUntil).toBe(hour);
+      s.advance(11 * 60_000);
+      // The poll's path: the handle ends, the hour stays.
+      expect(await s.connections.poll(first.session)).toEqual({
+        kind: "expired",
+      });
+      expect(ledger.kept()?.outstandingUntil).toBe(hour);
+      expect(await s.connections.start()).toEqual({
+        kind: "blocked",
+        reason: "code-outstanding",
+        until: hour,
+      });
+      expect(await s.restarted().start()).toEqual({
+        kind: "blocked",
+        reason: "code-outstanding",
+        until: hour,
+      });
+      expect(s.pairings()).toBe(1);
+      s.advance(50 * 60_000);
+      const second = await s.connections.start();
+      if (second.kind !== "pairing") throw new Error("not started");
+      expect(s.pairings()).toBe(2);
+      // The start's path, with no poll: past the handle, the hour stays.
+      s.advance(11 * 60_000);
+      expect(await s.connections.start()).toMatchObject({
+        kind: "blocked",
+        reason: "code-outstanding",
+      });
+      expect(s.pairings()).toBe(2);
+      // Only a phone taking the code ends its hour early.
+      s.advance(50 * 60_000);
+      const third = await s.connections.start();
+      if (third.kind !== "pairing") throw new Error("not started");
+      s.daemon.claimed = true;
+      expect((await s.connections.poll(third.session)).kind).toBe("paired");
+      expect(ledger.kept()?.outstandingUntil).toBeNull();
+      expect((await s.connections.start()).kind).toBe("pairing");
+    } finally {
+      await s.close();
     }
   },
 );
