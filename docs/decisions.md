@@ -23113,3 +23113,139 @@ the person's own `Host` blocks and file, the commands' answers) and
 `tests/environment-ssh.test.ts` (the block's bytes). Not proven: a real service on a real
 host; that is the Ring 0 proof of ACCESS-SERVICE.md once the switch and the handover
 member exist.
+
+## F71 — Phone through ChatGPT: Settings → Connections pairs the ChatGPT app with the Codex app-server's remote control
+
+**Proposed 2026-11-03 (root decision 0215; Lazurio/LazurioPlatform#657, #720). Not
+implemented.** Two things gate the build:
+
+- the owner's approval of the interface in the clickable prototype
+  (HumanAndMachine-ai/prototypes-lazurio#106, stacked on #102);
+- a live test with a phone that settles what the QR code carries.
+
+Delivery starts on the owner's own personal Environment and reaches other people's
+Environments only after that.
+
+The person opens Settings → Connections, clicks one button and gets a QR code and
+a short code. A motion graphic shows what to do on the phone: open ChatGPT, then
+Codex, then add a computer, then scan or type the code. Nobody types a command.
+
+**What was verified on 2026-11-03.** The test ran on a personal Environment with
+Codex app-server 0.166.0 running as F29's daemon with `--remote-control`. Nothing
+was restarted. The daemon's control socket
+(`$CODEX_HOME/app-server-control/app-server-control.sock`, a link to a socket under
+`/tmp`, WebSocket framing) answers the experimental methods once `initialize`
+declares `capabilities.experimentalApi`:
+
+| Need | Method | Result |
+|---|---|---|
+| Is pairing available | `remoteControl/status/read` | `connected`, the server name, an `environmentId` |
+| Make a code | `remoteControl/pairing/start {manualCode: true}` | `pairingCode` (78 digits), `manualPairingCode` (`XXXX-XXXX`), `environmentId`, `expiresAt` (Unix seconds, about 10 min) |
+| Has the phone taken it | `remoteControl/pairing/status {pairingCode}` | `claimed: false` while waiting; `claimed: true` not yet observed with a phone |
+| Paired devices | `remoteControl/client/list {environmentId}` | a phone paired earlier: display name, `deviceType`, `platform`, OS, model, app version, `lastSeenAt` |
+| Remove access | `remoteControl/client/revoke {environmentId, clientId}` | not tried |
+
+The methods and types are in `openai/codex` at tag `rust-v0.166.0`:
+`app-server-protocol/src/protocol/common.rs` and `protocol/v2/remote_control.rs`.
+
+1. **Place.** A new Settings section `connections` takes the place of `ssh` in
+   `routes.ts` and `index.html`. It has three tabs, as 0215 says.
+   - **Control this Environment** holds the block *Telefon přes ChatGPT*:
+     - the prerequisites (the ChatGPT app; the same ChatGPT account as Codex here;
+       a Plus, Pro, Business or Enterprise plan; on a work account, Remote Control
+       allowed by the workspace admin);
+     - *Spárovat telefon*;
+     - the motion graphic;
+     - the paired devices with *Odebrat přístup*.
+   - **Control other Environments** follows 0192's addendum.
+   - **SSH** is today's F49 page, unchanged and never offered first.
+
+   The panel follows the existing `connections-panel.ts` / `connections-view.ts` /
+   `connections-routes.ts` split, like `ssh-*`.
+2. **Reading the state.** `GET /api/connections` reads the status and the client
+   list and answers one of these states:
+   - `ready`;
+   - `no-remote-control`: the daemon is not `connected`, or the methods are missing;
+   - `organization-ai`: Codex runs on Organization-provided AI without the person's
+     ChatGPT sign-in;
+   - `team`;
+   - `no-chatgpt`.
+
+   It also answers the devices (name, form, platform, last seen). It never answers
+   a code.
+3. **Pairing.** `POST /api/connections/pair` calls `remoteControl/pairing/start`.
+   It keeps `pairingCode` only in memory under a 32-hex session handle, as the tool
+   sign-in does (`src/tools/login.ts`). It answers the manual code, `expiresAt` and
+   the QR code drawn by the existing `qrSvg(qrMatrix(payload))` (`src/tools/qr.ts`).
+   The QR payload is one function, `pairingQrPayload`. Its content waits for the
+   phone test (open question 1). Until that test passes, the dialog leads with the
+   short code. *Nový kód* starts a new pairing and drops the old handle.
+4. **Waiting.** `POST /api/connections/pair/poll {session}` calls
+   `remoteControl/pairing/status` every 2 s through the existing visible-page poll.
+   - On `claimed: true` the server drops the code and refreshes the device list, and
+     the dialog says *Telefon je spárovaný*.
+   - At `expiresAt` the handle ends and the dialog offers *Nový kód*.
+   - `…/pair/cancel` ends it early.
+5. **Removing access.** `POST /api/connections/revoke {clientId}` calls
+   `remoteControl/client/revoke` after the person confirms in place. The person can
+   also remove the device in the ChatGPT app.
+6. **Security.**
+   - Every route is behind the same admission as all `/api/*`: hosted trust (gateway
+     session, same origin, Sec-Fetch-Site) or the local bearer token. Mutating routes
+     take only JSON `POST`.
+   - The code is made inside the Environment, so only someone who already enters it
+     under 0192 can pair (0215). Team Environments are refused. Public-DNS mode keeps
+     pairing, because it needs no SSH.
+   - Codes (`pairingCode`, `manualPairingCode`), QR payloads and session handles are
+     never written to a log, the journal, a file, the Folder or an error. The journal
+     records only `pair-started`, `paired`, `expired`, `cancelled` and `revoked`, with
+     the client's platform.
+   - Answers carry `cache-control: no-store`.
+   - An Environment has at most one pending pairing and at most five starts in
+     10 minutes.
+7. **When the daemon has no remote control.** Remote control is a persisted daemon
+   preference.
+   - F29's convergence runs `codex app-server daemon enable-remote-control`, which is
+     idempotent and answers `alreadyEnabled`.
+   - When the status is still not `connected` (seen on 2026-10-26 until a restart),
+     the page says pairing is not available now. It offers *Restartovat Codex* with
+     the warning that running chats end, and only after a confirmation it calls
+     `restartCodexAppServer`.
+   - A doctor check `codex-remote-control` reports the status, without codes.
+   - Without the methods (an older Codex) the page falls back as 0215 says: SSH only
+     where SSH into the Environment is allowed.
+8. **Trust (#720).** A phone cannot answer Codex's trust prompt. The Platform writes
+   `[projects."<Folder>"] trust_level = "trusted"` and the same entry for the owner's
+   home. It follows the pattern of `src/tools/codex-apps.ts`: marked lines, an atomic
+   write, the person's own entries kept, nothing removed. On the tested Environment
+   the Folder entry exists and the home entry does not.
+9. **Tests.**
+   - Unit tests run against a fake control socket. They cover each state, the
+     handle's life, expiry, the refusal of a second pending pairing, and that no code
+     reaches a log or an error.
+   - Acceptance runs on a real Environment with a phone:
+     - A1: the QR code pairs.
+     - A2: the short code pairs.
+     - A3: *Telefon je spárovaný* appears within 5 s of the phone's confirmation.
+     - A4: the device appears in the list.
+     - A5: *Odebrat přístup* removes the Environment from the app.
+     - A6: a chat started from the phone in the Folder gets past the trust check.
+     - A7: remote control is `connected` again after a reboot through F29.
+     - A8: a search of the journal and logs finds no code.
+
+**Open questions.**
+
+1. What the ChatGPT app scans. OpenAI documents a QR code that "opens ChatGPT" on the
+   phone, shown by the desktop app. The candidate payload is
+   `https://chatgpt.com/codex/pair?pairing_code=<pairingCode>`, as one public
+   third-party tool (`ulissescomonian/codex-remote`) builds it. Its alternative is
+   the bare `pairingCode`. Both are to be tested with the phone camera and inside the
+   app.
+2. The exact labels in the ChatGPT app on Android and iOS (Codex, add a computer),
+   for the motion graphic's steps 2 and 3.
+3. What `client/revoke` does on the phone's side.
+4. Whether `pairing/start` without a ChatGPT sign-in, or with a Business workspace
+   that forbids Remote Control, fails with a distinguishable error, so the page can
+   name the reason.
+5. The API is experimental. A Codex update can change it, so the Platform checks the
+   methods at runtime and qualifies each new Codex release on one Environment first.
