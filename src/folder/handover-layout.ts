@@ -98,8 +98,13 @@ async function exists(path: string) {
 // A caller-owned directory that is group- or world-writable (Ubuntu's default
 // umask 0002 creates such directories) is refused by name: the ownership rule
 // stands, the operator learns which path to fix. Symlinks and foreign owners
-// keep the generic refusal of inspectOwnedDirectory.
-async function ownedIdentity(path: string, entry: string): Promise<Identity> {
+// keep the generic refusal of inspectOwnedDirectory. A free Environment's
+// layout is held to this same rule before the Platform creates any of it
+// (src/machine/assignment.ts `createAssignedFolderLayout`).
+export async function ownedIdentity(
+  path: string,
+  entry: string,
+): Promise<Identity> {
   const stat = await lstat(path);
   if (
     stat.isDirectory() &&

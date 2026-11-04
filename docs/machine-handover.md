@@ -867,9 +867,14 @@ hosted discovery finds no Folder (`absent`). The person's own user manager runs
 `machine folder-init` once both files exist (Machines
 `workloads/workspace-vm/person-services.py`): nothing delivered the Folder layout
 ahead, so `folder-init` creates the missing `~/Lazurio` (0750), `organizations`
-(0755) and on a personal Environment `personalspace` (0700) in the person's home, as
+(0755) and, where the preset has one, `personalspace` (0700) in the person's home, as
 the Machines role does elsewhere, and then adopts it as usual with the derived preset
-(`hosted-personal`, or `hosted-organization-personal` from the operator kind). The
+(`hosted-personal`, or `hosted-organization-personal` from the operator kind). It
+writes nothing before the preset is allowed and every entry that already exists has
+passed the rule adoption holds it to (a real directory of the account, not shared, on
+a canonical path): a link at `~/Lazurio` or at any of its children, dangling or not, a
+file, another account's or a shared directory, or a Folder adopted from another
+Machine is refused as it is, and nothing is created through it. The
 receipt's facts the context takes are written once, except the work assignee's
 current GitHub link, which a `folder-refresh` records like any other assignment; the
 binding's digest stays the handover's. The Machines write the auth-sourced handover

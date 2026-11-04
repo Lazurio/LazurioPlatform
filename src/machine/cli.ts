@@ -17,6 +17,7 @@ import {
   parsePresetName,
   presetProfile,
   selectablePresets,
+  workspacePreset,
 } from "../folder/presets";
 import { refreshFolder } from "../folder/update-profile";
 import {
@@ -249,11 +250,6 @@ export async function runMachineCommand(
     // refused before the binding reads them (decision F68, #782).
     await requireInstalledProduct(await runningProduct(), operator.homedir);
     const folder = bindMachineOperator(observed.context, operator);
-    // A free Environment's Folder is the Platform's to create, in the
-    // person's home, at the assignment (root decision 0216): nobody
-    // delivered its layout ahead.
-    if (command === "folder-init" && observed.authSourced)
-      await createAssignedFolderLayout(folder, machine.kind === "personal-vm");
     const { code, result } =
       command === "folder-refresh"
         ? await refreshMachineFolderAndLaunchpad(
@@ -262,10 +258,15 @@ export async function runMachineCommand(
             requestedPreset,
             launchpad,
           )
-        : await initializeMachineFolder(folder, machine, {
-            preset: requestedPreset,
-            ...values,
-          });
+        : await initializeMachineFolder(
+            folder,
+            machine,
+            { preset: requestedPreset, ...values },
+            // A free Environment's Folder is the Platform's to create, in
+            // the person's home, at the assignment (root decision 0216):
+            // nobody delivered its layout ahead.
+            observed.authSourced,
+          );
     return {
       code,
       result: {
@@ -361,11 +362,15 @@ export type FolderInitChoices = Readonly<{
 // the derived one when it states owner.assignment, issue #107), else the
 // derived one. A handover that derives none (see machineAssignment) never gets
 // a guess: an already adopted Folder keeps the preset it has, anything else
-// needs --preset.
+// needs --preset. On a free Environment (`assigned`, root decision 0216)
+// nothing delivered the layout: it is created here, only once the preset
+// is allowed, and only after every entry it builds on has passed
+// (`createAssignedFolderLayout`), so a refusal writes nothing.
 export async function initializeMachineFolder(
   folder: string,
   machine: MachineBinding,
   choices: FolderInitChoices,
+  assigned = false,
 ) {
   const derived = derivePreset(machine);
   const allowed = selectablePresets(machine);
@@ -411,6 +416,12 @@ export async function initializeMachineFolder(
       ? {}
       : { coordination: choices.coordination }),
   });
+  if (assigned)
+    await createAssignedFolderLayout(
+      folder,
+      machine,
+      workspacePreset(preset).personalspace,
+    );
   const result = await initializeHandoverFolder(folder, {
     preset,
     machine,
