@@ -78,7 +78,7 @@ exactly this record and this file, so the same source holds.
 - **Out of scope:** the public Environment for visitors (try-01). No test account is admitted there (its Launchpad
   answers a sign-in redirect), as for v0.1.19. Matěj decided on 2026-11-03 that it stays out of v0.1.20's stage;
   he confirmed on 2026-11-04 that it covers the whole release including rc.3, and it is recorded as decision 0166's
-  addendum of 2026-11-03 (#850). It got the same candidate in the same apply.
+  addendum of 2026-11-03 (#850, merged as `2a1777bb` on 2026-11-04). It got the same candidate in the same apply.
 
 ## The stage
 
