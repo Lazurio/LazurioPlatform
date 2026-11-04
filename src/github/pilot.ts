@@ -344,6 +344,20 @@ export async function workEnvironment(
   // recorded preset the assignment no longer derives.
   switch (assignment.kind) {
     case "operator":
+      // A free work Environment's operator (root decision 0216) is checked
+      // against the GitHub account the receipt verified for them; without
+      // one there is no account to check a sign-in against.
+      if ("account" in assignment) {
+        const github = assignment.account.github;
+        return github === null
+          ? refused("subject-unknown", preset)
+          : Object.freeze({
+              kind: "work",
+              preset,
+              organization: owner.organization,
+              subject: Object.freeze({ login: github.login, id: github.id }),
+            });
+      }
       return Object.freeze({
         kind: "work",
         preset,

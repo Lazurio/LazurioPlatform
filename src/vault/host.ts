@@ -21,6 +21,7 @@ import { resolveInstallBase } from "../update/base";
 import { readConnection } from "./connection";
 import {
   connectionDirectory,
+  personalOwnerName,
   personalVaultContextOf,
   personalVaultName,
   type VaultContext,
@@ -128,8 +129,8 @@ export async function readVaultContext(
   // No vault named yet: an Environment connected the 0197 way keeps reading
   // its collection until its handover names its own vault.
   const pilot = pilotContextOf({ handover, environment });
-  if (environment !== "personal" || handover.owner.kind !== "principal")
-    return pilot ?? own;
+  const owner = personalOwnerName(handover.owner);
+  if (environment !== "personal" || owner === null) return pilot ?? own;
   // A personal Environment: its person's own Bitwarden, as connected, a
   // connected pilot as before, or waiting for its person.
   let connection: Awaited<ReturnType<typeof readConnection>>;
@@ -144,7 +145,7 @@ export async function readVaultContext(
     return pilot;
   return Object.freeze({
     kind: "needs-connection",
-    name: personalVaultName(handover.owner.github_login),
+    name: personalVaultName(owner),
   });
 }
 

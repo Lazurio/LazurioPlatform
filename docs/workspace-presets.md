@@ -77,7 +77,11 @@ the handover states the assignment as `owner.assignment`
 `{kind: "services"}`), copied from the reviewed owner
 overlay and never inferred; when present it is **the only selector** between the
 Organization presets (`machineAssignment` in `src/folder/presets.ts` reads it and
-nothing else).
+nothing else). A free Environment's auth-sourced handover (root decision 0216) states
+only `{kind: "operator", source: "auth"}`; the Platform reads its person from the
+assignment receipt, by their Lazurio account with or without a GitHub account, and
+derives the same presets from the resolved handover
+([machine handover](machine-handover.md#free-environments-the-assignment-receipt-root-decision-0216)).
 
 Two lists follow from the handover. **Allowed** presets (`allowedPresets`) depend on
 the machine kind only; a preset a Folder has recorded is valid within them, so no

@@ -263,6 +263,53 @@ posixTest(
 );
 
 posixTest(
+  "a free personal Environment whose owner has no verified GitHub account: no account holds its Personalspace, its owner's own checkout included",
+  async () => {
+    world = await createWorld();
+    const accountOwned = (github: { login: string; id: number } | null) => ({
+      ...bindings.personal,
+      owner: {
+        kind: "account" as const,
+        username: "example",
+        subject: "https://auth.example.invalid/realms/workspace/0000-0001",
+        github,
+      },
+    });
+    const owner = stubGitHub(world, { repositories: ownPersonalspace });
+    const held = await presetFolder(
+      world,
+      "hosted-personal",
+      accountOwned({ login: "example", id: 12345 }),
+    );
+    const own = join(held, "personalspace", "example_GEN3");
+    await checkoutWithOrigin(own, "example/example_GEN3");
+    expect(
+      await personalspaceHolder(held, contentHost(world, owner.github)),
+    ).toEqual({ kind: "held", login: "example", directory: own });
+    // After an unlink, or a relink to another GitHub id: the same checkout
+    // of the account the first binding linked is no longer verified as the
+    // owner's.
+    const unverified = await presetFolder(
+      world,
+      "hosted-personal",
+      accountOwned(null),
+    );
+    await checkoutWithOrigin(
+      join(unverified, "personalspace", "example_GEN3"),
+      "example/example_GEN3",
+    );
+    expect(
+      await personalspaceHolder(unverified, contentHost(world, owner.github)),
+    ).toEqual({
+      kind: "blocked",
+      reason: "github-identity-mismatch",
+      login: "example",
+    });
+  },
+  30_000,
+);
+
+posixTest(
   "a personal Remote Environment: only the handover's Owner holds it; an Organization Environment never reads personalspace/",
   async () => {
     world = await createWorld();

@@ -29,13 +29,16 @@ import { ownDataValue, stateFields } from "./state-fields";
 // the services Environment of a Proxmox server, Služby serveru (root decision
 // 0209, Machines docs/server-services.md §2): a work Environment of the
 // Organization that only its Owners and Admins enter and that, like `team`,
-// names nobody. Any other kind fails closed.
+// names nobody. Any other kind fails closed. A free work Environment's
+// operator (root decision 0216) is named by their Lazurio account
+// (`MachineAccount`), which needs no GitHub account (root decision 0192).
 export type MachineAssignment =
   | Readonly<{
       kind: "operator" | "automation";
       githubLogin: string;
       githubId: number;
     }>
+  | Readonly<{ kind: "operator"; account: MachineAccount }>
   | Readonly<{ kind: "team" | "services" }>;
 
 /** The guard of every match on an assignment's kind: each match handles every
@@ -48,8 +51,10 @@ export function unknownAssignment(_assignment: never): never {
 
 /** The person an assignment names, with their immutable GitHub id: the
  * assigned operator, or the responsible operator of a Henry
- * Environment. A Team Environment and the services Environment of a server
- * name nobody, and neither does a handover without an assignment. */
+ * Environment; a free work Environment's operator only by the GitHub
+ * account the receipt verified for them, if any. A Team Environment and the
+ * services Environment of a server name nobody, and neither does a handover
+ * without an assignment. */
 export function assignedPerson(
   assignment: MachineAssignment | undefined,
 ): Readonly<{ githubLogin: string; githubId: number }> | null {
@@ -57,7 +62,13 @@ export function assignedPerson(
   switch (assignment.kind) {
     case "operator":
     case "automation":
-      return assignment;
+      if (!("account" in assignment)) return assignment;
+      return assignment.account.github === null
+        ? null
+        : Object.freeze({
+            githubLogin: assignment.account.github.login,
+            githubId: assignment.account.github.id,
+          });
     case "team":
     case "services":
       return null;
@@ -76,8 +87,29 @@ export const isServerServices = (
   machine?.owner.kind === "organization" &&
   machine.owner.assignment?.kind === "services";
 
+// A GitHub account as a binding records it: the lowercase login and the
+// immutable id.
+export type MachineGithubAccount = Readonly<{ login: string; id: number }>;
+// The person Lazurio Auth names on a free Environment (root decision 0216),
+// as the Platform resolves them from its assignment receipt
+// (src/machine/assignment.ts); no handover the Machines write carries it.
+// `username` is the frozen Lazurio username (root decision 0203): chosen, or
+// the GitHub login of the first sign-in, and kept through a later rename,
+// relink or unlink, so it is never taken for a GitHub login. `subject` is
+// the Lazurio Auth subject, the identity of root decision 0192. `github` is
+// a GitHub account only as the receipt verifies it, otherwise null.
+export type MachineAccount = Readonly<{
+  username: string;
+  subject: string;
+  github: MachineGithubAccount | null;
+}>;
+
+// `principal` is a personal Machine's owner as a handover declares it;
+// `account` the owner of a free personal Environment from its first
+// assignment on, for good: the first assignee's Lazurio account.
 export type MachineOwner =
   | Readonly<{ kind: "principal"; githubLogin: string; githubId: number }>
+  | Readonly<{ kind: "account" } & MachineAccount>
   | Readonly<{
       kind: "organization";
       organization: string;
@@ -312,6 +344,21 @@ function isGithubId(value: unknown): value is number {
 function isGithubLogin(value: unknown): value is string {
   return isSlug(value) && value.length <= 39;
 }
+// The Lazurio Auth subject, `<issuer>/<sub>`, as the assignment receipt
+// holds it (Machines `workloads/shared/free-environments.ts`).
+const accountSubject = /^https:\/\/[^\s/]+(?:\/[^\s/]+)*\/[^\s/]+$/;
+export function isAccountSubject(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length <= 512 &&
+    accountSubject.test(value)
+  );
+}
+// The frozen Lazurio username: one DNS label of at most 32 characters, as
+// the receipt's `dns_slug`.
+export function isAccountUsername(value: unknown): value is string {
+  return isSlug(value) && value.length <= 32;
+}
 export function isEnvironmentId(value: unknown): value is string {
   return (
     typeof value === "string" && value.length <= 96 && environmentId.test(value)
@@ -349,6 +396,18 @@ function assignment(input: unknown): MachineAssignment {
       return Object.freeze({ kind });
     case "operator":
     case "automation": {
+      if (kind === "operator" && ownDataValue(input, "account") !== undefined) {
+        const value = stateFields(input, ["kind", "account"]);
+        const named = stateFields(value.account, [
+          "username",
+          "subject",
+          "github",
+        ]);
+        return Object.freeze({
+          kind,
+          account: account(named.username, named.subject, named.github),
+        });
+      }
       const value = stateFields(input, ["kind", "githubLogin", "githubId"]);
       if (!isGithubLogin(value.githubLogin) || !isGithubId(value.githubId))
         throw new Error("Invalid Machine assignment");
@@ -363,7 +422,32 @@ function assignment(input: unknown): MachineAssignment {
   }
 }
 
+function account(
+  username: unknown,
+  subject: unknown,
+  github: unknown,
+): MachineAccount {
+  if (!isAccountUsername(username) || !isAccountSubject(subject))
+    throw new Error("Invalid Machine account");
+  if (github === null) return Object.freeze({ username, subject, github });
+  const linked = stateFields(github, ["login", "id"]);
+  if (!isGithubLogin(linked.login) || !isGithubId(linked.id))
+    throw new Error("Invalid Machine account");
+  return Object.freeze({
+    username,
+    subject,
+    github: Object.freeze({ login: linked.login, id: linked.id }),
+  });
+}
+
 function owner(input: unknown): MachineOwner {
+  if (ownDataValue(input, "kind") === "account") {
+    const value = stateFields(input, ["kind", "username", "subject", "github"]);
+    return Object.freeze({
+      kind: "account",
+      ...account(value.username, value.subject, value.github),
+    });
+  }
   if (ownDataValue(input, "kind") === "principal") {
     const value = stateFields(input, ["kind", "githubLogin", "githubId"]);
     if (!isGithubLogin(value.githubLogin) || !isGithubId(value.githubId))
@@ -622,7 +706,7 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
   // a provider estate; a workspace VM to an Organization on a virtualization host.
   const personalVm = value.kind === "personal-vm";
   if (
-    (bound.kind === "principal") !== personalVm ||
+    (bound.kind !== "organization") !== personalVm ||
     (host.kind === "provider-estate") !== personalVm
   )
     throw new Error("Machine binding mixes handover branches");
@@ -675,11 +759,19 @@ function parseAccessService(input: unknown): Readonly<{ origin: string }> {
 // is where the Machine runs, not which Machine it is: a server move gives the
 // same guest, with its disk, name, Owner and tailnet node, a new host, and its
 // Folder follows that through the refresh (#759). Everything outside the
-// identity follows the current handover through the refresh.
+// identity follows the current handover through the refresh. An account
+// owner (root decision 0216) is the person by their Lazurio subject and
+// frozen username; the GitHub account linked to them is a fact a later
+// assignment generation may change, which the refresh records like an
+// assignment.
 export function machineIdentity(machine: MachineBinding | null) {
   if (machine === null) return null;
-  const { assignment: _, ...owner } = machine.owner as MachineBinding["owner"] &
+  const { assignment: _, ...named } = machine.owner as MachineBinding["owner"] &
     Readonly<{ assignment?: unknown }>;
+  const owner =
+    named.kind === "account"
+      ? { kind: named.kind, username: named.username, subject: named.subject }
+      : named;
   return {
     kind: machine.kind,
     name: machine.name,

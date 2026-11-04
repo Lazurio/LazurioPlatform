@@ -98,8 +98,13 @@ async function exists(path: string) {
 // A caller-owned directory that is group- or world-writable (Ubuntu's default
 // umask 0002 creates such directories) is refused by name: the ownership rule
 // stands, the operator learns which path to fix. Symlinks and foreign owners
-// keep the generic refusal of inspectOwnedDirectory.
-async function ownedIdentity(path: string, entry: string): Promise<Identity> {
+// keep the generic refusal of inspectOwnedDirectory. A free Environment's
+// layout is held to this same rule before the Platform creates any of it
+// (src/machine/assignment.ts `createAssignedFolderLayout`).
+export async function ownedIdentity(
+  path: string,
+  entry: string,
+): Promise<Identity> {
   const stat = await lstat(path);
   if (
     stat.isDirectory() &&
@@ -195,6 +200,55 @@ export async function foreignTopLevelEntries(
   return Object.freeze(
     (await readdir(folder)).filter((entry) => !known.includes(entry)).sort(),
   );
+}
+
+// The entries a free Environment's Platform creates itself (root decision
+// 0216), in creation order: the Folder, `organizations` and, where the preset
+// has one, `personalspace`.
+export type AssignedLayoutEntry = "." | "organizations" | "personalspace";
+
+/**
+ * Which of a free Environment's layout entries are missing, after every
+ * rule adoption will apply to the layout has passed on what exists already,
+ * so that creating the missing ones never ends in a refusal that leaves them
+ * behind (`createAssignedFolderLayout` in src/machine/assignment.ts). Reads
+ * only. A Folder that does not exist is missing whole. An existing one is
+ * held to `ownedIdentity` first (never a link, a file, another account's
+ * or a shared directory), then `adopted` decides: a Folder with state is
+ * adopted already (nothing is missing for it) or another Machine's (that
+ * refusal is thrown); otherwise its boundary (`requireFolderBoundary`, a
+ * foreign entry by name), each existing layout directory by the same
+ * `ownedIdentity` and filesystem, and the preset's Personalspace policy (a
+ * used `personalspace` under `never` is `personalspace-conflict`, whether
+ * or not that preset would create one) are checked as
+ * `inspectHandoverLayout` and `requireAdoptableLayout` check them.
+ */
+export async function missingAssignedLayout(
+  folder: string,
+  personalspace: PersonalspacePolicy,
+  adopted: () => Promise<unknown>,
+): Promise<readonly AssignedLayoutEntry[]> {
+  const created: readonly AssignedLayoutEntry[] =
+    personalspace === "present"
+      ? [".", "organizations", "personalspace"]
+      : [".", "organizations"];
+  if (!(await exists(folder))) return created;
+  const root = await ownedIdentity(folder, ".");
+  if ((await adopted()) !== null) return [];
+  const entries = await requireFolderBoundary(folder);
+  for (const entry of ["organizations", "personalspace"] as const) {
+    if (!entries.includes(entry)) continue;
+    const found = await ownedIdentity(join(folder, entry), entry);
+    if (found.dev !== root.dev)
+      throw new Error("Cross-filesystem handover layout");
+  }
+  if (
+    personalspace === "never" &&
+    entries.includes("personalspace") &&
+    !(await isEmptyDirectory(join(folder, "personalspace")))
+  )
+    throw new FolderAdoptionError("personalspace-conflict", "personalspace");
+  return created.filter((entry) => entry !== "." && !entries.includes(entry));
 }
 
 // Adoption rule. Work directories may be non-empty and are never traversed,

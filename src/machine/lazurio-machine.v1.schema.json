@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://lazurio.io/schemas/lazurio-machine.v1.schema.json",
   "title": "lazurio.machine.json — identity of one Machine written at its handover",
-  "description": "Exactly one branch applies: an Organization workspace VM on a virtualization host, or the one hosted personal VM of a Principal on a provider estate. The branches are distinguished by machine.kind and never mix owner or host kinds.",
+  "description": "Exactly one branch applies: an Organization workspace VM on a virtualization host, or the one hosted personal VM of a Principal on a provider estate. The branches are distinguished by machine.kind and never mix owner or host kinds. A free Environment (root decision 0216, Machines docs/free-environments.md §5.4) is an auth-sourced document of either branch: it names nobody, points to its assignment receipt and carries its name-bound entry origins as templates over the receipt's `dns_slug`.",
   "oneOf": [{ "$ref": "#/$defs/organization_workspace_vm" }, { "$ref": "#/$defs/personal_vm" }],
   "$defs": {
     "organization_workspace_vm": {
@@ -34,6 +34,7 @@
             "assignment": { "$ref": "#/$defs/organization_assignment" }
           }
         },
+        "assignment_receipt": { "$ref": "#/$defs/assignment_receipt" },
         "operator": { "$ref": "#/$defs/operator" },
         "host": {
           "type": "object",
@@ -49,7 +50,7 @@
         "network": { "$ref": "#/$defs/network" },
         "relationships": { "allOf": [{ "$ref": "#/$defs/relationships" }, { "type": "object", "properties": { "zone": { "const": "work" } } }] },
         "access_service": { "$ref": "#/$defs/access_service" },
-        "entry": { "allOf": [{ "$ref": "#/$defs/entry" }, { "type": "object", "properties": { "buddy": false } }] },
+        "entry": { "description": "The entry of the guest: finished values (`entry`), or on an auth-sourced document their templates (`entry_template`). An Organization work VM never carries `buddy`.", "type": "object" },
         "vault": { "$ref": "#/$defs/vault_work" },
         "services": {
           "description": "The services of a services Environment (root decision 0209, Machines docs/server-services.md §2.1), rendered only for a Platform that reads them: each one's id and kind, its one productionspace repository (the same on every server) and the loopback port of its page, which the Environment browser opens. No service has a hostname.",
@@ -69,6 +70,22 @@
         },
         "installed": { "$ref": "#/$defs/installed" },
         "account": { "$ref": "#/$defs/account" }
+      },
+      "if": { "properties": { "owner": { "type": "object", "required": ["assignment"], "properties": { "assignment": { "type": "object", "properties": { "source": { "const": "auth" } }, "required": ["source"] } } } } },
+      "then": {
+        "required": ["assignment_receipt"],
+        "properties": {
+          "assignment_receipt": { "$ref": "#/$defs/assignment_receipt" },
+          "entry": { "allOf": [{ "$ref": "#/$defs/entry_template" }, { "type": "object", "properties": { "buddy": false } }] },
+          "vault": false,
+          "services": false
+        }
+      },
+      "else": {
+        "properties": {
+          "assignment_receipt": false,
+          "entry": { "allOf": [{ "$ref": "#/$defs/entry" }, { "type": "object", "properties": { "buddy": false } }] }
+        }
       }
     },
     "personal_vm": {
@@ -84,20 +101,35 @@
           "properties": {
             "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
             "kind": { "const": "personal-vm" },
-            "name": { "description": "DNS slug of the Machine: <app>.<name>.lazurio.io", "type": "string", "maxLength": 32, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+            "name": { "description": "DNS slug of the Machine: <app>.<name>.lazurio.io. On an auth-sourced document its neutral name (env-NNNN), never a slug: the slug is the receipt's `dns_slug`, bound at the first assignment.", "type": "string", "maxLength": 32, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
             "vmid": { "$ref": "#/$defs/vmid" }
           }
         },
         "owner": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["kind", "github_login", "github_id"],
-          "properties": {
-            "kind": { "const": "principal" },
-            "github_login": { "type": "string", "maxLength": 39, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
-            "github_id": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
-          }
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "github_login", "github_id"],
+              "properties": {
+                "kind": { "const": "principal" },
+                "github_login": { "type": "string", "maxLength": 39, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+                "github_id": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+              }
+            },
+            {
+              "description": "A free personal Environment (root decision 0216, Machines docs/free-environments.md §5.4): its owner follows its assignment in Lazurio Auth. Until the first binding it is the provider that holds the estate (`host`); from the first binding on, for good, the receipt's first assignee. The receipt (`assignment_receipt`) names that person; this document never does.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "source"],
+              "properties": {
+                "kind": { "const": "assignment" },
+                "source": { "const": "auth" }
+              }
+            }
+          ]
         },
+        "assignment_receipt": { "$ref": "#/$defs/assignment_receipt" },
         "operator": { "$ref": "#/$defs/operator" },
         "host": {
           "type": "object",
@@ -113,10 +145,25 @@
         "network": { "$ref": "#/$defs/network" },
         "relationships": { "allOf": [{ "$ref": "#/$defs/relationships" }, { "type": "object", "properties": { "zone": { "const": "personal" } } }] },
         "access_service": { "$ref": "#/$defs/access_service" },
-        "entry": { "$ref": "#/$defs/entry" },
+        "entry": { "description": "The entry of the guest: finished values (`entry`), or on an auth-sourced document their templates (`entry_template`).", "type": "object" },
         "vault": { "$ref": "#/$defs/vault_personal" },
         "installed": { "$ref": "#/$defs/installed" },
         "account": { "$ref": "#/$defs/account" }
+      },
+      "if": { "properties": { "owner": { "type": "object", "properties": { "kind": { "const": "assignment" } } } } },
+      "then": {
+        "required": ["assignment_receipt"],
+        "properties": {
+          "assignment_receipt": { "$ref": "#/$defs/assignment_receipt" },
+          "entry": { "$ref": "#/$defs/entry_template" },
+          "vault": false
+        }
+      },
+      "else": {
+        "properties": {
+          "assignment_receipt": false,
+          "entry": { "$ref": "#/$defs/entry" }
+        }
       }
     },
     "organization_assignment": {
@@ -130,6 +177,16 @@
             "kind": { "const": "operator" },
             "github_login": { "type": "string", "maxLength": 39, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
             "github_id": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+          }
+        },
+        {
+          "description": "A free work Environment of one operator (root decision 0216, Machines docs/free-environments.md §5.4): only the kind is declared, which selects its Folder preset ahead. Its person comes from its assignment in Lazurio Auth, which the receipt (`assignment_receipt`) records; this document never names them.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "source"],
+          "properties": {
+            "kind": { "const": "operator" },
+            "source": { "const": "auth" }
           }
         },
         {
@@ -359,6 +416,163 @@
           }
         }
       }
+    },
+    "entry_template": {
+      "description": "The entry of an auth-sourced document (root decision 0216, Machines docs/free-environments.md §5.4): `entry` with every name-bound origin a template over the receipt's `dns_slug`. `{dns_slug}` is one whole label of the base host and occurs exactly once in each; the reader substitutes the receipt's `dns_slug` once the receipt names a person and uses nothing of it before. Everything else is as in `entry`. A reader vendoring an earlier schema refuses a document carrying it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["launchpad", "t3code", "modules"],
+      "properties": {
+        "launchpad": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["external_origin", "auth_check_url", "auth_cookie_name", "listen_port"],
+          "properties": {
+            "external_origin": {
+              "description": "Template of the Launchpad's origin on the gateway.",
+              "$ref": "#/$defs/https_origin_template"
+            },
+            "auth_check_url": {
+              "description": "Template of the gateway endpoint answering 2xx for a valid workspace session cookie.",
+              "type": "string",
+              "maxLength": 512,
+              "pattern": "^https://(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)*\\{dns_slug\\}(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+(?:/[A-Za-z0-9._~-]+)+$"
+            },
+            "auth_cookie_name": {
+              "description": "The one session cookie the gateway sets for this Machine.",
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,128}$"
+            },
+            "listen_port": {
+              "description": "Loopback port the gateway proxies the Launchpad to.",
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 65535
+            }
+          }
+        },
+        "t3code": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["external_origin"],
+          "properties": {
+            "external_origin": { "description": "Template of T3 Code's origin on the gateway.", "$ref": "#/$defs/https_origin_template" }
+          }
+        },
+        "modules": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["origin_template"],
+          "properties": {
+            "origin_template": {
+              "description": "Template of a module's origin: {module} is the whole first label and {dns_slug} the whole second one, each exactly once; the reader substitutes both by the rules of `entry`.",
+              "type": "string",
+              "maxLength": 270,
+              "pattern": "^https://\\{module\\}\\.\\{dns_slug\\}(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$"
+            }
+          }
+        },
+        "mausbot": {
+          "description": "Lazurio MausBot of this Machine (decision 0169), present only on a Machine that runs it.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["external_origin", "listen_port"],
+          "properties": {
+            "external_origin": {
+              "description": "Template of Lazurio MausBot's origin on the gateway.",
+              "$ref": "#/$defs/https_origin_template"
+            },
+            "listen_port": {
+              "description": "Loopback port Lazurio MausBot listens on, the one the gateway proxies to.",
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 65535
+            }
+          }
+        },
+        "browser": {
+          "description": "View of the Environment browser of this Machine (root decision 0191), present only on a Machine whose roster routes it.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["external_origin", "listen_port"],
+          "properties": {
+            "external_origin": {
+              "description": "Template of the Environment browser view's origin on the gateway.",
+              "$ref": "#/$defs/https_origin_template"
+            },
+            "listen_port": {
+              "description": "Loopback port the Environment browser view listens on, the one the gateway proxies to.",
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 65535
+            },
+            "local_port": {
+              "description": "Port of the gateway's local entry on 127.0.0.1 (Lazurio/LazurioPlatform#504): the Environment browser resolves every name of this Environment to it and opens this Environment's own applications and Modules there without a Lazurio sign-in. Reachable only from inside the guest. A reader vendoring an earlier schema refuses a document carrying it.",
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 65535
+            }
+          }
+        },
+        "environment_relay": {
+          "description": "The Environment relay of this Machine (DEV-6653, contract C3; root decision 0194 point 3), present only on an Organization work VM that declares its own identity at the Lazurio issuer: a unix socket only the operator account can reach, on which the Launchpad server asks the Dashboard as this Environment with exactly GET /organization/settings and POST /organization/settings/report. The Environment's key and tokens stay with the gateway.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["socket"],
+          "properties": {
+            "socket": {
+              "description": "Absolute path of the relay's unix socket.",
+              "type": "string",
+              "maxLength": 100,
+              "pattern": "^/run/[a-z0-9-]+/[a-z0-9-]+\\.sock$"
+            }
+          }
+        },
+        "sign_out": {
+          "description": "The person's sign-out of this Machine (Machines#358, root decision 0201 point 9), present only behind the Platform Launchpad: the path the gateway serves on the origins of the Lazurio shell (the Launchpad, T3 Code and Lazurio MausBot). It ends this Machine's gateway session and the person's Lazurio account session in this browser, and lands on the issuer's signed-out page. A reader vendoring an earlier schema refuses a document carrying it.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path"],
+          "properties": { "path": {"description": "Path on the shell's own origin.", "const": "/.lazurio/sign-out"} }
+        },
+        "audience": {
+          "description": "Present only on a work VM whose gateway admits any Lazurio account (root decision 0204, the public-account admission): its Environment is public and shared by its visitors. A Platform reads it to say so and to keep visitors' own accounts out of the Environment; it grants nothing and does not replace the gateway's admission. A reader vendoring an earlier schema refuses a document carrying it.",
+          "const": "public"
+        },
+        "buddy": {
+          "description": "Buddy on this personal VM (root decision 0210): his own T3 Code instance in its Buddy mode, present only on a personal VM whose roster routes it; an Organization work VM never carries it. The gateway admits only the owner to it; without a session it serves only its own static sign-in pages, so that the bubble's frame can offer the sign-in. Its origin has the same base host as launchpad.external_origin, which a reader must check. A reader vendoring an earlier schema refuses a document carrying it.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["external_origin", "listen_port"],
+          "properties": {
+            "external_origin": {
+              "description": "Template of Buddy's origin on the gateway: https://buddy.{dns_slug}.lazurio.io.",
+              "type": "string",
+              "maxLength": 57,
+              "pattern": "^https://buddy\\.\\{dns_slug\\}\\.lazurio\\.io$"
+            },
+            "listen_port": {
+              "description": "Loopback port on 127.0.0.1 Buddy's T3 instance listens on, the one the gateway proxies to.",
+              "type": "integer",
+              "minimum": 1024,
+              "maximum": 65535
+            }
+          }
+        }
+      }
+    },
+    "https_origin_template": {
+      "description": "https://<hostname> with `{dns_slug}` as one whole label of it, exactly once: no port, path, query or trailing slash.",
+      "type": "string",
+      "maxLength": 261,
+      "pattern": "^https://(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)*\\{dns_slug\\}(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$"
+    },
+    "assignment_receipt": {
+      "description": "Where an auth-sourced Environment records its assignment (root decision 0216, Machines docs/free-environments.md §5.3): the root-owned receipt that only its assignment finisher writes, with the neutral Machine id, the state and generation, the first assignee, the frozen `dns_slug` and the person's account and hostname, each written once at the first binding. A reader acts for a person only once the receipt names one, and takes the owner, the person's account and the names from it, never from this document. Present exactly on an auth-sourced document; a reader vendoring an earlier schema refuses a document carrying it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "schema_version"],
+      "properties": { "path": {"const": "/etc/lazurio/assignment.json"}, "schema_version": {"const": "lazurio.assignment.v1"} }
     },
     "access_service": {
       "description": "Where this Environment's home Conglomerate Host runs its access service (root decision 0224; Machines workloads/conglomerate-host/ACCESS-SERVICE.md, docs/machine-identity.md#access-service): the source of its SSH config (GET /v1/targets) and of its key registration (PUT /v1/source-key). Present only while that host switches the service on and its service identifies this Machine as a caller, and only for a pinned LazurioPlatform that reads it; a reader vendoring an earlier schema refuses a document carrying it. It carries no token, key or address literal.",

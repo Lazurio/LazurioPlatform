@@ -171,8 +171,12 @@ export type ContentScope =
       organizations: "folder" | "none" | Readonly<{ only: string }>;
       personalspace: boolean;
       /** The person a personal Remote Environment belongs to: its
-       * Personalspace must be theirs. */
-      personalOwner: Readonly<{ githubId: number }> | null;
+       * Personalspace must be theirs. `githubId: null` is a free personal
+       * Environment's owner without a verified GitHub account (root
+       * decision 0216): no GitHub account is theirs, so none holds or
+       * installs its Personalspace. Null only where no owner restricts it
+       * (a workstation, an Organization's Environment). */
+      personalOwner: Readonly<{ githubId: number | null }> | null;
       /** `anonymous` only on a public Environment (`githubIdentity` none):
        * no gh account, no role GitHub confirms and no read of GitHub's API;
        * the Organization is cloned over anonymous HTTPS without any
@@ -212,10 +216,15 @@ export function contentScope(
         allowed: true,
         organizations: "none",
         personalspace: true,
+        // A free Environment's owner (root decision 0216) by the GitHub
+        // account the receipt verified; without one, an owner no GitHub
+        // account matches, never no owner.
         personalOwner:
           machine?.owner.kind === "principal"
             ? Object.freeze({ githubId: machine.owner.githubId })
-            : null,
+            : machine?.owner.kind === "account"
+              ? Object.freeze({ githubId: machine.owner.github?.id ?? null })
+              : null,
       });
     case "hosted-organization-personal":
     case "hosted-organization-steward":

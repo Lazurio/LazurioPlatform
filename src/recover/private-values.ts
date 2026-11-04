@@ -2,6 +2,7 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import {
   assignedPerson,
+  type MachineAccount,
   type MachineBinding,
   unknownAssignment,
 } from "../folder/machine-binding";
@@ -157,22 +158,42 @@ const peerValues = (peers: readonly Peer[] | undefined): PrivateValue[] =>
     ...peer.https.flatMap((host) => value("hostname", host)),
   ]);
 
+/** A free Environment's person (root decision 0216): the username, which
+ * is their account's name too, the Auth subject and a verified GitHub
+ * account. */
+const accountValues = (account: MachineAccount): PrivateValue[] => [
+  ...value("user", account.username),
+  ...value("subject", account.subject),
+  ...value("github-login", account.github?.login),
+  ...value("github-id", account.github?.id),
+];
+
 /** The handover part a Folder records (decision F16). */
 export function bindingValues(binding: MachineBinding | null): PrivateValue[] {
   if (binding === null) return [];
   const { owner } = binding;
   // The person an assignment names, withheld like the Owner; a Team
   // Environment and Služby serveru (root decision 0209) name nobody.
+  const assignment =
+    owner.kind === "organization" ? owner.assignment : undefined;
   const person =
-    owner.kind === "principal" ? owner : assignedPerson(owner.assignment);
+    owner.kind === "principal"
+      ? owner
+      : assignment === undefined || "account" in assignment
+        ? null
+        : assignedPerson(assignment);
   return [
     ...value("machine", binding.name),
-    ...(owner.kind === "principal"
-      ? []
-      : [
+    ...(owner.kind === "organization"
+      ? [
           ...value("organization", owner.organization),
           ...value("team", owner.team),
-        ]),
+        ]
+      : []),
+    ...(owner.kind === "account" ? accountValues(owner) : []),
+    ...(assignment !== undefined && "account" in assignment
+      ? accountValues(assignment.account)
+      : []),
     ...(person === null
       ? []
       : [
@@ -209,6 +230,7 @@ function handoverAssigneeValues(
   switch (assignment.kind) {
     case "operator":
     case "automation":
+      if ("account" in assignment) return accountValues(assignment.account);
       return [
         ...value("github-login", assignment.github_login),
         ...value("github-id", assignment.github_id),
@@ -243,12 +265,14 @@ export function contextValues(context: MachineContext | null): PrivateValue[] {
           ...value("github-login", owner.github_login),
           ...value("github-id", owner.github_id),
         ]
-      : [
-          ...value("organization", owner.organization),
-          ...value("organization", owner.organization_key),
-          ...value("team", owner.team),
-          ...handoverAssigneeValues(owner.assignment),
-        ]),
+      : owner.kind === "account"
+        ? accountValues(owner)
+        : [
+            ...value("organization", owner.organization),
+            ...value("organization", owner.organization_key),
+            ...value("team", owner.team),
+            ...handoverAssigneeValues(owner.assignment),
+          ]),
     ...value("user", operator.os_user),
     ...value("home", operator.home),
     ...value("folder", operator.lazurio_root),

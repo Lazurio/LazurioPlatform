@@ -17,6 +17,7 @@ import {
   parsePresetName,
   presetProfile,
   selectablePresets,
+  workspacePreset,
 } from "../folder/presets";
 import { refreshFolder } from "../folder/update-profile";
 import {
@@ -35,12 +36,14 @@ import {
   syncEnvironmentRoutes,
 } from "../ssh-access/routes";
 import { runTool } from "../tools/status";
+import { createAssignedFolderLayout, isAuthSourced } from "./assignment";
 import { machineBinding } from "./binding";
 import {
   bindMachineOperator,
-  type MachineContext,
   MachineContextError,
+  type MachineHandover,
   readMachineContext,
+  readMachineHandover,
 } from "./context";
 import { requireInstalledProduct, runningProduct } from "./installed-product";
 import {
@@ -59,6 +62,13 @@ The declaration grants no permissions, provider identity or access.
 machine folder-init [--preset <name>] [--locale <cs|en>]
   [--detail <concise|technical>] [--coordination <direct|coordinator>]
 Initialize the declared operator's standard Lazurio Folder from the handover.
+On a free Environment (an auth-sourced handover, root decision 0216) the
+operator is the person its assignment receipt /etc/lazurio/assignment.json
+names: the Folder is created in that person's home once the receipt names
+them, with the preset the receipt's kind derives (personal-vm ->
+hosted-personal, workspace-vm -> hosted-organization-personal); before that
+every machine command except inspect is blocked with
+machine-assignment-pending and nothing is created or refreshed for anybody.
 The workspace preset is derived from the handover (personal-vm -> hosted-personal;
 workspace-vm with owner.assignment operator -> hosted-organization-personal, team
 -> hosted-organization-team, automation (the Henry Environment of an
@@ -221,12 +231,20 @@ export async function runMachineCommand(
     ...values
   } = parseMachineArguments(args);
   try {
-    const observed = await readMachineContext();
-    // Projected before anything is printed or recorded: inspect refuses what
-    // folder-init and folder-refresh would refuse.
-    const machine = machineBinding(observed.context, observed.digest);
-    if (command === "inspect")
+    if (command === "inspect") {
+      const observed = await readMachineHandover();
+      // Projected before anything is printed: inspect refuses what
+      // folder-init and folder-refresh would refuse. An auth-sourced
+      // handover (root decision 0216) is printed as written, whether or not
+      // its receipt names a person yet; it names nobody itself.
+      if (!isAuthSourced(observed.context))
+        machineBinding(observed.context, observed.digest);
       return { code: 0, result: machineInspection(observed) };
+    }
+    // An auth-sourced handover resolves through its receipt, and only once
+    // the receipt names a person (machine-assignment-pending before).
+    const observed = await readMachineContext();
+    const machine = machineBinding(observed.context, observed.digest);
     const operator = await readLinuxOperator();
     // Only the installed product acts on this operator's Folder and home;
     // refused before the binding reads them (decision F68, #782).
@@ -240,10 +258,15 @@ export async function runMachineCommand(
             requestedPreset,
             launchpad,
           )
-        : await initializeMachineFolder(folder, machine, {
-            preset: requestedPreset,
-            ...values,
-          });
+        : await initializeMachineFolder(
+            folder,
+            machine,
+            { preset: requestedPreset, ...values },
+            // A free Environment's Folder is the Platform's to create, in
+            // the person's home, at the assignment (root decision 0216):
+            // nobody delivered its layout ahead.
+            observed.authSourced,
+          );
     return {
       code,
       result: {
@@ -286,10 +309,7 @@ export function machineFailureAnswer(error: unknown) {
       result: {
         kind: "blocked" as const,
         reason: error.code,
-        next:
-          error.code === "machine-not-installed-product"
-            ? "Only the installed Lazurio changes this Environment's Folder from its handover: run the installed `lazurio machine …`. A source checkout, a test or a pull request's build never does (decision F68). Nothing was changed."
-            : "Ask the operator who hosts this Remote Environment to verify the handover; do not edit the identity file or reset product trust.",
+        next: machineContextNext(error.code),
       },
     };
   if (error instanceof FolderOperationBusyError)
@@ -304,10 +324,22 @@ export function machineFailureAnswer(error: unknown) {
   };
 }
 
+const contextNext: Partial<Record<MachineContextError["code"], string>> = {
+  "machine-not-installed-product":
+    "Only the installed Lazurio changes this Environment's Folder from its handover: run the installed `lazurio machine …`. A source checkout, a test or a pull request's build never does (decision F68). Nothing was changed.",
+  "machine-assignment-pending":
+    "This Environment is not assigned to anyone yet. Its Folder is created in the person's home once its assignment names them; nothing was created or changed.",
+  "machine-assignment-released":
+    "This Environment's assignment was released; nothing is created or refreshed for anybody any more. Nothing was changed.",
+};
+const machineContextNext = (code: MachineContextError["code"]) =>
+  contextNext[code] ??
+  "Ask the operator who hosts this Remote Environment to verify the handover; do not edit the identity file or reset product trust.";
+
 // What `machine inspect` prints: the validated handover exactly as written,
 // its optional `entry` included, and its digest. Context, never authority.
 export function machineInspection(
-  observed: Readonly<{ context: MachineContext; digest: string }>,
+  observed: Readonly<{ context: MachineHandover; digest: string }>,
 ) {
   return {
     kind: "machine-context-observed" as const,
@@ -328,11 +360,15 @@ export type FolderInitChoices = Readonly<{
 // the derived one when it states owner.assignment, issue #107), else the
 // derived one. A handover that derives none (see machineAssignment) never gets
 // a guess: an already adopted Folder keeps the preset it has, anything else
-// needs --preset.
+// needs --preset. On a free Environment (`assigned`, root decision 0216)
+// nothing delivered the layout: it is created here, only once the preset
+// is allowed, and only after every entry it builds on has passed
+// (`createAssignedFolderLayout`), so a refusal writes nothing.
 export async function initializeMachineFolder(
   folder: string,
   machine: MachineBinding,
   choices: FolderInitChoices,
+  assigned = false,
 ) {
   const derived = derivePreset(machine);
   const allowed = selectablePresets(machine);
@@ -378,6 +414,12 @@ export async function initializeMachineFolder(
       ? {}
       : { coordination: choices.coordination }),
   });
+  if (assigned)
+    await createAssignedFolderLayout(
+      folder,
+      machine,
+      workspacePreset(preset).personalspace,
+    );
   const result = await initializeHandoverFolder(folder, {
     preset,
     machine,

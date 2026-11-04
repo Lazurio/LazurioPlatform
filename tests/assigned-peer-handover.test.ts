@@ -16,6 +16,7 @@ import { createSanitizer } from "../src/recover/sanitize";
 import { binding, bindings } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 import handover from "./fixtures/machine-context-personal-assigned.json";
+import { vendoredSchemaPullRequest } from "./fixtures/machine-schema-pin";
 
 // Root decision 0192, addendum of 2026-10-26, points (d) and (e), plan
 // DEV-6676 P1: SSH from the Osobní Prostředí into every Pracovní Prostředí
@@ -56,9 +57,9 @@ test("the vendored schema carries Machines #948's: a peer's environment, access 
   // Released as v0.12.211 (the tag's commit carries #948's merge 44e9002e);
   // re-pinned since to Machines #1051, which adds only `access_service`
   // (tests/access-service-handover.test.ts).
-  expect(provenance.source_pull_request).toBe(
-    "https://github.com/HumanAndMachine-ai/Machines/pull/1051",
-  );
+  // Then to the auth-sourced handover of a free Environment
+  // (tests/free-environment-handover.test.ts).
+  expect(provenance.source_pull_request).toBe(vendoredSchemaPullRequest);
   const item = (
     schema as unknown as {
       $defs: {
