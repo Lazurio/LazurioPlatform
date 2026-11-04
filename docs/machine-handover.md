@@ -871,11 +871,12 @@ ahead, so `folder-init` creates the missing `~/Lazurio` (0750), `organizations`
 (0755) and, where the preset has one, `personalspace` (0700) in the person's home, as
 the Machines role does elsewhere, and then adopts it as usual with the derived preset
 (`hosted-personal`, or `hosted-organization-personal` from the operator kind). It
-writes nothing before the preset is allowed and every entry that already exists has
-passed the rule adoption holds it to (a real directory of the account, not shared, on
-a canonical path): a link at `~/Lazurio` or at any of its children, dangling or not, a
-file, another account's or a shared directory, or a Folder adopted from another
-Machine is refused as it is, and nothing is created through it. The
+writes nothing before the preset is allowed and what already exists has passed every
+rule adoption then holds the layout to (`missingAssignedLayout`): a link at `~/Lazurio`
+or at any of its layout directories, dangling or not, a file, another account's or a
+shared directory, a Folder adopted from another Machine, a foreign top-level entry, or
+a used `personalspace` under a preset that never has one is refused as it is, and
+nothing is created, through it or beside it. The
 receipt's facts the context takes are written once, except the GitHub account a later
 generation links, which a `folder-refresh` records like an assignment: an account
 owner is the Machine's identity by its username and subject only, so a link, relink or

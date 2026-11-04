@@ -1,8 +1,8 @@
 import { constants } from "node:fs";
-import { lstat, mkdir, open } from "node:fs/promises";
+import { mkdir, open } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
-  ownedIdentity,
+  missingAssignedLayout,
   type PersonalspacePolicy,
 } from "../folder/handover-layout";
 import { adoptedHandoverFolder } from "../folder/initialize-folder";
@@ -346,19 +346,12 @@ export function resolveAssignedContext(
   } as OrganizationWorkspaceContext;
 }
 
-/** Whether a layout entry exists, held to the adoption's own rule when it
- * does (`ownedIdentity`: a real directory of this account, not shared, on
- * a canonical path, so never a link, dangling or not). */
-async function presentEntry(path: string, entry: string): Promise<boolean> {
-  try {
-    await lstat(path);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
-    throw error;
-  }
-  await ownedIdentity(path, entry);
-  return true;
-}
+// The modes the Machines' workspace_baseline role gives a delivered layout.
+const layoutModes = Object.freeze({
+  ".": 0o750,
+  organizations: 0o755,
+  personalspace: 0o700,
+});
 
 /** The mode of a directory this call has just created, set on the directory
  * itself: opened without following a link, so a path replaced meanwhile is
@@ -382,12 +375,14 @@ async function setOwnMode(path: string, mode: number): Promise<void> {
  * same modes: the Folder 0750, `organizations` 0755 and, where the preset
  * has one, `personalspace` 0700. `folder-init` calls it only once the
  * preset is allowed (`initializeMachineFolder`), and it writes nothing
- * before everything it would build on has passed: the home, every entry
- * that exists already by the rule adoption applies to it (a link, dangling
- * or not, a file, another account's or a shared directory is refused), and
- * a Folder adopted from another Machine (`binding-changed`). Only then does
- * it create what is missing, with `mkdir`, which never follows a link at
- * the path it creates and fails when anything appeared there meanwhile.
+ * before everything adoption will hold the layout to has passed on what
+ * exists already (`missingAssignedLayout`): the home, the Folder and each
+ * layout directory (a link, dangling or not, a file, another account's or
+ * a shared directory is refused), a Folder adopted from another Machine
+ * (`binding-changed`), any foreign top-level entry and a used
+ * `personalspace` the preset never has. Only then does it create what is
+ * missing, with `mkdir`, which never follows a link at the path it creates
+ * and fails when anything appeared there meanwhile.
  * Nothing existing is touched; `folder-init` then adopts the layout exactly
  * as it adopts a delivered one. Not a sandbox against the same account
  * replacing the Folder while this runs, as `inspectOwnedDirectory` says.
@@ -398,18 +393,12 @@ export async function createAssignedFolderLayout(
   personalspace: PersonalspacePolicy,
 ): Promise<void> {
   await inspectOwnedDirectory(dirname(folder));
-  const entries: readonly (readonly [string, string, number])[] = [
-    [folder, ".", 0o750],
-    [join(folder, "organizations"), "organizations", 0o755],
-    ...(personalspace === "present"
-      ? [[join(folder, "personalspace"), "personalspace", 0o700] as const]
-      : []),
-  ];
-  const missing: (readonly [string, number])[] = [];
-  for (const [path, entry, mode] of entries)
-    if (!(await presentEntry(path, entry))) missing.push([path, mode]);
-  await adoptedHandoverFolder(folder, machine);
-  for (const [path, mode] of missing) {
+  const missing = await missingAssignedLayout(folder, personalspace, () =>
+    adoptedHandoverFolder(folder, machine),
+  );
+  for (const entry of missing) {
+    const path = entry === "." ? folder : join(folder, entry);
+    const mode = layoutModes[entry];
     await mkdir(path, { mode });
     // Independent of the caller's umask, as the Machines' role sets them.
     await setOwnMode(path, mode);
