@@ -10066,8 +10066,9 @@ addendum of its own, which this Platform decision does not make.
    Organizace" and the jump (⌘⇧E) all list an Organization's Environments under them,
    nested under the Organization's title or head. A row no longer says its kind, so a
    list without the headings would lose it. Each group is `role="group"` labelled by
-   its heading; the rows stay one list for the keys, and the cursor starts as before on
-   the current Environment (now counted in the groups' order) or the first match. A
+   its heading; the rows stay one list for the keys, and the cursor starts as before:
+   under the picker on the current Environment (now counted in the groups' order),
+   widened, searched and in the jump on the first entry. A
    search also matches the person's login and name and the heading's word.
 4. **`assigneeName` in `lazurio.shell.v1` and `lazurio.account.v1`.** An additive,
    optional member of an Environment entry, read by the one parser of both documents:
