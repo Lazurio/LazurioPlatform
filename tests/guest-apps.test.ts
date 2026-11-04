@@ -165,8 +165,8 @@ test("Apps draws a guest like a module, read-only, with its home on the flag and
     ).toEqual([
       [
         "knowledgebase",
-        copy.appsDescriptionBook,
-        "book",
+        copy.appsDescriptionKnowledge,
+        "knowledge",
         "/o/hostorg/guest/HomeOrg/knowledgebase",
         "https://github.com/HomeOrg/knowledgebase",
         false,
