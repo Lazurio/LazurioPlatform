@@ -14,6 +14,7 @@ import schema from "../src/machine/lazurio-machine.v1.schema.json";
 import provenance from "../src/machine/schema-provenance.json";
 import { handoverEntry, withBrowser } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
+import { vendoredSchemaPullRequest } from "./fixtures/machine-schema-pin";
 
 // LazurioPlatform#504 (F39's addendum of 2026-10-18): a Lazurio session never
 // lives in the Environment browser. Its own apps and modules open through the
@@ -155,9 +156,9 @@ test("the vendored schema carries Machines #633's local_port: optional, a port o
   // v0.12.211 (the tag's commit), which adds only a peer's `environment`,
   // `access` and `ssh.host_keys`, and then to Machines #1051, which adds only
   // `access_service` (tests/access-service-handover.test.ts).
-  expect(provenance.source_pull_request).toBe(
-    "https://github.com/HumanAndMachine-ai/Machines/pull/1051",
-  );
+  // Then to the auth-sourced handover of a free Environment
+  // (tests/free-environment-handover.test.ts).
+  expect(provenance.source_pull_request).toBe(vendoredSchemaPullRequest);
   const browser = (
     schema as unknown as {
       $defs: {

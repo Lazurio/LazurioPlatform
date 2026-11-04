@@ -24,6 +24,7 @@ import { runTool } from "../src/tools/status";
 import { binding } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
+import { vendoredSchemaPullRequest } from "./fixtures/machine-schema-pin";
 
 // The handover member that says where the home access service answers
 // (decision F70 point 1, root decision 0224; HumanAndMachine-ai/Machines#1040):
@@ -41,10 +42,10 @@ const declared = (document: Json, value: unknown = { origin }) => ({
 const parse = (document: unknown) =>
   parseMachineContext(Buffer.from(JSON.stringify(document)));
 
-test("the vendored schema is Machines #1051's: access_service, closed, on both branches", () => {
-  expect(provenance.source_pull_request).toBe(
-    "https://github.com/HumanAndMachine-ai/Machines/pull/1051",
-  );
+test("the vendored schema carries Machines #1051's access_service, closed, on both branches", () => {
+  // Then to the auth-sourced handover of a free Environment
+  // (tests/free-environment-handover.test.ts).
+  expect(provenance.source_pull_request).toBe(vendoredSchemaPullRequest);
   expect(provenance.source_sha256).toBe(provenance.sha256);
   const defs = (
     schema as unknown as {

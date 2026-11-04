@@ -72,6 +72,7 @@ import {
   withAudience,
 } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
+import { vendoredSchemaPullRequest } from "./fixtures/machine-schema-pin";
 import { freePort } from "./fixtures/ports";
 
 // Root decision 0204 points 3, 4 and 6 and its line on 0201: a public
@@ -107,9 +108,9 @@ test("the vendored schema carries Machines #560's entry.audience, exactly the co
   // (tests/assigned-peer-handover.test.ts).
   // Then to Machines #1051, which adds only `access_service`
   // (tests/access-service-handover.test.ts).
-  expect(provenance.source_pull_request).toBe(
-    "https://github.com/HumanAndMachine-ai/Machines/pull/1051",
-  );
+  // Then to the auth-sourced handover of a free Environment
+  // (tests/free-environment-handover.test.ts).
+  expect(provenance.source_pull_request).toBe(vendoredSchemaPullRequest);
   const audience = (
     schema as unknown as {
       $defs: { entry: { properties: Record<string, unknown> } };

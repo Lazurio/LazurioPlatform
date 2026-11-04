@@ -14,6 +14,7 @@ import { ownAccount, vaultMember, workAccount } from "./fixtures/fake-vault";
 import { handoverEntry } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
+import { vendoredSchemaPullRequest } from "./fixtures/machine-schema-pin";
 
 // DEV-6631 contract C2: Machines writes the optional, closed member
 // `vault: {server_url, account, name}` into lazurio.machine.json on both
@@ -48,9 +49,9 @@ test("the vendored schema is Machines #500's: the member with a work and a perso
   // (tests/assigned-peer-handover.test.ts).
   // Then to Machines #1051, which adds only `access_service`
   // (tests/access-service-handover.test.ts).
-  expect(provenance.source_pull_request).toBe(
-    "https://github.com/HumanAndMachine-ai/Machines/pull/1051",
-  );
+  // Then to the auth-sourced handover of a free Environment
+  // (tests/free-environment-handover.test.ts).
+  expect(provenance.source_pull_request).toBe(vendoredSchemaPullRequest);
   const defs = (
     schema as unknown as {
       $defs: Record<
