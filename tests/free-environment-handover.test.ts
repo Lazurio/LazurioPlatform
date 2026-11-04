@@ -1,11 +1,14 @@
 import { expect, test } from "bun:test";
 import {
   chmod,
+  lstat,
   mkdir,
   mkdtemp,
+  readdir,
   realpath,
   rm,
   stat,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -474,57 +477,180 @@ test.skipIf(process.platform === "win32" || uid === 0)(
   },
 );
 
-test("folder-init creates the person's Folder, its layout included, with the preset the receipt's kind derives", async () => {
-  const parent = await realpath(
-    await mkdtemp(join(tmpdir(), "lazurio-free-environment-folder-")),
-  );
-  try {
-    for (const [name, handover, bound, preset] of [
-      ["personal", personalHandover, personalReceipt(), "hosted-personal"],
-      ["work", workHandover, workReceipt(), "hosted-organization-personal"],
-    ] as const) {
-      const context = assignedMachineContext(
-        handoverOf(handover),
-        bytes(bound),
-      );
-      const home = join(parent, name);
-      await mkdir(home, { mode: 0o700 });
-      const folder = join(home, "Lazurio");
-      // Nothing was delivered ahead: the Platform creates the layout.
-      await createAssignedFolderLayout(folder, name === "personal");
-      expect((await stat(folder)).mode & 0o777).toBe(0o750);
-      expect((await stat(join(folder, "organizations"))).mode & 0o777).toBe(
-        0o755,
-      );
-      expect(
-        await stat(join(folder, "personalspace")).then(
-          (found) => found.mode & 0o777,
-          () => null,
-        ),
-      ).toBe(name === "personal" ? 0o700 : null);
-      const { code: exit, result } = await initializeMachineFolder(
-        folder,
-        machineBinding(context, "c".repeat(64)),
-        {
-          preset: undefined,
-          locale: "en",
-          detail: undefined,
-          coordination: undefined,
-        },
-      );
-      expect(exit).toBe(0);
-      expect(result).toMatchObject({
-        kind: "initialized",
-        preset: { name: preset, selection: "derived" },
-      });
-      // Creating the layout again changes nothing that exists.
-      await createAssignedFolderLayout(folder, name === "personal");
-      expect((await stat(join(folder, ".lazurio"))).isDirectory()).toBe(true);
+const initChoices = {
+  preset: undefined,
+  locale: "en",
+  detail: undefined,
+  coordination: undefined,
+} as const;
+
+/** Every entry under `root`, by `lstat`, never following a link: what a
+ * refused operation must leave exactly as it was. */
+async function tree(root: string): Promise<string[]> {
+  const found: string[] = [];
+  const walk = async (path: string, name: string) => {
+    const entry = await lstat(path);
+    found.push(
+      `${name} ${entry.isSymbolicLink() ? "link" : entry.isDirectory() ? "dir" : "file"} ${(entry.mode & 0o7777).toString(8)}`,
+    );
+    if (entry.isDirectory() && !entry.isSymbolicLink())
+      for (const child of (await readdir(path)).sort())
+        await walk(join(path, child), `${name}/${child}`);
+  };
+  await walk(root, ".");
+  return found;
+}
+
+test.skipIf(process.platform === "win32" || uid === 0)(
+  "folder-init creates the person's Folder, its layout included, with the preset the receipt's kind derives",
+  async () => {
+    const parent = await realpath(
+      await mkdtemp(join(tmpdir(), "lazurio-free-environment-folder-")),
+    );
+    try {
+      for (const [name, handover, bound, preset] of [
+        ["personal", personalHandover, personalReceipt(), "hosted-personal"],
+        ["work", workHandover, workReceipt(), "hosted-organization-personal"],
+      ] as const) {
+        const binding = machineBinding(
+          assignedMachineContext(handoverOf(handover), bytes(bound)),
+          "c".repeat(64),
+        );
+        const home = join(parent, name);
+        await mkdir(home, { mode: 0o700 });
+        const folder = join(home, "Lazurio");
+        // Nothing was delivered ahead: the Platform creates the layout, as
+        // the Machines role does elsewhere, then adopts it.
+        const { code: exit, result } = await initializeMachineFolder(
+          folder,
+          binding,
+          initChoices,
+          true,
+        );
+        expect(exit).toBe(0);
+        expect(result).toMatchObject({
+          kind: "initialized",
+          preset: { name: preset, selection: "derived" },
+        });
+        expect((await stat(folder)).mode & 0o777).toBe(0o750);
+        expect((await stat(join(folder, "organizations"))).mode & 0o777).toBe(
+          0o755,
+        );
+        expect(
+          await stat(join(folder, "personalspace")).then(
+            (found) => found.mode & 0o777,
+            () => null,
+          ),
+        ).toBe(name === "personal" ? 0o700 : null);
+        // Running it again changes nothing that exists.
+        const before = await tree(home);
+        expect(
+          (await initializeMachineFolder(folder, binding, initChoices, true))
+            .result,
+        ).toMatchObject({ kind: "already-adopted" });
+        expect(await tree(home)).toEqual(before);
+      }
+    } finally {
+      await rm(parent, { recursive: true, force: true });
     }
-  } finally {
-    await rm(parent, { recursive: true, force: true });
-  }
-});
+  },
+);
+
+test.skipIf(process.platform === "win32" || uid === 0)(
+  "a free Environment's layout is created only after its preset and every existing entry passed, never through a link, and a refusal writes nothing",
+  async () => {
+    const parent = await realpath(
+      await mkdtemp(join(tmpdir(), "lazurio-free-environment-links-")),
+    );
+    const binding = machineBinding(
+      assignedMachineContext(
+        handoverOf(personalHandover),
+        bytes(personalReceipt()),
+      ),
+      "c".repeat(64),
+    );
+    type Setup = (folder: string, outside: string) => Promise<unknown>;
+    const cases: readonly (readonly [string, Setup, string | undefined])[] = [
+      [
+        "a link at the Folder",
+        (folder, outside) => symlink(outside, folder),
+        undefined,
+      ],
+      [
+        "a dangling link at the Folder",
+        (folder, outside) => symlink(join(outside, "missing"), folder),
+        undefined,
+      ],
+      ["a file at the Folder", (folder) => writeFile(folder, ""), undefined],
+      [
+        "a link at organizations",
+        async (folder, outside) => {
+          await mkdir(folder, { mode: 0o750 });
+          await symlink(outside, join(folder, "organizations"));
+        },
+        undefined,
+      ],
+      [
+        "a link at personalspace",
+        async (folder, outside) => {
+          await mkdir(folder, { mode: 0o750 });
+          await symlink(outside, join(folder, "personalspace"));
+        },
+        undefined,
+      ],
+      [
+        "a shared Folder",
+        async (folder) => {
+          await mkdir(folder);
+          await chmod(folder, 0o770);
+        },
+        undefined,
+      ],
+      [
+        "a preset the handover does not allow",
+        async () => {},
+        "hosted-organization-team",
+      ],
+    ];
+    try {
+      for (const [index, [name, setup, preset]] of cases.entries()) {
+        const home = join(parent, `home-${index}`);
+        const outside = join(parent, `outside-${index}`);
+        await mkdir(home, { mode: 0o700 });
+        await mkdir(outside, { mode: 0o700 });
+        const folder = join(home, "Lazurio");
+        await setup(folder, outside);
+        const before = [await tree(home), await tree(outside)];
+        const refused = await initializeMachineFolder(
+          folder,
+          binding,
+          { ...initChoices, preset: preset as never },
+          true,
+        ).then(
+          (answer) => answer.code,
+          () => "thrown",
+        );
+        expect([name, refused]).not.toEqual([name, 0]);
+        expect([name, await tree(home), await tree(outside)]).toEqual([
+          name,
+          ...before,
+        ]);
+        if (preset === undefined) {
+          // The layout's own step refuses it before it writes anything.
+          await expect(
+            createAssignedFolderLayout(folder, binding, "present"),
+          ).rejects.toThrow();
+          expect([name, await tree(home), await tree(outside)]).toEqual([
+            name,
+            ...before,
+          ]);
+        }
+      }
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
 
 test("every refusal of a free Environment is one blocked answer that names no person", () => {
   for (const reason of [
