@@ -1664,3 +1664,69 @@ posixTest(
   },
   30_000,
 );
+
+// A free personal Environment's owner (root decision 0216) is its Lazurio
+// account, with a GitHub account only as the assignment receipt verified
+// it. After an unlink, or a relink to another GitHub id, the binding
+// verifies none: then no GitHub account is its owner's, so none holds or
+// installs its Personalspace, the owner's former account included. It is
+// never treated as a Folder without an owner.
+const accountOwned = (github: { login: string; id: number } | null) => ({
+  ...bindings.personal,
+  owner: {
+    kind: "account" as const,
+    username: "example",
+    subject: "https://auth.example.invalid/realms/workspace/0000-0001",
+    github,
+  },
+});
+
+posixTest(
+  "a free personal Environment whose owner has no verified GitHub account holds and installs no Personalspace",
+  async () => {
+    world = await createWorld();
+    // gh signed in as the account the first binding linked (12345).
+    const { github, calls } = stubGitHub(world);
+    const host = contentHost(world, github);
+    const verified = await presetFolder(
+      world,
+      "hosted-personal",
+      accountOwned({ login: "example", id: 12345 }),
+    );
+    expect((await contentStatus(verified, host)).items[0]?.reason).not.toBe(
+      "github-identity-mismatch",
+    );
+    // Unlinked, or relinked to another GitHub id: the binding verifies none,
+    // and GitHub is asked about no repository.
+    const asked = calls.length;
+    for (const label of ["unlinked", "relinked"]) {
+      const unverified = await presetFolder(
+        world,
+        "hosted-personal",
+        accountOwned(null),
+      );
+      expect([label, (await contentStatus(unverified, host)).items]).toEqual([
+        label,
+        [
+          {
+            kind: "personalspace",
+            login: "example",
+            state: "absent",
+            onGitHub: "unknown",
+            reason: "github-identity-mismatch",
+          },
+        ],
+      ]);
+      const steps: ContentStep[] = [];
+      await installContent(unverified, {}, (step) => steps.push(step), host);
+      expect([label, summary(steps)]).toEqual([
+        label,
+        ["find:failed:github-identity-mismatch"],
+      ]);
+    }
+    expect(calls.slice(asked).some((call) => call.kind === "repository")).toBe(
+      false,
+    );
+  },
+  30_000,
+);
