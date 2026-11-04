@@ -604,26 +604,93 @@ test.skipIf(process.platform === "win32" || uid === 0)(
     const parent = await realpath(
       await mkdtemp(join(tmpdir(), "lazurio-free-environment-links-")),
     );
-    const binding = machineBinding(
+    const personalFolder = machineBinding(
       assignedMachineContext(
         handoverOf(personalHandover),
         bytes(personalReceipt()),
       ),
       "c".repeat(64),
     );
+    const workFolder = machineBinding(
+      assignedMachineContext(handoverOf(workHandover), bytes(workReceipt())),
+      "c".repeat(64),
+    );
     type Setup = (folder: string, outside: string) => Promise<unknown>;
-    const cases: readonly (readonly [string, Setup, string | undefined])[] = [
+    // What adoption refuses after the layout exists is refused before any
+    // of it is created: the whole boundary and the preset's Personalspace.
+    const boundary: readonly (readonly [string, Setup, "work" | "personal"])[] =
+      [
+        [
+          "a foreign entry in the Folder",
+          async (folder) => {
+            await mkdir(folder, { mode: 0o750 });
+            await writeFile(join(folder, "notes.txt"), "");
+          },
+          "personal",
+        ],
+        [
+          "a foreign entry beside a partial layout",
+          async (folder) => {
+            await mkdir(folder, { mode: 0o750 });
+            await mkdir(join(folder, "organizations"), { mode: 0o755 });
+            await writeFile(join(folder, "notes.txt"), "");
+          },
+          "work",
+        ],
+        [
+          "a used personalspace under a work preset",
+          async (folder) => {
+            await mkdir(folder, { mode: 0o750 });
+            await mkdir(join(folder, "personalspace"), { mode: 0o700 });
+            await writeFile(join(folder, "personalspace", "notes.txt"), "");
+          },
+          "work",
+        ],
+        [
+          "a link at personalspace under a work preset",
+          async (folder, outside) => {
+            await mkdir(folder, { mode: 0o750 });
+            await symlink(outside, join(folder, "personalspace"));
+          },
+          "work",
+        ],
+        [
+          "a shared personalspace under a work preset",
+          async (folder) => {
+            await mkdir(folder, { mode: 0o750 });
+            await mkdir(join(folder, "personalspace"));
+            await chmod(join(folder, "personalspace"), 0o770);
+          },
+          "work",
+        ],
+      ];
+    const cases: readonly (readonly [
+      string,
+      Setup,
+      string | undefined,
+      "work" | "personal",
+    ])[] = [
+      ...boundary.map(
+        ([name, setup, kind]) => [name, setup, undefined, kind] as const,
+      ),
       [
         "a link at the Folder",
         (folder, outside) => symlink(outside, folder),
         undefined,
+        "personal",
       ],
       [
         "a dangling link at the Folder",
         (folder, outside) => symlink(join(outside, "missing"), folder),
         undefined,
+        "personal",
       ],
-      ["a file at the Folder", (folder) => writeFile(folder, ""), undefined],
+      [
+        "a file at the Folder",
+        (folder) => writeFile(folder, ""),
+        undefined,
+        "personal",
+      ],
       [
         "a link at organizations",
         async (folder, outside) => {
@@ -631,6 +698,7 @@ test.skipIf(process.platform === "win32" || uid === 0)(
           await symlink(outside, join(folder, "organizations"));
         },
         undefined,
+        "personal",
       ],
       [
         "a link at personalspace",
@@ -639,6 +707,7 @@ test.skipIf(process.platform === "win32" || uid === 0)(
           await symlink(outside, join(folder, "personalspace"));
         },
         undefined,
+        "personal",
       ],
       [
         "a shared Folder",
@@ -647,15 +716,18 @@ test.skipIf(process.platform === "win32" || uid === 0)(
           await chmod(folder, 0o770);
         },
         undefined,
+        "personal",
       ],
       [
         "a preset the handover does not allow",
         async () => {},
         "hosted-organization-team",
+        "personal",
       ],
     ];
     try {
-      for (const [index, [name, setup, preset]] of cases.entries()) {
+      for (const [index, [name, setup, preset, kind]] of cases.entries()) {
+        const binding = kind === "work" ? workFolder : personalFolder;
         const home = join(parent, `home-${index}`);
         const outside = join(parent, `outside-${index}`);
         await mkdir(home, { mode: 0o700 });
@@ -680,7 +752,11 @@ test.skipIf(process.platform === "win32" || uid === 0)(
         if (preset === undefined) {
           // The layout's own step refuses it before it writes anything.
           await expect(
-            createAssignedFolderLayout(folder, binding, "present"),
+            createAssignedFolderLayout(
+              folder,
+              binding,
+              kind === "work" ? "never" : "present",
+            ),
           ).rejects.toThrow();
           expect([name, await tree(home), await tree(outside)]).toEqual([
             name,
