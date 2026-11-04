@@ -11,12 +11,19 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`. The pin is
-Machines pull request **#1051** (HumanAndMachine-ai/Machines#1040, decision F70), which
-adds only the optional member `access_service` on both branches
+**pending**: Machines commit `f4c96995c8ffece409cc7d133902e2db3ff4cd7c`
+(HumanAndMachine-ai/Machines#955, SHA-256
+`1a4d7b92afd69f405289f57bb5941831e3c3d0e0a0f798e834b2b2bf6e3160cd`), whose pull request
+is not open yet. It adds only the auth-sourced handover of a free Environment
+([below](#free-environments-the-assignment-receipt-root-decision-0216)) to the schema of
+Machines #1051 and changes nothing else; the pin moves to its merge commit before this
+Platform merges (`src/machine/schema-provenance.json` says so in `pending`). Before it,
+the pin was Machines pull request **#1051** (HumanAndMachine-ai/Machines#1040, decision
+F70), which added only the optional member `access_service` on both branches
 ([below](#the-home-access-service-decision-f70)) to the schema of v0.12.211 and
-changes nothing else, taken byte for byte from its merge commit
+changed nothing else, taken byte for byte from its merge commit
 `100be6ada01c5bb9371548be631afb9308cd72ad` (SHA-256
-`8a1d0734913e7064572b9fa4a6ef0c4070688f26a6975b68538d9e9187e81589`). Before it, the pin was
+`8a1d0734913e7064572b9fa4a6ef0c4070688f26a6975b68538d9e9187e81589`). Before that, the pin was
 Machines **v0.12.211** (tag commit `a8726744ba1e5d9cf28f3045782e85a1f77564f6`, which
 carries the merge of pull request **#948**, `44e9002e5f6e03d0b85227b4c5d360a13d97e68d`;
 SHA-256 `ca5cdb767888826fe028e589ea120628a6d830552256cc0d141c0681e038addc`; root
@@ -807,6 +814,67 @@ files), only routes whose deadline has passed go, and a refresh without it write
 the binding's own routes (F70's amendment of 2026-11-03, points 5 and 6). A refresh records a
 change of only this member, though the Folder renders nothing of it, and recovery
 evidence withholds the host's name (`<hostname-n>`).
+
+## Free Environments: the assignment receipt (root decision 0216)
+
+A free Environment is built ahead, nobody's, and assigned to one person later in
+Lazurio Auth; the person comes only from that assignment
+(Machines `docs/free-environments.md` §5.3 and §5.4,
+HumanAndMachine-ai/Machines#955). Its apply never learns who the
+person is, so its handover is **auth-sourced**:
+
+```json
+"machine": { "id": "personal-env-0007", "kind": "personal-vm", "name": "env-0007", "vmid": 207 },
+"owner": { "kind": "assignment", "source": "auth" },
+"assignment_receipt": { "path": "/etc/lazurio/assignment.json", "schema_version": "lazurio.assignment.v1" },
+"operator": { "os_user": "env-0007", "home": "/home/env-0007", "lazurio_root": "/home/env-0007/Lazurio" },
+"entry": { "launchpad": { "external_origin": "https://launchpad.{dns_slug}.lazurio.io", "…": "…" }, "…": "…" }
+```
+
+A work Environment's owner is its Organization with `"assignment": { "kind":
+"operator", "source": "auth" }`. The machine is the neutral identity, `operator` the
+neutral operational account the Machines use, and every name-bound origin of the entry
+(`launchpad.external_origin`, `launchpad.auth_check_url`, `t3code`,
+`modules.origin_template`, `mausbot`, `browser`, `buddy`) carries `{dns_slug}` as one
+whole label. Such a handover never carries `vault` or `services`; the pointer appears
+on no other handover.
+
+The person is in the receipt the Environment's assignment finisher writes beside the
+handover, under the same root custody: the neutral Machine id, the state and
+generation, the first assignee (`first`: Lazurio subject and the GitHub id linked
+then), the current assignee, and, written once at the first binding, the frozen
+username `dns_slug`, the person's Linux `account` and its hostname. The Platform
+reads it only for an auth-sourced handover and refuses it whole when it is not this
+Machine's (its Machine id and, on a work Environment, its Organization) or not the
+closed shape. Then `src/machine/assignment.ts` resolves the handover into the context
+every reader already knows:
+
+| Handover | Resolved context |
+| --- | --- |
+| personal `owner: {kind: assignment}` | `{kind: principal, github_login: <dns_slug>, github_id: <first.github_id>}`: the first assignee, for good. A personal assignment needs a linked GitHub account and its username is that login (root decision 0203) |
+| personal `machine.name` (neutral) | `<dns_slug>`; `machine.id` stays neutral |
+| work `owner.assignment: {kind: operator, source: auth}` | `{kind: operator, github_login, github_id}` of the current assignee's linked GitHub account (lowercase), so the Organization presets read it as always |
+| `operator` (operational account) | the receipt's `account`: `/home/<account>`, `/home/<account>/Lazurio` |
+| templated origins | filled with `<dns_slug>` |
+
+`machine inspect` prints the handover as written. Every other command acts only once
+the receipt names a person: before the first binding it answers `{"kind":"blocked",
+"reason":"machine-assignment-pending"}` and creates or refreshes nothing for anybody;
+after a release `machine-assignment-released`; a work Environment's person without a
+linked GitHub account `machine-assignment-unlinked` (this release records an operator
+assignee by GitHub account). For the operational account, or before the binding, the
+hosted discovery finds no Folder (`absent`). The person's own user manager runs
+`machine folder-init` once both files exist (Machines
+`workloads/workspace-vm/person-services.py`): nothing delivered the Folder layout
+ahead, so `folder-init` creates the missing `~/Lazurio` (0750), `organizations`
+(0755) and on a personal Environment `personalspace` (0700) in the person's home, as
+the Machines role does elsewhere, and then adopts it as usual with the derived preset
+(`hosted-personal`, or `hosted-organization-personal` from the operator kind). The
+receipt's facts the context takes are written once, except the work assignee's
+current GitHub link, which a `folder-refresh` records like any other assignment; the
+binding's digest stays the handover's. The Machines write the auth-sourced handover
+only for a pinned Platform at or above their `PLATFORM_HANDOVER_ASSIGNMENT_MINIMUM`,
+the first release with this reader.
 
 ## Delivery by the Machines role (agreed 2026-09-23, Machines #199, v0.12.70)
 
