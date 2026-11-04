@@ -2,12 +2,12 @@
   "source_repository": "HumanAndMachine-ai/Machines",
   "source_version": null,
   "source_tag": null,
-  "source_pull_request": null,
+  "source_pull_request": "https://github.com/HumanAndMachine-ai/Machines/pull/1072",
   "source_commit": "f4c96995c8ffece409cc7d133902e2db3ff4cd7c",
   "source_path": "workloads/workspace-vm/lazurio-machine.v1.schema.json",
   "source_sha256": "1a4d7b92afd69f405289f57bb5941831e3c3d0e0a0f798e834b2b2bf6e3160cd",
   "sha256": "1a4d7b92afd69f405289f57bb5941831e3c3d0e0a0f798e834b2b2bf6e3160cd",
   "publication_authorization": "https://github.com/HumanAndMachine-ai/Machines/pull/124#issuecomment-5688845105",
-  "pin_update": null,
-  "pending": "Vendored byte for byte from Machines commit f4c96995 (HumanAndMachine-ai/Machines#955, the handover of a free Environment, root decision 0216), whose pull request is not open yet. It adds only the auth-sourced handover to the schema of Machines #1051: the top-level `assignment_receipt`, the personal owner {kind: assignment, source: auth}, the work assignment {kind: operator, source: auth}, `entry_template` and `https_origin_template`, and the conditions that keep each to an auth-sourced document. Name its pull request here and in tests/fixtures/machine-schema-pin.ts, and re-pin to its merge commit before this Platform merges; a digest other than this one is a new re-pin."
+  "pin_update": "https://github.com/HumanAndMachine-ai/Machines/pull/1072",
+  "pending": "Vendored byte for byte from Machines commit f4c96995 (HumanAndMachine-ai/Machines#955, the handover of a free Environment, root decision 0216), pull request #1072. It adds only the auth-sourced handover to the schema of Machines #1051: the top-level `assignment_receipt`, the personal owner {kind: assignment, source: auth}, the work assignment {kind: operator, source: auth}, `entry_template` and `https_origin_template`, and the conditions that keep each to an auth-sourced document. Re-pin to its merge commit before this Platform merges; a digest other than this one is a new re-pin."
 }
