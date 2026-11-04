@@ -46,7 +46,7 @@ const keyOf = (layout: Owner) =>
     layout.directory,
     layout.identity,
     layout.scope.allowed && layout.scope.personalOwner !== null
-      ? String(layout.scope.personalOwner.githubId)
+      ? String(layout.scope.personalOwner.githubId ?? "unverified")
       : "",
   ].join("\0");
 

@@ -888,8 +888,9 @@ username `<username>`", followed by "(GitHub login `<login>`, id `<id>`)" or "(n
 verified GitHub account)"; the Launchpad's "This Environment" names the username, with
 the GitHub account in its details only when verified; the shell's operator (and a work
 Environment's assignee) is the username, with a GitHub photo only of a verified login;
-the personal vault is "Osobní <username>"; the Personalspace's GitHub holder is checked
-against the verified GitHub id, and against none without one; the GitHub sign-in pilot
+the personal vault is "Osobní <username>"; the Personalspace's GitHub holder must be
+the verified GitHub id, and without one no GitHub account holds or installs a personal
+owner's Personalspace (`github-identity-mismatch`); the GitHub sign-in pilot
 of a work Environment checks a sign-in against the verified GitHub account and, without
 one, offers none (`subject-unknown`); the Auth subject is recorded in the binding and
 withheld from recovery evidence (`subject`), never rendered. The Machines write the auth-sourced handover

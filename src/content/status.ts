@@ -127,11 +127,14 @@ function organizationItem(
 }
 
 /** Whether gh's account may hold this Environment's Personalspace: on a
- * personal Remote Environment only its owner's (the handover's GitHub id). */
+ * personal Remote Environment only its owner's (the handover's GitHub id),
+ * and none where the owner has no verified GitHub account (a free
+ * Environment's, root decision 0216). */
 export const viewerMayHold = (scope: ContentScope, viewer: GitHubViewer) =>
   !scope.allowed ||
   scope.personalOwner === null ||
-  scope.personalOwner.githubId === viewer.databaseId;
+  (scope.personalOwner.githubId !== null &&
+    scope.personalOwner.githubId === viewer.databaseId);
 
 /** What the Folder says before GitHub is asked whose its Personalspace is:
  * decided already (none here, or a layout that is refused), or the one owner
