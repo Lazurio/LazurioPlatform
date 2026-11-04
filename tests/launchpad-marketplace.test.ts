@@ -1,24 +1,14 @@
 import { expect, test } from "bun:test";
-import { chatPromptHref, promptIdLength } from "../src/launchpad/chat-view";
 import {
+  adoptable,
   adoptionOf,
   adoptionPrompt,
   adoptionPromptId,
-  builtInMarketplace,
-  catalogKey,
-  catalogKeyLength,
-  createCommand,
-  isAdoptionPromptId,
-  type MarketplaceCatalog,
   type MarketplaceOffer,
+  marketplaceOffers,
   offerById,
-  offerIdLength,
-  parseMarketplaceIndex,
   releaseUrl,
-  screenshotUrl,
-  seedsOf,
 } from "../src/launchpad/marketplace";
-import builtInIndex from "../src/launchpad/marketplace-index.json";
 import { type MessageKey, messages } from "../src/launchpad/messages";
 import {
   adoptionDocument,
@@ -32,80 +22,23 @@ import {
   routePath,
   routeTitle,
 } from "../src/launchpad/routes";
-import unreleasedIndex from "./fixtures/marketplace-index-unreleased.json";
 
-// The Marketplace (plan DEV-6593): one section, offers read from the
-// registry's index at one commit (or the copy built into this release), and
-// only those with a published release: an exact commit, which "Přidat do
-// Organizace" hands to the agent in a brief. Its behavior is tested on an
-// index of the registry's shape in which no template is released yet
-// (tests/fixtures/marketplace-index-unreleased.json). The copy built into
-// this release is tested only as what it is, the registry's index read in
-// full, and for its offers' words, so refreshing it leaves the behavior
-// tests alone.
+// The Marketplace's pilot (plan DEV-6593): one section, one offer, an exact
+// release, and "Přidat do Organizace" that hands a brief to the agent only
+// once the release's commit is recorded.
 
 const cs = messages("cs");
 const en = messages("en");
-const commit = "0123456789abcdef0123456789abcdef01234567";
 
-/** The fixture index with these offers' newest release published at
- * `commit` (all of them when none is named). */
-const publishedIndex = (...ids: string[]) => ({
-  ...unreleasedIndex,
-  offers: unreleasedIndex.offers.map((offer) =>
-    ids.length > 0 && !ids.includes(offer.id)
-      ? offer
-      : {
-          ...offer,
-          releases: offer.releases.map((release, i) =>
-            i === 0 ? { ...release, commit } : release,
-          ),
-        },
-  ),
-});
-
-const shown = parseMarketplaceIndex(
-  publishedIndex(),
-) as readonly MarketplaceOffer[];
-
-const catalogOf = (...offers: MarketplaceOffer[]): MarketplaceCatalog => ({
-  source: "registry",
-  commit: "f".repeat(40),
-  offers,
-});
-
-/** A copy built into a release in which no template is released yet. */
-const unreleasedBuiltIn: MarketplaceCatalog = {
-  source: "built-in",
-  commit: null,
-  offers: parseMarketplaceIndex(unreleasedIndex) as readonly MarketplaceOffer[],
+const released: MarketplaceOffer = {
+  ...(offerById("presentations") as MarketplaceOffer),
+  release: {
+    version: "0.1.0",
+    tag: "v0.1.0",
+    commit: "0123456789abcdef0123456789abcdef01234567",
+    artifactDigest: null,
+  },
 };
-
-const released = offerById(
-  catalogOf(...shown),
-  "presentations",
-) as MarketplaceOffer;
-
-/** The fixture index with one offer's fields replaced. */
-const indexWith = (id: string, fields: Record<string, unknown>) => ({
-  ...unreleasedIndex,
-  offers: unreleasedIndex.offers.map((offer) =>
-    offer.id === id ? { ...offer, ...fields } : offer,
-  ),
-});
-
-/** A release of the index with some fields replaced. */
-const releaseWith = (fields: Record<string, unknown>) => ({
-  version: "0.1.0",
-  tag: "v0.1.0",
-  generation: "app/v1",
-  stackProfile: "app@2026.11",
-  stack: "vite-react",
-  bun: "1.4.4",
-  commit: null,
-  artifactDigest: null,
-  ...fields,
-});
 
 const example: BoundOrganization = {
   directory: "Example_GEN3",
@@ -120,408 +53,94 @@ const example: BoundOrganization = {
   repositories: [],
 };
 
-test("the built-in copy is the registry's index, read in full: its three templates are released, so all three are shown at their commits", () => {
-  expect(builtInMarketplace.source).toBe("built-in");
-  expect(builtInMarketplace.commit).toBeNull();
-  expect(builtInIndex.offers.map((offer) => offer.id)).toEqual([
-    "design-system",
-    "mission-control",
-    "presentations",
+test("the pilot's catalog: Presentations alone in Šablony aplikací, MIT, release v0.1.0 of its public template", () => {
+  expect(marketplaceOffers.map((offer) => [offer.id, offer.section])).toEqual([
+    ["presentations", "app-templates"],
   ]);
-  // Every template of the copy is read and shown; none is left out.
-  expect(builtInMarketplace.offers.map((offer) => offer.id)).toEqual(
-    builtInIndex.offers.map((offer) => offer.id),
+  const offer = offerById("presentations") as MarketplaceOffer;
+  expect(offer.repository).toBe("TemplatesRozjedeme-ai/Presentations");
+  expect(offer.publisher).toBe("TemplatesRozjedeme-ai");
+  expect(offer.license).toBe("MIT");
+  expect(offer.release.version).toBe("0.1.0");
+  expect(offer.release.tag).toBe("v0.1.0");
+  expect(releaseUrl(offer)).toBe(
+    "https://github.com/TemplatesRozjedeme-ai/Presentations/releases/tag/v0.1.0",
   );
-  for (const offer of builtInMarketplace.offers) {
-    // Each at a release the copy records, with its full commit and the
-    // stack profile it is built on.
-    const recorded: readonly unknown[] =
-      builtInIndex.offers.find((entry) => entry.id === offer.id)?.releases ??
-      [];
-    expect(recorded).toContainEqual(offer.release);
-    expect(offer.release.commit).toMatch(/^[0-9a-f]{40}$/);
-    expect(offer.release.stackProfile).toMatch(/^[a-z][a-z-]*@\d{4}\.\d{2}$/);
-  }
-  // LazurioTemplates publishes every template; the example Organization is
-  // a subscriber that adopts them from the Marketplace like any other.
-  expect(builtInMarketplace.offers.map((offer) => offer.publisher)).toEqual([
-    "LazurioTemplates",
-    "LazurioTemplates",
-    "LazurioTemplates",
-  ]);
-  expect(JSON.stringify(builtInIndex)).not.toContain(
-    "LazurioExampleOrganization",
-  );
+  expect(offerById("other")).toBeNull();
+  expect(offerById("__proto__")).toBeNull();
 });
 
-test("the fixture's templates once released: each offers its release and what it is built on", () => {
+test("until its release's exact commit is recorded the offer cannot be adopted, and no brief or prompt exists", () => {
+  const offer = offerById("presentations") as MarketplaceOffer;
+  expect(offer.release.commit).toBeNull();
+  expect(adoptable(offer)).toBe(false);
   expect(
-    shown.map((offer) => [
-      offer.id,
-      offer.repository,
-      offer.license,
-      offer.stone,
-      offer.release.version,
-      offer.release.generation,
-      offer.release.stackProfile,
-      offer.release.stack,
-      offer.release.bun,
-      offer.screenshots.length,
-    ]),
-  ).toEqual([
-    [
-      "design-system",
-      "LazurioTemplates/design-system",
-      "MIT",
-      "palette",
-      "1.0.0",
-      "app/v1",
-      "content@2026.11",
-      "astro",
-      "1.4.4",
-      5,
-    ],
-    [
-      "mission-control",
-      "LazurioTemplates/mission-control",
-      "MIT",
-      "control",
-      "4.0.0",
-      "app/v3",
-      "app-data@2026.11",
-      "vite-react",
-      "1.4.4",
-      4,
-    ],
-    [
-      "presentations",
-      "LazurioTemplates/presentations",
-      "MIT",
-      "presentation",
-      "0.1.0",
-      "app/v1",
-      "app@2026.11",
-      "vite-react",
-      "1.4.4",
-      4,
-    ],
-  ]);
-  expect(releaseUrl(released)).toBe(
-    "https://github.com/LazurioTemplates/presentations/releases/tag/v0.1.0",
-  );
-  expect(offerById(unreleasedBuiltIn, "presentations")).toBeNull();
-  expect(offerById(catalogOf(...shown), "other")).toBeNull();
-  expect(offerById(catalogOf(...shown), "__proto__")).toBeNull();
-});
-
-test("an index is read in full or refused: unknown schema, field or value, a duplicate id, a short commit, a price", () => {
-  expect(parseMarketplaceIndex(unreleasedIndex)).toEqual([]);
-  expect(parseMarketplaceIndex(publishedIndex())).toHaveLength(3);
-  for (const index of [
-    null,
-    [],
-    { ...unreleasedIndex, schemaVersion: "lazurio.marketplace.index.v2" },
-    { ...unreleasedIndex, extra: true },
-    indexWith("presentations", { installs: 12 }),
-    indexWith("presentations", { pricing: "paid" }),
-    indexWith("presentations", { section: "profiles" }),
-    indexWith("presentations", { repository: "Other/presentations" }),
-    indexWith("presentations", { id: "mission-control" }),
-    // The generation, the stack profile, the stack and the Bun are a
-    // release's, not the offer's.
-    indexWith("presentations", { generation: "app/v1" }),
-    indexWith("presentations", { stackProfile: "app@2026.11" }),
-    indexWith("presentations", {
-      releases: [releaseWith({ stackProfile: undefined })],
-    }),
-    indexWith("presentations", {
-      releases: [releaseWith({ stackProfile: "app" })],
-    }),
-    indexWith("presentations", {
-      releases: [releaseWith({ stackProfile: "vite-react@2026.11" })],
-    }),
-    indexWith("presentations", { bun: "1.4.4" }),
-    indexWith("presentations", { stack: "vite-react" }),
-    indexWith("presentations", {
-      releases: [releaseWith({ generation: "v1" })],
-    }),
-    indexWith("presentations", { releases: [releaseWith({ bun: "1.4" })] }),
-    indexWith("presentations", {
-      releases: [releaseWith({ stack: "Vite React" })],
-    }),
-    indexWith("presentations", {
-      releases: [releaseWith({ generation: undefined })],
-    }),
-    indexWith("presentations", { summary: { cs: "Jen česky" } }),
-    indexWith("presentations", { releases: [releaseWith({ commit: "abc" })] }),
-    indexWith("presentations", {
-      releases: [releaseWith({ artifactDigest: `sha256:${"a".repeat(64)}` })],
-    }),
-    indexWith("presentations", {
-      screenshots: [{ path: "../x.webp", alt: { cs: "x", en: "x" } }],
-    }),
-    indexWith("presentations", { releases: [] }),
-  ])
-    expect(parseMarketplaceIndex(index)).toBeNull();
-});
-
-test("only offers with a published release are shown; an unknown stone shows the app stone; the offered release is the newest with a commit", () => {
-  const offers = parseMarketplaceIndex(
-    indexWith("presentations", {
-      stone: "rocket",
-      releases: [
-        releaseWith({ version: "0.2.0", tag: "v0.2.0", bun: "1.4.5" }),
-        releaseWith({ commit }),
-      ],
-    }),
-  ) as readonly MarketplaceOffer[];
-  expect(offers.map((entry) => entry.id)).toEqual(["presentations"]);
-  const offer = offers[0];
-  expect(offer?.stone).toBe("app");
-  expect(offer?.release.version).toBe("0.1.0");
-  expect(offer?.release.bun).toBe("1.4.4");
-  expect(offer?.releases).toHaveLength(2);
-});
-
-test("screens come from the offered release's exact commit", () => {
-  expect(screenshotUrl(released, "docs/a.webp")).toBe(
-    `https://raw.githubusercontent.com/LazurioTemplates/presentations/${commit}/docs/a.webp`,
-  );
-});
-
-test("an offer without a published release has no card, no detail and no prompt", () => {
-  const catalog: MarketplaceCatalog = {
-    source: "registry",
-    commit: "f".repeat(40),
-    offers: parseMarketplaceIndex(
-      publishedIndex("presentations"),
-    ) as readonly MarketplaceOffer[],
-  };
-  expect(catalog.offers.map((offer) => offer.id)).toEqual(["presentations"]);
-  expect(offerById(catalog, "mission-control")).toBeNull();
-  const key = catalogKey(catalog);
-  for (const [source, id] of [
-    [unreleasedBuiltIn, "marketplace-presentations-empty-builtin"],
-    [catalog, `marketplace-mission-control-empty-${key}`],
-    [catalog, `marketplace-design-system-sample-${key}`],
-  ] as const)
-    expect(
-      adoptionDocument([source], id, "/home/x/Lazurio", example, cs, "cs"),
-    ).toBeNull();
+    adoptionPrompt(offer, "empty", { name: "Example", login: "x" }, cs),
+  ).toBeNull();
   expect(
     adoptionDocument(
-      [catalog],
-      `marketplace-presentations-empty-${key}`,
+      "marketplace-presentations-empty",
       "/home/x/Lazurio",
       example,
       cs,
-      "cs",
-    )?.text,
-  ).toContain(commit);
+    ),
+  ).toBeNull();
+  // A tag, a short or a malformed commit is no exact release.
+  for (const commit of ["v0.1.0", "0123456", "G".repeat(40), ""])
+    expect(
+      adoptable({ ...released, release: { ...released.release, commit } }),
+    ).toBe(false);
+  expect(adoptable(released)).toBe(true);
 });
 
 test("the brief names the exact release, the Organization, the start and the boundaries, in both languages", () => {
-  for (const [copy, locale] of [
-    [cs, "cs"],
-    [en, "en"],
-  ] as const) {
+  for (const copy of [cs, en]) {
     for (const seed of ["empty", "sample"] as const) {
       const text = adoptionPrompt(
         released,
         seed,
         { name: "Example Company", login: "Example-Org" },
         copy,
-        locale,
       ) as string;
       expect(text).toContain("Presentations");
       expect(text).toContain("Example Company (GitHub Example-Org)");
-      expect(text).toContain("LazurioTemplates/presentations v0.1.0");
-      expect(text).toContain(commit);
+      expect(text).toContain("TemplatesRozjedeme-ai/Presentations v0.1.0");
+      expect(text).toContain("0123456789abcdef0123456789abcdef01234567");
       expect(text).toContain("MIT");
       expect(text).toContain("docs/adoption.md");
       expect(text).toContain("`lazurio module create --stack vite-react`");
-      expect(text).not.toContain("--data");
-      expect(text).not.toContain("{create}");
       expect(text).toContain(
-        (seed === "sample" ? released.seeds.sample : released.seeds.empty)
-          ?.brief[locale] as string,
+        copy[
+          seed === "sample" ? "marketSeedSampleBrief" : "marketSeedEmptyBrief"
+        ],
       );
       expect(text).not.toMatch(/\{[a-z]+\}/);
     }
   }
-  // A template with data of its own (generation app/v3 and later) is created
-  // with --data, as its docs/adoption.md says.
-  const missionControl = offerById(
-    catalogOf(...shown),
-    "mission-control",
-  ) as MarketplaceOffer;
-  for (const [copy, locale] of [
-    [cs, "cs"],
-    [en, "en"],
-  ] as const)
-    expect(
-      adoptionPrompt(
-        missionControl,
-        "empty",
-        { name: "A", login: "a" },
-        copy,
-        locale,
-      ),
-    ).toContain("`lazurio module create --stack vite-react --data`");
-  for (const [generation, command] of [
-    ["app/v1", "lazurio module create --stack vite-react"],
-    ["app/v2", "lazurio module create --stack vite-react"],
-    ["app/v3", "lazurio module create --stack vite-react --data"],
-    ["app/v4", "lazurio module create --stack vite-react --data"],
-    ["app/v10", "lazurio module create --stack vite-react --data"],
-  ] as const)
-    expect(createCommand({ ...released.release, generation })).toBe(command);
   expect(
-    adoptionPrompt(released, "empty", { name: "A", login: "a" }, cs, "cs"),
+    adoptionPrompt(released, "empty", { name: "A", login: "a" }, cs),
   ).toContain("Nic nemerguj ani neaktivuj bez mého výslovného pokynu.");
   expect(
-    adoptionPrompt(released, "empty", { name: "A", login: "a" }, en, "en"),
+    adoptionPrompt(released, "empty", { name: "A", login: "a" }, en),
   ).toContain("Merge or activate nothing without my explicit instruction.");
-  // The document of an adoption names the catalog's release.
-  expect(
-    adoptionDocument(
-      [catalogOf(released)],
-      adoptionPromptId(catalogOf(released), released, "sample"),
-      "/home/x/Lazurio",
-      example,
-      en,
-      "en",
-    )?.text,
-  ).toContain(commit);
 });
 
-test("an adoption's prompt id carries the offer, the seed and the catalog shown, and nothing else is one", () => {
-  const catalog = catalogOf(released);
-  const key = "f".repeat(catalogKeyLength);
-  expect(catalogKey(catalog)).toBe(key);
-  expect(catalogKey(builtInMarketplace)).toBe("builtin");
-  expect(adoptionPromptId(catalog, released, "empty")).toBe(
-    `marketplace-presentations-empty-${key}`,
-  );
-  expect(
-    adoptionOf([catalog], `marketplace-presentations-sample-${key}`)?.seed,
-  ).toBe("sample");
-  expect(
-    adoptionOf([catalog], `marketplace-presentations-empty-${key}`)?.offer.id,
-  ).toBe("presentations");
-  for (const id of [
+test("an adoption's prompt id carries the offer and the seed, and nothing else is one", () => {
+  expect(adoptionPromptId(released, "empty")).toBe(
     "marketplace-presentations-empty",
-    `marketplace-presentations-other-${key}`,
-    `marketplace-other-empty-${key}`,
-    `marketplace-presentations-empty-${"9".repeat(catalogKeyLength)}`,
-    "marketplace-presentations-empty-builtin",
-    `marketplace-presentations-empty-${"f".repeat(40)}`,
+  );
+  expect(adoptionOf("marketplace-presentations-sample")?.seed).toBe("sample");
+  expect(adoptionOf("marketplace-presentations-empty")?.offer.id).toBe(
+    "presentations",
+  );
+  for (const id of [
+    "marketplace-presentations",
+    "marketplace-presentations-other",
+    "marketplace-other-empty",
     "new-module",
     "",
   ])
-    expect(adoptionOf([catalog], id)).toBeNull();
-  // An offer without an example has only the empty start.
-  const bare: MarketplaceOffer = {
-    ...released,
-    seeds: { empty: released.seeds.empty, sample: null },
-  };
-  expect(seedsOf(bare)).toEqual(["empty"]);
-  expect(
-    adoptionOf([catalogOf(bare)], `marketplace-presentations-sample-${key}`),
-  ).toBeNull();
-  expect(
-    adoptionPrompt(bare, "sample", { name: "A", login: "a" }, cs, "cs"),
-  ).toBeNull();
-  expect(isAdoptionPromptId(`marketplace-notes-empty-${key}`)).toBe(true);
-  expect(isAdoptionPromptId("marketplace-notes-sample-builtin")).toBe(true);
-  expect(isAdoptionPromptId("marketplace-notes-empty")).toBe(false);
-  expect(isAdoptionPromptId("marketplace-notes")).toBe(false);
-  expect(isAdoptionPromptId("new-module")).toBe(false);
-});
-
-test("an offer id is at most 32 characters, so its longest prompt id is Chat's 64 and goes by link", () => {
-  const longest = "a".repeat(offerIdLength);
-  const read = parseMarketplaceIndex(
-    indexWith("presentations", {
-      id: longest,
-      releases: [releaseWith({ commit })],
-    }),
-  );
-  const offer = read?.find((entry) => entry.id === longest);
-  expect(offer).toBeDefined();
-  const id = adoptionPromptId(
-    catalogOf(offer as MarketplaceOffer),
-    offer as MarketplaceOffer,
-    "sample",
-  );
-  expect(id).toHaveLength(promptIdLength);
-  expect(isAdoptionPromptId(id)).toBe(true);
-  expect(
-    chatPromptHref("https://chat.example.test/", "https://chat.example.test", {
-      id,
-      organization: "Example-Org",
-    }),
-  ).toContain(`lazurio-prompt=${id}`);
-  // One character more refuses the whole index.
-  expect(
-    parseMarketplaceIndex(
-      indexWith("presentations", {
-        id: `${longest}a`,
-        releases: [releaseWith({ commit })],
-      }),
-    ),
-  ).toBeNull();
-  // Every offer of the built-in copy fits.
-  for (const entry of builtInIndex.offers)
-    expect(entry.id.length).toBeLessThanOrEqual(offerIdLength);
-});
-
-test("a prompt names the catalog shown: after the registry moved it is still that catalog's offer, field for field", () => {
-  const shownCatalog = catalogOf(released);
-  const id = adoptionPromptId(shownCatalog, released, "empty");
-  // The registry moved on with the same release commit and version but
-  // another repository and words: a different brief.
-  const moved: MarketplaceCatalog = {
-    source: "registry",
-    commit: "e".repeat(40),
-    offers: [
-      {
-        ...released,
-        repository: "Example/other",
-        summary: { cs: "Jiná", en: "Other" },
-      },
-    ],
-  };
-  // While the Launchpad still serves the catalog shown, the id gets that
-  // catalog's offer, not the moved one.
-  const both = [moved, shownCatalog, builtInMarketplace];
-  expect(adoptionOf(both, id)?.offer).toBe(released);
-  const document = adoptionDocument(
-    both,
-    id,
-    "/home/x/Lazurio",
-    example,
-    en,
-    "en",
-  );
-  expect(document?.id).toBe(id);
-  expect(document?.text).toContain(released.repository);
-  expect(document?.text).not.toContain("Example/other");
-  // The new catalog's id gets the new offer.
-  expect(
-    adoptionOf(
-      both,
-      adoptionPromptId(moved, moved.offers[0] as MarketplaceOffer, "empty"),
-    )?.offer.repository,
-  ).toBe("Example/other");
-  // Once the catalog shown is no longer served, its id is no prompt.
-  expect(adoptionOf([moved, builtInMarketplace], id)).toBeNull();
-  // Two served catalogs that share the key's characters answer neither.
-  const twin: MarketplaceCatalog = {
-    ...moved,
-    commit: `${"f".repeat(catalogKeyLength)}${"0".repeat(40 - catalogKeyLength)}`,
-  };
-  expect(adoptionOf([shownCatalog, twin], id)).toBeNull();
+    expect(adoptionOf(id)).toBeNull();
 });
 
 test("the Marketplace's routes: its catalog and an offer's detail, one frame", () => {
@@ -547,66 +166,21 @@ test("the Marketplace's routes: its catalog and an offer's detail, one frame", (
       routeFrame(pageRoute(path)),
     ]);
   expect(
-    routeTitle(
-      { view: "marketplace", offer: "presentations" },
-      cs,
-      undefined,
-      (offer) => offerById(catalogOf(...shown), offer)?.title,
-    ),
+    routeTitle({ view: "marketplace", offer: "presentations" }, cs),
   ).toEqual({
     heading: "Presentations",
     document: "Presentations · Marketplace — Lazurio",
   });
-  // An offer the page does not show (unknown, or not released) is titled
-  // Marketplace.
   expect(
     routeTitle({ view: "marketplace", offer: "unknown" }, cs).heading,
   ).toBe("Marketplace");
-  for (const offer of ["unknown", "presentations"])
-    expect(
-      routeTitle(
-        { view: "marketplace", offer },
-        cs,
-        undefined,
-        (id) => offerById(unreleasedBuiltIn, id)?.title,
-      ).heading,
-    ).toBe("Marketplace");
-  // An offer only the registry has is titled by the offers the page shows.
-  expect(
-    routeTitle(
-      { view: "marketplace", offer: "notes" },
-      cs,
-      undefined,
-      (offer) => (offer === "notes" ? "Notes" : undefined),
-    ).heading,
-  ).toBe("Notes");
-});
-
-test("the registry's offers' words say no price, no pilot, no Environment or computer, no rating and no install on a click", () => {
-  // The registry's words as this release carries them.
-  for (const offer of builtInMarketplace.offers) {
-    const words = [
-      offer.summary,
-      ...offer.features.flatMap((feature) => [feature.title, feature.text]),
-      offer.seeds.empty.label,
-      ...(offer.seeds.sample === null ? [] : [offer.seeds.sample.label]),
-    ];
-    for (const text of words) {
-      expect(text.cs).not.toMatch(
-        /pilot|cen[auy]\b|zdarma|Kč|Prostředí|počítač|nainstal(uje|ováno)|ověřen|neumí/i,
-      );
-      expect(text.en).not.toMatch(
-        /pilot|price|free of charge|Environment|computer|installed|one click|verified|does not/i,
-      );
-    }
-  }
 });
 
 test("the Marketplace's words say no price, no pilot, no Environment or computer, no badge or list of what it lacks, and no install on a click", () => {
   const shown = (Object.keys(cs) as MessageKey[]).filter(
     (key) => key.startsWith("market") && !key.startsWith("marketAdoptPrompt"),
   );
-  expect(shown.length).toBeGreaterThan(15);
+  expect(shown.length).toBeGreaterThan(20);
   for (const key of shown) {
     expect([key, cs[key]]).not.toEqual([
       key,

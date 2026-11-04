@@ -8,8 +8,7 @@ import {
   type AdoptionPromptId,
   adoptionOf,
   adoptionPrompt,
-  type MarketplaceCatalog,
-  type MarketplaceLocale,
+  adoptionPromptId,
 } from "./marketplace";
 import type { MessageKey } from "./messages";
 
@@ -200,40 +199,34 @@ export function personalModuleDocument(
   });
 }
 
-/** The document of a Marketplace adoption (`marketplace-<offer>-<seed>-<catalog>`,
- * plan DEV-6593) for one Organization of the Folder bound to a GitHub login:
- * the offer exactly as the catalog the id names showed it, while the
- * Launchpad still serves that catalog. Null for an id no offer and seed of
- * those catalogs make, which also covers an offer whose release has no
- * recorded commit yet. Anyone admitted to
- * this Launchpad may get it, as anyone may open the Marketplace: the brief
- * says nothing the page did not show, and grants nothing. The agent checks
- * the person's live rights in the Organization before anything changes, and
- * prepares a request where they do not reach. It opens in the Lazurio
- * Folder's root (root decision 0189); the text names the Organization. */
+/** The document of a Marketplace adoption (`marketplace-<offer>-<seed>`,
+ * plan DEV-6593) for one Organization of the Folder bound to a GitHub login,
+ * or null: an id no offer and seed make, or an offer whose release has no
+ * recorded commit yet. Anyone admitted to this Launchpad may get it, as
+ * anyone may open the Marketplace: the brief says nothing the page did not
+ * show, and grants nothing. The agent checks the person's live rights in
+ * the Organization before anything changes, and prepares a request where
+ * they do not reach. It opens in the Lazurio Folder's root (root decision
+ * 0189); the text names the Organization. */
 export function adoptionDocument(
-  catalogs: readonly MarketplaceCatalog[],
   id: string,
   folder: string,
   organization: BoundOrganization,
   copy: Copy,
-  locale: MarketplaceLocale,
 ): PromptDocument | null {
-  const adoption = adoptionOf(catalogs, id);
+  const adoption = adoptionOf(id);
   if (adoption === null) return null;
   const text = adoptionPrompt(
     adoption.offer,
     adoption.seed,
     { name: organizationName(organization), login: organization.forgeLogin },
     copy,
-    locale,
   );
   return text === null
     ? null
     : Object.freeze({
         schema: promptSchema,
-        // The id the adoption was found by: it names that catalog.
-        id: id as AdoptionPromptId,
+        id: adoptionPromptId(adoption.offer, adoption.seed),
         text,
         cwd: resolve(folder),
       });

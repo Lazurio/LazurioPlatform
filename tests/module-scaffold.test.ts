@@ -22,14 +22,10 @@ import {
   moduleScaffoldLayers,
   moduleScaffoldStacks,
   moduleScaffoldTreeHash,
-  moduleStackProfile,
   personalModulePortPool,
   planModuleScaffold,
   reservedModuleSlugs,
   scaffoldBunVersion,
-  scaffoldZodVersion,
-  stackProfilesRelease,
-  stackProfileUrl,
   templateTargetPath,
 } from "../src/modules/scaffold";
 import { moduleTemplates } from "../src/modules/scaffold-templates";
@@ -105,13 +101,6 @@ function expectCode(run: () => unknown, code: string) {
   return error as ModuleScaffoldError;
 }
 
-/** A text of a module without data as it reads in generation app/v3. */
-const atGeneration = (text: string): string =>
-  text
-    .replaceAll("app/v1", "app/v3")
-    .replaceAll("-app-v1", "-app-v3")
-    .replaceAll("-portal-v1", "-portal-v3");
-
 function file(result: ModuleScaffoldPlan, path: string): string {
   const entry = result.files.find((item) => item.path === path);
   if (!entry) throw new Error(`${path} is not in the plan`);
@@ -125,28 +114,23 @@ function file(result: ModuleScaffoldPlan, path: string): string {
 // `build_output`, for vite-react `static_fallback`, and a line of their
 // README), so their hashes are the root's plus that change; the root's
 // were 1fcd5e2d… (vite-react), 6050c38e… (astro) and a01509c8…
-// (astro-starlight). Since the stack profiles' release 2026.11 (decision
-// F69) every stack with a Bun app pins that release's tools, runs its tests
-// in `check` and names its profile in its README, and Bun is 1.4.4, so only
-// `none` keeps the root's hash; before it they were ddb885f1… (vite-react),
-// ed2e5210… (astro), 43278ddd… (astro-starlight), ac73b3f7… (bun-service)
-// and 4d7a1b23… (python-uv).
+// (astro-starlight).
 const rootTreeHashes: Readonly<Record<string, string>> = {
   "vite-react":
-    "sha256:6a18f1687e5d56ae8f2d6bb2b0a46c018d6770121b8a468b1c0ce1c25e65efda",
+    "sha256:ddb885f15b4ab0c9842105577d9af046c06457a4cf3690c21ad9e203d899e22a",
   astro:
-    "sha256:88557027d216599bf7778766a40cd67b6b913380bb5abc96e772922777db3c4c",
+    "sha256:ed2e5210f264c4f3e33c85bba507bf61513f8350637ff12f8a7c85107610b5e0",
   "astro-starlight":
-    "sha256:5eed7b22eeade5208effb00f70e4988d0b17acd831f07e0178aea3accc5b0ead",
+    "sha256:43278ddd5c38c9e05b8e399346aa831c3f22aa9bbd9ffe0e41e3c47ffb94fc2f",
   "bun-service":
-    "sha256:988457d075c7449beee4ad613f6eb4b1dd541c9fca0cd8c12e2388c10fa22f76",
+    "sha256:ac73b3f7f89ad96ea20ddff7a2dc0c6e3d5b5960db7e62a4c81113e04da91cda",
   "python-uv":
-    "sha256:90056d267db80fce4fbdf867fdcb2568f9b4ecf967be12ffad52c8366017ff50",
+    "sha256:4d7a1b232566a7d6f33be9fd92f342a943b4933c996a24fa4f657e0ba075be6f",
   none: "sha256:3b74e3ee30ce43eba0122a216fa9076c5bd6883cf0617cf8c2acab93458babba",
 };
 
 describe("planModuleScaffold, the Organization form", () => {
-  test("an Organization's plan is the root's at a5615be0 with the stack profiles, file for file", () => {
+  test("an Organization's plan equals the root's at a5615be0, file for file", () => {
     for (const stack of moduleScaffoldStacks)
       expect(plan({ stack }).treeHash, stack).toBe(
         rootTreeHashes[stack] as string,
@@ -154,7 +138,7 @@ describe("planModuleScaffold, the Organization form", () => {
     expect(
       plan({ displayName: "Zákaznický portál", teams: ["web"] }).treeHash,
     ).toBe(
-      "sha256:dfb5ab9c44210a17c84560b0195f049181289c37978a7f6110a725fc02ccb3ad",
+      "sha256:2d8832d73bfbf574a8ef3f25341a93be81725eb36be42c014c8034c81b668fd6",
     );
   });
 
@@ -814,89 +798,12 @@ describe("the embedded templates", () => {
     for (const name of onDisk.keys())
       expect(name.endsWith(".tmpl"), name).toBe(true);
   });
-});
 
-// The stack profiles (docs/stack-profiles.md, decision F69): a new module is
-// born in its profile's release, with exact pins only, and its check runs
-// the tests too.
-describe("a new module and its stack profile", () => {
-  const profileTools: Readonly<Record<string, Record<string, string>>> = {
-    app: { typescript: "7.0.2" },
-    content: { typescript: "6.0.3" },
-  };
-  const stackTools: Readonly<Record<string, Record<string, string>>> = {
-    "vite-react": {
-      vite: "8.3.5",
-      "@vitejs/plugin-react": "6.2.1",
-      react: "19.3.1",
-      "react-dom": "19.3.1",
-      "@types/react": "19.3.0",
-      "@types/react-dom": "19.3.0",
-    },
-    astro: { astro: "7.4.5", "@astrojs/check": "0.9.12" },
-    "astro-starlight": {
-      astro: "7.4.5",
-      "@astrojs/check": "0.9.12",
-      "@astrojs/starlight": "0.42.8",
-    },
-    "bun-service": {},
-  };
-
-  test("every stack with a Bun app pins its profile's exact tools and checks with its tests", () => {
-    for (const stack of moduleScaffoldStacks) {
-      const profile = moduleStackProfile(stack);
-      const tools = stackTools[stack];
-      if (tools === undefined) {
-        expect(profile, stack).toBeNull();
-        continue;
-      }
-      const result = plan({ stack, slug: `x-${stack}` });
-      const pkg = JSON.parse(file(result, "app/v1/package.json"));
-      const pins: Record<string, string> = {
-        ...pkg.dependencies,
-        ...pkg.devDependencies,
-      };
-      for (const [name, version] of Object.entries(pins))
-        expect(
-          /^\d+\.\d+\.\d+$/.test(version) ||
-            /^github:Lazurio\/[a-z-]+#v\d+\.\d+\.\d+$/.test(version),
-          `${stack}: ${name} ${version}`,
-        ).toBe(true);
-      expect(pkg.packageManager).toBe(`bun@${scaffoldBunVersion}`);
-      expect(pins["@types/bun"], stack).toBe(scaffoldBunVersion);
-      expect(pins["@biomejs/biome"], stack).toBe("2.6.4");
-      expect(pins, stack).toMatchObject({
-        ...profileTools[profile ?? ""],
-        ...tools,
-      });
-      expect(pkg.scripts.check, stack).toBe(
-        "bun run typecheck && bun run lint && bun run test",
-      );
-      expect(file(result, ".github/workflows/check.yml")).not.toContain(
-        "bun test",
-      );
-      const biome = JSON.parse(file(result, "app/v1/biome.json"));
-      expect(biome.$schema).toContain("/2.6.4/");
-      expect(biome.markdown.formatter.enabled).toBe(false);
-      expect(biome.yaml.formatter.enabled).toBe(false);
-      expect(file(result, "README.md")).toContain(
-        `[\`${profile}\` ${stackProfilesRelease}](${stackProfileUrl(profile ?? "app")})`,
-      );
-    }
-  });
-
-  test("a module with data is born in app-data: repository-db and Zod, its README and AGENTS.md name it", () => {
-    expect(moduleStackProfile("vite-react", true)).toBe("app-data");
-    expect(moduleStackProfile("bun-service", true)).toBe("app-data");
-    expect(moduleStackProfile("astro", true)).toBe("content");
-    const result = plan({ data: true });
-    const pkg = JSON.parse(file(result, "app/v3/package.json"));
-    expect(pkg.dependencies.zod).toBe(scaffoldZodVersion);
-    expect(pkg.dependencies["@lazurio/repository-db"]).toBe(
-      "github:Lazurio/repository-db#v3.2.6",
+  test("a new module pins this repository's own Bun", async () => {
+    const packageJson = JSON.parse(
+      await readFile(join(import.meta.dir, "..", "package.json"), "utf8"),
     );
-    expect(file(result, "README.md")).toContain(stackProfileUrl("app-data"));
-    expect(file(result, "AGENTS.md")).toContain(stackProfileUrl("app-data"));
+    expect(packageJson.packageManager).toBe(`bun@${scaffoldBunVersion}`);
   });
 });
 
@@ -1010,59 +917,12 @@ describe("the Platform reads a generated personal module", () => {
 });
 
 describe("planModuleScaffold with data (--data)", () => {
-  test("the App is born in app/v3, the generation of repository-db data (#819); without data in app/v1", () => {
-    for (const stack of [
-      "vite-react",
-      "astro",
-      "astro-starlight",
-      "bun-service",
-    ]) {
-      const without = plan({ stack });
-      const result = plan({ stack, data: true });
-      expect([without.appDirectory, result.appDirectory], stack).toEqual([
-        "app/v1",
-        "app/v3",
-      ]);
-      expect(
-        result.files.filter((entry) => entry.path.startsWith("app/v1/")),
-        stack,
-      ).toEqual([]);
-      expect(result.generatedByInstall).toEqual(["app/v3/bun.lock"]);
-      expect(JSON.parse(file(result, "lazurio.module.json"))).toMatchObject({
-        apps: ["app/v3/package.json"],
-        default_app: "app/v3/package.json",
-      });
-      const pkg = JSON.parse(file(result, "app/v3/package.json"));
-      expect(pkg.name).toBe("portal-app-v3");
-      expect(pkg.lazurio.runtime.id).toBe("acme-portal-v3");
-      expect(pkg.lazurio.preparation.owner_package).toBe("app/v3/package.json");
-      expect(file(result, ".github/workflows/check.yml")).toContain(
-        "working-directory: app/v3",
-      );
-      expect(file(result, "README.md")).toContain("cd app/v3");
-      expect(file(result, "README.md")).not.toContain("app/v1");
-      expect(file(result, "AGENTS.md")).toContain("`app/v3/package.json`");
-      // The Module Standard reads it as any module.
-      const manifest = parseModuleManifest(
-        JSON.parse(file(result, "lazurio.module.json")),
-      );
-      expect(manifest.default_app, stack).toBe("app/v3/package.json");
-      expect(parseAppRuntime(pkg.lazurio.runtime).id, stack).toBe(
-        "acme-portal-v3",
-      );
-    }
-    const personalData = personal({ data: true });
-    expect(
-      JSON.parse(file(personalData, "app/v3/package.json")).lazurio.runtime.id,
-    ).toBe("personalspace-notes-v3");
-  });
-
   test("the app depends on one released repository-db, Git ignores db/, and the data slot is a repository-db mount", () => {
     const without = plan({ teams: ["web"] });
     const result = plan({ teams: ["web"], data: true });
     expect(without.data).toBeNull();
     expect(result.treeHash).not.toBe(without.treeHash);
-    const pkg = JSON.parse(file(result, "app/v3/package.json"));
+    const pkg = JSON.parse(file(result, "app/v1/package.json"));
     expect(pkg.dependencies["@lazurio/repository-db"]).toBe(
       `github:Lazurio/repository-db#v${defaultScaffoldVersions.repositoryDb}`,
     );
@@ -1070,77 +930,24 @@ describe("planModuleScaffold with data (--data)", () => {
     expect(Object.keys(pkg.dependencies)).toEqual(
       Object.keys(pkg.dependencies).sort(),
     );
-    expect(pkg.dependencies.zod).toBe(scaffoldZodVersion);
-    // Beside the generation (directory, package name, runtime id) and the
-    // dependencies, the App's package is the one without data.
-    const before = JSON.parse(
-      atGeneration(file(without, "app/v1/package.json")),
-    );
-    // check validates the data the repository carries (seed/); validate:db
-    // checks db/, which CI does not check out.
-    expect(pkg.scripts.check).toBe(
-      `${before.scripts.check} && bun run validate:data`,
-    );
-    expect(pkg.scripts["validate:data"]).toBe(
-      "bun run src/validate-data.ts seed",
-    );
-    expect(pkg.scripts["validate:db"]).toBe(
-      "bun run src/validate-data.ts ../../db/data",
-    );
+    const before = JSON.parse(file(without, "app/v1/package.json"));
     delete pkg.dependencies["@lazurio/repository-db"];
-    delete pkg.dependencies.zod;
-    delete pkg.scripts["validate:data"];
-    delete pkg.scripts["validate:db"];
-    pkg.scripts.check = before.scripts.check;
     expect(pkg).toEqual(before);
     expect(file(result, ".gitignore")).toBe(
       `${file(without, ".gitignore")}/db/\n`,
     );
     expect(file(result, "AGENTS.md")).toStartWith(file(without, "AGENTS.md"));
     expect(file(result, "AGENTS.md")).toContain("`portal-data`");
-    expect(file(result, "AGENTS.md")).toContain("bun run validate:db");
-    // Beside the generation, the layer _data adds the schemas of the
-    // collections, the validation of the data and its test, and seed/; of the
-    // other files only those four differ: the README names the profile
-    // app-data.
-    const moved = without.files.map((entry) => ({
-      path: atGeneration(entry.path),
-      content: atGeneration(entry.content),
-    }));
-    const added = [
-      "app/v3/seed/.gitkeep",
-      "app/v3/src/domain/collections.ts",
-      "app/v3/src/validate-data.ts",
-      "app/v3/tests/data.test.ts",
-    ];
-    expect(result.files.map((entry) => entry.path)).toEqual(
-      [...moved.map((entry) => entry.path), ...added].sort(),
-    );
-    for (const path of added)
-      expect(file(result, path)).toBe(
-        moduleTemplates.layers._data?.find(
-          (entry) =>
-            `app/v3/${entry.path
-              .slice("app/v1/".length)
-              .replace("dot-", ".")
-              .replace(/\.tmpl$/, "")}` === path,
-        )?.content ?? "",
-      );
+    // Only those three files differ.
     const changed = result.files
-      .filter((entry) => !added.includes(entry.path))
       .filter(
         (entry) =>
-          moved.find((other) => other.path === entry.path)?.content !==
+          without.files.find((other) => other.path === entry.path)?.content !==
           entry.content,
       )
       .map((entry) => entry.path)
       .sort();
-    expect(changed).toEqual([
-      ".gitignore",
-      "AGENTS.md",
-      "README.md",
-      "app/v3/package.json",
-    ]);
+    expect(changed).toEqual([".gitignore", "AGENTS.md", "app/v1/package.json"]);
     expect(result.data).toEqual({
       repository: "portal-data",
       mount: "db",

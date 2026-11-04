@@ -33,14 +33,14 @@ export { stateFields } from "./state-fields";
 // artifact identity so staging can check backward read compatibility.
 export const folderStateSchemas = Object.freeze({
   preferences: Object.freeze([2, 3]),
-  manifest: Object.freeze([2, 3, 4, 5]),
+  manifest: Object.freeze([2, 3, 4]),
 });
 
 // The manifest schema this product writes: every output it renders (decision
-// F14, addenda of 2026-10-14, 2026-10-21 and 2026-11-01). Schemas 2 (the
-// Folder before its skills), 3 (`new-module` only) and 4 (without `ui-craft`)
-// stay readable and are upgraded by the next change.
-export const instructionManifestSchema = 5;
+// F14, addenda of 2026-10-14 and 2026-11-01). Schema 2, the Folder before its
+// skills, and schema 3, the Folder with `new-module` only, stay readable and
+// are upgraded by the next change.
+export const instructionManifestSchema = 4;
 
 // Development schema for the generated-output transaction. Parsing is not proof
 // of custody: a filesystem adapter must establish the state owner's trusted
@@ -178,7 +178,7 @@ export function withToolSelection<
 export type OutputDigests = Readonly<Record<OutputPath, string>>;
 export type RecordedDigests = Readonly<Partial<Record<OutputPath, string>>>;
 export type InstructionManifest = Readonly<{
-  schemaVersion: 2 | 3 | 4 | 5;
+  schemaVersion: 2 | 3 | 4;
   preferenceRevision: number;
   templateRevision: string;
   outputs: RecordedDigests;
@@ -315,8 +315,7 @@ export function parseInstructionManifest(input: unknown): InstructionManifest {
   if (
     value.schemaVersion !== 2 &&
     value.schemaVersion !== 3 &&
-    value.schemaVersion !== 4 &&
-    value.schemaVersion !== 5
+    value.schemaVersion !== 4
   )
     throw new FolderStateUnreadable("unsupported-schema", {
       field: "schemaVersion",

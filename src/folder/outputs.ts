@@ -70,13 +70,11 @@ export type ManualPath = (typeof manualEntries)[number]["path"];
 // these files only, never the directories around them, which may hold the
 // person's own skills and settings. A further skill is one more name here
 // and its text in `skills.ts`. `henry-review` and `module-standard` came
-// from the Lazurio Root (decision F14, addendum of 2026-11-01), `ui-craft`
-// from the addendum of 2026-10-21.
+// from the Lazurio Root (decision F14, addendum of 2026-11-01).
 export const skillNames = Object.freeze([
   "new-module",
   "henry-review",
   "module-standard",
-  "ui-craft",
 ] as const);
 export type SkillName = (typeof skillNames)[number];
 export const skillRoots = Object.freeze([
@@ -135,30 +133,23 @@ export const outputPaths = Object.freeze([
 export type OutputPath = "AGENTS.md" | ManualPath | SkillPath;
 
 // The outputs a manifest of each schema records (decision F14, addenda of
-// 2026-10-14, 2026-10-21 and 2026-11-01). Schema 2 is the Folder before the
-// skills: AGENTS.md and the manual. Schema 3 is the Folder with its first
-// skill, `new-module`. Schema 4 adds `henry-review` and `module-standard`.
-// A release that renders an output an older Folder does not record creates it
-// in that Folder's upgrade, where its absence is the proof that nothing of the
-// person's is replaced. Schema 5, which adds `ui-craft`, records every output
-// of this product.
-const skillPathsOf = (names: readonly SkillName[]) =>
-  names.flatMap((name) =>
-    skillRoots.map((root): SkillPath => `${root}/${name}/SKILL.md`),
-  );
+// 2026-10-14 and 2026-11-01). Schema 2 is the Folder before the skills:
+// AGENTS.md and the manual. Schema 3 is the Folder with its first skill,
+// `new-module`. A release that renders an output an older Folder does not
+// record creates it in that Folder's upgrade, where its absence is the proof
+// that nothing of the person's is replaced. Schema 4 records every output of
+// this product.
+const newModuleSkillPaths = skillRoots.map(
+  (root): SkillPath => `${root}/new-module/SKILL.md`,
+);
 export const manifestOutputPaths = Object.freeze({
   2: Object.freeze(["AGENTS.md", ...manualPaths] as OutputPath[]),
   3: Object.freeze([
     "AGENTS.md",
     ...manualPaths,
-    ...skillPathsOf(["new-module"]),
+    ...newModuleSkillPaths,
   ] as OutputPath[]),
-  4: Object.freeze([
-    "AGENTS.md",
-    ...manualPaths,
-    ...skillPathsOf(["new-module", "henry-review", "module-standard"]),
-  ] as OutputPath[]),
-  5: outputPaths as readonly OutputPath[],
+  4: outputPaths as readonly OutputPath[],
 } as const);
 
 export function isOutputPath(value: unknown): value is OutputPath {

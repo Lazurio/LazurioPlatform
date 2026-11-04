@@ -17,18 +17,6 @@ import commonAgentsMd from "./templates/_common/AGENTS.md.tmpl" with {
 import commonDotGitignore from "./templates/_common/dot-gitignore.tmpl" with {
   type: "text",
 };
-import dataAppV1SeedDotGitkeep from "./templates/_data/app/v1/seed/dot-gitkeep.tmpl" with {
-  type: "text",
-};
-import dataAppV1SrcDomainCollectionsTs from "./templates/_data/app/v1/src/domain/collections.ts.tmpl" with {
-  type: "text",
-};
-import dataAppV1SrcValidateDataTs from "./templates/_data/app/v1/src/validate-data.ts.tmpl" with {
-  type: "text",
-};
-import dataAppV1TestsDataTestTs from "./templates/_data/app/v1/tests/data.test.ts.tmpl" with {
-  type: "text",
-};
 import personalAgentsMd from "./templates/_personal/AGENTS.md.tmpl" with {
   type: "text",
 };
@@ -183,12 +171,6 @@ export const moduleTemplates: ScaffoldTemplates = Object.freeze({
       "app/v1/src/prepared.ts.tmpl": bunAppV1SrcPreparedTs,
       "app/v1/tests/start.test.ts.tmpl": bunAppV1TestsStartTestTs,
       "dot-github/workflows/check.yml.tmpl": bunDotGithubWorkflowsCheckYml,
-    }),
-    _data: layer({
-      "app/v1/seed/dot-gitkeep.tmpl": dataAppV1SeedDotGitkeep,
-      "app/v1/src/domain/collections.ts.tmpl": dataAppV1SrcDomainCollectionsTs,
-      "app/v1/src/validate-data.ts.tmpl": dataAppV1SrcValidateDataTs,
-      "app/v1/tests/data.test.ts.tmpl": dataAppV1TestsDataTestTs,
     }),
     _personal: layer({
       "AGENTS.md.tmpl": personalAgentsMd,

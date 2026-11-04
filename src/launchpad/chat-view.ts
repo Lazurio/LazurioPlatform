@@ -136,9 +136,7 @@ export function parsePromptHandoff(value: unknown): boolean {
  * GitHub login, never its text (`GET /.lazurio/prompts/<id>?org=<login>`). */
 export type PromptLink = Readonly<{ id: string; organization: string }>;
 
-/** The longest prompt id Chat takes by link (Lazurio/t3code#35). */
-export const promptIdLength = 64;
-const promptId = new RegExp(`^[a-z][a-z0-9-]{0,${promptIdLength - 1}}$`);
+const promptId = /^[a-z][a-z0-9-]{0,63}$/;
 const githubLogin = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
 
 /** Chat's address with a prepared prompt for the T3 Code fork

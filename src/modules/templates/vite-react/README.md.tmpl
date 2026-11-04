@@ -8,25 +8,18 @@ ve Vite + React + TypeScript strict. Vznikl příkazem
 
 - `lazurio.module.json` — identita Modulu, lease `main` z {{pool_label}},
   `apps[]` a `default_app`.
-- `{{app_directory}}/` — App; `package.json` nese `lazurio.runtime` (listener
+- `app/v1/` — App; `package.json` nese `lazurio.runtime` (listener
   `{{listener_id}}`, health `/`) a `lazurio.preparation`.
 - `.github/workflows/check.yml` — CI: `bun install --frozen-lockfile`,
-  `bun run check` (typová kontrola, Biome a testy).
-
-## Stack
-
-Modul vznikl podle stack profilu
-[`{{stack_profile}}` {{stack_profile_release}}]({{stack_profile_url}}): přesné
-verze Bunu, TypeScriptu, Biome a frameworku v `{{app_directory}}/package.json` jsou jeho.
-Mění se jen řízeně: novým vydáním profilu, které Modul převezme vlastním PR,
-nebo přechodem na další generaci `app/v<N>`.
+  `bun run check`, `bun test`.
 
 ## Vývoj
 
 ```sh
-cd {{app_directory}}
+cd app/v1
 bun install --frozen-lockfile
-bun run check   # tsc --noEmit, biome, jednotkové testy a start kontrakt
+bun run check   # tsc --noEmit + biome
+bun test        # jednotkové testy a start kontrakt
 ```
 
 Start patří Launchpadu: `lazurio module start {{module_name}} --json`

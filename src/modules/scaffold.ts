@@ -20,42 +20,20 @@ import { personalspaceName } from "../organizations/personalspace";
 
 export const scaffoldLeaseId = "main";
 export const scaffoldListenerId = "app";
+export const scaffoldAppPackage = "app/v1/package.json";
 
-/** The App directory a new module is born in. The App generation names the
- * data layer for every module (Matěj, 2026-11-03; decision F69, point 8):
- * `app/v1` has no data of its own, `app/v3` keeps its records in
- * repository-db (`--data`). The templates are written under `app/v1/`; the
- * plan writes them to this directory. */
-export const scaffoldAppDirectory = (data: boolean): "app/v1" | "app/v3" =>
-  data ? "app/v3" : "app/v1";
-
-/** Where the templates keep the App's files. */
-const templateAppDirectory = "app/v1";
-
-/** The release of the stack profiles a new module is born in
- * (`docs/stack-profiles.md`, decision F69). The templates' exact pins are this
- * release's; changing one is a new release of the profiles, never a quiet
- * bump. */
-export const stackProfilesRelease = "2026.11";
-
-/** The Bun version a new module pins: the common base of the stack profiles
- * (`docs/stack-profiles.md`), not this repository's own toolchain. The
- * module's `@types/bun` follows it. */
-export const scaffoldBunVersion = "1.4.4";
+/** The Bun version a new module pins: this repository's own `packageManager`
+ * (tests keep the two equal), as the root pinned its Core's. */
+export const scaffoldBunVersion = "1.4.2";
 
 /** The versions a new module pins besides Bun: the module kit, uv, and the
- * one released repository-db a module with data depends on (`--data`; the
- * Module Standard: one released tag, `MS-10`), all from the stack profiles. */
+ * one released repository-db a module with data depends on (`--data`; root
+ * `manual/module-standard.md`: one released tag, `MS-10`). */
 export const defaultScaffoldVersions = Object.freeze({
   moduleKit: "0.2.0",
   uv: "0.11.6",
-  repositoryDb: "3.2.6",
+  repositoryDb: "3.2.0",
 });
-
-/** The schema library of a module with data (`--data`): Zod is the one
- * source of the shape of its records (profile `app-data`,
- * `docs/stack-profiles.md`). */
-export const scaffoldZodVersion = "4.6.7";
 
 /** The data generation a new module's data repository starts on: its branch
  * (repository-db: a major generation is a Git branch). */
@@ -88,15 +66,10 @@ export const environmentPorts: readonly number[] = Object.freeze([
   443, 3773, 4102, 4103, 4174, 4180, 4789, 4848, 9222, 20_000,
 ]);
 
-/** The stack profiles (`docs/stack-profiles.md`): which exact tools a
- * module of a kind is built with. A stack without TypeScript has none. */
-export type StackProfile = "content" | "app" | "app-data" | "app-database";
-
 type StackSpec = Readonly<{
   layers: readonly string[];
   toolchain: "bun" | "uv" | null;
   category: string;
-  profile: StackProfile | null;
 }>;
 
 const stacks = {
@@ -104,38 +77,28 @@ const stacks = {
     layers: ["_common", "_bun", "vite-react"],
     toolchain: "bun",
     category: "application",
-    profile: "app",
   },
   astro: {
     layers: ["_common", "_bun", "astro"],
     toolchain: "bun",
     category: "publishing",
-    profile: "content",
   },
   "astro-starlight": {
     layers: ["_common", "_bun", "astro-starlight"],
     toolchain: "bun",
     category: "knowledge",
-    profile: "content",
   },
   "bun-service": {
     layers: ["_common", "_bun", "bun-service"],
     toolchain: "bun",
     category: "engineering",
-    profile: "app",
   },
   "python-uv": {
     layers: ["_common", "python-uv"],
     toolchain: "uv",
     category: "engineering",
-    profile: null,
   },
-  none: {
-    layers: ["_common", "none"],
-    toolchain: null,
-    category: "workspace",
-    profile: null,
-  },
+  none: { layers: ["_common", "none"], toolchain: null, category: "workspace" },
 } as const satisfies Record<string, StackSpec>;
 
 export type ModuleStack = keyof typeof stacks;
@@ -144,30 +107,8 @@ export const moduleScaffoldStacks = Object.freeze(
   Object.keys(stacks),
 ) as readonly ModuleStack[];
 
-/** The stack profile a new module of `stack` is born in: with data
- * (`--data`), an app's profile is `app-data`, and a content stack keeps
- * `content` with the data layer of `app-data` (repository-db and Zod). */
-export function moduleStackProfile(
-  stack: ModuleStack,
-  data = false,
-): StackProfile | null {
-  const profile: StackProfile | null = stacks[stack].profile;
-  return data && profile === "app" ? "app-data" : profile;
-}
-
-/** Where a stack profile is published: its section of
- * `docs/stack-profiles.md` in this public repository. */
-export function stackProfileUrl(profile: StackProfile): string {
-  return `https://github.com/Lazurio/LazurioPlatform/blob/main/docs/stack-profiles.md#${profile}`;
-}
-
 /** The layer a personal module gets last, over its stack's layers. */
 export const personalLayer = "_personal";
-
-/** The layer a module with data (`--data`) gets over its stack's: the Zod
- * schemas of its collections, the validation of its data that `check` runs
- * (`validate:data`) and its test, and the empty `seed/`. */
-export const dataLayer = "_data";
 
 /** Every template layer directory under `src/modules/templates/`. */
 export const moduleScaffoldLayers: readonly string[] = Object.freeze([
@@ -175,7 +116,6 @@ export const moduleScaffoldLayers: readonly string[] = Object.freeze([
     ...Object.values(stacks).flatMap(
       (stack): readonly string[] => stack.layers,
     ),
-    dataLayer,
     personalLayer,
   ]),
 ]);
@@ -385,9 +325,6 @@ export type ModuleScaffoldPlan = Readonly<{
   displayName: string;
   modulePath: string;
   files: readonly ScaffoldFile[];
-  /** The App's directory (`app/v1`, or `app/v3` with data); null for a
-   * module without an App. */
-  appDirectory: string | null;
   /** The lockfile the install writes (`bun install`, `uv lock`), which a
    * pure plan cannot. */
   generatedByInstall: readonly string[];
@@ -454,10 +391,6 @@ export function planModuleScaffold(
         };
 
   const personal = owner.kind === "personal";
-  const profile = moduleStackProfile(stack, data);
-  const appDirectory = scaffoldAppDirectory(data);
-  const appPackage = `${appDirectory}/package.json`;
-  const generation = appDirectory.slice("app/".length);
   const values: Record<string, string> = {
     slug,
     display_name: displayName,
@@ -468,21 +401,12 @@ export function planModuleScaffold(
     listener_env_prefix: `LAZURIO_RUNTIME_LISTENER_${scaffoldListenerId.toUpperCase().replaceAll("-", "_")}`,
     // A personal app's runtime id names no person: the catalog shows it
     // (`display.id`), and no output names a personal module's owner.
-    runtime_id: runtimeId(
-      personal ? personalspaceName : owner.name,
-      slug,
-      generation,
-    ),
-    app_directory: appDirectory,
-    app_generation: generation,
+    runtime_id: runtimeId(personal ? personalspaceName : owner.name, slug),
     python_package: slug.replaceAll("-", "_"),
     port: lease ? String(lease.port) : "",
     bun_version: pinned.bun,
     module_kit_version: pinned.moduleKit,
     uv_version: pinned.uv,
-    stack_profile: profile ?? "",
-    stack_profile_release: stackProfilesRelease,
-    stack_profile_url: profile === null ? "" : stackProfileUrl(profile),
     // Wording of a module's own files that names whose it is (decision F52).
     owner_label: personal ? "osobního prostoru" : "Organizace",
     pool_label: personal ? "osobního poolu" : "poolu Organizace",
@@ -495,11 +419,7 @@ export function planModuleScaffold(
   };
 
   const files = new Map<string, ScaffoldFile>();
-  const layers = [
-    ...spec.layers,
-    ...(data ? [dataLayer] : []),
-    ...(personal ? [personalLayer] : []),
-  ];
+  const layers = personal ? [...spec.layers, personalLayer] : spec.layers;
   for (const layer of layers) {
     const entries = input.templates.layers[layer];
     if (!Array.isArray(entries))
@@ -509,12 +429,9 @@ export function planModuleScaffold(
       );
     for (const entry of entries as readonly TemplateFile[]) {
       const source = String(entry?.path ?? "");
-      const target = templateTargetPath(
+      const path = templateTargetPath(
         substitute(source, values, `${layer}: path ${source}`),
       );
-      const path = target.startsWith(`${templateAppDirectory}/`)
-        ? `${appDirectory}${target.slice(templateAppDirectory.length)}`
-        : target;
       assertRelativePath(path, `${layer}/${source}`);
       const content = substitute(
         String(entry?.content ?? ""),
@@ -530,10 +447,10 @@ export function planModuleScaffold(
   }
   files.set("lazurio.module.json", {
     path: "lazurio.module.json",
-    content: `${JSON.stringify(moduleManifest(owner.name, slug, lease, appPackage), null, 2)}\n`,
+    content: `${JSON.stringify(moduleManifest(owner.name, slug, lease), null, 2)}\n`,
   });
   const engine = `github:Lazurio/repository-db#v${pinned.repositoryDb ?? defaultScaffoldVersions.repositoryDb}`;
-  if (data) withData(files, slug, engine, appDirectory);
+  if (data) withData(files, slug, engine);
   const sorted = [...files.values()].sort((left, right) =>
     left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
   );
@@ -548,10 +465,10 @@ export function planModuleScaffold(
       );
     }
   }
-  if (lease !== null && !files.has(appPackage))
+  if (lease !== null && !files.has(scaffoldAppPackage))
     throw new ModuleScaffoldError(
       "template_invalid",
-      `The stack ${stack} has no ${appPackage}.`,
+      `The stack ${stack} has no ${scaffoldAppPackage}.`,
     );
 
   const warnings: string[] = [];
@@ -568,12 +485,11 @@ export function planModuleScaffold(
     displayName,
     modulePath: `workspace/${slug}`,
     files: Object.freeze(sorted),
-    appDirectory: lease === null ? null : appDirectory,
     generatedByInstall: Object.freeze(
       spec.toolchain === "bun"
-        ? [`${appDirectory}/bun.lock`]
+        ? ["app/v1/bun.lock"]
         : spec.toolchain === "uv"
-          ? [`${appDirectory}/uv.lock`]
+          ? ["app/v1/uv.lock"]
           : [],
     ),
     toolchain: spec.toolchain,
@@ -608,52 +524,32 @@ export function planModuleScaffold(
   });
 }
 
-/** What `--data` changes in a module's files besides the layer `_data`: its
- * app depends on the one released repository-db and on Zod (profile
- * `app-data`), its `check` validates the data (`validate:data`), its Git
- * ignores the data mount `db/` (a repository of its own), and its AGENTS.md
- * says where the data lives, how it is published, that Zod is the one source
- * of its shape and how the data is validated. */
+/** What `--data` changes in a module's files: its app depends on the one
+ * released repository-db, its Git ignores the data mount `db/` (a repository
+ * of its own), and its AGENTS.md says where the data lives and how it is
+ * published. */
 function withData(
   files: Map<string, ScaffoldFile>,
   slug: string,
   engine: string,
-  appDirectory: string,
 ) {
-  const appPackage = `${appDirectory}/package.json`;
-  const app = files.get(appPackage);
+  const app = files.get(scaffoldAppPackage);
   if (app === undefined)
     throw new ModuleScaffoldError(
       "template_invalid",
-      `The stack has no ${appPackage} to depend on repository-db.`,
+      `The stack has no ${scaffoldAppPackage} to depend on repository-db.`,
     );
   const pkg = JSON.parse(app.content) as {
-    scripts?: Record<string, string>;
     dependencies?: Record<string, string>;
-  };
-  const scripts = pkg.scripts ?? {};
-  if (scripts.check === undefined)
-    throw new ModuleScaffoldError(
-      "template_invalid",
-      `The stack's ${appPackage} has no check script to validate the data.`,
-    );
-  // The records this repository carries are checked in CI; db/ is a
-  // repository of its own that CI does not check out.
-  pkg.scripts = {
-    ...scripts,
-    check: `${scripts.check} && bun run validate:data`,
-    "validate:data": "bun run src/validate-data.ts seed",
-    "validate:db": "bun run src/validate-data.ts ../../db/data",
   };
   const dependencies = { ...(pkg.dependencies ?? {}) };
   dependencies["@lazurio/repository-db"] = engine;
-  dependencies.zod = scaffoldZodVersion;
   pkg.dependencies = Object.fromEntries(
     Object.entries(dependencies).sort(([left], [right]) =>
       left < right ? -1 : left > right ? 1 : 0,
     ),
   );
-  files.set(appPackage, {
+  files.set(scaffoldAppPackage, {
     ...app,
     content: `${JSON.stringify(pkg, null, 2)}\n`,
   });
@@ -672,20 +568,9 @@ function withData(
 Data Modulu žijí v repository-db: složka \`db/\` je samostatný repozitář
 \`${slug}-data\` (větev \`v3\`, kanonické YAML v \`db/data/\`), který Git tohoto
 Modulu ignoruje. App k nim přistupuje přes \`@lazurio/repository-db\` (jedna
-vydaná verze v \`${appPackage}\`), nikdy přímo přes Git. Commit a push
+vydaná verze v \`app/v1/package.json\`), nikdy přímo přes Git. Commit a push
 dat do \`v3\` je Publikace: dělá ji tlačítko „Publikovat změny“ nebo
 \`repository-db publish\` na pokyn uživatele.
-
-Tvar záznamů popisují jen schémata Zodu: typy se z nich odvozují
-(\`z.infer\`) a JSON Schema se z nich generuje, ručně psané typy dat ani
-druhé schéma se nepíšou (profil \`app-data\`,
-${stackProfileUrl("app-data")}).
-
-Každá kolekce má schéma v \`${appDirectory}/src/domain/collections.ts\` dřív
-než první záznam a App předává stejná schémata repository-db jako parsery.
-\`bun run check\` ověří záznamy, které nese tento repozitář
-(\`${appDirectory}/seed/\`, rozložené jako \`db/data/\`); záznamy v \`db/\`
-CI nevidí, proto je před Publikací ověř \`bun run validate:db\`.
 `,
     });
 }
@@ -1132,11 +1017,11 @@ function choosePort(
   );
 }
 
-function runtimeId(owner: string, slug: string, generation: string): string {
+function runtimeId(owner: string, slug: string): string {
   const id = `${owner
     .toLowerCase()
     .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "")}-${slug}-${generation}`;
+    .replace(/^-|-$/g, "")}-${slug}-v1`;
   if (!runtimeIdPattern.test(id))
     throw new ModuleScaffoldError(
       "invalid_owner",
@@ -1149,7 +1034,6 @@ function moduleManifest(
   owner: string,
   slug: string,
   lease: ScaffoldLease | null,
-  appPackage: string,
 ) {
   return lease
     ? {
@@ -1158,8 +1042,8 @@ function moduleManifest(
         company: owner,
         tcp_port_policy: { mode: "single" },
         port_leases: [lease],
-        apps: [appPackage],
-        default_app: appPackage,
+        apps: [scaffoldAppPackage],
+        default_app: scaffoldAppPackage,
       }
     : {
         schema_version: "lazurio.module.v1",

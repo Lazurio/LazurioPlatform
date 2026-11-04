@@ -3,7 +3,7 @@ import { customServerIdPattern } from "../integrations/custom-server";
 import { integrationIdPattern } from "../integrations/path";
 import { isServiceId } from "../organizations/server-services";
 import { isSecretRequestId, secretRequestPath } from "../vault/request-id";
-import { builtInMarketplace, offerById } from "./marketplace";
+import { offerById } from "./marketplace";
 import type { MessageKey } from "./messages";
 
 // The page routes of the Launchpad: one document served under each path, the
@@ -398,8 +398,6 @@ export function routeTitle(
   route: PageRoute,
   copy: Readonly<Record<MessageKey, string>>,
   displayName: (organization: string) => string | undefined = () => undefined,
-  offerTitle: (offer: string) => string | undefined = (offer) =>
-    offerById(builtInMarketplace, offer)?.title,
 ): Readonly<{ heading: string; document: string }> {
   if (route.view === "home")
     return { heading: copy.homeTitle, document: copy.title };
@@ -428,7 +426,9 @@ export function routeTitle(
     };
   if (route.view === "marketplace") {
     const offer =
-      route.offer === undefined ? null : (offerTitle(route.offer) ?? null);
+      route.offer === undefined
+        ? null
+        : (offerById(route.offer)?.title ?? null);
     return offer === null
       ? {
           heading: copy.appsMarketplace,

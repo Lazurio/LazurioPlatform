@@ -543,13 +543,6 @@ Preset format, upgrade mechanism and UI remain open. Community presets and other
 qualified stacks belong to the already planned marketplace, not another registry,
 catalog, service or plugin framework. This direction adds no rollout or release mandate.
 
-The tools a preset is built with are its [stack profile](stack-profiles.md) (decision
-[F69](decisions.md#f69--stack-profiles-the-exact-tools-a-module-is-built-with-changed-only-by-a-generation-transition-or-a-profile-release)):
-exact versions per kind of Module, changed only by a transition to the next App
-generation or by a dated release of the profiles. A generated or adopted module takes a
-release by its own pull request, never by an overwrite, so the rule above holds for tools
-too.
-
 Protocol observation: `HumanAndMachines/Lazurio` at
 `afa1c19fab473be6ee38094e5db769b6b0722e51`, specifically
 `lazurio/schemas/lazurio-module.schema.json` and

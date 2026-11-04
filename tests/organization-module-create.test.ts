@@ -1098,7 +1098,7 @@ describe("a module with data (--data)", () => {
       const module = join(setup.root, "workspace", "ledger");
       expect(requests).toEqual([
         {
-          app: join(module, "app", "v3"),
+          app: join(module, "app", "v1"),
           name: "ledger",
           remote: "git@github.com:Acme/ledger-data.git",
           branch: "v3",
@@ -1120,7 +1120,7 @@ describe("a module with data (--data)", () => {
       // The app depends on the engine; both slots are declared, and the
       // root still resolves cleanly with them.
       const pkg = JSON.parse(
-        await readFile(join(module, "app", "v3", "package.json"), "utf8"),
+        await readFile(join(module, "app", "v1", "package.json"), "utf8"),
       );
       expect(pkg.dependencies["@lazurio/repository-db"]).toMatch(
         /^github:Lazurio\/repository-db#v\d+\.\d+\.\d+$/,
@@ -1165,10 +1165,6 @@ describe("a module with data (--data)", () => {
       });
       expect(report.next_steps[0]).toContain(
         "bun ./node_modules/@lazurio/repository-db/src/cli.ts init --app archive --remote git@github.com:Acme/archive-data.git --branch v3 --mount",
-      );
-      // In the App of generation app/v3, where the engine is installed.
-      expect(report.next_steps[0]).toContain(
-        `cd '${join(setup.root, "workspace", "archive", "app", "v3")}'`,
       );
       const declared = JSON.parse(
         await readFile(join(setup.worktree, "modules.manifest.json"), "utf8"),
