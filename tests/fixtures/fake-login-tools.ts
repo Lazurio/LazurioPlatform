@@ -174,6 +174,12 @@ hang ssh
 # $HOME/ssh.unreachable: no route to GitHub at all (a network without it).
 [ -f "$HOME/ssh.unreachable" ] && { echo "ssh: connect to host github.com port 22: Network is unreachable" >&2; exit 255; }
 grep -qF "${githubHostKeys[0]?.split(" ")[1]}" "$HOME/.ssh/known_hosts" 2>/dev/null || { echo "Host key verification failed." >&2; exit 255; }
+# $HOME/ssh.refusals: GitHub in an incident refuses that many connections
+# more with "Permission denied", whatever the key, then answers again.
+if [ -f "$HOME/ssh.refusals" ]; then
+  left=$(cat "$HOME/ssh.refusals")
+  if [ "$left" -gt 0 ]; then echo $((left - 1)) > "$HOME/ssh.refusals"; echo "git@github.com: Permission denied (publickey)." >&2; exit 255; fi
+fi
 for name in id_rsa id_ecdsa id_ed25519; do
   pub="$HOME/.ssh/$name.pub"
   [ -f "$pub" ] || continue

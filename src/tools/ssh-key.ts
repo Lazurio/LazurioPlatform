@@ -101,8 +101,11 @@ export type SshLink =
  * account, by the sign-in's own proof (`proveSsh`). `linked` only when the
  * proof passed; `not-linked` with `no-key`, `not-registered` (the account
  * does not list the key), `proof-failed` or `other-account` (ssh greeted
- * another login); `unknown` (`unreadable`) only when GitHub could not be
- * reached or read, or this home is not known. */
+ * another login); `unknown` with `unreadable` when GitHub could not be
+ * reached or read, or this home is not known, and with `refused` when the
+ * account lists the key and GitHub still refused it over SSH, again and
+ * again: nothing here is to fix then, GitHub is (its Git operations in an
+ * incident refuse a share of connections with "Permission denied"). */
 export type SshStatus = Readonly<{
   state: "linked" | "not-linked" | "unknown";
   reason?: SshStatusReason;
@@ -114,7 +117,8 @@ export type SshStatusReason =
   | "not-registered"
   | "proof-failed"
   | "other-account"
-  | "unreadable";
+  | "unreadable"
+  | "refused";
 
 export const sshStatusReasons: readonly SshStatusReason[] = [
   "no-key",
@@ -122,6 +126,7 @@ export const sshStatusReasons: readonly SshStatusReason[] = [
   "proof-failed",
   "other-account",
   "unreadable",
+  "refused",
 ];
 
 /** What sign-out did with this Machine's key on the account. */
@@ -359,15 +364,19 @@ export async function sshStatus(
   const fingerprint = fingerprintOf(key.publicKey);
   if (input.account === undefined)
     return { state: "unknown", reason: "unreadable", fingerprint };
+  // Whether the account's own list shows the key: then a refusal over SSH
+  // is GitHub's, not a link to make again.
+  let registered = false;
   if (canReadKeys(input.scopes)) {
     const keys = await accountKeys(input.run, input.gh, statusStepMs);
     if (keys === undefined)
       return { state: "unknown", reason: "unreadable", fingerprint };
     if (!keys.some((entry) => entry.key === key.publicKey))
       return { state: "not-linked", reason: "not-registered", fingerprint };
+    registered = true;
   }
   const account = input.account;
-  const prove = () =>
+  const once = () =>
     proveSsh(
       {
         home: input.home as string,
@@ -380,6 +389,18 @@ export async function sshStatus(
       account,
       { timeoutMs: statusStepMs },
     ).then((proof) => (proof === "gone" ? unreachable : proof));
+  // A registered key GitHub refused is asked again: GitHub in trouble
+  // refuses some connections and lets others through.
+  const prove = async () => {
+    let proof = await once();
+    for (
+      let attempt = 1;
+      registered && refusedByGithub(proof) && attempt < refusedAttempts;
+      attempt += 1
+    )
+      proof = await once();
+    return proof;
+  };
   const proof =
     input.proofs === undefined
       ? await prove()
@@ -387,6 +408,8 @@ export async function sshStatus(
   if (proof.state === "proved") return { state: "linked", fingerprint };
   if (proof.state === "unreachable")
     return { state: "unknown", reason: "unreadable", fingerprint };
+  if (registered && refusedByGithub(proof))
+    return { state: "unknown", reason: "refused", fingerprint };
   return {
     state: "not-linked",
     reason:
@@ -398,6 +421,11 @@ export async function sshStatus(
 // Each step of the status's proof: 20 s, above ssh's own ConnectTimeout of
 // 15 s; the sign-in gives each of its steps 30 s.
 const statusStepMs = 20_000;
+// How many times the status proves a key the account lists before it says
+// GitHub refuses it; a refusal comes back within a second or two.
+const refusedAttempts = 3;
+const refusedByGithub = (proof: SshProof): boolean =>
+  proof.state === "failed" && proof.denied === true;
 const unreachable: SshProof = {
   state: "unreachable",
   reason: "ssh-unreachable",
@@ -801,6 +829,9 @@ export type SshProof =
         | "proof-other-account"
       >;
       provedAs?: string;
+      /** GitHub answered "Permission denied (publickey)": it refused every
+       * key ssh offered. */
+      denied?: true;
     }>
   | Readonly<{
       state: "unreachable";
@@ -861,7 +892,9 @@ export async function proveSsh(
   if (greeted === undefined)
     return sshUnreachable(output)
       ? { state: "unreachable", reason: "ssh-unreachable" }
-      : { state: "failed", reason: "proof-failed" };
+      : /Permission denied \(publickey\)/i.test(output)
+        ? { state: "failed", reason: "proof-failed", denied: true }
+        : { state: "failed", reason: "proof-failed" };
   if (greeted.toLowerCase() !== account.toLowerCase())
     return {
       state: "failed",

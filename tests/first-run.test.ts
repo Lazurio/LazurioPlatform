@@ -12,6 +12,7 @@ import {
   firstProgress,
   freshTourProgress,
   githubFact,
+  githubRefused,
   hasOnboarding,
   idleAutoStart,
   nextBasic,
@@ -553,7 +554,10 @@ test("GitHub from the Tools reading of the profile shown", () => {
       installed: boolean;
       signIn?: {
         state: "signed-in" | "signed-out" | "unknown";
-        ssh?: { state: "linked" | "not-linked" | "unknown" };
+        ssh?: {
+          state: "linked" | "not-linked" | "unknown";
+          reason?: "refused";
+        };
       };
     }>,
     revision = 1,
@@ -584,6 +588,19 @@ test("GitHub from the Tools reading of the profile shown", () => {
   // Whether SSH works could not be read: not known, never connected.
   expect(githubFact(ghSignedIn("unknown"), 1)).toBe("unknown");
   expect(githubFact(ghSignedIn(), 1)).toBe("unknown");
+  // GitHub refuses a key the account lists: not known broken, and
+  // Začínáme says GitHub refuses it.
+  const refused = reading({
+    installed: true,
+    signIn: {
+      state: "signed-in",
+      ssh: { state: "unknown", reason: "refused" },
+    },
+  });
+  expect(githubFact(refused, 1)).toBe("unknown");
+  expect(githubRefused(refused)).toBe(true);
+  expect(githubRefused(ghSignedIn("unknown"))).toBe(false);
+  expect(githubRefused(ghSignedIn("not-linked"))).toBe(false);
   // Not installed: "Připojit" installs it first.
   expect(githubFact(reading({ installed: false }), 1)).toBe("missing");
   for (const [overview, revision] of [

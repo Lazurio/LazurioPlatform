@@ -946,6 +946,35 @@ test("GitHub connected badly: the step says it does not work and offers to conne
   );
 });
 
+// GitHub refusing a key the account lists (its Git operations in an
+// incident): nothing here is broken, so the step neither says "Připojení
+// nefunguje" nor offers to connect again, and says GitHub refuses it now.
+test("GitHub refusing a linked key: the step says GitHub refuses it now, not that the connection does not work, in both languages", () => {
+  const refused = startView(
+    facts({ ai: "connected", github: "unknown", githubRefused: true }),
+    cs,
+  );
+  expect(refused?.steps[1]).toEqual({
+    basic: "github",
+    mark: "later",
+    title: "GitHub",
+    status: cs.startGithubRefused,
+  });
+  expect(cs.startGithubRefused).toContain("GitHub teď připojení odmítá");
+  expect(refused?.github).toBeNull();
+  expect(
+    startView(
+      facts({ ai: "connected", github: "unknown", githubRefused: true }),
+      en,
+    )?.steps[1]?.status,
+  ).toBe(en.startGithubRefused);
+  // Without the refusal, an unknown GitHub is still being checked.
+  expect(
+    startView(facts({ ai: "connected", github: "unknown" }), cs)?.steps[1]
+      ?.status,
+  ).toBe(cs.startChecking);
+});
+
 test("the Automated Environment has the Začínáme of a work Environment: AI, then the persona's GitHub, then its Organization, and the count (F27's addendum of 2026-10-30)", () => {
   const automated = (overrides: Partial<StartFacts> = {}) =>
     facts({ preset: "hosted-organization-steward", ...overrides });

@@ -176,6 +176,19 @@ export function githubFact(
       : "unknown";
 }
 
+/** Whether GitHub itself refuses this Environment's key over SSH while the
+ * signed-in account lists it (`refused` of the SSH status): the fact stays
+ * `unknown`, nothing here being known broken, and Začínáme says GitHub
+ * refuses it now instead of "Připojení nefunguje". */
+export function githubRefused(overview: ToolsReading): boolean {
+  const github = overview?.tools.find((tool) => tool.name === "gh");
+  return (
+    github?.signIn?.state === "signed-in" &&
+    github.signIn.ssh?.state === "unknown" &&
+    github.signIn.ssh.reason === "refused"
+  );
+}
+
 /** The GitHub account gh is signed in with, as the same reading names it. */
 export function githubAccount(overview: ToolsReading): string | null {
   const github = overview?.tools.find((tool) => tool.name === "gh");
