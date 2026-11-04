@@ -6,7 +6,10 @@ import {
   type PersonalspacePolicy,
 } from "../folder/handover-layout";
 import { adoptedHandoverFolder } from "../folder/initialize-folder";
-import type { MachineBinding } from "../folder/machine-binding";
+import {
+  isAccountSubject,
+  type MachineBinding,
+} from "../folder/machine-binding";
 import { inspectOwnedDirectory } from "../folder/owned-directory";
 import type {
   MachineContext,
@@ -129,7 +132,6 @@ const receiptKeys = [
 const slug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const linuxAccount = /^[a-z][a-z0-9-]{0,31}$/;
 const githubLogin = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
-const subject = /^https:\/\/[^\s/]+(?:\/[^\s/]+)*\/[^\s/]+$/;
 const states = ["free", "assigned", "suspended", "released"];
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -145,9 +147,7 @@ function assignee(value: unknown): Assignee {
   if (
     !isObject(value) ||
     !keysAre(value, ["github_id", "github_login", "subject"]) ||
-    typeof value.subject !== "string" ||
-    value.subject.length > 512 ||
-    !subject.test(value.subject)
+    !isAccountSubject(value.subject)
   )
     throw new AssignmentReceiptError("machine-context-invalid");
   const linked =
@@ -192,8 +192,7 @@ export function parseAssignmentReceipt(input: unknown): AssignmentReceipt {
     !isObject(first) ||
     !keysAre(first, ["generation", "github_id", "subject"]) ||
     !isCount(first.generation) ||
-    typeof first.subject !== "string" ||
-    !subject.test(first.subject) ||
+    !isAccountSubject(first.subject) ||
     (first.github_id !== null && !isGithubId(first.github_id)) ||
     typeof input.dns_slug !== "string" ||
     input.dns_slug.length > 32 ||
@@ -253,10 +252,14 @@ function filledEntry(entry: MachineEntry, dnsSlug: string): MachineEntry {
  * - the person's account (`account`), whose home holds the Folder, is the
  *   operator: the handover's `operator` is the neutral operational account,
  *   which never holds the Folder or anything of the person;
- * - a personal Environment's owner is the first assignee, by the GitHub id
- *   linked at the first binding and the frozen username, which is its slug
- *   (a personal assignment needs a linked GitHub account and its username
- *   is that login, root decision 0203); its name is that slug;
+ * - a personal Environment's owner is the first assignee's Lazurio account
+ *   (`kind: account`): the frozen username (`dns_slug`), which is also its
+ *   name, and the Lazurio subject. The username is no GitHub login: it can
+ *   be chosen, or survive a rename or relink (Machines
+ *   docs/free-environments.md §3, §5.5). Its GitHub account is recorded only
+ *   as the receipt verifies it: when the current generation links the
+ *   GitHub id the first binding linked, with that generation's login, and
+ *   otherwise none (a relink to another account, or an unlink);
  * - a work Environment's assignee is the current assignee by the GitHub
  *   account linked now (`machine-assignment-unlinked` without one);
  * - the entry's templates are filled with the frozen username.
@@ -295,16 +298,25 @@ export function resolveAssignedContext(
   const filledIn =
     entry === undefined ? {} : { entry: filledEntry(entry, dnsSlug) };
   if (!work) {
+    // A personal assignment needs a linked GitHub account (Auth refuses it
+    // otherwise): a first binding without one is not the finisher's.
     if (first.github_id === null)
       throw new AssignmentReceiptError("machine-context-invalid");
+    const linked = receipt.current?.assignee;
     const personal = rest as Omit<AuthSourcedPersonalHandover, "entry">;
     return {
       ...personal,
       machine: { ...personal.machine, name: dnsSlug },
       owner: {
-        kind: "principal",
-        github_login: dnsSlug,
-        github_id: first.github_id,
+        kind: "account",
+        username: dnsSlug,
+        subject: first.subject,
+        github:
+          linked !== undefined &&
+          linked.github_id === first.github_id &&
+          linked.github_login !== null
+            ? { login: linked.github_login.toLowerCase(), id: linked.github_id }
+            : null,
       },
       operator,
       ...filledIn,

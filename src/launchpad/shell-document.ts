@@ -95,15 +95,32 @@ export function environmentKind(
   return isServerServices(machine) ? "work" : presetKinds[preset];
 }
 
-/** The GitHub login of the one person the Environment belongs to, when it
- * records one: the owner of a personal Remote Environment, the assigned
- * operator of a work one, the responsible operator of an Automated one. A
- * Team Environment, the services Environment of a server and a workstation
- * name nobody. */
+/** The login of the one person the Environment belongs to, when it records
+ * one: the owner of a personal Remote Environment, the assigned operator of
+ * a work one, the responsible operator of an Automated one; on a free
+ * Environment (root decision 0216) their Lazurio username, which the
+ * Lazurio account names them by too. A Team Environment, the services
+ * Environment of a server and a workstation name nobody. */
 export function operatorLogin(machine: MachineBinding | null): string | null {
   if (machine === null) return null;
   if (machine.owner.kind === "principal") return machine.owner.githubLogin;
+  if (machine.owner.kind === "account") return machine.owner.username;
   return assignedPerson(machine.owner.assignment)?.githubLogin ?? null;
+}
+
+/** The GitHub photo of that person, only by a GitHub login the binding
+ * records as theirs: never by a free Environment's username, which may be
+ * another GitHub account's login, nor where no GitHub account is verified
+ * for them. */
+export function operatorAvatar(machine: MachineBinding | null): string | null {
+  if (machine === null) return null;
+  const login =
+    machine.owner.kind === "principal"
+      ? machine.owner.githubLogin
+      : machine.owner.kind === "account"
+        ? (machine.owner.github?.login ?? null)
+        : (assignedPerson(machine.owner.assignment)?.githubLogin ?? null);
+  return login === null ? null : githubPhoto(login);
 }
 
 /** The Organizations of the catalog the shell names: every candidate with a
@@ -361,7 +378,7 @@ export function shellDocument(
     operator: {
       initials: login === null ? null : initialsOf(login).slice(0, 2) || null,
       login,
-      avatar: login === null ? null : githubPhoto(login),
+      avatar: operatorAvatar(machine),
     },
     environments: [
       {

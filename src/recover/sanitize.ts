@@ -39,6 +39,9 @@ export const privateKinds = [
   "team",
   "github-login",
   "github-id",
+  // The Lazurio Auth subject of a free Environment's person (root decision
+  // 0216).
+  "subject",
   "tailnet-node",
   "machine-host",
   "peer",
@@ -95,6 +98,7 @@ const numbered: Record<PrivateKind, string> = {
   team: "team",
   "github-login": "login",
   "github-id": "github-id",
+  subject: "subject",
   "vault-account": "vault-account",
   "vault-name": "vault-name",
   "tailnet-node": "node",

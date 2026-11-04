@@ -15,6 +15,7 @@ import {
 } from "./presets";
 import type { FolderProfile } from "./profile";
 import {
+  accountText,
   agentTools,
   assignmentLine,
   buddyChatRouting,
@@ -2179,15 +2180,20 @@ function identitySection(
           `- Owner: uživatel s GitHub loginem \`${machine.owner.githubLogin}\` (id ${machine.owner.githubId}).`,
           `- Owner: the user with GitHub login \`${machine.owner.githubLogin}\` (id ${machine.owner.githubId}).`,
         )
-      : machine.owner.team === null || preset !== "hosted-organization-team"
+      : machine.owner.kind === "account"
         ? t(
-            `- Owner: Organizace \`${machine.owner.organization}\`.`,
-            `- Owner: Organization \`${machine.owner.organization}\`.`,
+            `- Owner: ${accountText(machine.owner).cs}.`,
+            `- Owner: ${accountText(machine.owner).en}.`,
           )
-        : t(
-            `- Owner: Organizace \`${machine.owner.organization}\`, Team \`${machine.owner.team}\`.`,
-            `- Owner: Organization \`${machine.owner.organization}\`, Team \`${machine.owner.team}\`.`,
-          );
+        : machine.owner.team === null || preset !== "hosted-organization-team"
+          ? t(
+              `- Owner: Organizace \`${machine.owner.organization}\`.`,
+              `- Owner: Organization \`${machine.owner.organization}\`.`,
+            )
+          : t(
+              `- Owner: Organizace \`${machine.owner.organization}\`, Team \`${machine.owner.team}\`.`,
+              `- Owner: Organization \`${machine.owner.organization}\`, Team \`${machine.owner.team}\`.`,
+            );
   return [
     pick(
       t(

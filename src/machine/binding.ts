@@ -1,8 +1,10 @@
 import {
   isAccessServiceOrigin,
+  type MachineAccount,
   type MachineAssignment,
   type MachineBinding,
   type MachineEntry,
+  type MachineOwner,
   type MachinePeer,
   type MachineRelationships,
   parseMachineEntry,
@@ -140,6 +142,29 @@ function accessService(origin: string): Readonly<{ origin: string }> {
   return Object.freeze({ origin });
 }
 
+// A personal owner as declared, or a free Environment's Lazurio account
+// (root decision 0216) as its receipt resolved it.
+function personalOwner(input: PersonalMachineContext["owner"]): MachineOwner {
+  return input.kind === "account"
+    ? Object.freeze({ kind: "account", ...machineAccount(input) })
+    : Object.freeze({
+        kind: "principal",
+        githubLogin: input.github_login,
+        githubId: input.github_id,
+      });
+}
+
+function machineAccount(input: MachineAccount): MachineAccount {
+  return Object.freeze({
+    username: input.username,
+    subject: input.subject,
+    github:
+      input.github === null
+        ? null
+        : Object.freeze({ login: input.github.login, id: input.github.id }),
+  });
+}
+
 // The projection of a validated handover that the Folder records and renders.
 // Paths, release inventory and custody repositories stay in the handover file;
 // the binding keeps what identifies the Machine, whose it is, how it is
@@ -170,11 +195,7 @@ export function machineBinding(
       contextDigest,
       kind: "personal-vm",
       name: context.machine.name,
-      owner: Object.freeze({
-        kind: "principal",
-        githubLogin: context.owner.github_login,
-        githubId: context.owner.github_id,
-      }),
+      owner: personalOwner(context.owner),
       network,
       host: Object.freeze({
         kind: "provider-estate",

@@ -19,6 +19,7 @@ import { quoteToolNote } from "../tools/note";
 import {
   assignedEnvironments,
   isServerServices,
+  type MachineAccount,
   type MachineAssignment,
   type MachineBinding,
   type MachinePeer,
@@ -273,6 +274,23 @@ export function peerLine(peer: MachinePeer, locale: "cs" | "en"): string {
   return `- \`${peer.name}\` (${who}): ${ssh}; ${https}.`;
 }
 
+// A free Environment's person (root decision 0216) by their Lazurio
+// username, and by a GitHub account only as the receipt verified it: the
+// username is never presented as a GitHub login. The Auth subject is not
+// rendered. The same words in AGENTS.md and the manual.
+export function accountText(account: MachineAccount): Text {
+  const { username, github } = account;
+  return github === null
+    ? {
+        cs: `uživatel s uživatelským jménem Lazuria \`${username}\` (bez ověřeného účtu GitHub)`,
+        en: `the user with Lazurio username \`${username}\` (no verified GitHub account)`,
+      }
+    : {
+        cs: `uživatel s uživatelským jménem Lazuria \`${username}\` (GitHub login \`${github.login}\`, id ${github.id})`,
+        en: `the user with Lazurio username \`${username}\` (GitHub login \`${github.login}\`, id ${github.id})`,
+      };
+}
+
 // The assignment line of an Organization work VM: rendered only when the
 // handover carries `owner.assignment`, exactly as recorded.
 export function assignmentLine(
@@ -369,15 +387,20 @@ function machineSection(
           cs: `- Owner: uživatel s GitHub loginem \`${machine.owner.githubLogin}\` (id ${machine.owner.githubId}). Je to jeho jediný osobní Remote Environment.`,
           en: `- Owner: the user with GitHub login \`${machine.owner.githubLogin}\` (id ${machine.owner.githubId}). This is their one personal Remote Environment.`,
         })
-      : machine.owner.team === null || preset !== "hosted-organization-team"
+      : machine.owner.kind === "account"
         ? pick({
-            cs: `- Owner: Organizace \`${machine.owner.organization}\`.`,
-            en: `- Owner: Organization \`${machine.owner.organization}\`.`,
+            cs: `- Owner: ${accountText(machine.owner).cs}. Je to jeho jediný osobní Remote Environment.`,
+            en: `- Owner: ${accountText(machine.owner).en}. This is their one personal Remote Environment.`,
           })
-        : pick({
-            cs: `- Owner: Organizace \`${machine.owner.organization}\`, Team \`${machine.owner.team}\`.`,
-            en: `- Owner: Organization \`${machine.owner.organization}\`, Team \`${machine.owner.team}\`.`,
-          });
+        : machine.owner.team === null || preset !== "hosted-organization-team"
+          ? pick({
+              cs: `- Owner: Organizace \`${machine.owner.organization}\`.`,
+              en: `- Owner: Organization \`${machine.owner.organization}\`.`,
+            })
+          : pick({
+              cs: `- Owner: Organizace \`${machine.owner.organization}\`, Team \`${machine.owner.team}\`.`,
+              en: `- Owner: Organization \`${machine.owner.organization}\`, Team \`${machine.owner.team}\`.`,
+            });
   const operator = {
     "hosted-personal": {
       cs: "- Uživatel: Owner tohohle Environmentu. Agenti tu jednají za něj v jeho právech; Buddy je volitelný rezident téhož Environmentu.",

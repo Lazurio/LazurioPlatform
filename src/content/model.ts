@@ -212,10 +212,14 @@ export function contentScope(
         allowed: true,
         organizations: "none",
         personalspace: true,
+        // A free Environment's owner (root decision 0216) by the GitHub
+        // account the receipt verified, and by none when it verified none.
         personalOwner:
           machine?.owner.kind === "principal"
             ? Object.freeze({ githubId: machine.owner.githubId })
-            : null,
+            : machine?.owner.kind === "account" && machine.owner.github !== null
+              ? Object.freeze({ githubId: machine.owner.github.id })
+              : null,
       });
     case "hosted-organization-personal":
     case "hosted-organization-steward":

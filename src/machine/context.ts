@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { lstat, realpath } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import Ajv2020 from "ajv/dist/2020";
+import type { MachineAccount } from "../folder/machine-binding";
 import { readCustodiedDeclarationBytes } from "../providers/owned-json";
 import { parseUniqueJson } from "../providers/unique-json";
 import {
@@ -199,11 +200,17 @@ export type PersonalMachineContext = Readonly<{
     name: string;
     vmid: number;
   }>;
-  owner: Readonly<{
-    kind: "principal";
-    github_login: string;
-    github_id: number;
-  }>;
+  // `principal` as a handover declares it; `account` only as the Platform
+  // resolves a free personal Environment's owner from its assignment receipt
+  // (`readMachineContext`, root decision 0216): the first assignee's Lazurio
+  // account, never on the wire.
+  owner:
+    | Readonly<{
+        kind: "principal";
+        github_login: string;
+        github_id: number;
+      }>
+    | Readonly<{ kind: "account" } & MachineAccount>;
   operator: MachineOperator;
   host: Readonly<{
     kind: "provider-estate";
@@ -229,7 +236,18 @@ export type MachineContext =
 // turns the latter into a context, once the receipt names a person.
 export type MachineHandover = MachineContext | AuthSourcedHandover;
 
-const validate = new Ajv2020({ strict: true }).compile<MachineHandover>(schema);
+const ajv = new Ajv2020({ strict: true });
+const validate = ajv.compile<MachineHandover>(schema);
+// The wire schema's own rules for the members an assignment receipt fills
+// in, which a resolved context is held to again: its person is no wire
+// shape (`MachineAccount`), so the whole document is not.
+function wireRule(name: "entry" | "operator") {
+  const rule = ajv.getSchema(`${schema.$id}#/$defs/${name}`);
+  if (rule === undefined) throw new Error("Vendored schema rule missing");
+  return rule;
+}
+const validEntry = wireRule("entry");
+const validOperator = wireRule("operator");
 export const machineContextPath = "/etc/lazurio/lazurio.machine.json";
 
 export class MachineContextError extends Error {
@@ -287,15 +305,17 @@ export function parseMachineContext(bytes: Uint8Array): MachineContext {
 }
 
 /** The context of an auth-sourced handover from its receipt's bytes (none
- * while the finisher wrote none), validated against the same schema as any
- * handover the Machines write, so every reader takes it as it takes theirs. */
+ * while the finisher wrote none). The handover itself passed the vendored
+ * schema; what the receipt fills in, the operator and the entry's origins,
+ * is held to the schema's own rules for them again, and its person to the
+ * receipt's closed rules (`parseAssignmentReceipt`). */
 export function assignedMachineContext(
   handover: AuthSourcedHandover,
   receiptBytes: Uint8Array | null,
 ): MachineContext {
   if (receiptBytes === null)
     throw new MachineContextError("machine-assignment-pending");
-  let resolved: MachineHandover;
+  let resolved: MachineContext;
   try {
     const receipt = parseAssignmentReceipt(
       parseUniqueJson(
@@ -312,7 +332,11 @@ export function assignedMachineContext(
         : "machine-context-invalid",
     );
   }
-  if (!validate(resolved) || isAuthSourced(resolved))
+  if (
+    isAuthSourced(resolved) ||
+    !validOperator(resolved.operator) ||
+    (resolved.entry !== undefined && !validEntry(resolved.entry))
+  )
     throw new MachineContextError("machine-context-invalid");
   freeze(resolved);
   return resolved;

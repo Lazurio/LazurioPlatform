@@ -846,12 +846,15 @@ then), the current assignee, and, written once at the first binding, the frozen
 username `dns_slug`, the person's Linux `account` and its hostname. The Platform
 reads it only for an auth-sourced handover and refuses it whole when it is not this
 Machine's (its Machine id and, on a work Environment, its Organization) or not the
-closed shape. Then `src/machine/assignment.ts` resolves the handover into the context
-every reader already knows:
+closed shape. Then `src/machine/assignment.ts` resolves the handover into a context
+with the person as the receipt names them: by their **Lazurio account**, never by a
+GitHub identity the receipt does not verify. The frozen username `dns_slug` is no
+GitHub login: it can be a chosen name, or survive a GitHub rename, relink or unlink
+(Machines `docs/free-environments.md` §3 and §5.5).
 
 | Handover | Resolved context |
 | --- | --- |
-| personal `owner: {kind: assignment}` | `{kind: principal, github_login: <dns_slug>, github_id: <first.github_id>}`: the first assignee, for good. A personal assignment needs a linked GitHub account and its username is that login (root decision 0203) |
+| personal `owner: {kind: assignment}` | `{kind: account, username: <dns_slug>, subject: <first.subject>, github}`: the first assignee, for good. `github` is `{login, id}` only when the current generation links the GitHub id the first binding linked (`first.github_id`), with that generation's login (lowercase); otherwise, after a relink to another account or an unlink, `null` |
 | personal `machine.name` (neutral) | `<dns_slug>`; `machine.id` stays neutral |
 | work `owner.assignment: {kind: operator, source: auth}` | `{kind: operator, github_login, github_id}` of the current assignee's linked GitHub account (lowercase), so the Organization presets read it as always |
 | `operator` (operational account) | the receipt's `account`: `/home/<account>`, `/home/<account>/Lazurio` |
@@ -875,9 +878,21 @@ passed the rule adoption holds it to (a real directory of the account, not share
 a canonical path): a link at `~/Lazurio` or at any of its children, dangling or not, a
 file, another account's or a shared directory, or a Folder adopted from another
 Machine is refused as it is, and nothing is created through it. The
-receipt's facts the context takes are written once, except the work assignee's
-current GitHub link, which a `folder-refresh` records like any other assignment; the
-binding's digest stays the handover's. The Machines write the auth-sourced handover
+receipt's facts the context takes are written once, except the GitHub account a later
+generation links, which a `folder-refresh` records like an assignment: an account
+owner is the Machine's identity by its username and subject only, so a link, relink or
+unlink never turns the adopted Folder into another Machine's. The binding's digest
+stays the handover's.
+
+What people and agents see of an account owner: the Folder's `AGENTS.md` and manual
+name them as "the user with Lazurio username `<username>`", followed by "(GitHub login
+`<login>`, id `<id>`)" or "(no verified GitHub account)"; the Launchpad's "This
+Environment" names the username, with the GitHub account in its details only when
+verified; the shell's operator is the username, with a GitHub photo only of a verified
+login; the personal vault is "Osobní <username>"; the Personalspace's GitHub holder is
+checked against the verified GitHub id, and against none without one; the Auth subject
+is recorded in the binding and withheld from recovery evidence (`subject`), never
+rendered. The Machines write the auth-sourced handover
 only for a pinned Platform at or above their `PLATFORM_HANDOVER_ASSIGNMENT_MINIMUM`,
 the first release with this reader.
 

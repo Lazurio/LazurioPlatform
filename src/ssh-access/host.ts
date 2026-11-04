@@ -151,11 +151,13 @@ export function sshAlias(
 ): string | null {
   if (machine) {
     const owner = machine.owner;
+    // A free Environment's owner (root decision 0216) by their Lazurio
+    // username, which is never taken for a GitHub login.
     const scoped =
       owner.kind === "organization"
         ? `lazurio.org.${owner.organization}.${machine.name}`
-        : `lazurio.personal.${owner.githubLogin}.${machine.name}`;
-    // Dots delimit the independently validated GitHub and Machine names.
+        : `lazurio.personal.${owner.kind === "account" ? owner.username : owner.githubLogin}.${machine.name}`;
+    // Dots delimit the independently validated owner and Machine names.
     // A hyphen-only concatenation would collide for org a-b/c and a/b-c.
     return /^[a-z0-9.-]{1,200}$/.test(scoped.toLowerCase())
       ? scoped.toLowerCase()

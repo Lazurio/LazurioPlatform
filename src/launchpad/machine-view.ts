@@ -17,6 +17,22 @@ export type AssignmentView =
     }>
   | Readonly<{ kind: "team" | "services" }>;
 
+// A free Environment's person (root decision 0216): their Lazurio
+// username and a GitHub account only as the assignment receipt verified it
+// (src/folder/machine-binding.ts `MachineAccount`).
+export type AccountView = Readonly<{
+  username: string;
+  github: Readonly<{ login: string; id: number }> | null;
+}>;
+
+/** A person by their Lazurio username, with the GitHub account the binding
+ * verified for them, if any; the username is never shown as a GitHub
+ * login. */
+const accountFact = ({ username, github }: AccountView): string =>
+  github === null
+    ? username
+    : `${username} (GitHub ${github.login}, id ${github.id})`;
+
 /** The guard of every match on an assignment's kind here: what is left
  * after every kind is handled is `never`, so a kind added to
  * `AssignmentView` fails to compile until it is (src/folder/machine-binding.ts
@@ -138,6 +154,7 @@ export type MachineView = Readonly<{
   name: string;
   owner:
     | Readonly<{ kind: "principal"; githubLogin: string; githubId: number }>
+    | Readonly<{ kind: "account" } & AccountView>
     | Readonly<{
         kind: "organization";
         organization: string;
@@ -223,7 +240,9 @@ export function environmentFacts(
   const belongs =
     owner.kind === "principal"
       ? fill(copy.machineBelongsYou, { login: owner.githubLogin })
-      : (input.organization(owner.organization) ?? owner.organization);
+      : owner.kind === "account"
+        ? fill(copy.machineBelongsYou, { login: owner.username })
+        : (input.organization(owner.organization) ?? owner.organization);
   const assignment =
     owner.kind === "organization" ? owner.assignment : undefined;
   const teamName =
@@ -234,7 +253,9 @@ export function environmentFacts(
   // A personal Environment says so by its kind; "only you" would repeat it
   // (root decision 0170 addendum 2026-10-15, "Druh Prostředí stačí").
   const works =
-    owner.kind === "principal" ? null : worksText(assignment, teamName, copy);
+    owner.kind === "organization"
+      ? worksText(assignment, teamName, copy)
+      : null;
   return {
     facts: [
       [copy.machineKind, kind],
@@ -275,7 +296,9 @@ function supportFacts(binding: MachineView, copy: FactsCopy): Fact[] {
   const owner =
     binding.owner.kind === "principal"
       ? `${binding.owner.githubLogin} (GitHub id ${binding.owner.githubId})`
-      : binding.owner.organization;
+      : binding.owner.kind === "account"
+        ? accountFact(binding.owner)
+        : binding.owner.organization;
   const assignment =
     binding.owner.kind === "organization" &&
     binding.owner.assignment !== undefined

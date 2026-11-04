@@ -79,6 +79,23 @@ export type BitwardenConnection = Readonly<{
  * Bitwarden's 50). */
 export const personalVaultName = (login: string): string => `Osobní ${login}`;
 
+/** The name a personal Environment's vault is named after: the handover
+ * owner's GitHub login, or a free Environment's owner's Lazurio username
+ * (root decision 0216), which is never taken for a GitHub login. Null for an
+ * Organization's Environment. */
+export function personalOwnerName(
+  owner: MachineContext["owner"],
+): string | null {
+  switch (owner.kind) {
+    case "principal":
+      return owner.github_login;
+    case "account":
+      return owner.username;
+    default:
+      return null;
+  }
+}
+
 /** The vault facts of a personal Environment whose person connected their
  * own Bitwarden: the region's web vault, the agents' account and the
  * organization "Osobní <login>" it owns. Null for any other handover. */
@@ -89,15 +106,15 @@ export function personalVaultContextOf(
   }>,
 ): VaultContext | null {
   const { handover, connection } = input;
-  if (handover.owner.kind !== "principal" || handover.vault !== undefined)
-    return null;
+  const owner = personalOwnerName(handover.owner);
+  if (owner === null || handover.vault !== undefined) return null;
   const web = bitwardenRegions[connection.region].web;
   return Object.freeze({
     kind: "own",
     vault: web,
     host: new URL(web).hostname,
     account: connection.account,
-    name: personalVaultName(handover.owner.github_login),
+    name: personalVaultName(owner),
     environment: "personal",
     organization: null,
     assignment: null,
