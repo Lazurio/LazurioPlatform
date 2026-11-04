@@ -140,13 +140,17 @@ export async function folderNames(folder: string): Promise<PrivateValue[]> {
 type Peer = Readonly<{
   name: string;
   organization: string | null;
+  environment?: string;
   ssh: Readonly<{ host: string; user: string | null }> | null;
   https: readonly string[];
 }>;
 
+// An assigned peer's Environment id (root decision 0192, addendum of
+// 2026-10-26) is one more name of the peer: `<machine>.<organization>`.
 const peerValues = (peers: readonly Peer[] | undefined): PrivateValue[] =>
   (peers ?? []).flatMap((peer) => [
     ...value("peer", peer.name),
+    ...value("peer", peer.environment),
     ...value("organization", peer.organization),
     ...value("hostname", peer.ssh?.host),
     ...value("user", peer.ssh?.user),
@@ -190,6 +194,8 @@ export function bindingValues(binding: MachineBinding | null): PrivateValue[] {
         ? undefined
         : hostOf(binding.entry.authCheckUrl),
     ),
+    // The home Conglomerate Host's tailnet name (decision F70).
+    ...value("hostname", hostOf(binding.accessService?.origin ?? "")),
   ];
 }
 
@@ -219,7 +225,16 @@ function handoverAssigneeValues(
  * that failed. */
 export function contextValues(context: MachineContext | null): PrivateValue[] {
   if (context === null) return [];
-  const { machine, owner, operator, host, network, installed, vault } = context;
+  const {
+    machine,
+    owner,
+    operator,
+    host,
+    network,
+    installed,
+    vault,
+    access_service: accessService,
+  } = context;
   return [
     ...value("machine", machine.id),
     ...value("machine", machine.name),
@@ -257,6 +272,8 @@ export function contextValues(context: MachineContext | null): PrivateValue[] {
     ...value("vault-account", vault?.account),
     ...value("vault-name", vault?.name),
     ...value("hostname", hostOf(vault?.server_url ?? "")),
+    // The home Conglomerate Host's tailnet name (decision F70).
+    ...value("hostname", hostOf(accessService?.origin ?? "")),
   ];
 }
 

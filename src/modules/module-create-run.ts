@@ -45,8 +45,15 @@ import {
   insertModulePortPoolText,
   insertModuleSlotText,
   ModuleScaffoldError,
+  type ModuleScaffoldPlan,
   type ModuleSlot,
+  scaffoldAppDirectory,
 } from "./scaffold";
+
+/** The App's directory of a planned module as path segments: `app/v1`, or
+ * `app/v3` for a module with data. */
+const appSegments = (plan: ModuleScaffoldPlan): string[] =>
+  (plan.appDirectory ?? scaffoldAppDirectory(plan.data !== null)).split("/");
 
 // The real run of `lazurio module create personalspace/<slug>` (decision
 // F52) and of `lazurio module create <Organization>/<slug>` (its addendum of
@@ -400,7 +407,7 @@ async function run(
       else {
         steps.running("prepare");
         const installed = await host.install(
-          join(checkout, "app", "v1"),
+          join(checkout, ...appSegments(plan)),
           plan.toolchain,
         );
         if (installed.ok)
@@ -410,7 +417,7 @@ async function run(
           issues.push({
             code: "install-failed",
             message: `${command} did not finish: ${installed.detail}. The module was created without ${plan.generatedByInstall.join(", ")}.`,
-            action: `Run ${command} in ${join(module.moduleRoot, "app", "v1")} and commit ${plan.generatedByInstall.join(", ")} in a pull request of the module.`,
+            action: `Run ${command} in ${join(module.moduleRoot, ...appSegments(module.plan))} and commit ${plan.generatedByInstall.join(", ")} in a pull request of the module.`,
           });
           steps.failed("prepare", "install-failed", installed.detail);
         }
@@ -677,7 +684,7 @@ async function createData(
   if (module.scope === "organization")
     issues.push(...(await grantTeams(module, created.fullName, host)));
   const initialized = await host.initData({
-    app: join(module.moduleRoot, "app", "v1"),
+    app: join(module.moduleRoot, ...appSegments(module.plan)),
     name: module.plan.module,
     remote: data.slot.repository_db.url,
     branch: data.branch,
@@ -706,7 +713,7 @@ function initCommand(
   module: PlannedModule,
   data: NonNullable<PlannedModule["plan"]["data"]>,
 ): string {
-  const app = join(module.moduleRoot, "app", "v1");
+  const app = join(module.moduleRoot, ...appSegments(module.plan));
   return `cd '${app}' && bun install && bun ./node_modules/@lazurio/repository-db/src/cli.ts init --app ${module.plan.module} --remote ${data.slot.repository_db.url} --branch ${data.branch} --mount '${join(module.moduleRoot, data.mount)}' --schema-name ${data.schemaName} --schema-version ${data.schemaVersion}`;
 }
 
@@ -988,7 +995,7 @@ function organizationCreatedSteps(
     );
   else if (plan.toolchain === "uv")
     steps.push(
-      `Check the app by hand with uv run --no-sync ${plan.module} in ${join(module.moduleRoot, "app", "v1")}; this Platform does not start a uv app yet.`,
+      `Check the app by hand with uv run --no-sync ${plan.module} in ${join(module.moduleRoot, ...appSegments(module.plan))}; this Platform does not start a uv app yet.`,
     );
   else
     steps.push(
@@ -1013,7 +1020,7 @@ function createdSteps(
     );
   else if (plan.toolchain === "uv")
     steps.push(
-      `Check the app by hand with uv run --no-sync ${plan.module} in ${join(module.moduleRoot, "app", "v1")}; this Platform does not start a uv app yet.`,
+      `Check the app by hand with uv run --no-sync ${plan.module} in ${join(module.moduleRoot, ...appSegments(module.plan))}; this Platform does not start a uv app yet.`,
     );
   else
     steps.push(

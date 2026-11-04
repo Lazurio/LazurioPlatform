@@ -33,10 +33,13 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // prototypes-lazurio #90): the first step of an Osobní Prostředí with Buddy,
 // one dialog in three screens, as Propojit Bitwarden has them.
 //
-//   1. His own ChatGPT sign-in: OpenAI's page, the code with Kopírovat, the
-//      time it still holds, "Čekám na přihlášení…", Nový kód, then
-//      Připojeno. The person signs in in their own browser; nobody copies a
-//      command and no agent is involved.
+//   1. The ChatGPT sign-in, just its steps (the onboarding of 2026-10-28):
+//      the person signs in with their own account with a subscription on
+//      OpenAI's page, then enters the code with Kopírovat; a quiet line says
+//      what to do where ChatGPT does not take the code, one calm line waits
+//      with the time the code holds (no spinner), Nový kód, then Připojeno
+//      alone and prominent. The person signs in in their own browser; nobody
+//      copies a command and no agent is involved.
 //   2. He introduces himself, now that he can speak (decision F60's
 //      addendum of 2026-10-26; prototypes-lazurio #92): five short beats in
 //      his own words, each with his figure and one small drawing (he waves
@@ -246,7 +249,7 @@ export function createBuddyDialog(
     facts: () => BuddyStepFacts;
     /** His picture (`<origin>/assets/avatar.webp`); null without it. */
     avatar: () => string | null;
-    /** A new code ("Přihlásit Buddyho", "Nový kód"). */
+    /** A new code ("Přihlásit se", "Nový kód", "Přihlásit jiný účet"). */
     signIn: () => void;
     /** The names, with the person's confirmation from the introduction. */
     save: (draft: PersonaDraft, confirm: boolean) => Promise<PersonaSaveResult>;
@@ -331,21 +334,23 @@ export function createBuddyDialog(
 
   // ---- 1. The sign-in ----
 
+  // Just the steps (the onboarding of 2026-10-28): no line above them, and
+  // nothing about the agents' own sign-ins, which this person does not need
+  // here.
   function signInBody(view: SignInScreen, copy: Copy): HTMLElement[] {
-    const say = element("p", "buddy-say", copy.buddySay);
-    const own = element("p", "buddy-own", copy.buddyOwn);
     switch (view.kind) {
       case "checking":
-        return [say, element("p", "buddy-status", copy.startChecking)];
+        return [element("p", "buddy-status", copy.startChecking)];
       case "start": {
+        // The person signs in, with an account that has a subscription.
         const act = element("div", "buddy-act");
         act.append(button(copy.buddySignIn, options.signIn, true));
-        return [say, act, own];
+        return [element("p", "buddy-say", copy.buddySignInWith), act];
       }
       case "starting": {
         const status = element("p", "buddy-status");
         status.append(spinner(), copy.buddySignInStarting);
-        return [say, status, own];
+        return [status];
       }
       case "code": {
         const steps = element("ol", "buddy-steps");
@@ -357,7 +362,7 @@ export function createBuddyDialog(
         link.append(icon("external"));
         open.append(
           element("span", "buddy-steps-n", "1"),
-          element("span", "buddy-steps-text", copy.buddyOpenPage),
+          element("span", "buddy-steps-text", copy.buddySignInWith),
           link,
         );
         const enter = element("li");
@@ -377,36 +382,48 @@ export function createBuddyDialog(
           code,
         );
         steps.append(open, enter);
-        const holds = element("p", "buddy-holds");
-        holds.append(
+        // Before ChatGPT may refuse the code: where to allow it, and that
+        // the same page opens again with its button.
+        const setting = element(
+          "p",
+          "buddy-note",
+          fill(copy.buddyCodeSetting, { open: copy.buddyOpenButton }),
+        );
+        // One calm line while the person signs in: no spinner, and the time
+        // the code holds after it, outside the announced status so a reader
+        // does not hear every second.
+        const waiting = element("p", "buddy-wait");
+        const words = element("span", "", copy.buddyWaiting);
+        words.setAttribute("role", "status");
+        waiting.append(
+          words,
+          " ",
           countdownNode(view.holds, countdownText(view.holds, Date.now())),
         );
-        const waiting = element("p", "buddy-status");
-        waiting.setAttribute("role", "status");
-        waiting.append(spinner(), copy.buddyWaiting);
         const again = element("div", "buddy-again");
-        again.append(button(copy.buddyNewCode, options.signIn), own);
-        return [say, steps, holds, waiting, again];
+        again.append(button(copy.buddyNewCode, options.signIn));
+        return [steps, setting, waiting, again];
       }
       case "expired": {
         const status = element("p", "buddy-status buddy-warn");
         status.setAttribute("role", "status");
         status.append(icon("warning"), copy.buddyCodeExpired);
         const again = element("div", "buddy-again");
-        again.append(button(copy.buddyNewCode, options.signIn, true), own);
-        return [say, status, again];
+        again.append(button(copy.buddyNewCode, options.signIn, true));
+        return [status, again];
       }
       case "connected": {
-        const status = element("p", "buddy-status buddy-ok");
+        // Done: Připojeno alone, prominent, and no step's line with it.
+        const status = element("p", "buddy-connected");
         status.setAttribute("role", "status");
         status.append(icon("check"), copy.startConnected);
-        return [say, status];
+        return [status];
       }
       case "failed": {
         const status = element("p", "buddy-status buddy-warn");
         status.setAttribute("role", "status");
         status.append(icon("warning"), view.line);
-        const nodes: HTMLElement[] = [say, status];
+        const nodes: HTMLElement[] = [status];
         if (view.help !== undefined) {
           const [toggle, text] = helpNodes(view.help, copy);
           if (toggle !== undefined) status.append(toggle);
@@ -414,7 +431,13 @@ export function createBuddyDialog(
         }
         if (view.retry) {
           const again = element("div", "buddy-again");
-          again.append(button(copy.buddyNewCode, options.signIn, true), own);
+          again.append(
+            button(
+              view.otherAccount ? copy.buddySignInOther : copy.buddyNewCode,
+              options.signIn,
+              true,
+            ),
+          );
           nodes.push(again);
         }
         return nodes;
@@ -842,7 +865,9 @@ export function createBuddyDialog(
   function render() {
     if (!dialog.open) return;
     const copy = options.copy();
-    title.textContent = only ? copy.buddySignIn : copy.buddyStepTitle;
+    // Nastavení → Buddy's Přihlásit names what it opens as its row does,
+    // "Přihlášení k ChatGPT"; "Přihlásit se" is the action, not a title.
+    title.textContent = only ? copy.buddyPartSignIn : copy.buddyStepTitle;
     close.setAttribute("aria-label", copy.toolsClose);
     if (screen === "sign-in") {
       const view = signInScreen(options.facts(), copy);

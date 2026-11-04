@@ -19,7 +19,12 @@ import {
   validatePresetComposition,
 } from "./presets";
 import { type FolderProfile, parseFolderProfile } from "./profile";
-import { ownDataValue, stateFields } from "./state-fields";
+import {
+  FolderStateUnreadable,
+  folderOutputArea,
+  ownDataValue,
+  stateFields,
+} from "./state-fields";
 import { type AgentVoice, parseAgentVoice } from "./voice";
 
 export { stateFields } from "./state-fields";
@@ -28,13 +33,14 @@ export { stateFields } from "./state-fields";
 // artifact identity so staging can check backward read compatibility.
 export const folderStateSchemas = Object.freeze({
   preferences: Object.freeze([2, 3]),
-  manifest: Object.freeze([2, 3]),
+  manifest: Object.freeze([2, 3, 4, 5]),
 });
 
 // The manifest schema this product writes: every output it renders (decision
-// F14, addendum of 2026-10-14). Schema 2, the Folder before its skills, stays
-// readable and is upgraded by the next change.
-export const instructionManifestSchema = 3;
+// F14, addenda of 2026-10-14, 2026-10-21 and 2026-11-01). Schemas 2 (the
+// Folder before its skills), 3 (`new-module` only) and 4 (without `ui-craft`)
+// stay readable and are upgraded by the next change.
+export const instructionManifestSchema = 5;
 
 // Development schema for the generated-output transaction. Parsing is not proof
 // of custody: a filesystem adapter must establish the state owner's trusted
@@ -172,7 +178,7 @@ export function withToolSelection<
 export type OutputDigests = Readonly<Record<OutputPath, string>>;
 export type RecordedDigests = Readonly<Partial<Record<OutputPath, string>>>;
 export type InstructionManifest = Readonly<{
-  schemaVersion: 2 | 3;
+  schemaVersion: 2 | 3 | 4 | 5;
   preferenceRevision: number;
   templateRevision: string;
   outputs: RecordedDigests;
@@ -193,11 +199,34 @@ export function parseOutputDigests(
   input: unknown,
   paths: readonly OutputPath[] = manifestOutputPaths[instructionManifestSchema],
 ): RecordedDigests {
-  const value = stateFields(input, paths);
+  let value: Record<string, unknown>;
+  try {
+    value = stateFields(input, paths);
+  } catch (error) {
+    // An output this version does not render, or one it renders that is not
+    // recorded: the usual sign of a Folder written by another version.
+    if (
+      error instanceof FolderStateUnreadable &&
+      (error.condition === "unknown-field" ||
+        error.condition === "missing-field")
+    )
+      throw error.condition === "unknown-field"
+        ? error.with({
+            condition: "unknown-output",
+            area: folderOutputArea(
+              Reflect.ownKeys(input as object).find(
+                (key) => !(paths as readonly unknown[]).includes(key),
+              ),
+            ),
+          })
+        : error.with({ condition: "missing-output" });
+    throw error;
+  }
   const digests: Partial<Record<OutputPath, string>> = {};
   for (const path of paths) {
     const digest = value[path];
-    if (!isDigest(digest)) throw new Error("Invalid output digest");
+    if (!isDigest(digest))
+      throw new FolderStateUnreadable("invalid", { field: path });
     digests[path] = digest;
   }
   return Object.freeze(digests);
@@ -284,18 +313,36 @@ export function parseInstructionManifest(input: unknown): InstructionManifest {
     "outputs",
   ]);
   if (
-    (value.schemaVersion !== 2 && value.schemaVersion !== 3) ||
+    value.schemaVersion !== 2 &&
+    value.schemaVersion !== 3 &&
+    value.schemaVersion !== 4 &&
+    value.schemaVersion !== 5
+  )
+    throw new FolderStateUnreadable("unsupported-schema", {
+      field: "schemaVersion",
+      templateRevision: value.templateRevision,
+    });
+  if (
     typeof value.templateRevision !== "string" ||
     value.templateRevision.length === 0
   )
-    throw new Error("Unsupported instruction manifest");
+    throw new FolderStateUnreadable("invalid", { field: "templateRevision" });
+  let outputs: RecordedDigests;
+  try {
+    outputs = parseOutputDigests(
+      value.outputs,
+      manifestOutputPaths[value.schemaVersion],
+    );
+  } catch (error) {
+    // Which version rendered the outputs is what explains them.
+    if (error instanceof FolderStateUnreadable)
+      throw error.with({ templateRevision: value.templateRevision });
+    throw error;
+  }
   return Object.freeze({
     schemaVersion: value.schemaVersion,
     preferenceRevision: revision(value.preferenceRevision),
     templateRevision: value.templateRevision,
-    outputs: parseOutputDigests(
-      value.outputs,
-      manifestOutputPaths[value.schemaVersion],
-    ),
+    outputs,
   });
 }

@@ -21,6 +21,9 @@ export const syncBlockedReasons = [
 export type SyncBlockedReason = (typeof syncBlockedReasons)[number];
 
 export type SyncResult =
+  /** A declared repository that was not here, cloned by this run (decision
+   * F9's addendum of 2026-11-01). */
+  | "materialized"
   | "fast-forwarded"
   | "current"
   | "blocked"
@@ -49,8 +52,15 @@ export type SyncEntry = Readonly<{
   to?: string;
   /** When this answer was given (ISO 8601). */
   at: string;
+  /** GitHub refused this identity at the last read of this repository's
+   * remote, and no later run read it again: this answer (blocked by the
+   * checkout's own state, unavailable, failed) never asked the remote.
+   * Apps keeps a guest Module hidden while it is set (decision F67's
+   * addendum of 2026-11-01). */
+  unreadable?: true;
   /** Since when the repository gives this same answer without interruption,
-   * for every answer but `current`, `fast-forwarded` and `absent`. */
+   * for every answer but `current`, `fast-forwarded`, `materialized` and
+   * an `absent` without a reason. */
   since?: string;
 }>;
 
@@ -80,6 +90,7 @@ export function syncRecordFile(lockDirectory: string, folder: string) {
 }
 
 const results: readonly SyncResult[] = [
+  "materialized",
   "fast-forwarded",
   "current",
   "blocked",
@@ -102,6 +113,7 @@ const validEntry = (value: unknown): value is SyncEntry => {
     results.includes(entry.result as SyncResult) &&
     text(entry.at) &&
     (entry.reason === undefined || text(entry.reason)) &&
+    (entry.unreadable === undefined || entry.unreadable === true) &&
     (entry.since === undefined || text(entry.since))
   );
 };
@@ -131,8 +143,13 @@ export async function readSyncRecord(
 
 const keyOf = (entry: SyncEntry) =>
   `${entry.organization.toLowerCase()}\0${entry.root}\0${entry.path}`;
-const lasting = (result: SyncResult) =>
-  result !== "current" && result !== "fast-forwarded" && result !== "absent";
+// A quiet `absent` with a reason (no access yet) keeps its `since` too, so
+// one can tell how long a declared repository has stayed unreadable.
+const lasting = (entry: SyncEntry) =>
+  entry.result !== "current" &&
+  entry.result !== "fast-forwarded" &&
+  entry.result !== "materialized" &&
+  (entry.result !== "absent" || entry.reason !== undefined);
 
 /** Which recorded entries a run's answers replace: all of them, those of
  * the Organizations it ran for, or only the repositories it answered (a run
@@ -141,6 +158,21 @@ export type RecordScope =
   | Readonly<{ replace: "all" }>
   | Readonly<{ replace: "organizations"; organizations: readonly string[] }>
   | Readonly<{ replace: "answered" }>;
+
+/** Whether an answer read the repository's remote: current, moved, cloned,
+ * ahead or diverged. Anything else (blocked by the checkout's own state,
+ * unavailable, failed, absent) leaves GitHub's last answer standing. */
+export const readTheRemote = (entry: SyncEntry): boolean =>
+  entry.result === "current" ||
+  entry.result === "fast-forwarded" ||
+  entry.result === "materialized" ||
+  (entry.result === "blocked" &&
+    (entry.reason === "ahead" || entry.reason === "diverged"));
+
+/** Whether GitHub's last answer for a repository was a refusal: its
+ * `denied`, or a later answer that never asked the remote after one. */
+export const refusedLast = (entry: SyncEntry): boolean =>
+  entry.result === "denied" || entry.unreadable === true;
 
 export async function recordSync(
   lockDirectory: string,
@@ -151,9 +183,18 @@ export async function recordSync(
 ): Promise<readonly SyncEntry[]> {
   const previous = (await readSyncRecord(lockDirectory, folder)) ?? [];
   const before = new Map(previous.map((entry) => [keyOf(entry), entry]));
-  const answered = entries.map((entry) => {
-    const last = before.get(keyOf(entry));
-    if (!lasting(entry.result)) return entry;
+  const answered = entries.map((raw) => {
+    const last = before.get(keyOf(raw));
+    // A refusal stands until a run reads the remote again (F67's addendum
+    // of 2026-11-01): an answer that never asked it carries it on.
+    const entry: SyncEntry =
+      raw.result !== "denied" &&
+      !readTheRemote(raw) &&
+      last !== undefined &&
+      refusedLast(last)
+        ? Object.freeze({ ...raw, unreadable: true as const })
+        : raw;
+    if (!lasting(entry)) return entry;
     const since =
       last !== undefined &&
       last.result === entry.result &&
@@ -167,12 +208,31 @@ export async function recordSync(
       ? new Set(scope.organizations.map((login) => login.toLowerCase()))
       : null;
   const answeredKeys = new Set(entries.map(keyOf));
-  const kept = previous.filter((entry) =>
-    scope.replace === "all"
-      ? false
-      : organizations !== null
-        ? !organizations.has(entry.organization.toLowerCase())
-        : !answeredKeys.has(keyOf(entry)),
+  // A repository this run did not answer because its root stopped its
+  // Organization (a root this run answered that did not end current or
+  // moved) keeps a refusal: nothing read its remote since. Where the root
+  // went on, a repository it did not answer is no longer declared and goes,
+  // and so does one of an Organization this run did not look at.
+  const stopped = new Set(
+    entries
+      .filter(
+        (entry) =>
+          entry.kind === "root" &&
+          entry.result !== "current" &&
+          entry.result !== "fast-forwarded",
+      )
+      .map((entry) => `${entry.organization.toLowerCase()}\0${entry.root}`),
+  );
+  const kept = previous.filter(
+    (entry) =>
+      (scope.replace === "all"
+        ? false
+        : organizations !== null
+          ? !organizations.has(entry.organization.toLowerCase())
+          : !answeredKeys.has(keyOf(entry))) ||
+      (refusedLast(entry) &&
+        !answeredKeys.has(keyOf(entry)) &&
+        stopped.has(`${entry.organization.toLowerCase()}\0${entry.root}`)),
   );
   const file = syncRecordFile(lockDirectory, folder);
   const temporary = `${file}.${randomBytes(6).toString("hex")}.tmp`;

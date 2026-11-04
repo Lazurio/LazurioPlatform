@@ -10,13 +10,26 @@ does not authorize deployment, restart, access changes or resident removal.
 
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
-JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`
-from Machines **v0.12.191** (tag commit `811b3f7c706331be4db931dbfa5913538e6db99b`,
+JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`. The pin is
+Machines pull request **#1051** (HumanAndMachine-ai/Machines#1040, decision F70), which
+adds only the optional member `access_service` on both branches
+([below](#the-home-access-service-decision-f70)) to the schema of v0.12.211 and
+changes nothing else, taken byte for byte from its merge commit
+`100be6ada01c5bb9371548be631afb9308cd72ad` (SHA-256
+`8a1d0734913e7064572b9fa4a6ef0c4070688f26a6975b68538d9e9187e81589`). Before it, the pin was
+Machines **v0.12.211** (tag commit `a8726744ba1e5d9cf28f3045782e85a1f77564f6`, which
+carries the merge of pull request **#948**, `44e9002e5f6e03d0b85227b4c5d360a13d97e68d`;
+SHA-256 `ca5cdb767888826fe028e589ea120628a6d830552256cc0d141c0681e038addc`; root
+decision 0192, addendum of 2026-10-26, plan DEV-6676), which added only a peer's
+optional `environment`, `access` and `ssh.host_keys`
+([below](#assigned-peers-root-decision-0192-addendum-of-2026-10-26)) to the schema of
+v0.12.191 and changed nothing else. Before it, the pin was
+Machines **v0.12.191** (tag commit `811b3f7c706331be4db931dbfa5913538e6db99b`,
 which carries the merge of pull request **#811**, `3cc8e002be8840838a74d6ebd52c747a375b1ba1`;
-SHA-256 `a23925e1da2da6e32acc1bcbfb4855dea02e6b2cf39f294cf7a2b2bfe1882bca`), which adds
+SHA-256 `a23925e1da2da6e32acc1bcbfb4855dea02e6b2cf39f294cf7a2b2bfe1882bca`), which added
 only the personal branch's optional `entry.buddy` ([below](#the-hosted-entry-decision-f16),
-root decision 0210) and forbids it on the Organization branch, and changes nothing
-else. Before it, the merge of Machines pull request **#664** into `main` (commit
+root decision 0210) and forbids it on the Organization branch, and changed nothing
+else. Before that, the merge of Machines pull request **#664** into `main` (commit
 `3c7d9fb00ca06ea7c30812e7e4e33c387b20be1d`, SHA-256
 `587179a16dc61ed605479d98920024ac9087baf59b894c811ede715246a8944a`), which added only
 the closed assignment branch `{kind: "services"}` and the optional Organization-branch
@@ -106,8 +119,11 @@ through [`folder-refresh`](#refresh-after-a-handover-rewrite):
   `null`; `ssh` as `{host, user, direction}` (MagicDNS name, OS account or `null`,
   and `outbound` | `inbound` | `both` for TCP 22 relative to this Machine) or `null`;
   and `https`, the peer's gateway hostnames reachable from here over TCP 443. Names
-  only: no node ids, machine keys, tailnet addresses or credentials. Platform renders
-  it and enforces nothing; Headscale does.
+  and public identity only: no node ids, machine keys, tailnet addresses, private keys
+  or credentials. Platform renders it and enforces nothing; Headscale does. Pending
+  the re-pin above, a peer whose edge a rule opens also carries `environment`,
+  `access` and `ssh.host_keys`, all three or none
+  ([assigned peers](#assigned-peers-root-decision-0192-addendum-of-2026-10-26)).
 
 One field is new in 0.12.93, optional on both branches, closed and without defaults:
 **`entry`**, how the Machine is entered through its workspace gateway
@@ -164,7 +180,8 @@ configuration together with the **Machine binding** (kind, name, owner, team,
 assignment, tailnet node, host, relationships, entry and the handover digest).
 Machines does not rewrite the identity; a Folder adopted for a different Machine is
 refused, never rewritten. Identity is kind, name, Owner (Organization and Team, or
-a user), tailnet node and host, and it is immutable. Machines rewrites the handover
+a user) and tailnet node, and it is immutable; the host is not part of it
+([decision F10, addendum 2026-11-01](decisions.md#f10--workspace-presets-and-typed-owner-requests), #759). Machines rewrites the handover
 on every apply (`installed`, the declared assignment, the derived relationships), so
 the document digest is not identity: a re-apply of the same Machine keeps the Folder
 adopted. The rest of the binding is handover-derived content, not a choice of the
@@ -174,6 +191,15 @@ and re-renders the generated files, keeping the recorded preset and profile.
 A repeated infrastructure apply must preserve the Machine identity, the Folder
 content and the Platform-selected product version; Machines does not reselect the
 version after handover, and Platform does not rewrite the identity.
+
+**A server move** gives the same guest, with its disk, name, Owner and tailnet
+node, a new virtualization host: the first apply after the move answers
+`already-adopted`, then `folder-refresh` records the new host like the rest of the
+handover-derived binding. A handover with another kind, name, Owner or tailnet node
+is another Machine and stays `folder-binding-changed`. A copy of the guest on
+another host with the same name, Owner and tailnet node is not told apart by the
+binding; Machines keeps one Machine on one host (one lane roster per guest, the old
+copy released and fenced before the new server applies; Machines#1016).
 
 ## Consumer commands
 
@@ -222,6 +248,13 @@ as the declared operator, after every handover write on a Machine whose Folder e
 lazurio machine folder-refresh
 ```
 
+The user's `lazurio update` runs the same command itself, after it activates a version
+and when it finds nothing newer, whenever the Folder records an older template revision
+than the active version renders
+([F17's addendum of 2026-10-30](decisions.md#f17--operator-tools-belong-to-the-operator-the-rollout-pins-the-baseline-and-repairs)).
+It is the same command with the same lock and answers; the role's own runs do not
+change.
+
 The handover, the operator and the Folder are bound exactly as for `folder-init`, and
 no caller-held revision is needed: the refresh keeps the recorded choices and plans
 under the Folder lock from the revision it finds. Its one option, `--preset <name>`,
@@ -237,11 +270,10 @@ bumped. It prints one JSON object with `machineContextDigest`:
 | Result | Exit | Meaning |
 | --- | --- | --- |
 | `{"kind":"refreshed","revision":<n>}` | 0 | The rendered files changed; revision `n` records the new binding |
-| `{"kind":"unchanged"}` | 0 | The current handover renders the same bytes and declares the same entry (identical handover, or only `installed` rewritten); nothing is written, the recorded binding and revision stay. A changed entry is recorded (`refreshed`) even when no rendered text names the changed value, because the Launchpad acts on it |
+| `{"kind":"unchanged"}` | 0 | The current handover renders the same bytes and declares the same entry and relationships (identical handover, or only `installed` rewritten); nothing is written, the recorded binding and revision stay. A changed entry is recorded (`refreshed`) even when no rendered text names the changed value, because the Launchpad acts on it; so are changed relationships, because the binding's relationships follow the handover and an [assigned peer's](#assigned-peers-root-decision-0192-addendum-of-2026-10-26) access and host keys are rendered nowhere in the Folder. On a personal Machine either answer adds `environmentSsh` ([assigned peers](#assigned-peers-root-decision-0192-addendum-of-2026-10-26)) |
 | `{"kind":"blocked","reason":"folder-not-initialized",…}` | 2 | No Folder state: run `folder-init` first; nothing is created |
 | `{"kind":"blocked","reason":"drift","path":…}` / `"unsafe-path"` | 2 | An owned file was edited, removed or replaced by a link; it is named and never overwritten, nothing is written |
 | `{"kind":"blocked","reason":"folder-binding-changed",…}` / `"folder-state-unrecognized"` | 2 | Another Machine's handover, or pending/unrecognized state |
-| `{"kind":"blocked","reason":"folder-foreign-entry","entry":…}` | 2 | A top-level entry the Folder neither owns nor tolerates; refused by name before any journal is written |
 | `{"kind":"blocked","reason":"preset-derivation-changed"}` | 2 | The Folder's preset was derived and the handover's assignment now derives another one; take it with `lazurio machine folder-refresh --preset <derived preset>`. The profile change cannot: it plans against the recorded binding, which offers only the old preset |
 | `{"kind":"blocked","reason":"preset-not-allowed"}` | 2 | `--preset` is not the preset the current handover derives; nothing is written |
 | `{"kind":"blocked","reason":"template-upgrade-required"}` | 2 | The Folder was rendered by a newer (or unknown) template revision than this product renders; nothing is downgraded, see below |
@@ -273,25 +305,26 @@ activation does. Modules, T3 Code and Codex keep running. The answer then carrie
 An unchanged entry restarts nothing and adds nothing to the answer (decision F38,
 addendum 2026-10-06).
 
-Like adoption and initialization recovery, the shared update transaction re-checks
-the claimed boundary of a hosted Folder (`requireFolderBoundary`): before its journal
-is written, before every single replacement, and in `profile-resume` before anything
-is applied or archived. A foreign top-level entry
-that appears while a refresh or profile update is interrupted is refused by name
-(`profile-resume` exits 2 with `folder-foreign-entry`); the journal and every output
-stay exactly as the interruption left them, and the resume completes once the entry
-is gone. A workstation Folder (no handover binding) keeps its existing rule: the
-user's own top-level files beside the generated ones are preserved, never read
-or written.
+A top-level entry the Folder neither owns nor tolerates stops no refresh, profile
+update or `profile-resume` (decision F10's addendum of 2026-11-03): the shared
+transaction never reads, writes or moves it, in a hosted Folder as on a workstation,
+because its outputs are owned paths only. Adoption and initialization recovery keep
+refusing it by name (`folder-foreign-entry` above). A hosted Folder reports such
+entries instead: `lazurio update` and `update status` add `folderForeignEntries`
+(the Folder and the names, or `unreadable` when the top level cannot be listed),
+and `lazurio doctor` warns with `folder-top-level` `foreign-entries` (or
+`top-level-unreadable`), because work products belong in `~/Documents/<task>/`.
+The reader moves only their own entry and tells the user about anyone else's.
 
 The Launchpad shows the refreshed binding on its next read; an open panel holding the
 old revision gets `stale-revision` on apply, as after any concurrent change. The
 refresh re-renders what the handover changes, and everything when the active product
 renders a newer template revision than the Folder records: after Machines installs a
-release with new templates, or the user runs `lazurio update` (which then reports
-"Folder refresh needed"), the next `folder-refresh` is `refreshed` with the new
-`AGENTS.md` and `manual/`, provided no generated file was edited (otherwise `drift`
-and its path, nothing written). A Folder rendered by a newer revision than the active
+release with new templates, the role's next `folder-refresh` is `refreshed` with the
+new `AGENTS.md` and `manual/`, provided no generated file was edited (otherwise `drift`
+and its path, nothing written). After the user's `lazurio update` the update has
+already run this refresh, so the role's next one is `unchanged`, or `blocked` for the
+same reason the update named. A Folder rendered by a newer revision than the active
 product stays `template-upgrade-required` and is never downgraded
 ([F14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)). There is no
 program rollback any more ([product update](update.md), change of 2026-09-28), so an
@@ -321,6 +354,17 @@ It binds the declared user/home to the actual UID's Linux NSS record (not
 The Linux base system must provide root-owned `/usr/bin/getent`; it is called
 without a shell, with a fixed `passwd <uid>` query and sanitized environment.
 Missing/unsafe resolver or ambiguous output stops as `machine-operator-unavailable`.
+
+`folder-init` and `folder-refresh` then run only in the installed product (decision
+F68, #782). That is a built identity, not a fixture build, whose running file
+(`/proc/self/exe`, resolved) is `versions/<its version>/lazurio` under the trusted base
+`<home from that record>/.local/share/lazurio`, where the Machines role installs it.
+`XDG_DATA_HOME` and every other variable play no part. Anything else, a source run, a
+test in process or a pull request's own build, stops as
+`machine-not-installed-product` before the Folder or the home is read for writing, and
+nothing is written. `inspect` only reads and is not guarded. The guard covers the code
+under development reaching the live Folder by itself; it does not contain code that
+runs as the operator and calls the installed product (F68, rule 4).
 We deliberately do not use Bun 1.4.2 `os.userInfo()` here: native ARM64 qualification
 observed that its username depends on the ambient environment. No dependency on
 a separately installed Bun is introduced by the system account lookup.
@@ -432,6 +476,98 @@ Launchpad ([decision F10, amendment of 2026-10-19](decisions.md#f10--workspace-p
   GitHubu přes Lazurio for GitHub …"), and pages whose words follow the shell's kind
   use the work wording, which does not say the Environment is shared. Telling two
   servers' Služby serveru apart waits for the wireframe.
+
+## Assigned peers (root decision 0192, addendum of 2026-10-26)
+
+The addendum makes SSH from an Osobní Prostředí into every Pracovní Prostředí
+assigned to its Owner in the same tailnet always on. The Osobní Prostředí knows each
+target's host key from the records of the Organization that owns it, never from a
+first connection (point (d)), and Lazurio writes these Environments' names into it
+for agents, Buddy and Delegace (point (e)). Machines #948 (released in v0.12.211, see
+[above](#one-upstream-contract)) carries what that needs in the peers of the
+personal VM's `relationships`: three optional members that come only together.
+
+- **`environment`**: the peer's Environment id `<machine>.<organization>`, two slugs
+  joined by one dot, at most 96 characters.
+- **`access`**: `"assigned"`. A rule opens this edge, not a reviewed device grant: the
+  peer is a work VM of an Organization assigned to this personal Machine's owner.
+- **`ssh.host_keys`**: one to four distinct closed `{type: "ssh-ed25519", key}`,
+  `key` the base64 blob of the public key without type or comment
+  (`^AAAAC3NzaC1lZDI1NTE5AAAAI[A-Za-z0-9+/]{43}$`), from the Organization's records.
+
+With them the peer is `kind: "workspace-vm"`, `zone: "work"` with an Organization,
+and its `ssh` is an object with a named `user`, `direction: "outbound"` and
+`host_keys`; without them its `ssh` carries no `host_keys`. The schema does not tie
+them to the personal branch. The reader refuses anything else, and so does the
+binding's parser, which records them as `environment`, `access` and `ssh.hostKeys`
+in a fixed order (`name, kind, zone, organization, environment, access, ssh,
+https`; `host, user, direction, hostKeys`). Absent stays absent: a peer without them
+projects, records and reads back byte for byte as before.
+
+**The gate.** Machines writes the members only to a Machine whose pinned Platform is
+at least its gate, which stays unset until a Platform release with this reader
+exists. A Platform that vendors an earlier schema refuses a handover carrying them,
+as for `entry` and `vault`.
+
+**Recorded and carried.** The Platform records the members and carries them through
+`folder-refresh`, profile changes and `profile-resume`. They are context, not
+authority. A refresh records a change of them even when nothing it renders changes,
+so the recorded binding never stays behind the handover
+([refresh](#refresh-after-a-handover-rewrite)), and recovery evidence withholds
+`environment` as a name of the peer.
+
+**What uses them (plan DEV-6676 P2).** Only a personal VM's binding, and only its
+peers with all three members (`assignedEnvironments` in
+`src/folder/machine-binding.ts`; the first of an Environment id wins), in two places:
+
+- **The person's SSH config.** When the Folder records exactly this handover's
+  binding, after a `folder-init` that answers `initialized` and after a
+  `folder-refresh` that ends `refreshed` or `unchanged`, the Platform writes from
+  that binding:
+  - `~/.ssh/config.d/lazurio-environments.conf` (0600): a header line saying the
+    Platform writes it, then per Environment `Host <environment>` with `HostName
+    <ssh.host>`, `User <ssh.user>`, `HostKeyAlias <environment>`, `UserKnownHostsFile
+    ~/.ssh/known_hosts_lazurio_environments`, `StrictHostKeyChecking yes`,
+    `IdentityFile ~/.ssh/lazurio-environment-ed25519` (the Osobní Prostředí's one
+    key, which Machines create in it), `IdentitiesOnly yes` and `ForwardAgent no`;
+  - `~/.ssh/known_hosts_lazurio_environments` (0644): the same header, then
+    `<environment> ssh-ed25519 <key>` per host key;
+  - the line `Include ~/.ssh/config.d/lazurio-environments.conf` at the top of
+    `~/.ssh/config`, before any `Host` or `Match` block, as OpenSSH needs for it to
+    apply to every host. It is inserted once, when no such line is among the file's
+    global lines; every byte of the person's file and its mode are kept, and a
+    missing file is created 0600.
+
+  A file at either of the Platform's paths without the header is the person's and is
+  never overwritten or removed. A symlinked `~/.ssh`, `~/.ssh/config.d` or file,
+  another account's file, a hard link and anything but a regular file are refused
+  too. Each refusal changes nothing and is answered as `environmentSsh: {kind:
+  "blocked", reason, path}` with the `~/` path, beside the command's own answer,
+  whose exit code stays the same. **Without assigned peers** (below Machines' gate,
+  or after the last assignment ends) the two files are removed when they are the
+  Platform's and nothing is created; the `Include` line stays, since OpenSSH skips an
+  `Include` that matches no file, and the person's config is not touched. Every file
+  is replaced in one rename and only when its bytes or mode differ, so a second run
+  answers `unchanged`. A `folder-init` that answers `already-adopted` writes nothing,
+  since the Folder may still record an older handover until the `folder-refresh`
+  that follows; any other Machine is left alone.
+- **The personal Folder's `AGENTS.md`.** „Z tohoto Osobního Prostředí“ (From this
+  Personal Environment), after the boundaries, lists `ssh <environment>` with its
+  Organization per assigned Environment and says that Organization work belongs
+  there under its own `AGENTS.md`, that the Personalspace, personal sign-ins and
+  Buddy's memory stay here, and that a refused connection or a changed host key is
+  for the user, never a pin to change. Its assignment is recorded, so the agent does
+  not confirm it with the user. Every line that would contradict that says so too:
+  the Boundaries' line on Organization work in `AGENTS.md`, and in
+  `manual/this-machine.md` the line on confirming a peer before working on it and the
+  line on where Organization work belongs. Each keeps the confirmation for every other
+  work Environment. All of these render only with an assigned peer, and stay as they
+  were without one.
+
+Nothing else depends on them: no other generated file and no line of the Launchpad.
+The SSH config's three files belong to the person's account, outside the Folder, so
+the Folder's digests, drift check and recovery do not cover them. Delegace's `--env`
+and the read-only list in Nastavení are the plan's later work (P3, P4).
 
 ## The hosted entry (decision F16)
 
@@ -640,6 +776,38 @@ identity and is not recorded in the Folder's binding: the vault reads the live
 handover at every operation. Recovery evidence withholds the account, the name and
 the vault's host (`<vault-account>`, `<vault-name>`, `<hostname-n>`).
 
+## The home access service (decision F70)
+
+Where the home Conglomerate Host's access service answers (root decision 0224) is
+only ever the handover's to say. Machines writes it on both branches, from the home
+host the lane already reads, only while that host switches the service on and its
+service would recognize this Machine as a caller, and only for a pinned Platform at
+or above its gate (`PLATFORM_HANDOVER_ACCESS_SERVICE_MINIMUM`, unset until a Platform
+release with this reader exists):
+
+```json
+"access_service": { "origin": "http://example-conglomerate-host.tailnet.example.invalid:8444" }
+```
+
+The reader takes exactly `http://`, a tailnet DNS name of at least three labels whose
+last label is not numeric (never an address literal) and port 8444; anything else,
+or any other member, refuses the handover, and the binding's parser holds a recorded
+binding to the same rule. The binding records it as `accessService` after `entry`;
+absent stays absent, so a binding without it records the bytes it always did. It is
+a declaration, not identity (`machineIdentity` ignores it). `accessServiceOf` answers
+it, and the machine commands and the Launchpad of the supervised base then take the
+Environment's routes from the service (F70 points 2 to 6); without it, a personal
+Machine keeps the assigned peers and nothing calls a service. Every writer of the
+routes writes under one lock and only while the live handover still declares what it
+acted on (the same origin, or without the member the same assigned peers), so a
+late answer of an origin the handover no longer declares, or a refresh of an older
+handover's peers, writes nothing; without the member, or with a handover the
+Launchpad cannot read (also a missing one, on a base that still has the route
+files), only routes whose deadline has passed go, and a refresh without it writes
+the binding's own routes (F70's amendment of 2026-11-03, points 5 and 6). A refresh records a
+change of only this member, though the Folder renders nothing of it, and recovery
+evidence withholds the host's name (`<hostname-n>`).
+
 ## Delivery by the Machines role (agreed 2026-09-23, Machines #199, v0.12.70)
 
 The Machines resident role installs the Platform from a custody-staged, digest-pinned
@@ -668,7 +836,10 @@ on a Machine whose Folder exists (and after `updated`), the role runs
 `lazurio machine folder-refresh` (added after v0.1.2; the role needs a pinned release
 that has it) so the Folder follows the current handover: exit 0 `refreshed` or
 `unchanged` is success, exit 2 `blocked` is a finding to report with its `reason` and
-`path`, not a failure to retry, and exit 1 is an operation failure.
+`path`, not a failure to retry, and exit 1 is an operation failure. Nothing of this
+changes with F17's addendum of 2026-10-30: `lazurio install` refreshes nothing, and a
+user's `lazurio update` that refreshed the Folder first makes the role's refresh
+`unchanged` (or `folder-busy` while that refresh holds the lock, retryable as before).
 
 ### What the Machines role does with the Lazurio version (F17 addendum 2026-09-28)
 
@@ -689,7 +860,7 @@ Every step below uses only what the product already answers.
 | `install` over a supervised installation answers `activation-unhealthy` | A Recovery-mode finding for the readback, never a retry: the new version stays active, nothing was undone, and the repair is forward (a fixed release, or the condition the Launchpad's Recovery mode names) |
 | After `installed` or `updated` | Run `lazurio machine folder-refresh` as today (above) |
 | PATH entry | Verify, do not create: `install --json` returns `entry`. `state` `created`, `present` or `replaced` is correct; `conflict` or `failed` is a finding with `entry.next` in the readback, and the role never replaces the occupant. A Machine without the entry is repaired by the next `install`, not by a link the role writes itself. The operator account's login shell has `~/.local/bin` on PATH (`workspace_tools` already provides it for npm); `entry.shadowedBy` not `null` is a finding |
-| Readback | `lazurio update status --json`: `active`, `highWater`, `lastCheck` and `folderRefresh` are facts to report; an active version above the pin is not drift |
+| Readback | `lazurio update status --json`: `active`, `highWater`, `lastCheck` and `folderRefresh` (`null`, or `{folder, recorded, product}` while the Folder still needs a refresh) are facts to report; an active version above the pin is not drift |
 
 The role keeps its custody-staged, digest-pinned bytes and its attestation check for
 installing and raising. The user's own `lazurio update` verifies inside the product

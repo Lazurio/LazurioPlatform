@@ -42,6 +42,8 @@ export function createShell(
     copy: () => Copy;
     /** The display name of an Organization slug, once the catalog knows it. */
     displayName?: (organization: string) => string | undefined;
+    /** An offer's title in the Marketplace the page shows, by its id. */
+    offerTitle?: (offer: string) => string | undefined;
     /** Called after every move, with the route now shown. */
     onRoute?: (route: PageRoute) => void;
     /** The route shown for a route asked for: on a public Environment
@@ -104,7 +106,10 @@ export function createShell(
     for (const action of actions)
       action.hidden = action.dataset.sectionAction !== (section ?? frame);
     for (const link of navLinks)
-      if (link.dataset.section === section)
+      if (
+        link.dataset.section === section ||
+        (link.dataset.section === "connections" && section === "ssh")
+      )
         link.setAttribute("aria-current", "page");
       else link.removeAttribute("aria-current");
     // A module, and a service repository's page, sit under their
@@ -124,7 +129,12 @@ export function createShell(
 
   function relabel() {
     const copy = options.copy();
-    const title = routeTitle(route, copy, options.displayName);
+    const title = routeTitle(
+      route,
+      copy,
+      options.displayName,
+      options.offerTitle,
+    );
     heading.textContent = title.heading;
     document.title = title.document;
     crumbsLabel.textContent =

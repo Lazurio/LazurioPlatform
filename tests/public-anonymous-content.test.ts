@@ -1011,8 +1011,8 @@ test("a public Environment's agents' texts say it has no GitHub identity, reads 
       // changes of it.
       expect(manual).toContain(
         locale === "en"
-          ? "This Environment, though, is public (root decision 0204): its visitors share it and it has no GitHub identity, neither a brokered nor a personal one."
-          : "Tento Environment je ale veřejný (root decision 0204): sdílí ho jeho návštěvníci a nemá žádnou identitu GitHubu, ani brokerovanou, ani osobní.",
+          ? "This Environment, though, is public (decision 0204): its visitors share it and it has no GitHub identity, neither a brokered nor a personal one."
+          : "Tento Environment je ale veřejný (decision 0204): sdílí ho jeho návštěvníci a nemá žádnou identitu GitHubu, ani brokerovanou, ani osobní.",
       );
       for (const text of [agents, manual]) {
         expect(text).not.toContain("Lazurio for GitHub");

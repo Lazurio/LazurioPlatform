@@ -3,6 +3,7 @@ import { customServerIdPattern } from "../integrations/custom-server";
 import { integrationIdPattern } from "../integrations/path";
 import { isServiceId } from "../organizations/server-services";
 import { isSecretRequestId, secretRequestPath } from "../vault/request-id";
+import { builtInMarketplace, offerById } from "./marketplace";
 import type { MessageKey } from "./messages";
 
 // The page routes of the Launchpad: one document served under each path, the
@@ -23,6 +24,7 @@ export const settingsSections = [
   "communication",
   "machine",
   "tools",
+  "connections",
   "ssh",
   "recovery",
   "buddy",
@@ -51,6 +53,16 @@ export type PageRoute =
       organization: string;
       repository: string;
     }>
+  /** A guest Module's overview (decision F67's addendum of 2026-11-01):
+   * `/o/<org>/guest/<home>/<module>`, `<home>` its home Organization's
+   * GitHub login and `<module>` its slot id, both as the catalog names
+   * them. Read-only: it never starts anything. */
+  | Readonly<{
+      view: "guest";
+      organization: string;
+      home: string;
+      module: string;
+    }>
   /** A section of Settings. */
   | Readonly<{ view: "settings"; section: SettingsSection }>
   /** Trezor, the way into the Environment's own vault (root decision 0198
@@ -62,8 +74,11 @@ export type PageRoute =
    * folder itself, `/files/<name>/<name>` one below it. */
   | Readonly<{ view: "files"; path: readonly string[] }>
   /** The Marketplace of the Environment, at the foot of the Apps column
-   * (decision F36 addendum of 2026-10-04): for now it says it is coming. */
-  | Readonly<{ view: "marketplace" }>
+   * (decision F36 addendum of 2026-10-04, plan DEV-6593): `/marketplace`
+   * is its catalog, `/marketplace/<offer>` one offer's detail. Whether the
+   * offer exists is the catalog's answer (marketplace.ts), not the
+   * route's. */
+  | Readonly<{ view: "marketplace"; offer?: string }>
   /** Integrace of the Environment (decision F42): `/integrations` is the tab
    * Vše, `/integrations/connected` and `/integrations/custom` the two others,
    * and `/integrations/app/<id>` one app's card in Vše, the link an agent
@@ -122,6 +137,7 @@ export const pagePaths: readonly string[] = [
   "/o/:organization",
   "/o/:organization/:module",
   "/o/:organization/productionspace/:repository",
+  "/o/:organization/guest/:home/:module",
   // A service's page, opened in the Environment browser and dropped from
   // the address (`serviceRequest`).
   "/service/:id",
@@ -132,6 +148,7 @@ export const pagePaths: readonly string[] = [
   "/vault",
   "/vault/requests/:id",
   "/marketplace",
+  "/marketplace/:offer",
   "/settings",
   ...settingsSections.map((section) => `/settings/${section}`),
   ...legacyVaultPaths,
@@ -158,6 +175,15 @@ export function repositoryPath(
   repository: string,
 ): string {
   return `${organizationPath(organization)}/productionspace/${encodeURIComponent(repository)}`;
+}
+
+/** A guest Module's overview (decision F67's addendum of 2026-11-01). */
+export function guestPath(
+  organization: string,
+  home: string,
+  module: string,
+): string {
+  return `${organizationPath(organization)}/guest/${encodeURIComponent(home)}/${encodeURIComponent(module)}`;
 }
 
 /** The link of a service's page (root decision 0209 point 6, decision F32's
@@ -233,6 +259,13 @@ export function pageRoute(pathname: string): PageRoute {
   }
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   if (path === "/marketplace") return { view: "marketplace" };
+  if (path.startsWith("/marketplace/")) {
+    const parts = path.slice("/marketplace/".length).split("/");
+    const offer = parts.length === 1 ? segment(parts[0]) : null;
+    return offer === null
+      ? { view: "marketplace" }
+      : { view: "marketplace", offer };
+  }
   // Trezor (F53's addendum of 2026-10-18): its page, and below it.
   if (path === "/vault" || path.startsWith("/vault/"))
     return vaultRoute(path.slice("/vault".length));
@@ -279,6 +312,12 @@ export function pageRoute(pathname: string): PageRoute {
         : null;
     if (organization !== null && repository !== null)
       return { view: "repository", organization, repository };
+    // A guest Module's overview (F67's addendum of 2026-11-01).
+    const home =
+      parts.length === 4 && parts[1] === "guest" ? segment(parts[2]) : null;
+    const guest = home === null ? null : segment(parts[3]);
+    if (organization !== null && home !== null && guest !== null)
+      return { view: "guest", organization, home, module: guest };
     if (organization === null || parts.length > 2) return { view: "home" };
     if (parts.length === 1) return { view: "organization", organization };
     return module === null
@@ -320,12 +359,17 @@ export function routePath(route: PageRoute): string {
     return modulePath(route.organization, route.module);
   if (route.view === "repository")
     return repositoryPath(route.organization, route.repository);
+  if (route.view === "guest")
+    return guestPath(route.organization, route.home, route.module);
   if (route.view === "files") return filesUrlPath(route.path);
   if (route.view === "integrations")
     return route.form !== undefined
       ? customServerPath(route.form.server)
       : integrationsPath(route.tab, route.app);
-  if (route.view === "marketplace") return "/marketplace";
+  if (route.view === "marketplace")
+    return route.offer === undefined
+      ? "/marketplace"
+      : `/marketplace/${encodeURIComponent(route.offer)}`;
   if (route.view === "vault")
     return route.request === undefined
       ? vaultPath
@@ -341,7 +385,8 @@ export const sectionLabels: Readonly<Record<SettingsSection, MessageKey>> = {
   communication: "voiceTitle",
   machine: "machineTitle",
   tools: "toolsTitle",
-  ssh: "sshTitle",
+  connections: "connectionsTitle",
+  ssh: "computerTitle",
   recovery: "recoveryTitle",
   buddy: "buddyTitle",
 };
@@ -353,6 +398,8 @@ export function routeTitle(
   route: PageRoute,
   copy: Readonly<Record<MessageKey, string>>,
   displayName: (organization: string) => string | undefined = () => undefined,
+  offerTitle: (offer: string) => string | undefined = (offer) =>
+    offerById(builtInMarketplace, offer)?.title,
 ): Readonly<{ heading: string; document: string }> {
   if (route.view === "home")
     return { heading: copy.homeTitle, document: copy.title };
@@ -374,11 +421,24 @@ export function routeTitle(
       document: `${route.repository} · ${organization} — ${copy.title}`,
     };
   }
-  if (route.view === "marketplace")
+  if (route.view === "guest")
     return {
-      heading: copy.appsMarketplace,
-      document: `${copy.appsMarketplace} — ${copy.title}`,
+      heading: route.module,
+      document: `${route.module} · ${route.home} — ${copy.title}`,
     };
+  if (route.view === "marketplace") {
+    const offer =
+      route.offer === undefined ? null : (offerTitle(route.offer) ?? null);
+    return offer === null
+      ? {
+          heading: copy.appsMarketplace,
+          document: `${copy.appsMarketplace} — ${copy.title}`,
+        }
+      : {
+          heading: offer,
+          document: `${offer} · ${copy.appsMarketplace} — ${copy.title}`,
+        };
+  }
   if (route.view === "integrations")
     return {
       heading: copy.integrationsTitle,

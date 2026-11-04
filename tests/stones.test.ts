@@ -53,6 +53,10 @@ test("the fallback reads module id, app id and tags, in the root's order", () =>
   expect(key("exports")).toBe("export");
   expect(key("contracts")).toBe("legal");
   expect(key("infra")).toBe("system");
+  expect(key("presentations")).toBe("presentation");
+  expect(key("presentation-rozjedemeai", "app", ["decks"])).toBe(
+    "presentation",
+  );
   expect(key("orders")).toBe("app");
   expect(semanticAppIconKey({})).toBe("app");
 });

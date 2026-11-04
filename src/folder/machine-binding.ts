@@ -86,18 +86,36 @@ export type MachineOwner =
     }>;
 
 // This Machine's tailnet peers from its own point of view, as Machines derives
-// them from the home Conglomerate Host grants: names only, no node ids, keys,
-// addresses or credentials. Rendered only when present; Headscale enforces it.
+// them from the home Conglomerate Host grants: names and public identity only,
+// no node ids, machine keys, addresses, private keys or credentials. Rendered
+// only when present; Headscale enforces it.
+//
+// A peer whose edge a rule opens, not a reviewed device grant, says so (root
+// decision 0192, addendum of 2026-10-26; Machines #948): a work VM of an
+// Organization assigned to this personal Machine's owner carries `access:
+// "assigned"`, its Environment id `environment` (`<machine>.<organization>`)
+// and, on its outbound SSH link under a named account, the host keys
+// `hostKeys` from the Organization's records (the handover's `host_keys`).
+// The three come together or not at all, and absent they stay absent, so a
+// peer recorded without them keeps its bytes. They are context, not
+// authority: recorded and carried forward exactly. A personal Machine's
+// Folder names its assigned peers to its agents and the Platform writes the
+// person's SSH config for them (`assignedEnvironments`); nothing else uses
+// them.
 export type MachineZone = "personal" | "work";
+export type MachinePeerHostKey = Readonly<{ type: "ssh-ed25519"; key: string }>;
 export type MachinePeer = Readonly<{
   name: string;
   kind: "personal-vm" | "workspace-vm" | "client-device" | "conglomerate-host";
   zone: MachineZone | null;
   organization: string | null;
+  environment?: string;
+  access?: "assigned";
   ssh: Readonly<{
     host: string;
     user: string | null;
     direction: "outbound" | "inbound" | "both";
+    hostKeys?: readonly MachinePeerHostKey[];
   }> | null;
   https: readonly string[];
 }>;
@@ -105,6 +123,55 @@ export type MachineRelationships = Readonly<{
   zone: MachineZone;
   peers: readonly MachinePeer[];
 }>;
+
+/** A Work Environment assigned to a personal Machine's owner that SSH reaches
+ * from it (root decision 0192, addendum of 2026-10-26): its Environment id,
+ * the alias, with its Organization and the link Machines recorded. */
+export type AssignedEnvironment = Readonly<{
+  environment: string;
+  organization: string;
+  host: string;
+  user: string;
+  hostKeys: readonly MachinePeerHostKey[];
+}>;
+
+/** The assigned peers of a personal Machine, in the handover's order, each
+ * Environment id once (the first wins, as in an SSH config): what the
+ * personal Folder's `AGENTS.md` lists and what the Platform writes into the
+ * person's SSH config, from the same binding. Empty for any other Machine,
+ * and for a handover without the members (below Machines' gate). */
+export function assignedEnvironments(
+  machine: MachineBinding | null | undefined,
+): readonly AssignedEnvironment[] {
+  if (machine?.kind !== "personal-vm") return [];
+  const seen = new Set<string>();
+  const found: AssignedEnvironment[] = [];
+  for (const peer of machine.relationships?.peers ?? []) {
+    const link = peer.ssh;
+    if (
+      peer.access !== "assigned" ||
+      peer.environment === undefined ||
+      peer.organization === null ||
+      link === null ||
+      link.user === null ||
+      link.hostKeys === undefined ||
+      link.hostKeys.length === 0 ||
+      seen.has(peer.environment)
+    )
+      continue;
+    seen.add(peer.environment);
+    found.push(
+      Object.freeze({
+        environment: peer.environment,
+        organization: peer.organization,
+        host: link.host,
+        user: link.user,
+        hostKeys: link.hostKeys,
+      }),
+    );
+  }
+  return Object.freeze(found);
+}
 
 // The hosted entry of this Machine (decision F16), projected from the
 // handover's `entry` (Machines 0.12.93) one member to one: the Launchpad's four
@@ -168,6 +235,10 @@ export type MachineBinding = Readonly<{
   /** The hosted entry of this Machine (decision F16): finished URLs written by
    * Machines from the same rendering as the gateway; declaration, not identity. */
   entry?: MachineEntry;
+  /** Where the home Conglomerate Host's access service answers (decision F70,
+   * root 0224), exactly as the handover's `access_service` declares it;
+   * declaration, not identity. */
+  accessService?: Readonly<{ origin: string }>;
 }>;
 
 // Exactly the shapes the vendored lazurio.machine.v1 schema imposes on the
@@ -176,13 +247,17 @@ export type MachineBinding = Readonly<{
 // slugs are hyphen-separated alphanumeric words (owner, host, tailnet identity;
 // a personal Machine name at most 32, a GitHub login at most 39), a workspace
 // Machine name is the schema's looser `^[a-z][a-z0-9-]{0,31}$`, a peer name is
-// one DNS label.
+// one DNS label, an assigned peer's Environment id is two slugs joined by a
+// dot (at most 96) and its host key the base64 blob of one ed25519 public
+// key, without type or comment.
 const slug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const workspaceName = /^[a-z][a-z0-9-]{0,31}$/;
 const dnsLabel = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const hostname =
   /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
 const osAccount = /^[a-z_][a-z0-9_-]{0,30}$/;
+const environmentId = /^[a-z0-9]+(?:-[a-z0-9]+)*\.[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const ed25519PublicKey = /^AAAAC3NzaC1lZDI1NTE5AAAAI[A-Za-z0-9+/]{43}$/;
 const zones: readonly MachineZone[] = ["personal", "work"];
 const peerKinds: readonly MachinePeer["kind"][] = [
   "personal-vm",
@@ -208,9 +283,27 @@ function isMachineName(kind: unknown, value: unknown): value is string {
 function isDnsLabel(value: unknown): value is string {
   return typeof value === "string" && dnsLabel.test(value);
 }
-function isHostname(value: unknown): value is string {
+export function isHostname(value: unknown): value is string {
   return (
     typeof value === "string" && value.length <= 253 && hostname.test(value)
+  );
+}
+
+// 8444: the one port the access service listens on (Machines
+// `workloads/conglomerate-host/access-service.ts` ACCESS_SERVICE_PORT).
+const accessServiceOriginPattern = /^http:\/\/([a-z0-9.-]+):8444$/;
+/** The access service's origin by the wire schema's rule and nothing looser
+ * (decision F70 point 1): exactly `http://`, a tailnet DNS name of at least
+ * three labels whose last label is not numeric (never an address literal),
+ * and port 8444; no user, path, query or other port. */
+export function isAccessServiceOrigin(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const name = accessServiceOriginPattern.exec(value)?.[1];
+  return (
+    name !== undefined &&
+    isHostname(name) &&
+    name.split(".").length >= 3 &&
+    /^[a-z]{2,63}$/.test(name.slice(name.lastIndexOf(".") + 1))
   );
 }
 function isGithubId(value: unknown): value is number {
@@ -218,6 +311,11 @@ function isGithubId(value: unknown): value is number {
 }
 function isGithubLogin(value: unknown): value is string {
   return isSlug(value) && value.length <= 39;
+}
+export function isEnvironmentId(value: unknown): value is string {
+  return (
+    typeof value === "string" && value.length <= 96 && environmentId.test(value)
+  );
 }
 function oneOf<T extends string>(
   values: readonly T[],
@@ -299,12 +397,37 @@ function owner(input: unknown): MachineOwner {
   );
 }
 
+// The host keys of an assigned peer, by the wire schema's rule: one to four
+// distinct closed `{type, key}` items, each one ed25519 public key.
+function hostKeys(input: unknown): readonly MachinePeerHostKey[] {
+  if (!Array.isArray(input) || input.length < 1 || input.length > 4)
+    throw new Error("Invalid Machine peer");
+  const keys = Array.from(input, (item: unknown) => {
+    const value = stateFields(item, ["type", "key"]);
+    if (
+      value.type !== "ssh-ed25519" ||
+      typeof value.key !== "string" ||
+      !ed25519PublicKey.test(value.key)
+    )
+      throw new Error("Invalid Machine peer");
+    return Object.freeze({ type: value.type, key: value.key });
+  });
+  if (new Set(keys.map(({ key }) => key)).size !== keys.length)
+    throw new Error("Invalid Machine peer");
+  return Object.freeze(keys);
+}
+
 function peer(input: unknown): MachinePeer {
+  // With `access` the peer is assigned and `environment` is required with
+  // it; without it neither is allowed (the schema's dependentRequired). The
+  // exact field list refuses either alone.
+  const assigned = ownDataValue(input, "access") !== undefined;
   const value = stateFields(input, [
     "name",
     "kind",
     "zone",
     "organization",
+    ...(assigned ? ["environment", "access"] : []),
     "ssh",
     "https",
   ]);
@@ -319,20 +442,44 @@ function peer(input: unknown): MachinePeer {
     new Set(value.https).size !== value.https.length
   )
     throw new Error("Invalid Machine peer");
+  // An assigned peer is a work VM of an Organization, reached over SSH.
+  let membership: Readonly<{ environment: string; access: "assigned" }> | null =
+    null;
+  if (assigned) {
+    if (
+      value.access !== "assigned" ||
+      !isEnvironmentId(value.environment) ||
+      value.kind !== "workspace-vm" ||
+      value.zone !== "work" ||
+      value.organization === null ||
+      value.ssh === null
+    )
+      throw new Error("Invalid Machine peer");
+    membership = { environment: value.environment, access: value.access };
+  }
   let ssh: MachinePeer["ssh"] = null;
   if (value.ssh !== null) {
-    const link = stateFields(value.ssh, ["host", "user", "direction"]);
+    // Host keys exactly on an assigned peer's link (required there, unknown
+    // elsewhere), which goes outbound under a named account.
+    const link = stateFields(value.ssh, [
+      "host",
+      "user",
+      "direction",
+      ...(assigned ? ["hostKeys"] : []),
+    ]);
     if (
       !isHostname(link.host) ||
       (link.user !== null &&
         (typeof link.user !== "string" || !osAccount.test(link.user))) ||
-      !oneOf(directions, link.direction)
+      !oneOf(directions, link.direction) ||
+      (assigned && (link.user === null || link.direction !== "outbound"))
     )
       throw new Error("Invalid Machine peer");
     ssh = Object.freeze({
       host: link.host,
       user: link.user,
       direction: link.direction,
+      ...(assigned ? { hostKeys: hostKeys(link.hostKeys) } : {}),
     });
   }
   return Object.freeze({
@@ -340,6 +487,7 @@ function peer(input: unknown): MachinePeer {
     kind: value.kind,
     zone: value.zone,
     organization: value.organization,
+    ...(membership ?? {}),
     ssh,
     https: Object.freeze([...value.https]),
   });
@@ -447,10 +595,12 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
   if (input === null) return null;
   const withRelationships = ownDataValue(input, "relationships") !== undefined;
   const withEntry = ownDataValue(input, "entry") !== undefined;
+  const withAccessService = ownDataValue(input, "accessService") !== undefined;
   const value = stateFields(input, [
     ...keys,
     ...(withRelationships ? ["relationships" as const] : []),
     ...(withEntry ? ["entry" as const] : []),
+    ...(withAccessService ? ["accessService" as const] : []),
   ]);
   const tailnet =
     value.network === null
@@ -491,25 +641,41 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
   // Buddy's frame is served by the person's Osobní Prostředí alone.
   if (entry?.buddyOrigin !== undefined && !personalVm)
     throw new Error("Only a personal Machine binding routes Buddy's frame");
-  if (!withRelationships)
-    return Object.freeze(entry ? { ...binding, entry } : binding);
-  const related = relationships(value.relationships);
+  const accessService = withAccessService
+    ? parseAccessService(value.accessService)
+    : undefined;
+  const related = withRelationships
+    ? relationships(value.relationships)
+    : undefined;
   // The zone of the relationships is the zone of this Machine's branch.
-  if ((related.zone === "personal") !== personalVm)
+  if (related !== undefined && (related.zone === "personal") !== personalVm)
     throw new Error("Machine relationships zone mixes handover branches");
-  return Object.freeze(
-    entry
-      ? { ...binding, relationships: related, entry }
-      : { ...binding, relationships: related },
-  );
+  // Members in the handover's order; an absent one stays absent, so a binding
+  // recorded without it reads back with the same bytes.
+  return Object.freeze({
+    ...binding,
+    ...(related === undefined ? {} : { relationships: related }),
+    ...(entry === undefined ? {} : { entry }),
+    ...(accessService === undefined ? {} : { accessService }),
+  });
+}
+
+function parseAccessService(input: unknown): Readonly<{ origin: string }> {
+  const { origin } = stateFields(input, ["origin"]);
+  if (!isAccessServiceOrigin(origin))
+    throw new Error("Invalid Machine access service origin");
+  return Object.freeze({ origin });
 }
 
 // The part of a binding that names the Machine: kind, name, Owner (Organization
-// and Team, or a person), tailnet node and host. Machines rewrites the handover
-// on every apply (`installed`, and since v0.12.61 the declared assignment and the
+// and Team, or a person) and tailnet node. Machines rewrites the handover on
+// every apply (`installed`, and since v0.12.61 the declared assignment and the
 // derived relationships), so the document digest is not identity; a re-apply of
-// the same Machine must not turn an adopted Folder into a blocked one. Everything
-// outside the identity follows the current handover through the refresh.
+// the same Machine must not turn an adopted Folder into a blocked one. The host
+// is where the Machine runs, not which Machine it is: a server move gives the
+// same guest, with its disk, name, Owner and tailnet node, a new host, and its
+// Folder follows that through the refresh (#759). Everything outside the
+// identity follows the current handover through the refresh.
 export function machineIdentity(machine: MachineBinding | null) {
   if (machine === null) return null;
   const { assignment: _, ...owner } = machine.owner as MachineBinding["owner"] &
@@ -519,6 +685,5 @@ export function machineIdentity(machine: MachineBinding | null) {
     name: machine.name,
     owner,
     network: machine.network,
-    host: machine.host,
   };
 }

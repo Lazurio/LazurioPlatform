@@ -341,7 +341,10 @@ const providerNames: Readonly<Record<string, string>> = {
  * its one action, or nothing (through its tool it is just there). */
 export type CardAction =
   | Readonly<{ kind: "connect"; label: string; path: "direct" | "composio" }>
-  | Readonly<{ kind: "open-tools"; label: string }>
+  /** The app's tool in Settings → Tools (Matěj 2026-10-28): its sign-in
+   * opens over Integrace where it has one, otherwise Settings → Tools opens
+   * at its row, with the control to act on next. */
+  | Readonly<{ kind: "open-tools"; label: string; tool: string }>
   | Readonly<{ kind: "set-up"; label: string }>
   | Readonly<{ kind: "allow"; label: string }>
   | Readonly<{ kind: "ask-admin"; label: string }>
@@ -410,7 +413,7 @@ function knownCardView(
     own.every((account) => account.state === "pending");
   const label = pathLabel(choice, copy);
   // Composio signed in, but its "Používají agenti" off: the card says so in
-  // the switch's words and opens Settings → Tools, where the switch is,
+  // the switch's words and opens Settings → Tools at Composio's switch,
   // instead of asking for a sign-in that is there (decision F42, note of
   // 2026-10-19).
   if (
@@ -422,7 +425,11 @@ function knownCardView(
       line: copy.integrationsComposioOff,
       connected: false,
       pathLabel: null,
-      action: { kind: "open-tools", label: copy.integrationsOpenTools },
+      action: {
+        kind: "open-tools",
+        label: copy.integrationsOpenTools,
+        tool: "composio",
+      },
       composio: false,
     };
   if (choice.path === "tool")
@@ -458,12 +465,19 @@ function knownCardView(
       action: { kind: "none" },
       composio: false,
     };
+  // Its tool connects it: "Připojit" starts that, here where the tool
+  // signs in (WhatsApp's QR code), otherwise at its row in Settings → Tools
+  // (Matěj 2026-10-28).
   if (choice.missing === "tool")
     return {
       line: fill(copy.integrationsMissingTool, { tool: choice.tool }),
       connected: false,
       pathLabel: null,
-      action: { kind: "open-tools", label: copy.integrationsOpenTools },
+      action: {
+        kind: "open-tools",
+        label: copy.integrationsConnect,
+        tool: choice.tool,
+      },
       composio: false,
     };
   const line =

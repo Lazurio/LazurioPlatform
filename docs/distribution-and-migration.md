@@ -37,7 +37,7 @@ Later comments on #50 override earlier ones.
 | 8 | **No rollback and no back doors for it; Recovery mode instead.** A broken Lazurio offers only a repair agent or an issue with everything a fix needs; every entry ends in an issue | [afternoon](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5868604357), [late afternoon](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5869231172), [evening](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5869474451) | F21; root 0166 | Built in the pre-releases; `v0.1.7` still contains rollback |
 | 9 | **The Platform Launchpad replaces the resident Launchpad**, with no side-by-side period and no transition hostname. The two-move switch plan drafted in this pull request keeps its facts and loses its plan | [afternoon](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5868604357) | F22; root 0167; [Launchpad parity](launchpad-parity.md) | Switch line in [Launchpad parity, E](launchpad-parity.md#e-slices) |
 | 10 | **A Team Environment works with the Organization's bot**; `gh` is not signed in there | [afternoon](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5868604357) | F22 point 9; root 0168 | Built (P12) |
-| 11 | **A release candidate soaks 8 hours** on the work VMs of the pilot Organization and the personal VMs of its users before it becomes final; releases are staged | [late afternoon](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5869231172), [night](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5869623126), [night, second](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5869726141) | F21 point 5 | `qualify.yml` and the canary record built; no final release has passed it yet |
+| 11 | **A release candidate soaks 8 hours** on the work VMs of the pilot Organization and the personal VMs of its users before it becomes final; releases are staged. **Changed 2026-10-31:** no window; the stage ends in a recorded smoke test and its green light (F21 addendum 2026-10-31) | [late afternoon](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5869231172), [night](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5869623126), [night, second](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5869726141) | F21 point 5 | `qualify.yml` and the canary record built; no final release has passed it yet |
 | 12 | **Documentation is finished at the very end**, after the open questions are answered | [2026-09-28](https://github.com/Lazurio/LazurioPlatform/issues/50#issuecomment-5866787843) | — | This document is shaping, not the user manual |
 
 Decisions on #50 that do not concern distribution are recorded elsewhere: the rebuild
@@ -106,9 +106,11 @@ and F17. In short:
 - **The rollout.** Installs when absent or broken, raises a version below the pin,
   never lowers one; a version above the pin is the fact `ahead`, not drift. The
   Machines role never runs `lazurio update`.
-- **The Folder.** A product update never writes the Folder (F14). `update`, `update
-  status` and the pill say "Folder refresh needed" with the exact command when the
-  Folder records an older template revision.
+- **The Folder.** `lazurio update` refreshes the Folder itself when it records an
+  older template revision, after the switch and when nothing is newer, through the one
+  Folder change path (F14); people never see a refresh. `update status` and `doctor`
+  keep reporting one that is still needed, for agents (F17 addendum 2026-10-30, which
+  replaced the "Folder refresh needed" line with its command).
 - **A Team Environment.** Any of its users may update; the update affects all of
   them, and the generated text says so (F17 addendum 2026-10-02, point 4). This
   answers question Q6 of the draft.
@@ -292,7 +294,7 @@ repository read-only; clones and fetches keep working.
 | Windows install, Folder and lock | **Not built** | Windows users | S10 |
 | Intel macOS | **Not built**; whether such users exist is **unknown** | only if they exist | — |
 | `lazurio search`, local Guide | No consumer; not carried ([Launchpad parity, F](launchpad-parity.md#f-what-we-deliberately-do-not-carry-over)) | — | — |
-| Root decision register and lasting root manuals | Open ([#224](https://github.com/Lazurio/LazurioPlatform/issues/224), Q9) | the archive | S11 |
+| Root decision register and lasting root manuals | Register moved: [decision-register.md](decision-register.md) allocates the numbers since 2026-11-01 and the Root keeps its rows as the GEN3 record; the lasting manuals move by audience (Q9) | the archive | S11 |
 | Open issues and pull requests of the root repository | Must be finished, transferred or closed | the archive | S11 |
 
 Not determined: whether a Machines or Organization build depends on the root
@@ -310,7 +312,7 @@ change. What remains:
 | --- | --- | --- |
 | Untracked and ignored data (Personalspace, drafts, local secrets in Organization repositories, stashes, unpushed branches, root worktrees) | Git history does not hold it | Rename, never copy or delete; inventory before and after; the legacy tree is kept |
 | The agent's own runtime | An agent cannot repair the harness it runs in; renaming the tree under its working directory moves its shell | Working directory outside the tree; the path `<home>/Lazurio` is kept; the legacy CLI stays until step 8 |
-| A release with a bug in the updater | Only maintainers can publish the fix | Qualification and the 8-hour canary (F21 point 5); Recovery mode; the install script or an offline `install` of the fixed release |
+| A release with a bug in the updater | Only maintainers can publish the fix | Qualification and the canary on the pilot Organization, ending in the smoke test (F21 point 5 and its addendum of 2026-10-31); Recovery mode; the install script or an offline `install` of the fixed release |
 | A release that changes Folder state | There is no program or data rollback | The next release repairs forward (F18, F21) |
 | Sigstore unreachable on a cold trust cache | The installer and the updater refuse (`trust-unavailable`) | Accepted by F13; retry later |
 | Two migrations at once | Two agents could interleave renames | Step 3's rename is atomic; the second agent's precondition fails |
@@ -326,7 +328,7 @@ cites them.
 | # | Slice | Repository | State on `main` (2026-10-06) |
 | --- | --- | --- | --- |
 | S1 | Decisions: user owns the version, pin is a minimum, first installation, no rollback, one-way migration | Platform, root | Done: F17 addendum, F20, F21, F22; root 0161 addendum, 0164, 0166–0168 |
-| S2 | `~/.local/bin/lazurio`; hosted manual lets the user update; "Folder refresh needed" | Platform | Done (F17 addendum); released only in pre-releases |
+| S2 | `~/.local/bin/lazurio`; hosted manual lets the user update; "Folder refresh needed" | Platform | Done (F17 addendum); released only in pre-releases. The refresh line is replaced by the update's own refresh (F17 addendum 2026-10-30) |
 | S3 | Machines role: pin as a minimum, verify the PATH entry, never run `lazurio update` | Machines | Contract in [machine handover](machine-handover.md#what-the-machines-role-does-with-the-lazurio-version-f17-addendum-2026-09-28); implementation **unverified** here; repair above the pin open (Q5) |
 | S4 | First installation: `install.sh` with `--verify-release`, attached to releases; the website route | Platform, website | Script done; route and first final release with it missing ([#223](https://github.com/Lazurio/LazurioPlatform/issues/223)). npm second door not scheduled |
 | S8 | Hosted Linux Environments: the F22 switch apply (M2), resident removed | Machines, Platform | Under way since 2026-09-29 (F25); slices in [Launchpad parity, E](launchpad-parity.md#e-slices); first in order |
@@ -349,5 +351,5 @@ cites them.
 | Q6 | May any user of a Team Environment update? | Yes; the generated text says it affects all of them (F17 addendum 2026-10-02) |
 | Q7 | Rename aside instead of in-place conversion? | **Open** ([#224](https://github.com/Lazurio/LazurioPlatform/issues/224)); recommendation followed meanwhile |
 | Q8 | Archive before Windows users can migrate? | No: after the last Environment (root 0164) |
-| Q9 | Where do the root register and lasting root manuals go? | **Open** ([#224](https://github.com/Lazurio/LazurioPlatform/issues/224)) |
+| Q9 | Where do the root register and lasting root manuals go? | **Decided 2026-11-01:** one series of numbers, allocated in this repository's [decision register](decision-register.md); the Root, which stays maintained for GEN3, keeps its rows and points shared norms here. Public norms and agent rules move to this repository, internal development knowledge to the development Organization and product and business decisions to the product Organization |
 | Q10 | When is the legacy tree deleted? | **Open** ([#224](https://github.com/Lazurio/LazurioPlatform/issues/224)); recommended: never by the migration, by the user on instruction after 30 days of daily work without it |

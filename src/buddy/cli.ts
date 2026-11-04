@@ -317,10 +317,25 @@ export async function runBuddyCommand(
   };
 }
 
-/** A blocked answer in words, on stderr. */
+/** A blocked answer, or an account that cannot run Buddy, in words, on
+ * stderr. */
 function blockedWords(
   answer: BuddySignInAnswer | BuddySignOutAnswer,
 ): Readonly<{ stderr?: string }> {
+  if (answer.kind === "unusable") {
+    const why =
+      answer.reason === "no-subscription"
+        ? "This ChatGPT account has no subscription, and Buddy needs one."
+        : "This ChatGPT account's subscription is not enough for Buddy.";
+    // Only a sign-out that happened is claimed.
+    return {
+      stderr: !answer.signedOut
+        ? `${why} Signing him out failed, so he is still signed in with it: run \`lazurio buddy sign-out\`, then sign him in with another account.`
+        : answer.reason === "no-subscription"
+          ? `${why} He was signed out again; sign him in with an account that has a ChatGPT subscription.`
+          : `${why} He was signed out again; sign him in with another account.`,
+    };
+  }
   if (answer.kind !== "blocked") return {};
   return {
     stderr:

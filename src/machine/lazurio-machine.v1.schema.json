@@ -48,6 +48,7 @@
         },
         "network": { "$ref": "#/$defs/network" },
         "relationships": { "allOf": [{ "$ref": "#/$defs/relationships" }, { "type": "object", "properties": { "zone": { "const": "work" } } }] },
+        "access_service": { "$ref": "#/$defs/access_service" },
         "entry": { "allOf": [{ "$ref": "#/$defs/entry" }, { "type": "object", "properties": { "buddy": false } }] },
         "vault": { "$ref": "#/$defs/vault_work" },
         "services": {
@@ -111,6 +112,7 @@
         },
         "network": { "$ref": "#/$defs/network" },
         "relationships": { "allOf": [{ "$ref": "#/$defs/relationships" }, { "type": "object", "properties": { "zone": { "const": "personal" } } }] },
+        "access_service": { "$ref": "#/$defs/access_service" },
         "entry": { "$ref": "#/$defs/entry" },
         "vault": { "$ref": "#/$defs/vault_personal" },
         "installed": { "$ref": "#/$defs/installed" },
@@ -197,7 +199,7 @@
     },
     "zone": { "enum": ["personal", "work"] },
     "relationships": {
-      "description": "This Machine's tailnet peers from its own point of view, derived only from the home Conglomerate Host grants that name its Headscale node. Names only: no node ids, machine keys, tailnet addresses or credentials. Omitted when the Deployment Repo declares no home Conglomerate Host for the Machine. Transport is not authentication: SSH keys and application sign-in stay separate.",
+      "description": "This Machine's tailnet peers from its own point of view, derived only from the home Conglomerate Host grants that name its Headscale node. Names and public identity only: no node ids, machine keys, tailnet addresses, private keys or credentials. Omitted when the Deployment Repo declares no home Conglomerate Host for the Machine. Transport is not authentication: SSH keys and application sign-in stay separate.",
       "type": "object",
       "additionalProperties": false,
       "required": ["zone", "peers"],
@@ -210,11 +212,24 @@
             "type": "object",
             "additionalProperties": false,
             "required": ["name", "kind", "zone", "organization", "ssh", "https"],
+            "dependentRequired": { "access": ["environment"], "environment": ["access"] },
+            "if": { "properties": { "access": { "const": "assigned" } }, "required": ["access"] },
+            "then": {
+              "properties": {
+                "kind": { "const": "workspace-vm" },
+                "zone": { "const": "work" },
+                "organization": { "type": "string" },
+                "ssh": { "type": "object", "required": ["host", "user", "direction", "host_keys"], "properties": { "host": true, "user": { "type": "string" }, "direction": { "const": "outbound" }, "host_keys": true } }
+              }
+            },
+            "else": { "properties": { "ssh": { "anyOf": [{ "type": "null" }, { "type": "object", "properties": { "host_keys": false } }] } } },
             "properties": {
               "name": { "description": "Headscale node name of the peer.", "type": "string", "maxLength": 63, "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$" },
               "kind": { "enum": ["personal-vm", "workspace-vm", "client-device", "conglomerate-host"] },
               "zone": { "description": "Decision 0155 zone of the peer; null when the declaration does not establish it.", "anyOf": [{ "$ref": "#/$defs/zone" }, { "type": "null" }] },
               "organization": { "description": "Lowercase GitHub Organization login the peer belongs to; null for personal peers or when not established.", "anyOf": [{ "type": "string", "maxLength": 39, "pattern": "^(?!.*--)[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$" }, { "type": "null" }] },
+              "environment": { "description": "Only with access: the peer's Lazurio Environment id <machine>.<organization>, the name agents, Buddy and Delegace use for it.", "type": "string", "maxLength": 96, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*\\.[a-z0-9]+(?:-[a-z0-9]+)*$" },
+              "access": { "description": "Why this Machine reaches the peer when a rule, not a reviewed device grant, opens the edge. assigned: the peer is a work Environment assigned to this personal Machine's owner, which root decision 0192 (addendum of 2026-10-26) gives SSH always and automatically. Absent on every other peer.", "const": "assigned" },
               "ssh": {
                 "anyOf": [
                   { "type": "null" },
@@ -225,7 +240,23 @@
                     "properties": {
                       "host": { "description": "MagicDNS name of the peer in the home tailnet.", "type": "string", "maxLength": 253, "pattern": "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$" },
                       "user": { "description": "OS account on the peer when the declaration names it; otherwise null.", "anyOf": [{ "type": "string", "pattern": "^[a-z_][a-z0-9_-]{0,30}$" }, { "type": "null" }] },
-                      "direction": { "description": "TCP 22 relative to this Machine: outbound (this Machine may connect to the peer), inbound (the peer may connect here) or both.", "enum": ["outbound", "inbound", "both"] }
+                      "direction": { "description": "TCP 22 relative to this Machine: outbound (this Machine may connect to the peer), inbound (the peer may connect here) or both.", "enum": ["outbound", "inbound", "both"] },
+                      "host_keys": {
+                        "description": "Only with the peer's access: the peer's SSH host public keys from the records of the Organization that owns it, which this Machine pins; never learned from a first connection.",
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 4,
+                        "uniqueItems": true,
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["type", "key"],
+                          "properties": {
+                            "type": { "const": "ssh-ed25519" },
+                            "key": { "description": "Base64 of the ed25519 public key blob, without type or comment.", "type": "string", "pattern": "^AAAAC3NzaC1lZDI1NTE5AAAAI[A-Za-z0-9+/]{43}$" }
+                          }
+                        }
+                      }
                     }
                   }
                 ]
@@ -326,6 +357,20 @@
             "external_origin": { "description": "Origin of Buddy on the gateway: https://buddy.<personal-dns-slug>.lazurio.io.", "type": "string", "maxLength": 57, "pattern": "^https://buddy\\.[a-z0-9]+(?:-[a-z0-9]+)*\\.lazurio\\.io$" },
             "listen_port": { "description": "Loopback port on 127.0.0.1 Buddy's T3 instance listens on, the one the gateway proxies to.", "type": "integer", "minimum": 1024, "maximum": 65535 }
           }
+        }
+      }
+    },
+    "access_service": {
+      "description": "Where this Environment's home Conglomerate Host runs its access service (root decision 0224; Machines workloads/conglomerate-host/ACCESS-SERVICE.md, docs/machine-identity.md#access-service): the source of its SSH config (GET /v1/targets) and of its key registration (PUT /v1/source-key). Present only while that host switches the service on and its service identifies this Machine as a caller, and only for a pinned LazurioPlatform that reads it; a reader vendoring an earlier schema refuses a document carrying it. It carries no token, key or address literal.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["origin"],
+      "properties": {
+        "origin": {
+          "description": "http://<host node name>.<MagicDNS domain>:8444, the host's tailnet DNS name exactly as the service renders a target's host, and its port. Plain HTTP inside the tailnet: the service knows its caller by the tailnet source address.",
+          "type": "string",
+          "maxLength": 265,
+          "pattern": "^http://(?=[^:]{1,253}:8444$)[a-z0-9]+(?:-[a-z0-9]+)*(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+\\.[a-z]{2,63}:8444$"
         }
       }
     },

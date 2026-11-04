@@ -132,6 +132,8 @@ export type LoginState =
   | Readonly<{ kind: "expired"; tool: string }>
   | Readonly<{ kind: "cancelled"; tool: string }>;
 
+export type SignedInState = Extract<LoginState, { kind: "signed-in" }>;
+
 export type LoginFailure =
   | "not-installed"
   | "unexpected-url"
@@ -266,6 +268,11 @@ export type LoginEnvironment = Readonly<{
   /** Where the owner journals the start and the end of each sign-in (the
    * Launchpad: its unit's journal). Absent: nothing is journaled. */
   journal?: (entry: LoginJournalEntry) => void;
+  /** Each sign-in that ends signed in, once, as it ends: with nobody
+   * polling it too, and before its holder can read the outcome (the
+   * Launchpad turns the tool's "Používají agenti" on there, decision F19's
+   * addendum of 2026-10-28). Absent: nothing follows. */
+  afterSignIn?: (outcome: SignedInState) => void;
   probeIntervalMs?: number;
   /** How long wacli's bootstrap sync may run on after pairing. */
   backgroundMs?: number;
@@ -557,6 +564,13 @@ export function createLoginSessions(environment: LoginEnvironment) {
         ? { reason: outcome.reason }
         : {}),
     });
+  // What follows a sign-in is its owner's; it never changes the outcome.
+  const followed = (outcome: Terminal) => {
+    if (outcome.kind !== "signed-in") return;
+    try {
+      environment.afterSignIn?.(outcome);
+    } catch {}
+  };
 
   const notify = (session: Session) => {
     session.sequence++;
@@ -588,6 +602,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
     if (sessions.get(session.tool) === session) sessions.delete(session.tool);
     if (outcome.kind !== "cancelled") finished.set(session.tool, session);
     ended(session.tool, outcome);
+    followed(outcome);
     notify(session);
   }
   const fail = (session: Session, reason: LoginFailure) =>

@@ -211,9 +211,12 @@ information page is reached only from its tile's menu.
   [below](#vault-apps--trezor); only where the Environment has a vault), Oblíbené (the
   favourites, pinned) and, at its bottom, the Marketplace. There is no module list (its
   rows led to technical details and confused users) and no search.
-- **Marketplace.** The entry is in the Apps column of every Environment. For now it
-  says "již brzy" (coming soon) and opens a placeholder page; it is not the
-  [future marketplace](marketplace.md).
+- **Marketplace.** The entry is in the Apps column of every Environment. It opens the
+  curated pilot catalog, Šablony aplikací with the one offer Presentations, its
+  detail and the dialog "Přidat do Organizace", which hands a brief to the agent and
+  installs nothing itself (`marketplace.ts`, `marketplace-panel.ts`; [the curated
+  pilot](marketplace.md#the-curated-pilot-in-the-launchpad-plan-dev-6593)). The rest of
+  the [marketplace](marketplace.md) remains future direction.
 - **Favourites.** Set from a module's "⋯" menu ("Přidat do oblíbených" / "Odebrat z
   oblíbených"). They are pinned in the column, where a favourite opens its app
   directly. On the home a starred module comes first in its section, in the column's
@@ -1185,7 +1188,7 @@ the frame.
 | JSON of the last answer (`#result`) | Settings → General, behind "Technical details" |
 | This Environment (read-only handover) | Settings → This Environment (Czech "Tento Environment"): "Obsah Environmentu", then the kind, whom it belongs to and who works in it in a person's words, the recorded technical facts folded under "Pro podporu" (root decision 0188) |
 | Tools (groups, cards, dialogs, MCP card) | Settings → Tools; Refresh status is its page action in the header |
-| Product update pill, with the read-only "Folder refresh needed" line (F17 addendum) | Sidebar footer above Settings/Back, visible from every route, and only while an update is available or under way (Matěj 2026-09-28, as in T3 Code); the Folder refresh line is independent of the pill, a subdued notice right above it with the command in selectable monospace |
+| Product update pill | Sidebar footer above Settings/Back, visible from every route, and only while an update is available or under way (Matěj 2026-09-28, as in T3 Code). The update refreshes the Folder itself and nothing about a refresh is shown (F17 addendum 2026-10-30; the read-only "Folder refresh needed" line with its command is removed) |
 | Application (development lifecycle) | Launchpad home `/`, not a setting; since P4 replaced there by the catalog; since P5 the module page carries the lifecycle ([below](#module-lifecycle)), the development API stays |
 
 **Patterns adopted from T3 Code** (source: `pingdotgg/t3code` at `d15210cd3d`,
@@ -1936,6 +1939,7 @@ characters escaped), Czech or English by the Folder's locale.
 | product | `template-revision` | `observeFolder` facts | `warn folder-newer` (a newer product rendered it), `warn revision-unknown`; an older one is `folder-refresh` |
 | Folder | `folder-state` | `collectRecovery` Folder state; preset and Machine kind from `observeFolder` | `fail folder-state-pending`, `-absent`, `-unrecognized`, `-unreadable` |
 | Folder | `machine-binding` | recorded `preferences.machine` vs `machineBinding` of the live handover | `warn machine-identity-changed`, `warn handover-changed` (digest; `machine folder-refresh`), `warn binding-absent`, `warn handover-unreadable`; `skipped not-hosted` |
+| Folder | `folder-top-level` | `readStatus.folderForeignEntries`: the names of a hosted Folder's top level it does not own ([F10's addendum of 2026-11-03](decisions.md#f10--workspace-presets-and-typed-owner-requests)) | `warn foreign-entries` with how many and the first plain name; `warn top-level-unreadable` when the top level cannot be listed; `ok` on a workstation, whose own files are the person's |
 | tools | `tool` | `toolsOverview` (tiers, enabled), else `toolsStatus` over the catalog | required missing `fail required-missing`; `warn recommended-missing`, `warn enabled-missing`, `warn version-unreadable`; `skipped not-enabled`; `skipped not-offered` for a missing tool Lazurio does not offer in this Environment (`toolOffered`: bitwarden outside a Remote Environment on Linux, decisions F43 and F53; gogcli in a work Environment, F44); Executor is not a tool row but its own check; `signIn`/`ssh` ids with `--sign-in`, and with it `warn ssh-not-linked` for a signed-in gh whose SSH proof failed where the Environment signs in as its user (F19's addendum of 2026-10-19) |
 | tools | `executor` | `executorStatus` ([F44](decisions.md#f44--executor-in-every-remote-environment-installed-run-and-connected-to-the-agents-by-lazurio)): the entry and its marker, `systemctl --user show` of `sh.executor.daemon.service` and its drop-in, `GET 127.0.0.1:4789/api/health`, `codex mcp get executor --json` and `~/.claude.json`; never `fail`, never in `recover` | `ok` running with the installed agents connected (context `toolVersion`, `executorService`, `codexMcp`, `claudeMcp`); `warn executor-not-installed`, `executor-outdated`, `executor-conflict`, `executor-not-running`, `executor-incomplete` (the next step is `lazurio executor setup`, or Settings → Tools → executor); `skipped not-offered` (a computer, not the operator), `skipped handover-unreadable` |
 | organizations | `catalog` | `readFolderCatalog` | counts of the Organizations and their modules only: the Personalspace group is never counted or named; `warn catalog-unreadable` |
@@ -2379,10 +2383,12 @@ status" (with them again and `fresh: true`, read anew), and shows:
   "Connect with an agent") and the switch with its visible label
   "Used by agents" / "Používají agenti" ("Always on" for a required tool). A signed-in
   gh whose key is not linked shows "Link SSH key" as the row's primary action. A
-  sign-in completed in this Launchpad session turns the switch on (`autoEnable`, Matěj
-  2026-10-04): after the reading that follows the sign-in, so the change is made at the
-  current revision, never for a tool that was signed in before (`already`), and the
-  user may turn it off again. On a Team Environment (the preset `hosted-organization-team`,
+  sign-in completed in this Launchpad turns the switch on (Matěj 2026-10-04). The
+  server does it as the sign-in ends, at the current revision, and answers the outcome
+  only after that (F19's addendum of 2026-10-28, #682). So the page's reading after the
+  sign-in shows the switch on, and the page never changes the Folder for it. It is never
+  turned on for a tool that was signed in before (`already`), and the user may turn it
+  off again. On a Team Environment (the preset `hosted-organization-team`,
   the shared case) the gh row has no "Sign in" or "Link SSH key", and "Install" instead
   of "Install and sign in" while gh is missing (its notice ends with the Team
   sentence); a subdued sentence says that this Team Environment works in GitHub through
@@ -3126,10 +3132,12 @@ ended the tour for good, and the Organization's download ran before any AI could
 after the wireframe of HumanAndMachine-ai/prototypes-lazurio 1eefc3d (`setup.tsx`,
 `screens/Start.tsx`, `screens/Tour.tsx`, PRs #48 and #49) and [F36's addendum of
 2026-10-15](decisions.md#f36-addendum-of-2026-10-15-začínáme-the-basics-from-live-facts-ai-first-root-decision-0201).
-Only where the Environment signs in to GitHub as its user: the presets
-`hosted-personal`, `hosted-organization-personal` and `local`. A Team or an Automated
-Environment acts through the Organization's app or its persona, its basics are the
-Organization's, and it gets none of it.
+Only where the Environment has the onboarding (`hasOnboarding`): the presets
+`hosted-personal`, `hosted-organization-personal` and `local`, which sign in to GitHub as
+their user, and since [F27's addendum of 2026-10-30](decisions.md#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)
+`hosted-organization-steward`, the Automated Environment, whose GitHub is its persona's own
+account, signed in by its responsible user. A Team Environment acts through the
+Organization's app, its basics are the Organization's, and it gets none of it.
 
 - **The basics** (0201 point 1): an AI an agent can work with, GitHub signed in as the
   user, and the content (the Organization, on the personal Environment the
@@ -3149,7 +3157,9 @@ Organization's, and it gets none of it.
     unknown, unprobed, stale or Team reading says nothing; gh not installed is missing;
     connected only when gh is signed in and this Environment reaches GitHub over SSH as
     that account, `incomplete` when it does not, which counts as missing, F19's addendum
-    of 2026-10-19);
+    of 2026-10-19; on the Automated Environment gh signed in as the responsible user's own
+    login, the one its handover's `automation` assignment names, letter case ignored, is
+    `own-account`, which counts as missing too, whatever SSH says);
   - the content from the content routes (`content-client.ts`, `content-view.ts`).
 - **Nastavení → Začínáme** (`/settings/start`, first in the Settings column with the
   count "1/3" while a basic is missing; `start-view.ts`, `start-panel.ts`): "Hotovo
@@ -3158,7 +3168,10 @@ Organization's, and it gets none of it.
   title alone does not say what it is for (F36's addendum of 2026-10-16):
   1. **Připojit AI** (`ai-sign-in.ts` holds the sign-in in the page): "Zajišťuje vaše
      Organizace." (done, nothing runs); otherwise only the title and "Přihlásit ChatGPT"
-     and "Přihlásit Claude", each with its mark before its name (OpenAI's Blossom from
+     and "Přihlásit Claude" (only the one whose CLI is installed when the reading says
+     the other is not, with "Přihlásit kódem" only beside ChatGPT's; both while neither is
+     installed, so that a click says which one is missing; F36's addendum of 2026-10-16
+     describes the two choices of an Environment with both CLIs), each with its mark before its name (OpenAI's Blossom from
      its brand kit, the sprite's `i-openai`, in OpenAI's white or black only; Claude's
      simple-icons mark, `i-claude`; [licensing](licensing.md#bundled-third-party-assets)),
      nothing said before them (where the AI could not be checked, that line); beneath
@@ -3176,9 +3189,15 @@ Organization's, and it gets none of it.
      prohlížeče." (a workstation, whose CLI opens the computer's browser), with
      "Otevřít přihlášení" and "Zrušit", and for Claude's code page one field for its
      code (`POST /api/tools/login/code`); "Připojeno: ChatGPT, <e-mail>; Claude,
-     <e-mail>" with "Přihlásit jiný účet", which offers both again; a sign-in that did
-     not finish ("Přihlášení se nepovedlo…", expired, the Environment browser did not
-     open it) with "Zkusit znovu"; a T3 Code that did not turn the provider on, said
+     <e-mail>" with "Přihlásit jiný účet", which offers both again (except a CLI that is
+     not installed); a sign-in that did not finish ("Přihlášení se nepovedlo…", expired,
+     the Environment browser did not open it) with "Zkusit znovu"; a click that finds its
+     CLI not installed (`reason: "not-installed"`) instead says "{Claude|ChatGPT} zatím
+     není nainstalovaný v tomto Prostředí, proto se tu přihlásit nedá." and offers the
+     other sign-in, never "Zkusit znovu", until a fresh reading (`?fresh=1`, "Zkontrolovat
+     znovu") begun after the failure, with nothing changed while it ran, finds that CLI,
+     which drops the failure (`aiSignInAfterReading`); after `forget()` the server never
+     answers a fresh reading with one it was already asking (`createAiProbe`); a T3 Code that did not turn the provider on, said
      beside the account; and without the Environment browser "Přihlášení tu teď nejde
      otevřít.", nothing started. Signed in, the page reads `GET /api/ai?fresh=1` at once;
   2. **GitHub**: "Připojeno jako @login", or "Nepřipojeno" with
@@ -3187,7 +3206,13 @@ Organization's, and it gets none of it.
      working): "Připojení nefunguje." with the warning mark and "Připojit znovu", which
      opens "Link SSH key" under the title "Připojit GitHub". A sign-in the page runs, its
      window closed or open: "Čeká na vaše potvrzení." or "Dokončuje se připojení…" with
-     the waiting mark and "Otevřít", which shows it again (F19's addendum of 2026-10-19);
+     the waiting mark and "Otevřít", which shows it again (F19's addendum of 2026-10-19).
+     On the Automated Environment the step names the persona's account: "Nepřipojeno. Sem
+     patří účet persony, ne váš."; with the responsible user's own account signed in, "Je
+     přihlášený váš vlastní účet @login. Sem patří účet persony." with the warning mark
+     and "Přepnout účet", which signs that account out as gh's "Odhlásit" in Nástroje does
+     and opens gh's sign-in, whose dialog says to confirm the code with the persona's
+     account (F27's addendum of 2026-10-30);
   3. **Stáhnout <Organizace>** / **Připravit osobní prostor** / both: the content's own
      rows inside the step (the same `content-panel.ts` as Toto Prostředí draws).
      Once this view saw GitHub or the AI arrive (from missing to there; what was there
@@ -3212,11 +3237,14 @@ Organization's, and it gets none of it.
   and Codex Desktop, both leading to Settings → SSH; between them "Trezor v Bitwardenu"
   where Apps → Trezor gives the steps for Bitwarden, its "Návod" opening them) and
   "Prohlídka aplikace" ("Spustit
-  prohlídku" / "Spustit znovu" starts the introduction in Apps). A Team or Automated
-  Environment's Začínáme says only "Tady není co nastavovat.".
+  prohlídku" / "Spustit znovu" starts the introduction in Apps). A Team Environment's
+  Začínáme says only "Tady není co nastavovat.".
 - **The line in Apps** (`appsSetupLine`): until the basics exist, one line under the
   head, the next missing basic first: "AI není připojené." · "Připojit AI";
-  "GitHub není připojený." · "Připojit GitHub"; "<Organizace> tu ještě není." ·
+  "GitHub není připojený." · "Připojit GitHub" (on the Automated Environment "Účet persony
+  na GitHubu není připojený." · "Připojit GitHub", and with the responsible user's own
+  account "Na GitHubu je přihlášený váš vlastní účet, sem patří účet persony." · "Přepnout
+  účet", which leads to the step); "<Organizace> tu ještě není." ·
   "Stáhnout"; "Osobní prostor tu ještě není." · "Připravit"; while it runs "Stahuje se
   <Organizace>." · "Zobrazit"; "Příprava se zastavila." · "Vyřešit v Chatu" or "Připojit
   AI", "Zkusit znovu"; for an Organization not prepared for this version, to a member who
@@ -3231,7 +3259,9 @@ Organization's, and it gets none of it.
   facts.
 - **Start requests.** A button of the line is a link to `/settings/start` with the
   action in the fragment, decided by `startDecision`: `#lazurio-start=sign-in-gh` opens
-  gh's sign-in once Nástroje have read gh and AI is there, `#lazurio-start=install-content`
+  gh's sign-in once Nástroje have read gh and AI is there (never over the responsible
+  user's own account on the Automated Environment: only the step's "Přepnout účet" signs
+  it out), `#lazurio-start=install-content`
   starts the installation once the content is read, something is missing and its turn has
   come; without AI either shows the AI step and starts nothing. A link of an older shell to
   Nástroje or Toto Prostředí lands on Začínáme too. `readFragment` takes the fragment

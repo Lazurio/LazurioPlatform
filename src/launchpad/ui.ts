@@ -18,7 +18,12 @@ import { environmentName, switchTabs } from "../shell/view";
 import { type AiReading, parseAiAnswer } from "../tools/ai";
 import type { ToolsOverview } from "../tools/overview";
 import { accountWriter, readAccount } from "./account";
-import { aiSignInPlace, createAiSignIn } from "./ai-sign-in";
+import {
+  aiSignInPlace,
+  createAiSignIn,
+  createReadingOrder,
+  takeAiReading,
+} from "./ai-sign-in";
 import { personalHolderOf, pluralKey } from "./apps-view";
 import { bootElementId, parseBoot } from "./boot";
 import { createBrowserPanel } from "./browser-panel";
@@ -40,6 +45,8 @@ import {
   parseEntryAnswer,
   parsePromptHandoff,
 } from "./chat-view";
+import { createConnectionsPanel } from "./connections-panel";
+import { parseConnectionsOverview } from "./connections-view";
 import { type ContentTransport, createContentClient } from "./content-client";
 import { createContentPanel } from "./content-panel";
 import { prepareContext, preparePrompt } from "./content-view";
@@ -54,14 +61,16 @@ import {
   createComposioOrganizationReader,
   githubAccount,
   githubFact,
+  hasOnboarding,
   idleAutoStart,
   nextBasic,
+  personaGithub,
   readFragment,
   resolveOf,
+  responsibleLogin,
   type SetupAction,
   type StartRequest,
   shellSetup,
-  signsInAsPerson,
   startDecision,
   startSection,
   type TourFacts,
@@ -77,6 +86,8 @@ import {
   type MachineView,
   presetChoice,
 } from "./machine-view";
+import { createMarketplacePanel } from "./marketplace-panel";
+import type { MarketplaceAnswer } from "./marketplace-refresh";
 import { type MessageKey, messages } from "./messages";
 import { moduleCopy } from "./module-view";
 import { createHelpVideo } from "./page-help";
@@ -104,7 +115,7 @@ import {
 } from "./tools-view";
 import { createTour } from "./tour";
 import type { PillStatus } from "./update-pill";
-import { fill, pillView, pillVisible } from "./update-view";
+import { pillView, pillVisible } from "./update-view";
 import { createVaultPagePanel } from "./vault-page-panel";
 import {
   bitwardenTarget,
@@ -251,7 +262,7 @@ function drawGuide(route: PageRoute) {
         ? "demo"
         : profileState === null
           ? null
-          : signsInAsPerson(profileState.preset)
+          : hasOnboarding(profileState.preset)
             ? "basics"
             : "none",
       tools: toolTargets,
@@ -385,6 +396,7 @@ const catalog = createCatalogPanel({
   navigate: (path) => shell.navigate(path),
   loaded: () => {
     shell.relabel();
+    if (framed) marketplace.render();
     drawMachine();
     // A public Environment's Začínáme names the module to try.
     startPanel.render();
@@ -456,6 +468,10 @@ let profileState: Readonly<{
   preset: string;
   revision: number;
   machine: string | null;
+  /** The login whose own account does not belong in gh here: the
+   * Automated Environment's responsible user (`responsibleLogin`, F27's
+   * addendum of 2026-10-30); null elsewhere. */
+  responsible: string | null;
 }> | null = null;
 // Whether the profile was read (`POST /api/profile`), and whether that read
 // failed.
@@ -469,6 +485,8 @@ let contentSeen: ReturnType<typeof content.fact>["state"] = "loading";
 // before the first answer.
 let aiReading: AiReading | null = null;
 let aiRead = false;
+// Readings run side by side; the one shown is the freshest that answered.
+const aiReadings = createReadingOrder();
 const aiFact = (): AiFact =>
   aiReading === null ? (aiRead ? "unknown" : "loading") : aiReading.state;
 // The start of the content by itself (0201 point 3, `autoStartStep`): what
@@ -489,11 +507,15 @@ const buddyClient = createBuddyClient({
 let buddyAsked = false;
 const buddyHere = (): boolean =>
   shellDocument?.buddy !== undefined && !buddyClient.absent();
-const buddyFacts = (): BuddyStepFacts => ({
-  reading: buddyClient.reading(),
-  signIn: buddyClient.signIn(),
-  now: Date.now(),
-});
+const buddyFacts = (): BuddyStepFacts => {
+  const refused = buddyClient.refused();
+  return {
+    reading: buddyClient.reading(),
+    signIn: buddyClient.signIn(),
+    now: Date.now(),
+    ...(refused === undefined ? {} : { refused }),
+  };
+};
 /** Reads Buddy once the page knows he is here, and again when asked. */
 function readBuddy(again = false) {
   if (!buddyHere() || (buddyAsked && !again)) return;
@@ -507,9 +529,15 @@ function firstRunFacts(): TourFacts | null {
     // A public Environment's demo onboarding (decision F55), by the entry.
     ...(isPublicEnvironment(entry) ? { audience: "public" as const } : {}),
     ai: aiFact(),
-    github: githubFact(toolsOverview, profileState.revision),
+    github: githubFact(
+      toolsOverview,
+      profileState.revision,
+      profileState.responsible,
+    ),
     content: content.fact(),
-    ...(buddyHere() ? { buddy: buddyFact(buddyClient.reading()) } : {}),
+    ...(buddyHere()
+      ? { buddy: buddyFact(buddyClient.reading(), buddyClient.refused()) }
+      : {}),
   };
 }
 // Whether this Environment's GitHub identity can prepare the Organization
@@ -593,12 +621,27 @@ function startByItself() {
   if (step.start) void content.start();
 }
 async function readAi(fresh = false) {
+  const mine = aiReadings.ask(fresh);
+  // A fresh reading may settle only the sign-in state it began under.
+  const since = fresh ? aiSignIn.mark() : null;
   let read: AiReading | null = null;
   try {
     const { value, ok } = await get(fresh ? "/api/ai?fresh=1" : "/api/ai");
     read = ok ? parseAiAnswer(value) : null;
   } catch {}
   aiRead = true;
+  // A fresh answer settles the sign-in in any order (a CLI it finds can
+  // sign in again, unless the state changed while it ran); the reading shown
+  // is the freshest that answered (createReadingOrder).
+  const shown = takeAiReading(
+    aiReadings,
+    aiSignIn,
+    { reading: mine, since },
+    read,
+  );
+  // A failed request shows nothing, except that a page with no reading yet
+  // says the AI could not be checked.
+  if (!shown && !(read === null && aiReading === null)) return;
   if (read !== null || aiReading === null) aiReading = read;
   content.render();
   startByItself();
@@ -634,7 +677,11 @@ const content = createContentPanel({
   github: () =>
     profileState === null
       ? "unknown"
-      : githubFact(toolsOverview, profileState.revision),
+      : githubFact(
+          toolsOverview,
+          profileState.revision,
+          profileState.responsible,
+        ),
   modules: (login) => catalog.modulesOf(login),
   pluralModules: (count) =>
     copy[
@@ -700,6 +747,8 @@ let vaultRow: StartVaultRow | null = null;
 let vaultBitwarden = false;
 let vaultPerson: VaultPagePerson | null = null;
 let sshDevices: number | null = null;
+// Telefon přes ChatGPT (decision F71) as Začínáme last read it.
+let phoneSummary: Readonly<{ ready: boolean; devices: number }> | null = null;
 // Composio's organization as Začínáme last read it (decision F42, note of
 // 2026-10-19), so that Composio signed in but not in the organization of the
 // Organization's name is not "Připojeno" there. Read each time Začínáme is
@@ -774,17 +823,24 @@ const startPanel = createStartPanel({
       : null,
   composio: () => composioFact(toolsOverview, composioOrganization.rule()),
   sshDevices: () => sshDevices,
+  phone: () => phoneSummary,
   vault: () => vaultRow,
   bitwarden: () => vaultBitwarden,
   reveal: () => vaultPage.revealBitwarden(),
   toured: () => tour.toured(),
   signInGithub: () => {
-    if (!tools.openSignIn("gh")) shell.navigate(settingsPath("tools"));
+    if (!tools.openSignIn("gh")) toolsAt("gh");
   },
+  // "Přepnout účet" (F27's addendum of 2026-10-30): where the sign-out does
+  // not end signed out, Nástroje at gh's row, whose notice says why.
+  switchGithub: () =>
+    void tools.switchAccount("gh").then((opened) => {
+      if (!opened) toolsAt("gh");
+    }),
   // Signed in already, the dialog opens at the step left in Composio.
   signInComposio: () => {
     if (!tools.openSignIn("composio") && !tools.openComposioOrganization())
-      shell.navigate(settingsPath("tools"));
+      toolsAt("composio");
   },
   // "Přihlásit kódem": ChatGPT's sign-in by code (root decision 0201 point 10).
   signInAi: (tool, byCode) =>
@@ -925,14 +981,26 @@ async function readStartExtras() {
     vaultRow = null;
     vaultBitwarden = false;
     sshDevices = null;
+    phoneSummary = null;
     startPanel.render();
     return;
   }
   void composioOrganization.read(true);
-  const [vault, ssh] = await Promise.all([
+  const [vault, ssh, phone] = await Promise.all([
     get("/api/vault").catch(() => null),
     get("/api/ssh").catch(() => null),
+    get("/api/connections").catch(() => null),
   ]);
+  const phoneOverview = phone?.ok
+    ? parseConnectionsOverview(phone.value)
+    : null;
+  phoneSummary =
+    phoneOverview === null
+      ? null
+      : {
+          ready: phoneOverview.state === "ready",
+          devices: phoneOverview.devices.length,
+        };
   const model = vault?.ok ? parseVaultPage(vault.value) : null;
   const view = model === null ? null : vaultPageView(model, null, copy);
   vaultRow =
@@ -1028,7 +1096,7 @@ function firstRun() {
   if (startNav !== null)
     startNav.hidden =
       profileState !== null &&
-      !signsInAsPerson(profileState.preset) &&
+      !hasOnboarding(profileState.preset) &&
       !isPublicEnvironment(entry);
   drawVaultNav();
   const count = facts === null ? null : startCount(facts);
@@ -1106,6 +1174,18 @@ function takeStart() {
   pendingStart = null;
   if (decision === "open-ai") startPanel.focusAi();
   if (decision === "install") void content.start();
+}
+// Settings → Tools at one tool's row (Matěj 2026-10-28): whoever sends a
+// person there for a tool shows them where to go on, never only the page.
+function toolsAt(name: string) {
+  shell.navigate(settingsPath("tools"));
+  tools.reveal(name);
+}
+// Integrace's card for an app its tool connects (Matěj 2026-10-28): the
+// tool's sign-in opens over Integrace where it has one, so WhatsApp's QR
+// code shows at once; otherwise Settings → Tools opens at the tool's row.
+async function openTool(name: string) {
+  if (!(await tools.connect(name))) toolsAt(name);
 }
 function setupAction(action: SetupAction) {
   if (action === "resolve-in-chat") {
@@ -1213,9 +1293,12 @@ const integrations = createIntegrationsPanel({
       () => tools.refresh({ signIn: true }),
       () => {
         shell.navigate(settingsPath("tools"));
-        return tools.openSignIn("composio");
+        if (tools.openSignIn("composio")) return true;
+        tools.reveal("composio");
+        return false;
       },
     ),
+  openTool: (tool) => void openTool(tool),
   admin: async () => {
     const key = catalog.soleOrganization();
     if (key === null) return false;
@@ -1277,6 +1360,15 @@ const ssh = createSshPanel({
     return parseShellAccount(account)?.operator.login ?? null;
   },
   origin: () => location.origin,
+});
+// Settings → Connections → Telefon přes ChatGPT (decision F71): read on
+// first view and after the pairing dialog closes.
+const connections = createConnectionsPanel({
+  get: (path) => get(path),
+  post: (path, body) => post(path, body),
+  copy: () => copy,
+  locale: () => locale,
+  computer: () => profileState !== null && profileState.preset !== "local",
 });
 // Apps → Vault, Apps → Trezor (root decision 0198 point 5, F53's addendum of
 // 2026-10-18): read on first view; the server adds the person the gateway
@@ -1359,6 +1451,22 @@ const browser = createBrowserPanel({
   },
   changed: () => tour.update(),
 });
+// The Marketplace (plan DEV-6593): its catalog, an offer's detail and the
+// form whose brief goes to Chat as "+ Nový modul"'s does.
+const marketplace = createMarketplacePanel({
+  copy: () => copy,
+  locale: () => locale,
+  route: () => shell.route(),
+  load: async () => {
+    const { value, ok } = await post("/api/marketplace", {});
+    return ok ? (value as MarketplaceAnswer) : null;
+  },
+  changed: () => {
+    if (framed) shell.relabel();
+  },
+  catalog: () => catalog.current(),
+  handOver: (prompt) => handOver(prompt),
+});
 // The frame: routes, the catalog and settings navigation, the breadcrumb and
 // the sheet of a narrow viewport. It shows its first route while it is
 // created; `framed` says it exists.
@@ -1366,6 +1474,7 @@ let framed = false;
 const shell = createShell({
   copy: () => copy,
   displayName: (organization) => catalog.displayName(organization),
+  offerTitle: (offer) => marketplace.title(offer),
   // A public Environment has no Integrace, and Trezor only with its vault
   // (decision F55, plan DEV-6668 slice 6).
   place: (route) =>
@@ -1382,6 +1491,7 @@ const shell = createShell({
       route.view === "settings" ? "settings" : "apps",
     );
     catalog.render(route);
+    marketplace.render(route);
     // Back on "Všechny moduly" the catalog is read again (the first read
     // starts below, once the frame exists).
     if (framed && (route.view === "home" || route.view === "organization"))
@@ -1397,6 +1507,12 @@ const shell = createShell({
       void recovery.refresh();
     if (route.view === "settings" && route.section === "ssh" && !ssh.loaded)
       void ssh.refresh();
+    if (
+      route.view === "settings" &&
+      route.section === "connections" &&
+      !connections.loaded
+    )
+      void connections.refresh();
     if (route.view === "vault" && !vaultPage.loaded) void vaultPage.refresh();
     vaultRequests.show(route);
     if (route.view === "vault") vaultOpen?.setAttribute("aria-current", "page");
@@ -1559,8 +1675,10 @@ function relabel() {
   if (framed) drawGuide(shell.route());
   recovery.render();
   ssh.render();
+  connections.render();
   theme.render();
   vaultPage.render();
+  if (framed) marketplace.render();
   vaultVideo.render();
   vaultRequests.relabel();
   files.relabel();
@@ -1614,11 +1732,14 @@ async function load() {
     preset: current.preset.name,
     revision: current.revision,
     machine: current.machine?.name ?? null,
+    responsible: responsibleLogin(current.preset.name, current.machine),
   };
   // The content core owns availability; a persona account uses the same
   // content operation as a person's work Environment.
   if (!first) void content.refresh();
   renderUpdate();
+  // Připojení offers Počítač by the preset (decision F71).
+  connections.render();
   if (relabelled) {
     relabel();
     catalog.render();
@@ -1716,7 +1837,7 @@ const tools = createToolsPanel({
     const github =
       profileState === null
         ? "unknown"
-        : githubFact(overview, profileState.revision);
+        : githubFact(overview, profileState.revision, profileState.responsible);
     if (githubSeen !== "connected" && github === "connected")
       void content.refresh({ restore: false });
     githubSeen = github;
@@ -1739,6 +1860,9 @@ const tools = createToolsPanel({
   // A sign-in of this page started, moved on or ended, its window open or
   // closed (#516): Začínáme follows.
   signInsChanged: () => firstRun(),
+  // The Automated Environment's gh is the persona's account (F27's addendum
+  // of 2026-10-30): its code is confirmed with that account.
+  persona: () => personaGithub(profileState?.preset),
 });
 const voice = voicePanel({
   post,
@@ -2089,9 +2213,6 @@ const updateError =
 const updateStateInvalid = document.querySelector<HTMLParagraphElement>(
   "#update-state-invalid",
 );
-const updateFolderRefresh = document.querySelector<HTMLParagraphElement>(
-  "#update-folder-refresh",
-);
 if (
   !updateSection ||
   !updateText ||
@@ -2099,8 +2220,7 @@ if (
   !updateAction ||
   !updateChecked ||
   !updateError ||
-  !updateStateInvalid ||
-  !updateFolderRefresh
+  !updateStateInvalid
 )
   throw new Error("Missing update UI");
 let updateStatus: PillStatus | null = null;
@@ -2108,8 +2228,8 @@ let updateNote: string | null = null;
 function renderUpdate() {
   if (!updateStatus || !updateSection) return;
   const view = pillView(updateStatus, copy, Date.now());
-  // Only while an update is available (pillVisible); the Folder refresh
-  // line below is independent of the pill.
+  // Only while an update is available (pillVisible). The Folder's refresh
+  // is part of the update and never shown (F17's addendum of 2026-10-30).
   updateSection.hidden = !pillVisible(updateStatus);
   if (updateText) updateText.textContent = view.text;
   if (updateNotes) {
@@ -2133,26 +2253,6 @@ function renderUpdate() {
   if (updateStateInvalid) {
     updateStateInvalid.hidden = view.stateInvalid === null;
     updateStateInvalid.textContent = view.stateInvalid ?? "";
-  }
-  // Read-only: the command is shown, never run from here. It stands in its
-  // own selectable monospace line of the sentence.
-  if (updateFolderRefresh) {
-    const refresh = updateStatus.folderRefresh;
-    updateFolderRefresh.hidden = view.folderRefresh === null;
-    if (refresh === null) updateFolderRefresh.replaceChildren();
-    else {
-      const [before, after = ""] = fill(copy.updateFolderRefresh, {
-        recorded: refresh.recorded,
-        product: refresh.product,
-      }).split("{command}");
-      const command = document.createElement("code");
-      command.textContent = refresh.command;
-      updateFolderRefresh.replaceChildren(
-        (before ?? "").trimEnd(),
-        command,
-        after,
-      );
-    }
   }
 }
 async function refreshUpdate() {

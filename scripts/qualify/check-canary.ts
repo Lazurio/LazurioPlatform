@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
+import { compareVersions } from "../../src/update/version";
 
 /** The canary record of a release candidate (docs/release-cycle.md
  * "Qualification and the canary"; root decision 0166 point 6): the candidate
@@ -10,6 +11,16 @@ import { basename } from "node:path";
  * the release job of the final tag runs this check on it:
  *
  *   bun run scripts/qualify/check-canary.ts [--provenance] qualification/canary/<candidate>.json
+ *
+ * Since root decision 0166's addendum of 2026-10-31 the 8-hour window is
+ * replaced by one recorded end-to-end smoke test on the candidate: a thread
+ * signs in as a test account of the reference Organization (its Owner or a
+ * member), checks the main path and gives the green light. That record is
+ * `lazurio.canary.v2`: the same Machines on the candidate and healthy, no
+ * minimum duration, and `smoke` with the account's role and the result. Every
+ * candidate from `smokeFromVersion` on needs it; the 8-hour `lazurio.canary.v1`
+ * record (or its named shorter canary) passes only for an earlier version, and
+ * a candidate cut before this change is checked by its own tree anyway.
  *
  * Without `--provenance` the check is offline: the record alone. With it (the
  * release job) the record must also be the one its pull request merged into
@@ -23,6 +34,14 @@ import { basename } from "node:path";
  */
 export const canarySchema = "lazurio.canary.v1";
 export const canaryHours = 8;
+/** Root decision 0166 addendum 2026-10-31: the smoke test replaces the window. */
+export const smokeSchema = "lazurio.canary.v2";
+/** The first version whose candidates need the smoke test: the release reads
+ * this check from the tag's tree, so its first candidate is the first one cut
+ * after the addendum. Earlier versions keep the 8-hour record. */
+export const smokeFromVersion = "0.1.19";
+/** The role of the reference Organization's test account, never its name. */
+export const smokeAccounts = ["owner", "member"] as const;
 
 /** Shorter canaries, each for one named candidate, each Matěj's decision
  * recorded in the register before the candidate was cut. Nothing else
@@ -56,13 +75,22 @@ export type CanaryMachine = Readonly<{
   health: (typeof machineHealth)[number];
 }>;
 
+export type SmokeTest = Readonly<{
+  /** The test account's role in the reference Organization. */
+  account: (typeof smokeAccounts)[number];
+  /** The thread's green light: the main path worked on the candidate. */
+  result: "green";
+}>;
+
 export type CanaryRecord = Readonly<{
-  schema: typeof canarySchema;
+  schema: typeof canarySchema | typeof smokeSchema;
   candidate: string;
   /** When the LAST in-scope Machine ran the candidate (UTC). */
   start: string;
   end: string;
   machines: readonly CanaryMachine[];
+  /** `lazurio.canary.v2` only: the smoke test and its green light (`end`). */
+  smoke?: SmokeTest;
   /** GitHub login of the release reviewer. */
   reviewer: string;
   /** The pull request that added the record. */
@@ -84,6 +112,17 @@ const recordKeys = [
   "reviewer",
   "pullRequest",
 ];
+const smokeRecordKeys = [
+  "schema",
+  "candidate",
+  "start",
+  "end",
+  "machines",
+  "smoke",
+  "reviewer",
+  "pullRequest",
+];
+const smokeKeys = ["account", "result"];
 const machineKeys = ["machine", "kind", "active", "health"];
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -112,23 +151,57 @@ export function canaryFindings(
   now: Date,
 ): string[] {
   const findings: string[] = [];
-  if (!isObject(value) || !exactKeys(value, recordKeys))
-    return [`not a ${canarySchema} record: exactly ${recordKeys.join(", ")}`];
-  if (value.schema !== canarySchema)
-    findings.push(`schema is not ${canarySchema}`);
-  const version = candidatePattern.exec(candidate)?.[0].slice(1);
+  const smoke = isObject(value) && value.schema === smokeSchema;
+  const keys = smoke ? smokeRecordKeys : recordKeys;
+  if (!isObject(value) || !exactKeys(value, keys))
+    return [
+      `not a ${smoke ? smokeSchema : canarySchema} record: exactly ${keys.join(", ")}`,
+    ];
+  if (!smoke && value.schema !== canarySchema)
+    findings.push(`schema is not ${canarySchema} or ${smokeSchema}`);
+  const match = candidatePattern.exec(candidate);
+  const version = match?.[0].slice(1);
   if (version === undefined || value.candidate !== candidate)
     findings.push(`the record is not the canary of ${candidate}`);
+  // Root decision 0166, addendum 2026-10-31: the smoke test's green light, not
+  // a window, from this version on.
+  if (
+    !smoke &&
+    match?.[1] !== undefined &&
+    compareVersions(match[1], smokeFromVersion) >= 0
+  )
+    findings.push(
+      `a candidate from ${smokeFromVersion} on needs the smoke test record, ${smokeSchema} (root decision 0166, addendum 2026-10-31)`,
+    );
   const start = instant(value.start);
   const end = instant(value.end);
   if (Number.isNaN(start) || Number.isNaN(end))
     findings.push("start and end must be UTC times (YYYY-MM-DDThh:mm:ssZ)");
   else if (end > now.getTime()) findings.push("the canary ends in the future");
-  else if (end - start < requiredHours(candidate) * 3600_000) {
+  else if (smoke) {
+    // The green light comes on the candidate: after the last Machine ran it.
+    if (end < start)
+      findings.push(
+        "the smoke test's green light comes before the last Machine ran the candidate",
+      );
+  } else if (end - start < requiredHours(candidate) * 3600_000) {
     const minutes = Math.max(0, Math.floor((end - start) / 60_000));
     findings.push(
       `the canary lasted ${Math.floor(minutes / 60)} h ${minutes % 60} min; ${requiredHours(candidate)} hours are required`,
     );
+  }
+  if (smoke) {
+    const test = value.smoke;
+    if (!isObject(test) || !exactKeys(test, smokeKeys))
+      findings.push(`smoke: exactly ${smokeKeys.join(", ")}`);
+    else {
+      if (!smokeAccounts.includes(test.account as SmokeTest["account"]))
+        findings.push(
+          `smoke: account is the test account's role, ${smokeAccounts.join(" or ")}; never a name`,
+        );
+      if (test.result !== "green")
+        findings.push("smoke: the smoke test did not give the green light");
+    }
   }
   if (!matches(value.reviewer, loginPattern))
     findings.push("reviewer is not a GitHub login");
@@ -352,7 +425,12 @@ if (import.meta.main) {
     for (const finding of findings) console.error(`  ${finding}`);
     process.exit(1);
   }
+  const merged = provenance
+    ? ", recorded by a pull request merged into the default branch before this tag"
+    : "";
   console.log(
-    `The canary of ${candidate} passed: ${requiredHours(candidate)} hours on every listed Machine${candidate in shorterCanaries ? ` (shortened by ${shorterCanaries[candidate]?.decision})` : ""}${provenance ? ", recorded by a pull request merged into the default branch before this tag" : ""}.`,
+    record?.schema === smokeSchema
+      ? `The canary of ${candidate} passed: every listed Machine on the candidate and healthy, and the smoke test as the reference Organization's ${record.smoke?.account} gave the green light${merged}.`
+      : `The canary of ${candidate} passed: ${requiredHours(candidate)} hours on every listed Machine${candidate in shorterCanaries ? ` (shortened by ${shorterCanaries[candidate]?.decision})` : ""}${merged}.`,
   );
 }

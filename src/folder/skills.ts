@@ -189,8 +189,12 @@ function newModule(preset: PresetName): readonly Text[] {
       "- **The data starts in repository-db.** A module that holds data keeps it in a data repository `<slug>-data`, mounted in the module as `db/` and served by the repository-db library (`github:Lazurio/repository-db#v3.x.y`, always a released version). That is the best choice to start with: nothing to set up or pay for, the data is readable YAML whose structure you tune with the user easily, every change has a history and can be undone, and the user confirms data changes by Publication. This is where the data's structure settles. A module without data (a site for reading, documentation) has no data repository.",
     ),
     t(
-      "- **Databáze až pro modul, který uživatelé opravdu používají.** Databázi modul potřebuje, když se přístup k datům má lišit mezi Environmenty uvnitř jedné datové sady, když se osobní údaje musí dát smazat (historie Gitu se nepřepisuje), když zapisuje služba zvenku nebo jde o hodně zápisů, nebo když na stejných datech současně pracují uživatelé z různých Environmentů (root decision 0196, bod 8). Pak uživateli tyhle kompromisy vysvětli a doporuč převod; doporučujeme **Neon**. Schéma databáze vychází z kolekcí v repository-db: kolekce a jejich typy jsou předlohou tabulek a data se převedou jednou migrací. Převod je samostatná práce, kterou s uživatelem domluvíš, až přijde čas. **U nového modulu databázi nikdy nezakládej.**",
-      "- **A database only for a module users use in earnest.** A module needs a database when access to the data must differ between Environments within one data set, when personal data must be deletable (Git history is not rewritten), when an outside service writes or there are many writes, or when users from different Environments work on the same data at once (root decision 0196, point 8). Then explain these trade-offs to the user and recommend the move; we recommend **Neon**. The database's schema comes from the repository-db collections: the collections and their types are the model for the tables, and the data moves in one migration. The move is a separate piece of work that you agree with the user when the time comes. **Never create a database for a new module.**",
+      "- **Databáze až pro modul, který uživatelé opravdu používají.** Databázi modul potřebuje, když se přístup k datům má lišit mezi Environmenty uvnitř jedné datové sady, když se osobní údaje musí dát smazat (historie Gitu se nepřepisuje), když zapisuje služba zvenku nebo jde o hodně zápisů, nebo když na stejných datech současně pracují uživatelé z různých Environmentů (decision 0196, bod 8). Pak uživateli tyhle kompromisy vysvětli a doporuč převod; doporučujeme **Neon**. Schéma databáze vychází z kolekcí v repository-db: kolekce a jejich typy jsou předlohou tabulek a data se převedou jednou migrací. Převod je samostatná práce, kterou s uživatelem domluvíš, až přijde čas. **U nového modulu databázi nikdy nezakládej.**",
+      "- **A database only for a module users use in earnest.** A module needs a database when access to the data must differ between Environments within one data set, when personal data must be deletable (Git history is not rewritten), when an outside service writes or there are many writes, or when users from different Environments work on the same data at once (decision 0196, point 8). Then explain these trade-offs to the user and recommend the move; we recommend **Neon**. The database's schema comes from the repository-db collections: the collections and their types are the model for the tables, and the data moves in one migration. The move is a separate piece of work that you agree with the user when the time comes. **Never create a database for a new module.**",
+    ),
+    t(
+      "- **Co Lazurio už má, nestav.** Než volbu uděláš, projdi oddíl Co už Lazurio má v `manual/lazurio.md`. Na Remote Environmentu přihlášení zajišťuje brána, klíče dává trezor a data jiného modulu se čtou přes deklaraci. Co se má podle rozhovoru dít samo (souhrn, import, připomínka), navrhni v plánu jako automatizaci v Automate na Remote Environmentu, ne jako plánovač v modulu.",
+      "- **Do not build what Lazurio already has.** Before you choose, go through What Lazurio already has in `manual/lazurio.md`. On a Remote Environment the gateway handles sign-in; the vault provides keys, and another module's data is read through a declaration. What the interview says should happen on its own (a summary, an import, a reminder), propose in the plan as an automation in Automate on a Remote Environment, not as a scheduler in the module.",
     ),
     t(
       "- **Název a slug** navrhni sám. Název (`--name`) uživatel uvidí v Launchpadu. Slug je krátký identifikátor malými písmeny s pomlčkami (`^[a-z][a-z0-9]*(-[a-z0-9]+)*$`, nejvýš 50 znaků); stane se jménem repozitáře a na Remote Environmentu i adresou modulu. Vyhrazené slugy (třeba `launchpad`, `browser`, `api`) příkaz odmítne (`reserved_slug`).",
@@ -364,8 +368,8 @@ const organizationModuleRoute: readonly Text[] = [
 
 // How the app reaches its data, the same in both forms.
 const dataWiring: Text = t(
-  "Aplikaci pak napoj podle `app/v1/node_modules/@lazurio/repository-db/docs/app-contract.md`: jeden sync host, čtení i zápisy přes něj a karta konceptu, ve které uživatel změny dat Publikuje. Commit a push dat do `v3` je Publikace.",
-  "Then wire the app as `app/v1/node_modules/@lazurio/repository-db/docs/app-contract.md` says: one sync host, every read and write through it, and the draft card in which the user publishes data changes. Committing and pushing data to `v3` is Publication.",
+  "Aplikaci pak napoj podle `app/v3/node_modules/@lazurio/repository-db/docs/app-contract.md`: jeden sync host, čtení i zápisy přes něj a karta konceptu, ve které uživatel změny dat Publikuje. Commit a push dat do `v3` je Publikace.",
+  "Then wire the app as `app/v3/node_modules/@lazurio/repository-db/docs/app-contract.md` says: one sync host, every read and write through it, and the draft card in which the user publishes data changes. Committing and pushing data to `v3` is Publication.",
 );
 
 // Steps 5 to 7 for the personal Workspace: the confirmed run, the data
@@ -409,6 +413,10 @@ const personalModuleRest: readonly Text[] = [
     "- Build the first version from the confirmed summary, nothing more. Leave what belongs to later versions for later and tell the user so.",
   ),
   t(
+    "- Má-li modul rozhraní (aplikaci, web, přehled), drž ho podle skillu `ui-craft`: pohyb, telefon, nejhorší data a ověření v prohlížeči, vždy v mezích design systému modulu a Organizace.",
+    "- When the module has an interface (an app, a website, an overview), hold it to the skill `ui-craft`: motion, the phone, the worst data and the check in a browser, always within the design system of the module and the Organization.",
+  ),
+  t(
     "- Řiď se `AGENTS.md` nového modulu (napsal ho scaffold) a jeho `README.md`. Změna jde do task worktree modulu a do pull requestu do `<login>/<slug>`: `git -C personalspace/<login>_GEN3/workspace/<slug> worktree add -b <branch> .worktrees/<task> main` (`.gitignore` modulu složku `.worktrees/` vynechává).",
     "- Follow the new module's `AGENTS.md` (the scaffold wrote it) and its `README.md`. The change goes into a task worktree of the module and a pull request into `<login>/<slug>`: `git -C personalspace/<login>_GEN3/workspace/<slug> worktree add -b <branch> .worktrees/<task> main` (the module's `.gitignore` leaves `.worktrees/` out).",
   ),
@@ -417,8 +425,8 @@ const personalModuleRest: readonly Text[] = [
     "- Add to the module's `AGENTS.md` what the module is for, for whom, and how to work with it: what its data means and what recurs in it. Write a recurring procedure down as a skill of the module in `.agents/skills/<name>/SKILL.md`.",
   ),
   t(
-    "- Spusť kontroly a testy, které uvádí `README.md` (u aplikace na Bunu v `app/v1`: `bun install --frozen-lockfile`, `bun run check` a `bun test`), a opravuj, dokud neprojdou.",
-    "- Run the checks and tests the `README.md` names (for a Bun app in `app/v1`: `bun install --frozen-lockfile`, `bun run check` and `bun test`) and fix until they pass.",
+    "- Spusť kontroly a testy, které uvádí `README.md` (u aplikace na Bunu v `app/v1`, s daty v `app/v3`: `bun install --frozen-lockfile`, `bun run check` a `bun test`), a opravuj, dokud neprojdou.",
+    "- Run the checks and tests the `README.md` names (for a Bun app in `app/v1`, with data in `app/v3`: `bun install --frozen-lockfile`, `bun run check` and `bun test`) and fix until they pass.",
   ),
   t(
     "- Než se zeptáš na Publikaci, ukaž uživateli první verzi běžící. `lazurio module start` spouští modul jen z jeho vlastního checkoutu, ne z worktree, takže ji z worktree spusť ručním startem z `README.md` na volném portu (ne na portu modulu) a otevři ji v prohlížeči; na Remote Environmentu v prohlížeči Environmentu, jehož záložku uživatel otevře odkazem (`manual/this-machine.md`). Ověř, že stránka ukazuje, co říká shrnutí, a po ukázce ruční start zastav. Modul `python-uv` ověř ručně podle jeho `README.md`; `none` nemá co spustit, ukaž uživateli obsah repozitáře.",
@@ -431,8 +439,8 @@ const personalModuleRest: readonly Text[] = [
     "- The finished work is two pull requests: the module's first version into `<login>/<slug>` and the slot from the Personalspace's task worktree into `<login>/<login>_GEN3` (commit `modules.manifest.json`, push the branch and open the pull request). When they are finished and verified, mark them ready for review (`manual/working-here.md`).",
   ),
   t(
-    "- Merge obou je Publikace uživatele: zeptej se ho, jestli je máš Publikovat, a merguj až na jeho výslovné „Publikuj“ (`manual/working-here.md`).",
-    "- Merging them is the user's Publication: ask them whether you should publish them, and merge only on their explicit “Publish” (`manual/working-here.md`).",
+    "- Merge obou je Publikace uživatele: merguj až s jeho souhlasem. Když ti ho dal předem na tento úkol nebo celé vlákno a neodvolal ho, merguj rovnou; jinak se ho zeptej, jestli je máš Publikovat (`manual/working-here.md`).",
+    "- Merging them is the user's Publication: merge only with their consent. When they gave it in advance for this task or the whole thread and have not taken it back, merge right away; otherwise ask them whether you should publish them (`manual/working-here.md`).",
   ),
   t(
     '- Po merge srovnej oba checkouty (`git -C personalspace/<login>_GEN3 pull --ff-only` a `git -C personalspace/<login>_GEN3/workspace/<slug> pull --ff-only`) a odstraň oba task worktrees (`git -C personalspace/<login>_GEN3 worktree remove "$PWD/personalspace/.worktrees/<task>"` a `git -C personalspace/<login>_GEN3/workspace/<slug> worktree remove .worktrees/<task>`).',
@@ -462,12 +470,16 @@ const organizationModuleBar: readonly Text[] = [
     "- Build the first version from the confirmed summary, nothing more. The change goes into a task worktree of the module and a pull request into `<Organization login>/<slug>`: `git -C organizations/<org>/workspace/<slug> worktree add -b <branch> .worktrees/<task> main`. Add to the module's `AGENTS.md` what the module is for, for whom and how to work with it; write a recurring procedure as the module's skill in `.agents/skills/<name>/SKILL.md`. Run the checks and tests its `README.md` names and fix until they pass.",
   ),
   t(
+    "- Má-li modul rozhraní (aplikaci, web, přehled), drž ho podle skillu `ui-craft`: pohyb, telefon, nejhorší data a ověření v prohlížeči, vždy v mezích design systému modulu a Organizace.",
+    "- When the module has an interface (an app, a website, an overview), hold it to the skill `ui-craft`: motion, the phone, the worst data and the check in a browser, always within the design system of the module and the Organization.",
+  ),
+  t(
     "- Než se zeptáš na Publikaci, ukaž uživateli první verzi běžící: z worktree ručním startem z `README.md` na volném portu (ne na portu modulu) a v prohlížeči; `none` nemá co spustit, ukaž obsah repozitáře. `lazurio module start` teď nepoužívej: spouští jen primární checkout modulu a katalog Organizace modul uvidí až po merge slotu.",
     "- Before you ask about Publication, show the user the first version running: from the worktree by the manual start in `README.md` on a free port (not the module's port) and in the browser; `none` has nothing to run, show the repository's contents. Do not use `lazurio module start` yet: it runs only the module's primary checkout, and the Organization's catalog sees the module only after the slot is merged.",
   ),
   t(
-    "- Hotová práce má dva pull requesty: první verzi do `<login Organizace>/<slug>` a slot do rootu Organizace. Merge obou je Publikace: zeptej se před ní a merguj až na výslovné „Publikuj“ (`manual/working-here.md`). Po merge srovnej oba checkouty (`git -C organizations/<org> pull --ff-only` a `git -C organizations/<org>/workspace/<slug> pull --ff-only`) a odstraň oba task worktrees.",
-    "- The finished work has two pull requests: the first version into `<Organization login>/<slug>` and the slot into the Organization root. Merging both is Publication: ask before it and merge only on an explicit “Publish” (`manual/working-here.md`). After the merge, bring both checkouts up to date (`git -C organizations/<org> pull --ff-only` and `git -C organizations/<org>/workspace/<slug> pull --ff-only`) and remove both task worktrees.",
+    "- Hotová práce má dva pull requesty: první verzi do `<login Organizace>/<slug>` a slot do rootu Organizace. Merge obou je Publikace: merguj až se souhlasem uživatele, neodvolaný souhlas daný předem na tento úkol nebo celé vlákno platí, jinak se zeptej (`manual/working-here.md`). Po merge srovnej oba checkouty (`git -C organizations/<org> pull --ff-only` a `git -C organizations/<org>/workspace/<slug> pull --ff-only`) a odstraň oba task worktrees.",
+    "- The finished work has two pull requests: the first version into `<Organization login>/<slug>` and the slot into the Organization root. Merging both is Publication: merge only with the user's consent; consent given in advance for this task or the whole thread and not taken back counts, otherwise ask (`manual/working-here.md`). After the merge, bring both checkouts up to date (`git -C organizations/<org> pull --ff-only` and `git -C organizations/<org>/workspace/<slug> pull --ff-only`) and remove both task worktrees.",
   ),
   t(
     "- Teprve pak modul spusť: `lazurio module start <Organizace>/<slug> --json` (na macOS v Launchpadu; `python-uv` a `none` se takhle nespouštějí), otevři `result.runtime.url` v prohlížeči, ověř, že se stránka vykreslila, a dej uživateli odkaz.",
@@ -531,6 +543,370 @@ const personalModuleRefusals: readonly Text[] = [
   ),
 ];
 
+// `ui-craft` (decision F14, addendum of 2026-10-21): the craft bar for every
+// interface an agent builds or changes, a module's app, a website or an
+// overview. Its rules are distilled, in its own words, from Emil Kowalski's
+// skills (github.com/emilkowalski/skills at 2d228630, MIT; docs/licensing.md):
+// whether a thing moves at all, its curve and duration, smooth frames, motion
+// and controls for everyone, the phone, the worst realistic data, and the
+// check in a real browser. The project's own rules always come first: a
+// module's or an Organization's AGENTS.md, its design system and its tokens
+// override every default here, and a missing value goes into that design
+// system, never invented locally. Nothing in it names a library, a framework
+// or a brand, so it holds for any stack the generator offers.
+const uiCraftDescription = t(
+  "Použij, kdykoli stavíš, měníš nebo kontroluješ rozhraní: aplikaci modulu, web, přehled, formulář, komponentu, animaci, hover nebo chování na telefonu, a před předáním každého pull requestu, který mění, co uživatel vidí. Rozhodne, jestli se má něco hýbat a jak (křivka, délka, plynulost, omezený pohyb), opraví, co na telefonu prozradí web (hover, ťuknutí, výška, zoom polí, výřez), vyzkouší rozhraní s nejhoršími reálnými daty a ověří ho v prohlížeči. Pravidla modulu, Organizace a jejich design systému mají vždy přednost.",
+  "Use whenever you build, change or review an interface: a module's app, a website, an overview, a form, a component, an animation, a hover or how it behaves on a phone, and before you hand over any pull request that changes what the user sees. Decides whether something moves and how (curve, duration, smooth frames, reduced motion), fixes what gives a website away on a phone (hover, tap, height, zooming fields, the notch), tries the interface with the worst realistic data and checks it in a browser. The rules of the module, the Organization and their design system always come first.",
+);
+
+const uiCraft: readonly Text[] = [
+  t(
+    "Rozhraní, které jen funguje, nestačí. Uživatel pozná, když menu přijede pozdě, tlačítko nereaguje na prst, nadpis přeteče z karty nebo se stránka na telefonu přiblíží do pole formuláře, i když neumí říct proč. Tenhle skill drží laťku pro všechno, co uživatel uvidí: rozhodni podle něj, oprav, co mu neodpovídá, a ověř výsledek v prohlížeči.",
+    "An interface that merely works is not enough. The user notices when a menu arrives late, a button does not answer the finger, a heading overflows its card or the page zooms into a form field on a phone, even when they cannot say why. This skill holds the bar for everything the user will see: decide by it, fix what falls short and check the result in a browser.",
+  ),
+  blank,
+  t(
+    "**Pravidla projektu mají přednost.** `AGENTS.md` modulu a Organizace, jejich design systém a tokeny přebíjejí každou výchozí hodnotu níže. Když zakazují, co tu doporučuji (třeba měnit průhlednost nebo stín při animaci), řiď se jimi a hledej řešení v jejich mezích. Hodnoty níže použij jen tam, kde projekt nic neříká. Když projekt potřebuje novou hodnotu (křivku, délku, barvu), navrhni ji do jeho design systému; ve stránce si ji nevymýšlej.",
+    "**The project's rules come first.** The `AGENTS.md` of the module and of the Organization, their design system and their tokens override every default below. When they forbid what this skill recommends (changing opacity or a shadow in an animation, for instance), follow them and find the solution within their limits. Use the values below only where the project says nothing. When the project needs a new value (a curve, a duration, a colour), propose it to its design system; never invent it in the page.",
+  ),
+  blank,
+  t("## 1. Má se to vůbec hýbat?", "## 1. Should it move at all?"),
+  t(
+    "Každý pohyb potřebuje důvod, který uživateli pomůže: návaznost v prostoru (panel odjede tam, odkud přijel), změnu stavu, zpětnou vazbu na jeho akci, vysvětlení, jak věc funguje, nebo zjemnění skoku, který by jinak působil rozbitě. „Vypadá to hezky“ důvod není u ničeho, co uživatel vidí často.",
+    "Every motion needs a reason that helps the user: continuity in space (a panel leaves the way it came), a change of state, feedback on their action, an explanation of how something works, or softening a jump that would otherwise look broken. “It looks nice” is no reason for anything the user sees often.",
+  ),
+  t(
+    "- Rozhoduje, jak často to uživatel uvidí. Akce z klávesnice a cokoli, co dělá stokrát denně, se nehýbe vůbec. Hover v navigaci a procházení seznamu jen minimálně. Dialog, panel nebo oznámení normálně. Pohyb pro radost patří jen k věcem, které uživatel uvidí zřídka (první spuštění, dokončení).",
+    "- How often the user sees it decides. Keyboard actions and anything done a hundred times a day do not move at all. A hover in navigation and moving through a list, barely. A dialog, a panel or a notice, normally. Motion for delight belongs only to what the user sees rarely (a first run, a completion).",
+  ),
+  t(
+    "- Nejlepší oprava zbytečného pohybu je smazat ho. Teprve potom ho zkrať, zmenši nebo mu oprav křivku.",
+    "- The best fix for needless motion is to delete it. Only then shorten it, make it smaller or fix its curve.",
+  ),
+  t(
+    "- Pohyb nikdy neblokuje čtení ani ovládání: na nic se nečeká, než doběhne.",
+    "- Motion never blocks reading or use: nothing waits for it to finish.",
+  ),
+  blank,
+  t("## 2. Křivka a délka", "## 2. Curve and duration"),
+  t(
+    "- **Vstup a odchod** (menu, dialog, oznámení): rychlý začátek a měkký dojezd, `ease-out` nebo silnější vlastní křivka, například `cubic-bezier(0.23, 1, 0.32, 1)`. **Pohyb po obrazovce** (posun, přeskupení): `ease-in-out`, například `cubic-bezier(0.77, 0, 0.175, 1)`. **Změna barvy na hover**: `ease`. **Stálý pohyb** (průběh, běžící pás): `linear`.",
+    "- **Entering and leaving** (a menu, a dialog, a notice): a fast start and a soft landing, `ease-out` or a stronger custom curve such as `cubic-bezier(0.23, 1, 0.32, 1)`. **Moving on screen** (a shift, a rearrangement): `ease-in-out`, such as `cubic-bezier(0.77, 0, 0.175, 1)`. **A colour change on hover**: `ease`. **Constant motion** (progress, a marquee): `linear`.",
+  ),
+  t(
+    "- `ease-in` na prvku rozhraní nepoužívej nikdy: začíná pomalu přesně ve chvíli, kdy uživatel nejvíc čeká odezvu, a rozhraní pak působí líně.",
+    "- Never use `ease-in` on an interface element: it starts slowly exactly when the user most expects an answer, and the interface feels sluggish.",
+  ),
+  t(
+    "- **Délky:** stisk tlačítka 100–160 ms, tooltip a malý popover 125–200 ms, menu a výběr 150–250 ms, dialog a panel 200–500 ms. Malé prvky (stisk, tooltip, menu) drž pod 300 ms; dialog a panel přesouvají větší plochu, proto smějí mít až 500 ms. Kratší působí rychleji. Delší než 500 ms smí být jen vysvětlující pohyb, třeba náběh sekce na webu, a i ten nesmí zdržet obsah.",
+    "- **Durations:** a button press 100–160 ms, a tooltip or small popover 125–200 ms, a menu or select 150–250 ms, a dialog or panel 200–500 ms. Keep small elements (a press, a tooltip, a menu) under 300 ms; a dialog or panel moves a larger area, so it may take up to 500 ms. Shorter feels faster. Only explanatory motion may take longer than 500 ms, a website section coming in for instance, and even that must not hold the content back.",
+  ),
+  t(
+    "- **Odezva je rychlá, rozvaha pomalá.** Odchod a uvolnění jsou kratší než příchod; pomalé smí být jen to, kde uživatel úmyslně drží nebo potvrzuje.",
+    "- **The answer is fast, the deliberate part slow.** Leaving and releasing are shorter than arriving; only what the user deliberately holds or confirms may be slow.",
+  ),
+  t(
+    "- Nic se neobjevuje z ničeho: nikdy `scale(0)`, začni nejméně od `scale(0.95)`. Menu, popover a tooltip vyrůstají ze svého spouštěče (`transform-origin` u něj), dialog ze středu.",
+    "- Nothing appears from nothing: never `scale(0)`, start at `scale(0.95)` or more. A menu, popover or tooltip grows from its trigger (`transform-origin` there), a dialog from the centre.",
+  ),
+  t(
+    "- Co uživatel spouští rychle po sobě (přepínač, oznámení, rozbalení), animuj přechodem (`transition`): ten se dá přerušit a otočit z místa, kde právě je. Klíčové snímky (`@keyframes`) začínají vždy od nuly.",
+    "- What the user triggers in quick succession (a toggle, a notice, an expansion), animate with a `transition`: it can be interrupted and turned back from where it is. Keyframes (`@keyframes`) always start from zero.",
+  ),
+  t(
+    "- Skupina prvků, která přichází najednou, smí naskakovat postupně po 30–80 ms; delší rozestup už zdržuje.",
+    "- A group of elements arriving together may come in one after another, 30–80 ms apart; a longer gap holds things up.",
+  ),
+  t(
+    "- Tooltip má krátké zpoždění, aby se neotevíral náhodou; když už jeden svítí, další v řadě se otevírají hned a bez animace.",
+    "- A tooltip waits briefly so that it does not open by accident; once one is showing, the next ones in the row open at once and without animation.",
+  ),
+  blank,
+  t("## 3. Plynulost", "## 3. Smooth frames"),
+  t(
+    "- Animuj `transform` a `opacity`: prohlížeč je často dokáže složit bez nového rozvržení a kreslení, záleží ale na prohlížeči a prvku, takže to ověř profilováním. `width`, `height`, `top`, `left`, `margin` a `padding` spouštějí nové rozvržení v každém snímku: místo nich použij `scale()` a `translate()` (procenta v `translate()` počítají s velikostí prvku samého). Animovaný `box-shadow` se překresluje v každém snímku; když ho projekt povoluje, zkus `filter: drop-shadow()` a porovnej v profilu.",
+    "- Animate `transform` and `opacity`: the browser can often composite them without new layout or paint, but that depends on the browser and the element, so verify it by profiling. `width`, `height`, `top`, `left`, `margin` and `padding` trigger layout every frame: use `scale()` and `translate()` instead (percentages in `translate()` refer to the element's own size). An animated `box-shadow` repaints every frame; where the project allows it, try `filter: drop-shadow()` and compare in a profile.",
+  ),
+  t(
+    "- Nikdy `transition: all`; vyjmenuj přesně vlastnosti, které se mají hýbat.",
+    "- Never `transition: all`; name exactly the properties that are to move.",
+  ),
+  t(
+    "- Předem daný pohyb patří do CSS nebo Web Animations API (`element.animate()`): animaci `transform` a `opacity` prohlížeč obvykle zvládne mimo hlavní vlákno, takže vydrží i načítání stránky, ale `width`, `top` nebo `box-shadow` se animují na hlavním vlákně jako všechno ostatní. Plynulost při zátěži ověř profilováním (Performance v DevTools), nepředpokládej ji. JavaScript ve smyčce `requestAnimationFrame` nech jen na tah prstem a pohyb, který závisí na vstupu.",
+    "- Predetermined motion belongs in CSS or the Web Animations API (`element.animate()`): for `transform` and `opacity` the browser can usually run it off the main thread so it survives a page that is loading, but properties such as `width`, `top` or `box-shadow` animate on the main thread like anything else. Verify smoothness under load by profiling (DevTools Performance) rather than assuming it. Leave a JavaScript `requestAnimationFrame` loop only to drags and motion that depends on input.",
+  ),
+  t(
+    "- Na vstup prvku do zorného pole použij `IntersectionObserver`, ne posluchač `scroll`. Při tahu zapisuj `transform` přímo do prvku: stav komponenty přerenderovaný v každém snímku i CSS proměnná měněná na rodiči (přepočítá styl potomkům, kteří ji používají) snadno ztrácejí snímky.",
+    "- Detect an element entering the view with `IntersectionObserver`, not a `scroll` listener. While dragging, write `transform` straight to the element: component state re-rendered every frame and a CSS variable changed on a parent (it restyles the descendants that use it) easily drop frames.",
+  ),
+  t(
+    "- `will-change` přidej teprve tam, kde jsi viděl poskočení o pixel nebo naměřil ztracené snímky, a jen na prvek, který se hýbe. Animované rozostření drž pod 20 px; je drahé hlavně v Safari.",
+    "- Add `will-change` only where you saw a one-pixel jump or measured dropped frames, and only on the element that moves. Keep an animated blur under 20 px; it is expensive, in Safari above all.",
+  ),
+  t(
+    "- Rychlý počítač plynulost nedokazuje. Měřítko je běžný telefon a obrazovka se 120 Hz, kde má snímek jen 8 ms.",
+    "- A fast computer proves nothing about smoothness. The bar is an ordinary phone and a 120 Hz screen, where a frame has only 8 ms.",
+  ),
+  blank,
+  t(
+    "## 4. Pohyb a ovládání pro každého",
+    "## 4. Motion and controls for everyone",
+  ),
+  t(
+    "- Každý pohyb má variantu pro `@media (prefers-reduced-motion: reduce)`: posuny, zvětšení a parallax v ní zmizí a obsah je hned na místě. Co pomáhá pochopit stav, smí zůstat jemně, pokud to projekt povoluje.",
+    "- Every motion has a variant for `@media (prefers-reduced-motion: reduce)`: shifts, scaling and parallax disappear in it and the content is in place at once. What helps the user understand a state may stay, gently, where the project allows it.",
+  ),
+  t(
+    "- Hover efekty patří do `@media (hover: hover) and (pointer: fine)`; na dotykové obrazovce by hover po ťuknutí zůstal viset. (Varianta `hover:` v Tailwindu 4 to dělá sama, ručně psané `:hover` ne.)",
+    "- Hover effects belong in `@media (hover: hover) and (pointer: fine)`; on a touch screen a hover would stay stuck after a tap. (Tailwind 4's `hover:` variant does this itself, a hand-written `:hover` does not.)",
+  ),
+  t(
+    "- Každý ovládací prvek má viditelný `:focus-visible` a odezvu na stisk v `:active` (třeba `scale(0.97)` za 100–160 ms), která funguje na myši i prstu.",
+    "- Every control has a visible `:focus-visible` and an answer to the press in `:active` (`scale(0.97)` over 100–160 ms, for instance) that works for a mouse and a finger alike.",
+  ),
+  blank,
+  t("## 5. Telefon", "## 5. The phone"),
+  t(
+    "Většina stížností „na telefonu to nějak drhne“ není o animaci, ale o drobnostech platformy. U každého webu a aplikace modulu drž tenhle základ:",
+    "Most “it feels off on my phone” complaints are not about animation but about small things of the platform. For every website and module app keep this floor:",
+  ),
+  t(
+    '- `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`. Zoom nikdy nevypínej (`user-scalable=no`, `maximum-scale=1`): je to chyba přístupnosti a skutečnou příčinu přiblížení opravuje další bod.',
+    '- `<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">`. Never disable zoom (`user-scalable=no`, `maximum-scale=1`): it is an accessibility failure, and the next point fixes the real cause of the zooming.',
+  ),
+  t(
+    "- Pole formuláře mají písmo aspoň 16 px, jinak se iOS do pole přiblíží a už se nevrátí. K tomu správný `type`, `inputmode`, `autocomplete` a `enterkeyhint`, aby telefon nabídl správnou klávesnici.",
+    "- Form fields have a font of at least 16 px, or iOS zooms into the field and never zooms back. Add the right `type`, `inputmode`, `autocomplete` and `enterkeyhint`, so the phone offers the right keyboard.",
+  ),
+  t(
+    "- `html { -webkit-tap-highlight-color: transparent; }` a vlastní `:active` místo šedého záblesku při ťuknutí; `touch-action: manipulation` na tlačítkách a odkazech, aby ťuknutí nečekalo na dvojklik.",
+    "- `html { -webkit-tap-highlight-color: transparent; }` and an `:active` of your own instead of the grey flash on tap; `touch-action: manipulation` on buttons and links, so a tap does not wait for a double tap.",
+  ),
+  t(
+    "- Výška na celou obrazovku: `100svh` pro úvodní plochu webu, `100dvh` pro aplikaci a panel připnutý dole. Samotné `100vh` na telefonu přeteče pod lištu prohlížeče.",
+    "- Full-screen height: `100svh` for a website's first screen, `100dvh` for an app shell and a panel pinned to the bottom. Plain `100vh` overflows under the browser bar on a phone.",
+  ),
+  t(
+    "- Fixní hlavička, spodní lišta, oznámení a panel odsaď od výřezu a domovské lišty přes `env(safe-area-inset-*)`; bez `viewport-fit=cover` mají nulu.",
+    "- Pad a fixed header, a bottom bar, a notice and a panel away from the notch and the home indicator with `env(safe-area-inset-*)`; without `viewport-fit=cover` they are zero.",
+  ),
+  t(
+    "- `user-select: none` jen na ovládací prvky, nikdy na text: uživatel si kopíruje adresy, čísla a chybové hlášky. Vnitřní posuvná plocha (dialog, panel) dostane `overscroll-behavior: contain`, aby s sebou netáhla stránku.",
+    "- `user-select: none` on controls only, never on text: users copy addresses, numbers and error messages. An inner scrolling area (a dialog, a panel) gets `overscroll-behavior: contain`, so it does not drag the page along.",
+  ),
+  t(
+    "- `theme-color` odpovídá barvě horního okraje stránky, pro světlý i tmavý režim zvlášť. Zařízení poznávej podle schopností (`hover`, `pointer`), nikdy podle šířky obrazovky ani user agenta.",
+    "- `theme-color` matches the colour at the top edge of the page, separately for light and dark mode. Tell devices apart by their capabilities (`hover`, `pointer`), never by screen width or user agent.",
+  ),
+  blank,
+  t("## 6. Nejhorší reálná data", "## 6. The worst realistic data"),
+  t(
+    "Ukázková data jsou vždy hezká; skutečná ne. U každé hodnoty, kterou rozhraní zobrazuje, si řekni, jak vypadá její nejhorší reálný případ, a vyzkoušej ho:",
+    "Sample data is always pretty; real data is not. For every value the interface shows, ask what its worst realistic case looks like, and try it:",
+  ),
+  t(
+    "- dlouhé texty: české složeniny („nejneobhospodařovávatelnějšími“), anglická verze delší než česká, dlouhý e-mail nebo adresa bez mezer, název o jednom písmenu;",
+    "- long texts: long compound words (Czech or German), a translation longer than the original, a long e-mail address or URL without spaces, a one-letter name;",
+  ),
+  t(
+    "- počty: nula, jedna, dvě až čtyři a pět a víc (čeština skloňuje podle počtu, použij `Intl.PluralRules`), obrovské číslo, záporná hodnota, chybějící údaj;",
+    "- counts: zero, one, a few and many (languages inflect by count, use `Intl.PluralRules`), a huge number, a negative value, a missing field;",
+  ),
+  t(
+    "- prázdný seznam, jedna položka a stovky položek; emoji, diakritika a jiné písmo než latinka.",
+    "- an empty list, one item and hundreds of items; emoji, diacritics and a non-Latin script.",
+  ),
+  t(
+    "Obvyklé opravy: `min-width: 0` u potomka ve flexu a gridu, `overflow-wrap: anywhere` u adres a e-mailů, `hyphens: auto` se správným `lang` na stránce, `text-wrap: balance` u nadpisů a `pretty` u odstavců, `font-variant-numeric: tabular-nums` u čísel pod sebou, čísla a data přes `Intl.NumberFormat` a `Intl.DateTimeFormat` v jazyce stránky, a prázdný stav, který řekne, co dál.",
+    "The usual fixes: `min-width: 0` on a flex or grid child, `overflow-wrap: anywhere` for addresses and e-mails, `hyphens: auto` with the right `lang` on the page, `text-wrap: balance` for headings and `pretty` for paragraphs, `font-variant-numeric: tabular-nums` for numbers in columns, numbers and dates through `Intl.NumberFormat` and `Intl.DateTimeFormat` in the page's language, and an empty state that says what to do next.",
+  ),
+  blank,
+  t("## 7. Ověření a předání", "## 7. Checking and handing over"),
+  t(
+    "- Než práci předáš, otevři ji v prohlížeči (tak, jak to popisuje `AGENTS.md` tohoto Folderu) a prohlédni ji aspoň v šířce telefonu (390 px) a počítače (1280 px), se zapnutým omezeným pohybem a s nejhoršími daty z kroku 6. Pohyb si pusť zpomaleně (DevTools → Animations): uvidíš špatný počátek, dva stavy přes sebe i škubnutí, které v plné rychlosti uteče.",
+    "- Before you hand the work over, open it in a browser (as this Folder's `AGENTS.md` describes) and look at it at least at a phone's width (390 px) and a computer's (1280 px), with reduced motion on and with the worst data of step 6. Play the motion slowed down (DevTools → Animations): you will see a wrong origin, two states overlapping and a jerk that escapes at full speed.",
+  ),
+  t(
+    "- Řekni pravdivě, co jsi ověřil z kódu a v prohlížeči a co potřebuje skutečný telefon: přichycený hover, záblesk při ťuknutí, výřez, klávesnici ani zoom polí emulace prohlížeče nezobrazí.",
+    "- Say truthfully what you checked from the code and in the browser and what needs a real phone: browser emulation does not show a stuck hover, the tap flash, the notch, the keyboard or zooming fields.",
+  ),
+  t(
+    "- Nálezy a opravy uveď v popisu pull requestu jednou tabulkou `| Teď | Po úpravě | Proč |` (soubor a řádek, přesné hodnoty). Co je otázka vkusu nebo identity (jiná křivka, delší náběh, pružení), neměň sám: navrhni to uživateli s důvodem a nech rozhodnutí na něm.",
+    "- List the findings and fixes in the pull request's description as one table `| Now | After | Why |` (file and line, exact values). What is a matter of taste or identity (another curve, a longer entrance, a bounce), do not change yourself: propose it to the user with the reason and leave the decision to them.",
+  ),
+  blank,
+  t(
+    "Pravidla tohoto skillu vycházejí ze skillů Emila Kowalského (github.com/emilkowalski/skills, licence MIT), převyprávěných pro Lazurio.",
+    "The rules of this skill come from Emil Kowalski's skills (github.com/emilkowalski/skills, MIT licence), retold for Lazurio.",
+  ),
+];
+
+// `henry-review` (decision F14, addendum of 2026-11-01): asking the
+// Organization's persona for a review and handing it a pull request to take
+// through, from the Lazurio Root's skill of the same name, without the
+// Root's mechanics. The request and the handover go only through GitHub,
+// which the persona's intake reads (decision 0169); a verdict counts only on
+// the exact head with an approval submitted after the last commit. The
+// persona's own side of the contract is in this-machine.md's bot team
+// chapter; this is the other side, for every agent that asks.
+const henryReviewDescription = t(
+  "Použij, když hotový pull request potřebuje review persony Organizace (jejího Henryho), nebo jí chceš předat jeho dotažení do main. Žádost i předání jdou jen přes GitHub a verdikt platí jen na přesném headu se schválením po posledním commitu. Nepoužívej k obcházení review, merge, nasazení ani přístupů.",
+  "Use when a finished pull request needs the review of the Organization's persona (its Henry), or when you hand the persona its completion into main. The request and the handover go only through GitHub, and a verdict counts only on the exact head with an approval submitted after the last commit. Never use it to bypass review, merge, deployment or access.",
+);
+
+const henryReview: readonly Text[] = [
+  t(
+    "Henry je persona Organizace: tým botů Lazurio MausBot v Prostředí s automatizacemi, s vlastním GitHub účtem persony a odpovědným člověkem (decision 0169). Vlastní práva nemá, jedná v grantech svého účtu. Práci si bere sám z GitHubu: review, když je jeho účet požádaným reviewerem nebo pull request už reviewoval, a dotažení, když je assignee. Jiná cesta k němu nevede: žádný soubor, skript, SSH ani zpráva jinému vláknu.",
+    "Henry is the Organization's persona: a Lazurio MausBot bot team in the Environment with automations, with the persona's own GitHub account and a responsible person (decision 0169). It has no rights of its own and acts within its account's grants. It takes work from GitHub by itself: a review when its account is a requested reviewer or has reviewed the pull request before, and the completion when it is the assignee. No other way reaches it: no file, script, SSH or message to another thread.",
+  ),
+  blank,
+  t("## Postup", "## Steps"),
+  t(
+    "1. **Login.** Najdi ho v `AGENTS.md` Organizace, které repozitář patří. Když tam žádná persona není, Organizace Henryho nemá a review dělá člověk.",
+    "1. **Login.** Find it in the `AGENTS.md` of the Organization the repository belongs to. When it names no persona, the Organization has no Henry and a person reviews.",
+  ),
+  t(
+    "2. **Připrav pull request.** Popis říká proč a co se mění, kontroly na headu jsou zelené a pull request je Ready (`gh pr ready <n>`). Draft pull request persona nevidí.",
+    "2. **Prepare the pull request.** The description says why and what changes, the checks on the head are green and the pull request is Ready (`gh pr ready <n>`). The persona does not see a Draft pull request.",
+  ),
+  t(
+    "3. **Požádej o review:** `gh pr edit <n> --add-reviewer <login>`. Žádost znamená „vyžádáno“, ne „hotovo“. Po pushi ji neopakuj, nový head persona najde sama. Chyba 422 „Reviews may only be requested from collaborators“ znamená špatný login, nebo účet persony k repozitáři nemá přístup; přístup nepřidávej, řekni to uživateli.",
+    "3. **Request the review:** `gh pr edit <n> --add-reviewer <login>`. The request means “requested”, not “done”. Do not repeat it after a push; the persona finds the new head by itself. Error 422 “Reviews may only be requested from collaborators” means a wrong login or that the persona's account has no access to the repository; do not add access, tell the user.",
+  ),
+  t(
+    "4. **Předej dotažení** jen na pokyn uživatele: přidej personu jako assignee, sebe odeber a do komentáře napiš stav, ověření a další krok. Předávat smí jen ten, kdo má k repozitáři živé právo zápisu. Přiřazení nepřidává práva: kde merge smí jen Owner (třeba v `infra`), persona po review předá dokončení Ownerovi.",
+    "4. **Hand over the completion** only on the user's instruction: add the persona as assignee, remove yourself and write the state, the verification and the next step in a comment. Only someone with live write access to the repository may hand over. An assignment adds no rights: where only an Owner may merge (in `infra`, say), the persona hands the completion to an Owner after its review.",
+  ),
+  t(
+    "5. **Nálezy** vyřiď s úsudkem: skutečnou vadu oprav hned, na ostatní odpověz věcnou námitkou v pull requestu a požádej o verdikt na nezměněném headu.",
+    "5. **Findings** you handle with judgement: fix a real defect right away, answer the rest with a factual objection in the pull request and ask for a verdict on the unchanged head.",
+  ),
+  blank,
+  t(
+    "Pull request, který založil účet persony, persona sama nereviewuje; schvaluje ho člověk.",
+    "The persona never reviews a pull request its own account opened; a person approves it.",
+  ),
+  blank,
+  t("## Ověření", "## Verification"),
+  t(
+    "- **Verdikt** platí, jen když review od loginu persony má `commit_id` rovné aktuálnímu headu a je odeslané po posledním commitu; starší schválení se podle pravidla projektu nepočítá, ani když nese `commit_id` headu: `gh pr view <n> --json headRefOid,reviews,commits`.",
+    "- **A verdict** counts only when the review from the persona's login has a `commit_id` equal to the current head and was submitted after the last commit; by this project's rule an earlier approval does not count, even when it carries the head's `commit_id`: `gh pr view <n> --json headRefOid,reviews,commits`.",
+  ),
+  t(
+    "- **Dotažení** je hotové, až je pull request mergnutý, nebo předaný dalšímu jmenovanému assignee se stavem a dalším krokem. Komentář ani schválení samo nestačí.",
+    "- **The completion** is done once the pull request is merged, or handed to the next named assignee with the state and the next step. A comment or an approval alone is not enough.",
+  ),
+  t(
+    "- **Review nepřichází:** ověř, že pull request je Ready a login je mezi požádanými reviewery nebo už reviewoval (`gh api repos/<owner>/<repo>/pulls/<n> --jq '{draft, requested: [.requested_reviewers[].login]}'`). Pak to řekni uživateli a druhou cestu nezakládej.",
+    "- **No review arrives:** check that the pull request is Ready and the login is among the requested reviewers or has reviewed (`gh api repos/<owner>/<repo>/pulls/<n> --jq '{draft, requested: [.requested_reviewers[].login]}'`). Then tell the user, and open no second way.",
+  ),
+];
+
+// `module-standard` (decision F14, addendum of 2026-11-01): changing,
+// converting or checking an existing module against the Lazurio Module
+// Standard (root decision 0171 with its addenda), from the Lazurio Root's
+// `lazurio-module-standard` without the Root's commands. It names what this
+// Platform reads from a module (`lazurio.runtime`: listeners, health,
+// `secrets` and `optional_secrets` from the Environment's vault,
+// `required_module_slots` and sibling origins, `build_script`,
+// `build_output`, `static_fallback` and `start_script`), the order of a
+// conversion, its verification in the changed worktree and the Platform
+// start only after the merge, because `lazurio module start` runs the
+// primary checkout on `main`. No Platform command checks conformance yet
+// (#423); the agent goes through the list itself.
+// A Python service (`python-uv`, which the skill new-module offers) holds the
+// same standard with uv in its preparation (Lazurio/LazurioPlatform#757).
+const moduleStandardDescription = t(
+  "Použij, když měníš, převádíš nebo kontroluješ existující modul: co modul drží, aby ho Lazurio spustilo bez výjimek (manifesty, jeden proces, port a adresy z proměnných, tajné údaje z trezoru, sousední moduly, sestavená verze, health), v jakém pořadí odchylky opravit a jak to ověřit. Odchylku opravuješ v modulu, nikdy obcházením Lazuria. Nový modul zakládá skill new-module.",
+  "Use when you change, convert or check an existing module: what a module holds so that Lazurio runs it without exceptions (manifests, one process, port and addresses from variables, secrets from the vault, sibling modules, the built version, health), in which order to fix deviations and how to verify it. Fix a deviation in the module, never by working around Lazurio. A new module is founded by the skill new-module.",
+);
+
+const moduleStandard: readonly Text[] = [
+  t(
+    "Lazurio Module Standard (decision 0171) je jeden standard pro všechny moduly: Lazurio pro odchylku modulu nedělá výjimku, odchylka se opravuje v modulu. Konformanci zatím žádný příkaz Platformy neověří; projdeš ji podle tohoto postupu a co ověřit nejde, napíšeš do pull requestu. Jeden modul je jeden worktree a jeden pull request; změna Organizace (slot, pool portů) jde samostatným pull requestem do jejího kořene. Plné znění standardu je `docs/module-standard.md` v `Lazurio/LazurioPlatform` (decision 0225).",
+    "The Lazurio Module Standard (decision 0171) is one standard for every module: Lazurio makes no exception for a module's deviation, and the deviation is fixed in the module. No Platform command checks conformance yet; go through it with these steps and write in the pull request what could not be verified. One module is one worktree and one pull request; a change of the Organization (a slot, the port pool) is a pull request of its own to its root. The full standard is `docs/module-standard.md` in `Lazurio/LazurioPlatform` (decision 0225).",
+  ),
+  blank,
+  t("## Co modul drží", "## What a module holds"),
+  t(
+    "- **Manifest.** `lazurio.module.json` v kořeni: `id` shodné se slotem v manifestu Organizace, lease portu z poolu Organizace, `apps` a `default_app`.",
+    "- **Manifest.** `lazurio.module.json` at the root: an `id` equal to the slot in the Organization's manifest, a port lease from the Organization's pool, `apps` and `default_app`.",
+  ),
+  t(
+    "- **Aplikace** v `app/v<N>/`, nejvýš dvě generace (výchozí a jedna předchozí nebo kandidátní). Její `package.json` má přesný `packageManager` (Bun), commitnutý `bun.lock`, skripty `dev`, `check` a `test`, deklaraci běhu `lazurio.runtime` (listenery a health) a případně přípravu `lazurio.preparation` (`owner_package`, `prepare_script`, `check_script`). TypeScript strict a Biome. Služba v Pythonu (stack `python-uv`) má v `lazurio.preparation` navíc `runtime: uv` a `uv_version`, vedle `package.json` ještě `pyproject.toml` se shodnou tabulkou `[tool.lazurio]`, commitnutý `uv.lock` místo `bun.lock` a ruff a strict pyright místo TypeScriptu a Biome; tahle Platforma ji zatím nespouští.",
+    "- **The app** in `app/v<N>/`, at most two generations (the default and one earlier or candidate). Its `package.json` has an exact `packageManager` (Bun), a committed `bun.lock`, the scripts `dev`, `check` and `test`, the run declaration `lazurio.runtime` (listeners and health) and, where needed, the preparation `lazurio.preparation` (`owner_package`, `prepare_script`, `check_script`). TypeScript strict and Biome. A Python service (the stack `python-uv`) adds `runtime: uv` and `uv_version` to `lazurio.preparation`, and has beside `package.json` a `pyproject.toml` with the same `[tool.lazurio]` table, a committed `uv.lock` in place of `bun.lock`, and ruff and strict pyright in place of TypeScript and Biome; this Platform does not start it yet.",
+  ),
+  t(
+    "- **Jeden proces.** `dev` spustí jeden dlouhoběžící server a nic jiného. Build, data a migrace patří do `prepare_script` (nikdy do npm lifecycle jmen jako `prepare`, která `bun install` spouští sám), jen čtecí kontrola do `check_script`. Na start cestě žádné `concurrently`, `&&`, `npx` ani `VAR=…`.",
+    "- **One process.** `dev` starts one long-running server and nothing else. Build, data and migrations belong in `prepare_script` (never in an npm lifecycle name such as `prepare`, which `bun install` runs by itself), a read-only check in `check_script`. No `concurrently`, `&&`, `npx` or `VAR=…` on the start path.",
+  ),
+  t(
+    "- **Port a adresy z proměnných.** Host a port jen z `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` a `_PORT`, veřejná adresa z `_EXTERNAL_ORIGIN`. Žádné `.env`, `PORT` ani pevný port; volání `bun` na start cestě s `--no-env-file`. Health odpovídá 200 přímo, bez přesměrování. Na SIGTERM aplikace skončí čistě s kódem 0; co ještě běží, Lazurio ukončí na Linuxu po 5 sekundách a na macOS po 1 sekundě. Loguje na stdout.",
+    "- **Port and addresses from variables.** Host and port only from `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` and `_PORT`, the public address from `_EXTERNAL_ORIGIN`. No `.env`, `PORT` or fixed port; `bun` on the start path runs with `--no-env-file`. Health answers 200 directly, without a redirect. On SIGTERM the app ends cleanly with exit code 0; Lazurio kills what still runs after 5 seconds on Linux and after 1 second on macOS. It logs to stdout.",
+  ),
+  t(
+    "- **Tajné údaje z trezoru.** Aplikace deklaruje jen jména: povinná v `lazurio.runtime.secrets`, volitelná v `optional_secrets`. Hodnoty čte z `LAZURIO_RUNTIME_SECRET_<JMÉNO>`, které Lazurio předá jen procesu aplikace z trezoru Prostředí; bez povinného údaje aplikace nestartuje. Hodnotu uloží uživatel do trezoru, nikdy do `.env` ani do repozitáře.",
+    "- **Secrets from the vault.** The app declares names only: required ones in `lazurio.runtime.secrets`, optional ones in `optional_secrets`. It reads the values from `LAZURIO_RUNTIME_SECRET_<NAME>`, which Lazurio passes from the Environment's vault to the app's own process only; without a required one the app does not start. The user stores the value in the vault, never in `.env` or the repository.",
+  ),
+  t(
+    "- **Sousední moduly.** Čte-li aplikace data jiného modulu, deklaruje ho v `lazurio.runtime.required_module_slots` (`workspace/<slug>` nebo `workspace/<slug>/db`) a čte jen `../<slug>/` od kořene modulu. Volá-li jeho API, deklaruje ho v `required_module_slots` jako `workspace/<slug>` (Lazurio předá adresu jen deklarovanému sousedovi) a bere ji jen z `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` (slug souseda velkými písmeny, ostatní znaky jako `_`) a chybějící proměnnou zvládne typovanou chybou. Nic neimportuje mimo svůj repozitář; sdílený kód je verzovaná závislost.",
+    "- **Sibling modules.** When the app reads another module's data, it declares the module in `lazurio.runtime.required_module_slots` (`workspace/<slug>` or `workspace/<slug>/db`) and reads only `../<slug>/` from the module root. When it calls the sibling's API, it declares the sibling in `required_module_slots` as `workspace/<slug>` (Lazurio passes the address only for a declared sibling) and takes it only from `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` (the sibling's slug in capitals, other characters as `_`) and handles a missing variable with a typed error. It imports nothing outside its repository; shared code is a versioned dependency.",
+  ),
+  t(
+    '- **Sestavená verze.** Z `main` Lazurio spouští sestavenou aplikaci. Statická aplikace deklaruje `build_script` a `build_output` (u SPA `static_fallback: "spa"`) a nemá `secrets`. Aplikace s vlastním serverem deklaruje `start_script`, který spustí produkční server jako jeden proces, a výstup klienta čte z `LAZURIO_RUNTIME_BUILD_OUTPUT`. Při sestavení aplikace nečte listenery ani tajné údaje.',
+    '- **The built version.** From `main` Lazurio runs the built app. A static app declares `build_script` and `build_output` (`static_fallback: "spa"` for a single-page app) and has no `secrets`. An app with its own server declares `start_script`, which starts the production server as one process, and reads the client\'s output from `LAZURIO_RUNTIME_BUILD_OUTPUT`. The build reads no listeners or secrets.',
+  ),
+  t(
+    "- **Uspávání.** Nepoužívaná aplikace z `main` usne a další otevření ji spustí znovu: stav, který má přežít, nedrž jen v paměti.",
+    "- **Sleeping.** An unused app from `main` goes to sleep and the next opening starts it again: keep no state that has to survive only in memory.",
+  ),
+  t(
+    "- **CI šetří minuty.** Linuxová kontrola běží na každý pull request i push do `main`; Windows a macOS jen pro pull request, který mění kód, a na vyžádání, nikdy po merge ani podle plánu.",
+    "- **CI saves minutes.** The Linux check runs on every pull request and push to `main`; Windows and macOS only for a pull request that changes code and on request, never after a merge or on a schedule.",
+  ),
+  blank,
+  t("## Postup převodu", "## Converting a module"),
+  t(
+    "1. Přečti `AGENTS.md` modulu a Organizace a projdi modul proti seznamu výše; zapiš si, co nesedí.",
+    "1. Read the module's and the Organization's `AGENTS.md` and go through the module against the list above; note what does not fit.",
+  ),
+  t(
+    "2. Opravuj v tomto pořadí: start (jeden proces, příprava zvlášť), proměnné a tajné údaje, hranice a sousedé, TypeScript strict a kontroly, generace aplikace, health, sestavená verze. Přesouvá-li se adresář aplikace nebo maže generace, přidej staré cesty výstupů sestavení do kořenového `.gitignore`, jinak existující checkouty uvíznou.",
+    "2. Fix in this order: the start (one process, preparation apart), variables and secrets, boundaries and siblings, TypeScript strict and the checks, app generations, health, the built version. When an app directory moves or a generation is deleted, add the old build output paths to the root `.gitignore`, or existing checkouts get stuck.",
+  ),
+  t(
+    "3. Lease portu mimo pool Organizace přepiš na volný port poolu a mapování starý → nový uveď v pull requestu.",
+    "3. Rewrite a port lease outside the Organization's pool to a free port of the pool, and give the old → new mapping in the pull request.",
+  ),
+  t(
+    "4. Ověř ve worktree se změnou: `bun install --frozen-lockfile`, `bun run check` a `bun test` v každé aplikaci (u služby v Pythonu `uv sync --frozen`, `bun run check` a `bun run test` podle jejího `README.md`), u sestavené verze i `bun run build`. Spuštění přes Platformu (`lazurio module start`) bere modul z primárního checkoutu na `main`, ne z tvého worktree, a může jen převzít už běžící aplikaci; před merge proto změnu neověří. V pull requestu ho uveď jako neověřené a ověř ho až po merge.",
+    "4. Verify in the worktree with the change: `bun install --frozen-lockfile`, `bun run check` and `bun test` in every app (for a Python service `uv sync --frozen`, `bun run check` and `bun run test` as its `README.md` says), and `bun run build` for the built version. A start through the Platform (`lazurio module start`) takes the module from the primary checkout on `main`, not from your worktree, and may only take over an app that is already running; so it does not verify the change before the merge. Say in the pull request that it is unverified and check it after the merge.",
+  ),
+  t(
+    "5. Pull request modulu říká, co před převodem nesedělo a co se záměrně nemění (chování aplikace). Změna Organizace jde samostatným pull requestem do jejího kořene a oba se navzájem odkazují.",
+    "5. The module's pull request says what did not fit before the conversion and what deliberately stays (the app's behaviour). A change of the Organization goes as a separate pull request to its root, and the two link each other.",
+  ),
+  blank,
+  t(
+    "Nikdy neupravuj Lazurio, aby modul „prošel“. Skutečnou mezeru standardu nebo Platformy zapiš jako issue do `Lazurio/LazurioPlatform`, bez obsahu Organizace.",
+    "Never change Lazurio so that a module “passes”. File a real gap of the standard or the Platform as an issue in `Lazurio/LazurioPlatform`, without Organization content.",
+  ),
+  blank,
+  t("## Ověření", "## Verification"),
+  t(
+    "- Každý bod seznamu sedí, nebo pull request jmenuje, co ověřit nešlo a proč.",
+    "- Every item of the list fits, or the pull request names what could not be verified and why.",
+  ),
+  t(
+    "- `bun run check` a `bun test` (u služby v Pythonu `bun run test`) projdou v každé aplikaci.",
+    "- `bun run check` and `bun test` (for a Python service `bun run test`) pass in every app.",
+  ),
+  t(
+    "- Po merge: checkout modulu musí merge obsahovat (`git -C <checkout> merge-base --is-ancestor <merge commit> HEAD`; čistý checkout napřed `git pull --ff-only`). U sestavené aplikace `lazurio module status <Org>/<modul> --json` musí hlásit zdravou aplikaci, v níž `build.served.key` je `build.current.key`, `build.current.commit` je `HEAD` checkoutu, `build.current.dirty` je `false` a `build.building` i `build.failure` jsou `null`; `runtime.url` pak odpoví 200. Sestavení z checkoutu s neuloženými změnami nese commit `HEAD`, ale ty změny ho mohou vracet, proto bez `dirty: false` kontrola neprošla. Vývojovou verzi status k commitu nepřiřadí: ověříš ji jen tehdy, když neběžela a sám ji spustíš `lazurio module start <Org>/<modul> --json` z čistého checkoutu (`git -C <checkout> status --porcelain` nic nevypíše), který zůstane čistý i při ověření. Co z toho status ani checkout neukáže, uveď jako neověřené. Cizí běžící aplikaci kvůli ověření nerestartuj ani nezastavuj; když ověření bez toho nejde, uveď kontrolu přes Platformu jako neověřenou. Zastav jen aplikaci, kterou jsi sám spustil, vždy s celým cílem `lazurio module stop <Org>/<modul>`; na macOS v Launchpadu (CLI odpoví `launchpad-required`).",
+    "- After the merge: the module's checkout must contain the merge (`git -C <checkout> merge-base --is-ancestor <merge commit> HEAD`; a clean checkout gets `git pull --ff-only` first). For a built app, `lazurio module status <Org>/<module> --json` must report a healthy app whose `build.served.key` is `build.current.key`, whose `build.current.commit` is the checkout's `HEAD`, whose `build.current.dirty` is `false`, and whose `build.building` and `build.failure` are `null`; `runtime.url` then answers 200. A build of a checkout with uncommitted changes carries the `HEAD` commit, yet those changes may undo the merge, so without `dirty: false` the check has not passed. The status cannot tie a development version to a commit: verify it only when it was not running and you start it yourself with `lazurio module start <Org>/<module> --json` from a clean checkout (`git -C <checkout> status --porcelain` prints nothing) that stays clean during the verification. Report as unverified whatever neither the status nor the checkout shows. Never restart or stop someone else's running app to verify; when it cannot be verified without that, report the Platform check as unverified. Stop only an app you started yourself, always with the full target `lazurio module stop <Org>/<module>`; on macOS in the Launchpad (the CLI answers `launchpad-required`).",
+  ),
+];
+
 // Each skill's one text for this Folder, in the Folder's locale.
 function skillText(source: InstructionSource, name: SkillName): string {
   const { locale } = source.profile;
@@ -542,6 +918,33 @@ function skillText(source: InstructionSource, name: SkillName): string {
         newModuleDescription,
         { cs: "Nový modul", en: "A new module" },
         newModule(source.preset),
+      );
+    case "ui-craft":
+      return skillDocument(
+        locale,
+        name,
+        uiCraftDescription,
+        { cs: "Řemeslo rozhraní", en: "Interface craft" },
+        uiCraft,
+      );
+    case "henry-review":
+      return skillDocument(
+        locale,
+        name,
+        henryReviewDescription,
+        { cs: "Review personou", en: "Review by the persona" },
+        henryReview,
+      );
+    case "module-standard":
+      return skillDocument(
+        locale,
+        name,
+        moduleStandardDescription,
+        {
+          cs: "Modul podle Lazurio Module Standard",
+          en: "A module to the Lazurio Module Standard",
+        },
+        moduleStandard,
       );
   }
 }

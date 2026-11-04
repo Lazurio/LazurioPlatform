@@ -34,6 +34,7 @@ import { renderOutputs } from "../src/folder/preview";
 import {
   instructionTemplateRevision,
   newModuleLine,
+  uiCraftLine,
 } from "../src/folder/render";
 import { retireIncompletePreparation } from "../src/folder/retire-preparation";
 import { renderSkills } from "../src/folder/skills";
@@ -63,6 +64,14 @@ import personal from "./fixtures/machine-context-personal.json";
 
 const codex = ".agents/skills/new-module/SKILL.md" as const;
 const claude = ".claude/skills/new-module/SKILL.md" as const;
+// The two skills from the Lazurio Root (decision F14, addendum of
+// 2026-11-01).
+const henryCodex = ".agents/skills/henry-review/SKILL.md" as const;
+const henryClaude = ".claude/skills/henry-review/SKILL.md" as const;
+const standardCodex = ".agents/skills/module-standard/SKILL.md" as const;
+const standardClaude = ".claude/skills/module-standard/SKILL.md" as const;
+const uiCraftCodex = ".agents/skills/ui-craft/SKILL.md" as const;
+const uiCraftClaude = ".claude/skills/ui-craft/SKILL.md" as const;
 
 function rendered(journey: (typeof journeys)[number], locale: "cs" | "en") {
   return renderOutputs({
@@ -84,13 +93,38 @@ function frontmatter(text: string) {
 }
 
 test("the skills are outputs after the manual, one file per harness, and a manifest of schema 2 owns none of them", () => {
-  expect(skillPaths).toEqual([codex, claude]);
+  expect(skillPaths).toEqual([
+    codex,
+    claude,
+    henryCodex,
+    henryClaude,
+    standardCodex,
+    standardClaude,
+    uiCraftCodex,
+    uiCraftClaude,
+  ]);
   expect(outputPaths).toEqual(["AGENTS.md", ...manualPaths, ...skillPaths]);
   expect(manualPaths).not.toContain("manual/new-module.md" as never);
-  expect(manifestOutputPaths[3]).toEqual(outputPaths);
+  expect(manifestOutputPaths[5]).toEqual(outputPaths);
+  expect(manifestOutputPaths[3]).toEqual([
+    "AGENTS.md",
+    ...manualPaths,
+    codex,
+    claude,
+  ]);
+  expect(manifestOutputPaths[4]).toEqual([
+    "AGENTS.md",
+    ...manualPaths,
+    codex,
+    claude,
+    henryCodex,
+    henryClaude,
+    standardCodex,
+    standardClaude,
+  ]);
   expect(manifestOutputPaths[2]).toEqual(["AGENTS.md", ...manualPaths]);
-  expect(instructionManifestSchema).toBe(3);
-  expect(folderStateSchemas.manifest).toEqual([2, 3]);
+  expect(instructionManifestSchema).toBe(5);
+  expect(folderStateSchemas.manifest).toEqual([2, 3, 4, 5]);
 });
 
 test("every Environment renders the skill new-module in its locale, the same bytes for Codex and Claude Code: what a module is, the interview first, the agent's technical choices, the plan and the route its preset allows", () => {
@@ -329,7 +363,7 @@ test("the skill has the same sections in both languages on every preset", () => 
   }
 });
 
-test("a manifest of schema 2 owns exactly AGENTS.md and the manual; schema 3 owns every output", () => {
+test("a manifest of schema 2 owns exactly AGENTS.md and the manual, schema 3 adds new-module and schema 4 owns every output", () => {
   const digest = "a".repeat(64);
   const digests = (paths: readonly string[]) =>
     Object.fromEntries(paths.map((path) => [path, digest]));
@@ -343,15 +377,29 @@ test("a manifest of schema 2 owns exactly AGENTS.md and the manual; schema 3 own
   expect(older.schemaVersion).toBe(2);
   expect(Object.keys(older.outputs)).toEqual([...manifestOutputPaths[2]]);
   expect(
-    parseInstructionManifest(manifest(3, outputPaths)).outputs[claude],
+    parseInstructionManifest(manifest(3, manifestOutputPaths[3])).outputs[
+      claude
+    ],
   ).toBe(digest);
-  // Each schema has one set: no skills in a schema 3 manifest, or skills in
-  // a schema 2 manifest, and no other schema.
+  expect(
+    parseInstructionManifest(manifest(5, outputPaths)).outputs[uiCraftClaude],
+  ).toBe(digest);
+  // Each schema has one set: no skills in a schema 2 manifest, only
+  // new-module in a schema 3 manifest, no ui-craft in schema 4, every output
+  // in schema 5, and no other schema.
   expect(() => parseInstructionManifest(manifest(2, outputPaths))).toThrow();
   expect(() =>
     parseInstructionManifest(manifest(3, manifestOutputPaths[2])),
   ).toThrow();
+  expect(() => parseInstructionManifest(manifest(3, outputPaths))).toThrow();
+  expect(() =>
+    parseInstructionManifest(manifest(4, manifestOutputPaths[3])),
+  ).toThrow();
   expect(() => parseInstructionManifest(manifest(4, outputPaths))).toThrow();
+  expect(() =>
+    parseInstructionManifest(manifest(5, manifestOutputPaths[4])),
+  ).toThrow();
+  expect(() => parseInstructionManifest(manifest(6, outputPaths))).toThrow();
 });
 
 // A personal Remote Environment's Folder, as in the refresh tests: hosted, so
@@ -389,7 +437,9 @@ async function renderedBeforeTheSkills(folder: string) {
     const content = `${(await readFile(join(folder, output), "utf8"))
       .replaceAll(instructionTemplateRevision, "base-instructions-50")
       .replaceAll(newModuleLine.cs, "")
-      .replaceAll(newModuleLine.en, "")}\nText of an earlier release.\n`;
+      .replaceAll(newModuleLine.en, "")
+      .replaceAll(uiCraftLine.cs, "")
+      .replaceAll(uiCraftLine.en, "")}\nText of an earlier release.\n`;
     await writeFile(join(folder, output), content);
     outputs[output] = createHash("sha256").update(content).digest("hex");
   }
@@ -428,7 +478,7 @@ async function expectCurrent(folder: string) {
   const manifest = JSON.parse(
     await readFile(join(folder, ".lazurio", "instructions.json"), "utf8"),
   );
-  expect(manifest.schemaVersion).toBe(3);
+  expect(manifest.schemaVersion).toBe(5);
   expect(manifest.templateRevision).toBe(instructionTemplateRevision);
   expect(Object.keys(manifest.outputs)).toEqual([...outputPaths]);
 }
@@ -443,9 +493,15 @@ test.skipIf(process.platform === "win32")(
         ".agents",
         ".agents/skills",
         ".agents/skills/new-module",
+        ".agents/skills/henry-review",
+        ".agents/skills/module-standard",
+        ".agents/skills/ui-craft",
         ".claude",
         ".claude/skills",
         ".claude/skills/new-module",
+        ".claude/skills/henry-review",
+        ".claude/skills/module-standard",
+        ".claude/skills/ui-craft",
       ])
         expect((await lstat(join(folder, directory))).mode & 0o777).toBe(0o700);
     } finally {
@@ -725,3 +781,46 @@ for (const stop of [
       }
     },
   );
+
+// The two skills from the Lazurio Root (decision F14, addendum of
+// 2026-11-01): on every preset and in both locales the same bytes for both
+// harnesses, the same sections in both languages, and the rules an agent
+// needs: the persona's review only through GitHub and only on the exact head,
+// and a module's secrets, siblings and built version as the Platform reads
+// them.
+test("henry-review and module-standard render on every preset with the same sections in both languages and the Platform's rules", () => {
+  for (const journey of journeys) {
+    const cs = rendered(journey, "cs");
+    const en = rendered(journey, "en");
+    for (const [codexPath, claudePath, name] of [
+      [henryCodex, henryClaude, "henry-review"],
+      [standardCodex, standardClaude, "module-standard"],
+    ] as const)
+      for (const outputs of [cs, en]) {
+        expect(outputs[claudePath]).toBe(outputs[codexPath]);
+        expect(frontmatter(outputs[codexPath]).name).toBe(name);
+      }
+    const headings = (text: string) =>
+      text.split("\n").filter((line) => line.startsWith("#")).length;
+    for (const path of [henryCodex, standardCodex])
+      expect(headings(cs[path])).toBe(headings(en[path]));
+    for (const outputs of [cs, en]) {
+      const henry = outputs[henryCodex];
+      expect(henry).toContain("--add-reviewer <login>");
+      expect(henry).toContain("headRefOid,reviews,commits");
+      const standard = outputs[standardCodex];
+      for (const rule of [
+        "LAZURIO_RUNTIME_LISTENER_<ID>_HOST",
+        "LAZURIO_RUNTIME_SECRET_<",
+        "required_module_slots",
+        "LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN",
+        "build_output",
+        "start_script",
+        "LAZURIO_RUNTIME_BUILD_OUTPUT",
+        "lazurio module start",
+        "Lazurio/LazurioPlatform",
+      ])
+        expect(standard).toContain(rule);
+    }
+  }
+});

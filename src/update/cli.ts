@@ -1,4 +1,5 @@
 import { lstat, mkdtemp, rm } from "node:fs/promises";
+import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { handoverBrowserEntry } from "../browser/entry";
@@ -23,10 +24,20 @@ import {
 import { type ExecutorHost, executorStatus } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
 import {
+  foreignEntriesText,
+  foreignEntriesUnreadableText,
+} from "../folder/foreign-entries";
+import {
   type FolderRefresh,
   folderRefreshText,
   shellWord,
 } from "../folder/refresh-needed";
+import {
+  describeFolderStateRefusal,
+  folderStateRefusal,
+  parseFolderStateRefusal,
+} from "../folder/state-error";
+import { FolderStateUnreadable } from "../folder/state-fields";
 import { LaunchpadStartRefused } from "../launchpad/start-check";
 import { hostedOperatorFolder } from "../machine/operator";
 import {
@@ -35,6 +46,16 @@ import {
   processModuleHost,
 } from "../modules/module-operations";
 import type { PersonalspaceHolderRead } from "../organizations/personalspace";
+import type { AccessServiceLocation } from "../ssh-access/access-service";
+import {
+  type EnvironmentSshLocation,
+  hasRouteFiles,
+} from "../ssh-access/environments";
+import {
+  liveRoutesSource,
+  type ReadRoutesSource,
+  type RoutesDeclaration,
+} from "../ssh-access/routes";
 import { runTool } from "../tools/status";
 import {
   type AttestationVerifier,
@@ -62,6 +83,10 @@ import {
   updateEverything,
 } from "./everything";
 import {
+  type FolderRefreshOutcome,
+  refreshFolderWhenBehind,
+} from "./folder-refresh";
+import {
   embeddedFixture,
   embeddedIdentity,
   isProductVersion,
@@ -83,6 +108,7 @@ import {
 } from "./service-control";
 import {
   checkForUpdate,
+  type FolderForeignEntries,
   performUpdate,
   readStatus,
   type UpdateEnvironment,
@@ -154,16 +180,22 @@ update --version <vX.Y.Z[-rc.N]> [--folder <absolute Folder>] [--json]
   version stays active and its Launchpad shows Recovery mode or is not
   running; repair goes forward. Never moves below the highest version this
   installation ever accepted.
-  It never writes the Folder. When the Folder renders an older template
-  revision than the product, the result says "Folder refresh needed" with the
-  exact command (folderRefresh in --json). The Folder is --folder, the
-  supervised unit's, or in a Remote Environment the declared operator's.
+  After the switch, and also when nothing newer is found, the update
+  refreshes the Folder's generated files (AGENTS.md, manual/, the skills)
+  when they record an older template revision than the active version
+  renders: that version's own lazurio machine folder-refresh for the declared
+  operator's Folder in a Remote Environment, otherwise its profile-update
+  with the recorded choices. An edited generated file is never overwritten:
+  a blocked or failed refresh leaves the update successful and is named
+  (folderRefresh in --json: refreshed, unchanged, blocked or failed, with its
+  reason and path). The Folder is --folder, the supervised unit's, or in a
+  Remote Environment the declared operator's.
 update --check [--version <tag>] [--json]
   Verifies and reports; downloads and activates nothing.
   Exit 0 up to date, 10 update available.
 update status [--folder <absolute Folder>] [--json]
-  Running, active and latest known version, and a needed Folder refresh as
-  above; never touches the network.
+  Running, active and latest known version, and a Folder refresh that is
+  still needed (none ran yet, or it was blocked); never touches the network.
 self-check --json [--base <install base>] [--folder <absolute Folder> [--launchpad]]
   What this executable is and whether it can read the install base and the
   Folder's state; --launchpad also runs its Launchpad start read-only on a
@@ -329,11 +361,44 @@ export const executorAtStart =
  * itself then decides whether it needs a setup. */
 export const vaultAtStart = executorAtStart;
 
+/** What the Launchpad of this base finds for the Environment's routes on
+ * each tick (root decision 0224, decision F70's amendment of 2026-11-03,
+ * point 6): where it sets Executor up, what the live handover declares
+ * (`liveRoutesSource`), and a handover it cannot read throws, so the tick
+ * only lets expired routes go. Where it does not, `off` (it keeps no routes
+ * there) unless the Platform's route files are there: a missing or unreadable
+ * handover makes the hosted-operator check itself fail, and such a base was
+ * a hosted operator's, so it is `unconfirmed` and its tick still lets expired
+ * routes go. */
+export const routesAtStart =
+  (
+    context: CliContext,
+    base: string,
+    seams: Readonly<{
+      location?: EnvironmentSshLocation;
+      read?: ReadRoutesSource;
+    }> = {},
+  ) =>
+  async (): Promise<RoutesDeclaration> => {
+    const location = seams.location ?? {
+      home: homedir(),
+      uid: process.getuid?.(),
+    };
+    if (!(await executorAtStart(context, base)().catch(() => false)))
+      return (await hasRouteFiles(location))
+        ? { kind: "unconfirmed" }
+        : { kind: "off" };
+    const source = await (seams.read ?? liveRoutesSource())();
+    return Array.isArray(source)
+      ? { kind: "undeclared" }
+      : { kind: "declared", service: source as AccessServiceLocation };
+  };
+
 export async function updateEnvironment(
   context: CliContext,
   base: string,
-  /** The Folder a needed refresh is reported against; the supervised unit's
-   * when not named. */
+  /** The Folder a run refreshes and status reports against; the supervised
+   * unit's when not named. */
   folder?: string,
 ): Promise<UpdateEnvironment> {
   const fixture = embeddedFixture();
@@ -354,6 +419,17 @@ export async function updateEnvironment(
     service,
     units: serviceUnits(context),
     folder: folder ?? service?.folder,
+    // The active version's own refresh (decision F17's addendum of
+    // 2026-10-30): from the handover for the declared operator's Folder.
+    refreshFolder: (refreshed, product) =>
+      refreshFolderWhenBehind({
+        base,
+        folder: refreshed,
+        product,
+        env: context.env,
+        operatorFolder: context.hostedFolder,
+        run: context.run,
+      }),
     entryUnits: () =>
       convergeEntryUnits({
         base,
@@ -400,8 +476,9 @@ export async function updateEnvironment(
  * Also undefined, deliberately, where a hosted context is there but
  * unreadable (`hostedFolder` rejects, #83): none of these commands acts on a
  * Folder it was not given, so without one `organization`, `module` refuse as
- * `folder-unknown`, `chat link` answers without an entry and `update` reports
- * no Folder refresh; `lazurio doctor` names the unreadable handover. Only the
+ * `folder-unknown`, `chat link` answers without an entry and `update` neither
+ * refreshes nor reports a Folder; `lazurio doctor` names the unreadable
+ * handover. Only the
  * gh gate of `lazurio tools`, whose "none" would allow a person's sign-in,
  * reads the seam itself and refuses. */
 export async function standardFolder(
@@ -453,10 +530,15 @@ function render(result: Result, json: boolean, human: string): CommandOutput {
   // The one context value a person needs: which state a person must look at.
   // What the other parts of `lazurio update` did stays on stdout.
   const path = error.context.path;
+  // A candidate that could not read the Folder's state says what about it.
+  const folderState =
+    error.context.reason === "folder-state"
+      ? parseFolderStateRefusal(error.context)
+      : undefined;
   return Object.freeze({
     code,
     ...(human === "" ? {} : { stdout: human }),
-    stderr: `Update failed: ${error.code}${path === undefined ? "" : ` (${path})`}`,
+    stderr: `Update failed: ${error.code}${path === undefined ? "" : ` (${path})`}${folderState === undefined ? "" : `: the new version cannot read the Folder's state: ${describeFolderStateRefusal(folderState)}`}`,
   });
 }
 
@@ -513,8 +595,19 @@ export async function selfCheckCommand(
       ),
     });
   } catch (error) {
-    // No reason is printed: it could quote Folder content or a private path.
-    // A refused Launchpad probe names only its enumerated condition.
+    // No error message is printed: it could quote Folder content or a
+    // private path. A refused Launchpad probe names only its enumerated
+    // condition. A Folder state this version cannot read names its document,
+    // its condition, the field or output it is about and the template
+    // revisions, each in a checked shape (#782).
+    if (error instanceof FolderStateUnreadable) {
+      const refusal = folderStateRefusal(error);
+      return Object.freeze({
+        code: exitFailure,
+        stdout: JSON.stringify({ folderStateRefused: refusal }),
+        stderr: `Self-check failed: the Folder's state cannot be read by this version: ${describeFolderStateRefusal(refusal)}`,
+      });
+    }
     return Object.freeze({
       code: exitFailure,
       ...(error instanceof LaunchpadStartRefused
@@ -919,8 +1012,8 @@ export async function runUpdateCommand(
     if (values.version !== undefined && exact === undefined)
       throw new UsageError("--version <vX.Y.Z[-rc.N]>");
     const base = installBase(context, values.base);
-    // The Folder a needed refresh is reported against: the named one, the
-    // supervised unit's, or on a hosted Machine the declared operator's.
+    // The Folder a run refreshes and status reports against: the named one,
+    // the supervised unit's, or on a hosted Machine the declared operator's.
     let environment = await updateEnvironment(context, base, values.folder);
     if (environment.folder === undefined)
       environment = Object.freeze({
@@ -952,6 +1045,7 @@ export async function runUpdateCommand(
                 ? [`state-invalid: ${status.stateInvalid}`]
                 : []),
               ...refresh(status.folderRefresh),
+              ...foreignLines(status.folderForeignEntries),
             ].join("\n")
           : "",
       );
@@ -1006,10 +1100,53 @@ export async function runUpdateCommand(
   }
 }
 
+/** What an agent does when the update's Folder refresh was refused, by the
+ * refusal's code (decision F17's addendum of 2026-10-30). */
+const refusalNext: Readonly<Record<string, string>> = {
+  drift:
+    "It was changed by hand and is never overwritten: with the user's consent, move their change out of it, then run the same lazurio update again.",
+  "unsafe-path":
+    "It is not a plain file of this account and is never overwritten: with the user's consent, move it away, then run the same lazurio update again.",
+  "folder-foreign-entry":
+    "It is not the Folder's own: with the user's consent, move it out of the Folder, then run the same lazurio update again.",
+  "folder-busy":
+    "Another Lazurio operation held the Folder; the next lazurio update refreshes it.",
+  "template-upgrade-required":
+    "A newer Lazurio rendered this Folder, and it is never downgraded.",
+};
+
+/** The Folder refresh of the run in words, for agents: nothing when none was
+ * needed or it changed nothing. */
+function refreshLines(outcome: FolderRefreshOutcome | null): string[] {
+  if (outcome === null || outcome.state === "unchanged") return [];
+  if (outcome.state === "refreshed")
+    return [
+      "Refreshed the Folder's generated files (AGENTS.md, manual/, the skills) for this version.",
+    ];
+  const named = `${outcome.reason ?? "internal"}${outcome.path === undefined ? "" : `: ${outcome.path}`}`;
+  if (outcome.state === "failed")
+    return [
+      `The Folder's generated files could not be refreshed (${named}). lazurio doctor names the Folder's state; an interrupted refresh is completed with lazurio profile-resume.`,
+    ];
+  return [
+    `The Folder's generated files were not refreshed (${named}). ${
+      refusalNext[outcome.reason ?? ""] ??
+      "Nothing was written; resolve it, then run the same lazurio update again."
+    }`,
+  ];
+}
+
+/** A hosted Folder's foreign top-level entries (decision F10's addendum of
+ * 2026-11-03): one line naming them and where they belong. */
+function foreignLines(value: FolderForeignEntries | undefined): string[] {
+  if (value === undefined) return [];
+  return "unreadable" in value
+    ? [foreignEntriesUnreadableText(value.folder)]
+    : [foreignEntriesText(value.folder, value.entries)];
+}
+
 /** The product's own lines after `lazurio update`. */
 function productText(result: UpdateResult): string {
-  const refresh = (value: FolderRefresh | null) =>
-    value === null ? [] : [folderRefreshText(value)];
   return result.kind === "updated"
     ? [
         `Updated from ${result.from} to ${result.to}.${
@@ -1017,7 +1154,8 @@ function productText(result: UpdateResult): string {
             ? " A running Launchpad finishes the update when it restarts."
             : ""
         }`,
-        ...refresh(result.folderRefresh),
+        ...refreshLines(result.folderRefresh),
+        ...foreignLines(result.folderForeignEntries),
         ...codexFinding(result.codexAppServer),
         ...browserFinding(result.environmentBrowser),
         ...computerUseFinding(result.computerUse),
@@ -1026,7 +1164,8 @@ function productText(result: UpdateResult): string {
     : result.kind === "up-to-date"
       ? [
           `Lazurio ${result.running} is up to date.`,
-          ...refresh(result.folderRefresh),
+          ...refreshLines(result.folderRefresh),
+          ...foreignLines(result.folderForeignEntries),
           ...codexFinding(result.codexAppServer),
           ...browserFinding(result.environmentBrowser),
           ...computerUseFinding(result.computerUse),

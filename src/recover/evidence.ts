@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:os";
 import { isTemplateRevision } from "../folder/render";
+import { folderStateContextRules } from "../folder/state-error";
 import { healthSocketChecks, startRefusals } from "../launchpad/start-check";
 import {
   type ErrorContext,
@@ -157,6 +158,10 @@ export const contextRules: Readonly<
   product: revisionId,
   target: oneOf(updateTargets),
   errno: oneOf(Object.keys(constants.errno)),
+  // A Folder state this version cannot read (#782): its condition, document,
+  // the product's own field or output name, an output's fixed area and
+  // whether the Folder's template is newer. Never a recorded key.
+  ...folderStateContextRules,
 });
 
 export const tierOneContext = (context: ErrorContext): ErrorContext =>

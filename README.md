@@ -73,6 +73,7 @@ remain on their current implementation until then.
 - [Hosted entry: admission versus identity](docs/hosted-entry.md)
 - [Acceptance and implementation slices](docs/acceptance.md)
 - [Stack experiment and evidence](docs/stack-evidence.md)
+- [Stack profiles of Modules](docs/stack-profiles.md)
 - [Agent contribution contract](AGENTS.md)
 
 The target includes local and hosted human work, Buddy and AI Colleague environments.

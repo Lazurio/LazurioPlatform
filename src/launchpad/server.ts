@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { realpath } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Server } from "bun";
 import {
@@ -27,6 +28,11 @@ import { createBuddySignIn } from "../buddy/sign-in";
 import { buddyStatus, readBuddyFacts } from "../buddy/status";
 import { type BotChecker, createBuddyTelegram } from "../buddy/telegram";
 import { createTelegramRestart } from "../buddy/telegram-restart";
+import { processConnectionsHost } from "../connections/host";
+import {
+  type ConnectionsHost,
+  createConnections,
+} from "../connections/pairing";
 import { createPersonalspaceHolder } from "../content/holder";
 import {
   type ContentHost,
@@ -40,6 +46,7 @@ import { readSyncRecord, type SyncRequest, syncContent } from "../content/sync";
 import type { ExecutorHost } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
 import { type DocumentsHost, processDocumentsHost } from "../files/documents";
+import { type AgentsSwitch, enableToolForAgents } from "../folder/enable-tool";
 import { inspectProfileChange } from "../folder/inspect-profile-change";
 import {
   inspectToolsChange,
@@ -92,6 +99,13 @@ import { readOrganizationApplications } from "../organizations/read-applications
 import type { RecoveryResult } from "../recover/recover";
 import { newTabPagePath } from "../shell/new-tab-protocol";
 import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
+import {
+  expireRoutes,
+  liveRoutesSource,
+  type RoutesDeclaration,
+  runEnvironmentRoutes,
+  syncEnvironmentRoutes,
+} from "../ssh-access/routes";
 import { shellThemeOf } from "../theme/palettes";
 import {
   fileThemeStore,
@@ -120,6 +134,7 @@ import {
   createLoginSessions,
   type LoginEnvironment,
   type LoginState,
+  type SignedInState,
   type SignInPage,
 } from "../tools/login";
 import {
@@ -129,7 +144,7 @@ import {
 } from "../tools/overview";
 import { qrMatrix, qrSvg } from "../tools/qr";
 import { createSshProofs } from "../tools/ssh-key";
-import { resolveOnPath } from "../tools/status";
+import { resolveOnPath, runTool } from "../tools/status";
 import type { GithubAction } from "../tools/team-github";
 import { toolsUpdate } from "../tools/update";
 import {
@@ -148,6 +163,7 @@ import { launchpadBoot, vaultInAppsOf, withBoot } from "./boot-document";
 import { createBuddyRoutes } from "./buddy-routes";
 import { telegramPairingLine } from "./buddy-view";
 import { createCatalogReading, organizationsOnly } from "./catalog-reading";
+import { withGuestAccess } from "./catalog-view";
 import {
   asksForBuddy,
   chatPairingPath,
@@ -158,11 +174,17 @@ import {
   mintChatPairing,
   publicEntry,
 } from "./chat";
+import { createConnectionsRoutes } from "./connections-routes";
 import { createContentRoutes } from "./content-routes";
 import { prepareContext } from "./content-view";
 import { createExecutorRoutes, isExecutorJob } from "./executor-routes";
 import { createFilesRoutes, maxRequestBytes } from "./files-routes";
-import { shellSetup, signsInAsPerson } from "./first-run";
+import {
+  hasOnboarding,
+  ownAccount,
+  responsibleLogin,
+  shellSetup,
+} from "./first-run";
 import { guideVideoPath } from "./guide-video";
 import { guideVideoAnswer, isGuideVideoPath } from "./guide-video-files";
 import { serveHealthSocket } from "./health-socket";
@@ -178,6 +200,11 @@ import {
   type IntegrationsSeams,
 } from "./integrations-routes";
 import { BodyTooLarge, readJsonBody } from "./json-body";
+import { isAdoptionPromptId } from "./marketplace";
+import {
+  createMarketplaceRegistry,
+  type MarketplaceRegistry,
+} from "./marketplace-registry";
 import {
   issueMausbotLink,
   mausbotPairingPath,
@@ -212,6 +239,7 @@ import {
   serveShell,
 } from "./page";
 import {
+  adoptionDocument,
   isOrganizationPrompt,
   isPromptId,
   personalModuleDocument,
@@ -397,6 +425,10 @@ export const shellDocumentPath = "/.lazurio/shell.json";
  * answers with what the Folder records. */
 const settingsWaitMs = 5_000;
 
+/** How long the answer of a sign-in's outcome waits for "Používají agenti"
+ * to follow it (F19's addendum of 2026-10-28) before it answers anyway. */
+const switchWaitMs = 5_000;
+
 /** How long the page's boot document may wait for the Folder's lock, and
  * for everything it reads (F36's addendum of 2026-10-08): the page is never
  * held longer for it. */
@@ -407,6 +439,7 @@ const bootWithinMs = 500;
  * Environment was assigned to someone else, so its Správci leave the vault
  * (F53's addendum of 2026-10-14). */
 const vaultAudienceEveryMs = 5 * 60_000;
+const routesEveryMs = 60_000;
 
 /** The tailnet control server the Machine handover names (decision F41);
  * none where there is no readable handover, as on a workstation. */
@@ -650,6 +683,11 @@ export async function startLaunchpad(
      * ChatGPT's apps (decision F42's addendum of 2026-10-27): exactly where
      * it sets Executor up (`executorAtStart`). Absent: it never does. */
     codexAppsAtStart?: (() => Promise<boolean>) | undefined;
+    /** What this Launchpad finds for the Environment's routes on each tick
+     * (root decision 0224; `routesAtStart`): `off` where it keeps none, else
+     * the live handover's declaration; thrown when the handover cannot be
+     * read. Absent: it never keeps them. */
+    routesAtStart?: (() => Promise<RoutesDeclaration>) | undefined;
   }>,
   hostedOptions: HostedOptions = {},
   // Where the tools screen reads its live facts: this process's PATH and
@@ -660,11 +698,13 @@ export async function startLaunchpad(
     process.platform,
   ),
   // Test seams of the curated install and login (decision F19): the
-  // official-source fetcher, the architecture and the login timings.
+  // official-source fetcher, the architecture, the login timings and the
+  // switch that follows a sign-in (F19's addendum of 2026-10-28).
   curatedOptions: Readonly<{
     fetch?: InstallFetch;
     arch?: string;
     login?: Partial<LoginEnvironment>;
+    switchOn?: (folder: string, tool: string) => Promise<AgentsSwitch>;
   }> = {},
   // The recovery use case of this installation (`lazurio recover`), for the
   // read-only Recovery view of Settings. Trusted composition, never HTTP
@@ -724,6 +764,22 @@ export async function startLaunchpad(
   // operator's Codex and Claude Code. Trusted composition, never HTTP
   // input; tests supply answers.
   ai: AiProbe = createAiProbe(toolsEnvironment),
+  // Where Settings → Connections pairs a phone (decision F71): the
+  // operator's Codex daemon, its unit and its configuration. Trusted
+  // composition, never HTTP input; tests supply a fake control socket.
+  connectionsHost?: ConnectionsHost | undefined,
+  // Where the Marketplace's offers come from (plan DEV-6593,
+  // marketplace-registry.ts): the registry on GitHub for an installed
+  // Launchpad, which keeps its last index in the install base; any other
+  // shows the copy built into this release and never asks. Trusted
+  // composition, never HTTP input; tests supply their own.
+  marketplace: MarketplaceRegistry = createMarketplaceRegistry({
+    fetch: installed === undefined ? null : (url, init) => fetch(url, init),
+    cacheFile:
+      installed === undefined
+        ? null
+        : join(installed.base, "marketplace", "registry.json"),
+  }),
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -896,6 +952,72 @@ export async function startLaunchpad(
   // A setup goes on after its answer: its end drops the reading again.
   const forgetToolsAfter = (ended: Promise<void>) =>
     void ended.catch(() => undefined).then(() => toolsReading.forget());
+  // "Používají agenti" follows a sign-in this Launchpad completed (Matěj
+  // 2026-10-04, F19's addendum of 2026-10-28, #682): this process turns it
+  // on in its Folder as the sign-in ends, at the current revision, whichever
+  // page started it (Začínáme, Nástroje, Integrace) and whether or not the
+  // page is still open. Never for a tool that was signed in before, one
+  // without the switch (a required one; codex and claude are no catalog
+  // tools of agents) or one the switch would refuse (decisions F44, F45).
+  // A person may turn it off again. Each one is journaled: the tool and
+  // what became of the switch, nothing else. Every switch under way is kept
+  // until it settles, so a closing Launchpad waits for each one, and each
+  // outcome keeps its own: its answer waits for that switch and never for
+  // another sign-in's of the same tool (Pablo's review of #702).
+  const switching = new Set<Promise<void>>();
+  const switchOf = new WeakMap<SignedInState, Promise<void>>();
+  const switchOn = curatedOptions.switchOn ?? enableToolForAgents;
+  const switchOnAfter = (signedIn: SignedInState) => {
+    const tool = signedIn.tool;
+    if (signedIn.already === true) return;
+    const entry = activatableTools().find((each) => each.name === tool);
+    if (entry === undefined || entry.activation.tier === "required") return;
+    const journal = (outcome: string, reason?: string) =>
+      console.log(
+        JSON.stringify({
+          scope: "tools-agents",
+          tool,
+          outcome,
+          ...(reason === undefined ? {} : { reason }),
+        }),
+      );
+    const switched: Promise<void> = switchOn(folder, tool)
+      .then(
+        (result) => {
+          journal(
+            result.kind,
+            result.kind === "refused" ? result.reason : undefined,
+          );
+          // As after the switch itself: Integrace read again (Nástroje
+          // read the recorded selection every time).
+          integrations.forget();
+        },
+        () => journal("failed"),
+      )
+      .finally(() => switching.delete(switched));
+    switching.add(switched);
+    // The sessions hand this same outcome to its holder (`start`, `poll`).
+    switchOf.set(signedIn, switched);
+  };
+  // A sign-in's outcome is answered once its own switch followed it, so the
+  // page's reading after it shows the switch as it is; bounded, where the
+  // Folder is held longer the page's next reading shows it.
+  const switchedAfter = async (outcome: LoginState) => {
+    const switched =
+      outcome.kind === "signed-in" ? switchOf.get(outcome) : undefined;
+    if (switched === undefined) return;
+    let late: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        switched,
+        new Promise<void>((resolve) => {
+          late = setTimeout(resolve, switchWaitMs);
+        }),
+      ]);
+    } finally {
+      clearTimeout(late);
+    }
+  };
   // The curated logins of this Launchpad (decision F19): in memory, held by
   // the browser that started each one through its session handle, ended on
   // completion, cancel, expiry and shutdown.
@@ -923,6 +1045,7 @@ export async function startLaunchpad(
         setup.forget();
       }
     },
+    afterSignIn: switchOnAfter,
     signInPage: launchpadSignInPage(entry, () =>
       integrationSeams?.environmentBrowser !== undefined
         ? integrationSeams.environmentBrowser
@@ -945,8 +1068,8 @@ export async function startLaunchpad(
   const chatPrompts = createChatPromptCheck(toolsEnvironment);
   // What this Environment still lacks (root decision 0188), for the shell
   // document's `setup` and the prompt `prepare-content`: GitHub's sign-in of
-  // its person, kept a minute, and its content as the content routes report
-  // it (below).
+  // its person (on the Automated Environment its persona's), kept a minute,
+  // and its content as the content routes report it (below).
   const github = createGithubProbe(toolsWithProofs);
   let closing = false;
   const headers = {
@@ -1048,12 +1171,13 @@ export async function startLaunchpad(
     headers,
     personalspace: personalspace.decide,
     // The content never before AI (root decision 0201 point 3, the same
-    // rule as the page's `contentBlockedBy`): where the Environment signs in
-    // as its person, an AI that every CLI answered is missing refuses the
-    // start. One that could not be checked does not.
+    // rule as the page's `contentBlockedBy`): where the Environment has the
+    // onboarding (the Automated one too, F27's addendum of 2026-10-30), an
+    // AI that every CLI answered is missing refuses the start. One that
+    // could not be checked does not.
     refuseInstall: async () => {
       const preset = await folderPreset(folder).catch(() => undefined);
-      if (preset === undefined || !signsInAsPerson(preset) || publicEnvironment)
+      if (preset === undefined || !hasOnboarding(preset) || publicEnvironment)
         return null;
       return (await ai.state()).state === "missing" ? "ai-missing" : null;
     },
@@ -1180,6 +1304,33 @@ export async function startLaunchpad(
     },
     headers,
     journal: (line) => console.log(JSON.stringify(line)),
+  });
+  // Settings → Connections → Telefon přes ChatGPT (decision F71): the
+  // Codex daemon's remote control, one pending pairing in this process's
+  // memory; journaled without any code.
+  const connections = createConnections(
+    connectionsHost ??
+      processConnectionsHost({
+        env: process.env,
+        platform: process.platform,
+        run: toolsEnvironment.run,
+        ai,
+        kind: async () => {
+          const current = await withFolderReadLock(state, () =>
+            readFolderState(state),
+          );
+          const preset = current.preferences.preset.name;
+          return Object.hasOwn(presetKinds, preset)
+            ? environmentKind(preset as PresetName, current.preferences.machine)
+            : null;
+        },
+        folder: () => realpath(folder),
+      }),
+    { journal: (line) => console.log(JSON.stringify(line)) },
+  );
+  const connectionRoutes = createConnectionsRoutes({
+    connections: () => connections,
+    headers,
   });
   // The Environment's theme (root decision 0208): one record of this Folder
   // in the install base, which `lazurio theme` changes too; a development run
@@ -1354,10 +1505,14 @@ export async function startLaunchpad(
       readFolderState(state),
     );
     const preset = current.preferences.preset.name;
-    if (!signsInAsPerson(preset) || publicEnvironment) return undefined;
+    if (!hasOnboarding(preset) || publicEnvironment) return undefined;
+    // The Automated Environment's soft check (F27's addendum of
+    // 2026-10-30): the responsible user's own account where the persona's
+    // belongs counts as missing, as Začínáme counts it.
+    const responsible = responsibleLogin(preset, current.preferences.machine);
     const [reading, signIn, read, buddyFact] = await Promise.all([
       ai.state(),
-      github.state(),
+      github.reading(),
       readContent(contentState),
       // Buddy's step where the entry names him (decision F65): his sign-in
       // as Hermes's card says it and whether his names were confirmed.
@@ -1373,7 +1528,9 @@ export async function startLaunchpad(
     return shellSetup({
       preset,
       ai: reading.state,
-      github: signIn,
+      github: ownAccount(signIn.account, responsible)
+        ? "own-account"
+        : signIn.state,
       ...read,
       ...(buddyFact === undefined ? {} : { buddy: buddyFact }),
     });
@@ -1638,11 +1795,9 @@ export async function startLaunchpad(
             (hostedOptions.offlineTailnet ?? machineTailnet)(),
             themeStore.read(),
           ]);
-          // GitHub and the content only where the Environment signs in as
-          // its person (setup-state.ts).
-          const known = signsInAsPerson(inputs.preset)
-            ? setup.peek()
-            : undefined;
+          // GitHub and the content only where the Environment has the
+          // onboarding (setup-state.ts).
+          const known = hasOnboarding(inputs.preset) ? setup.peek() : undefined;
           // Whether the elements register the offline guide's worker
           // (decision F41): only where the worker's address serves it. The
           // Environment's theme always (root decision 0208).
@@ -1716,8 +1871,38 @@ export async function startLaunchpad(
         const id = promptRequest[1] as string;
         const login = url.searchParams.get("org");
         const keys = [...url.searchParams.keys()];
-        if (!isPromptId(id) || keys.some((key) => key !== "org"))
-          return notFound();
+        if (keys.some((key) => key !== "org")) return notFound();
+        if (isAdoptionPromptId(id)) {
+          // A Marketplace adoption (plan DEV-6593): an offer and seed of the
+          // catalog the page showed, while the Launchpad still serves it,
+          // for an Organization of this Folder bound to the link's login,
+          // only while its offer's release is recorded (prompts.ts
+          // `adoptionDocument`).
+          if (login === null || keys.length !== 1) return notFound();
+          try {
+            await marketplace.read();
+            const organization = promptOrganization(
+              organizationsOnly(await catalog.read()),
+              login,
+            );
+            if (organization === null) return notFound();
+            const current = await withFolderReadLock(state, () =>
+              readFolderState(state),
+            );
+            const document = adoptionDocument(
+              marketplace.catalogs(),
+              id,
+              folder,
+              organization,
+              folderMessages(current.preferences),
+              current.preferences.profile.locale === "cs" ? "cs" : "en",
+            );
+            return document === null ? notFound() : response(document);
+          } catch {
+            return notFound();
+          }
+        }
+        if (!isPromptId(id)) return notFound();
         if (promptAudience(id) === "personalspace-holder") {
           // The personal space's "+ Nový modul" (`new-personal-module`):
           // only for the account that holds the Personalspace, decided now
@@ -1743,16 +1928,17 @@ export async function startLaunchpad(
         }
         if (!isOrganizationPrompt(id)) {
           // The Folder's prompt (`prepare-content`): only on an Environment
-          // that signs in as its person, only while the last installation
-          // stopped, and, when the link names a login, only for the content
-          // of that login (the Organization, or the person for the
-          // Personalspace).
+          // with the onboarding (the Automated one's responsible user
+          // included, F27's addendum of 2026-10-30), only while the last
+          // installation stopped, and, when the link names a login, only for
+          // the content of that login (the Organization, or the person for
+          // the Personalspace).
           if (keys.length > 1) return notFound();
           try {
             const current = await withFolderReadLock(state, () =>
               readFolderState(state),
             );
-            if (!signsInAsPerson(current.preferences.preset.name))
+            if (!hasOnboarding(current.preferences.preset.name))
               return notFound();
             const copy = folderMessages(current.preferences);
             const read = await readContent(contentState);
@@ -2210,6 +2396,17 @@ export async function startLaunchpad(
           return response({ error: "operation-failed" }, 500);
         }
       }
+      if (connectionRoutes.handles(url.pathname)) {
+        if (closing) return response({ error: "closing" }, 503);
+        // A pairing may turn remote control on and wait for it; a restart
+        // waits for Codex to start again.
+        server.timeout(request, 60);
+        try {
+          return await connectionRoutes.handle(request, url);
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
       if (ssh.handles(url.pathname)) {
         if (closing) return response({ error: "closing" }, 503);
         try {
@@ -2359,6 +2556,16 @@ export async function startLaunchpad(
               catalog.forget();
           }
         }
+        if (url.pathname === "/api/marketplace") {
+          // The Marketplace's offers (plan DEV-6593): the registry read at
+          // one commit, or the copy built into this release, and which of
+          // the two it is, with whether the registry is being asked right
+          // now (the open page then reads again once that question is
+          // over). Nothing is written but the registry's kept index.
+          stateFields(input, []);
+          const offers = await marketplace.read();
+          return response({ ...offers, checking: marketplace.checking() });
+        }
         if (url.pathname === "/api/catalog") {
           // The Launchpad home (launchpad-parity B1): the Organizations and
           // modules of this Folder, the same catalog as `lazurio organization
@@ -2367,7 +2574,18 @@ export async function startLaunchpad(
           // Personalspace group follows the last decision whose it is and
           // never waits for GitHub (#186).
           stateFields(input, []);
-          return response(await catalog.read());
+          // A guest whose access was lost stays checked out; the last
+          // synchronization's answer hides it in Apps (F67's addendum of
+          // 2026-11-01). Without a record nothing is marked.
+          const read = await catalog.read();
+          return response(
+            syncHost === undefined
+              ? read
+              : withGuestAccess(
+                  read,
+                  await readSyncRecord(syncHost.lockDirectory, folder),
+                ),
+          );
         }
         if (url.pathname === "/api/profile") {
           stateFields(input, []);
@@ -2830,8 +3048,12 @@ export async function startLaunchpad(
               ...(value.deviceCode === true ? { deviceCode: true } : {}),
             });
             // Signed in: what connects the apps changed (decision F42,
-            // note of 2026-10-19), so Integrace read again.
-            if (started.kind === "signed-in") integrations.forget();
+            // note of 2026-10-19), so Integrace read again, once the
+            // switch followed it.
+            if (started.kind === "signed-in") {
+              await switchedAfter(started);
+              integrations.forget();
+            }
             // A refusal before anything ran (codex and claude without the
             // Environment browser, or with the Organization's AI) is one as
             // every other.
@@ -2858,7 +3080,10 @@ export async function startLaunchpad(
             url.pathname === "/api/tools/login/poll"
               ? withQr(logins.poll(tool, handle))
               : logins.cancel(tool, handle);
-          if (answered.kind === "signed-in") integrations.forget();
+          if (answered.kind === "signed-in") {
+            await switchedAfter(answered);
+            integrations.forget();
+          }
           return response(answered);
         }
         if (
@@ -3062,6 +3287,42 @@ export async function startLaunchpad(
       lookAtAudience();
       audienceTimer = setInterval(lookAtAudience, vaultAudienceEveryMs);
     })().catch(() => undefined);
+  // The Environment's routes (root decision 0224): where the handover
+  // declares the home access service, one synchronization once the
+  // Launchpad listens and then every minute, one at a time, never awaited
+  // and never a reason for the start to fail. The service re-derives every
+  // minute and a target's deadline is at most 210 s after its facts were
+  // read, so a route stays while the service confirms it and goes within
+  // one minute after its deadline when it does not.
+  // Every tick reads the live handover again (review of #833), so a
+  // declaration added, replaced or removed after start takes effect within a
+  // minute and an old origin is never asked again; without a declaration,
+  // with a handover it cannot read, or on a base that cannot show it is
+  // hosted but has route files, a tick only lets expired routes go, and
+  // whatever it writes it writes under the routes lock for the declaration
+  // still current (`runEnvironmentRoutes`, decision F70's amendment of
+  // 2026-11-03).
+  const routesAtStart = installed?.routesAtStart;
+  let stopRoutes: (() => void) | undefined;
+  if (routesAtStart !== undefined) {
+    const location = { home: homedir(), uid: process.getuid?.() };
+    stopRoutes = runEnvironmentRoutes(
+      async () => (closing ? { kind: "off" } : routesAtStart()),
+      (service) =>
+        syncEnvironmentRoutes(location, service, {
+          run: runTool,
+          now: Date.now,
+          current: liveRoutesSource(),
+        }),
+      () => expireRoutes(location, Date.now),
+      {
+        everyMs: routesEveryMs,
+        setInterval: (tick, ms) => setInterval(tick, ms),
+        clearInterval: (handle) =>
+          clearInterval(handle as ReturnType<typeof setInterval>),
+      },
+    );
+  }
   let closePending: ReturnType<
     ReturnType<typeof createApplicationLifecycle>["close"]
   > | null = null;
@@ -3090,6 +3351,7 @@ export async function startLaunchpad(
     close() {
       closing = true;
       clearInterval(audienceTimer);
+      stopRoutes?.();
       catalog.close();
       buddyPersona.close();
       buddyTelegramRestart.close();
@@ -3111,6 +3373,9 @@ export async function startLaunchpad(
           await shell?.stop();
           await health?.stop(true);
           await loginClose;
+          // Each switch that follows a sign-in is a Folder change: it
+          // completes.
+          await Promise.allSettled(switching);
           await settingsClose;
           const result = applicationClose
             ? await applicationClose

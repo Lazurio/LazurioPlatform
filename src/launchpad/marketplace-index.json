@@ -1,0 +1,358 @@
+{
+  "schemaVersion": "lazurio.marketplace.index.v1",
+  "offers": [
+    {
+      "schemaVersion": "lazurio.marketplace.offer.v1",
+      "id": "design-system",
+      "section": "app-templates",
+      "title": "Design System",
+      "module": "design-system",
+      "repository": "LazurioTemplates/design-system",
+      "publisher": "LazurioTemplates",
+      "license": "MIT",
+      "stone": "palette",
+      "pricing": "free",
+      "summary": {
+        "cs": "Barvy, písmo, komponenty a pravidla psaní vaší Organizace na jednom místě.",
+        "en": "Your Organization's colours, type, components and writing rules in one place."
+      },
+      "features": [
+        {
+          "title": {
+            "cs": "Základy značky",
+            "en": "Brand foundations"
+          },
+          "text": {
+            "cs": "Barvy, typografie, mezery a hlas značky jako tokeny. Testy hlídají, že dvojice barev, které komponenty používají, mají kontrast WCAG AA ve světlém i tmavém režimu.",
+            "en": "Colours, type, spacing and the brand's voice as tokens. Tests make sure the colour pairs the components use reach WCAG AA contrast in light and dark mode."
+          }
+        },
+        {
+          "title": {
+            "cs": "Komponenty a vzory",
+            "en": "Components and patterns"
+          },
+          "text": {
+            "cs": "Tlačítka, formuláře, tabulky, dialogy a další komponenty se stavy a přístupností, a vzory jako validace formulářů nebo nevratné akce.",
+            "en": "Buttons, inputs, tables, dialogs and other components with their states and accessibility, and patterns such as form validation and irreversible actions."
+          }
+        },
+        {
+          "title": {
+            "cs": "Jeden zdroj pro lidi i agenta",
+            "en": "One source for people and agents"
+          },
+          "text": {
+            "cs": "Agent ani kolega nevymýšlí barvy a rozvržení znovu. Web, prezentace, dokumenty i interní nástroje vycházejí ze stejných pravidel.",
+            "en": "Neither your agent nor a colleague invents colours and layouts again. The website, presentations, documents and internal tools follow the same rules."
+          }
+        }
+      ],
+      "seeds": {
+        "empty": {
+          "label": {
+            "cs": "Vlastní značkou",
+            "en": "Your own brand"
+          },
+          "brief": {
+            "cs": "značkou mé Organizace (ukázkovou značku nahraď podle INITIALIZATION.md)",
+            "en": "my Organization's brand (replace the example brand following INITIALIZATION.md)"
+          }
+        },
+        "sample": {
+          "label": {
+            "cs": "Ukázkovou značkou",
+            "en": "The example brand"
+          },
+          "brief": {
+            "cs": "ukázkovou značkou z vydání",
+            "en": "the example brand from the release"
+          }
+        }
+      },
+      "screenshots": [
+        {
+          "path": "docs/screenshots/overview.webp",
+          "alt": {
+            "cs": "Přehled design systému",
+            "en": "The overview of the design system"
+          }
+        },
+        {
+          "path": "docs/screenshots/components-gallery.webp",
+          "alt": {
+            "cs": "Galerie komponent",
+            "en": "The gallery of components"
+          }
+        },
+        {
+          "path": "docs/screenshots/tokens-dark.webp",
+          "alt": {
+            "cs": "Barevné tokeny v tmavém režimu s kontrastem",
+            "en": "The colour tokens in dark mode with their contrast"
+          }
+        },
+        {
+          "path": "docs/screenshots/screen-experiments.webp",
+          "alt": {
+            "cs": "Ukázková obrazovka postavená z komponent",
+            "en": "An example screen built from the components"
+          }
+        },
+        {
+          "path": "docs/screenshots/screen-stop-or-scale-dialog.webp",
+          "alt": {
+            "cs": "Dialog nevratné akce na ukázkové obrazovce",
+            "en": "The dialog of an irreversible action on an example screen"
+          }
+        }
+      ],
+      "releases": [
+        {
+          "version": "1.0.0",
+          "tag": "v1.0.0",
+          "generation": "app/v1",
+          "stackProfile": "content@2026.11",
+          "stack": "astro",
+          "bun": "1.4.4",
+          "commit": "fc64dc06b563587b215481c9d54b41f0d045aba8",
+          "artifactDigest": null
+        }
+      ]
+    },
+    {
+      "schemaVersion": "lazurio.marketplace.offer.v1",
+      "id": "mission-control",
+      "section": "app-templates",
+      "title": "Mission Control",
+      "module": "mission-control",
+      "repository": "LazurioTemplates/mission-control",
+      "publisher": "LazurioTemplates",
+      "license": "MIT",
+      "stone": "control",
+      "pricing": "free",
+      "summary": {
+        "cs": "Plány a roadmapy vaší Organizace na jednom místě, se schvalováním změn.",
+        "en": "Your Organization's plans and roadmaps in one place, with reviewed changes."
+      },
+      "features": [
+        {
+          "title": {
+            "cs": "Plány",
+            "en": "Plans"
+          },
+          "text": {
+            "cs": "Každý plán má svůj kód, cíl, rozsah, rozhodnutí a kritéria přijetí. Vidíte, co se dělá, proč a pro koho.",
+            "en": "Every plan has its code, goal, scope, decisions and acceptance criteria. You see what is being done, why and for whom."
+          }
+        },
+        {
+          "title": {
+            "cs": "Roadmapy",
+            "en": "Roadmaps"
+          },
+          "text": {
+            "cs": "Plány seřazené do kroků v čase, s prioritami, dalšími kroky, které můžou začít, a dosavadním postupem.",
+            "en": "Plans ordered into steps over time, with priorities, the next steps that can start and the progress so far."
+          }
+        },
+        {
+          "title": {
+            "cs": "Koncept a publikace",
+            "en": "Draft and publish"
+          },
+          "text": {
+            "cs": "Každá úprava je nejdřív koncept. Změněné záznamy zkontrolujete srozumitelně popsané a publikujete je jako jednu změnu, nebo je vrátíte.",
+            "en": "Every edit is a draft first. You review the changed records in plain words and publish them as one change, or return them."
+          }
+        },
+        {
+          "title": {
+            "cs": "Data ve vašem repozitáři",
+            "en": "Data in your repository"
+          },
+          "text": {
+            "cs": "Plány a roadmapy leží v datovém repozitáři vaší Organizace. Agent je čte a zapisuje stejně jako vy.",
+            "en": "Plans and roadmaps live in your Organization's data repository. Your agent reads and writes them as you do."
+          }
+        }
+      ],
+      "seeds": {
+        "empty": {
+          "label": {
+            "cs": "Bez plánů",
+            "en": "No plans"
+          },
+          "brief": {
+            "cs": "prázdnými daty (ukázkové plány nepřenášej)",
+            "en": "empty data (do not carry the example plans over)"
+          }
+        },
+        "sample": {
+          "label": {
+            "cs": "S ukázkovými plány",
+            "en": "With example plans"
+          },
+          "brief": {
+            "cs": "ukázkovými plány z vydání",
+            "en": "the example plans from the release"
+          }
+        }
+      },
+      "screenshots": [
+        {
+          "path": "docs/screenshots/mission-control-overview.webp",
+          "alt": {
+            "cs": "Přehled s plány podle stavu, hlavní roadmapou a jejími dalšími kroky",
+            "en": "The overview with plans by state, the main roadmap and its next steps"
+          }
+        },
+        {
+          "path": "docs/screenshots/mission-control-roadmap.webp",
+          "alt": {
+            "cs": "Roadmapa s prioritami a kroky seskupenými podle období",
+            "en": "A roadmap with priorities and steps grouped by period"
+          }
+        },
+        {
+          "path": "docs/screenshots/mission-control-plan.webp",
+          "alt": {
+            "cs": "Detail plánu s jeho cílem, rozsahem a roadmapami, na kterých je",
+            "en": "A plan's detail with its goal, scope and the roadmaps it is on"
+          }
+        },
+        {
+          "path": "docs/screenshots/mission-control-draft.webp",
+          "alt": {
+            "cs": "Koncept se změněnými záznamy před publikací",
+            "en": "A draft with the changed records before publishing"
+          }
+        }
+      ],
+      "releases": [
+        {
+          "version": "4.0.0",
+          "tag": "v4.0.0",
+          "generation": "app/v3",
+          "stackProfile": "app-data@2026.11",
+          "stack": "vite-react",
+          "bun": "1.4.4",
+          "commit": "8d29a8deaa03694be4358dcf293c19945d302d3e",
+          "artifactDigest": null
+        }
+      ]
+    },
+    {
+      "schemaVersion": "lazurio.marketplace.offer.v1",
+      "id": "presentations",
+      "section": "app-templates",
+      "title": "Presentations",
+      "module": "presentations",
+      "repository": "LazurioTemplates/presentations",
+      "publisher": "LazurioTemplates",
+      "license": "MIT",
+      "stone": "presentation",
+      "pricing": "free",
+      "summary": {
+        "cs": "Knihovna prezentací, které tvoříte se svým agentem.",
+        "en": "A library of presentations you create with your agent."
+      },
+      "features": [
+        {
+          "title": {
+            "cs": "Knihovna",
+            "en": "Library"
+          },
+          "text": {
+            "cs": "Všechny prezentace na jednom místě, u každé náhled prvního slidu a podklady, ze kterých vznikla.",
+            "en": "Every presentation in one place, with a preview of its first slide and the sources it was built from."
+          }
+        },
+        {
+          "title": {
+            "cs": "Promítání a PDF",
+            "en": "Presenting and PDF"
+          },
+          "text": {
+            "cs": "Slidy promítáte v prohlížeči a listujete jimi šipkami. Do PDF je vytisknete ve formátu 16:9.",
+            "en": "Present the slides in the browser and move through them with the arrow keys. Print them to 16:9 PDF pages."
+          }
+        },
+        {
+          "title": {
+            "cs": "Tvorba s agentem",
+            "en": "Created with your agent"
+          },
+          "text": {
+            "cs": "Řekněte agentovi, komu je prezentace určená a z čeho má vycházet. Navrhne osnovu, připraví slidy z podkladů vaší Organizace a dá vám je ke kontrole.",
+            "en": "Tell the agent who the presentation is for and what it should draw on. It proposes an outline, drafts the slides from your Organization's sources and hands them to you for review."
+          }
+        }
+      ],
+      "seeds": {
+        "empty": {
+          "label": {
+            "cs": "Prázdnou knihovnou",
+            "en": "An empty library"
+          },
+          "brief": {
+            "cs": "prázdnou knihovnou (ukázkovou prezentaci nepřenášej)",
+            "en": "an empty library (do not carry the example presentation over)"
+          }
+        },
+        "sample": {
+          "label": {
+            "cs": "Ukázkovou prezentací",
+            "en": "An example presentation"
+          },
+          "brief": {
+            "cs": "ukázkovou prezentací z vydání",
+            "en": "the example presentation from the release"
+          }
+        }
+      },
+      "screenshots": [
+        {
+          "path": "docs/screenshots/library.webp",
+          "alt": {
+            "cs": "Knihovna s náhledem prvního slidu ukázkové prezentace",
+            "en": "The library with the first-slide preview of the example presentation"
+          }
+        },
+        {
+          "path": "docs/screenshots/detail.webp",
+          "alt": {
+            "cs": "Detail prezentace s jejím účelem a podklady",
+            "en": "A presentation's detail with its purpose and sources"
+          }
+        },
+        {
+          "path": "docs/screenshots/agent-brief.webp",
+          "alt": {
+            "cs": "Zadání pro agenta k nové prezentaci",
+            "en": "The brief for your agent to create a presentation"
+          }
+        },
+        {
+          "path": "docs/screenshots/slide.webp",
+          "alt": {
+            "cs": "Slide ukázkové prezentace při promítání",
+            "en": "A slide of the example presentation while presenting"
+          }
+        }
+      ],
+      "releases": [
+        {
+          "version": "0.1.0",
+          "tag": "v0.1.0",
+          "generation": "app/v1",
+          "stackProfile": "app@2026.11",
+          "stack": "vite-react",
+          "bun": "1.4.4",
+          "commit": "4b023772fbe45c2209b6eb1ff44009239ed1ac99",
+          "artifactDigest": null
+        }
+      ]
+    }
+  ]
+}

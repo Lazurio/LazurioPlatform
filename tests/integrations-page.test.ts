@@ -378,7 +378,9 @@ test("a card link lists the app it names even where nothing connects it, with wh
     ),
   ).toMatchObject({
     line: "Připojuje se nástrojem wacli.",
-    action: { kind: "open-tools", label: "Otevřít Nástroje" },
+    // "Připojit" opens wacli's sign-in (the QR code) over Integrace, or
+    // Settings → Tools at its row (Matěj 2026-10-28).
+    action: { kind: "open-tools", label: "Připojit", tool: "wacli" },
   });
   expect(pageRoute("/integrations/app/whatsapp")).toEqual({
     view: "integrations",
@@ -448,7 +450,7 @@ test("where nothing connects an app: one line and one action, the Admin's or any
     ),
   ).toMatchObject({
     line: "Připojuje se nástrojem wacli.",
-    action: { kind: "open-tools", label: "Otevřít Nástroje" },
+    action: { kind: "open-tools", label: "Připojit", tool: "wacli" },
   });
   expect(
     cardView(

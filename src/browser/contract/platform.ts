@@ -71,8 +71,9 @@ export type GraceKind = "release" | "viewer" | "unviewed";
 
 /** Why a tab sleeps (decision F57): nobody viewed it and no agent worked in
  * it for a while, the Environment ran short of memory, or a person asked in
- * Přehled. */
-export type SleepReason = "idle" | "pressure" | "asked";
+ * Přehled; or it had ended, and a link to it is opening it again under its
+ * id (`ended`, F57's addendum of 2026-11-03). */
+export type SleepReason = "idle" | "pressure" | "asked" | "ended";
 
 /** Why the hub keeps a tab awake when asked to put it to sleep (decision
  * F57): someone views it, an agent works in it or did recently, it was in
@@ -120,7 +121,12 @@ export type TabFacts = Readonly<{
 }>;
 
 const graceKinds: readonly GraceKind[] = ["release", "viewer", "unviewed"];
-const sleepReasons: readonly SleepReason[] = ["idle", "pressure", "asked"];
+const sleepReasons: readonly SleepReason[] = [
+  "idle",
+  "pressure",
+  "asked",
+  "ended",
+];
 
 /** A time the hub wrote with `toISOString`, or null. */
 export function hubTime(value: unknown): string | null {

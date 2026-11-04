@@ -98,12 +98,12 @@ for (const journey of journeys.filter((entry) => entry.os !== "windows"))
 test("towards people the place is Prostředí in Czech and the Environment in English, with the companion rules (0170 addendum 2026-10-15)", () => {
   const rules = {
     cs: [
-      "- Uživatelům česky říkej tomu, kde pracuješ, Prostředí: velké P, střední rod (toto Prostředí, v tomto Prostředí), druh přívlastkem. Druhy jsou jen tři: Osobní, Pracovní a Týmové Prostředí. Prostředí s automatizacemi je obyčejné Pracovní Prostředí (potřebuje-li jméno, jmenuje se Henry) a vlastní počítač uživatele druh nemá, je to „váš počítač“ (root rozhodnutí 0207, dodatek 2026-10-18). Hostované vlastní jméno nemá; kde ho musíš odlišit, řekni Prostředí na serveru, nikdy Remote Environment ani Vzdálené Prostředí. Anglicky je to Environment a hostované Remote Environment. Slova Mašina, VM ani server jim pro něj neříkej; Machine zůstává technický pojem pro hranici, na které Environment běží (příkazy jako `lazurio machine …`, identifikátory, architektura).",
-      "- V textech pro uživatele je produkt Lazurio (Launchpad a Dashboard jsou interní názvy; místo pojmenuj Apps, Přehled Organizace nebo Nastavení, příkazy nech přesné), Organizaci říkej Organizace, ne firma, a česky piš tento, tato, toto, ne tenhle, tahle, tohle (root rozhodnutí 0170, dodatek 2026-10-15).",
+      "- Uživatelům česky říkej tomu, kde pracuješ, Prostředí: velké P, střední rod (toto Prostředí, v tomto Prostředí), druh přívlastkem. Druhy jsou jen tři: Osobní, Pracovní a Týmové Prostředí. Prostředí s automatizacemi je obyčejné Pracovní Prostředí (potřebuje-li jméno, jmenuje se Henry) a vlastní počítač uživatele druh nemá, je to „váš počítač“ (rozhodnutí 0207). Hostované vlastní jméno nemá; kde ho musíš odlišit, řekni Prostředí na serveru, nikdy Remote Environment ani Vzdálené Prostředí. Anglicky je to Environment a hostované Remote Environment. Slova Mašina, VM ani server jim pro něj neříkej; Machine zůstává technický pojem pro hranici, na které Environment běží (příkazy jako `lazurio machine …`, identifikátory, architektura).",
+      "- V textech pro uživatele je produkt Lazurio (Launchpad a Dashboard jsou interní názvy; místo pojmenuj Apps, Přehled Organizace nebo Nastavení, příkazy nech přesné), Organizaci říkej Organizace, ne firma, a česky piš tento, tato, toto, ne tenhle, tahle, tohle (rozhodnutí 0170).",
     ],
     en: [
-      "- Towards users, call the place you work in the Environment, and a hosted one a Remote Environment; in Czech it is Prostředí, with a capital P and neuter (toto Prostředí; the kind as an adjective). There are only three kinds: Personal, Work and Team Environment (Osobní, Pracovní, Týmové Prostředí). An Environment with automations is a plain Work Environment (named Henry where it needs a name), and the user's own computer has no kind: it is “your computer” (váš počítač) (root decision 0207, addendum 2026-10-18). In Czech a hosted one has no name of its own (only where it must be told apart, Prostředí na serveru), never Remote Environment or Vzdálené Prostředí. Do not say Machine, VM or server to them; Machine stays the technical term for the boundary an Environment runs on (commands such as `lazurio machine …`, identifiers, the architecture).",
-      "- In text for users the product is Lazurio (Launchpad and Dashboard are internal names; name the place: Apps, the Organization overview or Settings, and keep commands exact), the Organization is the Organization (in Czech Organizace, not firma), and Czech demonstratives are tento, tato, toto, not tenhle, tahle, tohle (root decision 0170, addendum 2026-10-15).",
+      "- Towards users, call the place you work in the Environment, and a hosted one a Remote Environment; in Czech it is Prostředí, with a capital P and neuter (toto Prostředí; the kind as an adjective). There are only three kinds: Personal, Work and Team Environment (Osobní, Pracovní, Týmové Prostředí). An Environment with automations is a plain Work Environment (named Henry where it needs a name), and the user's own computer has no kind: it is “your computer” (váš počítač) (decision 0207). In Czech a hosted one has no name of its own (only where it must be told apart, Prostředí na serveru), never Remote Environment or Vzdálené Prostředí. Do not say Machine, VM or server to them; Machine stays the technical term for the boundary an Environment runs on (commands such as `lazurio machine …`, identifiers, the architecture).",
+      "- In text for users the product is Lazurio (Launchpad and Dashboard are internal names; name the place: Apps, the Organization overview or Settings, and keep commands exact), the Organization is the Organization (in Czech Organizace, not firma), and Czech demonstratives are tento, tato, toto, not tenhle, tahle, tohle (decision 0170).",
     ],
   };
   for (const journey of journeys)
@@ -315,13 +315,19 @@ test("the Steward preset renders the persona, its bot team and the publication r
     "- Assignment: the Henry Environment of an Organization persona; responsible user `example` (GitHub id 12345).",
     "- Identity: the persona's own GitHub user account, a bot account, signed in to `gh` by the responsible user, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the user's own account or anyone else's here.",
     "## Persona bot team",
-    "`/lazurio publish`",
+    // The assignment is the instruction (root manual/pull-request-handoff.md);
+    // no `/lazurio publish` comment.
+    "- The persona publishes only a pull request a user with write access assigned to it, after an approval of its exact head and with green checks;",
     "Organization `example`",
   ])
     expect(en).toContain(line);
+  expect(en).not.toContain("/lazurio publish");
   const cs = steward("cs");
   expect(cs).toContain("## Tým botů persony");
-  expect(cs).toContain("`/lazurio publish`");
+  expect(cs).toContain(
+    "- Persona publikuje jen pull request, který jí přiřadil uživatel s právem zápisu, a to po schválení přesného headu a se zelenými kontrolami;",
+  );
+  expect(cs).not.toContain("/lazurio publish");
   // Issue #99: the text this preset adds says Environment, never Machine.
   const manual = (locale: "cs" | "en") =>
     renderManual({

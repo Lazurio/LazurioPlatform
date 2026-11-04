@@ -16,6 +16,12 @@ import {
   t3Version,
 } from "../src/launchpad/chat";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
+import {
+  type MarketplaceCatalog,
+  type MarketplaceOffer,
+  parseMarketplaceIndex,
+} from "../src/launchpad/marketplace";
+import type { MarketplaceRegistry } from "../src/launchpad/marketplace-registry";
 import { messages } from "../src/launchpad/messages";
 import {
   type BoundOrganization,
@@ -50,6 +56,7 @@ import {
   organizationWithEntry,
   personalWithEntry,
 } from "./fixtures/machine-bindings";
+import unreleasedIndex from "./fixtures/marketplace-index-unreleased.json";
 import { freePort } from "./fixtures/ports";
 
 // "+ Nový modul" opens Chat with a prepared prompt (Lazurio/t3code#35): the
@@ -296,7 +303,11 @@ posixTest(
 // Organization `example` bound to the GitHub login `Example-Org`. Its `gh`
 // answers the membership question as `owner` says and its `t3` prints
 // `version`; both are recorded.
-async function hostedLaunchpad(owner: boolean, version: string) {
+async function hostedLaunchpad(
+  owner: boolean,
+  version: string,
+  marketplace?: MarketplaceRegistry,
+) {
   const parent = await realpath(
     await mkdtemp(join(tmpdir(), "launchpad-prompts-")),
   );
@@ -354,6 +365,22 @@ async function hostedLaunchpad(owner: boolean, version: string) {
     undefined,
     { fetcher },
     { path: bin, home, platform: process.platform, run },
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    marketplace,
   );
   const base = `http://127.0.0.1:${entry.listenPort}`;
   const host = new URL(entry.externalOrigin).host;
@@ -370,6 +397,158 @@ async function hostedLaunchpad(owner: boolean, version: string) {
     },
   };
 }
+
+posixTest(
+  "hosted: a Marketplace adoption follows the offers the registry gives, and /api/marketplace answers them",
+  async () => {
+    // The registry's index at one commit, where only Presentations' release
+    // is published: the fixture index, which has none, with that release
+    // (plan DEV-6593, marketplace-registry.ts).
+    const commit = "0123456789abcdef0123456789abcdef01234567";
+    const offers = parseMarketplaceIndex({
+      ...unreleasedIndex,
+      offers: unreleasedIndex.offers.map((offer) =>
+        offer.id === "presentations"
+          ? {
+              ...offer,
+              releases: offer.releases.map((release) => ({
+                ...release,
+                commit,
+              })),
+            }
+          : offer,
+      ),
+    }) as readonly MarketplaceOffer[];
+    let catalog: MarketplaceCatalog = {
+      source: "registry" as const,
+      commit: "f".repeat(40),
+      offers,
+    };
+    let reads = 0;
+    let checking = false;
+    const registry: MarketplaceRegistry = {
+      current: () => catalog,
+      read: async () => {
+        reads += 1;
+        return catalog;
+      },
+      checking: () => checking,
+      catalogs: () => served,
+    };
+    // The catalogs the prompt route serves (marketplace-registry.ts).
+    let served: readonly MarketplaceCatalog[] = [catalog];
+    const release = "f".repeat(12);
+    const hosted = await hostedLaunchpad(true, "0.0.45-lazurio.2", registry);
+    try {
+      const { base, valid } = hosted;
+      for (const seed of ["empty", "sample"]) {
+        const answer = await fetch(
+          `${base}/.lazurio/prompts/marketplace-presentations-${seed}-${release}?org=example-org`,
+          { headers: valid },
+        );
+        expect(answer.status).toBe(200);
+        const document = (await answer.json()) as { id: string; text: string };
+        expect(document.id).toBe(
+          `marketplace-presentations-${seed}-${release}`,
+        );
+        expect(document.text).toContain(commit);
+        expect(document.text).toContain("LazurioTemplates/presentations");
+      }
+      // Mission Control has no published release, so it is not shown and
+      // its prompt is the same 404; so is an id without its catalog.
+      for (const id of [
+        `marketplace-mission-control-empty-${release}`,
+        "marketplace-presentations-empty",
+      ]) {
+        const pending = await fetch(
+          `${base}/.lazurio/prompts/${id}?org=example-org`,
+          { headers: valid },
+        );
+        expect(pending.status).toBe(404);
+      }
+      const read = await fetch(`${base}/api/marketplace`, {
+        method: "POST",
+        headers: {
+          ...valid,
+          origin: hosted.entry.externalOrigin,
+          "sec-fetch-site": "same-origin",
+          "content-type": "application/json",
+        },
+        body: "{}",
+      });
+      expect(read.status).toBe(200);
+      const answer = (await read.json()) as {
+        source: string;
+        commit: string;
+        offers: { id: string; release: { commit: string | null } }[];
+      };
+      expect(answer.source).toBe("registry");
+      expect(answer.commit).toBe("f".repeat(40));
+      expect(
+        answer.offers.map((offer) => [offer.id, offer.release.commit]),
+      ).toEqual([["presentations", commit]]);
+      expect((answer as { checking?: unknown }).checking).toBe(false);
+      // Each answer asks the registry for what the page shows now; an id
+      // without a release is no adoption's and asks nothing.
+      expect(reads).toBe(4);
+
+      // The registry moves to a newer catalog after the page showed this one
+      // and before Chat fetched the brief. While the Launchpad still serves
+      // the catalog shown, its id gets exactly that catalog's brief, never
+      // the newer release; the newer catalog's id gets the newer one.
+      const newer = "fedcba9876543210fedcba9876543210fedcba98";
+      const shown = catalog;
+      catalog = {
+        source: "registry",
+        commit: "e".repeat(40),
+        offers: offers.map((offer) => ({
+          ...offer,
+          release: { ...offer.release, commit: newer },
+          releases: [{ ...offer.release, commit: newer, version: "9.0.0" }],
+        })),
+      };
+      served = [catalog, shown];
+      checking = true;
+      const kept = await fetch(
+        `${base}/.lazurio/prompts/marketplace-presentations-empty-${release}?org=example-org`,
+        { headers: valid },
+      );
+      expect(kept.status).toBe(200);
+      const keptText = ((await kept.json()) as { text: string }).text;
+      expect(keptText).toContain(commit);
+      expect(keptText).not.toContain(newer);
+      const fresh = await fetch(
+        `${base}/.lazurio/prompts/marketplace-presentations-empty-${"e".repeat(12)}?org=example-org`,
+        { headers: valid },
+      );
+      expect(fresh.status).toBe(200);
+      expect(((await fresh.json()) as { text: string }).text).toContain(newer);
+      // Once the catalog shown is no longer served, its id is the same 404.
+      served = [catalog];
+      const stale = await fetch(
+        `${base}/.lazurio/prompts/marketplace-presentations-empty-${release}?org=example-org`,
+        { headers: valid },
+      );
+      expect(stale.status).toBe(404);
+      // While the registry is being asked, the page is told so.
+      const during = await fetch(`${base}/api/marketplace`, {
+        method: "POST",
+        headers: {
+          ...valid,
+          origin: hosted.entry.externalOrigin,
+          "sec-fetch-site": "same-origin",
+          "content-type": "application/json",
+        },
+        body: "{}",
+      });
+      expect(((await during.json()) as { checking: boolean }).checking).toBe(
+        true,
+      );
+    } finally {
+      await hosted.close();
+    }
+  },
+);
 
 posixTest(
   "hosted: the prompt for the Organization's Owner, behind the gateway's admission, never cached",
@@ -414,6 +593,11 @@ posixTest(
         "/.lazurio/prompts/new-module?org=example-org&text=hello",
         "/.lazurio/prompts/new-module?org=example-org&org=example-org",
         "/.lazurio/prompts/new-module?org=a%2Fb",
+        // The Marketplace's adoption, while its release is not recorded
+        // (plan DEV-6593).
+        "/.lazurio/prompts/marketplace-presentations-empty?org=example-org",
+        "/.lazurio/prompts/marketplace-presentations-sample?org=example-org",
+        "/.lazurio/prompts/marketplace-other-empty?org=example-org",
       ]) {
         const refused = await fetch(`${base}${other}`, { headers: valid });
         expect([other, refused.status, await refused.json()]).toEqual([

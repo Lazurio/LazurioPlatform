@@ -9,6 +9,7 @@ import {
   type ExecutorReport,
   executorReportFailed,
 } from "../executor/converge";
+import { readHostedFolderForeignEntries } from "../folder/foreign-entries";
 import {
   type FolderRefresh,
   folderRefreshNeeded,
@@ -25,6 +26,7 @@ import {
   UpdateFailure,
   updateError,
 } from "./errors";
+import { type FolderRefreshOutcome, failedRefresh } from "./folder-refresh";
 import {
   type ProductIdentity,
   type ReleaseOrigin,
@@ -76,10 +78,20 @@ export type UpdateEnvironment = Readonly<{
   /** The installer's user units, for the migration that removes what the
    * former rollback left (`migrations/remove-rollback`). */
   units?: ServiceUnits | null | undefined;
-  /** The Folder whose template revision results report against the
-   * product's ("Folder refresh needed"). Reporting only: never written,
-   * never a reason to refuse. */
+  /** The Folder whose generated files a run refreshes when the active
+   * product renders a newer template revision than it records (decision
+   * F17's addendum of 2026-10-30), and whose needed refresh `update status`
+   * reports. Never a reason to refuse. */
   folder?: string | undefined;
+  /** After a successful run, under the update lock: the active version's
+   * own refresh of `folder` when it is behind (`refreshFolderWhenBehind`);
+   * null when it needs none. Absent: nothing is refreshed. */
+  refreshFolder?:
+    | ((
+        folder: string,
+        product: string,
+      ) => Promise<FolderRefreshOutcome | null>)
+    | undefined;
   /** After a successful run: converge the installer's entry units of a
    * supervised hosted base (`convergeEntryUnits`, decision F29); undefined
    * when there is nothing to converge. Absent: nothing is converged. */
@@ -274,12 +286,24 @@ export const checkForUpdate = (
     });
   });
 
+/** Top-level entries of a hosted Folder that the Folder does not own
+ * (decision F10's addendum of 2026-11-03): they no longer stop a refresh and
+ * are reported instead. Present only when there is at least one, or when the
+ * top level could not be listed (`unreadable`), which is never reported as
+ * clean. */
+export type FolderForeignEntries =
+  | Readonly<{ folder: string; entries: readonly string[] }>
+  | Readonly<{ folder: string; unreadable: true }>;
+
 export type UpdateResult =
   | Readonly<{
       kind: "up-to-date";
       running: string;
       latest: string;
-      folderRefresh: FolderRefresh | null;
+      /** The Folder's refresh this run performed; null when none was
+       * needed (decision F17's addendum of 2026-10-30). */
+      folderRefresh: FolderRefreshOutcome | null;
+      folderForeignEntries?: FolderForeignEntries;
       /** Supervised base only: the Codex app-server unit (decision F29). */
       codexAppServer?: CodexAppServer;
       /** Supervised base only: the Environment browser's units (F38). */
@@ -295,8 +319,10 @@ export type UpdateResult =
       to: string;
       /** Unsupervised: a running Launchpad finishes the update by restarting. */
       restartRequired: boolean;
-      /** The Folder renders an older template revision than `to`. */
-      folderRefresh: FolderRefresh | null;
+      /** The Folder's refresh by `to` after the switch; null when none was
+       * needed or `to` does not say which template revision it renders. */
+      folderRefresh: FolderRefreshOutcome | null;
+      folderForeignEntries?: FolderForeignEntries;
       codexAppServer?: CodexAppServer;
       environmentBrowser?: EnvironmentBrowser;
       computerUse?: ComputerUse;
@@ -304,8 +330,9 @@ export type UpdateResult =
     }>
   | ErrorResult;
 
-/** The Folder's refresh against a product's template revision; nothing when
- * no Folder is known or the product does not say which revision it renders. */
+/** Whether the Folder needs a refresh against a product's template revision;
+ * nothing when no Folder is known or the product does not say which revision
+ * it renders. */
 const folderRefresh = (
   environment: Pick<UpdateEnvironment, "folder">,
   productRevision: string | null,
@@ -321,6 +348,67 @@ const runningRevision = async (
   (await readSelector(environment.base)) === environment.identity.version
     ? instructionTemplateRevision
     : null;
+
+/** The report of a hosted Folder's foreign top-level entries, spread into a
+ * result: nothing when no Folder is known or it holds none. */
+async function foreignEntriesReport(
+  environment: Pick<UpdateEnvironment, "folder">,
+): Promise<{ folderForeignEntries?: FolderForeignEntries }> {
+  const { folder } = environment;
+  if (folder === undefined) return {};
+  const reading = await readHostedFolderForeignEntries(folder);
+  if (reading.kind === "unreadable")
+    return {
+      folderForeignEntries: Object.freeze({
+        folder,
+        unreadable: true as const,
+      }),
+    };
+  return reading.kind === "entries" && reading.entries.length > 0
+    ? {
+        folderForeignEntries: Object.freeze({
+          folder,
+          entries: reading.entries,
+        }),
+      }
+    : {};
+}
+
+/** The Folder's refresh after a successful run (decision F17's addendum of
+ * 2026-10-30): when a Folder is known, the active product says which
+ * template revision it renders and the Folder records an older one. A report
+ * of what happened, never a reason for the result to change: whatever the
+ * refresh answers, the switch stays final. */
+async function refreshAfter(
+  environment: Pick<UpdateEnvironment, "folder" | "refreshFolder">,
+  productRevision: string | null,
+): Promise<FolderRefreshOutcome | null> {
+  const { folder, refreshFolder } = environment;
+  if (
+    folder === undefined ||
+    productRevision === null ||
+    refreshFolder === undefined
+  )
+    return null;
+  try {
+    return await refreshFolder(folder, productRevision);
+  } catch {
+    return failedRefresh("internal");
+  }
+}
+
+/** The refresh `lazurio update` performs when it finds nothing newer, for the
+ * Launchpad's update of everything that found the same (root decision 0212
+ * point 3): under the update lock, so a run that holds it refreshes instead
+ * and this answers `busy`. Only the active executable knows its revision. */
+export const refreshCurrentFolder = (
+  environment: UpdateEnvironment,
+): Promise<FolderRefreshOutcome | null | ErrorResult> =>
+  settle(() =>
+    withUpdateLock(environment.base, 0, async () =>
+      refreshAfter(environment, await runningRevision(environment)),
+    ),
+  );
 
 /** `lazurio update [--version <tag>]`, under the lock from the first read of
  * the base to the activation. The candidate proves itself — self-check and,
@@ -402,15 +490,19 @@ const updateOnce = (
           to: migrated.to ?? from,
           stage: "legacy-marker",
         });
+      // Nothing newer: a Folder that an earlier refresh left behind (blocked,
+      // busy, or a version a Machines install moved) is refreshed all the
+      // same.
       if (!available)
         return Object.freeze({
           kind: "up-to-date" as const,
           running: identity.version,
           latest: manifest.version,
-          folderRefresh: await folderRefresh(
+          folderRefresh: await refreshAfter(
             environment,
             await runningRevision(environment),
           ),
+          ...(await foreignEntriesReport(environment)),
         });
       const artifact = manifest.targets[identity.target];
       if (!artifact) throw new UpdateFailure("internal");
@@ -468,8 +560,10 @@ const updateOnce = (
         from,
         to: manifest.version,
         restartRequired: environment.service === null,
-        // After the switch: a report, never a reason to undo it.
-        folderRefresh: await folderRefresh(environment, productRevision),
+        // After the switch, by the version it activated: never a reason to
+        // undo it.
+        folderRefresh: await refreshAfter(environment, productRevision),
+        ...(await foreignEntriesReport(environment)),
       });
     });
   });
@@ -493,8 +587,13 @@ export type UpdateStatus = Readonly<{
   lastCheck: LastCheck | null;
   updateAvailable: boolean;
   /** The Folder renders an older template revision than the active product
-   * (known only when the one answering is the active one). */
+   * (known only when the one answering is the active one): a refresh is
+   * still needed, because none ran yet or the last one was blocked. For
+   * agents; the Launchpad never shows it. */
   folderRefresh: FolderRefresh | null;
+  /** A hosted Folder's foreign top-level entries, which no longer stop a
+   * refresh (decision F10's addendum of 2026-11-03); absent when none. */
+  folderForeignEntries?: FolderForeignEntries;
 }>;
 
 /** `lazurio update status`: computed from the paths when asked; no network,
@@ -548,5 +647,6 @@ export async function readStatus(
       environment,
       active === identity.version ? instructionTemplateRevision : null,
     ),
+    ...(await foreignEntriesReport(environment)),
   });
 }

@@ -25,7 +25,8 @@ import {
   contentBlockedBy,
   demoAi,
   demoOnboarding,
-  signsInAsPerson,
+  hasOnboarding,
+  personaGithub,
   type TourFacts,
 } from "./first-run";
 import type { MessageKey } from "./messages";
@@ -67,11 +68,14 @@ export type StartStep = Readonly<{
 /** The GitHub step's one action, enabled only once AI is there (0201 point
  * 3): "Připojit"; `reconnect`, "Připojit znovu", where GitHub is connected
  * badly (signed in, SSH not working here, #515), which finishes the link;
- * `open`, "Otevřít", which shows the sign-in this page runs again (#516).
- * Null when GitHub is connected or not known yet. */
+ * `switch`, "Přepnout účet", where the responsible user's own account is
+ * signed in on the Automated Environment (F27's addendum of 2026-10-30),
+ * which signs it out and opens the sign-in for the persona's; `open`,
+ * "Otevřít", which shows the sign-in this page runs again (#516). Null when
+ * GitHub is connected or not known yet. */
 export type GithubAction = Readonly<{
   enabled: boolean;
-  kind?: "reconnect" | "open";
+  kind?: "reconnect" | "switch" | "open";
 }> | null;
 
 /** What the AI step offers besides its line (root decision 0201 points 3-6,
@@ -89,6 +93,11 @@ export type AiAction =
       kind: "choose";
       cancel: boolean;
       byCode: Readonly<{ hint: string }>;
+      /** The AI whose CLI is not installed here: its sign-in is left out,
+       * since it could only fail (ChatGPT's by code with Codex). Absent
+       * when both are there, and never both: then both are offered and a
+       * click says what is missing. */
+      notInstalled?: readonly AiProvider[];
     }>
   /** Connected: "Přihlásit jiný účet" opens the choice again. */
   | Readonly<{ kind: "connected" }>
@@ -172,6 +181,10 @@ function aiFailure(
       return copy.startAiNoBrowser;
     case "provider-unknown":
       return copy.startAiProviderUnknown;
+    case "not-installed":
+      return fill(copy.startAiNotInstalled, {
+        name: aiProviderName[signIn.tool],
+      });
     case "failed":
       return copy.startAiFailed;
   }
@@ -209,10 +222,22 @@ function aiStep(facts: StartFacts, copy: Copy): [StartStep, AiAction] {
   const place = facts.aiPlace ?? "own";
   const ready = facts.ai === "organization" || facts.ai === "connected";
   const mark: StartMark = ready ? "done" : "now";
+  // A CLI that is not installed cannot sign in: its button is left out,
+  // and so is the one whose click just said so.
+  const absent = (facts.aiReading?.providers ?? [])
+    .filter((reading) => reading.state === "not-installed")
+    .map((reading) => reading.provider);
+  if (
+    signIn.kind === "failed" &&
+    signIn.reason === "not-installed" &&
+    !absent.includes(signIn.tool)
+  )
+    absent.push(signIn.tool);
   const choose: AiAction = {
     kind: "choose",
     cancel: ready,
     byCode: { hint: copy.startAiByCodeSetting },
+    ...(absent.length === 1 ? { notInstalled: absent } : {}),
   };
   // A sign-in that did not finish starts again the way it started.
   const retry = (failed: Extract<AiSignIn, { kind: "failed" }>): AiAction => ({
@@ -303,7 +328,9 @@ function aiStep(facts: StartFacts, copy: Copy): [StartStep, AiAction] {
       },
       facts.aiChoosing === true
         ? choose
-        : signIn.kind === "failed" && signIn.reason !== "no-environment-browser"
+        : signIn.kind === "failed" &&
+            signIn.reason !== "no-environment-browser" &&
+            signIn.reason !== "not-installed"
           ? retry(signIn)
           : { kind: "connected" },
     ];
@@ -313,7 +340,9 @@ function aiStep(facts: StartFacts, copy: Copy): [StartStep, AiAction] {
       { ...base, mark: "failed", status: aiFailure(signIn, copy) },
       signIn.reason === "no-environment-browser"
         ? { kind: "none" }
-        : retry(signIn),
+        : signIn.reason === "not-installed"
+          ? choose
+          : retry(signIn),
     ];
   // Without the Environment browser the page could not return to the CLI.
   if (place === "none" && facts.ai !== "loading")
@@ -368,6 +397,22 @@ function githubStep(facts: StartFacts, copy: Copy): [StartStep, GithubAction] {
   // Offered once an agent can help (an AI not known is not claimed missing);
   // before, the step waits, its number saying the order.
   const ready = facts.ai !== "missing" && facts.ai !== "loading";
+  // The responsible user's own account where the persona's belongs (F27's
+  // addendum of 2026-10-30): whatever its SSH, the step says so plainly,
+  // and "Přepnout účet" signs it out and opens the sign-in for the
+  // persona's account.
+  if (facts.github === "own-account")
+    return [
+      {
+        ...base,
+        mark: ready ? "failed" : "later",
+        status:
+          facts.githubLogin === null
+            ? copy.startGithubOwnAccountPlain
+            : fill(copy.startGithubOwnAccount, { login: facts.githubLogin }),
+      },
+      { enabled: ready, kind: "switch" },
+    ];
   // Connected badly (#515): gh signed in, but this Environment does not
   // reach GitHub over SSH as the account, so its content would not
   // download. It says so, and "Připojit znovu" finishes the link.
@@ -385,8 +430,11 @@ function githubStep(facts: StartFacts, copy: Copy): [StartStep, GithubAction] {
       ...base,
       mark: ready ? "now" : "later",
       // What GitHub opens is the "?"'s (decision F56's addendum of
-      // 2026-10-18); the step says its state.
-      status: copy.startNotConnected,
+      // 2026-10-18); the step says its state, and on the Automated
+      // Environment whose account belongs here.
+      status: personaGithub(facts.preset)
+        ? copy.startGithubPersona
+        : copy.startNotConnected,
     },
     { enabled: ready },
   ];
@@ -420,10 +468,11 @@ function contentStep(facts: StartFacts, copy: Copy): StartStep {
 }
 
 /** Začínáme from the facts, or null where the Environment has none (a Team
- * or an Automated Environment: their Organization prepares them) or has the
- * demo onboarding instead (a public Environment, `demoStartView`). */
+ * Environment: its Organization prepares it) or has the demo onboarding
+ * instead (a public Environment, `demoStartView`). The Automated Environment
+ * has it as a work Environment does (F27's addendum of 2026-10-30). */
 export function startView(facts: StartFacts, copy: Copy): StartView | null {
-  if (!signsInAsPerson(facts.preset) || demoOnboarding(facts)) return null;
+  if (!hasOnboarding(facts.preset) || demoOnboarding(facts)) return null;
   const [github, action] = githubStep(facts, copy);
   const [ai, aiAction] = aiStep(facts, copy);
   const buddy =
@@ -475,7 +524,7 @@ export function startView(facts: StartFacts, copy: Copy): StartView | null {
 /** The count beside Začínáme in the Settings navigation ("1/3", with Buddy
  * "1/4") while a basic is missing; null otherwise. */
 export function startCount(facts: TourFacts): string | null {
-  if (!signsInAsPerson(facts.preset) || demoOnboarding(facts)) return null;
+  if (!hasOnboarding(facts.preset) || demoOnboarding(facts)) return null;
   const all = basicsOf(facts);
   const missing = all.some((basic) => basicState(facts, basic) === "missing");
   return missing ? `${basicsDone(facts)}/${all.length}` : null;
@@ -485,7 +534,7 @@ export function startCount(facts: TourFacts): string | null {
  * where its button leads (a Settings path, or Trezor in Apps) or what it
  * opens. */
 export type OptionalRow = Readonly<{
-  id: "composio" | "ssh" | "bitwarden" | "codex";
+  id: "composio" | "phone" | "ssh" | "bitwarden" | "codex";
   title: string;
   /** What it gives, at the choice: no step of Začínáme's "?" says it. */
   text: string;
@@ -514,6 +563,9 @@ export function optionalRows(
     composio: ComposioFact;
     sshDevices: number | null;
     bitwarden: boolean;
+    /** Telefon přes ChatGPT (decision F71): shown only where pairing is
+     * offered, with how many phones are paired; absent or null hides it. */
+    phone?: Readonly<{ ready: boolean; devices: number }> | null;
   }>,
   copy: Copy,
 ): readonly OptionalRow[] {
@@ -544,6 +596,14 @@ export function optionalRows(
             },
     });
   const remote = input.preset !== "local";
+  if (input.phone?.ready === true)
+    rows.push({
+      id: "phone",
+      title: copy.startPhoneTitle,
+      text: copy.startPhoneText,
+      status: input.phone.devices > 0 ? copy.startSet : copy.startNotSet,
+      action: { label: copy.startPhoneAction, to: "/settings/connections" },
+    });
   if (remote)
     rows.push({
       id: "ssh",

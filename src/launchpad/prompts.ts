@@ -4,6 +4,13 @@ import type { PersonalspaceHolder } from "../organizations/personalspace";
 import { newModulePrompt, newPersonalModulePrompt } from "./apps-view";
 import { organizationName } from "./catalog-view";
 import { type PrepareTarget, preparePrompt } from "./content-view";
+import {
+  type AdoptionPromptId,
+  adoptionOf,
+  adoptionPrompt,
+  type MarketplaceCatalog,
+  type MarketplaceLocale,
+} from "./marketplace";
 import type { MessageKey } from "./messages";
 
 type Copy = Readonly<Record<MessageKey, string>>;
@@ -36,10 +43,12 @@ export const promptSchema = "lazurio.prompt.v1";
 /** Who may get a prompt. `organization-owner`: only where this Environment's
  * GitHub identity is an Owner of the Organization, GitHub's own live answer
  * (organization-owner.ts), the same rule as the "+ Nový modul" tile; a Team
- * Environment never is. `environment-operator`: the person this Environment
- * signs in to GitHub as, behind its admission: only an Environment whose
- * preset signs in as its person (first-run.ts `signsInAsPerson`), never a
- * Team or an Automated one. `personalspace-holder`: only where this
+ * Environment never is. `environment-operator`: the person behind this
+ * Environment's admission, only where its preset has the onboarding
+ * (first-run.ts `hasOnboarding`): the person a personal or work Environment
+ * or a computer signs in to GitHub as, and the responsible user of an
+ * Automated Environment (decision F27's addendum of 2026-10-30); never a
+ * Team one. `personalspace-holder`: only where this
  * Environment's GitHub account holds the Folder's Personalspace (the holder
  * decision of #186: its own, private `<login>/<login>_GEN3`, and on a
  * personal Remote Environment the handover's Owner), and the link's `org` is
@@ -94,7 +103,7 @@ export const isOrganizationPrompt = (
 /** The answer of the route, and what the fork accepts. */
 export type PromptDocument = Readonly<{
   schema: typeof promptSchema;
-  id: PromptId;
+  id: PromptId | AdoptionPromptId;
   text: string;
   /** Where Chat opens the new thread, absolute: the Lazurio Folder's root,
    * for an Organization's prompt too (root decision 0189); the text names
@@ -189,4 +198,43 @@ export function personalModuleDocument(
     text: newPersonalModulePrompt(holder.login, copy),
     cwd: resolve(folder),
   });
+}
+
+/** The document of a Marketplace adoption (`marketplace-<offer>-<seed>-<catalog>`,
+ * plan DEV-6593) for one Organization of the Folder bound to a GitHub login:
+ * the offer exactly as the catalog the id names showed it, while the
+ * Launchpad still serves that catalog. Null for an id no offer and seed of
+ * those catalogs make, which also covers an offer whose release has no
+ * recorded commit yet. Anyone admitted to
+ * this Launchpad may get it, as anyone may open the Marketplace: the brief
+ * says nothing the page did not show, and grants nothing. The agent checks
+ * the person's live rights in the Organization before anything changes, and
+ * prepares a request where they do not reach. It opens in the Lazurio
+ * Folder's root (root decision 0189); the text names the Organization. */
+export function adoptionDocument(
+  catalogs: readonly MarketplaceCatalog[],
+  id: string,
+  folder: string,
+  organization: BoundOrganization,
+  copy: Copy,
+  locale: MarketplaceLocale,
+): PromptDocument | null {
+  const adoption = adoptionOf(catalogs, id);
+  if (adoption === null) return null;
+  const text = adoptionPrompt(
+    adoption.offer,
+    adoption.seed,
+    { name: organizationName(organization), login: organization.forgeLogin },
+    copy,
+    locale,
+  );
+  return text === null
+    ? null
+    : Object.freeze({
+        schema: promptSchema,
+        // The id the adoption was found by: it names that catalog.
+        id: id as AdoptionPromptId,
+        text,
+        cwd: resolve(folder),
+      });
 }

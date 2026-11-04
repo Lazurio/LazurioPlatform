@@ -146,6 +146,73 @@ posix(
     }),
 );
 
+posix(
+  "lazurio buddy sign-in start with an account without a subscription: unusable on its line, signed out again, and why in words (Lazurio/LazurioPlatform#694)",
+  () =>
+    within(
+      async (fake, run, folders) => {
+        const lines: string[] = [];
+        const done = run(["sign-in", "start", "--folder", folders.buddy], {
+          pollMs: 20,
+          write: (line) => {
+            lines.push(line);
+            if (lines.length === 1)
+              setTimeout(() => fake.approve("Fixture_Session_000001"), 60);
+          },
+        });
+        expect(await done).toEqual({
+          code: 1,
+          stdout: "",
+          stderr:
+            "This ChatGPT account has no subscription, and Buddy needs one. He was signed out again; sign him in with an account that has a ChatGPT subscription.",
+        });
+        expect(lines.map((line) => JSON.parse(line)).at(-1)).toEqual({
+          kind: "unusable",
+          reason: "no-subscription",
+          signedOut: true,
+        });
+        expect(fake.state.signedIn).toBe(false);
+      },
+      { entitlement: "no-subscription" },
+    ),
+);
+
+posix(
+  "lazurio buddy sign-in start with a refused account Hermes cannot sign out: says he is still signed in with it and how to sign him out, never that he was signed out",
+  () =>
+    within(
+      async (fake, run, folders) => {
+        fake.state.http = (request) =>
+          request.method === "DELETE" &&
+          request.path === "/api/providers/oauth/openai-codex"
+            ? Response.json({ detail: "boom" }, { status: 500 })
+            : undefined;
+        const lines: string[] = [];
+        const done = run(["sign-in", "start", "--folder", folders.buddy], {
+          pollMs: 20,
+          write: (line) => {
+            lines.push(line);
+            if (lines.length === 1)
+              setTimeout(() => fake.approve("Fixture_Session_000001"), 60);
+          },
+        });
+        expect(await done).toEqual({
+          code: 1,
+          stdout: "",
+          stderr:
+            "This ChatGPT account's subscription is not enough for Buddy. Signing him out failed, so he is still signed in with it: run `lazurio buddy sign-out`, then sign him in with another account.",
+        });
+        expect(lines.map((line) => JSON.parse(line)).at(-1)).toEqual({
+          kind: "unusable",
+          reason: "model-missing",
+          signedOut: false,
+        });
+        expect(fake.state.signedIn).toBe(true);
+      },
+      { entitlement: "model-missing" },
+    ),
+);
+
 posix("Ctrl-C cancels the sign-in on Hermes", () =>
   within(async (fake, run, folders) => {
     const interrupt = new AbortController();

@@ -15,12 +15,12 @@
   var section = "";
   if (path === "/files" || path.indexOf("/files/") === 0) frame = "files";
   else if (trimmed === "/integrations" || trimmed.indexOf("/integrations/") === 0) frame = "integrations";
-  else if (trimmed === "/marketplace") frame = "marketplace";
+  else if (trimmed === "/marketplace" || trimmed.indexOf("/marketplace/") === 0) frame = "marketplace";
   else if (trimmed === "/vault" || trimmed.indexOf("/vault/") === 0 || trimmed === "/settings/vault" || trimmed === "/settings/vault/requests" || trimmed.indexOf("/settings/vault/requests/") === 0) frame = "vault";
   else if (trimmed === "/settings" || trimmed.indexOf("/settings/") === 0) {
     frame = "settings";
     section = trimmed.slice("/settings/".length);
-    if (["start", "general", "communication", "machine", "tools", "ssh", "recovery"].indexOf(section) < 0) section = "general";
+    if (["start", "general", "communication", "machine", "tools", "connections", "ssh", "recovery"].indexOf(section) < 0) section = "general";
   }
   root.setAttribute("data-frame", frame);
   if (section) root.setAttribute("data-section", section);
@@ -154,6 +154,7 @@ html:not([data-section="communication"]) #view-settings > [data-section="communi
 html:not([data-section="general"]) #view-settings > [data-section="general"],
 html:not([data-section="machine"]) #view-settings > [data-section="machine"],
 html:not([data-section="tools"]) #view-settings > [data-section="tools"],
+html:not([data-section="connections"]) #view-settings > [data-section="connections"],
 html:not([data-section="ssh"]) #view-settings > [data-section="ssh"],
 html:not([data-section="recovery"]) #view-settings > [data-section="recovery"],
 html:not([data-section="buddy"]) #view-settings > [data-section="buddy"],
@@ -162,6 +163,7 @@ html:not([data-frame="vault"]) [data-section-action="vault"],
 html:not([data-section="start"]) [data-section-action="start"],
 html:not([data-section="general"]) [data-section-action="general"],
 html:not([data-section="tools"]) [data-section-action="tools"],
+html:not([data-section="connections"]) [data-section-action="connections"],
 html:not([data-section="ssh"]) [data-section-action="ssh"],
 html:not([data-section="recovery"]) [data-section-action="recovery"] { display: none !important; }
 /* The places of the shell elements before their script defines them: the
@@ -219,10 +221,7 @@ button.menu-item { width: 100%; border: 0; background: transparent; font-weight:
 .menu-mark .icon { width: 15px; height: 15px; }
 .menu-external { margin-left: auto; width: 13px; height: 13px; color: var(--lz-ink-faint); opacity: 0; }
 .menu-item:hover .menu-external { opacity: 1; }
-.menu-soon { margin-left: auto; padding: 1px 7px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-pill); color: var(--muted-fg); font-size: 11.5px; font-weight: 400; }
-.sidebar-notice, .update { display: grid; gap: 0.35rem; padding: 0.625rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--card); font-size: 12px; }
-.sidebar-notice { color: var(--muted-fg); overflow-wrap: anywhere; }
-.sidebar-notice code { display: block; margin-top: 0.35rem; padding: 0.25rem 0.4rem; border-radius: var(--lz-radius-xs); background: var(--muted); border: 1px solid var(--border); color: var(--fg); font-size: 11px; user-select: all; white-space: pre-wrap; overflow-wrap: anywhere; }
+.update { display: grid; gap: 0.35rem; padding: 0.625rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--card); font-size: 12px; }
 .update #update-pill { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.5rem; color: var(--fg); }
 .update #update-pill button { margin-left: auto; }
 .update p:not(#update-pill) { color: var(--muted-fg); }
@@ -380,6 +379,9 @@ main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-w
 .section-head { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid var(--lz-accent); }
 .section-pill { padding: 5px 12px; border-radius: 7px 7px 0 0; background: var(--lz-accent); color: var(--lz-on-accent); font-size: 14px; font-weight: var(--lz-weight-akce); line-height: normal; }
 .section-count { color: var(--muted-fg); font-size: 13px; }
+/* A guest section's "hostující" (decision F67's addendum of 2026-11-01): a
+   quiet badge on the rule beside the flag, its explanation in the tooltip. */
+.section-badge { padding: 1px 7px; border-radius: 999px; background: var(--hover); color: var(--muted-fg); font-size: 11px; font-weight: 600; cursor: help; }
 /* An Organization's own Workspace tabs (decision F32's addenda of 2026-10-16
    and 2026-10-19, prototypes-lazurio#73): the segmented switch of the column
    head's Chat · Apps · Automate (src/shell/styles.ts, `nav.switch` and
@@ -452,8 +454,55 @@ button.tile { height: auto; justify-content: flex-start; white-space: normal; bo
 .toast-region { position: fixed; z-index: 60; bottom: 28px; left: 50%; transform: translateX(-50%); }
 .toast { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border: 1px solid var(--line-strong); border-radius: var(--lz-radius-md); background: var(--lz-surface); color: var(--fg); font-size: 14px; white-space: nowrap; }
 .market-head { display: flex; align-items: center; gap: 14px; }
-.market-icon { display: grid; width: 52px; height: 52px; place-items: center; border-radius: var(--lz-radius-md); background: var(--lz-gray-100); color: var(--fg); }
-.market-icon .icon { width: 26px; height: 26px; }
+/* The Marketplace's catalog, an offer's detail and its dialog (plan
+   DEV-6593): an offer looks like the module it becomes in Apps, its stone
+   and name, and shows the real app. */
+.market-view { display: flex; flex-direction: column; gap: 28px; }
+.market-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 16px; }
+.market-card { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--lz-gray-100); border-radius: var(--lz-radius-md); background: var(--card); color: var(--fg); text-decoration: none; transition: border-color 120ms ease; }
+.market-card:hover, .market-card:focus-visible { border-color: var(--lz-ink); }
+.market-card:focus-visible { outline: none; box-shadow: 0 0 0 1px var(--bg), 0 0 0 3px var(--lz-accent); }
+.market-card-shot { display: block; aspect-ratio: 16 / 10; overflow: hidden; border-bottom: 1px solid var(--lz-gray-100); background: var(--lz-paper); }
+.market-card-shot img { display: block; width: 150%; max-width: none; height: auto; border: 0; border-radius: 0; aspect-ratio: auto; }
+.market-card-body { display: flex; align-items: center; gap: 14px; padding: 14px 18px 16px; }
+.market-card-body .tile-body { flex: 1; }
+.market-stone { display: block; flex: none; width: 44px; height: 44px; }
+.market-detail-head { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 20px; }
+.market-detail-head .market-stone { width: 64px; height: 64px; }
+.market-detail-title { display: grid; gap: 4px; flex: 1 1 12rem; min-width: 0; }
+.market-detail-title .apps-title { margin: 0; }
+.market-summary { color: var(--muted-fg); font-size: 15px; line-height: 1.5; }
+.market-add { height: 38px; padding: 0 18px; font-size: 14px; }
+.market-shots { display: grid; gap: 12px; }
+.market-thumbs { display: flex; flex-wrap: wrap; gap: 10px; }
+button.market-thumb { width: 120px; height: auto; padding: 0; border: 0; border-radius: var(--lz-radius-sm); background: transparent; box-shadow: none; opacity: 0.6; transition: opacity 120ms ease; }
+button.market-thumb:hover { opacity: 1; background: transparent; }
+button.market-thumb[aria-pressed="true"] { opacity: 1; }
+button.market-thumb .market-shot { border-radius: var(--lz-radius-sm); }
+button.market-thumb[aria-pressed="true"] .market-shot { border-color: var(--lz-ink); }
+button.market-thumb:focus-visible { outline: 2px solid var(--lz-accent); outline-offset: 2px; }
+.market-shot { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; border: 1px solid var(--lz-gray-100); border-radius: var(--lz-radius-md); background: var(--lz-paper); }
+.market-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 24px 32px; margin: 8px 0 0; padding: 0; list-style: none; }
+.market-features li { display: grid; align-content: start; gap: 6px; }
+.market-features h2 { font-size: 15px; font-weight: var(--lz-weight-akce); }
+.market-features p { max-width: 40ch; color: var(--muted-fg); font-size: 14px; line-height: 1.6; }
+dialog.market-dialog { width: min(34rem, calc(100vw - 2rem)); }
+.market-dialog-body { display: grid; gap: 20px; margin-top: 16px; }
+.market-field { display: grid; gap: 6px; }
+.market-field label, .market-seeds legend { font-size: 14px; font-weight: var(--lz-weight-akce); }
+.market-field select { width: 100%; }
+.market-seeds { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0; padding: 0; border: 0; }
+.market-seeds legend { grid-column: 1 / -1; margin-bottom: 6px; padding: 0; }
+dialog.market-dialog label, dialog.market-dialog .dialog-head h2 { margin-bottom: 0; }
+.market-seed { position: relative; display: grid; align-content: start; gap: 2px; padding: 12px 14px; border: 1px solid var(--lz-gray-100); border-radius: var(--lz-radius-sm); font-size: 14px; cursor: pointer; transition: border-color 120ms ease; }
+.market-seed:hover { border-color: var(--lz-line); }
+.market-seed:has(input:checked) { border-color: var(--lz-ink); background: var(--lz-paper); }
+.market-seed:has(input:focus-visible) { outline: 2px solid var(--lz-accent); outline-offset: 2px; }
+.market-seed input { position: absolute; opacity: 0; pointer-events: none; }
+.market-what { color: var(--muted-fg); font-size: 14px; line-height: 1.55; }
+dialog.market-dialog .dialog-foot { justify-content: flex-end; }
+dialog.market-dialog .dialog-foot [role="status"] { flex: 1 1 100%; margin: 0; text-align: left; }
+dialog.market-dialog .dialog-foot [role="status"]:empty { display: none; }
 .empty { padding: 28px; border: 1px dashed var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-paper); color: var(--muted-fg); font-size: 14px; text-align: center; }
 
 /* The module overview: back, head, then the cards of Settings. */
@@ -554,6 +603,70 @@ pre:empty { display: none; }
 /* SSH from your devices (decision F49): each block an agent reads is one
    <pre> in the ink of the text, kept whole (no height limit), with its copy
    button under it; the fields of "Add a device" stack. */
+/* Settings → Connections (decision F71). */
+#section-connections > .group { display: grid; gap: 12px; }
+.connections-devices { display: grid; gap: 6px; }
+.connections-devices[hidden] { display: none; }
+.connections-devices-head { padding: 0 4px; color: var(--muted-fg); font-size: 13px; font-weight: var(--lz-weight-akce); }
+.connections-back { display: inline-flex; gap: 4px; align-items: center; width: max-content; color: var(--muted-fg); font-size: 14px; text-decoration: none; }
+.connections-back:hover { color: var(--fg); }
+.connections-back .icon { width: 16px; height: 16px; }
+details.ssh-advanced { display: grid; gap: 12px; }
+details.ssh-advanced > summary { color: var(--muted-fg); font-size: 14px; cursor: pointer; }
+details.ssh-advanced[open] > summary { color: var(--fg); }
+.phone-card { display: grid; grid-template-columns: 180px 1fr; gap: 20px; align-items: center; padding: 18px; }
+.phone-card > * + * { border-top: 0; }
+@container (max-width: 520px) { .phone-card { grid-template-columns: 1fr; } }
+.phone-copy { display: grid; gap: 10px; align-content: center; }
+.phone-copy h3 { color: var(--fg); font-size: 17px; font-weight: var(--lz-weight-akce); }
+.phone-card[hidden] { display: none; }
+.phone-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.phone-actions:not(:has(> :not([hidden]))) { display: none; }
+#phone-restart-confirm { display: grid; gap: 8px; }
+#phone-restart-confirm[hidden] { display: none; }
+.phone-motion { display: grid; justify-items: center; gap: 10px; }
+.phone-motion-device { position: relative; width: 120px; height: 200px; border: 2px solid var(--lz-gray-300, #c9ccd3); border-radius: 22px; background: var(--lz-paper, #fff); overflow: hidden; }
+.phone-motion-device[data-device="computer"] { width: 172px; height: 112px; border-width: 2px 2px 6px; border-radius: 10px 10px 4px 4px; }
+.phone-motion-step { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; opacity: 0; animation: phone-step 10s infinite; }
+.phone-motion-step[data-step="2"] { animation-delay: 2s; }
+.phone-motion-step[data-step="3"] { animation-delay: 4s; }
+.phone-motion-step[data-step="4"] { animation-delay: 6s; }
+.phone-motion-step[data-step="5"] { animation-delay: 8s; }
+.phone-motion-icon { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 14px; background: var(--lz-accent); color: #fff; font: 600 20px/1 var(--font-mono, monospace); }
+.phone-motion-icon .icon { width: 26px; height: 26px; }
+.phone-motion-scan { background: repeating-linear-gradient(90deg, var(--fg) 0 4px, #fff 4px 8px), #fff; border: 4px solid #fff; outline: 2px solid var(--lz-accent); }
+.phone-motion-label { color: var(--fg); font-size: 13px; font-weight: var(--lz-weight-akce); text-align: center; max-width: 100px; }
+.phone-motion-dots { display: flex; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.phone-motion-dots li { width: 6px; height: 6px; border-radius: 50%; background: var(--lz-gray-300, #c9ccd3); animation: phone-dot 10s infinite; }
+.phone-motion-dots li:nth-child(2) { animation-delay: 2s; }
+.phone-motion-dots li:nth-child(3) { animation-delay: 4s; }
+.phone-motion-dots li:nth-child(4) { animation-delay: 6s; }
+.phone-motion-dots li:nth-child(5) { animation-delay: 8s; }
+@keyframes phone-step { 0% { opacity: 0; transform: translateY(8px); } 3%, 17% { opacity: 1; transform: none; } 20%, 100% { opacity: 0; transform: translateY(-8px); } }
+@keyframes phone-dot { 0%, 19% { background: var(--lz-accent); } 20%, 100% { background: var(--lz-gray-300, #c9ccd3); } }
+.phone-card[data-folded] { grid-template-columns: 1fr; }
+.phone-card[data-folded] .phone-motion { display: none; }
+.phone-needs { color: var(--muted-fg); font-size: 13px; }
+.link-button { padding: 0; border: 0; background: none; color: var(--link); font: inherit; font-size: 14px; cursor: pointer; }
+.link-button:hover { text-decoration: underline; }
+@media (prefers-reduced-motion: reduce) {
+  .phone-motion-device { width: auto; height: auto; border: 0; display: flex; gap: 8px; }
+  .phone-motion-step { position: static; opacity: 1; animation: none; }
+  .phone-motion-icon { width: 36px; height: 36px; font-size: 14px; }
+  .phone-motion-dots { display: none; }
+}
+#phone-devices li { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; justify-content: space-between; padding: 12px 16px; }
+#phone-devices .phone-device-actions { display: flex; gap: 0.5rem; align-items: center; }
+dialog.phone-dialog { width: min(26rem, calc(100vw - 2rem)); }
+.phone-pairing { display: grid; justify-items: center; gap: 12px; text-align: center; }
+.phone-qr-frame { padding: 8px; border: 1px solid var(--lz-line); border-radius: var(--radius-control); background: #fff; transition: opacity 0.2s; }
+.phone-qr-frame[data-expired] { opacity: 0.15; }
+.phone-qr { display: block; width: min(280px, 70vw); height: auto; aspect-ratio: 1; image-rendering: pixelated; }
+.phone-code-row { display: flex; gap: 0.5rem; align-items: center; }
+.phone-code { font: 600 22px/1.2 var(--font-mono, monospace); letter-spacing: 0.08em; color: var(--fg); }
+.phone-done { display: grid; justify-items: center; gap: 8px; padding: 24px 0; color: var(--fg); font-size: 17px; font-weight: var(--lz-weight-akce); }
+.phone-done .icon { width: 40px; height: 40px; color: var(--success-fg, var(--lz-accent)); }
+dialog.phone-dialog .dialog-foot { justify-content: flex-end; }
 .ssh-block-row { display: grid; gap: 0.5rem; }
 .ssh-block-head { display: grid; gap: 2px; }
 pre.ssh-block { max-height: none; color: var(--fg); font-size: 12.5px; line-height: 1.5; }
@@ -609,6 +722,10 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 /* Being checked, it confirms nothing: no line takes the success colour before the current reading, so GitHub is never green from an older reading whose SSH may have broken since (F19's addendum of 2026-10-19). */
 #tools-groups[data-checking] .tool-signin[data-state="signed-in"] { color: inherit; }
 @media (prefers-reduced-motion: reduce) { #tools-groups[data-checking] { transition: none; } }
+/* The row of the tool this page was opened for (Integrace's card, Začínáme; Matěj 2026-10-28): tinted with the accent for a moment, then as every row. */
+.row.revealed { animation: tool-revealed 2.4s ease-out; }
+@keyframes tool-revealed { 0%, 55% { background: color-mix(in oklab, var(--lz-accent) 12%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .row.revealed { animation: none; background: color-mix(in oklab, var(--lz-accent) 8%, transparent); } }
 .row-details { margin-top: 0.5rem; }
 .row-details[open] > .details-body { display: grid; gap: 0.75rem; margin-top: 0.625rem; padding: 0.75rem; border-radius: var(--radius-control); background: var(--muted); border: 1px solid var(--lz-gray-100); }
 .details-body h4 { color: var(--fg); font-size: 12.5px; font-weight: var(--lz-weight-akce); }
@@ -1345,6 +1462,9 @@ button:not(.primary) .provider-openai { color: #000000; }
 .buddy-part-title { font-weight: var(--lz-weight-akce); }
 .buddy-part-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--muted-fg); }
 .buddy-part[data-mark="warn"] .buddy-part-status { color: var(--warning-fg); }
+/* His sign-in once it is done says Připojeno in the success colour, as a
+   tool's sign-in in Nástroje does (the onboarding of 2026-10-28). */
+.buddy-part[data-part="sign-in"][data-mark="done"] .buddy-part-status { color: var(--success-fg); }
 .buddy-part > .buddy-help { grid-column: 2 / -1; }
 @container (max-width: 520px) { .buddy-part { grid-template-columns: 16px 1fr; } .buddy-part-status { grid-column: 2; } }
 button.buddy-help-toggle { width: 20px; height: 20px; padding: 0; border-radius: 50%; color: var(--muted-fg); font-size: 12px; }
@@ -1366,9 +1486,14 @@ dialog.buddy-meet { width: min(36rem, calc(100vw - 2rem)); }
 .buddy-steps .button .icon { width: 13px; height: 13px; }
 .buddy-code { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .buddy-code .tools-code { margin: 0; padding: 2px 10px; border: 1px solid var(--lz-line); border-radius: var(--radius-control); font-size: 1.25rem; letter-spacing: 0.08em; }
-.buddy-holds { color: var(--muted-fg); font-size: 13px; }
+/* The sign-in's code step (the onboarding of 2026-10-28): what to do where
+   ChatGPT does not take the code, quiet; one calm line that waits, with the
+   time the code holds and no spinner; Připojeno alone and prominent. */
+.buddy-note { max-width: 34rem; color: var(--muted-fg); font-size: 13px; line-height: 1.45; }
+.buddy-wait { color: var(--muted-fg); font-size: 13px; }
+.buddy-connected { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid var(--success-border); border-radius: var(--radius-card); background: var(--success-bg); color: var(--success-fg); font-size: 17px; font-weight: var(--lz-weight-title); }
+.buddy-connected .icon { width: 22px; height: 22px; flex: none; }
 .buddy-again { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding-top: 12px; border-top: 1px solid var(--lz-gray-100); }
-.buddy-again .buddy-own { flex: 1 1 14rem; }
 .buddy-meet-art { display: flex; align-items: flex-start; gap: 12px; padding: 14px; border-radius: var(--radius-card); background: var(--muted); }
 .buddy-face { display: grid; width: 48px; height: 48px; flex: none; place-items: center; overflow: hidden; border-radius: 50%; background: var(--lz-surface); box-shadow: 0 0 0 1px var(--lz-line); color: var(--fg); font-size: 18px; font-weight: var(--lz-weight-title); }
 .buddy-face img { width: 100%; height: 100%; object-fit: cover; }
@@ -1627,17 +1752,16 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <li><a class="menu-item" href="/settings/communication" data-section="communication" data-route><svg class="icon" aria-hidden="true"><use href="#i-general"/></svg><span class="menu-name" data-message="voiceTitle">Agent communication</span></a></li>
 <li><a class="menu-item" href="/settings/machine" data-section="machine" data-route><svg class="icon" aria-hidden="true"><use href="#i-machine"/></svg><span class="menu-name" data-message="machineTitle">This Environment</span></a></li>
 <li><a class="menu-item" href="/settings/tools" data-section="tools" data-route><svg class="icon" aria-hidden="true"><use href="#i-tools"/></svg><span class="menu-name" data-message="toolsTitle">Tools</span></a></li>
-<li><a class="menu-item" href="/settings/ssh" data-section="ssh" data-route><svg class="icon" aria-hidden="true"><use href="#i-terminal"/></svg><span class="menu-name" data-message="sshTitle">SSH from your devices</span></a></li>
+<li><a class="menu-item" href="/settings/connections" data-section="connections" data-route><svg class="icon" aria-hidden="true"><use href="#i-laptop"/></svg><span class="menu-name" data-message="connectionsTitle">Connections</span></a></li>
 <li><a class="menu-item" href="/settings/recovery" data-section="recovery" data-route><svg class="icon" aria-hidden="true"><use href="#i-recovery"/></svg><span class="menu-name" data-message="recoveryTitle">Recovery</span></a></li>
 <li id="buddy-nav" hidden><a class="menu-item" href="/settings/buddy" data-section="buddy" data-route><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg><span class="menu-name" data-message="buddyTitle">Buddy</span></a></li>
 </ul>
 </nav>
 </div>
-<!-- The foot of the column on every route: the product update pill and the
-     read-only "Folder refresh needed" line (F17 addendum), then Back inside
-     Settings. -->
+<!-- The foot of the column on every route: the product update pill, then
+     Back inside Settings. The Folder's refresh is part of the update and is
+     never shown (F17's addendum of 2026-10-30). -->
 <div class="column-foot">
-<p id="update-folder-refresh" class="sidebar-notice" role="note" hidden></p>
 <section id="update" class="update" hidden aria-labelledby="update-heading">
 <h2 id="update-heading" class="sr-only" data-message="updateTitle">Product update</h2>
 <p id="update-pill" role="status"><span id="update-text"></span> <a id="update-notes" hidden target="_blank" rel="noopener noreferrer" data-message="updateNotes">Release notes</a> <button type="button" id="update-action" class="primary" hidden></button></p>
@@ -1645,7 +1769,7 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <p id="update-error" hidden></p>
 <p id="update-state-invalid" hidden></p>
 </section>
-<ul class="menu" data-view="catalog files integrations vault marketplace"><li><a class="menu-item" href="/marketplace" id="marketplace-open" data-route><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg><span class="menu-name" data-message="appsMarketplace">Marketplace</span><span class="menu-soon" data-message="appsSoon">coming soon</span></a></li></ul>
+<ul class="menu" data-view="catalog files integrations vault marketplace"><li><a class="menu-item" href="/marketplace" id="marketplace-open" data-route><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg><span class="menu-name" data-message="appsMarketplace">Marketplace</span></a></li></ul>
 <ul class="menu" data-view="settings"><li><a class="menu-item" href="/" id="settings-back" data-route><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg><span class="menu-name" data-message="settingsBack">Back</span></a></li></ul>
 </div>
 <!-- The column's right edge drags it wider or narrower (layout.ts). -->
@@ -1678,6 +1802,7 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <button type="button" class="ghost" id="reload" data-section-action="general"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="reload">Reload profile</span></button>
 <button type="button" class="ghost" id="tools-refresh" data-section-action="tools"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="toolsRefresh">Refresh status</span></button>
 <button type="button" class="ghost" id="vault-page-refresh" data-section-action="vault"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="toolsRefresh">Refresh status</span></button>
+<button type="button" class="ghost" id="connections-refresh" data-section-action="connections"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="sshRefresh">Refresh</span></button>
 <button type="button" class="ghost" id="ssh-refresh" data-section-action="ssh"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="sshRefresh">Refresh</span></button>
 <button type="button" class="ghost" id="recovery-refresh" data-section-action="recovery"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="recoveryAgain">Check again</span></button>
 </div>
@@ -1697,8 +1822,12 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <!-- The Marketplace (decision F36 addendum of 2026-10-04): where modules
      will be added to the Environment; for now it says only that it is
      coming (F36's addendum of 2026-10-16). -->
+<!-- The Marketplace (plan DEV-6593): marketplace-panel.ts draws the catalog,
+     an offer's detail and the form "Přidat do Organizace" into the body; the
+     first paint shows the catalog's head. The screens come from each offered
+     release's exact commit (docs/marketplace.md). -->
 <main id="view-marketplace" class="container" data-view="marketplace">
-<header class="market-head"><span class="market-icon"><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg></span><div><h1 class="apps-title" data-page-heading tabindex="-1" data-message="appsMarketplace">Marketplace</h1><p class="module-meta" data-message="appsMarketplaceSoon">Coming soon</p></div></header>
+<div id="market-body"><div class="market-view"><header class="market-head"><h1 class="apps-title" data-page-heading tabindex="-1" data-message="appsMarketplace">Marketplace</h1></header></div></div>
 </main>
 
 <!-- Integrace (decision F42): the apps and services connected to this
@@ -1937,7 +2066,62 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
      ssh-panel.ts. The blocks an agent reads are each one <pre> with a
      `data-ssh-block` (`prompt`, `config`, `known-hosts`) whose text is
      exactly what is written. -->
+<!-- Settings → Connections (decision F71, root decision 0215, Matěj
+     2026-11-03): one topic, Ovládat toto Prostředí, and under it the ways by
+     the device the person holds: Telefon (the ChatGPT app paired with this
+     Environment's Codex, drawn by connections-panel.ts) and Počítač
+     (ChatGPT Desktop over SSH with a key, today's F49 page at
+     /settings/ssh). The page picks the route that works here; SSH is how
+     Počítač works, never a topic of its own. Each way has its own motion
+     graphic (#phone-motion, #computer-motion), one element each. -->
+<section id="section-connections" data-section="connections" aria-labelledby="page-heading">
+<section class="group" aria-labelledby="control-heading">
+<div class="group-head"><h2 id="control-heading" data-message="connectionsControl">Control this Environment</h2></div>
+<div class="card phone-card" id="phone-card">
+<div class="phone-motion" id="phone-motion" aria-hidden="true">
+<div class="phone-motion-device" data-device="phone">
+<div class="phone-motion-step" data-step="1"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-openai"/></svg></span><span class="phone-motion-label" data-message="phoneMotionOpen">Open ChatGPT</span></div>
+<div class="phone-motion-step" data-step="2"><span class="phone-motion-icon phone-motion-codex">&lt;/&gt;</span><span class="phone-motion-label" data-message="phoneMotionCodex">Tap Codex</span></div>
+<div class="phone-motion-step" data-step="3"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-laptop"/></svg></span><span class="phone-motion-label" data-message="phoneMotionAdd">Add computer</span></div>
+<div class="phone-motion-step" data-step="4"><span class="phone-motion-icon phone-motion-scan"></span><span class="phone-motion-label" data-message="phoneMotionScan">Scan the QR code</span></div>
+<div class="phone-motion-step" data-step="5"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span><span class="phone-motion-label" data-message="phoneMotionDone">Done</span></div>
+</div>
+<ol class="phone-motion-dots"><li></li><li></li><li></li><li></li><li></li></ol>
+</div>
+<div class="phone-copy">
+<h3 id="phone-heading" data-message="phoneTitle">Phone</h3>
+<p class="row-desc" data-message="phoneLead">Control the chats of this Environment from the ChatGPT app.</p>
+<p id="phone-state" class="callout" data-kind="warning" role="status" aria-live="polite" hidden></p>
+<div id="phone-restart-confirm" class="callout" data-kind="warning" role="alert" hidden><p data-message="phoneRestartWarning">A restart ends the chats running in Codex. Restart now?</p><div class="phone-actions"><button type="button" id="phone-restart-cancel" data-message="phoneCancel">Cancel</button><button type="button" class="primary" id="phone-restart-yes" data-message="phoneRestartYes">Restart</button></div></div>
+<div class="phone-actions"><button type="button" class="primary" id="phone-pair" data-message="phonePair" hidden>Pair a phone</button><a id="phone-sign-in" class="button" href="/settings/start" data-route data-message="phoneSignIn" hidden>Sign in</a><button type="button" id="phone-restart" data-message="phoneRestart" hidden>Restart Codex</button><button type="button" class="link-button" id="phone-how" aria-controls="phone-motion" hidden>Show how</button></div>
+<p class="phone-needs" id="phone-needs" data-message="phoneNeeds" hidden>ChatGPT Plus or higher, the same account as Codex in this Environment.</p>
+</div>
+</div>
+<div id="phone-devices-group" class="connections-devices" hidden>
+<h3 id="phone-devices-heading" class="connections-devices-head" data-message="phoneDevices">Paired phones</h3>
+<ul class="card" id="phone-devices" aria-labelledby="phone-devices-heading"></ul>
+</div>
+<div class="card phone-card" id="computer-card" hidden>
+<div class="phone-motion" id="computer-motion" aria-hidden="true">
+<div class="phone-motion-device" data-device="computer">
+<div class="phone-motion-step" data-step="1"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg></span><span class="phone-motion-label" data-message="computerMotionCopy">Copy the prompt</span></div>
+<div class="phone-motion-step" data-step="2"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-openai"/></svg></span><span class="phone-motion-label" data-message="computerMotionOpen">Open ChatGPT Desktop</span></div>
+<div class="phone-motion-step" data-step="3"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-bot"/></svg></span><span class="phone-motion-label" data-message="computerMotionPaste">Paste it to the agent</span></div>
+<div class="phone-motion-step" data-step="4"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></span><span class="phone-motion-label" data-message="computerMotionAdd">Click Add to Codex</span></div>
+<div class="phone-motion-step" data-step="5"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span><span class="phone-motion-label" data-message="phoneMotionDone">Done</span></div>
+</div>
+<ol class="phone-motion-dots"><li></li><li></li><li></li><li></li><li></li></ol>
+</div>
+<div class="phone-copy">
+<h3 id="computer-heading" data-message="computerTitle">Computer</h3>
+<p class="row-desc" data-message="computerLead">Control this Environment from ChatGPT Desktop on your computer.</p>
+<div class="phone-actions"><a id="computer-connect" class="button primary" href="/settings/ssh" data-route data-message="computerConnect">Connect a computer</a></div>
+</div>
+</div>
+</section>
+</section>
 <section id="section-ssh" data-section="ssh" aria-labelledby="page-heading">
+<a class="connections-back" href="/settings/connections" data-route><svg class="icon" aria-hidden="true"><use href="#i-chevron-left"/></svg><span data-message="connectionsTitle">Connections</span></a>
 <div class="section-head-text">
 <p id="ssh-unsupported" class="callout" role="note" hidden data-message="sshUnsupported">SSH from your devices is available in Environments on Linux and macOS.</p>
 </div>
@@ -1968,8 +2152,10 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <p id="ssh-added" class="callout" role="status" aria-live="polite" hidden></p>
 <div class="card" id="ssh-computer-ready" hidden>
 <div class="row"><div><a id="ssh-codex" data-message="sshCodexLink" hidden>Add Environment to Codex</a><p id="ssh-project-path" class="row-desc"></p></div></div>
+<details class="row ssh-advanced"><summary data-message="sshAdvanced">Advanced: manual SSH setup</summary>
 <div class="row ssh-block-row"><div class="ssh-block-head"><p class="row-title" data-message="sshConfigLabel">SSH config</p><p class="row-desc" data-message="sshConfigNote">Add to ~/.ssh/config</p></div><pre id="ssh-config" class="ssh-block" data-ssh-block="config"></pre><div class="ssh-block-actions"><span class="row-status" data-copy-status role="status" aria-live="polite"></span><button type="button" data-copy="ssh-config"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span data-message="sshCopy">Copy</span></button></div></div>
 <div class="row ssh-block-row"><div class="ssh-block-head"><p class="row-title" data-message="sshKnownHostsLabel">known_hosts</p><p class="row-desc" data-message="sshKnownHostsNote">Add to ~/.ssh/known_hosts_lazurio</p></div><pre id="ssh-known-hosts" class="ssh-block" data-ssh-block="known-hosts"></pre><div class="ssh-block-actions"><span class="row-status" data-copy-status role="status" aria-live="polite"></span><button type="button" data-copy="ssh-known-hosts"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span data-message="sshCopy">Copy</span></button></div></div>
+</details>
 </div>
 <div id="ssh-computer-missing" class="callout" data-kind="warning" role="note" hidden></div>
 <p class="group-note" data-message="sshNetworkNote">Adding a key does not give this device network access by itself. If SSH fails, give your agent the exact error. If the device is not allowed on the network yet, the network administrator can allow it.</p>
@@ -2051,6 +2237,23 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <textarea id="tools-prompt-text" readonly rows="14" spellcheck="false"></textarea></label>
 <div class="dialog-foot"><span id="tools-prompt-status" role="status" aria-live="polite"></span><button type="button" id="tools-prompt-close" data-message="toolsClose">Close</button><button type="button" id="tools-prompt-copy" class="primary" data-message="toolsCopy">Copy prompt</button></div>
 </dialog>
+<!-- Spárovat telefon (decision F71): the QR code the ChatGPT app's own
+     scanner reads, the short code, the time left, a new code once it
+     expired, and the moment the phone took it. The page drops the code when
+     the dialog closes; Codex cannot end it, so it stays valid at ChatGPT
+     until it expires and the next open shows the same code. -->
+<dialog id="phone-dialog" class="phone-dialog" aria-labelledby="phone-dialog-title">
+<div class="dialog-head"><h2 id="phone-dialog-title" tabindex="-1" data-message="phonePair">Pair a phone</h2><button type="button" class="dialog-x" id="phone-dialog-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="sr-only" data-message="toolsClose">Close</span></button></div>
+<div id="phone-dialog-pairing" class="phone-pairing">
+<p data-message="phoneHint">In the ChatGPT app, open Codex → Add computer and scan the code.</p>
+<div class="phone-qr-frame"><img id="phone-qr" class="phone-qr" width="280" height="280" alt=""></div>
+<div class="phone-code-row"><code id="phone-code" class="phone-code"></code><button type="button" id="phone-code-copy"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span data-message="phoneCopy">Copy</span></button></div>
+<p id="phone-countdown" class="row-desc" role="timer" aria-live="off"></p>
+</div>
+<div id="phone-dialog-done" class="phone-done" hidden><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><p data-message="phonePaired">Your phone is paired</p></div>
+<p id="phone-dialog-status" class="row-status" role="status" aria-live="polite"></p>
+<div class="dialog-foot"><button type="button" id="phone-new" data-message="phoneNewCode">New code</button><button type="button" class="primary" id="phone-dialog-ok" data-message="phoneDone">Done</button></div>
+</dialog>
 <dialog id="tools-login" aria-labelledby="tools-login-title" aria-describedby="tools-login-status">
 <div class="dialog-head"><h2 id="tools-login-title" tabindex="-1"></h2><button type="button" class="dialog-x" id="tools-login-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="sr-only" data-message="toolsClose">Close</span></button></div>
 <ol id="tools-login-steps"></ol>
@@ -2087,6 +2290,13 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <p id="integrations-confirm-text"></p>
 <p id="integrations-confirm-status" role="status" aria-live="polite"></p>
 <div class="dialog-foot"><button type="button" class="destructive" id="integrations-confirm-ok"></button><button type="button" id="integrations-confirm-cancel" data-message="integrationsCancel">Cancel</button></div>
+</dialog>
+<!-- The Marketplace's "Přidat do Organizace" (plan DEV-6593):
+     marketplace-panel.ts draws the form into its body. -->
+<dialog id="market-dialog" class="market-dialog" aria-labelledby="market-dialog-title">
+<div class="dialog-head"><h2 id="market-dialog-title" tabindex="-1"></h2><button type="button" class="dialog-x" id="market-dialog-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg></button></div>
+<div class="market-dialog-body" id="market-dialog-body"></div>
+<div class="dialog-foot"><p id="market-dialog-status" role="status" aria-live="polite"></p><button type="button" id="market-dialog-cancel"></button><button type="button" class="primary" id="market-dialog-ok"></button></div>
 </dialog>
 <!-- The shell's guide (decision F56): where Buddy, or without him the
      neutral guide of Lazurio, explains this page in place when a "?" asks

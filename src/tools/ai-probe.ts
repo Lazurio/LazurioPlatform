@@ -231,14 +231,21 @@ export function createAiProbe(
   const ttl = options.ttlMs ?? 60_000;
   const now = options.now ?? Date.now;
   let known: Readonly<{ reading: AiReading; at: number }> | null = null;
-  let asking: Promise<AiReading> | null = null;
+  // The reading under way and the generation it was asked in: after
+  // forget() a caller never joins one asked before it (a sign-in that just
+  // ended, or Začínáme's "Zkontrolovat znovu", would get the CLIs as they
+  // were before).
+  let asking: Readonly<{
+    generation: number;
+    reading: Promise<AiReading>;
+  }> | null = null;
   let generation = 0;
   return {
     async state(): Promise<AiReading> {
       if (known !== null && now() - known.at < ttl) return known.reading;
-      if (asking === null) {
+      if (asking === null || asking.generation !== generation) {
         const asked = generation;
-        asking = readAi(environment, options)
+        const mine = readAi(environment, options)
           .catch(
             (): AiReading => Object.freeze({ state: "unknown", providers: [] }),
           )
@@ -247,10 +254,11 @@ export function createAiProbe(
             return reading;
           })
           .finally(() => {
-            asking = null;
+            if (asking?.reading === mine) asking = null;
           });
+        asking = { generation: asked, reading: mine };
       }
-      return asking;
+      return asking.reading;
     },
     forget() {
       generation += 1;

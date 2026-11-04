@@ -3,6 +3,7 @@ import { machineBinding } from "../../src/machine/binding";
 import { parseMachineContext } from "../../src/machine/context";
 import organization from "./machine-context.json";
 import personal from "./machine-context-personal.json";
+import personalAssigned from "./machine-context-personal-assigned.json";
 import services from "./machine-context-services.json";
 
 // The v0.12.61 fields as Machines writes them: the assignment copied from the
@@ -268,6 +269,10 @@ export const bindings = Object.freeze({
     ...personal,
     relationships: personalRelationships,
   }),
+  // Root decision 0192, addendum of 2026-10-26 (Machines #948): the personal
+  // VM of the reference Organization's Bob, whose work VM is assigned to him;
+  // its peer carries the Environment id, `access` and a pinned host key.
+  personalAssigned: binding(personalAssigned),
   // Machines 0.12.93 shapes: the entry on both lanes.
   organizationEntry: organizationWithEntry(),
   personalEntry: binding({ ...personal, entry: entries.personal }),

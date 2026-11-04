@@ -1,4 +1,5 @@
 import {
+  isAccessServiceOrigin,
   type MachineAssignment,
   type MachineBinding,
   type MachineEntry,
@@ -45,12 +46,20 @@ function assignment(input: OrganizationAssignment): MachineAssignment {
   }
 }
 
+// One member to one, in the binding parser's order. The members of an
+// assigned peer (root decision 0192, addendum of 2026-10-26) are copied
+// exactly when the handover carries them and stay absent when it does not,
+// so a peer without them records the bytes it always did.
 function peer(input: HandoverPeer): MachinePeer {
   return Object.freeze({
     name: input.name,
     kind: input.kind,
     zone: input.zone,
     organization: input.organization,
+    ...(input.environment === undefined
+      ? {}
+      : { environment: input.environment }),
+    ...(input.access === undefined ? {} : { access: input.access }),
     ssh:
       input.ssh === null
         ? null
@@ -58,6 +67,15 @@ function peer(input: HandoverPeer): MachinePeer {
             host: input.ssh.host,
             user: input.ssh.user,
             direction: input.ssh.direction,
+            ...(input.ssh.host_keys === undefined
+              ? {}
+              : {
+                  hostKeys: Object.freeze(
+                    input.ssh.host_keys.map(({ type, key }) =>
+                      Object.freeze({ type, key }),
+                    ),
+                  ),
+                }),
           }),
     https: Object.freeze([...input.https]),
   });
@@ -113,6 +131,15 @@ function entry(input: HandoverEntry): MachineEntry {
   }
 }
 
+// The origin exactly as the handover declares it (decision F70 point 1). The
+// schema already holds it to that form; the binding's own rule is checked
+// again so a projection that would not read back refuses the handover.
+function accessService(origin: string): Readonly<{ origin: string }> {
+  if (!isAccessServiceOrigin(origin))
+    throw new MachineContextError("machine-context-invalid");
+  return Object.freeze({ origin });
+}
+
 // The projection of a validated handover that the Folder records and renders.
 // Paths, release inventory and custody repositories stay in the handover file;
 // the binding keeps what identifies the Machine, whose it is, how it is
@@ -134,6 +161,9 @@ export function machineBinding(
       ? {}
       : { relationships: relationships(context.relationships) }),
     ...(context.entry === undefined ? {} : { entry: entry(context.entry) }),
+    ...(context.access_service === undefined
+      ? {}
+      : { accessService: accessService(context.access_service.origin) }),
   };
   if (isPersonal(context))
     return Object.freeze({

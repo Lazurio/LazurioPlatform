@@ -20,6 +20,7 @@ import { initializeFolder } from "./folder/initialize-folder";
 import { inspectLegacyPaths } from "./folder/inspect-legacy-paths";
 import { inspectProfileChange } from "./folder/inspect-profile-change";
 import { inspectOutput } from "./folder/inventory";
+import { FolderOperationBusyError } from "./folder/lock";
 import {
   canonicalCheckoutDirectory,
   inspectOwnedDirectory,
@@ -50,6 +51,7 @@ import { startLaunchpad } from "./launchpad/server";
 import { createUpdatePill } from "./launchpad/update-pill";
 import {
   describeFolderAdoption,
+  folderBusyAnswer,
   MachineUsageError,
   machineHelp,
   runMachineCommand,
@@ -103,6 +105,7 @@ import {
   installBase,
   noticeAfterCommand,
   processContext,
+  routesAtStart,
   runInstallCommand,
   runUpdateCommand,
   selfCheckCommand,
@@ -145,6 +148,9 @@ async function installedLaunchpad(explicitBase: string, folder: string) {
     }),
     executorAtStart: executorAtStart(context, base),
     vaultAtStart: vaultAtStart(context, base),
+    // The Environment's routes from its home access service (root decision
+    // 0224), where the handover declares it.
+    routesAtStart: routesAtStart(context, base),
     // ChatGPT's apps in the operator's Codex (decision F42's addendum of
     // 2026-10-27): exactly where it sets Executor up.
     codexAppsAtStart: executorAtStart(context, base),
@@ -597,11 +603,11 @@ it replaces owned instructions/preferences/manifest and archives the transaction
 In an installed Environment the Folder is the user's ~/Lazurio; the change is applied
 only after the preview and only at the expected revision.
 It refuses missing/unrecognized state, edits and pending recovery; it does not initialize a Folder.
-In a Remote Environment's Folder (adopted from its handover) a top-level entry other than
-organizations/, personalspace/, the two legacy launchpad files and the owned AGENTS.md,
-manual/ and .lazurio/ is refused by name (exit 2, folder-foreign-entry) before
-preparation, before every replacement and in profile-resume; the journal stays for a
-later resume. A workstation Folder keeps your own top-level files untouched.
+A top-level entry the Folder does not own (anything but organizations/, personalspace/,
+the two legacy launchpad files and the owned AGENTS.md, manual/, .agents/, .claude/ and
+.lazurio/) is never read, written or moved, and it stops no change, on a workstation and
+in a Remote Environment's Folder alike. In a Remote Environment lazurio update, update
+status and doctor name it, because work products belong in ~/Documents/<task>/.
 In a Remote Environment, machine folder-refresh re-renders the same owned files from the
 current handover through this same transaction, keeping the recorded profile.
 tools enable|disable <tool> --folder <Folder> --expected-revision <n> records which
@@ -616,6 +622,10 @@ resumes and finalizes an existing prepared update, or verifies its completed arc
 Target revision is the NEW revision, not the old expected revision of profile-update.
 It accepts no profile choices and never reclaims a stale lock or damaged journal.
 Exit status: 0 completed/unchanged/preview available, 2 blocked plan, 1 operation failure.
+A profile command on a Folder whose lock another Lazurio operation holds answers
+{"kind":"blocked","reason":"folder-busy","retryable":true} with exit 2, nothing changed;
+lazurio update runs profile-update with the recorded choices as its Folder refresh
+and retries that.
 folder-init uses the same profile choices with an ABSENT canonical --folder path.
 It creates a new Folder at revision 1; no revision/digest options are accepted.
 A failed initialization is retained for folder-resume, never automatically retried.
@@ -1001,6 +1011,13 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
           : {}),
       });
     } catch (error) {
+      // A Folder another Lazurio operation holds is a retryable refusal, as
+      // `machine folder-refresh` answers it: `lazurio update` runs this
+      // command as its refresh and retries it (F17's addendum of 2026-10-30).
+      if (error instanceof FolderOperationBusyError) {
+        console.log(JSON.stringify(folderBusyAnswer));
+        return 2;
+      }
       // A foreign top-level entry is a named refusal before any write.
       if (!(error instanceof FolderAdoptionError)) throw error;
       console.log(JSON.stringify(describeFolderAdoption(error)));

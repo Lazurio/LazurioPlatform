@@ -31,11 +31,14 @@ import sys
 import tempfile
 import unicodedata
 
-INSTALLER_VERSION = "2026-10-25.1"
-INSTALLER_SHA256 = "f241352974ea153b6ad21a02227676d12ab33094502dc71c617b94a1457d3c3e"
+INSTALLER_VERSION = "2026-10-30.5"
+INSTALLER_SHA256 = "7487e0c732a6d9fac296027d96afb591651a975b7e0189b9e0aceb6679f6c886"
+# 2026-10-30.5 changes one sentence of soul_text, the address's name sentence, in all four variants
+# (cs and en, ty and vy; LazurioPlatform#703); every other render, check, build and quoting case is
+# byte for byte 2026-10-25.1's (sha256 f241352974ea153b6ad21a02227676d12ab33094502dc71c617b94a1457d3c3e).
 # 2026-10-24.2 (sha256 fdd770f3a36afccb08f6fddaaa95106e1357cd55515de681508949941a825ea5) rendered
-# the same bytes in every render, build and quoting case; 2026-10-25.1 only adds the refusal of a
-# lone surrogate in every member to persona_check.
+# the same bytes as 2026-10-25.1 in every render, build and quoting case; 2026-10-25.1 only adds the
+# refusal of a lone surrogate in every member to persona_check.
 HEREDOC_START = "cat > \"$WORK/h.py\" <<'PY'"
 SCHEMA = "lazurio.buddy-persona.v1"
 

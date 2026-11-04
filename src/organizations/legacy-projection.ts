@@ -81,6 +81,9 @@ export function expectedLegacyProjection(
     const entry: Record<string, unknown> = { ...slot };
     for (const key of ["git", "space", "default_access", "required_roles"])
       delete entry[key];
+    // The path alone, as Core's projection reads it: a guest slot (DEV-6694)
+    // is copied whole, `home_organization` included, and its database child
+    // declares its slug, so the bytes stay Core's for every manifest.
     if (
       !Object.hasOwn(slot, "slug") &&
       !classifyRepositorySlotPath(path)?.nestedDatabase

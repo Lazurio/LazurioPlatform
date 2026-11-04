@@ -26,7 +26,7 @@ these brand assets in this public repository (2026-10-03).
 
 | File | Source path | SHA-256 |
 | --- | --- | --- |
-| `lazurio/tokens.css` | `tokens.css` | `f5ebb3382c24432f800b86144e549bfc0f064423531d42308f3dd750bd3bb191` |
+| `lazurio/tokens.css` | `tokens.css` | `a8e4be9f818a896537ccac7dd6a97fa58985ca4a05842b804e2eae2ab4093251` |
 | `lazurio/symbol-color.svg` | `content/brand/logo/symbol-color.svg` | `657d021e5fab5f28df6b10488d68f567149783ec51d44f44ba18b129ce9c1941` |
 | `lazurio/lockup-color.svg` | `content/brand/logo/lockup-color.svg` | `56148f482211a3bdb62311ccabb9f943f61440c7b2c23101f120fb1e0f02aefe` |
 
@@ -67,15 +67,14 @@ The design system's Lazurio stones (`content/brand/icons/*-96.png`, Lazurio's ow
 artwork, 96 × 96 px, drawn at 48 × 48 on a tile and 20 × 20 in a list). Since
 2026-10-28 they come byte-for-byte from `HumanAndMachine-ai/design-system-lazurio`
 at commit `2d6308eaa3ada8181b86407186649d4394172d94` (#111,
-"Ikony: a Legal stone with the section sign"), not from the pin above. The set grew from 13 stones to 23: Knowledgebase is the approved
+"Ikony: a Legal stone with the section sign"). The set grew from 13 stones to 23: Knowledgebase is the approved
 book on yellow, the mint book it had keeps its bytes as `wiki-96.png`,
 Documentation is the book on lazurite, Design system a palette, and finance,
 profitability, prototypes, automations, exports, warehouse, installation and
-legal (a section sign) are new. The 11 other stones have the same drawings as the previous copy (from
-`4439aef645b7432181216aab3799d7f7819d6592`), now with the transparent
-surroundings the design system gave every stone on 2026-10-11 (190e735,
-"Prvky: Module stones on a transparent background"); the previous copy still
-had the near-white canvas around the stone. `src/shell/stones.ts`
+legal (a section sign) are new. The 11 other stones keep the bytes of the
+previous copy (`190e735c9c4ad2e2910ada07768191c6c5a0e983`, 2026-10-11, "Prvky:
+Module stones on a transparent background", #76), with a transparent surrounding
+instead of a baked-in off-white square. `src/shell/stones.ts`
 picks one by a generic semantic key only (the app's declared `icon`, or the
 org-agnostic fallback that started as the root Launchpad's), never by an
 Organization or a module's name, as `content/brand/icons/icons.md` and the root
@@ -146,3 +145,10 @@ byte-for-byte from the design system at the pinned commit
 | File | Source path | SHA-256 |
 | --- | --- | --- |
 | `LICENSE-iconoir.txt` | `content/brand/icons/LICENSE-iconoir.txt` | `869b60da1ada5b896d1f285c3c24ca193d612e308d1710a77a58f2f572eb4fa2` |
+
+## Svěží palette refresh (2026-10-19)
+
+`tokens.css` is a byte-for-byte copy from `HumanAndMachine-ai/design-system-lazurio`
+commit `f3eb7117e81ea52b341a03b0d45a8842a9b81525` (reviewed PR #99). Success, warning and danger
+use the approved semantic foreground, background and border values. Other assets
+retain the provenance recorded above.

@@ -287,8 +287,9 @@ function keptNotes(notes: ToolNotes, tools: readonly string[]): ToolNotes {
 // re-projected). The Machine identity never changes here; the
 // handover-derived rest of the binding (assignment, relationships, document
 // digest, entry) follows the handover. A binding that renders the same bytes
-// and declares the same entry is `unchanged` and is not recorded, so a
-// re-apply that only rewrote `installed` never bumps the revision.
+// and declares the same entry and relationships is `unchanged` and is not
+// recorded, so a re-apply that only rewrote `installed` never bumps the
+// revision.
 export type FolderChange = Readonly<{
   // Undefined keeps the record; null removes the last override.
   agentVoice?: AgentVoice | null;
@@ -422,11 +423,21 @@ export async function planFolderChange(
   // changed selection or note: a tool this Environment does not offer is not
   // rendered (decision F44), and switching it off changes only the record;
   // and so is a changed section of Organization settings, which Settings →
-  // Tools and `lazurio tools` act on (decision F45).
+  // Tools and `lazurio tools` act on (decision F45). The relationships follow
+  // the handover (F10): every member of a peer is rendered in the Folder
+  // except an assigned peer's host keys (root decision 0192, addendum of
+  // 2026-10-26), which only the person's SSH config outside the Folder carries
+  // (src/ssh-access/environments.ts), so a change of only those is recorded
+  // here too, never left behind the handover. So is the home access
+  // service's origin (decision F70), which only the machine commands act on.
   if (
     preview.plan.kind === "unchanged" &&
     JSON.stringify(nextVoice) === JSON.stringify(current.agentVoice) &&
     JSON.stringify(machine?.entry) === JSON.stringify(current.machine?.entry) &&
+    JSON.stringify(machine?.relationships) ===
+      JSON.stringify(current.machine?.relationships) &&
+    JSON.stringify(machine?.accessService) ===
+      JSON.stringify(current.machine?.accessService) &&
     JSON.stringify(tools) === JSON.stringify(enabledTools(current)) &&
     JSON.stringify(notes) === JSON.stringify(toolNotes(current)) &&
     JSON.stringify(settings) ===

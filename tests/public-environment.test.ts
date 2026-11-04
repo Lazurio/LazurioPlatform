@@ -100,10 +100,15 @@ test("the vendored schema carries Machines #560's entry.audience, exactly the co
   // Re-pinned since to Machines #633, which adds only
   // `entry.browser.local_port` (tests/environment-browser-loopback-entry.test.ts),
   // then to Machines #664, which adds only the `services` assignment and
-  // list (tests/server-services-environment.test.ts), and then to Machines
-  // #811 (v0.12.191), which adds only `entry.buddy` (tests/shell-buddy.test.ts).
+  // list (tests/server-services-environment.test.ts), then to Machines #811
+  // (v0.12.191), which adds only `entry.buddy` (tests/shell-buddy.test.ts),
+  // and then to Machines #948 (v0.12.211), which adds only a peer's
+  // `environment`, `access` and `ssh.host_keys`
+  // (tests/assigned-peer-handover.test.ts).
+  // Then to Machines #1051, which adds only `access_service`
+  // (tests/access-service-handover.test.ts).
   expect(provenance.source_pull_request).toBe(
-    "https://github.com/HumanAndMachine-ai/Machines/pull/811",
+    "https://github.com/HumanAndMachine-ai/Machines/pull/1051",
   );
   const audience = (
     schema as unknown as {
@@ -207,7 +212,7 @@ posixTest(
       // Operator's own sign-in.
       const after = await readFile(join(folder, "AGENTS.md"), "utf8");
       expect(before).toContain(
-        "- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication), and Headscale holds the network. Entry to Environments is to be held by the Lazurio account (the target of root decision 0192); until that move is done, the existing path decides, a Team Environment's GitHub Team, say (`manual/lazurio.md`).",
+        "- Identity: the user's own sign-ins. GitHub is the authority for source code (repositories, review, Publication), and Headscale holds the network. Entry to Environments is to be held by the Lazurio account (the target of decision 0192); until that move is done, the existing path decides, a Team Environment's GitHub Team, say (`manual/lazurio.md`).",
       );
       expect(after).not.toContain("the user's own sign-ins");
       expect(after).toContain("- Identity: no GitHub identity.");

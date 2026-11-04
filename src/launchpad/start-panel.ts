@@ -51,6 +51,9 @@ export function createStartPanel(
     composio: () => ComposioFact;
     /** Devices with a key added here, null when not known. */
     sshDevices: () => number | null;
+    /** Telefon přes ChatGPT as `/api/connections` last said; null hides
+     * its row. */
+    phone?: () => Readonly<{ ready: boolean; devices: number }> | null;
     /** The vault's row as Nastavení → Trezor says it; null hides it. */
     vault: () => StartVaultRow | null;
     /** Whether Nastavení → Trezor gives the steps for Bitwarden here
@@ -62,6 +65,9 @@ export function createStartPanel(
     /** Whether the introduction was seen to its end. */
     toured: () => boolean | null;
     signInGithub: () => void;
+    /** "Přepnout účet": the responsible user's own account signed out and
+     * the sign-in opened for the persona's (the Automated Environment). */
+    switchGithub: () => void;
     signInComposio: () => void;
     /** The AI step's sign-in (ai-sign-in.ts); `byCode`: ChatGPT's by code. */
     signInAi: (tool: AiProvider, byCode?: boolean) => void;
@@ -274,10 +280,17 @@ export function createStartPanel(
         };
       case "choose": {
         const choices = element("div", "start-choices");
-        choices.append(
-          signInButton("codex", copy.startAiSignInChatgpt, true),
-          signInButton("claude", copy.startAiSignInClaude),
-        );
+        // Only the AI whose CLI is here: an absent one could only fail.
+        const here = (tool: AiProvider) =>
+          !(action.notInstalled ?? []).includes(tool);
+        if (here("codex"))
+          choices.append(
+            signInButton("codex", copy.startAiSignInChatgpt, true),
+          );
+        if (here("claude"))
+          choices.append(
+            signInButton("claude", copy.startAiSignInClaude, !here("codex")),
+          );
         if (action.cancel)
           choices.append(
             button(copy.startAiCancel, () => {
@@ -287,7 +300,9 @@ export function createStartPanel(
           );
         return {
           actions: [],
-          body: [choices, byCodeNode(action.byCode.hint, copy)],
+          body: here("codex")
+            ? [choices, byCodeNode(action.byCode.hint, copy)]
+            : [choices],
         };
       }
       case "by-code": {
@@ -369,6 +384,9 @@ export function createStartPanel(
     switch (view.action) {
       case "sign-in":
         actions.push(button(copy.buddySignIn, handlers.signIn, true));
+        break;
+      case "sign-in-other":
+        actions.push(button(copy.buddySignInOther, handlers.signIn, true));
         break;
       case "resume":
         actions.push(
@@ -528,7 +546,7 @@ export function createStartPanel(
       facts === null
         ? null
         : startView({ ...facts, aiChoosing: choosing }, copy);
-    // A Team or an Automated Environment: its Organization prepares it.
+    // A Team Environment: its Organization prepares it.
     notHere.hidden = facts === null || view !== null;
     for (const group of groups) group.hidden = view === null;
     intro.hidden = view === null;
@@ -542,6 +560,7 @@ export function createStartPanel(
         preset: facts.preset,
         composio: options.composio(),
         sshDevices: options.sshDevices(),
+        phone: options.phone?.() ?? null,
         bitwarden: options.bitwarden(),
       },
       copy,
@@ -573,20 +592,28 @@ export function createStartPanel(
       if (step.basic === "github" && view.github !== null) {
         // "Připojit", "Připojit znovu" where GitHub is connected badly
         // (#515), or "Otevřít" for the sign-in this page runs (#516): each
-        // opens GitHub's sign-in as it stands (`openSignIn`).
+        // opens GitHub's sign-in as it stands (`openSignIn`). "Přepnout
+        // účet" where the responsible user's own account is signed in on
+        // the Automated Environment signs it out first (F27's addendum of
+        // 2026-10-30).
+        const kind = view.github.kind;
         const connect = element(
           "button",
           view.github.enabled ? "primary" : "",
-          view.github.kind === "reconnect"
+          kind === "reconnect"
             ? copy.startGithubReconnect
-            : view.github.kind === "open"
-              ? copy.startOpen
-              : copy.startConnect,
+            : kind === "switch"
+              ? copy.startGithubSwitch
+              : kind === "open"
+                ? copy.startOpen
+                : copy.startConnect,
         );
         connect.type = "button";
         connect.dataset.tour = "start-github";
         connect.disabled = !view.github.enabled;
-        connect.addEventListener("click", () => options.signInGithub());
+        connect.addEventListener("click", () =>
+          kind === "switch" ? options.switchGithub() : options.signInGithub(),
+        );
         actions.push(connect);
       }
       const node = stepNode(

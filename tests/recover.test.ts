@@ -3,6 +3,7 @@ import {
   chmod,
   mkdir,
   mkdtemp,
+  readFile,
   realpath,
   rm,
   writeFile,
@@ -374,6 +375,55 @@ test("the Folder's state as this version reads it", async () => {
       });
     await rm(world.root, { recursive: true, force: true });
   }
+});
+
+// A Folder rendered by a newer template, with an output this version does
+// not render, named like private content (#782, #787 review).
+const privateLikeKeys = [".agents/skills/examplePrivateValue/SKILL.md"];
+async function renderedByANewerTemplate(folder: string) {
+  const instructions = join(folder, ".lazurio", "instructions.json");
+  const recorded = JSON.parse(await readFile(instructions, "utf8"));
+  await writeFile(
+    instructions,
+    JSON.stringify({
+      ...recorded,
+      templateRevision: "base-instructions-999999",
+      outputs: {
+        ...recorded.outputs,
+        [privateLikeKeys[0] as string]: "c".repeat(64),
+      },
+    }),
+    { mode: 0o600 },
+  );
+}
+const refusalContext = {
+  condition: "unknown-output",
+  file: "instructions.json",
+  area: "agents-skills",
+  recorded: "base-instructions-999999",
+};
+
+test("an unreadable Folder state: Recovery names its condition in the evidence and the issue, never a recorded key", async () => {
+  const world = await createWorld();
+  await renderedByANewerTemplate(world.folder);
+  const result = await recover(world, ["--folder", world.folder, "--json"]);
+  expect(result.code).toBe(exitBroken);
+  expect(result.json.checks[1]).toMatchObject({
+    id: "folder-state",
+    code: "folder-state-unreadable",
+    context: { ...refusalContext, newer: true },
+  });
+  expect(result.json.evidence).toMatchObject({
+    check: "folder-state",
+    code: "folder-state-unreadable",
+    context: { ...refusalContext, newer: true },
+  });
+  const body: string = result.json.issue.body;
+  expect(body).toContain('"condition": "unknown-output"');
+  expect(body).toContain('"area": "agents-skills"');
+  for (const key of [...privateLikeKeys, "examplePrivateValue"])
+    expect([key, result.stdout.includes(key)]).toEqual([key, false]);
+  await rm(world.root, { recursive: true, force: true });
 });
 
 test("the supervised unit through systemctl --user, and its health socket", async () => {

@@ -18,6 +18,7 @@ import {
   createLoginPoll,
   curatedActions,
   currentNotes,
+  ghCodeText,
   gitIdentityNote,
   installOutcome,
   type LoginView,
@@ -40,6 +41,7 @@ import {
   parseLoginState,
   parseToolsOverview,
   qrImageSource,
+  revealControl,
   signedInMessage,
   signInLine,
   signInMode,
@@ -1171,6 +1173,24 @@ test("in a Team Environment Nástroje names the Team's Composio account, elsewhe
   );
 });
 
+test("gh's code on the Automated Environment is confirmed with the persona's account (F27's addendum of 2026-10-30)", () => {
+  const cs = messages("cs");
+  const en = messages("en");
+  expect(ghCodeText(cs, "login", true)).toBe(
+    "Zkopírujte kód a na GitHubu ho potvrďte účtem persony, ne svým.",
+  );
+  expect(ghCodeText(en, "install", true)).toBe(
+    "Copy the code and confirm it on GitHub with the persona's account, not your own.",
+  );
+  for (const mode of ["install", "login"] as const) {
+    expect(ghCodeText(cs, mode, false)).toBe(cs.toolsLoginGhText);
+    expect(ghCodeText(en, mode, false)).toBe(en.toolsLoginGhText);
+  }
+  // The scope refresh of "Link SSH key" keeps its own line.
+  for (const persona of [true, false])
+    expect(ghCodeText(cs, "ssh", persona)).toBe(cs.toolsLoginRefreshText);
+});
+
 test("Composio's dialog reads again calmly while the person works in Composio, and stops once connected, closed or hidden", () => {
   expect(composioPollDelay(0)).toBe(composioPollStartMs);
   expect(composioPollStartMs).toBe(4_000);
@@ -2036,6 +2056,97 @@ test("opening a tool's sign-in from outside its row: its flow, or the SSH link o
   expect(signInMode(gh(undefined, false), copy, true)).toBeNull();
   expect(signInMode(gh({ state: "signed-out" }), copy, true)).toBeNull();
   expect(signInMode(tool({ installed: true }), copy)).toBe("login");
+});
+
+// Matěj 2026-10-28: Integrace's card for an app its tool connects, and
+// Začínáme, open Settings → Tools at the tool's row where its sign-in cannot
+// open in place; the control a person acts on next takes the focus.
+test("Settings → Tools opened for one tool focuses what is left to do: the sign-in, the setup, else the switch", () => {
+  const copy = messages("cs");
+  const wacli = (overrides: Partial<ToolOverview>) =>
+    tool({ name: "wacli", command: "wacli", tier: "optional", ...overrides });
+  // Not installed, or signed out: its sign-in (with the installation).
+  expect(revealControl(wacli({ installed: false }), copy)).toBe("curated");
+  expect(
+    revealControl(
+      wacli({ installed: true, signIn: { state: "signed-out" } }),
+      copy,
+    ),
+  ).toBe("curated");
+  // Installed and signed in, only off for agents: its switch.
+  expect(
+    revealControl(
+      wacli({ installed: true, signIn: { state: "signed-in", account: "1" } }),
+      copy,
+    ),
+  ).toBe("toggle");
+  // Working and on: nothing left to do there.
+  expect(
+    revealControl(
+      wacli({
+        installed: true,
+        enabled: true,
+        signIn: { state: "signed-in", account: "1" },
+      }),
+      copy,
+    ),
+  ).toBeNull();
+  // A tool an agent sets up: "Připojit s pomocí agenta".
+  expect(
+    revealControl(
+      tool({ name: "neon", command: "neon", setup: "agent", tier: "optional" }),
+      copy,
+    ),
+  ).toBe("agent");
+  // gh signed in without a working SSH key: "Link SSH key".
+  expect(
+    revealControl(
+      tool({
+        name: "gh",
+        command: "gh",
+        tier: "required",
+        installed: true,
+        signIn: {
+          state: "signed-in",
+          account: "o",
+          ssh: { state: "not-linked" },
+        },
+      }),
+      copy,
+    ),
+  ).toBe("link-ssh");
+  // Not offered here: no switch to turn on, and no sign-in.
+  expect(revealControl(wacli({ offered: false }), copy)).toBeNull();
+  // The Organization does not allow it: no sign-in, and its switch does not
+  // move (the row disables it by the same rule): nothing to act on, also
+  // where it is installed and signed in (Pablo's review of #709).
+  expect(
+    revealControl(
+      wacli({ installed: true, organization: { allowed: false } }),
+      copy,
+    ),
+  ).toBeNull();
+  expect(
+    revealControl(
+      wacli({
+        installed: true,
+        signIn: { state: "signed-in", account: "1" },
+        organization: { allowed: false },
+      }),
+      copy,
+    ),
+  ).toBeNull();
+  // Allowed by the Organization explicitly: as without its word.
+  expect(
+    revealControl(
+      wacli({
+        installed: true,
+        signIn: { state: "signed-in", account: "1" },
+        organization: { allowed: true },
+      }),
+      copy,
+    ),
+  ).toBe("toggle");
 });
 
 // #516 (F19's addendum of 2026-10-19): closing the shared sign-in dialog (its

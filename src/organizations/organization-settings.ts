@@ -1,9 +1,13 @@
 // Organization settings: the optional, closed `settings` section of
 // `lazurio.organization.json` (upstream decision 0194, contract C1 of DEV-6653).
-// This consumes the Lazurio Core contract (`lazurio/core/organization-settings-lib.mjs`
-// and `$defs.organizationSettings` of `lazurio.organization.v1.schema.json`); it
-// is not a Platform schema. Same closed tree, same issue codes, same JSON
-// Pointers, same "nothing applies from an invalid section" rule.
+// This reader and `$defs.organizationSettings` of this repository's schema
+// (`./lazurio.organization.v1.schema.json`, decision 0225) state one closed
+// tree, held together by tests/organization-schema.test.ts. The schema cannot
+// compare tabs and counts a tab name in code points; `workspaceIssues` and
+// the patterns below decide. Lazurio Core's
+// `lazurio/core/organization-settings-lib.mjs` (GEN3) follows this contract:
+// same issue codes, same JSON Pointers, same "nothing applies from an invalid
+// section" rule.
 //
 // An absent value is not governed by the Organization: each Environment decides.
 // A present value governs every work Environment of the Organization; personal
@@ -85,8 +89,9 @@ export const workspaceModulePattern = /^[a-z0-9][a-z0-9-]{0,62}$/;
 /** At most this many tabs: a row a person reads at a glance. */
 export const workspaceTabsMax = 12;
 
-// Adding a setting adds one leaf here, upstream first (decision 0194 point 6):
-// the same closed tree as Lazurio Core's `organization-settings-lib.mjs`.
+// Adding a setting adds one leaf here and one in the schema's
+// `$defs.organizationSettings`, in one pull request (decision 0225); Lazurio
+// Core's `organization-settings-lib.mjs` follows with the same closed tree.
 // `microsoft365` (root decision 0162, addendum of 2026-10-14; F42 addendum
 // (c) of 2026-10-14) carries only identifiers that are not secrets: the
 // Organization's single-tenant Entra app is a public client, so the closed

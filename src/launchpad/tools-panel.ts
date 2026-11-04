@@ -13,7 +13,6 @@ import type { MessageKey } from "./messages";
 import { integrationsPath } from "./routes";
 import {
   answerWithin,
-  autoEnable,
   type ComposioDialogView,
   composioConnectedLine,
   composioDialogView,
@@ -24,6 +23,7 @@ import {
   createLoginPoll,
   curatedActions,
   currentNotes,
+  ghCodeText,
   gitIdentityNote,
   installOutcome,
   type LoginFlowState,
@@ -51,6 +51,7 @@ import {
   parseLoginState,
   parseToolsOverview,
   qrImageSource,
+  revealControl,
   signedInMessage,
   signInMode,
   sourceLink,
@@ -77,6 +78,9 @@ type Post = (
   path: string,
   body: unknown,
 ) => Promise<{ value: unknown; ok: boolean }>;
+
+// How long the row of a tool this page was opened for stays marked.
+const revealMs = 2_400;
 
 // The tools section of the page (decision F18). The server derives every
 // fact; the browser shows it as text and sends back the full next selection
@@ -106,6 +110,10 @@ export function createToolsPanel(
      * to finishing, or ended (`running`), its window open or closed (#516):
      * Začínáme says it. */
     signInsChanged?: () => void;
+    /** Whether this Environment's GitHub is its persona's (the Automated
+     * Environment): gh's code is confirmed with the persona's account
+     * (`ghCodeText`). */
+    persona?: () => boolean;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -187,6 +195,10 @@ export function createToolsPanel(
   }
   let focus: { name: string; control: string } | null = null;
   let opener: HTMLElement | null = null;
+  // A tool this page was opened for from elsewhere (`reveal`): waiting for
+  // its row to be drawn, then marked for a moment.
+  let revealing: string | null = null;
+  let revealed: Readonly<{ name: string; until: number }> | null = null;
 
   const element = <K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -725,9 +737,7 @@ export function createToolsPanel(
         element(
           "p",
           "",
-          current.mode === "ssh"
-            ? copy.toolsLoginRefreshText
-            : copy.toolsLoginGhText,
+          ghCodeText(copy, current.mode, options.persona?.() === true),
         ),
         ...deviceCodeBlock({
           code: challenge.code,
@@ -840,15 +850,13 @@ export function createToolsPanel(
     return more;
   }
 
-  // A sign-in completed in this Launchpad session turns "Používají agenti"
-  // on (Matěj 2026-10-04), after the reading that follows it, so the change
-  // is made at the current revision; never for a tool signed in before.
-  function afterSignIn(name: string, state: LoginView) {
-    void refresh({ signIn: true }).then(() => {
-      const tool = overview?.tools.find((entry) => entry.name === name);
-      if (tool !== undefined && autoEnable(tool, state))
-        void toggle(tool, true);
-    });
+  // A completed sign-in is read again with its row. Its "Používají agenti"
+  // is on by then where it follows the sign-in (Matěj 2026-10-04): the
+  // Launchpad turns it on as the sign-in ends and answers the outcome after
+  // that (F19's addendum of 2026-10-28, #682), so the page never changes
+  // the Folder for it and a page closed meanwhile misses nothing.
+  function afterSignIn() {
+    void refresh({ signIn: true });
   }
 
   /** A sign-in that ended while its window was closed (#516): the page
@@ -894,7 +902,7 @@ export function createToolsPanel(
     // window open, said by its row and Začínáme.
     if (!visible(current)) {
       endDetached(current, false);
-      afterSignIn(current.tool.name, state);
+      afterSignIn();
       return;
     }
     if (ssh !== null) {
@@ -911,7 +919,7 @@ export function createToolsPanel(
         ),
         doneRow(),
       );
-      afterSignIn(current.tool.name, state);
+      afterSignIn();
       return;
     }
     if (current.tool.name === "composio") {
@@ -932,7 +940,7 @@ export function createToolsPanel(
         key: null,
       };
       void readComposio(current);
-      afterSignIn(current.tool.name, state);
+      afterSignIn();
       return;
     }
     const message = signedInMessage(state, copy);
@@ -946,7 +954,7 @@ export function createToolsPanel(
       doneRow(),
     );
     // The card's sign-in line follows.
-    afterSignIn(current.tool.name, state);
+    afterSignIn();
   }
 
   // Composio after its sign-in (decision F42, addendum (2) of 2026-10-13,
@@ -1465,6 +1473,8 @@ export function createToolsPanel(
   function card(tool: ToolOverview, copy: Copy): HTMLLIElement {
     const item = element("li", "row");
     item.dataset.tool = tool.name;
+    if (revealed?.name === tool.name && Date.now() < revealed.until)
+      item.classList.add("revealed");
     const main = element("div", "row-main");
     const text = element("div", "row-copy");
     const title = element("h3", "row-title", tool.name);
@@ -1912,6 +1922,47 @@ export function createToolsPanel(
       focusRow(focus);
       focus = null;
     }
+    if (revealing !== null && !busy) {
+      const name = revealing;
+      const item = row(name);
+      const tool = overview.tools.find((entry) => entry.name === name);
+      if (item !== undefined && tool !== undefined) {
+        revealing = null;
+        const mark = { name, until: Date.now() + revealMs };
+        revealed = mark;
+        item.classList.add("revealed");
+        // The mark ends on the row drawn then: a render meanwhile replaced
+        // this one (Pablo's review of #709). A later reveal keeps its own.
+        setTimeout(() => {
+          if (revealed !== mark) return;
+          revealed = null;
+          groups
+            .querySelector(`li[data-tool="${name}"]`)
+            ?.classList.remove("revealed");
+        }, revealMs);
+        item.scrollIntoView({ block: "center", behavior: "smooth" });
+        const control = revealControl(
+          tool,
+          copy,
+          overview.sharedEnvironment === true,
+        );
+        const target =
+          control === null
+            ? null
+            : item.querySelector<HTMLButtonElement>(
+                `[data-control="${control}"]`,
+              );
+        // Nothing to act on there (a row the Organization decides): the
+        // row itself takes the focus, with its sentence why. A disabled
+        // control never does.
+        if (target !== null && !target.disabled)
+          target.focus({ preventScroll: true });
+        else {
+          item.tabIndex = -1;
+          item.focus({ preventScroll: true });
+        }
+      }
+    }
   }
 
   // The named control of a tool's row or, when a sign-in or sign-out
@@ -2145,6 +2196,47 @@ export function createToolsPanel(
     return true;
   }
 
+  /** "Přepnout účet" of Začínáme's GitHub step (decision F27's addendum of
+   * 2026-10-30): the account signed in now is signed out exactly as the
+   * row's "Odhlásit" does (for gh with the Machine's SSH key removed from it
+   * first), then the tool's sign-in opens for another one. True when it
+   * opened; false when the account is still signed in after the sign-out
+   * (the row's notice says why) or nothing could open. */
+  async function switchAccount(name: string): Promise<boolean> {
+    if (loginDialog.open || busy || overview === null) return false;
+    const tool = overview.tools.find((entry) => entry.name === name);
+    if (tool === undefined) return false;
+    if (tool.signIn?.state === "signed-in") {
+      await logout(tool);
+      const after = overview?.tools.find((entry) => entry.name === name);
+      if (after?.signIn?.state === "signed-in") return false;
+    }
+    return openSignIn(name);
+  }
+
+  /** A tool connected from elsewhere (Integrace's card for an app its tool
+   * connects, Matěj 2026-10-28): its sign-in opens over the page that asked,
+   * as its row would open it (`openSignIn`). The tools are read live first,
+   * as for Composio's card (decision F42, note of 2026-10-19): a reading from
+   * before a sign-in elsewhere decides nothing. False where it has no
+   * sign-in to open now (an agent sets it up, or it is signed in and only
+   * off for agents): the caller then opens Settings → Tools at its row
+   * (`reveal`). */
+  async function connect(name: string): Promise<boolean> {
+    await refresh({ signIn: true });
+    return openSignIn(name);
+  }
+
+  /** Settings → Tools opened for one tool (Matěj 2026-10-28): once its row
+   * is drawn, it is scrolled to the middle of the page and marked for a
+   * moment, and the control a person acts on next takes the focus
+   * (`revealControl`): its sign-in, installation or setup, else its
+   * switch. */
+  function reveal(name: string) {
+    revealing = name;
+    render();
+  }
+
   /** Composio signed in, but not in the organization of its Organization's
    * name (Začínáme's "Dokončit", decision F42, note of 2026-10-19): its
    * dialog opens at what is left to do in Composio, as after a sign-in. A
@@ -2178,5 +2270,13 @@ export function createToolsPanel(
   }
 
   render();
-  return { refresh, openSignIn, openComposioOrganization, running };
+  return {
+    refresh,
+    openSignIn,
+    switchAccount,
+    connect,
+    reveal,
+    openComposioOrganization,
+    running,
+  };
 }

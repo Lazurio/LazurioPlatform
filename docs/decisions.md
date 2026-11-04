@@ -1,5 +1,11 @@
 # Decision proposals and convergence
 
+Since 2026-11-01 Lazurio's numbered decisions, one series for GEN3 and GEN4,
+live in this repository's [decision register](decision-register.md), which
+allocates their numbers; the "maintained Lazurio decision register" and
+"upstream" below mean that register. The F decisions here are this
+repository's implementation decisions.
+
 Status: review draft, updated 2026-09-19. These local identifiers are Platform proposals,
 not new numbers in the maintained Lazurio decision register. They do not override
 legacy runtime contracts until the owning decision is amended and consumers migrate.
@@ -194,7 +200,7 @@ have different transactions and compatibility checks. See [recovery](migration-a
 | Decision 0144 and the Machine identity schema (F10) | **Conditional upstream amendment.** Only if preset provenance must appear in `lazurio.machine.json`: add the field upstream in the hosting engine, then re-pin and conformance-test here | Identity stays descriptive and grants nothing; nothing is derived from names; `account` stays `null` until its contract exists |
 | Decision 0145 (F12) | No amendment to the decision. **Admission superseded 2026-09-28** (Matěj, question H1, decision F22 point 1): canonical-only `current` roots execute now (variant B), without waiting for an upstream identity continuity proof; the proof requirement F12 stated is historical | Transition-only admission is retired, variant A kept one line away for the record; no fallback to the deprecated projection; no second schema; `legacy`, `projection_drift`, `conflict`, `missing` and templates still refuse |
 | Decision 0146 (F11) | No amendment: Platform consumes the per-application hostname, catalog and session model through a hosted request adapter | Gateway authenticates; forwarded identity headers are not trusted; unknown hosts refused |
-| Decision 0166 (F21) | No amendment: **accepted 2026-09-28** (Matěj, questions Q1–Q6 of the recovery-mode shaping). No program rollback; Recovery mode with a repair agent or a sanitized issue for every entry; quality gates and an 8-hour canary on the pilot Organization's work VMs and its operators' personal VMs. Within this repository it amends F4, F13, F17 (with its addendum point 3) and F18; in the root it replaces 0161's mention of the Platform's own rollback | Atomic failure, refusal before the switch, floor and high-water stay; no shorter or narrower canary without Matěj's decision recorded in the register; Machines' own rule is a separate Machines decision, not done |
+| Decision 0166 (F21) | **Accepted 2026-09-28** (Matěj, questions Q1–Q6 of the recovery-mode shaping); **amended 2026-10-27** (the canary of `v0.1.14-rc.2` lasts 3 hours) **and 2026-10-31** (the 8-hour window is replaced by one recorded smoke test as a test account of the pilot Organization and its green light, from 0.1.19 on; HumanAndMachines/Lazurio#687, #752). No program rollback; Recovery mode with a repair agent or a sanitized issue for every entry; quality gates and an 8-hour canary on the pilot Organization's work VMs and its operators' personal VMs. Within this repository it amends F4, F13, F17 (with its addendum point 3) and F18; in the root it replaces 0161's mention of the Platform's own rollback | Atomic failure, refusal before the switch, floor and high-water stay; no shorter or narrower canary without Matěj's decision recorded in the register; Machines' own rule is a separate Machines decision, not done |
 | Decisions 0167 and 0168 (F22) | No amendment: **accepted 2026-09-28** (Matěj, questions H1, H4, H6, H3 in direction, the drops of the parity shaping). The Platform Launchpad replaces the resident in one Machines apply; Ubuntu 24.04 on every hosted Machine, personal VMs by a rebuild with state transfer. Amends F8's "Not done" list, F12's admission (its addendum) and F15; in the root 0167 amends 0137 and 0049, and 0168 ends the 0159 exception on Team Environments | No side-by-side period, transition hostname or way back; no new Folder state; `entry` written only by Machines; H2, H5, H7 and the preview lease rules (B14) stay open |
 | Decisions 0134, 0140 | Installed executable carries its runtime; development/module toolchain checks remain capability-specific | No automatic machine-wide PATH/tool upgrades; packaging does not claim third-party app dependencies bundled |
 | Decision 0142 | Lazurio Folder Factory composes purpose, behavior and locale from versioned inputs | Organization language ownership and stable locale-neutral reason codes preserved |
@@ -500,6 +506,12 @@ content is preserved; unreadable children are reported. Never run installation
 implicitly on login, start or product upgrade. No account elevation, admission,
 MausBot permission or publication mandate is implied. The first-run tour is not
 changed by this content operation.
+*Amended 2026-10-30 ([F27's addendum](#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)): the Automated Environment now has the
+first run of a work Environment, Začínáme, the line, the tour and the content's start by
+itself included. Its content still comes from this one operation and its availability stays
+the core's; it starts by itself only in an open Launchpad view that saw the AI or GitHub
+arrive (root decision 0201), as on a work Environment, never on the Launchpad's own start or a
+product update.*
 
 Acceptance uses an Automated handover and a separate persona login with Write,
 real Git root/module clones including a tracked internal symlink, a second run
@@ -1039,6 +1051,76 @@ the price of a build that is ready when someone opens it. Offline, the first pin
 for the registry up to the fetch bound where the network drops packets instead of refusing
 them; everything after it in the run answers from what is on the disk.
 
+### Addendum of 2026-11-01: a synchronization clones a declared module once it is readable
+
+**Decided by the Organization Admin on 2026-11-01 for plan DEV-6694 (milestone M8);
+implemented in this revision.** Until now a synchronization never cloned anything: a
+declared module this Environment did not have stayed `absent` until someone ran an
+installation, so a person who gained access to a module, or to a guest Module of another
+Organization (F67), did not get it. The Admin asked for a Lazurio mechanism instead: "Ve
+chvíli, kdy mají uživatelé k těmhle repozitářům přístup, ať se jim naklonují stejně jako
+moduly vlastní organizace. … Hádám, že asi Lazurio update … aby se jim moduly naklonovaly,
+když dostanou přístup k nějakým jiným modulům." Asked whether `lazurio update`, the hourly
+synchronization or both, he answered "Ano, update i hodinová sync". A personal Environment
+still holds no Organization's repository (root decision 0153).
+
+1. **What is cloned.** In every run of `syncContent` (the Launchpad's hourly round,
+   `lazurio organization sync`, `lazurio update`, Aktualizovat), a declared workspace module,
+   a guest Module, a root-level application and a declared data mount that is `absent`
+   (nothing at the place, or an empty directory for a data mount) is cloned when this
+   Environment's identity can read it. The clone is installation's own
+   `provideRepository`: GitHub asked once for the repository, a clone into a temporary
+   sibling on its branch (`main`, a data mount its declared one), verified and published
+   with a no-replace rename; nothing present is entered or changed. The answer is the new
+   result `materialized`, with `to`, the commit it was cloned at. Modules run before data
+   mounts, so a data mount is cloned in the same run as its module, and only below its
+   module's primary checkout of the declared repository whose remote this run read (current,
+   moved, cloned, or ahead or diverged); never below another repository's checkout, a
+   linked worktree, a module this identity cannot read, or one blocked by its own state
+   (changes, another branch, a detached HEAD, an operation), whose remote was not asked.
+   A checkout that appears at the place while the run clones it is answered by the full
+   check of a present checkout (identity, primary checkout, own state, remote), never
+   taken as verified on its origin alone.
+2. **What is not.** A restricted slot (or one below it) stays absent: only an Admin's
+   explicit installation brings it, as before. Production Space, `infra` and the
+   Personalspace are never synchronized. A Team Environment, public or not, whose content
+   the hosting prepares, clones nothing in a synchronization (`cloneIdentity`). The
+   Open of one module synchronizes only that module, which is there.
+3. **No access is quiet.** A repository this identity cannot read stays `absent` with the
+   reason `repository-denied`, not `denied`: the doctor never warns about it, the record
+   keeps its `since`, and the next round asks GitHub once more, one request per absent
+   repository and round. On a public Environment, where anonymous Git cannot tell a
+   private repository from a failed clone, a failed clone is `absent` with `clone-failed`
+   too (`cloneAnswer`). GitHub not answering is `unavailable`; a clone that fails otherwise
+   (a full disk, a broken transfer) is `failed` and leaves nothing but the temporary
+   sibling, which the next materialization of the same destination removes.
+4. **Losing access removes nothing.** A present checkout is kept as it is whatever GitHub
+   answers; its synchronization reports the remote's refusal as before.
+5. **One lock, one record.** The run already holds the Folder's content lock, so it never
+   overlaps an installation. `materialized` is a settled answer: `lazurio organization sync`
+   exits 0 with it, `lazurio update` lists it as cloned and builds after it like a
+   fast-forward, and Nová karta shows the module as fetched.
+6. **Agents.** The Folder's `manual/working-here.md` says that a guest Module, or any other
+   Module of the Organization, is cloned by itself at the next hourly synchronization or
+   `lazurio update` once access exists, except an Admin-only (`restricted`) slot, which
+   only an Admin's installation brings, and on a Team Environment, whose content the
+   hosting prepares. Template revision `base-instructions-105`.
+
+Contract: `tests/content-sync.test.ts` (a module granted later is cloned at the next run on
+`main` with its commit and no leftovers, then kept current; without a grant it is quietly
+absent with `since` and no finding a day later; a lost remote leaves the checkout; a
+restricted slot is never cloned; a data mount is cloned below its module in the same run
+and not below a module this identity cannot read, another repository's checkout or a
+linked worktree or a module blocked by its own changes; who clones on each kind of
+Environment, a public Team one among them;
+what each failed attempt answers) and `tests/guest-modules.test.ts` (a guest without a
+grant is quietly absent). The Root CLI on a computer follows under root decision 0219.
+
+Risks: an Environment shared by several people clones what its identity can read, as an
+installation does. A very large repository is cloned within the round's time like any
+clone, and holds that round for as long. Each hour asks GitHub once per absent declared
+repository, which stays far below GitHub's limits for an Organization's manifest.
+
 ## F10 — Workspace presets and typed owner requests
 
 **Accepted direction (2026-09-19); amended and accepted by Matěj 2026-09-22;
@@ -1185,6 +1267,96 @@ generated bytes are unchanged. This does not contradict F55's rejection of a
 were an assignment, while the overlay records nothing and is chosen by the single
 switch Machines already writes.
 
+**Amendment 2026-10-26 (root decision 0192's addendum of the same day, plan DEV-6676
+P1; vendored from Machines v0.12.211).** SSH from an Osobní Prostředí into every Pracovní
+Prostředí assigned to its Owner in the same tailnet is always on; the target's host
+key comes from the Organization's records, never from a first connection (point (d)),
+and Lazurio writes these Environments' names into the Osobní Prostředí (point (e)).
+Machines #948 carries that in the handover's peers: `environment` (the Environment id
+`<machine>.<organization>`), `access: "assigned"` and `ssh.host_keys` (one to four
+ed25519 public keys), all three or none, only on a work VM of an Organization reached
+outbound over SSH under a named account. The vendored schema takes them byte for byte
+from Machines v0.12.211, the release that carries that pull request's merge. The
+Platform:
+
+1. **Reads and records them exactly.** The binding's parser accepts what the schema
+   accepts and refuses the rest; it records them as `environment`, `access` and
+   `ssh.hostKeys`, and absent they stay absent, so a peer without them keeps its
+   bytes.
+2. **Uses them for nothing yet.** No generated file, Launchpad line or configuration
+   depends on them. They are context, not authority, and this decision's rule that
+   the Platform derives no access, reachability or heuristic from the relationships
+   stands.
+3. **Keeps the record at the handover.** Every other member of a peer is rendered,
+   so a change of the relationships always changed the generated bytes. These three
+   are not rendered, so `machine folder-refresh` now records changed relationships
+   even when it renders the same bytes, as it records a changed entry.
+4. **Withholds the Environment id from recovery evidence** as a name of the peer.
+
+What the members are for is the plan's later work (DEV-6676 P2–P4: the SSH aliases
+and pinned host keys of the Osobní Prostředí, the names agents, Buddy and Delegace
+use, and the read-only list in Nastavení); this amendment decides none of it.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Leave the refresh rule to the release that uses the members | A change of only the members, such as a rotated host key, would stay `unchanged` and the recorded binding would fall behind the handover, contrary to the 2026-09-23 amendment (the relationships follow the current handover); rejected |
+| Record changed relationships like a changed entry (selected) | One more condition; no handover without the members refreshes differently, because every other member is rendered |
+
+**Amendment 2026-10-28 (root decision 0192's addendum of 2026-10-26, points (c) to (e),
+plan DEV-6676 P2; on top of the amendment above).** The Platform uses an assigned peer's
+members in two places, from the recorded binding only, and nowhere else. This replaces
+point 2 of the amendment above; points 1, 3 and 4 stand.
+
+1. **The person's SSH config.** Whenever the Folder records exactly this handover's
+   binding (`folder-init` answering `initialized`, `folder-refresh` answering `refreshed`
+   or `unchanged`), a personal Machine's Platform writes
+   `~/.ssh/config.d/lazurio-environments.conf` (0600): one `Host <environment>` block per
+   assigned Environment with `HostName` and `User` from the peer's link, its host keys
+   pinned under `HostKeyAlias <environment>` in the Platform's own
+   `~/.ssh/known_hosts_lazurio_environments` (0644) with `StrictHostKeyChecking yes`, the
+   Osobní Prostředí's one key `~/.ssh/lazurio-environment-ed25519` with `IdentitiesOnly
+   yes` (point (c); one key per source Environment, not per edge), and `ForwardAgent no`.
+   One `Include` line at the top of `~/.ssh/config` makes it apply to every host.
+   - The Platform is the only writer of the two files, which say so on their first line.
+     A file there without that line, a link or another account's file is refused, and
+     nothing changes.
+   - The command's answer reports the outcome as `environmentSsh` and keeps its exit
+     code: the Folder is what it is, and a refused file is the person's to move.
+   - Until Machines opens its gate, handovers carry no members: nothing is written and
+     nothing fails.
+2. **The personal Folder's instructions.** `AGENTS.md` lists each alias in „Z tohoto
+   Osobního Prostředí“ with what goes with it: Organization work there under its own
+   `AGENTS.md`, no Personalspace, personal sign-ins or Buddy's memory carried there, only
+   the needed result back, and a refused connection or a changed host key reported,
+   never a pin edited (points (d) and (e); 0202 point 3). The handover records their
+   assignment, so they need no confirmation with the user. The lines that ask for one
+   say so with an assigned peer: `AGENTS.md`'s Boundaries line on Organization work, and
+   `manual/this-machine.md`'s lines on confirming a peer and on where Organization work
+   belongs (review of #691). Every other peer and work Environment still needs it.
+
+The rule of the decision that the Platform derives no access or reachability from the
+relationships stands. The Platform writes what Machines derived and recorded; the network
+grant and the target's key line hold the access, and the config opens nothing the
+network does not.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Without assigned peers, also remove the `Include` line | Edits the person's file each time the set empties and fills again; OpenSSH skips an `Include` that matches no file; rejected |
+| Without assigned peers, keep both files with only the header | A file nothing uses; the Platform's own files are safe to remove; rejected |
+| Without assigned peers, remove the two files and keep the `Include` line (selected) | One harmless line stays in the person's config |
+| Append the `Include` line at the end of `~/.ssh/config` | After a `Host` or `Match` line it applies only within that block; rejected |
+| Insert it at the top once, unless it already stands among the global lines (selected) | Every byte of the person's lines and the file's mode are kept |
+| Write only on `folder-refresh` | Machines runs `folder-init` alone on the first apply, so `AGENTS.md` would name aliases the config lacks until the next apply; rejected |
+| Also write on `folder-init`'s `already-adopted` | The Folder may still record an older handover; the refresh that follows in the same apply writes; rejected |
+
+Template revision `base-instructions-88`: it was 86 until it rebased onto `main` after `base-instructions-87` (#689) merged first.
+`tests/environment-ssh.test.ts` holds the config and known-hosts goldens, a second run
+that changes nothing, the `Include` line keeping the person's bytes and mode, the refusal
+of a foreign file and of every link, the empty set, the commands' answers, and the
+personal `AGENTS.md` (snapshot) and manual; P1's tests now exempt those two files. Not
+proven: a real login with the generated config, which needs Machines M1 (the key), M3 (the
+target's key line) and the gate, on the reference Organization first (0204).
+
 
 A user-facing "Machine profile" choice has two effects with two owners: infrastructure
 custody and topology belong to the hosting engine, Environment configuration to
@@ -1195,6 +1367,53 @@ rejected revision plus the observed outcome. A concurrent local change is a conf
 never silent cloud precedence. A generic desired-state-to-Machine pipeline is rejected.
 Access grants, rosters, tokens, mandates and analytics consent are never part of a
 preset.
+
+**Addendum 2026-11-01 (plan DEV-6656, #759): a host change is not an identity change.** The
+identity above (kind, name, Owner, tailnet node, host) loses `host`. A server move (DEV-6677) gives the same guest, with its disk, name, Owner and
+tailnet node, a new virtualization host. Its Folder kept the old host in its identity, so the
+first apply after the move answered `folder-binding-changed`, Machines recorded `binding-pending`
+and its Launchpad switch stopped. The host is where the Machine runs, not which Machine it is:
+from this addendum it follows the current handover through `folder-refresh`, like the
+relationships. A handover of another Machine (another kind, name, Owner or tailnet node) is still
+refused with `folder-binding-changed`. The binding no longer tells a copy of the guest on another
+host (same disk, name, Owner and tailnet node) from the original; keeping one Machine on one host
+belongs where guests are declared and moved: one lane roster per guest and the move's release and
+fence of the old copy (HumanAndMachine-ai/Machines#1016). The Folder glossary says the same:
+template revision `base-instructions-97`.
+
+Authority:
+- Matěj 2026-10-31 19:5xZ: „Ráno chci mít 0.1.19 na HaM připravený. Máš na to plný mandát.“
+- Rozhodl koordinátor DEV-6671 2026-11-01 ~00:0xZ v rámci tohoto mandátu. Bez změny neprojde Ring 0 na přesunuté
+  flotile s žádnou verzí a stejně by spadl první apply po přesunu HaM.
+- Princip: Mašina je VM a host je hranice nad ní (ARCHITECTURE).
+- Matěj rozhodnutí ráno potvrdí. Když nebude souhlasit, opravíme dopředu.
+
+**Addendum 2026-11-03 (#772): a foreign top-level entry no longer stops a hosted Folder's
+change.** On a maintainers' station another agent's work product at the Folder's top level
+(`drafts/`) stopped every refresh for two days, and the station's agents kept an old
+instruction revision while `doctor` said only `folder-refresh-needed`. The rule that work
+products belong in `~/Documents/<task>/` stays, in the Folder and in the GEN3 Root. The
+product no longer enforces it by stopping the Environment's updates:
+- The shared transaction (a profile update, `machine folder-refresh`, a tools or settings
+  change, `profile-resume`) neither reads, writes, moves nor refuses a top-level entry the
+  Folder does not own, in a hosted Folder as on a workstation (amends the 2026-09-23
+  amendment above). Its outputs are owned paths only, so a foreign entry cannot collide with
+  them; foreign content inside an owned directory (`manual/`) is still refused by path.
+- A hosted Folder reports such entries instead. `lazurio update` and `update status` add
+  `folderForeignEntries` (the Folder and the names) and one line. The product cannot tell
+  whose an entry is, so the line leaves that to the reader: their own work moves to
+  `~/Documents/<task>/`, anyone else's stays and the user hears about it. `lazurio doctor`
+  adds the check `folder-top-level`, `warn` with `foreign-entries`, how many and the first
+  plain name. A name that is not shown as itself is reported without its text. A top level
+  that cannot be listed is unknown, never clean: `folderForeignEntries {folder, unreadable}`
+  and `warn top-level-unreadable` (Pablo's review of #817). A workstation Folder keeps the
+  person's own files and reports nothing.
+- Adoption (`machine folder-init`) and initialization recovery keep refusing a foreign entry
+  by name: a new Folder holds only what its handover creates.
+- The Folder's manual tells an agent to move its own entry to `~/Documents/<task>/` and to
+  leave anyone else's in place and tell the user (template revision `base-instructions-106`).
+
+Authority: Matěj 2026-11-03 in the question tool, „Neblokovat, jen ohlásit (Doporučeno)“.
 
 ## F11 — Hosted admission is not identity
 
@@ -1377,7 +1596,14 @@ repository.
 notes (today an edited generated file is refused and there is no restore command; the
 troubleshooting document says so). The Launchpad may later show which product version
 rendered the Folder. No automatic writes: the re-rendering after a product update is
-decided below and happens only through an explicit change.
+decided below and happens only through an explicit change. *Note of 2026-10-30:* that
+explicit change is now part of the update itself. `lazurio update` runs the refresh
+through this same change path once it has activated a version, and also when it finds
+nothing newer
+([F17's addendum of 2026-10-30](#f17--operator-tools-belong-to-the-operator-the-rollout-pins-the-baseline-and-repairs)).
+The update is the person's request to bring the Environment up to date, and the refresh
+is the one change path run as its own command, not a second writer. So a product
+update still never writes the Folder by any other path.
 
 **Decided 2026-09-24: a newer template revision re-renders the Folder.** Until
 `base-instructions-4` every change of the template revision made a refresh and a
@@ -1407,7 +1633,7 @@ conditions:
 | Alternative | Trade-off / disposition |
 | --- | --- |
 | Keep `template-upgrade-required` for every change of revision | No new state path; hosted Machines never receive a corrected manual; rejected |
-| Re-render automatically on product activation | A write the Operator did not ask for, and a second writer beside the change path; rejected |
+| Re-render automatically on product activation | A write the Operator did not ask for, and a second writer beside the change path; rejected. *Revisited 2026-10-30 (F17's addendum):* the update the person asked for runs the refresh through this change path; a write at activation itself stays rejected |
 | A separate `folder-upgrade` command | The same planner and transaction under a second name, and one more step for Machines; rejected |
 | Upgrade inside the existing planner, digests as proof (selected) | One path, the existing refusal for edited files, no downgrade |
 
@@ -2646,6 +2872,594 @@ layer passes `tools/threat_patterns.py` at context and strict scope (Lazurio/her
 5a91c801, the same file) and is 17.9k characters in Czech and 19.6k in English. Not proven: that
 agents follow the rule (generated text is not proof of behavior).
 
+**Addendum of 2026-10-28, decided by the Organization Admin: Publication as one block in their own
+words.** The rule and `publicationScope` of 2026-10-27 were hard to understand. The Organization
+Admin explained the intent and approved this wording, which replaces both (`publicationRules` in
+`src/folder/render.ts`):
+
+- Každý úkol děláš ve vlastním worktree. Práci hned dáváš na GitHub jako Draft pull request a
+  průběžně do něj pushuješ.
+- Když jsi hotový, přepni pull request z Draftu na Ready, vrať se do chatu a požádej uživatele
+  o kontrolu a souhlas s Publikací.
+- Publikace je krok, který nejde snadno vrátit nebo ho uvidí ostatní: merge pull requestu, odeslání
+  e-mailu nebo zprávy, odeslání formuláře, platba. Do té doby jen připravuješ: otevřený pull request,
+  koncept e-mailu ve schránce, vyplněný formulář.
+- Publikuješ, až když ti to uživatel dovolí, třeba slovem „publikuj“. „Napiš mu“ nebo „odpověz mu“ je
+  zadání připravit koncept, ne souhlas s odesláním.
+- Když ti uživatel Publikaci dovolí předem, na začátku úkolu nebo pro celé vlákno, publikuješ po
+  dokončení sám a znovu se neptáš. Platí to, dokud to neodvolá. Vždy platí jeho poslední slovo.
+- Nevíš-li, jestli jde krok vrátit, ber ho jako nevratný.
+
+What changes in meaning: permission given in advance (for one task or a whole thread) now counts by
+itself until the user takes it back, so the agent no longer asks again; the user's latest word wins.
+What stays: preparing is never Publication, an order to write or reply is never consent to send, and
+doubt counts as irreversible.
+
+Where it renders: the whole block in `AGENTS.md` on every Environment but a public one (a Team
+Environment keeps its line that a named user merges, right after the block) and in the manual's
+section "Your work, Publication, Release" (a public Environment keeps only the definition and the
+consent bullets there, since it proposes nothing on GitHub). Buddy, who delegates and does not code,
+gets the four bullets from the definition on (`buddyPublicationRules`), without the worktree and pull
+request bullets; his "never" line reads „Publikuješ jen se souhlasem uživatele: na „publikuj“, nebo
+když ti to dovolil předem.“, and the `AGENTS.md` line for work Buddy hands over with his mark says the
+same. Template revision `base-instructions-85`.
+
+The consumers that asked for a fresh „publikuj“ every time follow the same consent (review of #695):
+the manual's handoff asks the Publication pair only when the user has not allowed Publication in
+advance (otherwise the agent publishes and says so); its merge step, the issue mandate, Microsoft
+365 mail (`send`/`sendMail`), connected applications' writes and Executor approvals take the user's
+consent, also given in advance and not taken back, and „napiš mu“ or „odpověz mu“ stays no consent;
+the `new-module` skill merges right away under such consent and asks otherwise; Buddy's orchestration
+skill approves a merge or Publication, and relays „Publikuj“, only on the user's „publikuj“ for that
+pull request or their unrevoked permission given in advance, and never assumes consent. A Release
+still needs the user's explicit instruction, and a Team Environment's named user still publishes.
+
+**Addendum of 2026-10-27: Buddy's route to another Environment of the page context: its own name,
+a step into the administration station, or plain words** (the Organization Admin's request, plan
+DEV-6676 task F; root decision 0192, its addendum of 2026-10-26, point (g); 0202; 0210 point 5).
+Matěj wants Buddy on the pages of every Environment the person can reach within the one Conglomerate
+of their Osobní Prostředí, knowing which Environment a page is and how to get there. The page
+context names it (`lazurio.buddy.context` v1, F60), and the layer already had Buddy use `ssh <id>`
+only for a name in `~/.ssh/config.d/lazurio-environments.conf`. It lacked the route through the
+person's administration station: an Admin's Buddy reaches Henry (0192's addendum, point (g)) and
+colleagues' Environments (0202, 0210 point 5) by a step into the station, with its own access.
+
+What changes in „Bublina v Lazuriu“: the three lines on the context's Environment become an order
+of routes for an Environment other than this Osobní Prostředí:
+
+1. its id is a `Host` in that file: he looks with `ssh <id> …` and gives work to a bot there with
+   `delegace zadej --env <id>`;
+2. else, when the file has the user's own Work Environment of the same Organization (the id's part
+   after the first dot), he steps into it with a nested command, `ssh <station> '…'`, and goes on by
+   its `AGENTS.md`: as an Admin's administration station it reaches colleagues' Work and Team
+   Environments and Henry. Work there goes to a bot in the target Environment when possible;
+3. else, or when that leads nowhere, he tells the user in a sentence or two, without technical
+   words, that he cannot reach it yet, because no route leads there from this Osobní Prostředí.
+
+One line closes the order: this Osobní Prostředí's sign-ins are never forwarded (no `ssh -J`, `-A`
+or copied keys), no address or host key is guessed and no unknown host key accepted, and an
+Organization's data stay there, with only the result the user needs coming back (0192's addendum,
+point (e); 0202 point 3). The sign-in rule moves there from „Kde co je“ („Do jiného Prostředí
+vstupuješ relací SSH a přihlášení tohoto Osobního Prostředí nepřeposíláš“), to keep `.hermes.md`
+under the 20,000 characters Hermes loads uncut; the rule on his memory and the Personalspace stays
+in „Co neděláš nikdy“.
+
+Unchanged: the rest of the layer, the skills, `AGENTS.md` and every other file of the Folder.
+Nothing writes `lazurio-environments.conf` yet (P2 of the same plan), so until then every Buddy
+takes route 3, as today.
+
+Template revision `base-instructions-87`: the addendum above took 85, and the stacked P2 (#691)
+holds 86. `tests/folder-buddy.test.ts` checks, in both locales, the order line right after the page context, the three numbered routes
+with their names, commands and conditions, and the closing line after them; that the memory and
+Personalspace rule is kept and „Kde co je“ no longer speaks of SSH; and that no line of any file of
+the layer but the closing one names `-J`, `-A`, `ProxyJump`, `ForwardAgent` or agent forwarding.
+Every file of the layer passes `tools/threat_patterns.py` (Lazurio/hermes-agent `main`, `5a91c801`)
+at the all, context and strict scopes. `.hermes.md` is 18,291 characters in Czech and 19,773 in
+English (after #695), 227 below the 20,000, so the next addition to the layer has to make room. Not proven: that
+Buddy keeps the order (generated text is not proof of behavior), and a real route through a
+station, which needs P2's file and an Admin's Osobní Prostředí on Ring 0.
+
+**Addendum of 2026-10-28, decided by the Organization Admin: Buddy's message to a thread steers.** On
+2026-10-28 the Organization Admin decided that a message to an agent, a bot or Buddy steers the turn
+in progress by default instead of queuing behind it. Buddy's `lazurio-t3-orchestration` skill
+therefore sends `t3 thread send <thread> --mode auto` (also `queue`, `steer`, `restart`) and, unless
+the user asks otherwise, `auto`. From Lazurio/t3code `v0.1.2-lazurio.2` (`ThreadManagementService`),
+`auto` steers a turn in progress, starts an idle thread, and queues only while a question or an
+approval waits in the thread: steering that turn would abort the provider's pending request before
+anyone answers it. Whether a steer reaches a running turn as such or as an interrupt and a new turn
+(an ACP agent without active steering) is T3 Code's, not the skill's. Delegace's notices and the
+first meeting keep `--mode queue`: they go to Buddy's own thread, where a steer interrupts and
+restarts his turn until his own active steer is released (Lazurio/t3code#138). His Telegram follows
+the same decision in Hermes (Lazurio/hermes-agent#22: the Lazurio default of
+`display.busy_input_mode` is `steer`); the Platform writes no busy key, so the person's own `/busy`
+stands. Template revision `base-instructions-89` (86 until #691 took 88 and #689 87 on `main`);
+`tests/folder-buddy.test.ts` checks the row and the rule in both locales.
+
+**Addendum of 2026-10-28, decided by the Organization Admin: a simple task is Buddy's own; pace and
+overview.** A task Buddy promised for 15 minutes took 50. Bot results waited behind his own turn,
+other topics mixed into the promised block, and every task went through a bot, even a QR payment the
+bot made in 37 seconds. The Organization Admin decided:
+
+- **A simple task of about two minutes, by feel, Buddy does himself**, also in another Environment,
+  such as a QR payment. What outgrows it (more steps, code, an unclear end) he gives to a bot in the
+  Environment the work belongs to and returns to the user, as before. He still never implements, and
+  he never waits for a bot („Na bota nečekej“ stays).
+- **Pace and overview.**
+  - He answers briefly first, then works.
+  - He keeps the time he promises; when he will miss it, he says so at once, with a new plan.
+  - In an agreed block he stays on its topic and asks one thing at a time; the rest waits for a short
+    summary at its end.
+  - What he cannot see (a phone, an app) he says at once and asks for a screenshot.
+
+Where it renders: `.hermes.md`, in its section „Práci dáváš botům“ and in two lines that close
+„Jak mluvíš s uživatelem“, and the skill `lazurio-buddy-pomocnici`. `.hermes.md` has to stay under
+the 20,000 characters Hermes loads uncut, and after #689 there was no room left:
+
+- the pace lines have no section of their own;
+- the line on another app's buttons named in its language was dropped;
+- the mark line no longer explains T3 Code before 0.1.1-lazurio.2 (every Environment runs 0.1.2 or
+  later), nor, in English, the form of the user's name.
+
+That leaves 18,593 characters in Czech and 19,970 in English. The root's rule that Buddy gives his own
+work to bots (root decision 0210) gets the same addendum in the root. Template revision
+`base-instructions-89` (unreleased). `tests/folder-buddy.test.ts` checks both locales, the pace lines
+inside the section on talking to the user.
+
+**Follow-up of 2026-10-30, Ring 0 acceptance of v0.1.16 and Buddy diagnostics (plan DEV-6676):
+the route rule binds every other Environment, and the pace lines say what Buddy writes before he
+works.** Under the Organization Admin's mandate of 2026-10-29 for the Buddy diagnostics fixes:
+
+- **Route (#689 failed on Ring 0).** Asked in his own chat for a read on his user's Work Environment,
+  Buddy found no `lazurio-environments.conf`, read `~/.ssh/config`, and used a hand-written alias
+  that a test grant had left there. The order of routes was written "for another Environment from
+  the context", and his request named the Environment in the message. The rule now holds for
+  another Environment from the page or a message. Its last step says that no route leads there
+  whatever `~/.ssh/config` has: only the file Lazurio writes and the station lead into another
+  Environment, so a route follows the assignment and the membership, and ends with them.
+- **Pace (#711 on Ring 0).** "He answers briefly first" did not happen: his first and only reply
+  came two minutes later. The line now says what comes first: one short sentence, before his first
+  tool, on what he will do and when he is back. A handover to a bot came in three sentences; the
+  line says one sentence and nothing more.
+
+Room: Czech 18,724 characters, English 19,990 (under the 20,000 Hermes loads uncut). In English the
+lines on introducing himself and on the chat's own T3 Code say the same in fewer words. Template
+revision `base-instructions-90`. `tests/folder-buddy.test.ts` checks both locales.
+
+**Follow-up of 2026-10-30, the Organization Admin's decision of 2026-10-28 (#708; root decision 0210,
+addendum of 2026-10-30, HumanAndMachines/Lazurio#678; plan DEV-6676): what Buddy writes to other people
+for the user reads like a person.** Buddy had opened a handover to a colleague of his user with the line
+„Buddy za Matěje“ and an official register, because his rules put that mark on everything he wrote or
+approved for the user for others. Matěj: „Teď je to takové strojové… Něco jako: Ahoj Honzo, Matěj mě
+poprosil, že ti mám… a na konci ať se podepíše jako Buddy… ne prostě Buddy za Matěje… hezky přirozeně.“
+
+- **To other people:** a message, e-mail, comment or document he writes for the user opens with a
+  greeting by name, says in one plain sentence that the user asked him („Ahoj Honzo, <jméno uživatele>
+  mě prosí, abych ti předal…“), goes on in friendly words and is signed „Buddy“, with no „Buddy za …“
+  line. The example stays in the present tense, so it never puts the user into a gendered past tense.
+- **In T3 Code threads and approvals** T3 Code shows the mark itself (Lazurio/t3code#106); Buddy writes
+  none there. **To the user** he still signs nothing. He never appears as the user.
+
+Room: Czech 18,830 characters, English 19,976 (under the 20,000 Hermes loads uncut); the English line on
+messages to the user says the same in fewer words. Template revision `base-instructions-92`.
+`tests/folder-buddy.test.ts` checks both locales.
+
+**Addendum of 2026-10-31, the root's agent rules of that day reach every Environment (root decisions
+0218 and 0217, addenda of 2026-10-31, HumanAndMachines/Lazurio#683; plan DEV-6691): threads do not
+coordinate, the Environment's network is never switched, one worktree per pull request.** Matěj, the
+Organization Admin: „to, co teďka definuješ jako pravidla pro Lazurio root, by sis měl nadefinovat i pro
+Lazurio folder … pokud definuješ nějaká pravidla, která mají platit i pro agenty obecně v environmentech,
+tak je nezapomeň dát i do LazurioPlatform.“
+
+- **Threads do not coordinate with each other** (`threadsRule` in `src/folder/render.ts`): no thread
+  sends another a message unless the user explicitly asks for direct coordination (root 0218, second
+  addendum of 2026-10-31, HumanAndMachines/Lazurio#690), and what needs an order or a dependency goes on
+  GitHub as a dependency, a hold label or a comment with an @mention. In `AGENTS.md` right after the Publication block (after a
+  Team Environment's named publisher); in full in its own section of `manual/working-here.md`: each
+  thread has its own worktree, pull request, verification and assignee, and delegating one's own work to
+  subagents is no coordination. Not on a public Environment, which has nothing on GitHub. Who keeps the
+  order is each Organization's own; the root's coordinator belongs to Lazurio's development and no
+  generated text names it.
+- **The Environment's own network is never switched** (`networkLine`): never switch, sign out or stop
+  it, and reach another tailnet only the way the Environment offers; on every Environment, public ones
+  included. In full among the boundaries of `manual/this-machine.md`: one network for every thread and
+  session (where the handover records the tailnet identity, its Tailscale is Lazurio Machines'), never
+  switched, signed out, pointed at another login server or stopped; another tailnet only through what
+  the Environment offers (an approved headless client's socket, or that tailnet's own network space
+  chosen for each command), otherwise the agent tells the user. The manual's SSH rules say „never“ where
+  they said „yourself“.
+- **One worktree per pull request, several per plan** (root decision 0218's addendum, point 2; the
+  root's worktree lane in HumanAndMachines/Lazurio#684): the manual's worktree discipline says one
+  worktree is one branch and one pull request, a plan may own several with their own `<slug>`, and a
+  worktree is cleaned up once its own pull request is merged, while the plan goes on in others. No
+  Folder text said one worktree per plan; `AGENTS.md` keeps "every task in its own worktree".
+
+Room: `AGENTS.md` stays within its budget (32 KiB with the longest voice, measured as for F67: every
+composition of `tests/folder-template-revision.test.ts` with every optional tool, a note, the other
+profile axes and an 8,192-byte custom voice). The network line therefore takes the place of the three
+lines it overlaps, and their details stay where the line sends the agent first: the Headscale line of
+every preset (its device naming is steps 2 and 5 of the manual's Adding a computer to a tailnet) and,
+on a hosted Environment, the laptop pointer and the SSH line, which keeps checking the active tailnet
+before connecting (a network may sit on the wrong tailnet even if no agent switched it; Pablo's review
+of Lazurio/LazurioPlatform#754). The threads rule also carries the root's second addendum of the same
+day (HumanAndMachines/Lazurio#690): threads talk to each other directly only when the user explicitly
+asks for it. The tightest composition had 5 bytes left at `base-instructions-93` (try-01, recorded as
+Team); now the tightest has 14 (a Team Environment with the Environment browser, English).
+
+Unchanged: the Publication block in the Owner's words, a Team Environment's named publisher and
+identity, a public Environment that publishes nothing, Buddy's layer (he steers threads at the user's
+request and is no thread; his `.hermes.md` is near its 20,000 characters), and every behavior of the
+product: only generated text changes. Template revision `base-instructions-96`.
+`tests/folder-manual.test.ts` checks, on every preset, a Team Environment with the browser and the
+public Environments in both locales: the threads rule once in `AGENTS.md` right after the Publication
+block and in the manual (neither on a public Environment), the network line once in `AGENTS.md` with
+`100.64.0.x` only where hosted, the manual's boundary naming Lazurio Machines only where the handover
+records the tailnet identity, the worktree sentences, and that no generated file keeps an absorbed
+line or names the root's coordinator.
+Not proven: that agents follow the rules (generated text is not proof of behavior). Environments get the
+text through the next released Platform update and the normal Folder refresh.
+
+**Addendum of 2026-11-01, the root's pull-request rules reach every Environment (root decisions 0222
+and 0178, the root's `manual/pull-request-handoff.md` and its public-repository boundary;
+Lazurio/LazurioPlatform#757, the High items 1–4).** Matěj, the Organization Admin, 2026-10-31:
+„Myslím si, že bychom se měli zaměřit na podobné věci, které jsou takhle nadefinované v Lazurio Rootu
+a které by vlastně měly být nadefinované pod LazurioPlatform, aby se to propsalo do Lazurio Folderu.“
+
+- **Every pull request has an assignee who takes it to `main`** (root 0222). In `AGENTS.md` it is in
+  the Ready line of the Publication block. The manual's pull-request lifecycle says it in full:
+  - the assignee is the user, the Organization's persona or another eligible Kolega the user names;
+  - a pull request without an assignee is unfinished and is not merged;
+  - a review request is only a check.
+
+  This replaces the manual's "the GitHub user whose verification you are asking for".
+- **The assignment carries the mandate, within the root contract's limits** (the root's
+  `manual/pull-request-handoff.md`). It is the assignee's instruction to finish the pull request,
+  including the merge the repository allows, and no further "Publish" or `/lazurio publish` comment is
+  needed, only when all of this holds:
+  - the pull request is Ready;
+  - the agent verified the actual GitHub assignment event (who assigned whom) and, right before the
+    merge, that it still stands;
+  - the assigner has live Write, Maintain or Admin and may hand over this Publication under the
+    repository's rules; Triage or a self-assignment is not enough;
+  - it is not an assignment from before the rule reached the Folder, which never becomes consent by
+    itself; a new assignment event hands the work over again.
+
+  Removing the assignment ends the mandate, and an origin or live rights that cannot be shown are a
+  visible blocker. An assignment never covers a Release, an infrastructure apply (not even one the
+  merge would start), access changes, secrets or anything beyond finishing the pull request, and it
+  bypasses no branch rules or reviews. Pablo's review of #761 asked for these limits in the generated
+  text itself.
+  - Before, the manual's handover point said an assignment "replaces no Publication instruction".
+  - The persona line of the Henry Environment's `AGENTS.md` and the bot team's work paragraph still
+    asked for a `/lazurio publish` comment, which the root dropped.
+  - Both now say only that the persona publishes a pull request a user with write access assigned
+    to it. That is a restriction, not a statement of what the intake reacts to.
+- **A browser check before Ready** (root 0178). The Ready line says it in a few words. The lifecycle
+  says it in full:
+  - the agent opens a change people will meet in a browser itself, and the page renders and its
+    main path works;
+  - it signs in with a test account the user or the Organization named, never one of its own,
+    otherwise it asks the user for one sign-in;
+  - after a deployment whoever publishes checks it the same way;
+  - the result, or that the check is missing, goes under "Verified" in the handoff.
+- **Public repositories name no customer** (the root's boundary). The product's repositories
+  (`Lazurio/*`) are public, so their commits, pull requests, issues and comments never name a customer
+  Organization, its modules or Environments, and never carry a specific Organization's content. It is a
+  clause of the issues line in `AGENTS.md` (not on a public Environment) and its own point in the
+  manual's Git and GitHub.
+- **A fresh approval.** The manual's exact-head merge also requires that the approving review was
+  submitted after the head's commit.
+- **Never a terminal for the user** (root `AGENTS.md`, before work). It is a point of the manual's
+  safe habits on every preset.
+
+`AGENTS.md` stays within its budget (32 KiB with the longest voice, F67's addendum). The
+question-tool line gives up two things:
+- its sentence that a question pops up as a notification only through the tool, now the manual's
+  safe habit next to the terminal one;
+- the aside "the parent agent or Buddy", since "whoever gave you the work" covers both. Buddy's layer
+  takes the same shorter line.
+
+The tightest composition (a Team Environment with the Environment browser, English) had 14 bytes left
+at `base-instructions-96` and `-97`; it has 17 now. Template revision `base-instructions-98` (`-97` went to #760).
+
+Unchanged:
+- the rest of the Publication block in the Owner's words;
+- a Team Environment's named publisher;
+- a public Environment, which publishes and files nothing;
+- every behavior of the product: only generated text changes.
+
+`tests/folder-manual.test.ts` checks, on every preset, a Team Environment with the browser, the Henry
+Environment and a public Environment in both locales:
+- the Ready line once in `AGENTS.md`, not on a public Environment;
+- the public-repository clause in `AGENTS.md`;
+- the manual's assignee, browser-check, fresh-approval, public-repository and terminal points;
+- that `/lazurio publish` appears only in the handover sentence that says it is not needed.
+
+Not proven: that agents follow the rules (generated text is not proof of behavior), and whether
+Lazurio MausBot's intake reacts to an assignment without the old comment (the persona's handover
+through assignment is the root's contract; the intake is MausBot's). Environments get the text through
+the next released Platform update and the normal Folder refresh.
+
+### Proposal of 2026-10-29: the person's own instructions for agents, and a person's own entries in a hosted Folder (for Matěj's decision; not decided, not implemented)
+
+On 2026-10-29 Matěj raised two questions.
+- **Own instructions.** People should be able to tweak how agents behave where that makes sense, in one standard way, and Lazurio should learn about it, because each tweak marks something the product should fix. His first idea was a pattern in the Launchpad's settings that finds part of the instructions and replaces it, or adds to it. He also asked whether this belongs to the Folder or only to the Organization, whose repository the Folder's instructions point to.
+- **Foreign entries.** Should one entry that a person or a tool leaves at the top of the Folder stop a whole update? He asked whether people may keep their own files there, as long as `organizations/`, `personalspace/` and Lazurio's own files stay untouched.
+
+#### What is already fixed
+
+- **F3: what is rejected.** Editing generated instructions creates a second truth, and editing Platform source per person creates personal product forks. Both are rejected, and so is a generic profile DSL.
+- **F3: what is accepted.** "Preserved machine-local custom sources" and "free-form working instructions" are accepted design requirements. Composition precedence must be explicit, and an imported proposal never authorizes anything. F3 left the storage format and the activation UI open.
+- **F14: digests.** Every generated file carries a digest. A hand-edited file refuses every later change with `drift` and its path. F14 deferred an operator `notes/` area.
+- **F42: the "zapamatuj si" rule.** Its addendum's working rule says "zapamatuj si" never edits a generated file. A personal rule goes into the harness's personal instructions (`$CODEX_HOME/AGENTS.md`, `~/.claude/CLAUDE.md`), and an Organization's rule goes to the Organization as a pull request or an issue.
+- **The manual: Organizations hold their rules.** Every Organization has its own `AGENTS.md`, and an agent loads it before working inside. "This manual gives you the method; the Organization holds the company's meanings and rules."
+- **The hosted boundary (F10's amendment of 2026-09-23, the handover refresh).** A hosted Folder refuses every top-level entry it neither owns nor tolerates. It does so before the journal, before every replacement and in `profile-resume`. A workstation Folder keeps the person's own top-level files.
+- **Machines since v0.12.188 (HumanAndMachine-ai/Machines#788).** It tolerates a person's own entries in an adopted Folder and records a `folder-refresh` refused with `folder-foreign-entry` as a finding, so the rest of the apply converges. The Folder keeps its old instructions until the entry is moved. Machines still refuses what it cannot work around:
+  - a top-level `.git`, the user's checkout of the root that root decision 0144 keeps Machines from installing over (`git-checkout`);
+  - a mount or a non-plain `.lazurio`;
+  - any foreign entry before the Platform has adopted the Folder.
+
+#### What is observed
+
+- **People do tweak the generated file, and it costs them their updates.**
+  - #653: on one Environment the owner added a short section to `AGENTS.md` by hand, and every refresh was then blocked with `drift`.
+  - F42 records an Environment that received no instruction update for nine days the same way.
+  - The generated file is the only place a person finds, and editing it stops the updates the person would need most.
+- **Harness personal instructions are not a standard way.** They hold one harness each (Codex, Claude Code and Hermes each read their own). They live outside the Folder, so the person's other Environments never see them. Neither the Organization nor Lazurio learns about them.
+- **Foreign entries are rarely a person's own files.**
+  - #256 lists tool directories (`.codex`, `.agents` before it was owned, `.git`, `.aws`) and a bot's report file.
+  - On 2026-10-28 one work Environment was held back from a Platform release because of a single **empty** log file (0 bytes). It was most likely created by a command redirected into a file while the Folder was the working directory; no product writes that name. Nobody had created it knowingly and nothing in it mattered. It still stopped the update of the instructions until it was moved out by hand the next morning.
+
+#### Proposal A: own instructions, in two places
+
+1. **The Organization: shared, and the primary place.**
+   - An Organization's rules for agents live in its repository's `AGENTS.md`, changed by pull request. This already exists.
+   - The proposal names it as the standard way to tweak agents' behavior for everyone working in that Organization. The generated `AGENTS.md` says so in one line.
+   - Review, history and visibility come from GitHub, so Lazurio learns of such a tweak wherever it may read the Organization.
+2. **The Environment: one person's, for how agents work for them here.**
+   - **Where it is set.** Nastavení → Agenti gets one plain text field, „Vlastní pokyny pro agenty“ ("Own instructions for agents"). The text is a preference of the Environment, F3's machine-local custom source, kept under the existing environment-configuration owner.
+   - **How it renders.**
+     - The Folder renders it into the generated `AGENTS.md` as its last section, „Pokyny uživatele“ ("The user's instructions"), through the one change path (preview, then apply).
+     - Changing it is a new rendering, never `drift`, and its digest joins the recorded preferences.
+     - Every harness that reads the Folder's `AGENTS.md` gets it at once, with no file per harness.
+   - **Precedence**, stated in the section's first line:
+     - these instructions change how agents work here;
+     - they never widen access, a mandate, Publication or Release, secrets or the Personalspace boundary;
+     - where they conflict with the generated rules, those rules win and the agent says so.
+   - **Agents write it only on the person's word.** When the person says "zapamatuj si", the agent proposes the exact line and saves it with `lazurio folder instructions add`, through the same preview and apply. The person sees it in Settings and can remove it there. F42's rule then points here instead of to the harness's personal instructions.
+   - **Bounds.** Plain text, no includes or links to files, at most 4,000 characters. A longer text is refused at save.
+3. **No pattern replacement.** Additions in plain words („místo X dělej Y“) cover what a replacement would. The variants below say why.
+4. **Lazurio learns about it without watching anyone.**
+   - The Organization: through its pull requests.
+   - The Environment: when the person saves, Settings offers „Poslat Lazuriu jako podnět“. It is an explicit choice on each save. It opens a prepared issue in this repository with the text as the person sees it, filed through the person's own GitHub sign-in. Nothing is sent automatically: a Personal Environment is private (root decision 0091).
+
+#### Proposal B: a person's own entries in a hosted Folder
+
+1. **Tolerated after adoption.** Once a hosted Folder has state, it treats names it neither owns nor tolerates as a workstation Folder does. They are never read, written, moved or refused, and every transaction preserves them.
+2. **Still refused, as today, by name and before the journal:**
+   - an owned name that is not what the Folder recorded (`drift`, `unsafe-path`);
+   - a name the new template revision is about to own. That collision is the only case where a person's ordinary entry can really conflict with the Folder;
+   - a top-level `.git`, as Machines#788 already refuses it today (root decision 0144). See open question 3.
+3. **Adoption stays strict.** Before the Folder has state, every foreign entry is refused, so Lazurio never adopts someone else's checkout. Machines refuses the same before adoption.
+4. **Reported, not refused.** `lazurio doctor` and the Launchpad name the foreign top-level entries in a quiet notice, with where outputs belong (`~/Documents`). Names that silently change agents' instructions are named first: a top-level `CLAUDE.md`, `AGENTS.override.md` or `.codex/`. Machines already counts such entries without naming them.
+5. **The cause stays addressed where it is.** Agents keep the rule that outputs go to `~/Documents`, and Buddy's bots keep their task folder (Delegace). Nothing changes there.
+
+#### Variants considered
+
+| Variant | Trade-off / disposition |
+| --- | --- |
+| A pattern that finds and replaces part of the generated instructions (the first idea) | The text changes with almost every template revision (89 so far), so a pattern silently stops matching or matches something else. A replacement can remove a boundary unseen, and F3 rejected a DSL. Rejected |
+| Edit the generated `AGENTS.md` by hand and keep the edit by a three-way merge | A second truth, with a conflict on every release; F3. Rejected |
+| The harness's personal instructions (today's advice) | One harness each, outside the Folder, invisible. Stays a person's private choice, no longer Lazurio's advice |
+| An own file in the Folder (`AGENTS.local.md`, or F14's deferred `notes/`) | A new owned top-level name is a boundary change. Harnesses read it only because `AGENTS.md` says so, and any agent can edit it without a preview. Weaker than a preference; rejected |
+| The Organization's `AGENTS.md` plus one preference of the Environment, rendered as the last section (selected) | One path for every harness. The Organization's tweaks are reviewed on GitHub, and a person's tweak is a rendering, not drift |
+| Keep refusing every foreign entry (today) | One empty file stops an Environment's update. Rejected |
+| Tolerate a list of known tool names (#256, option 1) | The list never ends: logs, reports, a tool's configuration. Rejected |
+| A one-click "move out of the Folder" (#256, option 3) | Useful as a tidy-up in the notice, but as a gate it still blocks until a person acts. Kept as an action, not as the gate |
+| Machines moves foreign entries aside before every refresh (#653's pattern) | Writes into the person's space on every apply. Kept as a manual repair only |
+| Tolerate, refuse only a collision and a top-level `.git`, report (selected) | The boundary protects what the Folder owns, and it agrees with Machines on `.git`, and nothing else |
+
+#### Failure modes
+
+- **An own instruction against a boundary,** for example "you may read the Personalspace of others". The section's first line says the generated rules win, so the agent follows them and tells the person why.
+- **An own instruction that is risky but within the person's rights,** for example a standing consent to publish. That is the person's mandate, as F14's rule on consent given in advance allows. Live GitHub rights and branch rules still decide.
+- **Too long, or not plain text:** refused at save, and nothing is written.
+- **A collision** with a name a new release claims: refused by name before the journal. The person moves the entry, and Machines records the finding and converges the rest, as today.
+- **Entries pile up at the root:** the doctor's notice says so. Nothing blocks.
+- **A harness reads a foreign file as instructions** (`CLAUDE.md`, `AGENTS.override.md`): named first in the notice. The person decides; the Folder does not delete it.
+
+#### Open questions for Matěj
+
+1. **Precedence inside an Organization.** Its `AGENTS.md` wins over the person's own instructions where they conflict (recommended: the Organization is the access boundary and its process binds everyone in it), or the person's wins for working habits.
+2. **Who sees a Work Environment's own instructions.** The Environment is the Organization's, so its Owners could see them in Přehled Organizace (recommended: yes on a Work Environment, never on a Personal Environment), or nobody but the person.
+3. **A `.git` at the top of the Folder** (#256). Today Machines#788 refuses it (`git-checkout`), while the Platform refuses it only as one more foreign entry. The proposal keeps refusing it in the Platform too, by its own name (recommended: it stays consistent with Machines and root decision 0144). The alternative is to only report it, which would diverge from Machines.
+
+#### Delivery, if decided, in this order
+
+1. **B in this repository.**
+   - `requireClaimedFolderBoundary` refuses only a collision and a top-level `.git`, and the doctor reports the rest.
+   - Tests: a foreign file at the root leaves a refresh `refreshed` and the file untouched; a collision with a newly owned name is refused by name before the journal; adoption still refuses.
+   - Then a release, and the Machines pin. Machines#788's finding stays the path for older releases.
+2. **A.**
+   - The pieces: the preference, its rendering as the last section in both locales, the Settings field, `lazurio folder instructions`, and F42's rule pointing here.
+   - It takes a new template revision.
+   - Tests: preview and apply, the digest, the precedence line in both locales, and the bound.
+3. **#653's existing drift.** Where a hand-added section can be proven (the rest matches the recorded digest), the repair offers to move exactly that text into the new field, instead of only discarding it.
+4. **The Lazurio Root on a workstation** gets the same mechanism under root decision 0219 (plan DEV-6693).
+
+**Addendum 2026-11-01, decided by Matěj (Organization Admin, plan LZD-0002 of the
+LazurioDevelopment Organization): two more Folder skills from the Lazurio Root,
+`henry-review` and `module-standard`; manifest schema 4.** The Lazurio Root (GEN3) carries
+two agent procedures every Organization's Environment needs and the Folder lacks:
+asking the Organization's persona for a review or handing it a pull request, and
+converting or checking an existing module against the Module Standard. A context
+benchmark in three simulated Environments (an Organization's development, its product
+and business, and a customer with only the Platform) found that Folder agents know the
+Module Standard only by its seven-line summary: nothing about a module's secrets from
+the vault, sibling modules or the built version from `main`, although this Platform
+reads all of them. Matěj asked for the Root's skills to be read, kept where they serve
+the Platform and rewritten short, in Lazurio's voice, without the Root's mechanics.
+
+What changes:
+
+- **The skill `henry-review`**: the asking side of the persona's contract that
+  `this-machine.md`'s bot team chapter states for the persona (F31 and the 0218 addenda):
+  the login from the Organization's `AGENTS.md`, a Ready pull request with green checks,
+  one reviewer request through GitHub and no second way, the handover by assignment only
+  on the user's instruction, a verdict only on the exact head with an approval submitted
+  after the last commit, and what to check when no review arrives.
+- **The skill `module-standard`**: what a module holds (manifest, app generations, one
+  process, port and addresses from the listener variables, secrets declared by name and
+  read from `LAZURIO_RUNTIME_SECRET_<NAME>`, siblings declared in `required_module_slots`
+  (a sibling's API origin is passed only for a declared `workspace/<slug>`),
+  the built version by `build_script`/`build_output` or `start_script`, sleeping, CI
+  minutes), the order of a conversion, its verification in the changed worktree, and the
+  Platform start only after the merge, since `lazurio module start` runs the primary
+  checkout on `main` and may take over a running app (stopping only what the agent
+  started, with the full target; the Launchpad on macOS). No command checks conformance
+  yet (#423); the skill says so.
+- **Pointers, not AGENTS.md lines.** `working-here.md` names both skills where the
+  module rules and the handover already are; AGENTS.md stays within its budget (#755).
+  The glossary gains GEN3 and GEN4 (the Lazurio Root and the Lazurio Platform with its
+  Folder), official designations in texts since 2026-11-01.
+- **Manifest schema 4** records every output; schema 3, the Folder with `new-module`
+  only, stays readable, and the next change creates the two skills where they are absent,
+  the same way schema 3 brought the first skill to schema 2 Folders.
+
+Not changed: no Root command or path enters the Folder, the Root's `lazurio module setup`
+and Organization manifest migration stay GEN3, and `admin-pr-sweep`,
+`worktree-development-discipline` and `lazurio-workstation-install` stay in the Root or
+move to the development Organization, not to every Folder. If #585 (`ui-craft`) merges
+first with schema 4, this change takes schema 5, and the other way round.
+
+**Addendum 2026-11-02, decided by Matěj (Organization Admin, plan LZD-0002 of the
+LazurioDevelopment Organization, #758): one home per rule, a first pass.** The generated
+`AGENTS.md` had 6 bytes left in its tightest composition (a Team Environment, English, an
+8 KiB custom voice), so no further rule fit. `AGENTS.md` now keeps the short, testable form
+of a rule and points to the manual for its procedure and its reasons; no rule is dropped:
+
+- **Questions to the user.** The rule, its options, the Publication choice, the fallback
+  without a question tool and the subagent's hand-off stay. Why a question in a message
+  fails, and how to ask the user to do something (the link, the code, until when, the
+  options that say how it went), are under Safe habits → Questions in
+  `manual/working-here.md`.
+- **The update request.** That „Aktualizuj“ is the consent stays. The steps (tools,
+  every checkout, missing modules, the report) are a bullet of the update section of
+  `manual/troubleshooting.md`.
+- **Open questions.** Filing without asking, the clean-up before filing, the public
+  repository clause and the limits of the mandate stay. When to stop and that an issue is
+  not a plan stay in the manual's section on open questions.
+
+Generated text cites a decision by its number in the public register
+(`docs/decision-register.md`): "root decision 0207" becomes "decision 0207", since one
+register in this repository allocates the numbers of GEN3 and GEN4. `AGENTS.md` drops the
+addendum dates of its citations; the manual keeps them. Afterwards the tightest composition
+has 1,045 bytes left (with the skills of #790), and the budget test #755 asked for (`tests/folder-template-revision.test.ts`,
+every pinned composition with an 8,192-byte voice under 32 KiB) still guards it.
+`base-instructions-103`.
+
+**Addendum 2026-11-02, decided by Matěj (Organization Admin, plan LZD-0002 of the
+LazurioDevelopment Organization, #757 Medium and Low items): the remaining agent rules of
+the Lazurio Root, each in one place.** Every rule was checked against the
+rendered Folder of all five presets in both languages, and only what was missing is added,
+cited by the public register:
+
+- **`working-here.md`.** Git and GitHub: an approval counts only when it was submitted
+  after the head's last commit (its `submittedAt` later than that commit's
+  `committedDate`), a conservative rule of this project that asserts nothing about how
+  GitHub carries reviews over, and the skill `henry-review` says the same; every branch
+  rewrite checks the commits it drops
+  (the fork's rule now points to it); a fork's release tag is never used again. Worktree
+  discipline: someone else's pull request is reviewed in a detached checkout of its exact
+  head. A Release follows the user's explicit instruction or a standing mandate a decision
+  records, as a merge does under 0103. Architecture responsibility: 0132's two sentences
+  (check a new name against the decisions and `ARCHITECTURE.md`; expert judgement never
+  takes over the user's business, access or Publication authority) and the Root
+  `ARCHITECTURE.md`'s check of a new proposal, with Environment for Machine. Knowledge:
+  when in doubt, copy nothing. The Module Standard: module data (0196) and the Python
+  service the skill `new-module` offers (`python-uv`), also in the skill
+  `module-standard`, which points to the full standard as well. Integrations: no new ChatGPT or claude.ai connector (0162) and a
+  stuck procedure fixed at its source. Secrets: a secret only by its structure. The
+  Module Standard's summary points to its full text, `docs/module-standard.md`, and its
+  stop rule follows it: a clean exit 0 on `SIGTERM`, killed after 5 seconds on Linux
+  and 1 second on macOS, where the Folder said ten seconds. The
+  delegator, not the Kolega, holds the QA gate of a subagent. The sections on the plan and
+  the tests and on restructuring (0173) render on a personal Remote Environment too, where
+  personal modules are built, without the Organization's Mission Control.
+- **`lazurio.md`.** Who decides access: an Organization may switch to public DNS (0213),
+  and the workshop names say so. The glossary's GEN3 row no longer names the Module
+  Standard as GEN3-only (0225).
+- **`AGENTS.md`.** The formal address line gains imperatives in the plural and no past
+  tense that fixes a gender (0199): a custom voice replaces the default voice that said
+  it. The tightest composition has 979 bytes left.
+
+Left out: the Root's precedence of sources (0040 holds for GEN3 only), the Root's order
+for a new connection (it puts MCP before the tool and adds paths that are no Integration's
+under 0162), the Server services' integration service (0209 is not deployed and nothing
+lists such a service yet) and the Design System's Read grant (a rule of the Organization
+template, with no Lazurio decision). `base-instructions-104`.
+
+**Addendum 2026-10-21, proposed by Anna (to be decided by Matěj): a second Folder skill,
+`ui-craft`; manifest schema 5.** Agents build module apps and websites with no shared bar
+for the details people notice: an `ease-in` menu, a hover that stays stuck after a tap, a
+form field the phone zooms into, a heading that overflows on a narrow screen. Emil
+Kowalski's skills ([github.com/emilkowalski/skills](https://github.com/emilkowalski/skills)
+at `2d228630`, MIT) hold that bar for animation, mobile and edge cases, but as fifteen
+English skills that assume React and Framer Motion and recommend opacity, blur and shadow
+transitions that an Organization's design system may forbid (the Lazurio website does).
+Installed one by one, every Environment would compete for its own copy and drift from the
+upstream.
+
+What changes:
+
+- **The skill `ui-craft`**, in the Folder's locale, byte-identical for both harnesses: when
+  an agent builds, changes or reviews an interface, and before a pull request that changes
+  what people see. It opens with precedence: the module's and the Organization's
+  `AGENTS.md`, design system and tokens override every default; a missing value is proposed
+  to that design system, never invented in the page. Then seven steps, retold in Lazurio's
+  words from upstream rather than copied: whether it should move at all (frequency and
+  purpose; deleting is the first fix); curve and duration; smooth frames; motion and
+  controls for everyone; the phone; the worst realistic data (Czech compounds and plurals
+  included); checking in a browser at 390 and 1280 px, saying what needs a real phone, and
+  leaving matters of taste to the person. No library, framework or brand is named, so it
+  holds for every stack of the generator. The credit line names the upstream and its
+  licence; `docs/licensing.md` records why no copy of its notice is needed.
+- **Two pointers.** `AGENTS.md` gains one sentence at the end of `new-module`'s line, which
+  already names both skill folders, so an agent reaches the skill also where its harness does
+  not list the Folder's skills (started inside a module's own repository, F14 addendum of
+  2026-10-14); `new-module` names it in the first version of both routes. A line of its own
+  no longer fits: with the longest custom voice the generated `AGENTS.md` keeps under its
+  32 KiB budget only about 57 bytes of room. The precedence of the project's rules stays the
+  skill's first rule.
+- **No promise about the main thread.** The skill sends predetermined motion to CSS or the Web
+  Animations API, but says only that `transform` and `opacity` usually run off the main thread;
+  layout and paint properties animate on it, so smoothness under load is profiled, not
+  assumed. Likewise `transform` and `opacity` are only often composited without new layout or
+  paint, depending on the browser and the element (Pablo's reviews of #585).
+- **Durations without a contradiction.** Small elements (a press, a tooltip, a menu) stay
+  under 300 ms; a dialog or panel may take up to 500 ms; only explanatory motion goes beyond.
+- **Manifest schema 5.** A new skill is a new set of outputs. Planned as schema 4, this change
+  merged after #790 (`henry-review` and `module-standard`, addendum of 2026-11-01), so by that
+  addendum's order rule it takes schema 5: `manifestOutputPaths[4]` stays frozen at #790's set,
+  schema 5 owns every output, and this product reads 2 to 5 and writes 5. A Folder at schema 3
+  or 4 gains `ui-craft` by its next change, created only where nothing is at its paths
+  (`unowned-file` otherwise), as schema 2 gained the skills. Older binaries refuse schema 5 and
+  are repaired forward.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Install upstream's skills as they are | Current with upstream, but English only, React-specific, and contradicting design systems that forbid opacity or shadow motion; rejected |
+| One Lazurio skill per upstream skill | Narrow triggers, but a dozen descriptions competing in every harness and a dozen files to keep bilingual; rejected |
+| The bar in each module's `AGENTS.md` | Visible inside a module's repository, but copied into every module and stale in each; the module keeps only what is its own (the Lazurio website's `AGENTS.md` does) |
+| One generated skill with project precedence, schema 5 (selected) | One home, updated with the product, in the Folder's language |
+
+Template revision `base-instructions-108`. Verified by `tests/folder-ui-craft.test.ts`: the skill
+in both locales on every preset, identical for both harnesses, its description, the precedence
+before the first step, its key rules, the credit, the `AGENTS.md` sentence and `new-module`'s
+pointer, the qualified main-thread rule; the same lines in both languages; a schema 4 Folder gaining both files where nothing is
+there and refused by path where something is. `tests/folder-skills.test.ts` covers the schemas,
+initialization and every upgrade from schema 2 with both skills. Not proven: that agents in every
+harness load it by its description and follow it.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
@@ -2942,7 +3756,10 @@ and warns, with both paths, when another program named `lazurio` resolves first 
 legacy root CLI linked by Bun into `~/.bun/bin`, for example); it changes nothing about
 that program.
 
-*"Folder refresh needed."* A product update never writes the Folder (F14). So
+*"Folder refresh needed."* *(Superseded by the addendum of 2026-10-30 below: the update now refreshes the Folder
+itself, and people never see a refresh. Only `lazurio update status` and `lazurio
+doctor` still report a needed one, for agents.)*
+A product update never writes the Folder (F14). So
 `lazurio update`, `lazurio update status` and the installed Launchpad's update pill say
 "Folder refresh needed" with the exact command when the Folder records an older
 template revision than the active product renders: `lazurio machine folder-refresh`
@@ -2983,8 +3800,9 @@ decision: agents update proactively and continuously, and they resolve a diverge
 checkout for the Operator without losing work.
 
 1. At the start of every piece of work an agent runs `lazurio update` in the background
-   and, when it reports "Folder refresh needed", the refresh. It tells the Operator what
-   changed. Only the Launchpad restarts ([product update](update.md)); applications,
+   and, when it reports "Folder refresh needed", the refresh. *(Since the addendum of
+   2026-10-30 the update runs the refresh itself; the agent only resolves a blocked one
+   with the user's consent.)* It tells the Operator what changed. Only the Launchpad restarts ([product update](update.md)); applications,
    T3 Code and Codex sessions keep running (F29 point 3), and a concurrent run ends
    `busy`. The product itself still activates nothing on its own.
 2. Until content synchronization exists (F9, [content synchronization](content-sync.md),
@@ -3026,6 +3844,116 @@ to ask.
 | Keep "only when the Operator asks" | Environments drift and published changes stay invisible; rejected |
 | Let the product update itself on a timer | Activation stays an explicit step of the updater (F13); an agent runs the same updater in the open and reports what changed; rejected |
 | Report a diverged checkout and stop | The work waits for a person who may not know Git; rejected: the agent keeps the work first, then resolves |
+
+**Addendum 2026-10-30 (Matěj): the update refreshes the Folder; people never see a
+refresh.** Matěj, the Organization Admin, clicked Update in the Launchpad of a hosted
+Work Environment. The column then said „Folder je potřeba obnovit. Spusťte: lazurio
+machine folder-refresh“ ("The Folder needs a refresh. Run: …"). His decision, in his
+words: „Myslím si, že je to produktově špatně, protože dejme tomu, že uživatelé, kteří to
+používají, nejsou technicky zdatní. Tady tahleta hláška říká uživateli, aby udělal něco
+v terminálu, což je úplně špatně. Takže si myslím, že tady tenhle refresh toho folderu by
+se měl stát automaticky hned po tom, co proběhne update, a tyhle informace by se
+k uživateli vlastně vůbec neměly dostat, že by potřeboval něco refreshnout.“ In short:
+the people who use Lazurio need not be technical; a message that sends them to a terminal
+is wrong; the refresh happens automatically right after the update, and the need for one
+never reaches them.
+
+What changes:
+
+1. **The update refreshes.** After a successful activation, `lazurio update` refreshes
+   the Folder in the same run. It does so whether a person ran it in a terminal or the
+   pill started it in its unit, because both are the same command. The step lives in one
+   place of the update core (`refreshAfter` in `src/update/update.ts`):
+   - It runs the newly active version's own refresh through the selector, as a bounded
+     child (`src/update/folder-refresh.ts`), because the templates are that version's.
+   - The declared operator's Folder of a hosted Machine gets `lazurio machine
+     folder-refresh`. Every other Folder gets `lazurio profile-update` with its recorded
+     choices at its current revision, which the one planner turns into the template
+     upgrade (F14).
+   - The Folder is the one the update already resolves: `--folder`, the supervised
+     unit's, or the declared operator's.
+   - It runs only when the Folder records an older template revision than the active
+     version renders, and only when that version states which revision it renders (its
+     self-check's `templateRevision`). Otherwise nothing runs.
+2. **Also when nothing is newer.** When `lazurio update` finds no newer release but the
+   Folder still records an older revision, it refreshes too, with the active version.
+   That happens after a blocked or busy refresh, or after a Machines install moved the
+   version. The Launchpad's update of everything (Nová karta's Aktualizovat, root
+   decision 0212 point 3) does the same when its check finds nothing newer. It uses the
+   same function under the update lock: while an update holds the lock, that update
+   refreshes instead.
+3. **Activation stays final.** A blocked or failed refresh never fails, reverts or
+   delays the success of the update. The switch happened before it, and the exit status
+   stays the product's.
+   - `folder-busy` is retried, at most six attempts a second apart: the Launchpad that
+     the switch has just restarted reads the Folder under its lock for moments.
+     `stale-revision` (a concurrent change of the Folder) is retried the same way.
+   - Every attempt reads the Folder again, so a Folder that another operation refreshed
+     meanwhile is `unchanged`. The child is bounded to two minutes.
+   - The result's `folderRefresh` is now the outcome, `{state: "refreshed" | "unchanged"
+     | "blocked" | "failed", reason?, path?}`, or `null` when none was needed. It
+     replaces the command. `reason` is only a product code. `path` is only a path
+     within the Folder: relative, normalized, at most 512 characters and with no
+     control or invisible formatting character. Anything else the child printed
+     never reaches the result or a terminal (Pablo's review).
+   - `profile-update` now answers a busy Folder as `machine folder-refresh` does
+     (`{"kind":"blocked","reason":"folder-busy","retryable":true}`, exit 2) instead of a
+     bare failure, so the update can tell busy from failed.
+4. **Nothing in the Launchpad.** The pill's refresh line, its message in both locales,
+   its element and `folderRefresh` in `GET /api/update/status` are removed. The pill
+   also no longer shows "downloading" while the run that switched it finishes the steps
+   after the switch (the refresh and the units). After the restart, the Launchpad is the
+   new version and nothing newer is being fetched.
+   - "Downloading" is bound to the version the run in flight fetches: its unit's
+     description, or the child's own argument. It is never bound to the newest release
+     known, so a release published while the run finishes is not shown as downloading
+     (Pablo's review).
+   - While a run is in flight, the pill offers nothing to start.
+5. **Agents still see a blocked refresh and fix it.** `lazurio update status` and
+   `lazurio doctor` (`folder-refresh`, `warn folder-refresh-needed`) keep reporting a
+   Folder behind the product: no refresh ran yet, or the last one was blocked.
+   - The CLI's text names the refusal and the agent's next step.
+   - The generated manual says three things. The update refreshes the Folder itself.
+     The agent never asks the user to refresh anything. A blocked refresh is resolved
+     with the user's consent (an edit moves to where it belongs), and then the refresh
+     runs again: `lazurio machine folder-refresh` in a Remote Environment, `lazurio
+     update --folder <Folder>` on a workstation.
+   - Template revision `base-instructions-91`.
+
+What stays:
+
+- The Folder change path: the same planner, transaction, archive and recovery. An
+  edited generated file is never overwritten, and a Folder is never downgraded
+  (`template-upgrade-required`).
+- The Machines resident role keeps running `folder-init` and `folder-refresh` after
+  handover writes and after `install`, and reads exactly one JSON object. `lazurio
+  install` refreshes nothing, and the Folder lock's semantics do not change.
+- `lazurio update --check` and a failed update refresh nothing. The pill starts the same
+  `lazurio update --version` in the transient unit as before.
+- F14 rejected "re-render automatically on product activation" for two reasons: a write
+  the Operator did not ask for, and a second writer beside the change path. Neither
+  holds here. The update is the request to bring the Environment up to date, and the
+  refresh is the one change path, run as its own command.
+
+**The first update into this release** is performed by the previous version's updater,
+which only reports. That update refreshes nothing; the person sees nothing either,
+because the new Launchpad has no line. The next `lazurio update` refreshes the Folder
+(agents run one at the start of every piece of work), and so does the Launchpad's
+Aktualizovat.
+
+Root decision 0161 still says that after an update the Folder's generated files are
+refreshed by the command the product prints („Po aktualizaci obnoví vygenerované soubory
+Folderu příkazem, který produkt sám vypíše“). Its addendum of 2026-10-30, pending in the
+root repository, amends it.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep "Folder refresh needed" with the command | A person who clicked Update is sent to a terminal; rejected by Matěj |
+| The new version's Launchpad refreshes the Folder when it starts | Would cover the first update into this release, but writes at every start (a reboot, a Recovery restart), races the Machines role's own `folder-refresh` right after `install`, must stay out of the read-only start probe, and the update's result could not say what happened; rejected |
+| The updater renders the Folder in-process | The updater is the version being replaced, so its templates are not the new version's; rejected |
+| A new refresh command, or a unit of its own | A second mechanism beside the one change path; rejected |
+| Refresh after every update, needed or not | Every agent's start of work would take the Folder lock and read the handover for nothing; rejected: only when the Folder records an older revision |
+| The update runs the active version's own refresh as a bounded child, from the CLI and the pill alike (selected) | One place, the one change path, the new version's templates, the outcome in the result; the first update into this release does not refresh, the next one does |
 
 ## F18 — Enabled tools of the Environment
 
@@ -4106,7 +5034,10 @@ must say that GitHub is connected badly and must be connected again.
    GitHub arrives. `startDecision` and `openSignIn("gh")` open the SSH link where that is
    what is missing. On a Team or an Automated Environment, whose GitHub is the
    Organization's or the persona's and may work over HTTPS, nothing changes: only a known
-   missing GitHub holds their content back. The server's GitHub probe for the shell's
+   missing GitHub holds their content back. *Amended 2026-10-30 ([F27's
+   addendum](#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)): the Automated Environment, whose persona's account the curated
+   sign-in links over SSH as a person's, counts it as a work Environment does; only the
+   Team Environment keeps this rule.* The server's GitHub probe for the shell's
    `setup` reads the same status with the same kept proofs.
 5. **Nástroje.** gh's line takes the success colour only while the link works: "Připojeno
    jako octocat · SSH klíč nepropojený" draws the account in the neutral colour and the key
@@ -4250,7 +5181,8 @@ has no sign-in by code; a long-lived `claude setup-token` is not offered.
    nejdřív zapněte…"): wherever the step offers the choice, also after "Přihlásit jiný účet";
    never where the Organization provides the AI, while the AI is being read, on a Remote
    Environment without the Environment browser (the step keeps its line, as before) or on
-   an Environment without the step (Team, Automated, public). While its code waits the
+   an Environment without the step (Team, public; the Automated Environment has it since
+   [F27's addendum of 2026-10-30](#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)). While its code waits the
    step says "Otevřete stránku ChatGPT v kterémkoli prohlížeči, třeba v telefonu, a
    opište kód. Platí 15 minut." with the waiting mark and "Zrušit", and shows the code
    with "Kopírovat" and "Otevřít ChatGPT" (a new tab): the block of gh's code in its
@@ -4315,6 +5247,71 @@ already said so.
 Still unseen: OpenAI's own refusal of a code where the setting is off. Also unchecked:
 Začínáme's button on a real Environment, which Example cannot show, since its AI there
 is the Organization's. The evidence is on Lazurio/LazurioPlatform#576 and #517.
+
+**Addendum 2026-10-28 (Matěj, Lazurio/LazurioPlatform#682): the Launchpad turns
+"Používají agenti" on as a sign-in ends.**
+
+During an onboarding (Začínáme) on a work Environment, Composio's sign-in completed but
+its "Používají agenti" stayed off. Integrace then said that agents do not use Composio
+and offered no link, so Composio did not work. The v0.1.14 acceptance on the reference
+Organization's personal Environment had seen the same on 2026-10-27.
+
+The rule of 2026-10-04 lived in the page: after the reading that the sign-in caused, the
+page switched the tool on through `/api/tools/update`. For Composio, the dialog's check of
+the organizations started a second reading at the same moment. The later reading
+superseded the first, and the page, busy while it ran, dropped the change without a word.
+A page closed meanwhile never made the change at all.
+
+Matěj: however a person sets Composio up, once it is signed in the switch is on and
+Integrace say so.
+
+1. **The server follows the sign-in.**
+   - The login sessions call their owner's `afterSignIn` once for every sign-in that ends
+     signed in, as it ends (`finish`), also with nobody polling. A follower that fails
+     changes nothing of the outcome.
+   - The Launchpad turns the tool's switch on there with `enableToolForAgents`. That is
+     the switch's own change at the Folder's current revision. Where another change holds
+     the Folder or changed it meanwhile, it reads the Folder again, up to four attempts,
+     as the vault's switch is made (F53). The vault now uses the same function.
+2. **What it switches.**
+   - Only a catalog tool that has the switch: not a required one, and not codex or claude,
+     which are not catalog tools of agents.
+   - Never a tool signed in before (`already`).
+   - Never where the switch itself would be refused: not offered here (F44,
+     `tool-not-offered`), not allowed by the Organization (F45, `organization-governed`),
+     or a drifted Folder.
+
+   A person may turn the switch off again; only the next sign-in that this Launchpad
+   completes turns it back on.
+3. **The answer follows the switch.**
+   - `/api/tools/login/poll` and `/start` answer `signed-in` once the switch followed,
+     waiting at most 5 seconds, and then drop the Integrace reading. The page's reading
+     after the outcome shows the switch on, and Integrace's next reading counts Composio
+     as used.
+   - The page no longer changes the Folder after a sign-in; `autoEnable` is gone and the
+     page only reads again.
+   - Each outcome waits for its own switch only, never for another sign-in's of the same
+     tool. A Launchpad that closes lets every switch under way complete, as any Folder
+     change, also one that a later sign-in of the same tool overtook (Pablo's review of
+     #702).
+4. **Journal.** One line per switch: `{"scope":"tools-agents","tool":…,"outcome":…}`. The
+   outcome is `enabled`, `on`, `failed`, or `refused` with the Folder's reason. Nothing
+   else is written.
+
+Not in this addendum:
+- `lazurio tools login` takes no Folder and switches nothing.
+- A sign-in made outside Lazurio, such as `composio login` in a terminal, is not seen.
+- Začínáme's Composio step still says "Připojeno" from the sign-in and the organization
+  alone.
+
+The tests are:
+- `tests/integrations-composio-ready.test.ts`: through the routes with the dialog polling
+  and with nobody polling; a switch turned off again stays off;
+- `tests/tools-login.test.ts`: the follower hears one end and no cancel, and a failing one
+  is harmless;
+- `tests/launchpad-wacli-sign-in.test.ts`: a tool signed in before stays off;
+- `tests/launchpad-sign-in-switch.test.ts`: two sign-ins of one tool overlap while the first
+  switch is held. Each answer waits for its own switch, and closing waits for both.
 
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 
@@ -4480,6 +5477,19 @@ rebuild of the personal VMs that precedes the first canary.
 | Recovery page from a separate program | Survives a broken executable; a second runtime and supervisor to build and qualify; rejected in favour of the gateway's static page |
 | Recovery mode in the Launchpad plus `lazurio recover` | One core, no new process, reaches the operator where they already are; selected |
 | A private intake from which maintainers write the public issue | Two gates and a reader before the public; an endpoint, a private repository and an agent pass to run; kept as the fallback if structured issues prove insufficient (Q4) |
+
+**Addendum 2026-10-31 (root decision 0166, addendum 2026-10-31; HumanAndMachines/Lazurio#687,
+#752).** Matěj, while speeding up v0.1.19: „Pojďme zrušit ten osmihodinový Canary. … místo toho
+pojďme fakt udělat mechanismus, že jedno vlákno si vezme, eh, profil Aleny nebo Boba, tam to
+odzkouší, že všechno funguje, a ve chvíli, kdy dá green light, tak jdeme releasovat, ať se tím
+nebrzdíme.“ Point 5 changes: the stage on the pilot Organization's Machines has no minimum
+window; it ends in one recorded end-to-end smoke test on the candidate, as a test account of the
+pilot Organization (its Owner or a member), and its green light. The record is
+`lazurio.canary.v2` (the account's role and the result, never a name), required by
+`scripts/qualify/check-canary.ts` for every candidate from 0.1.19 on; earlier candidates keep
+their 8 hours and their own tree's check. Accepted consequence: slow failures (memory growth,
+timers, nightly jobs) are caught in use, under Recovery mode and fix-forward. Everything else in
+F21 stays.
 
 ## F22 — The Platform Launchpad reaches parity and replaces the resident in one apply
 
@@ -5237,6 +6247,123 @@ explicitly by the operator, so nothing is switched silently.
 | Refresh switches to the newly derived preset by itself | A silent switch of provider identity, against F10's refresh rule; rejected for the explicit `--preset` |
 | Profile change reads the current handover | The Launchpad and profile commands would read the Linux handover and mix an infrastructure rewrite into an Operator's revision, as F10 rejected; rejected |
 | `folder-refresh --preset <derived>` (selected) | One explicit option on the existing refresh, same planner and transaction; takes only the derived preset |
+
+### Addendum 2026-10-30 (Matěj): the Automated Environment has the onboarding of a Work Environment
+
+**Decided by Matěj (Organization Admin) on 2026-10-30 (plan DEV-6665). It changes root
+decision 0188 point 3 for the Automated Environment through root decision 0188's
+addendum of 2026-10-30 (HumanAndMachines/Lazurio#675), and extends root decision 0201
+to it.** In his words: „Jestli chceme mít nadefinovaný
+"automation environment" jako druh enviromentu, tak by to dle mého měl být jakoby
+standardní pracovní enviroment, akorát s tím, že se o něj nestará dedikovaný uživatel, ale
+je to jakoby nějakého uživatele sekundární enviroment. Ale mělo by platit, že i v tomto
+enviromentu je onboarding, kde se připojuje AI (pokud to není napojené na pool), přihlašuje
+se tam github, clonuje se organizace, aby měli agenti přístup na moduly pod daným github
+účtem, napojuje se composio atd. Prostě.. Vnímám to jako standardní záležitost.“
+
+The Automated Environment is a work Environment of the Organization that its responsible
+user sets up as one of their secondary Environments, and it has the onboarding of 0201 as
+a work Environment of one person has it. Until now the Platform kept it out of the first
+run together with the Team Environment (`signsInAsPerson`): its responsible user signed
+the persona's account in in Nastavení → Nástroje and installed the content in Nastavení →
+Toto Prostředí → Obsah Prostředí or with `lazurio organization install` (F9's amendment of
+2026-10-12).
+
+1. **One gate that names what it decides.** `hasOnboarding(preset)` in
+   `src/launchpad/first-run.ts` holds for `local`, `hosted-personal`,
+   `hosted-organization-personal` and now `hosted-organization-steward`: every preset whose
+   GitHub is signed in on the Environment itself. It decides Nastavení → Začínáme and its
+   count in the Settings navigation, the line in Apps, the shell document's `setup` and
+   with it the column's prompt, the tour, the content's start by itself, the content-before-AI
+   rule in the page and in `POST /api/content/install` (`ai-missing`), and who gets "Vyřešit v
+   Chatu" (`prepare-content`, audience `environment-operator`: the person behind the
+   Environment's admission, here its responsible user). `signsInAsPerson` is gone, since
+   none of its uses meant the person's own sign-in. Where that is the meaning, the preset's
+   provider identity says it (`githubIdentity(…) === "own-sign-in"`, as the doctor's
+   `ssh-not-linked` warning reads it), unchanged.
+2. **AI.** Done without any action where the Organization's AI pool serves the Environment
+   (`GET /api/ai` answers `organization`, as everywhere); otherwise the responsible user
+   connects ChatGPT or Claude in Začínáme as on a work Environment.
+3. **GitHub is the persona's own account** (0169 point 2, F27), never the responsible
+   user's own account and never Lazurio for GitHub. Začínáme's step says so while it is not
+   connected ("Nepřipojeno. Sem patří účet persony, ne váš." / "Not connected. The persona's
+   account belongs here, not yours."), and so do its tour stops ("Připojte GitHub persony" ·
+   "Agenti pracují pod jejím účtem."; "Připojte účet persony" · "Váš vlastní účet sem
+   nepatří."), the line in Apps ("Účet persony na GitHubu není připojený.") and gh's sign-in
+   dialog ("Zkopírujte kód a na GitHubu ho potvrďte účtem persony, ne svým."). The words follow
+   the preset's provider identity `persona-account` (`personaGithub`). Connected means what it
+   means on a work Environment: gh signed in and this Environment reaching GitHub over SSH as
+   that account (F19's addendum of 2026-10-19, #515); the curated sign-in links the key for the
+   persona's account as it does for a person's.
+4. **A soft check of the account.** Where gh is signed in as the login the binding names as
+   the responsible user (`owner.assignment` `{kind: "automation", githubLogin}`, compared
+   case-insensitively: `responsibleLogin`, `ownAccount`), the GitHub fact is `own-account`,
+   whatever SSH says. The step is not done and says "Je přihlášený váš vlastní účet @login. Sem
+   patří účet persony." / "Your own account @login is signed in. The persona's account belongs
+   here." with the warning mark, and offers "Přepnout účet" ("Switch account"). It signs that
+   account out exactly as gh's "Odhlásit" in Nástroje does (the Machine's SSH key removed from
+   it first) and opens gh's sign-in for the persona's. The line in Apps says it too and leads to
+   that step, as "Připojit AI" leads to the AI step; a start request in the address never
+   switches it, so no link signs anyone out. The server's GitHub probe for the shell's `setup`
+   keeps the account with its state, so the column's prompt counts the same. The check
+   decides that step's state and nothing else: whatever already follows the GitHub step
+   follows it (the count, the next basic, the tour, the prompt, and the content's turn in
+   Začínáme and Obsah Prostředí, since the content comes after GitHub), but no sign-in, tool,
+   CLI command or route refuses anything by it, and it grants nothing. It is soft: the
+   handover names the user, not the persona, so any other account passes, and a login renamed
+   after the handover was written is not caught.
+5. **Content.** The handover's Organization, installed through the same content core under
+   the persona's live GitHub role (F9's addendum of 2026-10-04 and amendment of 2026-10-12).
+   It starts by itself once this view saw the AI or GitHub arrive and both are there, as on a
+   work Environment: only an open Launchpad view starts it that way, never the Launchpad's
+   own start, a product update or a sign-in alone. While the AI is provably missing,
+   `POST /api/content/install` refuses with `ai-missing`, as for a work Environment;
+   `lazurio organization install` stays the explicit command without that rule.
+6. **The optional steps** after the basics, as on a work Environment: Composio where Nástroje
+   offer it, SSH from the responsible user's own computer (0169: only that user connects over
+   SSH, for service interventions) with ChatGPT Desktop over it, and "Trezor v Bitwardenu"
+   where the Environment's vault page gives its steps.
+
+**Unchanged.** The Team Environment (`hosted-organization-team`, the services Environment of
+root decision 0209 included) has no Začínáme, tour, line or `setup`, and its content stays its
+hosting's (0188 point 3 stays for it); a public Environment keeps its demo onboarding (F55).
+The persona's identity, the bot team and Lazurio MausBot are not touched. The generated Folder
+manual and templates say nothing about the Automated Environment's first run, so no template
+text changes and the template revision stays. The doctor's `ssh-not-linked` warning stays
+scoped to the person's own sign-in. gh's row in Nástroje, its sign-in and sign-out, the content
+core's scope and every access decision stay as they are; GitHub stays the authority.
+
+**Earlier statements this addendum changes.** For the Automated Environment: the
+[workspace presets](workspace-presets.md#the-steward-preset-automated-environment)' "Platform
+does not compare accounts" (the sign-in gate still does not; only Začínáme's step compares, to
+say so); F9's amendment of 2026-10-12 where it says the first-run tour is not changed by the
+content operation; the F36 addendum of 2026-10-15 and the F19 addenda of 2026-10-19 and
+2026-10-21 where they set the Automated Environment apart from the first run. Each now says
+so where it stands.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Stretch `signsInAsPerson` to the Steward preset | One name fewer, but it would say the persona is a person, the misreading 0169 and F9's amendment of 2026-10-12 reject; rejected for `hasOnboarding`, which names what the gate decides |
+| A reduced first run for the Automated Environment (no tour, GitHub only) | Less to show to one Owner or Admin, but a second first run to keep, against "standardní záležitost"; rejected: the same onboarding, with the persona's words where they differ |
+| Compare gh's account with the persona's login | Would prove the right account, but the handover names only the responsible user and the Platform keeps no roster (F27, F10's "never infer"); rejected for the soft check, which can only say "not your own" |
+| Refuse gh's sign-in, or the content install, while the responsible user's own account is signed in | Harder to get wrong, but a new gate on a person's sign-in and on the content core from a guess about whose account it is; rejected: the check decides only the step's state |
+| Offer the content while the responsible user's own account is signed in | The check would hold nothing back, but Začínáme would offer step 3 before step 2 and the Organization would be cloned with that user's own rights, restricted slots included, onto the persona's Environment; rejected: the content's turn follows the GitHub step there as everywhere, and only the page waits |
+| "Přepnout účet" signs the persona's account in beside the user's (`gh auth login` again) | One step fewer, but the user's own token stays on the persona's Environment as an inactive gh account; rejected for sign-out first, then the sign-in |
+| The line's button, or a start request in the address, switches the account | One click from Apps, but a link would sign someone out; rejected: only the step's own button switches, and the line leads there |
+| Keep `signsInAsPerson` beside `hasOnboarding` | A second preset list for a question no first-run use asks any more; where the person's own sign-in is meant (the doctor), the preset's provider identity already says it; rejected |
+
+**Verification.** Unit and route tests: `tests/first-run.test.ts`, `tests/start-view.test.ts`,
+`tests/tools-view.test.ts`, `tests/content-routes.test.ts` (the install route's `ai-missing`
+on the Steward preset, `prepared-by-hosting` on the Team one),
+`tests/server-services-environment.test.ts` and `tests/first-run-automated.test.ts` (behind a
+hosted Launchpad's admission: the shell's `setup` on the Steward preset and none on the Team
+one, `prepare-content` for the responsible user and the Team's 404, and the soft check with the
+fake gh and ssh and the system's `ssh-keygen`). In a browser (root decision 0178): headless
+Chrome against `scripts/preview-launchpad.ts hosted cs|en … automated gh-signed-out`, the whole
+path from the persona's wording through the responsible user's own account and "Přepnout účet"
+to "Připojeno jako @octocat" and "Prostředí je připravené.", in both languages; the Team and
+Work previews unchanged. Not yet seen on a real Automated Environment: that waits for a release
+and its rollout (0204).
 
 ## F28 — Towards people the place they work in is the Environment; a hosted one is a Remote Environment
 
@@ -7856,7 +8983,8 @@ the member, who could not fix the Organization's root, was still sent to Chat.
    same. A basic provided ahead is done without the person: an Organization's AI pool, which
    configures Codex with a provider that needs no OpenAI sign-in. A Team Environment's
    brokered GitHub is the Organization's, and that Environment has no Začínáme at all (0188
-   point 3, kept by the wireframe).
+   point 3, kept by the wireframe). *Since [F27's addendum of 2026-10-30](#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment) the
+   Automated Environment has the same basics, its GitHub the persona's own account.*
 2. **Whether AI works, the CLIs say** (0201 point 6). `GET /api/ai` answers
    `{ kind: "ai", state, providers }` from Codex's own app-server (`codex app-server` over
    stdio, `initialize` then `account/read` without refreshing a token: an account works,
@@ -8021,8 +9149,10 @@ What this changes, in both languages:
      rule of root decision 0198 as the one line). The rule, "Kdo má přístup do
      Prostředí, má všechna jeho hesla.", stays on Nastavení → Trezor (`vaultPageRule`).
    - **Prohlídka aplikace** loses "Krátce ukáže, co je kde."; a ready Environment says
-     "Prostředí je připravené." without "Sem se můžete kdykoli vrátit.", and a Team or
-     Automated Environment "Tady není co nastavovat." without who prepares it.
+     "Prostředí je připravené." without "Sem se můžete kdykoli vrátit.", and a Team
+     Environment "Tady není co nastavovat." without who prepares it (an Automated
+     Environment too until [F27's addendum of 2026-10-30](#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment) gave it the
+     onboarding).
      Composio's, SSH's and Codex Desktop's lines stay: their titles do not say what they
      are for.
 
@@ -9034,6 +10164,12 @@ panel of every app.
    outside the Folder and the install base and is never copied. Every thread, agent
    and bot shares it. Wiping it is the hand-over's manual step before a Work
    Environment passes to another person.
+   *Addendum of 2026-11-01: superseded by decision 0191's amendment of 2026-10-26. A
+   Work Environment is never handed over to another person; after the export period it
+   is removed and a new one is created, so there is no hand-over and no wiping step
+   ([environment-browser.md](environment-browser.md),
+   [environment-access.md](environment-access.md)). The sentence above stays as the
+   record of the original decision.*
 3. **A window per thread: `lazurio browser window`.** agent-browser binds a pinned
    session to one tab but opens it in the most recently used window, and Chrome does
    not paint a background tab: on 2026-10-05 a screenshot of a background tab on a
@@ -12001,6 +13137,27 @@ missing Codex left alone (`tests/codex-apps.test.ts`); the Launchpad's reading, 
 person's switch and Codex following it, an Organization's refusal and the CLI's repair
 (`tests/integrations-chatgpt-apps.test.ts`).
 
+*Note of 2026-10-28 (Matěj): an app that its tool connects starts that from its card.*
+On Apps → Integrace, WhatsApp's card said "Připojuje se nástrojem wacli." and offered
+"Otevřít Nástroje". The button only switched the page to Settings → Tools, with nothing
+scrolled to or opened. A person who did not know to scroll down to wacli and press its
+button never connected WhatsApp.
+- **The card's button is "Připojit".** It names the tool (`open-tools` with `tool`).
+- **The tool's own sign-in opens over Integrace** where the tool has one, as its row
+  would open it (`tools.connect`): wacli's QR code, gh's device code.
+- **Otherwise Settings → Tools opens at the tool's row** (`tools.reveal`), for a tool an
+  agent sets up or a tool signed in but off for agents. The row is scrolled to the middle
+  and tinted for a moment, and the mark ends on the row drawn at that moment. The control to
+  act on next takes the focus (`revealControl`): the sign-in or installation, "Link SSH key"
+  or the setup with an agent, else the switch. A row the Organization decides has nothing to
+  act on: the row itself takes the focus, with its sentence why.
+- **Elsewhere:** Composio's card for its switch ("Otevřít Nástroje") opens at Composio's
+  switch. Začínáme's GitHub and Composio steps reveal their row where their sign-in cannot
+  open.
+
+Points 3 and 5 are unchanged. Tested: `revealControl` (`tests/tools-view.test.ts`) and
+the cards (`tests/integrations-page.test.ts`, `tests/integrations-composio-ready.test.ts`).
+
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
 > **Superseded in part by [F53](#f53--every-environment-owns-its-vault-its-own-organization-in-the-networks-vaultwarden-created-by-its-technical-account)
@@ -14727,6 +15884,26 @@ The view's hub and its page both read it, so the page's button never opens what 
 not have offered. A fork's view that hands a page off takes the same rule. The vectors' file is
 `hand-off.json` (C18); the module's exported names gain the two. The hub's message
 `{t: "hand-off", url}` belongs to the view's own protocol (`people/protocol.ts`), not to C8.
+
+**Addendum 2026-11-01: the table of contracts lives in this repository.** Point 2 (Times:
+"listed in the root table"), point 7 ("One table"), point 8 (phase 1: "the root table"),
+step 2 and point 5 of the second addendum of 2026-10-14 put the table of contracts into
+the Lazurio Root's `manual/environment-browser.md`. Since 2026-11-01
+[The Environment browser](environment-browser.md) in this repository holds it, with the
+host application's contract and the rules for updating the forks; where the text above
+says "the root table", "the root `manual/environment-browser.md`" or "the root
+manual's", read that document. The Root's `manual/environment-browser.md` stays the GEN3
+record and is no authority for the Platform or the forks. The text above stays as
+decided.
+
+1. **The rows.** C1 to C18, C18 being the hand-off of the addendum of 2026-10-18. Each
+   row names its holder, the module's exports and the Platform files that enforce it, and
+   the vector file and the suites that test it, checked against `main` at `a2927744`.
+2. **The releases.** For point 7's first releases of each addition a consumer depends on,
+   the document lists the Platform's, read from this repository's release tags. A fork's
+   own releases and the Platform release each one requires stay in that fork's runbook.
+3. **Nothing else changes.** The module, its vectors, the artifact and doctor stay as
+   they are.
 
 ## F51 — Managed Chat starts in the Folder; Platform owns the model recommendation
 
@@ -17621,7 +18798,8 @@ loses the sentences it replaces in the same change, in both languages.
    wireframe's where it has the section):
    - **Začínáme** `settings-start`: the steps that prepare the Environment, the AI first,
      the modules after GitHub, the optional steps at any time. Only where it has the
-     basics (`firstRun`'s person presets, `PageGuideFacts.start`): a public
+     basics (the presets with the onboarding, `hasOnboarding`, the Automated one
+     included since F27's addendum of 2026-10-30; `PageGuideFacts.start`): a public
      Environment's demo (F55) and an Environment with nothing to set up have no "?",
      since nothing on them explains. Removed: GitHub's line while it is not connected
      ("Zpřístupní vaše repozitáře a moduly.", now the state "Nepřipojeno"). Kept: every
@@ -18423,6 +19601,46 @@ them to this task) stay, because they serve the agents' windows nobody watches.
   `tests/environment-browser-view.test.ts` (the order and its exclusions, the hysteresis and
   the cool-down, an agent that comes while a pressure sleep is pending, the kept grace).
 
+**Addendum of 2026-11-03: a link to a tab that ended opens it again (Matěj's report of the
+same day).** The links agents send into chats name tabs, `…/t/<id>`, and people click them
+days later. By then the tab has ended long ago: nothing held it (its agent's daemon idled out
+after an hour), or the browser or the Environment restarted, which also drops every tombstone.
+The view then said only "This tab no longer exists": in T3 Code's right panel the tab flashed
+and closed, and alone it offered a new blank tab instead of the page.
+- **The hub remembers every tab's last address by its id:** its web address, title, icon and
+  opener, never its content, whenever they change (`remember`), written soon after into
+  `${XDG_STATE_HOME:-~/.local/state}/lazurio/browser/remembered-tabs.json`, owner-only. It is
+  state, not runtime, so it outlasts a restart of the browser and a reboot, as the links do. A
+  record goes 30 days after the tab was last seen, and past 2000 records the least recently
+  seen go (`src/browser/people/remembered.ts`). A tab that still exists, awake or asleep,
+  counts as seen: the hub marks it seen again every hour on its beat, and on the same beat
+  lets go of records past their 30 days, whether anything else changed or not; a link past
+  them no longer opens. The writer and the reader keep one rule (`rememberedTabOf`): an address
+  longer than 2048 characters is not remembered at all, never cut, and the text is bounded at
+  16 MiB, past which the least recently seen are left out, so what is written is read back.
+  The browser's own history already holds as much; a Work Environment is never handed to
+  another person (0191).
+- **Viewing an id that ended, but is remembered, opens it again under that id:** the hub makes
+  it a tab that sleeps, with the reason `ended` (C11), and wakes it as any other (`reopenable`,
+  then `wake` and `adopt`). From then it is an ordinary tab with F47's graces, and its link
+  works again the next time. Probudit (`wake` on loopback) does the same, so the Launchpad and
+  agents can open it without a viewer. Only while the hub knows every page (`ready`), so a tab
+  that has not been reported yet is never opened twice.
+- **What stays as it was:** an id the hub never saw, or forgot, still answers `closed`. Links
+  sent before this release are not remembered. A tab closed for everyone opens again too when
+  someone follows a link to it: following the link is the person's choice. An agent bound to
+  the ended window still gets `tab_gone` and opens a new window (point 5 of the follow-ups
+  above).
+
+**Where it is (addendum of 2026-11-03).** `src/browser/people/remembered.ts` (the records,
+their file and their bounds); `src/browser/people/hub.ts` (`remember`, `reopenable`,
+`canWake`, `sweepRemembered` on the holds' beat, the records read at the first connection in
+`sameBrowser` and written by `writeRemembered`); `src/browser/people/service.ts` (`wake` for a remembered id);
+`src/browser/people/serve.ts` (the file); `src/browser/contract/platform.ts` (`ended`). Tests:
+`tests/environment-browser-view.test.ts` (a link after a restart of the browser, Probudit, an
+address past the bound, the 30 days of a tab that exists and of one that ended) and
+`tests/environment-browser-sleep.test.ts` (the records, their bounds and their size).
+
 ## F58 — A static app starts from `main` as its build: each commit built once outside the checkout, served by the Platform, rebuilt after a pull
 
 **Decided by Matěj on 2026-10-20 (root decision 0195, addendum of 2026-10-20, point
@@ -18619,6 +19837,11 @@ run in it is open. Nothing of `start_script` is parsed or reserved here.
 app it now does, in the background and bounded. Its conformance check should warn about
 an app with `build_script` and without `build_output` (or, later, `start_script`), as
 root decision 0195 point 19 asks; that check lives in the root repository.
+
+*Addendum of 2026-11-01: the Module Standard is this repository's
+[module-standard.md](module-standard.md), whose text says that the Platform builds the
+built version; the paragraph above stays as the record of 2026-10-20. See
+[addendum (3) of 2026-11-01](#f58-addendum-3-of-2026-11-01-the-module-standard-lives-in-this-repository).*
 
 | Alternative | Assessment |
 | --- | --- |
@@ -18855,6 +20078,10 @@ does not know it yet: a Module can declare it only after a Platform release that
 key runs on every Environment (a released Platform refuses unknown runtime keys), and the
 root conformance (`RUNTIME_KEYS`, `validateBuiltVersion`) changes in the same window.
 
+*Addendum of 2026-11-01: [module-standard.md](module-standard.md#app-with-its-own-server-start_script)
+describes `start_script`; see
+[addendum (3) of 2026-11-01](#f58-addendum-3-of-2026-11-01-the-module-standard-lives-in-this-repository).*
+
 | Alternative | Assessment |
 | --- | --- |
 | No restart after a pull; the new key at the next start (variant A′ of the shaping) | No gap, but an older commit while in use; deviates from root decision 0195 point 19; not chosen |
@@ -18906,6 +20133,35 @@ and kept the process; a module pull restarted it with the gap above. The templat
 declaration then is `start_script: "dev"` (its `dev` already is its one Bun server),
 `build_script: "prepare:app"` (the Vite build only), `build_output: "dist"`, and its server
 reads `LAZURIO_RUNTIME_BUILD_OUTPUT ?? ./dist`.
+
+### F58 addendum (3) of 2026-11-01: the Module Standard lives in this repository
+
+**Decided by Matěj (Organization Admin) on 2026-11-01 in decision 0225, which gives the
+shared contracts, the Module Standard among them, to this repository.** Since then the
+Lazurio Module Standard (decision 0171) has its full text in this repository,
+[module-standard.md](module-standard.md), written anew and its authority; the Lazurio
+Root (GEN3) converges on it (decision 0219). What this decision named a required upstream
+amendment of the Root's standard is settled there. No behavior changes.
+
+1. **The Platform builds.** The standard says that the Platform builds the built version of
+   an App with `build_output` or `start_script`, in the background, one build at a time and
+   bounded, and that this is the only build it runs for an App
+   ([the built version from `main`](module-standard.md#the-built-version-from-main),
+   [what the Platform does not do](module-standard.md#what-the-platform-does-not-do)). The
+   Root's text carried the same exception at commit `66e437f7`.
+2. **`start_script`** (addendum (2) above) is part of the standard
+   ([an App with its own server](module-standard.md#app-with-its-own-server-start_script)).
+   The Root's `lazurio module setup` reads it at `66e437f7` (`MS-03`, `MS-05`).
+3. **An App without a built version.** The standard requires every App to declare
+   `build_output` or `start_script` (decision 0212). An App with neither still runs its
+   development script from `main`, and `lazurio module build` answers `not-static`. No check
+   warns about it: this repository has no conformance command yet (#423), and the Root's
+   `lazurio module setup` has no such check at `66e437f7`. The warning that the paragraph
+   *Required upstream amendment* asked for belongs to this repository's conformance
+   command.
+
+The paragraph *Required upstream amendment* and the sentence on the root Module Standard in
+addendum (2) stay as the record of 2026-10-20 and 2026-10-21.
 
 ## F59 — Computer Use on a Remote Environment: the Cua Driver's daemon on the screen, one MCP server `computer` for every agent
 
@@ -20323,6 +21579,70 @@ serving while it keeps running (`release_profile_home`), and the Nous poller's a
 configuration after a save that happened before the "not found". Buddy's state is read live from
 Hermes's own card in any case, so a save shows at the next reading.
 
+**Addendum of 2026-10-28, decided by the product owner: a subscription is required
+(Lazurio/LazurioPlatform#694, plan DEV-6676 G1).** A Personal Environment's Buddy was signed in
+with a free ChatGPT account. OpenAI approved the sign-in, and every turn then failed with an HTTP
+400 ("The '<model>' model is not supported when using Codex with a ChatGPT account.") that never
+named the plan, so the person could not tell what was wrong. Of the options (allow free accounts
+on a weaker model, translate only the error, or require a subscription), the product owner chose
+to require one.
+
+What changes:
+- **The gate.** Where Buddy's gateway lists `lazurio-codex-entitlement-v1`
+  (Lazurio/hermes-agent#20), the poll that sees `approved` asks Hermes
+  `GET /api/providers/oauth/openai-codex/entitlement`.
+  - Hermes reads the plan from the stored token's claim and whether the account's own Codex
+    catalog lists Buddy's model. The answer carries no token, account id or address.
+  - Only a whole answer refuses, one whose members bear its verdict out, for `openai-codex`
+    and a model: `no-subscription` with the plan `free` and no catalog asked, or
+    `model-missing` with another plan, or none, and a catalog that answered without the model.
+  - That signs Buddy out again through the same route as „Odhlásit“, a second time where the
+    first try fails. The answer is `unusable` with the reason and `signedOut`, whether the
+    sign-out happened. Where it did not, the account is still signed in and nothing claims
+    otherwise. The page knows it holds a refused account until a sign-out, or a new sign-in
+    the core keeps. A later sign-in that fails or ends before that does not end it, so the
+    page never says „Připojeno“ or „Pracuje“ meanwhile. A reload forgets it. The CLI says he
+    is still signed in with it and how to sign him out. Where the sign-out did happen, his whole
+    sign-in is gone: the page's reading says so at once, no reading begun before takes it
+    back, and a fresh one follows.
+  - The journal records the sign-out's outcome with the reason, then the poll's `unusable`.
+- **What never blocks.** `usable`, `unknown`, no answer, an answer of no known or of an
+  inconsistent shape (a lone verdict among them), or a Hermes without the capability keeps the
+  sign-in.
+- **What the person sees.** The page treats `unusable` as a failure of this sign-in, in one plain
+  sentence:
+  - „Tento účet ChatGPT je bez předplatného a Buddy předplatné potřebuje. Přihlaste ho účtem
+    s předplatným ChatGPT.“
+  - „Předplatné tohoto účtu ChatGPT Buddymu nestačí. Přihlaste ho jiným účtem.“
+
+  What to do sits behind the "?". The new sign-in is „Přihlásit jiný účet“. `lazurio buddy
+  sign-in start` writes `unusable` on its line and says the same in English on stderr.
+- **The sign-in step, after a person's first meeting with Buddy on 2026-10-28.** This amends
+  F65 point 4's first screen. It holds in the dialog, on the Začínáme step and in Nastavení →
+  Buddy, in both languages.
+  - Just the steps. The line above them („Buddy se přihlásí vlastním účtem ChatGPT.“) goes, and
+    so does the line about the agents' own sign-ins. The guide over Začínáme already says
+    „Agenti se k AI přihlašují zvlášť“.
+  - Step 1 names the subscription: „Přihlaste se svým účtem ChatGPT s předplatným.“ with
+    „Otevřít ChatGPT“. Step 2 is „Zadejte tento kód.“
+  - The person signs in, so the action is „Přihlásit se“, not „Přihlásit Buddyho“. Opened from
+    Nastavení → Buddy, the dialog takes its row's name, „Přihlášení k ChatGPT“.
+  - The code step says what to do before ChatGPT can refuse the code: „Když ChatGPT kód
+    nepřijme, zapněte si přihlášení kódem v nastavení zabezpečení ChatGPT a znovu klikněte na
+    „Otevřít ChatGPT“.“ It has no link, since the repository has no stable address of that
+    setting.
+  - While the person signs in, one calm line waits with the code's time and no spinner. „Zrušit“
+    does not come back as the main action, and only fetching a code keeps its spinner.
+  - „Připojeno“ stands alone, prominent, in the success colour. The sign-in part says it in the
+    same colour, as a tool's sign-in in Nástroje does.
+
+Not in this revision:
+- the link „Jak získat předplatné“, whose address is open;
+- OpenAI's mark on „Přihlásit se“: docs/licensing.md allows it only on Začínáme's „Přihlásit
+  ChatGPT“, and any other place is a new decision;
+- a reading that reports an account already signed in without a subscription;
+- the plain sentence for the same 400 in a running chat (Hermes's runtime half of #694).
+
 ## F64 — Buddy's persona: one source (`persona.json`) and one deriver (the Platform)
 
 **Proposed for plan DEV-6676 in the Buddy lead's shaping of 2026-10-25 (its §1.4, §2 and
@@ -20766,6 +22086,28 @@ and was removed: a value that is no layer's digest never equals one.
   resumable, and so would a renamed boundary: at worst one needless clear per such session.
 - Children are told apart by Hermes's `_delegate_from` marker. A subagent's run from before
   Hermes wrote it, ended in a way that counts, is cleared once, which is harmless.
+
+### F64 follow-up of 2026-10-30: the person's name only now and then (#703)
+
+Buddy opened almost every reply with the person's name in the vocative, clarifying questions
+included. The person: once in a while is fine, at the start of every sentence it is annoying.
+Every derived SOUL.md said "Oslovuješ uživatele jménem." / "You call the user by name.", with
+nothing about how often, and the model read it as an instruction for every message.
+
+Under the Organization Admin's mandate of 2026-10-29 for the Buddy diagnostics fixes, the
+sentence now reads, in all four variants (cs and en, ty and vy): „Uživatele oslovuješ jménem jen
+občas, třeba na začátku rozhovoru nebo když na tom záleží; nezačínáš jím každou odpověď ani
+otázku.“ / "You call the user by name only now and then, for example at the start of a
+conversation or when it matters; you do not start every reply or question with it."
+
+- **One source of the bytes, as F64 holds.** The interim installer 2026-10-30.5 renders the same
+  sentence, and on Platform 0.1.14 and later it no longer renders SOUL.md at all: it writes only
+  `persona.json` and calls `lazurio buddy persona --apply`. The goldens are regenerated from it,
+  and every other byte of every render, check, build and quoting case is unchanged.
+- **How it reaches a running Buddy.** F64's apply writes SOUL.md whenever it runs. The release
+  that carries this also changes Buddy's Lazurio layer (`base-instructions-90`, #724), which owes
+  a refresh, so the Launchpad applies it once he is idle. A change of the renderer alone would
+  owe none: SOUL.md would stay as it is until his next apply (#729).
 
 ## F65 — Buddy in Začínáme and Nastavení → Buddy: his step first, his persona changed in place, the agents' AI not locked behind him
 
@@ -21493,3 +22835,799 @@ Nastavení → Buddy not connected, waiting and connected, and Odpojit; no error
   account's chat, which Telegram refuses unless that account started the new bot.
 - The page is light only (the design system has no dark UI yet): a dark device shows it light,
   with a theme's own colours where the Environment chose one.
+
+## F67 — Guest Modules: another Organization's Module in the host's workspace, kept current, never run
+
+**Direction of root decision 0221 (2026-10-30); the mechanism chosen by the Organization
+Admin on 2026-10-31 for plan DEV-6694, with one contract shared with the Lazurio Root CLI
+so that a manifest behaves the same on a computer and in an Environment (root decision
+0219). Implemented in this revision; the Organization Admin decides it.** Two
+Organizations want each other's Knowledgebase and Mission Control as context: the agents
+of one need the product context the other keeps, and the other way round. Copying would
+make a second truth; a repository moved between Organizations would change its owner,
+visibility and grants. So a host Organization mounts the Module where its home
+Organization keeps it, and nothing else changes.
+
+1. **The declaration.** A slot of the host's `modules.manifest.json` with
+   `home_organization`, the home Organization's GitHub login, at
+   `workspace/<home_organization>_GEN3/<mount>`, or its repository database child at
+   `…/<mount>/db` (`materialization: "repository_db_mount"`, with the same
+   `home_organization`). The middle segment is exactly the home Organization's own mount
+   name; `<mount>` is the existing mount grammar. Only `workspace/`: a root,
+   `modules/` or `productionspace/` path never carries `home_organization`
+   (`classifyRepositorySlotPath`, `inspectRepositorySlots`).
+2. **Its identity.** `<home_organization>/<slug>`, letter case ignored: a guest never
+   collides with the host's own `knowledgebase`, `mission-control` or
+   `mission-control-data`, only with a guest of the same home and slug
+   (`repository-id-collision`). Paths collide across all slots as before.
+3. **Slot-level issues**, each quarantining only the implicated slot, as every inventory
+   issue does: `guest-home-organization-invalid` (no GitHub login), `guest-home-is-host`
+   (the host's own `github_org`, letter case ignored), `guest-path-invalid` (a path
+   outside the guest grammar, the middle segment of another Organization, or a host slot
+   that carries `home_organization`), `guest-remote-owner-mismatch` (any remote the slot
+   declares, `git.url`, `repo`, `repository`, `repository_db.url` or `repository_db.repo`,
+   owned by anyone but the home Organization), and for a database child without its guest
+   parent the existing `repository-db-parent-missing`. Without `home_organization` a
+   two-segment workspace path stays `unsupported-path`: the host's own workspace stays
+   flat (root decision 0041). A host workspace slot with a foreign remote keeps today's
+   behaviour here (the Platform checks no host slot's owner; Core reports
+   `slot_remote_owner_mismatch`).
+4. **Content.** Installation and synchronization take a guest as a workspace module and
+   its database child as a module's data mount (F9; `declaredChildren`, `dataMountOf`):
+   cloned with this Environment's own GitHub identity from the declared remote, the
+   module on `main` and the database on its declared branch, and fast-forwarded when
+   clean. A repository the identity cannot read is that slot's `denied`
+   (`repository-denied`); its siblings go on. A guest is never prepared. The folder
+   `workspace/<Home>_GEN3/` itself is a directory of the host's root repository with its
+   own `README.md` and `AGENTS.md`; the host ignores the checkouts inside it, so its root
+   stays clean.
+5. **Never run by the host.** The catalog never reads a guest's `lazurio.module.json`,
+   whose `company` and `id` are its home's: no identity check, no module row, app, start,
+   preparation, port lease, runtime secret or hosted name. It lists guests read-only under
+   the host, like its productionspace repositories, in `guests`
+   (`{organization, module, path, homeOrganization, guest: true, checkedOut, url}`),
+   present only when the Organization declares one; `lazurio organization list` and
+   `lazurio module list` print them, with `--json` whole. The Launchpad's page draws
+   those checked out here (addendum of 2026-11-01 below).
+6. **"The" Knowledgebase and Mission Control** of an Organization stay its own root and
+   workspace slots: a guest is never a module of the catalog, so nothing that looks a
+   module up by slug finds it, and module creation ignores guest slots when it checks
+   that a slug is free (`assertSlotFree`).
+7. **Doctor.** `guest-module`: `ok` for a guest that is checked out, `skipped`
+   (`guest-module-absent`) for one that is not, which never asks for attention, and `warn`
+   with the issue's code for every inventory issue that implicates a slot declaring
+   `home_organization`: an invalid guest declaration, but also an orphan guest database
+   (`repository-db-parent-missing`) or a guest slug collision, so no guest drops out of the
+   catalog without a word. The catalog carries them as the Organization's `guestIssues`.
+8. **The legacy projection** copies a guest slot whole, `home_organization` included, like
+   every workspace slot with a remote; its default-slug rule stays the path alone, so the
+   bytes are Core's for every manifest (`organizationLegacyProjectionHash`; the synthetic
+   manifest of `tests/fixtures/guest-modules.ts` hashes to the same
+   `sha256:fd0f1016…dd25` in both).
+9. **Agents.** The Folder's `manual/working-here.md` explains guest Modules in general
+   terms on every Environment that holds Organizations: where they are, that the
+   `README.md` and `AGENTS.md` of the folder and of the module and the home
+   Organization's rules apply, that Lazurio keeps them current and never runs them, and
+   that a change goes as a pull request to the home repository. `AGENTS.md` points to it
+   in one sentence, within its budget (32 KiB with the longest voice). No Organization's
+   own meaning enters the product (docs/folder-context-routing.md). Template revision
+   `base-instructions-93`.
+
+**Not covered.** The Launchpad's page draws no guest yet (its Workspace and
+Productionspace sections are unchanged); the catalog JSON carries them. The Platform has
+no `lazurio module setup` (#423), so its refusal on a guest path is Core's; worktree lanes
+for guests are Core's too and refuse them in this step. A guest of a public Environment is
+read anonymously like any child, so a private home repository is `failed`
+(`clone-failed`) there. Older Platforms quarantine every guest slot as `unsupported-path`;
+the Organization keeps running.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Copy or fork the home Organization's repository into the host | A second truth and a second set of grants; rejected by root decision 0221 |
+| Mount the guest in `productionspace/` | Productionspace keeps its own branch and release models and is never synchronized; rejected by the Organization Admin's choice of 2026-10-31 |
+| Take a guest for a module of the host and relax the identity check | The host would start, prepare and lease ports for another Organization's code; rejected: guests are read-only context |
+| A guest slot in the host's `workspace/<Home>_GEN3/` with `home_organization`, kept current and listed read-only (selected) | One grammar rule, the existing install, sync and access paths; the home keeps ownership |
+
+Risks: a guest's repository is cloned with the Environment's identity, so the people of a
+shared Environment read what that identity reads, as for every repository there. A
+guest's database child declares its slug (the contract requires it); one without would
+project as Core projects it, but a Core that later reads the guest database path as a
+nested database by path alone would then project differently and set the host to
+`conflict` here: both implementations must change that rule together. `AGENTS.md` has a
+few bytes left within its budget after this sentence.
+
+### Addendum of 2026-11-01: Apps draws guest Modules, only those this Environment can read
+
+**Decided by the Organization Admin on 2026-11-01 for plan DEV-6694 (milestone M7), after
+reviewing the prototype; implemented in this revision.** The Admin asked that guest
+Modules show in the Launchpad so that people see how they work, keeping to GitHub's
+naming ("Možná bych se držel toho, jak to mají na GitHubu, co se týče názvosloví … potřebujeme
+propsat i do UI, aby potom lidi věděli, že to takhle funguje"). On the prototype he asked
+for tiles exactly like the Organization's own, no explanatory text or links in the section
+head, and chose to hide guest Modules without access, as GitHub hides repositories a person
+cannot read.
+
+1. **One section per home Organization**, after the host's Workspace and Productionspace,
+   in declaration order; its flag is the home Organization's GitHub login as the slot
+   declares it (letter case ignored when grouping), followed by a quiet badge (Czech
+   "hostující", English "guest") whose tooltip is the one explanation: a Module of another
+   Organization, read here only; changes belong to its home Organization; GitHub decides
+   who can read it. Then its count, as every section. Nothing else in the head
+   (`catalogGroupEntry`, `appsSections`, `appsSectionHead`).
+2. **Only guests checked out here and readable.** A guest this Environment's identity
+   cannot read is never cloned, so it is not listed, the same rule as an absent module
+   (F32's addendum of 2026-10-15). A guest whose access was lost keeps its checkout, so the
+   Launchpad's catalog marks it `revoked` while GitHub's last answer for its remote was a
+   refusal (`withGuestAccess`; the page asks GitHub nothing itself). The record keeps that
+   refusal through runs that never read the remote: a later answer blocked by the
+   checkout's own state, unavailable or failed carries `unreadable`, and a run whose root
+   stopped the Organization keeps the guest's last `denied`. Only a run that reads the
+   remote (current, moved, ahead, diverged) clears it. A home without a shown guest
+   has no section. The Admin still sees every declaration in the manifest,
+   `lazurio organization list` and the doctor.
+3. **A tile like a module's, read-only** (`guestTile`): its stone and its slot id, as GitHub
+   names the repository, and the org-agnostic sentence of its stone (`guestLook`); its own
+   `lazurio.module.json` stays unread (point 5). It has no favourite, which belongs to the
+   Organization's own tiles. The page refuses a catalog whose guest list is not the
+   catalog's shape (`parseCatalog`).
+4. **Its overview** (the Admin's choice of 2026-11-01, "Přidat přehled"): a click opens
+   `/o/<org>/guest/<home>/<module>`, never an app; the "⋯" menu offers it as "Informace o
+   modulu" and the repository as "Otevřít na GitHubu". The page shows the stone, the slot
+   id with the badge, the home Organization, the one explanation, and its facts
+   (`guestFacts`): its state with what the person can do (cloned and read by agents; not
+   here yet, cloned by the next synchronization once readable, ask an Admin of the home
+   Organization; access lost, the checkout stays and is not kept current), the home
+   Organization, the folder, that its app opens in its home, and its GitHub page. Every
+   declared guest has its overview, also one not shown in Apps. Nothing on it starts,
+   prepares or changes anything.
+5. **No state "access granted, not cloned yet".** The prototype showed such a muted tile.
+   The Launchpad learns of access only from a synchronization, which then clones the
+   Module in the same run (F9's addendum of 2026-11-01), so showing the state would mean
+   asking GitHub on every visit of Apps. The Admin accepted leaving it out with the
+   overview above.
+
+This replaces the first sentence of **Not covered** above. A guest's name from its home's
+manifest stays out of scope.
+
+## F68 — Only the installed product acts on the declared operator's Folder
+
+**Proposed 2026-11-01 for #782 and accepted by the Organization Admin the same day; not implemented yet: the implementation follows in its own pull request.**
+`lazurio machine folder-init` and `folder-refresh` bind the operator from the root-issued
+handover and the UID's system record, not `$USER` or `$HOME` (docs/machine-handover.md),
+and the handover's location cannot be moved by a flag or an environment variable
+(`src/machine/context.ts`). They then write that operator's live Folder and the
+Environment SSH files under the operator's home. That is right for the installed
+product, and it means any other process that reaches those paths acts on the live
+Environment too: a test calling `runMachineCommand` in process, `bun src/cli.ts`, a pull
+request's compiled build in a review worktree. On 2026-10-30 a test did exactly that on
+a hosted Environment whose derived preset matched it. The live Folder took the branch's
+template, and no release could read it (#782; that test was fixed in #786). Fixing tests
+one by one does not close the class: the next test or local try can reach the same path.
+
+1. **The rule.** An operation that acts on the declared operator's Folder or home from
+   the handover runs only in the installed product: `machine folder-init`,
+   `machine folder-refresh` and the Environment SSH files they write. The update's
+   refresh reaches the same command and is covered too. "Installed product" means all
+   three of:
+   - a built identity, not `0.0.0-development`;
+   - not a fixture build;
+   - running (`/proc/self/exe` on Linux, resolved) from `versions/<its own version>/`
+     under the **trusted install base**:
+     `<the operator's home from the system record>/.local/share/lazurio`.
+
+   The trusted base is the one fixed path where the Machines role installs the product
+   (`lazurio install --base ~/.local/share/lazurio`, docs/machine-handover.md). It is
+   **not** resolved through `resolveInstallBase`, which follows `XDG_DATA_HOME`: an
+   invoking process could point that at a temporary directory holding a non-fixture
+   build under `lazurio/versions/<version>/` and pass every check, while the real
+   handover still selects the live Folder. No other base is trusted for these
+   operations. A hosted installation placed elsewhere by hand is not the delivered
+   product, and these operations refuse there. It keeps its `--folder` commands
+   (rule 4).
+
+   Otherwise the operation refuses with `machine-not-installed-product`. The refusal
+   comes after the handover is validated and before the Folder or the home is read for
+   writing, and nothing is written. `machine inspect` stays allowed: it only reads and
+   prints.
+2. **No switch.** No flag or environment variable turns the rule off or moves the
+   trusted base, just as none moves the handover's location; `XDG_DATA_HOME`, `HOME`
+   and `PATH` play no part in it. Tests reach these code paths through the seams that
+   already exist: `MachineContextSource` with a fixture root, a synthetic operator
+   record and a temporary Folder. A path a test cannot reach that way gets a seam, not
+   an exception to the rule.
+3. **The update keeps working.** On a hosted Environment the product is installed in the
+   trusted base. A candidate runs from `versions/<version>/` there before the switch,
+   and the activated version does after it. Both pass rule 1, so the refresh after an update and a refresh started from the Launchpad are
+   unchanged. A compiled product in a test's temporary base runs from that base, not
+   the operator's, and is refused. That is the point of the rule.
+4. **What it guards, and what it does not.** It closes one path: the code under
+   development or review, run from a source checkout, a worktree or its own build,
+   reaching the live Folder and SSH files by itself through the handover. That is what
+   happened in #782. It does not stop code that runs as the operator from doing what the
+   operator can do:
+   - invoking the installed product (`lazurio machine folder-refresh` passes rule 1,
+     because it is the installed product);
+   - naming the live Folder in a command that takes `--folder`, which acts where it is
+     told;
+   - writing the files directly.
+
+   A user process cannot be kept from the user's own files by a rule inside the
+   product. Placing a branch's build into the trusted base and activating it is an
+   installation, with its own consent and qualification (F17, docs/release-cycle.md).
+   Root-owned files, the handover among them, are out of reach of every user process
+   anyway.
+5. **Running code under review safely needs isolation outside the product.** To run a
+   pull request's tests where the live Folder must stay untouched, whatever the tests
+   do, the review lane runs them as an account or in a sandbox that cannot write the
+   operator's home. Examples are a separate Unix account, or a
+   `systemd-run --user` / bubblewrap sandbox with the home read-only or hidden. That
+   is a property of the Environment that runs reviews, owned by its Organization. This
+   record names the need and does not decide the mechanism.
+
+**Consequences.** A pull request's own build or source run can no longer refresh a hosted
+Environment's Folder or write its SSH files through the handover by accident, as in
+#782; it refuses instead. This is not a guarantee that a full suite of untrusted code is
+harmless on a live Environment: that needs the isolation of rule 5. Trying
+`machine folder-refresh` from source against a real hosted Environment is no longer
+possible: a developer uses a fixture root, or installs a candidate on a qualification
+Environment.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Fix each test that reaches the handover (#786) | Necessary, not sufficient: nothing stops the next one |
+| Refuse when `bun test` runs (`NODE_ENV`, a preload) | Covers tests only; a source run or a pull request's compiled build still writes |
+| An environment variable or flag that disables the production paths in tests | A switch a person or a script can set by mistake or on purpose; the handover's location deliberately has none |
+| Identity check only (refuse `0.0.0-development`) | Stops source runs but not a pull request's compiled build, which has a built identity |
+| Identity, not a fixture, and running from the base `resolveInstallBase` gives | `XDG_DATA_HOME` is a switch: a temporary base with a non-fixture build passes (Pablo's review of this record) |
+| Identity, not a fixture, and running from the trusted base `<home from the system record>/.local/share/lazurio` (proposed) | Closes the accidental path of source runs, tests and pull requests' own builds with facts the product already has; costs the local try against a real hosted Environment. It does not contain code that deliberately calls the installed product (rule 4) |
+| OS isolation of the review lane (rule 5) | The only way to make running untrusted code safe on a live Environment; owned by the Environment's Organization, complementary to this rule |
+
+Open questions for the decision:
+- whether the Platform should later offer the review lane's isolation of rule 5 itself
+  (for example a `lazurio` command that runs a command in a sandbox without the home),
+  or leave it to each Organization;
+- whether the Environment SSH files should also be written by `lazurio update` outside
+  `machine folder-*`, and so fall under the same rule;
+- whether macOS and Windows, which have no handover today, need the rule now or with
+  their hosted entry (docs/hosted-entry.md).
+
+## F69 — Stack profiles: the exact tools a Module is built with, changed only by a generation transition or a profile release
+
+**Decided by Matěj (Operator) on 2026-11-03 (plan DEV-6593, task-2026-11-03-941;
+the Marketplace template contract of the same day, point 7). Implemented for
+`lazurio module create`; the profile `app-database` has no template yet.** Templates
+of the Marketplace and every new Module get a stack chosen and justified in advance,
+so that their code never has to migrate outside a planned step. The research behind
+the choice (tools, versions checked in the npm registry and GitHub Releases on
+2026-11-03, alternatives) was presented to Matěj in the plan; he confirmed all four of
+its recommendations. The profiles, their exact pins and what they leave out are
+[stack-profiles.md](stack-profiles.md), the one public place the registry, the
+templates and generated Modules refer to.
+
+1. **Four profiles, one common base.** The base: Bun 1.4.4 as runtime, package
+   manager and test runner, Biome 2.6.4 for lint and format, `bun test`,
+   `@lazurio/module-kit` v0.2.0, exact versions only and a committed `bun.lock`.
+   `content` (Astro 7.4.5, Starlight 0.42.8, TypeScript 6.0.3) for the Astro
+   stacks; `app` (TypeScript 7.0.2, and for an interface Vite 8.3.5 with React
+   19.3.1) for `vite-react` and `bun-service`; `app-data` (`app` with repository-db
+   v3.2.6 and Zod 4.6.7, its data behind a storage port with a shared test suite)
+   for generation `app/v3`; `app-database` (`app-data` with Dolt through Kysely
+   0.29.8 and `mysql2` 3.24.6) for `app/v4`.
+2. **Vite+ not now; Biome stays.** Vite+ runs on Node only, while Lazurio runs every
+   App with its pinned Bun (`MS-05`, F62), and its formatter Oxfmt is at 0.x, so a
+   release could reformat every Module. It is reopened as a profile release once
+   Vite+ supports Bun as its runtime, Oxfmt is at 1.0 and Lazurio supports or
+   allows Node beside Bun.
+3. **Zod is the one source of the shape of a Module's data** from `app/v3` up. The
+   types come from it and the JSON Schema for repository-db and CI is generated from
+   it; no hand-written data types. The Platform's own contracts keep JSON Schema with
+   Ajv ([stack evidence](stack-evidence.md)).
+4. **TypeScript 7 for applications, TypeScript 6 for Astro.** `astro check` needs
+   TypeScript's API, which 7.0 does not have; `content` moves to 7 by a release once
+   Astro supports it.
+5. **No `app/v5`.** Dolt outside the server is another connection setting of
+   `app/v4`: the same code, schemas and migrations. How Lazurio gives an App that
+   connection without `.env` is open (#818).
+6. **Two kinds of change.** A generation transition changes the data layer (a new
+   `app/v<N+1>` beside the old one, the data moved by a script, `default_app`
+   switched by the Steward or the user). A profile release changes the tools within
+   a generation. Besides these, only a security patch changes a version. A release
+   is named `YYYY.MM`, a security patch inside it `YYYY.MM.P`; this one is `2026.11`.
+   Each release is decided by the Operator and recorded as an addendum of this
+   decision with what an existing Module has to change; `stack-profiles.md` keeps
+   the tables of earlier releases so that a reference `<profile>@<release>` keeps
+   resolving. A template adopts a release in a release of its own; a Module takes
+   it by its own pull request (merging the template's tag, or changing its pins),
+   never by an overwrite.
+7. **`lazurio module create` follows the current release** in the same pull request:
+   `stackProfilesRelease`, `scaffoldBunVersion` and the templates. This amends F52
+   and its addendum of 2026-10-14:
+   - A new Module pins the profiles' Bun, no longer this repository's own
+     `packageManager` (this repository stays on its pins).
+   - `check` runs the type check, Biome and the tests, and the Module's CI runs only
+     `check`; this sharpens `MS-13`.
+   - `--data` depends on repository-db v3.2.6 (it was 3.2.0) and on Zod 4.6.7, and
+     changes four files instead of three: the Module's `README.md` names the profile
+     `app-data`, and its `AGENTS.md` says that Zod is the one source of the data's
+     shape and how the data is validated.
+   - `--data` also adds the layer `_data`: `src/domain/collections.ts` (each
+     collection's `schemaVersion` and Zod schema, none yet), `src/validate-data.ts`
+     with its test and an empty `seed/`, and `check` runs `validate:data` over
+     `seed/`; `validate:db` checks `db/` the same way before a publication.
+     Added on the review of #821: the data validation that `check` requires has to
+     be one the generated Module can run in its CI, which checks out only the
+     Module, never its data repository.
+   - Every stack's `README.md` names its profile and release and links its section.
+
+8. **The App generation names the data layer in every Module** (Matěj, 2026-11-03,
+   closing #819), not only in Marketplace templates: `app/v1` and `app/v2` have no
+   data of their own, `app/v3` keeps its records in repository-db, `app/v4` in Dolt
+   (point 5). `lazurio module create --data` therefore writes the App to `app/v3`
+   (`apps`, `default_app`, the lockfile, the CI's working directory and the runtime
+   id `<organization>-<module>-v3` follow); without `--data` it stays `app/v1`. This
+   amends F52's addendum of 2026-10-14, which wrote an App with data to `app/v1`. An
+   `astro` or `astro-starlight` Module with data keeps the tools of `content` with
+   the data layer of `app-data`, in `app/v3` too. The rule holds for every
+   generation created from now on. Existing Modules with data in `app/v1` or
+   `app/v2` conform as they are and are not renamed:
+   their next planned generation transition creates the generation of their data
+   layer (`app/v3` or `app/v4`) beside the old one, as for every Module.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Vite+ 1.4 (`vp`) as the toolchain | Node-only runtime, Oxfmt 0.x, four minor releases in its first month; not now (point 2) |
+| Oxlint and Oxfmt instead of Biome | Faster and more rules, but two tools and a 0.x formatter; rejected for this release |
+| JSON Schema and Ajv as a Module's data source | Two truths or another type generator, and repository-db expects a Zod-style `parse()`; rejected for Modules (point 3) |
+| TypeScript 6.0.3 everywhere, 7 together later | Postpones a certain migration of every application; rejected (point 4) |
+| A directory `app/v5` for Dolt outside the server | Duplicates the code of `app/v4`; rejected (point 5) |
+| Pinned versions with no release mechanism | Pins age (the templates were two Astro major versions behind); rejected for dated releases (point 6) |
+| Drizzle, Prisma or `Bun.SQL` for Dolt | A breaking 1.0 ahead, a third schema, or open MySQL bugs; rejected for Kysely and `mysql2` |
+
+**Verification.** `tests/module-scaffold.test.ts`: every stack with a Bun app pins
+its profile's exact tools (no range anywhere, `@types/bun` equal to the Bun, Biome
+2.6.4, TypeScript and framework per profile), `check` runs the tests and CI no
+separate `bun test`, Biome's Markdown and YAML formatters are off, and the README
+links the profile; `--data` gives `app-data` with repository-db v3.2.6 and Zod, in
+`app/v3` for every Bun stack (manifest, package name, runtime id, preparation owner,
+lockfile, CI and README), and otherwise the same files as without data; the
+tree hashes of every stack's plan. On 2026-11-03 on Linux x64 with Bun 1.4.4, the
+plans of `vite-react`, `vite-react --data`, `astro`, `astro-starlight` and
+`bun-service` were written out, and `bun install`, `bun run check` and, for the
+three static stacks, `bun run build` passed in each. TypeScript 7.0.2 ran under Bun
+1.4.4 and reported a planted type error, and a Zod 4.6.7 schema type-checked as
+repository-db 3.2.6's `DocumentParser`. That run changed three things in the
+templates: Biome 2.6's `"preset": "recommended"`, its Markdown formatter turned off
+after it rewrote a Starlight page's frontmatter, and `"types": ["bun"]` for
+TypeScript 6 in the Astro `tsconfig.json`. After the review of #821 (2026-11-03,
+Linux x64, Bun 1.4.3), the plans of the four Bun stacks with `--data` were written
+out again: `bun install` and `bun run check` passed in each (`validate:data` over
+the empty `seed/`), `bun run build` passed for `vite-react` and `astro`, a planted
+record of a collection without a schema failed `validate:data`, and `validate:db`
+without `db/` failed. Not verified: `app-database`, macOS and Windows.
+
+## F70 — A source Environment's routes come from its home access service: its own key, registered; targets pinned and with their deadline
+
+**Proposed 2026-11-03 (root decision 0224, plan DEV-6687 M7 step 4; Lazurio/LazurioPlatform#766).
+Implemented, and since the amendment of 2026-11-03 below this Platform reads the
+handover member (HumanAndMachine-ai/Machines#1040, merged as Machines#1051). No handover
+carries it yet: Machines writes it only once its release gate
+`PLATFORM_HANDOVER_ACCESS_SERVICE_MINIMUM` names a Platform release with this reader,
+and that gate is still unset, so until then nothing changes on any Environment.** Root decision 0224 derives every SSH access
+between the Environments of a Conglomerate from facts, in one service on the Conglomerate
+Host (`lazurio-access-service`, Machines `workloads/conglomerate-host/ACCESS-SERVICE.md`):
+Pracovní přístup (a personal Environment to its owner's Work Environments), Team via Work
+(a Work Environment to the Team Environments of its person's Teams) and Správcovský
+přístup (an Admin's Work Environment to every other Environment of the Organization). The
+service knows its caller by the tailnet source address; there are no tokens on guests. Its
+two calls for a source are `PUT /v1/source-key` and `GET /v1/targets`. Until now the
+Platform wrote a personal Environment's SSH config only from the handover's assigned
+peers (F10's amendment of 2026-10-28), which no handover carries (#766): Buddy had no
+managed route anywhere.
+
+1. **Where the service is.** Only the handover says it: an optional member naming the
+   home access service's origin (`http://<host's tailnet name>:<port>`), proposed in
+   HumanAndMachine-ai/Machines#1040 from the home host the lane already reads through
+   `conglomerate_host_record`. `accessServiceOf` answers it. Until the amendment of
+   2026-11-03 below it answered null for every Machine; now it reads the member as
+   Machines#1051 defines it. Which Machines carry the member is Machines' release gate
+   `PLATFORM_HANDOVER_ACCESS_SERVICE_MINIMUM`, still unset, so today `accessServiceOf`
+   still answers null on every Machine. Nothing derives the origin from a name, the
+   Headscale URL or a peer;
+   an origin that is not exactly `http://`, a tailnet DNS name (no address literal) and
+   a port is never asked.
+2. **The source key.** Every source Environment, personal or Work, has one key
+   `~/.ssh/lazurio-environment-ed25519`. The Platform creates it with `ssh-keygen` inside
+   the Environment when neither file exists, derives a lost `.pub` with `ssh-keygen -y`,
+   and otherwise keeps what is there. It never reads the private part into an answer,
+   copies or exports it, and refuses, changing nothing: a link or another account's file,
+   a private key others may read, a `.pub` without its private key, and a pair that does
+   not match or is not ed25519 (`src/ssh-access/source-key.ts`).
+3. **Registration.** Each synchronization sends `PUT /v1/source-key` with only the line
+   `ssh-ed25519 <blob>`. The service answers `changed: false` for the same key, so this
+   repeats without effect and a re-enrolled Environment registers by itself. Its named
+   refusals (`source-key-forbidden`, `source-key-taken`) are reported as they are.
+4. **Targets.** `GET /v1/targets` is taken only exactly as `machines.access-targets.v1`
+   shapes it: closed objects, an Environment id once, a tailnet host name, an account, one
+   `ssh-ed25519` host key and `valid_until` as an RFC 3339 UTC second; anything else is no
+   answer. The answer is read chunk by chunk up to 1 MiB within the request's 10 s and
+   cancelled past it, so an oversized or endless answer costs no more. A target whose
+   deadline has passed is dropped. The answer replaces the routes:
+   one `Host <environment id>` block each in `~/.ssh/config.d/lazurio-environments.conf`
+   with `HostName`, `User`, `HostKeyAlias`, the managed `UserKnownHostsFile`,
+   `StrictHostKeyChecking yes`, `IdentityFile ~/.ssh/lazurio-environment-ed25519`,
+   `IdentitiesOnly yes`, `ForwardAgent no`, `ProxyJump none` and
+   `ClearAllForwardings yes`, and the deadline as a comment; the host key pinned in
+   `~/.ssh/known_hosts_lazurio_environments`. The `Include` at the top of `~/.ssh/config`
+   makes these values win over the person's own `Host *` or a hand-written block of the
+   same name, which stay byte for byte. A changed host key from the service replaces the
+   pin (the service reads it from the target lane's readback); nothing learns a key from a
+   connection, and the person's own `known_hosts` is never written.
+5. **Without an answer** (unreachable, 403 not recognized, 503 unavailable, malformed)
+   nothing is added: the recorded routes stay until their own deadline and then go. A
+   route without a deadline (written from the handover) is not the service's and goes at
+   once. So a route ends here within its deadline plus one synchronization whatever
+   fails, as the target's own `AuthorizedKeysCommand` ends it.
+6. **When it runs.** `machine folder-init` and `folder-refresh` synchronize once where
+   the handover declares the service, on any Machine, and report `environmentRoutes`
+   (`sourceKey`, `registration`, `targets`, `ssh`); otherwise a personal Machine keeps
+   its assigned peers as before (`environmentSsh`). The Launchpad of the supervised base
+   of a hosted operator (where it sets Executor up) synchronizes once it listens and then
+   every 60 seconds, one at a time, never a reason for its start to fail: the service
+   re-derives every minute and a deadline is at most 210 s after its facts were read.
+   That is a write outside `machine folder-*`, from the installed base only (F68's open
+   question on SSH files).
+7. **What it is not.** The Platform derives no access: the network rule and the target's
+   key line hold it, and the config opens nothing they do not. No second list of
+   permissions, no token, no `accept-new`, no forwarding.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Find the service by the host's tag in `tailscale status --json` | Depends on Headscale exposing peer tags to untagged nodes; makes the network map a configuration source; rejected |
+| Derive the origin from `network.headscale_server_url` | The public Headscale name is not the host's tailnet name; a derivation from a name; rejected |
+| Keep the last answer while the service is down, without deadlines | A revoked route would stay in the config after the target refuses it; the doctor could not tell old from current; rejected |
+| Mirror the answer and record each deadline in its block (selected) | One more comment line per block; the files churn once a minute while the service answers |
+| Register the key once and remember it | A state file of its own, and a re-enrolled Environment would not register again until it is cleared; rejected |
+| Keep the handover's assigned peers beside the service's targets | Two sources for one alias; the contract makes `/v1/targets` the source (Machines ACCESS-SERVICE.md, Migration); rejected |
+
+Tests: `tests/access-service-routes.test.ts` (the answer's shape and every malformed form,
+each outcome of both calls, the key's creation and refusals with the real `ssh-keygen`,
+synchronization, the service unreachable or refusing, expired routes, a host key change,
+the person's own `Host` blocks and file, the commands' answers) and
+`tests/environment-ssh.test.ts` (the block's bytes). Not proven: a real service on a real
+host; that is the Ring 0 proof of ACCESS-SERVICE.md once the switch and the handover
+member exist.
+
+**Amendment 2026-11-03: the handover member (HumanAndMachine-ai/Machines#1040).** Point 1's
+member is `access_service: {"origin": "http://<host node>.<MagicDNS domain>:8444"}`,
+optional and closed on both branches of `lazurio.machine.v1`. Machines builds the origin
+from the home host overlay's reviewed node name and MagicDNS domain, exactly as the
+service names a target's host, and writes it only while that host switches the service
+on, only for a Machine its service would recognize as a caller and only for a pinned
+Platform at or above its gate. The vendored schema takes it byte for byte from the
+merge commit of the Machines pull request that adds it (#1051), pinned in
+`schema-provenance.json` as F10's amendment of 2026-10-19 did. The
+Platform:
+
+1. **Reads the origin exactly**: `http://`, a tailnet DNS name of at least three labels
+   whose last label is not numeric, and port 8444 (the service's one port), nothing
+   else. The schema, the projection and the binding's parser all hold it to that
+   rule, so an origin of another form refuses the handover and is never asked.
+2. **Records it** in the binding as `accessService`, a declaration and not identity. A
+   refresh records a change of only this member, though the Folder renders nothing of
+   it, and recovery evidence withholds the host's name.
+3. **Uses it** through `accessServiceOf`, which until now answered null for every
+   Machine: points 2 to 6 above then run on the Machines that carry it. Everything
+   else of this decision is unchanged; without the member the Platform behaves exactly
+   as before.
+4. **Follows the live handover** in the Launchpad: every minute it reads the
+   declaration again (`runEnvironmentRoutes`), so a member added after start is used at
+   the next tick, a replaced origin replaces the old one, and a removed one is never
+   asked again.
+5. **Writes only for the declaration that is still current.** Every writer of the
+   routes (the Launchpad's tick, `machine folder-init` and `folder-refresh`) asks the
+   service without holding anything, then writes under one routes lock, a kernel
+   `flock` on `~/.local/state/lazurio/environment-routes.lock` (fixed under the home,
+   never moved by `XDG_STATE_HOME`, so both processes share it). Under the lock it
+   reads the live handover again and writes only when it declares exactly what the
+   writer acted on: the same origin, or, without a service, the same routes of its
+   own (a personal Machine's assigned peers, each with its host, account and host
+   keys, in the same order; none on any other Machine). Otherwise, and when the
+   handover cannot be read there, it writes nothing and reports
+   `ssh: {"kind": "superseded"}`. So an answer that arrives after the handover changed,
+   or a refresh of an older handover whose peers were since removed or changed, never
+   replaces what a writer of the newer declaration wrote, whichever of the two
+   finished first; the newer one writes at its own commit or, for the service, at the
+   next tick.
+6. **No service route outlives its deadline.** When the live handover declares no
+   service, or cannot be read, the Launchpad's tick still runs under the lock: it drops
+   every recorded route whose deadline has passed and adds nothing. A route without a
+   deadline (a personal Machine's assigned peers from the handover) stays, and the
+   Platform's own files that cannot be read back are removed, since nothing shows
+   their deadlines. When nothing has expired no file is touched. `folder-init` and
+   `folder-refresh` of a binding without the member write its routes exactly: a
+   personal Machine's assigned peers as before (they replace the service's routes) and
+   on any other Machine none, so the removed service's routes go at once. A route of
+   the service therefore ends within its deadline plus one minute after the
+   declaration is removed or the handover becomes unreadable, on both kinds of
+   Machine, as point 5 above bounds it while the service is declared. The Launchpad
+   keeps no routes (does nothing) only on a base that is not the supervised base of a
+   hosted operator *and* has neither of the Platform's two route files. A missing or
+   unreadable handover makes the hosted-operator check itself fail, so a base that
+   cannot show it is hosted but still has those files is a base that was hosted: its
+   tick only lets expired routes go, as for an unreadable handover.
+
+Tests: `tests/environment-routes-loop.test.ts` (added, replaced and removed
+declarations, one synchronization at a time, failures and stop; an old answer held
+while the declaration changes or is removed and a newer writer writes, which then
+writes nothing; a refresh of an older handover held while a newer one removed or
+changed the assigned peers, which then writes nothing; expiry without a declaration and
+with an unreadable handover on a personal and a work Machine, with assigned peers kept;
+`routesAtStart` driving the loop on real files with a missing handover, on a base whose
+hosted-operator check fails and on one where only the handover read fails, and doing
+nothing on a base without route files; one lock for both writers),
+`tests/access-service-handover.test.ts` (the pin, the member on both kinds,
+every refused form, the stored binding, the commands asking the declared origin, the
+withheld name) and `tests/folder-refresh.test.ts` (a refresh of only the member). Not
+proven: a real handover from a Machines release, until Machines sets the gate.
+
+## F71 — Phone through ChatGPT: Settings → Connections pairs the ChatGPT app with the Codex app-server's remote control
+
+**Proposed 2026-11-03 (root decision 0215; Lazurio/LazurioPlatform#657, #720).
+Implemented in the same pull request; accepted only when the owner accepts it.** The
+phone test settled the QR code the same day (see *Implementation* below). The
+interface follows the clickable prototype
+(HumanAndMachine-ai/prototypes-lazurio#106, stacked on #102), reworked on 2026-11-03
+to the structure of point 1: less text and a motion graphic per way. The page keeps
+each graphic as one element, so the final one replaces it whole.
+
+Delivery starts on the owner's own personal Environment and reaches other people's
+Environments only after that.
+
+The person opens Settings → Connections → Ovládat toto Prostředí → Telefon, clicks
+one button and gets a QR code and a short code. A motion graphic shows what to do on the phone: open ChatGPT, then
+Codex, then add a computer, then scan or type the code. Nobody types a command.
+
+**What was verified on 2026-11-03.** The test ran on a personal Environment with
+Codex app-server 0.166.0 running as F29's daemon with `--remote-control`. Nothing
+was restarted. The daemon's control socket
+(`$CODEX_HOME/app-server-control/app-server-control.sock`, a link to a socket under
+`/tmp`, WebSocket framing) answers the experimental methods once `initialize`
+declares `capabilities.experimentalApi`:
+
+| Need | Method | Result |
+|---|---|---|
+| Is pairing available | `remoteControl/status/read` | `connected`, the server name, an `environmentId` |
+| Make a code | `remoteControl/pairing/start {manualCode: true}` | `pairingCode` (78 digits), `manualPairingCode` (`XXXX-XXXX`), `environmentId`, `expiresAt` (Unix seconds, about 10 min) |
+| Has the phone taken it | `remoteControl/pairing/status {pairingCode}` | `claimed: false` while waiting; `claimed: true` not yet observed with a phone |
+| Paired devices | `remoteControl/client/list {environmentId}` | a phone paired earlier: display name, `deviceType`, `platform`, OS, model, app version, `lastSeenAt` |
+| Remove access | `remoteControl/client/revoke {environmentId, clientId}` | not tried |
+
+The methods and types are in `openai/codex` at tag `rust-v0.166.0`:
+`app-server-protocol/src/protocol/common.rs` and `protocol/v2/remote_control.rs`.
+
+1. **Place and structure (the owner's review of 2026-11-03).** A new Settings
+   section `connections` (Připojení) takes the place of `ssh` in the menu. It is
+   built from what the person wants to do and from where, not from the technology.
+   SSH and the ChatGPT pairing are both ways to control the same Environment, so
+   they are never two topics side by side.
+   - **Ovládat toto Prostředí** is the one topic. Under it are the ways, by the
+     device the person holds. Each way has one sentence, one button and its own
+     motion graphic. It offers the route that works in this Environment, so the
+     person never chooses a technology.
+     - **Telefon.** With the person's own ChatGPT sign-in in Codex, this is
+       *Spárovat telefon*: the pairing of this decision, with the prerequisites
+       line and the paired phones with *Odebrat přístup*. On the Organization's AI
+       (AI pool), pairing by code does not work. There the route is the ChatGPT
+       app over SSH with a password, and until it exists without a terminal the
+       card says only that it is coming (*připravujeme*).
+     - **Počítač.** ChatGPT Desktop over SSH with a key: F49's page, unchanged in
+       behaviour, at `/settings/ssh`. Its title is Počítač, it links back to
+       Připojení, and the SSH config and `known_hosts` blocks are folded under
+       *Pokročilé: ruční nastavení SSH*. It is offered on an Environment on a
+       server, not where Lazurio runs on the person's own computer.
+     - The browser (Launchpad, Chat) is not listed, because the person is in it.
+   - **Agenti ve vašem počítači** is the other direction. The Environment's agents
+     work in a connected workstation, for example Windows with AutoCAD over SSH
+     (prototype #102). It is a topic of its own and is not built here.
+   - **Ovládat jiná Prostředí** follows 0192's addendum. It is not built here.
+
+   The panel follows the existing `connections-panel.ts` / `connections-view.ts` /
+   `connections-routes.ts` split, like `ssh-*`. The dialog's sequence is
+   `connections-flow.ts`, which has no DOM.
+2. **Reading the state.** `GET /api/connections` reads the status and the client
+   list and answers one of these states:
+   - `ready`;
+   - `no-remote-control`: the daemon is not `connected`, or the methods are missing;
+   - `organization-ai`: Codex runs on Organization-provided AI without the person's
+     ChatGPT sign-in;
+   - `team`;
+   - `no-chatgpt`.
+
+   It also answers the devices (name, form, platform, last seen). It never answers
+   a code.
+3. **Pairing.** `POST /api/connections/pair` calls `remoteControl/pairing/start`.
+   It keeps `pairingCode` only in memory under a 32-hex session handle, as the tool
+   sign-in does (`src/tools/login.ts`). It answers the manual code, `expiresAt` and
+   the QR code drawn by the existing `qrSvg(qrMatrix(payload))` (`src/tools/qr.ts`).
+   The QR payload is one function, `pairingQrPayload` (settled by the phone test,
+   see *Implementation*).
+
+   **One live code (Pablo's review of 2026-11-03).** Codex 0.166 cannot end a code
+   it gave. The codes live at ChatGPT until a phone takes them or they expire
+   (`expiresAt`, about 10 min), and the protocol has no method that withdraws one.
+   Lazurio therefore never makes a second code while one is valid:
+   - while the pending code is valid and not taken, every *Spárovat telefon* answers
+     that same code and its time left, from any admitted page;
+   - closing the dialog ends nothing on the server; the page drops the code from
+     view and drops any answer that arrives after the close;
+   - a new code is asked for only once the old one has expired or a phone took it,
+     and only then does the dialog offer *Nový kód*;
+   - starts are serialized: requests that arrive while one start runs share its
+     answer, so the one live code and the limit hold under concurrency;
+   - there is no cancel route;
+   - exposure counts codes that left Lazurio: only a code shown to a page can be
+     scanned or typed. A code whose answer never reached Lazurio (a timeout, a
+     closed socket, an answer that does not parse) was seen by nobody;
+   - a **ledger** keeps the rule across a restart of the Launchpad, without any
+     code, in `${XDG_STATE_HOME:-~/.local/state}/lazurio/connections/pairing.json`
+     (0600, replaced whole by an atomic rename). It holds the times of the starts
+     and until when a shown code may be valid (`outstandingUntil`). The start is
+     written before Codex is asked, so the limit counts it. **A code reaches a
+     page only after the ledger holds its end**; when that write fails, or the
+     process stops before it, the code is never shown (`storage-failed`). A code
+     whose named life is longer than an hour (`longestLifeMs`; Codex 0.166 gives
+     about 10 minutes) is not shown, and one without a named end is covered for an
+     hour. The bound ends early only when a phone takes the code; when the dialog's
+     handle runs out first (ten minutes without a named end), the bound stays until
+     its own end;
+   - a process that holds no code (after a restart) makes none while
+     `outstandingUntil` lies ahead. *Spárovat telefon* then answers
+     `code-outstanding` with `until`, and the dialog says when a new code can be
+     made. A ledger that cannot be read counts as a code shown now with an hour's
+     life;
+   - every change of this state and every ledger write runs in one queue: a start,
+     a poll that settles a code, and the reading of a restarted process never
+     interleave, so an older write never replaces a newer one.
+
+   The remaining exposure is therefore at most one shown code, for at most its
+   `expiresAt` (at most an hour), shown only to pages admitted under 0192, across
+   restarts of the Launchpad. A phone that takes it
+   appears in the paired list, where *Odebrat přístup* removes it.
+4. **Waiting.** `POST /api/connections/pair/poll {session}` calls
+   `remoteControl/pairing/status` every 2 s through the existing visible-page poll.
+   - On `claimed: true` the server drops the code and refreshes the device list, and
+     the dialog says *Telefon je spárovaný*.
+   - At `expiresAt` the handle ends and the dialog offers *Nový kód*.
+5. **Removing access.** `POST /api/connections/revoke {clientId}` calls
+   `remoteControl/client/revoke` after the person confirms in place. The person can
+   also remove the device in the ChatGPT app.
+6. **Security.**
+   - Every route is behind the same admission as all `/api/*`: hosted trust (gateway
+     session, same origin, Sec-Fetch-Site) or the local bearer token. Mutating routes
+     take only JSON `POST`.
+   - The code is made inside the Environment, so only someone who already enters it
+     under 0192 can pair (0215). Team Environments are refused. Public-DNS mode keeps
+     pairing, because it needs no SSH.
+   - Codes (`pairingCode`, `manualPairingCode`), QR payloads and session handles are
+     never written to a log, the journal, a file, the Folder or an error. The journal
+     records only `pair-started` (`ok`, `no-answer`, `invalid-answer`, `too-long`,
+     `not-shown`), `paired`,
+     `expired`, `shown-again`, `revoked` and the ledger's `unreadable` or
+     `write-failed`, with the client's platform.
+   - Answers carry `cache-control: no-store`.
+   - An Environment has at most one live code (point 3) and at most five codes in
+     10 minutes, counted under the serialized start and kept by the ledger across
+     restarts.
+7. **When the daemon has no remote control.** Remote control is a persisted daemon
+   preference.
+   - F29's convergence runs `codex app-server daemon enable-remote-control`, which is
+     idempotent and answers `alreadyEnabled`.
+   - When the status is still not `connected` (seen on 2026-10-26 until a restart),
+     the page says pairing is not available now. It offers *Restartovat Codex* with
+     the warning that running chats end, and only after a confirmation it calls
+     `restartCodexAppServer`.
+   - A doctor check `codex-remote-control` reports the status, without codes.
+   - Without the methods (an older Codex) the page falls back as 0215 says: SSH only
+     where SSH into the Environment is allowed.
+8. **Trust (#720).** A phone cannot answer Codex's trust prompt. The Platform writes
+   `[projects."<Folder>"] trust_level = "trusted"` and the same entry for the owner's
+   home. It follows the pattern of `src/tools/codex-apps.ts`: marked lines, an atomic
+   write, the person's own entries kept, nothing removed. On the tested Environment
+   the Folder entry exists and the home entry does not.
+9. **Tests.**
+   - Unit tests run against a fake control socket. They cover each state, the
+     handle's life, expiry, that a second start answers the live code, concurrent
+     starts, and that no code reaches a log or an error.
+   - Acceptance runs on a real Environment with a phone:
+     - A1: the QR code pairs.
+     - A2: the short code pairs.
+     - A3: *Telefon je spárovaný* appears within 5 s of the phone's confirmation.
+     - A4: the device appears in the list.
+     - A5: *Odebrat přístup* removes the Environment from the app.
+     - A6: a chat started from the phone in the Folder gets past the trust check.
+     - A7: remote control is `connected` again after a reboot through F29.
+     - A8: a search of the journal and logs finds no code.
+
+**Implementation (2026-11-03).** What the code does, where it differs from the
+points above:
+
+- **QR payload.** `pairingQrPayload` is
+  `https://chatgpt.com/codex/pair?pairing_code=<pairingCode>`. The ChatGPT app on
+  Android (1.2026.293) accepted it on 2026-11-03 through its own scanner in Codex →
+  add a computer. The system camera and iOS are untested, so the dialog says "V
+  aplikaci ChatGPT otevřete Codex → Přidat počítač a naskenujte kód." and keeps the
+  short code with *Kopírovat* as the fallback. It does not promise that the camera
+  opens the app.
+- **Place.** Settings → Připojení (`connections`) replaces SSH in the menu, with
+  no tabs: one group *Ovládat toto Prostředí* with the cards *Telefon* and
+  *Počítač* (point 1). *Počítač* leads to F49's page at `/settings/ssh`, unchanged
+  in behaviour; its title is Počítač, it links back to Připojení, and its SSH
+  config and `known_hosts` sit under *Pokročilé*. The menu marks Připojení on both
+  pages. Začínáme gets an optional row *Telefon přes ChatGPT* where pairing is
+  offered.
+- **Ways not built yet, and how the page shows them.**
+  - Telefon over SSH with a password, for the Organization's AI: the Telefon card
+    says *Pro Prostředí s AI Organizace telefon připravujeme.* and offers nothing.
+    The person on that Environment otherwise sees an empty way and would look for
+    it, so one line says it is coming. Today an agent sets the password
+    (Lazurio/LazurioPlatform#266).
+  - Počítač in one click (the prototype's six steps with the key confirmed in the
+    browser): not shown. Today's Počítač works, and a second route for the same
+    device would only make the person choose.
+  - Agenti ve vašem počítači and Ovládat jiná Prostředí: not shown. Nothing on the
+    page could act on them yet.
+- **Code.**
+  - `src/connections/control-socket.ts` is the client. It speaks WebSocket over the
+    Unix socket and keeps no error message from Codex, only the JSON-RPC code.
+  - `src/connections/pairing.ts` holds the states, the one live code, the serialized
+    start with the limit of five codes in ten minutes, polling, removing access and
+    the restart (which keeps the live code, since a restart does not end it).
+  - `src/connections/codex-trust.ts` writes the trust entries.
+  - `src/launchpad/connections-routes.ts` holds the routes, and the panel and view
+    are `connections-panel.ts` and `connections-view.ts`.
+  - Each operation opens its own connection to the socket. A pending code is kept by
+    the daemon, not by the connection.
+- **Routes.** `POST …/restart` takes `{confirm: true}` and refuses where remote
+  control works, where Codex lacks the methods, and where the unit is not Lazurio's.
+- **Turning remote control on.** Remote control is turned on by the daemon's own
+  `remoteControl/enable` (persisted), at the first *Spárovat telefon*. F29's
+  convergence does not run `enable-remote-control`. A daemon that is off therefore
+  reads as `ready`.
+- **States.**
+  - `organization-ai` is Codex's `account/read` answering
+    `requiresOpenaiAuth: false`. It shows the *připravujeme* line and no sign-in.
+  - `no-chatgpt` is signed out, or signed in with an API key. It shows "Nejdřív se
+    přihlaste svým účtem ChatGPT." with *Přihlásit se*.
+- **Not built yet.** The doctor check `codex-remote-control`.
+- **Acceptance so far.**
+  - The unit tests run against a fake daemon. They cover each state, the handle's
+    life, expiry, the live code answered again, concurrent starts sharing one
+    code, the start limit, removing access, the restart's
+    conditions, the trust text, the routes' admission, and that no code reaches an
+    answer, an error or the journal.
+  - On the owner's personal Environment, on 2026-11-03 and without a restart, the
+    branch's Launchpad read the real state and device list. It made a code and
+    showed the QR code, the short code and the time left. (That run predates the
+    one-live-code rule: it still had a cancel, which ended only Lazurio's handle.)
+  - `tests/connections-flow.test.ts` covers the dialog: an answer that arrives after
+    the close is dropped and starts no poll, a newer open wins over an older answer,
+    and expiry and pairing end the poll.
+  - A1–A8 with a phone remain the owner's.
+
+**Open questions.**
+
+1. *(Settled 2026-11-03: the URL, through the app's own scanner; see Implementation.)*
+   What the ChatGPT app scans. OpenAI documents a QR code that "opens ChatGPT" on the
+   phone, shown by the desktop app. The candidate payload is
+   `https://chatgpt.com/codex/pair?pairing_code=<pairingCode>`, as one public
+   third-party tool (`ulissescomonian/codex-remote`) builds it. Its alternative is
+   the bare `pairingCode`. Both are to be tested with the phone camera and inside the
+   app.
+2. The exact labels in the ChatGPT app on Android and iOS (Codex, add a computer),
+   for the motion graphic's steps 2 and 3.
+3. What `client/revoke` does on the phone's side.
+4. Whether `pairing/start` without a ChatGPT sign-in, or with a Business workspace
+   that forbids Remote Control, fails with a distinguishable error, so the page can
+   name the reason.
+5. The API is experimental. A Codex update can change it, so the Platform checks the
+   methods at runtime and qualifies each new Codex release on one Environment first.

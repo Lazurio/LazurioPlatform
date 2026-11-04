@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: app/v1
+        working-directory: {{app_directory}}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -19,4 +19,3 @@ jobs:
       - run: test "$(bun --version)" = "{{bun_version}}"
       - run: bun install --frozen-lockfile
       - run: bun run check
-      - run: bun test

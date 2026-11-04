@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import {
   appendFile,
+  chmod,
   lstat,
   mkdir,
   mkdtemp,
@@ -13,9 +14,16 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runCli } from "../src/cli";
 import { applyPreparation } from "../src/folder/apply-preparation";
-import { FolderAdoptionError } from "../src/folder/handover-layout";
+import {
+  foreignEntriesText,
+  readHostedFolderForeignEntries,
+  unshownEntry,
+} from "../src/folder/foreign-entries";
+import {
+  FolderAdoptionError,
+  foreignTopLevelEntries,
+} from "../src/folder/handover-layout";
 import { outputPaths } from "../src/folder/outputs";
 import { renderOutputs } from "../src/folder/preview";
 import { instructionTemplateRevision } from "../src/folder/render";
@@ -242,6 +250,38 @@ test.skipIf(process.platform === "win32")(
 );
 
 test.skipIf(process.platform === "win32")(
+  "a Machine moved to another host keeps its Folder and follows the new host through the refresh (#759)",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      await initializeMachineFolder(folder, before, noChoices);
+      const moved = binding({
+        ...personalHandover([laptop]),
+        host: { ...personal.host, estate_id: "another-estate" },
+      });
+      // The first apply after the move: the Folder stays adopted …
+      expect(
+        await initializeMachineFolder(folder, moved, noChoices),
+      ).toMatchObject({ code: 0, result: { kind: "already-adopted" } });
+      // … and the refresh records the new host, as any other handover change.
+      expect(await refreshMachineFolder(folder, moved)).toEqual({
+        code: 0,
+        result: { kind: "refreshed", revision: 2 },
+      });
+      expect((await preferences(folder)).machine).toEqual(
+        JSON.parse(JSON.stringify(moved)),
+      );
+      expect(await refreshMachineFolder(folder, moved)).toEqual({
+        code: 0,
+        result: { kind: "unchanged" },
+      });
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
   "another Machine's handover is refused, before and under the transaction lock",
   async () => {
     const { parent, folder } = await setup();
@@ -250,7 +290,7 @@ test.skipIf(process.platform === "win32")(
       const settled = await snapshot(folder);
       const another = binding({
         ...personalHandover([laptop, workVm]),
-        host: { ...personal.host, estate_id: "another-estate" },
+        machine: { ...personal.machine, name: "another" },
       });
       await expect(refreshMachineFolder(folder, another)).rejects.toEqual(
         new FolderAdoptionError("binding-changed", ".lazurio"),
@@ -301,20 +341,10 @@ async function pending(folder: string) {
   );
   return { files, journal };
 }
-async function foreignEntry(run: Promise<unknown>) {
-  try {
-    await run;
-  } catch (error) {
-    if (error instanceof FolderAdoptionError)
-      return { code: error.code, entry: error.entry };
-    throw error;
-  }
-  throw new Error("Expected a Folder boundary refusal");
-}
 
 for (const stop of ["prepared", "applied"] as const)
   test.skipIf(process.platform === "win32")(
-    `a refresh interrupted after ${stop} refuses a foreign top-level entry on resume, then completes by profile-resume`,
+    `a refresh interrupted after ${stop} resumes past a foreign top-level entry and leaves it as it was`,
     async () => {
       const { parent, folder } = await setup();
       try {
@@ -326,22 +356,16 @@ for (const stop of ["prepared", "applied"] as const)
         ).rejects.toThrow("interrupted");
         const interrupted = await pending(folder);
         expect(interrupted.journal).not.toBeNull();
-        // A foreign entry that appeared after the interruption: recovery is
-        // refused by name before any replacement or archive, nothing moves.
+        // A foreign entry that appeared after the interruption (decision F10's
+        // addendum of 2026-11-03): recovery neither stops on it nor touches it.
         await writeFile(join(folder, "foreign-root"), "not ours");
-        expect(await foreignEntry(resumeProfileUpdate(folder, 2))).toEqual({
-          code: "foreign-entry",
-          entry: "foreign-root",
-        });
-        expect(await pending(folder)).toEqual(interrupted);
-        expect(await readFile(join(folder, "foreign-root"), "utf8")).toBe(
-          "not ours",
-        );
-        await rm(join(folder, "foreign-root"));
         expect(await resumeProfileUpdate(folder, 2)).toEqual({
           kind: "recovered",
           revision: 2,
         });
+        expect(await readFile(join(folder, "foreign-root"), "utf8")).toBe(
+          "not ours",
+        );
         expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
           workVmLine.en,
         );
@@ -358,8 +382,237 @@ for (const stop of ["prepared", "applied"] as const)
     },
   );
 
+// Root decision 0192, addendum of 2026-10-26 (Machines #948): the operator's
+// work VM assigned to them, as Machines writes it to a Platform that reads
+// them, with its Environment id, `access` and the host key from the
+// Organization's records; and the same peer as Machines writes it below that
+// gate. The Platform records the members and carries them; the personal
+// Folder's AGENTS.md lists the assigned alias and its manual says it needs no
+// confirmation (plan DEV-6676 P2); no other generated file renders them.
+const hostKey =
+  "AAAAC3NzaC1lZDI1NTE5AAAAIOosFYFA3vTPDE3z8629wlmF0Qecl1enPwpEjCjOsnfj";
+const unpinnedVm = { ...workVm, ssh: { ...workVm.ssh, user: "operator" } };
+const assignedVm = {
+  ...unpinnedVm,
+  environment: "example-work.example",
+  access: "assigned",
+  ssh: {
+    ...unpinnedVm.ssh,
+    host_keys: [{ type: "ssh-ed25519", key: hostKey }],
+  },
+};
+const pinned = binding(personalHandover([laptop, assignedVm]));
+const unpinned = binding(personalHandover([laptop, unpinnedVm]));
+// The recorded binding exactly as the state file holds it.
+const recordedMachine = async (folder: string) =>
+  JSON.stringify((await preferences(folder)).machine);
+
 test.skipIf(process.platform === "win32")(
-  "a partly applied refresh re-checks the boundary before the next replacement",
+  "a refresh records an assigned peer's members exactly, a profile change carries them byte for byte, and only AGENTS.md and the manual name the alias",
+  async () => {
+    const { parent, folder } = await setup();
+    const plain = await setup();
+    try {
+      await initializeMachineFolder(folder, before, noChoices);
+      await initializeMachineFolder(plain.folder, before, noChoices);
+      for (const [target, machine] of [
+        [folder, pinned],
+        [plain.folder, unpinned],
+      ] as const)
+        expect(await refreshMachineFolder(target, machine)).toEqual({
+          code: 0,
+          result: { kind: "refreshed", revision: 2 },
+        });
+      const state = await readFile(
+        join(folder, ".lazurio", "preferences.json"),
+        "utf8",
+      );
+      expect(state).toContain(JSON.stringify(pinned));
+      expect(state).toContain(
+        `"environment":"example-work.example","access":"assigned"`,
+      );
+      expect(state).toContain(
+        `"direction":"outbound","hostKeys":[{"type":"ssh-ed25519","key":"${hostKey}"}]`,
+      );
+      // Only AGENTS.md and the manual render them: the alias line and the
+      // exception to confirming a peer; every other file is that of the same
+      // peer without them.
+      const files = (await pending(folder)).files;
+      const plainFiles = (await pending(plain.folder)).files;
+      expect(files["AGENTS.md"]).toContain("`ssh example-work.example`");
+      expect(plainFiles["AGENTS.md"]).not.toContain("example-work.example");
+      const rest = (all: typeof files) => ({
+        ...all,
+        "AGENTS.md": "",
+        "manual/this-machine.md": "",
+      });
+      expect(rest(files)).toEqual(rest(plainFiles));
+      // The same handover again, or one that only rewrote `installed`.
+      const settled = await snapshot(folder);
+      for (const machine of [
+        pinned,
+        binding(personalHandover([laptop, assignedVm], "2026-09-23T00:00:00Z")),
+      ])
+        expect(await refreshMachineFolder(folder, machine)).toEqual({
+          code: 0,
+          result: { kind: "unchanged" },
+        });
+      expect(await snapshot(folder)).toEqual(settled);
+      // A profile change carries the recorded binding forward byte for byte.
+      const { profile } = await preferences(folder);
+      expect(
+        await updateProfile(folder, 2, {
+          profile: {
+            ...profile,
+            locale: profile.locale === "cs" ? "en" : "cs",
+          },
+        }),
+      ).toEqual({ kind: "updated", revision: 3 });
+      expect(await recordedMachine(folder)).toBe(JSON.stringify(pinned));
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+      await rm(plain.parent, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "members that alone change follow the handover both ways, and AGENTS.md lists the alias only while they are there",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      await initializeMachineFolder(folder, pinned, noChoices);
+      expect(await recordedMachine(folder)).toBe(JSON.stringify(pinned));
+      const files = (await pending(folder)).files;
+      expect(files["AGENTS.md"]).toContain("`ssh example-work.example`");
+      // Machines drops them (a Platform below the gate), then writes them
+      // again: each time the record follows, and so does AGENTS.md.
+      for (const [machine, revision, listed] of [
+        [unpinned, 2, false],
+        [pinned, 3, true],
+      ] as const) {
+        expect(await refreshMachineFolder(folder, machine)).toEqual({
+          code: 0,
+          result: { kind: "refreshed", revision },
+        });
+        expect(await recordedMachine(folder)).toBe(JSON.stringify(machine));
+        const now = (await pending(folder)).files;
+        expect(
+          (now["AGENTS.md"] ?? "").includes("`ssh example-work.example`"),
+        ).toBe(listed);
+        if (listed) expect(now).toEqual(files);
+      }
+      expect(await refreshMachineFolder(folder, pinned)).toEqual({
+        code: 0,
+        result: { kind: "unchanged" },
+      });
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+for (const stop of ["prepared", "applied"] as const)
+  test.skipIf(process.platform === "win32")(
+    `a refresh recording an assigned peer, interrupted after ${stop}, completes by profile-resume with its members exact`,
+    async () => {
+      const { parent, folder } = await setup();
+      try {
+        await initializeMachineFolder(folder, before, noChoices);
+        await expect(
+          refreshFolder(folder, pinned, async (step) => {
+            if (step === stop) throw new Error("interrupted");
+          }),
+        ).rejects.toThrow("interrupted");
+        expect(await resumeProfileUpdate(folder, 2)).toEqual({
+          kind: "recovered",
+          revision: 2,
+        });
+        expect(await recordedMachine(folder)).toBe(JSON.stringify(pinned));
+        expect(await refreshMachineFolder(folder, pinned)).toEqual({
+          code: 0,
+          result: { kind: "unchanged" },
+        });
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    },
+  );
+
+test.skipIf(process.platform === "win32")(
+  "a hosted Folder names its foreign top-level entries for update and doctor, a name not shown as itself without its text",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      await initializeMachineFolder(folder, before, noChoices);
+      expect(await readHostedFolderForeignEntries(folder)).toEqual({
+        kind: "entries",
+        entries: [],
+      });
+      await mkdir(join(folder, "drafts"));
+      await writeFile(join(folder, "evil\u001b[2Jname"), "x");
+      await writeFile(join(folder, "notes.txt"), "x");
+      expect(await readHostedFolderForeignEntries(folder)).toEqual({
+        kind: "entries",
+        entries: ["drafts", unshownEntry, "notes.txt"],
+      });
+      // Nothing of it is read: the owned and tolerated names are not listed.
+      expect(await foreignTopLevelEntries(folder)).not.toContain("AGENTS.md");
+      expect(await foreignTopLevelEntries(folder)).not.toContain(
+        "organizations",
+      );
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+// Pablo's review of #817: a top level that cannot be listed is unknown, never
+// the answer of a clean Folder. Root reads any directory, so it is skipped.
+test.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+  "a hosted Folder whose top level cannot be listed is unreadable, not clean",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      await initializeMachineFolder(folder, before, noChoices);
+      // Traverse but no listing: the preferences are read, the names are not.
+      await chmod(folder, 0o300);
+      expect(await readHostedFolderForeignEntries(folder)).toEqual({
+        kind: "unreadable",
+      });
+    } finally {
+      await chmod(folder, 0o700);
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+test("a Folder whose state cannot be read is not judged by its top level", async () => {
+  const parent = await mkdtemp(join(tmpdir(), "lazurio-foreign-"));
+  try {
+    await writeFile(join(parent, "stray"), "x");
+    for (const folder of [parent, join(parent, "missing")])
+      expect(await readHostedFolderForeignEntries(folder)).toEqual({
+        kind: "state-unreadable",
+      });
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("the update line leaves the decision whose an entry is to the reader, for a mixed list too", () => {
+  const line = foreignEntriesText("/home/someone/Lazurio", [
+    "drafts",
+    "notes.txt",
+  ]);
+  expect(line).toContain("drafts, notes.txt");
+  expect(line).toContain("move there only what is your own");
+  expect(line).toContain("leave anyone else's where it is and tell the user");
+  expect(line).not.toMatch(/move (it|them) there/);
+});
+
+test.skipIf(process.platform === "win32")(
+  "a partly applied refresh completes past a foreign top-level entry that appeared meanwhile",
   async () => {
     const { parent, folder } = await setup();
     try {
@@ -382,18 +635,10 @@ test.skipIf(process.platform === "win32")(
       expect(partial.files["manual/this-machine.md"]).not.toContain(
         "example-work",
       );
-      // … and a foreign entry stops every later replacement, by name.
+      // … and a foreign entry that appears now stops no later replacement
+      // (decision F10's addendum of 2026-11-03); it stays as it is.
       await mkdir(join(folder, "foreign-root"));
-      expect(await foreignEntry(applyPreparation(folder))).toEqual({
-        code: "foreign-entry",
-        entry: "foreign-root",
-      });
-      expect(await foreignEntry(resumeProfileUpdate(folder, 2))).toEqual({
-        code: "foreign-entry",
-        entry: "foreign-root",
-      });
-      expect(await pending(folder)).toEqual(partial);
-      await rm(join(folder, "foreign-root"), { recursive: true });
+      await writeFile(join(folder, "foreign-root", "notes.txt"), "not ours");
       expect(await resumeProfileUpdate(folder, 2)).toEqual({
         kind: "recovered",
         revision: 2,
@@ -401,6 +646,9 @@ test.skipIf(process.platform === "win32")(
       expect(
         await readFile(join(folder, "manual", "this-machine.md"), "utf8"),
       ).toContain(workVmLine.en);
+      expect(
+        await readFile(join(folder, "foreign-root", "notes.txt"), "utf8"),
+      ).toBe("not ours");
     } finally {
       await rm(parent, { recursive: true, force: true });
     }
@@ -408,72 +656,54 @@ test.skipIf(process.platform === "win32")(
 );
 
 test.skipIf(process.platform === "win32")(
-  "the shared transaction refuses a foreign top-level entry for a profile update too, before any journal, and on its resume",
+  "a foreign top-level entry stops neither a profile update nor a refresh, before or after the journal, and stays byte for byte",
   async () => {
     const { parent, folder } = await setup();
     try {
       await initializeMachineFolder(folder, before, noChoices);
       const profile = (await preferences(folder)).profile;
-      const settled = await snapshot(folder);
       await writeFile(join(folder, "notes.txt"), "not ours");
-      // Before preparation: refused, no journal is created.
-      for (const run of [
-        () =>
-          updateProfile(folder, 1, { profile: { ...profile, locale: "cs" } }),
-        () => refreshFolder(folder, after),
-      ])
-        expect(await foreignEntry(run())).toEqual({
-          code: "foreign-entry",
-          entry: "notes.txt",
-        });
-      expect(await snapshot(folder)).toEqual(settled);
-      await rm(join(folder, "notes.txt"));
+      // Before preparation (decision F10's addendum of 2026-11-03): the change
+      // goes through and the entry is left exactly as it was.
+      expect(
+        await updateProfile(folder, 1, {
+          profile: { ...profile, locale: "cs" },
+        }),
+      ).toMatchObject({ kind: "updated" });
+      expect((await preferences(folder)).profile.locale).toBe("cs");
+      expect(await readFile(join(folder, "notes.txt"), "utf8")).toBe(
+        "not ours",
+      );
+      expect(await refreshMachineFolder(folder, after)).toMatchObject({
+        code: 0,
+      });
+      expect(await readFile(join(folder, "notes.txt"), "utf8")).toBe(
+        "not ours",
+      );
       // After preparation: the resume of an interrupted profile update too.
+      const revision = (await preferences(folder)).revision;
       await expect(
         updateProfile(
           folder,
-          1,
-          { profile: { ...profile, locale: "cs" } },
+          revision,
+          { profile: { ...profile, locale: "en" } },
           async (step) => {
             if (step === "prepared") throw new Error("interrupted");
           },
         ),
       ).rejects.toThrow("interrupted");
-      const interrupted = await pending(folder);
-      await writeFile(join(folder, "notes.txt"), "not ours");
-      expect(await foreignEntry(resumeProfileUpdate(folder, 2))).toEqual({
-        code: "foreign-entry",
-        entry: "notes.txt",
-      });
-      // The CLI reports it as a named refusal (exit 2), not an operation failure.
-      const printed: string[] = [];
-      const log = console.log;
-      console.log = (line: string) => void printed.push(line);
-      try {
-        expect(
-          await runCli([
-            "profile-resume",
-            "--folder",
-            folder,
-            "--target-revision",
-            "2",
-          ]),
-        ).toBe(2);
-      } finally {
-        console.log = log;
-      }
-      expect(JSON.parse(printed[0] ?? "null")).toMatchObject({
-        kind: "blocked",
-        reason: "folder-foreign-entry",
-        entry: "notes.txt",
-      });
-      expect(await pending(folder)).toEqual(interrupted);
-      await rm(join(folder, "notes.txt"));
-      expect(await resumeProfileUpdate(folder, 2)).toEqual({
+      await writeFile(join(folder, "notes-2.txt"), "not ours either");
+      expect(await resumeProfileUpdate(folder, revision + 1)).toEqual({
         kind: "recovered",
-        revision: 2,
+        revision: revision + 1,
       });
-      expect((await preferences(folder)).profile.locale).toBe("cs");
+      expect((await preferences(folder)).profile.locale).toBe("en");
+      expect(await readFile(join(folder, "notes.txt"), "utf8")).toBe(
+        "not ours",
+      );
+      expect(await readFile(join(folder, "notes-2.txt"), "utf8")).toBe(
+        "not ours either",
+      );
     } finally {
       await rm(parent, { recursive: true, force: true });
     }
@@ -774,7 +1004,13 @@ for (const path of ["AGENTS.md", "manual/roles.md"] as const)
     },
   );
 
-for (const revision of ["base-instructions-99", "custom-1"])
+// One revision past the current one, so the next template bump cannot turn
+// this downgrade test into an upgrade.
+const futureRevision = `base-instructions-${
+  Number(instructionTemplateRevision.replace("base-instructions-", "")) + 1
+}`;
+
+for (const revision of [futureRevision, "custom-1"])
   test.skipIf(process.platform === "win32")(
     `a Folder rendered by ${revision} is never downgraded or re-rendered`,
     async () => {
@@ -1008,3 +1244,42 @@ for (const revision of ["base-instructions-17", "base-instructions-18"])
         }
       },
     );
+
+// The home access service's origin (decision F70) renders nothing in the
+// Folder; only the machine commands act on it. A handover that changes only
+// it is still recorded, both ways, never left behind.
+test.skipIf(process.platform === "win32")(
+  "a refresh records the access service's origin alone, both ways, and renders the same files",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      const plain = binding(personal);
+      const declared = binding({
+        ...personal,
+        access_service: {
+          origin:
+            "http://example-conglomerate-host.tailnet.example.invalid:8444",
+        },
+      });
+      await initializeMachineFolder(folder, plain, noChoices);
+      const files = (await pending(folder)).files;
+      for (const [machine, revision] of [
+        [declared, 2],
+        [plain, 3],
+      ] as const) {
+        expect(await refreshMachineFolder(folder, machine)).toEqual({
+          code: 0,
+          result: { kind: "refreshed", revision },
+        });
+        expect(await recordedMachine(folder)).toBe(JSON.stringify(machine));
+        expect((await pending(folder)).files).toEqual(files);
+      }
+      expect(await refreshMachineFolder(folder, plain)).toEqual({
+        code: 0,
+        result: { kind: "unchanged" },
+      });
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);

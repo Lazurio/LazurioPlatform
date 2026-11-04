@@ -375,6 +375,9 @@ test.skipIf(!posix)(
         state: "signed-in",
         account: fictionalPhone,
       });
+      // Signed in before this session: "Používají agenti" stays as the
+      // person left it (F19's addendum of 2026-10-28).
+      expect(wacli?.enabled).toBe(false);
       // The tool finishes its sync and exits on its own idle.
       expect(await gone(await opened.pid())).toBe(true);
       journaled(opened.journal, { outcome: "signed-in" });

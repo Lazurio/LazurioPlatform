@@ -20,18 +20,30 @@ type MachineNetwork = Readonly<{
   headscale_server_url: string;
   headscale_hostname: string;
 }>;
-// Zones of upstream decision 0155. Peers are names only, as Machines derives
-// them from the home Conglomerate Host grants; nothing here is a grant either.
+// Zones of upstream decision 0155. Peers are names and public identity only,
+// as Machines derives them from the home Conglomerate Host grants; nothing
+// here is a grant either. `environment`, `access` and `ssh.host_keys` (root
+// decision 0192, addendum of 2026-10-26; Machines #948) come only together,
+// on a peer whose edge that addendum's rule opens rather than a reviewed
+// device grant: a work VM of an Organization assigned to this personal
+// Machine's owner, reached outbound over SSH under its named account, with
+// its Environment id and the host keys from the Organization's records.
+// Machines writes them only for a Platform that reads them; they are read
+// as written, and only a personal Machine's Folder and the person's SSH
+// config use them (src/ssh-access/environments.ts).
 export type MachineZone = "personal" | "work";
 export type MachinePeer = Readonly<{
   name: string;
   kind: "personal-vm" | "workspace-vm" | "client-device" | "conglomerate-host";
   zone: MachineZone | null;
   organization: string | null;
+  environment?: string;
+  access?: "assigned";
   ssh: Readonly<{
     host: string;
     user: string | null;
     direction: "outbound" | "inbound" | "both";
+    host_keys?: readonly Readonly<{ type: "ssh-ed25519"; key: string }>[];
   }> | null;
   https: readonly string[];
 }>;
@@ -121,6 +133,12 @@ export type MachineEntry = Readonly<{
 // Optional and closed on both branches: Machines writes it only for a
 // Platform release that reads it, because a reader vendoring an earlier
 // schema refuses the whole document (as for `entry` and its members).
+// Where this Environment's home Conglomerate Host runs its access service
+// (root decision 0224, decision F70; HumanAndMachine-ai/Machines#1040):
+// `http://<host node>.<MagicDNS domain>:8444`. Optional and closed on both
+// branches, written only while that host switches the service on and for a
+// Platform release that reads it.
+export type MachineAccessService = Readonly<{ origin: string }>;
 export type MachineVault = Readonly<{
   server_url: string;
   account: string;
@@ -159,6 +177,7 @@ export type OrganizationWorkspaceContext = Readonly<{
   }>;
   network?: MachineNetwork;
   relationships?: MachineRelationships<"work">;
+  access_service?: MachineAccessService;
   entry?: MachineEntry;
   vault?: MachineVault;
   services?: readonly MachineService[];
@@ -187,6 +206,7 @@ export type PersonalMachineContext = Readonly<{
   }>;
   network: MachineNetwork;
   relationships?: MachineRelationships<"personal">;
+  access_service?: MachineAccessService;
   entry?: MachineEntry;
   vault?: MachineVault;
   installed: MachineInstalled;
@@ -207,7 +227,9 @@ export class MachineContextError extends Error {
       | "machine-context-custody"
       | "machine-platform-unsupported"
       | "machine-operator-mismatch"
-      | "machine-operator-unavailable",
+      | "machine-operator-unavailable"
+      // decision F68: this process is not the installed product
+      | "machine-not-installed-product",
   ) {
     super(code);
   }

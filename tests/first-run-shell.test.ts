@@ -26,7 +26,6 @@ import {
 } from "../src/launchpad/setup-state";
 import { shellDocument } from "../src/launchpad/shell-document";
 import {
-  autoEnable,
   connectionLine,
   loginTitle,
   toolDescription,
@@ -702,21 +701,6 @@ const tool = (overrides: Partial<ToolOverview>): ToolOverview => ({
   installed: true,
   prompt: "Prompt.",
   ...overrides,
-});
-
-test("auto-on: a sign-in of this session turns the switch on, never for a tool signed in before", () => {
-  const signedIn = { kind: "signed-in", tool: "composio" } as const;
-  expect(autoEnable(tool({}), signedIn)).toBe(true);
-  expect(autoEnable(tool({}), { ...signedIn, already: true })).toBe(false);
-  expect(autoEnable(tool({ enabled: true }), signedIn)).toBe(false);
-  // A required tool has no switch (always on).
-  expect(autoEnable(tool({ name: "gh", tier: "required" }), signedIn)).toBe(
-    false,
-  );
-  expect(autoEnable(undefined, signedIn)).toBe(false);
-  expect(autoEnable(tool({}), { kind: "expired", tool: "composio" })).toBe(
-    false,
-  );
 });
 
 test("Nástroje: one plain sentence per tool, connected or not, the version in its details", () => {

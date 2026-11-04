@@ -192,7 +192,7 @@ export function createBuddyPanel(
 
   function drawState(copy: Copy) {
     const facts = options.facts();
-    const state = buddyStateView(facts.reading, copy);
+    const state = buddyStateView(facts.reading, copy, facts.refused);
     const row = buddySignInRow(facts, copy);
     const name = buddyNameOf(facts.reading);
     const key = drawnKey([state, row, name, options.avatar()]);
@@ -224,6 +224,11 @@ export function createBuddyPanel(
       case "sign-in":
         controls.append(
           button(copy.buddySignInShort, options.signIn, "primary"),
+        );
+        break;
+      case "sign-in-other":
+        controls.append(
+          button(copy.buddySignInOther, options.signIn, "primary"),
         );
         break;
       case "resume":
