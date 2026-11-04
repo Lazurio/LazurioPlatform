@@ -5,6 +5,7 @@ import {
   mkdir,
   mkdtemp,
   readdir,
+  readFile,
   realpath,
   rm,
   stat,
@@ -13,7 +14,9 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { machineIdentity } from "../src/folder/machine-binding";
 import { derivePreset } from "../src/folder/presets";
+import { operatorAvatar, operatorLogin } from "../src/launchpad/shell-document";
 import {
   type AssignmentReceipt,
   type AuthSourcedHandover,
@@ -25,6 +28,7 @@ import {
   initializeMachineFolder,
   machineFailureAnswer,
   machineInspection,
+  refreshMachineFolder,
 } from "../src/machine/cli";
 import {
   assignedMachineContext,
@@ -38,6 +42,7 @@ import {
 } from "../src/machine/context";
 import schema from "../src/machine/lazurio-machine.v1.schema.json";
 import { discoverHostedOperator } from "../src/machine/operator";
+import { bindingValues } from "../src/recover/private-values";
 import { handoverEntry } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
@@ -245,10 +250,11 @@ test("a bound personal receipt makes its first assignee the owner, its account t
     vmid: 207,
   });
   expect(context.owner).toEqual({
-    kind: "principal",
-    github_login: "example-person",
-    github_id: 4242,
-  });
+    kind: "account",
+    username: "example-person",
+    subject,
+    github: { login: "example-person", id: 4242 },
+  } as never);
   expect(context.operator).toEqual({
     os_user: "example-person",
     home: "/home/example-person",
@@ -646,6 +652,129 @@ test.skipIf(process.platform === "win32" || uid === 0)(
           ]);
         }
       }
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+/** A bound personal receipt whose frozen username is `slug` and whose
+ * current generation links `linked` (null: no GitHub account), the first
+ * binding having linked GitHub id 4242. */
+function personalLinked(
+  slug: string,
+  linked: Readonly<{ id: number; login: string }> | null,
+): AssignmentReceipt {
+  const bound = personalReceipt();
+  return {
+    ...bound,
+    dns_slug: slug,
+    account: slug,
+    hostname: `${slug}-personal-vm`,
+    current: {
+      generation: 3,
+      assignee: {
+        subject,
+        github_id: linked?.id ?? null,
+        github_login: linked?.login ?? null,
+      },
+    },
+  };
+}
+const personalBinding = (bound: AssignmentReceipt) =>
+  machineBinding(
+    assignedMachineContext(handoverOf(personalHandover), bytes(bound)),
+    "c".repeat(64),
+  );
+
+test("a personal owner is the receipt's Lazurio account: its username is never taken for a GitHub login, and its GitHub account is only the one the receipt verifies", () => {
+  // A chosen username that differs from the GitHub login of the first
+  // binding's account: the owner is the username, the GitHub account is the
+  // current generation's link of that same id.
+  const chosen = personalBinding(
+    personalLinked("chosen-name", { id: 4242, login: "Example-Person" }),
+  );
+  expect(chosen.name).toBe("chosen-name");
+  expect(chosen.owner).toEqual({
+    kind: "account",
+    username: "chosen-name",
+    subject,
+    github: { login: "example-person", id: 4242 },
+  } as never);
+  expect(operatorLogin(chosen)).toBe("chosen-name");
+  expect(operatorAvatar(chosen)).toContain("example-person");
+  // A relink to another GitHub account, or none: the receipt verifies no
+  // GitHub account of the first binding's id, so none is recorded, and the
+  // username is never offered as one.
+  for (const linked of [{ id: 5151, login: "other-login" }, null]) {
+    const relinked = personalBinding(personalLinked("chosen-name", linked));
+    expect(relinked.owner).toEqual({
+      kind: "account",
+      username: "chosen-name",
+      subject,
+      github: null,
+    } as never);
+    expect(operatorLogin(relinked)).toBe("chosen-name");
+    expect(operatorAvatar(relinked)).toBeNull();
+    // The same person and the same Environment: the Folder follows.
+    expect(machineIdentity(relinked)).toEqual(machineIdentity(chosen));
+  }
+  // A GitHub rename keeps the id: the new login is recorded.
+  expect(
+    personalBinding(
+      personalLinked("chosen-name", { id: 4242, login: "renamed-login" }),
+    ).owner,
+  ).toMatchObject({ github: { login: "renamed-login", id: 4242 } });
+  // Its private values are withheld from recovery evidence.
+  const withheld = bindingValues(chosen).map(({ value }) => value);
+  for (const value of ["chosen-name", subject, "example-person", "4242"])
+    expect(withheld).toContain(value);
+});
+
+test.skipIf(process.platform === "win32" || uid === 0)(
+  "the personal Folder names its owner by username and verified GitHub account, and a later relink is recorded by folder-refresh",
+  async () => {
+    const parent = await realpath(
+      await mkdtemp(join(tmpdir(), "lazurio-free-environment-owner-")),
+    );
+    const ownerLine = async (folder: string) =>
+      (await readFile(join(folder, "AGENTS.md"), "utf8"))
+        .split("\n")
+        .filter((line) => line.startsWith("- Owner:"));
+    try {
+      const home = join(parent, "home");
+      await mkdir(home, { mode: 0o700 });
+      const folder = join(home, "Lazurio");
+      const linked = personalBinding(
+        personalLinked("chosen-name", { id: 4242, login: "Example-Person" }),
+      );
+      expect(
+        (await initializeMachineFolder(folder, linked, initChoices, true)).code,
+      ).toBe(0);
+      expect(await ownerLine(folder)).toEqual([
+        "- Owner: the user with Lazurio username `chosen-name` (GitHub login `example-person`, id 4242). This is their one personal Remote Environment.",
+      ]);
+      const relinked = personalBinding(
+        personalLinked("chosen-name", { id: 5151, login: "other-login" }),
+      );
+      expect(
+        (await refreshMachineFolder(folder, relinked)).result,
+      ).toMatchObject({ kind: "refreshed" });
+      expect(await ownerLine(folder)).toEqual([
+        "- Owner: the user with Lazurio username `chosen-name` (no verified GitHub account). This is their one personal Remote Environment.",
+      ]);
+      const agents = await readFile(join(folder, "AGENTS.md"), "utf8");
+      expect(agents).not.toContain("GitHub login `chosen-name`");
+      expect(agents).not.toContain("other-login");
+      // Linked again to the first binding's account.
+      expect((await refreshMachineFolder(folder, linked)).result).toMatchObject(
+        {
+          kind: "refreshed",
+        },
+      );
+      expect((await ownerLine(folder))[0]).toContain(
+        "(GitHub login `example-person`, id 4242)",
+      );
     } finally {
       await rm(parent, { recursive: true, force: true });
     }
