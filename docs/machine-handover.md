@@ -11,13 +11,13 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`. The pin is
-**pending**: Machines commit `f4c96995c8ffece409cc7d133902e2db3ff4cd7c`
-(HumanAndMachine-ai/Machines#955, SHA-256
-`1a4d7b92afd69f405289f57bb5941831e3c3d0e0a0f798e834b2b2bf6e3160cd`), whose pull request
-is not open yet. It adds only the auth-sourced handover of a free Environment
+Machines pull request **#1072** (HumanAndMachine-ai/Machines#955, root decision 0216),
+which adds only the auth-sourced handover of a free Environment
 ([below](#free-environments-the-assignment-receipt-root-decision-0216)) to the schema of
-Machines #1051 and changes nothing else; the pin moves to its merge commit before this
-Platform merges (`src/machine/schema-provenance.json` says so in `pending`). Before it,
+Machines #1051 and changes nothing else, taken byte for byte from its merge commit
+`67a6a6131315208f8f0d31b3ab33453a0fb210e5` (SHA-256
+`1a4d7b92afd69f405289f57bb5941831e3c3d0e0a0f798e834b2b2bf6e3160cd`), as
+`src/machine/schema-provenance.json` records it. Before it,
 the pin was Machines pull request **#1051** (HumanAndMachine-ai/Machines#1040, decision
 F70), which added only the optional member `access_service` on both branches
 ([below](#the-home-access-service-decision-f70)) to the schema of v0.12.211 and
