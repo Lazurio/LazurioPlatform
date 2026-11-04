@@ -87,7 +87,11 @@ export type HostedOperatorContext =
       reason:
         | "machine-platform-unsupported"
         | "machine-context-missing"
-        | "machine-operator-mismatch";
+        | "machine-operator-mismatch"
+        // A free Environment (root decision 0216) whose receipt names
+        // nobody yet, or whose assignment was released: nobody's Folder.
+        | "machine-assignment-pending"
+        | "machine-assignment-released";
     }>
   | Readonly<{ kind: "hosted"; folder: string }>
   | Readonly<{
@@ -134,11 +138,14 @@ export async function discoverHostedOperator(
     const reason = code(error);
     if (
       reason === "machine-platform-unsupported" ||
-      reason === "machine-context-missing"
+      reason === "machine-context-missing" ||
+      reason === "machine-assignment-pending" ||
+      reason === "machine-assignment-released"
     )
       return absent(reason);
     return unreadable(
-      reason === "machine-context-invalid"
+      reason === "machine-context-invalid" ||
+        reason === "machine-assignment-unlinked"
         ? "machine-context-invalid"
         : "machine-context-custody",
     );

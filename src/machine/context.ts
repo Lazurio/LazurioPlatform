@@ -4,6 +4,13 @@ import { dirname, join } from "node:path";
 import Ajv2020 from "ajv/dist/2020";
 import { readCustodiedDeclarationBytes } from "../providers/owned-json";
 import { parseUniqueJson } from "../providers/unique-json";
+import {
+  AssignmentReceiptError,
+  type AuthSourcedHandover,
+  isAuthSourced,
+  parseAssignmentReceipt,
+  resolveAssignedContext,
+} from "./assignment";
 import schema from "./lazurio-machine.v1.schema.json";
 
 // Types describe the upstream wire contract; only the exact vendored schema
@@ -215,8 +222,14 @@ export type PersonalMachineContext = Readonly<{
 export type MachineContext =
   | OrganizationWorkspaceContext
   | PersonalMachineContext;
+// Everything the schema accepts: a context as above, or the auth-sourced
+// handover of a free Environment (root decision 0216, Machines
+// docs/free-environments.md §5.4), which names nobody and points to its
+// assignment receipt (src/machine/assignment.ts). Only `readMachineContext`
+// turns the latter into a context, once the receipt names a person.
+export type MachineHandover = MachineContext | AuthSourcedHandover;
 
-const validate = new Ajv2020({ strict: true }).compile<MachineContext>(schema);
+const validate = new Ajv2020({ strict: true }).compile<MachineHandover>(schema);
 export const machineContextPath = "/etc/lazurio/lazurio.machine.json";
 
 export class MachineContextError extends Error {
@@ -229,7 +242,13 @@ export class MachineContextError extends Error {
       | "machine-operator-mismatch"
       | "machine-operator-unavailable"
       // decision F68: this process is not the installed product
-      | "machine-not-installed-product",
+      | "machine-not-installed-product"
+      // A free Environment (root decision 0216) whose receipt names nobody
+      // yet, whose assignment was released, or a work Environment's person
+      // without a linked GitHub account (src/machine/assignment.ts).
+      | "machine-assignment-pending"
+      | "machine-assignment-released"
+      | "machine-assignment-unlinked",
   ) {
     super(code);
   }
@@ -242,7 +261,8 @@ function freeze(value: unknown): void {
   }
 }
 
-export function parseMachineContext(bytes: Uint8Array): MachineContext {
+/** A handover the vendored schema accepts, auth-sourced or not. */
+export function parseMachineHandover(bytes: Uint8Array): MachineHandover {
   try {
     if (bytes.byteLength > 1024 * 1024) throw new Error("Oversized context");
     const input: unknown = parseUniqueJson(
@@ -255,6 +275,47 @@ export function parseMachineContext(bytes: Uint8Array): MachineContext {
     // Never include private declarations, paths or validator input in diagnostics.
     throw new MachineContextError("machine-context-invalid");
   }
+}
+
+/** A handover that is a context by itself. An auth-sourced one is not: its
+ * person is its receipt's, which only `readMachineContext` reads. */
+export function parseMachineContext(bytes: Uint8Array): MachineContext {
+  const handover = parseMachineHandover(bytes);
+  if (isAuthSourced(handover))
+    throw new MachineContextError("machine-assignment-pending");
+  return handover;
+}
+
+/** The context of an auth-sourced handover from its receipt's bytes (none
+ * while the finisher wrote none), validated against the same schema as any
+ * handover the Machines write, so every reader takes it as it takes theirs. */
+export function assignedMachineContext(
+  handover: AuthSourcedHandover,
+  receiptBytes: Uint8Array | null,
+): MachineContext {
+  if (receiptBytes === null)
+    throw new MachineContextError("machine-assignment-pending");
+  let resolved: MachineHandover;
+  try {
+    const receipt = parseAssignmentReceipt(
+      parseUniqueJson(
+        new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+          receiptBytes,
+        ),
+      ),
+    );
+    resolved = structuredClone(resolveAssignedContext(handover, receipt));
+  } catch (error) {
+    throw new MachineContextError(
+      error instanceof AssignmentReceiptError
+        ? error.code
+        : "machine-context-invalid",
+    );
+  }
+  if (!validate(resolved) || isAuthSourced(resolved))
+    throw new MachineContextError("machine-context-invalid");
+  freeze(resolved);
+  return resolved;
 }
 
 /** Where the handover is read: the platform, the filesystem root the fixed
@@ -273,7 +334,8 @@ export const productionMachineContextSource: MachineContextSource =
 
 // Read-only. A root-issued identity is descriptive context, never an access grant.
 // The production location/custodian cannot be overridden through CLI/env flags.
-export async function readMachineContext(
+// The handover as written, auth-sourced or not: what `machine inspect` prints.
+export async function readMachineHandover(
   source: MachineContextSource = productionMachineContextSource,
 ) {
   if (source.platform !== "linux")
@@ -301,8 +363,43 @@ export async function readMachineContext(
     );
   }
   return Object.freeze({
-    context: parseMachineContext(bytes),
+    context: parseMachineHandover(bytes),
     digest: createHash("sha256").update(bytes).digest("hex"),
+  });
+}
+
+/** The context of this Machine: its handover, and for an auth-sourced one
+ * the person its receipt names (`assignedMachineContext`). The receipt lies
+ * beside the handover, under the same root custody, and is read only for an
+ * auth-sourced handover. The digest stays the handover's: the receipt's
+ * facts a context takes are written once, at the first binding, except a
+ * work assignee's current GitHub link, which a refresh records like any
+ * other assignment. */
+export async function readMachineContext(
+  source: MachineContextSource = productionMachineContextSource,
+) {
+  const observed = await readMachineHandover(source);
+  if (!isAuthSourced(observed.context))
+    return Object.freeze({
+      context: observed.context,
+      digest: observed.digest,
+      authSourced: false,
+    });
+  let receipt: Buffer | null;
+  try {
+    receipt = await readCustodiedDeclarationBytes(
+      join(source.root, observed.context.assignment_receipt.path),
+      source.custodian,
+    );
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+      throw new MachineContextError("machine-context-custody");
+    receipt = null;
+  }
+  return Object.freeze({
+    context: assignedMachineContext(observed.context, receipt),
+    digest: observed.digest,
+    authSourced: true,
   });
 }
 
