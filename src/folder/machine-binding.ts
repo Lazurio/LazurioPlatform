@@ -29,13 +29,16 @@ import { ownDataValue, stateFields } from "./state-fields";
 // the services Environment of a Proxmox server, Služby serveru (root decision
 // 0209, Machines docs/server-services.md §2): a work Environment of the
 // Organization that only its Owners and Admins enter and that, like `team`,
-// names nobody. Any other kind fails closed.
+// names nobody. Any other kind fails closed. A free work Environment's
+// operator (root decision 0216) is named by their Lazurio account
+// (`MachineAccount`), which needs no GitHub account (root decision 0192).
 export type MachineAssignment =
   | Readonly<{
       kind: "operator" | "automation";
       githubLogin: string;
       githubId: number;
     }>
+  | Readonly<{ kind: "operator"; account: MachineAccount }>
   | Readonly<{ kind: "team" | "services" }>;
 
 /** The guard of every match on an assignment's kind: each match handles every
@@ -48,8 +51,10 @@ export function unknownAssignment(_assignment: never): never {
 
 /** The person an assignment names, with their immutable GitHub id: the
  * assigned operator, or the responsible operator of a Henry
- * Environment. A Team Environment and the services Environment of a server
- * name nobody, and neither does a handover without an assignment. */
+ * Environment; a free work Environment's operator only by the GitHub
+ * account the receipt verified for them, if any. A Team Environment and the
+ * services Environment of a server name nobody, and neither does a handover
+ * without an assignment. */
 export function assignedPerson(
   assignment: MachineAssignment | undefined,
 ): Readonly<{ githubLogin: string; githubId: number }> | null {
@@ -57,7 +62,13 @@ export function assignedPerson(
   switch (assignment.kind) {
     case "operator":
     case "automation":
-      return assignment;
+      if (!("account" in assignment)) return assignment;
+      return assignment.account.github === null
+        ? null
+        : Object.freeze({
+            githubLogin: assignment.account.github.login,
+            githubId: assignment.account.github.id,
+          });
     case "team":
     case "services":
       return null;
@@ -385,6 +396,18 @@ function assignment(input: unknown): MachineAssignment {
       return Object.freeze({ kind });
     case "operator":
     case "automation": {
+      if (kind === "operator" && ownDataValue(input, "account") !== undefined) {
+        const value = stateFields(input, ["kind", "account"]);
+        const named = stateFields(value.account, [
+          "username",
+          "subject",
+          "github",
+        ]);
+        return Object.freeze({
+          kind,
+          account: account(named.username, named.subject, named.github),
+        });
+      }
       const value = stateFields(input, ["kind", "githubLogin", "githubId"]);
       if (!isGithubLogin(value.githubLogin) || !isGithubId(value.githubId))
         throw new Error("Invalid Machine assignment");

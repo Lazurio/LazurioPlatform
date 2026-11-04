@@ -105,7 +105,10 @@ export function operatorLogin(machine: MachineBinding | null): string | null {
   if (machine === null) return null;
   if (machine.owner.kind === "principal") return machine.owner.githubLogin;
   if (machine.owner.kind === "account") return machine.owner.username;
-  return assignedPerson(machine.owner.assignment)?.githubLogin ?? null;
+  const assignment = machine.owner.assignment;
+  if (assignment !== undefined && "account" in assignment)
+    return assignment.account.username;
+  return assignedPerson(assignment)?.githubLogin ?? null;
 }
 
 /** The GitHub photo of that person, only by a GitHub login the binding
@@ -227,7 +230,9 @@ export function assigneeLogin(
   if (assignment === undefined) return null;
   switch (assignment.kind) {
     case "operator":
-      return assignment.githubLogin;
+      return "account" in assignment
+        ? assignment.account.username
+        : assignment.githubLogin;
     case "automation":
     case "team":
     case "services":

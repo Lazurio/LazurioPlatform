@@ -277,18 +277,21 @@ export function peerLine(peer: MachinePeer, locale: "cs" | "en"): string {
 // A free Environment's person (root decision 0216) by their Lazurio
 // username, and by a GitHub account only as the receipt verified it: the
 // username is never presented as a GitHub login. The Auth subject is not
-// rendered. The same words in AGENTS.md and the manual.
+// rendered. What follows "the user" (cs: after "uživatel"/"uživateli"); the
+// same words in AGENTS.md and the manual.
 export function accountText(account: MachineAccount): Text {
   const { username, github } = account;
-  return github === null
-    ? {
-        cs: `uživatel s uživatelským jménem Lazuria \`${username}\` (bez ověřeného účtu GitHub)`,
-        en: `the user with Lazurio username \`${username}\` (no verified GitHub account)`,
-      }
-    : {
-        cs: `uživatel s uživatelským jménem Lazuria \`${username}\` (GitHub login \`${github.login}\`, id ${github.id})`,
-        en: `the user with Lazurio username \`${username}\` (GitHub login \`${github.login}\`, id ${github.id})`,
-      };
+  const linked =
+    github === null
+      ? { cs: "bez ověřeného účtu GitHub", en: "no verified GitHub account" }
+      : {
+          cs: `GitHub login \`${github.login}\`, id ${github.id}`,
+          en: `GitHub login \`${github.login}\`, id ${github.id}`,
+        };
+  return {
+    cs: `s uživatelským jménem Lazuria \`${username}\` (${linked.cs})`,
+    en: `with Lazurio username \`${username}\` (${linked.en})`,
+  };
 }
 
 // The assignment line of an Organization work VM: rendered only when the
@@ -318,6 +321,11 @@ function assignmentText(assignment: MachineAssignment): Text {
         en: `- Assignment: the Henry Environment of an Organization persona; responsible user \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
       };
     case "operator":
+      if ("account" in assignment)
+        return {
+          cs: `- Přiřazení: přiřazený uživateli ${accountText(assignment.account).cs}.`,
+          en: `- Assignment: assigned to the user ${accountText(assignment.account).en}.`,
+        };
       return {
         cs: `- Přiřazení: přiřazený uživateli \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
         en: `- Assignment: assigned to user \`${assignment.githubLogin}\` (GitHub id ${assignment.githubId}).`,
@@ -389,8 +397,8 @@ function machineSection(
         })
       : machine.owner.kind === "account"
         ? pick({
-            cs: `- Owner: ${accountText(machine.owner).cs}. Je to jeho jediný osobní Remote Environment.`,
-            en: `- Owner: ${accountText(machine.owner).en}. This is their one personal Remote Environment.`,
+            cs: `- Owner: uživatel ${accountText(machine.owner).cs}. Je to jeho jediný osobní Remote Environment.`,
+            en: `- Owner: the user ${accountText(machine.owner).en}. This is their one personal Remote Environment.`,
           })
         : machine.owner.team === null || preset !== "hosted-organization-team"
           ? pick({

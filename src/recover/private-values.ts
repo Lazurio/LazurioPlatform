@@ -174,12 +174,14 @@ export function bindingValues(binding: MachineBinding | null): PrivateValue[] {
   const { owner } = binding;
   // The person an assignment names, withheld like the Owner; a Team
   // Environment and Služby serveru (root decision 0209) name nobody.
+  const assignment =
+    owner.kind === "organization" ? owner.assignment : undefined;
   const person =
     owner.kind === "principal"
       ? owner
-      : owner.kind === "account"
+      : assignment === undefined || "account" in assignment
         ? null
-        : assignedPerson(owner.assignment);
+        : assignedPerson(assignment);
   return [
     ...value("machine", binding.name),
     ...(owner.kind === "organization"
@@ -189,6 +191,9 @@ export function bindingValues(binding: MachineBinding | null): PrivateValue[] {
         ]
       : []),
     ...(owner.kind === "account" ? accountValues(owner) : []),
+    ...(assignment !== undefined && "account" in assignment
+      ? accountValues(assignment.account)
+      : []),
     ...(person === null
       ? []
       : [
@@ -225,6 +230,7 @@ function handoverAssigneeValues(
   switch (assignment.kind) {
     case "operator":
     case "automation":
+      if ("account" in assignment) return accountValues(assignment.account);
       return [
         ...value("github-login", assignment.github_login),
         ...value("github-id", assignment.github_id),

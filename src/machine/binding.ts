@@ -38,6 +38,13 @@ function assignment(input: OrganizationAssignment): MachineAssignment {
       return Object.freeze({ kind: input.kind });
     case "operator":
     case "automation":
+      // A free work Environment's operator by their Lazurio account (root
+      // decision 0216).
+      if ("account" in input)
+        return Object.freeze({
+          kind: input.kind,
+          account: machineAccount(input.account),
+        });
       return Object.freeze({
         kind: input.kind,
         githubLogin: input.github_login,

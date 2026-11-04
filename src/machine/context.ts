@@ -65,12 +65,17 @@ export type MachineRelationships<Zone extends MachineZone = MachineZone> =
 // Environment of a Proxmox server, "Služby serveru": a work Environment of the
 // Organization that only its Owners and Admins enter; like `team` it names
 // nobody.
+// `{kind: operator, account}` only as the Platform resolves a free work
+// Environment's assignee from its receipt (root decision 0216): their
+// Lazurio account, with a GitHub account only if one is linked (root
+// decision 0192), never on the wire.
 export type OrganizationAssignment =
   | Readonly<{
       kind: "operator" | "automation";
       github_login: string;
       github_id: number;
     }>
+  | Readonly<{ kind: "operator"; account: MachineAccount }>
   | Readonly<{ kind: "team" | "services" }>;
 // The services of a services Environment (root decision 0209, Machines
 // docs/server-services.md §2.1): each one's id and kind, its one
@@ -262,11 +267,9 @@ export class MachineContextError extends Error {
       // decision F68: this process is not the installed product
       | "machine-not-installed-product"
       // A free Environment (root decision 0216) whose receipt names nobody
-      // yet, whose assignment was released, or a work Environment's person
-      // without a linked GitHub account (src/machine/assignment.ts).
+      // yet, or whose assignment was released (src/machine/assignment.ts).
       | "machine-assignment-pending"
-      | "machine-assignment-released"
-      | "machine-assignment-unlinked",
+      | "machine-assignment-released",
   ) {
     super(code);
   }

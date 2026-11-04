@@ -2182,8 +2182,8 @@ function identitySection(
         )
       : machine.owner.kind === "account"
         ? t(
-            `- Owner: ${accountText(machine.owner).cs}.`,
-            `- Owner: ${accountText(machine.owner).en}.`,
+            `- Owner: uživatel ${accountText(machine.owner).cs}.`,
+            `- Owner: the user ${accountText(machine.owner).en}.`,
           )
         : machine.owner.team === null || preset !== "hosted-organization-team"
           ? t(

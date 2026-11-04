@@ -856,16 +856,14 @@ GitHub login: it can be a chosen name, or survive a GitHub rename, relink or unl
 | --- | --- |
 | personal `owner: {kind: assignment}` | `{kind: account, username: <dns_slug>, subject: <first.subject>, github}`: the first assignee, for good. `github` is `{login, id}` only when the current generation links the GitHub id the first binding linked (`first.github_id`), with that generation's login (lowercase); otherwise, after a relink to another account or an unlink, `null` |
 | personal `machine.name` (neutral) | `<dns_slug>`; `machine.id` stays neutral |
-| work `owner.assignment: {kind: operator, source: auth}` | `{kind: operator, github_login, github_id}` of the current assignee's linked GitHub account (lowercase), so the Organization presets read it as always |
+| work `owner.assignment: {kind: operator, source: auth}` | `{kind: operator, account: {username: <dns_slug>, subject: <first.subject>, github}}`: the operator kind, so the Organization presets derive `hosted-organization-personal` as always, and the person by their Lazurio account. `github` is the current generation's linked GitHub account (`{login, id}`, lowercase), or `null`: a work Environment's assignee needs no GitHub account (root decision 0192, Machines `docs/free-environments.md` §3, §5.1) |
 | `operator` (operational account) | the receipt's `account`: `/home/<account>`, `/home/<account>/Lazurio` |
 | templated origins | filled with `<dns_slug>` |
 
 `machine inspect` prints the handover as written. Every other command acts only once
 the receipt names a person: before the first binding it answers `{"kind":"blocked",
 "reason":"machine-assignment-pending"}` and creates or refreshes nothing for anybody;
-after a release `machine-assignment-released`; a work Environment's person without a
-linked GitHub account `machine-assignment-unlinked` (this release records an operator
-assignee by GitHub account). For the operational account, or before the binding, the
+after a release `machine-assignment-released`. For the operational account, or before the binding, the
 hosted discovery finds no Folder (`absent`). The person's own user manager runs
 `machine folder-init` once both files exist (Machines
 `workloads/workspace-vm/person-services.py`): nothing delivered the Folder layout
@@ -884,15 +882,17 @@ owner is the Machine's identity by its username and subject only, so a link, rel
 unlink never turns the adopted Folder into another Machine's. The binding's digest
 stays the handover's.
 
-What people and agents see of an account owner: the Folder's `AGENTS.md` and manual
-name them as "the user with Lazurio username `<username>`", followed by "(GitHub login
-`<login>`, id `<id>`)" or "(no verified GitHub account)"; the Launchpad's "This
-Environment" names the username, with the GitHub account in its details only when
-verified; the shell's operator is the username, with a GitHub photo only of a verified
-login; the personal vault is "Osobní <username>"; the Personalspace's GitHub holder is
-checked against the verified GitHub id, and against none without one; the Auth subject
-is recorded in the binding and withheld from recovery evidence (`subject`), never
-rendered. The Machines write the auth-sourced handover
+What people and agents see of such a person, the personal owner or the work
+assignee: the Folder's `AGENTS.md` and manual name them as "the user with Lazurio
+username `<username>`", followed by "(GitHub login `<login>`, id `<id>`)" or "(no
+verified GitHub account)"; the Launchpad's "This Environment" names the username, with
+the GitHub account in its details only when verified; the shell's operator (and a work
+Environment's assignee) is the username, with a GitHub photo only of a verified login;
+the personal vault is "Osobní <username>"; the Personalspace's GitHub holder is checked
+against the verified GitHub id, and against none without one; the GitHub sign-in pilot
+of a work Environment checks a sign-in against the verified GitHub account and, without
+one, offers none (`subject-unknown`); the Auth subject is recorded in the binding and
+withheld from recovery evidence (`subject`), never rendered. The Machines write the auth-sourced handover
 only for a pinned Platform at or above their `PLATFORM_HANDOVER_ASSIGNMENT_MINIMUM`,
 the first release with this reader.
 

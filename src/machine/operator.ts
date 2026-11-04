@@ -144,8 +144,7 @@ export async function discoverHostedOperator(
     )
       return absent(reason);
     return unreadable(
-      reason === "machine-context-invalid" ||
-        reason === "machine-assignment-unlinked"
+      reason === "machine-context-invalid"
         ? "machine-context-invalid"
         : "machine-context-custody",
     );

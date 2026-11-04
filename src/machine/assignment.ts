@@ -108,8 +108,6 @@ export class AssignmentReceiptError extends Error {
       | "machine-assignment-pending"
       // the assignment was released: the Environment waits for its end
       | "machine-assignment-released"
-      // a work Environment's person without a linked GitHub account
-      | "machine-assignment-unlinked"
       // anything the finisher would not have written, or another Machine's
       | "machine-context-invalid",
   ) {
@@ -260,8 +258,11 @@ function filledEntry(entry: MachineEntry, dnsSlug: string): MachineEntry {
  *   as the receipt verifies it: when the current generation links the
  *   GitHub id the first binding linked, with that generation's login, and
  *   otherwise none (a relink to another account, or an unlink);
- * - a work Environment's assignee is the current assignee by the GitHub
- *   account linked now (`machine-assignment-unlinked` without one);
+ * - a work Environment's assignee is the operator by the same Lazurio
+ *   account (`{kind: operator, account}`): the username, the subject and the
+ *   GitHub account the current generation links, or none, which a work
+ *   Environment does not need (root decision 0192); a later link or unlink
+ *   is a new fact of the same assignee;
  * - the entry's templates are filled with the frozen username.
  *
  * The receipt must be this Machine's: its Machine id and, on a work
@@ -323,17 +324,19 @@ export function resolveAssignedContext(
     } as PersonalMachineContext;
   }
   const person = receipt.current?.assignee;
-  if (
-    person === undefined ||
-    person.github_id === null ||
-    person.github_login === null
-  )
-    throw new AssignmentReceiptError("machine-assignment-unlinked");
   const workspace = rest as Omit<AuthSourcedWorkHandover, "entry">;
   const assignment: OrganizationAssignment = {
     kind: "operator",
-    github_login: person.github_login.toLowerCase(),
-    github_id: person.github_id,
+    account: {
+      username: dnsSlug,
+      subject: first.subject,
+      github:
+        person === undefined ||
+        person.github_id === null ||
+        person.github_login === null
+          ? null
+          : { login: person.github_login.toLowerCase(), id: person.github_id },
+    },
   };
   return {
     ...workspace,

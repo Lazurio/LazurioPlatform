@@ -199,6 +199,10 @@ function assignedTo(
       return [assignment.kind];
     case "operator":
     case "automation":
+      // A free work Environment's operator by their Auth subject (root
+      // decision 0216); its handover names no vault today.
+      if ("account" in assignment)
+        return [assignment.kind, assignment.account.subject];
       return [assignment.kind, assignment.github_id];
     default:
       return unknownAssignment(assignment);

@@ -15,6 +15,7 @@ export type AssignmentView =
       githubLogin: string;
       githubId: number;
     }>
+  | Readonly<{ kind: "operator"; account: AccountView }>
   | Readonly<{ kind: "team" | "services" }>;
 
 // A free Environment's person (root decision 0216): their Lazurio
@@ -61,6 +62,7 @@ export function assignmentText(
     case "services":
       return copy.serverServicesName;
     case "operator":
+      if ("account" in assignment) return accountFact(assignment.account);
       return `${assignment.githubLogin} (GitHub id ${assignment.githubId})`;
     case "automation":
       return fill(copy.machineAssignmentAutomation, {
@@ -278,7 +280,7 @@ function worksText(
   if (assignment === undefined) return teamName;
   switch (assignment.kind) {
     case "operator":
-      return `@${assignment.githubLogin}`;
+      return `@${"account" in assignment ? assignment.account.username : assignment.githubLogin}`;
     case "automation":
       return fill(copy.machineWorksAutomation, {
         login: assignment.githubLogin,

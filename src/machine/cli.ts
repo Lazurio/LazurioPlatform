@@ -331,8 +331,6 @@ const contextNext: Partial<Record<MachineContextError["code"], string>> = {
     "This Environment is not assigned to anyone yet. Its Folder is created in the person's home once its assignment names them; nothing was created or changed.",
   "machine-assignment-released":
     "This Environment's assignment was released; nothing is created or refreshed for anybody any more. Nothing was changed.",
-  "machine-assignment-unlinked":
-    "This work Environment's person has no GitHub account linked, which this Lazurio release needs to record the assignment. Link one in the Lazurio account and run the same command again; nothing was changed.",
 };
 const machineContextNext = (code: MachineContextError["code"]) =>
   contextNext[code] ??
