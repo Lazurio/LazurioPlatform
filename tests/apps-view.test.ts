@@ -242,7 +242,7 @@ test("two sections, Workspace with every module in catalog order and Productions
     [
       "Knowledgebase",
       "Znalosti, rozhodnutí a dokumentace",
-      "/.lazurio/stones/guide-96.png",
+      "/.lazurio/stones/knowledgebase-96.png",
     ],
     [
       "deals",
@@ -752,7 +752,7 @@ test("every vendored file has the hash its README records", async () => {
   const rows = [
     ...readme.matchAll(/\| `([^`]+)` \|(?: `[^`]+` \|)? `([0-9a-f]{64})` \|/g),
   ];
-  expect(rows.length).toBe(23);
+  expect(rows.length).toBe(33);
   for (const [, file, hash] of rows) {
     const bytes = await readFile(join(directory, file ?? ""));
     expect(createHash("sha256").update(bytes).digest("hex")).toBe(hash ?? "");
