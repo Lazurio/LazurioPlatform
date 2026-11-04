@@ -16,7 +16,12 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { machineIdentity } from "../src/folder/machine-binding";
 import { derivePreset } from "../src/folder/presets";
-import { operatorAvatar, operatorLogin } from "../src/launchpad/shell-document";
+import { workEnvironment } from "../src/github/pilot";
+import {
+  assigneeLogin,
+  operatorAvatar,
+  operatorLogin,
+} from "../src/launchpad/shell-document";
 import {
   type AssignmentReceipt,
   type AuthSourcedHandover,
@@ -151,6 +156,26 @@ const personalReceipt = (bound = true) =>
   receipt("personal-env-0007", null, bound);
 const workReceipt = (bound = true, linked = true) =>
   receipt("example-work-07", "example", bound, linked);
+/** A bound work receipt whose first binding linked `first` (null: no
+ * GitHub account) and whose current generation links `linked`. */
+function workLinked(
+  first: number | null,
+  linked: Readonly<{ id: number; login: string }> | null,
+): AssignmentReceipt {
+  const bound = workReceipt();
+  return {
+    ...bound,
+    first: { generation: 2, subject, github_id: first },
+    current: {
+      generation: 3,
+      assignee: {
+        subject,
+        github_id: linked?.id ?? null,
+        github_login: linked?.login ?? null,
+      },
+    },
+  };
+}
 const handoverOf = (value: unknown) =>
   parseMachineHandover(bytes(value)) as AuthSourcedHandover;
 const code = (run: () => unknown) => {
@@ -299,7 +324,7 @@ test("a bound personal receipt makes its first assignee the owner, its account t
   );
 });
 
-test("a bound work receipt names the assignee by the GitHub account linked now, and the Organization keeps owning it", () => {
+test("a bound work receipt names its assignee by their Lazurio account, with the GitHub account linked now if any, and the Organization keeps owning it", () => {
   const context = assignedMachineContext(
     handoverOf(workHandover),
     bytes(workReceipt()),
@@ -309,8 +334,11 @@ test("a bound work receipt names the assignee by the GitHub account linked now, 
     ...workOwner,
     assignment: {
       kind: "operator",
-      github_login: "example-person",
-      github_id: 4242,
+      account: {
+        username: "example-person",
+        subject,
+        github: { login: "example-person", id: 4242 },
+      },
     },
   } as never);
   expect(context.operator.os_user).toBe("example-person");
@@ -320,14 +348,22 @@ test("a bound work receipt names the assignee by the GitHub account linked now, 
   expect(derivePreset(machineBinding(context, "a".repeat(64)))).toBe(
     "hosted-organization-personal",
   );
-  expect(
-    code(() =>
-      assignedMachineContext(
-        handoverOf(workHandover),
-        bytes(workReceipt(true, false)),
-      ),
-    ),
-  ).toBe("machine-assignment-unlinked");
+  // A work Environment needs no GitHub account (root decision 0192): the
+  // person without one is the same operator, by username and subject.
+  const unlinked = assignedMachineContext(
+    handoverOf(workHandover),
+    bytes(workLinked(null, null)),
+  );
+  expect(unlinked.owner).toEqual({
+    ...workOwner,
+    assignment: {
+      kind: "operator",
+      account: { username: "example-person", subject, github: null },
+    },
+  } as never);
+  expect(derivePreset(machineBinding(unlinked, "a".repeat(64)))).toBe(
+    "hosted-organization-personal",
+  );
 });
 
 test("a receipt of another Machine, or one the finisher would not have written, is refused whole", () => {
@@ -781,11 +817,83 @@ test.skipIf(process.platform === "win32" || uid === 0)(
   },
 );
 
+const workBinding = (bound: AssignmentReceipt) =>
+  machineBinding(
+    assignedMachineContext(handoverOf(workHandover), bytes(bound)),
+    "c".repeat(64),
+  );
+
+test.skipIf(process.platform === "win32" || uid === 0)(
+  "a work assignee without a GitHub account gets their Folder, and a later link or unlink is recorded by folder-refresh",
+  async () => {
+    const parent = await realpath(
+      await mkdtemp(join(tmpdir(), "lazurio-free-environment-unlinked-")),
+    );
+    const assignmentLine = async (folder: string) =>
+      (await readFile(join(folder, "AGENTS.md"), "utf8"))
+        .split("\n")
+        .filter((line) => line.startsWith("- Assignment:"));
+    try {
+      const home = join(parent, "home");
+      await mkdir(home, { mode: 0o700 });
+      const folder = join(home, "Lazurio");
+      const unlinked = workBinding(workLinked(null, null));
+      // The services' folder-init initializes it with the derived preset.
+      expect(
+        (await initializeMachineFolder(folder, unlinked, initChoices, true))
+          .result,
+      ).toMatchObject({
+        kind: "initialized",
+        preset: { name: "hosted-organization-personal" },
+      });
+      expect(await assignmentLine(folder)).toEqual([
+        "- Assignment: assigned to the user with Lazurio username `example-person` (no verified GitHub account).",
+      ]);
+      expect(operatorLogin(unlinked)).toBe("example-person");
+      expect(assigneeLogin(unlinked, "work")).toBe("example-person");
+      expect(operatorAvatar(unlinked)).toBeNull();
+      // No GitHub account to check a GitHub sign-in against.
+      expect(await workEnvironment(async () => folder)).toMatchObject({
+        kind: "refused",
+        reason: "subject-unknown",
+      });
+      const withheld = bindingValues(unlinked).map(({ value }) => value);
+      expect(withheld).toContain("example-person");
+      expect(withheld).toContain(subject);
+      // The person links a GitHub account later: the same operator, now
+      // with it.
+      const linked = workBinding(
+        workLinked(null, { id: 4242, login: "Example-Person" }),
+      );
+      expect(machineIdentity(linked)).toEqual(machineIdentity(unlinked));
+      expect((await refreshMachineFolder(folder, linked)).result).toMatchObject(
+        { kind: "refreshed" },
+      );
+      expect(await assignmentLine(folder)).toEqual([
+        "- Assignment: assigned to the user with Lazurio username `example-person` (GitHub login `example-person`, id 4242).",
+      ]);
+      expect(operatorAvatar(linked)).toContain("example-person");
+      expect(await workEnvironment(async () => folder)).toMatchObject({
+        kind: "work",
+        subject: { login: "example-person", id: 4242 },
+      });
+      // And unlinks it again.
+      expect(
+        (await refreshMachineFolder(folder, unlinked)).result,
+      ).toMatchObject({ kind: "refreshed" });
+      expect((await assignmentLine(folder))[0]).toContain(
+        "(no verified GitHub account)",
+      );
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
 test("every refusal of a free Environment is one blocked answer that names no person", () => {
   for (const reason of [
     "machine-assignment-pending",
     "machine-assignment-released",
-    "machine-assignment-unlinked",
   ] as const) {
     const answer = machineFailureAnswer(new MachineContextError(reason));
     expect(answer.code).toBe(2);
