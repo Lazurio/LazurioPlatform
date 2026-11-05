@@ -2,11 +2,12 @@
   "source_repository": "HumanAndMachine-ai/Machines",
   "source_version": null,
   "source_tag": null,
-  "source_pull_request": "https://github.com/HumanAndMachine-ai/Machines/pull/1072",
-  "source_commit": "67a6a6131315208f8f0d31b3ab33453a0fb210e5",
+  "source_pull_request": "https://github.com/HumanAndMachine-ai/Machines/pull/1099",
+  "source_commit": "9ff9a534f62d6ce9dada733639e59de7b7b1b2e5",
   "source_path": "workloads/workspace-vm/lazurio-machine.v1.schema.json",
-  "source_sha256": "1a4d7b92afd69f405289f57bb5941831e3c3d0e0a0f798e834b2b2bf6e3160cd",
-  "sha256": "1a4d7b92afd69f405289f57bb5941831e3c3d0e0a0f798e834b2b2bf6e3160cd",
+  "source_sha256": "057195b531c5ea012f7af8387d02da245fcb03bb4b94fc49ffa113affd251434",
+  "sha256": "057195b531c5ea012f7af8387d02da245fcb03bb4b94fc49ffa113affd251434",
   "publication_authorization": "https://github.com/HumanAndMachine-ai/Machines/pull/124#issuecomment-5688845105",
-  "pin_update": "https://github.com/HumanAndMachine-ai/Machines/pull/1072"
+  "pin_update": "https://github.com/HumanAndMachine-ai/Machines/pull/1099",
+  "pending": "Vendored byte for byte from the head of the open Machines pull request #1099 (root decision 0181, addendum of 2026-11-05), which adds only the personal branch's optional member `services` (at most one AI pool of the Environment's own: id and kind `ai-pool`, repository `Lazurio/CLIProxyAPI` and a `page_port` of 18400-18499) and forbids it on an auth-sourced personal handover, to the schema of Machines #1072. Re-pin to its merge commit before this Platform merges; a digest other than this one is a new re-pin."
 }

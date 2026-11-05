@@ -106,11 +106,27 @@ test("the vendored schema has Machines' closed `services` assignment and the Org
       required: ["id", "kind"],
     },
   });
-  // Only the Organization branch carries either.
+  // Only the Organization branch carries the assignment and its list; the
+  // personal branch's `services` is a Personal Environment's own AI pool
+  // alone (root decision 0181, addendum of 2026-11-05; Machines #1099,
+  // tests/personal-ai-pool.test.ts): one at most, of one fixed kind.
   const personalVm = defs.personal_vm as {
-    properties: Record<string, unknown>;
+    properties: Record<string, Record<string, unknown>>;
   };
-  expect("services" in personalVm.properties).toBe(false);
+  expect(personalVm.properties.services).toMatchObject({
+    type: "array",
+    maxItems: 1,
+    items: {
+      type: "object",
+      additionalProperties: false,
+      required: ["id", "kind", "repository", "page_port"],
+      properties: {
+        id: { const: "ai-pool" },
+        kind: { const: "ai-pool" },
+        repository: { const: "Lazurio/CLIProxyAPI" },
+      },
+    },
+  });
 });
 
 test("a services Environment's handover is read exactly as written and observed with no authority", () => {

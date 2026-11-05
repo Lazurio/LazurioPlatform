@@ -307,19 +307,37 @@ const serviceKindKeys: Readonly<Record<ServiceKind, MessageKey>> = {
   dns01: "serviceKindDns01",
 };
 
-/** What a service is, in a person's words: "AI pool Organizace". */
-export const serviceKindText = (service: CatalogService, copy: Copy): string =>
-  copy[serviceKindKeys[service.kind]];
+// A service listed in the Personalspace group is the person's own: a
+// Personal Environment's AI pool (root decision 0181, addendum of
+// 2026-11-05) is "Váš AI pool", never the Organization's.
+const personalServiceKindKeys: Readonly<
+  Partial<Record<ServiceKind, MessageKey>>
+> = { "ai-pool": "serviceKindAiPoolPersonal" };
+
+/** What a service is, in a person's words: "AI pool Organizace", or where
+ * `personal` (it is listed in the Personalspace group) "Váš AI pool". */
+export const serviceKindText = (
+  service: CatalogService,
+  copy: Copy,
+  personal = false,
+): string =>
+  copy[
+    (personal ? personalServiceKindKeys[service.kind] : undefined) ??
+      serviceKindKeys[service.kind]
+  ];
 
 /** A service repository's one line: what its services are, each kind once,
  * in their order ("Brána AI · AI pool Organizace"). */
 export const servicesText = (
   services: readonly CatalogService[],
   copy: Copy,
+  personal = false,
 ): string =>
-  [...new Set(services.map((service) => serviceKindText(service, copy)))].join(
-    " · ",
-  );
+  [
+    ...new Set(
+      services.map((service) => serviceKindText(service, copy, personal)),
+    ),
+  ].join(" · ");
 
 /** What a catalog route shows; `ambiguous` when more than one candidate
  * declares the slug (their isolation, never one of them), `missing` when the
@@ -509,7 +527,8 @@ export type CatalogGroupEntry = Readonly<{
   /** An Organization's sections that have something in them, in the order
    * Workspace, Productionspace: every module in Workspace, every production
    * repository in Productionspace. Null for the Personalspace group, which
-   * stays one list. */
+   * stays one list (with a Personal Environment's own AI pool after its
+   * modules, root decision 0181's addendum of 2026-11-05). */
   sections: readonly CatalogSection[] | null;
 }>;
 
@@ -655,7 +674,8 @@ export function repositoryFacts(
   ];
 }
 
-/** What a service's card says of it, "Služba": its name and what it is,
+/** What a service's card says of it, "Služba": its name and what it is
+ * (`personal` as for `serviceKindText`),
  * where it runs (`environment`, this Environment's name as the shell names
  * it, "Služby serveru"; null before the shell document is read) and the
  * address of its page where it has one, without the scheme. */
@@ -663,10 +683,11 @@ export function serviceFacts(
   service: CatalogService,
   environment: string | null,
   copy: Copy,
+  personal = false,
 ): readonly CatalogFact[] {
   return [
     [copy.appsServiceName, service.id],
-    [copy.appsServiceKind, serviceKindText(service, copy)],
+    [copy.appsServiceKind, serviceKindText(service, copy, personal)],
     ...(environment === null
       ? []
       : ([[copy.appsServiceRunsIn, environment]] as CatalogFact[])),

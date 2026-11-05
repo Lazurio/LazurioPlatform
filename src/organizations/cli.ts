@@ -38,7 +38,9 @@ export const catalogHelp = `organization list [--folder <absolute Folder>] [--js
   mounted at workspace/<Home>_GEN3/<module>, each with homeOrganization,
   guest true and whether it is checked out; read-only, never run here), and
   on a Folder with a Personalspace its group (personalspace), which is not
-  an Organization and is not in the table.
+  an Organization and is not in the table; on a Personal Environment with
+  its own AI pool, that group also lists the pool's repository with its
+  service and page, as in Server services.
 module list [<Organization>] [--folder <absolute Folder>] [--json]
   The modules of every Organization, or of the one named by its slug or
   directory name: its workspace modules and, when declared with a
