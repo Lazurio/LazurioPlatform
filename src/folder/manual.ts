@@ -608,6 +608,14 @@ function workingHere(
       "V Organizaci nejdřív načti její `AGENTS.md` a dodrž její kaskádu včetně příslušné role, person overlaye, workspace a bližšího modulového `AGENTS.md`. Pro orientaci použij její `MAP.md`, `GLOSSARY.md`, README a doporučené skills, pokud je má. `lazurio.organization.json` a manifest modulů, na který ukazuje, říkají, co kam patří; starší deklarace čte produkt přes svůj katalog. Neodvozuj cesty jen z názvu firmy. Tenhle manuál ti dává postup, firemní významy a pravidla drží Organizace.",
       "In the Organization, first read its `AGENTS.md` and follow its cascade, including the applicable role, person overlay, workspace and nearer module `AGENTS.md`. Use its `MAP.md`, `GLOSSARY.md`, README and recommended skills for orientation when present. `lazurio.organization.json` and the modules manifest it points to say what belongs where; the product reads older declarations through its catalog. Do not infer paths from a company name alone. This manual supplies the procedure; the Organization owns its meanings and rules.",
     ),
+    // The Organization's skills (Lazurio/LazurioPlatform#867): a chat starts
+    // in the Folder's root (root decision 0189), where Codex loads only the
+    // Folder's `.agents/skills` and Claude Code announces a nested
+    // `.claude/skills` only once it works with a file inside that checkout.
+    t(
+      "Skilly Organizace jsou v jejím checkoutu: `organizations/<org>/.agents/skills/` pro Codex a `.claude/skills/` pro Claude Code. Chat začíná v kořeni Folderu a harness z něj načte jen skilly Folderu. Codex skilly Organizace nenačte vůbec a Claude Code je ohlásí, až když pracuješ se soubory v jejím checkoutu. Před prací v Organizaci proto projdi `name` a `description` ve frontmatteru každého `organizations/<org>/.agents/skills/*/SKILL.md`. Skill, který na úkol sedí, si přečti celý a řiď se jím jako skillem svého harnessu. Skilly nekopíruj ani neodkazuj do kořene Folderu.",
+      "The Organization's skills are in its checkout: `organizations/<org>/.agents/skills/` for Codex and `.claude/skills/` for Claude Code. A chat starts in the Folder's root, and from there the harness loads only the Folder's skills. Codex never loads the Organization's skills, and Claude Code announces them only once you work with files in its checkout. So before Organization work, go through `name` and `description` in the frontmatter of every `organizations/<org>/.agents/skills/*/SKILL.md`. Read the skill that fits the task in full and follow it as you would your harness's own. Never copy or link skills into the Folder's root.",
+    ),
     // Guest Modules (root decision 0221, DEV-6694), in general terms only.
     ...(preset === "hosted-personal"
       ? []
