@@ -52,7 +52,7 @@ export type AuthOperatorAssignment = Readonly<{
 }>;
 
 export type AuthSourcedPersonalHandover = Readonly<
-  Omit<PersonalMachineContext, "owner" | "vault"> & {
+  Omit<PersonalMachineContext, "owner" | "vault" | "services"> & {
     owner: AssignmentOwner;
     assignment_receipt: AssignmentReceiptPointer;
   }

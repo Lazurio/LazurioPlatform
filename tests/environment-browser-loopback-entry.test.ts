@@ -157,7 +157,9 @@ test("the vendored schema carries Machines #633's local_port: optional, a port o
   // `access` and `ssh.host_keys`, and then to Machines #1051, which adds only
   // `access_service` (tests/access-service-handover.test.ts).
   // Then to the auth-sourced handover of a free Environment
-  // (tests/free-environment-handover.test.ts).
+  // (tests/free-environment-handover.test.ts), and then to Machines #1099,
+  // which adds only a Personal Environment's own AI pool
+  // (tests/personal-ai-pool.test.ts).
   expect(provenance.source_pull_request).toBe(vendoredSchemaPullRequest);
   const browser = (
     schema as unknown as {

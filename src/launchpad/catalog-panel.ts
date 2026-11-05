@@ -130,7 +130,9 @@ export type HomeEnvironment = Readonly<{
 // the Organization's synchronization now. In the personal space its holder sees, "Co
 // dalšího tu můžete dělat" follows everything else: links into Chat,
 // Automate, Integrace and Soubory (root decision 0185's addendum of
-// 2026-10-13). In Služby serveru a service repository's tile opens its
+// 2026-10-13). In Služby serveru, and in the personal space of a Personal
+// Environment with its own AI pool (root decision 0181, addendum of
+// 2026-11-05), a service repository's tile opens its
 // service's page in the right panel, and its menu leads to its own page
 // (root decision 0209 point 6, decision F32's addendum of 2026-10-24).
 // Teams are shown nowhere (decision F32). Every value from the server is
@@ -1527,7 +1529,9 @@ export function createCatalogPanel(
   // per service of this Environment from it, with where it runs and the
   // address of its page. With one page the head opens it, as the tile does;
   // with more, each card opens its own. No app lifecycle, branches or log:
-  // a repository has no app.
+  // a repository has no app. A Personal Environment's own AI pool (root
+  // decision 0181, addendum of 2026-11-05) has the same page in the
+  // Personalspace group, in the person's words ("Váš AI pool").
   function repositoryView(
     value: Catalog,
     scope: CatalogGroupEntry | null,
@@ -1542,9 +1546,10 @@ export function createCatalogPanel(
     heading.dataset.pageHeading = "";
     const text = element("div", "module-head-text");
     const services = repository.services ?? [];
+    const personal = scope?.sections === null;
     text.append(
       heading,
-      element("p", "module-meta", servicesText(services, copy)),
+      element("p", "module-meta", servicesText(services, copy, personal)),
     );
     const mark = element("span", "module-mark");
     mark.setAttribute("aria-hidden", "true");
@@ -1587,7 +1592,9 @@ export function createCatalogPanel(
       top,
       group(copy.appsRepositoryAbout, about),
       ...services.map((service) => {
-        const card = factsCard(serviceFacts(service, environment, copy));
+        const card = factsCard(
+          serviceFacts(service, environment, copy, personal),
+        );
         // Several pages: each card opens its own, under its address.
         if (service.page !== null && pages.length > 1)
           card.lastElementChild

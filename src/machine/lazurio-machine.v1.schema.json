@@ -147,6 +147,22 @@
         "access_service": { "$ref": "#/$defs/access_service" },
         "entry": { "description": "The entry of the guest: finished values (`entry`), or on an auth-sourced document their templates (`entry_template`).", "type": "object" },
         "vault": { "$ref": "#/$defs/vault_personal" },
+        "services": {
+          "description": "The Personal Environment's own AI pool (root decision 0181, addendum of 2026-11-05; Machines workloads/workspace-vm/personal-ai-pool.ts), rendered only for a Platform that reads it: its id and kind, the public fork it runs and the loopback port of its Management Center, which the Environment browser opens. One service at most, never with a hostname.",
+          "type": "array",
+          "maxItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "kind", "repository", "page_port"],
+            "properties": {
+              "id": { "const": "ai-pool" },
+              "kind": { "const": "ai-pool" },
+              "repository": { "const": "Lazurio/CLIProxyAPI" },
+              "page_port": { "type": "integer", "minimum": 18400, "maximum": 18499 }
+            }
+          }
+        },
         "installed": { "$ref": "#/$defs/installed" },
         "account": { "$ref": "#/$defs/account" }
       },
@@ -156,7 +172,8 @@
         "properties": {
           "assignment_receipt": { "$ref": "#/$defs/assignment_receipt" },
           "entry": { "$ref": "#/$defs/entry_template" },
-          "vault": false
+          "vault": false,
+          "services": false
         }
       },
       "else": {
