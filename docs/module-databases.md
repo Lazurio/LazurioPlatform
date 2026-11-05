@@ -110,13 +110,12 @@ the preparation, a build or a sibling.
 
 | Variable | Value | Secret |
 | --- | --- | --- |
-| `LAZURIO_RUNTIME_DATABASE_HOST` | the address of the `database` service of this Environment's own server | no |
+| `LAZURIO_RUNTIME_DATABASE_HOST` | the name of the `database` service, which resolves to this Environment's own server | no |
 | `LAZURIO_RUNTIME_DATABASE_PORT` | its port | no |
 | `LAZURIO_RUNTIME_DATABASE_NAME` | the Module's database | no |
 | `LAZURIO_RUNTIME_DATABASE_USER` | this Environment's SQL user | no |
 | `LAZURIO_RUNTIME_DATABASE_PASSWORD` | this Environment's token for the service | **yes** |
 | `LAZURIO_RUNTIME_DATABASE_TLS_CA` | the CA certificate that signs the service's certificate, as PEM text | no |
-| `LAZURIO_RUNTIME_DATABASE_TLS_SERVER_NAME` | the name the App verifies in the service's certificate | no |
 | `LAZURIO_RUNTIME_DATABASE_ACCESS` | `read` or `write`: this Environment's level on this database | no |
 
 The password is the only secret, and the same rules hold for it as for a runtime
@@ -132,9 +131,9 @@ member of the handover, and the token beside it:
   "service": "<service id>",
   "engine": "dolt",
   "engine_version": "2.6.2",
-  "host": "<bridge address of this server's services Environment>",
+  "host": "<service name>",
   "port": 8440,
-  "tls": { "server_name": "<service name>", "ca_file": "<path>" },
+  "tls": { "ca_file": "<path>" },
   "user": "<Environment>",
   "token_file": "<path>",
   "databases": [
@@ -161,11 +160,16 @@ Whether the token comes from this file or from the Environment's vault is
 answer changes no Module.
 
 **TLS is required.** The service accepts only encrypted connections, and the App
-verifies the certificate chain against `LAZURIO_RUNTIME_DATABASE_TLS_CA` and the
-name against `LAZURIO_RUNTIME_DATABASE_TLS_SERVER_NAME`. The address is a bridge
-address no certificate names, so the name is passed separately. The name and the
-CA are the same on every server of the Organization, so a failover, which moves
-the connection's far end to another node, changes nothing the App checks.
+verifies both the chain and the name. In `mysql2` that takes
+`ssl: { ca, rejectUnauthorized: true, verifyIdentity: true }`: `rejectUnauthorized`
+alone checks only the chain, `ssl.servername` has no effect, and `verifyIdentity`
+compares the certificate with `host`, which therefore has to be a name and cannot
+be an address. So `LAZURIO_RUNTIME_DATABASE_HOST` is one fixed name of the service,
+the same on every server, and Machines resolves it on each Environment to the bridge
+address of its own server's services Environment. The certificate of every node
+carries that name under the same CA, so a failover changes nothing the App checks.
+`@lazurio/module-kit`'s `database()` returns these options, so that no Module writes
+them by hand.
 
 **When the connection is missing.** A declared database without a usable
 connection fails closed, on both sides.
@@ -225,8 +229,28 @@ further by the verified identity of the person.
 | --- | --- | --- |
 | none | the Environment's identity has no access to the Module's repository | no privilege on the database |
 | `read` | it has read access | `SELECT` |
-| `write` | it has write access | `SELECT`, `INSERT`, `UPDATE`, `DELETE` and Dolt's procedures for drafts and publication; branch permissions keep its writes to its own draft and `main` |
-| `migrate` | an Admin's Environment | `write` for the App, and a second SQL user with `CREATE`, `ALTER`, `DROP`, `INDEX` that only `lazurio module migrate` gets |
+| `write` | it has write access | `SELECT`, `INSERT`, `UPDATE`, `DELETE`, and `EXECUTE` on exactly the procedures `dolt_branch`, `dolt_commit`, `dolt_merge` and `dolt_revert` |
+| `migrate` | an Admin's Environment | `write` for the App, and a second SQL user with `CREATE`, `ALTER`, `DROP`, `INDEX` and `write`'s privileges that only `lazurio module migrate` gets |
+
+**Never `EXECUTE` on a whole database.** To Dolt its administrative procedures are
+ordinary procedures: a user with `EXECUTE` on one database can call
+`dolt_assume_cluster_role` and demote the primary. Each procedure is granted by name,
+and with that grant `dolt_gc`, `dolt_backup`, `dolt_remote` and role changes are
+refused.
+
+**Branch permissions.** Dolt's default rule lets every user write to every branch.
+Machines removes it at creation and writes explicit rules, which its own administrator
+needs too: an Environment at the level `write` may write to `draft/<Environment>` and
+`main`, and may create only the branch `draft/<Environment>`. A catch-all rule reserves
+every other branch name, because without one the rules restrict nothing. So one
+Environment cannot touch another's draft, and nobody at this level can force or delete
+`main`.
+
+**A known limit.** Publishing needs write access to `main`, and Dolt cannot narrow that
+to merges. `dolt_reset` is not granted, but `dolt_commit('--amend')` on `main` can
+replace its last commit. The Module's server never does that. Someone with the whole
+Environment could, which is the trust 0196 already describes, and the backups are the
+way back.
 
 The rule of thumb comes from a Team's live grant on the Module's repository (0186):
 whoever may work on a Module usually gets the same level on its data. It stays a
@@ -244,19 +268,20 @@ decision of the Admin: code access and data access may differ on purpose.
 
 ## 4. Drafts, publication and branches
 
-**Proposed, and to be proven on the prototype.** Draft & Publish stays the
-interface it is in `app/v3`; the stack profile promises exactly that.
+**Proposed; the steps marked in [verified locally](#verified-locally) ran on Dolt
+2.6.2.** Draft & Publish stays the interface it is in `app/v3`; the stack profile
+promises exactly that.
 
 | Operation | In Dolt |
 | --- | --- |
 | Published state | the branch `main` |
 | Draft | one branch `draft/<Environment>` per Environment, created from `main`, because the draft is shared per Environment (0196) |
-| Save | a SQL transaction on that branch, with the optimistic `baseRevision` of `app/v3`: Dolt has no fully serializable `SELECT … FOR UPDATE` |
+| Save | a SQL transaction on that branch, with the optimistic `baseRevision` of `app/v3`: Dolt has no fully serializable `SELECT … FOR UPDATE`. A save needs no commit: the branch's working set reaches the standby and the backups |
 | The draft card | the diff of `main...draft/<Environment>` |
 | Publish | one operation on the server: `DOLT_COMMIT` on the draft with the author and the summary, then `DOLT_MERGE` into `main` |
-| A colleague published the same record first | the publication is refused with `record_changed` and nothing is written |
+| A colleague published the same record first | `DOLT_MERGE` reports the conflict and rolls back, `main` does not move, and the App answers `record_changed` |
 | Take over colleagues' work | a merge of `main` into the draft |
-| Discard | a reset of the record, or of the branch to `main` |
+| Discard | a record: its row taken from `main`; the whole draft: `DOLT_BRANCH('-f', 'draft/<Environment>', 'main')`, which drops its working set too |
 | Undo a publication | `DOLT_REVERT` on `main` |
 
 An agent writes only to the draft and publishes only on a person's instruction, as
@@ -264,15 +289,17 @@ in `app/v3`.
 
 **The branch of a connection.** The current branch is session state, so a pooled
 connection can stay on another branch. An App keeps one pool per branch and names
-the branch in the pool's database name, `<database>/<branch>`, so that a connection
-cannot leave it.
+the branch in the pool's database name, `<database>/<branch>` (for example
+`crm/draft/team-sales`), so that a connection cannot leave it. A name of a branch
+that does not exist yet is refused as "access denied", so the App creates its draft
+branch first, on a connection to the database itself.
 
 ## 5. Migrations
 
 **Proposed.** The schema changes only through Kysely migrations in
 `app/v4/migrations/`, numbered files that export `up` (and `down` where going back
-is safe), applied in order by Kysely's `Migrator`, which records them in
-`kysely_migration`. The Zod schemas stay the source of the data's shape; a
+is safe), applied in order by Kysely's `Migrator` (imported from `kysely/migration`
+since 0.29), which records them in `kysely_migration`. The Zod schemas stay the source of the data's shape; a
 migration is written from them and a test holds the two together.
 
 **Who runs them.** An Admin, with the command `lazurio module migrate
@@ -332,17 +359,24 @@ additive changes matter here too.
 
 ## 7. History and audit
 
-**Proposed, and to be proven on the prototype.** `main`'s history is the audit:
-`dolt_log` lists every publication with its author, time and summary, and the diff
-tables show exactly what changed.
+**Proposed.** `main`'s history is the audit: `dolt_log` lists every publication with
+its identity, time and summary, and the diff tables show exactly what changed.
 
-- **Author.** The Module's server sets the commit's author from the verified identity
-  of the person (0196). Where that identity is not available yet, the author is the
-  Environment. As 0196 says, the author is information, not proof.
+- **A commit names the Environment.** Without `--author`, Dolt writes the SQL user as
+  the commit's committer and author, and that is the one identity the database itself
+  checked. So the App passes no `--author`: Dolt replaces both fields with it, and
+  nothing in the commit then shows who was connected.
+- **A publication names the person in its message.** Where the verified identity of
+  0196 is available, the Module's server adds a trailer `Lazurio-Person: <login>` to
+  the summary. Where it is not, the commit names the Environment alone, which fits
+  0196: data are reached by the Environment.
+- **It remains information, not proof.** A user who may commit can pass `--author`, as
+  no grant limits a procedure's arguments. The audit shows what an honest Module's
+  server recorded; it does not hold against the Environment's own operator.
 - **What Dolt adds over Git.** A draft's saves are visible as a diff before they are
   published, and a publication that was wrong is undone by a commit of its own.
-- **What a commit does not hold.** A summary or a branch name holds no personal data:
-  it survives an erasure ([personal data](#9-personal-data)).
+- **What a commit does not hold.** A summary or a branch name holds no personal data,
+  because it survives an erasure ([personal data](#9-personal-data)).
 
 ## 8. Backups and restore
 
@@ -350,6 +384,11 @@ tables show exactly what changed.
 of every database with all branches and drafts, to Google Cloud Storage in the
 Organization's own EU project, rotated through hourly and daily copies, together
 with a dump of users and grants. The Module does nothing for this.
+
+A backup carries the branches and the uncommitted drafts, and it carries no users,
+which is why the dump exists. A sync into a target that already holds a copy leaves
+the old files there, so Machines proposes a new target for every copy, with old
+copies expiring by age. That is also what makes [erasure](#9-personal-data) end.
 
 Restoring is an Admin's step on the services Environment: the database and its users
 come back from a chosen copy. What was written after that copy is lost. A Module sees
@@ -365,7 +404,7 @@ leaves them in the history, the drafts, the standby and the backups.
 
 | Way | What it does | Audit | Cost |
 | --- | --- | --- | --- |
-| **Rewriting the history** (recommended) | `dolt filter-branch` removes the rows from every commit of every branch; garbage collection then removes the old data on each node; backups age out | Who, when and the summary stay; the erased content and the old commit hashes are gone; an erasure record says who erased what and when | A short write pause and an Admin's operation, implemented once for all Modules |
+| **Rewriting the history** (recommended) | `dolt filter-branch` removes the rows from every commit of every branch and from the drafts; garbage collection removes the old data on each node; backups expire | Who, when and the summary stay; the erased content and the old commit hashes are gone; an erasure record says who erased what and when | A short write pause and an Admin's operation, implemented once for all Modules |
 | Encrypting per person | Personal columns are encrypted with a key per person, kept outside the history; deleting the key makes every copy unreadable | Stays complete, hashes included | Every Module has to encrypt, personal columns cannot be searched, a lost key store loses data |
 | Keeping personal data out of the history | Tables in `dolt_ignore` are never committed, so they have no history | Nothing about those columns | No draft, review or undo for them, and each branch has its own copy |
 
@@ -381,7 +420,13 @@ What a Module has to do for it:
   erasure is one precise statement. The Module's `AGENTS.md` lists those tables.
 - Keep personal data out of commit summaries and branch names.
 
-The erasure itself is a Machines runbook, an Admin's step.
+The erasure itself is a Machines runbook, an Admin's step: stop the primary, run
+`dolt filter-branch --all --apply-to-uncommitted`, run `dolt gc --full`, start it again,
+let replication carry the rewritten branches, and run `dolt_gc` on the standby. The
+person is then gone from every live copy. Backups hold them until the last copy from
+before the erasure expires, 14 days with the proposed retention, and a restore from
+such a copy has to repeat the erasure, so the erasure records are kept outside the
+database.
 
 ## 10. Network
 
@@ -439,6 +484,37 @@ reviewed and reversible.
 8. **The way back.** `export:v4-to-v3` writes `main` back into the data repository as
    one commit, and `default_app` returns. It works as long as `app/v3` is kept; it
    brings records, not Dolt's history or drafts.
+
+## Verified locally
+
+On 2026-11-05 on Linux x64, two `dolt sql-server` 2.6.2 nodes in a cluster with TLS on
+one computer, driven with `mysql2` 3.24.6 and Kysely 0.29.8 under Bun 1.4.4, with
+backups to a local directory. This shows the design is possible; it is not the
+prototype of the phases below.
+
+| Claim | Result |
+| --- | --- |
+| Encrypted connections only, chain and name verified | A plain connection, another CA and an address instead of the name are refused; `ssl.servername` is ignored |
+| `read` | `SELECT` works; writes, commits, branches and DDL are refused |
+| `write` | Works with per-procedure `EXECUTE`; DDL, `dolt_gc`, `dolt_backup`, `dolt_remote`, `CREATE USER` and role changes are refused. With `EXECUTE` on the database a user demoted the primary |
+| Branch permissions | Another Environment's draft is refused, and so is creating another branch, forcing `main` or deleting a foreign draft |
+| A connection on a branch, a database name with a hyphen | `crm/draft/env-a` and `mission-control/main` work |
+| A commit's identity | Without `--author` the SQL user; with it, the given name in both fields |
+| Conflicting publications | The second merge is refused and `main` does not move |
+| Kysely | `Migrator` applies migrations and records them; queries work |
+| Replication | `main`'s head, branches and working sets reach the standby, which refuses writes. Users, grants and branch permissions reach it too, on each change |
+| Backup and restore | Branches and an uncommitted draft come back, users do not |
+| Planned and emergency failover | No published commit lost in the planned one; a former primary returns as a standby of the higher epoch |
+| Erasure | The marked person is gone from the storage of both nodes and from the drafts, messages and committers are kept, hashes change. A sync into the same target keeps the old data, and a new target does not have it |
+
+Not verified: a TCP proxy in the path, Google Cloud Storage, `dolt_revert`, the cost of
+anything at a real size, latency between servers, and `tests/store-contract.ts`.
+
+Two findings differ from what the [register][0209] and Dolt's documentation say, and
+neither changes a decision. Dolt 2.6.2 does replicate users and grants, though a new
+standby gets them only with the next change, and a backup still does not carry them,
+so the dump stays. And a copy does not fully overwrite its target, so rotation by
+overwriting would keep erased data.
 
 ## Phases
 
