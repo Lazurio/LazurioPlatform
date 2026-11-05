@@ -47,6 +47,14 @@ const hang = `hang() {
 }
 `;
 
+// The system's own ssh-keygen, when this runner has one: it only generates
+// and reads files under the temporary home it is given with `-f`, and it
+// never uses the network.
+const systemPath = "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin";
+export const realSshKeygen: string | null = Bun.which("ssh-keygen", {
+  PATH: systemPath,
+});
+
 const scripts: Record<string, string> = {
   gh: `#!/bin/sh
 echo "$@" >> "$HOME/gh.calls"
@@ -174,12 +182,33 @@ hang ssh
 # $HOME/ssh.unreachable: no route to GitHub at all (a network without it).
 [ -f "$HOME/ssh.unreachable" ] && { echo "ssh: connect to host github.com port 22: Network is unreachable" >&2; exit 255; }
 grep -qF "${githubHostKeys[0]?.split(" ")[1]}" "$HOME/.ssh/known_hosts" 2>/dev/null || { echo "Host key verification failed." >&2; exit 255; }
+# -v: the debug lines OpenSSH writes for each key it offers and the one the
+# server accepts, with the key's fingerprint.
+verbose=0
+for arg in "$@"; do [ "$arg" = "-v" ] && verbose=1; done
+# $HOME/ssh.refusals: GitHub in an incident refuses that many connections
+# more with "Permission denied", whatever the key, then answers again.
+refuse=0
+if [ -f "$HOME/ssh.refusals" ]; then
+  left=$(cat "$HOME/ssh.refusals")
+  if [ "$left" -gt 0 ]; then echo $((left - 1)) > "$HOME/ssh.refusals"; refuse=1; fi
+fi
 for name in id_rsa id_ecdsa id_ed25519; do
   pub="$HOME/.ssh/$name.pub"
   [ -f "$pub" ] || continue
+  # $HOME/ssh.unoffered: keys ssh does not offer (a private key it refuses
+  # to load, a configuration that leaves it out), one name a line.
+  [ -f "$HOME/ssh.unoffered" ] && grep -qxF "$name" "$HOME/ssh.unoffered" && continue
   read -r t k rest < "$pub"; key="$t $k"
+  fingerprint=""
+  [ "$verbose" = 1 ] && fingerprint=$("${realSshKeygen ?? "ssh-keygen"}" -lf "$pub" | cut -d' ' -f2)
+  [ "$verbose" = 1 ] && echo "debug1: Offering public key: $HOME/.ssh/$name $t $fingerprint" >&2
+  [ "$refuse" = 1 ] && continue
   if [ -f "$HOME/gh.foreign" ] && grep -qxF "$key" "$HOME/gh.foreign"; then echo "Hi someone-else! You've successfully authenticated, but GitHub does not provide shell access." >&2; exit 1; fi
-  if [ ! -f "$HOME/ssh.fail" ] && [ -f "$HOME/gh.keys" ] && cut -f3 "$HOME/gh.keys" | grep -qxF "$key"; then echo "Hi octocat! You've successfully authenticated, but GitHub does not provide shell access." >&2; exit 1; fi
+  if [ ! -f "$HOME/ssh.fail" ] && [ -f "$HOME/gh.keys" ] && cut -f3 "$HOME/gh.keys" | grep -qxF "$key"; then
+    [ "$verbose" = 1 ] && echo "debug1: Server accepts key: $HOME/.ssh/$name $t $fingerprint" >&2
+    echo "Hi octocat! You've successfully authenticated, but GitHub does not provide shell access." >&2; exit 1
+  fi
 done
 echo "git@github.com: Permission denied (publickey)." >&2
 exit 255
@@ -270,14 +299,6 @@ esac
 exit 1
 `,
 };
-
-// The system's own ssh-keygen, when this runner has one: it only generates
-// and reads files under the temporary home it is given with `-f`, and it
-// never uses the network.
-const systemPath = "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin";
-export const realSshKeygen: string | null = Bun.which("ssh-keygen", {
-  PATH: systemPath,
-});
 
 /** The system's own git, when this runner has one: behind the wrapper of
  * `fakeLoginTools(…, { git: true })` it reads and writes only the

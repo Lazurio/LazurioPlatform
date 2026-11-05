@@ -4508,7 +4508,8 @@ linked", "… · SSH key not linked" or "… · SSH key not verified", and the l
 #515):* the status now runs the sign-in's own proof, GitHub's host keys and `ssh -T`,
 wherever the key is listed or the list cannot be read, and keeps a passing proof for a
 while; `linked` means this Environment reaches GitHub over SSH as the account, and
-`unknown` only that GitHub could not be reached or read.
+`unknown` only that GitHub could not be reached or read. *Amended 2026-11-04 ([addendum of 2026-11-04 below](#f19--curated-installation-and-login-of-catalog-tools)):*
+`unknown` also when GitHub refused, again and again, the very key the account lists.
 
 *Sign-out.* Before `gh auth logout`, the key of this Machine is removed from the
 account (`gh ssh-key delete <id> --yes`) when the token has `admin:public_key` and the
@@ -5057,7 +5058,9 @@ must say that GitHub is connected badly and must be connected again.
    or read (its key list or its published keys did not come, `ssh` did not reach
    github.com or timed out) or the home is not known. `scope-missing` is gone: a token
    that cannot read the account's keys leaves the proof alone to decide. Each step is
-   bounded by 20 s.
+   bounded by 20 s. *Amended 2026-11-04 ([addendum of 2026-11-04 below](#f19--curated-installation-and-login-of-catalog-tools)): a key the readable list has,
+   which ssh offered and GitHub refused on every one of three attempts, is `unknown` with
+   `refused`, no longer `proof-failed`; every other refusal stays `proof-failed`.*
 3. **The proof's cost.** The status is read often (Settings → Nástroje's reading on every
    page load, which the Launchpad answers from its reading of the last minute since plan
    DEV-6656, #535, and from an older one at once, as being checked, while it reads anew,
@@ -5091,7 +5094,8 @@ must say that GitHub is connected badly and must be connected again.
 4. **Everything built on it follows.** `githubFact` gains `incomplete`: signed in, SSH not
    working, which counts as missing (signed in with an SSH state that could not be read is
    `unknown`). Začínáme's GitHub step then says "Připojení nefunguje." with the warning
-   mark and one action, "Připojit znovu", which opens the existing "Link SSH key" flow
+   mark and one action, "Připojit znovu" (*not for GitHub's own refusal since the
+   [addendum of 2026-11-04 below](#f19--curated-installation-and-login-of-catalog-tools)*), which opens the existing "Link SSH key" flow
    (`signInMode`) under gh's own title, "Připojit GitHub" (Začínáme never names "gh");
    the count, the next basic, the line in Apps ("Připojení GitHubu nefunguje." with
    "Připojit znovu"), the tour and the shell's column prompt count it missing
@@ -5379,6 +5383,59 @@ The tests are:
 - `tests/launchpad-wacli-sign-in.test.ts`: a tool signed in before stays off;
 - `tests/launchpad-sign-in-switch.test.ts`: two sign-ins of one tool overlap while the first
   switch is held. Each answer waits for its own switch, and closing waits for both.
+
+**Addendum 2026-11-04 (Matěj, Lazurio/LazurioPlatform#851): GitHub refusing a key it
+lists is GitHub's, not a broken link.** On a hosted Environment on v0.1.19, Začínáme said
+"Připojení nefunguje." with "Připojit znovu" while gh was signed in, the account listed
+the Environment's key and nothing there was broken. GitHub had an open incident with its
+Git operations and answered the same `ssh -T git@github.com` with the same key
+alternately with its greeting and with `Permission denied (publickey)`. Every refusal
+made the status `not-linked` with `proof-failed` (point 2 of the addendum of
+2026-10-19), so the page asked the person to reconnect something that worked. Matěj: it
+must not say there is no access when GitHub is at its limits or down; it must say
+something else.
+
+1. **Asked again.** When the account's readable key list has this Environment's key and
+   ssh is denied (`Permission denied (publickey)`), `sshStatus` proves again, up to three
+   attempts in all. Any greeting of the account is `linked`. The kept proofs of point 3
+   of that addendum keep the whole series as one proof: a pass for 5 minutes, a refusal
+   for 20 s.
+2. **Only a refusal of the offered key is GitHub's.** The last attempt runs the same
+   `ssh -T` with `-v`. The refusal counts as GitHub's (`refusedOffered`) only when ssh
+   offered the key of this Environment's fingerprint ("Offering public key: …") and
+   GitHub never accepted it ("Server accepts key: …"). A key ssh did not offer (left out
+   by `~/.ssh/config`, or not loaded) and a key GitHub accepted before ssh failed to use
+   it (a private key with unsafe permissions: OpenSSH offers its `.pub`, the server
+   accepts it, then "bad permissions") are this Environment's to fix. They stay
+   `not-linked` with `proof-failed` and keep "Připojit znovu" (Pablo's review of #851).
+3. **The status.** GitHub's refusal of the offered key is `unknown` with the new reason
+   `refused` and the fingerprint. `githubFact` stays `unknown`, so nothing that counts
+   GitHub missing (the count, the content's `contentBlockedBy`, Apps' line, the shell's
+   `setup`) changes. A key the list does not have, a token that cannot read the list and
+   every other failure are as before.
+4. **What the person reads.** Začínáme's GitHub step (`githubRefused`) keeps its
+   waiting mark, offers no action and says "SSH klíč na vašem účtu je, ale GitHub teď
+   připojení odmítá. Nejspíš má výpadek (githubstatus.com); za chvíli zkuste Zkontrolovat
+   znovu." ("The SSH key is on your account, but GitHub refuses the connection now. GitHub
+   most likely has an outage (githubstatus.com); try Check again in a while."). Nástroje's
+   gh line says "SSH klíč propojený, GitHub ho teď odmítá" ("SSH key linked, GitHub
+   refuses it now"), in no success colour, and `lazurio tools status` says the key is
+   linked and GitHub refuses it now.
+
+Not in this addendum:
+- The "Link SSH key" flow (`linkSshKey`, "Připojit znovu") still ends as `proof-failed`
+  when GitHub refuses during its own proof. It runs only on the person's click and says
+  what failed.
+- GitHub out of reach (`unreadable`) still reads "Ověřuji…" on Začínáme.
+
+The tests are:
+- `tests/tools-ssh-status.test.ts`: two refusals and then the greeting are `linked` after
+  three connections; refusals on every attempt are `unknown`/`refused`, and only the last
+  attempt is verbose; the same denial with the key not offered stays `not-linked`;
+  `refusedOffered` against OpenSSH's lines, the unsafe-permissions shape included;
+- `tests/first-run.test.ts`: `githubRefused` only for `refused`, and `githubFact` stays
+  `unknown`;
+- `tests/start-view.test.ts`: the refused text in both locales, without an action.
 
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 

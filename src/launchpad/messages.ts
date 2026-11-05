@@ -353,6 +353,7 @@ const en = {
   toolsSshLinked: "SSH key linked",
   toolsSshNotLinked: "SSH key not linked",
   toolsSshUnknown: "SSH key not verified",
+  toolsSshRefused: "SSH key linked, GitHub refuses it now",
   toolsSshTeam: capitalized(teamGithubPhrase.en),
   toolsWorksAs: capitalized(teamGithubWorksAs.en),
   toolsLinkSshAction: "Link SSH key",
@@ -1199,6 +1200,8 @@ const en = {
   startGithubConnected: "Connected as @{login}",
   startGithubConnectedPlain: "Connected",
   startGithubBroken: "The connection does not work.",
+  startGithubRefused:
+    "The SSH key is on your account, but GitHub refuses the connection now. GitHub most likely has an outage (githubstatus.com); try Check again in a while.",
   startGithubReconnect: "Connect again",
   startGithubPersona:
     "Not connected. The persona's account belongs here, not yours.",
@@ -2526,6 +2529,7 @@ const cs: Record<MessageKey, string> = {
   toolsSshLinked: "SSH klíč propojený",
   toolsSshNotLinked: "SSH klíč nepropojený",
   toolsSshUnknown: "SSH klíč neověřený",
+  toolsSshRefused: "SSH klíč propojený, GitHub ho teď odmítá",
   toolsSshTeam: capitalized(teamGithubPhrase.cs),
   toolsWorksAs: capitalized(teamGithubWorksAs.cs),
   toolsLinkSshAction: "Propojit SSH klíč",
@@ -3335,6 +3339,8 @@ const cs: Record<MessageKey, string> = {
   startGithubConnected: "Připojeno jako @{login}",
   startGithubConnectedPlain: "Připojeno",
   startGithubBroken: "Připojení nefunguje.",
+  startGithubRefused:
+    "SSH klíč na vašem účtu je, ale GitHub teď připojení odmítá. Nejspíš má výpadek (githubstatus.com); za chvíli zkuste Zkontrolovat znovu.",
   startGithubReconnect: "Připojit znovu",
   startGithubPersona: "Nepřipojeno. Sem patří účet persony, ne váš.",
   startGithubOwnAccount:

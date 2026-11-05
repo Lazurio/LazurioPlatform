@@ -449,7 +449,9 @@ export function connectionLine(
         : ssh.state === "not-linked"
           ? copy.toolsSshNotLinked
           : ssh.state === "unknown"
-            ? copy.toolsSshUnknown
+            ? ssh.reason === "refused"
+              ? copy.toolsSshRefused
+              : copy.toolsSshUnknown
             : null;
   return {
     text,

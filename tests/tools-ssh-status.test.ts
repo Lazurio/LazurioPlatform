@@ -15,6 +15,7 @@ import { readToolsLive } from "../src/tools/overview";
 import {
   createSshProofs,
   fingerprintOf,
+  refusedOffered,
   type SshProofs,
 } from "../src/tools/ssh-key";
 import { runTool, toolsSignIn } from "../src/tools/status";
@@ -295,6 +296,69 @@ test.skipIf(!keygen)(
 );
 
 test.skipIf(!keygen)(
+  "GitHub refusing a key the account lists is asked again, then said to be GitHub's refusal, never a broken link",
+  async () => {
+    // GitHub's Git operations in an incident refuse some connections and
+    // let others through: two refusals, then the greeting.
+    const flaky = await world();
+    try {
+      await flaky.flag("ssh.refusals", "2\n");
+      expect((await flaky.read())?.ssh).toEqual({
+        state: "linked",
+        fingerprint: flaky.fingerprint,
+      });
+      expect(await flaky.sshCalls()).toBe(3);
+    } finally {
+      await flaky.close();
+    }
+    // Refused on every attempt: not known to work, and nothing here to
+    // link again either, as the account lists the key.
+    const refused = await world();
+    try {
+      await refused.flag("ssh.refusals", "9\n");
+      expect((await refused.read())?.ssh).toEqual({
+        state: "unknown",
+        reason: "refused",
+        fingerprint: refused.fingerprint,
+      });
+      expect(await refused.sshCalls()).toBe(3);
+      // The last attempt runs ssh verbosely: that is how the status sees
+      // that ssh offered this key and GitHub did not accept it.
+      const calls = (
+        await readFile(join(refused.directory, "ssh.calls"), "utf8")
+      )
+        .trim()
+        .split("\n");
+      expect(calls.map((line) => line.split(" ").includes("-v"))).toEqual([
+        false,
+        false,
+        true,
+      ]);
+    } finally {
+      await refused.close();
+    }
+    // The same denial while ssh never offers the key (a private key it
+    // refuses to load, a configuration that leaves it out): this
+    // Environment's to fix, so not linked, with "Připojit znovu" as before
+    // (Pablo's review of #851).
+    const unoffered = await world();
+    try {
+      await unoffered.flag("ssh.unoffered", "id_ed25519\n");
+      expect((await unoffered.read())?.ssh).toEqual({
+        state: "not-linked",
+        reason: "proof-failed",
+        fingerprint: unoffered.fingerprint,
+      });
+      expect(await unoffered.sshCalls()).toBe(3);
+    } finally {
+      await unoffered.close();
+    }
+  },
+  // Real processes (the fakes, ssh-keygen): slower under a loaded run.
+  30_000,
+);
+
+test.skipIf(!keygen)(
   "a token that cannot read the account's keys: the proof alone decides",
   async () => {
     const working = await world({ scopes: "gist read:org repo" });
@@ -341,29 +405,30 @@ test.skipIf(!keygen)(
       // reads meet.
       await Promise.all([opened.read(proofs), opened.read(proofs)]);
       expect(await opened.sshCalls()).toBe(1);
-      // Once it is older, it is proved again; now it fails.
+      // Once it is older, it is proved again; now GitHub refuses the key
+      // the account lists, three times in a row (refused, not broken).
       await opened.flag("ssh.fail");
       clock += 300_001;
-      expect((await opened.read(proofs))?.ssh?.state).toBe("not-linked");
-      expect(await opened.sshCalls()).toBe(2);
+      expect((await opened.read(proofs))?.ssh?.reason).toBe("refused");
+      expect(await opened.sshCalls()).toBe(4);
       // A failure is kept only briefly: the fix shows on a read soon after.
       await opened.unflag("ssh.fail");
       clock += 5_000;
-      expect((await opened.read(proofs))?.ssh?.state).toBe("not-linked");
-      expect(await opened.sshCalls()).toBe(2);
+      expect((await opened.read(proofs))?.ssh?.reason).toBe("refused");
+      expect(await opened.sshCalls()).toBe(4);
       clock += 20_000;
       expect((await opened.read(proofs))?.ssh?.state).toBe("linked");
-      expect(await opened.sshCalls()).toBe(3);
+      expect(await opened.sshCalls()).toBe(5);
       // A sign-in or a link of this Launchpad: what it proved is kept, and
       // a sign-in or sign-out that starts forgets everything.
       await opened.flag("ssh.fail");
       proofs.forget();
-      expect((await opened.read(proofs))?.ssh?.state).toBe("not-linked");
-      expect(await opened.sshCalls()).toBe(4);
+      expect((await opened.read(proofs))?.ssh?.reason).toBe("refused");
+      expect(await opened.sshCalls()).toBe(8);
       // The account's name is GitHub's, whatever its case.
       proofs.passed(opened.fingerprint, "OctoCat");
       expect((await opened.read(proofs))?.ssh?.state).toBe("linked");
-      expect(await opened.sshCalls()).toBe(4);
+      expect(await opened.sshCalls()).toBe(8);
     } finally {
       await opened.close();
     }
@@ -409,3 +474,47 @@ test.skipIf(!keygen)(
   // Real processes (the fakes, ssh-keygen): slower under a loaded run.
   30_000,
 );
+
+test("refusedOffered: only a key ssh offered and GitHub never accepted is GitHub's refusal", () => {
+  const fingerprint = "SHA256:FiCelapjlY8+U7/7WrpMQYNlt8QroWclYUP293dLk9U";
+  const offered = `debug1: Offering public key: /home/u/.ssh/id_ed25519 ED25519 ${fingerprint}`;
+  const accepted = `debug1: Server accepts key: /home/u/.ssh/id_ed25519 ED25519 ${fingerprint}`;
+  const denied = "git@github.com: Permission denied (publickey).";
+  expect(refusedOffered([offered, denied].join("\n"), fingerprint)).toBe(true);
+  // Never offered: ssh did not load it or the configuration left it out.
+  expect(
+    refusedOffered(
+      [
+        "debug1: Offering public key: /home/u/.ssh/other ED25519 SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        denied,
+      ].join("\n"),
+      fingerprint,
+    ),
+  ).toBe(false);
+  // A private key with unsafe permissions, as OpenSSH 9 answers it: the
+  // public key is offered and accepted, then the private key does not load.
+  expect(
+    refusedOffered(
+      [
+        offered,
+        accepted,
+        "@         WARNING: UNPROTECTED PRIVATE KEY FILE!          @",
+        'Load key "/home/u/.ssh/id_ed25519": bad permissions',
+        denied,
+      ].join("\n"),
+      fingerprint,
+    ),
+  ).toBe(false);
+  // Accepted, then ssh could not sign with it: a local failure too.
+  expect(
+    refusedOffered(
+      [
+        offered,
+        accepted,
+        "sign_and_send_pubkey: signing failed for ED25519",
+        denied,
+      ].join("\n"),
+      fingerprint,
+    ),
+  ).toBe(false);
+});

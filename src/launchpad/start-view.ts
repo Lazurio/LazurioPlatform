@@ -143,6 +143,10 @@ export type StartFacts = TourFacts &
     aiChoosing?: boolean;
     /** The GitHub login gh is signed in with, when it names one. */
     githubLogin: string | null;
+    /** GitHub refuses this Environment's key over SSH although the account
+     * lists it (`githubRefused`): an outage of GitHub's, not a link to make
+     * again. Absent as false. */
+    githubRefused?: boolean;
     /** GitHub's sign-in this page runs, its window open or closed (#516):
      * waiting for the person's code, or finishing (the SSH key). Absent
      * when none runs. */
@@ -393,8 +397,20 @@ function githubStep(facts: StartFacts, copy: Copy): [StartStep, GithubAction] {
       },
       null,
     ];
+  // The key is on the account and GitHub refuses it anyway: nothing here to
+  // reconnect, and the step does not say it is broken or still checking.
   if (facts.github === "unknown")
-    return [{ ...base, mark: "later", status: copy.startChecking }, null];
+    return [
+      {
+        ...base,
+        mark: "later",
+        status:
+          facts.githubRefused === true
+            ? copy.startGithubRefused
+            : copy.startChecking,
+      },
+      null,
+    ];
   // Offered once an agent can help (an AI not known is not claimed missing);
   // before, the step waits, its number saying the order.
   const ready = facts.ai !== "missing" && facts.ai !== "loading";

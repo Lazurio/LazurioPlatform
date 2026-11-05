@@ -507,7 +507,9 @@ const sshText = (
         ? ", SSH key linked"
         : signIn.ssh.state === "not-linked"
           ? ", SSH key not linked: lazurio tools login gh --ssh-key"
-          : ", SSH key not verified";
+          : signIn.ssh.reason === "refused"
+            ? ", SSH key linked, GitHub refuses it now (likely a GitHub outage, githubstatus.com)"
+            : ", SSH key not verified";
 
 const signInText = (
   signIn: ToolSignIn,

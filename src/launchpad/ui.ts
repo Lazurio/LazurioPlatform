@@ -66,6 +66,7 @@ import {
   createComposioOrganizationReader,
   githubAccount,
   githubFact,
+  githubRefused,
   hasOnboarding,
   idleAutoStart,
   nextBasic,
@@ -819,6 +820,7 @@ const startPanel = createStartPanel({
           aiSignIn: aiSignIn.state(),
           aiPlace: aiSignInPlace(entry),
           githubLogin: githubAccount(toolsOverview),
+          githubRefused: githubRefused(toolsOverview),
           // GitHub's sign-in this page runs, its window closed or not
           // (#516): the step says it runs, and opens it again.
           githubFlow: tools.running("gh") ?? undefined,
