@@ -16,12 +16,12 @@ const agentsLine = {
 
 const manualParts = {
   cs: [
-    "Codex skilly Organizace nenačte vůbec a Claude Code je ohlásí, až když pracuješ se soubory v jejím checkoutu.",
+    "Codex spuštěný v kořeni Folderu skilly Organizace nenačte (načte je jen spuštěný v jejím checkoutu) a Claude Code je ohlásí, až když pracuješ se soubory v jejím checkoutu.",
     "projdi `name` a `description` ve frontmatteru každého `organizations/<org>/.agents/skills/*/SKILL.md`",
     "Skilly nekopíruj ani neodkazuj do kořene Folderu.",
   ],
   en: [
-    "Codex never loads the Organization's skills, and Claude Code announces them only once you work with files in its checkout.",
+    "Codex started in the Folder's root does not load the Organization's skills (only when started in its checkout), and Claude Code announces them only once you work with files in its checkout.",
     "go through `name` and `description` in the frontmatter of every `organizations/<org>/.agents/skills/*/SKILL.md`",
     "Never copy or link skills into the Folder's root.",
   ],
