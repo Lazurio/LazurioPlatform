@@ -1,10 +1,6 @@
 import type { NewModuleOffer } from "./apps-view";
 import type { NewModuleOutcome, NewModulePrompt } from "./catalog-panel";
-import {
-  createGuideVideo,
-  type GuideVideoLocale,
-  modulesVideo,
-} from "./guide-video";
+import { createGuideVideo, type GuideVideoLocale } from "./guide-video";
 import type { MessageKey } from "./messages";
 import {
   type NewModuleScreen,
@@ -107,7 +103,11 @@ export function createNewModuleDialog(
     status.textContent = text;
   };
 
+  // A video that stays open must not play on behind the next screen.
+  const stopVideo = () => body.querySelector("video")?.pause();
+
   function move(next: NewModuleStep) {
+    stopVideo();
     step = next;
     say("");
     render();
@@ -128,16 +128,16 @@ export function createNewModuleDialog(
       parts,
       element("p", "", screen.who),
     ];
-    // "Přehrát video", once this release carries the video of modules.
-    if (modulesVideo !== null) {
+    const more = element("div", "new-module-more");
+    if (screen.video) {
       const slot = element("div", "guide-video");
       createGuideVideo(slot, {
-        name: modulesVideo,
+        name: "modules-overview",
         title: () => options.copy().modulesVideoTitle,
         copy: options.copy,
         locale: options.locale,
       });
-      nodes.push(slot);
+      more.append(slot);
     }
     if (screen.template) {
       const link = element(
@@ -148,8 +148,9 @@ export function createNewModuleDialog(
       link.href = "/marketplace";
       link.dataset.route = "";
       link.addEventListener("click", () => hide());
-      nodes.push(link);
+      more.append(link);
     }
+    if (more.childElementCount > 0) nodes.push(more);
     return nodes;
   }
 
@@ -308,6 +309,7 @@ export function createNewModuleDialog(
 
   close.addEventListener("click", () => hide());
   dialog.addEventListener("close", () => {
+    stopVideo();
     showing += 1;
     say("");
     // Back where it was opened from, once the page drew that tile again.

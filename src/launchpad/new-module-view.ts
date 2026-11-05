@@ -111,6 +111,9 @@ export type NewModuleScreen =
       /** Whether "Nebo začněte šablonou" leads anywhere: templates go into an
        * Organization only, so the personal space has no such link. */
       template: boolean;
+      /** Whether "Přehrát video" stands here: the video of modules tells of
+       * an Organization, with its Admin and its templates. */
+      video: boolean;
     }>
   | Readonly<{
       step: "describe";
@@ -146,6 +149,7 @@ export function newModuleScreen(
         ],
         who: member ? copy.newModuleByAdmin : copy.newModuleByAgent,
         template: offer.variant !== "personal",
+        video: offer.variant !== "personal",
       };
     case "describe":
       return {

@@ -14,6 +14,7 @@ import {
   provideGuides,
   provideShell,
 } from "../shell/elements";
+import { principleIn } from "../shell/guide-content";
 import { shellMessages } from "../shell/messages";
 import { environmentName, switchTabs } from "../shell/view";
 import { type AiReading, parseAiAnswer } from "../tools/ai";
@@ -83,7 +84,6 @@ import {
   type TourFacts,
   withBuddySetup,
 } from "./first-run";
-import { modulesVideo } from "./guide-video";
 import { type PageHelpId, pageGuide, pageHelpStates } from "./guides";
 import { createIntegrationsPanel } from "./integrations-panel";
 import { composioSignIn, toolSignInsKey } from "./integrations-view";
@@ -285,6 +285,11 @@ function drawGuide(route: PageRoute) {
   provideGuides(guideOff ? null : guide.guides);
   buddy?.setAttribute("lang", locale);
   const states = pageHelpStates(route, guide, guideOff);
+  if (appsVideoLine !== null)
+    appsVideoLine.textContent =
+      principleIn("modules", locale, kindOf(shellDocument))
+        ?.steps.map((step) => step.text)
+        .join(". ") ?? "";
   videoHelp = null;
   videoBox = null;
   for (const id of Object.keys(pageHelps) as PageHelpId[]) {
@@ -1441,17 +1446,19 @@ const vaultVideo =
         copy: () => copy,
         locale: () => locale,
       });
-// The Apps home's video, once this release carries it (guide-video.ts
-// `modulesVideo`): under the head, opened by its "?" alone.
+// The Apps home's video of modules: under the head, opened by its "?" alone.
+// Its five titles are the principle's steps, its text for a screen reader.
 const appsVideoBox = document.querySelector<HTMLElement>("#apps-video");
 const appsVideoSlot = document.querySelector<HTMLElement>("#apps-video-player");
+const appsVideoLine = document.querySelector<HTMLElement>("#apps-video-line");
 const appsVideo =
-  appsVideoBox === null || appsVideoSlot === null || modulesVideo === null
+  appsVideoBox === null || appsVideoSlot === null
     ? noHelpVideo
     : createHelpVideo({
         box: appsVideoBox,
         slot: appsVideoSlot,
-        name: modulesVideo,
+        line: "apps-video-line",
+        name: "modules-overview",
         title: () => copy.modulesVideoTitle,
         copy: () => copy,
         locale: () => locale,

@@ -59,6 +59,7 @@ test("the first screen says what a module is, and who builds it for each person"
     ],
     who: "Modul vám postaví agent v Chatu. Popíšete mu, co má řešit, technické věci zvolí sám a před stavbou vám ukáže plán.",
     template: true,
+    video: true,
   });
   expect(newModuleScreen("what", member, "", cs)).toMatchObject({
     who: "Nový modul v Organizaci zakládá Admin: založí ho a určí, kdo k němu bude mít přístup. Vy mu pošlete popis.",
@@ -67,11 +68,13 @@ test("the first screen says what a module is, and who builds it for each person"
   expect(newModuleScreen("what", member, "", en)).toMatchObject({
     who: "The Organization's Admin creates new modules and decides who gets access. You send them a description.",
   });
-  // Templates go into an Organization only: no link that leads nowhere.
+  // Templates go into an Organization only: no link that leads nowhere, and
+  // no video that tells of an Organization's Admin.
   expect(newModuleScreen("what", personal, "", en)).toMatchObject({
     title: "New module",
     who: "An agent builds the module with you in Chat. You describe what it should do; it picks the technical details and shows you a plan before it builds.",
     template: false,
+    video: false,
   });
 });
 

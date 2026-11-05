@@ -365,9 +365,10 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
       // A "?" plays one thing: an explanation or a video, or waits.
       expect(guide.help !== null && guide.video !== null).toBe(false);
       if (guide.video !== null) {
+        expect(["vault", "home", "organization"]).toContain(route.view);
         expect({ name, video: guide.video }).toEqual({
-          name: "Trezor",
-          video: "vault-overview",
+          name,
+          video: route.view === "vault" ? "vault-overview" : "modules-overview",
         });
         continue;
       }
@@ -410,21 +411,29 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
   });
   const help = (route: PageRoute, fields: Partial<PageGuideFacts> = {}) =>
     pageGuide(route, facts(fields), messages("cs")).help;
-  // Apps: what a module is (F56's addendum (8) of 2026-11-05).
-  expect(help({ view: "home" })).toBe("modules");
-  expect(help({ view: "organization", organization: "a" })).toBe("modules");
-  // Once the release carries the video of modules, Apps opens it in place as
-  // Trezor does, its "?" controlling the box; a Personal Environment keeps
-  // the principle, whose words are true of it.
-  const video = "vault-overview";
-  expect(appsHelp("work", null)).toEqual({
-    help: "modules",
-    video: null,
-    guides: [],
-  });
-  expect(appsHelp("work", video)).toEqual({ help: null, video, guides: [] });
-  expect(appsHelp("personal", video).help).toBe("modules");
-  expect(helpVideoBoxes["modules-overview"]).toBe("apps-video");
+  // Apps: what a module is (F56's addendum (8) of 2026-11-05): the video in
+  // place, as Trezor has it, its "?" controlling the box; a Personal
+  // Environment hears the principle's adaptation, which is true of it.
+  const video = { help: null, video: "modules-overview", guides: [] };
+  for (const kind of [
+    "work",
+    "team",
+    "automated",
+    "workstation",
+    null,
+  ] as const)
+    expect(appsHelp(kind)).toEqual(video as never);
+  expect(pageGuide({ view: "home" }, facts(), messages("cs"))).toEqual(
+    video as never,
+  );
+  expect(help({ view: "home" }, { kind: "personal" })).toBe("modules");
+  expect(
+    help({ view: "organization", organization: "a" }, { kind: "personal" }),
+  ).toBe("modules");
+  expect(
+    pageHelpStates({ view: "home" }, appsHelp("work"), false)["catalog-help"],
+  ).toEqual({ hidden: false, plays: null, controls: "apps-video" });
+  expect(helpVideoBoxes["vault-overview"]).toBe("vault-video");
   // Soubory: the principle, in a Team Environment the Launchpad's own.
   expect(help({ view: "files", path: [] })).toBe("files");
   expect(help({ view: "files", path: [] }, { kind: "team" })).toBe(

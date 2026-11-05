@@ -1491,14 +1491,17 @@ dialog.buddy-meet { width: min(36rem, calc(100vw - 2rem)); }
    what to remember, the examples and the whole brief. */
 .new-module-parts { display: grid; gap: 6px; margin: 0; padding: 0 0 0 1.1rem; }
 .new-module-parts strong { font-weight: var(--lz-weight-akce); }
-a.new-module-template { justify-self: start; color: var(--link); font-size: 14px; }
+.new-module-more { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.new-module-more .guide-video { margin: 0; }
+.new-module-more .guide-video:has(video) { flex: 1 0 100%; }
+a.new-module-template { color: var(--link); font-size: 14px; }
 textarea.new-module-field { display: block; width: 100%; min-height: 8.5rem; max-height: 40vh; resize: vertical; font: inherit; line-height: 1.5; }
 .new-module-label { margin: 0; color: var(--muted-fg); font-size: 13px; font-weight: var(--lz-weight-akce); }
 .new-module-remember { display: grid; gap: 4px; }
 .new-module-mentions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 2px 20px; margin: 0; padding: 0 0 0 1.1rem; color: var(--muted-fg); font-size: 13.5px; }
 .new-module-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
 button.new-module-example { height: 28px; padding: 0 10px; font-size: 13px; }
-.new-module-brief { max-height: min(18rem, 40vh); margin: 0; padding: 10px 12px; overflow: auto; border: 1px solid var(--lz-line); border-radius: var(--radius-control); background: var(--muted); font: 13px/1.5 var(--font-sans); overflow-wrap: anywhere; white-space: pre-wrap; }
+.new-module-brief { max-height: min(18rem, 40vh); margin: 0; padding: 10px 12px; overflow: auto; border: 1px solid var(--lz-line); border-radius: var(--radius-control); background: var(--muted); color: var(--fg); font: 13px/1.5 var(--font-sans); overflow-wrap: anywhere; white-space: pre-wrap; }
 .new-module-status { margin: 10px 0 0; color: var(--muted-fg); font-size: 13px; }
 .new-module-status:empty { display: none; }
 .buddy-meet-body { display: grid; gap: 14px; }
@@ -1846,9 +1849,10 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
      catalog-panel.ts. -->
 <main id="view-catalog" class="container wide" data-view="catalog">
 <header class="apps-head" id="catalog-head"><div class="apps-head-name" id="catalog-head-name"><button type="button" class="page-help" id="catalog-help" hidden><svg class="icon" aria-hidden="true"><use href="#i-help"/></svg></button></div></header>
-<!-- The Apps home's guide video, where this release carries it (F56's
-     addendum (8) of 2026-11-05, page-help.ts): its "?" alone opens it. -->
-<div class="vault-video" id="apps-video" hidden><div class="guide-video" id="apps-video-player"></div></div>
+<!-- The Apps home's video of modules (F56's addendum (8) of 2026-11-05,
+     page-help.ts): its "?" alone opens it; its five titles stand here for a
+     screen reader. -->
+<div class="vault-video" id="apps-video" hidden><div class="guide-video" id="apps-video-player"></div><p class="sr-only" id="apps-video-line"></p></div>
 <p id="catalog-status" class="row-status" role="status" aria-live="polite">Reading Organizations…</p>
 <div id="catalog-body" class="stack"></div>
 </main>

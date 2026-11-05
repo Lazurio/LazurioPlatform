@@ -1,7 +1,7 @@
 import type { ShellEnvironmentKind } from "../shell/contract";
 import type { VaultEnvironmentKind } from "../vault/context";
 import type { VaultPhase, VaultStatus } from "../vault/flow";
-import { type GuideVideoName, modulesVideo } from "./guide-video";
+import type { GuideVideoName } from "./guide-video";
 import { integrationsHelp } from "./integrations-view";
 import type { MessageKey } from "./messages";
 import type { PageRoute } from "./routes";
@@ -16,8 +16,8 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // over (`provideGuides`), since they point at its own elements by their
 // `data-guide` marks. Every page of the Apps column and of Settings has its
 // "?" (plan DEV-6612, PRs 4 and 5), and the page keeps no sentence that only
-// explained it: Apps plays the shell's principle "modules" (F56's addendum (8)
-// of 2026-11-05), Soubory
+// explained it: Apps opens the video of modules, in a Personal Environment
+// the shell's principle "modules" (F56's addendum (8) of 2026-11-05), Soubory
 // "files", Integrace "integrations" with its documentation in the card,
 // where Composio is allowed the Launchpad's "integrations-composio" and on
 // Vlastní its "integrations-custom"; Trezor plays what is true of this
@@ -438,12 +438,12 @@ export type PageHelpState = Readonly<{
 }>;
 
 /** The box of each guide video a "?" opens in place, by the video's name:
- * under Trezor's heading and under the Apps home's. A name this release does
- * not carry yet stands here too (`modulesVideo`). */
-export const helpVideoBoxes: Readonly<Record<string, string>> = {
-  "vault-overview": "vault-video",
-  "modules-overview": "apps-video",
-};
+ * under Trezor's heading and under the Apps home's. */
+export const helpVideoBoxes: Readonly<Partial<Record<GuideVideoName, string>>> =
+  {
+    "vault-overview": "vault-video",
+    "modules-overview": "apps-video",
+  };
 
 export function pageHelpStates(
   route: PageRoute,
@@ -523,17 +523,14 @@ const plays = (
   guides: readonly PageGuideInput[] = [],
 ): PageGuide => ({ help, video: null, guides });
 
-/** What Apps' "?" plays: the shell's principle `modules`, and once this release
- * carries the video of modules (`modulesVideo`) that video in place, as Trezor
- * has it. A Personal Environment keeps the principle, whose adaptation is true
- * of it: the video tells of an Organization. */
-export const appsHelp = (
-  kind: ShellEnvironmentKind | null,
-  video: GuideVideoName | null,
-): PageGuide =>
-  video === null || kind === "personal"
+/** What Apps' "?" plays: the video of modules in place, as Trezor has it, its
+ * five titles the steps of the shell's principle `modules`. A Personal
+ * Environment hears the principle's adaptation: the video tells of an
+ * Organization, with its Admin and its templates. */
+export const appsHelp = (kind: ShellEnvironmentKind | null): PageGuide =>
+  kind === "personal"
     ? plays("modules")
-    : { help: null, video, guides: [] };
+    : { help: null, video: "modules-overview", guides: [] };
 
 /** The guide of a route, from what the page knows. */
 export function pageGuide(
@@ -544,7 +541,7 @@ export function pageGuide(
   switch (route.view) {
     case "home":
     case "organization":
-      return appsHelp(facts.kind, modulesVideo);
+      return appsHelp(facts.kind);
     case "files":
       return facts.kind === "team"
         ? plays("files-team", [filesTeamGuide(copy)])
