@@ -149,7 +149,7 @@ function played(
   }
 }
 
-test("every principle with a scene plays it at each step, one beat a step; Trezor and a host's explanation play none", () => {
+test("every principle with a scene plays it at each step, one beat a step; Trezor, Moduly and a host's explanation play none", () => {
   expect(sceneIds).toEqual([
     "environment",
     "buddy",
@@ -168,7 +168,7 @@ test("every principle with a scene plays it at each step, one beat a step; Trezo
           locale,
           steps,
         });
-        if (id === "vault") {
+        if (id === "vault" || id === "modules") {
           // Trezor keeps its approved video (the Launchpad's guide-video.ts).
           expect({ id, kind, scenes }).toEqual({
             id,

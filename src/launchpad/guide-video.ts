@@ -23,6 +23,16 @@ type Copy = Readonly<Record<MessageKey, string>>;
  * works in an Organization (DEV-6631). */
 export const guideVideoNames = ["vault-bitwarden", "vault-overview"] as const;
 export type GuideVideoName = (typeof guideVideoNames)[number];
+
+/** A guide video by its name, where this release carries it. */
+export const carriedVideo = (name: string): GuideVideoName | null =>
+  (guideVideoNames as readonly string[]).includes(name)
+    ? (name as GuideVideoName)
+    : null;
+
+/** The video of modules: Apps' "?" and the dialog "+ Nový modul" show it once
+ * its files and name are here (docs/launchpad-development.md "Guide videos"). */
+export const modulesVideo = carriedVideo("modules-overview");
 export const guideVideoLocales = ["cs", "en"] as const;
 export type GuideVideoLocale = (typeof guideVideoLocales)[number];
 

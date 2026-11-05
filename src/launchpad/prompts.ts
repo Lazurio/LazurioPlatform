@@ -10,8 +10,11 @@ import { organizationName } from "./catalog-view";
 import { type PrepareTarget, preparePrompt } from "./content-view";
 import {
   type AdoptionPromptId,
+  type AdoptionRequestPromptId,
   adoptionOf,
   adoptionPrompt,
+  adoptionRequestOf,
+  adoptionRequestPrompt,
   type MarketplaceCatalog,
   type MarketplaceLocale,
 } from "./marketplace";
@@ -127,7 +130,7 @@ export type PromptDocument = Readonly<{
   schema: typeof promptSchema;
   /** The id it was asked by: a prompt's, a brief's (prompt-briefs.ts) or an
    * adoption's. */
-  id: PromptId | AdoptionPromptId | (string & {});
+  id: PromptId | AdoptionPromptId | AdoptionRequestPromptId | (string & {});
   text: string;
   /** Where Chat opens the new thread, absolute: the Lazurio Folder's root,
    * for an Organization's prompt too (root decision 0189); the text names
@@ -236,6 +239,32 @@ export function personalModuleDocument(
     ),
     cwd: resolve(folder),
   });
+}
+
+/** The document of a member's request for a Marketplace adoption
+ * (`request-<offer>-<seed>-<catalog>`, decision F36's addendum of 2026-11-05):
+ * the offer as `adoptionDocument` finds it, asked of the Admin. Whether the
+ * person is a member of the Organization is the caller's to check first. */
+export function adoptionRequestDocument(
+  catalogs: readonly MarketplaceCatalog[],
+  id: string,
+  folder: string,
+  organization: BoundOrganization,
+  copy: Copy,
+  locale: MarketplaceLocale,
+): PromptDocument | null {
+  const adoption = adoptionRequestOf(catalogs, id);
+  if (adoption === null) return null;
+  const text = adoptionRequestPrompt(
+    adoption.offer,
+    adoption.seed,
+    { name: organizationName(organization), login: organization.forgeLogin },
+    copy,
+    locale,
+  );
+  return text === null
+    ? null
+    : Object.freeze({ schema: promptSchema, id, text, cwd: resolve(folder) });
 }
 
 /** The document of a Marketplace adoption (`marketplace-<offer>-<seed>-<catalog>`,

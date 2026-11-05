@@ -1,5 +1,10 @@
 import type { NewModuleOffer } from "./apps-view";
 import type { NewModuleOutcome, NewModulePrompt } from "./catalog-panel";
+import {
+  createGuideVideo,
+  type GuideVideoLocale,
+  modulesVideo,
+} from "./guide-video";
 import type { MessageKey } from "./messages";
 import {
   type NewModuleScreen,
@@ -48,6 +53,7 @@ const element = <K extends keyof HTMLElementTagNameMap>(
 export function createNewModuleDialog(
   options: Readonly<{
     copy: () => Copy;
+    locale: () => GuideVideoLocale;
     /** Hands the brief to Chat; `brief` keeps a description at the Launchpad
      * once the tab is open, and answers the id the link names. */
     handOver: (
@@ -122,6 +128,17 @@ export function createNewModuleDialog(
       parts,
       element("p", "", screen.who),
     ];
+    // "Přehrát video", once this release carries the video of modules.
+    if (modulesVideo !== null) {
+      const slot = element("div", "guide-video");
+      createGuideVideo(slot, {
+        name: modulesVideo,
+        title: () => options.copy().modulesVideoTitle,
+        copy: options.copy,
+        locale: options.locale,
+      });
+      nodes.push(slot);
+    }
     if (screen.template) {
       const link = element(
         "a",

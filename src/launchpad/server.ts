@@ -202,7 +202,7 @@ import {
   type IntegrationsSeams,
 } from "./integrations-routes";
 import { BodyTooLarge, readJsonBody } from "./json-body";
-import { isAdoptionPromptId } from "./marketplace";
+import { isAdoptionPromptId, isAdoptionRequestId } from "./marketplace";
 import {
   createMarketplaceRegistry,
   type MarketplaceRegistry,
@@ -248,6 +248,7 @@ import {
 } from "./prompt-briefs";
 import {
   adoptionDocument,
+  adoptionRequestDocument,
   audienceAdmits,
   isOrganizationPrompt,
   isPromptId,
@@ -1909,12 +1910,14 @@ export async function startLaunchpad(
         const login = url.searchParams.get("org");
         const keys = [...url.searchParams.keys()];
         if (keys.some((key) => key !== "org")) return notFound();
-        if (isAdoptionPromptId(id)) {
+        const adoptionRequest = isAdoptionRequestId(id);
+        if (isAdoptionPromptId(id) || adoptionRequest) {
           // A Marketplace adoption (plan DEV-6593): an offer and seed of the
           // catalog the page showed, while the Launchpad still serves it,
           // for an Organization of this Folder bound to the link's login,
           // only while its offer's release is recorded (prompts.ts
-          // `adoptionDocument`).
+          // `adoptionDocument`). A member's request for one (F36's addendum
+          // of 2026-11-05), only for an active member of that Organization.
           if (login === null || keys.length !== 1) return notFound();
           try {
             await marketplace.read();
@@ -1923,10 +1926,21 @@ export async function startLaunchpad(
               login,
             );
             if (organization === null) return notFound();
+            if (adoptionRequest) {
+              server.timeout(request, 30);
+              const role = await owners.role(
+                organization.forgeLogin,
+                await folderPreset(folder),
+              );
+              if (!audienceAdmits("organization-member", role))
+                return notFound();
+            }
             const current = await withFolderReadLock(state, () =>
               readFolderState(state),
             );
-            const document = adoptionDocument(
+            const document = (
+              adoptionRequest ? adoptionRequestDocument : adoptionDocument
+            )(
               marketplace.catalogs(),
               id,
               folder,

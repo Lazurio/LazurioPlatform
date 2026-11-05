@@ -416,7 +416,8 @@ test("the stops speak the wireframe's words", () => {
     stop("prepare", { ...prepared, content: failed(organization) }),
   ).toMatchObject({ title: "Příprava se nepovedla", text: "Tady je, co dál." });
   expect(stop("apps", prepared)).toMatchObject({
-    text: "Aplikace vašich modulů.",
+    title: "Moduly",
+    text: "Postup, data a aplikace každé oblasti práce.",
     next: "next",
   });
   expect(stop("settings", prepared)).toMatchObject({

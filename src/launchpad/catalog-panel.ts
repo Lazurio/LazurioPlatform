@@ -880,6 +880,7 @@ export function createCatalogPanel(
     );
     button.append(mark, text);
     button.dataset.prompt = offer.id;
+    button.dataset.guide = "apps-new-module";
     button.addEventListener("click", () => options.newModule(offer, button));
     return button;
   }
@@ -954,6 +955,12 @@ export function createCatalogPanel(
       .querySelector<HTMLButtonElement>('.workspace-tab[aria-selected="true"]')
       ?.focus();
 
+  // Where the guide's principle Moduly points at a module.
+  const markFirstModule = (grid: HTMLElement) => {
+    const first = grid.querySelector<HTMLElement>('.tile[data-kind="module"]');
+    if (first !== null) first.dataset.guide = "apps-module";
+  };
+
   function section(
     value: AppsSection,
     group: CatalogGroupEntry,
@@ -978,6 +985,7 @@ export function createCatalogPanel(
       top.append(element("span", "section-count", head.end.count));
       grid.append(...value.tiles.map((item) => tile(item, group, owner)));
       if (offer !== null) grid.append(newModuleTile(offer));
+      markFirstModule(grid);
       part.append(top, grid);
       return part;
     }
@@ -1047,6 +1055,7 @@ export function createCatalogPanel(
     grid.append(...selected.tiles.map((item) => tile(item, group, owner)));
     // "+ Nový modul" stays with the first tab, where a new module lands.
     if (offer !== null && selected === first) grid.append(newModuleTile(offer));
+    markFirstModule(grid);
     panel.append(grid);
     part.append(top, panel);
     return part;

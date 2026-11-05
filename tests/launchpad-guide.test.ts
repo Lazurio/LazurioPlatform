@@ -2,7 +2,9 @@ import { expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
+  appsHelp,
   drawnMarks,
+  helpVideoBoxes,
   type PageGuideFacts,
   pageGuide,
   pageHelpOf,
@@ -408,9 +410,21 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
   });
   const help = (route: PageRoute, fields: Partial<PageGuideFacts> = {}) =>
     pageGuide(route, facts(fields), messages("cs")).help;
-  // Apps: the Environment, the agents' computer, as the prototype has it.
-  expect(help({ view: "home" })).toBe("environment");
-  expect(help({ view: "organization", organization: "a" })).toBe("environment");
+  // Apps: what a module is (F56's addendum (8) of 2026-11-05).
+  expect(help({ view: "home" })).toBe("modules");
+  expect(help({ view: "organization", organization: "a" })).toBe("modules");
+  // Once the release carries the video of modules, Apps opens it in place as
+  // Trezor does, its "?" controlling the box; a Personal Environment keeps
+  // the principle, whose words are true of it.
+  const video = "vault-overview";
+  expect(appsHelp("work", null)).toEqual({
+    help: "modules",
+    video: null,
+    guides: [],
+  });
+  expect(appsHelp("work", video)).toEqual({ help: null, video, guides: [] });
+  expect(appsHelp("personal", video).help).toBe("modules");
+  expect(helpVideoBoxes["modules-overview"]).toBe("apps-video");
   // Soubory: the principle, in a Team Environment the Launchpad's own.
   expect(help({ view: "files", path: [] })).toBe("files");
   expect(help({ view: "files", path: [] }, { kind: "team" })).toBe(

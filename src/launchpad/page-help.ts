@@ -8,10 +8,12 @@ import type { MessageKey } from "./messages";
 type Copy = Readonly<Record<MessageKey, string>>;
 
 // A guide video in place, under its page's heading (decision F56's addenda
-// of 2026-10-18 and (4) of 2026-10-19): Trezor's, where the approved video
-// of how a vault works in an Organization (`vault-overview`, DEV-6631,
-// design-system-lazurio#93) is true of this Environment (guides.ts
-// `vaultHelp`). The shell's guide draws rings and cards, not a video, so the
+// of 2026-10-18, (4) of 2026-10-19 and (8) of 2026-11-05): Trezor's, where the
+// approved video of how a vault works in an Organization (`vault-overview`,
+// DEV-6631, design-system-lazurio#93) is true of this Environment (guides.ts
+// `vaultHelp`), and the Apps home's, which waits for its "?" (`first: false`):
+// the home is not a page to push down with a video on every visit. The
+// shell's guide draws rings and cards, not a video, so the
 // page shows the video itself, with the one line under it that the video
 // does not say. It is the first thing the page shows: it stands open as the
 // page opens, at its poster, playing nothing and moving no focus, and the
@@ -49,12 +51,15 @@ export function createHelpVideo(
     /** What opens: the player's slot and the line, hidden until then. */
     box: HTMLElement;
     slot: HTMLElement;
-    /** The id of the line the video is described by. */
-    line: string;
+    /** The id of the line the video is described by, where it has one. */
+    line?: string;
     name: GuideVideoName;
     title: () => string;
     copy: () => Copy;
     locale: () => GuideVideoLocale;
+    /** Whether it is the first thing the page shows, open as the page opens;
+     * false: only its "?" opens it, and a move closes it. */
+    first?: boolean;
   }>,
 ) {
   let player: Readonly<{ render(): void }> | null = null;
@@ -77,7 +82,7 @@ export function createHelpVideo(
       player = createGuideVideo(options.slot, {
         name: options.name,
         title: options.title,
-        describedBy: options.line,
+        ...(options.line === undefined ? {} : { describedBy: options.line }),
         copy: options.copy,
         locale: options.locale,
         open: true,
@@ -142,6 +147,12 @@ export function createHelpVideo(
      * null where it is not (the box closes); `page` names the page, so a
      * new visit opens it again. */
     draw(from: HTMLElement | null, page: string): void {
+      if (options.first === false) {
+        const moved = visit.page !== page;
+        visit = { page, closed: false };
+        if (from === null || moved) close();
+        return;
+      }
       const drawn = helpVideoDrawing(visit, { page, applies: from !== null });
       visit = drawn.visit;
       if (from !== null && drawn.open) show(from);

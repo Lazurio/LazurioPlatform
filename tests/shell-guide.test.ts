@@ -35,7 +35,7 @@ import { shellMessages } from "../src/shell/messages";
 import { guideTextFindings } from "./fixtures/guide-text";
 
 // The shell's guide (decision F56; root decision 0180's addendum of
-// 2026-10-18): the six principles it says in both languages and their
+// 2026-10-18): the principles it says in both languages and their
 // rules, the explanations a host hands over, the engine that decides what is
 // drawn and when (with the drawing and the page faked: how it looks, moves
 // and takes the focus is checked in a browser, root decision 0178), the
@@ -46,7 +46,7 @@ const kinds: readonly (ShellEnvironmentKind | null)[] = [
   null,
   ...shellEnvironmentKinds,
 ];
-test("the six principles, in the tour's order, with the prototype's ids", () => {
+test("the principles, in the tour's order, with the prototype's ids, Moduly last", () => {
   expect(principleIds).toEqual([
     "environment",
     "buddy",
@@ -54,6 +54,7 @@ test("the six principles, in the tour's order, with the prototype's ids", () => 
     "files",
     "integrations",
     "vault",
+    "modules",
   ]);
   for (const id of principleIds) expect(isExplanationId(id)).toBe(true);
   expect(principleIn("billing", "cs", null)).toBeNull();
@@ -166,6 +167,41 @@ test("Trezor says the approved video's five lines; in a Personal Environment its
     "Sdílíte do něj hesla ze svého Bitwardenu",
     "Agenti je najdou a použijí bez ptaní",
     "Sdílení můžete kdykoli vzít zpět",
+  ]);
+});
+
+test("Moduly says the five titles of its video; in a Personal Environment what is true there", () => {
+  expect(
+    principleIn("modules", "cs", "work")?.steps.map((step) => step.text),
+  ).toEqual([
+    "Modul je jedna oblast práce vaší firmy",
+    "Postup, data a aplikace v jednom balíčku",
+    "Agenti pracují podle postupu, lidé v aplikaci",
+    "Admin rozhodne, kdo modul dostane",
+    "Nový postavíte s agentem, nebo ze šablony",
+  ]);
+  expect(
+    principleIn("modules", "en", "team")?.steps.map((step) => step.text),
+  ).toEqual([
+    "A module is one area of your company's work",
+    "A process, data and an app in one package",
+    "Agents follow the process, people work in the app",
+    "The Admin decides who gets the module",
+    "Build yours with an agent or from a template",
+  ]);
+  const personal = principleIn("modules", "cs", "personal")?.steps ?? [];
+  expect(personal).toHaveLength(5);
+  // No Admin shares a personal module, and a template goes into an
+  // Organization only.
+  expect(personal.map((step) => step.text).join(" ")).not.toMatch(
+    /Admin|šablon/,
+  );
+  expect(principleIn("modules", "cs", "work")?.steps.map((s) => s.at)).toEqual([
+    "apps-module",
+    "apps-module",
+    "tab-chat",
+    "apps-access",
+    "apps-new-module",
   ]);
 });
 

@@ -1,7 +1,7 @@
 import type { ShellEnvironmentKind } from "../shell/contract";
 import type { VaultEnvironmentKind } from "../vault/context";
 import type { VaultPhase, VaultStatus } from "../vault/flow";
-import type { GuideVideoName } from "./guide-video";
+import { type GuideVideoName, modulesVideo } from "./guide-video";
 import { integrationsHelp } from "./integrations-view";
 import type { MessageKey } from "./messages";
 import type { PageRoute } from "./routes";
@@ -16,7 +16,8 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // over (`provideGuides`), since they point at its own elements by their
 // `data-guide` marks. Every page of the Apps column and of Settings has its
 // "?" (plan DEV-6612, PRs 4 and 5), and the page keeps no sentence that only
-// explained it: Apps plays the shell's principle "environment", Soubory
+// explained it: Apps plays the shell's principle "modules" (F56's addendum (8)
+// of 2026-11-05), Soubory
 // "files", Integrace "integrations" with its documentation in the card,
 // where Composio is allowed the Launchpad's "integrations-composio" and on
 // Vlastní its "integrations-custom"; Trezor plays what is true of this
@@ -432,8 +433,17 @@ export function pageHelpOf(route: PageRoute): PageHelpId | null {
 export type PageHelpState = Readonly<{
   hidden: boolean;
   plays: string | null;
-  controls: "vault-video" | null;
+  /** The id of the box the "?" opens (`helpVideoBoxes`). */
+  controls: string | null;
 }>;
+
+/** The box of each guide video a "?" opens in place, by the video's name:
+ * under Trezor's heading and under the Apps home's. A name this release does
+ * not carry yet stands here too (`modulesVideo`). */
+export const helpVideoBoxes: Readonly<Record<string, string>> = {
+  "vault-overview": "vault-video",
+  "modules-overview": "apps-video",
+};
 
 export function pageHelpStates(
   route: PageRoute,
@@ -447,7 +457,8 @@ export function pageHelpStates(
       : {
           hidden: false,
           plays: guide.help,
-          controls: guide.video === null ? null : "vault-video",
+          controls:
+            guide.video === null ? null : (helpVideoBoxes[guide.video] ?? null),
         };
   return {
     "page-help": state("page-help"),
@@ -458,7 +469,9 @@ export function pageHelpStates(
 
 /** The marks a step may name that a panel draws once its data is read, not
  * the page as served: Integrace's first connected app and first Connect
- * (integrations-panel.ts), and Vlastní's list and its way to add one;
+ * (integrations-panel.ts), and Vlastní's list and its way to add one; the
+ * Apps home's first module, its Zkontrolovat přístupy and "+ Nový modul"
+ * (catalog-panel.ts);
  * Začínáme's Buddy, AI and GitHub steps (start-panel.ts); the first sign-in and
  * the first "Používají agenti" of Nástroje (tools-panel.ts); Obnova's result and its
  * checks (recovery-panel.ts). A mark that is not there points at nothing:
@@ -475,6 +488,9 @@ export const drawnMarks = Object.freeze([
   "tool-agents",
   "recovery-result",
   "recovery-checks",
+  "apps-module",
+  "apps-access",
+  "apps-new-module",
 ] as const);
 
 /** What the page knows that a variant may be chosen by. */
@@ -507,6 +523,18 @@ const plays = (
   guides: readonly PageGuideInput[] = [],
 ): PageGuide => ({ help, video: null, guides });
 
+/** What Apps' "?" plays: the shell's principle `modules`, and once this release
+ * carries the video of modules (`modulesVideo`) that video in place, as Trezor
+ * has it. A Personal Environment keeps the principle, whose adaptation is true
+ * of it: the video tells of an Organization. */
+export const appsHelp = (
+  kind: ShellEnvironmentKind | null,
+  video: GuideVideoName | null,
+): PageGuide =>
+  video === null || kind === "personal"
+    ? plays("modules")
+    : { help: null, video, guides: [] };
+
 /** The guide of a route, from what the page knows. */
 export function pageGuide(
   route: PageRoute,
@@ -516,7 +544,7 @@ export function pageGuide(
   switch (route.view) {
     case "home":
     case "organization":
-      return plays("environment");
+      return appsHelp(facts.kind, modulesVideo);
     case "files":
       return facts.kind === "team"
         ? plays("files-team", [filesTeamGuide(copy)])

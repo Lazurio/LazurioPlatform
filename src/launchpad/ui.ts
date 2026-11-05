@@ -1,3 +1,4 @@
+import { catalogOrganizationKey } from "../organizations/catalog-selection";
 import { pageAccountJson, pageReentry, sessionRefused } from "../shell/account";
 import { buddyAvatarSource } from "../shell/buddy-protocol";
 import {
@@ -82,6 +83,7 @@ import {
   type TourFacts,
   withBuddySetup,
 } from "./first-run";
+import { modulesVideo } from "./guide-video";
 import { type PageHelpId, pageGuide, pageHelpStates } from "./guides";
 import { createIntegrationsPanel } from "./integrations-panel";
 import { composioSignIn, toolSignInsKey } from "./integrations-view";
@@ -255,8 +257,10 @@ let guideOff = false;
 /** What Settings → Nástroje's "?" can point at, as the tools panel last
  * drew it; null until the tools are read (`tools`'s `drawn`). */
 let toolTargets: ToolGuideTargets | null = null;
-/** The "?" of the page now shown when it opens a video (Trezor's). */
+/** The "?" of the page now shown when it opens a video, and that video's
+ * box (guides.ts `helpVideoBoxes`). */
 let videoHelp: HTMLButtonElement | null = null;
+let videoBox: string | null = null;
 function drawGuide(route: PageRoute) {
   const guide = pageGuide(
     route,
@@ -282,6 +286,7 @@ function drawGuide(route: PageRoute) {
   buddy?.setAttribute("lang", locale);
   const states = pageHelpStates(route, guide, guideOff);
   videoHelp = null;
+  videoBox = null;
   for (const id of Object.keys(pageHelps) as PageHelpId[]) {
     const help = pageHelps[id];
     if (help === null) continue;
@@ -291,8 +296,12 @@ function drawGuide(route: PageRoute) {
     else delete help.dataset.guideHelp;
     if (state.controls !== null) {
       videoHelp = help;
+      videoBox = state.controls;
       help.setAttribute("aria-controls", state.controls);
-      help.setAttribute("aria-expanded", String(vaultVideo.open));
+      help.setAttribute(
+        "aria-expanded",
+        String(helpVideos[state.controls]?.open ?? false),
+      );
     } else {
       help.removeAttribute("aria-controls");
       help.removeAttribute("aria-expanded");
@@ -302,7 +311,8 @@ function drawGuide(route: PageRoute) {
   }
   // Trezor's video stands open first where its words are true (F56's
   // addendum (4) of 2026-10-19); a new page is a new visit.
-  vaultVideo.draw(videoHelp, JSON.stringify(route));
+  for (const [box, video] of Object.entries(helpVideos))
+    video.draw(box === videoBox ? videoHelp : null, JSON.stringify(route));
 }
 // The documentation of the Launchpad's "Guide" (the root Launchpad's
 // `guideDocumentationUrl`), in the page's language.
@@ -1415,9 +1425,13 @@ const vaultVideoBox = document.querySelector<HTMLElement>("#vault-video");
 const vaultVideoSlot = document.querySelector<HTMLElement>(
   "#vault-video-player",
 );
+const noHelpVideo: Pick<
+  ReturnType<typeof createHelpVideo>,
+  "toggle" | "draw" | "open" | "render"
+> = { toggle() {}, draw() {}, open: false, render() {} };
 const vaultVideo =
   vaultVideoBox === null || vaultVideoSlot === null
-    ? { toggle() {}, draw() {}, open: false, render() {} }
+    ? noHelpVideo
     : createHelpVideo({
         box: vaultVideoBox,
         slot: vaultVideoSlot,
@@ -1427,9 +1441,31 @@ const vaultVideo =
         copy: () => copy,
         locale: () => locale,
       });
+// The Apps home's video, once this release carries it (guide-video.ts
+// `modulesVideo`): under the head, opened by its "?" alone.
+const appsVideoBox = document.querySelector<HTMLElement>("#apps-video");
+const appsVideoSlot = document.querySelector<HTMLElement>("#apps-video-player");
+const appsVideo =
+  appsVideoBox === null || appsVideoSlot === null || modulesVideo === null
+    ? noHelpVideo
+    : createHelpVideo({
+        box: appsVideoBox,
+        slot: appsVideoSlot,
+        name: modulesVideo,
+        title: () => copy.modulesVideoTitle,
+        copy: () => copy,
+        locale: () => locale,
+        first: false,
+      });
+// Every help video of the page, by its box (guides.ts `helpVideoBoxes`).
+const helpVideos: Readonly<Record<string, typeof noHelpVideo>> = {
+  "vault-video": vaultVideo,
+  "apps-video": appsVideo,
+};
 for (const help of Object.values(pageHelps))
   help?.addEventListener("click", () => {
-    if (help === videoHelp) vaultVideo.toggle(help);
+    if (help === videoHelp && videoBox !== null)
+      helpVideos[videoBox]?.toggle(help);
   });
 // Apps → Trezor: the agents' secret requests (decision F54), the section of
 // those that wait and one request's page; read when shown.
@@ -1481,6 +1517,7 @@ const browser = createBrowserPanel({
 // three screens, which hands its brief over as a prompt of Chat.
 const newModuleDialog = createNewModuleDialog({
   copy: () => copy,
+  locale: () => locale,
   handOver: (prompt) => handOver(prompt),
   keepBrief: async (offer, description) => {
     try {
@@ -1513,6 +1550,28 @@ const marketplace = createMarketplacePanel({
     if (framed) shell.relabel();
   },
   catalog: () => catalog.current(),
+  role: async (organization) => {
+    const current = catalog.current();
+    const key =
+      current === null ? null : catalogOrganizationKey(current, organization);
+    if (key === null) return null;
+    try {
+      const { value, ok } = await get(
+        `/api/organizations/${encodeURIComponent(key)}/owner`,
+      );
+      const answer = (ok ? value : null) as {
+        owner?: unknown;
+        member?: unknown;
+      } | null;
+      return answer?.owner === true
+        ? "admin"
+        : answer?.member === true
+          ? "member"
+          : null;
+    } catch {
+      return null;
+    }
+  },
   handOver: (prompt) => handOver(prompt),
 });
 // The frame: routes, the catalog and settings navigation, the breadcrumb and
@@ -1728,7 +1787,7 @@ function relabel() {
   vaultPage.render();
   if (framed) marketplace.render();
   newModuleDialog.render();
-  vaultVideo.render();
+  for (const video of Object.values(helpVideos)) video.render();
   vaultRequests.relabel();
   files.relabel();
   integrations.relabel();

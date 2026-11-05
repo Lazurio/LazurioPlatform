@@ -5,6 +5,7 @@ import type {
 } from "../src/launchpad/catalog-panel";
 import {
   adoptionPromptId,
+  adoptionRequestPromptId,
   type MarketplaceCatalog,
   type MarketplaceOffer,
   offerById,
@@ -81,7 +82,7 @@ const settled = () => Bun.sleep(1);
 
 /** The Marketplace page on the stand-in, its reads and hand-overs answered
  * by the test. */
-function page() {
+function page(role: "admin" | "member" | null = null) {
   const byId = new Map<string, FakeNode>();
   const node = (selector: string) => {
     let found = byId.get(selector);
@@ -106,13 +107,15 @@ function page() {
     end: (outcome: NewModuleOutcome) => void;
   }[] = [];
   let route: PageRoute = { view: "marketplace" };
+  let catalogRead: Catalog = folder;
   const panel = createMarketplacePanel({
     copy: () => en,
     locale: () => "en",
     route: () => route,
     load: () => new Promise((resolve) => reads.push(resolve)),
     changed: () => undefined,
-    catalog: () => folder,
+    catalog: () => catalogRead,
+    role: async () => role,
     handOver: (prompt) =>
       new Promise((resolve) => handOvers.push({ prompt, end: resolve })),
   });
@@ -121,6 +124,13 @@ function page() {
   return {
     handOvers,
     ok,
+    /** What the dialog's body says, each drawn text. */
+    says: () =>
+      [...node("#market-dialog-body").walk()].map((child) => child.textContent),
+    /** This Folder's catalog from now on. */
+    folder(catalog: Catalog) {
+      catalogRead = catalog;
+    },
     /** Goes to an offer's detail and draws it. */
     detail(id: string) {
       route = { view: "marketplace", offer: id };
@@ -182,6 +192,70 @@ test("a hand-over that ends in the dialog that started it says its outcome there
   expect(view.status()).toBe(en.marketHandedOver);
   expect(view.ok.disabled).toBe(false);
   view.leave();
+});
+
+test("a member of the Organization asks its Admin: the request's prompt and words take the adoption's place", async () => {
+  const view = page("member");
+  view.detail("presentations");
+  await view.answer(first);
+  view.add();
+  await settled();
+  expect(view.ok.textContent).toBe(en.marketAskAdmin);
+  expect(view.says()).toContain(
+    en.marketRequestWhat.replace("{name}", "Example Company"),
+  );
+  view.ok.click();
+  const shown = offer(first, "presentations");
+  expect(view.handOvers[0]?.prompt).toMatchObject({
+    id: adoptionRequestPromptId(first, shown, "empty"),
+    organization: "Example-Org",
+  });
+  const text = view.handOvers[0]?.prompt.text ?? "";
+  expect(text).toContain("`admin-request`");
+  expect(text).toContain(shown.title);
+  expect(text).toContain(shown.release.commit);
+  await view.end(0, "handed-over");
+  view.leave();
+});
+
+test("an Admin, and a role that cannot be read, keep the adoption, whose first step is the live rights", async () => {
+  for (const role of ["admin", null] as const) {
+    const view = page(role);
+    view.detail("presentations");
+    await view.answer(first);
+    view.add();
+    await settled();
+    expect(view.ok.textContent).toBe(en.marketHandOver);
+    view.ok.click();
+    expect(view.handOvers[0]?.prompt.id).toBe(
+      adoptionPromptId(first, offer(first, "presentations"), "empty"),
+    );
+    await view.end(0, "handed-over");
+    view.leave();
+  }
+});
+
+test("a personal space without an Organization says that templates go into one", async () => {
+  const none = { kind: "catalog", organizations: [] } as unknown as Catalog;
+  for (const [catalog, words] of [
+    [
+      { ...none, personalspace: { directory: "personalspace", modules: [] } },
+      en.marketTargetPersonal,
+    ],
+    [none, en.marketTargetNone],
+  ] as const) {
+    const view = page();
+    view.folder(catalog as unknown as Catalog);
+    view.detail("presentations");
+    await view.answer(first);
+    view.add();
+    expect(view.says()).toContain(words);
+    expect(view.ok.disabled).toBe(true);
+    view.leave();
+  }
+  expect(messages("cs").marketTargetPersonal).toBe(
+    "Šablony zatím přidáte jen do Organizace.",
+  );
 });
 
 test("a read that changes the offer while Chat is awaited keeps its warning, and the next hand-over is the offer shown", async () => {

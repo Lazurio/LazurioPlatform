@@ -570,6 +570,76 @@ posixTest(
 );
 
 posixTest(
+  "hosted: a member's request for a template only for a member of that Organization; an Owner adopts it",
+  async () => {
+    const commit = "0123456789abcdef0123456789abcdef01234567";
+    const offers = parseMarketplaceIndex({
+      ...unreleasedIndex,
+      offers: unreleasedIndex.offers.map((offer) =>
+        offer.id === "presentations"
+          ? {
+              ...offer,
+              releases: offer.releases.map((release) => ({
+                ...release,
+                commit,
+              })),
+            }
+          : offer,
+      ),
+    }) as readonly MarketplaceOffer[];
+    const catalog: MarketplaceCatalog = {
+      source: "registry",
+      commit: "f".repeat(40),
+      offers,
+    };
+    const registry: MarketplaceRegistry = {
+      current: () => catalog,
+      read: async () => catalog,
+      checking: () => false,
+      catalogs: () => [catalog],
+    };
+    const id = `request-presentations-empty-${"f".repeat(12)}`;
+    const member = await hostedLaunchpad(false, "0.0.45-lazurio.2", registry);
+    try {
+      const answer = await fetch(
+        `${member.base}/.lazurio/prompts/${id}?org=example-org`,
+        { headers: member.valid },
+      );
+      expect(answer.status).toBe(200);
+      const document = (await answer.json()) as { id: string; text: string };
+      expect(document.id).toBe(id);
+      expect(document.text).toContain("`admin-request`");
+      expect(document.text).toContain(commit);
+      expect(document.text).toContain("LazurioTemplates/presentations");
+      // A catalog no longer served, or an offer that is none, as an adoption.
+      for (const other of [
+        `request-presentations-empty-${"e".repeat(12)}`,
+        `request-other-empty-${"f".repeat(12)}`,
+      ]) {
+        const refused = await fetch(
+          `${member.base}/.lazurio/prompts/${other}?org=example-org`,
+          { headers: member.valid },
+        );
+        expect([other, refused.status]).toEqual([other, 404]);
+      }
+    } finally {
+      await member.close();
+    }
+    const owner = await hostedLaunchpad(true, "0.0.45-lazurio.2", registry);
+    try {
+      const refused = await fetch(
+        `${owner.base}/.lazurio/prompts/${id}?org=example-org`,
+        { headers: owner.valid },
+      );
+      expect(refused.status).toBe(404);
+    } finally {
+      await owner.close();
+    }
+  },
+  30_000,
+);
+
+posixTest(
   "hosted: the prompt for the Organization's Owner, behind the gateway's admission, never cached",
   async () => {
     const hosted = await hostedLaunchpad(true, "0.0.45-lazurio.2");

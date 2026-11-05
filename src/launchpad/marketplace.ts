@@ -455,11 +455,34 @@ export function adoptionOf(
   return shared ? null : ([...found.values()][0] ?? null);
 }
 
+/** The prompt id of a member's request for an adoption (decision F36's
+ * addendum of 2026-11-05): the adoption's own with another start. */
+export type AdoptionRequestPromptId =
+  `request-${string}-${AdoptionSeed}-${string}`;
+
+export const adoptionRequestPromptId = (
+  catalog: MarketplaceCatalog,
+  entry: MarketplaceOffer,
+  chosen: AdoptionSeed,
+): AdoptionRequestPromptId =>
+  `request-${entry.id}-${chosen}-${catalogKey(catalog)}`;
+
+/** The adoption a request names (`adoptionOf`), or null. */
+export const adoptionRequestOf = (
+  catalogs: readonly MarketplaceCatalog[],
+  id: string,
+) => adoptionOf(catalogs, id.replace(/^request-/, "marketplace-"));
+
 /** Whether an id has the shape of an adoption's, whichever catalog. */
 export const isAdoptionPromptId = (id: string): boolean =>
   new RegExp(
     `^marketplace-[a-z0-9][a-z0-9-]{0,${offerIdLength - 1}}-(empty|sample)-([0-9a-f]{${catalogKeyLength}}|${builtInKey})$`,
   ).test(id);
+
+/** Whether an id has the shape of a member's request for an adoption. */
+export const isAdoptionRequestId = (id: string): boolean =>
+  id.startsWith("request-") &&
+  isAdoptionPromptId(id.replace(/^request-/, "marketplace-"));
 
 /** Whether a release's App keeps data of its own: the generation names the
  * data layer, so from `app/v3` on (repository-db in v3, Dolt in v4). */
@@ -483,9 +506,25 @@ export function adoptionPrompt(
   copy: Copy,
   locale: MarketplaceLocale,
 ): string | null {
+  return filledBrief(
+    copy.marketAdoptPrompt,
+    entry,
+    chosen,
+    organization,
+    locale,
+  );
+}
+
+function filledBrief(
+  text: string,
+  entry: MarketplaceOffer,
+  chosen: AdoptionSeed,
+  organization: Readonly<{ name: string; login: string }>,
+  locale: MarketplaceLocale,
+): string | null {
   const start = seedOf(entry, chosen);
   if (start === null) return null;
-  return copy.marketAdoptPrompt
+  return text
     .replaceAll("{title}", entry.title)
     .replaceAll("{name}", organization.name)
     .replaceAll("{login}", organization.login)
@@ -496,4 +535,24 @@ export function adoptionPrompt(
     .replaceAll("{module}", entry.module)
     .replaceAll("{create}", createCommand(entry.release))
     .replaceAll("{seed}", start.brief[locale]);
+}
+
+/** The brief "Požádat Admina" hands to the agent where the person is a member
+ * of the Organization (decision F36's addendum of 2026-11-05): the same
+ * release, and the request the Admin acts on through the skill
+ * `admin-request`. Null when the offer has no such start. */
+export function adoptionRequestPrompt(
+  entry: MarketplaceOffer,
+  chosen: AdoptionSeed,
+  organization: Readonly<{ name: string; login: string }>,
+  copy: Copy,
+  locale: MarketplaceLocale,
+): string | null {
+  return filledBrief(
+    copy.marketRequestPrompt,
+    entry,
+    chosen,
+    organization,
+    locale,
+  );
 }

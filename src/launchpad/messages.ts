@@ -686,11 +686,19 @@ const en = {
   marketAddTitle: "Add {title} to an Organization",
   marketTarget: "Organization",
   marketTargetNone: "No Organization here is connected to GitHub yet.",
+  marketTargetPersonal: "For now, templates go into an Organization only.",
   marketStart: "Start with",
   marketWhat:
     "In Chat, the agent prepares a private {title} module for {name} with you. Before anything there changes, it shows you the plan to approve.",
   marketTaken:
     "{name} already has a module named {module}. The agent agrees another name with you.",
+  // A member of the Organization asks its Admin (decision F36's addendum of
+  // 2026-11-05).
+  marketRequestWhat:
+    "The Admin adds a template to {name}. In Chat, the agent prepares a request to the Admin with you and shows it to you before sending.",
+  marketAskAdmin: "Ask the Admin",
+  marketRequestPrompt:
+    "I want the app template {title} from the Lazurio Marketplace in the Organization {name} (GitHub {login}).\nRelease: {repository} {tag}, commit {commit}, license {license}. Start with {seed}.\n\nNew modules are created by the Admin, so prepare a request to the Admin for me with the skill `admin-request`: the Admin adds the template as the private module {module} by docs/adoption.md of exactly that commit.\n\nFirst ask me about what does not follow from it, then show me the request and send it only with my consent.",
   marketHandOver: "Continue in Chat",
   marketCancel: "Cancel",
   marketClose: "Close",
@@ -1198,8 +1206,8 @@ const en = {
   tourPrepareFailedText: "Here is what to do next.",
   tourPreparePersonalTitle: "Prepare your personal space",
   tourPrepareOrganizationTitle: "Download {name}",
-  tourAppsTitle: "Apps",
-  tourAppsText: "Your modules' apps.",
+  tourAppsTitle: "Modules",
+  tourAppsText: "The process, data and app of each area of work.",
   tourChatTitle: "Chat",
   tourChatText: "Work with agents.",
   tourChatMissingText: "Work with agents. Not running here.",
@@ -2934,11 +2942,18 @@ const cs: Record<MessageKey, string> = {
   marketAddTitle: "Přidat {title} do Organizace",
   marketTarget: "Organizace",
   marketTargetNone: "Žádná Organizace tady zatím není propojená s GitHubem.",
+  marketTargetPersonal: "Šablony zatím přidáte jen do Organizace.",
   marketStart: "Začít s",
   marketWhat:
     "Agent s vámi v Chatu připraví soukromý modul {title} pro Organizaci {name}. Než se v ní cokoli změní, ukáže vám plán ke schválení.",
   marketTaken:
     "Organizace {name} už modul {module} má. Agent s vámi domluví jiný název.",
+  marketRequestWhat:
+    "Šablonu do Organizace {name} přidává Admin. Agent s vámi v Chatu připraví žádost pro Admina a před odesláním vám ji ukáže.",
+  marketAskAdmin: "Požádat Admina",
+  // In Czech the person's own words to the agent, so tykání (0199).
+  marketRequestPrompt:
+    "Chci v Organizaci {name} (GitHub {login}) šablonu aplikace {title} z Marketplace Lazuria.\nVydání: {repository} {tag}, commit {commit}, licence {license}. Začít s {seed}.\n\nNový modul zakládá Admin, proto mi připrav žádost pro Admina skillem `admin-request`: Admin šablonu přidá jako soukromý modul {module} podle docs/adoption.md přesně z tohoto commitu.\n\nNejdřív se mě doptej na to, co z toho nevyplývá, pak mi žádost ukaž a pošli ji až s mým souhlasem.",
   marketHandOver: "Pokračovat v Chatu",
   marketCancel: "Zrušit",
   marketClose: "Zavřít",
@@ -3417,8 +3432,8 @@ const cs: Record<MessageKey, string> = {
   tourPrepareFailedText: "Tady je, co dál.",
   tourPreparePersonalTitle: "Připravte osobní prostor",
   tourPrepareOrganizationTitle: "Stáhněte {name}",
-  tourAppsTitle: "Apps",
-  tourAppsText: "Aplikace vašich modulů.",
+  tourAppsTitle: "Moduly",
+  tourAppsText: "Postup, data a aplikace každé oblasti práce.",
   tourChatTitle: "Chat",
   tourChatText: "Práce s agenty.",
   tourChatMissingText: "Práce s agenty. Tady neběží.",
