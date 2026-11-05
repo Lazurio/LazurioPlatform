@@ -5,8 +5,8 @@ import type { Text } from "./render";
 // an agent hands the Organization Admin something only the Admin may do, so
 // that a person without the role gets a request the Admin can act on instead
 // of a guess, a workaround or a "contact your Admin". Until Lazurio carries
-// requests itself (root decision 0229 proposes it for the AI source in
-// Getting started), the request is an issue in the Organization's root
+// requests itself (root decision 0230, whose first case is 0229's AI source
+// in Getting started), the request is an issue in the Organization's root
 // repository, the place the Folder already sends missing rights and open
 // questions to (root decision 0163). The Admin's side is `manual/admin.md`.
 

@@ -1358,7 +1358,7 @@ Everything starts as a draft: a pull request, an e-mail draft, a filled-in form.
 The agents in an Environment need AI: Codex and, by choice, Claude Code. A Personal Environment always has the person's own sign-in. A Work Environment on a server where the Organization runs an AI pool takes its AI from one of two sources: the **pool**, where agents use subscriptions the Organization signed in once for everyone, or the person's **own account**, a seat in the Organization's ChatGPT Business workspace or a personal ChatGPT account, with Claude if they want it. The person sees the state in Settings → Getting started → Connect AI: on the pool “Provided by your Organization.”, on an own account their sign-in.
 
 - **Signing in an own account** in an Environment that is not on the pool, the person does alone: Settings → Getting started → Connect AI → Sign in to ChatGPT or Sign in to Claude.
-- **Moving from the pool to an own account and back** only the Admin may do. As the target they set it per Environment in the Organization's Dashboard, and the person asks for it right in Getting started (decision 0229, proposed). Today it is a reviewed pull request to the Organization's Deployment Repo (decision 0205), which the Admin's agent prepares by the Organization's skill. Do not sign in an own account on the pool and do not work around the change.
+- **Moving from the pool to an own account and back** only the Admin may do. As the target they set it per Environment in the Organization's Dashboard, and the person asks for it right in Getting started (decision 0229, not yet deployed). Today it is a reviewed pull request to the Organization's Deployment Repo (decision 0205), which the Admin's agent prepares by the Organization's skill. Do not sign in an own account on the pool and do not work around the change.
 - **What the move means:** it ends the running chats in that Environment and briefly for everyone else on the same pool, because the pool restarts. Claude Code leaves the pool together with Codex. A ChatGPT Business work account works only where the workspace's administrator allows Codex outside ChatGPT; after the move the person signs in at Getting started.
 
 ## Phone and computer
@@ -1395,7 +1395,7 @@ An Organization's servers and Environments change only by a pull request to its 
 | A rule for the whole Organization | proposes an issue or PR | review and merge by rights |
 
 ## How to ask the Admin
-One way: the skill \`admin-request\`. The agent checks that the matter really is the Admin's, collects what the Admin needs and files one request as an issue in the Organization's root repository, mentioning the Admins. Passwords, tokens and codes do not belong in it. It gives the user the link and says what happens next. When the user has no access to the root repository, it prepares a short text for the Admin and leaves sending it to the user. In a public Environment file no request; just explain how it works in an Organization. As the target, requests are made right in Lazurio: the AI source in Getting started (decision 0229, proposed).
+One way: the skill \`admin-request\`. The agent checks that the matter really is the Admin's, collects what the Admin needs and files one request as an issue in the Organization's root repository, mentioning the Admins. Passwords, tokens and codes do not belong in it. It gives the user the link and says what happens next. When the user has no access to the root repository, it prepares a short text for the Admin and leaves sending it to the user. In a public Environment file no request; just explain how it works in an Organization. As the target, requests are made right in Lazurio and reach the Organization's Admins (decision 0230, not yet deployed); the first case is the AI source in Getting started (decision 0229).
 "
 `;
 
@@ -1440,7 +1440,7 @@ Všechno je nejdřív koncept: pull request, koncept e-mailu, vyplněný formul�
 Agenti v Prostředí potřebují AI: Codex a podle volby Claude Code. Osobní Prostředí má vždy vlastní přihlášení člověka. Pracovní Prostředí na serveru, kde Organizace provozuje AI pool, bere AI z jednoho ze dvou zdrojů: z **poolu**, kde agenti používají předplatné, které Organizace přihlásila jednou za všechny, nebo z **vlastního účtu** člověka, pracovního místa v ChatGPT Business Organizace nebo osobního účtu ChatGPT, k tomu případně Claude. Stav vidí člověk v Nastavení → Začínáme → Připojit AI: na poolu „Zajišťuje vaše Organizace.“, s vlastním účtem jeho přihlášení.
 
 - **Přihlásit vlastní účet** v Prostředí, které není na poolu, zvládne člověk sám: Nastavení → Začínáme → Připojit AI → Přihlásit ChatGPT nebo Přihlásit Claude.
-- **Přejít z poolu na vlastní účet a zpět** smí jen Admin. Cílově to nastaví v Přehledu Organizace pro jednotlivá Prostředí a člověk o změnu požádá přímo v Začínáme (rozhodnutí 0229, navržené). Dnes je to reviewovaný pull request do repozitáře nasazení Organizace (rozhodnutí 0205), který připraví agent Admina podle skillu Organizace. Na poolu se vlastním účtem nepřihlašuj a přechod neobcházej.
+- **Přejít z poolu na vlastní účet a zpět** smí jen Admin. Cílově to nastaví v Přehledu Organizace pro jednotlivá Prostředí a člověk o změnu požádá přímo v Začínáme (rozhodnutí 0229, zatím nenasazené). Dnes je to reviewovaný pull request do repozitáře nasazení Organizace (rozhodnutí 0205), který připraví agent Admina podle skillu Organizace. Na poolu se vlastním účtem nepřihlašuj a přechod neobcházej.
 - **Co přechod znamená:** ukončí rozběhnuté chaty v tom Prostředí a na chvíli i u všech ostatních na stejném poolu, protože se pool restartuje. Claude Code odchází z poolu spolu s Codexem. Pracovní účet ChatGPT Business funguje jen tehdy, když správce workspace povolí Codex mimo ChatGPT; po přechodu se člověk přihlásí v Začínáme.
 
 ## Telefon a počítač
@@ -1477,7 +1477,7 @@ Servery a Prostředí Organizace se mění jen pull requestem do jejího soukrom
 | Pravidlo pro celou Organizaci | navrhne issue nebo PR | review a merge podle práv |
 
 ## Jak požádat Admina
-Jednou cestou: skill \`admin-request\`. Agent ověří, že věc opravdu patří Adminovi, sebere údaje, které Admin potřebuje, a zapíše jednu žádost jako issue do kořenového repozitáře Organizace se zmínkou Adminů. Hesla, tokeny ani kódy do ní nepatří. Uživateli dá odkaz a řekne, co bude dál. Když uživatel do kořenového repozitáře nemá přístup, připraví mu krátký text pro Admina a odeslání nechá na něm. Na veřejném Prostředí žádost nezakládej, jen vysvětli, jak to v Organizaci chodí. Cílově se žádosti podávají přímo v Lazuriu: o zdroj AI v Začínáme (rozhodnutí 0229, navržené).
+Jednou cestou: skill \`admin-request\`. Agent ověří, že věc opravdu patří Adminovi, sebere údaje, které Admin potřebuje, a zapíše jednu žádost jako issue do kořenového repozitáře Organizace se zmínkou Adminů. Hesla, tokeny ani kódy do ní nepatří. Uživateli dá odkaz a řekne, co bude dál. Když uživatel do kořenového repozitáře nemá přístup, připraví mu krátký text pro Admina a odeslání nechá na něm. Na veřejném Prostředí žádost nezakládej, jen vysvětli, jak to v Organizaci chodí. Cílově se žádosti podávají přímo v Lazuriu a dostanou se k Adminům Organizace (rozhodnutí 0230, zatím nenasazené); prvním případem je zdroj AI v Začínáme (rozhodnutí 0229).
 "
 `;
 
@@ -1518,7 +1518,7 @@ gh issue list -R <org>/<root-repository> --state open --search 'in:title "Žádo
 
 ## Procedures
 ### The AI source of one Environment
-The target is a choice in the Organization's Dashboard (decision 0229, proposed). Until it is there, it is a reviewed pull request to the Deployment Repo by the Organization's skill: one change in one place, the CI Plan committed unchanged, a review by someone other than the author on the exact head, the Admin's merge and the apply by the runner. Change nothing on the server by hand. After a move to an own account the colleague signs in at Getting started; after a return to the pool Getting started says “Provided by your Organization.” Check the result and write it in the request.
+The target is a choice in the Organization's Dashboard (decision 0229, not yet deployed). Until it is there, it is a reviewed pull request to the Deployment Repo by the Organization's skill: one change in one place, the CI Plan committed unchanged, a review by someone other than the author on the exact head, the Admin's merge and the apply by the runner. Change nothing on the server by hand. After a move to an own account the colleague signs in at Getting started; after a return to the pool Getting started says “Provided by your Organization.” Check the result and write it in the request.
 
 ### Approving and removing a device
 The person registers a device alone. The Admin approves a specific node by its Headscale record (node number, machine key, owner), never by its name (decision 0192). Where the Organization's Dashboard does not offer approval, it goes by a reviewed change in the Deployment Repo, by the Organization's skill. Remove a lost device first. Approving a device does not open a Personal Environment: there the Conglomerate Host's owner decides.
@@ -1571,7 +1571,7 @@ gh issue list -R <org>/<kořenový-repozitář> --state open --search 'in:title 
 
 ## Postupy
 ### Zdroj AI jednoho Prostředí
-Cíl je volba v Přehledu Organizace (rozhodnutí 0229, navržené). Dokud tam není, je to reviewovaný pull request do repozitáře nasazení podle skillu Organizace: jedna změna na jednom místě, Plán z CI commitnutý beze změny, review od někoho jiného než autora na přesném headu, merge Admina a apply runnerem. Na serveru nic neměň ručně. Po přechodu na vlastní účet se kolega přihlásí v Začínáme; po návratu na pool Začínáme ukáže „Zajišťuje vaše Organizace.“ Výsledek ověř a zapiš do žádosti.
+Cíl je volba v Přehledu Organizace (rozhodnutí 0229, zatím nenasazené). Dokud tam není, je to reviewovaný pull request do repozitáře nasazení podle skillu Organizace: jedna změna na jednom místě, Plán z CI commitnutý beze změny, review od někoho jiného než autora na přesném headu, merge Admina a apply runnerem. Na serveru nic neměň ručně. Po přechodu na vlastní účet se kolega přihlásí v Začínáme; po návratu na pool Začínáme ukáže „Zajišťuje vaše Organizace.“ Výsledek ověř a zapiš do žádosti.
 
 ### Schválení a odebrání zařízení
 Zařízení registruje člověk sám. Admin schvaluje konkrétní uzel podle záznamu Headscale (číslo uzlu, machine key, vlastník), nikdy podle jména (rozhodnutí 0192). Kde Přehled Organizace schvalování nenabízí, jde to reviewovanou změnou v repozitáři nasazení podle skillu Organizace. Ztracené zařízení odeber přednostně. Schválení zařízení neotevírá Osobní Prostředí: tam rozhoduje vlastník Conglomerate Hostu.

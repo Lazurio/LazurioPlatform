@@ -58,10 +58,10 @@ function rendered(
   );
 }
 
-// Decisions cited before the register has them: 0229 is proposed by
-// Lazurio/LazurioPlatform#852. When the register gains a number, it leaves
-// this list (the last test says so).
-const pendingInRegister = new Set(["0229"]);
+// Decisions cited before the register has them: 0230 (requests to the Admin
+// inside Lazurio) is being recorded by its own register pull request. When
+// the register gains a number, it leaves this list (the next test says so).
+const pendingInRegister = new Set(["0230"]);
 
 const register = readFileSync(
   join(import.meta.dir, "..", "docs", "decision-register.md"),
@@ -123,7 +123,7 @@ test("every decision the chapters and the skill cite is in the register, and a s
       number,
       statusOf.has(number) || pendingInRegister.has(number),
     ]).toEqual([number, true]);
-  // "(decision 0228, not yet deployed)", "(decision 0229, proposed)",
+  // "(decision 0228, not yet deployed)", "(decision 0229, not yet deployed)",
   // "(decision 0192, target model)".
   const claims = [
     ...text.matchAll(

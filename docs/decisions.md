@@ -3489,9 +3489,9 @@ What changes:
   “Žádost pro Admina: …” or “Request for the Admin: …” with the Admins mentioned, never a
   secret; without access to the root repository, a ready text the person sends themselves;
   nothing on a public Environment. The issue is ordinary working evidence like an open
-  question (root decision 0163). As the target, requests are made in Lazurio itself, as root
-  decision 0229 proposes for the AI source in Getting started; whether that becomes the
-  general mechanism is Matěj's to decide.
+  question (root decision 0163). As the target, requests are made in Lazurio itself and
+  reach the Organization's Admins (root decision 0230); its first case is the AI source in
+  Getting started (root decision 0229).
 - **The role, until Lazurio Auth reports it (root decision 0228):** an active Owner of the
   GitHub Organization counts as the Admin, as `src/content/role.ts` already reads it.
 - **`roles.md`** describes the Organization Admin by root decision 0228 and points to both
@@ -3503,8 +3503,8 @@ What changes:
   forces a new revision. Every decision number they and the skill cite must be in
   `docs/decision-register.md`, and a status they claim (“not yet deployed”, “proposed”,
   “target model”) must be the register's, so a decision that comes into force fails the test
-  until the text follows. 0229 is cited while #852 proposes it, from a pending list that a
-  test empties once the register has it.
+  until the text follows. A number whose register pull request is still open (0230) is cited
+  from a pending list that a test empties once the register has it.
 - **Manifest schema 6.** New outputs are a new set: schemas 2 to 5 name their six manual
   files explicitly, schema 6 owns every output, and this product reads 2 to 6 and writes 6. A
   Folder at schema 2 to 5 gains the two chapters and the skill by its next change, created
