@@ -1064,7 +1064,7 @@ Service access is built only on entry through Lazurio Auth; entry by GitHub team
 
 ### 0229 — The Organization Admin sets where each Work Environment takes its AI from
 
-- **Status:** proposed · **Applies to:** GEN4 · **Proposed:** 2026-11-04
+- **Status:** decided, not yet deployed · **Applies to:** GEN4 · **Decided:** 2026-11-05 (proposed 2026-11-04)
 - **Related:** 0192, 0205, 0209, 0213, 0215, 0216, 0228, F71
 
 A Work Environment on a server whose server services run the Organization's AI pool (0209) takes its AI from one of two sources: the pool, where Codex and Claude Code use the subscription accounts the Organization signed in once, or the person's own account, where the person signs in with their own ChatGPT account, a work account of the Organization's ChatGPT Business workspace or a personal one, and with Claude if they want it. The Organization Admin (0228) chooses the source for each Environment in the Organization's Dashboard, for one or several Environments at once. A new Environment on such a server starts on the pool, and a free Environment can be set before it is assigned (0216). Team Environments, the server services and Environments on a server without a pool are outside this choice.
