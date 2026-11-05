@@ -31,6 +31,7 @@ import {
 } from "./first-run";
 import type { MessageKey } from "./messages";
 import { vaultPath } from "./routes";
+import { heldLine } from "./tools-view";
 import { fill } from "./update-view";
 
 type Copy = Readonly<Record<MessageKey, string>>;
@@ -539,7 +540,10 @@ export type OptionalRow = Readonly<{
   /** What it gives, at the choice: no step of Začínáme's "?" says it. */
   text: string;
   status: string | null;
-  /** None once it is done (Composio connected). */
+  /** One sentence under it on why it cannot be done yet and what comes
+   * first: Composio while its organization cannot be told (decision F42). */
+  note?: string;
+  /** None once it is done (Composio connected), or while it cannot be. */
   action: Readonly<{
     label: string;
     to: "composio" | `/settings/${string}` | typeof vaultPath;
@@ -572,8 +576,24 @@ export function optionalRows(
   const rows: OptionalRow[] = [];
   // Signed in but not in the organization of the Organization's name, it
   // is not done: its action opens Composio's dialog at the step left there
-  // (decision F42, note of 2026-10-19).
-  if (input.composio !== "none")
+  // (decision F42, note of 2026-10-19). While that organization cannot be
+  // told (the Organization not here yet, or its name unreadable) nothing is
+  // offered: a sign-in would land in the person's own organization, so the
+  // row says why and what comes first.
+  if (
+    input.composio === "organization-absent" ||
+    input.composio === "organization-unreadable"
+  )
+    rows.push({
+      id: "composio",
+      title: "Composio",
+      text: copy.startComposioText,
+      status: copy.startComposioWaiting,
+      note:
+        heldLine({ held: input.composio }, copy) ?? copy.startComposioWaiting,
+      action: null,
+    });
+  else if (input.composio !== "none")
     rows.push({
       id: "composio",
       title: "Composio",

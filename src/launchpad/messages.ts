@@ -430,6 +430,8 @@ const en = {
     "Composio could not be switched to your organization “{name}”.",
   toolsComposioOrgUnverified:
     "The name of {this}'s Organization cannot be read, so nothing connects through Composio now; ask the agent in Chat to check it.",
+  toolsComposioHeld:
+    "Composio connects here in the Composio organization that belongs to your Organization, and the Organization is not in {this} yet. Download it in Getting started first; if that does not work, ask its Owner to add you to the Organization's Team on GitHub. Then Composio can be connected.",
   toolsComposioCreateTitle: "One more step in Composio",
   toolsComposioCreateText: "Create an organization with this name in Composio.",
   toolsComposioCreateName: "Organization name",
@@ -1221,6 +1223,7 @@ const en = {
   startConnected: "Connected",
   startNotConnected: "Not connected",
   startUnfinished: "Not finished",
+  startComposioWaiting: "Waiting for the Organization",
   startFinish: "Finish",
   startSshTitle: "SSH from your own computer",
   startSshText: "A terminal and an editor on your computer.",
@@ -2598,6 +2601,8 @@ const cs: Record<MessageKey, string> = {
     "Composio se nepodařilo přepnout do vaší organizace „{name}“.",
   toolsComposioOrgUnverified:
     "Jméno Organizace {tohoto} nejde přečíst, takže přes Composio teď nic nepřipojíte; požádejte o kontrolu agenta v Chatu.",
+  toolsComposioHeld:
+    "Composio se tu připojuje do organizace v Composiu, která patří vaší Organizaci, a Organizace v {tomto} ještě není. Nejdřív ji stáhněte v Začínáme; když to nejde, požádejte jejího Ownera, ať vás přidá do Teamu Organizace na GitHubu. Pak bude Composio možné připojit.",
   toolsComposioCreateTitle: "Ještě jeden krok v Composiu",
   toolsComposioCreateText: "Založte v Composiu organizaci s tímto jménem.",
   toolsComposioCreateName: "Jméno organizace",
@@ -3353,6 +3358,7 @@ const cs: Record<MessageKey, string> = {
   startConnected: "Připojeno",
   startNotConnected: "Nepřipojeno",
   startUnfinished: "Nedokončeno",
+  startComposioWaiting: "Čeká na Organizaci",
   startFinish: "Dokončit",
   startSshTitle: "SSH z vlastního počítače",
   startSshText: "Terminál a editor ve vašem počítači.",

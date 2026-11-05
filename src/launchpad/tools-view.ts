@@ -17,7 +17,11 @@ import {
   toolNoteLimits,
   toolNoteProblem,
 } from "../tools/note";
-import type { ToolOverview, ToolsOverview } from "../tools/overview";
+import type {
+  ComposioHeld,
+  ToolOverview,
+  ToolsOverview,
+} from "../tools/overview";
 import { notPinned, pinnedUpdateOffered } from "../tools/pin";
 import {
   type SshKeyFacts,
@@ -130,7 +134,9 @@ function parseTool(input: unknown): ToolOverview | null {
     (value.standardPath !== undefined &&
       typeof value.standardPath !== "boolean") ||
     !optionalText(value.pinned) ||
-    !optionalText(value.note)
+    !optionalText(value.note) ||
+    (value.held !== undefined &&
+      (value.name !== "composio" || !composioHeld(value.held)))
   )
     return null;
   const signIn =
@@ -166,7 +172,25 @@ function parseTool(input: unknown): ToolOverview | null {
     ...(signIn === undefined ? {} : { signIn }),
     ...(value.note === undefined ? {} : { note: value.note }),
     ...(organization === undefined ? {} : { organization }),
+    ...(value.held === undefined ? {} : { held: value.held as ComposioHeld }),
   };
+}
+
+const composioHeld = (value: unknown): value is ComposioHeld =>
+  value === "organization-absent" || value === "organization-unreadable";
+
+/** Why Composio cannot be connected here yet, in one sentence: its
+ * organization is the Organization's, and the Organization is not in the
+ * Folder yet (the next step: download it, or be added to its Team), or its
+ * name cannot be read (decision F42). Null for every other tool and state. */
+export function heldLine(
+  tool: Pick<ToolOverview, "held">,
+  copy: Copy,
+): string | null {
+  if (tool.held === undefined) return null;
+  return tool.held === "organization-absent"
+    ? copy.toolsComposioHeld
+    : copy.toolsComposioOrgUnverified;
 }
 
 // What the Organization's settings say about a tool (decision F45).
@@ -675,7 +699,9 @@ export function curatedActions(
     return { primary: null, logout: false, linkSsh: false };
   // A tool the Organization does not allow here (decision F45) is neither
   // added nor signed in from this page; a sign-in left from before can go.
-  if (tool.organization?.allowed === false)
+  // Nor Composio while its organization cannot be told (`held`): its
+  // sign-in would land in the person's own organization (decision F42).
+  if (tool.organization?.allowed === false || tool.held !== undefined)
     return {
       primary: null,
       logout: tool.installed && tool.signIn?.state === "signed-in",
@@ -1087,7 +1113,15 @@ export function sourceLink(source: string): string | null {
 
 /** A login answer of the server, accepted only in its exact form; a pending
  * WhatsApp login may carry its QR code as SVG drawn by the server. */
-export type LoginView = LoginState & { qrSvg?: string };
+/** Composio's sign-in refused by the Launchpad before anything ran: its
+ * organization cannot be told yet (`held`, decision F42). */
+type HeldLogin = Readonly<{
+  kind: "blocked";
+  tool: string;
+  reason: ComposioHeld;
+}>;
+
+export type LoginView = (LoginState | HeldLogin) & { qrSvg?: string };
 
 const loginFailures = [
   "not-installed",
@@ -1281,8 +1315,11 @@ export function parseLoginState(input: unknown): LoginView | null {
     case "expired":
     case "cancelled":
       return { kind: value.kind, tool };
-    // The Team rule stopped the session (Matěj 2026-09-28).
+    // The Team rule stopped the session (Matěj 2026-09-28); Composio
+    // without its organization did not start (`held`).
     case "blocked":
+      if (tool === "composio" && composioHeld(value.reason))
+        return { kind: "blocked", tool, reason: value.reason };
       return value.reason === "team-environment" &&
         (value.action === "login" || value.action === "ssh-key")
         ? {
@@ -1657,7 +1694,14 @@ export function loginEndMessage(
     };
   }
   if (state.kind === "blocked")
-    return { message: copy.toolsTeamGithub, agent: false, retry: false };
+    return composioHeld(state.reason)
+      ? {
+          message:
+            heldLine({ held: state.reason }, copy) ?? copy.toolsLoginEnded,
+          agent: state.reason === "organization-unreadable",
+          retry: false,
+        }
+      : { message: copy.toolsTeamGithub, agent: false, retry: false };
   if (state.kind === "expired")
     return { message: copy.toolsLoginExpired, agent: false, retry: true };
   return { message: copy.toolsLoginEnded, agent: false, retry: true };
@@ -1868,8 +1912,9 @@ export type OrganizationRuleView =
       state: "matches" | "missing" | "ambiguous" | "elsewhere";
     }>
   | Readonly<{ kind: "default"; name: string; state: "matches" | "elsewhere" }>
-  /** An Organization owns the Environment, but its name cannot be read. */
-  | Readonly<{ kind: "unverified" }>
+  /** An Organization owns the Environment, but its name cannot be read;
+   * `absent` where the Organization is not in the Folder yet. */
+  | Readonly<{ kind: "unverified"; absent?: true }>
   | Readonly<{ kind: "chosen"; personal: boolean }>;
 
 export function organizationRule(input: unknown): OrganizationRuleView {
@@ -1888,7 +1933,10 @@ export function organizationRule(input: unknown): OrganizationRuleView {
       return text(name) && (state === "matches" || state === "elsewhere")
         ? { kind: "default", name: name as string, state }
         : { kind: "chosen", personal: true };
-    if (state === "unverified" && name === null) return { kind: "unverified" };
+    if (state === "unverified" && name === null)
+      return (organization as Record<string, unknown>).absent === true
+        ? { kind: "unverified", absent: true }
+        : { kind: "unverified" };
     if (
       text(name) &&
       (state === "matches" ||
@@ -1971,7 +2019,13 @@ export function composioDialogView(
     return { kind: "problem", message: copy.toolsComposioOrgUnavailable };
   const rule = organizationRule(input);
   if (rule.kind === "unverified")
-    return { kind: "problem", message: copy.toolsComposioOrgUnverified };
+    return {
+      kind: "problem",
+      message:
+        rule.absent === true
+          ? copy.toolsComposioHeld
+          : copy.toolsComposioOrgUnverified,
+    };
   const current = choices.find((choice) => choice.current)?.label ?? null;
   if (rule.kind === "named") {
     // What the person sees in Composio: never a name it refuses.

@@ -49,7 +49,12 @@ import { createConnectionsPanel } from "./connections-panel";
 import { parseConnectionsOverview } from "./connections-view";
 import { type ContentTransport, createContentClient } from "./content-client";
 import { createContentPanel } from "./content-panel";
-import { prepareContext, preparePrompt } from "./content-view";
+import {
+  organizationArrived,
+  prepareContext,
+  preparePrompt,
+  presentOrganizations,
+} from "./content-view";
 import { createFilesPanel } from "./files-panel";
 import {
   type AiFact,
@@ -481,6 +486,9 @@ let loadFailed = false;
 let backgroundRead = false;
 let githubSeen: ReturnType<typeof githubFact> = "unknown";
 let contentSeen: ReturnType<typeof content.fact>["state"] = "loading";
+// The Organizations in the Folder as the content routes last listed them;
+// null before the first listing.
+let contentOrganizations: ReadonlySet<string> | null = null;
 // The AI as `GET /api/ai` last answered (root decision 0201 point 6); null
 // before the first answer.
 let aiReading: AiReading | null = null;
@@ -702,6 +710,16 @@ const content = createContentPanel({
     )
       void catalog.refresh();
     contentSeen = state;
+    // An Organization just downloaded (decision F42): Composio's sign-in
+    // waited for it, so the tools are read again and Začínáme and Nástroje
+    // offer it at once, without a reload or "Zkontrolovat znovu".
+    const listed = content.list();
+    if (listed !== null) {
+      const organizations = presentOrganizations(listed);
+      if (organizationArrived(contentOrganizations, organizations))
+        void tools.refresh();
+      contentOrganizations = organizations;
+    }
     // The personal space's holder as the content routes say it now: the
     // home is drawn again when it changes, so the tile follows.
     const holder = personalHolderOf(content.list());

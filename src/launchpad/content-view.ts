@@ -208,6 +208,32 @@ export function contentSteps(
  * items); `failed` while the last installation stopped at an item that is
  * still not here; `missing` with the first item that is not here; `ready`
  * otherwise. */
+/** The Organizations whose root is in the Folder, by login, as a content
+ * reading lists them; none where the reading is not there. */
+export function presentOrganizations(
+  list: ContentList | null,
+): ReadonlySet<string> {
+  const logins = new Set<string>();
+  for (const item of list?.items ?? [])
+    if (item.kind === "organization" && item.state === "present")
+      logins.add(item.login);
+  return logins;
+}
+
+/** Whether an Organization arrived in the Folder between two content
+ * readings: its download in Začínáme finished. The first reading (`before`
+ * null) is no arrival. Composio's sign-in waits for the Organization
+ * (decision F42), so the page reads the tools again on an arrival and their
+ * rows offer it without a reload. */
+export function organizationArrived(
+  before: ReadonlySet<string> | null,
+  after: ReadonlySet<string>,
+): boolean {
+  if (before === null) return false;
+  for (const login of after) if (!before.has(login)) return true;
+  return false;
+}
+
 export type ContentFact =
   | Readonly<{ state: "loading" }>
   | Readonly<{ state: "unknown" }>

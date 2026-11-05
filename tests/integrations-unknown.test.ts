@@ -557,7 +557,7 @@ test("an Organization that is not in the Folder is unverified at once: nothing t
         waits.push(ms);
       },
     }),
-  ).toEqual({ kind: "unverified" });
+  ).toEqual({ kind: "unverified", reason: "absent" });
   expect(waits).toEqual([]);
 });
 

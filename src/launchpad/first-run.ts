@@ -5,7 +5,11 @@ import {
 } from "../folder/presets";
 import type { ShellSetup } from "../shell/contract";
 import type { AiState } from "../tools/ai";
-import type { ToolOverview, ToolsOverview } from "../tools/overview";
+import type {
+  ComposioHeld,
+  ToolOverview,
+  ToolsOverview,
+} from "../tools/overview";
 import type { ContentJob, ContentList } from "./content-client";
 import {
   type ContentFact,
@@ -137,7 +141,10 @@ export type GithubFact =
 type ToolsReading =
   | (Pick<ToolsOverview, "revision" | "sharedEnvironment"> &
       Readonly<{
-        tools: readonly Pick<ToolOverview, "name" | "installed" | "signIn">[];
+        tools: readonly Pick<
+          ToolOverview,
+          "name" | "installed" | "signIn" | "held"
+        >[];
       }>)
   | null;
 
@@ -183,8 +190,16 @@ export function githubAccount(overview: ToolsReading): string | null {
  * name (missing, there twice, not made current, or the name unreadable;
  * decision F42, note of 2026-10-19), or on a person's own Environment that
  * the account's default organization could not be made current (addendum of
- * 2026-10-26). */
-export type ComposioFact = "missing" | "unfinished" | "connected" | "none";
+ * 2026-10-26). `organization-absent` or `organization-unreadable` where the
+ * Launchpad holds its sign-in, signed in or not, because the organization of
+ * this Organization's Environment cannot be told yet (Tools' `held`): not
+ * offered and not done. */
+export type ComposioFact =
+  | "missing"
+  | "unfinished"
+  | "connected"
+  | "none"
+  | ComposioHeld;
 
 /** `organization` is the rule of the last answer of
  * `/api/tools/composio/organizations` for this sign-in, null until read:
@@ -195,6 +210,7 @@ export function composioFact(
 ): ComposioFact {
   const composio = overview?.tools.find((tool) => tool.name === "composio");
   if (composio === undefined) return "none";
+  if (composio.held !== undefined) return composio.held;
   if (composio.signIn?.state !== "signed-in") return "missing";
   return organization === null ||
     organization.kind === "chosen" ||

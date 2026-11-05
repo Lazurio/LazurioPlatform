@@ -71,6 +71,11 @@ export function toolsEnvironmentOf(
   };
 }
 
+/** Why Composio's sign-in waits on an Organization's Environment: its
+ * Organization is not in the Folder yet (`organization-absent`), or its
+ * name cannot be read (`organization-unreadable`). */
+export type ComposioHeld = "organization-absent" | "organization-unreadable";
+
 export type ToolOverview = Readonly<{
   name: string;
   command: string;
@@ -89,6 +94,11 @@ export type ToolOverview = Readonly<{
    * one it does not allow is not used by agents, whatever `enabled` says,
    * and that choice is kept for when it allows it again. */
   organization?: Readonly<{ allowed: boolean }>;
+  /** composio only, and only from a Launchpad: its sign-in waits, because
+   * this Organization's Environment cannot tell its Composio organization
+   * yet (decision F42): the Organization is not in the Folder, or its name
+   * cannot be read. The page offers no sign-in and says why. */
+  held?: ComposioHeld;
   purpose: string;
   usage: string;
   source: string;

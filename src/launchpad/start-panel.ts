@@ -428,6 +428,8 @@ export function createStartPanel(
     );
     if (row.status !== null)
       copyBox.append(element("p", "row-status", row.status));
+    if (row.note !== undefined)
+      copyBox.append(element("p", "row-desc", row.note));
     main.append(copyBox);
     if (row.action !== null) {
       const control = element("div", "row-control");
