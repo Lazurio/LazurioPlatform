@@ -6,6 +6,7 @@ import {
   type MachineBinding,
   type MachinePeer,
 } from "./machine-binding";
+import { mechanisms, organizationAdmin } from "./manual-mechanisms";
 import type { ManualPath } from "./outputs";
 import {
   githubIdentity,
@@ -998,8 +999,8 @@ const roles: readonly Text[] = [
   blank,
   t("## Role v Organizaci", "## Organization roles"),
   t(
-    "- **Organization Admin**: spravuje GitHub organizaci, její přístupy, omezené repozitáře a Environmenty, které Organizace vlastní.",
-    "- **Organization Admin**: administers the GitHub organization, its access, restricted repositories and the Environments the Organization owns.",
+    "- **Organization Admin**: spravuje Environmenty, zařízení, zdroj AI a přístupy Organizace, včetně omezených repozitářů. Cílově je to role Lazuria, kterou jmenuje Owner GitHub Organizace (decision 0228, zatím nenasazené); do té doby je Adminem aktivní Owner GitHub Organizace. Jak roli ověřit a co Admin dělá, je v `manual/mechanisms.md` a `manual/admin.md`.",
+    "- **Organization Admin**: manages the Organization's Environments, devices, AI source and access, restricted repositories included. As the target it is a role of Lazurio that an Owner of the GitHub Organization appoints (decision 0228, not yet deployed); until then an active Owner of the GitHub Organization is the Admin. How to check the role and what the Admin does is in `manual/mechanisms.md` and `manual/admin.md`.",
   ),
   t(
     "- **Steward**: místo pro review; merguje zamčenou `main` tam, kde to branch rules dovolí, a typicky spouští Release.",
@@ -3061,6 +3062,14 @@ export function renderManual(
       workingHere(source.preset, source.machine, sourceChatgptApps(source)),
     ),
     "manual/roles.md": titled(t("Role", "Roles"), roles),
+    "manual/mechanisms.md": titled(
+      t("Jak Lazurio funguje", "How Lazurio works"),
+      mechanisms,
+    ),
+    "manual/admin.md": titled(
+      t("Admin Organizace", "The Organization Admin"),
+      organizationAdmin,
+    ),
     "manual/glossary.md": titled(t("Slovník", "Glossary"), glossary),
     "manual/troubleshooting.md": titled(
       t(

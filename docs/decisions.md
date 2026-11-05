@@ -3460,6 +3460,73 @@ there and refused by path where something is. `tests/folder-skills.test.ts` cove
 initialization and every upgrade from schema 2 with both skills. Not proven: that agents in every
 harness load it by its description and follow it.
 
+**Addendum 2026-11-05, proposed (to be decided by Matěj): how Lazurio works and the
+Organization Admin in the manual, the skill `admin-request`; manifest schema 6.** People in an
+Organization's Environments ask their agents to switch the AI source, connect a phone,
+approve a device or give a colleague access, and the agents guessed: they did not know which
+of these the person does in Settings, which only the Organization Admin does, or how to ask
+the Admin. The mechanisms were written down in the development Organizations' Knowledgebase
+and the Lazurio Root's manuals, which customers' Environments do not have, and in hand copies
+in Organization repositories that went stale (one still says GitHub is the only access
+authority after root decision 0228). `roles.md` described the Organization Admin by the GitHub
+role alone and nothing told an agent how to check the role.
+
+What changes:
+
+- **`manual/mechanisms.md` (How Lazurio works)**, the same on every Machine of one locale:
+  who is who and how to check the user's role live, Environments, Organizations and access,
+  Integrations, Publication, the AI source (pool or own account), phone and computer, devices
+  and the network, updates, changes to servers, a table of who does what and how to ask the
+  Admin. A decision that is proposed or not yet deployed is described as a target.
+- **`manual/admin.md` (The Organization Admin)**: the administrative station and service
+  entry, colleagues' requests, the procedures for the AI source, devices, a new colleague,
+  access and Integrations, and what the Admin does not do. The Organization keeps its own
+  facts (its Admins, its station, temporary paths such as a pull request to its Deployment
+  Repo) in its repository and skills; this chapter holds the model.
+- **The skill `admin-request`**, in the Folder's locale, byte-identical for both harnesses:
+  check that the matter is the Admin's and the role live, collect what the Admin needs, find
+  an open request first, then file one issue in the Organization's root repository titled
+  “Žádost pro Admina: …” or “Request for the Admin: …” with the Admins mentioned, never a
+  secret; without access to the root repository, a ready text the person sends themselves;
+  nothing on a public Environment. The issue is ordinary working evidence like an open
+  question (root decision 0163). As the target, requests are made in Lazurio itself, as root
+  decision 0229 proposes for the AI source in Getting started; whether that becomes the
+  general mechanism is Matěj's to decide.
+- **The role, until Lazurio Auth reports it (root decision 0228):** an active Owner of the
+  GitHub Organization counts as the Admin, as `src/content/role.ts` already reads it.
+- **`roles.md`** describes the Organization Admin by root decision 0228 and points to both
+  chapters. **`AGENTS.md`** gains one sentence at the end of the missing-rights line, so an
+  agent finds the chapter and the skill also where its harness lists no Folder skills; the
+  budget test still holds with the longest custom voice.
+- **Kept true by construction.** The chapters take every Launchpad label they quote from its
+  message catalog, so a renamed button renames the manual and, through the pinned digest,
+  forces a new revision. Every decision number they and the skill cite must be in
+  `docs/decision-register.md`, and a status they claim (“not yet deployed”, “proposed”,
+  “target model”) must be the register's, so a decision that comes into force fails the test
+  until the text follows. 0229 is cited while #852 proposes it, from a pending list that a
+  test empties once the register has it.
+- **Manifest schema 6.** New outputs are a new set: schemas 2 to 5 name their six manual
+  files explicitly, schema 6 owns every output, and this product reads 2 to 6 and writes 6. A
+  Folder at schema 2 to 5 gains the two chapters and the skill by its next change, created
+  only where nothing is at their paths (`unowned-file` otherwise). Older binaries refuse
+  schema 6 and are repaired forward.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The principles in each Organization's `AGENTS.md` and skills | Visible where the agent works, but copied into every Organization and stale in each; the Organization keeps only its own facts |
+| Public documentation as the agents' source | Written for people and current with the latest release, but needs the network and may describe another version than the installed one; people get it, agents follow the manual |
+| The Admin's chapter only in an Admin's Environment | Smaller manual, but the role is a live fact the Folder does not record, and a member must know what the Admin will do to ask well; rejected |
+| Two chapters on every Environment and one skill (selected) | One home, updated with the product, in the Folder's language, held to the Launchpad and the register by tests |
+
+Template revision `base-instructions-109`. Verified by `tests/folder-mechanisms.test.ts`: both
+chapters and the skill on every preset with the same structure in both languages, identical
+for both harnesses, the Launchpad's labels, the cited decisions and their claimed status, and
+the `AGENTS.md` sentence everywhere but on a public Environment. `tests/folder-skills.test.ts`
+covers the schemas and the upgrade from schema 2, which creates the new manual files beside
+the existing ones; `tests/folder-ui-craft.test.ts` the plan for a schema 4 Folder. Not proven:
+that agents in every harness follow the chapters, and that every Organization's root
+repository accepts issues from its members.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered

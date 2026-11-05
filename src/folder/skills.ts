@@ -8,6 +8,7 @@ import {
   parseInstructionSource,
   type Text,
 } from "./render";
+import { adminRequest, adminRequestDescription } from "./skill-admin-request";
 
 // The agent skills the Folder carries (decision F14, addendum of 2026-10-14):
 // procedures a harness offers by their description and loads when the work
@@ -934,6 +935,14 @@ function skillText(source: InstructionSource, name: SkillName): string {
         henryReviewDescription,
         { cs: "Review personou", en: "Review by the persona" },
         henryReview,
+      );
+    case "admin-request":
+      return skillDocument(
+        locale,
+        name,
+        adminRequestDescription,
+        { cs: "Žádost Adminovi", en: "A request to the Admin" },
+        adminRequest,
       );
     case "module-standard":
       return skillDocument(

@@ -30,7 +30,7 @@ async function fixture(preferences = current) {
   const outputs = outputDigests(preview.desired);
   return {
     manifest: {
-      schemaVersion: 5,
+      schemaVersion: 6,
       preferenceRevision: preferences.revision,
       templateRevision: preview.templateRevision,
       outputs,

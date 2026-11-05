@@ -25,7 +25,7 @@ import { requireSelfCheck } from "../src/update/self-check";
 // build wrote `ui-craft` into a live Folder before any release knew it, and
 // no release could read it; here a name no release renders stands for it).
 const manifest = {
-  schemaVersion: 5,
+  schemaVersion: 6,
   preferenceRevision: 1,
   templateRevision: "base-instructions-3",
   outputs: Object.fromEntries(

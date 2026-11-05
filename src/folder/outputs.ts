@@ -38,6 +38,22 @@ export const manualEntries = Object.freeze([
     },
   },
   {
+    path: "manual/mechanisms.md",
+    title: { cs: "Jak Lazurio funguje", en: "How Lazurio works" },
+    summary: {
+      cs: "Prostředí, Organizace a role, moduly a přístupy, Integrace, Publikace, zdroj AI, telefon a počítač, zařízení a síť, aktualizace, změny serverů; co uživatel udělá sám, co dělá Admin a jak ho požádat",
+      en: "Environments, Organizations and roles, modules and access, Integrations, Publication, the AI source, phone and computer, devices and the network, updates, server changes; what the user does alone, what the Admin does and how to ask them",
+    },
+  },
+  {
+    path: "manual/admin.md",
+    title: { cs: "Admin Organizace", en: "The Organization Admin" },
+    summary: {
+      cs: "jak poznat Admina, správní stanoviště a servisní vstup, žádosti kolegů, zdroj AI, zařízení, nový kolega, přístupy a co Admin nedělá",
+      en: "how to tell the Admin, the administrative station and service entry, colleagues' requests, the AI source, devices, a new colleague, access and what the Admin does not do",
+    },
+  },
+  {
     path: "manual/glossary.md",
     title: { cs: "Slovník", en: "Glossary" },
     summary: {
@@ -71,12 +87,14 @@ export type ManualPath = (typeof manualEntries)[number]["path"];
 // person's own skills and settings. A further skill is one more name here
 // and its text in `skills.ts`. `henry-review` and `module-standard` came
 // from the Lazurio Root (decision F14, addendum of 2026-11-01), `ui-craft`
-// from the addendum of 2026-10-21.
+// from the addendum of 2026-10-21, `admin-request` from the proposed addendum
+// of 2026-11-05.
 export const skillNames = Object.freeze([
   "new-module",
   "henry-review",
   "module-standard",
   "ui-craft",
+  "admin-request",
 ] as const);
 export type SkillName = (typeof skillNames)[number];
 export const skillRoots = Object.freeze([
@@ -140,25 +158,45 @@ export type OutputPath = "AGENTS.md" | ManualPath | SkillPath;
 // skill, `new-module`. Schema 4 adds `henry-review` and `module-standard`.
 // A release that renders an output an older Folder does not record creates it
 // in that Folder's upgrade, where its absence is the proof that nothing of the
-// person's is replaced. Schema 5, which adds `ui-craft`, records every output
-// of this product.
+// person's is replaced. Schema 5 adds `ui-craft`. Schema 6, which adds the
+// manual's `mechanisms.md` and `admin.md` and the skill `admin-request`
+// (proposed addendum of 2026-11-05), records every output of this product,
+// so the earlier schemas name their six manual files explicitly.
+const manualPathsBeforeSchema6 = Object.freeze([
+  "manual/lazurio.md",
+  "manual/this-machine.md",
+  "manual/working-here.md",
+  "manual/roles.md",
+  "manual/glossary.md",
+  "manual/troubleshooting.md",
+] as ManualPath[]);
 const skillPathsOf = (names: readonly SkillName[]) =>
   names.flatMap((name) =>
     skillRoots.map((root): SkillPath => `${root}/${name}/SKILL.md`),
   );
 export const manifestOutputPaths = Object.freeze({
-  2: Object.freeze(["AGENTS.md", ...manualPaths] as OutputPath[]),
+  2: Object.freeze(["AGENTS.md", ...manualPathsBeforeSchema6] as OutputPath[]),
   3: Object.freeze([
     "AGENTS.md",
-    ...manualPaths,
+    ...manualPathsBeforeSchema6,
     ...skillPathsOf(["new-module"]),
   ] as OutputPath[]),
   4: Object.freeze([
     "AGENTS.md",
-    ...manualPaths,
+    ...manualPathsBeforeSchema6,
     ...skillPathsOf(["new-module", "henry-review", "module-standard"]),
   ] as OutputPath[]),
-  5: outputPaths as readonly OutputPath[],
+  5: Object.freeze([
+    "AGENTS.md",
+    ...manualPathsBeforeSchema6,
+    ...skillPathsOf([
+      "new-module",
+      "henry-review",
+      "module-standard",
+      "ui-craft",
+    ]),
+  ] as OutputPath[]),
+  6: outputPaths as readonly OutputPath[],
 } as const);
 
 export function isOutputPath(value: unknown): value is OutputPath {

@@ -146,6 +146,10 @@ test("a Folder of schema 4 gains ui-craft where nothing is there and is refused 
   const desired = Object.fromEntries(
     outputPaths.map((path) => [path, digest]),
   ) as Record<(typeof outputPaths)[number], string>;
+  // Schema 6's own outputs are absent from a schema 4 Folder too.
+  const later = outputPaths.filter(
+    (path) => !manifestOutputPaths[5].includes(path),
+  );
   const observed = (ui: "absent" | "regular") =>
     Object.fromEntries(
       outputPaths.map((path) => [
@@ -154,15 +158,16 @@ test("a Folder of schema 4 gains ui-craft where nothing is there and is refused 
           ? ui === "absent"
             ? { kind: "absent" as const }
             : { kind: "regular" as const, digest: "c".repeat(64) }
-          : { kind: "regular" as const, digest },
+          : later.includes(path)
+            ? { kind: "absent" as const }
+            : { kind: "regular" as const, digest },
       ]),
     ) as Parameters<typeof planOutputs>[2];
   expect(planOutputs(previous, desired, observed("absent"))).toEqual({
     kind: "write",
-    files: [
-      { kind: "create", path: codex },
-      { kind: "create", path: claude },
-    ],
+    files: outputPaths
+      .filter((path) => path.includes("/ui-craft/") || later.includes(path))
+      .map((path) => ({ kind: "create", path })),
   });
   expect(planOutputs(previous, desired, observed("regular"))).toEqual({
     kind: "blocked",
