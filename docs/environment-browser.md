@@ -82,6 +82,11 @@ the view. That text is the agents' instruction; this list is what it follows.
    without the sign-ins and invisible to people. Agents do not use `window new` (an
    isolated context without the sign-ins), `--profile`, `--headed`, `set device` or
    `set viewport`: the person's view sets the window's size (F39 point 3).
+   A page that registers WebMCP tools announces them after navigation; the agent
+   lists them with `agent-browser --cdp 9222 --session <session> webmcp list` and
+   calls one with `webmcp invoke <tool> --params '<json>'`. A tool runs in the page
+   with the page's own session, so it is faster than clicking and never reaches
+   further than the page itself.
 3. **The link.** The agent sends the link to its own tab,
    `https://browser.<base>.lazurio.io/t/<id>`, never the bare origin, which opens a new
    blank tab.
@@ -121,7 +126,7 @@ the view. That text is the agents' instruction; this list is what it follows.
 
 | Part | Owner | What it does |
 | --- | --- | --- |
-| The screen and the browser: `lazurio-display.service`, `lazurio-browser.service` | The Platform writes the units (`src/browser/units.ts`); Machines delivers the packages, the gateway's routes and the managed Chrome policy | One Chromium with its memory budget, `--deny-permission-prompts` and the Lazurio extension; no old tabs after a restart |
+| The screen and the browser: `lazurio-display.service`, `lazurio-browser.service` | The Platform writes the units (`src/browser/units.ts`); Machines delivers the packages, the gateway's routes and the managed Chrome policy | One Chromium with its memory budget, `--deny-permission-prompts`, the Lazurio extension and WebMCP; no old tabs after a restart |
 | The view and its hub: `lazurio-browser-view.service` (`lazurio browser serve`) | Platform, `src/browser/people/` | The view of one tab behind the gateway. The hub watches every tab, alone decides when a tab ends or sleeps, and keeps one blank window of its own, because Chrome ends with its last window |
 | Holder files, `$XDG_RUNTIME_DIR/lazurio-browser/holders/<strip>.json` | The format is the Platform's (C5); each file belongs to the server of the app whose strip it is | Which tabs a strip holds |
 | The list of live tabs, `$XDG_RUNTIME_DIR/lazurio-browser/tabs.json` | The hub (C6) | A fresh snapshot of the browser's tabs on the boot clock, by which every app reconciles its holds |
