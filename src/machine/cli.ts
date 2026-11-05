@@ -487,7 +487,8 @@ export async function refreshMachineFolderAndLaunchpad(
 // - Where the handover declares the home access service (root decision
 //   0224, `accessServiceOf`), on any Machine: one synchronization with it
 //   (`syncEnvironmentRoutes`: the source key, its registration, the
-//   targets), reported as `environmentRoutes`.
+//   targets) and a try of each route it wrote (`testRoutes`),
+//   reported as `environmentRoutes`.
 // - Otherwise the binding's own routes, exactly (decision F70, amendment of
 //   2026-11-03, point 6): a personal Machine's assigned peers (root decision
 //   0192, addendum of 2026-10-26), and on any other Machine none, so the
@@ -517,10 +518,12 @@ export async function withEnvironmentSsh<
 ) {
   if (!recordsThisBinding.has(result.kind)) return result;
   if (service !== null) {
+    // Onboarding and every refresh try each route once it is written.
     const environmentRoutes = await syncEnvironmentRoutes(
       location,
       service,
       seams,
+      true,
     );
     if (environmentRoutes.ssh.kind === "superseded")
       console.error(supersededText);

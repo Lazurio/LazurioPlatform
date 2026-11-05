@@ -28,7 +28,7 @@ import {
 
 /** `lazurio doctor`: the terminal surface of the doctor use case
  * (launchpad-parity B9, P8). It reads, prints and changes nothing. */
-export const doctorHelp = `doctor [--folder <absolute Folder>] [--sign-in] [--json]
+export const doctorHelp = `doctor [--folder <absolute Folder>] [--sign-in] [--routes] [--json]
   The Environment's state in one read-only answer, every check one the
   product already makes: product (update state, running and active version,
   the active executable's self-check, a verified newer release, a needed
@@ -44,7 +44,11 @@ export const doctorHelp = `doctor [--folder <absolute Folder>] [--sign-in] [--js
   Environment whether the entry is recorded). Reads only: the Folder's tool
   selection under the read lock, no write, no restart, no network; --sign-in
   also runs each installed tool's sign-in probe, which may contact its
-  provider. --json prints {kind, verdict, locale, checks}; every check is
+  provider. --routes asks the home access service for this Environment's
+  routes to other Environments, checks that ssh <id> resolves to each
+  one and tries it with true (access-service, environment-route; a
+  route the service gives that is missing or unreached needs attention, a
+  service that does not answer is reported as only that). --json prints {kind, verdict, locale, checks}; every check is
   {id, outcome ok|warn|fail|skipped, reason?, context?} of enumerated ids,
   without paths or text. The Folder is --folder, the supervised unit's, or in
   a Remote Environment the declared operator's. A broken product is repaired
@@ -61,7 +65,8 @@ export type DoctorContext = RecoverContext &
     executorHost?: ExecutorHost | undefined;
   }>;
 
-const synopsis = "doctor [--folder <absolute Folder>] [--sign-in] [--json]";
+const synopsis =
+  "doctor [--folder <absolute Folder>] [--sign-in] [--routes] [--json]";
 
 const exitCodes: Readonly<Record<DoctorVerdict, number>> = {
   ok: exitOk,
@@ -112,9 +117,10 @@ const texts = {
 >;
 
 // The subject of a check about one tool, Organization or module.
-const subjectKeys = ["tool", "organization", "module"] as const;
+const subjectKeys = ["tool", "organization", "module", "environment"] as const;
 const subject = (entry: DoctorCheck) => {
   const context = entry.context ?? {};
+  if (context.environment !== undefined) return String(context.environment);
   if (context.tool !== undefined) return String(context.tool);
   if (context.module !== undefined)
     return `${context.organization}/${context.module}`;
@@ -164,6 +170,7 @@ export async function runDoctorCommand(
     folder?: string | undefined;
     base?: string | undefined;
     "sign-in"?: boolean | undefined;
+    routes?: boolean | undefined;
   };
   let base: string;
   try {
@@ -177,6 +184,7 @@ export async function runDoctorCommand(
         folder: { type: "string" },
         base: { type: "string" },
         "sign-in": { type: "boolean" },
+        routes: { type: "boolean" },
       },
     });
     values = parsed.values;
@@ -200,6 +208,7 @@ export async function runDoctorCommand(
       ...recoveryEnvironment(context, { base, folder: values.folder }),
       tools: toolsEnvironmentOf(context.env, context.platform, context.toolRun),
       signIn: values["sign-in"] === true,
+      routes: values.routes === true,
       executor: context.executorHost,
     });
     return Object.freeze({

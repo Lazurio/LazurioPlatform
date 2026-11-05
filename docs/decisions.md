@@ -23379,8 +23379,9 @@ managed route anywhere.
    one `Host <environment id>` block each in `~/.ssh/config.d/lazurio-environments.conf`
    with `HostName`, `User`, `HostKeyAlias`, the managed `UserKnownHostsFile`,
    `StrictHostKeyChecking yes`, `IdentityFile ~/.ssh/lazurio-environment-ed25519`,
-   `IdentitiesOnly yes`, `ForwardAgent no`, `ProxyJump none` and
-   `ClearAllForwardings yes`, and the deadline as a comment; the host key pinned in
+   `IdentitiesOnly yes`, `ForwardAgent no`, `ProxyJump none`,
+   `ClearAllForwardings yes`, `ControlMaster no` and `ControlPath none` (since the
+   addendum of 2026-11-03 below), and the deadline as a comment; the host key pinned in
    `~/.ssh/known_hosts_lazurio_environments`. The `Include` at the top of `~/.ssh/config`
    makes these values win over the person's own `Host *` or a hand-written block of the
    same name, which stay byte for byte. A changed host key from the service replaces the
@@ -23493,6 +23494,75 @@ nothing on a base without route files; one lock for both writers),
 every refused form, the stored binding, the commands asking the declared origin, the
 withheld name) and `tests/folder-refresh.test.ts` (a refresh of only the member). Not
 proven: a real handover from a Machines release, until Machines sets the gate.
+
+### F70 addendum of 2026-11-03: onboarding and the doctor try every route
+
+Plan DEV-6687 M7 makes a missing route to an assigned Work Environment an incomplete
+onboarding, and asks for every route's result with its time, never a prepared config
+presented as reachability (Lazurio/LazurioPlatform#766).
+
+1. **The try**, at most four at a time, in two steps bound to the exact route given (the
+   one the doctor compared or the one onboarding wrote), never to what the files hold a
+   moment later (`src/ssh-access/routes.ts`):
+   - *What `ssh <environment id>` would use now.* `ssh -G <environment id>` through the
+     account's own config must resolve to that route: its host and account on port 22,
+     pinned under its own alias in the managed known-hosts file, only this Environment's
+     key, no jump or proxy command, and no shared connection (`controlmaster false`, no
+     `controlpath`). Anything else (the `Include` removed, another `Host` for the same
+     id first, a jump in front, a `Host *` before the `Include` that shares connections)
+     is `not-configured` and nothing connects. OpenSSH reuses an open master whenever a
+     control path is set, even with `ControlMaster no`, and such a master may lead to
+     another endpoint or to the id's old route; so every managed block now sets
+     `ControlMaster no` and `ControlPath none`, which win over the person's `Host *`
+     because the `Include` stands first.
+   - *The connection.* `ssh -F none` with that route's values as options and its pinned
+     keys in a private known-hosts file written for this try alone, `BatchMode=yes`,
+     `ConnectTimeout=10`, no forwarding or connection sharing, 20 s at most, running
+     `true` and nothing else. The key's and the known-hosts file's paths are quoted with
+     `%` doubled, so a home with a space or a `%` stays one path; a path with a double
+     quote or a control character cannot be passed and is `unknown`. A route replaced between the two steps or during the try
+     never lends its result to the replacement.
+
+   The cause comes from OpenSSH's own words: `host-key-mismatch`, `login-refused`,
+   `timeout`, `connection-refused`, `unresolved`, `network-unreachable`, else
+   `unknown`. A target that is off and a network that drops packets both time out and
+   are not told apart.
+2. **Onboarding.** `machine folder-init` and `folder-refresh`, which provision and
+   refresh a hosted Environment, try each route right after the service answered and the
+   config was written (not when the write was `superseded`, point 5 of the amendment
+   above), and report the results in `environmentRoutes.tests`. The
+   Launchpad's minute-by-minute synchronization does not try routes.
+3. **The doctor.** Without a flag it stays read-only and offline: `access-service` is
+   `skipped` (`access-service-not-declared` or `routes-not-tested`) and the configured
+   routes are counted, not tried. `lazurio doctor --routes` asks `GET /v1/targets` (read
+   only) and tries each route, like `--sign-in` contacts providers only on request:
+   - the routes this Environment should have are the service's targets when it answers,
+     else (no declared service) the handover's assigned Work Environments. Each is
+     compared in full with the route the managed config records under its id: host,
+     account and the set of pinned keys (not the deadline, which moves every minute).
+     Only a route recorded exactly as expected is tried; a configured route nobody
+     expects is never tried (review of #825);
+   - per expected route: `ok` with the time, `warn route-unreached` with the cause and
+     time, `warn route-not-configured` when the config has no route under that id (never
+     written, files missing or refused), or `warn route-outdated` when it has another one
+     (the service moved the host or rotated a key since the last synchronization; an old
+     endpoint that still answers is never reported as the current route). Each `warn` is
+     the incomplete onboarding: the verdict needs attention (exit 10), not `broken`,
+     because the Environment itself works and `lazurio recover` repairs nothing here;
+   - the service does not answer: only `access-service warn access-service-<unreachable|
+     unavailable|not-recognized|malformed>`; no route, key or target is blamed and
+     nothing is tried.
+   The rows name the Environment id, the cause and the time (`environment`, `cause`,
+   `at` in the context allowlist), never a host name, path or message.
+
+Not in this addendum: the line in Začínáme that shows these results to the person (it
+needs the Launchpad's onboarding view and a browser check, decision 0178) and the
+record of the last try between runs. Tests: `tests/environment-routes-doctor.test.ts` (with the real `ssh -G`: a removed
+`Include`, another `Host` first, a jump, a shared connection before and after the
+`Include`, a home with a space read back by the real OpenSSH, and a route replaced before
+and after `ssh -G`),
+`tests/access-service-routes.test.ts` (the commands' tries, and a route replaced between
+its write and its try), `tests/doctor.test.ts`.
 
 ## F71 — Phone through ChatGPT: Settings → Connections pairs the ChatGPT app with the Codex app-server's remote control
 

@@ -71,8 +71,8 @@ export type EnvironmentRoute = Readonly<{
 
 /** The config's text: the header and one block per Environment. Every
  * block pins its host keys under its own alias, uses only this
- * Environment's one key, and forwards nothing: no agent, no port, no jump,
- * whatever the person's own `Host *` says (the first value OpenSSH obtains
+ * Environment's one key, forwards nothing (no agent, no port, no jump) and
+ * shares no connection, whatever the person's own `Host *` says (the first value OpenSSH obtains
  * wins, and the `Include` stands first). */
 export function renderEnvironmentsConfig(
   environments: readonly EnvironmentRoute[],
@@ -95,6 +95,10 @@ export function renderEnvironmentsConfig(
       "  ForwardAgent no",
       "  ProxyJump none",
       "  ClearAllForwardings yes",
+      // No shared connection: a master the person's own `Host *` opened
+      // to another endpoint, or to this id's old route, is never reused.
+      "  ControlMaster no",
+      "  ControlPath none",
     ]),
     "",
   ].join("\n");
