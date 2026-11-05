@@ -2086,7 +2086,9 @@ What changes:
     repository `<slug>-data` mounted as `db/`, `github:Lazurio/repository-db#v3.x.y`); a
     database, Neon recommended and its schema derived from the repository-db collections,
     only once the module is used in earnest (root decision 0196 point 8), never for a new
-    module; the name, the slug and the port; 4. the plan shown in plain words and confirmed;
+    module (*amended 2026-11-05 by the second addendum of that day below: a module's database
+    is `app/v4`, Dolt in the Organization's Server services, and Neon is no longer
+    recommended*); the name, the slug and the port; 4. the plan shown in plain words and confirmed;
   - for a personal module, the commands that exist today: the task worktree in
     `personalspace/.worktrees/<task>`, `lazurio module create personalspace/<slug> ...
     --dry-run --json`, the run with `--confirm <plan>`, the privacy check, the run's
@@ -3558,6 +3560,74 @@ Unchanged: Buddy's layer, whose order of routes (F61's addendum of 2026-10-27 an
 follow-up of 2026-10-30) already says the same and has no room left under Hermes's 20,000
 characters in English; the personal Folder's list of assigned peers (F10's amendment of
 2026-10-28). `base-instructions-111`.
+
+**Addendum 2026-11-05 (second), proposed (to be decided by Matěj): what agents know about
+modules.** People see a module as a tile, agents as a repository and Admins as an access
+boundary, and each explanation shows one face. The skill `new-module` recommended Neon for a
+database although root decision 0209 (amended 2026-11-03) and F69 put a module's database in
+the Organization's Server services; it said nothing of the generations, the Marketplace or who
+gets a module, and told a person without the rights to have an Owner create it. The manual on
+presets with Organizations said that the product does not synchronize content, which F9's
+amendments of 2026-10-24 and addendum of 2026-11-01 ended (in releases from v0.1.20).
+
+What changes:
+
+- **One explanation, in the skill and the manual.** `moduleSentence` holds it in both languages:
+  "A module is one area of your company's work, such as orders, the website or recipes. It keeps
+  together the process agents follow, the data the work is about, and the app in which you see
+  and change it." Its three parts are the process (the module's `AGENTS.md` and skills, for
+  agents), the data (records and content, for people and agents) and the app (the screen, for
+  people, which may come later). Under them is a repository on GitHub, so every change has a
+  history and can be undone. The example is the company's website. In the personal space the
+  agent says "your work or household" and takes examples of that kind.
+- **The ladder of generations (F69 point 8).**
+
+  | Generation | Where the data lives | When |
+  | --- | --- | --- |
+  | `app/v1` | The content is part of the app | A module without records of its own |
+  | `app/v2` | Beside the app in `data/v2/`, with a declared structure | Much content, changing now and then, edited by agents |
+  | `app/v3` | Records in the data repository `<slug>-data` through repository-db, mounted as `db/` | Records change daily; the default for a new module with data |
+  | `app/v4` | Records in a Dolt database in the Organization's Server services | Many writers, access differing within the data, deletable personal data, an outside service writing |
+
+  A module starts as low as it can. A transition is a controlled change: a new `app/v<N+1>`
+  beside the old one, the data moved and `default_app` switched. "No data of their own" in F69
+  means no data layer of their own. `app/v4` is decided and not yet deployed (#818). People
+  hear where the data lives, not the numbers.
+- **No database outside the Organization is recommended.** This replaces "Neon recommended"
+  of this decision's addendum of 2026-10-14 and of F52's addendum of 2026-10-14, as a
+  consequence of root decision 0209's amendment of 2026-11-03 and F69, which are decided. A
+  database is still never created for a new module. The tool `neon` stays in the catalog: it
+  is an Integration for those who use Neon, not a recommendation for a module.
+- **The skill `new-module`** explains a module in those words, asks in an Organization who should
+  have access, checks the Marketplace before building from nothing (an adoption follows the
+  template's `docs/adoption.md` from exactly the release's commit; templates go only into an
+  Organization) and says who gets the module: the Admin in the Organization's Dashboard →
+  Modules → Access, delivered by the synchronization. A person without the right to create the
+  module confirms a description and the agent prepares a request by the skill `admin-request`,
+  which names a new module and access to a module; `manual/admin.md` gains the Admin's side.
+  The skill `module-standard` says what the N of `app/vN` means.
+- **`manual/mechanisms.md` gains the section Modules**: the explanation, where the data lives,
+  how a module comes to be and changes, who gets it and how it arrives, and modules beside
+  Files and Integrations. `Who does what` separates a personal module from an Organization's.
+- **The manual says what the product does.** `troubleshooting.md` and `working-here.md` describe
+  the synchronization: when it runs, what it clones and its exceptions (a Team Environment, a
+  `restricted` or `private` slot and what is below it, a data mount without its module, a blocked
+  root). The exception of F19's addendum of 2026-10-04 stays for a module that is still missing
+  after a synchronization. The glossary and `lazurio.md` define a module as the chapter does.
+  `AGENTS.md` does not change: its budget has about 40 bytes of room (#755).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Three roles only, as the skill had them | Correct for agents, but gives them no words for a person; kept, with the sentence beside them |
+| A different sentence for each audience | Each is easier to write, and people again meet three explanations; rejected |
+| Keep Neon as an option beside Dolt | Data would leave the Organization's own servers and backups, against 0209; rejected |
+
+Template revision `base-instructions-111`. Verified by `tests/folder-skills.test.ts` and
+`tests/folder-mechanisms.test.ts`: the shared words, the generations, the Marketplace, access and
+the request per preset in both languages, and that no generated text says the product does not
+synchronize or recommends Neon. Not proven: that agents in every harness follow the text, and
+the real journey of a member's request ending in a module. The muted tile of root decision 0179's
+amendment of 2026-11-05 and its dialog are the Launchpad's own later change.
 
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
@@ -16350,8 +16420,9 @@ in a database; root decisions 0171 point 2 and 0176 point 2; the Module Standard
 new module its data from the first commit: a private repository `<owner>/<slug>-data`
 mounted as the module's `db/` on the generation branch `v3`, declared beside the
 module's slot. When the module is used in earnest it later moves to a database (Neon
-recommended) with the repository-db schema as its reference; that move is not part of
-this command.
+recommended; *amended 2026-11-05, addendum below: `app/v4`, Dolt in the Organization's
+Server services*) with the repository-db schema as its reference; that move is not part
+of this command.
 
 1. **The plan.** Only a stack with a Bun app (`vite-react`, `astro`,
    `astro-starlight`, `bun-service`): the engine is TypeScript
@@ -16408,6 +16479,18 @@ granted, the mount on `v3` ignored by the module, both slots declared, the root
 resolving `transition`, and after the merge the catalog listing the module); a failed
 mount; a data repository GitHub does not create. `tests/personal-module-create.test.ts`:
 the personal form.
+
+### F52 addendum of 2026-11-05: a module's database is `app/v4`, not Neon
+
+**Follows root decision 0209's amendment of 2026-11-03 and F69; recorded with F14's second
+addendum of 2026-11-05.** A module that outgrows repository-db moves to generation `app/v4`,
+a Dolt database in the Organization's Server services: a new `app/v4` beside `app/v3`, the
+data moved with the repository-db collections as the model of its tables, and `default_app`
+switched. An Organization with several servers uses the same `app/v4` with another connection
+setting (F69 point 5). Neon or another database outside the Organization is no longer
+recommended. Nothing changes in `lazurio module create`: it still creates no database, and
+`app/v4` is decided, not yet deployed (#818). Only an Organization's module has this path; for
+a personal module no database is decided.
 
 ## F53 — Every Environment owns its vault: its own organization in the network's Vaultwarden, created by its technical account
 
@@ -23317,7 +23400,9 @@ templates and generated Modules refer to.
 
 8. **The App generation names the data layer in every Module** (Matěj, 2026-11-03,
    closing #819), not only in Marketplace templates: `app/v1` and `app/v2` have no
-   data of their own, `app/v3` keeps its records in repository-db, `app/v4` in Dolt
+   data of their own (*noted 2026-11-05: no data layer of their own, as
+   [the Module Standard](module-standard.md#app-generations) spells out*), `app/v3`
+   keeps its records in repository-db, `app/v4` in Dolt
    (point 5). `lazurio module create --data` therefore writes the App to `app/v3`
    (`apps`, `default_app`, the lockfile, the CI's working directory and the runtime
    id `<organization>-<module>-v3` follow); without `--data` it stays `app/v1`. This
