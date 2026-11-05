@@ -462,7 +462,9 @@ sibling runs is not asked (`src/modules/sibling-origins.ts`). The rules:
 - The call reaches the sibling directly on the Environment, without the gateway
   and without a signed-in user. When the sibling accepts writes only from its own
   origin, the caller sends `Origin` equal to the address. Who triggered the call
-  is not carried; the standard does not define it yet.
+  is not carried; the standard does not define it yet, and the sibling reads
+  nobody signed in ([Who is signed in](#who-is-signed-in)): the caller does not
+  forward the gateway's headers.
 - A link for people to a sibling's App is derived from the App's own
   `LAZURIO_RUNTIME_LISTENER_<ID>_EXTERNAL_ORIGIN` by replacing the first
   hostname label with the sibling's, following the hosted names of decision
@@ -480,6 +482,65 @@ start when absent; when that fails, the start is refused with
 `data-mount-clone-failed` (`src/modules/data-mounts.ts`). No address is passed
 for a Module of another Organization or an undeclared Module, and an App of a
 Personalspace gets none.
+
+### Who is signed in
+
+On a Remote Environment an App can read who is signed in to Lazurio for each
+request, from the person's existing Lazurio session: no second sign-in, no role
+and no grant
+([0196](decision-register.md#0196--module-data-the-environments-ceiling-narrowing-in-the-app-and-a-verified-identity-that-is-not-a-key):
+Lazurio controls entry to a Module and passes it a verified identity;
+Lazurio/LazurioPlatform#474).
+
+**Where it comes from.** The Environment's gateway admits every request to a
+Module's origin with the person's session at its oauth2-proxy
+(`/oauth2/auth`, [hosted entry](hosted-entry.md)). After that admission it sets
+two request headers from its own answer for exactly that session, and removes
+every copy a client sent before anything else of the request:
+
+| Header | Value | Set when |
+| --- | --- | --- |
+| `X-Auth-Request-User` | the Lazurio account's subject | it is one lowercase UUID |
+| `X-Auth-Request-Preferred-Username` | the person's Lazurio username ([0203](decision-register.md#0203--vaults-per-organization-each-organization-has-its-own-lazurio-vaultwarden-people-use-their-lazurio-username-personal-environments-use-their-own-bitwarden) point 4) | it is lowercase letters and digits with single dashes between them |
+
+These are the same values the Launchpad's own admission reads
+(`src/launchpad/hosted-trust.ts`). The gateway is Machines'
+(`workloads/workspace-vm/ingress.ts`); a gateway release without this
+capability sets neither, and the App reads nobody.
+
+**How an App reads it.** Only through `@lazurio/module-kit`:
+`signedInPerson(request, "<listener>")` returns
+`{ status: "signed-in", subject, username }` or
+`{ status: "unavailable", reason }` (Python: `signed_in_person`). The rules:
+
+- **Only behind the gateway.** The headers count only when the listener has
+  `LAZURIO_RUNTIME_LISTENER_<ID>_EXTERNAL_ORIGIN` and the request's `Host` is
+  that origin's host. On a person's computer the result is always
+  `not-hosted`, whatever a request carries, because no gateway removed a
+  client's copy there. A call from a sibling or a script on the Environment is
+  `not-through-gateway`. The Environment browser's local entry (no sign-in,
+  [Environment browser](environment-browser.md)) and a gateway without the
+  capability give `no-person`.
+- **Unavailable is shown as unavailable.** The App never fills in a name from
+  the browser, the operating-system account, the Environment's assignee or the
+  account that runs the Environment.
+- **Per request.** The App reads it for every request and never caches it.
+  After another account signs in, the next request names the new person; an
+  expired or missing session never reaches the App, because the gateway sends
+  the person to sign in (a background request gets `401`).
+- **The subject identifies, the username is shown.** An App that remembers a
+  person keys them by `subject`; `username` may be `null`.
+- **Read-only.** It is identity for display and the Organization's own rules in
+  the App. It grants nothing, is no key to data, signs nothing and changes no
+  historical record. The App does not forward the headers to a sibling or
+  another service.
+- **Its boundary is the Environment.** The Apps of one Environment are one
+  trust domain under its account (0196). A process on the Environment that
+  reaches an App's loopback port directly could send the headers itself, as it
+  could read the App's data. Where identity must hold against the Environment's
+  operator, or travel outside the Environment, it needs the identity signed by
+  Lazurio Auth for one exact Environment and app that 0196 describes; that is
+  not built yet, and these headers are not it.
 
 ## The built version from `main`
 
