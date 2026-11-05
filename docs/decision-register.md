@@ -38,7 +38,7 @@ on, and only the operational details stay internal.
 
 ## Recording a decision
 
-A new decision takes the next free number, **0230**, by a pull request to this
+A new decision takes the next free number, **0231**, by a pull request to this
 file. Check `main` again before the merge, because a parallel pull request may
 take the same number, and fix a collision by renumbering before the merge. An
 amendment is folded into the entry with its date. An internal decision gets a
@@ -1074,3 +1074,14 @@ A change is one reviewed pull request to the Organization's Deployment Repo (020
 Confirming a change needs, besides the Admin role, write access to the Organization's Deployment Repo. An Admin without that access files the change as a request, and a person with write access confirms or declines it in the Dashboard.
 
 The person sees the result in Getting started and in Connections: on the pool, AI provided by the Organization and no own sign-in, which Lazurio refuses there; on an own account, the sign-in and the pairing of a phone where pairing is available (F71, 0215). In Getting started the person may ask for the other source, their own account or the Organization's AI. The request reaches the Organization's Admins, who confirm it as a change or decline it, and the person can withdraw it while it waits. A change that is being applied is announced there in one sentence.
+
+### 0230 — People ask the Organization Admin through Lazurio, with one kind of request for everything the Admin does
+
+- **Status:** decided, not yet deployed · **Applies to:** GEN4 · **Decided:** 2026-11-05
+- **Related:** 0163, 0186, 0192, 0205, 0211, 0228, 0229
+
+When a person needs something only the Organization Admin (0228) does, they ask in Lazurio itself, with one kind of request for every such matter. Examples are the AI source of their Work Environment (0229), approving or removing a device (0192), a new Environment or more memory or disk, access to another Team's module or application (0186), an Integration for the whole Organization, and a change to a server through the Deployment Repo (0205). A request names its kind and what it concerns (the Environment, device or module), the reason, the state the person sees, a time that suits them and what the change interrupts. It never carries a password, token or code.
+
+The person files a request in the Launchpad where the matter shows: the AI source in Getting started, a phone in Connections, a device in Settings. Their agent files the same request through Lazurio when the person asks for the matter, in the person's name. The request reaches every Admin of the Organization in the Organization's Dashboard, and an Admin's agent lists the open requests with one command. The Admin either confirms the request, which starts the change by its own path (a reviewed pull request to the Deployment Repo, the approval of a device, a grant), or declines it with a reason. The person sees the state and may withdraw the request while it waits. A request grants nothing by itself and replaces no review or rule of the path it starts. Requests and their outcomes are kept as the Organization's records, audited as the person's and the Admin's actions. A public Environment files none. The AI source in Getting started (0229) is the first kind.
+
+Until Lazurio carries requests, an agent files a request as an issue in the Organization's root repository. The issue has a fixed title ("Žádost pro Admina: …" or "Request for the Admin: …"), the facts above, and mentions the Admins; a member who cannot assign does not need to. A person without access to that repository gets the agent's ready text and sends it to the Admin themselves. Lazurio's requests replace these issues once they exist. Until the Admin role in Lazurio Auth is deployed, an active Owner of the GitHub Organization counts as the Admin.
