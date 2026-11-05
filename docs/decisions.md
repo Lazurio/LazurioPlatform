@@ -3527,6 +3527,79 @@ the existing ones; `tests/folder-ui-craft.test.ts` the plan for a schema 4 Folde
 that agents in every harness follow the chapters, and that every Organization's root
 repository accepts issues from its members.
 
+### Proposal of 2026-11-05: an Organization's `AGENTS.md` within what the harnesses load (for Matěj's decision; not decided, not implemented)
+
+On 2026-11-05 a client Organization reported that agents "pick up the md badly". Its root
+`AGENTS.md` had 44,853 bytes. Matěj asked for the fix to be made properly for every Organization:
+procedures move into manuals the file links to, and a mechanism, not a sentence, keeps the file
+within budget.
+
+#### What was measured
+
+A copy of the Folder layout (a Folder without Git, an Organization root with Git below
+`organizations/`) carried markers at known byte offsets. Codex was checked in its session record,
+not only in the model's answer.
+
+| Harness and the thread's project | What the agent receives |
+| --- | --- |
+| Codex CLI 0.166.0, the Organization root | only the Organization's `AGENTS.md`, cut at exactly 32,767 bytes (inside a character); the Folder's `AGENTS.md` is not loaded at all |
+| Codex CLI 0.166.0, the Folder | only the Folder's `AGENTS.md`; the agent reads the Organization's file with a tool, and Codex cut the 11,262-token shell output of a 44.6 KB file in its middle (the part around 24 KB was lost) |
+| Claude Code 2.1.318, the Organization root | the whole Organization `AGENTS.md` through `CLAUDE.md` → `@AGENTS.md`; the Folder's file is not loaded |
+| Claude Code 2.1.318, the Folder | the Folder's `AGENTS.md` |
+
+On `main` of the 23 Organization roots this account can read, 10 and the GEN3 Root are over
+32 KiB (the largest 62 KB) and three more are within 3 KB of it. The Organization template itself has
+31 KB, so a new Organization starts at the limit. The reference Organization's file was brought to
+24,053 bytes by moving its procedures, word for word, into `manual/agents/` with a binding core and a
+link left in `AGENTS.md`. A behavioural check in Codex then read the end of the file and opened the
+linked manual for a task it governs.
+
+#### What is already fixed
+
+- **0112:** instructions are a constitution; mechanics live in scripts, skills and doctors.
+- **0173:** restructuring is a reviewed refactor by a guide, one unit per pull request, never a codemod.
+- **0018 and 0118:** every Organization has its own doctor; the Root's doctor composes them.
+- **0225 and the [Organization contract](organization-contract.md):** this repository is the
+  authority for an Organization's shape; consumers never extend it on their own.
+- **F14 and [agent voice](agent-voice.md):** the Folder's own `AGENTS.md` already has a 32 KiB budget
+  that the generator enforces; the product does not rewrite global harness settings.
+- **Threads start in the Folder's project** (the Launchpad's chat decision): people still open
+  projects at an Organization root themselves, and those are the threads that lose rules today.
+
+#### Options
+
+1. **The rule in the Organization contract, checked where it is made and where it is used
+   (recommended).** The contract states the harness limit (32 KiB, Codex's default
+   `project_doc_max_bytes`) as a hard limit and 24 KiB as the working budget, so a file read with a
+   tool also stays below the output cut. The Organization template's own doctor fails a pull request
+   over the hard limit and warns over the budget in `bun run ci` of every Organization after its
+   template synchronization. `lazurio doctor` reports each mounted Organization against the same
+   numbers and against the Environment's effective `project_doc_max_bytes`. One truth (the
+   contract), one owner (this repository), two readers like every other contract rule.
+2. **Only the Organization's doctor.** A gate on every pull request, owned by the template. It is
+   simple, but the harness facts it depends on live outside the repository that qualifies harnesses,
+   and an Organization not yet synchronized keeps growing.
+3. **Only `lazurio doctor`.** Visible on every Environment, but growth is found after the merge.
+4. **The GEN3 Root's `bun run doctor`.** Hosted Environments have no Root; rejected.
+5. **A larger `project_doc_max_bytes`.** A standard capability, but it changes a global harness
+   setting, does not help a file read with a tool or a person's own computer, and hides growth;
+   not recommended as the fix.
+
+#### What Matěj decides
+
+- the option (recommended: 1);
+- the numbers (recommended: 32 KiB hard, 24 KiB budget for the Organization root's `AGENTS.md`);
+- whether the Organization-root gap in Codex (no Folder rules in such a thread) gets its own fix, for
+  example a sentence in the Organization template's `AGENTS.md` that sends the agent to the Folder's
+  instructions first.
+
+#### Without waiting for the decision
+
+The content refactor needs no new decision (0112, 0173): each Organization over the limit gets its
+own reviewed pull request by the guide that the Organization template carries, the template gets a
+short `AGENTS.md`, and the order goes to the main roadmap of Lazurio's development. Not proven: that
+agents in every harness and on every client follow the linked manuals.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
