@@ -718,9 +718,25 @@ test.skipIf(process.platform === "win32")(
       expect(parseToolsOverview(JSON.parse(raw))).toEqual(JSON.parse(raw));
       // Exactly the catalog probes of the installed tools ran, once each;
       // gh first with its JSON status, and since this gh answers none, with
-      // the text form.
+      // the text form. A reading that changes what is known of gh also makes
+      // the shell's setup read again in the background (F36's addendum of
+      // 2026-10-08), which asks GitHub for the account (`gh api user`); no
+      // page waits for it, so it may or may not have started by the time
+      // this answer arrives (it does more often since the answer awaits
+      // Composio's organization, #829). It is no sign-in probe, so it is
+      // left out here (#871).
+      const backgroundAccount = (command: readonly string[]) =>
+        command[0] === join(standard, "gh") &&
+        command[1] === "api" &&
+        command[2] === "user" &&
+        command.length === 3;
       expect(
-        opened.commands.filter((command) => command[1] !== "--version").sort(),
+        opened.commands
+          .filter(
+            (command) =>
+              command[1] !== "--version" && !backgroundAccount(command),
+          )
+          .sort(),
       ).toEqual(
         [
           [join(standard, "gh"), "auth", "status", "--json", "hosts"],
