@@ -225,9 +225,11 @@ design to prove on a prototype, not verified behavior.
 Where Dolt runs is a connection setting of `app/v4`: in the services
 Environment of the Organization's server, or outside the server for an
 Organization with several servers (what the Marketplace contract called `v5`).
-How Lazurio gives a Module that connection without `.env` is not defined yet
+How Lazurio gives a Module that connection without `.env`, and the rest of what
+an App of this profile relies on, is the proposed
+[module databases contract](module-databases.md)
 ([#818](https://github.com/Lazurio/LazurioPlatform/issues/818)); no template of this profile exists before
-it is.
+it is accepted and implemented.
 
 Before the first template of this profile:
 
