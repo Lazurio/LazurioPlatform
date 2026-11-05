@@ -1376,7 +1376,7 @@ As the target, an Organization with a tailnet lets only devices its Admin approv
 The hosting operator updates the Environment's baseline and Lazurio by rollout, and \`lazurio update\` aligns the checkouts (decision 0161). You update the user's tools (Codex, Claude Code, \`gh\` and others) only with their consent (\`manual/troubleshooting.md\`). When something fails, it is repaired forward in Recovery (decision 0166). Server, memory, disk and network are the Admin's.
 
 ## Changes to servers and Environments
-An Organization's servers and Environments change only by a pull request to its private Deployment Repo (often \`<org>/infra\`; decision 0205). CI computes the Plan, someone other than the author reviews it, a person with live rights merges it and a runner applies it. Nobody changes a server by hand. Ordinary members of the Organization usually have no access to that repository; their agent proposes nothing in it and hands the change to the Admin by a request.
+An Organization's servers and Environments change only by a pull request to its private Deployment Repo (often \`<org>/infra\`; decision 0205). CI computes the Plan, someone other than the author reviews it, and only a merge by a person with live rights together with their separate approval in the GitHub Environment authorizes the apply; only then does a runner apply it. Nobody changes a server by hand. Ordinary members of the Organization usually have no access to that repository; their agent proposes nothing in it and hands the change to the Admin by a request.
 
 ## Who does what
 | What | The user alone | The Admin |
@@ -1459,7 +1459,7 @@ Cílově pouští Organizace s tailnetem do svých Prostředí jen zařízení, 
 Základ Prostředí a Lazurio aktualizuje provozovatel hostingu rolloutem a \`lazurio update\` srovná checkouty (rozhodnutí 0161). Nástroje uživatele (Codex, Claude Code, \`gh\` a další) aktualizuješ jen s jeho souhlasem (\`manual/troubleshooting.md\`). Když něco selže, opravuje se vpřed v Obnově (rozhodnutí 0166). Server, paměť, disk a síť jsou věc Admina.
 
 ## Změny serverů a Prostředí
-Servery a Prostředí Organizace se mění jen pull requestem do jejího soukromého repozitáře nasazení (Deployment Repo, často \`<org>/infra\`; rozhodnutí 0205). CI spočítá Plán, review dělá někdo jiný než autor, merguje člověk s živým právem a apply spustí runner. Nikdo nemění server ručně. Běžní členové Organizace do toho repozitáře obvykle přístup nemají; jejich agent v něm nic nenavrhuje a změnu svěří Adminovi žádostí.
+Servery a Prostředí Organizace se mění jen pull requestem do jejího soukromého repozitáře nasazení (Deployment Repo, často \`<org>/infra\`; rozhodnutí 0205). CI spočítá Plán, review dělá někdo jiný než autor a apply povolí až merge člověka s živým právem spolu s jeho samostatným schválením v GitHub Environment; teprve pak změnu provede runner. Nikdo nemění server ručně. Běžní členové Organizace do toho repozitáře obvykle přístup nemají; jejich agent v něm nic nenavrhuje a změnu svěří Adminovi žádostí.
 
 ## Kdo co dělá
 | Co | Uživatel sám | Admin |
@@ -1515,14 +1515,14 @@ Requests arrive as issues in the Organization's root repository whose title star
 gh issue list -R <org>/<root-repository> --state open --search 'in:title "Žádost pro Admina" OR in:title "Request for the Admin"'
 \`\`\`
 
-1. Check that the requester is an active member of the Organization and that the request is theirs: the issue's author or, from a Team's identity, the person named in the text.
+1. Check that the requester is an active member of the Organization and that the request is theirs: the issue's author. A request from a Team's identity names the person only in its text, which does not verify them, because the whole Team shares that identity. Treat it as theirs once they confirm it with their own account (a comment in the issue); until then it is unverified and the Admin decides on it.
 2. Check the facts live (the Environment, the device, the state in Getting started) and ask for what is missing in the issue, not in a private message.
 3. Agree the time of a change that interrupts work (AI source, pool restart) with the colleague and warn the people on the same pool in advance.
 4. Make the change by the path below and write its progress and result in the issue. Close it on the Admin's word; explain a refusal factually.
 
 ## Procedures
 ### The AI source of one Environment
-The target is a choice in the Organization's Dashboard (decision 0229, not yet deployed). Until it is there, it is a reviewed pull request to the Deployment Repo by the Organization's skill: one change in one place, the CI Plan committed unchanged, a review by someone other than the author on the exact head, the Admin's merge and the apply by the runner. Change nothing on the server by hand. After a move to an own account the colleague signs in at Getting started; after a return to the pool Getting started says “Provided by your Organization.” Check the result and write it in the request.
+The target is a choice in the Organization's Dashboard (decision 0229, not yet deployed). Until it is there, it is a reviewed pull request to the Deployment Repo by the Organization's skill: one change in one place, the CI Plan committed unchanged, a review by someone other than the author on the exact head, the Admin's merge and their separate approval in the GitHub Environment, and only then the apply by the runner. Change nothing on the server by hand. After a move to an own account the colleague signs in at Getting started; after a return to the pool Getting started says “Provided by your Organization.” Check the result and write it in the request.
 
 ### Approving and removing a device
 The person registers a device alone. Where the Organization approves devices (the target of decision 0192; the transition is not complete), the Admin approves a specific node by its Headscale record (node number, machine key, owner), never by its name (decision 0192). Where the Organization's Dashboard does not offer approval, it goes by a reviewed change in the Deployment Repo, by the Organization's skill. Remove a lost device first. Approving a device does not open a Personal Environment: there the Conglomerate Host's owner decides.
@@ -1568,14 +1568,14 @@ V cizím Prostředí jsi host. Nečti Personalspace ani osobní soubory, neměň
 gh issue list -R <org>/<kořenový-repozitář> --state open --search 'in:title "Žádost pro Admina" OR in:title "Request for the Admin"'
 \`\`\`
 
-1. Ověř, že žadatel je aktivní člen Organizace a že žádost je jeho: autor issue, nebo u identity Teamu člověk jmenovaný v textu.
+1. Ověř, že žadatel je aktivní člen Organizace a že žádost je jeho: autor issue. Žádost od identity Teamu jmenuje člověka jen textem, a to ho neověřuje, protože identitu Teamu sdílí celý Team. Ber ji jako jeho, až ji potvrdí svým vlastním účtem (komentářem v issue); do té doby je neověřená a rozhoduje o ní Admin.
 2. Ověř údaje živě (Prostředí, zařízení, stav v Začínáme) a chybějící doptej v issue, ne v soukromé zprávě.
 3. Termín změny, která přeruší práci (zdroj AI, restart poolu), domluv s kolegou a lidi na stejném poolu upozorni předem.
 4. Proveď změnu cestou níže a do issue piš průběh a výsledek. Zavři ho na slovo Admina; zamítnutí vysvětli věcně.
 
 ## Postupy
 ### Zdroj AI jednoho Prostředí
-Cíl je volba v Přehledu Organizace (rozhodnutí 0229, zatím nenasazené). Dokud tam není, je to reviewovaný pull request do repozitáře nasazení podle skillu Organizace: jedna změna na jednom místě, Plán z CI commitnutý beze změny, review od někoho jiného než autora na přesném headu, merge Admina a apply runnerem. Na serveru nic neměň ručně. Po přechodu na vlastní účet se kolega přihlásí v Začínáme; po návratu na pool Začínáme ukáže „Zajišťuje vaše Organizace.“ Výsledek ověř a zapiš do žádosti.
+Cíl je volba v Přehledu Organizace (rozhodnutí 0229, zatím nenasazené). Dokud tam není, je to reviewovaný pull request do repozitáře nasazení podle skillu Organizace: jedna změna na jednom místě, Plán z CI commitnutý beze změny, review od někoho jiného než autora na přesném headu, merge Admina a jeho samostatné schválení v GitHub Environment, teprve potom apply runnerem. Na serveru nic neměň ručně. Po přechodu na vlastní účet se kolega přihlásí v Začínáme; po návratu na pool Začínáme ukáže „Zajišťuje vaše Organizace.“ Výsledek ověř a zapiš do žádosti.
 
 ### Schválení a odebrání zařízení
 Zařízení registruje člověk sám. Kde Organizace zařízení schvaluje (cíl rozhodnutí 0192, přechod není dokončený), Admin schvaluje konkrétní uzel podle záznamu Headscale (číslo uzlu, machine key, vlastník), nikdy podle jména (rozhodnutí 0192). Kde Přehled Organizace schvalování nenabízí, jde to reviewovanou změnou v repozitáři nasazení podle skillu Organizace. Ztracené zařízení odeber přednostně. Schválení zařízení neotevírá Osobní Prostředí: tam rozhoduje vlastník Conglomerate Hostu.
