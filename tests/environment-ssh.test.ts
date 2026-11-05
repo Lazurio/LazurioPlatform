@@ -84,6 +84,8 @@ Host lazurio-bob.lazurioexampleorganization
   ForwardAgent no
   ProxyJump none
   ClearAllForwardings yes
+  ControlMaster no
+  ControlPath none
 `;
 const goldenKnownHosts = `${managedHeader}
 lazurio-bob.lazurioexampleorganization ssh-ed25519 ${hostKey}

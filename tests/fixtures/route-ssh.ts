@@ -16,6 +16,19 @@ export type RouteTry = Readonly<{
   knownHosts: string;
 }>;
 
+/** An `-o Name=value` of a try, unquoted as OpenSSH reads it. */
+export function optionValue(
+  command: readonly string[],
+  name: string,
+): string | undefined {
+  const value = command
+    .find((part) => part.startsWith(`${name}=`))
+    ?.slice(name.length + 1);
+  return value?.startsWith('"')
+    ? value.slice(1, -1).replaceAll("%%", "%")
+    : value;
+}
+
 async function resolve(home: string, environment: string) {
   const directory = await mkdtemp(join(tmpdir(), "lazurio-ssh-g-"));
   let copies = 0;
@@ -23,15 +36,20 @@ async function resolve(home: string, environment: string) {
     const text = await readFile(path, "utf8").catch(() => null);
     if (text === null) return false;
     const lines: string[] = [];
-    for (const line of text.replaceAll("~/", `${home}/`).split("\n")) {
-      const include = /^\s*Include\s+(\S+)\s*$/i.exec(line);
+    for (const raw of text.split("\n")) {
+      const include = /^\s*Include\s+~\/(\S+)\s*$/i.exec(raw);
+      // A home with a space stays one value: every other `~/` path quoted.
+      const line =
+        include === null
+          ? raw.replace(/~\/(\S+)/g, (_, rest) => `"${home}/${rest}"`)
+          : `Include ${home}/${include[1]}`;
       if (include === null) {
         lines.push(line);
         continue;
       }
       copies += 1;
       const included = join(directory, `included-${copies}`);
-      if (await copy(include[1] as string, included))
+      if (await copy(join(home, include[1] as string), included))
         lines.push(`Include ${included}`);
     }
     await writeFile(to, lines.join("\n"));
@@ -77,9 +95,7 @@ export function routeSsh(
       return answer;
     }
     const environment = command.at(-2) as string;
-    const file = command
-      .find((part) => part.startsWith("UserKnownHostsFile="))
-      ?.slice("UserKnownHostsFile=".length);
+    const file = optionValue(command, "UserKnownHostsFile");
     tries.push({
       environment,
       command,

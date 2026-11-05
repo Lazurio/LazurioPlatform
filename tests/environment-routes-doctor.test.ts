@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -19,12 +19,14 @@ import {
   writeEnvironmentRoutes,
 } from "../src/ssh-access/environments";
 import {
+  optionPath,
   type RouteTest,
   routeCause,
   testRoutes,
 } from "../src/ssh-access/routes";
+import { runTool } from "../src/tools/status";
 import { bindings } from "./fixtures/machine-bindings";
-import { routeSsh } from "./fixtures/route-ssh";
+import { optionValue, routeSsh } from "./fixtures/route-ssh";
 
 // Onboarding and the doctor try every route of root decision 0224 (plan
 // DEV-6687 M7, decision F70's addendum): what `ssh <id>` resolves to must be
@@ -117,12 +119,13 @@ test("each route is tried non-interactively and bounded, exactly as given, with 
   expect(ssh.resolved).toEqual(routes.map((entry) => entry.environment));
   // Four at a time, so the tries are recorded in any order.
   const first = ssh.tries.find((entry) => entry.environment === "a.example");
-  const knownHosts = first?.command
-    .find((part) => part.startsWith("UserKnownHostsFile="))
-    ?.slice("UserKnownHostsFile=".length) as string;
+  const knownHosts = optionValue(
+    first?.command ?? [],
+    "UserKnownHostsFile",
+  ) as string;
   expect(
     first?.command.map((part) =>
-      part === `UserKnownHostsFile=${knownHosts}`
+      part === `UserKnownHostsFile="${knownHosts}"`
         ? "UserKnownHostsFile=<this try's file>"
         : part,
     ),
@@ -141,7 +144,7 @@ test("each route is tried non-interactively and bounded, exactly as given, with 
       "GlobalKnownHostsFile=/dev/null",
       "StrictHostKeyChecking=yes",
       "UpdateHostKeys=no",
-      `IdentityFile=${path}/.ssh/lazurio-environment-ed25519`,
+      `IdentityFile="${path}/.ssh/lazurio-environment-ed25519"`,
       "IdentitiesOnly=yes",
       "ForwardAgent=no",
       "ProxyJump=none",
@@ -188,6 +191,8 @@ test("a route that ssh would not take as given is not configured, and nothing co
   ]);
   const other =
     "Host a.example\n  HostName elsewhere.example.invalid\n  User alice\n";
+  const shared =
+    "Host *\n  ControlMaster auto\n  ControlPath ~/.ssh/cm-%r@%h:%p\n";
   for (const text of [
     // The Include removed and another Host for the same id.
     `${written.replace(`${includeLine}\n`, "")}\n${other}`,
@@ -197,6 +202,9 @@ test("a route that ssh would not take as given is not configured, and nothing co
     `Host a.example\n  ProxyJump jump.example.invalid\n${written}`,
     // The Include removed and nothing else: ssh takes the bare name.
     written.replace(`${includeLine}\n`, ""),
+    // A shared connection set before the Include: ssh would reuse a master
+    // opened to another endpoint or to this id's old route.
+    `${shared}${written}`,
   ]) {
     await writeFile(config, text);
     expect([text, await testRoutes([a], path, ssh.run, now)]).toEqual([
@@ -204,7 +212,47 @@ test("a route that ssh would not take as given is not configured, and nothing co
       notConfigured,
     ]);
   }
-  expect(ssh.tried).toEqual(["a.example"]);
+  // The same `Host *` after the Include: the managed block's
+  // `ControlPath none` comes first and wins, so the route is the one tried.
+  await writeFile(config, `${written}\n${shared}`);
+  expect(await testRoutes([a], path, ssh.run, now)).toEqual([
+    { environment: "a.example", result: "reached", at },
+  ]);
+  expect(ssh.tried).toEqual(["a.example", "a.example"]);
+});
+
+test("a home with a space is passed to OpenSSH as one path, and a path that cannot be quoted is refused", async () => {
+  const base = await home();
+  const path = join(base, "Home With Space");
+  await mkdir(path, { mode: 0o700 });
+  const a = route("a.example");
+  await writeEnvironmentRoutes({ home: path, uid }, [a]);
+  const ssh = routeSsh(path);
+  expect(await testRoutes([a], path, ssh.run, now)).toEqual([
+    { environment: "a.example", result: "reached", at },
+  ]);
+  // The real OpenSSH reads the try's options as one key and one
+  // known-hosts file, with no "extra arguments".
+  const command = ssh.tries[0]?.command ?? [];
+  const options = command.slice(1, command.indexOf("-n"));
+  const parsed = await runTool(["ssh", ...options, "-G", "a.example"], 5_000, {
+    PATH: process.env.PATH ?? "",
+  });
+  expect(parsed).not.toBe("timeout");
+  if (parsed === "timeout") return;
+  expect(parsed.stderr).not.toContain("extra arguments");
+  expect(parsed.stdout).toContain(
+    `identityfile ${path}/.ssh/lazurio-environment-ed25519\n`,
+  );
+  expect(parsed.stdout).toContain(
+    `userknownhostsfile ${optionValue(command, "UserKnownHostsFile")}\n`,
+  );
+  expect(parsed.stdout).not.toMatch(/^controlpath /m);
+  expect(parsed.stdout).toContain("controlmaster false\n");
+  // `%` is doubled so no token expands; a double quote cannot be passed.
+  expect(optionPath("/home/a b/50%/key")).toBe('"/home/a b/50%%/key"');
+  expect(optionPath('/home/a"b/key')).toBeNull();
+  expect(optionPath("/home/a\nb/key")).toBeNull();
 });
 
 test("a route replaced between its comparison and its try never lends its result to the replacement", async () => {

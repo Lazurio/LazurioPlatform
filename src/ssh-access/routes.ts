@@ -250,13 +250,18 @@ export async function syncEnvironmentRoutes(
 // 1. What `ssh <environment id>` would use now: `ssh -G <id>` through the
 //    account's own config must resolve to that route's host and account,
 //    pinned under its own alias in the managed known-hosts file, with only
-//    this Environment's key, on port 22 and without a jump or proxy command.
-//    Anything else (the `Include` removed, another `Host` for the same id
-//    first) is `not-configured`, and nothing is connected.
+//    this Environment's key, on port 22, without a jump or proxy command and
+//    without a shared connection (`ControlPath none`: OpenSSH reuses an open
+//    master whenever a path is set, even with `ControlMaster no`). Anything
+//    else (the `Include` removed, another `Host` for the same id first, a
+//    `Host *` before it that shares connections) is `not-configured`, and
+//    nothing is connected.
 // 2. The connection itself, with that route's values on the command line
 //    and its pinned keys in a private known-hosts file written for this try
 //    alone (`-F none`, so no other config, connection sharing or forwarding
-//    takes part). A route the Launchpad replaces between the two steps or
+//    takes part). Its two paths are quoted and their `%` doubled, because
+//    OpenSSH splits an option's value at spaces and expands `%` tokens in
+//    both; a path with a double quote cannot be passed and is `unknown`. A route the Launchpad replaces between the two steps or
 //    during the try therefore never lends its result to another route.
 //
 // Both steps are non-interactive (`BatchMode=yes`, no password, no question
@@ -358,8 +363,18 @@ export function resolvesToRoute(
     only("identityfile", ...path(environmentKeyPath)) &&
     only("userknownhostsfile", ...path(environmentsKnownHostsPath)) &&
     absent("proxyjump") &&
-    absent("proxycommand")
+    absent("proxycommand") &&
+    only("controlmaster", "false", "no") &&
+    absent("controlpath")
   );
+}
+
+/** A path as one `-o` value: quoted, with `%` doubled so no token expands;
+ * null when it cannot be quoted. */
+export function optionPath(path: string): string | null {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: refused on purpose
+  if (/["\x00-\x1f\x7f]/.test(path)) return null;
+  return `"${path.replaceAll("%", "%%")}"`;
 }
 
 /** Tries every route, a few at a time, and answers each result with the time
@@ -402,6 +417,10 @@ export async function testRoutes(
         flag: "wx",
       });
       const option = (value: string) => ["-o", value];
+      const knownHostsValue = optionPath(knownHosts);
+      const identityValue = optionPath(expandHome(environmentKeyPath, home));
+      if (knownHostsValue === null || identityValue === null)
+        return failed(environment, "unknown");
       const result = await run(
         [
           "ssh",
@@ -413,11 +432,11 @@ export async function testRoutes(
           ...option(`User=${route.user}`),
           ...option("Port=22"),
           ...option(`HostKeyAlias=${environment}`),
-          ...option(`UserKnownHostsFile=${knownHosts}`),
+          ...option(`UserKnownHostsFile=${knownHostsValue}`),
           ...option("GlobalKnownHostsFile=/dev/null"),
           ...option("StrictHostKeyChecking=yes"),
           ...option("UpdateHostKeys=no"),
-          ...option(`IdentityFile=${expandHome(environmentKeyPath, home)}`),
+          ...option(`IdentityFile=${identityValue}`),
           ...option("IdentitiesOnly=yes"),
           ...option("ForwardAgent=no"),
           ...option("ProxyJump=none"),

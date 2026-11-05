@@ -403,6 +403,8 @@ Host alice.example
   ForwardAgent no
   ProxyJump none
   ClearAllForwardings yes
+  ControlMaster no
+  ControlPath none
 `);
   expect(await readFile(at.knownHosts, "utf8")).toBe(
     `${managedHeader}\nalice.example ssh-ed25519 ${keyA}\n`,

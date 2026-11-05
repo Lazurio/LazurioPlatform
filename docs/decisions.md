@@ -23379,8 +23379,9 @@ managed route anywhere.
    one `Host <environment id>` block each in `~/.ssh/config.d/lazurio-environments.conf`
    with `HostName`, `User`, `HostKeyAlias`, the managed `UserKnownHostsFile`,
    `StrictHostKeyChecking yes`, `IdentityFile ~/.ssh/lazurio-environment-ed25519`,
-   `IdentitiesOnly yes`, `ForwardAgent no`, `ProxyJump none` and
-   `ClearAllForwardings yes`, and the deadline as a comment; the host key pinned in
+   `IdentitiesOnly yes`, `ForwardAgent no`, `ProxyJump none`,
+   `ClearAllForwardings yes`, `ControlMaster no` and `ControlPath none` (since the
+   addendum of 2026-11-03 below), and the deadline as a comment; the host key pinned in
    `~/.ssh/known_hosts_lazurio_environments`. The `Include` at the top of `~/.ssh/config`
    makes these values win over the person's own `Host *` or a hand-written block of the
    same name, which stay byte for byte. A changed host key from the service replaces the
@@ -23506,12 +23507,20 @@ presented as reachability (Lazurio/LazurioPlatform#766).
    - *What `ssh <environment id>` would use now.* `ssh -G <environment id>` through the
      account's own config must resolve to that route: its host and account on port 22,
      pinned under its own alias in the managed known-hosts file, only this Environment's
-     key, no jump or proxy command. Anything else (the `Include` removed, another `Host`
-     for the same id first, a jump in front) is `not-configured` and nothing connects.
+     key, no jump or proxy command, and no shared connection (`controlmaster false`, no
+     `controlpath`). Anything else (the `Include` removed, another `Host` for the same
+     id first, a jump in front, a `Host *` before the `Include` that shares connections)
+     is `not-configured` and nothing connects. OpenSSH reuses an open master whenever a
+     control path is set, even with `ControlMaster no`, and such a master may lead to
+     another endpoint or to the id's old route; so every managed block now sets
+     `ControlMaster no` and `ControlPath none`, which win over the person's `Host *`
+     because the `Include` stands first.
    - *The connection.* `ssh -F none` with that route's values as options and its pinned
      keys in a private known-hosts file written for this try alone, `BatchMode=yes`,
      `ConnectTimeout=10`, no forwarding or connection sharing, 20 s at most, running
-     `true` and nothing else. A route replaced between the two steps or during the try
+     `true` and nothing else. The key's and the known-hosts file's paths are quoted with
+     `%` doubled, so a home with a space or a `%` stays one path; a path with a double
+     quote or a control character cannot be passed and is `unknown`. A route replaced between the two steps or during the try
      never lends its result to the replacement.
 
    The cause comes from OpenSSH's own words: `host-key-mismatch`, `login-refused`,
@@ -23549,7 +23558,9 @@ presented as reachability (Lazurio/LazurioPlatform#766).
 Not in this addendum: the line in Začínáme that shows these results to the person (it
 needs the Launchpad's onboarding view and a browser check, decision 0178) and the
 record of the last try between runs. Tests: `tests/environment-routes-doctor.test.ts` (with the real `ssh -G`: a removed
-`Include`, another `Host` first, a jump, and a route replaced before and after `ssh -G`),
+`Include`, another `Host` first, a jump, a shared connection before and after the
+`Include`, a home with a space read back by the real OpenSSH, and a route replaced before
+and after `ssh -G`),
 `tests/access-service-routes.test.ts` (the commands' tries, and a route replaced between
 its write and its try), `tests/doctor.test.ts`.
 
