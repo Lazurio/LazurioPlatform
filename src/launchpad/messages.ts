@@ -614,7 +614,7 @@ const en = {
   newModuleByAgent:
     "An agent builds the module with you in Chat. You describe what it should do; it picks the technical details and shows you a plan before it builds.",
   newModuleByAdmin:
-    "The Organization's Admin creates new modules: they create its repository on GitHub and decide who gets access. You send them a description.",
+    "The Organization's Admin creates new modules and decides who gets access. You send them a description.",
   newModuleContinue: "Continue",
   newModuleBack: "Back",
   newModuleTemplate: "Or start from a template",
@@ -2876,7 +2876,7 @@ const cs: Record<MessageKey, string> = {
   newModuleByAgent:
     "Modul vám postaví agent v Chatu. Popíšete mu, co má řešit, technické věci zvolí sám a před stavbou vám ukáže plán.",
   newModuleByAdmin:
-    "Nový modul v Organizaci zakládá Admin: vytvoří pro něj repozitář na GitHubu a určí, kdo k němu bude mít přístup. Vy mu pošlete popis.",
+    "Nový modul v Organizaci zakládá Admin: založí ho a určí, kdo k němu bude mít přístup. Vy mu pošlete popis.",
   newModuleContinue: "Pokračovat",
   newModuleBack: "Zpět",
   newModuleTemplate: "Nebo začněte šablonou",

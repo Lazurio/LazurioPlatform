@@ -61,8 +61,11 @@ test("the first screen says what a module is, and who builds it for each person"
     template: true,
   });
   expect(newModuleScreen("what", member, "", cs)).toMatchObject({
-    who: "Nový modul v Organizaci zakládá Admin: vytvoří pro něj repozitář na GitHubu a určí, kdo k němu bude mít přístup. Vy mu pošlete popis.",
+    who: "Nový modul v Organizaci zakládá Admin: založí ho a určí, kdo k němu bude mít přístup. Vy mu pošlete popis.",
     template: true,
+  });
+  expect(newModuleScreen("what", member, "", en)).toMatchObject({
+    who: "The Organization's Admin creates new modules and decides who gets access. You send them a description.",
   });
   // Templates go into an Organization only: no link that leads nowhere.
   expect(newModuleScreen("what", personal, "", en)).toMatchObject({
