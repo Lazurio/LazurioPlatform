@@ -20,7 +20,8 @@ The contract in five sentences:
   `LAZURIO_RUNTIME_DATABASE_*`. An App without a connection does not start, and
   the browser never gets one.
 - People and agents work in the Environment's draft branch, a publication merges
-  it into `main`, and every publication is a Dolt commit with an author.
+  it into `main`, and every publication is a Dolt commit that names the Environment
+  and, where it is known, the person.
 - Migrations are an Admin's explicit step, never part of a start.
 
 ## What is decided and what is proposed
@@ -565,6 +566,9 @@ Each has a recommendation; none is decided by this page.
    the Admin's; an agent only on a person's instruction.
 8. **Personal Modules.** Recommended: they stay in `app/v3`. A Dolt on a personal
    Environment would need a contract of its own and has no current need.
+9. **Who a commit names.** Recommended: the Environment, which the database checked,
+   with the person in a trailer. The alternative, the person in `--author`, reads better
+   in `dolt_log` but loses the Environment.
 
 ## Related
 
