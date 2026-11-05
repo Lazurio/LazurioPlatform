@@ -1541,8 +1541,8 @@ export function renderInstructions(input: unknown): string {
       : [pick(proposalLine(preset)), pick(rightsLine), pick(gitLine)]),
     `${pick(newModuleLine)}${pick(uiCraftLine)}`,
     pick({
-      cs: "- Před prací v Organizaci načti její aktuální AGENTS.md v `organizations/<org>/`; pravidla Organizace platí uvnitř jejího checkoutu a tenhle dokument je nenahrazuje. Z rootu Folderu se v konkrétní Organizaci nepracuje. Její skilly ti harness z kořene Folderu nenačte: projdi popisy v `organizations/<org>/.agents/skills/*/SKILL.md` (`manual/working-here.md`).",
-      en: "- Before Organization work, load its current AGENTS.md under `organizations/<org>/`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root. Your harness does not load its skills from the Folder's root: go through the descriptions in `organizations/<org>/.agents/skills/*/SKILL.md` (`manual/working-here.md`).",
+      cs: "- Před prací v Organizaci načti její aktuální AGENTS.md v `organizations/<org>/`; pravidla Organizace platí uvnitř jejího checkoutu a tenhle dokument je nenahrazuje. Z rootu Folderu se v konkrétní Organizaci nepracuje a její skilly odtud harness nenačte: projdi `organizations/<org>/.agents/skills/` (`manual/working-here.md`).",
+      en: "- Before Organization work, load its current AGENTS.md under `organizations/<org>/`; the Organization's rules apply inside its checkout and this document does not replace them. Never work in a specific Organization from the Folder root, where your harness does not load its skills: go through `organizations/<org>/.agents/skills/` (`manual/working-here.md`).",
     }),
     pick({
       cs: `- Ověř systém Environmentu, na kterém pracuješ (${profile.os}); přístup ${profile.access} nemění identitu ani oprávnění. Pro připojené operace ověř živou identitu a práva; lokální checkout není důkaz oprávnění.`,

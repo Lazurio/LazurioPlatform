@@ -10,8 +10,8 @@ import { journeys } from "./fixtures/journeys";
 // AGENTS.md and in the manual, in both languages.
 
 const agentsLine = {
-  cs: "Její skilly ti harness z kořene Folderu nenačte: projdi popisy v `organizations/<org>/.agents/skills/*/SKILL.md` (`manual/working-here.md`).",
-  en: "Your harness does not load its skills from the Folder's root: go through the descriptions in `organizations/<org>/.agents/skills/*/SKILL.md` (`manual/working-here.md`).",
+  cs: "a její skilly odtud harness nenačte: projdi `organizations/<org>/.agents/skills/` (`manual/working-here.md`).",
+  en: "where your harness does not load its skills: go through `organizations/<org>/.agents/skills/` (`manual/working-here.md`).",
 } as const;
 
 const manualParts = {
