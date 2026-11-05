@@ -92,8 +92,8 @@ export const adminRequest: readonly Text[] = [
     "- **The user has no access to the root repository** (people do not need one for Lazurio, decision 0192) or GitHub refuses the write: give the user the same text as a short message for the Admin and leave sending it to them.",
   ),
   t(
-    "- **Týmové Prostředí**: issue zakládá identita Teamu, proto v textu jmenuj člověka, který o věc žádá.",
-    "- **A Team Environment**: the Team's identity files the issue, so name the person who asks in the text.",
+    "- **Týmové Prostředí**: issue zakládá identita Teamu, kterou sdílí celý Team, takže jméno v textu žadatele neověřuje. Jmenuj člověka, který o věc žádá, a řekni mu, ať žádost potvrdí svým vlastním účtem komentářem v issue; bez toho ji Admin vede jako neověřenou.",
+    "- **A Team Environment**: the Team's identity, which the whole Team shares, files the issue, so a name in the text does not verify the requester. Name the person who asks and tell them to confirm the request with their own account in a comment on the issue; without that the Admin treats it as unverified.",
   ),
   t(
     "- **Veřejné Prostředí** nic nezakládá: vysvětli, jak by to v Organizaci šlo.",
