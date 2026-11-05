@@ -15,6 +15,7 @@ import { readToolsLive } from "../src/tools/overview";
 import {
   createSshProofs,
   fingerprintOf,
+  refusedOffered,
   type SshProofs,
 } from "../src/tools/ssh-key";
 import { runTool, toolsSignIn } from "../src/tools/status";
@@ -321,8 +322,36 @@ test.skipIf(!keygen)(
         fingerprint: refused.fingerprint,
       });
       expect(await refused.sshCalls()).toBe(3);
+      // The last attempt runs ssh verbosely: that is how the status sees
+      // that ssh offered this key and GitHub did not accept it.
+      const calls = (
+        await readFile(join(refused.directory, "ssh.calls"), "utf8")
+      )
+        .trim()
+        .split("\n");
+      expect(calls.map((line) => line.split(" ").includes("-v"))).toEqual([
+        false,
+        false,
+        true,
+      ]);
     } finally {
       await refused.close();
+    }
+    // The same denial while ssh never offers the key (a private key it
+    // refuses to load, a configuration that leaves it out): this
+    // Environment's to fix, so not linked, with "Připojit znovu" as before
+    // (Pablo's review of #851).
+    const unoffered = await world();
+    try {
+      await unoffered.flag("ssh.unoffered", "id_ed25519\n");
+      expect((await unoffered.read())?.ssh).toEqual({
+        state: "not-linked",
+        reason: "proof-failed",
+        fingerprint: unoffered.fingerprint,
+      });
+      expect(await unoffered.sshCalls()).toBe(3);
+    } finally {
+      await unoffered.close();
     }
   },
   // Real processes (the fakes, ssh-keygen): slower under a loaded run.
@@ -445,3 +474,47 @@ test.skipIf(!keygen)(
   // Real processes (the fakes, ssh-keygen): slower under a loaded run.
   30_000,
 );
+
+test("refusedOffered: only a key ssh offered and GitHub never accepted is GitHub's refusal", () => {
+  const fingerprint = "SHA256:FiCelapjlY8+U7/7WrpMQYNlt8QroWclYUP293dLk9U";
+  const offered = `debug1: Offering public key: /home/u/.ssh/id_ed25519 ED25519 ${fingerprint}`;
+  const accepted = `debug1: Server accepts key: /home/u/.ssh/id_ed25519 ED25519 ${fingerprint}`;
+  const denied = "git@github.com: Permission denied (publickey).";
+  expect(refusedOffered([offered, denied].join("\n"), fingerprint)).toBe(true);
+  // Never offered: ssh did not load it or the configuration left it out.
+  expect(
+    refusedOffered(
+      [
+        "debug1: Offering public key: /home/u/.ssh/other ED25519 SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        denied,
+      ].join("\n"),
+      fingerprint,
+    ),
+  ).toBe(false);
+  // A private key with unsafe permissions, as OpenSSH 9 answers it: the
+  // public key is offered and accepted, then the private key does not load.
+  expect(
+    refusedOffered(
+      [
+        offered,
+        accepted,
+        "@         WARNING: UNPROTECTED PRIVATE KEY FILE!          @",
+        'Load key "/home/u/.ssh/id_ed25519": bad permissions',
+        denied,
+      ].join("\n"),
+      fingerprint,
+    ),
+  ).toBe(false);
+  // Accepted, then ssh could not sign with it: a local failure too.
+  expect(
+    refusedOffered(
+      [
+        offered,
+        accepted,
+        "sign_and_send_pubkey: signing failed for ED25519",
+        denied,
+      ].join("\n"),
+      fingerprint,
+    ),
+  ).toBe(false);
+});

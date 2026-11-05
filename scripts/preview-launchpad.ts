@@ -99,16 +99,19 @@
 // after the mode, the fictional person jana already has her Lazurio account
 // with a master password in the hosted work Environment's vault, so Apps →
 // Trezor adds and confirms her and finds her a member: the vault's video
-// stands open first (F56's addendum (4) of 2026-10-19). With `gh-signed-out`
-// or `gh-no-ssh` anywhere after the mode, gh is the curated sign-in's own
-// fake (tests/fixtures/fake-login-tools.ts) beside a fake `ssh`, the
+// stands open first (F56's addendum (4) of 2026-10-19). With `gh-signed-out`,
+// `gh-no-ssh` or `gh-refused` anywhere after the mode, gh is the curated
+// sign-in's own fake (tests/fixtures/fake-login-tools.ts) beside a fake `ssh`, the
 // system's `ssh-keygen` and `git`, all on the synthetic home (decision F19,
 // addendum of 2026-10-19), and the Organization provides the AI (a fake
 // codex), so Začínáme offers GitHub's step at once: `gh-signed-out` starts
 // signed out, and its device code is confirmed by creating the file
 // `ghApprove` of the JSON line, as the person's confirmation on GitHub
 // would; `gh-no-ssh` starts signed in as octocat without an SSH key, so
-// GitHub is connected badly. Without either, the stand-in gh is signed in as
+// GitHub is connected badly; `gh-refused` starts signed in as octocat with a
+// key the account lists, which ssh offers and GitHub refuses on every
+// connection, as in an incident of GitHub's (#851). Without any, the
+// stand-in gh is signed in as
 // example-user and reaches GitHub over SSH (a stand-in key, GitHub's host
 // keys, the greeting answered by the preview), so GitHub reads connected.
 // With `gh-slow` each step of the SSH key takes 4 s, so the window can be
@@ -188,6 +191,7 @@ import {
 import {
   fakeLoginTools,
   githubHostKeys,
+  realSshKeygen,
 } from "../tests/fixtures/fake-login-tools";
 import {
   fakeBw,
@@ -234,7 +238,9 @@ const ghFake = process.argv.slice(3).includes("gh-signed-out")
   ? "signed-out"
   : process.argv.slice(3).includes("gh-no-ssh")
     ? "no-ssh"
-    : null;
+    : process.argv.slice(3).includes("gh-refused")
+      ? "refused"
+      : null;
 const ghSlow = process.argv.slice(3).includes("gh-slow");
 // The fake codex and claude signed out: Začínáme's AI step with ChatGPT's
 // sign-in by code (root decision 0201 point 10).
@@ -589,12 +595,47 @@ if (ghFake !== null) {
     await fakeAiClis(home, ["codex"]);
     await writeFile(join(home, "codex.provided"), "");
   }
-  if (ghFake === "no-ssh") {
+  if (ghFake === "no-ssh" || ghFake === "refused") {
     await writeFile(join(home, "gh.state"), "octocat\n");
     await writeFile(
       join(home, "gh.scopes"),
       "gist read:org repo admin:public_key\n",
     );
+  }
+  // GitHub in an incident (#851): the account lists this home's key, ssh
+  // offers it and GitHub refuses every connection.
+  if (ghFake === "refused") {
+    if (realSshKeygen === null) throw new Error("gh-refused needs ssh-keygen");
+    const ssh = join(home, ".ssh");
+    await mkdir(ssh, { recursive: true, mode: 0o700 });
+    const key = join(ssh, "id_ed25519");
+    const made = Bun.spawnSync([
+      realSshKeygen,
+      "-q",
+      "-t",
+      "ed25519",
+      "-N",
+      "",
+      "-C",
+      "preview",
+      "-f",
+      key,
+    ]);
+    if (made.exitCode !== 0) throw new Error("ssh-keygen failed");
+    const publicKey = (await readFile(`${key}.pub`, "utf8"))
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .join(" ");
+    await writeFile(
+      join(home, "gh.keys"),
+      `101\tLazurio: preview\t${publicKey}\n`,
+    );
+    await writeFile(
+      join(ssh, "known_hosts"),
+      `${githubHostKeys.map((entry) => `github.com ${entry}`).join("\n")}\n`,
+    );
+    await writeFile(join(home, "ssh.refusals"), "1000000\n");
   }
   if (ghSlow)
     for (const step of ["ssh-key-add", "api-meta", "ssh"])

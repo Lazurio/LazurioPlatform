@@ -103,9 +103,13 @@ export type SshLink =
  * does not list the key), `proof-failed` or `other-account` (ssh greeted
  * another login); `unknown` with `unreadable` when GitHub could not be
  * reached or read, or this home is not known, and with `refused` when the
- * account lists the key and GitHub still refused it over SSH, again and
- * again: nothing here is to fix then, GitHub is (its Git operations in an
- * incident refuse a share of connections with "Permission denied"). */
+ * account lists the key, ssh offered exactly that key and GitHub still
+ * refused it, again and again: nothing here is to fix then, GitHub is (its
+ * Git operations in an incident refuse a share of connections with
+ * "Permission denied"). A denial where ssh did not offer the key (a private
+ * key ssh refuses to load, a configuration that leaves it out) or offered it
+ * and could not sign stays `proof-failed`: that is this Environment's to fix
+ * (Pablo's review of #851). */
 export type SshStatus = Readonly<{
   state: "linked" | "not-linked" | "unknown";
   reason?: SshStatusReason;
@@ -376,7 +380,7 @@ export async function sshStatus(
     registered = true;
   }
   const account = input.account;
-  const once = () =>
+  const once = (diagnose?: string) =>
     proveSsh(
       {
         home: input.home as string,
@@ -387,18 +391,26 @@ export async function sshStatus(
         alive: () => true,
       },
       account,
-      { timeoutMs: statusStepMs },
+      {
+        timeoutMs: statusStepMs,
+        ...(diagnose === undefined ? {} : { diagnose }),
+      },
     ).then((proof) => (proof === "gone" ? unreachable : proof));
-  // A registered key GitHub refused is asked again: GitHub in trouble
-  // refuses some connections and lets others through.
+  // A registered key that ssh was denied with is asked again: GitHub in
+  // trouble refuses some connections and lets others through. The last
+  // attempt runs ssh verbosely, which says whether ssh offered this key and
+  // whether GitHub accepted it: only that tells GitHub's refusal from a key
+  // ssh never offered.
   const prove = async () => {
     let proof = await once();
     for (
       let attempt = 1;
-      registered && refusedByGithub(proof) && attempt < refusedAttempts;
+      registered && deniedProof(proof) && attempt < refusedAttempts;
       attempt += 1
     )
-      proof = await once();
+      proof = await once(
+        attempt === refusedAttempts - 1 ? fingerprint : undefined,
+      );
     return proof;
   };
   const proof =
@@ -408,7 +420,7 @@ export async function sshStatus(
   if (proof.state === "proved") return { state: "linked", fingerprint };
   if (proof.state === "unreachable")
     return { state: "unknown", reason: "unreadable", fingerprint };
-  if (registered && refusedByGithub(proof))
+  if (registered && proof.state === "failed" && proof.refusedOffered === true)
     return { state: "unknown", reason: "refused", fingerprint };
   return {
     state: "not-linked",
@@ -424,7 +436,7 @@ const statusStepMs = 20_000;
 // How many times the status proves a key the account lists before it says
 // GitHub refuses it; a refusal comes back within a second or two.
 const refusedAttempts = 3;
-const refusedByGithub = (proof: SshProof): boolean =>
+const deniedProof = (proof: SshProof): boolean =>
   proof.state === "failed" && proof.denied === true;
 const unreachable: SshProof = {
   state: "unreachable",
@@ -795,6 +807,22 @@ export function sshGreeting(output: string): string | undefined {
   )?.[1];
 }
 
+/** Whether verbose `ssh` offered the key of `fingerprint` ("Offering public
+ * key: <path> <type> <fingerprint>") and GitHub never accepted it ("Server
+ * accepts key: …"). A key ssh did not load or a configuration left out is
+ * never offered; one GitHub accepted and ssh then could not sign with is
+ * accepted: both are this Environment's to fix. */
+export function refusedOffered(output: string, fingerprint: string): boolean {
+  const lines = output.split("\n");
+  const names = (marker: string) =>
+    lines.some(
+      (line) =>
+        line.includes(marker) &&
+        line.split(/\s+/).some((word) => word === fingerprint),
+    );
+  return names("Offering public key:") && !names("Server accepts key:");
+}
+
 /** Whether `ssh` said that it did not reach GitHub at all: the name did not
  * resolve, no route, a refused or timed-out connection, one closed before
  * the key exchange. Then nothing is known about the key. A refused key or a
@@ -832,6 +860,10 @@ export type SshProof =
       /** GitHub answered "Permission denied (publickey)": it refused every
        * key ssh offered. */
       denied?: true;
+      /** With `diagnose`: ssh offered the key of that fingerprint and GitHub
+       * did not accept it, so the refusal is GitHub's, not a key ssh left
+       * out or could not use. */
+      refusedOffered?: true;
     }>
   | Readonly<{
       state: "unreachable";
@@ -847,11 +879,17 @@ export type SshProof =
  * status (`sshStatus`) runs it as it is, and `UpdateHostKeys=no` keeps ssh
  * from adding keys the server advertises after the authentication (on by
  * default in OpenSSH). One function for both, so the status says linked
- * exactly when the sign-in would. */
+ * exactly when the sign-in would. With `diagnose` (a key's fingerprint) ssh
+ * runs verbosely, and a denial says whether ssh offered that key and GitHub
+ * did not accept it (`refusedOffered`). */
 export async function proveSsh(
   context: ProofContext,
   account: string,
-  options: Readonly<{ published?: readonly string[]; timeoutMs: number }>,
+  options: Readonly<{
+    published?: readonly string[];
+    timeoutMs: number;
+    diagnose?: string;
+  }>,
 ): Promise<SshProof | "gone"> {
   const published =
     options.published ?? (await githubHostKeys(context, options.timeoutMs));
@@ -869,6 +907,7 @@ export async function proveSsh(
       [
         context.ssh,
         "-T",
+        ...(options.diagnose === undefined ? [] : ["-v"]),
         "-o",
         "BatchMode=yes",
         "-o",
@@ -893,7 +932,15 @@ export async function proveSsh(
     return sshUnreachable(output)
       ? { state: "unreachable", reason: "ssh-unreachable" }
       : /Permission denied \(publickey\)/i.test(output)
-        ? { state: "failed", reason: "proof-failed", denied: true }
+        ? {
+            state: "failed",
+            reason: "proof-failed",
+            denied: true,
+            ...(options.diagnose !== undefined &&
+            refusedOffered(output, options.diagnose)
+              ? { refusedOffered: true as const }
+              : {}),
+          }
         : { state: "failed", reason: "proof-failed" };
   if (greeted.toLowerCase() !== account.toLowerCase())
     return {
