@@ -14,9 +14,8 @@ JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`. The pin
 Machines pull request **#1099** (root decision 0181, addendum of 2026-11-05), which
 adds only the personal branch's optional member `services`, a Personal Environment's
 own AI pool ([below](#a-personal-environments-own-ai-pool-root-decision-0181-addendum-of-2026-11-05)),
-to the schema of Machines #1072 and changes nothing else; until it merges,
-`schema-provenance.json` says `pending` and names the head it was copied from
-(`9ff9a534f62d6ce9dada733639e59de7b7b1b2e5`, SHA-256
+to the schema of Machines #1072 and changes nothing else, taken byte for byte from
+its merge commit `440047ff4d3bc09794718a9631dbdc9a35d46339` (SHA-256
 `057195b531c5ea012f7af8387d02da245fcb03bb4b94fc49ffa113affd251434`). Before it, the
 pin was Machines pull request **#1072** (HumanAndMachine-ai/Machines#955, root
 decision 0216), which added only the auth-sourced handover of a free Environment
