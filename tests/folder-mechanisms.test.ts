@@ -58,10 +58,10 @@ function rendered(
   );
 }
 
-// Decisions cited before the register has them: 0230 (requests to the Admin
-// inside Lazurio) is being recorded by its own register pull request. When
-// the register gains a number, it leaves this list (the next test says so).
-const pendingInRegister = new Set(["0230"]);
+// Decisions cited before the register has them, while their register pull
+// request is open (0229 and 0230 waited here). When the register gains a
+// number, it leaves this list (the next test says so).
+const pendingInRegister = new Set<string>();
 
 const register = readFileSync(
   join(import.meta.dir, "..", "docs", "decision-register.md"),

@@ -3503,8 +3503,8 @@ What changes:
   forces a new revision. Every decision number they and the skill cite must be in
   `docs/decision-register.md`, and a status they claim (“not yet deployed”, “proposed”,
   “target model”) must be the register's, so a decision that comes into force fails the test
-  until the text follows. A number whose register pull request is still open (0230) is cited
-  from a pending list that a test empties once the register has it.
+  until the text follows. A number whose register pull request is still open is cited from a
+  pending list that a test empties once the register has it (0230 waited there until #865).
 - **Manifest schema 6.** New outputs are a new set: schemas 2 to 5 name their six manual
   files explicitly, schema 6 owns every output, and this product reads 2 to 6 and writes 6. A
   Folder at schema 2 to 5 gains the two chapters and the skill by its next change, created
