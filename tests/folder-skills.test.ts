@@ -92,6 +92,12 @@ function frontmatter(text: string) {
   };
 }
 
+// The six manual files every schema before 6 records; schema 6 adds
+// `mechanisms.md` and `admin.md` (proposed F14 addendum of 2026-11-05).
+const manualBeforeSchema6 = manualPaths.filter(
+  (path) => path !== "manual/mechanisms.md" && path !== "manual/admin.md",
+);
+
 test("the skills are outputs after the manual, one file per harness, and a manifest of schema 2 owns none of them", () => {
   expect(skillPaths).toEqual([
     codex,
@@ -102,19 +108,33 @@ test("the skills are outputs after the manual, one file per harness, and a manif
     standardClaude,
     uiCraftCodex,
     uiCraftClaude,
+    ".agents/skills/admin-request/SKILL.md",
+    ".claude/skills/admin-request/SKILL.md",
   ]);
   expect(outputPaths).toEqual(["AGENTS.md", ...manualPaths, ...skillPaths]);
   expect(manualPaths).not.toContain("manual/new-module.md" as never);
-  expect(manifestOutputPaths[5]).toEqual(outputPaths);
+  expect(manifestOutputPaths[6]).toEqual(outputPaths);
+  expect(manifestOutputPaths[5]).toEqual([
+    "AGENTS.md",
+    ...manualBeforeSchema6,
+    codex,
+    claude,
+    henryCodex,
+    henryClaude,
+    standardCodex,
+    standardClaude,
+    uiCraftCodex,
+    uiCraftClaude,
+  ]);
   expect(manifestOutputPaths[3]).toEqual([
     "AGENTS.md",
-    ...manualPaths,
+    ...manualBeforeSchema6,
     codex,
     claude,
   ]);
   expect(manifestOutputPaths[4]).toEqual([
     "AGENTS.md",
-    ...manualPaths,
+    ...manualBeforeSchema6,
     codex,
     claude,
     henryCodex,
@@ -122,9 +142,9 @@ test("the skills are outputs after the manual, one file per harness, and a manif
     standardCodex,
     standardClaude,
   ]);
-  expect(manifestOutputPaths[2]).toEqual(["AGENTS.md", ...manualPaths]);
-  expect(instructionManifestSchema).toBe(5);
-  expect(folderStateSchemas.manifest).toEqual([2, 3, 4, 5]);
+  expect(manifestOutputPaths[2]).toEqual(["AGENTS.md", ...manualBeforeSchema6]);
+  expect(instructionManifestSchema).toBe(6);
+  expect(folderStateSchemas.manifest).toEqual([2, 3, 4, 5, 6]);
 });
 
 test("every Environment renders the skill new-module in its locale, the same bytes for Codex and Claude Code: what a module is, the interview first, the agent's technical choices, the plan and the route its preset allows", () => {
@@ -382,11 +402,19 @@ test("a manifest of schema 2 owns exactly AGENTS.md and the manual, schema 3 add
     ],
   ).toBe(digest);
   expect(
-    parseInstructionManifest(manifest(5, outputPaths)).outputs[uiCraftClaude],
+    parseInstructionManifest(manifest(5, manifestOutputPaths[5])).outputs[
+      uiCraftClaude
+    ],
+  ).toBe(digest);
+  expect(
+    parseInstructionManifest(manifest(6, outputPaths)).outputs[
+      "manual/mechanisms.md"
+    ],
   ).toBe(digest);
   // Each schema has one set: no skills in a schema 2 manifest, only
-  // new-module in a schema 3 manifest, no ui-craft in schema 4, every output
-  // in schema 5, and no other schema.
+  // new-module in a schema 3 manifest, no ui-craft in schema 4, no
+  // mechanisms.md, admin.md or admin-request in schema 5, every output in
+  // schema 6, and no other schema.
   expect(() => parseInstructionManifest(manifest(2, outputPaths))).toThrow();
   expect(() =>
     parseInstructionManifest(manifest(3, manifestOutputPaths[2])),
@@ -399,7 +427,11 @@ test("a manifest of schema 2 owns exactly AGENTS.md and the manual, schema 3 add
   expect(() =>
     parseInstructionManifest(manifest(5, manifestOutputPaths[4])),
   ).toThrow();
-  expect(() => parseInstructionManifest(manifest(6, outputPaths))).toThrow();
+  expect(() => parseInstructionManifest(manifest(5, outputPaths))).toThrow();
+  expect(() =>
+    parseInstructionManifest(manifest(6, manifestOutputPaths[5])),
+  ).toThrow();
+  expect(() => parseInstructionManifest(manifest(7, outputPaths))).toThrow();
 });
 
 // A personal Remote Environment's Folder, as in the refresh tests: hosted, so
@@ -432,6 +464,10 @@ async function renderedBeforeTheSkills(folder: string) {
   const manifest = JSON.parse(await readFile(path, "utf8"));
   await rm(join(folder, ".agents"), { recursive: true });
   await rm(join(folder, ".claude"), { recursive: true });
+  // That release had no `mechanisms.md` and `admin.md` either.
+  for (const output of manualPaths)
+    if (!manifestOutputPaths[2].includes(output))
+      await rm(join(folder, output));
   const outputs: Record<string, string> = {};
   for (const output of manifestOutputPaths[2]) {
     const content = `${(await readFile(join(folder, output), "utf8"))
@@ -478,7 +514,7 @@ async function expectCurrent(folder: string) {
   const manifest = JSON.parse(
     await readFile(join(folder, ".lazurio", "instructions.json"), "utf8"),
   );
-  expect(manifest.schemaVersion).toBe(5);
+  expect(manifest.schemaVersion).toBe(6);
   expect(manifest.templateRevision).toBe(instructionTemplateRevision);
   expect(Object.keys(manifest.outputs)).toEqual([...outputPaths]);
 }

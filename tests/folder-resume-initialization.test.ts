@@ -321,8 +321,10 @@ for (const stop of ["journal", "manual-directory"] as const)
           });
           expect((await readdir(manual)).sort()).toEqual([
             ".lazurio-generated",
+            "admin.md",
             "glossary.md",
             "lazurio.md",
+            "mechanisms.md",
             "roles.md",
             "this-machine.md",
             "troubleshooting.md",
@@ -356,7 +358,7 @@ test.skipIf(process.platform === "win32")(
         kind: "recovered",
         revision: 1,
       });
-      expect((await readdir(join(folder, "manual"))).sort()).toHaveLength(7);
+      expect((await readdir(join(folder, "manual"))).sort()).toHaveLength(9);
       expect(await resumeInitialization(folder)).toEqual({
         kind: "recovered",
         revision: 1,
