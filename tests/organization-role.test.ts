@@ -34,6 +34,15 @@ type Answers = Readonly<{
   membership?: MembershipAnswer;
   root?: RepositoryAnswer;
   owners?: readonly string[] | "unavailable" | "absent";
+  /** The listing of the viewer's memberships; by default it answers and
+   * names none. */
+  memberships?:
+    | readonly {
+        organization: string;
+        state: "active";
+        role: "admin" | "member";
+      }[]
+    | "unavailable";
 }>;
 
 function fakeGitHub(answers: Answers = {}): ContentGitHub {
@@ -67,6 +76,9 @@ function fakeGitHub(answers: Answers = {}): ContentGitHub {
           role: "member",
         }
       );
+    },
+    async memberships() {
+      return answers.memberships ?? [];
     },
     ...(answers.owners === "absent"
       ? {}
@@ -213,6 +225,41 @@ test("without the membership no role is confirmed, not even Builder or Steward f
     ]);
     expect(answer.detail).toContain("whether the account is an Owner");
   }
+});
+
+test("a 404 membership counts as no membership only when the listing of memberships confirms it", async () => {
+  const writer = {
+    kind: "observed" as const,
+    repository: {
+      fullName: "Acme/Acme_GEN3",
+      owner: { login: "Acme", databaseId: 2, kind: "Organization" as const },
+      private: true,
+      archived: false,
+      readable: true,
+      permission: "write" as const,
+    },
+  };
+  const roleOf = (memberships: NonNullable<Answers["memberships"]>) =>
+    readOrganizationRole({
+      organization: "Acme",
+      github: fakeGitHub({
+        membership: { kind: "none" },
+        root: writer,
+        memberships,
+      }),
+      root: resolved,
+    });
+  // The listing does not answer: the 404 may hide an Owner.
+  const hidden = await roleOf("unavailable");
+  expect(hidden).toMatchObject({ role: null, verified: false });
+  expect(hidden.detail).toContain("this sign-in may not see it");
+  // It answers without Acme: an outside collaborator with write is a Builder.
+  expect((await roleOf([])).role).toBe("builder");
+  // It answers with Acme: that is the membership.
+  expect(
+    (await roleOf([{ organization: "acme", state: "active", role: "admin" }]))
+      .role,
+  ).toBe("admin");
 });
 
 test("a root the Folder holds of another owner names no role here", async () => {
@@ -406,6 +453,87 @@ afterEach(async () => {
   if (parent) await rm(parent, { recursive: true, force: true });
   parent = "";
 });
+
+posixTest(
+  "through gh, an Owner whose membership answers 404 to this sign-in is no confirmed non-Admin",
+  async () => {
+    parent = await realpath(
+      await mkdtemp(join(tmpdir(), "organization-role-")),
+    );
+    const bin = join(parent, "bin");
+    const home = join(parent, "home");
+    await mkdir(bin);
+    await mkdir(home);
+    await writeFile(
+      join(bin, "gh"),
+      `#!/bin/sh
+case "$*" in
+  "api user") echo '{"login":"ada","id":1}' ;;
+  "api user/memberships/orgs/Acme") echo '{"message":"Not Found","status":"404"}'; exit 1 ;;
+  "api --paginate user/memberships/orgs?per_page=100 --jq "*) echo '{"message":"Forbidden","status":"403"}'; exit 1 ;;
+  "api repos/Acme/Acme_GEN3") echo '{"full_name":"Acme/Acme_GEN3","private":true,"archived":false,"owner":{"login":"Acme","id":2,"type":"Organization"},"permissions":{"admin":false,"maintain":false,"push":true,"triage":true,"pull":true}}' ;;
+  "api --paginate orgs/Acme/members?role=admin&per_page=100 --jq "*) printf 'ada\\n' ;;
+  *) echo '{"message":"Not Found","status":"404"}'; exit 1 ;;
+esac
+`,
+    );
+    await chmod(join(bin, "gh"), 0o755);
+    const github = ghContentGitHub(
+      { path: bin, home, platform: process.platform, run: runTool },
+      { sleep: async () => {} },
+    );
+    expect(await github.membership("Acme")).toEqual({ kind: "none" });
+    expect(await github.memberships?.()).toBe("unavailable");
+    const answer = await readOrganizationRole({
+      organization: "Acme",
+      github,
+      root: resolved,
+    });
+    expect(answer).toMatchObject({
+      login: "ada",
+      role: null,
+      verified: false,
+      rootRepository: "Acme/Acme_GEN3",
+      admins: ["ada"],
+    });
+    expect(answer.detail).toContain("this sign-in may not see it");
+  },
+);
+
+posixTest(
+  "gh lists the viewer's memberships by Organization, state and role, and a garbled listing is unavailable",
+  async () => {
+    parent = await realpath(
+      await mkdtemp(join(tmpdir(), "organization-role-")),
+    );
+    const bin = join(parent, "bin");
+    const home = join(parent, "home");
+    await mkdir(bin);
+    await mkdir(home);
+    await writeFile(
+      join(bin, "gh"),
+      `#!/bin/sh
+read -r mode < "${join(parent, "mode")}"
+case "$mode" in
+  good) printf 'Acme\\tactive\\tadmin\\nOther\\tpending\\tmember\\n' ;;
+  bad) printf 'Acme\\towner\\tadmin\\n' ;;
+esac
+`,
+    );
+    await chmod(join(bin, "gh"), 0o755);
+    const github = ghContentGitHub(
+      { path: bin, home, platform: process.platform, run: runTool },
+      { sleep: async () => {} },
+    );
+    await writeFile(join(parent, "mode"), "good");
+    expect(await github.memberships?.()).toEqual([
+      { organization: "Acme", state: "active", role: "admin" },
+      { organization: "Other", state: "pending", role: "member" },
+    ]);
+    await writeFile(join(parent, "mode"), "bad");
+    expect(await github.memberships?.()).toBe("unavailable");
+  },
+);
 
 posixTest(
   "gh lists the Owners without bots, and a listing it refuses or garbles is unavailable",

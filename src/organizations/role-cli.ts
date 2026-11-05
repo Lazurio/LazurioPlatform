@@ -8,6 +8,7 @@ import {
   resolveOrganizationRootRepository,
 } from "../content/organization-root";
 import {
+  type MembershipAnswer,
   type OrganizationRole,
   type RepositoryPermission,
   verifyOrganizationRole,
@@ -79,6 +80,40 @@ const rootDetail = (resolution: RootResolution) =>
       ? `the Folder holds more than one root of the Organization: ${resolution.directories.join(", ")}`
       : undefined;
 
+/** The viewer's membership in `organization` as far as it can be observed:
+ * GitHub answers 404 both to an account that is no member and to a sign-in
+ * that cannot see the membership, so a `none` counts only when the listing
+ * of the viewer's memberships answers without the Organization (where it
+ * lists it, that entry is the membership). Anything else is unobservable. */
+async function observedMembership(
+  github: ContentGitHub,
+  organization: string,
+): Promise<
+  | Exclude<MembershipAnswer, { kind: "unavailable" }>
+  | Readonly<{ kind: "unobservable"; detail: string }>
+> {
+  const membership = await github.membership(organization);
+  if (membership.kind === "member") return membership;
+  const unobservable = Object.freeze({
+    kind: "unobservable" as const,
+    detail:
+      membership.kind === "unavailable"
+        ? "GitHub did not answer the Organization membership, so whether the account is an Owner is not known"
+        : "GitHub shows no membership, but this sign-in may not see it, so whether the account is an Owner is not known",
+  });
+  if (membership.kind === "unavailable" || github.memberships === undefined)
+    return unobservable;
+  const listed = await github.memberships();
+  if (listed === "unavailable") return unobservable;
+  const entry = listed.find(
+    (candidate) =>
+      candidate.organization.toLowerCase() === organization.toLowerCase(),
+  );
+  return entry === undefined
+    ? membership
+    : Object.freeze({ kind: "member", state: entry.state, role: entry.role });
+}
+
 /** The answer for one Organization: who gh is, the root, the permission on
  * it, the membership and the Owners. GitHub not answering never yields a
  * role (fail closed). */
@@ -125,18 +160,14 @@ export async function readOrganizationRole(
     if (access.kind === "observed" && access.repository.readable)
       rootPermission = access.repository.permission ?? "read";
   }
-  const membership = await github.membership(organization);
+  const membership = await observedMembership(github, organization);
   // The highest live role needs the Owner check: without the membership a
   // write or maintain on the root could be an Owner's, so no role is
   // confirmed (content install, which only scopes, takes the narrower role
-  // from the same core).
+  // from the same core and its plain membership).
   const role =
-    membership.kind === "unavailable"
-      ? ({
-          kind: "unverified",
-          detail:
-            "GitHub did not answer the Organization membership, so whether the account is an Owner is not known",
-        } as const)
+    membership.kind === "unobservable"
+      ? ({ kind: "unverified", detail: membership.detail } as const)
       : verifyOrganizationRole({
           requested: null,
           membership,

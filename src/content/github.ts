@@ -90,6 +90,19 @@ export type ContentGitHub = Readonly<{
   organizationRepositories(
     organization: string,
   ): Promise<readonly string[] | "unavailable">;
+  /** Every Organization membership of the viewer this sign-in can see
+   * (`GET user/memberships/orgs`), or `unavailable`. A 404 of `membership`
+   * is also what a sign-in that cannot see the membership gets; a listing
+   * that answers is what tells a confirmed absence from that. Only `lazurio
+   * organization role` reads it (#866). */
+  memberships?(): Promise<
+    | readonly Readonly<{
+        organization: string;
+        state: "active" | "pending";
+        role: "admin" | "member";
+      }>[]
+    | "unavailable"
+  >;
   /** The Organization's active Owners as GitHub lists them to this identity
    * (`GET orgs/<org>/members?role=admin`), without bot accounts, or
    * `unavailable`. Only `lazurio organization role` reads it (#866). */
@@ -559,6 +572,31 @@ export function ghContentGitHub(
       return names.every((name) => repositoryPattern.test(name))
         ? Object.freeze(names)
         : "unavailable";
+    },
+    async memberships() {
+      const answer = await run([
+        "api",
+        "--paginate",
+        "user/memberships/orgs?per_page=100",
+        "--jq",
+        ".[] | [.organization.login, .state, .role] | @tsv",
+      ]);
+      if (answer.kind !== "ok") return "unavailable";
+      const entries = [];
+      for (const line of answer.stdout.split("\n")) {
+        if (line === "") continue;
+        const [organization, state, role, ...rest] = line.split("\t");
+        if (
+          organization === undefined ||
+          !githubLoginPattern.test(organization) ||
+          (state !== "active" && state !== "pending") ||
+          (role !== "admin" && role !== "member") ||
+          rest.length !== 0
+        )
+          return "unavailable";
+        entries.push(Object.freeze({ organization, state, role }));
+      }
+      return Object.freeze(entries);
     },
     async owners(organization) {
       if (!githubLoginPattern.test(organization)) return "unavailable";
