@@ -415,6 +415,18 @@ button.tile { height: auto; justify-content: flex-start; white-space: normal; bo
 .tile:hover, .tile:focus-visible { border-color: var(--lz-ink); background: var(--card); box-shadow: none; }
 .tile--new { border-style: dashed; border-color: var(--lz-line); }
 .tile-mark--new { border-radius: var(--lz-radius-md); background: var(--lz-gray-50); color: var(--muted-fg); }
+/* Zkontrolovat přístupy (decision F36's addendum of 2026-11-05): a quiet
+   button beside the "?", or under the sentence of an empty space; what it
+   found is the page's status line. */
+button.access-check { flex: none; height: 28px; margin-left: 8px; padding: 0 10px; color: var(--muted-fg); font-size: 13px; white-space: nowrap; }
+button.access-check:hover { color: var(--fg); }
+button.access-check .icon { width: 14px; height: 14px; }
+button.access-check[aria-disabled="true"] { cursor: progress; }
+.apps-empty { display: grid; justify-items: start; gap: 10px; }
+.apps-empty button.access-check { margin-left: -10px; }
+#catalog-status[data-tone="success"] { color: var(--success-fg); font-size: 13.5px; }
+#catalog-status[data-tone="warning"] { color: var(--warning-fg); font-size: 13.5px; }
+#catalog-status[data-tone="quiet"] { font-size: 13.5px; }
 /* A member's "+ Nový modul" (decision F36's addendum of 2026-11-05): muted
    with its lock, still a button that opens the dialog. */
 .tile--request .tile-name { color: var(--muted-fg); }

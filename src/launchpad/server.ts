@@ -159,6 +159,7 @@ import { runProcess } from "../update/self-check";
 import { serviceEnvironment } from "../update/service-control";
 import type { VaultHost } from "../vault/flow";
 import { enableVaultForAgents, processVaultHost } from "../vault/host";
+import { accessCheckAnswer, accessCheckFailed } from "./access-check";
 import type { LaunchpadBoot } from "./boot";
 import { launchpadBoot, vaultInAppsOf, withBoot } from "./boot-document";
 import { createBuddyRoutes } from "./buddy-routes";
@@ -465,6 +466,10 @@ async function machineTailnet(): Promise<string | null> {
 // (decision F36 addendum of 2026-10-04): `<org>` names it as the catalog's
 // routes do.
 const ownerRoute = /^\/api\/organizations\/([^/]+)\/owner$/;
+
+// Zkontrolovat přístupy (decision F36's addendum of 2026-11-05): one
+// Organization's synchronization, now. `<org>` as above.
+const organizationSyncRoute = /^\/api\/organizations\/([^/]+)\/sync$/;
 
 // Whether it may maintain one module's repository (decision 0185 S15, the
 // Steward's "Přístup k modulu"): `<org>` as above, `<module>` its id.
@@ -2583,6 +2588,37 @@ export async function startLaunchpad(
                 id: briefs.keep(prompt, login, description),
               })
             : response({ error: "not-found" }, 404);
+        }
+        const syncRequest = organizationSyncRoute.exec(url.pathname);
+        if (syncRequest !== null) {
+          // Zkontrolovat přístupy: the hourly synchronization of this
+          // Organization, now and under the same content lock. A public
+          // Environment's visitors do not own it, a Team Environment clones
+          // nothing, and a Launchpad that is not an installed one never
+          // synchronizes (`syncCheckouts`).
+          stateFields(input, []);
+          if (publicEnvironment) return response({ error: "not-found" }, 404);
+          const selection = selectCatalogOrganization(
+            organizationsOnly(await catalog.read()),
+            decodeURIComponent(syncRequest[1] as string),
+          );
+          if (
+            selection.kind !== "found" ||
+            selection.organization.forgeLogin === undefined
+          )
+            return response({ error: "not-found" }, 404);
+          if (
+            syncCheckouts === undefined ||
+            (await folderPreset(folder)) === "hosted-organization-team"
+          )
+            return response(accessCheckFailed("not-here"));
+          // About a minute per repository, four at a time.
+          server.timeout(request, 600);
+          const run = await syncCheckouts({
+            organization: selection.organization.forgeLogin,
+          });
+          catalog.forget();
+          return response(accessCheckAnswer(run));
         }
         if (url.pathname === "/api/update/apply") {
           if (!pill) return response({ error: "update-unavailable" }, 503);

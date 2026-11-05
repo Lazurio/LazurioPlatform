@@ -446,6 +446,8 @@ const catalog = createCatalogPanel({
     }
   },
   newModule: (offer, from) => newModuleDialog.open(offer, from),
+  checksAccess: () =>
+    kindOf(shellDocument) !== "team" && !isPublicEnvironment(entry),
   // The person's account through this Environment's gateway (account.ts):
   // plain same-origin requests, never with the Launchpad's local token.
   readAccount: () => readAccount(),

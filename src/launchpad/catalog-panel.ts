@@ -11,6 +11,13 @@ import { catalogOrganizationKey } from "../organizations/catalog-selection";
 import { icon } from "../shell/icons";
 import { initialsOf, type SwitchTab } from "../shell/view";
 import {
+  type AccessLine,
+  accessLine,
+  addedNames,
+  parseAccessCheck,
+  shownModules,
+} from "./access-check";
+import {
   type Account,
   type AccountFavourites,
   createAccountFavourites,
@@ -161,6 +168,9 @@ export function createCatalogPanel(
     /** "+ Nový modul": opens its dialog (new-module-dialog.ts) for the offer
      * of this tile, the focus going back to `from`. */
     newModule: (offer: NewModuleOffer, from: HTMLElement) => void;
+    /** Whether Zkontrolovat přístupy runs here: not in a Team Environment,
+     * where a synchronization clones nothing, nor on a public one. */
+    checksAccess: () => boolean;
     /** Reads the person's account once (account.ts): null when it is
      * unavailable. */
     readAccount: () => Promise<Account | null>;
@@ -210,6 +220,13 @@ export function createCatalogPanel(
   // A sentence about the last tile opened on a workstation (starting,
   // failed), shown in the status line until the next move.
   let notice: string | null = null;
+  // Zkontrolovat přístupy: the page it runs on, whether it still runs and
+  // what its line says, until the page moves on.
+  let access: Readonly<{
+    page: string;
+    busy: boolean;
+    line: AccessLine;
+  }> | null = null;
   // Whether this Environment's GitHub identity is an Owner of an
   // Organization, by its route key: read once per page, never assumed.
   // The Owner answers this page holds (owner-answer.ts); a catalog read
@@ -1087,6 +1104,79 @@ export function createCatalogPanel(
     favoritesBox.replaceChildren(label, list);
   }
 
+  // --- Zkontrolovat přístupy --------------------------------------------
+
+  // A person who was just given a module sees it at once instead of within
+  // the hour (decision F36's addendum of 2026-11-05): the Organization's
+  // synchronization runs now, the catalog is read again and the line under
+  // the head says what is new, in the page's live status line.
+  const accessPage = () => JSON.stringify(options.route());
+  async function checkAccess(key: string, login: string) {
+    if (access?.busy === true) return;
+    const page = accessPage();
+    const before = shownModules(catalog, login);
+    access = {
+      page,
+      busy: true,
+      line: { text: options.copy().accessChecking, tone: "quiet" },
+    };
+    render();
+    let answer: ReturnType<typeof parseAccessCheck> = null;
+    try {
+      answer = parseAccessCheck(
+        (
+          await options.post(
+            `/api/organizations/${encodeURIComponent(key)}/sync`,
+            {},
+          )
+        ).value,
+      );
+    } catch {
+      answer = null;
+    }
+    if (answer?.state === "checked") await refresh();
+    const names =
+      answer?.state === "checked"
+        ? addedNames(answer.added, before, shownModules(catalog, login))
+        : [];
+    access = {
+      page,
+      busy: false,
+      line: accessLine(answer, names, options.copy()),
+    };
+    render();
+  }
+
+  // The button, where this Organization has it (`checksAccess`). Pressed, it
+  // stays a button that keeps the focus; a second press waits for the first.
+  function accessButton(group: CatalogGroupEntry | null): HTMLElement[] {
+    const login = group?.organization.forgeLogin;
+    if (
+      catalog === null ||
+      group === null ||
+      group.sections === null ||
+      login === undefined ||
+      !options.checksAccess()
+    )
+      return [];
+    const key = catalogOrganizationKey(catalog, group.organization);
+    if (key === null) return [];
+    const copy = options.copy();
+    const busy = access?.busy === true;
+    const button = element("button", "ghost access-check");
+    button.type = "button";
+    button.title = copy.accessHourly;
+    button.dataset.guide = "apps-access";
+    if (busy) {
+      button.setAttribute("aria-disabled", "true");
+      const spinner = element("span", "spinner");
+      spinner.setAttribute("aria-hidden", "true");
+      button.append(spinner, copy.accessChecking);
+    } else button.append(svg("refresh"), copy.accessCheck);
+    button.addEventListener("click", () => void checkAccess(key, login));
+    return [button];
+  }
+
   // --- The head: the Organization, and the Environment under it ---------
 
   function drawHead(group: CatalogGroupEntry | null) {
@@ -1106,7 +1196,12 @@ export function createCatalogPanel(
     heading.dataset.pageHeading = "";
     const where = element("div", "apps-where");
     const title = element("div", "apps-title-row");
-    title.append(heading, ...(help === null ? [] : [help]));
+    title.append(
+      heading,
+      ...(help === null ? [] : [help]),
+      // In an empty space the button stands under its sentence instead.
+      ...(emptyShown ? [] : accessButton(group)),
+    );
     where.append(title);
     const environment = options.environment();
     if (environment !== null) {
@@ -1174,9 +1269,12 @@ export function createCatalogPanel(
     return box;
   }
 
+  // Whether the Apps home shows its plain sentence of an empty space.
+  let emptyShown = false;
   function appsHome(value: Catalog, group: CatalogGroupEntry | null): Node[] {
     const copy = options.copy();
     const parts: Node[] = [];
+    emptyShown = false;
     const setup = options.setupLine();
     if (setup !== null) parts.push(setupLineNode(setup));
     if (group === null)
@@ -1204,12 +1302,21 @@ export function createCatalogPanel(
     }))
       parts.push(
         part.kind === "empty"
-          ? element("p", "intro", part.text)
+          ? emptySpace(part.text, group)
           : part.kind === "section"
             ? section(part.section, group, owner, part.offer)
             : startsSection(part),
       );
     return parts;
+  }
+
+  // The sentence of an empty space, with Zkontrolovat přístupy where the
+  // person waits for a module of the Organization.
+  function emptySpace(text: string, group: CatalogGroupEntry): HTMLElement {
+    emptyShown = true;
+    const box = element("div", "apps-empty");
+    box.append(element("p", "intro", text), ...accessButton(group));
+    return box;
   }
 
   // "Co dalšího tu můžete dělat" (root decision 0185's addendum of
@@ -1709,13 +1816,20 @@ export function createCatalogPanel(
   function render(route: PageRoute = options.route()) {
     const copy = options.copy();
     openMenu?.();
+    // A finished check's line belongs to the page it ran on.
+    if (access?.busy === false && access.page !== JSON.stringify(route))
+      access = null;
     status.textContent =
       notice ??
+      access?.line.text ??
       (state === "loading"
         ? copy.catalogLoading
         : state === "failed"
           ? copy.catalogLoadFailed
           : "");
+    if (notice === null && access !== null)
+      status.dataset.tone = access.line.tone;
+    else delete status.dataset.tone;
     if (catalog === null) {
       favoritesBox.replaceChildren();
       body.replaceChildren();
@@ -1763,6 +1877,8 @@ export function createCatalogPanel(
     // keeps it.
     const tabFocused =
       document.activeElement?.classList.contains("workspace-tab") === true;
+    const accessFocused =
+      document.activeElement?.classList.contains("access-check") === true;
     if (selection.kind !== "module") lifecycle = null;
     // A module's and a service repository's page draw their own head.
     const ownPage =
@@ -1770,9 +1886,10 @@ export function createCatalogPanel(
       selection.kind === "repository" ||
       selection.kind === "guest";
     head.hidden = ownPage;
-    if (!ownPage) drawHead(scope);
-    body.replaceChildren(
-      ...(selection.kind === "ambiguous"
+    // The body first: the head's button stands where the body leaves it.
+    emptyShown = false;
+    const shown =
+      selection.kind === "ambiguous"
         ? ambiguousView(catalog, selection.candidates)
         : selection.kind === "module"
           ? moduleView(catalog, scope, selection.organization, selection.module)
@@ -1780,9 +1897,12 @@ export function createCatalogPanel(
             ? repositoryView(catalog, scope, selection.repository)
             : selection.kind === "guest"
               ? guestView(catalog, scope, selection.guest)
-              : appsHome(catalog, scope)),
-    );
+              : appsHome(catalog, scope);
+    if (!ownPage) drawHead(scope);
+    body.replaceChildren(...shown);
     if (tabFocused) focusTab();
+    if (accessFocused)
+      document.querySelector<HTMLElement>(".access-check")?.focus();
     const action = body.querySelector<HTMLButtonElement>(
       "[data-module-action]",
     );

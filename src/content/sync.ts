@@ -49,9 +49,10 @@ export {
 // (`keepBuilt`), the CLI as `lazurio organization sync`, and since decision
 // F9's second amendment of 2026-10-24 (root decision 0212 points 3, 4 and 7)
 // `lazurio update` and Nová karta's Aktualizovat (`updateEverything`, with
-// progress per repository, `onProgress`) and the Open of one module
-// (`createOpenSync`, one repository, `SyncRequest.repository`): one core, one
-// content lock, one record.
+// progress per repository, `onProgress`), the Open of one module
+// (`createOpenSync`, one repository, `SyncRequest.repository`) and Apps'
+// Zkontrolovat přístupy (one Organization, decision F36's addendum of
+// 2026-11-05): one core, one content lock, one record.
 
 export type SyncRun =
   | Readonly<{
