@@ -415,6 +415,10 @@ button.tile { height: auto; justify-content: flex-start; white-space: normal; bo
 .tile:hover, .tile:focus-visible { border-color: var(--lz-ink); background: var(--card); box-shadow: none; }
 .tile--new { border-style: dashed; border-color: var(--lz-line); }
 .tile-mark--new { border-radius: var(--lz-radius-md); background: var(--lz-gray-50); color: var(--muted-fg); }
+/* A member's "+ Nový modul" (decision F36's addendum of 2026-11-05): muted
+   with its lock, still a button that opens the dialog. */
+.tile--request .tile-name { color: var(--muted-fg); }
+.tile--request .tile-mark--new { background: transparent; }
 .tile-stone { display: block; flex: none; width: 44px; height: 44px; }
 /* A repository's folder in ink, the "+" of a new module on paper. */
 .tile-mark { display: grid; flex: none; width: 44px; height: 44px; place-items: center; color: var(--lz-ink); }
@@ -1470,6 +1474,21 @@ button:not(.primary) .provider-openai { color: #000000; }
 button.buddy-help-toggle { width: 20px; height: 20px; padding: 0; border-radius: 50%; color: var(--muted-fg); font-size: 12px; }
 .buddy-help { max-width: 34rem; margin: 2px 0 0; color: var(--muted-fg); font-size: 13px; line-height: 1.45; }
 dialog.buddy-meet { width: min(36rem, calc(100vw - 2rem)); }
+/* "+ Nový modul" (decision F36's addendum of 2026-11-05), the frame of
+   "Seznamte se s Buddym": the three parts of a module, the person's words,
+   what to remember, the examples and the whole brief. */
+.new-module-parts { display: grid; gap: 6px; margin: 0; padding: 0 0 0 1.1rem; }
+.new-module-parts strong { font-weight: var(--lz-weight-akce); }
+a.new-module-template { justify-self: start; color: var(--link); font-size: 14px; }
+textarea.new-module-field { display: block; width: 100%; min-height: 8.5rem; max-height: 40vh; resize: vertical; font: inherit; line-height: 1.5; }
+.new-module-label { margin: 0; color: var(--muted-fg); font-size: 13px; font-weight: var(--lz-weight-akce); }
+.new-module-remember { display: grid; gap: 4px; }
+.new-module-mentions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 2px 20px; margin: 0; padding: 0 0 0 1.1rem; color: var(--muted-fg); font-size: 13.5px; }
+.new-module-examples { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+button.new-module-example { height: 28px; padding: 0 10px; font-size: 13px; }
+.new-module-brief { max-height: min(18rem, 40vh); margin: 0; padding: 10px 12px; overflow: auto; border: 1px solid var(--lz-line); border-radius: var(--radius-control); background: var(--muted); font: 13px/1.5 var(--font-sans); overflow-wrap: anywhere; white-space: pre-wrap; }
+.new-module-status { margin: 10px 0 0; color: var(--muted-fg); font-size: 13px; }
+.new-module-status:empty { display: none; }
 .buddy-meet-body { display: grid; gap: 14px; }
 .buddy-meet-body > p { margin: 0; }
 .buddy-say { font-size: 15px; }
@@ -2290,6 +2309,14 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <p id="integrations-confirm-text"></p>
 <p id="integrations-confirm-status" role="status" aria-live="polite"></p>
 <div class="dialog-foot"><button type="button" class="destructive" id="integrations-confirm-ok"></button><button type="button" id="integrations-confirm-cancel" data-message="integrationsCancel">Cancel</button></div>
+</dialog>
+<!-- "+ Nový modul" (decision F36's addendum of 2026-11-05): three screens
+     drawn by new-module-dialog.ts. -->
+<dialog id="new-module" class="buddy-meet new-module" aria-labelledby="new-module-title">
+<div class="dialog-head"><h2 id="new-module-title" tabindex="-1"></h2><button type="button" class="dialog-x" id="new-module-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="sr-only" data-message="toolsClose">Close</span></button></div>
+<div id="new-module-body" class="buddy-meet-body"></div>
+<p class="new-module-status" id="new-module-status" role="status" aria-live="polite"></p>
+<div class="dialog-foot buddy-meet-foot"><span class="buddy-dots" id="new-module-dots" role="img"></span><span class="buddy-meet-nav" id="new-module-nav"></span></div>
 </dialog>
 <!-- The Marketplace's "Přidat do Organizace" (plan DEV-6593):
      marketplace-panel.ts draws the form into its body. -->

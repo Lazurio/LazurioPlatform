@@ -575,6 +575,8 @@ const en = {
   serviceKindDns01: "Certificates",
   appsNewModule: "New module",
   appsNewModuleSub: "Create with an agent",
+  // The muted tile of a member (decision F36's addendum of 2026-11-05).
+  appsNewModuleRequestSub: "The Admin creates it",
   appsNewModuleOpened:
     "Chat opens in a new tab with the new module's brief in the composer, not sent.",
   appsNewModuleCopied:
@@ -589,6 +591,73 @@ const en = {
   // 2026-10-13); in Czech the person's own words, so tykání (0199).
   appsNewPersonalModulePrompt:
     "I want to build a new module in the Lazurio Workspace.\nIt will be in my personal space, as a private repository on my GitHub account {login}.\n\nUse the skill `new-module`. First ask me what the module is for and what it should solve for me, choose the technical details yourself, and before you start building, show me the plan to confirm.",
+  // With the person's own description from the dialog "+ Nový modul"
+  // (decision F36's addendum of 2026-11-05).
+  appsNewModulePromptDescribed:
+    "I want to build a new module in the Lazurio Workspace.\nIt will be in the Organization {name} (GitHub {login}).\n\nWhat I have in mind:\n{description}\n\nUse the skill `new-module`. Ask me only about what does not follow from what I have in mind, choose the technical details yourself, and before you start building, show me the plan to confirm.",
+  appsNewPersonalModulePromptDescribed:
+    "I want to build a new module in the Lazurio Workspace.\nIt will be in my personal space, as a private repository on my GitHub account {login}.\n\nWhat I have in mind:\n{description}\n\nUse the skill `new-module`. Ask me only about what does not follow from what I have in mind, choose the technical details yourself, and before you start building, show me the plan to confirm.",
+  // A member's request to the Admin (the skill `admin-request`).
+  appsNewModuleRequestPrompt:
+    "I want a new module in the Organization {name} (GitHub {login}). New modules are created by the Admin, so prepare a request to the Admin for me with the skill `admin-request`.\n\nFirst ask me what the module is for and what it should solve for me, then show me the request and send it only with my consent.",
+  appsNewModuleRequestPromptDescribed:
+    "I want a new module in the Organization {name} (GitHub {login}). New modules are created by the Admin, so prepare a request to the Admin for me with the skill `admin-request`.\n\nWhat I have in mind:\n{description}\n\nFirst ask me about what does not follow from it, then show me the request and send it only with my consent.",
+  // The dialog "+ Nový modul" (decision F36's addendum of 2026-11-05).
+  newModuleIntro:
+    "A module is one area of your company's work. It keeps three things together:",
+  newModulePartProcess: "Process",
+  newModulePartProcessText: "how the work is done. Agents follow it.",
+  newModulePartData: "Data",
+  newModulePartDataText: "the records and content of the work.",
+  newModulePartApp: "App",
+  newModulePartAppText: "the screen where you see and change the data.",
+  newModuleByAgent:
+    "An agent builds the module with you in Chat. You describe what it should do; it picks the technical details and shows you a plan before it builds.",
+  newModuleByAdmin:
+    "The Organization's Admin creates new modules: they create its repository on GitHub and decide who gets access. You send them a description.",
+  newModuleContinue: "Continue",
+  newModuleBack: "Back",
+  newModuleTemplate: "Or start from a template",
+  newModuleDescribeTitle: "What should the module do?",
+  newModuleDescribeText:
+    "Describe it in your own words. The more you write, the fewer questions the agent asks.",
+  newModuleMentionTitle: "Worth mentioning",
+  newModuleMentionProblem:
+    "What problem it solves and what slows you down today",
+  newModuleMentionWho: "Who will use it, and where",
+  newModuleMentionSee: "What you want to see and do in it",
+  newModuleMentionData: "Where the data comes from",
+  newModuleMentionAuto: "What should happen on its own",
+  newModuleMentionAccess: "Who should have access",
+  newModuleExamples: "Examples",
+  newModuleExampleOrders: "Order overview",
+  newModuleExampleOrdersStory:
+    "We need one place where we can see all our orders. Today they live in e-mails, in a spreadsheet nobody updates and in our salespeople's heads. Salespeople will use it, mostly on their phones at the client's, and I will use it from my computer as their manager.\n\nFor each order I want to see the client, what we offered and for how much, what state it is in (enquiry, offer, negotiation, won, lost) and who should get back to whom and when. In the morning it should tell me whom to call today. We write offers in Word and send them by e-mail, so it would be great to just drag an offer in and have the amount filled in.\n\nAs the manager I want to see each month how much is under negotiation and how much we won, per salesperson. It can look like a board with a column per state, where the cards are dragged across.",
+  newModuleExampleClients: "Client overview",
+  newModuleExampleClientsStory:
+    "We want everything about each client in one place, so anyone on the team knows what is going on even when a colleague is on holiday. The whole team will use it, about ten people.\n\nFor each client I want to see contacts, what we do for them, the last meetings and what we promised there, open tasks and who is responsible for them. We write meeting notes in a shared document, so it should read them and pull the tasks out. Invoices stay in accounting; it is enough to see whether the client pays on time.\n\nOn the first page I want to see the clients nobody is looking after now and those where something is burning. The look should be restrained and professional, so it can be shown to a client over the shoulder.",
+  newModuleExampleWebsite: "Company website",
+  newModuleExampleWebsiteStory:
+    "We need a new company website; the current one is five years old and nobody can change it. It will mostly be read by new customers who found us on Google and by people who would like to work for us.\n\nIt should be clear at first sight what we do and for whom. Then a few customer stories with photos, a price list of our basic services, a page about the team with faces and a contact form that sends us an e-mail. We want to write news and open positions ourselves, without a programmer, ideally just as text with pictures.\n\nThe texts and photos are in a shared folder. Colours and logo by our brand manual, so it looks modern but friendly, not like a bank. It must work well on a phone, where most people come from.",
+  newModuleExampleExpenses: "Household expenses",
+  newModuleExampleExpensesStory:
+    "I finally want to know what our household costs. Today it is scattered across bank statements, receipts in a drawer and our heads. My wife and I will use it, most often on a phone, right at the checkout.\n\nI want to see how much we spent this month on food, housing, the car, the children and fun, and how that compares with past months. When we go over the food budget, it should tell me before the month ends. I can download the bank statement as a CSV, so it should read that and sort it by itself, and ask me about whatever it cannot sort. I would like to just take photos of receipts.\n\nNothing complicated to look at: a few big numbers on top, a simple chart by month under them and a list of the latest payments. Clear even for someone who hates spreadsheets.",
+  newModuleExampleRecipes: "Family recipes",
+  newModuleExampleRecipesStory:
+    "I want all our recipes in one place. Grandma's are photographed on a phone, others are saved links and half of them are only in my head. I will use it mostly in the kitchen, so it should read well on a tablet leaning on the counter, with big letters and no needless clicking.\n\nMost of all I want to search by what is in the fridge: I type potatoes, cream and bacon and it offers what to cook from that. For each recipe I want a photo, the ingredients, the steps and how many servings it makes, and servings should be easy to recalculate. From the recipes chosen for the week it should make a shopping list by itself.\n\nIt should download recipes from links by itself, and I would like to just photograph grandma's and have them typed out. The colours can be cheerful, so it is nice to look at.",
+  newModuleExampleTrip: "Trip planner",
+  newModuleExampleTripStory:
+    "I am planning a two-week trip around Japan with friends and I need a place that holds everything together. There are five of us and everyone should be able to add something, mostly on a phone while travelling.\n\nI want to see day by day where we sleep, how we get there and what we want to see, ideally on a map too. There should be a list of places someone suggested, and the others can vote. Bookings come to me by e-mail, so it would be great if the stays and trains filled in by themselves. And a shared kitty: who paid for what and who owes whom how much.\n\nIt should work offline too, as there will not be signal everywhere. A simple look, above all so that I do not get lost in it on a small screen.",
+  newModuleBriefTitle: "Brief for the agent",
+  newModuleBriefText:
+    "It opens in Chat in a new thread, unsent. Check it and send it. The agent asks about the rest, shows a plan and creates the module only once you agree.",
+  newModuleRequestTitle: "Request to the Admin",
+  newModuleRequestText:
+    "Your agent turns the description into a request to the Organization's Admin and shows it to you before sending.",
+  newModuleCopy: "Copy the brief",
+  newModuleCopied: "The brief is in your clipboard.",
+  newModuleOpen: "Open in Chat",
+  modulesVideoTitle: "What a module is",
   appsGuide: "Guide",
   appsMarketplace: "Marketplace",
   // The Marketplace (plan DEV-6593, marketplace.ts): one section and, in
@@ -2748,6 +2817,7 @@ const cs: Record<MessageKey, string> = {
   serviceKindDns01: "Certifikáty",
   appsNewModule: "Nový modul",
   appsNewModuleSub: "Vytvořit s agentem",
+  appsNewModuleRequestSub: "Zakládá Admin",
   appsNewModuleOpened:
     "Chat se otevírá v nové záložce se zadáním nového modulu v poli zprávy, neodeslaným.",
   appsNewModuleCopied:
@@ -2762,6 +2832,69 @@ const cs: Record<MessageKey, string> = {
   // 2026-10-13); in Czech the person's own words, so tykání (0199).
   appsNewPersonalModulePrompt:
     "Chci postavit nový modul do Workspace Lazuria.\nBude v mém osobním prostoru, jako soukromý repozitář na mém GitHub účtu {login}.\n\nPoužij skill `new-module`. Nejdřív se mě vyptej, k čemu modul bude a co mi má vyřešit, technické věci zvol sám a než začneš stavět, ukaž mi plán k potvrzení.",
+  // In Czech the person's own words to the agent, so tykání (0199).
+  appsNewModulePromptDescribed:
+    "Chci postavit nový modul do Workspace Lazuria.\nBude v Organizaci {name} (GitHub {login}).\n\nMoje představa:\n{description}\n\nPoužij skill `new-module`. Vyptej se mě jen na to, co z mé představy nevyplývá, technické věci zvol sám a než začneš stavět, ukaž mi plán k potvrzení.",
+  appsNewPersonalModulePromptDescribed:
+    "Chci postavit nový modul do Workspace Lazuria.\nBude v mém osobním prostoru, jako soukromý repozitář na mém GitHub účtu {login}.\n\nMoje představa:\n{description}\n\nPoužij skill `new-module`. Vyptej se mě jen na to, co z mé představy nevyplývá, technické věci zvol sám a než začneš stavět, ukaž mi plán k potvrzení.",
+  appsNewModuleRequestPrompt:
+    "Chci v Organizaci {name} (GitHub {login}) nový modul. Nový modul zakládá Admin, proto mi připrav žádost pro Admina skillem `admin-request`.\n\nNejdřív se mě vyptej, k čemu modul bude a co mi má vyřešit, pak mi žádost ukaž a pošli ji až s mým souhlasem.",
+  appsNewModuleRequestPromptDescribed:
+    "Chci v Organizaci {name} (GitHub {login}) nový modul. Nový modul zakládá Admin, proto mi připrav žádost pro Admina skillem `admin-request`.\n\nMoje představa:\n{description}\n\nNejdřív se mě doptej na to, co z představy nevyplývá, pak mi žádost ukaž a pošli ji až s mým souhlasem.",
+  newModuleIntro:
+    "Modul je jedna oblast práce vaší firmy. Drží pohromadě tři věci:",
+  newModulePartProcess: "Postup",
+  newModulePartProcessText: "jak se v ní pracuje. Podle něj pracují agenti.",
+  newModulePartData: "Data",
+  newModulePartDataText: "záznamy a obsah, se kterými se pracuje.",
+  newModulePartApp: "Aplikace",
+  newModulePartAppText: "obrazovka, ve které data vidíte a měníte.",
+  newModuleByAgent:
+    "Modul vám postaví agent v Chatu. Popíšete mu, co má řešit, technické věci zvolí sám a před stavbou vám ukáže plán.",
+  newModuleByAdmin:
+    "Nový modul v Organizaci zakládá Admin: vytvoří pro něj repozitář na GitHubu a určí, kdo k němu bude mít přístup. Vy mu pošlete popis.",
+  newModuleContinue: "Pokračovat",
+  newModuleBack: "Zpět",
+  newModuleTemplate: "Nebo začněte šablonou",
+  newModuleDescribeTitle: "Co má modul řešit?",
+  newModuleDescribeText:
+    "Popište ho vlastními slovy. Čím víc napíšete, tím méně se agent bude doptávat.",
+  newModuleMentionTitle: "Na co nezapomenout",
+  newModuleMentionProblem: "Jaký problém řeší a co vás dnes zdržuje",
+  newModuleMentionWho: "Kdo ho bude používat a kde",
+  newModuleMentionSee: "Co v něm chcete vidět a dělat",
+  newModuleMentionData: "Odkud se berou data",
+  newModuleMentionAuto: "Co se má dít samo",
+  newModuleMentionAccess: "Kdo k němu má mít přístup",
+  newModuleExamples: "Příklady",
+  newModuleExampleOrders: "Přehled zakázek",
+  newModuleExampleOrdersStory:
+    "Potřebujeme jedno místo, kde uvidíme všechny zakázky. Teď je máme v e-mailech, v tabulce, kterou nikdo neaktualizuje, a v hlavách obchodníků. Používat to budou obchodníci, hlavně z mobilu u klienta, a já jako vedoucí z počítače.\n\nU každé zakázky chci vidět klienta, co jsme nabídli a za kolik, v jakém je stavu (poptávka, nabídka, vyjednávání, vyhráno, prohráno) a kdy se má kdo komu ozvat. Ráno ať mi to řekne, komu dneska zavolat. Nabídky děláme ve Wordu a posíláme e-mailem, tak by bylo skvělé, kdyby šlo nabídku jen přetáhnout dovnitř a částka se doplnila sama.\n\nJako vedoucí chci každý měsíc vidět, kolik máme rozjednáno a kolik jsme vyhráli, po obchodnících. Vzhled klidně jako nástěnka se sloupci podle stavu, kde se karty přetahují.",
+  newModuleExampleClients: "Přehled klientů",
+  newModuleExampleClientsStory:
+    "Chceme mít o každém klientovi všechno na jednom místě, aby kdokoli z týmu věděl, co se s ním děje, i když je kolega na dovolené. Používat to bude celý tým, asi deset lidí.\n\nU klienta chci vidět kontakty, co pro něj děláme, poslední schůzky a co jsme si na nich slíbili, otevřené úkoly a kdo je za ně odpovědný. Zápisy ze schůzek píšeme do sdíleného dokumentu, tak ať si je to umí načíst a vytáhnout z nich úkoly. Faktury jsou v účetnictví, stačí vidět, jestli klient platí včas.\n\nNa úvodní stránce chci vidět klienty, o které se teď nikdo nestará, a ty, kterým něco hoří. Vzhled střídmý a profesionální, ať se to dá ukázat i klientovi přes rameno.",
+  newModuleExampleWebsite: "Firemní web",
+  newModuleExampleWebsiteStory:
+    "Potřebujeme nový firemní web, ten současný je pět let starý a nikdo ho neumí upravit. Číst ho budou hlavně noví zákazníci, kteří nás našli přes Google, a lidé, kteří by u nás chtěli pracovat.\n\nChci, aby bylo hned na první pohled jasné, co děláme a pro koho. Pak pár příběhů zákazníků s fotkami, ceník základních služeb, stránka o týmu s tvářemi a kontaktní formulář, ze kterého nám přijde e-mail. Novinky a volná místa bychom chtěli psát sami, bez programátora, ideálně jen jako text s obrázky.\n\nTexty a fotky máme ve sdílené složce. Barvy a logo podle našeho manuálu, ať to vypadá moderně, ale přátelsky, ne jako banka. Musí se to dobře zobrazovat na mobilu, odtud chodí většina lidí.",
+  newModuleExampleExpenses: "Výdaje domácnosti",
+  newModuleExampleExpensesStory:
+    "Chci mít konečně přehled, kolik nás stojí domácnost. Teď to máme rozházené ve výpisech z banky, v účtenkách v šuplíku a v hlavě. Používat to budu já a manželka, nejčastěji z mobilu, třeba hned v obchodě u pokladny.\n\nChci vidět, kolik jsme tenhle měsíc utratili za jídlo, bydlení, auto, děti a zábavu, a jak to vypadá proti minulým měsícům. Když přetáhneme rozpočet na jídlo, ať mi to řekne dřív, než bude konec měsíce. Výpis z banky umím stáhnout jako CSV, tak ať si ho to umí načíst a samo roztřídit, a co neroztřídí, ať se mě zeptá. Účtenky bych rád jen vyfotil.\n\nVzhledově nic složitého: pár velkých čísel nahoře, pod tím jednoduchý graf po měsících a seznam posledních plateb. Ať je to přehledné i pro někoho, kdo tabulky nesnáší.",
+  newModuleExampleRecipes: "Rodinné recepty",
+  newModuleExampleRecipesStory:
+    "Chci mít na jednom místě všechny naše recepty. Babiččiny máme ofocené v telefonu, další jsou uložené odkazy na weby a půlka je jen v hlavě. Používat to budu hlavně já v kuchyni, takže ať se to dobře čte na tabletu opřeném o linku, s velkým písmem a bez zbytečného klikání.\n\nNejvíc bych chtěl hledat podle toho, co zrovna mám v lednici: napíšu brambory, smetanu a slaninu a ono mi to nabídne, co z toho uvařit. U každého receptu chci fotku, suroviny, postup krok za krokem a kolik porcí to dělá, a ať se dají porce přepočítat. Z vybraných receptů na týden ať se mi sám udělá nákupní seznam.\n\nRecepty z odkazů ať si to umí stáhnout samo, ty od babičky bych rád jen vyfotil a nechal přepsat. Barevně klidně veselé, ať se na to hezky kouká.",
+  newModuleExampleTrip: "Plánovač cesty",
+  newModuleExampleTripStory:
+    "Plánuju s kamarády dvoutýdenní cestu po Japonsku a potřebuju místo, kde budeme mít všechno pohromadě. Bude nás pět a každý si tam má umět něco přidat, nejčastěji z mobilu na cestách.\n\nChci vidět den po dni, kde budeme spát, čím pojedeme a co chceme vidět, ideálně i na mapě. Ať je tam seznam míst, která někdo navrhl, a ostatní můžou hlasovat. Rezervace mi chodí e-mailem, tak by bylo super, kdyby se z nich ubytování a vlaky doplnily samy. A ještě společná kasa: kdo za co zaplatil a kdo komu kolik dluží.\n\nMá to fungovat i offline, protože signál nebude všude. Vzhled jednoduchý, hlavně ať se v tom na malém displeji neztratím.",
+  newModuleBriefTitle: "Zadání pro agenta",
+  newModuleBriefText:
+    "Otevře se v Chatu v novém vlákně, neodeslané. Zkontrolujte ho a odešlete. Agent se doptá na zbytek, ukáže plán a modul založí až po vašem souhlasu.",
+  newModuleRequestTitle: "Žádost pro Admina",
+  newModuleRequestText:
+    "Váš agent z popisu připraví žádost pro Admina Organizace a před odesláním vám ji ukáže.",
+  newModuleCopy: "Kopírovat zadání",
+  newModuleCopied: "Zadání je ve schránce.",
+  newModuleOpen: "Otevřít v Chatu",
+  modulesVideoTitle: "Co je modul",
   appsGuide: "Guide",
   appsMarketplace: "Marketplace",
   marketAppTemplates: "Šablony aplikací",

@@ -213,6 +213,7 @@ import {
 } from "./mausbot";
 import { messages } from "./messages";
 import { createMaintainerCheck } from "./module-maintainer";
+import { newModuleDescription } from "./new-module-view";
 import { type LaunchpadHolder, launchpadHolderOf } from "./new-tab/holder";
 import { openTab } from "./new-tab/hub-client";
 import { runningModules } from "./new-tab/modules";
@@ -240,7 +241,13 @@ import {
   serveShell,
 } from "./page";
 import {
+  briefPromptOf,
+  createPromptBriefs,
+  isBriefPrompt,
+} from "./prompt-briefs";
+import {
   adoptionDocument,
+  audienceAdmits,
   isOrganizationPrompt,
   isPromptId,
   personalModuleDocument,
@@ -1087,6 +1094,8 @@ export async function startLaunchpad(
   });
   const installing = new Set<string>();
   const owners = createOwnerCheck(toolsEnvironment);
+  // What people wrote for "+ Nový modul", until Chat fetches it.
+  const briefs = createPromptBriefs();
   const maintainers = createMaintainerCheck(toolsEnvironment);
   const chatPrompts = createChatPromptCheck(toolsEnvironment);
   // What this Environment still lacks (root decision 0188), for the shell
@@ -1925,8 +1934,19 @@ export async function startLaunchpad(
             return notFound();
           }
         }
-        if (!isPromptId(id)) return notFound();
-        if (promptAudience(id) === "personalspace-holder") {
+        // A brief names its prompt and the person's description, kept here
+        // for a few minutes (prompt-briefs.ts): gone or kept for another
+        // login, the same 404.
+        const briefPrompt = briefPromptOf(id);
+        const promptId = briefPrompt ?? id;
+        if (!isPromptId(promptId)) return notFound();
+        const description =
+          briefPrompt === null || login === null
+            ? null
+            : briefs.read(id, login);
+        if (briefPrompt !== null && description === null) return notFound();
+        const brief = description === null ? null : { id, description };
+        if (promptAudience(promptId) === "personalspace-holder") {
           // The personal space's "+ Nový modul" (`new-personal-module`):
           // only for the account that holds the Personalspace, decided now
           // as `GET /api/content` decides it (#186), and only by its own
@@ -1943,13 +1963,14 @@ export async function startLaunchpad(
               holder,
               login,
               folderMessages(current.preferences),
+              brief,
             );
             return document === null ? notFound() : response(document);
           } catch {
             return notFound();
           }
         }
-        if (!isOrganizationPrompt(id)) {
+        if (!isOrganizationPrompt(promptId)) {
           // The Folder's prompt (`prepare-content`): only on an Environment
           // with the onboarding (the Automated one's responsible user
           // included, F27's addendum of 2026-10-30), only while the last
@@ -1986,11 +2007,13 @@ export async function startLaunchpad(
           if (organization === null) return notFound();
           server.timeout(request, 30);
           if (
-            promptAudience(id) === "organization-owner" &&
-            !(await owners.owner(
-              organization.forgeLogin,
-              await folderPreset(folder),
-            ))
+            !audienceAdmits(
+              promptAudience(promptId),
+              await owners.role(
+                organization.forgeLogin,
+                await folderPreset(folder),
+              ),
+            )
           )
             return notFound();
           const current = await withFolderReadLock(state, () =>
@@ -1998,10 +2021,11 @@ export async function startLaunchpad(
           );
           return response(
             promptDocument(
-              id,
+              promptId,
               folder,
               organization,
               folderMessages(current.preferences),
+              brief,
             ),
           );
         } catch {
@@ -2132,15 +2156,24 @@ export async function startLaunchpad(
             name,
           );
           server.timeout(request, 30);
-          const owner =
-            selection.kind === "found" &&
-            (await owners.owner(
-              selection.organization.forgeLogin,
-              await folderPreset(folder),
-            ));
-          return response({ kind: "organization-owner", owner });
+          const role =
+            selection.kind === "found"
+              ? await owners.role(
+                  selection.organization.forgeLogin,
+                  await folderPreset(folder),
+                )
+              : null;
+          return response({
+            kind: "organization-owner",
+            owner: role === "admin",
+            member: role === "member",
+          });
         } catch {
-          return response({ kind: "organization-owner", owner: false });
+          return response({
+            kind: "organization-owner",
+            owner: false,
+            member: false,
+          });
         }
       }
       const maintainRequest = maintainRoute.exec(url.pathname);
@@ -2502,6 +2535,54 @@ export async function startLaunchpad(
             { kind: "update-everything", ...updates.start() },
             202,
           );
+        }
+        if (url.pathname === "/api/prompts/brief") {
+          // A person's description for "+ Nový modul" (prompt-briefs.ts):
+          // kept for whom the prompt names, by the rule of its own route;
+          // anyone else gets the same 404.
+          const value = stateFields(input, ["id", "org", "description"]);
+          const description = newModuleDescription(value.description);
+          if (
+            typeof value.id !== "string" ||
+            !isBriefPrompt(value.id) ||
+            typeof value.org !== "string" ||
+            description === null
+          )
+            return response({ error: "invalid-request" }, 400);
+          const prompt = value.id;
+          const login = value.org;
+          server.timeout(request, 30);
+          const admitted =
+            promptAudience(prompt) === "personalspace-holder"
+              ? await (async () => {
+                  const holder = await personalspace.decide(folder);
+                  return (
+                    holder.kind === "held" &&
+                    holder.login.toLowerCase() === login.toLowerCase()
+                  );
+                })()
+              : await (async () => {
+                  const organization = promptOrganization(
+                    organizationsOnly(await catalog.read()),
+                    login,
+                  );
+                  return (
+                    organization !== null &&
+                    audienceAdmits(
+                      promptAudience(prompt),
+                      await owners.role(
+                        organization.forgeLogin,
+                        await folderPreset(folder),
+                      ),
+                    )
+                  );
+                })();
+          return admitted
+            ? response({
+                kind: "prompt-brief",
+                id: briefs.keep(prompt, login, description),
+              })
+            : response({ error: "not-found" }, 404);
         }
         if (url.pathname === "/api/update/apply") {
           if (!pill) return response({ error: "update-unavailable" }, 503);

@@ -1,7 +1,11 @@
 import { resolve } from "node:path";
 import type { Catalog, CatalogOrganization } from "../organizations/catalog";
 import type { PersonalspaceHolder } from "../organizations/personalspace";
-import { newModulePrompt, newPersonalModulePrompt } from "./apps-view";
+import {
+  newModulePrompt,
+  newModuleRequestPrompt,
+  newPersonalModulePrompt,
+} from "./apps-view";
 import { organizationName } from "./catalog-view";
 import { type PrepareTarget, preparePrompt } from "./content-view";
 import {
@@ -12,6 +16,7 @@ import {
   type MarketplaceLocale,
 } from "./marketplace";
 import type { MessageKey } from "./messages";
+import type { OrganizationRole } from "./organization-owner";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
@@ -43,7 +48,10 @@ export const promptSchema = "lazurio.prompt.v1";
 /** Who may get a prompt. `organization-owner`: only where this Environment's
  * GitHub identity is an Owner of the Organization, GitHub's own live answer
  * (organization-owner.ts), the same rule as the "+ Nový modul" tile; a Team
- * Environment never is. `environment-operator`: the person behind this
+ * Environment never is. `organization-member`: only where it is an active
+ * member of the Organization and no Owner, by the same answer, the rule of
+ * the muted tile; an Owner founds the module, and a Team Environment is
+ * neither. `environment-operator`: the person behind this
  * Environment's admission, only where its preset has the onboarding
  * (first-run.ts `hasOnboarding`): the person a personal or work Environment
  * or a computer signs in to GitHub as, and the responsible user of an
@@ -55,6 +63,7 @@ export const promptSchema = "lazurio.prompt.v1";
  * that account's login, letter case ignored. */
 export type PromptAudience =
   | "organization-owner"
+  | "organization-member"
   | "environment-operator"
   | "personalspace-holder";
 
@@ -62,6 +71,10 @@ const prompts = {
   // "+ Nový modul" (decision F36 addendum of 2026-10-04): the wireframe's
   // brief for founding a module with an agent.
   "new-module": { who: "organization-owner", scope: "organization" },
+  // A member's "+ Nový modul" (F36 addendum of 2026-11-05): the Admin founds
+  // the module, so the agent prepares a request with the skill
+  // `admin-request`. It asks; it founds nothing.
+  "new-module-request": { who: "organization-member", scope: "organization" },
   // "Vyřešit v Chatu" when preparing the content stopped (root decision
   // 0188): the wireframe's `preparePrompt`.
   "prepare-content": { who: "environment-operator", scope: "folder" },
@@ -100,10 +113,21 @@ export const isOrganizationPrompt = (
   id: PromptId,
 ): id is OrganizationPromptId => prompts[id].scope === "organization";
 
+/** Whether GitHub's live answer `role` lets this identity get a prompt of an
+ * Organization's audience; no role gets none. */
+export const audienceAdmits = (
+  audience: PromptAudience,
+  role: OrganizationRole | null,
+): boolean =>
+  (audience === "organization-owner" && role === "admin") ||
+  (audience === "organization-member" && role === "member");
+
 /** The answer of the route, and what the fork accepts. */
 export type PromptDocument = Readonly<{
   schema: typeof promptSchema;
-  id: PromptId | AdoptionPromptId;
+  /** The id it was asked by: a prompt's, a brief's (prompt-briefs.ts) or an
+   * adoption's. */
+  id: PromptId | AdoptionPromptId | (string & {});
   text: string;
   /** Where Chat opens the new thread, absolute: the Lazurio Folder's root,
    * for an Organization's prompt too (root decision 0189); the text names
@@ -134,22 +158,31 @@ export function promptOrganization(
     : null;
 }
 
+/** What a brief adds to a prompt (prompt-briefs.ts): the person's description
+ * and the brief's id the document answers with. */
+export type PromptBrief = Readonly<{ id: string; description: string }>;
+
 /** The document of the prompt `id` for one Organization of the Folder at
- * `folder`, in the person's language. Who may get it is the caller's to
- * check first (`promptAudience`). */
+ * `folder`, in the person's language, with a brief's description where the
+ * link named one. Who may get it is the caller's to check first
+ * (`promptAudience`). */
 export function promptDocument(
   id: OrganizationPromptId,
   folder: string,
   organization: BoundOrganization,
   copy: Copy,
+  brief: PromptBrief | null = null,
 ): PromptDocument {
+  const prompt =
+    id === "new-module-request" ? newModuleRequestPrompt : newModulePrompt;
   return Object.freeze({
     schema: promptSchema,
-    id,
-    text: newModulePrompt(
+    id: brief?.id ?? id,
+    text: prompt(
       organizationName(organization),
       organization.forgeLogin,
       copy,
+      brief?.description ?? null,
     ),
     cwd: resolve(folder),
   });
@@ -185,6 +218,7 @@ export function personalModuleDocument(
   holder: PersonalspaceHolder,
   login: string,
   copy: Copy,
+  brief: PromptBrief | null = null,
 ): PromptDocument | null {
   if (
     holder.kind !== "held" ||
@@ -194,8 +228,12 @@ export function personalModuleDocument(
     return null;
   return Object.freeze({
     schema: promptSchema,
-    id: "new-personal-module",
-    text: newPersonalModulePrompt(holder.login, copy),
+    id: brief?.id ?? "new-personal-module",
+    text: newPersonalModulePrompt(
+      holder.login,
+      copy,
+      brief?.description ?? null,
+    ),
     cwd: resolve(folder),
   });
 }

@@ -96,6 +96,8 @@ import { createMarketplacePanel } from "./marketplace-panel";
 import type { MarketplaceAnswer } from "./marketplace-refresh";
 import { type MessageKey, messages } from "./messages";
 import { moduleCopy } from "./module-view";
+import { createNewModuleDialog } from "./new-module-dialog";
+import { parseBriefAnswer } from "./new-module-view";
 import { createHelpVideo } from "./page-help";
 import { isPublicEnvironment, publicRoute } from "./public-environment";
 import { createRecoveryPanel } from "./recovery-panel";
@@ -443,7 +445,7 @@ const catalog = createCatalogPanel({
         element.setAttribute("space", space);
     }
   },
-  newModule: (prompt) => handOver(prompt),
+  newModule: (offer, from) => newModuleDialog.open(offer, from),
   // The person's account through this Environment's gateway (account.ts):
   // plain same-origin requests, never with the Launchpad's local token.
   readAccount: () => readAccount(),
@@ -1473,6 +1475,30 @@ const browser = createBrowserPanel({
 });
 // The Marketplace (plan DEV-6593): its catalog, an offer's detail and the
 // form whose brief goes to Chat as "+ Nový modul"'s does.
+// "+ Nový modul" (decision F36's addendum of 2026-11-05): the dialog of
+// three screens, which hands its brief over as a prompt of Chat.
+const newModuleDialog = createNewModuleDialog({
+  copy: () => copy,
+  handOver: (prompt) => handOver(prompt),
+  keepBrief: async (offer, description) => {
+    try {
+      const { value, ok } = await post("/api/prompts/brief", {
+        id: offer.id,
+        org: offer.organization,
+        description,
+      });
+      return ok ? parseBriefAnswer(value) : null;
+    } catch {
+      return null;
+    }
+  },
+  copyText: (text) =>
+    navigator.clipboard.writeText(text).then(
+      () => true,
+      () => false,
+    ),
+  say: (text) => catalog.say(text),
+});
 const marketplace = createMarketplacePanel({
   copy: () => copy,
   locale: () => locale,
@@ -1699,6 +1725,7 @@ function relabel() {
   theme.render();
   vaultPage.render();
   if (framed) marketplace.render();
+  newModuleDialog.render();
   vaultVideo.render();
   vaultRequests.relabel();
   files.relabel();
@@ -2065,8 +2092,17 @@ async function pairedHref(app: string): Promise<string | null> {
 // clipboard (written first, while the page still has the focus) and Chat
 // opens, where the person pastes it into a new chat. A workstation has no
 // Chat origin: the prompt is copied all the same.
+// A prompt with what the person wrote names a brief instead (prompt-briefs.ts,
+// `brief`): the description is left at the Launchpad once the tab is open, so
+// the click still opens it; a brief that could not be left goes through the
+// clipboard, never a link without the person's words.
 async function handOver(
-  prompt: Readonly<{ id: string; organization: string | null; text: string }>,
+  prompt: Readonly<{
+    id: string;
+    organization: string | null;
+    text: string;
+    brief?: () => Promise<string | null>;
+  }>,
 ): Promise<NewModuleOutcome> {
   // No agent can take it while no AI is connected: Začínáme's AI step
   // instead of an empty Chat (root decision 0201 point 3).
@@ -2082,9 +2118,26 @@ async function handOver(
   if (current !== null && chatTakesPrompts && link !== null) {
     const tab = window.open("about:blank", "_blank");
     if (tab !== null) {
-      const next = await pairedHref("chat");
+      const [next, id] = await Promise.all([
+        pairedHref("chat"),
+        prompt.brief === undefined ? link.id : prompt.brief(),
+      ]);
+      if (id === null) {
+        const copied = await navigator.clipboard.writeText(prompt.text).then(
+          () => true,
+          () => false,
+        );
+        if (next === null) tab.close();
+        else {
+          tab.opener = null;
+          tab.location.href = next;
+        }
+        return copied ? "copied" : "failed";
+      }
       const href =
-        next === null ? null : chatPromptHref(next, current.t3codeOrigin, link);
+        next === null
+          ? null
+          : chatPromptHref(next, current.t3codeOrigin, { ...link, id });
       if (href === null) {
         tab.close();
         return "failed";
