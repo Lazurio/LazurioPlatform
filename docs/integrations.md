@@ -616,6 +616,14 @@ in: a Team's account is an ordinary Composio account.
   unreadable, the row says "Nedokončeno" with "Dokončit", which opens the sign-in
   dialog at the step left in Composio (`openComposioOrganization`); until the
   first answer, and where the user chooses, the sign-in says it ("Připojeno").
+  Where the Launchpad holds Composio's sign-in because this Organization's
+  Composio organization cannot be told yet (Tools' `held`: the Organization
+  not in the Folder, `organization-absent`, or its name unreadable,
+  `organization-unreadable`), the row says "Čeká na Organizaci" without an
+  action, signed in or not, and a line says what comes first instead of
+  "Nedokončeno" with "Dokončit". When the Organization's download in Začínáme
+  finishes, the page reads the tools again by itself (`organizationArrived`),
+  so the row offers the sign-in without a reload.
   Settings → Tools keeps "Připojeno jako <account> (<current organization>)":
   the sign-in itself is done.
 

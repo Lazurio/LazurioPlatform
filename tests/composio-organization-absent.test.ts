@@ -2,6 +2,11 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parseContentList } from "../src/launchpad/content-client";
+import {
+  organizationArrived,
+  presentOrganizations,
+} from "../src/launchpad/content-view";
 import { composioFact } from "../src/launchpad/first-run";
 import { messages } from "../src/launchpad/messages";
 import { optionalRows } from "../src/launchpad/start-view";
@@ -166,6 +171,15 @@ test("without its Organization, Composio's sign-in is neither offered nor starte
     retry: false,
   });
 
+  // What the open Začínáme lists before the download: the Organization is
+  // not in the Folder.
+  const listed = async () =>
+    presentOrganizations(
+      parseContentList(await (await app.get("/api/content")).json()),
+    );
+  const before = await listed();
+  expect(before.has("example")).toBe(false);
+
   // The Organization arrives (the person was added to its Team): Composio
   // is offered and starts as before.
   await writeOrganization(app.folder, "example", {
@@ -174,8 +188,21 @@ test("without its Organization, Composio's sign-in is neither offered nor starte
     modules: [],
     displayName: "Příklad",
   });
+  // The open page sees the download finish in its next content listing,
+  // and that arrival is what reads the tools again (ui.ts, review on #829):
+  // the row offers the sign-in without a reload or "Zkontrolovat znovu".
+  const arrived = await listed();
+  expect(arrived.has("example")).toBe(true);
+  expect(organizationArrived(before, arrived)).toBe(true);
+  // The first listing of a page, and a listing without a new Organization,
+  // read nothing again.
+  expect(organizationArrived(null, arrived)).toBe(false);
+  expect(organizationArrived(arrived, arrived)).toBe(false);
   const after = composioOf(await toolsOverview(app));
   expect(after.held).toBeUndefined();
+  expect(composioFact(await toolsOverview(app))).not.toBe(
+    "organization-absent",
+  );
   expect(curatedActions(after, cs).primary?.mode).toBe("login");
   const again = (await (
     await app.post("/api/tools/login/start", { tool: "composio" })
