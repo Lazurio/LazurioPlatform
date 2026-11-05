@@ -131,6 +131,11 @@ export function createTabIcon(
   render: IconRenderer = renderIcon,
 ) {
   let wanted: string | null = null;
+  // Each drawing's own number: only the newest request may show its
+  // result, so in A → B → A the first A's drawing, finishing last, never
+  // lands over the second A's, even under the same URL whose image may
+  // have changed in between.
+  let latest = 0;
   const show = (icon: Shown) => {
     if (doc === null) return;
     for (const link of doc.querySelectorAll(APP_ICONS))
@@ -157,6 +162,7 @@ export function createTabIcon(
     const href = tabIconFor(shell);
     if (href === null || href === wanted) return Promise.resolve();
     wanted = href;
+    const request = ++latest;
     const linked: Shown = {
       tab: href,
       png: false,
@@ -164,7 +170,7 @@ export function createTabIcon(
     };
     return render(iconSourceUrl(href)).then(
       (drawn) => {
-        if (wanted !== href) return;
+        if (request !== latest) return;
         show(
           drawn === null
             ? linked
@@ -172,7 +178,7 @@ export function createTabIcon(
         );
       },
       () => {
-        if (wanted === href) show(linked);
+        if (request === latest) show(linked);
       },
     );
   };

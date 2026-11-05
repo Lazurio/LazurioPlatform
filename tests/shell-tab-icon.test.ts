@@ -261,6 +261,48 @@ test("the same icon is not drawn again, and a drawing overtaken by another icon 
   ).resolves.toBeUndefined();
 });
 
+test("A, then B, then A again: the first A's drawing, finishing last, never replaces the newest", async () => {
+  const { doc, links } = fakeDocument();
+  const AVATAR = "https://avatars.githubusercontent.com/u/1?v=4&s=180";
+  // Every request is its own drawing, settled by hand in any order.
+  const requests: { source: string; resolve: (icon: RenderedIcon) => void }[] =
+    [];
+  const render: IconRenderer = (source) =>
+    new Promise((resolve) => requests.push({ source, resolve }));
+  const apply = createTabIcon(doc, render);
+  const firstA = apply(shellOf("vm-01.example"));
+  const b = apply(shellOf("vm-01.example", "work", null));
+  const secondA = apply(shellOf("vm-01.example"));
+  expect(requests.map((request) => request.source)).toEqual([
+    AVATAR,
+    LAZURIO_TAB_ICON,
+    AVATAR,
+  ]);
+  const [oldA, lazurio, newA] = requests;
+  if (!oldA || !lazurio || !newA) throw new Error("three drawings");
+  // The newest A is drawn first: the avatar as the server has it now.
+  newA.resolve({
+    tab: "data:image/png;base64,NEW-32",
+    touch: "data:image/png;base64,NEW-180",
+  });
+  await secondA;
+  // B and then the first A finish late, the first A with the old image.
+  lazurio.resolve({
+    tab: "data:image/png;base64,LAZURIO-32",
+    touch: "data:image/png;base64,LAZURIO-180",
+  });
+  await b;
+  oldA.resolve({
+    tab: "data:image/png;base64,OLD-32",
+    touch: "data:image/png;base64,OLD-180",
+  });
+  await firstA;
+  expect(links.map((link) => link.href)).toEqual([
+    "data:image/png;base64,NEW-32",
+    "data:image/png;base64,NEW-180",
+  ]);
+});
+
 test("an icon that cannot be drawn is linked by its URL, Lazurio's SVG without a touch icon", async () => {
   const failed: IconRenderer = async () => {
     throw new Error("blocked");
