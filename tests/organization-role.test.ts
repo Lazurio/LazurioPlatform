@@ -186,6 +186,106 @@ test("an Owner stays the Admin when the root is not found, and the answer says w
   expect("admins" in answer).toBe(false);
 });
 
+test("without the membership no role is confirmed, not even Builder or Steward from the root", async () => {
+  for (const permission of ["read", "write", "maintain"] as const) {
+    const answer = await readOrganizationRole({
+      organization: "Acme",
+      github: fakeGitHub({
+        membership: { kind: "unavailable" },
+        root: {
+          kind: "observed",
+          repository: {
+            fullName: "Acme/Acme_GEN3",
+            owner: { login: "Acme", databaseId: 2, kind: "Organization" },
+            private: true,
+            archived: false,
+            readable: true,
+            permission,
+          },
+        },
+      }),
+      root: resolved,
+    });
+    expect([permission, answer.role, answer.verified]).toEqual([
+      permission,
+      null,
+      false,
+    ]);
+    expect(answer.detail).toContain("whether the account is an Owner");
+  }
+});
+
+test("a root the Folder holds of another owner names no role here", async () => {
+  const asked: string[] = [];
+  const github = fakeGitHub({
+    membership: { kind: "none" },
+    root: {
+      kind: "observed",
+      repository: {
+        fullName: "Other/root",
+        owner: { login: "Other", databaseId: 3, kind: "Organization" },
+        private: true,
+        archived: false,
+        readable: true,
+        permission: "write",
+      },
+    },
+  });
+  const repository = github.repository.bind(github);
+  const answer = await readOrganizationRole({
+    organization: "Acme",
+    github: {
+      ...github,
+      async repository(owner, name) {
+        asked.push(`${owner}/${name}`);
+        return repository(owner, name);
+      },
+    },
+    root: async () =>
+      Object.freeze({
+        kind: "present" as const,
+        directory: "/srv/Lazurio/organizations/Acme_GEN3",
+        name: "Acme_GEN3",
+        slug: "acme",
+        repository: "Other/root",
+      }),
+  });
+  expect(answer).toMatchObject({
+    role: null,
+    verified: false,
+    rootRepository: null,
+  });
+  expect(answer.detail).toContain(
+    "is a checkout of Other/root, which does not belong to Acme",
+  );
+  expect(asked).toEqual([]);
+  // The owner's case does not matter.
+  expect(
+    (
+      await readOrganizationRole({
+        organization: "acme",
+        github: fakeGitHub({
+          membership: { kind: "member", state: "active", role: "member" },
+        }),
+        root: resolved,
+      })
+    ).rootRepository,
+  ).toBe("Acme/Acme_GEN3");
+});
+
+test("an empty listing of the Owners is left out, never an empty list of Admins", async () => {
+  const answer = await readOrganizationRole({
+    organization: "Acme",
+    github: fakeGitHub({
+      membership: { kind: "member", state: "active", role: "admin" },
+      owners: [],
+    }),
+    root: resolved,
+  });
+  expect(answer.role).toBe("admin");
+  expect("admins" in answer).toBe(false);
+});
+
 const context = {
   identity: { version: "1.0.0", commit: "0".repeat(40), target: "fixture" },
   platform: process.platform,
@@ -236,6 +336,52 @@ test("the command finds the root the Folder holds, prints JSON, and exits 0 veri
   expect(unknown.code).toBe(1);
   expect(unknown.text).toContain("Acme: role not verified");
   expect(unknown.text).toContain("proceed as for a member");
+});
+
+test("the command does not take a Folder-held root of another owner: Acme's checkout of Other/root with write is no Builder", async () => {
+  const catalog = {
+    kind: "catalog",
+    organizations: [
+      {
+        directory: "Acme_GEN3",
+        organization: "acme",
+        forgeLogin: "Acme",
+      } as unknown as CatalogOrganization,
+    ],
+  } as Catalog;
+  const git = {
+    async inspect() {
+      return { kind: "checkout", repository: "Other/root" };
+    },
+  } as unknown as ContentGit;
+  const listed = await runOrganizationRoleCommand(
+    ["organization", "role", "Acme", "--folder", "/srv/Lazurio", "--json"],
+    context,
+    {
+      github: fakeGitHub({
+        membership: { kind: "none" },
+        root: {
+          kind: "observed",
+          repository: {
+            fullName: "Other/root",
+            owner: { login: "Other", databaseId: 3, kind: "Organization" },
+            private: true,
+            archived: false,
+            readable: true,
+            permission: "write",
+          },
+        },
+      }),
+      git,
+    },
+    async () => catalog,
+  );
+  expect(listed.code).toBe(1);
+  expect(JSON.parse(listed.text)).toMatchObject({
+    role: null,
+    verified: false,
+    rootRepository: null,
+  });
 });
 
 test("usage: one Organization by its GitHub login and an absolute Folder", async () => {

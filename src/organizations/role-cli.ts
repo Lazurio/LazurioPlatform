@@ -54,7 +54,7 @@ export type OrganizationRoleAnswer = Readonly<{
   /** `<owner>/<name>` of the root repository, when it was found. */
   rootRepository: string | null;
   /** The active Owners as GitHub lists them to this account, without bots;
-   * absent when GitHub did not list them. */
+   * absent when GitHub did not list any. */
   admins?: readonly string[];
   /** Why the role is not verified, or what was not found on the way. */
   detail?: string;
@@ -64,6 +64,13 @@ const rootRepositoryOf = (resolution: RootResolution) =>
   resolution.kind === "present" || resolution.kind === "resolved"
     ? resolution.repository
     : null;
+
+/** Whether `repository` (`<owner>/<name>`) belongs to the Organization whose
+ * GitHub login is `organization`. A root the Folder holds is whatever its
+ * checkout's `origin` names, so its owner is checked before its permission
+ * counts for this Organization's role. */
+const belongsTo = (repository: string, organization: string) =>
+  repository.split("/")[0]?.toLowerCase() === organization.toLowerCase();
 
 const rootDetail = (resolution: RootResolution) =>
   resolution.kind === "failed"
@@ -105,7 +112,12 @@ export async function readOrganizationRole(
           : "GitHub did not answer who gh works as here",
     });
   const resolution = await input.root();
-  const rootRepository = rootRepositoryOf(resolution);
+  const named = rootRepositoryOf(resolution);
+  // A root of another owner is no root of this Organization: its permission
+  // names no role here, and the answer says why.
+  const foreign =
+    named !== null && !belongsTo(named, organization) ? named : null;
+  const rootRepository = foreign === null ? named : null;
   let rootPermission: RepositoryPermission | null = null;
   if (rootRepository !== null) {
     const [owner, name] = rootRepository.split("/") as [string, string];
@@ -114,16 +126,30 @@ export async function readOrganizationRole(
       rootPermission = access.repository.permission ?? "read";
   }
   const membership = await github.membership(organization);
-  const role = verifyOrganizationRole({
-    requested: null,
-    membership,
-    rootPermission,
-  });
+  // The highest live role needs the Owner check: without the membership a
+  // write or maintain on the root could be an Owner's, so no role is
+  // confirmed (content install, which only scopes, takes the narrower role
+  // from the same core).
+  const role =
+    membership.kind === "unavailable"
+      ? ({
+          kind: "unverified",
+          detail:
+            "GitHub did not answer the Organization membership, so whether the account is an Owner is not known",
+        } as const)
+      : verifyOrganizationRole({
+          requested: null,
+          membership,
+          rootPermission,
+        });
   const owners =
     github.owners === undefined
       ? "unavailable"
       : await github.owners(organization);
-  const found = rootDetail(resolution);
+  const found =
+    foreign === null
+      ? rootDetail(resolution)
+      : `the Folder's root of ${organization} is a checkout of ${foreign}, which does not belong to ${organization}`;
   const detail =
     role.kind === "unverified"
       ? found === undefined
@@ -135,7 +161,11 @@ export async function readOrganizationRole(
     role: role.kind === "verified" ? role.role : null,
     verified: role.kind === "verified",
     rootRepository,
-    ...(owners === "unavailable" ? {} : { admins: owners }),
+    // An empty listing is what GitHub shows an account that may not see the
+    // Owners, never a definitive "no Admins": the key is left out.
+    ...(owners === "unavailable" || owners.length === 0
+      ? {}
+      : { admins: owners }),
     ...(detail === undefined ? {} : { detail }),
   });
 }
