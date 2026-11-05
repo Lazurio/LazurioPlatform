@@ -463,8 +463,8 @@ sibling runs is not asked (`src/modules/sibling-origins.ts`). The rules:
   and without a signed-in user. When the sibling accepts writes only from its own
   origin, the caller sends `Origin` equal to the address. Who triggered the call
   is not carried; the standard does not define it yet, and the sibling reads
-  nobody signed in ([Who is signed in](#who-is-signed-in)): the caller does not
-  forward the gateway's headers.
+  `entry: "local"` ([Who came and with which role](#who-came-and-with-which-role)):
+  the caller does not forward the gateway's statement.
 - A link for people to a sibling's App is derived from the App's own
   `LAZURIO_RUNTIME_LISTENER_<ID>_EXTERNAL_ORIGIN` by replacing the first
   hostname label with the sibling's, following the hosted names of decision
@@ -483,64 +483,66 @@ start when absent; when that fails, the start is refused with
 for a Module of another Organization or an undeclared Module, and an App of a
 Personalspace gets none.
 
-### Who is signed in
+### Who came and with which role
 
-On a Remote Environment an App can read who is signed in to Lazurio for each
-request, from the person's existing Lazurio session: no second sign-in, no role
-and no grant
-([0196](decision-register.md#0196--module-data-the-environments-ceiling-narrowing-in-the-app-and-a-verified-identity-that-is-not-a-key):
-Lazurio controls entry to a Module and passes it a verified identity;
-Lazurio/LazurioPlatform#474).
+Lazurio decides who may open a Module's App and with which application role,
+application admin or application user, and the Organization decides in the
+Module's code what each role may do ([decision 0231](decision-register.md#0231--access-in-an-organization-owner-admin-and-members-module-access-and-maintainers-application-admins-and-users)). An App learns it for
+each request from the person's existing Lazurio session, with no second
+sign-in.
 
-**Where it comes from.** The Environment's gateway admits every request to a
-Module's origin with the person's session at its oauth2-proxy
-(`/oauth2/auth`, [hosted entry](hosted-entry.md)). After that admission it sets
-two request headers from its own answer for exactly that session, and removes
-every copy a client sent before anything else of the request:
-
-| Header | Value | Set when |
-| --- | --- | --- |
-| `X-Auth-Request-User` | the Lazurio account's subject | it is one lowercase UUID |
-| `X-Auth-Request-Preferred-Username` | the person's Lazurio username ([0203](decision-register.md#0203--vaults-per-organization-each-organization-has-its-own-lazurio-vaultwarden-people-use-their-lazurio-username-personal-environments-use-their-own-bitwarden) point 4) | it is lowercase letters and digits with single dashes between them |
-
-These are the same values the Launchpad's own admission reads
-(`src/launchpad/hosted-trust.ts`). The gateway is Machines'
-(`workloads/workspace-vm/ingress.ts`); a gateway release without this
-capability sets neither, and the App reads nobody.
+**Status: decided, not yet available.** It becomes available on an Environment
+once `@lazurio/module-kit` 0.3.0 is released and the Environment runs a gateway
+release that states the person and the entry (Machines). Until then a request
+through the gateway reads `unknown`, which grants no role.
 
 **How an App reads it.** Only through `@lazurio/module-kit`:
-`signedInPerson(request, "<listener>")` returns
-`{ status: "signed-in", subject, username }` or
-`{ status: "unavailable", reason }` (Python: `signed_in_person`). The rules:
+`appAccess(request, "<listener>")` (Python: `app_access`). Its answer is the
+stable contract: its fields and values never change meaning or disappear, and
+new information comes as new fields.
 
-- **Only behind the gateway.** The headers count only when the listener has
-  `LAZURIO_RUNTIME_LISTENER_<ID>_EXTERNAL_ORIGIN` and the request's `Host` is
-  that origin's host. On a person's computer the result is always
-  `not-hosted`, whatever a request carries, because no gateway removed a
-  client's copy there. A call from a sibling or a script on the Environment is
-  `not-through-gateway`. The Environment browser's local entry (no sign-in,
-  [Environment browser](environment-browser.md)) and a gateway without the
-  capability give `no-person`.
-- **Unavailable is shown as unavailable.** The App never fills in a name from
-  the browser, the operating-system account, the Environment's assignee or the
+| `entry` | `appRole` | `person` | When |
+| --- | --- | --- | --- |
+| `environment` | `admin` | subject and username | the person has the whole Environment where the App runs |
+| `app` | `admin` or `user` | subject and username | the person has this App only, with the role the Organization gave them |
+| `local` | `admin` | `null` | not through the gateway: a person's own computer (`reason: "not-hosted"`), a request whose `Host` is not the listener's external origin (`not-through-gateway`), or the Environment browser's local entry (`local-entry`) |
+| `unknown` | `null` | `null` | through the gateway without a valid statement (`no-identity`), for example a gateway release without this capability |
+
+`source` is `gateway`: the Environment's gateway states it from its own
+admission answer (`/oauth2/auth`, [hosted entry](hosted-entry.md)) after
+removing every copy a client sent. An identity signed by Lazurio Auth for use
+outside the Environment will come as `source: "auth"`. The headers that carry
+the statement are transport, not this contract; read them only through the
+module kit.
+
+The rules:
+
+- **Enforce on the server, per request.** The App checks the role for every
+  request, including APIs, downloads, WebSockets and direct URLs, never only by
+  hiding a control, and never caches it. After another account signs in, the
+  next request names the new person; an expired or missing session never
+  reaches the App, because the gateway sends the person to sign in (a
+  background request gets `401`).
+- **`unknown` is no role.** The App shows that Lazurio did not say who came and
+  refuses what needs a role. It never fills in a name or a role from the
+  browser, the operating-system account, the Environment's assignee or the
   account that runs the Environment.
-- **Per request.** The App reads it for every request and never caches it.
-  After another account signs in, the next request names the new person; an
-  expired or missing session never reaches the App, because the gateway sends
-  the person to sign in (a background request gets `401`).
 - **The subject identifies, the username is shown.** An App that remembers a
   person keys them by `subject`; `username` may be `null`.
-- **Read-only.** It is identity for display and the Organization's own rules in
-  the App. It grants nothing, is no key to data, signs nothing and changes no
-  historical record. The App does not forward the headers to a sibling or
-  another service.
-- **Its boundary is the Environment.** The Apps of one Environment are one
-  trust domain under its account (0196). A process on the Environment that
-  reaches an App's loopback port directly could send the headers itself, as it
-  could read the App's data. Where identity must hold against the Environment's
-  operator, or travel outside the Environment, it needs the identity signed by
-  Lazurio Auth for one exact Environment and app that 0196 describes; that is
-  not built yet, and these headers are not it.
+- **Finer roles are the Module's.** Approvers, technicians and the like live in
+  the Module's own data, keyed by `subject`; Lazurio keeps only the two
+  application roles.
+- **`local` is a statement of the Environment, not a proof.** The `Host` check
+  only tells a request through the gateway from an ordinary call on loopback.
+  It cannot prove that a request went through the gateway: a process on the
+  Environment that reaches the App's loopback port can set `Host` and the
+  headers itself, as it can read the App's data. The Apps of one Environment
+  are one trust domain under its account (decision 0196), so the answer holds
+  against visitors who have only the App, never against the Environment's
+  operator, and is no authentication boundary inside the Environment.
+- **No key and no signature.** The answer grants no access to data, signs
+  nothing and changes no historical record. The App does not forward it to a
+  sibling or another service.
 
 ## The built version from `main`
 

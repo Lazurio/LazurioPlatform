@@ -236,14 +236,6 @@ Organization's own rules in its code and data.
   part, and the browser never gets access to its store. Whoever is to see data with
   their own rights opens the Module in their own Environment or in an app the
   Organization runs.
-- **What a Module reads today.** The Environment's gateway names the signed-in person
-  to a Module on every admitted request: the Lazurio subject and username from its own
-  admission answer, never from the client (Module Standard,
-  [Who is signed in](module-standard.md#who-is-signed-in); `@lazurio/module-kit`
-  `signedInPerson`). That serves display and the Organization's rules inside the
-  Environment, whose Apps are one trust domain. It is not the signed, app-scoped
-  identity of the previous point, which is not built yet: it is asserted by the
-  Environment's gateway, so it holds only as far as the Environment does.
 - **The store.** Whether a Module keeps its data in repository-db or in a database is
   its architect's choice under the Module Standard; a person with restricted rights
   sees only the changes of the repository-db draft to records they can access, and
