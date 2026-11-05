@@ -53,7 +53,26 @@ export const quotedLaunchpadLabels: readonly MessageKey[] = Object.freeze([
   "startAiSignInClaude",
   "integrationsTitle",
   "recoveryTitle",
+  "appsTitle",
+  "appsNewModule",
+  "appsMarketplace",
+  "marketAppTemplates",
+  "marketAdd",
+  "filesTitle",
 ]);
+
+// The one explanation of a module (decision F14, addendum of 2026-11-05),
+// shared with the skill `new-module`, so that a person hears the same words
+// wherever an agent explains it. It is quoted as what the agent says, so in
+// the person's address.
+export const moduleSentence: Text = t(
+  "Modul je jedna oblast práce vaší firmy, třeba zakázky, web nebo receptury. Drží pohromadě postup, podle kterého agenti pracují, data, se kterými se pracuje, a aplikaci, ve které je vidíte a měníte.",
+  "A module is one area of your company's work, such as orders, the website or recipes. It keeps together the process agents follow, the data the work is about, and the app in which you see and change it.",
+);
+export const moduleWebsiteExample: Text = t(
+  "Příklad, který má každá firma, je web: postup říká, jak se píšou texty a jaké jsou barvy, data jsou stránky, texty a obrázky a aplikace je web sám a jeho náhled. Proto stačí agentovi poslat snímek obrazovky a napsat „oprav tuhle větu“: modul webu mu řekne, kde text leží a jak změnu publikovat.",
+  "The example every company has is its website: the process says how the texts are written and which colours are used, the data is the pages, texts and images, and the app is the website itself with its preview. That is why it is enough to send the agent a screenshot and write “fix this sentence”: the website's module tells it where the text lies and how to publish the change.",
+);
 
 // The live check of the role, shared by both chapters and the skill
 // `admin-request`. Until decision 0228 is deployed and Lazurio Auth answers
@@ -128,8 +147,101 @@ export const mechanisms: readonly Text[] = [
   blank,
   t("## Organizace, moduly a přístupy", "## Organizations, modules and access"),
   t(
-    "Organizace je GitHub organizace s kořenovým repozitářem: jeho `AGENTS.md`, Knowledgebase, Mission Control a moduly ve `workspace/`. Kdo dosáhne na který modul, rozhoduje živý grant Teamu na GitHubu (rozhodnutí 0186); mění ho Admin, případně na žádost Stewarda. Nový modul postaví uživatel s tebou skillem `new-module`, změny jdou pull requestem a Publikací. Sdílet celé Pracovní Prostředí nebo jednotlivé aplikace smí člověk jen s aktivními členy téže Organizace, nikdy s někým zvenku (rozhodnutí 0192, cílový model). Kde to Lazurio ještě nenabízí, přístup k modulu nebo aplikaci zařizuje Admin. Personalspace se nesdílí nikdy.",
-    "An Organization is a GitHub organization with a root repository: its `AGENTS.md`, Knowledgebase, Mission Control and the modules in `workspace/`. Who reaches which module is decided by the Team's live grant on GitHub (decision 0186); the Admin changes it, possibly at a Steward's request. The user builds a new module with you through the skill `new-module`, and changes go by pull request and Publication. A person may share their whole Work Environment or single applications only with active members of the same Organization, never with an outsider (decision 0192, target model). Where Lazurio does not offer it yet, the Admin arranges access to a module or application. Personalspace is never shared.",
+    "Organizace je GitHub organizace s kořenovým repozitářem: jeho `AGENTS.md`, Knowledgebase, Mission Control a moduly ve `workspace/` (oddíl Moduly níže). Sdílet celé Pracovní Prostředí nebo jednotlivé aplikace smí člověk jen s aktivními členy téže Organizace, nikdy s někým zvenku (rozhodnutí 0192, cílový model). Kde to Lazurio ještě nenabízí, přístup k modulu nebo aplikaci zařizuje Admin. Personalspace se nesdílí nikdy.",
+    "An Organization is a GitHub organization with a root repository: its `AGENTS.md`, Knowledgebase, Mission Control and the modules in `workspace/` (section Modules below). A person may share their whole Work Environment or single applications only with active members of the same Organization, never with an outsider (decision 0192, target model). Where Lazurio does not offer it yet, the Admin arranges access to a module or application. Personalspace is never shared.",
+  ),
+  blank,
+  t("## Moduly", "## Modules"),
+  t(
+    `Modul lidem vysvětluj jejich prací, ne repozitářem, a těmito slovy: „${moduleSentence.cs}“ Pod modulem je repozitář na GitHubu, takže každá změna má historii a jde vrátit. Lidem stačí říct: „Nebojte se zkoušet, každá změna jde vrátit.“`,
+    `Explain a module to people by their work, not by a repository, and in these words: “${moduleSentence.en}” Under the module is a repository on GitHub, so every change has a history and can be undone. It is enough to tell people: “Do not be afraid to try things, every change can be undone.”`,
+  ),
+  blank,
+  t(
+    "- **Postup** je pro agenty: jak se v oblasti pracuje, kroky, pravidla a návody. Je to `AGENTS.md` modulu a jeho skilly v `.agents/skills/`.",
+    "- **The process** is for agents: how the work in the area is done, its steps, rules and how-tos. It is the module's `AGENTS.md` and its skills in `.agents/skills/`.",
+  ),
+  t(
+    "- **Data** jsou pro lidi i agenty: záznamy a obsah oblasti, třeba zakázky, stránky webu nebo receptury.",
+    "- **The data** is for people and agents: the records and content of the area, such as orders, the website's pages or recipes.",
+  ),
+  t(
+    `- **Aplikace** je pro lidi: obrazovka, ve které data vidí a mění, třeba přehled, formulář, nástěnka nebo web. Otevírá se z ${ucs.appsTitle} v Lazuriu. Modul může začít i bez ní a aplikaci mu agent doplní později; takový modul není prázdná složka, drží postup a data.`,
+    `- **The app** is for people: the screen where they see and change the data, such as an overview, a form, a board or a website. It opens from ${uen.appsTitle} in Lazurio. A module may start without one and an agent adds the app later; such a module is no empty folder, it holds the process and the data.`,
+  ),
+  blank,
+  moduleWebsiteExample,
+  blank,
+  t("### Kde leží data", "### Where the data lives"),
+  t(
+    "Generace aplikace `app/v<N>` neříká kvalitu ani stáří, ale kde leží data. Čísla jsou pro agenty a IT; lidem řekni, kde data leží.",
+    "The app's generation `app/v<N>` says neither quality nor age but where the data lives. The numbers are for agents and IT; tell people where the data lives.",
+  ),
+  blank,
+  t(
+    "| Generace | Kde leží data | Kdy |",
+    "| Generation | Where the data lives | When |",
+  ),
+  t("| --- | --- | --- |", "| --- | --- | --- |"),
+  t(
+    "| `app/v1` | Obsah je součástí aplikace. | Modul bez vlastních záznamů, třeba Design System nebo Prezentace. |",
+    "| `app/v1` | The content is part of the app. | A module without records of its own, such as a Design System or Presentations. |",
+  ),
+  t(
+    "| `app/v2` | Obsah leží vedle aplikace ve stejném repozitáři, v `data/v2/`, s pevnou strukturou. | Hodně obsahu, který se mění občas a upravují ho agenti, třeba dokumentace. |",
+    "| `app/v2` | The content lies beside the app in the same repository, in `data/v2/`, with a fixed structure. | Much content that changes now and then and that agents edit, such as documentation. |",
+  ),
+  t(
+    "| `app/v3` | Záznamy leží ve vlastním datovém repozitáři `<slug>-data` (repository-db), připojeném jako `db/`. Změny dat jsou koncepty, které člověk Publikuje, a data mohou mít jiné přístupy než aplikace. | Záznamy se mění denně a je potřeba historie a schvalování. Výchozí volba pro nový modul s daty. |",
+    "| `app/v3` | The records lie in a data repository of their own, `<slug>-data` (repository-db), mounted as `db/`. Data changes are drafts a person Publishes, and the data may have other access than the app. | Records change daily and history and approval are needed. The default for a new module with data. |",
+  ),
+  t(
+    "| `app/v4` | Záznamy leží v databázi Dolt ve Službách serveru Organizace (rozhodnutí 0209, zatím nenasazené). Na GitHubu je aplikace, postup a schéma, řádky ne. | Mnoho lidí zapisuje současně, přístup se liší uvnitř dat, osobní údaje se musí dát smazat nebo zapisuje služba zvenku. |",
+    "| `app/v4` | The records lie in a Dolt database in the Organization's Server services (decision 0209, not yet deployed). On GitHub are the app, the process and the schema, not the rows. | Many people write at once, access differs within the data, personal data must be deletable, or an outside service writes. |",
+  ),
+  blank,
+  t(
+    "Modul začíná co nejníž a výš jde řízeným přechodem, až to používání opravdu potřebuje: nová `app/v<N+1>` vedle staré, převod dat a přepnutí `default_app`. Organizace s více servery používá tentýž `app/v4` s jiným nastavením připojení. Neon ani jinou databázi mimo Organizaci nedoporučuj.",
+    "A module starts as low as it can and moves up by a controlled transition once its use really needs it: a new `app/v<N+1>` beside the old one, the data moved and `default_app` switched. An Organization with several servers uses the same `app/v4` with another connection setting. Do not recommend Neon or any other database outside the Organization.",
+  ),
+  blank,
+  t(
+    "### Jak modul vzniká a mění se",
+    "### How a module comes to be and changes",
+  ),
+  t(
+    `Nový modul staví agent s člověkem skillem \`new-module\`: rozhovor o účelu, plán k potvrzení a \`lazurio module create\`. Osobní modul si člověk založí sám. Modul Organizace zakládá Admin, protože mu vytvoří repozitář a určí, kdo ho dostane; člen bez role Admina s tebou dokončí popis a ty z potvrzeného popisu připravíš žádost skillem \`admin-request\`. Dlaždici „${ucs.appsNewModule}“ má dnes ve Workspace Organizace jen Admin; cílově ji uvidí i člen, ztlumenou se zámkem, a dovede ho k žádosti Adminovi (rozhodnutí 0179, zatím nenasazené). Týmové Prostředí moduly nezakládá a dlaždici nemá.`,
+    `An agent builds a new module with the person through the skill \`new-module\`: the interview about its purpose, the plan to confirm and \`lazurio module create\`. A person creates a personal module alone. An Organization's module is created by the Admin, who creates its repository and decides who gets it; a member without the Admin role finishes the description with you and you turn the confirmed description into a request with the skill \`admin-request\`. In an Organization's Workspace only the Admin has the tile “${uen.appsNewModule}” today; as the target a member sees it too, muted with a lock, and it leads them to the request to the Admin (decision 0179, not yet deployed). A Team Environment creates no modules and has no such tile.`,
+  ),
+  blank,
+  t(
+    `Hotový základ nabízí ${ucs.appsMarketplace}, v Lazuriu ${ucs.marketAppTemplates}: „${ucs.marketAdd}“ předá agentovi přesné zadání a převzetí jde podle \`docs/adoption.md\` šablony přesně z commitu vydání. Šablona se přidá jako soukromá kopie, takže je to vždy vlastní modul Organizace. Do osobního prostoru šablony zatím nejdou.`,
+    `A ready base comes from the ${uen.appsMarketplace}, in Lazurio ${uen.marketAppTemplates}: “${uen.marketAdd}” hands the agent an exact brief, and the adoption follows the template's \`docs/adoption.md\` from exactly the release's commit. A template is added as a private copy, so it is always the Organization's own module. Templates do not go into a personal space yet.`,
+  ),
+  blank,
+  t(
+    "Změna jde jako každá práce: člověk ji zadá v Chatu, agent ji ukáže v pravém panelu a na „publikuj“ ji Publikuje. Na GitHub nikdo chodit nemusí.",
+    "A change goes like any work: the person asks for it in Chat, the agent shows it in the right panel and Publishes it on “publish”. Nobody has to go to GitHub.",
+  ),
+  blank,
+  t(
+    "### Kdo modul dostane a jak se k němu dostane",
+    "### Who gets a module and how it arrives",
+  ),
+  t(
+    `Kdo dosáhne na modul Organizace, rozhoduje živý grant Teamu na GitHubu (rozhodnutí 0186). Teamy z \`lazurio module create --teams\` ho dostanou při založení, ostatní určuje Admin v Přehledu Organizace → Moduly → Přístup; Steward o změnu žádá. Kdo přístup nemá, modul v ${ucs.appsTitle} nevidí a jeho agent o něm neví. Osobní modul patří jen do osobního prostoru a do Organizace nejde.`,
+    `The Team's live grant on GitHub decides who reaches an Organization's module (decision 0186). The Teams of \`lazurio module create --teams\` get it when it is created; the Admin decides the rest in the Organization's Dashboard → Modules → Access, and a Steward asks for a change. Whoever has no access does not see the module in ${uen.appsTitle}, and their agent does not know of it. A personal module belongs only in the personal space and never goes into an Organization.`,
+  ),
+  blank,
+  t(
+    `Kdo přístup dostane, tomu Lazurio modul doručí samo. Synchronizace obsahu běží při startu Launchpadu a pak každou hodinu, jako první část \`lazurio update\` a na vyžádání příkazem \`lazurio organization sync\` (rozhodnutí 0212). Modul nebo jeho datový repozitář, ke kterému identita tohoto Prostředí nově dosáhne, naklonuje, a modul se pak objeví v ${ucs.appsTitle}, zhruba do hodiny od udělení přístupu a merge jeho slotu. Nedoručí ho na Týmové Prostředí, jehož obsah připravuje hosting, nedoručí slot s přístupem \`restricted\` nebo \`private\` ani nic pod ním a nedoručí nic z Organizace, jejíž kořenový checkout synchronizace nechala zablokovaný (\`manual/troubleshooting.md\`).`,
+    `Whoever gets access gets the module from Lazurio by itself. Content synchronization runs when the Launchpad starts and then every hour, as the first part of \`lazurio update\` and on request with \`lazurio organization sync\` (decision 0212). It clones a module or its data repository that this Environment's identity can newly read, and the module then appears in ${uen.appsTitle}, within about an hour of the grant and the merge of its slot. It does not deliver to a Team Environment, whose content the hosting prepares, it does not deliver a slot with the access \`restricted\` or \`private\` or anything below one, and it delivers nothing of an Organization whose root checkout the synchronization left blocked (\`manual/troubleshooting.md\`).`,
+  ),
+  blank,
+  t("### Modul, Soubory a Integrace", "### Modules, Files and Integrations"),
+  t(
+    `Modul je sdílená oblast práce: má historii a sdílí se podle přístupů. **${ucs.filesTitle}** (\`~/Documents/\`) jsou pracovní stůl agentů v jednom Prostředí: s dalšími Prostředími se nesdílí a nezálohují se, takže co má sdílet tým nebo přežít Prostředí, patří do modulu. **Integrace** je cizí aplikace, kterou agent používá zvenku a do jejího kódu nevidí. Vlastní modul se vyplatí, když Organizace chce vlastní postup a aplikaci; Integrace, když se cizí aplikace používá z velké části.`,
+    `A module is a shared area of work: it has a history and is shared by access. **${uen.filesTitle}** (\`~/Documents/\`) are the agents' desk in one Environment: they are not shared with other Environments and are not backed up, so what a team should share or what must outlive the Environment belongs in a module. **An Integration** is someone else's app that the agent uses from outside, without seeing its code. A module of its own pays off when the Organization wants its own process and app; an Integration, when another app is used for most of the work.`,
   ),
   blank,
   t("## Integrace", "## Integrations"),
@@ -239,12 +351,16 @@ export const mechanisms: readonly Text[] = [
     "| Integration for the whole Organization | asks | connects |",
   ),
   t(
-    "| Nový modul | s agentem (`new-module`) | — |",
-    "| New module | with the agent (`new-module`) | — |",
+    "| Osobní modul | s agentem (`new-module`) | — |",
+    "| Personal module | with the agent (`new-module`) | — |",
   ),
   t(
-    "| Přístup k modulu jiného Teamu | požádá | udělí grant |",
-    "| Access to another Team's module | asks | grants it |",
+    "| Nový modul Organizace | popíše s agentem a požádá | založí s agentem (`new-module`) |",
+    "| New module of the Organization | describes it with the agent and asks | creates it with the agent (`new-module`) |",
+  ),
+  t(
+    "| Přístup k modulu | požádá | udělí grant |",
+    "| Access to a module | asks | grants it |",
   ),
   t(
     "| Nový kolega, nové Prostředí, víc paměti nebo disku | požádá | zařídí |",
@@ -357,13 +473,19 @@ export const organizationAdmin: readonly Text[] = [
     "A colleague needs membership of the Organization (GitHub and a Lazurio account), an assigned Work Environment, access to their Team's modules and, depending on the network, approved devices. A new Environment on a server with a pool starts on the pool. Passwords and credentials are never written to a colleague in a chat, an issue or a message.",
   ),
   blank,
+  t("### Nový modul na žádost", "### A new module on request"),
+  t(
+    `Žádost nese popis, který kolega potvrdil. Založ modul skillem \`new-module\`: rozhovor jen o tom, co popis neříká, Teamy podle žádosti a plán k potvrzení. Do žádosti napiš, kde modul je a kdy ho kolega uvidí: v ${ucs.appsTitle} svého Prostředí zhruba do hodiny po merge slotu (\`manual/mechanisms.md\`, oddíl Moduly).`,
+    `The request carries the description the colleague confirmed. Create the module with the skill \`new-module\`: an interview only about what the description leaves out, the Teams as the request says and the plan to confirm. Write in the request where the module is and when the colleague will see it: in ${uen.appsTitle} of their Environment within about an hour of the slot's merge (\`manual/mechanisms.md\`, section Modules).`,
+  ),
+  blank,
   t(
     "### Přístupy k modulům a Integrace Organizace",
     "### Module access and the Organization's Integrations",
   ),
   t(
-    "Grant Teamu k modulu měň v Přehledu Organizace, kde to jde, jinak na GitHubu právy Admina (rozhodnutí 0186). Přístup dostanou jen členové Organizace. Integraci pro celou Organizaci připojuje Admin sám svým přihlášením; agent ji nepřipojuje za něj.",
-    "Change a Team's grant to a module in the Organization's Dashboard where possible, otherwise on GitHub with the Admin's rights (decision 0186). Access goes only to members of the Organization. The Admin connects an Integration for the whole Organization with their own sign-in; the agent never connects it for them.",
+    "Grant Teamu k modulu měň v Přehledu Organizace (Moduly → Přístup), kde to jde, jinak na GitHubu právy Admina (rozhodnutí 0186). Přístup dostanou jen členové Organizace. Integraci pro celou Organizaci připojuje Admin sám svým přihlášením; agent ji nepřipojuje za něj.",
+    "Change a Team's grant to a module in the Organization's Dashboard (Modules → Access) where possible, otherwise on GitHub with the Admin's rights (decision 0186). Access goes only to members of the Organization. The Admin connects an Integration for the whole Organization with their own sign-in; the agent never connects it for them.",
   ),
   blank,
   t("## Co Admin nedělá", "## What the Admin does not do"),

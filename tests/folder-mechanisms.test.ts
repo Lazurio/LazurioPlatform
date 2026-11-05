@@ -1,7 +1,10 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { quotedLaunchpadLabels } from "../src/folder/manual-mechanisms";
+import {
+  moduleSentence,
+  quotedLaunchpadLabels,
+} from "../src/folder/manual-mechanisms";
 import { presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
 import { messages } from "../src/launchpad/messages";
@@ -142,6 +145,52 @@ test("every decision the chapters and the skill cite is in the register, and a s
 test("a decision leaves the pending list once the register has it", () => {
   for (const number of pendingInRegister)
     expect([number, statusOf.has(number)]).toEqual([number, false]);
+});
+
+// Decision F14, addendum of 2026-11-05: the chapter explains modules in the
+// words the skill new-module uses, and no text of a Folder says what the code
+// no longer does (`src/content/sync.ts`, F9's addendum of 2026-11-01).
+test("the chapter explains modules, and no generated text says the product does not synchronize or recommends a database outside the Organization", () => {
+  for (const environment of environments)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = rendered(environment, locale);
+      const cs = locale === "cs";
+      const chapter = outputs["manual/mechanisms.md"] ?? "";
+      for (const phrase of [
+        cs ? "## Moduly" : "## Modules",
+        moduleSentence[locale],
+        cs ? "### Kde leží data" : "### Where the data lives",
+        "`data/v2/`",
+        "`<slug>-data`",
+        "Dolt",
+        "`admin-request`",
+        "`new-module`",
+        "`docs/adoption.md`",
+        "`lazurio organization sync`",
+        "`restricted`",
+        cs
+          ? "Přehledu Organizace → Moduly → Přístup"
+          : "Dashboard → Modules → Access",
+        "`~/Documents/`",
+      ])
+        expect([phrase, chapter.includes(phrase)]).toEqual([phrase, true]);
+      const all = Object.values(outputs).join("\n");
+      for (const claim of [
+        "Synchronizaci obsahu produkt zatím neumí",
+        "The product does not synchronize",
+        "Synchronizaci repozitářů Organizací produkt zatím neumí",
+        "doporučujeme **Neon**",
+        "we recommend **Neon**",
+      ])
+        expect([claim, all.includes(claim)]).toEqual([claim, false]);
+      expect(all).not.toContain(cs ? "Zkontrolovat přístupy" : "Check access");
+      const holdsOrganizations = environment.preset !== "hosted-personal";
+      expect(
+        (outputs["manual/troubleshooting.md"] ?? "").includes(
+          "`lazurio organization sync`",
+        ),
+      ).toBe(holdsOrganizations);
+    }
 });
 
 test("AGENTS.md sends what only the Admin does to admin-request and mechanisms.md, except on a public Environment", () => {

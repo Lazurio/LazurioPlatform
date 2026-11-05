@@ -20,6 +20,10 @@ import {
 import { inspectPreparation } from "../src/folder/inspect-preparation";
 import { withFolderOperationLock } from "../src/folder/lock";
 import {
+  moduleSentence,
+  moduleWebsiteExample,
+} from "../src/folder/manual-mechanisms";
+import {
   manifestOutputPaths,
   manualPaths,
   outputPaths,
@@ -47,6 +51,7 @@ import {
   refreshFolder,
   resumeProfileUpdate,
 } from "../src/folder/update-profile";
+import { messages } from "../src/launchpad/messages";
 import {
   initializeMachineFolder,
   refreshMachineFolder,
@@ -237,19 +242,37 @@ test("every Environment renders the skill new-module in its locale, the same byt
       expect(stacks.slice(0, moduleScaffoldStacks.length)).toEqual([
         ...moduleScaffoldStacks,
       ]);
-      // The data in repository-db first; a database (Neon) only later, never
-      // for a new module (root decision 0196 point 8).
+      // The generation says where the data lives (F69 point 8): repository-db
+      // for a new module with data, a database only later and never for a new
+      // module (root decision 0196 point 8), Dolt in the Organization's Server
+      // services as a decided target (root decision 0209), nothing outside it.
       for (const phrase of [
         "github:Lazurio/repository-db#v3.x.y",
         "`<slug>-data`",
         "`db/`",
-        "**Neon**",
+        "`app/v1`",
+        "`app/v2`",
+        "`data/v2/`",
+        "`app/v3`",
+        "`app/v4`",
+        "Dolt",
+        "`default_app`",
+        "`app/v<N+1>/`",
+        "Lazurio/LazurioPlatform#818",
         "0196",
+        "0209",
+        cs
+          ? "**Výchozí volba pro nový modul s daty**"
+          : "**The default for a new module with data**",
         cs
           ? "**U nového modulu databázi nikdy nezakládej.**"
           : "**Never create a database for a new module.**",
+        cs
+          ? "Neon ani jinou databázi mimo Organizaci nedoporučuj."
+          : "Do not recommend Neon or any other database outside the Organization.",
       ])
         expect([phrase, text.includes(phrase)]).toEqual([phrase, true]);
+      expect(text).not.toContain("**Neon**");
       // The plan before anything is created.
       expect(text).toContain(
         cs ? "## 4. Plán k potvrzení" : "## 4. The plan to confirm",
@@ -294,6 +317,107 @@ test("every Environment renders the skill new-module in its locale, the same byt
       // AGENTS.md points to the skill; the manual has no page for it.
       expect(outputs["AGENTS.md"]).toContain(newModuleLine[locale]);
       expect(outputs["AGENTS.md"]).not.toContain("manual/new-module.md");
+    }
+});
+
+// What agents tell people about modules (decision F14, addendum of
+// 2026-11-05): the one sentence, the website, the undo and Files on every
+// preset; templates, access and the request to the Admin where they exist.
+test("the skill new-module explains a module in the shared words on every preset, and templates, access and the request by what the preset holds", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const text = rendered(journey, locale)[codex];
+      const cs = locale === "cs";
+      const personal =
+        workspacePreset(journey.preset).personalspace === "present";
+      const organizations = journey.preset !== "hosted-personal";
+      const interview = text.indexOf(
+        cs ? "## 1. Rozhovor o účelu" : "## 1. The interview about the purpose",
+      );
+      for (const phrase of [
+        moduleSentence[locale],
+        moduleWebsiteExample[locale],
+        cs ? "každá změna jde vrátit" : "every change can be undone",
+        cs ? "**Soubory, nebo modul.**" : "**Files or a module.**",
+      ]) {
+        expect([phrase, text.indexOf(phrase) > 0]).toEqual([phrase, true]);
+        expect([phrase, text.indexOf(phrase) < interview]).toEqual([
+          phrase,
+          true,
+        ]);
+      }
+      expect(
+        text.includes(
+          cs ? "„vaší práce nebo domácnosti“" : "“your work or household”",
+        ),
+      ).toBe(personal);
+      // The template before the stack, by the release's own adoption, where
+      // the Marketplace can add one.
+      const stacks = text.indexOf("- `vite-react`: ");
+      const template = text.indexOf(
+        cs ? "**Nejdřív šablona.**" : "**A template first.**",
+      );
+      expect(template > interview && template < stacks).toBe(organizations);
+      for (const phrase of [
+        "repos/Lazurio/marketplace/contents/index.json",
+        `.summary.${locale}`,
+        "`docs/adoption.md`",
+        messages(locale).marketAdd,
+      ])
+        expect([phrase, text.includes(phrase)]).toEqual([
+          phrase,
+          organizations,
+        ]);
+      expect(text).toContain(messages(locale).marketAppTemplates);
+      // Who gets the module and the way of a person without the role, only
+      // where the preset holds Organizations.
+      for (const phrase of cs
+        ? [
+            "kteří kolegové a které Teamy na něm budou pracovat",
+            "Přehledu Organizace → Moduly → Přístup",
+            "decision 0186",
+            "`admin-request`",
+            "`manual/mechanisms.md`",
+            "zhruba do hodiny po merge slotu",
+          ]
+        : [
+            "which colleagues and which Teams will work on it",
+            "the Organization's Dashboard → Modules → Access",
+            "decision 0186",
+            "`admin-request`",
+            "`manual/mechanisms.md`",
+            "within about an hour of the slot's merge",
+          ])
+        expect([phrase, text.includes(phrase)]).toEqual([
+          phrase,
+          organizations,
+        ]);
+      expect(text).not.toContain(
+        cs ? "ať ho založí Owner" : "suggest an Owner creates it",
+      );
+      // The check-access button comes with the Launchpad's own change.
+      expect(text).not.toContain(cs ? "Zkontrolovat přístupy" : "Check access");
+    }
+});
+
+test("the skill module-standard says what the N of app/vN means and the skill admin-request names a new module and access to a module", () => {
+  for (const journey of journeys)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = rendered(journey, locale);
+      const cs = locale === "cs";
+      expect(outputs[standardCodex]).toContain(
+        cs
+          ? "`N` neříká kvalitu, ale kde leží data"
+          : "`N` says not quality but where the data lives",
+      );
+      expect(outputs[standardCodex]).toContain("`docs/module-standard.md`");
+      const { description } = frontmatter(
+        outputs[".agents/skills/admin-request/SKILL.md"] ?? "",
+      );
+      for (const phrase of cs
+        ? ["nový modul (s potvrzeným popisem)", "přístup k modulu"]
+        : ["a new module (with a confirmed description)", "access to a module"])
+        expect([phrase, description.includes(phrase)]).toEqual([phrase, true]);
     }
 });
 
