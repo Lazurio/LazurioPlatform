@@ -10126,6 +10126,46 @@ reads Buddy alone: Buddy is the kind's short name, so no kind line repeats it (`
 
 Verified by unit tests (the tests that assert the Czech copy, updated to the new names).
 
+### F36 addendum of 2026-11-05: Buddy marks the personal space, round marks get round surfaces
+
+**Decided by Matěj (Organization Admin) on 2026-11-05: the shell's left column follows the
+prototype (`LazurioDevelopment/prototypes-lazurio` `main` 9b1cb99), and Anička, owner of the
+design system and the shell's UX, decides further changes.** A side-by-side measurement of the
+same frame at 1440×900 found the rail and the column head on the prototype's grid to the pixel,
+with two differences that this addendum closes.
+
+1. **Buddy marks your personal space.** Where the document names Buddy's origin (`buddy`,
+   decision F60, own or merged from the account), the personal space's mark in the rail, the
+   personal Environment's glyph in the column head's picker and its line in the list are
+   Buddy's picture (`<origin>/assets/avatar.webp`, the address the bubble draws) on the
+   Organizations' rounded square (`organizationMark`), as the prototype's rail and picker draw
+   him (root decision 0207). Where the picture does not load, your initials stand in. Without
+   your initials in the document the rail shows the person icon, as it always did for the
+   personal space (`personalStandIn`), while the picker's glyph and its list's line show the
+   initials of the Environment's name (`initialsOf`), because their mark is an `avatar` glyph that
+   carries its own text (the identity protocol) and needs one. Where the document names no Buddy,
+   all three are as before: your initials, else the person icon. The identity protocol is unchanged: the glyph is
+   an `avatar` whose label is the Environment's own name, so `identityText` adds no word.
+2. **Round marks, round surfaces.** The logo's disc and the account's photo take a round
+   surface under the pointer, in focus and while selected or open (`border-radius: 50%`), as
+   the prototype's rail does (Anna 2026-10-19); the square items keep `radius-md`.
+3. **Nothing of interface v1 changes.** No element, attribute, member of `lazurio.shell.v1` or
+   promised token is added; the forks need nothing.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| A Buddy picture shipped with the shell | Not the person's own Buddy, who may have another picture; rejected |
+| A new glyph kind in the identity protocol | A protocol change the Environment browser's view would have to follow, for a picture an `avatar` glyph already draws; not needed |
+
+**Honest limits.** Before the person meets Buddy his origin may answer no picture yet; the
+mark then shows the initials until the page is drawn again. The names in the column (Aplikace,
+Automatizace, Napojení, Správce hesel in the prototype since 2026-10-21) are not changed here:
+the product's names wait for their own decision.
+
+Verified by unit tests (`tests/shell.test.ts`: the rail's personal space and the picker's glyph
+and list line with and without Buddy's origin) and in headless Chrome against the Launchpad's
+preview (root decision 0178).
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction

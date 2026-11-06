@@ -1,3 +1,4 @@
+import { buddyAvatarSource } from "./buddy-protocol";
 import {
   type AccountVisit,
   currentEnvironment,
@@ -253,10 +254,24 @@ export type RailSpace = Readonly<{
   title: string;
   href: string;
   active: boolean;
-  /** The Organization's avatar or initials; the personal space's initials. */
+  /** The Organization's avatar or initials; the personal space's Buddy
+   * (`buddyPicture`) and your initials, which stand in where he is absent
+   * or his picture does not load. */
   avatar: string | null;
   initials: string | null;
 }>;
+
+/** What stands for your personal space where Buddy's picture is absent or
+ * does not load: your initials, else the person icon, never an empty mark. */
+export function personalStandIn(
+  space: Pick<RailSpace, "initials">,
+): Readonly<
+  { kind: "initials"; text: string } | { kind: "icon"; icon: "user" }
+> {
+  return space.initials !== null && space.initials !== ""
+    ? { kind: "initials", text: space.initials }
+    : { kind: "icon", icon: "user" };
+}
 
 /** The rail: your personal space when you have one, then every
  * Organization of the document in its order. The personal space is listed
@@ -310,7 +325,7 @@ export function railSpaces(
     spaceEnvironments(shell, personalSpace).length > 0
       ? [
           space(personalSpace, copy.personal, shell.dashboard, {
-            avatar: null,
+            avatar: buddyPicture(shell),
             initials: shell.operator.initials,
           }),
         ]
@@ -588,17 +603,36 @@ function kindLine(
     .join(" · ");
 }
 
+/** Buddy's picture where the document names his origin (`buddy`, decision
+ * F60): the personal space's mark (root decision 0207, the prototype's
+ * Buddy on a rounded square as an Organization's mark, Matěj 2026-10-17 and
+ * 2026-11-05). The same address the bubble draws; null without Buddy. */
+export const buddyPicture = (shell: Shell): string | null =>
+  buddyAvatarSource(shell.buddy?.origin);
+
 /** What the picker shows of an Environment in a space: the photo of the
  * person a work Environment is assigned to (F36's addendum of 2026-11-03),
- * your initials for a personal one, the space's Organization's mark where
- * the space is one, the kind's icon otherwise. */
+ * Buddy's picture for a personal one where the document names Buddy (your
+ * initials, else those of `name`, if it does not load; F36's addendum of
+ * 2026-11-05), else your initials, the space's Organization's mark where
+ * the space is one, the kind's icon otherwise. `name` is what the head names
+ * it, so the picture's label never adds a word to it (`identityText`). */
 export function environmentGlyph(
   shell: Shell,
   environment: ShellEnvironment,
   space: string,
+  name: string,
 ): EnvironmentGlyph {
   const owner = environmentOwner(environment);
   if (owner !== null) return ownerGlyph(owner);
+  const picture = buddyPicture(shell);
+  if (environment.kind === "personal" && picture !== null)
+    return {
+      kind: "avatar",
+      organization: name,
+      avatar: picture,
+      initials: shell.operator.initials ?? initialsOf(name),
+    };
   if (environment.kind === "personal" && shell.operator.initials !== null)
     return { kind: "initials", text: shell.operator.initials };
   const organization =
@@ -642,7 +676,7 @@ function identityOf(
     id: environment.id,
     name,
     who: kindLine(environment, name, copy),
-    glyph: environmentGlyph(shell, environment, space),
+    glyph: environmentGlyph(shell, environment, space, name),
   });
 }
 
@@ -761,10 +795,12 @@ export type SwitcherRow = Readonly<{
   href: string;
   current: boolean;
   /** A row's glyph: the person's photo for a person's work Environment,
-   * your initials for a personal Environment, otherwise its kind's icon,
-   * never a tile (the space is the picker's own, a title or a head
-   * above). */
-  glyph: Exclude<EnvironmentGlyph, { kind: "avatar" }>;
+   * Buddy's picture or your initials for a personal Environment, otherwise
+   * its kind's icon, never an Organization's tile (the space is the picker's
+   * own, a title or a head above). */
+  glyph:
+    | Exclude<EnvironmentGlyph, { kind: "avatar" }>
+    | Readonly<{ kind: "buddy"; picture: string; initials: string }>;
 }>;
 
 /** The headings an Organization's Environments are listed under (F36's
@@ -894,23 +930,31 @@ export function switcherList(
   const viewer = shell.operator.login?.toLowerCase() ?? null;
   const row = (environment: ShellEnvironment, space: string): SwitcherRow => {
     const owner = environmentOwner(environment);
+    const picture = buddyPicture(shell);
+    const name =
+      owner === null ? environmentName(environment, copy) : ownerTitle(owner);
     const glyph: SwitcherRow["glyph"] =
       owner !== null
         ? (ownerGlyph(owner) as SwitcherRow["glyph"])
-        : environment.kind === "personal" && shell.operator.initials !== null
-          ? { kind: "initials", text: shell.operator.initials }
-          : {
-              kind: "icon",
-              // Work that belongs to no person is the Organization's.
-              icon:
-                environment.kind === "work"
-                  ? "building"
-                  : kindIcons[environment.kind],
-            };
+        : environment.kind === "personal" && picture !== null
+          ? {
+              kind: "buddy",
+              picture,
+              initials: shell.operator.initials ?? initialsOf(name),
+            }
+          : environment.kind === "personal" && shell.operator.initials !== null
+            ? { kind: "initials", text: shell.operator.initials }
+            : {
+                kind: "icon",
+                // Work that belongs to no person is the Organization's.
+                icon:
+                  environment.kind === "work"
+                    ? "building"
+                    : kindIcons[environment.kind],
+              };
     return Object.freeze({
       id: environment.id,
-      name:
-        owner === null ? environmentName(environment, copy) : ownerTitle(owner),
+      name,
       who: rowWho(environment, owner, copy, shell.operator.login),
       href: environmentHref(environment, space, options.app),
       current: environment.id === shell.current && options.here === space,

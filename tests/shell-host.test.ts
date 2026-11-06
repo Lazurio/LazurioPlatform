@@ -791,7 +791,12 @@ test("on an Environment's page the column head is the picker, the gear, the swit
             here,
             picker: {
               id: environment.id,
-              glyph: environmentGlyph(shell, environment, here),
+              glyph: environmentGlyph(
+                shell,
+                environment,
+                here,
+                environmentName(environment, copy),
+              ),
               name: environmentName(environment, copy),
               who: environmentWho(environment, copy),
             },

@@ -71,6 +71,8 @@ dialog.switcher-dialog::backdrop { background: rgb(0 0 0 / 25%); }
 .switcher-glyph { display: grid; width: 24px; height: 24px; flex: none; place-items: center; color: var(--shell-ink-muted); font-size: 10px; font-weight: var(--lz-weight-akce); }
 /* A person's photo (F36's addendum of 2026-11-03): round, the size of the glyph. */
 .switcher-glyph .person-mark { width: 24px; height: 24px; font-size: 10px; }
+/* Buddy's picture on the personal Environment's line (F36's addendum of 2026-11-05). */
+.switcher-glyph .org-mark { width: 24px; height: 24px; font-size: 10px; }
 /* The name and, under it, whom it is for (F36's addendum of 2026-11-03):
    neither is cut; a long one wraps. */
 .switcher-copy { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
@@ -119,6 +121,10 @@ nav { display: flex; height: 100%; flex-direction: column; align-items: center; 
    page you are on: the design system's selected look (B3), the quiet surface
    with a hairline, as the space you are in has it. */
 .home[aria-current="page"] { background: var(--shell-selected); box-shadow: inset 0 0 0 1px var(--shell-line-strong); }
+/* The round marks (the logo's disc, the account's photo) take a round
+   surface under the pointer, in focus and while open: the surface follows
+   the mark's shape (prototypes-lazurio, Anna 2026-10-19). */
+.home, .account { border-radius: 50%; }
 .divider { width: 24px; height: 1px; margin: 4px 0; flex: none; background: var(--shell-line); }
 .scroll { display: flex; width: 100%; min-height: 0; flex: 1; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0 10px; overflow-x: hidden; overflow-y: auto; scrollbar-width: none; }
 .scroll::-webkit-scrollbar { display: none; }
