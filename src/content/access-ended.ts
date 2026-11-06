@@ -146,8 +146,8 @@ async function removeCopy(
 ): Promise<RemovedCopy | null> {
   const directory = join(root, path);
   // A link anywhere on the way resolves elsewhere: nothing it points to goes.
-  if ((await realpath(directory)) !== join(await realpath(root), path))
-    return null;
+  const real = await realpath(directory);
+  if (real !== join(await realpath(root), path)) return null;
   const observed = await git.inspect(directory);
   if (
     observed.kind !== "checkout" ||
@@ -158,9 +158,7 @@ async function removeCopy(
   if (tree === null || tree.gitDir !== tree.commonDir) return null;
   const changes = await git.changes(directory, tree.gitDir);
   const linked = await linkedWorktrees(tree.commonDir);
-  const inside = linked.filter((entry) =>
-    entry.startsWith(`${directory}${sep}`),
-  );
+  const inside = linked.filter((entry) => entry.startsWith(`${real}${sep}`));
   const moved = join(
     dirname(directory),
     `.${basename(directory)}.removing-${randomBytes(6).toString("hex")}`,

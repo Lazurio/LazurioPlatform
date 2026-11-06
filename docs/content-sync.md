@@ -363,7 +363,7 @@ data mount below it goes with it.
 
 **After it.** The slot stays declared and is `absent` (`access-ended` in that run,
 `repository-denied` after). The entry keeps `removed` (when, the repository, the commit,
-whether it held unsaved changes, its worktrees) while the slot stays absent, and a later
+whether its primary checkout held uncommitted changes, its worktrees) while the slot stays absent, and a later
 clone ends it. Access given back clones the module afresh. Zkontrolovat přístupy says
 for a week which modules left, and `lazurio organization sync` prints `removal-pending` at
 a first proof.

@@ -50,7 +50,8 @@ export type RemovedCopy = Readonly<{
   repository: string;
   /** The commit its checkout stood on. */
   commit: string;
-  /** Whether it held changes nothing had saved. */
+  /** Whether its primary checkout held uncommitted changes; its worktrees
+   * and unpushed commits are not looked at. */
   unsaved: boolean;
   /** Its linked worktrees removed with it, and those outside its slot,
    * which nothing touches. */
