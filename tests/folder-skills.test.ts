@@ -348,7 +348,7 @@ test("the skill new-module explains a module in the shared words on every preset
       }
       expect(
         text.includes(
-          cs ? "„vaší práce nebo domácnosti“" : "“your work or household”",
+          cs ? "výdaje domácnosti" : "household expenses",
         ),
       ).toBe(personal);
       // The template before the stack, by the release's own adoption, where
