@@ -3181,7 +3181,7 @@ Lazurio MausBot's intake reacts to an assignment without the old comment (the pe
 through assignment is the root's contract; the intake is MausBot's). Environments get the text through
 the next released Platform update and the normal Folder refresh.
 
-### Proposal of 2026-10-29: the person's own instructions for agents, and a person's own entries in a hosted Folder (for Matěj's decision; not decided, not implemented)
+### Proposal of 2026-10-29: the person's own instructions for agents, and a person's own entries in a hosted Folder (B delivered 2026-11-03; decided with changes 2026-11-06, see below; A not implemented)
 
 On 2026-10-29 Matěj raised two questions.
 - **Own instructions.** People should be able to tweak how agents behave where that makes sense, in one standard way, and Lazurio should learn about it, because each tweak marks something the product should fix. His first idea was a pattern in the Launchpad's settings that finds part of the instructions and replaces it, or adds to it. He also asked whether this belongs to the Folder or only to the Organization, whose repository the Folder's instructions point to.
@@ -3287,6 +3287,192 @@ On 2026-10-29 Matěj raised two questions.
    - Tests: preview and apply, the digest, the precedence line in both locales, and the bound.
 3. **#653's existing drift.** Where a hand-added section can be proven (the rest matches the recorded digest), the repair offers to move exactly that text into the new field, instead of only discarding it.
 4. **The Lazurio Root on a workstation** gets the same mechanism under root decision 0219 (plan DEV-6693).
+
+**Decided 2026-11-06 by Matěj (Organization Admin, plan LZD-0012 of the LazurioDevelopment
+Organization) in the question tool: the person's layer on a Work Environment (root decision
+0233). It decides the proposal of 2026-10-29 above with changes, adds a local Personalspace to
+the Work Environment and narrows what is reported at the Folder's top level. Not implemented.**
+Root decision 0233 is the norm; this addendum is its implementation contract.
+
+#### Why
+
+The Owner of a customer Organization reported its first week of daily use on 2026-11-06:
+
+- **The agents felt like the company's.** Colleagues who work only on their Work Environment
+  found its agents formal and generic. The Folder says whom the agents work for, but there is
+  no place where they tune themselves to one colleague: the rules forbid writing anything
+  personal into the Folder, and a Work Environment never has a Personalspace.
+- **Tuning tied to an account is lost.** A colleague whose Codex had been tuned for months on
+  a personal ChatGPT account found it starting from scratch after moving to the
+  Organization's AI pool. Whatever a provider keeps with an account is out of Lazurio's
+  reach; what Lazurio can do is keep the tuning in the Environment, independent of the
+  account and of the harness.
+- **The way around it is costly.** Today a colleague who wants tuned agents needs a Personal
+  Environment as well: a second place to explain, more sign-ins, more cost. The Owner wants
+  the personal layer inside the Work Environment and owned by the Organization, so what a
+  colleague teaches the agents stays with the company when they leave.
+- **"Zapamatuj si" lands in one harness.** F42's rule sends it to the harness's personal
+  instructions, which hold one harness each and which nobody sees (the proposal above).
+
+#### The four answers
+
+1. **The name.** The local layer is a Personalspace whose meaning follows the kind of
+   Environment: private on a Personal Environment (0091), local and the Organization's on a
+   Work Environment. Not chosen: a separate name for the work variant, which would leave 0091
+   untouched but add a word people must learn.
+2. **Who sees it.** The person and the Organization's Admins (0228), and Lazurio says so
+   before the person writes there. This answers the proposal's open question 2. Not chosen:
+   only the person, which Lazurio could not guarantee on the Organization's computer.
+3. **Precedence.** Lazurio's rules and the rules of the Organization the agent works in win
+   over the person's own instructions, and the agent says why when it does not follow one.
+   This answers the proposal's open question 1. Not chosen: the person's instruction winning
+   for working habits, which would leave the line between a habit and a process to the agent.
+4. **The Folder's top level.** Only entries that change agents' instructions unseen are
+   reported; everything else there is the person's. Not chosen: reporting every entry the
+   Folder does not own, as F10's addendum of 2026-11-03 does today.
+
+The proposal's open question 3, a top-level `.git`, is not decided here.
+
+#### Proposal A, as decided
+
+Kept from the proposal:
+
+- the field „Vlastní pokyny pro agenty“ in Settings, stored in the existing preference
+  `customInstructions`, whose refusal `custom-composition-unavailable` ends;
+- one change path (preview, then apply), a new rendering and never `drift`, its digest in the
+  recorded preferences;
+- `lazurio folder instructions` for agents, used only on the person's word, and F42's
+  "zapamatuj si" rule pointing there instead of to the harness's personal instructions;
+- plain text without includes or links to files;
+- „Poslat Lazuriu jako podnět“ as an explicit choice on each save, never automatic.
+
+Changed:
+
+- **Near the beginning, not last.** The section renders right after the communication
+  style and before the Environment's facts. It says whose assistant the agent is and how
+  that person works, which frames everything after it (Matěj: the agent should start with
+  them). Its first sentence carries the precedence of answer 3, as the voice's first
+  sentence carries the voice's limits.
+- **A byte bound.** The proposal's 4,000 characters become a byte bound set together with the
+  `AGENTS.md` budget (proposed: 4 KiB), because Czech text takes up to two bytes a character
+  and Codex loads only the first 32 KiB.
+- **Room first.** With the longest voice `AGENTS.md` has about 40 bytes left (#755). The own
+  instructions ship only after #758 or another change frees their bound, and a test renders
+  every pinned composition with the longest voice and the longest own instructions and fails
+  above 32 KiB (#755, first direction).
+- **The kind of a memory.** When the person asks to remember something, the agent decides
+  whether it is a habit of the person (own instructions or the local Personalspace) or a
+  process, meaning or knowledge of the Organization (a pull request or an issue to the
+  Organization, 0163). The manual's rule gives one example of each.
+- **The assistant's name.** A line of the own instructions, no separate field. The manual
+  tells agents of a Work Environment that they are the person's assistant, while the
+  Organization's persona (Henry) is the Organization's worker with its own Environment.
+- **Whose they are, before the first save.** On `hosted-organization-personal` the own
+  instructions ship with their notice, never after it: the field says that they belong to the
+  Organization with the Environment, that its Admins may read them and that private matters
+  belong to a Personal Environment, before the person saves anything. The agent's path is
+  held to the same: `lazurio folder instructions add` on a Work Environment states it in its
+  answer, and the manual's "zapamatuj si" rule tells the agent to say it to the person before
+  the first saved line. The local Personalspace (below) extends the same notice to itself.
+- **Presets.** Own instructions on `local`, `hosted-personal` and
+  `hosted-organization-personal`. None, and no field, on `hosted-organization-team`,
+  `hosted-organization-steward` and a public Environment.
+
+#### Proposal B: the narrower report
+
+Proposal B is delivered (F10's addendum of 2026-11-03). By answer 4, `lazurio update`,
+`update status` and the doctor's `folder-top-level` name only a top-level `CLAUDE.md`,
+`AGENTS.override.md` or `.codex/`, through which a harness takes instructions the Folder did
+not render. Other entries are the person's and are not reported. The manual keeps one line: an
+agent's own work product still goes to `~/Documents/<task>/`, and files a person keeps at the
+top level stay where they are.
+
+#### New: the local Personalspace on a Work Environment
+
+- **Preset.** `hosted-organization-personal` changes its Personalspace policy from `never` to
+  a new value `local`. `present` stays for `local` and `hosted-personal`, `never` for the Team
+  and Steward presets. `docs/workspace-presets.md` changes with the implementation.
+- **Folder.** `machine folder-init`, and the next change of an adopted Folder, create an
+  empty `personalspace/` (mode 0700) where nothing is. `folder-personalspace-conflict` no
+  longer refuses a plain folder on this preset; it still refuses a Git checkout there and
+  anything that is not a plain folder, such as a link or a mount. Lazurio never writes, moves
+  or deletes the person's files in it and reads only `skills/`.
+- **Skills.** `personalspace/skills/<name>/SKILL.md` is one source for every harness, offered
+  to Codex and Claude Code beside the Folder's skills. The mechanism is the implementer's
+  within these limits: one source; a name a Folder skill has, now or in a later release, is
+  refused by name and neither side is overwritten; a changed skill reaches new threads
+  through Settings or the agent's command, without hand steps. Two candidates:
+  - rendering the skills into the Folder's owned `.agents/skills/` and `.claude/skills/` in
+    the change transaction: owned paths with digests and the collision checked in one place,
+    but each edit needs one more change (recommended);
+  - links from the harnesses' user-level skill folders (`~/.agents/skills`, which Codex 0.166
+    reads; `~/.claude/skills`), which are the person's tool homes (F17).
+- **Launchpad and catalog.** A local Personalspace is not a Personalspace repository: no
+  holder, no installation, no „Připravit“, no personal modules and no module creation in it
+  (#186, #383). A tool the person needs on a Work Environment is a module of the Organization.
+- **What the person sees.** Next to the own instructions Settings says where the
+  Personalspace is and that it belongs to the Organization with the Environment. The notice
+  about the own instructions comes earlier, with them (below).
+- **The manual.** On `hosted-organization-personal`, `AGENTS.md` and `this-machine.md`
+  replace "Personalspace tu nikdy není" with the local Personalspace and its rules, and the
+  glossary gives Personalspace its two meanings by kind. A Personal Environment and the
+  Team and Steward presets keep their text.
+- **Admins.** They read it as they read the rest of the Environment (0228). A view in the
+  Organization's Dashboard is a later step, not part of this delivery.
+
+#### Failure modes
+
+- **A private matter in the local Personalspace.** Settings says whose it is. An agent asked
+  to keep something plainly private tells the person that it belongs to their Personal
+  Environment.
+- **The Organization's know-how stays in the personal layer.** The agent decides the kind of
+  every memory, and when the person leaves, the Admin can read the layer and move what
+  belongs to the Organization.
+- **An own instruction against a boundary.** Lazurio's and the Organization's rules win, and
+  the agent says why.
+- **An Environment that carries several Organizations** (a development station). The local
+  Personalspace belongs to the Environment's Owner Organization; the agent keeps no data of
+  another Organization there.
+- **Loss.** Without Git, the local Personalspace lives on the Environment's disk; its recovery
+  is the Environment's, and Lazurio adds no backup.
+- **A person with a Personal Environment as well.** Each Environment's agents use their own
+  Personalspace; Buddy's gbrain lives only in the private one.
+- **A personal skill named like a new Folder skill.** Refused by name before the journal, and
+  the person renames it.
+- **`AGENTS.md` over 32 KiB.** The budget test fails before a release, and a save above the
+  bound is refused.
+
+#### Variants considered
+
+| Variant | Trade-off / disposition |
+| --- | --- |
+| A Personal Environment for every colleague | Works today, but two places to explain, more sign-ins and cost, and the tuning leaves with the person. Stays for people with several Organizations; rejected as the way for colleagues |
+| The person's private Personalspace repository mounted on the Work Environment | Breaks 0091 and takes the Organization's know-how away with the person; rejected |
+| A separate name for the work layer | Keeps 0091's word for one meaning, adds a new word; not chosen (answer 1) |
+| One name, meaning by kind (selected) | One word for people and agents; Lazurio says whose it is wherever it shows |
+| Own instructions as a file in the Personalspace (`personalspace/AGENTS.md`) | Read only because `AGENTS.md` says so, no preview and no bound; weaker than a preference, as the proposal's variants say; rejected |
+| Own instructions as the last section of `AGENTS.md` (the proposal) | Lowest risk of crowding the rules, but the agent meets its person last; changed to near the beginning |
+
+#### Delivery, in this order
+
+1. Room in `AGENTS.md` (#758) and the budget test (#755).
+2. The own instructions as above, with their notice on a Work Environment in Settings and
+   through the agent's command, and a new template revision.
+3. The local Personalspace with its skills: preset, Folder, catalog, the line in Settings,
+   the manual.
+4. The narrower report of top-level entries.
+5. Later and separately: the Admins' view in the Dashboard; the Lazurio Root on a workstation
+   (root decision 0219, plan DEV-6693).
+
+Tests on the real consumers: the own instructions render after the voice in both locales with
+the precedence sentence; a change is a rendering and never `drift`; a save above the bound is
+refused; on a Work Environment the field and `lazurio folder instructions add` state whose the
+instructions are before the first save; the budget test; on `hosted-organization-personal` `folder-init` creates
+`personalspace/`, a Git checkout there is refused and a skill in it reaches both harnesses'
+skill lists; a collision is refused by name; the doctor names a top-level `CLAUDE.md` and not a
+`notes.txt`; the Team and Steward presets get neither. Not proven: that agents follow the own
+instructions and the rule on the kind of a memory, and that every harness version picks up the
+personal skills.
 
 **Addendum 2026-11-01, decided by Matěj (Organization Admin, plan LZD-0002 of the
 LazurioDevelopment Organization): two more Folder skills from the Lazurio Root,
