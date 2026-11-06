@@ -268,10 +268,12 @@ admin, application user).
   admits them to that application only (see app-only entry below). A Work
   Environment is the first home; the target is an application the Organization runs
   at its own address behind its own gateway (decision 0146).
-- **What a Module receives.** Only the module kit's answer is the contract: the
-  kind of entry (`environment`, `app`, `local`, `unknown`), the application role
-  (`admin`, `user`, none with `unknown`), the person (Lazurio subject and username)
-  and the source (`gateway`, later `auth`). The gateway sets it from its own
+- **What a Module receives.** Only the module kit's answer is the contract, with
+  the same five fields in every case: the kind of entry (`environment`, `app`,
+  `local`, `unknown`), the application role (`admin`, `user`, none with
+  `unknown`), the person (Lazurio subject and username, or none), the source of
+  the statement (`gateway`, later `auth`; none without a person) and, without a
+  person, the reason. The gateway sets it from its own
   admission answer after removing every client copy; a missing statement grants no
   role, and a request from inside the Environment is an application admin without a
   name. Its fields and values never change meaning; new information comes as new
