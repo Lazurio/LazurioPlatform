@@ -349,7 +349,7 @@ posixTest(
 
 test("contract.js reads the documents in code without a DOM, as the source does", async () => {
   // The guard of this test: no DOM here, so any access would throw.
-  expect(globalThis.document).toBeUndefined();
+  expect("document" in globalThis).toBe(false);
   // One module on its own: nothing imported, so nothing of the elements.
   expect(
     new Bun.Transpiler({ loader: "js" }).scan(

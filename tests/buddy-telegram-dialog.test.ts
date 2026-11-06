@@ -26,9 +26,11 @@ import { fakeHermesGateway } from "./fixtures/fake-hermes-gateway";
 // dialog runs on a small stand-in for the page's DOM, enough for what it
 // draws; the browser closes it by itself on Escape.
 
+const hadDocument = "document" in globalThis;
 const original = globalThis.document;
 afterEach(() => {
-  globalThis.document = original;
+  if (hadDocument) globalThis.document = original;
+  else Reflect.deleteProperty(globalThis, "document");
 });
 
 const cs = messages("cs");
