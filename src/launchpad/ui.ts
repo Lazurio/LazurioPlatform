@@ -285,11 +285,12 @@ function drawGuide(route: PageRoute) {
   provideGuides(guideOff ? null : guide.guides);
   buddy?.setAttribute("lang", locale);
   const states = pageHelpStates(route, guide, guideOff);
-  if (appsVideoLine !== null)
-    appsVideoLine.textContent =
-      principleIn("modules", locale, kindOf(shellDocument))
-        ?.steps.map((step) => step.text)
-        .join(". ") ?? "";
+  const titles =
+    principleIn("modules", locale, kindOf(shellDocument))
+      ?.steps.map((step) => step.text)
+      .join(". ") ?? "";
+  for (const line of [appsVideoLine, startVideoLine])
+    if (line !== null) line.textContent = titles;
   videoHelp = null;
   videoBox = null;
   for (const id of Object.keys(pageHelps) as PageHelpId[]) {
@@ -318,6 +319,13 @@ function drawGuide(route: PageRoute) {
   // addendum (4) of 2026-10-19); a new page is a new visit.
   for (const [box, video] of Object.entries(helpVideos))
     video.draw(box === videoBox ? videoHelp : null, JSON.stringify(route));
+  // Začínáme's stays while the page does; a move closes it.
+  startVideo.draw(
+    route.view === "settings" && route.section === "start"
+      ? startVideoBox
+      : null,
+    JSON.stringify(route),
+  );
 }
 // The documentation of the Launchpad's "Guide" (the root Launchpad's
 // `guideDocumentationUrl`), in the page's language.
@@ -829,6 +837,8 @@ const aiSignIn = createAiSignIn({
 });
 const startPanel = createStartPanel({
   copy: () => copy,
+  organizations: () => catalog.current()?.organizations.length ?? 0,
+  modulesVideo: () => startVideo,
   facts: () => {
     const facts = firstRunFacts();
     return facts === null
@@ -1464,6 +1474,26 @@ const appsVideo =
         locale: () => locale,
         first: false,
       });
+// Začínáme's "Poznejte moduly": the same video under its row, opened by the
+// row's button alone (F56's addendum (8) of 2026-11-05).
+const startVideoBox = document.querySelector<HTMLElement>("#start-video");
+const startVideoSlot = document.querySelector<HTMLElement>(
+  "#start-video-player",
+);
+const startVideoLine = document.querySelector<HTMLElement>("#start-video-line");
+const startVideo =
+  startVideoBox === null || startVideoSlot === null
+    ? noHelpVideo
+    : createHelpVideo({
+        box: startVideoBox,
+        slot: startVideoSlot,
+        line: "start-video-line",
+        name: "modules-overview",
+        title: () => copy.modulesVideoTitle,
+        copy: () => copy,
+        locale: () => locale,
+        first: false,
+      });
 // Every help video of the page, by its box (guides.ts `helpVideoBoxes`).
 const helpVideos: Readonly<Record<string, typeof noHelpVideo>> = {
   "vault-video": vaultVideo,
@@ -1797,7 +1827,8 @@ function relabel() {
   vaultPage.render();
   if (framed) marketplace.render();
   newModuleDialog.render();
-  for (const video of Object.values(helpVideos)) video.render();
+  for (const video of [...Object.values(helpVideos), startVideo])
+    video.render();
   vaultRequests.relabel();
   files.relabel();
   integrations.relabel();

@@ -2955,7 +2955,12 @@ own box `#apps-video` under the head, opened only by its "?" (`createHelpVideo`'
 and its five titles stand in `#apps-video-line` for a screen reader. `helpVideoBoxes` in
 `guides.ts` names each video's box and `helpVideos` in `ui.ts` holds one player per box. The
 dialog "+ Nový modul" mounts `createGuideVideo` with the same video on its first screen,
-"Přehrát video".
+"Přehrát video". Začínáme's last optional row, "Poznejte moduly" (`optionalRows`, only where
+`carriesOrganization`: a work or Automated Environment by its preset, your computer once its
+Folder holds an Organization, never a Personal Environment), has a title and a button and no
+sentence. It opens the same video in `#start-video` under the rows, an instance of its own
+outside `helpVideos`: the rows may be drawn again while it plays, the button closes it, and so
+do Escape and a move. It is no step: no count and no line reads it.
 
 The files are `src/launchpad/videos/<name>-<cs|en>.mp4` and their posters
 `<name>-<cs|en>.webp`, embedded in the executable with `{ type: "file" }` like the shell's
@@ -3312,7 +3317,8 @@ Organization's app, its basics are the Organization's, and it gets none of it.
   not work in the organization of the Organization's name: "Dokončit" opens
   Composio's dialog at the step left in Composio, decision F42's note of 2026-10-19;
   on a Remote Environment SSH z vlastního počítače, "Nastaveno" once a device's key was added here,
-  and Codex Desktop, both leading to Settings → SSH; between them "Trezor v Bitwardenu"
+  and Codex Desktop, both leading to Settings → SSH, and last "Poznejte moduly" with its
+  [video](#guide-videos); between them "Trezor v Bitwardenu"
   where Apps → Trezor gives the steps for Bitwarden, its "Návod" opening them) and
   "Prohlídka aplikace" ("Spustit
   prohlídku" / "Spustit znovu" starts the introduction in Apps). A Team Environment's

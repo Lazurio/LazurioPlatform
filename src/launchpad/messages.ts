@@ -1332,6 +1332,9 @@ const en = {
   // The Bitwarden extension in ChatGPT Desktop and the person's own browser
   // (F53's addendum of 2026-10-16): the row leads to Apps → Trezor.
   startBitwardenTitle: "Vault in Bitwarden",
+  // The video of modules among the optional rows (F56's addendum (8) of
+  // 2026-11-05): its title and the button say it all.
+  startModulesTitle: "Get to know modules",
   // What the optional rows Composio and Trezor v Bitwardenu give, at the
   // choice (kept by Pablo's review of #503: no step of Začínáme's "?" says
   // it).
@@ -3553,6 +3556,7 @@ const cs: Record<MessageKey, string> = {
   startGuide: "Návod",
   startCodexText: "Pracujte s {tímto} z ChatGPT Desktopu.",
   startBitwardenTitle: "Trezor v Bitwardenu",
+  startModulesTitle: "Poznejte moduly",
   startBitwardenText:
     "Hesla z Trezoru Prostředí i v ChatGPT Desktopu a ve vašem prohlížeči.",
   startTourGroup: "Prohlídka aplikace",

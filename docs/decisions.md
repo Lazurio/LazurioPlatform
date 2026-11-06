@@ -9879,8 +9879,8 @@ not exercised in this change.
 
 **Decided by Matěj (Organization Admin) on 2026-11-05, after two meetings of that day where
 people asked what a module is, who creates one and why a module they were given does not
-show.** The model is one sentence, repeated everywhere: a module is one area of a company's
-work, holding together the process agents follow, the data and the app. Root decision 0179
+show.** The model is one sentence, repeated everywhere: a module is one area of your work,
+holding together the process agents follow, the data and the app. Root decision 0179
 point 5 excluded tiles of requests; its addendum in this repository's decision register
 (branch `agent/moduly-znalosti-agentu`) allows the muted tile below, with the request of root
 decision 0230.
@@ -19539,7 +19539,15 @@ The video's content still waits for his approval.** Apps' "?" played the princip
    system (HumanAndMachine-ai/design-system-lazurio#115): about 30 seconds, no
    sound, a fictional bakery, as Trezor's. Its content is not approved yet; a new cut under
    the same name replaces the browser's copy by its ETag.
-5. **One mechanism.** `page-help.ts` was Trezor's alone through one instance in `ui.ts`.
+5. **Začínáme** ends "Volitelné" with the row "Poznejte moduly" ("Get to know modules"): its
+   title and "Přehrát video", which opens the same video in place under the rows, with no
+   sentence under the title. Matěj asked for modules in the onboarding on 2026-11-06. It is no
+   step: Začínáme's count, its line and the tour do not read it, and it waits for nothing. It
+   stands where the Environment carries an Organization, which is what the video tells of:
+   a work or Automated Environment by its preset, also before the Organization is downloaded,
+   and your computer once its Folder holds one. A Personal Environment has none, a Team
+   Environment has no Začínáme to put it in, and a public one has its demo instead.
+6. **One mechanism.** `page-help.ts` was Trezor's alone through one instance in `ui.ts`.
    `helpVideoBoxes` names each video's box, `helpVideos` holds a player per box, and
    `createHelpVideo` takes an optional line and `first`. Its five titles are the box's text for
    a screen reader (`#apps-video-line`).
@@ -19554,7 +19562,8 @@ preview as an Owner and a member in Czech and English at 1440 and 700 px: the vi
 from its "?" in the page's language, Escape closes it with the focus on the "?", and the five
 steps ring their elements. With less motion, hosted, in Czech, as an Owner: it waits at its
 poster and nothing animates in the card. A second press and a move close it, checked once at
-1440 px.
+1440 px. `tests/start-view.test.ts` holds Začínáme's row and where it stands; the row and its
+video were played against the hosted preview at 1440 and 700 px.
 
 ## F57 — Sleeping tabs: a tab nobody uses closes its window and keeps its place, under its id
 

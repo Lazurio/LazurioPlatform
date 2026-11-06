@@ -551,10 +551,11 @@ export function startCount(facts: TourFacts): string | null {
  * where its button leads (a Settings path, or Trezor in Apps) or what it
  * opens. */
 export type OptionalRow = Readonly<{
-  id: "composio" | "phone" | "ssh" | "bitwarden" | "codex";
+  id: "composio" | "phone" | "ssh" | "bitwarden" | "codex" | "modules";
   title: string;
-  /** What it gives, at the choice: no step of Začínáme's "?" says it. */
-  text: string;
+  /** What it gives, at the choice: no step of Začínáme's "?" says it. Null
+   * where its title says it all. */
+  text: string | null;
   status: string | null;
   /** One sentence under it on why it cannot be done yet and what comes
    * first: Composio while its organization cannot be told (decision F42). */
@@ -562,12 +563,24 @@ export type OptionalRow = Readonly<{
   /** None once it is done (Composio connected), or while it cannot be. */
   action: Readonly<{
     label: string;
-    to: "composio" | `/settings/${string}` | typeof vaultPath;
+    to: "composio" | "modules-video" | `/settings/${string}` | typeof vaultPath;
     /** The part of that page the button brings into view: Apps → Trezor's
      * steps for Bitwarden. */
     part?: "bitwarden";
   }> | null;
 }>;
+
+/** Whether this Environment carries an Organization, as the video of modules
+ * speaks of one: a work or Automated Environment by its preset, also before
+ * its Organization is downloaded; your computer once its Folder holds one;
+ * never a Personal Environment. */
+export const carriesOrganization = (
+  preset: string | null,
+  organizations: number,
+): boolean =>
+  preset === "local"
+    ? organizations > 0
+    : preset !== null && preset !== "hosted-personal";
 
 /** "Volitelné": Composio where Tools offer it; on a Remote Environment SSH
  * from the person's own computer (`sshDevices`: how many devices have a
@@ -576,7 +589,11 @@ export type OptionalRow = Readonly<{
  * "Trezor v Bitwardenu" where Apps → Trezor gives the steps that add the
  * Environment's vault to Bitwarden in ChatGPT Desktop and the person's browser
  * (`bitwarden`, `offersBitwarden`; F53's addendum of 2026-10-16): no state
- * either, since the extension is on the person's computer. */
+ * either, since the extension is on the person's computer. Last, where the
+ * Environment carries an Organization (`organization`, `carriesOrganization`),
+ * "Poznejte moduly" with the video of modules (F56's addendum (8) of
+ * 2026-11-05): no state, no sentence and nothing it waits for. No row here
+ * counts towards the basics, so it holds nothing up. */
 export function optionalRows(
   input: Readonly<{
     preset: string | null;
@@ -586,6 +603,7 @@ export function optionalRows(
     /** Telefon přes ChatGPT (decision F71): shown only where pairing is
      * offered, with how many phones are paired; absent or null hides it. */
     phone?: Readonly<{ ready: boolean; devices: number }> | null;
+    organization?: boolean;
   }>,
   copy: Copy,
 ): readonly OptionalRow[] {
@@ -672,6 +690,14 @@ export function optionalRows(
       text: copy.startCodexText,
       status: null,
       action: { label: copy.startGuide, to: "/settings/ssh" },
+    });
+  if (input.organization === true)
+    rows.push({
+      id: "modules",
+      title: copy.startModulesTitle,
+      text: null,
+      status: null,
+      action: { label: copy.guideVideoPlay, to: "modules-video" },
     });
   return rows;
 }

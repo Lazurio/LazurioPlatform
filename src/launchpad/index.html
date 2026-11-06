@@ -867,6 +867,7 @@ button.dialog-x .icon { width: 18px; height: 18px; }
    addendum of 2026-10-18), and the one line under it. */
 .vault-video { margin: 0 0 20px; }
 .vault-video .guide-video { margin-bottom: 6px; }
+#start-video { margin: 12px 0 0; }
 #vault-explainer[hidden] { display: none; }
 .guide-video-play .icon { width: 14px; height: 14px; }
 .guide-video-player { display: block; width: 100%; max-width: 720px; height: auto; aspect-ratio: 16 / 9; border: 1px solid var(--border); border-radius: 12px; background: var(--muted); }
@@ -2026,6 +2027,10 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <section class="group" id="start-optional-group" data-start aria-labelledby="start-optional-heading" hidden>
 <div class="group-head"><h2 id="start-optional-heading" data-message="startOptional">Optional</h2></div>
 <div class="card" id="start-optional" data-guide="start-optional"></div>
+<!-- "Poznejte moduly" (F56's addendum (8) of 2026-11-05, page-help.ts): the
+     video under the rows, opened by its row's button alone; its titles stand
+     here for a screen reader. -->
+<div class="vault-video" id="start-video" hidden><div class="guide-video" id="start-video-player"></div><p class="sr-only" id="start-video-line"></p></div>
 </section>
 <section class="group" id="start-demo-group" aria-labelledby="start-demo-heading" hidden>
 <div class="group-head"><h2 id="start-demo-heading" data-message="startDemoGroup">Try it</h2></div>

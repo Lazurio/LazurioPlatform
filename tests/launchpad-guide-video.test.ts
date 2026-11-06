@@ -136,6 +136,25 @@ test("the Apps home's video: served hidden under the head, its player above the 
   ]);
 });
 
+// Začínáme's "Poznejte moduly" (F56's addendum (8) of 2026-11-05): the same
+// video under the optional rows, served hidden.
+test("Začínáme's video: served hidden under the optional rows, its player above the titles a screen reader hears", async () => {
+  const html = await readFile(
+    join(import.meta.dir, "..", "src", "launchpad", "index.html"),
+    "utf8",
+  );
+  const group = html.slice(html.indexOf('id="start-optional-group"'));
+  const end = group.indexOf("</section>");
+  const places = [
+    'id="start-optional"',
+    '<div class="vault-video" id="start-video" hidden>',
+    'id="start-video-player"',
+    '<p class="sr-only" id="start-video-line">',
+  ].map((part) => group.indexOf(part));
+  expect(places.every((at) => at > 0 && at < end)).toBe(true);
+  expect([...places].sort((a, b) => a - b)).toEqual(places);
+});
+
 test("Trezor's video: served hidden at the top of the page, its player above the line it does not say, in the page's language", async () => {
   const html = await readFile(
     join(import.meta.dir, "..", "src", "launchpad", "index.html"),
