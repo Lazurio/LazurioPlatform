@@ -3577,8 +3577,8 @@ What changes:
   the process agents follow, the data the work is about, and the app in which you see and change
   it." Its three parts are the process (the module's `AGENTS.md` and skills, for
   agents), the data (records and content, for people and agents) and the app (the screen, for
-  people, which may come later). Under them is a repository on GitHub, so every change has a
-  history and can be undone. The example is the company's website. In the personal space the
+  people, which may come later). Under them is a repository on GitHub, so changes in it have a
+  history and can be undone; records in a database and what an agent sent out are outside that. The example is the company's website. In the personal space the
   sentence stays and the agent takes examples of that kind.
 - **The ladder of generations (F69 point 8).**
 

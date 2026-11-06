@@ -153,8 +153,8 @@ export const mechanisms: readonly Text[] = [
   blank,
   t("## Moduly", "## Modules"),
   t(
-    `Modul lidem vysvětluj jejich prací, ne repozitářem, a těmito slovy: „${moduleSentence.cs}“ Pod modulem je repozitář na GitHubu, takže každá změna má historii a jde vrátit. Lidem stačí říct: „Nebojte se zkoušet, každá změna jde vrátit.“`,
-    `Explain a module to people by their work, not by a repository, and in these words: “${moduleSentence.en}” Under the module is a repository on GitHub, so every change has a history and can be undone. It is enough to tell people: “Do not be afraid to try things, every change can be undone.”`,
+    `Modul lidem vysvětluj jejich prací, ne repozitářem, a těmito slovy: „${moduleSentence.cs}“ Pod modulem je repozitář na GitHubu, takže změny v něm mají historii a jdou vrátit. U záznamů v databázi (\`app/v4\`) a u toho, co agent poslal ven (e-mail, zápis do cizí aplikace), to samo neplatí. Lidem stačí říct: „Nebojte se zkoušet, změny v modulu jdou vrátit.“`,
+    `Explain a module to people by their work, not by a repository, and in these words: “${moduleSentence.en}” Under the module is a repository on GitHub, so changes in it have a history and can be undone. That alone does not hold for records in a database (\`app/v4\`) or for what an agent sent out (an e-mail, a write to another application). It is enough to tell people: “Do not be afraid to try things, changes in the module can be undone.”`,
   ),
   blank,
   t(

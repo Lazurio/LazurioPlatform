@@ -337,7 +337,9 @@ test("the skill new-module explains a module in the shared words on every preset
       for (const phrase of [
         moduleSentence[locale],
         moduleWebsiteExample[locale],
-        cs ? "každá změna jde vrátit" : "every change can be undone",
+        cs
+          ? "změny v modulu jdou vrátit"
+          : "changes in the module can be undone",
         cs ? "**Soubory, nebo modul.**" : "**Files or a module.**",
       ]) {
         expect([phrase, text.indexOf(phrase) > 0]).toEqual([phrase, true]);
