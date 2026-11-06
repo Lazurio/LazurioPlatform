@@ -3527,6 +3527,38 @@ the existing ones; `tests/folder-ui-craft.test.ts` the plan for a schema 4 Folde
 that agents in every harness follow the chapters, and that every Organization's root
 repository accepts issues from its members.
 
+**Addendum 2026-11-03 (root decision 0224, plan DEV-6687 M7; Lazurio/LazurioPlatform#766):
+agents and Buddy reach another Environment only by the routes Lazurio writes.** Root
+decision 0224 derives every SSH access between the Environments of a Conglomerate from
+facts in the access service on the Conglomerate Host, and the Platform writes the source
+Environment's routes into `~/.ssh/config.d/lazurio-environments.conf` (decision F70,
+Lazurio/LazurioPlatform#824). The Folder said only "SSH by tailnet hostname with a pinned
+key" for Environments and devices alike, which left a hand-written alias or a host name
+from the handover looking like a route; a Buddy used one on Ring 0 (#766, the follow-up
+of 2026-10-30 in F61).
+
+- **`AGENTS.md`**, the network line of a hosted Environment, in one short sentence
+  because the generated document has only a few bytes of its 32 KiB budget left: another
+  Environment only by `ssh <id>` on a route Lazurio wrote, never around it; in a Personal
+  Environment also no hand-written alias, `-J` or `-A`, a Team Environment in two steps
+  through the person's own Work Environment, and a missing route reported. The
+  tailnet-hostname rule stays for devices in the same sentence. The full rule is in the
+  manual section below. The tightest compositions (8 KiB custom voice) come to 32,762 and
+  32,764 bytes of 32,768 (`tests/folder-template-revision.test.ts`).
+- **`manual/this-machine.md`** of every Environment with a handover: a section "Cesty do
+  jiných Prostředí (rozhodnutí 0224)" before the SSH rules, which say what the routes
+  are and where they come from (Pracovní přístup, Team via Work, Správcovský přístup), how
+  to list them, the two-hop rule with an example and the Admin's station, what to do when
+  a route is missing or a host key changed (`lazurio doctor --routes`, decision F70's
+  addendum, Lazurio/LazurioPlatform#825), and that the target Environment's own
+  `AGENTS.md` applies. The SSH rules after it are now headed for devices and other peers
+  and say that another Environment is reached only by such a route.
+
+Unchanged: Buddy's layer, whose order of routes (F61's addendum of 2026-10-27 and its
+follow-up of 2026-10-30) already says the same and has no room left under Hermes's 20,000
+characters in English; the personal Folder's list of assigned peers (F10's amendment of
+2026-10-28). `base-instructions-111`.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered

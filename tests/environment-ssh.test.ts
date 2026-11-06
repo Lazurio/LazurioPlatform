@@ -417,22 +417,22 @@ test("only the personal Folder lists the aliases: AGENTS.md in „Z tohoto Osobn
   // assigned peers, those need no confirmation and any other still does.
   const boundary = {
     plain: {
-      cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu, který ti uživatel potvrdí jako přiřazený jemu; repozitáře Organizací sem nikdy neklonuj.",
-      en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment the user confirms is assigned to them; never clone Organization repositories here.",
+      cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu přiděleném uživateli: to s cestou, kterou zapsalo Lazurio, je přidělené, každé jiné ti uživatel musí potvrdit. Repozitáře Organizací sem nikdy neklonuj.",
+      en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment assigned to the user: one with a route Lazurio wrote is, any other the user must confirm. Never clone Organization repositories here.",
     },
     assigned: {
-      cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu přiděleném uživateli. Ta z oddílu „Z tohoto Osobního Prostředí“ jsou přidělená podle handoveru; každé jiné ti uživatel musí potvrdit jako přiřazené jemu. Repozitáře Organizací sem nikdy neklonuj.",
-      en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment assigned to the user. Those in the section From this Personal Environment are assigned by the handover; any other the user must confirm is assigned to them. Never clone Organization repositories here.",
+      cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu přiděleném uživateli. Ta z oddílu „Z tohoto Osobního Prostředí“ a ta s cestou, kterou zapsalo Lazurio, jsou přidělená; každé jiné ti uživatel musí potvrdit. Repozitáře Organizací sem nikdy neklonuj.",
+      en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment assigned to the user. Those in the section From this Personal Environment and those with a route Lazurio wrote are assigned; any other the user must confirm. Never clone Organization repositories here.",
     },
   };
   const work = {
     plain: {
-      cs: "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment, který ti uživatel potvrdí jako přiřazený jemu, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Repozitář Organizace sem nikdy neklonuj.",
-      en: "- Organization work (code, repositories, runs) belongs in a work Remote Environment the user confirms is assigned to them, never in this Environment: connect over SSH and work there. Never clone an Organization repository into this personal Remote Environment.",
+      cs: "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment přidělený uživateli, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Pracovní Prostředí se spravovanou cestou je přidělené a nepotvrzuješ ho; jiné ti uživatel musí potvrdit jako přiřazené jemu. Repozitář Organizace sem nikdy neklonuj.",
+      en: "- Organization work (code, repositories, runs) belongs in a work Remote Environment assigned to the user, never in this Environment: connect over SSH and work there. A Work Environment with a managed route is assigned and you do not confirm it; any other the user must confirm is assigned to them. Never clone an Organization repository into this personal Remote Environment.",
     },
     assigned: {
-      cs: "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment přidělený uživateli, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Přidělená Pracovní Prostředí uvádí `AGENTS.md` (Z tohoto Osobního Prostředí) a jejich přidělení nepotvrzuješ; každé jiné ti uživatel musí potvrdit jako přiřazené jemu. Repozitář Organizace sem nikdy neklonuj.",
-      en: "- Organization work (code, repositories, runs) belongs in a work Remote Environment assigned to the user, never in this Environment: connect over SSH and work there. `AGENTS.md` lists the assigned Work Environments (From this Personal Environment), and you do not confirm their assignment; any other the user must confirm is assigned to them. Never clone an Organization repository into this personal Remote Environment.",
+      cs: "- Práce v Organizaci (kód, repozitáře, běhy) patří na pracovní Remote Environment přidělený uživateli, nikdy na tenhle Environment: připoj se přes SSH a pracuj tam. Přidělená Pracovní Prostředí uvádí `AGENTS.md` (Z tohoto Osobního Prostředí) a spravované cesty; jejich přidělení nepotvrzuješ, každé jiné ti uživatel musí potvrdit jako přiřazené jemu. Repozitář Organizace sem nikdy neklonuj.",
+      en: "- Organization work (code, repositories, runs) belongs in a work Remote Environment assigned to the user, never in this Environment: connect over SSH and work there. `AGENTS.md` (From this Personal Environment) and the managed routes list the assigned Work Environments; you do not confirm their assignment, any other the user must confirm is assigned to them. Never clone an Organization repository into this personal Remote Environment.",
     },
   };
   for (const locale of ["cs", "en"] as const) {
@@ -495,12 +495,24 @@ test("only the personal Folder lists the aliases: AGENTS.md in „Z tohoto Osobn
     ).toBe(plain["manual/this-machine.md"]);
     // Review of #691: no line of the whole AGENTS.md or manual still asks
     // the user to confirm every work Environment, which would contradict the
-    // section; below the gate both still do.
+    // section. Review of #826: below the gate neither does either, because a
+    // managed route makes a Work Environment assigned (root decision 0224);
+    // only one without it still needs confirmation, in both cases.
     const confirmEvery =
       /který ti uživatel potvrdí jako přiřazený jemu|the user confirms is assigned to them/;
-    for (const text of [agents, manual]) expect(text).not.toMatch(confirmEvery);
-    for (const text of [plain["AGENTS.md"], plain["manual/this-machine.md"]])
-      expect(text).toMatch(confirmEvery);
+    // `AGENTS.md` says it in the short form its budget allows (a route
+    // Lazurio wrote is assigned), the manual in full.
+    const managedExempt =
+      /spravovanou cestou[^\n]*nepotvrzuješ|cestou, kterou zapsalo Lazurio, (je|jsou) přidělen|managed route[^\n]*you do not confirm|route Lazurio wrote (is|are assigned)/;
+    for (const text of [
+      agents,
+      manual,
+      plain["AGENTS.md"],
+      plain["manual/this-machine.md"],
+    ]) {
+      expect(text).not.toMatch(confirmEvery);
+      expect(text).toMatch(managedExempt);
+    }
     expect({
       ...outputs,
       "AGENTS.md": "",
