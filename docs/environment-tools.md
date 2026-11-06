@@ -406,8 +406,11 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
   `proof-failed`, `proof-other-account`. gh exits 0 only when the key is linked.
   `--ssh-key` (gh only) does these steps for a gh that is signed in already, after
   `gh auth refresh --hostname github.com --scopes admin:public_key,workflow --clipboard=false`
-  (a device code) when the token lacks the key scope, which adds `workflow` too; a gh that is not signed in fails as
-  `not-signed-in`.
+  (a device code) when the token lacks `admin:public_key` or, where gh names its scopes,
+  `workflow` (the Tools row's "Allow CI changes" runs this same session). When the refresh
+  was asked for `workflow`, the session ends signed in only if the token has it then: a
+  refresh that fails or is denied is `tool-exit`, and one that does not grant the scope
+  is `not-confirmed`. A gh that is not signed in fails as `not-signed-in`.
 - **gh sets the user's Git identity where git has none** (F19 addendum 2026-10-14):
   after the SSH key step, whatever its outcome, each of `user.name` and `user.email`
   that neither git's global nor system configuration names is written with `git config

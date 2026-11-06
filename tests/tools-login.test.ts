@@ -1146,6 +1146,47 @@ test.skipIf(!keygen)(
 );
 
 test.skipIf(!keygen)(
+  "Allow CI changes ends in success only with workflow granted: a denied or failed refresh, or one without the scope, is said as such (#823)",
+  async () => {
+    for (const [flag, reason] of [
+      // Denied on GitHub's page, or gh failing: gh exits non-zero.
+      ["gh.fail", "tool-exit"],
+      // gh completes, but the token still has no workflow.
+      ["gh.noscopes", "not-confirmed"],
+    ] as const) {
+      const opened = await sshHome();
+      // Signed in before #823: the key scope, no workflow.
+      await writeFile(join(opened.directory, "gh.state"), "octocat\n");
+      await writeFile(
+        join(opened.directory, "gh.scopes"),
+        "gist read:org repo admin:public_key\n",
+      );
+      await writeFile(join(opened.directory, flag), "");
+      const sessions = createLoginSessions(opened.environment);
+      try {
+        const started = await sessions.start("gh", { sshKey: true });
+        expect(started).toMatchObject({
+          kind: "pending",
+          challenge: { kind: "device-code", code: fakeCodes.gh },
+        });
+        if (started.kind !== "pending") throw new Error("not pending");
+        await opened.approve();
+        expect(await settle(sessions, "gh", started.session)).toEqual({
+          kind: "failed",
+          tool: "gh",
+          reason,
+        });
+        // The token still cannot push a change of CI.
+        expect(await tokenScopes(opened.directory)).not.toContain("workflow");
+      } finally {
+        await sessions.close();
+        await opened.close();
+      }
+    }
+  },
+);
+
+test.skipIf(!keygen)(
   "Link SSH key: a gh signed in by hand without the scope gets a refresh code, then the key is linked",
   async () => {
     const opened = await sshHome();

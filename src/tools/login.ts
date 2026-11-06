@@ -907,6 +907,15 @@ export function createLoginSessions(environment: LoginEnvironment) {
         signedIn =
           (await ghAccount(run, path).catch(() => undefined)) ?? signedIn;
       if (!current(session)) return;
+      // A refresh asked for `workflow` ends in success only when the token
+      // has it now: a refresh that failed or was denied, or that did not
+      // grant the scope, is said as such, never as a sign-in whose CI
+      // pushes GitHub still refuses (#823, Pablo's review of #894).
+      if (lacksWorkflow) {
+        if (exitCode !== 0) return fail(session, "tool-exit");
+        if (signedIn.scopes?.includes(workflowScope) !== true)
+          return fail(session, "not-confirmed");
+      }
     }
     await linkAndFinish(session, path, signedIn);
   }
